@@ -281,3 +281,185 @@ fn a_server_giving_suggestions_by_its_own_choice_is_not_warned() {
         );
     }
 }
+
+/// #1989: a `static_enriched` field must be one the compiled schema reads
+/// ([`CompiledSchema::enriched_fields_read`]); whether `[identity.enrichment]` is configured
+/// does not enter into it.
+mod static_enriched_fields {
+    use fraiseql_core::schema::{
+        CompiledSchema, SecurityConfig, ServiceAccountConfig, SessionVariableMapping,
+        SessionVariableSource, SubscriptionPolicy, TypeDefinition,
+    };
+    use serde_json::json;
+
+    use super::super::static_enriched_fields_check;
+
+    /// What the schema reads: session variables `app.agent_id` / `app.agent_role` from the
+    /// enriched fields `agent_id` / `agent_role`. The settings' names deliberately differ
+    /// from the fields.
+    pub(super) fn reading_agent_fields(mut schema: CompiledSchema) -> CompiledSchema {
+        for field in ["agent_id", "agent_role"] {
+            schema.session_variables.variables.push(SessionVariableMapping {
+                name:   format!("app.{field}"),
+                source: SessionVariableSource::Enrichment {
+                    field: field.to_string(),
+                },
+            });
+        }
+        schema
+    }
+
+    fn with_service_account(static_enriched: serde_json::Value) -> CompiledSchema {
+        let account = ServiceAccountConfig {
+            secret_env:      "SA_SECRET".to_string(),
+            roles:           vec!["manager".to_string()],
+            scopes:          Vec::new(),
+            tenant:          None,
+            static_enriched: serde_json::from_value(static_enriched).unwrap(),
+        };
+        CompiledSchema {
+            security: Some(SecurityConfig {
+                service_accounts: Some([("sidecar".to_string(), account)].into()),
+                ..SecurityConfig::default()
+            }),
+            ..CompiledSchema::new()
+        }
+    }
+
+    fn with_source(static_enriched: &serde_json::Value) -> CompiledSchema {
+        CompiledSchema {
+            sources: vec![
+                serde_json::from_value(json!({
+                    "name": "poll_orders", "schedule": "*/5 * * * *", "function": "pollOrders",
+                    "run_as": { "roles": ["ingest_writer"], "static_enriched": static_enriched }
+                }))
+                .unwrap(),
+            ],
+            ..CompiledSchema::new()
+        }
+    }
+
+    fn refusal(schema: &CompiledSchema) -> String {
+        static_enriched_fields_check(schema)
+            .expect_err("a field the schema never reads is refused")
+            .to_string()
+    }
+
+    /// The real shape: the schema reads both declared fields, and an empty value is a value.
+    #[test]
+    fn a_service_account_whose_fields_the_schema_reads_boots() {
+        let schema = reading_agent_fields(with_service_account(
+            json!({ "agent_role": "manager", "agent_id": "" }),
+        ));
+        static_enriched_fields_check(&schema).expect("both fields are read");
+    }
+
+    /// A typo'd field is refused, naming the field and the account, and only that field.
+    #[test]
+    fn a_service_account_field_the_schema_never_reads_is_refused() {
+        let schema = reading_agent_fields(with_service_account(
+            json!({ "agent_role": "manager", "agent_rol": "manager" }),
+        ));
+        let error = refusal(&schema);
+        assert!(error.contains("service account `sidecar` declares `agent_rol`"), "{error}");
+        assert!(!error.contains("declares `agent_role`"), "names only the unread field: {error}");
+    }
+
+    /// A session variable's own name is not the field it reads.
+    #[test]
+    fn a_field_named_after_a_session_variable_is_refused() {
+        let schema = reading_agent_fields(with_service_account(json!({ "app.agent_role": "a" })));
+        let error = refusal(&schema);
+        assert!(error.contains("declares `app.agent_role`"), "{error}");
+    }
+
+    #[test]
+    fn a_source_run_as_field_the_schema_never_reads_is_refused() {
+        let schema = reading_agent_fields(with_source(&json!({ "agent_team": "a" })));
+        let error = refusal(&schema);
+        assert!(error.contains("source `poll_orders` declares `agent_team`"), "{error}");
+    }
+
+    #[test]
+    fn a_source_run_as_whose_fields_the_schema_reads_boots() {
+        let schema =
+            reading_agent_fields(with_source(&json!({ "agent_role": "manager", "agent_id": "" })));
+        static_enriched_fields_check(&schema).expect("both fields are read");
+    }
+
+    /// A schema that reads no enriched field refuses every declared one.
+    #[test]
+    fn a_schema_reading_no_enriched_field_refuses_static_enriched() {
+        let error = refusal(&with_service_account(json!({ "agent_role": "manager" })));
+        assert!(error.contains("declares `agent_role`"), "{error}");
+        assert!(error.contains("reads no enriched field"), "{error}");
+    }
+
+    /// A subscription policy fed only by a service account's `static_enriched` boots: the
+    /// policy reads the field, and no `[identity.enrichment]` is needed for it.
+    #[test]
+    fn a_subscription_policy_read_only_by_a_service_account_boots() {
+        let mut schema = with_service_account(json!({ "user_id": "svc-reconciler" }));
+        schema
+            .types
+            .push(TypeDefinition::new("Order", "v_order").with_subscription_policy(
+                SubscriptionPolicy {
+                    owner_path:     "$.owner_id".to_string(),
+                    identity_field: "user_id".to_string(),
+                    bypass_roles:   vec![],
+                },
+            ));
+        static_enriched_fields_check(&schema).expect("the policy reads `user_id`");
+    }
+
+    /// No declaration, nothing to check.
+    #[test]
+    fn a_schema_declaring_no_static_enriched_boots() {
+        static_enriched_fields_check(&with_service_account(json!({}))).expect("nothing declared");
+        static_enriched_fields_check(&with_source(&json!({}))).expect("nothing declared");
+    }
+
+    /// #1989: the functions' ceilings, checked where the functions section is read.
+    #[cfg(feature = "functions-runtime")]
+    mod functions {
+        use fraiseql_core::schema::CompiledSchema;
+        use serde_json::json;
+
+        use super::reading_agent_fields;
+        use crate::{
+            schema::loader::FunctionsConfig,
+            server::initialization::functions_static_enriched_fields_check,
+        };
+
+        fn with_function(static_enriched: &serde_json::Value) -> FunctionsConfig {
+            serde_json::from_value(json!({
+                "module_dir": "functions",
+                "definitions": [{
+                    "name": "expireSessions", "trigger": "cron:*/5 * * * *", "runtime": "Deno",
+                    "run_as": { "roles": ["maintenance"], "static_enriched": static_enriched }
+                }]
+            }))
+            .unwrap()
+        }
+
+        #[test]
+        fn a_function_run_as_field_the_schema_never_reads_is_refused() {
+            let error = functions_static_enriched_fields_check(
+                &with_function(&json!({ "agent_team": "a" })),
+                &reading_agent_fields(CompiledSchema::new()),
+            )
+            .expect_err("refused")
+            .to_string();
+            assert!(error.contains("function `expireSessions` declares `agent_team`"), "{error}");
+        }
+
+        #[test]
+        fn a_function_run_as_whose_fields_the_schema_reads_boots() {
+            functions_static_enriched_fields_check(
+                &with_function(&json!({ "agent_role": "manager", "agent_id": "" })),
+                &reading_agent_fields(CompiledSchema::new()),
+            )
+            .expect("both fields are read");
+        }
+    }
+}

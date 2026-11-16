@@ -27,6 +27,8 @@ pub mod validation;
 #[cfg(test)]
 mod default_literal_tests;
 #[cfg(test)]
+mod enriched_fields_read_tests;
+#[cfg(test)]
 mod fact_table_inject_tests;
 #[cfg(test)]
 mod federation_keys_tests;

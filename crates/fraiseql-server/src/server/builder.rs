@@ -271,6 +271,8 @@ impl Server {
         )?;
         #[cfg(feature = "auth")]
         crate::server::initialization::locale_enrichment_fields_check(&schema, &config)?;
+        // A `static_enriched` field the schema never reads answers nothing.
+        crate::server::initialization::static_enriched_fields_check(&schema)?;
 
         // #1115: a schema whose reads carry session variables needs an adapter that applies
         // them.

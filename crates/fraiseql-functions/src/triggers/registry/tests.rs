@@ -653,3 +653,46 @@ fn an_invalid_cron_expression_is_refused_naming_the_function() {
     .expect_err("the definition is refused");
     assert!(error.contains("`nightly`") && error.contains("minute"), "{error}");
 }
+
+/// Test: #1989 — a blank `run_as.static_enriched` field name is a load error: it answers
+/// no session variable or inject param.
+#[test]
+fn test_registry_rejects_a_blank_run_as_static_enriched_field_name() {
+    let defs = vec![
+        crate::FunctionDefinition::new(
+            "expireSessions",
+            "cron:*/5 * * * *",
+            crate::RuntimeType::Deno,
+        )
+        .with_run_as(crate::RunAs {
+            roles: vec!["maintenance".to_string()],
+            static_enriched: [("  ".to_string(), serde_json::json!("manager"))].into(),
+            ..crate::RunAs::default()
+        }),
+    ];
+    let error = TriggerRegistry::load_from_definitions(&defs).expect_err("a blank field name");
+    assert!(
+        error.message.contains("expireSessions")
+            && error.message.contains("run_as.static_enriched"),
+        "the error names the function and the key, got: {}",
+        error.message
+    );
+}
+
+/// Test: #1989 — the empty string is a value a field can hold, so it loads.
+#[test]
+fn test_registry_accepts_an_empty_run_as_static_enriched_value() {
+    let defs = vec![
+        crate::FunctionDefinition::new(
+            "expireSessions",
+            "cron:*/5 * * * *",
+            crate::RuntimeType::Deno,
+        )
+        .with_run_as(crate::RunAs {
+            roles: vec!["maintenance".to_string()],
+            static_enriched: [("agent_id".to_string(), serde_json::json!(""))].into(),
+            ..crate::RunAs::default()
+        }),
+    ];
+    TriggerRegistry::load_from_definitions(&defs).expect("an empty value is a value");
+}

@@ -76,7 +76,14 @@ enum Layer {
 fn schema(layer: Layer) -> CompiledSchema {
     let mut document = json!({
         "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION,
-        "types": [],
+        // The reader of the account's `static_enriched.user_id`: a field the schema
+        // never reads is refused at boot.
+        "types": [{
+            "name": "Ledger",
+            "sql_source": "v_ledger",
+            "fields": [{ "name": "owner_id", "field_type": "String", "nullable": false }],
+            "subscription_policy": { "owner_path": "$.owner_id", "identity_field": "user_id" }
+        }],
         "queries": [],
         "mutations": [],
         "security": {

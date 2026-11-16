@@ -59,10 +59,11 @@ fn run_as_round_trips_and_is_omitted_when_absent() {
 
     // A populated run_as survives a serde round-trip.
     let with = source.with_run_as(RunAs {
-        roles:   vec!["ingest_writer".to_string()],
-        scopes:  vec!["write:order".to_string()],
-        tenant:  Some("acme".to_string()),
-        user_id: None,
+        roles:           vec!["ingest_writer".to_string()],
+        scopes:          vec!["write:order".to_string()],
+        tenant:          Some("acme".to_string()),
+        user_id:         None,
+        static_enriched: std::collections::BTreeMap::new(),
     });
     let round_tripped: SourceDefinition =
         serde_json::from_value(serde_json::to_value(&with).unwrap()).unwrap();
@@ -72,10 +73,11 @@ fn run_as_round_trips_and_is_omitted_when_absent() {
 #[test]
 fn identity_maps_run_as_to_a_system_job_context() {
     let source = SourceDefinition::new("orders", "*/5 * * * *", "pollOrders").with_run_as(RunAs {
-        roles:   vec!["ingest_writer".to_string()],
-        scopes:  vec!["write:order".to_string()],
-        tenant:  Some("acme".to_string()),
-        user_id: None,
+        roles:           vec!["ingest_writer".to_string()],
+        scopes:          vec!["write:order".to_string()],
+        tenant:          Some("acme".to_string()),
+        user_id:         None,
+        static_enriched: std::collections::BTreeMap::new(),
     });
     let ctx = source.identity("fire-1");
     assert_eq!(ctx.actor_type(), ActorType::SystemJob);
@@ -150,4 +152,67 @@ fn compiled_schema_sources_round_trip_and_empty_is_omitted() {
         serde_json::from_value(serde_json::to_value(&schema).unwrap()).unwrap();
     assert_eq!(round_tripped.sources, schema.sources);
     assert_eq!(round_tripped, schema);
+}
+
+/// #1989: a source's `run_as` loaded from the compiled schema, declaring two enriched
+/// fields; one value is the empty string, which is a value, not an absence.
+fn source_with_static_enriched() -> SourceDefinition {
+    serde_json::from_value(serde_json::json!({
+        "name": "orders",
+        "schedule": "*/5 * * * *",
+        "function": "pollOrders",
+        "run_as": {
+            "roles": ["ingest_writer"],
+            "static_enriched": { "agent_role": "manager", "agent_id": "" }
+        }
+    }))
+    .expect("a source whose run_as declares static_enriched loads")
+}
+
+/// #1989: `run_as.static_enriched` is what the identity presents to an
+/// `enrichment`-sourced read, under the namespace the engine reads.
+#[test]
+fn identity_presents_the_run_as_static_enriched_fields() {
+    let ctx = source_with_static_enriched().identity("fire-1");
+    assert_eq!(
+        ctx.attributes.get("fraiseql.enriched.agent_role"),
+        Some(&serde_json::json!("manager"))
+    );
+    assert_eq!(ctx.attributes.get("fraiseql.enriched.agent_id"), Some(&serde_json::json!("")));
+    assert_eq!(ctx.attributes.get("agent_role"), None, "only under the enriched namespace");
+}
+
+/// #1989: the enriched fields change what the identity presents, not who it is.
+#[test]
+fn static_enriched_leaves_the_provenance_and_the_mark_unchanged() {
+    let ctx = source_with_static_enriched().identity("fire-1");
+    assert_eq!(ctx.user_id.0, "system_job:orders");
+    assert_eq!(ctx.actor_type(), ActorType::SystemJob);
+    assert_eq!(ctx.enrichment_mark(), Some(crate::security::EnrichmentMark::Exempt));
+}
+
+/// #1989: without `static_enriched`, the identity presents no enriched field, so an
+/// `enrichment`-sourced read stays refused.
+#[test]
+fn identity_presents_no_enriched_field_without_static_enriched() {
+    let ctx = SourceDefinition::new("orders", "*/5 * * * *", "pollOrders").identity("fire-1");
+    assert!(
+        !ctx.attributes.keys().any(|k| k.starts_with("fraiseql.enriched.")),
+        "{:?}",
+        ctx.attributes
+    );
+}
+
+/// #1989: the declared fields survive the compiled schema's round trip, and an empty
+/// map is omitted, so a schema that declares none serializes as before.
+#[test]
+fn static_enriched_round_trips_and_is_omitted_when_empty() {
+    let source = source_with_static_enriched();
+    let json = serde_json::to_value(&source).unwrap();
+    assert_eq!(json["run_as"]["static_enriched"]["agent_role"], "manager");
+    let back: SourceDefinition = serde_json::from_value(json).unwrap();
+    assert_eq!(back, source);
+
+    let bare = serde_json::to_value(RunAs::default()).unwrap();
+    assert!(bare.get("static_enriched").is_none(), "{bare}");
 }

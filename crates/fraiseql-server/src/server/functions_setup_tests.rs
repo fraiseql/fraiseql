@@ -70,3 +70,45 @@ async fn the_functions_runtime_carries_the_egress_list() {
     let hooks = server.functions_hooks.as_ref().expect("the runtime was prepared");
     assert_eq!(&*hooks.egress, ["api.example.com".to_owned()]);
 }
+
+/// #1989: a function's `run_as` presenting an enriched field the served schema never reads
+/// is refused before any module loads.
+#[cfg(feature = "functions-runtime")]
+#[tokio::test]
+async fn the_functions_runtime_refuses_an_unproduced_static_enriched_field() {
+    use std::sync::Arc;
+
+    use fraiseql_core::schema::CompiledSchema;
+    use fraiseql_test_utils::failing_adapter::FailingAdapter;
+
+    use crate::{Server, server_config::ServerConfig};
+
+    let functions: crate::schema::loader::FunctionsConfig =
+        serde_json::from_value(serde_json::json!({
+            "module_dir": "functions",
+            "definitions": [{
+                "name": "expireSessions", "trigger": "cron:*/5 * * * *", "runtime": "Deno",
+                "run_as": { "roles": ["maintenance"], "static_enriched": { "agent_role": "manager" } }
+            }]
+        }))
+        .unwrap();
+    let config = ServerConfig {
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    let mut server = Box::pin(Server::new(
+        config,
+        CompiledSchema::new(),
+        Arc::new(FailingAdapter::new()),
+        None,
+    ))
+    .await
+    .unwrap()
+    .with_functions_config(Some(functions));
+
+    let error = server.prepare_functions_runtime().await.expect_err("refused").to_string();
+    assert!(
+        error.contains("function `expireSessions` declares `agent_role`"),
+        "refused by the static_enriched check, got: {error}"
+    );
+}

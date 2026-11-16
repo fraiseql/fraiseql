@@ -172,6 +172,14 @@ pub struct RunAs {
     /// injects receive `system_job:<function>`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user_id: Option<String>,
+
+    /// The enriched fields this identity presents (#1989), as a service account's
+    /// `static_enriched` does: each one answers a session variable or inject param whose
+    /// source is `enrichment`. A background job has no subject the enrichment query
+    /// could resolve, so without them such a read is refused. Declared next to the job,
+    /// never derived from a token.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub static_enriched: std::collections::BTreeMap<String, serde_json::Value>,
 }
 
 #[cfg(feature = "host-live")]
@@ -182,7 +190,8 @@ impl RunAs {
     /// [`SourceDefinition::identity`](fraiseql_core::schema::SourceDefinition::identity):
     /// the roles/scopes/tenant are the ceiling, the [`ActorType::SystemJob`] is
     /// recorded for audit, never an authorization input. A set
-    /// [`user_id`](Self::user_id) is what the identity answers to `jwt:sub`.
+    /// [`user_id`](Self::user_id) is what the identity answers to `jwt:sub`, and
+    /// [`static_enriched`](Self::static_enriched) are its enriched fields.
     ///
     /// [`ActorType::SystemJob`]: fraiseql_core::security::ActorType::SystemJob
     #[must_use]
@@ -198,10 +207,17 @@ impl RunAs {
             self.scopes.clone(),
             self.tenant.clone().map(fraiseql_core::types::TenantId::from),
         );
-        match &self.user_id {
+        let mut identity = match &self.user_id {
             Some(user_id) => identity.with_subject(user_id.as_str()),
             None => identity,
+        };
+        for (field, value) in &self.static_enriched {
+            identity.attributes.insert(
+                format!("{}{field}", fraiseql_core::security::ENRICHED_NAMESPACE_PREFIX),
+                value.clone(),
+            );
         }
+        identity
     }
 }
 

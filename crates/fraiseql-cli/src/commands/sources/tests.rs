@@ -107,10 +107,11 @@ fn build_status_reports_never_advanced_when_only_the_source_name_has_a_row() {
 fn build_status_flags_an_unconfigured_run_as_as_fail_closed() {
     let configured =
         SourceDefinition::new("orders", "*/5 * * * *", "pollOrders").with_run_as(RunAs {
-            roles:   vec!["order:write".to_string()],
-            scopes:  vec![],
-            tenant:  None,
-            user_id: None,
+            roles:           vec!["order:write".to_string()],
+            scopes:          vec![],
+            tenant:          None,
+            user_id:         None,
+            static_enriched: std::collections::BTreeMap::new(),
         });
     let unconfigured = SourceDefinition::new("invoices", "0 * * * *", "pollInvoices");
 

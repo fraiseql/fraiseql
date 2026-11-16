@@ -1101,10 +1101,11 @@ fn run_as_with_blank_grant_is_rejected() {
     let schema = IntermediateSchema {
         sources: Some(vec![
             SourceDefinition::new("orders", "*/5 * * * *", "pollOrders").with_run_as(RunAs {
-                roles:   vec!["  ".to_string()],
-                scopes:  vec![],
-                tenant:  None,
-                user_id: None,
+                roles:           vec!["  ".to_string()],
+                scopes:          vec![],
+                tenant:          None,
+                user_id:         None,
+                static_enriched: std::collections::BTreeMap::new(),
             }),
         ]),
         ..Default::default()
@@ -1217,4 +1218,53 @@ fn an_owner_path_may_name_the_stored_key_of_a_camelcase_field() {
     .unwrap();
     let errors = SchemaValidator::validate(&parsed).unwrap().errors;
     assert!(errors.is_empty(), "{errors:?}");
+}
+
+#[test]
+fn run_as_with_a_blank_static_enriched_field_name_is_rejected() {
+    use fraiseql_core::schema::{RunAs, SourceDefinition};
+
+    use crate::schema::validator::types::ErrorSeverity;
+    // A blank field name answers no session variable or inject param.
+    let schema = IntermediateSchema {
+        sources: Some(vec![
+            SourceDefinition::new("orders", "*/5 * * * *", "pollOrders").with_run_as(RunAs {
+                roles: vec!["ingest_writer".to_string()],
+                static_enriched: [(" ".to_string(), serde_json::json!("manager"))].into(),
+                ..RunAs::default()
+            }),
+        ]),
+        ..Default::default()
+    };
+    let report = SchemaValidator::validate(&schema).unwrap();
+    assert!(
+        report.errors.iter().any(|e| e.path.contains("run_as")
+            && e.message.contains("static_enriched")
+            && e.severity == ErrorSeverity::Error),
+        "the blank field name is rejected: {:?}",
+        report.errors
+    );
+}
+
+#[test]
+fn run_as_with_an_empty_static_enriched_value_is_accepted() {
+    use fraiseql_core::schema::{RunAs, SourceDefinition};
+
+    // The empty string is a value a field can hold, not an absence.
+    let schema = IntermediateSchema {
+        sources: Some(vec![
+            SourceDefinition::new("orders", "*/5 * * * *", "pollOrders").with_run_as(RunAs {
+                roles: vec!["ingest_writer".to_string()],
+                static_enriched: [("agent_id".to_string(), serde_json::json!(""))].into(),
+                ..RunAs::default()
+            }),
+        ]),
+        ..Default::default()
+    };
+    let report = SchemaValidator::validate(&schema).unwrap();
+    assert!(
+        !report.errors.iter().any(|e| e.path.contains("run_as")),
+        "an empty value is a value: {:?}",
+        report.errors
+    );
 }

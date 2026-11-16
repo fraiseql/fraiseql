@@ -681,6 +681,20 @@ impl SchemaValidator {
                             ),
                         });
                     }
+                    // A blank field name answers no session variable or inject param.
+                    if run_as.static_enriched.keys().any(|field| field.trim().is_empty()) {
+                        report.errors.push(ValidationError {
+                            message:    format!(
+                                "Source '{}' has a blank field name in run_as.static_enriched",
+                                source.name
+                            ),
+                            path:       format!("sources[{idx}].run_as.static_enriched"),
+                            severity:   ErrorSeverity::Error,
+                            suggestion: Some(
+                                "Name the enriched field, or remove the entry".to_string(),
+                            ),
+                        });
+                    }
                     if run_as.roles.is_empty() && run_as.scopes.is_empty() {
                         report.errors.push(ValidationError {
                             message:    format!(

@@ -13,8 +13,8 @@
 //!
 //! Every public constructor also refuses what any boot gate refuses. One test per gate
 //! builds a tripping schema through all three: `enrichment_consumer_without_resolver_check`,
-//! `locale_enrichment_fields_check`, `session_variables_supported_check` and
-//! `locale_collations_check`.
+//! `locale_enrichment_fields_check`, `static_enriched_fields_check`,
+//! `session_variables_supported_check` and `locale_collations_check`.
 //!
 //! **Execution engine:** in-memory (no database required)
 //! **Infrastructure:** none — the fail-closed webhook probe targets a closed local port
@@ -483,6 +483,34 @@ async fn locale_enrichment_fields_check_refuses_through_every_constructor() {
         &NoopRelayAdapter::default(),
         "locale_enrichment_fields_check",
         "`map` does not produce",
+    )
+    .await;
+}
+
+/// #1989: a service account presenting an enriched field the schema never reads.
+#[tokio::test]
+async fn static_enriched_fields_check_refuses_through_every_constructor() {
+    let mut schema = fully_configured_schema();
+    schema.security.get_or_insert_with(SecurityConfig::default).service_accounts =
+        Some(HashMap::from([(
+            "sidecar".to_string(),
+            fraiseql_core::schema::ServiceAccountConfig {
+                secret_env:      "SIDECAR_SECRET".to_string(),
+                roles:           vec!["manager".to_string()],
+                scopes:          Vec::new(),
+                tenant:          None,
+                static_enriched: HashMap::from([(
+                    "agent_role".to_string(),
+                    serde_json::json!("manager"),
+                )]),
+            },
+        )]));
+    assert_every_constructor_refuses(
+        &schema,
+        &fully_configured_server_config(),
+        &NoopRelayAdapter::default(),
+        "static_enriched_fields_check",
+        "service account `sidecar` declares `agent_role`",
     )
     .await;
 }

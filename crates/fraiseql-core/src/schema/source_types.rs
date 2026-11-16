@@ -1,5 +1,7 @@
 //! Source definition types for scheduled ingress connectors (#573).
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 #[cfg(test)]
@@ -104,12 +106,21 @@ pub struct RunAs {
     /// a service principal's id. Unset ⇒ they receive `system_job:<name>`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user_id: Option<String>,
+
+    /// The enriched fields this identity presents (#1989), as a service account's
+    /// `static_enriched` does: each one answers a session variable or inject param whose
+    /// source is `enrichment`. A background job has no subject the enrichment query
+    /// could resolve, so without them such a read is refused. Declared next to the job,
+    /// never derived from a token.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub static_enriched: BTreeMap<String, serde_json::Value>,
 }
 
 impl RunAs {
     /// The background [`SecurityContext`](crate::security::SecurityContext) this
     /// ceiling grants, identified as `system_job:<job_id>` and correlated by
-    /// `request_id`; it answers `jwt:sub` with [`user_id`](Self::user_id) when set.
+    /// `request_id`; it answers `jwt:sub` with [`user_id`](Self::user_id) when set, and
+    /// presents [`static_enriched`](Self::static_enriched) as its enriched fields.
     #[must_use]
     pub fn identity(
         &self,
@@ -123,10 +134,17 @@ impl RunAs {
             self.scopes.clone(),
             self.tenant.clone().map(crate::types::TenantId::from),
         );
-        match &self.user_id {
+        let mut identity = match &self.user_id {
             Some(user_id) => identity.with_subject(user_id.as_str()),
             None => identity,
+        };
+        for (field, value) in &self.static_enriched {
+            identity.attributes.insert(
+                format!("{}{field}", crate::security::ENRICHED_NAMESPACE_PREFIX),
+                value.clone(),
+            );
         }
+        identity
     }
 }
 

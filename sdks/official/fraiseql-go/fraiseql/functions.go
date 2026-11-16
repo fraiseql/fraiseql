@@ -14,12 +14,15 @@ type FunctionPredicate struct {
 // FunctionRunAs is the least-privilege authority ceiling a function's
 // fraiseql_query writes run under (#594). Absent means fail-closed. UserID is what
 // the identity answers to jwt:sub / jwt:user_id injects (#1700): a service
-// principal's id.
+// principal's id. StaticEnriched holds the enriched fields the identity presents to
+// enrichment-sourced session variables and inject params (#1989). The schema must
+// read each one, or the server refuses to boot.
 type FunctionRunAs struct {
-	Roles  []string `json:"roles,omitempty"`
-	Scopes []string `json:"scopes,omitempty"`
-	Tenant string   `json:"tenant,omitempty"`
-	UserID string   `json:"user_id,omitempty"`
+	Roles          []string               `json:"roles,omitempty"`
+	Scopes         []string               `json:"scopes,omitempty"`
+	Tenant         string                 `json:"tenant,omitempty"`
+	UserID         string                 `json:"user_id,omitempty"`
+	StaticEnriched map[string]interface{} `json:"static_enriched,omitempty"`
 }
 
 // FunctionDefinition is a serverless function (#1325) — an out-of-band handler the

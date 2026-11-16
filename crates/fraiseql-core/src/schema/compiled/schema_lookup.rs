@@ -68,6 +68,51 @@ impl CompiledSchema {
             || self.locale.as_ref().is_some_and(|l| l.enrichment_fields().next().is_some())
     }
 
+    /// Every enriched field this schema reads from the `fraiseql.enriched.*` namespace
+    /// (#1989), whichever reader reads it: an `enrichment`-sourced session variable, an
+    /// `enrichment` inject param on a query, a mutation, a type or a fact table, a
+    /// `[locale]` resolve entry, or a subscription policy's identity field.
+    ///
+    /// The one list of readers: a `static_enriched` field outside it answers nothing.
+    /// It is wider than [`declares_enrichment_consumer`](Self::declares_enrichment_consumer),
+    /// which predates the type, fact-table and subscription-policy readers.
+    #[must_use]
+    pub fn enriched_fields_read(&self) -> std::collections::BTreeSet<&str> {
+        use crate::schema::{InjectedParamSource, SessionVariableSource};
+
+        let session_variables =
+            self.session_variables
+                .variables
+                .iter()
+                .filter_map(|mapping| match &mapping.source {
+                    SessionVariableSource::Enrichment { field } => Some(field.as_str()),
+                    _ => None,
+                });
+        let inject_params = self
+            .queries
+            .iter()
+            .flat_map(|query| query.inject_params.values())
+            .chain(self.mutations.iter().flat_map(|mutation| mutation.inject_params.values()))
+            .chain(self.types.iter().flat_map(|type_def| type_def.inject_params.values()))
+            .chain(self.fact_tables.values().flat_map(|table| table.inject_params.values()))
+            .filter_map(|source| match source {
+                InjectedParamSource::Enrichment(field) => Some(field.as_str()),
+                _ => None,
+            });
+        let locale = self.locale.iter().flat_map(|locale| locale.enrichment_fields());
+        let subscription_policies = self
+            .types
+            .iter()
+            .filter_map(|type_def| type_def.subscription_policy.as_ref())
+            .map(|policy| policy.identity_field.as_str());
+
+        session_variables
+            .chain(inject_params)
+            .chain(locale)
+            .chain(subscription_policies)
+            .collect()
+    }
+
     /// Build the schema's derived state: O(1) operation lookup indexes, and the
     /// filter/sort input surface `where`/`orderBy` are typed against.
     ///

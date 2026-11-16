@@ -479,6 +479,22 @@ impl TriggerRegistry {
                 });
             }
 
+            // A blank `run_as.static_enriched` field name answers no session variable or
+            // inject param.
+            if func
+                .run_as
+                .as_ref()
+                .is_some_and(|r| r.static_enriched.keys().any(|field| field.trim().is_empty()))
+            {
+                return Err(RegistryError {
+                    message: format!(
+                        "function `{}`: run_as.static_enriched has a blank field name. Name the \
+                         enriched field, or remove the entry",
+                        func.name
+                    ),
+                });
+            }
+
             match parsed {
                 ParsedTrigger::AfterMutation {
                     entity_type,

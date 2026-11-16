@@ -1797,6 +1797,8 @@ def source(  # noqa: PLR0913 — public API; all parameters are meaningful
         run_as: Optional least-privilege authority ceiling (#573):
             ``{"roles": [...], "scopes": [...], "tenant": "..."}``. Absent ⇒
             fail-closed (the source's mutations are RLS/authz-denied).
+            ``"static_enriched": {...}`` holds the enriched fields the identity
+            presents to ``enrichment``-sourced reads (#1989).
         **options: Connector-specific options, opaque to the framework.
 
     Returns:
@@ -2003,7 +2005,9 @@ def function(  # noqa: PLR0913 — public API; all parameters are meaningful
             ``before:mutation`` and 5s otherwise.
         run_as: Optional authority ceiling for the function's ``fraiseql_query``
             writes (#594). Absent ⇒ fail-closed. ``{"user_id": "<uuid>"}`` sets what
-            a mutation's ``jwt:sub`` inject receives (#1700).
+            a mutation's ``jwt:sub`` inject receives (#1700), and
+            ``{"static_enriched": {...}}`` the enriched fields the identity presents to
+            ``enrichment``-sourced reads (#1989).
         when: Optional predicates (#597) evaluated on the row images before firing,
             e.g. ``[{"field": "status", "changed_to": "approved"}]``.
         re_runnable: Opt out of durable dispatch for work that is safe to re-run.

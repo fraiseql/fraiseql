@@ -622,10 +622,11 @@ mod query_bridge_wiring {
         // `system_job:<function-name>`).
         let (factory, captured) = recording_factory();
         let run_as = RunAs {
-            roles:   vec!["order_writer".to_string()],
-            scopes:  vec!["write:order".to_string()],
-            tenant:  Some("acme".to_string()),
-            user_id: None,
+            roles:           vec!["order_writer".to_string()],
+            scopes:          vec!["write:order".to_string()],
+            tenant:          Some("acme".to_string()),
+            user_id:         None,
+            static_enriched: std::collections::BTreeMap::new(),
         };
         let host = dispatcher(Some(factory), Some(run_as)).build_host(
             "recordApproval",
@@ -675,10 +676,11 @@ mod query_bridge_wiring {
     #[tokio::test]
     async fn dispatched_host_auth_context_reflects_the_run_as_identity() {
         let run_as = RunAs {
-            roles:   vec!["order_writer".to_string()],
-            scopes:  vec!["write:order".to_string()],
-            tenant:  Some("acme".to_string()),
-            user_id: None,
+            roles:           vec!["order_writer".to_string()],
+            scopes:          vec!["write:order".to_string()],
+            tenant:          Some("acme".to_string()),
+            user_id:         None,
+            static_enriched: std::collections::BTreeMap::new(),
         };
         let host = dispatcher(None, Some(run_as)).build_host("recordApproval", payload(), "tok-3");
         let auth = host.auth_context().expect("auth context");
@@ -714,10 +716,11 @@ mod query_bridge_wiring {
 
         assert_eq!(tenant_of(None).await.as_deref(), Some("tenant-7"), "unscoped: the caller's");
         let pinned = RunAs {
-            roles:   Vec::new(),
-            scopes:  Vec::new(),
-            tenant:  Some("acme".to_string()),
-            user_id: None,
+            roles:           Vec::new(),
+            scopes:          Vec::new(),
+            tenant:          Some("acme".to_string()),
+            user_id:         None,
+            static_enriched: std::collections::BTreeMap::new(),
         };
         assert_eq!(tenant_of(Some(pinned)).await.as_deref(), Some("acme"), "pinned: its own");
     }
@@ -759,10 +762,11 @@ mod query_bridge_wiring {
             "a caller's tenant does not override the write's"
         );
         let pinned = RunAs {
-            roles:   Vec::new(),
-            scopes:  Vec::new(),
-            tenant:  Some("acme".to_string()),
-            user_id: None,
+            roles:           Vec::new(),
+            scopes:          Vec::new(),
+            tenant:          Some("acme".to_string()),
+            user_id:         None,
+            static_enriched: std::collections::BTreeMap::new(),
         };
         assert_eq!(tenant_of(Some(pinned), None).await.as_deref(), Some("acme"), "pinned: its own");
     }
@@ -793,10 +797,11 @@ mod query_bridge_wiring {
         };
         let (factory, captured) = recording_factory();
         let run_as = RunAs {
-            roles:   vec!["order_writer".to_string()],
-            scopes:  vec![],
-            tenant:  Some("acme".to_string()),
-            user_id: None,
+            roles:           vec!["order_writer".to_string()],
+            scopes:          vec![],
+            tenant:          Some("acme".to_string()),
+            user_id:         None,
+            static_enriched: std::collections::BTreeMap::new(),
         };
         let mut dispatcher = dispatcher(Some(factory), Some(run_as));
         dispatcher.caller = Some(caller);
@@ -915,10 +920,11 @@ mod query_bridge_wiring {
 
         let (factory, captured) = recording_factory();
         let run_as = RunAs {
-            roles:   vec!["ticket_writer".to_string()],
-            scopes:  vec!["write:ticket".to_string()],
-            tenant:  Some("acme".to_string()),
-            user_id: None,
+            roles:           vec!["ticket_writer".to_string()],
+            scopes:          vec!["write:ticket".to_string()],
+            tenant:          Some("acme".to_string()),
+            user_id:         None,
+            static_enriched: std::collections::BTreeMap::new(),
         };
 
         // The event payload an after:ingest function receives: the whole normalized

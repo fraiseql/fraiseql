@@ -467,13 +467,16 @@ export interface UnionDefinition {
  * RLS/authz deny). `tenant` scopes a single-tenant or global source; a multi-tenant
  * source leaves it unset and re-scopes each write per message at runtime.
  * `user_id` is what the identity answers to `jwt:sub` / `jwt:user_id` injects
- * (#1700): a service principal's id.
+ * (#1700): a service principal's id. `static_enriched` holds the enriched fields
+ * the identity presents to `enrichment`-sourced session variables and inject
+ * params (#1989). The schema must read each one, or the server refuses to boot.
  */
 export interface SourceRunAs {
   roles?: string[];
   scopes?: string[];
   tenant?: string;
   user_id?: string;
+  static_enriched?: Record<string, unknown>;
 }
 
 /**

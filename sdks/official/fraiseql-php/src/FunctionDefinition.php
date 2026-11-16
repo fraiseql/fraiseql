@@ -22,6 +22,8 @@ final class FunctionDefinition
      * @param string $runtime `Deno` or `Wasm`.
      * @param int|null $timeoutMs Timeout override in milliseconds.
      * @param array<string, mixed>|null $runAs Authority ceiling (#594); absent ⇒ fail-closed.
+     *     Its `static_enriched` map holds the enriched fields the identity presents to
+     *     `enrichment`-sourced reads (#1989); the schema must read each one.
      * @param array<int, array<string, mixed>> $when `when` predicates (#597).
      * @param bool $reRunnable Opt out of durable dispatch.
      * @param array<string, mixed>|null $retry Per-function retry policy.

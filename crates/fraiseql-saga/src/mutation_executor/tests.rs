@@ -65,10 +65,11 @@ fn saga_over(
     );
     let engine = Arc::new(Executor::new(schema, Arc::clone(&adapter)));
     let run_as = RunAs {
-        roles:   roles.iter().map(|r| (*r).to_string()).collect(),
-        scopes:  vec![],
-        tenant:  None,
-        user_id: None,
+        roles:           roles.iter().map(|r| (*r).to_string()).collect(),
+        scopes:          vec![],
+        tenant:          None,
+        user_id:         None,
+        static_enriched: std::collections::BTreeMap::new(),
     };
     (
         FederationMutationExecutor::new(engine, FederationMetadata::default(), "test-saga", run_as),

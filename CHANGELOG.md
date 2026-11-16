@@ -51,7 +51,29 @@ disagreed, and the promise was the part that was wrong.
 - **`fraiseql_server::server_config::Hs256Config` is gone, with `ServerConfig::auth_hs256`
   (#1964).**
 
+- **New public field `RunAs.static_enriched` in `fraiseql-core` and `fraiseql-functions`
+  (#1989).** A struct literal that lists every field must add it
+  (`static_enriched: Default::default()`).
+
+### Added
+
+- **`run_as.static_enriched` (#1989).** A function's, scheduled source's or saga step's
+  `run_as` declares the enriched fields its identity presents, as a service account's
+  `static_enriched` does. A schema whose session variables or inject params read
+  `source = "enrichment"` refused every background write and read, since no enrichment
+  query runs for a background identity. Example:
+  `"run_as": {"roles": ["maintenance"], "static_enriched": {"agent_role": "manager", "agent_id": ""}}`.
+  An empty string is a value; a blank field name fails the compile and the boot.
+
 ### Changed
+
+- **A `static_enriched` field the schema never reads is refused at boot (#1989).** This
+  covers service accounts and every `run_as`. Each declared field must be one the compiled
+  schema reads: an enrichment-sourced session variable or inject param (on a query,
+  mutation, type or fact table), a `[locale]` source, or a subscription policy's
+  `identity_field`. The error names the field and the account, source or function that
+  declares it. Before, a mistyped field surfaced only as a refused request. A service
+  account whose `static_enriched` names a field nothing reads must correct or remove it.
 
 - `fraiseql doctor` no longer checks `FRAISEQL_JWT_SECRET`: nothing reads that variable.
 

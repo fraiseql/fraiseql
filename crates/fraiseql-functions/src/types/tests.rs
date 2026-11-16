@@ -96,10 +96,11 @@ fn identity_carries_the_granted_ceiling() {
     let def =
         FunctionDefinition::new("recordApproval", "after:mutation:Order:update", RuntimeType::Deno)
             .with_run_as(RunAs {
-                roles:   vec!["order_writer".to_string()],
-                scopes:  vec!["write:order".to_string()],
-                tenant:  Some("acme".to_string()),
-                user_id: None,
+                roles:           vec!["order_writer".to_string()],
+                scopes:          vec!["write:order".to_string()],
+                tenant:          Some("acme".to_string()),
+                user_id:         None,
+                static_enriched: std::collections::BTreeMap::new(),
             });
     let identity = def.identity("token-2");
     assert_eq!(identity.roles, vec!["order_writer"]);
@@ -190,4 +191,77 @@ fn resource_limits_for_a_function_without_a_timeout_are_the_defaults() {
         FunctionDefinition::new("onOrder", "after:mutation:Order:insert", RuntimeType::Wasm);
     let limits = ResourceLimits::for_function(&undeclared);
     assert_eq!(limits.max_duration, ResourceLimits::default().max_duration);
+}
+
+/// #1989: a function's `run_as` as the server's loader reads it, declaring two
+/// enriched fields; one value is the empty string, which is a value, not an absence.
+#[cfg(feature = "host-live")]
+fn function_with_static_enriched() -> FunctionDefinition {
+    serde_json::from_value(serde_json::json!({
+        "name": "expireSessions",
+        "trigger": "cron:*/5 * * * *",
+        "runtime": "Deno",
+        "run_as": {
+            "roles": ["maintenance"],
+            "static_enriched": { "agent_role": "manager", "agent_id": "" }
+        }
+    }))
+    .expect("a function whose run_as declares static_enriched loads")
+}
+
+/// #1989: `run_as.static_enriched` is what the identity presents to an
+/// `enrichment`-sourced read, under the namespace the engine reads; who the identity
+/// is does not change.
+#[cfg(feature = "host-live")]
+#[test]
+fn identity_presents_the_run_as_static_enriched_fields() {
+    let identity = function_with_static_enriched().identity("token-1");
+    assert_eq!(
+        identity.attributes.get("fraiseql.enriched.agent_role"),
+        Some(&serde_json::json!("manager"))
+    );
+    assert_eq!(
+        identity.attributes.get("fraiseql.enriched.agent_id"),
+        Some(&serde_json::json!(""))
+    );
+    assert_eq!(identity.attributes.get("agent_role"), None, "only under the enriched namespace");
+    assert_eq!(identity.user_id.0, "system_job:expireSessions", "provenance is unchanged");
+    assert_eq!(identity.actor_type(), fraiseql_core::security::ActorType::SystemJob);
+    assert_eq!(
+        identity.enrichment_mark(),
+        Some(fraiseql_core::security::EnrichmentMark::Exempt)
+    );
+}
+
+/// #1989: without `static_enriched`, the identity presents no enriched field.
+#[cfg(feature = "host-live")]
+#[test]
+fn identity_presents_no_enriched_field_without_static_enriched() {
+    let def = FunctionDefinition::new("expireSessions", "cron:*/5 * * * *", RuntimeType::Deno)
+        .with_run_as(RunAs {
+            roles: vec!["maintenance".to_string()],
+            ..RunAs::default()
+        });
+    let identity = def.identity("token-1");
+    assert!(
+        !identity.attributes.keys().any(|k| k.starts_with("fraiseql.enriched.")),
+        "{:?}",
+        identity.attributes
+    );
+}
+
+/// #1989: the declared fields survive the round trip; an empty map is omitted.
+#[test]
+fn static_enriched_round_trips_and_is_omitted_when_empty() {
+    let json = serde_json::json!({
+        "name": "expireSessions",
+        "trigger": "cron:*/5 * * * *",
+        "runtime": "Deno",
+        "run_as": { "roles": ["maintenance"], "static_enriched": { "agent_id": "" } }
+    });
+    let def: FunctionDefinition = serde_json::from_value(json).expect("the definition loads");
+    let back = serde_json::to_value(&def).expect("the definition serializes");
+    assert_eq!(back["run_as"]["static_enriched"]["agent_id"], "");
+    let bare = serde_json::to_value(RunAs::default()).expect("run_as serializes");
+    assert!(bare.get("static_enriched").is_none(), "{bare}");
 }

@@ -548,6 +548,9 @@ class SchemaRegistry:
             run_as: Optional least-privilege authority ceiling (#573):
                 ``{"roles": [...], "scopes": [...], "tenant": "...", "user_id": "..."}``.
                 ``user_id`` is what ``jwt:sub`` injects receive (#1700).
+                ``"static_enriched": {...}`` holds the enriched fields the identity
+                presents to ``enrichment``-sourced reads (#1989); the schema must read
+                each one, or the server refuses to boot.
             options: Optional connector-specific options, opaque to the framework.
             timezone: The IANA timezone ``schedule`` is read in. Absent: UTC.
         """
@@ -618,8 +621,10 @@ class SchemaRegistry:
             timeout_ms: Optional timeout override in milliseconds.
             run_as: Optional least-privilege authority ceiling (#594):
                 ``{"roles": [...], "scopes": [...], "tenant": "...", "user_id": "..."}``.
-                ``user_id`` is what ``jwt:sub`` injects receive (#1700). Absent ⇒
-                fail-closed.
+                ``user_id`` is what ``jwt:sub`` injects receive (#1700).
+                ``"static_enriched": {...}`` holds the enriched fields the identity
+                presents to ``enrichment``-sourced reads (#1989); the schema must read
+                each one, or the server refuses to boot. Absent ⇒ fail-closed.
             when: Optional ``when`` predicates (#597), each ``{"field": ..., <op>: ...}``.
             re_runnable: Fire-and-forget opt-out of durable dispatch (ADR 0015).
             retry: Optional per-function retry policy.

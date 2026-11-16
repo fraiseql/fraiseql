@@ -424,6 +424,12 @@ compiled schema:
   service principal's id, e.g. `"run_as": {"roles": ["order_approver"], "user_id":
   "6f1c2a9e-…"}`. The change log still records `system_job:<function-name>`. A blank
   `user_id`, or any key `run_as` does not define, fails the compile and the boot.
+- **Enriched fields (#1989).** A schema whose session variables or inject params read
+  `source = "enrichment"` refuses a function's bridge writes: no enrichment query runs
+  for a background identity. `run_as.static_enriched` declares the fields it presents,
+  as a service account does (ADR-0018), e.g. `"run_as": {"roles": ["maintenance"],
+  "static_enriched": {"agent_role": "manager", "agent_id": ""}}`. Each field must be one
+  the schema reads, or the server refuses to boot; a blank field name fails the boot.
 - **Bridge-write asymmetry (deliberate).** A write a function or a scheduled source issues
   through `fraiseql_query` does **not** fire `after:mutation` functions. So a bridge-written
   `Order` update does **not** fire `notify_approved`, and a function that writes the entity

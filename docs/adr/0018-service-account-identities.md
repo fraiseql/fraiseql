@@ -204,6 +204,13 @@ that line**: when `[identity.enrichment]` is enabled, a service account is subje
 > offers it the provision statement, bound with `$sub = service_account:<name>`. That is
 > the uniform-no-bypass rule working as designed, and it means the statement has to
 > decide what such a subject may become — insert nothing for the ones it will not serve.
+
+> **Note (2026-11-16, #1989).** Decision 5 is no longer the only `static_enriched`. A
+> `run_as` ceiling (functions, scheduled sources, saga steps) declares it too, for the
+> same reason: a background job has no actor row to resolve. Both are now checked at
+> boot. Every declared field must be one the compiled schema reads (an enrichment-sourced
+> session variable, inject param, `[locale]` source or subscription policy), so a
+> mistyped field is refused at startup instead of at the first read it was meant for.
 > Note also that a statement binding `$iss` refuses every service account
 > (`MissingParam` → 403), because a credentialed account has no issuer: fail-closed, but
 > a surprising 403 if the statement was written with human principals in mind.

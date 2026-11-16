@@ -46,6 +46,12 @@ impl Server {
             }
             return Ok(());
         };
+        // Refused before anything is loaded, as the schema's own ceilings are at
+        // construction.
+        crate::server::initialization::functions_static_enriched_fields_check(
+            &functions_config,
+            self.executor.schema(),
+        )?;
         if functions_config.definitions.is_empty() && connectors.is_empty() {
             return Ok(());
         }

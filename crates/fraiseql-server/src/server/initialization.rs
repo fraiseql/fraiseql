@@ -1928,6 +1928,91 @@ pub fn locale_enrichment_fields_check(
     )))
 }
 
+/// Refuse to boot when a service account or a source's `run_as` declares a
+/// `static_enriched` field nothing in the compiled schema reads (#1989).
+///
+/// The readers are [`CompiledSchema::enriched_fields_read`]. A field outside them is a
+/// typo or a leftover: it answers no session variable, inject param, `[locale]` source or
+/// subscription policy, so the read it was meant for is refused at runtime instead. Not
+/// conditional on `[identity.enrichment]`: a schema read only by `static_enriched`
+/// identities needs no resolver.
+///
+/// The functions' `run_as` ceilings arrive with the functions section, after construction;
+/// [`functions_static_enriched_fields_check`] refuses those where it is read.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` naming each such field and who declares it.
+pub fn static_enriched_fields_check(schema: &CompiledSchema) -> crate::Result<()> {
+    let accounts = schema
+        .security
+        .iter()
+        .flat_map(|security| security.service_accounts.iter().flatten())
+        .flat_map(|(name, account)| {
+            account
+                .static_enriched
+                .keys()
+                .map(move |field| (format!("service account `{name}`"), field.as_str()))
+        });
+    let sources = schema.sources.iter().flat_map(|source| {
+        source.run_as.iter().flat_map(move |run_as| {
+            run_as
+                .static_enriched
+                .keys()
+                .map(move |field| (format!("source `{}`", source.name), field.as_str()))
+        })
+    });
+    refuse_unread_static_enriched(accounts.chain(sources), schema)
+}
+
+/// [`static_enriched_fields_check`] for the functions' `run_as` ceilings (#1989).
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` naming each such field and the function declaring it.
+#[cfg(feature = "functions-runtime")]
+pub fn functions_static_enriched_fields_check(
+    functions: &crate::schema::loader::FunctionsConfig,
+    schema: &CompiledSchema,
+) -> crate::Result<()> {
+    let declared = functions.definitions.iter().flat_map(|function| {
+        function.run_as.iter().flat_map(move |run_as| {
+            run_as
+                .static_enriched
+                .keys()
+                .map(move |field| (format!("function `{}`", function.name), field.as_str()))
+        })
+    });
+    refuse_unread_static_enriched(declared, schema)
+}
+
+/// Refuse every `(owner, field)` in `declared` whose field `schema` never reads.
+fn refuse_unread_static_enriched<'a>(
+    declared: impl Iterator<Item = (String, &'a str)>,
+    schema: &CompiledSchema,
+) -> crate::Result<()> {
+    let read = schema.enriched_fields_read();
+    let mut unread: Vec<String> = declared
+        .filter(|(_, field)| !read.contains(field))
+        .map(|(owner, field)| format!("{owner} declares `{field}`"))
+        .collect();
+    if unread.is_empty() {
+        return Ok(());
+    }
+    unread.sort();
+    Err(crate::ServerError::ConfigError(format!(
+        "static_enriched names enriched fields the schema never reads: {}. The schema reads {}: \
+         an enrichment-sourced session variable, inject param, [locale] source or subscription \
+         policy names each field it reads. Correct the field name, or remove the entry.",
+        unread.join("; "),
+        if read.is_empty() {
+            "no enriched field".to_string()
+        } else {
+            read.into_iter().collect::<Vec<_>>().join(", ")
+        }
+    )))
+}
+
 /// Refuse to boot when the compiled schema reads enriched identity but the deployment
 /// never configured a resolver (#1336).
 ///

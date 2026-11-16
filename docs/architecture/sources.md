@@ -93,7 +93,7 @@ operation/field authorization, RLS, and the change-log tenant stamp. A source th
 runs under an explicit, per-source, least-privilege **authority ceiling**:
 
 ```text
-run_as = { roles: [...], scopes: [...], tenant?: "...", user_id?: "..." }
+run_as = { roles: [...], scopes: [...], tenant?: "...", user_id?: "...", static_enriched?: {...} }
 ```
 
 - **Fail-closed.** A source with **no** `run_as` runs with no authority — the anonymous
@@ -111,6 +111,13 @@ run_as = { roles: [...], scopes: [...], tenant?: "...", user_id?: "..." }
   injects, so a source can call a mutation that takes its caller's id as a `UUID`. Unset,
   those injects receive `system_job:<source>`, the provenance the change log records
   either way.
+- `run_as.static_enriched` (#1989) holds the enriched fields the identity presents, as a
+  service account's `static_enriched` does (ADR-0018). A background job has no subject
+  the enrichment query could look up, so a schema whose session variables or inject
+  params read `source = "enrichment"` refuses its writes without them. Each field must be
+  one the schema reads (an enrichment-sourced session variable, inject param, `[locale]`
+  source or subscription policy), or the server refuses to boot. An empty string is a
+  value. A blank field name fails the compile.
 
 ---
 
