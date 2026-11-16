@@ -2424,6 +2424,10 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// `#![cfg(feature = "functions-runtime-deno")]`: without the feature the binary is
 		// empty and reports "0 passed".
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test function_tenant_dispatch_e2e_pg -- --test-threads=1",
+		// #1628: an after:mutation / after:capture dispatch the server was retrying when it
+		// was killed runs again after a restart, with its token, exactly once more. Each test
+		// re-executes this binary as its server process (one V8 isolate each) → serial.
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test function_dispatch_restart_e2e_pg -- --test-threads=1",
 		// pipeline_e2e is env-gated (FRAISEQL_PIPELINE_E2E); it compiles a schema and drives a server.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test pipeline_e2e_test -- --test-threads=1",
 		// P18 verification gate (PG half): the FULL subscription delivery path —
