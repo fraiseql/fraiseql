@@ -211,3 +211,62 @@ async fn a_window_takes_its_arguments_inline_or_as_variables_alike() {
     assert_eq!(regions(&inline, "inline_sale_window"), ["r4", "r3"], "{inline}");
     assert_eq!(regions(&variables, "inline_sale_window"), ["r4", "r3"], "{variables}");
 }
+
+/// #1745: an explicit `null` is the argument's absence here too, inline or as a variable.
+#[tokio::test]
+async fn a_null_where_or_order_by_reads_as_absent_on_an_aggregate_and_a_window() {
+    let Some(executor) = executor().await else {
+        return;
+    };
+
+    let sorted = |response: &Value, key: &str| {
+        let mut regions = regions(response, key);
+        regions.sort();
+        regions
+    };
+    for nulls in [
+        "where: null",
+        "orderBy: null",
+        "where: null, orderBy: null, limit: null",
+    ] {
+        let aggregate = executor
+            .execute(
+                &format!(
+                    "{{ inline_sale_aggregate(groupBy: {{region: true}}, aggregates: [{{count: \
+                     true}}], {nulls}) {{ region }} }}"
+                ),
+                None,
+            )
+            .await
+            .unwrap_or_else(|e| panic!("aggregate, {nulls}: {e}"));
+        assert_eq!(
+            sorted(&aggregate, "inline_sale_aggregate"),
+            ["r1", "r2", "r3", "r4"],
+            "{nulls}"
+        );
+
+        let window = executor
+            .execute(
+                &format!(
+                    r#"{{ inline_sale_window(select: [{{type: "dimension", path: "region", alias: "region"}}],
+                         windows: [{{function: {{type: "row_number"}}, alias: "position"}}], {nulls}) }}"#
+                ),
+                None,
+            )
+            .await
+            .unwrap_or_else(|e| panic!("window, {nulls}: {e}"));
+        assert_eq!(sorted(&window, "inline_sale_window"), ["r1", "r2", "r3", "r4"], "{nulls}");
+    }
+
+    let by_variable = executor
+        .execute(
+            "{ inline_sale_aggregate { region } }",
+            Some(&json!({
+                "groupBy": {"region": true}, "aggregates": [{"count": true}],
+                "where": null, "orderBy": null
+            })),
+        )
+        .await
+        .unwrap();
+    assert_eq!(sorted(&by_variable, "inline_sale_aggregate"), ["r1", "r2", "r3", "r4"]);
+}

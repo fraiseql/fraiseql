@@ -104,6 +104,18 @@ disagreed, and the promise was the part that was wrong.
   section. A project whose two copies of a key differ fails to compile until they agree or
   one is removed.
 
+### Fixed
+
+- **An explicit `null` for `where` or `orderBy` reads as the argument's absence (#1745).**
+  `orders(where: null)`, written inline or passed as a variable, was refused with `where
+  clause must be a JSON object`, and `orderBy: null` on a list query with `orderBy must be an
+  object or array`. Both now answer what the query answers without the argument, on a view
+  and on a function root, as `limit: null` and `offset: null` already did. A `null` inside a
+  filter (`_and: [null]`, `_or: [null]`, `_not: null`) is still refused: it stands where a
+  predicate is required. A query that does not accept `where` still refuses the argument.
+  `nearest` reads the same way: `nearest: null` is no search, and a `null` `limit` or
+  `orderBy` beside `nearest` is no longer refused as a conflict.
+
 ## [2.19.1] - 2026-11-14
 
 ### Breaking

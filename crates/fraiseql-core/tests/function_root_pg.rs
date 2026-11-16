@@ -235,6 +235,27 @@ async fn a_function_roots_where_order_and_page_apply_to_the_rows_of_its_call() {
     assert_eq!(lines(&response, "lineItems"), vec![("Rental".to_string(), 40.0)]);
 }
 
+/// #1745: an explicit `null` is the argument's absence on a function root as on a view.
+#[tokio::test]
+async fn a_function_roots_null_where_and_order_read_as_absent() {
+    let executor = executor().await;
+    let read =
+        |args: &str| format!(r#"{{ lineItems(assetId: "{ASSET}"{args}) {{ label amount }} }}"#);
+    let mut bare = lines(&run(&executor, &read(""), "t1").await, "lineItems");
+    bare.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(bare.len(), 3, "the fixture prices the asset with three lines");
+
+    for args in [
+        ", where: null",
+        ", orderBy: null",
+        ", where: null, orderBy: null",
+    ] {
+        let mut answered = lines(&run(&executor, &read(args), "t1").await, "lineItems");
+        answered.sort_by(|a, b| a.0.cmp(&b.0));
+        assert_eq!(answered, bare, "{args}");
+    }
+}
+
 #[tokio::test]
 async fn a_function_root_binds_the_tenant_from_the_token() {
     let executor = executor().await;

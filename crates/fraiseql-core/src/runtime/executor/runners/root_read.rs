@@ -788,9 +788,11 @@ impl QueryRunner {
         // 10. The ordering, each clause enriched with its field's type so the SQL casts it
         //     (`(data->>'amount')::numeric`).
         let order_by = if pages(query_def.auto_params.has_order_by) {
+            // An explicit `orderBy: null` is the argument's absence (GraphQL §2.9.5).
             query_match
                 .arguments
                 .get("orderBy")
+                .filter(|value| !value.is_null())
                 .map(OrderByClause::from_graphql_json)
                 .transpose()?
                 .map(|clauses| {

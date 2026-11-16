@@ -327,6 +327,34 @@ fn nearest_conflicts_with_limit_and_order_by() {
     }
 }
 
+/// #1745: an explicit `null` is the argument's absence, so a `null` `limit` or `orderBy`
+/// beside `nearest` is no conflict: there is no client value for `nearest` to discard.
+#[test]
+fn nearest_does_not_conflict_with_a_null_limit_or_order_by() {
+    // Each alone: together, the first refusal would hide the second.
+    for sibling in ["limit", "orderBy"] {
+        let mut arguments = args(&serde_json::json!({"nearest": {"vector": [1, 2, 3], "k": 2}}));
+        arguments.insert(sibling.into(), serde_json::Value::Null);
+
+        let (_, k) = nearest_order_and_limit(&arguments, &vector_schema(), &list_query_def(), None)
+            .unwrap_or_else(|e| panic!("a null `{sibling}` is an absent one: {e}"))
+            .expect("and `nearest` still plans");
+
+        assert_eq!(k, 2, "{sibling}");
+    }
+}
+
+/// And `nearest: null` is no `nearest`, on any query that would refuse a search.
+#[test]
+fn a_null_nearest_is_no_nearest() {
+    let arguments = args(&serde_json::json!({"nearest": null, "limit": 3}));
+
+    let plan = nearest_order_and_limit(&arguments, &vector_schema(), &list_query_def(), None)
+        .expect("`nearest: null` is not a malformed search");
+
+    assert!(plan.is_none(), "it is no search at all");
+}
+
 #[test]
 fn nearest_on_a_type_without_vector_fields_is_refused() {
     use crate::schema::{CompiledSchema, FieldDefinition, FieldType, TypeDefinition};
@@ -719,6 +747,90 @@ fn no_filter_is_accepted_whatever_the_flag_says() {
                 .is_none(),
             "has_where = {accepts}"
         );
+    }
+}
+
+// ── #1745: an explicit `null` filter ─────────────────────────────────────────
+
+/// The arguments of a request that wrote `where: <value>`.
+fn a_where_of(value: serde_json::Value) -> HashMap<String, serde_json::Value> {
+    HashMap::from([("where".to_string(), value)])
+}
+
+/// GraphQL reads an explicit `null` on a nullable argument as no value: `where: null`,
+/// written inline or passed as a variable, is the request without a `where`.
+#[test]
+fn an_explicit_null_filter_reads_as_no_filter() {
+    let clause = client_where_argument(
+        &crate::schema::CompiledSchema::new(),
+        &filterable(true),
+        &a_where_of(serde_json::Value::Null),
+        None,
+        None,
+        true,
+    )
+    .expect("`where: null` is not a malformed filter");
+    assert!(clause.is_none(), "it is no filter at all: {clause:?}");
+}
+
+/// A query that publishes no `where` argument refuses the argument itself, whatever it
+/// carries: the `null` reading applies to an argument the query accepts.
+#[test]
+fn an_explicit_null_filter_is_refused_where_the_query_accepts_no_filter() {
+    let err = client_where_argument(
+        &crate::schema::CompiledSchema::new(),
+        &filterable(false),
+        &a_where_of(serde_json::Value::Null),
+        None,
+        None,
+        true,
+    )
+    .expect_err("the argument is not one this query accepts");
+    assert!(err.to_string().contains("where_clause = false"), "{err}");
+}
+
+/// Only the argument's own value reads as absent. A `null` inside the filter stands where a
+/// predicate is required, so it is refused: reading it as "no predicate" would widen the
+/// rows a request written to narrow them returns.
+#[test]
+fn a_null_inside_a_filter_is_still_refused() {
+    for filter in [
+        serde_json::json!({ "_and": [null] }),
+        serde_json::json!({ "_or": [null] }),
+        serde_json::json!({ "_not": null }),
+        serde_json::json!({ "_and": [{ "label": { "eq": "row-42" } }, null] }),
+    ] {
+        let result = client_where_argument(
+            &crate::schema::CompiledSchema::new(),
+            &filterable(true),
+            &a_where_of(filter.clone()),
+            None,
+            None,
+            true,
+        );
+        assert!(result.is_err(), "{filter} was read as {result:?}");
+    }
+}
+
+/// And only `null` does: any other value that is not an object is a malformed filter.
+#[test]
+fn a_filter_that_is_neither_null_nor_an_object_is_refused() {
+    for filter in [
+        serde_json::json!("label"),
+        serde_json::json!([]),
+        serde_json::json!(0),
+        serde_json::json!(false),
+    ] {
+        let err = client_where_argument(
+            &crate::schema::CompiledSchema::new(),
+            &filterable(true),
+            &a_where_of(filter.clone()),
+            None,
+            None,
+            true,
+        )
+        .expect_err("a malformed filter is refused");
+        assert!(err.to_string().contains("must be a JSON object"), "{filter}: {err}");
     }
 }
 

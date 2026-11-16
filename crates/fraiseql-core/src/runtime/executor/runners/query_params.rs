@@ -40,7 +40,10 @@ pub fn nearest_order_and_limit(
     query_def: &crate::schema::QueryDefinition,
     security_context: Option<&crate::security::SecurityContext>,
 ) -> Result<Option<(crate::backend::OrderByClause, u32)>> {
-    let Some(raw) = arguments.get("nearest") else {
+    // An explicit `null` is the argument's absence (GraphQL §2.9.5): `nearest: null` is no
+    // search, and a `null` sibling is no client value for the search to discard.
+    let given = |name: &str| arguments.get(name).filter(|value| !value.is_null());
+    let Some(raw) = given("nearest") else {
         return Ok(None);
     };
 
@@ -52,12 +55,12 @@ pub fn nearest_order_and_limit(
     if !query_def.returns_list {
         return Err(FraiseQLError::validation("`nearest` requires a list-returning query"));
     }
-    if arguments.contains_key("limit") {
+    if given("limit").is_some() {
         return Err(FraiseQLError::validation(
             "`nearest.k` sets the page size; do not combine `nearest` with `limit`",
         ));
     }
-    if arguments.contains_key("orderBy") {
+    if given("orderBy").is_some() {
         return Err(FraiseQLError::validation(
             "`nearest` orders by vector distance; do not combine it with `orderBy`",
         ));
@@ -495,7 +498,8 @@ pub fn compute_projection_reduction(projected_field_count: usize) -> u32 {
 ///
 /// Returns [`FraiseQLError::Validation`] when the argument is present and the query
 /// declares `auto_params.has_where = false`, and when a present-and-accepted argument
-/// does not parse as a `where` document.
+/// does not parse as a `where` document. An accepted argument whose value is an explicit
+/// `null` is no filter, as an absent one is (#1745).
 pub fn client_where_argument(
     schema: &crate::schema::CompiledSchema,
     query_def: &crate::schema::QueryDefinition,
@@ -523,6 +527,13 @@ pub fn client_where_argument(
             ),
             path:    Some("where".to_string()),
         });
+    }
+
+    // An explicit `null` on a nullable argument is the argument's absence (GraphQL
+    // §2.9.5). Only here, on the argument's own value: a `null` inside the filter stands
+    // where a predicate is required, and the parser refuses it.
+    if raw.is_null() {
+        return Ok(None);
     }
 
     let types = super::query_projection::where_field_types_reading(
