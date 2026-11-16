@@ -395,8 +395,10 @@ mod static_enriched_fields {
         assert!(error.contains("reads no enriched field"), "{error}");
     }
 
-    /// A subscription policy fed only by a service account's `static_enriched` boots: the
-    /// policy reads the field, and no `[identity.enrichment]` is needed for it.
+    /// A subscription policy fed only by a service account's `static_enriched` passes this
+    /// check: the policy reads the field. `[identity.enrichment]` is still required, by
+    /// `enrichment_consumer_without_resolver_check`
+    /// (`a_policy_read_only_by_a_service_account_still_needs_enrichment`).
     #[test]
     fn a_subscription_policy_read_only_by_a_service_account_boots() {
         let mut schema = with_service_account(json!({ "user_id": "svc-reconciler" }));
@@ -461,5 +463,184 @@ mod static_enriched_fields {
             )
             .expect("both fields are read");
         }
+    }
+}
+
+/// Every reader of the enriched identity needs `[identity.enrichment]` enabled (#2005).
+///
+/// One schema per reader kind, each reading one field through one reader and nothing
+/// else, so dropping a kind from the shared reader list reddens exactly its own case.
+#[cfg(feature = "auth")]
+mod enrichment_consumer {
+    use fraiseql_core::schema::{
+        CompiledSchema, InjectedParamSource, LocaleConfig, LocaleSource, MutationDefinition,
+        QueryDefinition, SessionVariableMapping, SessionVariableSource, SubscriptionPolicy,
+        TypeDefinition,
+    };
+    use serde_json::json;
+
+    use super::super::enrichment_consumer_without_resolver_check;
+
+    fn enrichment(field: &str) -> InjectedParamSource {
+        InjectedParamSource::Enrichment(field.to_string())
+    }
+
+    /// `(reader kind, field read, a schema whose only reader is that kind)`.
+    fn one_schema_per_reader_kind() -> Vec<(&'static str, &'static str, CompiledSchema)> {
+        let mut session_variable = CompiledSchema::new();
+        session_variable.session_variables.variables.push(SessionVariableMapping {
+            name:   "app.agent_role".to_string(),
+            source: SessionVariableSource::Enrichment {
+                field: "agent_role".to_string(),
+            },
+        });
+
+        let mut query_inject = CompiledSchema::new();
+        let mut query = QueryDefinition::new("orders", "Order");
+        query.inject_params.insert("p_org".to_string(), enrichment("org_id"));
+        query_inject.queries.push(query);
+
+        let mut mutation_inject = CompiledSchema::new();
+        let mut mutation = MutationDefinition::new("approveOrder", "Order");
+        mutation.inject_params.insert("p_actor".to_string(), enrichment("actor_id"));
+        mutation_inject.mutations.push(mutation);
+
+        let mut type_inject = CompiledSchema::new();
+        let mut order = TypeDefinition::new("Order", "v_order");
+        order.inject_params.insert("tenant_id".to_string(), enrichment("tenant_ref"));
+        type_inject.types.push(order);
+
+        let mut fact_inject = CompiledSchema::new();
+        fact_inject.fact_tables.insert(
+            "tf_sales".to_string(),
+            serde_json::from_value(json!({
+                "table_name": "tf_sales",
+                "measures": [{"name": "revenue", "sql_type": "Decimal", "nullable": false}],
+                "dimensions": {"name": "data", "paths": []},
+                "denormalized_filters": [{"name": "author_id", "sql_type": "Text", "indexed": true}],
+                "inject_params": {"author_id": {"source": "enrichment", "claim": "author_ref"}}
+            }))
+            .unwrap(),
+        );
+
+        let locale = CompiledSchema {
+            locale: Some(
+                LocaleConfig::new(
+                    "en-US",
+                    vec!["en-US".to_string()],
+                    std::collections::BTreeMap::new(),
+                    vec![LocaleSource::Enrichment {
+                        enrichment: "preferred_locale".to_string(),
+                    }],
+                )
+                .unwrap(),
+            ),
+            ..CompiledSchema::new()
+        };
+
+        let mut policy = CompiledSchema::new();
+        policy
+            .types
+            .push(TypeDefinition::new("Order", "v_order").with_subscription_policy(
+                SubscriptionPolicy {
+                    owner_path:     "$.owner_id".to_string(),
+                    identity_field: "user_id".to_string(),
+                    bypass_roles:   vec![],
+                },
+            ));
+
+        vec![
+            ("session variable", "agent_role", session_variable),
+            ("query inject", "org_id", query_inject),
+            ("mutation inject", "actor_id", mutation_inject),
+            ("type inject", "tenant_ref", type_inject),
+            ("fact-table inject", "author_ref", fact_inject),
+            ("locale source", "preferred_locale", locale),
+            ("subscription policy", "user_id", policy),
+        ]
+    }
+
+    fn config(enrichment_enabled: Option<bool>) -> crate::ServerConfig {
+        crate::ServerConfig {
+            identity: enrichment_enabled.map(|enabled| {
+                serde_json::from_value(json!({
+                    "enrichment": {
+                        "enabled": enabled,
+                        "query": "SELECT actor_id FROM app.actor WHERE sub = $sub",
+                        "map": {"actor_id": "actor_id"}
+                    }
+                }))
+                .unwrap()
+            }),
+            ..crate::ServerConfig::default()
+        }
+    }
+
+    #[test]
+    fn every_reader_kind_without_enrichment_is_refused_naming_the_field() {
+        for (kind, field, schema) in one_schema_per_reader_kind() {
+            for config in [config(None), config(Some(false))] {
+                let error = enrichment_consumer_without_resolver_check(&schema, &config)
+                    .expect_err(kind)
+                    .to_string();
+                assert!(
+                    error.contains("`[identity.enrichment]` is not enabled"),
+                    "{kind}: {error}"
+                );
+                assert!(error.contains(&format!("`{field}`")), "{kind}: {error}");
+            }
+        }
+    }
+
+    #[test]
+    fn every_reader_kind_with_enrichment_boots() {
+        for (kind, _, schema) in one_schema_per_reader_kind() {
+            enrichment_consumer_without_resolver_check(&schema, &config(Some(true)))
+                .map_err(|error| format!("{kind}: {error}"))
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn a_schema_reading_no_enriched_field_boots_without_enrichment() {
+        enrichment_consumer_without_resolver_check(&CompiledSchema::new(), &config(None))
+            .expect("nothing reads the enriched identity");
+    }
+
+    /// The counterpart of `a_subscription_policy_read_only_by_a_service_account_boots`:
+    /// `static_enriched` answers a read in lieu of the resolver, never instead of one, so
+    /// the same schema is refused when nothing resolves a human principal.
+    #[test]
+    fn a_policy_read_only_by_a_service_account_still_needs_enrichment() {
+        let mut schema = CompiledSchema {
+            security: Some(fraiseql_core::schema::SecurityConfig {
+                service_accounts: Some(
+                    [(
+                        "reconciler".to_string(),
+                        fraiseql_core::schema::ServiceAccountConfig {
+                            secret_env:      "SA_SECRET".to_string(),
+                            roles:           Vec::new(),
+                            scopes:          Vec::new(),
+                            tenant:          None,
+                            static_enriched: [("user_id".to_string(), json!("svc"))].into(),
+                        },
+                    )]
+                    .into(),
+                ),
+                ..fraiseql_core::schema::SecurityConfig::default()
+            }),
+            ..CompiledSchema::new()
+        };
+        schema
+            .types
+            .push(TypeDefinition::new("Order", "v_order").with_subscription_policy(
+                SubscriptionPolicy {
+                    owner_path:     "$.owner_id".to_string(),
+                    identity_field: "user_id".to_string(),
+                    bypass_roles:   vec![],
+                },
+            ));
+        enrichment_consumer_without_resolver_check(&schema, &config(None))
+            .expect_err("a service account's static_enriched does not stand in for a resolver");
     }
 }

@@ -316,6 +316,15 @@ impl AppState {
         self
     }
 
+    /// Record that `[identity.enrichment]` is enabled, so a reload is checked against the
+    /// configuration boot was checked against (#2005).
+    #[cfg(feature = "auth")]
+    #[must_use]
+    pub fn with_enrichment_enabled(mut self) -> Self {
+        self.identity = self.identity.with_enrichment_enabled();
+        self
+    }
+
     /// Attach the enrichment-profile identity resolver (#539).
     #[cfg(feature = "auth")]
     #[must_use]
@@ -543,7 +552,9 @@ impl AppState {
     /// Returns the operator-facing message for every refusal: an incompatible
     /// format version, a field marked for at-rest encryption (H12), a
     /// multi-tenant schema that cannot isolate its tenants under caching (#758),
-    /// or boot-frozen configuration drift that requires a restart.
+    /// a reader of the enriched identity with nothing to resolve it, a
+    /// `static_enriched` field no reader is left to read (#2005), or boot-frozen
+    /// configuration drift that requires a restart.
     // Reason: one step of the awaited hot-reload sequence — `begin_reload` and the
     // validation either side of it do I/O. The swap itself is a pointer store.
     #[allow(unknown_lints, clippy::unused_async_trait_impl)]
@@ -576,6 +587,16 @@ impl AppState {
             self.adapter_cache_enabled,
         )
         .map_err(|e| e.to_string())?;
+        // A reader of the enriched identity needs it resolved, and a `static_enriched`
+        // field must stay read: `security` is frozen across a reload, its readers are not.
+        #[cfg(feature = "auth")]
+        crate::server::initialization::enrichment_readers_resolved_check(
+            &schema,
+            self.identity.resolves_enrichment(),
+        )
+        .map_err(|e| e.to_string())?;
+        crate::server::initialization::static_enriched_fields_check(&schema)
+            .map_err(|e| e.to_string())?;
 
         // Refuse rather than half-apply: everything a boot-time subsystem read
         // once cannot be changed by swapping the executor.

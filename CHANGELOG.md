@@ -149,6 +149,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **Every reader of the enriched identity needs `[identity.enrichment]` (#2005).** A
+  subscription policy's `identity_field`, and an `enrichment` inject param on a type
+  (federation entity resolution) or a fact table (its aggregate roots), now count as
+  readers, alongside session variables, query and mutation inject params and `[locale]`
+  sources. A schema whose only readers were among those three booted without
+  `[identity.enrichment]` and refused every human request through them; it now refuses
+  to boot, naming the fields read. `static_enriched` does not stand in for the
+  resolver. Enable `[identity.enrichment]` to fix it. The startup warning no longer calls
+  such a schema a misconfiguration, and a schema reload is checked as boot is.
+
 - **A `static_enriched` field the schema never reads is refused at boot (#1989).** This
   covers service accounts and every `run_as`. Each declared field must be one the compiled
   schema reads: an enrichment-sourced session variable or inject param (on a query,

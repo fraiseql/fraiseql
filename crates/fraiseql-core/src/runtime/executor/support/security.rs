@@ -522,6 +522,54 @@ mod enrichment_backstop_tests {
         }
     }
 
+    /// The readers the predicate once left out: a type's inject param (federation
+    /// entity resolution), a fact table's (its aggregate roots) and a subscription
+    /// policy's identity field. Each reads the enriched identity, so an unresolved
+    /// principal is refused here, naming the cause, rather than by the reader.
+    #[test]
+    fn an_unresolved_principal_is_refused_for_every_reader_kind() {
+        let mut type_inject = CompiledSchema::default();
+        let mut order = crate::schema::TypeDefinition::new("Order", "v_order");
+        order
+            .inject_params
+            .insert("tenant_id".to_string(), InjectedParamSource::Enrichment("tenant".to_string()));
+        type_inject.types.push(order);
+
+        let mut fact_inject = CompiledSchema::default();
+        let table = serde_json::from_value(serde_json::json!({
+            "table_name": "tf_sales",
+            "measures": [{"name": "revenue", "sql_type": "Decimal", "nullable": false}],
+            "dimensions": {"name": "data", "paths": []},
+            "denormalized_filters": [{"name": "author_id", "sql_type": "Text", "indexed": true}],
+            "inject_params": {"author_id": {"source": "enrichment", "claim": "author_ref"}}
+        }))
+        .unwrap();
+        fact_inject.fact_tables.insert("tf_sales".to_string(), table);
+
+        let mut policy = CompiledSchema::default();
+        policy.types.push(
+            crate::schema::TypeDefinition::new("Order", "v_order").with_subscription_policy(
+                crate::schema::SubscriptionPolicy {
+                    owner_path:     "$.owner_id".to_string(),
+                    identity_field: "user_id".to_string(),
+                    bypass_roles:   vec![],
+                },
+            ),
+        );
+
+        for (kind, schema) in [
+            ("type inject", type_inject),
+            ("fact-table inject", fact_inject),
+            ("policy", policy),
+        ] {
+            let refused = enforce_enrichment_resolved(&schema, Some(&principal()));
+            assert!(
+                refused.as_ref().is_err_and(|e| e.to_string().contains("not resolved")),
+                "{kind}: {refused:?}"
+            );
+        }
+    }
+
     #[test]
     fn a_resolved_principal_proceeds() {
         // The positive twin. Without it a guard that refused everything would satisfy

@@ -1515,3 +1515,39 @@ async fn every_boot_guard_judges_the_deployment_the_server_was_built_for() {
         );
     }
 }
+
+/// #2005: a reload is checked against the configuration boot was checked against. With
+/// `[identity.enrichment]` enabled and no auth pool the server attaches no resolver, so
+/// only the recorded setting tells a reload that boot accepted enriched readers.
+#[cfg(feature = "auth")]
+#[tokio::test]
+async fn enrichment_enabled_reaches_the_reload_check_without_a_resolver() {
+    let schema = fraiseql_test_utils::schema_builder::TestSchemaBuilder::new()
+        .with_simple_query("users", "User", true)
+        .build();
+    let enabled = Box::pin(Server::new(
+        ServerConfig {
+            cors_enabled: false,
+            ..config_with_enrichment("actor_id")
+        },
+        schema.clone(),
+        Arc::new(NoopRelayAdapter::default()),
+        None,
+    ))
+    .await
+    .expect("Server::new");
+    assert!(enabled.build_app_state().identity.resolves_enrichment());
+
+    let disabled = Box::pin(Server::new(
+        ServerConfig {
+            cors_enabled: false,
+            ..ServerConfig::default()
+        },
+        schema,
+        Arc::new(NoopRelayAdapter::default()),
+        None,
+    ))
+    .await
+    .expect("Server::new");
+    assert!(!disabled.build_app_state().identity.resolves_enrichment());
+}

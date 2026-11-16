@@ -2154,3 +2154,128 @@ mod enrichment_role_names {
         assert_eq!(roles_granted(&state).await, ["cost_reader"]);
     }
 }
+
+/// A reload is checked as boot is (#2005): a schema that reads the enriched identity
+/// needs a resolver, and a `static_enriched` field must stay read. A refused reload
+/// leaves the current schema serving.
+#[cfg(feature = "auth")]
+mod reload_enrichment_readers {
+    use std::sync::Arc;
+
+    use fraiseql_core::{
+        runtime::Executor,
+        schema::{
+            CompiledSchema, SecurityConfig, ServiceAccountConfig, SubscriptionPolicy,
+            TypeDefinition,
+        },
+    };
+    use fraiseql_test_utils::failing_adapter::FailingAdapter;
+    use serde_json::json;
+
+    use super::super::AppState;
+    use crate::identity::tests::resolver_granting_roles;
+
+    /// A schema whose only reader of the enriched identity is a subscription policy.
+    fn policy_reading(mut schema: CompiledSchema) -> CompiledSchema {
+        schema
+            .types
+            .push(TypeDefinition::new("Order", "v_order").with_subscription_policy(
+                SubscriptionPolicy {
+                    owner_path:     "$.owner_id".to_string(),
+                    identity_field: "user_id".to_string(),
+                    bypass_roles:   vec![],
+                },
+            ));
+        schema
+    }
+
+    /// A schema with a service account presenting `user_id`, and no reader.
+    fn with_service_account() -> CompiledSchema {
+        CompiledSchema {
+            security: Some(SecurityConfig {
+                service_accounts: Some(
+                    [(
+                        "reconciler".to_string(),
+                        ServiceAccountConfig {
+                            secret_env:      "SA_SECRET".to_string(),
+                            roles:           Vec::new(),
+                            scopes:          Vec::new(),
+                            tenant:          None,
+                            static_enriched: [("user_id".to_string(), json!("svc"))].into(),
+                        },
+                    )]
+                    .into(),
+                ),
+                ..SecurityConfig::default()
+            }),
+            ..CompiledSchema::default()
+        }
+    }
+
+    fn state(schema: CompiledSchema) -> (AppState, tempfile::TempDir, std::path::PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("schema.json");
+        let executor = Arc::new(Executor::new(schema, Arc::new(FailingAdapter::new())));
+        (AppState::new(executor).with_reload_config(path.clone()), dir, path)
+    }
+
+    async fn reload(
+        state: &AppState,
+        path: &std::path::Path,
+        next: &CompiledSchema,
+    ) -> Result<(), String> {
+        std::fs::write(path, serde_json::to_string(next).unwrap()).unwrap();
+        state.reload_schema(path).await
+    }
+
+    fn serving(state: &AppState) -> String {
+        state.executor.load().schema().content_hash()
+    }
+
+    #[tokio::test]
+    async fn a_reload_adding_a_reader_without_enrichment_is_refused_and_the_schema_keeps_serving() {
+        let (state, _dir, path) = state(CompiledSchema::default());
+        let before = serving(&state);
+        let error = reload(&state, &path, &policy_reading(CompiledSchema::default()))
+            .await
+            .expect_err("nothing resolves the identity the reloaded schema reads");
+        assert!(error.contains("`[identity.enrichment]` is not enabled"), "{error}");
+        assert_eq!(serving(&state), before, "the current schema keeps serving");
+    }
+
+    #[tokio::test]
+    async fn a_reload_adding_a_reader_with_a_resolver_applies() {
+        let (state, _dir, path) = state(CompiledSchema::default());
+        let state =
+            state.with_identity_resolver(Arc::new(resolver_granting_roles(json!("viewer"))));
+        let next = policy_reading(CompiledSchema::default());
+        reload(&state, &path, &next).await.expect("a resolver is attached");
+        assert_eq!(serving(&state), next.content_hash());
+    }
+
+    /// The server marks `[identity.enrichment].enabled` whether or not an auth pool let it
+    /// attach a resolver, so a reload accepts what boot accepted.
+    #[tokio::test]
+    async fn a_reload_adding_a_reader_with_enrichment_enabled_applies() {
+        let (state, _dir, path) = state(CompiledSchema::default());
+        let state = state.with_enrichment_enabled();
+        let next = policy_reading(CompiledSchema::default());
+        reload(&state, &path, &next).await.expect("[identity.enrichment] is enabled");
+        assert_eq!(serving(&state), next.content_hash());
+    }
+
+    /// `security` is boot-frozen and readers are not: a reload dropping the only reader of
+    /// a service account's `static_enriched` field is refused, as boot refuses it.
+    #[tokio::test]
+    async fn a_reload_leaving_a_static_enriched_field_unread_is_refused() {
+        let (state, _dir, path) = state(policy_reading(with_service_account()));
+        let state =
+            state.with_identity_resolver(Arc::new(resolver_granting_roles(json!("viewer"))));
+        let before = serving(&state);
+        let error = reload(&state, &path, &with_service_account())
+            .await
+            .expect_err("`user_id` is no longer read");
+        assert!(error.contains("service account `reconciler` declares `user_id`"), "{error}");
+        assert_eq!(serving(&state), before, "the current schema keeps serving");
+    }
+}

@@ -215,6 +215,13 @@ that line**: when `[identity.enrichment]` is enabled, a service account is subje
 > (`MissingParam` → 403), because a credentialed account has no issuer: fail-closed, but
 > a surprising 403 if the statement was written with human principals in mind.
 
+> **Note (2026-11-16, #2005).** `static_enriched` answers a read *in lieu of* the resolve,
+> never instead of a resolver: a schema that reads the enriched identity, through any
+> reader, needs `[identity.enrichment]` enabled even when every field it reads is one a
+> service account or `run_as` presents. Without a resolver a human principal is refused
+> by every reader, and the decision 5 injection runs inside the resolver's seam, so the
+> shape held only on `/ws` and only for the service account.
+
 This makes a service account a first-class **subscriber** too: phase 06 subscription
 row-policies resolve the owner filter against the account's enriched identity the same
 way they do for a human, so a trusted daemon subscribing to a scoped entity is filtered

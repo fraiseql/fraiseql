@@ -4,11 +4,16 @@
 //! query's `orderBy.field` enum is exactly the keys the engine accepts, asked of both readers:
 //! the document validator (GraphQL) and the engine itself (what REST and gRPC reach).
 //!
-//! No database: an accepted key reaches the failing adapter, a refused one is refused first.
+//! No database: an accepted key reaches the failing adapter, which answers every read with
+//! its own error ([`REACHED`]); a refused key is refused by name first. Any other answer
+//! fails the test with its message, so a refusal for another reason can never read as an
+//! acceptance.
 //!
 //! Both readers are asked as a caller the fixture's scoped queries admit ([`caller`]): a
 //! query scoped by `inject_params` refuses a request with no caller before it reads the
-//! sort key, and a refusal that is not about the key says nothing about the key.
+//! sort key, and the fixture reads the enriched identity (a subscription policy's
+//! `identity_field`), so the engine refuses a caller that never passed the enrichment
+//! seam. A refusal that is not about the key says nothing about the key.
 
 use std::sync::Arc;
 
@@ -16,11 +21,43 @@ use fraiseql_cli::commands::compile::{CompileOptions, compile_to_schema};
 use fraiseql_core::{
     runtime::{Executor, QueryMatch},
     schema::CompiledSchema,
-    security::SecurityContext,
+    security::{ENRICHED_NAMESPACE_PREFIX, EnrichmentMark, SecurityContext},
     types::{TenantId, UserId},
 };
-use fraiseql_test_utils::failing_adapter::FailingAdapter;
+use fraiseql_test_utils::failing_adapter::{FailError, FailingAdapter};
 use serde_json::json;
+
+/// The failing adapter's answer to every read: the only proof a key was accepted.
+const REACHED: &str = "order-by parity: the query reached the database";
+
+/// The adapter both readers reach once a key is accepted.
+fn adapter() -> FailingAdapter {
+    FailingAdapter::new().fail_with_error(FailError::Database {
+        message:   REACHED.to_string(),
+        sql_state: None,
+    })
+}
+
+/// Whether `outcome` is an acceptance (the adapter's own error) or a refusal of the key
+/// (one of `refusals`). Anything else fails the test, naming what `reader` answered.
+fn verdict<T>(
+    reader: &str,
+    probe: &str,
+    outcome: fraiseql_core::error::Result<T>,
+    refusals: &[&str],
+) -> bool {
+    let Err(error) = outcome else {
+        panic!("{probe} ({reader}): answered without reaching the database");
+    };
+    let error = error.to_string();
+    if error.contains(REACHED) {
+        true
+    } else if refusals.iter().any(|refusal| error.contains(refusal)) {
+        false
+    } else {
+        panic!("{probe} ({reader}): refused for a reason other than the sort key: {error}");
+    }
+}
 
 /// The fixture compiled as the conformance harness compiles it: with the project config
 /// `project_toml.py` derives for it (its `[locale]` and the role granting its scope).
@@ -48,11 +85,14 @@ async fn compiled_fixture() -> CompiledSchema {
     CompiledSchema::from_json(&compiled.schema.to_json().unwrap(), false).expect("and loads")
 }
 
-/// A caller who holds the `tenant_id` claim the fixture's scoped queries inject.
+/// A caller who holds the `tenant_id` claim the fixture's scoped queries inject, the
+/// `admin` role its role-gated queries require and the `conformance` role granting its
+/// scoped field, as the enrichment seam leaves a human whose identity resolved: the
+/// enriched `user_id` the fixture's subscription policy reads, and the resolved mark.
 fn caller() -> SecurityContext {
-    SecurityContext {
+    let mut caller = SecurityContext {
         user_id:          UserId::from("u-conformance"),
-        roles:            vec!["admin".to_string()],
+        roles:            vec!["admin".to_string(), "conformance".to_string()],
         tenant_id:        Some(TenantId::from("A")),
         scopes:           vec![],
         attributes:       std::collections::HashMap::from([("tenant_id".to_string(), json!("A"))]),
@@ -64,20 +104,25 @@ fn caller() -> SecurityContext {
         audience:         None,
         email:            None,
         display_name:     None,
-    }
+    };
+    caller
+        .attributes
+        .insert(format!("{ENRICHED_NAMESPACE_PREFIX}user_id"), json!("u-conformance"));
+    caller.mark_enrichment(EnrichmentMark::Resolved);
+    caller
 }
 
 /// Whether `query` accepts `key`, by both readers, which must agree.
 async fn accepts(executor: &Executor, query: &str, key: &str) -> bool {
     let caller = caller();
     let document = format!("{{ {query}(orderBy: [{{field: {key}}}]) {{ __typename }} }}");
-    let by_document = match executor.execute_with_security(&document, None, &caller).await {
-        Ok(_) => true,
-        Err(e) => {
-            let e = e.to_string();
-            !(e.contains("not one of its members") || e.contains("Cannot sort by"))
-        },
-    };
+    let probe = format!("{query}.{key}");
+    let by_document = verdict(
+        "document",
+        &probe,
+        executor.execute_with_security(&document, None, &caller).await,
+        &["not one of its members", "Cannot sort by"],
+    );
     let mut arguments = std::collections::HashMap::new();
     arguments.insert("orderBy".to_string(), json!([{ "field": key }]));
     let direct = QueryMatch {
@@ -98,10 +143,12 @@ async fn accepts(executor: &Executor, query: &str, key: &str) -> bool {
         parsed_query: std::sync::Arc::default(),
         collected: None,
     };
-    let by_engine = match executor.execute_query_direct(&direct, None, Some(&caller), None).await {
-        Ok(_) => true,
-        Err(e) => !e.to_string().contains("Cannot sort by"),
-    };
+    let by_engine = verdict(
+        "engine",
+        &probe,
+        executor.execute_query_direct(&direct, None, Some(&caller), None).await,
+        &["Cannot sort by"],
+    );
     assert_eq!(by_document, by_engine, "{query}.{key}: the document and the engine disagree");
     by_engine
 }
@@ -109,7 +156,7 @@ async fn accepts(executor: &Executor, query: &str, key: &str) -> bool {
 #[tokio::test]
 async fn the_conformance_fixture_publishes_exactly_what_it_accepts() {
     let schema = compiled_fixture().await;
-    let executor = Executor::new(schema.clone(), Arc::new(FailingAdapter::new()));
+    let executor = Executor::new(schema.clone(), Arc::new(adapter()));
     let mut checked = 0;
     for query in schema.queries.iter().filter(|q| !q.returns_count) {
         let Some((_, field)) =

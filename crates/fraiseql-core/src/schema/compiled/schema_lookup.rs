@@ -31,14 +31,16 @@ impl CompiledSchema {
         sources
     }
 
-    /// Whether this schema declares any consumer of enriched identity — a
-    /// [`SessionVariableSource::Enrichment`] mapping or an
-    /// [`InjectedParamSource::Enrichment`] parameter (#539).
+    /// Whether this schema reads the enriched identity at all: whether
+    /// [`enriched_fields_read`](Self::enriched_fields_read) is non-empty, through any of
+    /// its seven reader kinds.
     ///
-    /// Computed rather than cached: a cached flag would default to `false` on any
-    /// schema that skipped `build_indexes`, and a security backstop that switches
-    /// itself off on a hand-built fixture is worse than none. The scan is two
-    /// iterator passes over declarations, run once per executor construction.
+    /// Computed once per schema value and kept in [`DerivedState`]: the engine backstop
+    /// asks on every request. The value is filled on first use, never set to a default,
+    /// so a schema that skipped `build_indexes` still answers from its declarations: a
+    /// backstop that switches itself off on a hand-built fixture is worse than none. A
+    /// clone starts unfilled, and `build_indexes` clears it, so a schema changed through
+    /// either path answers for its new declarations.
     ///
     /// ⚠ This answers "does anything *read* enriched identity", which is **not**
     /// the same question as "must this request resolve". Resolution is enforced by
@@ -48,24 +50,12 @@ impl CompiledSchema {
     /// This is read only by the engine's *backstop*, which asks a narrower question:
     /// "may a principal that never met a resolver execute here".
     ///
-    /// [`SessionVariableSource::Enrichment`]: crate::schema::SessionVariableSource::Enrichment
-    /// [`InjectedParamSource::Enrichment`]: crate::schema::InjectedParamSource::Enrichment
+    /// [`DerivedState`]: super::DerivedState
     #[must_use]
     pub fn declares_enrichment_consumer(&self) -> bool {
-        use crate::schema::{InjectedParamSource, SessionVariableSource};
-
-        self.session_variables
-            .variables
-            .iter()
-            .any(|mapping| matches!(mapping.source, SessionVariableSource::Enrichment { .. }))
-            || self
-                .queries
-                .iter()
-                .flat_map(|q| q.inject_params.values())
-                .chain(self.mutations.iter().flat_map(|m| m.inject_params.values()))
-                .any(|source| matches!(source, InjectedParamSource::Enrichment(_)))
-            // A `[locale]` source reading the enriched identity (#1512).
-            || self.locale.as_ref().is_some_and(|l| l.enrichment_fields().next().is_some())
+        self.derived
+            .enrichment_consumer
+            .get(|| self.enriched_field_readers().next().is_some())
     }
 
     /// Every enriched field this schema reads from the `fraiseql.enriched.*` namespace
@@ -73,11 +63,16 @@ impl CompiledSchema {
     /// `enrichment` inject param on a query, a mutation, a type or a fact table, a
     /// `[locale]` resolve entry, or a subscription policy's identity field.
     ///
-    /// The one list of readers: a `static_enriched` field outside it answers nothing.
-    /// It is wider than [`declares_enrichment_consumer`](Self::declares_enrichment_consumer),
-    /// which predates the type, fact-table and subscription-policy readers.
+    /// The one list of readers: a `static_enriched` field outside it answers nothing,
+    /// and [`declares_enrichment_consumer`](Self::declares_enrichment_consumer) is
+    /// whether it is non-empty.
     #[must_use]
     pub fn enriched_fields_read(&self) -> std::collections::BTreeSet<&str> {
+        self.enriched_field_readers().collect()
+    }
+
+    /// Each enriched field read, once per reader, in declaration order.
+    fn enriched_field_readers(&self) -> impl Iterator<Item = &str> {
         use crate::schema::{InjectedParamSource, SessionVariableSource};
 
         let session_variables =
@@ -110,7 +105,6 @@ impl CompiledSchema {
             .chain(inject_params)
             .chain(locale)
             .chain(subscription_policies)
-            .collect()
     }
 
     /// The role names this schema reads: every name a role gate, a scope grant, a
@@ -171,6 +165,7 @@ impl CompiledSchema {
     ///
     /// [`derived_inputs::derive`]: crate::schema::derived_inputs::derive
     pub fn build_indexes(&mut self) {
+        self.derived.enrichment_consumer = super::LazyFlag::default();
         let derived = crate::schema::derived_inputs::derive(self);
         self.input_types.extend(derived.input_types);
         self.enums.extend(derived.enums);

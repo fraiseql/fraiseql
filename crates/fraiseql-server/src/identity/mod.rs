@@ -48,12 +48,21 @@ use fraiseql_core::schema::CompiledSchema;
 // is public and takes one.
 pub use resolver::{EnrichmentQueryConfig, IdentityConfig, IdentityResolver};
 
-/// Whether the compiled schema declares any consumer of enriched identity.
+/// The startup warning for `[identity.enrichment]` enabled over a schema that reads no
+/// enriched field, or `None` when the schema reads one.
 ///
-/// Delegates to the engine's own scan so the startup warning and the engine's
-/// enrichment backstop can never disagree about what "declares a consumer" means.
-pub(crate) fn schema_declares_enrichment_consumer(schema: &CompiledSchema) -> bool {
-    schema.declares_enrichment_consumer()
+/// Keyed on the engine's own predicate, so the warning, the boot check and the engine's
+/// enrichment backstop can never disagree about what reads the enriched identity.
+pub(crate) fn unread_enrichment_warning(schema: &CompiledSchema) -> Option<&'static str> {
+    if schema.declares_enrichment_consumer() {
+        None
+    } else {
+        Some(
+            "[identity.enrichment] is enabled but the schema reads no enriched field: every \
+             authenticated request will resolve identity, yet nothing reads it (likely a \
+             misconfiguration)",
+        )
+    }
 }
 
 // `pub(crate)` so a transport's own tests can drive a resolver without a second
