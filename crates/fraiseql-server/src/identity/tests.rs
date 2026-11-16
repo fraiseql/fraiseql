@@ -25,7 +25,7 @@ use axum::{
 };
 use chrono::Utc;
 use fraiseql_core::{
-    security::{ENRICHED_NAMESPACE_PREFIX, SecurityContext},
+    security::{ActorType, ENRICHED_NAMESPACE_PREFIX, SecurityContext},
     types::{TenantId, UserId},
 };
 use serde_json::{Value, json};
@@ -35,7 +35,7 @@ use super::{
     admin::identity_admin_router,
     apply::{EnrichmentOutcome, enrich_security_context},
     cache::{CachedOutcome, IdentityCache},
-    failure::{DenyReason, IdentityResolution, ResolveError},
+    failure::{DenyReason, IdentityResolution, ResolveError, ResolvedIdentity},
     query::{MissingParam, prepare_enrichment_query},
     resolver::{
         BoxFuture, EnrichmentQueryConfig, IdentityConfig, IdentityResolver, IdentityStore,
@@ -189,9 +189,12 @@ fn unicode_claim_value_is_bound() {
 // ── IdentityCache (DESIGN §6) ─────────────────────────────────────────────
 
 fn resolved(field: &str, value: Value) -> CachedOutcome {
-    let mut map = serde_json::Map::new();
-    map.insert(field.to_owned(), value);
-    CachedOutcome::Resolved(map)
+    let mut fields = serde_json::Map::new();
+    fields.insert(field.to_owned(), value);
+    CachedOutcome::Resolved(ResolvedIdentity {
+        fields,
+        roles: Vec::new(),
+    })
 }
 
 #[test]
@@ -205,7 +208,9 @@ fn cache_returns_inserted_outcome() {
     );
 
     match cache.get("[\"u1\"]") {
-        Some(CachedOutcome::Resolved(map)) => assert_eq!(map["actor_role"], "admin"),
+        Some(CachedOutcome::Resolved(identity)) => {
+            assert_eq!(identity.fields["actor_role"], "admin");
+        },
         other => panic!("expected Resolved, got {:?}", other.is_some()),
     }
 }
@@ -453,6 +458,7 @@ fn config(query: &str, map: &[(&str, &str)]) -> EnrichmentQueryConfig {
         cache_ttl_secs:    60,
         negative_ttl_secs: 5,
         provision:         None,
+        roles:             None,
     }
 }
 
@@ -488,6 +494,15 @@ pub fn resolver_returning(pairs: &[(&str, Value)]) -> IdentityResolver {
     }))
 }
 
+/// A resolver whose `roles` column holds `role` for every subject (#1858), not yet told
+/// which role names the schema reads: the server's wiring is what tells it.
+///
+/// Reason for the allow: as above — feature-gated consumers only.
+#[allow(dead_code)]
+pub fn resolver_granting_roles(role: Value) -> IdentityResolver {
+    roles_resolver(MockStore::returning(vec![row(&[("actor_id", json!("a-1")), ("role", role)])]))
+}
+
 /// A resolver whose store is unreachable — the transient arm (`Unavailable`), which
 /// every transport must answer differently from a denial.
 ///
@@ -510,9 +525,9 @@ async fn resolve_one_row_all_fields_present_resolves() {
     let resolver = resolver(store);
 
     match resolver.resolve("u1", &sub_claims()).await {
-        IdentityResolution::Resolved(map) => {
-            assert_eq!(map["actor_id"], "a-1");
-            assert_eq!(map["actor_role"], "manager");
+        IdentityResolution::Resolved(identity) => {
+            assert_eq!(identity.fields["actor_id"], "a-1");
+            assert_eq!(identity.fields["actor_role"], "manager");
         },
         other => panic!("expected Resolved, got {other:?}"),
     }
@@ -734,9 +749,9 @@ async fn pg_store_resolves_and_renames_known_subject() {
 
     let resolver = actor_resolver(&pool, &table);
     match resolver.resolve("u1", &sub_claims()).await {
-        IdentityResolution::Resolved(map) => {
-            assert_eq!(map["actor_id"], "a-1");
-            assert_eq!(map["actor_role"], "manager");
+        IdentityResolution::Resolved(identity) => {
+            assert_eq!(identity.fields["actor_id"], "a-1");
+            assert_eq!(identity.fields["actor_role"], "manager");
         },
         other => panic!("expected Resolved, got {other:?}"),
     }
@@ -1024,7 +1039,9 @@ async fn pg_sixteen_concurrent_first_requests_produce_one_row() {
 
     for task in tasks {
         match task.await.unwrap() {
-            IdentityResolution::Resolved(map) => assert_eq!(map["actor_id"], "a-u-storm"),
+            IdentityResolution::Resolved(identity) => {
+                assert_eq!(identity.fields["actor_id"], "a-u-storm");
+            },
             other => panic!("every concurrent first request must be served, got {other:?}"),
         }
     }
@@ -1072,7 +1089,9 @@ async fn pg_a_bare_insert_statement_provisions_too() {
     let resolver = IdentityResolver::new(cfg, Arc::new(PgIdentityStore::new(pool.clone())));
 
     match resolver.resolve("u-insert", &claims(&[("sub", json!("u-insert"))])).await {
-        IdentityResolution::Resolved(map) => assert_eq!(map["actor_id"], "a-u-insert"),
+        IdentityResolution::Resolved(identity) => {
+            assert_eq!(identity.fields["actor_id"], "a-u-insert");
+        },
         other => panic!("expected Resolved after an INSERT provision, got {other:?}"),
     }
 
@@ -1620,7 +1639,7 @@ async fn a_zero_row_miss_provisions_and_re_resolves() {
     );
 
     match resolver.resolve("u-new", &claims(&[("sub", json!("u-new"))])).await {
-        IdentityResolution::Resolved(map) => assert_eq!(map["actor_id"], "a-new"),
+        IdentityResolution::Resolved(identity) => assert_eq!(identity.fields["actor_id"], "a-new"),
         other => panic!("expected Resolved after provisioning, got {other:?}"),
     }
     assert_eq!(store.provisions(), 1, "the statement ran once");
@@ -1710,7 +1729,7 @@ async fn a_request_arriving_while_another_provisions_is_not_refused() {
     // cached before provisioning would 403 every concurrent request, and go on
     // doing it for the rest of `negative_ttl_secs`.
     match resolver.resolve("u-new", &claims(&[("sub", json!("u-new"))])).await {
-        IdentityResolution::Resolved(map) => assert_eq!(map["actor_id"], "a-new"),
+        IdentityResolution::Resolved(identity) => assert_eq!(identity.fields["actor_id"], "a-new"),
         other => panic!("a concurrent first request must not be refused, got {other:?}"),
     }
 
@@ -1918,4 +1937,307 @@ provision = "INSERT INTO tb_mailbox (sub) VALUES ($sub)"
 
     let err = config.validate().expect_err("boot must refuse it");
     assert!(err.contains("provision"), "the boot refusal is the identity one: {err}");
+}
+
+// ── Roles contributed by the enrichment row ───────────────────────────────
+
+/// A resolver whose profile maps `actor_id` and takes roles from `role`.
+fn roles_resolver(store: MockStore) -> IdentityResolver {
+    let mut cfg = config(
+        "SELECT actor_id, role FROM tb_actor WHERE sub = $sub",
+        &[("actor_id", "actor_id")],
+    );
+    cfg.roles = Some("role".to_owned());
+    IdentityResolver::new(cfg, Arc::new(store))
+}
+
+async fn resolve_role(value: Value) -> IdentityResolution {
+    let store = MockStore::returning(vec![row(&[("actor_id", json!("a-1")), ("role", value)])]);
+    roles_resolver(store).resolve("u1", &sub_claims()).await
+}
+
+fn roles_of(resolution: IdentityResolution) -> Vec<String> {
+    match resolution {
+        IdentityResolution::Resolved(identity) => identity.roles,
+        other => panic!("expected Resolved, got {other:?}"),
+    }
+}
+
+fn invalid_roles_column(resolution: IdentityResolution) -> String {
+    match resolution {
+        IdentityResolution::Denied(DenyReason::InvalidRoles(column)) => column,
+        other => panic!("expected Denied(InvalidRoles), got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn a_text_roles_column_grants_its_value() {
+    assert_eq!(roles_of(resolve_role(json!("admin")).await), ["admin"]);
+}
+
+#[tokio::test]
+async fn a_text_array_roles_column_grants_each_element() {
+    assert_eq!(
+        roles_of(resolve_role(json!(["viewer", "cost_reader"])).await),
+        ["viewer", "cost_reader"]
+    );
+}
+
+#[tokio::test]
+async fn an_empty_roles_array_grants_none_and_still_resolves() {
+    let resolution = resolve_role(json!([])).await;
+    match resolution {
+        IdentityResolution::Resolved(identity) => {
+            assert!(identity.roles.is_empty());
+            assert_eq!(identity.fields["actor_id"], "a-1", "the fields still resolve");
+        },
+        other => panic!("expected Resolved, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn a_null_roles_column_denies_the_whole_identity() {
+    match resolve_role(Value::Null).await {
+        IdentityResolution::Denied(DenyReason::NullField(column)) => assert_eq!(column, "role"),
+        other => panic!("expected Denied(NullField), got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn an_absent_roles_column_denies_the_whole_identity() {
+    let store = MockStore::returning(vec![row(&[("actor_id", json!("a-1"))])]);
+    match roles_resolver(store).resolve("u1", &sub_claims()).await {
+        IdentityResolution::Denied(DenyReason::NullField(column)) => assert_eq!(column, "role"),
+        other => panic!("expected Denied(NullField), got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn a_non_text_roles_column_is_refused() {
+    assert_eq!(invalid_roles_column(resolve_role(json!(7)).await), "role");
+}
+
+#[tokio::test]
+async fn a_blank_text_role_is_refused() {
+    assert_eq!(invalid_roles_column(resolve_role(json!("  ")).await), "role");
+}
+
+#[tokio::test]
+async fn a_non_text_roles_element_is_refused() {
+    assert_eq!(invalid_roles_column(resolve_role(json!(["viewer", 7])).await), "role");
+}
+
+#[tokio::test]
+async fn a_blank_roles_element_is_refused() {
+    assert_eq!(invalid_roles_column(resolve_role(json!(["viewer", ""])).await), "role");
+}
+
+#[test]
+fn an_invalid_roles_denial_names_the_column_in_the_log_only() {
+    assert_eq!(DenyReason::InvalidRoles("role".to_owned()).log_label(), "invalid-roles role");
+}
+
+#[tokio::test]
+async fn a_cached_identity_carries_its_roles() {
+    let store = Arc::new(MockStore::returning(vec![row(&[
+        ("actor_id", json!("a-1")),
+        ("role", json!(["viewer"])),
+    ])]));
+    let mut cfg = config(
+        "SELECT actor_id, role FROM tb_actor WHERE sub = $sub",
+        &[("actor_id", "actor_id")],
+    );
+    cfg.roles = Some("role".to_owned());
+    let resolver = IdentityResolver::new(cfg, store.clone());
+
+    let _ = resolver.resolve("u1", &sub_claims()).await;
+    let cached = resolver.resolve("u1", &sub_claims()).await;
+    assert_eq!(store.calls(), 1, "the second resolve is a cache hit");
+    assert_eq!(roles_of(cached), ["viewer"]);
+}
+
+#[test]
+fn roles_on_the_enrichment_profile_validates() {
+    let cfg: IdentityConfig = toml::from_str(
+        r#"
+[enrichment]
+enabled = true
+query = "SELECT actor_id, role FROM tb_actor WHERE sub = $sub"
+roles = "role"
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(cfg.enrichment.as_ref().unwrap().roles.as_deref(), Some("role"));
+    assert!(cfg.validate().is_ok());
+}
+
+#[test]
+fn roles_on_the_sender_profile_is_refused_naming_the_profile() {
+    // The sender profile resolves a sending address at send time. It grants no
+    // authority, so a `roles` column there would be accepted and never honoured.
+    let cfg: IdentityConfig = toml::from_str(
+        r#"
+[sender]
+enabled = true
+query = "SELECT sending_address, role FROM tb_mailbox WHERE sub = $sub"
+roles = "role"
+"#,
+    )
+    .unwrap();
+
+    let err = cfg.validate().expect_err("a sender profile with roles must be refused");
+    assert!(err.contains("[identity.sender]"), "names the offending profile: {err}");
+    assert!(err.contains("roles"), "and the key: {err}");
+    assert!(err.contains("[identity.enrichment]"), "and where the key belongs: {err}");
+}
+
+#[test]
+fn server_config_validate_refuses_a_sender_profile_with_roles() {
+    let config = crate::ServerConfig {
+        identity: Some(
+            toml::from_str(
+                r#"
+[sender]
+enabled = true
+query = "SELECT sending_address, role FROM tb_mailbox WHERE sub = $sub"
+roles = "role"
+"#,
+            )
+            .unwrap(),
+        ),
+        ..Default::default()
+    };
+
+    let err = config.validate().expect_err("boot must refuse it");
+    assert!(err.contains("roles"), "the boot refusal is the identity one: {err}");
+}
+
+// ── Roles merged into the security context (#1858) ─────────────────────────
+
+/// A schema that reads `viewer` and `cost_reader` (role definitions) and nothing else.
+fn schema_reading_roles(names: &[&str]) -> fraiseql_core::schema::CompiledSchema {
+    let mut security = fraiseql_core::schema::SecurityConfig::new();
+    for name in names {
+        security.add_role(fraiseql_core::schema::RoleDefinition::new(*name, vec![]));
+    }
+    let mut schema = fraiseql_core::schema::CompiledSchema::new();
+    schema.security = Some(security);
+    schema
+}
+
+/// A resolver granting `role`'s values, wired to a schema that reads `read`.
+fn granting_resolver(role: Value, read: &[&str]) -> IdentityResolver {
+    let resolver = roles_resolver(MockStore::returning(vec![row(&[
+        ("actor_id", json!("a-1")),
+        ("role", role),
+    ])]));
+    resolver.set_role_names(&schema_reading_roles(read));
+    resolver
+}
+
+#[tokio::test]
+async fn a_human_gains_the_roles_the_schema_reads() {
+    let resolver = granting_resolver(json!(["viewer", "cost_reader"]), &["viewer", "cost_reader"]);
+    let mut ctx = sec_ctx("u1", &[]);
+    assert_eq!(enrich_security_context(&resolver, &mut ctx).await, EnrichmentOutcome::Proceed);
+    assert_eq!(ctx.roles, ["viewer", "cost_reader"]);
+}
+
+#[tokio::test]
+async fn a_role_the_schema_never_reads_is_dropped() {
+    let resolver = granting_resolver(json!(["viewer", "veiwer"]), &["viewer"]);
+    let mut ctx = sec_ctx("u1", &[]);
+    assert_eq!(enrich_security_context(&resolver, &mut ctx).await, EnrichmentOutcome::Proceed);
+    assert_eq!(ctx.roles, ["viewer"], "a mistyped row grants nothing and refuses nothing");
+}
+
+#[tokio::test]
+async fn admin_is_dropped_when_the_schema_never_reads_it() {
+    let resolver = granting_resolver(json!("admin"), &["viewer"]);
+    let mut ctx = sec_ctx("u1", &[]);
+    assert_eq!(enrich_security_context(&resolver, &mut ctx).await, EnrichmentOutcome::Proceed);
+    assert!(ctx.roles.is_empty(), "`admin` has no meaning the schema does not give it");
+}
+
+#[tokio::test]
+async fn an_unwired_resolver_grants_no_role() {
+    // Nothing called `set_role_names`: the set is empty, so the column grants nothing.
+    let resolver = roles_resolver(MockStore::returning(vec![row(&[
+        ("actor_id", json!("a-1")),
+        ("role", json!("viewer")),
+    ])]));
+    let mut ctx = sec_ctx("u1", &[]);
+    assert_eq!(enrich_security_context(&resolver, &mut ctx).await, EnrichmentOutcome::Proceed);
+    assert!(ctx.roles.is_empty());
+}
+
+#[tokio::test]
+async fn a_role_the_token_already_carries_is_not_repeated() {
+    let resolver = granting_resolver(json!(["viewer", "cost_reader"]), &["viewer", "cost_reader"]);
+    let mut ctx = sec_ctx("u1", &[]);
+    ctx.roles = vec!["viewer".to_owned()];
+    let _ = enrich_security_context(&resolver, &mut ctx).await;
+    assert_eq!(ctx.roles, ["viewer", "cost_reader"]);
+}
+
+#[tokio::test]
+async fn an_agent_acting_for_a_user_keeps_the_tokens_roles_only() {
+    let resolver = granting_resolver(json!("cost_reader"), &["cost_reader"]);
+    let mut ctx = sec_ctx("u1", &[]).with_actor_type(ActorType::AiAgent);
+    assert_eq!(enrich_security_context(&resolver, &mut ctx).await, EnrichmentOutcome::Proceed);
+    assert!(ctx.roles.is_empty(), "a delegate never inherits what is stored for the person");
+    assert_eq!(
+        ctx.attributes[&format!("{ENRICHED_NAMESPACE_PREFIX}actor_id")],
+        "a-1",
+        "the enriched fields still resolve for the delegate"
+    );
+}
+
+#[tokio::test]
+async fn a_service_account_whose_row_carries_roles_gains_none() {
+    let resolver = granting_resolver(json!("cost_reader"), &["cost_reader"]);
+    let mut ctx = sec_ctx("service_account:sync", &[]).with_actor_type(ActorType::ServiceAccount);
+    assert_eq!(enrich_security_context(&resolver, &mut ctx).await, EnrichmentOutcome::Proceed);
+    assert!(ctx.roles.is_empty(), "a service account's authority is its configured ceiling");
+}
+
+#[tokio::test]
+async fn a_denied_identity_adds_no_role() {
+    let resolver = roles_resolver(MockStore::returning(vec![row(&[
+        ("actor_id", json!("a-1")),
+        ("role", json!(["viewer", 7])),
+    ])]));
+    resolver.set_role_names(&schema_reading_roles(&["viewer"]));
+    let mut ctx = sec_ctx("u1", &[]);
+    assert_eq!(enrich_security_context(&resolver, &mut ctx).await, EnrichmentOutcome::Denied);
+    assert!(ctx.roles.is_empty());
+}
+
+#[tokio::test]
+async fn a_schema_swap_changes_the_roles_granted() {
+    let resolver = granting_resolver(json!("cost_reader"), &["viewer"]);
+    let mut before = sec_ctx("u1", &[]);
+    let _ = enrich_security_context(&resolver, &mut before).await;
+    assert!(before.roles.is_empty());
+
+    resolver.set_role_names(&schema_reading_roles(&["cost_reader"]));
+    let mut after = sec_ctx("u1", &[]);
+    let _ = enrich_security_context(&resolver, &mut after).await;
+    assert_eq!(after.roles, ["cost_reader"], "the swapped-in schema reads it");
+}
+
+#[tokio::test]
+async fn a_dropped_role_never_reaches_the_cache_key() {
+    let enriched = |row_roles: Value| async move {
+        let resolver = granting_resolver(row_roles, &["viewer"]);
+        let mut ctx = sec_ctx("u1", &[]);
+        let _ = enrich_security_context(&resolver, &mut ctx).await;
+        fraiseql_core::cache::hash_security_context(Some(&ctx))
+    };
+    assert_eq!(
+        enriched(json!(["viewer", "pricng"])).await,
+        enriched(json!(["viewer"])).await,
+        "a name the schema never reads must not split the subject's cache entries"
+    );
 }

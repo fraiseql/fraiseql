@@ -324,6 +324,7 @@ impl AppState {
         resolver: Arc<crate::identity::IdentityResolver>,
     ) -> Self {
         self.identity = self.identity.with_resolver(resolver);
+        self.identity.refresh_role_names(self.executor.load().schema());
         self
     }
 
@@ -352,7 +353,15 @@ impl AppState {
     /// In-flight requests that already called `executor()` continue using
     /// the old executor until their guard is dropped.
     pub fn swap_executor(&self, new_executor: Arc<Executor>) {
-        self.executor.store(new_executor);
+        self.store_executor(new_executor);
+    }
+
+    /// Store `executor` and re-derive what is read from its schema at swap time: the
+    /// role names identity enrichment may grant (#1858).
+    fn store_executor(&self, executor: Arc<Executor>) {
+        #[cfg(feature = "auth")]
+        self.identity.refresh_role_names(executor.schema());
+        self.executor.store(executor);
     }
 
     /// Returns the executor for the given tenant key.
@@ -600,7 +609,7 @@ impl AppState {
         let new_executor = Arc::new(current.rebuild_with(schema, config));
 
         // Atomic swap
-        self.executor.store(new_executor);
+        self.store_executor(new_executor);
 
         // Clear query plan caches (reference old schema)
         #[cfg(feature = "arrow")]

@@ -20,14 +20,14 @@ use std::time::{Duration, Instant};
 
 use dashmap::DashMap;
 
-use super::failure::DenyReason;
+use super::failure::{DenyReason, ResolvedIdentity};
 
 /// A cacheable resolution outcome. `Unavailable` is deliberately absent: transient
 /// failures are never cached (DESIGN §5.3).
 #[derive(Clone)]
 pub(super) enum CachedOutcome {
-    /// A resolved identity map (renamed enriched fields), cached positively.
-    Resolved(serde_json::Map<String, serde_json::Value>),
+    /// A resolved identity (renamed enriched fields and roles), cached positively.
+    Resolved(ResolvedIdentity),
     /// A permanent denial, cached negatively for a short TTL.
     Denied(DenyReason),
 }

@@ -33,6 +33,8 @@ mod fact_table_inject_tests;
 #[cfg(test)]
 mod federation_keys_tests;
 #[cfg(test)]
+mod role_names_read_tests;
+#[cfg(test)]
 mod tests;
 
 pub use argument::{AUTO_PARAM_NAMES, ArgumentDefinition, AutoParams};

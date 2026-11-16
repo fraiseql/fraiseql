@@ -16,7 +16,7 @@
 //! consumer's responsibility.
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     future::Future,
     pin::Pin,
     sync::Arc,
@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     cache::{CachedOutcome, IdentityCache},
-    failure::{DenyReason, IdentityResolution, ResolveError},
+    failure::{DenyReason, IdentityResolution, ResolveError, ResolvedIdentity},
     query::{BoundQuery, MissingParam, prepare_enrichment_query},
 };
 
@@ -55,6 +55,15 @@ pub struct EnrichmentQueryConfig {
     /// the resolved row is a denial (DESIGN §5).
     #[serde(default)]
     pub map:               BTreeMap<String, String>,
+    /// A column (text or text[]) whose values the principal holds as roles (#1858).
+    /// Only role names the compiled schema reads are kept. A NULL or absent column is
+    /// a denial, as for [`map`](Self::map). A role change is seen within
+    /// `cache_ttl_secs`, or at once through `flush(sub)`.
+    ///
+    /// Belongs to the enrichment profile only; [`IdentityConfig::validate`]
+    /// refuses it on the sender profile, which shares this schema.
+    #[serde(default)]
+    pub roles:             Option<String>,
     /// Positive TTL for a `Resolved` outcome. Bounded (DESIGN §6.1): a revocation
     /// propagates within this window, or immediately via `flush(sub)`.
     #[serde(default = "default_cache_ttl_secs")]
@@ -118,6 +127,12 @@ impl IdentityConfig {
             return Err("[identity.sender] sets `provision`, which only the read path \
                  honours: provisioning a *sending* identity would invent a verified \
                  from-address. Move the key to [identity.enrichment], or remove it."
+                .to_owned());
+        }
+        if self.sender.as_ref().is_some_and(|sender| sender.roles.is_some()) {
+            return Err("[identity.sender] sets `roles`, which only the read path honours: a \
+                 sending identity grants no authority. Move the key to \
+                 [identity.enrichment], or remove it."
                 .to_owned());
         }
         Ok(())
@@ -268,6 +283,10 @@ pub struct IdentityResolver {
     /// The schema's tenant claim, which `$<tenant_claim>` binds from an assigned tenant
     /// when the principal carries no such claim (see `SecurityContext::jwt_claim`).
     tenant_claim: Arc<str>,
+    /// The role names the live compiled schema reads (#1858): the only roles the
+    /// `roles` column may grant. Empty until the server sets it, so an unwired
+    /// resolver grants none; replaced on every schema swap.
+    role_names:   arc_swap::ArcSwap<BTreeSet<String>>,
 }
 
 impl IdentityResolver {
@@ -278,6 +297,7 @@ impl IdentityResolver {
             store,
             cache: IdentityCache::new(),
             tenant_claim: Arc::from(fraiseql_core::schema::security_config::DEFAULT_TENANT_CLAIM),
+            role_names: arc_swap::ArcSwap::from_pointee(BTreeSet::new()),
         }
     }
 
@@ -286,6 +306,18 @@ impl IdentityResolver {
     pub(super) fn with_tenant_claim(mut self, tenant_claim: &str) -> Self {
         self.tenant_claim = Arc::from(tenant_claim);
         self
+    }
+
+    /// Keep, from now on, only the roles `schema` reads (#1858). Called when the
+    /// server attaches the resolver and again on every schema swap.
+    pub fn set_role_names(&self, schema: &fraiseql_core::schema::CompiledSchema) {
+        let names = schema.role_names_read().into_iter().map(str::to_owned).collect();
+        self.role_names.store(Arc::new(names));
+    }
+
+    /// The role names the `roles` column may grant.
+    pub(super) fn role_names(&self) -> arc_swap::Guard<Arc<BTreeSet<String>>> {
+        self.role_names.load()
     }
 
     /// The tenant claim `$param` bindings resolve against.
@@ -352,10 +384,10 @@ impl IdentityResolver {
         };
 
         match &resolution {
-            IdentityResolution::Resolved(map) => self.cache.insert(
+            IdentityResolution::Resolved(identity) => self.cache.insert(
                 key,
                 sub.to_owned(),
-                CachedOutcome::Resolved(map.clone()),
+                CachedOutcome::Resolved(identity.clone()),
                 Duration::from_secs(self.config.cache_ttl_secs),
             ),
             IdentityResolution::Denied(reason) => self.cache.insert(
@@ -377,7 +409,7 @@ impl IdentityResolver {
         bound: &BoundQuery,
     ) -> Result<IdentityResolution, ResolveError> {
         let rows = self.store.fetch_rows(&bound.sql, &bound.binds).await?;
-        Ok(classify(rows, &self.config.map))
+        Ok(classify(rows, &self.config.map, self.config.roles.as_deref()))
     }
 
     /// Run the configured `provision` statement for an unknown subject, then
@@ -451,7 +483,7 @@ fn cache_key(binds: &[serde_json::Value]) -> String {
 /// Lift a cached outcome back into the full resolution type.
 fn into_resolution(cached: CachedOutcome) -> IdentityResolution {
     match cached {
-        CachedOutcome::Resolved(map) => IdentityResolution::Resolved(map),
+        CachedOutcome::Resolved(identity) => IdentityResolution::Resolved(identity),
         CachedOutcome::Denied(reason) => IdentityResolution::Denied(reason),
     }
 }
@@ -466,6 +498,7 @@ fn into_resolution(cached: CachedOutcome) -> IdentityResolution {
 fn classify(
     rows: Vec<serde_json::Map<String, serde_json::Value>>,
     map: &BTreeMap<String, String>,
+    roles_column: Option<&str>,
 ) -> IdentityResolution {
     let mut rows = rows.into_iter();
     let Some(row) = rows.next() else {
@@ -485,5 +518,40 @@ fn classify(
             _ => return IdentityResolution::Denied(DenyReason::NullField(column.clone())),
         }
     }
-    IdentityResolution::Resolved(resolved)
+    let roles = match roles_column {
+        Some(column) => match roles_from(&row, column) {
+            Ok(roles) => roles,
+            Err(reason) => return IdentityResolution::Denied(reason),
+        },
+        None => Vec::new(),
+    };
+    IdentityResolution::Resolved(ResolvedIdentity {
+        fields: resolved,
+        roles,
+    })
+}
+
+/// Read the roles a resolved row grants from its `roles` column (#1858).
+///
+/// A text value is one role and a text array is one role per element; an empty array
+/// grants none. NULL or absent denies the identity, as a mapped column does. Anything
+/// else (a number, an object, a non-text or blank element, a blank text) is refused
+/// rather than coerced: a role the row did not clearly state is never granted.
+fn roles_from(
+    row: &serde_json::Map<String, serde_json::Value>,
+    column: &str,
+) -> Result<Vec<String>, DenyReason> {
+    let invalid = || DenyReason::InvalidRoles(column.to_owned());
+    let role = |value: &serde_json::Value| {
+        value
+            .as_str()
+            .filter(|role| !role.trim().is_empty())
+            .map(str::to_owned)
+            .ok_or_else(invalid)
+    };
+    match row.get(column) {
+        None | Some(serde_json::Value::Null) => Err(DenyReason::NullField(column.to_owned())),
+        Some(serde_json::Value::Array(values)) => values.iter().map(role).collect(),
+        Some(value) => role(value).map(|role| vec![role]),
+    }
 }

@@ -284,6 +284,52 @@ mod row_visibility_596 {
         assert_eq!(map.len(), 1);
     }
 
+    /// #1858: a role the actor table grants reaches `/ws`'s `bypass_roles`, so the
+    /// application table can lift a subscription's owner filter. A subject the table
+    /// does not grant the role to stays owner-scoped.
+    #[cfg(feature = "auth")]
+    #[tokio::test]
+    async fn an_enrichment_role_named_in_bypass_roles_lifts_the_owner_filter() {
+        let bypassing = SubscriptionPolicy {
+            owner_path:     "$.owner_id".to_string(),
+            identity_field: "actor_id".to_string(),
+            bypass_roles:   vec!["dispatcher".to_string()],
+        };
+        let mut schema = CompiledSchema::default();
+        schema.types.push(
+            TypeDefinition::new("Order", "v_order").with_subscription_policy(bypassing.clone()),
+        );
+        let policies: LiveSubscriptionPolicies = {
+            let mut map = HashMap::new();
+            map.insert("orderUpdated".to_string(), bypassing);
+            let map = Arc::new(map);
+            Arc::new(move || Arc::clone(&map))
+        };
+
+        let state_granting = |role: serde_json::Value| {
+            let identity = crate::identity::RequestIdentity::default()
+                .with_resolver(Arc::new(crate::identity::tests::resolver_granting_roles(role)));
+            identity.refresh_role_names(&schema);
+            let manager = Arc::new(SubscriptionManager::new(Arc::new(CompiledSchema::default())));
+            SubscriptionState::new(manager)
+                .with_live_subscription_policies(Some(Arc::clone(&policies)))
+                .with_identity(identity)
+        };
+        let alice = principal("alice", &[], &[]);
+
+        let dispatcher = state_granting(serde_json::json!("dispatcher"));
+        let lifted = resolve_subscription_rls(&dispatcher, "orderUpdated", Some(&alice)).await;
+        assert_eq!(lifted.expect("bypass → ok"), Vec::new(), "the table's role bypasses");
+
+        let viewer = state_granting(serde_json::json!("viewer"));
+        let scoped = resolve_subscription_rls(&viewer, "orderUpdated", Some(&alice)).await;
+        assert_eq!(
+            scoped.expect("a resolvable identity → ok"),
+            vec![("owner_id".to_string(), serde_json::json!("a-1"))],
+            "without the role, the owner filter holds"
+        );
+    }
+
     /// #611 layer-1: a policy ADDED by a hot-reload applies to a NEW subscription — the live
     /// source is read per subscribe, and the newly-scoped entity fails closed for an
     /// unresolvable identity rather than staying deliver-all until restart.

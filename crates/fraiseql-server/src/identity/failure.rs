@@ -29,6 +29,9 @@ pub(super) enum DenyReason {
     /// The query references a `$param` absent from the token claims. Carries the
     /// bare parameter name (log-only).
     MissingParam(String),
+    /// The `roles` column held something other than a non-blank text value or an
+    /// array of them (#1858). Carries the column name (log-only).
+    InvalidRoles(String),
 }
 
 impl DenyReason {
@@ -41,6 +44,7 @@ impl DenyReason {
             Self::Ambiguous => "ambiguous".to_owned(),
             Self::NullField(col) => format!("null-field {col}"),
             Self::MissingParam(name) => format!("missing-param {name}"),
+            Self::InvalidRoles(col) => format!("invalid-roles {col}"),
         }
     }
 }
@@ -69,15 +73,25 @@ impl fmt::Display for ResolveError {
     }
 }
 
+/// One resolved identity: the renamed enriched fields, and the roles its `roles`
+/// column contributes (#1858). `roles` is empty when the profile declares no column.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(super) struct ResolvedIdentity {
+    /// Column → field renaming applied; merged under `fraiseql.enriched.*`.
+    pub(super) fields: serde_json::Map<String, serde_json::Value>,
+    /// The role names the row grants, before the schema's role names filter them.
+    pub(super) roles:  Vec<String>,
+}
+
 /// The outcome of a single `sub → DB` lookup (DESIGN §5.1). Produced by the
 /// resolver; each call site maps it to its own surface (403/503 for the sync
 /// read path, retry/DLQ for the durable send path).
 #[derive(Debug)]
 pub(super) enum IdentityResolution {
-    /// Exactly one row, every mapped field present and non-null. The map holds
-    /// the renamed enriched fields (column → field applied). Merged under the
+    /// Exactly one row, every mapped field present and non-null. The fields are
+    /// the renamed enriched fields (column → field applied), merged under the
     /// `fraiseql.enriched.*` namespace by the read-path consumer.
-    Resolved(serde_json::Map<String, serde_json::Value>),
+    Resolved(ResolvedIdentity),
     /// Permanent — fail closed, never proceed.
     Denied(DenyReason),
     /// Transient — infra failure; do not cache.

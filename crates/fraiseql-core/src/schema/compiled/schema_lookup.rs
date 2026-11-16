@@ -113,6 +113,33 @@ impl CompiledSchema {
             .collect()
     }
 
+    /// The role names this schema reads: every name a role gate, a scope grant, a
+    /// subscription bypass or the default role compares a principal's roles against.
+    ///
+    /// A role outside this set grants nothing the schema can see. Identity enrichment
+    /// keeps only these names when it contributes roles from an application table, so a
+    /// stale or mistyped row is inert rather than an authority no gate mentions.
+    #[must_use]
+    pub fn role_names_read(&self) -> std::collections::BTreeSet<&str> {
+        let security = self.security.as_ref();
+        let role_definitions = security
+            .into_iter()
+            .flat_map(|security| security.role_definitions.iter().map(|role| role.name.as_str()));
+        let default_role = security.and_then(|security| security.default_role.as_deref());
+        let gates = self
+            .queries
+            .iter()
+            .filter_map(|query| query.requires_role.as_deref())
+            .chain(self.mutations.iter().filter_map(|mutation| mutation.requires_role.as_deref()))
+            .chain(self.types.iter().filter_map(|type_def| type_def.requires_role.as_deref()));
+        let bypass_roles = self
+            .types
+            .iter()
+            .filter_map(|type_def| type_def.subscription_policy.as_ref())
+            .flat_map(|policy| policy.bypass_roles.iter().map(String::as_str));
+        role_definitions.chain(default_role).chain(gates).chain(bypass_roles).collect()
+    }
+
     /// Build the schema's derived state: O(1) operation lookup indexes, and the
     /// filter/sort input surface `where`/`orderBy` are typed against.
     ///

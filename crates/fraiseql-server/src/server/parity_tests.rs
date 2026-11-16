@@ -247,6 +247,13 @@ async fn assert_carries_full_config(server: &Server, path: &str) {
         !cfg.changelog_enabled,
         "{path}: [changelog] write_enabled = false must reach the executor"
     );
+    // The application-level RLS policies skip filtering for a role named `admin`. The
+    // server installs none, so a role an `[identity.enrichment] roles` column grants
+    // (#1858) never reaches that rule; only an embedder that installs a policy opts in.
+    assert!(
+        cfg.rls_policy.is_none(),
+        "{path}: the server must not install an application-level RLS policy"
+    );
 
     assert_eq!(
         server.max_subscriptions_per_connection,
@@ -442,6 +449,7 @@ fn config_with_enrichment(field: &str) -> ServerConfig {
                 cache_ttl_secs:    60,
                 negative_ttl_secs: 5,
                 provision:         None,
+                roles:             None,
             }),
             sender:     None,
         }),

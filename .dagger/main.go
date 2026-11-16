@@ -2155,6 +2155,9 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// table — the defect is invisible without one, because an unwired resolver and
 		// an unreached one look identical from the response.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test enrichment_transport_parity_e2e_pg -- --test-threads=1",
+		// #1858: roles from the actor row drive requires_role / requires_scope; names the
+		// schema never reads grant nothing. Owns its tf_p1858_* fixtures → serial.
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test enrichment_roles_e2e_pg -- --test-threads=1",
 		// #1512 — the request locale: `[locale]` compiled through the real compiler, loaded
 		// through `from_json`, resolved per request and read back as `fraiseql.locale`
 		// through a view, on every transport the suite drives; never on a write.

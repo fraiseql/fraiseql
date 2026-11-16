@@ -149,3 +149,10 @@ failure model, wired to two consumers.
   outward body stays generic (no actor-table existence oracle).
 - The `send_email` host op and SMTP transport that consume the sender seam are
   the native-runtime hardening train's; #539 lands the resolver and the seam.
+
+> **Note (2026-11-16, #1858).** The context's `sub → actor_role` now reaches the
+> gates, not only the namespace. `[identity.enrichment] roles` names a column whose
+> values join a human principal's roles, under the same all-or-nothing rule as `map`
+> (NULL denies) and the same cache window. Only role names the compiled schema reads
+> are kept, so the actor table cannot grant an authority no gate mentions. Agents and
+> service accounts gain none, as with roles assigned through the RBAC API.

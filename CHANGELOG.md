@@ -55,6 +55,9 @@ disagreed, and the promise was the part that was wrong.
   (#1989).** A struct literal that lists every field must add it
   (`static_enriched: Default::default()`).
 
+- **New public field `EnrichmentQueryConfig.roles` in `fraiseql-server` (#1858).** A
+  struct literal that lists every field must add it (`roles: None`).
+
 ### Added
 
 - **`run_as.static_enriched` (#1989).** A function's, scheduled source's or saga step's
@@ -64,6 +67,17 @@ disagreed, and the promise was the part that was wrong.
   query runs for a background identity. Example:
   `"run_as": {"roles": ["maintenance"], "static_enriched": {"agent_role": "manager", "agent_id": ""}}`.
   An empty string is a value; a blank field name fails the compile and the boot.
+
+- **Identity enrichment contributes roles (#1858).** `[identity.enrichment] roles`
+  names a text or text[] column of the actor row; its values join a human principal's
+  roles, so a role kept in an application table drives `requires_role`, and
+  `requires_scope` through `role_definitions`, without copying it into
+  `fraiseql_user_roles` or minting it into the token. Only role names the compiled
+  schema reads are kept; any other name is dropped. NULL denies the identity, as for
+  `map`. Agents acting for a user and service accounts gain none. A role change applies
+  within `cache_ttl_secs`, or at once through `flush(sub)`. `roles` on
+  `[identity.sender]` is refused at boot. The column is a source of elevated rights:
+  see "Roles from the actor row" in `docs/architecture/enriched-identity-rls.md`.
 
 ### Changed
 

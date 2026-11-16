@@ -584,6 +584,26 @@ mod session_variable_tests {
         assert!(vars.is_empty(), "missing email should be silently skipped");
     }
 
+    /// A `jwt:roles` session variable answers the token's `roles` claim, never the
+    /// context's role list: roles the server adds (assigned through RBAC, or granted
+    /// by identity enrichment) do not reach SQL this way. An application that needs
+    /// them there maps the column through `[identity.enrichment] map` as well.
+    #[test]
+    fn a_jwt_roles_session_variable_never_reads_the_contexts_roles() {
+        let ctx = make_context(); // roles = ["admin"], no `roles` claim
+        let config = SessionVariablesConfig {
+            variables:         vec![SessionVariableMapping {
+                name:   "app.roles".to_string(),
+                source: SessionVariableSource::Jwt {
+                    claim: "roles".to_string(),
+                },
+            }],
+            inject_started_at: false,
+        };
+        let vars = resolve_session_variables(&config, &ctx).unwrap();
+        assert!(vars.is_empty(), "the claim is absent, whatever the context holds: {vars:?}");
+    }
+
     #[test]
     fn resolve_session_variables_enrichment_reads_namespace() {
         let mut ctx = make_context();

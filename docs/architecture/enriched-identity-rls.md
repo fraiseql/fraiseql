@@ -40,6 +40,7 @@ parity by construction. One query schema, reused by both profiles.
 enabled           = true
 query             = "SELECT actor_id, actor_role FROM tb_actor WHERE sub = $sub"
 map               = { actor_id = "actor_id", actor_role = "actor_role" }  # column -> field
+roles             = "actor_role"   # optional: text or text[] column whose values are roles (#1858)
 cache_ttl_secs    = 60             # a role change propagates within this window (see below)
 negative_ttl_secs = 5
 provision         = "SELECT fn_provision_actor($sub, $iss, $email, $claims)"  # optional, see below
@@ -65,6 +66,9 @@ map     = { sending_address = "sending_address" }
   `[identity.sender]` because the two profiles share one schema, and boot refuses
   it there: provisioning a *sending* identity would invent a verified
   from-address.
+- `roles` is legal on `[identity.enrichment]` only; boot refuses it on
+  `[identity.sender]`, where nothing would grant them. See
+  [Roles from the actor row](#roles-from-the-actor-row-1858).
 - Unknown keys are rejected (`deny_unknown_fields`) — a mistyped or stranded key
   fails loud at startup rather than being silently ignored.
 - **Trigger = `enabled = true` alone.** When enrichment is enabled, *every*
@@ -83,6 +87,46 @@ map     = { sending_address = "sending_address" }
 - The resolver runs on a **separate, unscoped** connection pool (the app role, no
   per-request GUCs), so identity is resolved *before* the identity that scopes
   the main query is applied — no chicken-and-egg.
+
+---
+
+## Roles from the actor row (#1858)
+
+`roles` names a column of the resolved row. Its values join the principal's roles before
+dispatch, so a role kept in an application table drives the compiled schema's own gates:
+`requires_role`, and `requires_scope` through `role_definitions`. Neither the IdP nor
+`fraiseql_user_roles` has to hold a copy.
+
+- **Values.** A text value is one role; a text array is one role per element; an empty
+  array grants none. NULL or an absent column denies the identity (403), as a NULL
+  mapped column does. A number, an object, a non-text element or a blank text is a
+  denial too (`invalid-roles <column>` in the server log; the response stays generic).
+- **Only names the schema reads.** A role is kept only if the compiled schema names it:
+  a `role_definitions` entry, `default_role`, a query, mutation or type `requires_role`,
+  or a subscription policy's `bypass_roles`. Any other name grants nothing and is
+  dropped (logged at debug), so a stale or mistyped row is inert and never enters a
+  cache key. `admin` is no exception: a schema that never names it ignores it. The set
+  follows the live schema across hot reloads; since `security` is read only at startup,
+  a reload changes it only through `requires_role` gates and `bypass_roles`, never
+  through `role_definitions` or `default_role`.
+- **Who gains them.** Human users only, as for roles assigned through the RBAC API: an
+  agent acting for a user (`act`) keeps the token's roles, and a service account holds
+  exactly its configured ceiling, whatever its row says.
+- **Removal.** Roles ride the cached identity: a role removed from the row stops
+  applying within `cache_ttl_secs`, or at once through `flush(sub)`.
+- **Not in SQL.** A `jwt:roles` session variable or inject reads the token's `roles`
+  claim, never these roles. To use the column in a predicate, map it in `map` as well.
+
+> **The roles column is a source of elevated rights.** Whoever can write it can grant
+> any role the schema names: every `requires_role` gate, every scope `role_definitions`
+> attaches to a role, and `/ws` `bypass_roles`, which lifts a subscription's owner filter.
+> Protect it as you would the IdP's role assignment. The server installs no
+> application-level RLS policy; an embedder that installs one whose rules skip filtering
+> for a role (such as `admin`) makes that role grantable from the table too, and only
+> once the schema also names it.
+>
+> The names come from the deployment's compiled schema. A role name read only by a
+> tenant executor's own schema is never granted from enrichment.
 
 ---
 

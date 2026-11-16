@@ -66,8 +66,9 @@ impl SenderIdentityResolver for DbSenderIdentityResolver {
                 });
 
             match self.resolver.resolve(sub, &claims).await {
-                IdentityResolution::Resolved(fields) => {
-                    let address = fields
+                IdentityResolution::Resolved(identity) => {
+                    let address = identity
+                        .fields
                         .get(&self.address_field)
                         .and_then(Value::as_str)
                         .map(str::trim)
@@ -82,7 +83,7 @@ impl SenderIdentityResolver for DbSenderIdentityResolver {
                     let display_name = self
                         .display_name_field
                         .as_ref()
-                        .and_then(|field| fields.get(field))
+                        .and_then(|field| identity.fields.get(field))
                         .and_then(Value::as_str)
                         .map(str::trim)
                         .filter(|v| !v.is_empty())

@@ -2040,3 +2040,117 @@ fn an_execution_timeout_maps_to_504_not_408() {
         "#731: a server-side execution timeout is 504, not 408"
     );
 }
+
+/// The role names identity enrichment may grant follow the live schema (#1858): set
+/// when the resolver is attached, refreshed by every executor swap and every reload.
+#[cfg(feature = "auth")]
+mod enrichment_role_names {
+    use std::sync::Arc;
+
+    use chrono::Utc;
+    use fraiseql_core::{
+        runtime::Executor,
+        schema::{CompiledSchema, RoleDefinition, SecurityConfig},
+        security::SecurityContext,
+        types::UserId,
+    };
+    use fraiseql_test_utils::failing_adapter::FailingAdapter;
+    use serde_json::json;
+
+    use super::super::AppState;
+    use crate::identity::{resolve_request_identity, tests::resolver_granting_roles};
+
+    fn reading(role: Option<&str>) -> CompiledSchema {
+        let mut schema = CompiledSchema::default();
+        if let Some(role) = role {
+            let mut security = SecurityConfig::new();
+            security.add_role(RoleDefinition::new(role, vec![]));
+            schema.security = Some(security);
+        }
+        schema
+    }
+
+    fn executor(schema: CompiledSchema) -> Arc<Executor> {
+        Arc::new(Executor::new(schema, Arc::new(FailingAdapter::new())))
+    }
+
+    async fn roles_granted(state: &AppState) -> Vec<String> {
+        let mut ctx = SecurityContext {
+            user_id:          UserId::new("u1"),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       std::collections::HashMap::new(),
+            request_id:       "req-test".to_owned(),
+            ip_address:       None,
+            authenticated_at: Utc::now(),
+            expires_at:       Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        };
+        let _ = resolve_request_identity(&state.identity, Some(&mut ctx)).await;
+        ctx.roles
+    }
+
+    #[tokio::test]
+    async fn attaching_the_resolver_reads_the_schemas_role_names() {
+        let state = AppState::new(executor(reading(Some("cost_reader"))))
+            .with_identity_resolver(Arc::new(resolver_granting_roles(json!("cost_reader"))));
+        assert_eq!(roles_granted(&state).await, ["cost_reader"]);
+    }
+
+    #[tokio::test]
+    async fn swapping_the_executor_refreshes_the_role_names() {
+        let state = AppState::new(executor(reading(None)))
+            .with_identity_resolver(Arc::new(resolver_granting_roles(json!("cost_reader"))));
+        assert!(roles_granted(&state).await.is_empty(), "the first schema reads no role");
+
+        state.swap_executor(executor(reading(Some("cost_reader"))));
+        assert_eq!(roles_granted(&state).await, ["cost_reader"]);
+    }
+
+    /// The names come from the deployment's schema. A role only a tenant executor's own
+    /// schema reads is never granted from enrichment: the documented, fail-closed limit.
+    #[tokio::test]
+    async fn a_role_only_a_tenant_schema_reads_is_not_granted() {
+        let state = AppState::new(executor(reading(None)));
+        let registry = Arc::new(super::super::tenant_registry::TenantExecutorRegistry::new(
+            Arc::clone(&state.executor),
+        ));
+        let tenant = executor(reading(Some("cost_reader")));
+        assert!(
+            tenant.schema().role_names_read().contains("cost_reader"),
+            "non-vacuity: the tenant's schema does read the role"
+        );
+        registry.upsert("acme", tenant);
+        let state = state
+            .with_tenant_registry(registry)
+            .with_identity_resolver(Arc::new(resolver_granting_roles(json!("cost_reader"))));
+
+        assert!(roles_granted(&state).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn reloading_the_schema_refreshes_the_role_names() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("schema.json");
+        let state = AppState::new(executor(reading(None)))
+            .with_reload_config(path.clone())
+            .with_identity_resolver(Arc::new(resolver_granting_roles(json!("cost_reader"))));
+        assert!(roles_granted(&state).await.is_empty());
+
+        // `security` is boot-frozen, so the reload adds a role gate on a query instead.
+        let mut gated = CompiledSchema::default();
+        let mut query = fraiseql_core::schema::QueryDefinition::new("invoicePrices", "Invoice");
+        query.requires_role = Some("cost_reader".to_owned());
+        gated.queries.push(query);
+        gated
+            .types
+            .push(fraiseql_core::schema::TypeDefinition::new("Invoice", "v_invoice"));
+        std::fs::write(&path, serde_json::to_string(&gated).unwrap()).unwrap();
+        state.reload_schema(&path).await.expect("the reload applies");
+        assert_eq!(roles_granted(&state).await, ["cost_reader"]);
+    }
+}

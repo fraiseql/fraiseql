@@ -8,7 +8,10 @@
 //! (DESIGN §5.4), so the caller's outward response stays generic (no actor-table
 //! existence oracle).
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+};
 
 // The outcome type and its two outward messages live in `fraiseql-core` (#1349): the
 // Flight transport resolves through an object-safe seam from a crate that cannot depend
@@ -42,6 +45,15 @@ impl RequestIdentity {
     pub fn with_resolver(mut self, resolver: Arc<IdentityResolver>) -> Self {
         self.resolver = Some(resolver);
         self
+    }
+
+    /// Keep, from now on, only the enrichment roles `schema` reads (#1858). Called when
+    /// the resolver is attached and on every executor swap, so a reload that adds or
+    /// removes a role gate changes which roles the `roles` column may grant.
+    pub fn refresh_role_names(&self, schema: &fraiseql_core::schema::CompiledSchema) {
+        if let Some(resolver) = self.resolver.as_deref() {
+            resolver.set_role_names(schema);
+        }
     }
 
     /// Grant human principals the roles `assigned_roles` reads.
@@ -96,6 +108,27 @@ async fn add_assigned_roles(
     }
 }
 
+/// Add the roles the enrichment row grants (#1858), keeping only the names the
+/// compiled schema reads.
+///
+/// Only a human user gains them, as with assigned roles: an agent acting for a user
+/// keeps the token's roles, and a service account holds exactly its configured ceiling.
+/// A name no gate, scope grant, bypass or default role mentions would grant nothing
+/// visible, so it is dropped (logged at debug: a stale row must not flood the log)
+/// rather than carried into the cache key.
+fn add_enriched_roles(read: &BTreeSet<String>, roles: Vec<String>, ctx: &mut SecurityContext) {
+    if ctx.actor_type() != ActorType::HumanUser {
+        return;
+    }
+    for role in roles {
+        if !read.contains(&role) {
+            tracing::debug!(sub = %ctx.user_id.0, %role, "enriched role not read by the schema");
+        } else if !ctx.roles.contains(&role) {
+            ctx.roles.push(role);
+        }
+    }
+}
+
 /// Resolve `ctx`'s DB identity and, on success, merge every mapped field into
 /// `ctx.attributes` under the reserved namespace. All-or-nothing: on a denial or
 /// a transient failure nothing is merged and the caller stops the request.
@@ -115,10 +148,11 @@ pub async fn enrich_security_context(
     let sub = ctx.user_id.0.clone();
     let claims = claims_for_binding(ctx, resolver.tenant_claim());
     match resolver.resolve(&sub, &claims).await {
-        IdentityResolution::Resolved(fields) => {
-            for (field, value) in fields {
+        IdentityResolution::Resolved(identity) => {
+            for (field, value) in identity.fields {
                 ctx.attributes.insert(format!("{ENRICHED_NAMESPACE_PREFIX}{field}"), value);
             }
+            add_enriched_roles(&resolver.role_names(), identity.roles, ctx);
             ctx.mark_enrichment(EnrichmentMark::Resolved);
             EnrichmentOutcome::Proceed
         },
