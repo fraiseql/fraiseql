@@ -771,3 +771,95 @@ fn a_tagged_extension_header_carries_its_tags_after_its_name() {
     let sdl = generate_service_sdl(base, &enabled_metadata(), &tags(&["ty"]));
     assert!(sdl.contains(&format!("extend type ty {BOTH} {{\n")), "{sdl}");
 }
+
+// --- String literals: a reason or a description is text, not structure (#1721) ---
+
+/// `User @key(id)` whose `id` is `@external`, and a second entity declared after it.
+fn user_then_account() -> FederationMetadata {
+    let mut user = user_type_with_key();
+    user.field_directives.insert(
+        "id".to_string(),
+        FieldFederationDirectives {
+            external: true,
+            ..Default::default()
+        },
+    );
+    let mut account = user_type_with_key();
+    account.name = "Account".to_string();
+    let mut metadata = enabled_metadata();
+    metadata.types = vec![user, account];
+    metadata
+}
+
+/// The part of `sdl` this crate decorated: after the `@link` line it writes first, and
+/// before the declarations it appends.
+fn decorated(sdl: &str) -> &str {
+    let (_link, rest) = sdl.split_once('\n').unwrap();
+    rest.split("\ndirective @key").next().unwrap()
+}
+
+#[test]
+fn a_directive_goes_after_a_string_holding_a_hash_not_inside_it() {
+    let base = "type User {\n  id: ID! @deprecated(reason: \"See issue #12\")\n}\n";
+
+    let sdl = generate_service_sdl(base, &user_then_account(), &ContractTags::none());
+
+    assert!(
+        decorated(&sdl).contains("  id: ID! @deprecated(reason: \"See issue #12\") @external\n"),
+        "{sdl}"
+    );
+}
+
+#[test]
+fn a_directive_still_goes_before_a_comment_that_follows_a_string() {
+    let base = "type User {\n  id: ID! @deprecated(reason: \"See #12\") # legacy\n}\n";
+
+    let sdl = generate_service_sdl(base, &user_then_account(), &ContractTags::none());
+
+    assert!(
+        decorated(&sdl).contains("  id: ID! @deprecated(reason: \"See #12\") @external # legacy\n"),
+        "{sdl}"
+    );
+}
+
+#[test]
+fn a_brace_inside_a_string_opens_and_closes_nothing() {
+    for text in ["Use {id", "Use id}", "an escaped \\\" then {"] {
+        let base = format!(
+            "type User {{\n  id: ID!\n  old: String @deprecated(reason: \"{text}\")\n}}\n\ntype \
+             Account {{\n  id: ID!\n}}\n"
+        );
+
+        let sdl = generate_service_sdl(&base, &user_then_account(), &ContractTags::none());
+
+        // The type after the string is still read as a type header, and gets its key.
+        assert!(decorated(&sdl).contains("type Account @key(fields: \"id\") {"), "{text}: {sdl}");
+    }
+}
+
+/// A description is free text too. One line of it may look like a type header, or start
+/// with the name of a field that takes a directive; neither is touched.
+#[test]
+fn a_description_is_left_as_written() {
+    let base = "\"\"\"\ntype Account {\n  id of the user, see #4 and {braces\n\"\"\"\ntype User \
+                {\n  \"the id { # not a comment\"\n  id: ID!\n  \"\"\"\n  id is external\n  \
+                \"\"\"\n  name: String\n}\n\ntype Account {\n  id: ID!\n}\n";
+
+    let sdl = generate_service_sdl(base, &user_then_account(), &ContractTags::none());
+    let sdl = decorated(&sdl);
+
+    // Every description line is unchanged.
+    for line in [
+        "type Account {\n  id of the user, see #4 and {braces\n\"\"\"\n",
+        "  \"the id { # not a comment\"\n",
+        "  \"\"\"\n  id is external\n  \"\"\"\n",
+    ] {
+        assert!(sdl.contains(line), "{line:?} in:\n{sdl}");
+    }
+    // The real members are decorated once each.
+    assert!(sdl.contains("\"\"\"\ntype User @key(fields: \"id\") {\n"), "{sdl}");
+    assert!(sdl.contains("  id: ID! @external\n"), "{sdl}");
+    assert_eq!(sdl.matches("@external").count(), 1, "{sdl}");
+    assert!(sdl.contains("\n\ntype Account @key(fields: \"id\") {\n"), "{sdl}");
+    assert_eq!(sdl.matches("@key").count(), 2, "{sdl}");
+}

@@ -35,6 +35,8 @@ mod federation_keys_tests;
 #[cfg(test)]
 mod role_names_read_tests;
 #[cfg(test)]
+mod sdl_deprecation_tests;
+#[cfg(test)]
 mod tests;
 
 pub use argument::{AUTO_PARAM_NAMES, ArgumentDefinition, AutoParams};

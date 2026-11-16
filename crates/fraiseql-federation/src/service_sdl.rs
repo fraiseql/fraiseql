@@ -161,13 +161,71 @@ fn extract_field_name(trimmed: &str) -> Option<String> {
 }
 
 /// Append directive suffix to a field line, inserting before any trailing comment.
-fn append_directives_to_line(line: &str, suffix: &str) -> String {
-    // Look for a # comment that isn't inside a string
-    if let Some(comment_pos) = line.find(" #") {
-        format!("{}{}{}", &line[..comment_pos], suffix, &line[comment_pos..])
-    } else {
-        format!("{line}{suffix}")
+///
+/// `code_end` is where the line's code ends ([`Code::end`]): a `#` inside a string
+/// literal is text, and no directive is inserted there.
+fn append_directives_to_line(line: &str, code_end: usize, suffix: &str) -> String {
+    let at = line[..code_end].trim_end().len();
+    format!("{}{suffix}{}", &line[..at], &line[at..])
+}
+
+/// What a line of SDL holds outside its string literals and its comment.
+///
+/// The decorator reads the schema line by line: a brace opens or closes a type body, a
+/// `#` starts a comment, a leading word is a type keyword or a field name. None of that
+/// holds inside a string: a description or a `@deprecated` reason is free text. So each
+/// line is first reduced to its code, with every string literal and the comment blanked
+/// out byte for byte (offsets into the line stay valid).
+struct Code {
+    /// The line with string literals (quotes included) and the comment replaced by spaces.
+    text: String,
+    /// Where the code ends: the comment's `#`, or the line's end.
+    end:  usize,
+}
+
+/// Reduce `line` to its [`Code`]. `in_block` says whether the line starts inside a block
+/// string (`"""`), and is updated to whether the next line does.
+fn code_of(line: &str, in_block: &mut bool) -> Code {
+    let mut text = String::with_capacity(line.len());
+    let mut end = line.len();
+    let mut in_string = false;
+    let mut rest = line;
+    while let Some(c) = rest.chars().next() {
+        let mut taken = c.len_utf8();
+        let mut is_code = false;
+        if *in_block {
+            if rest.starts_with("\\\"\"\"") {
+                taken = 4;
+            } else if rest.starts_with("\"\"\"") {
+                taken = 3;
+                *in_block = false;
+            }
+        } else if in_string {
+            if c == '\\' {
+                taken += rest[1..].chars().next().map_or(0, char::len_utf8);
+            } else if c == '"' {
+                in_string = false;
+            }
+        } else if rest.starts_with("\"\"\"") {
+            taken = 3;
+            *in_block = true;
+        } else if c == '"' {
+            in_string = true;
+        } else if c == '#' {
+            end = line.len() - rest.len();
+            text.extend(std::iter::repeat_n(' ', rest.len()));
+            break;
+        } else {
+            is_code = true;
+        }
+        if is_code {
+            text.push(c);
+        } else {
+            text.extend(std::iter::repeat_n(' ', taken));
+        }
+        rest = &rest[taken..];
     }
+    Code { text, end }
 }
 
 /// `line`, a type header, with `suffix` right after its name.
@@ -217,9 +275,15 @@ pub fn generate_service_sdl(
     // The type whose body is open, federated or not: what a field line belongs to.
     let mut open_type: Option<String> = None;
     let mut brace_depth: u32 = 0;
+    // Whether the line being read starts inside a block string.
+    let mut in_block = false;
 
     for line in base_schema.lines() {
-        let trimmed = line.trim();
+        let starts_in_block = in_block;
+        let code = code_of(line, &mut in_block);
+        // A line inside a block string is description: it is no header and no field. (A
+        // line that starts with a string is neither as well: neither parser below reads one.)
+        let trimmed = if starts_in_block { "" } else { line.trim() };
         let indent = &line[..line.len() - line.trim_start().len()];
 
         if brace_depth == 0 {
@@ -295,14 +359,14 @@ pub fn generate_service_sdl(
             if suffix.is_empty() {
                 output_lines.push(line.to_string());
             } else {
-                output_lines.push(append_directives_to_line(line, &suffix));
+                output_lines.push(append_directives_to_line(line, code.end, &suffix));
             }
         } else {
             output_lines.push(line.to_string());
         }
 
-        // Update brace depth after processing the line
-        for ch in trimmed.chars() {
+        // Update brace depth after processing the line, from its code alone
+        for ch in code.text.chars() {
             match ch {
                 '{' => brace_depth += 1,
                 '}' => {

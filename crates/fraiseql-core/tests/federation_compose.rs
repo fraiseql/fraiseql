@@ -84,6 +84,12 @@ fn subgraph_catalog() -> CompiledSchema {
         TypeDefinition::new("Product", "public.v_product")
             .with_field(FieldDefinition::new("id", FieldType::Id))
             .with_field(FieldDefinition::new("name", FieldType::String))
+            // A deprecated field: the supergraph must keep the deprecation and its
+            // reason, which holds a quote the SDL has to escape (#1721).
+            .with_field(
+                FieldDefinition::new("legacyName", FieldType::String)
+                    .deprecated(Some(r#"Use "name" instead."#.to_string())),
+            )
             .with_field(FieldDefinition::new("price", FieldType::Object("Money".into())))
             .with_field(FieldDefinition::new("createdAt", FieldType::DateTime)),
     );
@@ -244,6 +250,13 @@ fn catalog_sdl_holds_every_federation_invariant() {
     assert!(sdl.contains("union _Entity = Product"), "Product missing from _Entity union");
     assert!(!sdl.contains("Money |"), "keyless Money leaked into _Entity union (#496)");
     assert!(!sdl.contains("| Money"), "keyless Money leaked into _Entity union (#496)");
+
+    // #1721 — a deprecated field keeps `@deprecated` and its reason, or the supergraph
+    // serves it as live.
+    assert!(
+        sdl.contains(r#"  legacyName: String! @deprecated(reason: "Use \"name\" instead.")"#),
+        "deprecated field lost its directive (#1721): {sdl}"
+    );
 
     // #1800 — a fact table's roots are Query fields under their literal names, returning its
     // row type; the roots of one read as a gated type carry the role's tag.

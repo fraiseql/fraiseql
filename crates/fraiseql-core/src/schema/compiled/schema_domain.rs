@@ -494,7 +494,11 @@ impl CompiledSchema {
             for enum_def in &self.enums {
                 let _ = writeln!(sdl, "enum {} {{", enum_def.name);
                 for value in &enum_def.values {
-                    let _ = writeln!(sdl, "  {}", value.name);
+                    let deprecated = sdl_deprecation(
+                        value.deprecation.is_some(),
+                        value.deprecation.as_ref().and_then(|d| d.reason.as_deref()),
+                    );
+                    let _ = writeln!(sdl, "  {}{deprecated}", value.name);
                 }
                 sdl.push_str("}\n\n");
             }
@@ -503,7 +507,9 @@ impl CompiledSchema {
             for iface in &self.interfaces {
                 let _ = writeln!(sdl, "interface {} {{", iface.name);
                 for field in &iface.fields {
-                    let _ = writeln!(sdl, "  {}: {}", field.name, field.field_type);
+                    let deprecated =
+                        sdl_deprecation(field.is_deprecated(), field.deprecation_reason());
+                    let _ = writeln!(sdl, "  {}: {}{deprecated}", field.name, field.field_type);
                 }
                 sdl.push_str("}\n\n");
             }
@@ -533,7 +539,12 @@ impl CompiledSchema {
                         .find(|v| v.name == field.name)
                         .and_then(|v| v.default_value.as_deref())
                         .map_or_else(String::new, |d| format!(" = {d}"));
-                    let _ = writeln!(sdl, "  {}: {base}{non_null}{default}", field.name);
+                    let deprecated = sdl_deprecation(
+                        field.is_deprecated(),
+                        field.deprecation.as_ref().and_then(|d| d.reason.as_deref()),
+                    );
+                    let _ =
+                        writeln!(sdl, "  {}: {base}{non_null}{default}{deprecated}", field.name);
                 }
                 sdl.push_str("}\n\n");
             }
@@ -717,22 +728,42 @@ fn sdl_type(t: &crate::schema::IntrospectionType) -> String {
     }
 }
 
-/// One published field as an SDL field definition: `name(arg: Type = default): Type`.
+/// One published field as an SDL field definition: `name(arg: Type = default): Type`,
+/// each followed by its `@deprecated` when it is deprecated.
 fn sdl_field(field: &crate::schema::IntrospectionField) -> String {
     let ty = sdl_type(&field.field_type);
+    let deprecated = sdl_deprecation(field.is_deprecated, field.deprecation_reason.as_deref());
     if field.args.is_empty() {
-        return format!("{}: {ty}", field.name);
+        return format!("{}: {ty}{deprecated}", field.name);
     }
     let args = field
         .args
         .iter()
         .map(|a| {
             let default = a.default_value.as_ref().map_or_else(String::new, |d| format!(" = {d}"));
-            format!("{}: {}{default}", a.name, sdl_type(&a.input_type))
+            let deprecated = sdl_deprecation(a.is_deprecated, a.deprecation_reason.as_deref());
+            format!("{}: {}{default}{deprecated}", a.name, sdl_type(&a.input_type))
         })
         .collect::<Vec<_>>()
         .join(", ");
-    format!("{}({args}): {ty}", field.name)
+    format!("{}({args}): {ty}{deprecated}", field.name)
+}
+
+/// The ` @deprecated` a deprecated member carries in the SDL, empty for a live one.
+///
+/// A gateway composes the SDL, so a deprecation printed here is one the supergraph keeps;
+/// introspection reports the same members deprecated. The reason is a GraphQL string: JSON's
+/// escapes (`\"`, `\\`, `\n`, `\uXXXX`) are all GraphQL escapes. No recorded reason is the
+/// bare directive, which reads as the directive's own default.
+fn sdl_deprecation(deprecated: bool, reason: Option<&str>) -> String {
+    match (deprecated, reason) {
+        (false, _) => String::new(),
+        (true, None) => " @deprecated".to_string(),
+        (true, Some(reason)) => {
+            let reason = serde_json::Value::String(reason.to_string());
+            format!(" @deprecated(reason: {reason})")
+        },
+    }
 }
 
 /// Strip GraphQL list and non-null markers from a rendered type string, leaving the

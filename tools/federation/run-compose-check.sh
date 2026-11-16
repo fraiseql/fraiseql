@@ -8,7 +8,8 @@
 #     role tags catalog's gated query and its type carry (#1717), which is what a
 #     gateway contract filters on; both publish fact-table roots (#1800), so the window
 #     inputs and enums every such subgraph declares compose, and the roots of the fact
-#     table read as the gated type keep its tag
+#     table read as the gated type keep its tag; and the supergraph keeps the
+#     `@deprecated` of catalog's deprecated field, with its reason (#1721)
 #   - catalog + reviews_conflict     → rejected with INVALID_FIELD_SHARING (#497)
 #   - default_literals               → every published default is a GraphQL literal of
 #     its type (#1888): graphql-js keeps each SDL and introspection default, and an
@@ -39,8 +40,9 @@ if [[ ! -d node_modules ]]; then
   npm ci --no-audit --no-fund
 fi
 
-echo "→ positive: catalog + reviews must compose, keeping catalog's role tags and input defaults"
+echo "→ positive: catalog + reviews must compose, keeping catalog's role tags, input defaults and deprecations"
 node compose-check.mjs \
+  '--expect-supergraph=^  legacyName: String!.* @deprecated\(reason: "Use \\"name\\" instead\."\)' \
   '--expect-supergraph=^  direction: SortDirection = ASC$' \
   '--expect-supergraph=^  productCosts: .* @tag\(name: "requires-role/catalog-admin"\)$' \
   '--expect-supergraph=^type ProductCost\n(  @.*\n)*  @tag\(name: "requires-role/catalog-admin"\)\n\{' \

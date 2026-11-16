@@ -527,6 +527,7 @@ type Money @shareable {
 type Product @key(fields: "id") {
   id: ID!
   name: String!
+  legacyName: String! @deprecated(reason: "Use \"name\" instead.")
   price: Money!
   createdAt: DateTime!
 }

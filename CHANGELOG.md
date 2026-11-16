@@ -117,6 +117,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The generated SDL keeps `@deprecated` (#1721).** A deprecated field, argument, input
+  field or enum value compiled with its deprecation and introspection reported it, but the
+  SDL printed it without the directive. So the federation `_service { sdl }`,
+  `fraiseql federation sdl` and the SDL export all published it as live, and a gateway
+  composing the subgraph lost the deprecation and its reason. The SDL now prints
+  `@deprecated(reason: "…")`, or the bare directive when no reason is recorded, on every
+  member introspection reports deprecated. The federation directives are still added to
+  that SDL line by line; that pass now skips string literals, so a brace or a `#` inside a
+  deprecation reason or a description no longer moves a directive or changes which lines
+  are read as type headers.
+
 - **An explicit `null` for `where` or `orderBy` reads as the argument's absence (#1745).**
   `orders(where: null)`, written inline or passed as a variable, was refused with `where
   clause must be a JSON object`, and `orderBy: null` on a list query with `orderBy must be an
