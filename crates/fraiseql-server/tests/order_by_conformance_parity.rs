@@ -5,6 +5,10 @@
 //! the document validator (GraphQL) and the engine itself (what REST and gRPC reach).
 //!
 //! No database: an accepted key reaches the failing adapter, a refused one is refused first.
+//!
+//! Both readers are asked as a caller the fixture's scoped queries admit ([`caller`]): a
+//! query scoped by `inject_params` refuses a request with no caller before it reads the
+//! sort key, and a refusal that is not about the key says nothing about the key.
 
 use std::sync::Arc;
 
@@ -12,6 +16,8 @@ use fraiseql_cli::commands::compile::{CompileOptions, compile_to_schema};
 use fraiseql_core::{
     runtime::{Executor, QueryMatch},
     schema::CompiledSchema,
+    security::SecurityContext,
+    types::{TenantId, UserId},
 };
 use fraiseql_test_utils::failing_adapter::FailingAdapter;
 use serde_json::json;
@@ -42,10 +48,30 @@ async fn compiled_fixture() -> CompiledSchema {
     CompiledSchema::from_json(&compiled.schema.to_json().unwrap(), false).expect("and loads")
 }
 
+/// A caller who holds the `tenant_id` claim the fixture's scoped queries inject.
+fn caller() -> SecurityContext {
+    SecurityContext {
+        user_id:          UserId::from("u-conformance"),
+        roles:            vec!["admin".to_string()],
+        tenant_id:        Some(TenantId::from("A")),
+        scopes:           vec![],
+        attributes:       std::collections::HashMap::from([("tenant_id".to_string(), json!("A"))]),
+        request_id:       "req-order-by-parity".to_string(),
+        ip_address:       None,
+        authenticated_at: chrono::Utc::now(),
+        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
+        email:            None,
+        display_name:     None,
+    }
+}
+
 /// Whether `query` accepts `key`, by both readers, which must agree.
 async fn accepts(executor: &Executor, query: &str, key: &str) -> bool {
+    let caller = caller();
     let document = format!("{{ {query}(orderBy: [{{field: {key}}}]) {{ __typename }} }}");
-    let by_document = match executor.execute(&document, None).await {
+    let by_document = match executor.execute_with_security(&document, None, &caller).await {
         Ok(_) => true,
         Err(e) => {
             let e = e.to_string();
@@ -72,7 +98,7 @@ async fn accepts(executor: &Executor, query: &str, key: &str) -> bool {
         parsed_query: std::sync::Arc::default(),
         collected: None,
     };
-    let by_engine = match executor.execute_query_direct(&direct, None, None, None).await {
+    let by_engine = match executor.execute_query_direct(&direct, None, Some(&caller), None).await {
         Ok(_) => true,
         Err(e) => !e.to_string().contains("Cannot sort by"),
     };

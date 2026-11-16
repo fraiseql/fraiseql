@@ -599,6 +599,18 @@ impl CompiledSchema {
                 path:    Some("security.inject_params".to_string()),
             });
         }
+        // A scoped type inside another type's served document is published to every
+        // reader of that document, unless the document is scoped alike and says so.
+        let violations = self.embedded_scope_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "a scoped type is embedded in a served document:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("types.fields.scoped_like_parent".to_string()),
+            });
+        }
         // #1159: a query's `orderBy.field` enum lists exactly its sort keys. Derivation never
         // overwrites a name already taken, so an author's type of the same name, or two owners
         // deriving one name, would hand a query someone else's keys: refused, naming it.

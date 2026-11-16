@@ -140,6 +140,7 @@ pub(super) fn extract_go_struct_fields(lines: &[&str], start: usize) -> Vec<Inte
                 hierarchy: None,
                 unique: None,
                 localized: false,
+                scoped_like_parent: false,
             });
         }
     }

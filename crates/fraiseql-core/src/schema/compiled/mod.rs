@@ -6,6 +6,7 @@
 pub mod argument;
 mod auth_email;
 pub mod directive;
+mod embedded_scope;
 mod fact_table_links;
 mod fact_table_roots;
 mod fact_table_scope;
@@ -26,6 +27,8 @@ pub mod validation;
 
 #[cfg(test)]
 mod default_literal_tests;
+#[cfg(test)]
+mod embedded_scope_tests;
 #[cfg(test)]
 mod enriched_fields_read_tests;
 #[cfg(test)]

@@ -69,6 +69,23 @@ disagreed, and the promise was the part that was wrong.
   the entity keyed `snake_case` from the mutation's function, as a view's document is. A
   single-word field (`status`) is unaffected.
 
+- **A scoped type embedded in another type's served document is refused unless declared
+  (#1737).** A type whose own query carries `inject_params`, held by a field of a type the
+  server reads directly (a query that reads a relation returns it, a subscription streams
+  it, or federation resolves it as an entity), used to compile; its nested level then came
+  back empty or refused on every request when the embedded documents did not carry the
+  scope key. The schema is now refused when it is compiled and when a server loads it,
+  naming the field, the embedded type, its query and the key. To migrate, either read the
+  rows through a query of their own, or declare `scoped_like_parent` on the embedding field
+  (`fraiseql.field(scoped_like_parent=True)` in Python, `scopedLikeParent: true` in
+  TypeScript, `scoped_like_parent = true` in a TOML schema, `"scoped_like_parent": true` in
+  a schema document). The declaration is checked: every query that reads the holding type's
+  relation must carry the same columns from the same sources, and a declaration on a field
+  that embeds no scoped type is refused. A mutation's result type is not affected. A schema
+  with no `inject_params`, or none on an embedded type, compiles as before. The other nine
+  SDKs do not author the declaration yet. `fraiseql_core::schema::FieldDefinition` gains
+  `scoped_like_parent: bool`: struct literals add `scoped_like_parent: false`.
+
 - **A setting declared in two files must agree (#1719).** A runtime section of a TOML
   schema (`[mcp]`, `[rest]`, `[grpc]`, `[debug]`, `[validation]`, `[subscriptions]`,
   `[federation]`, `[auth]`, `[changelog]`, `[hierarchies]`, `[query_defaults]`) used to

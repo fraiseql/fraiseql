@@ -64,6 +64,13 @@ export interface FieldMetadata {
    * Selecting it on a query that did not run that search is refused, not nulled.
    */
   vectorDistance?: string;
+  /**
+   * On a field that embeds a type whose own query is scoped by `inject`, declares that the
+   * type holding the field is scoped by the same columns from the same sources (#1737).
+   * Without it such an embedding does not compile; with it the compiler checks every query
+   * of the holding type.
+   */
+  scopedLikeParent?: boolean;
 }
 
 /**
@@ -896,6 +903,7 @@ export class SchemaRegistry {
     "authorize",
     "hierarchy",
     "localized",
+    "scoped_like_parent",
   ]);
 
   private static projectToCompiledFields<T extends Field>(fields: T[]): T[] {
@@ -1029,6 +1037,20 @@ export class SchemaRegistry {
     });
   }
 
+  /**
+   * Rename `scopedLikeParent` to the key the compiler reads (#1737), and emit it only when
+   * declared: `false` declares nothing, so it writes no key.
+   */
+  private static canonicalizeScopedLikeParent<T extends Field>(fields: T[]): T[] {
+    return fields.map((f) => {
+      const { scopedLikeParent, ...rest } = f as T & { scopedLikeParent?: boolean };
+      if (scopedLikeParent === undefined) {
+        return f;
+      }
+      return (scopedLikeParent ? { ...rest, scoped_like_parent: true } : rest) as unknown as T;
+    });
+  }
+
   static registerType(
     name: string,
     fields: Field[],
@@ -1059,9 +1081,11 @@ export class SchemaRegistry {
       );
     }
     fields = this.projectToCompiledFields(
-      this.canonicalizeVectorFields(
-        this.canonicalizeFieldDeprecation(
-          this.canonicalizeFieldScopes(this.canonicalizeIdFields(fields))
+      this.canonicalizeScopedLikeParent(
+        this.canonicalizeVectorFields(
+          this.canonicalizeFieldDeprecation(
+            this.canonicalizeFieldScopes(this.canonicalizeIdFields(fields))
+          )
         )
       )
     );

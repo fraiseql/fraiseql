@@ -927,6 +927,33 @@ fields.name = { type = "String" }
         assert!(find("id").get("unique").is_none(), "nor does the identity: {json}");
     }
 
+    /// `scoped_like_parent` (#1737) reaches the compiler from a TOML field, and an
+    /// undeclared field emits no key.
+    #[test]
+    fn a_field_declared_scoped_like_its_parent_is_emitted() {
+        let schema: TomlSchema = toml::from_str(
+            r#"
+[schema]
+name = "app"
+version = "1.0.0"
+database_target = "postgresql"
+
+[types.Order]
+sql_source = "v_order"
+fields.id = { type = "ID" }
+fields.lines = { type = "[OrderLine]", scoped_like_parent = true }
+"#,
+        )
+        .expect("`scoped_like_parent` must be an accepted field key");
+
+        let json = schema.types["Order"].to_intermediate_json("Order");
+        let fields = json["fields"].as_array().expect("fields is an array");
+        let find = |name: &str| fields.iter().find(|f| f["name"] == name).expect("emitted");
+
+        assert_eq!(find("lines")["scoped_like_parent"], serde_json::json!(true), "{json}");
+        assert!(find("id").get("scoped_like_parent").is_none(), "{json}");
+    }
+
     /// A type declaring none emits no key at all, so its document is byte-identical to
     /// what this emitter produced before the block existed.
     #[test]

@@ -318,6 +318,31 @@ def _canonicalize_id_type(field_name: str, graphql_type: str) -> str:
     return graphql_type
 
 
+def _field_config_info(config: FieldConfig[Any]) -> dict[str, Any]:
+    """The exported keys a field's `fraiseql.field(...)` configuration declares."""
+    info: dict[str, Any] = {}
+    if config.requires_scope:
+        info["requires_scope"] = config.requires_scope
+    if config.on_deny:
+        info["on_deny"] = config.on_deny
+    if config.deprecated:
+        info["deprecated"] = {"reason": config.deprecated}
+    if config.description:
+        info["description"] = config.description
+    if config.computed:
+        info["computed"] = True
+    if config.vector_config is not None:
+        info["vector_config"] = config.vector_config.to_dict()
+    if config.vector_distance:
+        info["vector_distance"] = config.vector_distance
+    if config.scoped_like_parent:
+        info["scoped_like_parent"] = True
+    federation = _extract_federation_directives(config)
+    if federation:
+        info["federation"] = federation
+    return info
+
+
 def extract_field_info(cls: type) -> dict[str, dict[str, Any]]:
     """Extract field information from a class with type annotations.
 
@@ -369,25 +394,7 @@ def extract_field_info(cls: type) -> dict[str, dict[str, Any]]:
         # Check for FieldConfig metadata in Annotated types
         config = extract_field_config(field_type)
         if config is not None:
-            if config.requires_scope:
-                field_info["requires_scope"] = config.requires_scope
-            if config.on_deny:
-                field_info["on_deny"] = config.on_deny
-            if config.deprecated:
-                field_info["deprecated"] = {"reason": config.deprecated}
-            if config.description:
-                field_info["description"] = config.description
-            if config.computed:
-                field_info["computed"] = True
-            if config.vector_config is not None:
-                field_info["vector_config"] = config.vector_config.to_dict()
-            if config.vector_distance:
-                field_info["vector_distance"] = config.vector_distance
-
-            # Federation field-level directives
-            federation = _extract_federation_directives(config)
-            if federation:
-                field_info["federation"] = federation
+            field_info.update(_field_config_info(config))
 
         fields[field_name] = field_info
 

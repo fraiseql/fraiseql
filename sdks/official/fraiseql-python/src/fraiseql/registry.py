@@ -138,6 +138,7 @@ class SchemaRegistry:
             "vector_config",
             "vector_distance",
             "localized",
+            "scoped_like_parent",
         )
         for key in optional_keys:
             if key in field_info:

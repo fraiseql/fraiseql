@@ -181,6 +181,18 @@ function authorFull(): void {
     { sqlSource: "v_reading_series" }
   );
 
+  // #1737: `Order` is scoped by `tenantOrders`, so a type that embeds it says it is scoped
+  // alike, and its own query bears that out.
+  registerTypeFields(
+    "OrderShipment",
+    [
+      { name: "id", type: "ID", nullable: false },
+      { name: "order", type: "Order", nullable: false, scopedLikeParent: true },
+    ],
+    undefined,
+    { sqlSource: "v_order_shipment" }
+  );
+
   enum_("OrderStatus", { PENDING: "PENDING", SHIPPED: "SHIPPED", CANCELLED: "CANCELLED" });
   enum Priority {
     LOW = 1,
@@ -209,6 +221,11 @@ function authorFull(): void {
     undefined,
     { sql_source: "v_user" }
   );
+
+  registerQuery("tenantOrderShipments", "OrderShipment", true, false, [], undefined, {
+    sql_source: "v_order_shipment",
+    inject_params: { tenant_id: "jwt:tenant_id" },
+  });
 
   registerQuery(
     "readingSeriesByIds",

@@ -374,6 +374,24 @@ pub struct IntermediateField {
     /// returned as the request locale's label. Emitted by the SDKs' `Localized` type.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub localized: bool,
+
+    /// Declares that the scoped type this field embeds is scoped like the document that
+    /// holds it (#1737). A type whose own query carries `inject_params` does not compile
+    /// inside another type's served document without it, and the declaration compiles only
+    /// where every read of that document carries the same columns from the same sources.
+    ///
+    /// # Example
+    ///
+    /// ```json
+    /// {
+    ///   "name": "lines",
+    ///   "type": "[OrderLine]",
+    ///   "nullable": false,
+    ///   "scoped_like_parent": true
+    /// }
+    /// ```
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub scoped_like_parent: bool,
 }
 
 // =============================================================================

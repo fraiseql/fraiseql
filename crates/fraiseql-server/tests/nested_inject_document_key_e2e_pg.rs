@@ -15,6 +15,11 @@
 //! so tenant `A` reads it as `null`. Order 3 is tenant `B`'s. Every order also embeds a
 //! `Vault` document, a type scoped the same way that does not publish `tenant_id`.
 //!
+//! #1737: `Customer` and `Vault` are scoped types inside `Order`'s served document, so the
+//! schema loads only with both fields declared `scoped_like_parent`, which `orders` bears
+//! out (same column, same claim). The declaration is a statement about the schema; the rows
+//! are still filtered on the key, which is what order 2 shows.
+//!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** creates and drops its own `p1579_nested_inject` schema → run
 //! `--test-threads=1`.
@@ -131,7 +136,14 @@ fn scoped(name: &str, return_type: &str, view: &str) -> QueryDefinition {
     query
 }
 
-fn schema() -> CompiledSchema {
+/// The schema as built, before it is loaded; `declared` puts `scoped_like_parent` on the
+/// two fields of `Order` that embed a scoped type.
+fn schema_as_written(declared: bool) -> CompiledSchema {
+    let embeds = |name: &str, target: &str| {
+        let mut field = FieldDefinition::nullable(name, FieldType::Object(target.to_string()));
+        field.scoped_like_parent = declared;
+        field
+    };
     let mut schema = CompiledSchema::new();
     let mut customer = TypeDefinition::new("Customer", format!("{SCHEMA}.v_customer"));
     customer.fields = vec![
@@ -147,8 +159,8 @@ fn schema() -> CompiledSchema {
     let mut order = TypeDefinition::new("Order", format!("{SCHEMA}.v_order"));
     order.fields = vec![
         FieldDefinition::new("id", FieldType::Int),
-        FieldDefinition::nullable("customer", FieldType::Object("Customer".to_string())),
-        FieldDefinition::nullable("vault", FieldType::Object("Vault".to_string())),
+        embeds("customer", "Customer"),
+        embeds("vault", "Vault"),
     ];
     schema.types.extend([customer, vault, order]);
     schema.queries.extend([
@@ -165,6 +177,16 @@ fn schema() -> CompiledSchema {
     schema.mutations.push(touch);
     schema.build_indexes();
     schema
+}
+
+/// Load `schema` as a server loads a compiled artifact.
+fn load(schema: &CompiledSchema) -> Result<CompiledSchema, FraiseQLError> {
+    CompiledSchema::from_json(&serde_json::to_string(schema).unwrap(), false)
+}
+
+/// The declared schema, loaded: what every read below is served from.
+fn schema() -> CompiledSchema {
+    load(&schema_as_written(true)).unwrap_or_else(|e| panic!("the declared schema loads: {e}"))
 }
 
 fn tenant_a() -> SecurityContext {
@@ -217,6 +239,41 @@ macro_rules! rig_or_skip {
             },
         }
     };
+}
+
+/// Every other test here needs a database before it loads the document, so without this
+/// one a refusal of it would show only in a run that has one.
+#[test]
+fn the_document_loads_without_a_database() {
+    let schema = schema();
+
+    let order = schema.find_type("Order").unwrap();
+    let declared: Vec<&str> = order
+        .fields
+        .iter()
+        .filter(|f| f.scoped_like_parent)
+        .map(|f| f.name.as_str())
+        .collect();
+    assert_eq!(declared, ["customer", "vault"], "the declarations survive the load");
+}
+
+/// #1737: without the declarations the schema does not load, and the refusal names each
+/// embedding and the key it is scoped by. No database is involved: it never boots.
+#[test]
+fn the_schema_does_not_load_until_each_scoped_embedding_is_declared() {
+    let refusal = match load(&schema_as_written(false)) {
+        Ok(_) => panic!("an undeclared scoped embedding must not load"),
+        Err(error) => error.to_string(),
+    };
+
+    for needle in [
+        "Order.customer",
+        "Order.vault",
+        "tenant_id",
+        "scoped_like_parent",
+    ] {
+        assert!(refusal.contains(needle), "names `{needle}`: {refusal}");
+    }
 }
 
 /// Control: the root read filters on the native column — tenant `A` reads its two orders and
