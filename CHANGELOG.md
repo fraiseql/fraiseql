@@ -97,6 +97,13 @@ disagreed, and the promise was the part that was wrong.
 - The `jwt_parse` fuzz target moved to `fraiseql-core` as `oidc_token`, which fuzzes
   `OidcValidator` (#1964).
 
+- `fraiseql compile` merges a schema document's `security` block with the TOML file
+  compiled beside it (a project `fraiseql.toml`, or the TOML schema of `--types`) key by
+  key. A key set in both must agree, or the compile is refused naming the key; a key only
+  the schema document sets is kept; the row-tenancy `@tenant_id` check reads the merged
+  section. A project whose two copies of a key differ fails to compile until they agree or
+  one is removed.
+
 ## [2.19.1] - 2026-11-14
 
 ### Breaking

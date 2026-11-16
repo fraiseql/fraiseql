@@ -7,6 +7,7 @@ pub mod discovery;
 pub mod inject_defaults;
 pub mod runtime;
 pub mod security;
+pub mod security_merge;
 pub mod toml_schema;
 
 use std::path::Path;
@@ -61,6 +62,12 @@ pub struct TomlProjectConfig {
     /// sub-table is accepted and left to the server.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub observers: Option<toml_schema::ObserversConfig>,
+
+    /// The compiled `security` keys this file writes, which a schema document's own
+    /// `security` block must agree with; see [`security_merge::reconcile`]. Filled by
+    /// [`Self::from_file`].
+    #[serde(skip)]
+    pub declared_security: std::collections::BTreeSet<String>,
 }
 
 /// Project metadata
@@ -206,12 +213,16 @@ impl TomlProjectConfig {
         let toml_content = expand_env_vars(&raw)?;
 
         // A file that is not TOML at all is reported by the typed parse below.
-        if let Ok(table) = toml_content.parse::<toml::Table>() {
+        let declared_security = if let Ok(table) = toml_content.parse::<toml::Table>() {
             refuse_unapplied_keys(&table)?;
-        }
+            security_merge::declared_in_project_config(&table)
+        } else {
+            std::collections::BTreeSet::new()
+        };
 
-        let config: TomlProjectConfig = toml::from_str(&toml_content)
+        let mut config: TomlProjectConfig = toml::from_str(&toml_content)
             .map_err(|e| anyhow::anyhow!("Failed to parse fraiseql.toml: {e}"))?;
+        config.declared_security = declared_security;
 
         Ok(config)
     }

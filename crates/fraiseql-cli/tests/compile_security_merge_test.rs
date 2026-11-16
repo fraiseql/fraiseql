@@ -202,6 +202,22 @@ fn sdk_tenancy_set_by_both_and_agreeing_compiles() {
     );
 }
 
+/// Agreement is judged on the compiled section, not the spelling: the TOML lowers
+/// `[fraiseql.tenancy] mode = "row"` with its default claim written out, and a document
+/// copy that leaves the claim to the same default agrees with it.
+#[test]
+fn sdk_tenancy_spelled_differently_with_the_same_meaning_compiles() {
+    let toml = "[project]\nname = \"app\"\n\n[fraiseql.tenancy]\nmode = \"row\"\n";
+    let security = json!({"tenancy": {"mode": "row"}});
+    let dir = project(Workflow::Sdk, Some(toml), &document(Some(security), true));
+    let schema = compiled(Workflow::Sdk, &dir);
+    assert_eq!(schema["security"]["tenancy"]["tenant_claim"], json!("tenant_id"), "{schema}");
+    assert_eq!(
+        orders_inject_params(&schema),
+        json!({"tenantId": {"source": "jwt", "claim": "tenant_id"}})
+    );
+}
+
 /// The comparison is per section: a TOML that declares `[fraiseql.tenancy]` with only
 /// `mode` still owns the whole section, so a document claim other than the TOML's
 /// default claim is a disagreement, refused by section name.

@@ -125,6 +125,13 @@ pub struct TomlSchema {
     #[serde(default)]
     pub tenancy: crate::config::security::TenancyTomlConfig,
 
+    /// The compiled `security` keys this file writes (`[security]` keys, `[tenancy]`),
+    /// which a `--types` document's own `security` block must agree with; see
+    /// [`crate::config::security_merge::reconcile`]. Filled when the TOML is parsed
+    /// ([`Self::from_file`], [`Self::parse_toml`]).
+    #[serde(skip)]
+    pub declared_security: std::collections::BTreeSet<String>,
+
     /// Project-wide default injected parameters (`[inject_defaults]`, #1384), in the shape
     /// the SDK config loaders read.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -358,6 +365,10 @@ impl TomlSchema {
     pub(crate) fn parse_toml_in(content: &str, project: &std::path::Path) -> Result<Self> {
         let expanded = expand_env_vars(content)?;
         let mut schema: Self = toml::from_str(&expanded).context("Failed to parse TOML schema")?;
+        if let Ok(table) = expanded.parse::<toml::Table>() {
+            schema.declared_security =
+                crate::config::security_merge::declared_in_toml_schema(&table);
+        }
         if let Some(local) = schema.auth.as_mut().and_then(|auth| auth.local.as_mut()) {
             security::embed_email_templates(local, project)?;
         }

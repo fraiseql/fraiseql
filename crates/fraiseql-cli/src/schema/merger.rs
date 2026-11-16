@@ -685,7 +685,7 @@ impl SchemaMerger {
         // `tenancy_gate_seam_test` additionally asks the consumer's questions of
         // a compiled file rather than checking key presence.
         let sec = &toml_schema.security;
-        merged["security"] = serde_json::to_value(fraiseql_core::schema::SecurityConfig {
+        let lowered = serde_json::to_value(fraiseql_core::schema::SecurityConfig {
             // #897: lowered from `[[security.role_definitions]]` / `default_role`, through
             // the same `to_runtime` the project-config producer uses. Hard-coded empty
             // until then, which made field-level RBAC undeclarable on this workflow: a
@@ -725,6 +725,15 @@ impl SchemaMerger {
             service_accounts:       None,
         })
         .context("Failed to serialize [security] into the compiled schema")?;
+        // `merged` carries the document's own `security` block forward; it is merged with
+        // the TOML's section key by key (a key both set must agree, a key only the
+        // document sets is kept), and the row-tenancy check reads the result.
+        merged["security"] = crate::config::security_merge::reconcile(
+            "fraiseql.toml",
+            lowered,
+            &toml_schema.declared_security,
+            merged.get("security").cloned(),
+        )?;
 
         // Embed observers configuration if enabled or if any backend URL is set
         if toml_schema.observers.is_configured() {

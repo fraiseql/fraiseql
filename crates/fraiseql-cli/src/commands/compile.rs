@@ -300,7 +300,15 @@ pub async fn compile_to_schema(
                 // `tenant_id` without a word (#1542).
                 security_json["tenancy"] = config.fraiseql.tenancy.to_json();
 
-                intermediate.security = Some(security_json);
+                // A `security` block in the schema document is merged with this section,
+                // key by key: a key both set must agree, a key only the document sets is
+                // kept. The row-tenancy check below reads the merged section.
+                intermediate.security = Some(crate::config::security_merge::reconcile(
+                    &config_path.display().to_string(),
+                    security_json,
+                    &config.declared_security,
+                    intermediate.security.take(),
+                )?);
 
                 // Session variables are the mechanism RLS policies read; carry them
                 // through rather than leaving `schema.json` as the only way to
