@@ -679,3 +679,389 @@ async fn the_checkpoint_store_keeps_its_cursor_in_core() {
     store.delete("cas").await.unwrap();
     assert_eq!(in_core().await, None, "delete resets the listener");
 }
+
+// ---------------------------------------------------------------------------
+// Observers the compiled schema declares are written into `core.tb_observer`
+// ---------------------------------------------------------------------------
+
+use fraiseql_core::schema::ObserverDefinition;
+use fraiseql_server::{
+    ServerError,
+    observers::{Reconciled, UpdateObserverRequest},
+};
+
+/// A declared observer on `Order` inserts, posting to `url`.
+fn declared(name: &str, url: &str) -> ObserverDefinition {
+    ObserverDefinition::new(name, "Order", "INSERT")
+        .with_action(serde_json::json!({"type": "webhook", "url": url}))
+}
+
+/// `(name, organisation, managed_by, enabled, first action's url)` of every live observer.
+async fn live_observers(
+    pool: &PgPool,
+) -> Vec<(String, Option<i64>, Option<String>, bool, Option<String>)> {
+    sqlx::query_as(
+        "SELECT name::text, fk_customer_org, managed_by::text, enabled, actions -> 0 ->> 'url' \
+         FROM core.tb_observer WHERE deleted_at IS NULL ORDER BY name, fk_customer_org NULLS FIRST",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap()
+}
+
+async fn id_of(pool: &PgPool, name: &str) -> Uuid {
+    let (id,): (Uuid,) = sqlx::query_as(
+        "SELECT id FROM core.tb_observer WHERE name = $1 AND fk_customer_org IS NULL \
+         AND deleted_at IS NULL",
+    )
+    .bind(name)
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    id
+}
+
+fn schema_row(
+    name: &str,
+    enabled: bool,
+    url: &str,
+) -> (String, Option<i64>, Option<String>, bool, Option<String>) {
+    (name.to_owned(), None, Some("schema".to_owned()), enabled, Some(url.to_owned()))
+}
+
+#[tokio::test]
+async fn a_declared_observer_is_stored_as_a_global_schema_managed_row() {
+    let (pool, _svc) = setup_pg().await;
+    let repo = ObserverRepository::new(pool.clone());
+
+    let outcome = repo
+        .reconcile_declared("schema", &[declared("order_created", "https://a.test")])
+        .await
+        .unwrap();
+
+    assert_eq!(outcome.created, ["order_created"]);
+    assert_eq!(
+        live_observers(&pool).await,
+        [schema_row("order_created", true, "https://a.test")]
+    );
+    // The runtime loads it: the stored actions and retry policy are ones it reads.
+    let (stored, _) = repo
+        .list(
+            &ListObserversQuery {
+                page:            1,
+                page_size:       10,
+                entity_type:     None,
+                event_type:      None,
+                enabled:         Some(true),
+                include_deleted: false,
+            },
+            ObserverScope::Operator,
+        )
+        .await
+        .unwrap();
+    let actions: Vec<fraiseql_observers::ActionConfig> =
+        serde_json::from_value(stored[0].actions.clone()).unwrap();
+    assert_eq!(actions.len(), 1);
+    serde_json::from_value::<fraiseql_observers::RetryConfig>(stored[0].retry_config.clone())
+        .expect("the runtime reads the stored retry policy");
+}
+
+#[tokio::test]
+async fn reconciling_the_same_declarations_again_changes_nothing() {
+    let (pool, _svc) = setup_pg().await;
+    let repo = ObserverRepository::new(pool.clone());
+    let declarations = [declared("order_created", "https://a.test")];
+    repo.reconcile_declared("schema", &declarations).await.unwrap();
+    let before = id_of(&pool, "order_created").await;
+
+    let outcome = repo.reconcile_declared("schema", &declarations).await.unwrap();
+
+    assert_eq!(outcome, Reconciled::default());
+    assert_eq!(id_of(&pool, "order_created").await, before);
+}
+
+#[tokio::test]
+async fn a_changed_declaration_rewrites_its_row_in_place() {
+    let (pool, _svc) = setup_pg().await;
+    let repo = ObserverRepository::new(pool.clone());
+    repo.reconcile_declared("schema", &[declared("order_created", "https://a.test")])
+        .await
+        .unwrap();
+    let before = id_of(&pool, "order_created").await;
+
+    let outcome = repo
+        .reconcile_declared("schema", &[declared("order_created", "https://b.test")])
+        .await
+        .unwrap();
+
+    assert_eq!(outcome.updated, ["order_created"]);
+    assert_eq!(
+        live_observers(&pool).await,
+        [schema_row("order_created", true, "https://b.test")]
+    );
+    assert_eq!(id_of(&pool, "order_created").await, before, "the same row, so its log stays");
+}
+
+#[tokio::test]
+async fn a_declaration_that_is_removed_soft_deletes_its_row_and_leaves_admin_rows() {
+    let (pool, _svc) = setup_pg().await;
+    let repo = ObserverRepository::new(pool.clone());
+    insert_observer(&pool, "by_admin", "Order", "INSERT", None).await;
+    repo.reconcile_declared(
+        "schema",
+        &[
+            declared("order_created", "https://a.test"),
+            declared("order_audited", "https://a.test"),
+        ],
+    )
+    .await
+    .unwrap();
+
+    let outcome = repo
+        .reconcile_declared("schema", &[declared("order_audited", "https://a.test")])
+        .await
+        .unwrap();
+
+    assert_eq!(outcome.removed, ["order_created"]);
+    let names: Vec<String> = live_observers(&pool).await.into_iter().map(|row| row.0).collect();
+    assert_eq!(names, ["by_admin", "order_audited"]);
+}
+
+#[tokio::test]
+async fn a_global_admin_row_of_the_same_name_is_adopted_and_a_tenant_row_is_untouched() {
+    let (pool, _svc) = setup_pg().await;
+    let repo = ObserverRepository::new(pool.clone());
+    insert_observer(&pool, "order_created", "Legacy", "DELETE", None).await;
+    insert_observer(&pool, "order_created", "Legacy", "DELETE", Some(7)).await;
+
+    let outcome = repo
+        .reconcile_declared("schema", &[declared("order_created", "https://a.test")])
+        .await
+        .unwrap();
+
+    assert_eq!(outcome.adopted, ["order_created"]);
+    assert!(outcome.created.is_empty() && outcome.updated.is_empty());
+    assert_eq!(
+        live_observers(&pool).await,
+        [
+            schema_row("order_created", true, "https://a.test"),
+            ("order_created".to_owned(), Some(7), None, true, None),
+        ]
+    );
+    let tenant_entity: (String,) =
+        sqlx::query_as("SELECT entity_type::text FROM core.tb_observer WHERE fk_customer_org = 7")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(tenant_entity.0, "Legacy");
+}
+
+#[tokio::test]
+async fn an_admin_row_identical_to_the_declaration_is_still_taken_over() {
+    let (pool, _svc) = setup_pg().await;
+    let repo = ObserverRepository::new(pool.clone());
+    let declarations = [declared("order_created", "https://a.test")];
+    repo.reconcile_declared("schema", &declarations).await.unwrap();
+    // The same content, as an operator who seeded it by hand would have written it.
+    sqlx::query("UPDATE core.tb_observer SET managed_by = NULL")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let outcome = repo.reconcile_declared("schema", &declarations).await.unwrap();
+
+    assert_eq!(outcome.adopted, ["order_created"]);
+    assert_eq!(
+        live_observers(&pool).await,
+        [schema_row("order_created", true, "https://a.test")]
+    );
+}
+
+#[tokio::test]
+async fn a_declared_observer_an_operator_disabled_stays_disabled_across_a_redeploy() {
+    let (pool, _svc) = setup_pg().await;
+    let repo = ObserverRepository::new(pool.clone());
+    repo.reconcile_declared("schema", &[declared("order_created", "https://a.test")])
+        .await
+        .unwrap();
+    let id = id_of(&pool, "order_created").await;
+    let disable = UpdateObserverRequest {
+        enabled: Some(false),
+        ..Default::default()
+    };
+    let disabled = repo.update(id, &disable, ObserverScope::Operator, None).await.unwrap();
+    assert!(
+        disabled.is_some_and(|o| !o.enabled),
+        "the admin API disables a declared observer"
+    );
+
+    let outcome = repo
+        .reconcile_declared("schema", &[declared("order_created", "https://b.test")])
+        .await
+        .unwrap();
+
+    assert_eq!(outcome.disabled, ["order_created"]);
+    assert_eq!(
+        live_observers(&pool).await,
+        [schema_row("order_created", false, "https://b.test")]
+    );
+}
+
+#[tokio::test]
+async fn the_admin_api_changes_nothing_of_a_declared_observer_but_whether_it_is_enabled() {
+    let (pool, _svc) = setup_pg().await;
+    let repo = ObserverRepository::new(pool.clone());
+    repo.reconcile_declared("schema", &[declared("order_created", "https://a.test")])
+        .await
+        .unwrap();
+    let id = id_of(&pool, "order_created").await;
+
+    let rename = UpdateObserverRequest {
+        name: Some("renamed".to_owned()),
+        enabled: Some(false),
+        ..Default::default()
+    };
+    let refused = repo.update(id, &rename, ObserverScope::Operator, None).await;
+    let deleted = repo.delete(id, ObserverScope::Operator).await;
+
+    for refusal in [refused.map(|_| ()), deleted.map(|_| ())] {
+        let message = match refusal {
+            Err(ServerError::Conflict(message)) => message,
+            other => format!("not a conflict: {other:?}"),
+        };
+        assert!(message.contains("'order_created'"), "names the observer: {message}");
+        assert!(message.contains("declared in the schema"), "says why: {message}");
+    }
+    assert_eq!(
+        live_observers(&pool).await,
+        [schema_row("order_created", true, "https://a.test")]
+    );
+}
+
+#[tokio::test]
+async fn an_organisation_is_told_nothing_of_a_declared_observer_it_cannot_change() {
+    let (pool, _svc) = setup_pg().await;
+    let repo = ObserverRepository::new(pool.clone());
+    repo.reconcile_declared("schema", &[declared("order_created", "https://a.test")])
+        .await
+        .unwrap();
+    let id = id_of(&pool, "order_created").await;
+
+    let deleted = repo.delete(id, ObserverScope::Organisation(7)).await.unwrap();
+
+    assert!(
+        !deleted,
+        "a global observer is not the organisation's: not found, not a conflict"
+    );
+}
+
+#[tokio::test]
+async fn an_admin_observer_is_still_changed_and_deleted_through_the_admin_api() {
+    let (pool, _svc) = setup_pg().await;
+    let repo = ObserverRepository::new(pool.clone());
+    insert_observer(&pool, "by_admin", "Order", "INSERT", None).await;
+    let id = id_of(&pool, "by_admin").await;
+
+    let rename = UpdateObserverRequest {
+        name: Some("renamed".to_owned()),
+        ..Default::default()
+    };
+    let renamed = repo.update(id, &rename, ObserverScope::Operator, None).await.unwrap();
+    assert_eq!(renamed.map(|o| o.name).as_deref(), Some("renamed"));
+    assert!(repo.delete(id, ObserverScope::Operator).await.unwrap());
+}
+
+#[tokio::test]
+async fn two_owners_on_one_database_keep_their_own_declared_observers() {
+    let (pool, _svc) = setup_pg().await;
+    let repo = ObserverRepository::new(pool.clone());
+    repo.reconcile_declared("schema:billing", &[declared("invoice_sent", "https://a.test")])
+        .await
+        .unwrap();
+
+    let first_boot = repo
+        .reconcile_declared("schema:shipping", &[declared("parcel_sent", "https://b.test")])
+        .await
+        .unwrap();
+    // Shipping drops its only observer: billing's is not shipping's to remove.
+    let second_boot = repo.reconcile_declared("schema:shipping", &[]).await.unwrap();
+
+    assert!(first_boot.removed.is_empty(), "shipping removed {:?}", first_boot.removed);
+    assert_eq!(second_boot.removed, ["parcel_sent"]);
+    let owners: Vec<(String, Option<String>)> =
+        live_observers(&pool).await.into_iter().map(|row| (row.0, row.2)).collect();
+    assert_eq!(owners, [("invoice_sent".to_owned(), Some("schema:billing".to_owned()))]);
+}
+
+#[tokio::test]
+async fn a_name_another_owner_declares_refuses_the_boot_naming_both_and_writes_nothing() {
+    let (pool, _svc) = setup_pg().await;
+    let repo = ObserverRepository::new(pool.clone());
+    repo.reconcile_declared("schema:billing", &[declared("order_created", "https://a.test")])
+        .await
+        .unwrap();
+
+    let refused = repo
+        .reconcile_declared(
+            "schema:shipping",
+            &[
+                declared("parcel_sent", "https://b.test"),
+                declared("order_created", "https://b.test"),
+            ],
+        )
+        .await;
+
+    let message = match refused {
+        Err(ServerError::ConfigError(message)) => message,
+        other => format!("not a configuration error: {other:?}"),
+    };
+    assert!(message.contains("`order_created`"), "names the observer: {message}");
+    assert!(
+        message.contains("`schema:billing`") && message.contains("`schema:shipping`"),
+        "names both owners: {message}"
+    );
+    let stored: Vec<(String, Option<String>, Option<String>)> = live_observers(&pool)
+        .await
+        .into_iter()
+        .map(|row| (row.0, row.2, row.4))
+        .collect();
+    assert_eq!(
+        stored,
+        [(
+            "order_created".to_owned(),
+            Some("schema:billing".to_owned()),
+            Some("https://a.test".to_owned())
+        )],
+        "billing's observer is as it was, and shipping's first one was not stored"
+    );
+}
+
+#[tokio::test]
+async fn two_replicas_booting_together_store_one_set_of_declared_observers() {
+    let (pool, _svc) = setup_pg().await;
+    let declarations: Vec<ObserverDefinition> =
+        (0..80).map(|n| declared(&format!("observer_{n}"), "https://a.test")).collect();
+    // Open every connection first: a replica that had to connect while another wrote
+    // would start after it finished, and the two would never overlap.
+    let mut warm = Vec::new();
+    for _ in 0..6 {
+        warm.push(pool.acquire().await.unwrap());
+    }
+    drop(warm);
+
+    // Collected, so every replica is running before the first is awaited.
+    let replicas: Vec<_> = (0..6)
+        .map(|_| {
+            let repo = ObserverRepository::new(pool.clone());
+            let declarations = declarations.clone();
+            tokio::spawn(async move { repo.reconcile_declared("schema", &declarations).await })
+        })
+        .collect();
+    let mut created = 0;
+    for replica in replicas {
+        created += replica.await.unwrap().expect("no replica fails").created.len();
+    }
+
+    assert_eq!(created, 80, "each observer is created by exactly one replica");
+    assert_eq!(live_observers(&pool).await.len(), 80);
+}

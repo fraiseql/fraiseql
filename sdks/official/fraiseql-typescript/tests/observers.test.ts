@@ -130,8 +130,8 @@ describe("Observer decorator", () => {
         event: "INSERT",
         actions: [
           webhook("https://example.com/orders"),
-          slack("#orders", "New order {id}"),
-          email("admin@example.com", "Order created", "Order {id} created"),
+          slack("#orders", "New order {{ id }}"),
+          email("admin@example.com", "Order created", "Order {{ id }} created"),
         ],
       })
       onOrder() {}
@@ -181,6 +181,36 @@ describe("webhook action", () => {
     expect(action.body_template).toBe('{"order_id": "{{id}}"}');
   });
 
+  it("should support an HTTP method and a signing-secret environment variable", () => {
+    const action = webhook("https://example.com", {
+      method: "PUT",
+      signing_secret_env: "ORDER_HOOK_SECRET",
+    });
+
+    expect(action.method).toBe("PUT");
+    expect(action.signing_secret_env).toBe("ORDER_HOOK_SECRET");
+  });
+
+  it("should emit only keys the observer runtime reads", () => {
+    const action = webhook("https://example.com", {
+      url_env: "ORDER_WEBHOOK_URL",
+      method: "POST",
+      headers: { "X-Source": "fraiseql" },
+      body_template: '{"order_id": "{{ id }}"}',
+      signing_secret_env: "ORDER_HOOK_SECRET",
+    });
+
+    expect(Object.keys(action).sort()).toEqual([
+      "body_template",
+      "headers",
+      "method",
+      "signing_secret_env",
+      "type",
+      "url",
+      "url_env",
+    ]);
+  });
+
   it("should throw error without URL or url_env", () => {
     expect(() => webhook()).toThrow("Either url or url_env must be provided");
   });
@@ -188,12 +218,14 @@ describe("webhook action", () => {
 
 describe("slack action", () => {
   it("should create slack action with default webhook_url_env", () => {
-    const action = slack("#orders", "New order {id}: ${total}");
+    const action = slack("#orders", "New order {{ id }}: ${{ total }}");
 
-    expect(action.type).toBe("slack");
-    expect(action.channel).toBe("#orders");
-    expect(action.message).toBe("New order {id}: ${total}");
-    expect(action.webhook_url_env).toBe("SLACK_WEBHOOK_URL");
+    expect(action).toEqual({
+      type: "slack",
+      channel: "#orders",
+      message_template: "New order {{ id }}: ${{ total }}",
+      webhook_url_env: "SLACK_WEBHOOK_URL",
+    });
   });
 
   it("should support custom webhook URL", () => {
@@ -217,22 +249,16 @@ describe("email action", () => {
   it("should create email action", () => {
     const action = email(
       "admin@example.com",
-      "Order {id} created",
-      "Order {id} for ${total} was created"
+      "Order created",
+      "Order {{ id }} for ${{ total }} was created"
     );
 
-    expect(action.type).toBe("email");
-    expect(action.to).toBe("admin@example.com");
-    expect(action.subject).toBe("Order {id} created");
-    expect(action.body).toBe("Order {id} for ${total} was created");
-  });
-
-  it("should support custom sender", () => {
-    const action = email("customer@example.com", "Order shipped", "Your order is on its way!", {
-      from_email: "noreply@example.com",
+    expect(action).toEqual({
+      type: "email",
+      to: "admin@example.com",
+      subject: "Order created",
+      body_template: "Order {{ id }} for ${{ total }} was created",
     });
-
-    expect(action.from).toBe("noreply@example.com");
   });
 });
 

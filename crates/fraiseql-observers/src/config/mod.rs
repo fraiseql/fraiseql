@@ -13,6 +13,7 @@
 //!
 //! Environment variable precedence: `FRAISEQL_*` > TOML > defaults
 
+mod authored;
 pub mod email;
 pub mod redis;
 pub mod runtime;

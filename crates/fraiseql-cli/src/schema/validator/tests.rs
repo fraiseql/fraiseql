@@ -319,51 +319,6 @@ fn test_observer_with_invalid_event() {
 }
 
 #[test]
-fn test_observer_with_invalid_action_type() {
-    use serde_json::json;
-
-    use crate::schema::intermediate::{IntermediateObserver, IntermediateRetryConfig};
-
-    let schema = IntermediateSchema {
-        types: vec![IntermediateType {
-            subscription_policy:    None,
-            name:                   "Order".to_string(),
-            sql_source:             None,
-            fields:                 vec![],
-            description:            None,
-            implements:             vec![],
-            requires_role:          None,
-            is_error:               false,
-            is_input:               false,
-            relay:                  false,
-            embedded:               false,
-            subscribable_tables:    None,
-            subscribable_pre_image: false,
-            inject_params:          indexmap::IndexMap::new(),
-            relationships:          Vec::new(),
-        }],
-        observers: Some(vec![IntermediateObserver {
-            name:      "onOrderCreated".to_string(),
-            entity:    "Order".to_string(),
-            event:     "INSERT".to_string(),
-            actions:   vec![json!({"type": "invalid_action"})],
-            condition: None,
-            retry:     IntermediateRetryConfig {
-                max_attempts:     3,
-                backoff_strategy: "exponential".to_string(),
-                initial_delay_ms: 100,
-                max_delay_ms:     60000,
-            },
-        }]),
-        ..Default::default()
-    };
-
-    let report = SchemaValidator::validate(&schema).unwrap();
-    assert!(!report.is_valid());
-    assert!(report.errors.iter().any(|e| e.message.contains("invalid type")));
-}
-
-#[test]
 fn test_observer_with_invalid_retry_config() {
     use serde_json::json;
 

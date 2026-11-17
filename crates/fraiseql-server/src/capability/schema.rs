@@ -22,7 +22,8 @@ fn of<T: schemars::JsonSchema>() -> Value {
 /// compiled section and a server-config key, of two different types.
 pub(super) fn of_compiled(key: &str) -> Option<Value> {
     use fraiseql_core::schema::{
-        FederationConfig, GrpcConfig, McpConfig, ObserversConfig, RestConfig, SourceDefinition,
+        FederationConfig, GrpcConfig, McpConfig, ObserverDefinition, ObserversConfig, RestConfig,
+        SourceDefinition,
     };
 
     Some(match key {
@@ -33,6 +34,7 @@ pub(super) fn of_compiled(key: &str) -> Option<Value> {
         "grpc_config" => of::<GrpcConfig>(),
         "federation" => of::<FederationConfig>(),
         "observers_config" => of::<ObserversConfig>(),
+        "observers" => of::<Vec<ObserverDefinition>>(),
         _ => return None,
     })
 }

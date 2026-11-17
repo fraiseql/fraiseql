@@ -9,6 +9,7 @@ mod identity;
 mod interface_conformance;
 mod mutation_error_union;
 mod mutations;
+mod observers;
 mod queries;
 mod relay;
 mod subscriptions;
@@ -264,36 +265,7 @@ impl SchemaConverter {
             })
             .collect();
 
-        // Refuse a schema that declares observers, rather than validating them and throwing
-        // them away (#779).
-        //
-        // The `observers` block is emitted by the Python SDK's `@fraiseql.observer` (its
-        // shipped example declares five), it binds to `IntermediateSchema.observers`, and
-        // `SchemaValidator` spends ~220 lines checking names, entities, events, actions and
-        // retry policy — a typo in any of them fails the compile, which tells the author
-        // emphatically that the block is honoured. It was not: this function set
-        // `observers: Vec::new()` under a comment claiming they were "populated from
-        // IntermediateSchema", nothing else ever wrote the field, and no webhook, Slack
-        // message or email ever fired for any declared event.
-        //
-        // The runtime loads observers exclusively from `tb_observer` / the admin API and
-        // reads nothing from the compiled schema. So *carrying* them here would only move
-        // the silent drop one layer down and produce a compiled artifact whose `observers`
-        // array is decoration. Until a runtime consumer exists, the honest outcome is to
-        // fail and name the mechanism that does work.
-        if let Some(observers) = intermediate.observers.as_ref().filter(|o| !o.is_empty()) {
-            let names: Vec<&str> = observers.iter().map(|o| o.name.as_str()).collect();
-            anyhow::bail!(
-                "This schema declares {} observer(s) ({}), but declared observers are not \
-                 loaded by the runtime — it reads them from the `tb_observer` table and the \
-                 admin API only, so compiling them would produce a schema whose observers \
-                 never fire.\n\nDefine them in `tb_observer`, or register them at runtime \
-                 with `POST /api/observers`, and remove the `observers` block from the \
-                 authored schema.",
-                observers.len(),
-                names.join(", ")
-            );
-        }
+        let declared_observers = intermediate.observers.clone().unwrap_or_default();
 
         // Refuse a schema that declares `aggregate_queries`, rather than carrying it through
         // the seam and dropping it (#956).
@@ -487,8 +459,7 @@ impl SchemaConverter {
             subscriptions,
             directives,
             fact_tables, // Analytics metadata
-            // Refused above when non-empty (#779); an empty vector is the only reachable
-            // value, so this is not a drop.
+            // Compiled below, against the finished schema.
             observers: Vec::new(),
             sources: intermediate.sources.clone().unwrap_or_default(), /* #573 scheduled ingress
                                                                         * sources */
@@ -518,8 +489,8 @@ impl SchemaConverter {
                     // `observers_config.handlers`, bypassing the TOML
                     // validator's #612 bail) must fail the compile, not land in
                     // the compiled schema as decoration the runtime never
-                    // reads. tb_observer / the admin API is the single observer
-                    // concept. An EMPTY array is inert boilerplate some
+                    // reads. An observer is a `tb_observer` row, declared in `observers`
+                    // or added through the admin API. An EMPTY array is inert boilerplate some
                     // exporters emit — strip it so `deny_unknown_fields` on the
                     // compiled type does not reject it.
                     match oc.get("handlers").and_then(serde_json::Value::as_array) {
@@ -527,10 +498,10 @@ impl SchemaConverter {
                             anyhow::bail!(
                                 "observers_config declares {} handler(s), but compiled \
                                  handlers are not a runtime concept (#631): the runtime \
-                                 loads observers only from the `tb_observer` table and the \
-                                 admin API. Define them in `tb_observer` or via \
-                                 `POST /api/observers`, and remove `handlers` from the \
-                                 authored schema.",
+                                 loads observers from the `tb_observer` table, which holds \
+                                 the observers the schema declares and those the admin API \
+                                 adds. Declare them in the schema's `observers`, or add them \
+                                 with `POST /api/observers`, and remove `handlers`.",
                                 handlers.len()
                             );
                         },
@@ -577,6 +548,8 @@ impl SchemaConverter {
                     .context("Failed to register custom scalar")?;
             }
         }
+
+        compiled.observers = observers::compile(&declared_observers, &compiled)?;
 
         // Changelog exposure requires the observer system: the views it exposes read
         // from tables (`tb_entity_change_log`, `tb_transport_checkpoint`) that the

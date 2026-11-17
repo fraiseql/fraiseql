@@ -73,17 +73,16 @@ impl ObserversConfig {
     ///
     /// Returns an error when the table declares a handler.
     pub fn refuse_handlers(&self) -> Result<()> {
-        // #8 / #631 (decided): compiled handler declarations are not a runtime
-        // concept. Runtime observers have exactly one source of truth — the
-        // `tb_observer` table and the admin observer API — and the compiled
-        // schema cannot even represent a `handlers` array any more. This bail
-        // is permanent policy, not a stopgap awaiting a boot-time loader.
+        // A TOML handler is not an observer the runtime runs. An observer is a
+        // `tb_observer` row: one the authoring schema declares, stored at boot, or one
+        // the admin API adds.
         if !self.handlers.is_empty() {
             bail!(
                 "[[observers.handlers]] is not supported: compiled TOML handlers are not a \
-                 runtime concept (#631) — runtime observers come only from the `tb_observer` \
-                 table and the admin observer API. Define observers in `tb_observer` / via \
-                 `POST /api/observers` and remove the [[observers.handlers]] block."
+                 runtime concept (#631) — runtime observers are the `tb_observer` rows the \
+                 authoring schema declares and the admin observer API adds. Declare observers \
+                 in the schema, or add them with `POST /api/observers`, and remove the \
+                 [[observers.handlers]] block."
             );
         }
         Ok(())

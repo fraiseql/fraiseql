@@ -48,4 +48,30 @@ public final class Webhook {
         action.put("headers", new LinkedHashMap<String, String>());
         return action;
     }
+
+    /**
+     * Set the request body of a webhook action.
+     *
+     * @param action       action map produced by {@link #create} or {@link #withEnv}
+     * @param bodyTemplate body with {@code {{ field }}} placeholders naming fields of the
+     *                     observed entity by their stored key
+     * @return the same action map
+     */
+    public static Map<String, Object> bodyTemplate(Map<String, Object> action, String bodyTemplate) {
+        action.put("body_template", bodyTemplate);
+        return action;
+    }
+
+    /**
+     * Sign each request of a webhook action with the HMAC key held in an environment
+     * variable. The key itself is never authored: an exported schema is a build artifact.
+     *
+     * @param action action map produced by {@link #create} or {@link #withEnv}
+     * @param envVar environment variable holding the signing key
+     * @return the same action map
+     */
+    public static Map<String, Object> signedWith(Map<String, Object> action, String envVar) {
+        action.put("signing_secret_env", envVar);
+        return action;
+    }
 }

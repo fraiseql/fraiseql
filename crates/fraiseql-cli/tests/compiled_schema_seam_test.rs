@@ -18,7 +18,7 @@
 //! * `#756` — the merger emitted `args`/`required`; the consumer read `arguments`/`nullable`. Every
 //!   TOML-declared operation argument vanished.
 //! * `#779` — SDK-authored observers were validated by ~220 lines of validator and then discarded
-//!   by `observers: Vec::new()`.
+//!   by `observers: Vec::new()`. They now reach the compiled schema.
 //! * `#847` — `[inject_defaults]`, implemented in seven SDKs, had no consumer at all.
 //! * `#848` — types marked `is_input` compiled as **object** types, producing a schema that used an
 //!   output type in an input position.
@@ -694,19 +694,14 @@ fn per_operation_inject_params_wins_over_inject_defaults() {
 }
 
 // ===========================================================================
-// #779 — SDK-authored observers must not be validated and then discarded
+// SDK-authored observers reach the compiled schema
 // ===========================================================================
 
-/// Observers declared in `schema.json` are validated by ~220 lines of validator and then
-/// dropped by `observers: Vec::new()`, so no webhook ever fires and nothing warns.
-///
-/// The runtime loads observers exclusively from `tb_observer` / the admin API, so making
-/// them *reach the compiled schema* would only move the silent drop one layer down. The
-/// contract asserted here is therefore the honest-loud one: the compile **fails** and
-/// names the supported mechanism. Wiring a real runtime consumer is tracked separately;
-/// when that lands, this test inverts to assert the observers arrive.
+/// Observers declared in `schema.json` arrive in the compiled schema, which the server
+/// stores in `core.tb_observer` at boot. The refusals are pinned in
+/// `declared_observers_test`.
 #[test]
-fn sdk_authored_observers_fail_the_compile_rather_than_vanishing() {
+fn sdk_authored_observers_reach_the_compiled_schema() {
     let corpus = json!({
         "types": [
             {"name": "Order", "sql_source": "v_order",
@@ -716,6 +711,7 @@ fn sdk_authored_observers_fail_the_compile_rather_than_vanishing() {
             {"name": "orders", "return_type": "Order", "returns_list": true,
              "sql_source": "v_order"}
         ],
+        "observers_config": {"enabled": true},
         "observers": [
             {
                 "name": "order_created",
@@ -729,15 +725,11 @@ fn sdk_authored_observers_fail_the_compile_rather_than_vanishing() {
     });
 
     let intermediate: IntermediateSchema =
-        serde_json::from_value(corpus).expect("observers must still deserialize");
-    let err = SchemaConverter::convert(intermediate)
-        .expect_err("a schema declaring observers with no runtime consumer must not compile");
+        serde_json::from_value(corpus).expect("observers deserialize");
+    let compiled = SchemaConverter::convert(intermediate).expect("declared observers compile");
 
-    let msg = err.to_string();
-    assert!(
-        msg.contains("tb_observer") || msg.contains("/api/observers"),
-        "the refusal must name the supported mechanism so the author can act on it; got: {msg}"
-    );
+    let names: Vec<&str> = compiled.observers.iter().map(|o| o.name.as_str()).collect();
+    assert_eq!(names, ["order_created"]);
 }
 
 // ===========================================================================

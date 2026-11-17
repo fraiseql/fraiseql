@@ -49,7 +49,7 @@ use chrono::{DateTime, Utc};
 pub use config::ObserverManagementConfig;
 pub use dlq_handlers::DlqState;
 pub use handlers::{ObserverState, RuntimeHealthState};
-pub use repository::ObserverRepository;
+pub use repository::{ObserverRepository, Reconciled};
 pub use routes::{
     observer_changelog_routes, observer_dlq_routes, observer_routes, observer_runtime_routes,
 };
@@ -115,7 +115,22 @@ pub struct Observer {
 
     /// Soft delete timestamp (None = not deleted)
     pub deleted_at: Option<DateTime<Utc>>,
+
+    /// Who owns the row: `None` for the admin API, the owner a schema's declared observers
+    /// are stored under (today [`MANAGED_BY_SCHEMA`]) otherwise.
+    pub managed_by: Option<String>,
 }
+
+/// The owner the observers a compiled schema declares are stored under, in
+/// `tb_observer.managed_by`.
+///
+/// One owner for every schema, so one schema per database declares observers: a second
+/// one booted against the same database would remove the first one's. The store itself
+/// keeps owners apart ([`ObserverRepository::reconcile_declared`]).
+///
+/// The server writes these rows at boot from the schema, so the admin API changes nothing
+/// of one but whether it is enabled: any other change would last until the next boot.
+pub const MANAGED_BY_SCHEMA: &str = "schema";
 
 /// Placeholder substituted for secret-bearing values in API response bodies.
 const REDACTED_PLACEHOLDER: &str = "[REDACTED]";
@@ -168,6 +183,44 @@ impl Observer {
     }
 }
 
+/// The `actions` of a request: each is read through
+/// [`fraiseql_observers::ActionConfig::from_authored`] before it becomes an
+/// [`ActionConfig`], so the admin API refuses what the compiler refuses of a declared
+/// observer. An action carrying a key the runtime ignores is refused, by that key,
+/// instead of being stored and doing nothing.
+fn authored_actions<'de, D>(deserializer: D) -> Result<Vec<ActionConfig>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+
+    let written: Vec<serde_json::Value> = Vec::deserialize(deserializer)?;
+    written
+        .into_iter()
+        .enumerate()
+        .map(|(index, action)| {
+            fraiseql_observers::ActionConfig::from_authored(&action)
+                .map_err(|e| D::Error::custom(format!("actions[{index}]: {e}")))?;
+            serde_json::from_value(action)
+                .map_err(|e| D::Error::custom(format!("actions[{index}]: {e}")))
+        })
+        .collect()
+}
+
+/// [`authored_actions`] for a request that may leave `actions` unchanged.
+fn authored_actions_if_sent<'de, D>(deserializer: D) -> Result<Option<Vec<ActionConfig>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    // A present key that is `null` asks for no change, as an absent one does.
+    let sent: Option<Vec<serde_json::Value>> = Option::deserialize(deserializer)?;
+    sent.map(|written| {
+        authored_actions(serde::de::value::SeqDeserializer::new(written.into_iter()))
+    })
+    .transpose()
+    .map_err(|e: serde_json::Error| serde::de::Error::custom(e.to_string()))
+}
+
 /// Request to create a new observer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateObserverRequest {
@@ -191,6 +244,7 @@ pub struct CreateObserverRequest {
     pub condition_expression: Option<String>,
 
     /// Actions to execute
+    #[serde(deserialize_with = "authored_actions")]
     pub actions: Vec<ActionConfig>,
 
     /// Whether this observer is enabled (default: true)
@@ -234,7 +288,7 @@ pub struct UpdateObserverRequest {
     pub condition_expression: Option<String>,
 
     /// Actions to execute
-    #[serde(default)]
+    #[serde(default, deserialize_with = "authored_actions_if_sent")]
     pub actions: Option<Vec<ActionConfig>>,
 
     /// Whether this observer is enabled
@@ -252,6 +306,35 @@ pub struct UpdateObserverRequest {
     /// Timeout in milliseconds
     #[serde(default)]
     pub timeout_ms: Option<i32>,
+}
+
+impl UpdateObserverRequest {
+    /// Whether the request changes nothing but `enabled`: the one change the admin API
+    /// makes to an observer the schema declares.
+    #[must_use]
+    pub const fn changes_only_enabled(&self) -> bool {
+        let Self {
+            name,
+            description,
+            entity_type,
+            event_type,
+            condition_expression,
+            actions,
+            enabled: _,
+            priority,
+            retry_config,
+            timeout_ms,
+        } = self;
+        name.is_none()
+            && description.is_none()
+            && entity_type.is_none()
+            && event_type.is_none()
+            && condition_expression.is_none()
+            && actions.is_none()
+            && priority.is_none()
+            && retry_config.is_none()
+            && timeout_ms.is_none()
+    }
 }
 
 /// Action configuration for an observer.
@@ -302,17 +385,14 @@ pub enum ActionConfig {
         signing_secret_env: Option<String>,
     },
 
-    /// Email notification action
+    /// Email notification action: the keys the runtime's email dispatcher uses.
     Email {
-        /// Primary recipient address.
-        to:               String,
-        /// Optional CC recipient address.
-        #[serde(default)]
-        cc:               Option<String>,
-        /// Handlebars template for the email subject.
-        subject_template: String,
-        /// Handlebars template for the email body.
-        body_template:    String,
+        /// Recipient address.
+        to:            String,
+        /// Subject line, sent as written.
+        subject:       String,
+        /// Template for the email body.
+        body_template: String,
     },
 
     /// Slack message action

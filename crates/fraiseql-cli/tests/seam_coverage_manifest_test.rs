@@ -96,8 +96,8 @@ const KNOWN_UNPROBED: &[(&str, &str)] = &[
     ),
     (
         "observers",
-        "refused at compile time (#779) rather than carried — the round-trip suite asserts the \
-         refusal, not arrival",
+        "compiled against the runtime's action type and carried; `declared_observers_test` and \
+         the round-trip suite assert arrival",
     ),
 ];
 

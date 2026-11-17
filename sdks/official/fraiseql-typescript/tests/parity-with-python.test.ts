@@ -504,7 +504,7 @@ describe("TypeScript ↔ Python Feature Parity", () => {
         backoff_strategy: "exponential",
         initial_delay_ms: 500,
         max_delay_ms: 120000,
-      };
+      } as const;
 
       SchemaRegistry.registerObserver(
         "criticalNotification",

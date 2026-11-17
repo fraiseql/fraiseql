@@ -18,6 +18,37 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A global observer whose name the schema declares is taken over at boot (#1655).** The
+  server now writes the observers the schema declares into `core.tb_observer` at every
+  boot. A global row (`fk_customer_org` null) of the same name, written by the admin API or
+  a seed script, is rewritten from the declaration and marked `managed_by = 'schema'`; the
+  server logs a `WARN` naming it. An organisation's observers are untouched. Once an
+  observer is declared, drop the script that seeded it.
+- **The admin API changes nothing of a declared observer but whether it is enabled
+  (#1655).** `PATCH` and `DELETE` on an observer whose `managed_by` is `schema` answer
+  `409`; `/enable`, `/disable` and a `PATCH` of `enabled` alone still work. Change the
+  declaration and redeploy.
+- **The admin API refuses an observer action key the runtime ignores, and its email action
+  changes shape (#1655).** `POST /api/observers` and `PATCH /api/observers/{id}` answer
+  `422`, naming the key, for an action carrying a key the runtime does not read or does
+  not use; such a key used to be stored and ignored. The email action is now
+  `{to, subject, body_template}`. It was `{to, cc, subject_template, body_template}`,
+  which the runtime could not deliver: its dispatcher requires `subject`, so every email
+  observer created through the admin API failed at delivery. `cc`, `to_template`,
+  `subject_template` and `reply_to` are refused. A stored row that carries one still
+  loads. `fraiseql_server::observers::ActionConfig::Email` changes accordingly.
+- **Observer rows and the Rust types that carry them gain a field (#1655).**
+  `core.tb_observer` gains `managed_by` (the server adds the column at boot), every
+  observer in an admin API response carries `managed_by`, and
+  `fraiseql_server::observers::Observer` has a new public field `managed_by`.
+  `fraiseql_core::capability::SectionActivity` gains `NonEmptyArray`.
+- **SDK observer actions emit the keys the runtime reads (#1655).** In the Go, Java and
+  TypeScript SDKs a Slack action emits `message_template` (was `message`) and an email
+  action emits `body_template` (was `body`). The email sender option is removed
+  (TypeScript `from_email`, Java `withFrom`, the Go options map): the sender is the
+  server's SMTP configuration. Go's `Register()` refuses an action key the runtime does
+  not read. The Java SDK now exports the observers it registers; it exported none.
+
 - **`[auth_hs256]` is removed (#1964).** Shared-secret token validation is gone. A
   configuration with an `[auth_hs256]` section is refused at boot, and the error names the
   replacements: `[auth_issuer]` signs and validates the sessions this server mints, and
@@ -158,6 +189,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **Observers are declared in the authoring schema (#1655).** An observer declared with an
+  SDK, or in the `observers` array of `schema.json`, is compiled into the schema and
+  written into `core.tb_observer` when the server boots, so it fires after a deploy with
+  no SQL seed and no call to the admin API. Editing the declaration and redeploying
+  rewrites the row; removing it soft-deletes the row. The compile refuses, naming the
+  observer and the key, a declaration the runtime could not run as written: an action key
+  the runtime does not read or does not use, a `signing_secret` literal, a condition that
+  does not parse, or observers declared while `[observers]` is not enabled. An operator
+  can disable a declared observer through the admin API, and it stays disabled across
+  deploys. See "Declaring observers in the schema" in `docs/operations/observers.md`.
+
 - **`[subscriptions.capture.<table>]` declares a captured table that keeps its entity
   document in a column (#2013).** `document_column = "data"` makes
   `generate-capture-triggers` pass the column to that table's triggers, and a write captured
@@ -289,6 +331,16 @@ disagreed, and the promise was the part that was wrong.
   did.
 
 ### Fixed
+
+- **A declared observer is no longer refused by the compiler (#1655).** `fraiseql compile`
+  refused any schema that declared observers, because nothing loaded them; applications
+  seeded `core.tb_observer` with their own scripts. They are now compiled and stored at
+  boot (see Added).
+- **A webhook `body_template` that names a field its entity does not hold fails the compile
+  (#1656).** For an observer declared in the schema, each `{{ placeholder }}` is resolved
+  against the entity's fields, by the key the stored document holds each under, with the
+  rule the admin API already applied to a stored observer. A typo used to surface only when
+  the first event was dead-lettered.
 
 - **The generated SDL keeps `@deprecated` (#1721).** A deprecated field, argument, input
   field or enum value compiled with its deprecation and introspection reported it, but the

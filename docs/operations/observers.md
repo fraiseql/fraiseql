@@ -19,8 +19,9 @@ The observer runtime is compiled into `fraiseql-server` by Cargo features:
 | `observers-enterprise` | `observers-metrics` + `observers-nats` + the library's `enterprise` feature |
 
 Configuration lives in `fraiseql.toml`. `[observers]` is shared with the compiler
-(`enabled`, `backend`, `nats_url`; `[[observers.handlers]]` is refused, since observers
-come from `core.tb_observer`). `backend` selects the event transport: `"postgres"` (the
+(`enabled`, `backend`, `nats_url`; `[[observers.handlers]]` is refused: observers are
+declared in the authoring schema or added through the admin API, see
+[Declaring observers in the schema](#declaring-observers-in-the-schema)). `backend` selects the event transport: `"postgres"` (the
 default) or `"nats"`, with `nats_url` as the broker URL. `backend = "redis"` and
 `redis_url` are refused at compile: the runtime has no Redis transport. The compiler reads it in both workflows: from a TOML
 schema, and from the `fraiseql.toml` beside an SDK's `schema.json`. A `schema.json` that
@@ -40,6 +41,88 @@ replica that serves the request. With `auto_reload = false`, that endpoint is th
 way to reload. `reload_interval_secs = 0` with `auto_reload = true` is refused at boot.
 An enabled runtime that loads no observers logs a warning, at start and on every reload
 that still finds none.
+
+### Declaring observers in the schema
+
+An observer declared in the authoring schema (the SDK's observer decorator or builder,
+the `observers` array of `schema.json`) is compiled into `schema.compiled.json`. At boot,
+before the runtime loads `core.tb_observer`, the server writes each declared observer
+there. No SQL seed and no call to the admin API is needed: deploying the schema is what
+installs its observers.
+
+```json
+{
+  "name": "order_created",
+  "entity": "Order",
+  "event": "INSERT",
+  "condition": "total > 100",
+  "actions": [
+    {
+      "type": "webhook",
+      "url_env": "ORDER_HOOK_URL",
+      "signing_secret_env": "ORDER_HOOK_KEY",
+      "body_template": "{\"order\": {{ id }}, \"total\": {{ total }}}"
+    }
+  ],
+  "retry": {
+    "max_attempts": 3,
+    "backoff_strategy": "exponential",
+    "initial_delay_ms": 1000,
+    "max_delay_ms": 60000
+  }
+}
+```
+
+**What the compile checks.** A declaration is refused, naming the observer and the key,
+when the runtime could not run it as written:
+
+- `[observers] enabled` is not `true`: the server would start no runtime.
+- An action is not one the runtime dispatches, lacks a key the runtime requires (a
+  webhook needs `url` or `url_env`), or carries a key the runtime does not read. The
+  runtime ignores a key it does not know, so `message` on a Slack action (the key is
+  `message_template`) would otherwise be stored and deliver nothing. An email action's
+  `to_template`, `subject_template` and `reply_to` are refused for the same reason: the
+  dispatcher sends to `to` with `subject` and uses none of the three. The admin API
+  applies this same check to the actions it is sent (see
+  [Observer Management](#observer-management-changelog-and-checkpoints)).
+- A webhook carries a `signing_secret` literal. The compiled schema is a build artifact;
+  name the environment variable that holds the key with `signing_secret_env`.
+- A webhook `body_template` names a field the entity does not hold. A placeholder names a
+  field by the key the stored document holds it under: `{{ review_status }}` for a field
+  published as `reviewStatus`.
+- The `condition` does not parse, or `retry` is not a policy the runtime reads.
+
+Header values are stored as written, in the compiled schema and in `core.tb_observer`.
+Do not put a credential in a declared header.
+
+**What the boot writes.** A declared observer is a global row (`fk_customer_org` null)
+whose `managed_by` is `schema`:
+
+| The schema | `core.tb_observer` at boot |
+|------------|----------------------------|
+| declares an observer no row holds | a new row |
+| declares an observer whose row differs | the same row, rewritten (its id and its execution log stay) |
+| declares a name a global row from the admin API or a seed script already holds | that row is adopted: rewritten from the declaration and marked `schema`. The server logs a `WARN` naming it |
+| no longer declares an observer it once did | the row is soft-deleted |
+
+An organisation's observers are never read or written by this, whatever their names.
+The write is one transaction under an advisory lock, so replicas booting together store
+one set. During a rolling deploy the last replica to boot decides what is stored, and
+replicas of the earlier release pick it up on their next reload.
+
+One schema per database declares observers. Every schema's declared observers are stored
+under the same owner today (`managed_by = 'schema'`), so two servers booted from
+different schemas on one database would each remove the other's.
+
+**Changing a declared observer.** Change the declaration and redeploy. The admin API
+refuses to update or delete a `schema` row with `409`, because the next boot would undo
+it. The one exception is the switch: `POST /api/observers/{id}/disable` and `/enable`
+(or a `PATCH` of `enabled` alone) work on a declared observer, so an operator can stop a
+misbehaving webhook without a deploy. A disabled declared observer stays disabled across
+deploys, and every boot logs a `WARN` naming it until it is enabled again.
+
+A schema reload that changes the declared observers is refused like any other change to
+what boot starts: restart the server to apply it.
 
 ### Where the tables live
 
@@ -132,6 +215,8 @@ The token's tenant (the claim `[fraiseql.tenancy] tenant_claim` names, `tenant_i
 default) decides what an admin acts on.
 
 - **No tenant: the operator.** Every observer, every execution, and every route below.
+  An observer the schema declares (`managed_by: "schema"`) is the exception: the operator
+  enables and disables it, and changes it in the schema.
 - **A numeric tenant: that organisation** (`fk_customer_org`).
   - It creates observers it owns.
   - It lists and reads its own observers and the global ones (`fk_customer_org` null).
@@ -162,6 +247,13 @@ goes to the server log only.
 | `GET` | `/api/observers/changelog` | Poll `core.tb_entity_change_log` | `after_cursor` (default 0), `limit` (default 100, max 1000), `object_type`, `latest` |
 | `GET` | `/api/observers/checkpoint/{listener_id}` | Read a checkpoint (404 if none) | — |
 | `PUT` | `/api/observers/checkpoint/{listener_id}` | Create or overwrite a checkpoint | body `{"last_cursor": <i64>}` |
+
+An action sent to `POST /api/observers` or `PATCH /api/observers/{id}` is read by the
+check the compiler applies to a declared observer. A key the runtime would ignore is
+refused with `422`, naming the key, instead of being stored and doing nothing. An email
+action is `{"type": "email", "to": …, "subject": …, "body_template": …}`: the recipient
+and the subject are sent as written, and `cc`, `to_template`, `subject_template` and
+`reply_to` are refused.
 
 ### Runtime and Dead Letter Queue
 

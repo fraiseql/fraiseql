@@ -713,6 +713,14 @@ impl Server {
             crate::observers::runtime::decimal_documents(Arc::clone(&executor)),
         )
         .await?;
+        #[cfg(feature = "observers")]
+        if observer_runtime.is_none() && !executor.schema().observers.is_empty() {
+            tracing::warn!(
+                declared = executor.schema().observers.len(),
+                "The schema declares observers and no observer runtime runs on this server: \
+                 none of them will fire"
+            );
+        }
 
         // The REST stream's fan-out (#1309), created iff there will be a producer for
         // it. `serve` hands this exact handle to the `EventBridge`; `build_router` hands

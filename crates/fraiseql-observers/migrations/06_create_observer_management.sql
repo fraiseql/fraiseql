@@ -79,6 +79,11 @@ CREATE TABLE IF NOT EXISTS core.tb_observer (
     CONSTRAINT ck_observer_priority_range CHECK (priority >= 0 AND priority <= 1000)
 );
 
+-- Who owns the row. NULL: the admin API. 'schema': an observer the compiled schema
+-- declares, which the server writes at boot and the admin API may only enable or disable.
+-- Added after the table, so a table an earlier release created gains it too.
+ALTER TABLE core.tb_observer ADD COLUMN IF NOT EXISTS managed_by VARCHAR(50);
+
 -- Comments for documentation
 COMMENT ON TABLE core.tb_observer IS 'Observer definitions that map entity events to actions';
 COMMENT ON COLUMN core.tb_observer.pk_observer IS 'Internal primary key (Trinity pattern)';
@@ -88,6 +93,7 @@ COMMENT ON COLUMN core.tb_observer.event_type IS 'Event type to observe (NULL = 
 COMMENT ON COLUMN core.tb_observer.condition_expression IS 'Optional filter condition in DSL format';
 COMMENT ON COLUMN core.tb_observer.actions IS 'JSON array of action configurations';
 COMMENT ON COLUMN core.tb_observer.retry_config IS 'Retry policy configuration';
+COMMENT ON COLUMN core.tb_observer.managed_by IS 'Owner of the row: NULL = admin API, ''schema'' = declared in the compiled schema';
 
 -- Indexes for efficient querying
 CREATE INDEX IF NOT EXISTS idx_observer_entity_type ON core.tb_observer(entity_type) WHERE deleted_at IS NULL;

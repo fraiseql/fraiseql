@@ -135,11 +135,6 @@ const SERVED_BY_EVERY_BUILD: &[(&str, &str)] = &[
     ("subscriptions", "the subscription manager is built in every server"),
     ("directives", "type system"),
     ("fact_tables", "aggregate/window dispatch in fraiseql-core"),
-    (
-        "observers",
-        "observer DEFINITIONS are matched by the change-log reader in core; the `observers` \
-         feature gates the action transports, which `observers_config` covers",
-    ),
     ("subscribable", "read by the subscription manager"),
     ("operation_cost_weights", "the #379 cost estimator in fraiseql-core"),
     ("security", "field filters, RLS, role and actor gates all live in fraiseql-core"),
@@ -364,6 +359,11 @@ fn active_declaration(activity: fraiseql_core::capability::SectionActivity) -> s
             { "name": "s", "schedule": "*/5 * * * *", "function": "f" }
         ]),
         SectionActivity::NonEmptyDefinitions => serde_json::json!({ "definitions": [{}] }),
+        SectionActivity::NonEmptyArray => serde_json::json!([{
+            "name": "o", "entity": "E", "event": "INSERT", "actions": [],
+            "retry": { "max_attempts": 3, "backoff_strategy": "exponential",
+                       "initial_delay_ms": 100, "max_delay_ms": 5000 }
+        }]),
         _ => panic!("no fixture for {activity:?}"),
     }
 }

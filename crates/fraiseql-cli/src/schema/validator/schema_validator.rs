@@ -413,116 +413,12 @@ impl SchemaValidator {
                         ),
                         path:       format!("observers[{idx}].actions"),
                         severity:   ErrorSeverity::Error,
-                        suggestion: Some("Add a webhook, slack, or email action".to_string()),
+                        suggestion: Some("Add an action, such as a webhook".to_string()),
                     });
                 }
 
-                // Validate each action
-                for (action_idx, action) in observer.actions.iter().enumerate() {
-                    if let Some(obj) = action.as_object() {
-                        // Check action has a type field
-                        if let Some(action_type) = obj.get("type").and_then(|v| v.as_str()) {
-                            let valid_action_types = ["webhook", "slack", "email"];
-                            if !valid_action_types.contains(&action_type) {
-                                report.errors.push(ValidationError {
-                                    message:    format!(
-                                        "Observer '{}' action {} has invalid type '{}'",
-                                        observer.name, action_idx, action_type
-                                    ),
-                                    path:       format!(
-                                        "observers[{idx}].actions[{action_idx}].type"
-                                    ),
-                                    severity:   ErrorSeverity::Error,
-                                    suggestion: Some(
-                                        "Valid action types: webhook, slack, email".to_string(),
-                                    ),
-                                });
-                            }
-
-                            // Validate action-specific required fields
-                            match action_type {
-                                "webhook" => {
-                                    let has_url = obj.contains_key("url");
-                                    let has_url_env = obj.contains_key("url_env");
-                                    if !has_url && !has_url_env {
-                                        report.errors.push(ValidationError {
-                                            message:    format!(
-                                                "Observer '{}' webhook action must have 'url' or 'url_env'",
-                                                observer.name
-                                            ),
-                                            path:       format!("observers[{idx}].actions[{action_idx}]"),
-                                            severity:   ErrorSeverity::Error,
-                                            suggestion: Some("Add 'url' or 'url_env' field".to_string()),
-                                        });
-                                    }
-                                },
-                                "slack" => {
-                                    if !obj.contains_key("channel") {
-                                        report.errors.push(ValidationError {
-                                            message:    format!(
-                                                "Observer '{}' slack action must have 'channel' field",
-                                                observer.name
-                                            ),
-                                            path:       format!("observers[{idx}].actions[{action_idx}]"),
-                                            severity:   ErrorSeverity::Error,
-                                            suggestion: Some("Add 'channel' field (e.g., '#sales')".to_string()),
-                                        });
-                                    }
-                                    if !obj.contains_key("message") {
-                                        report.errors.push(ValidationError {
-                                            message:    format!(
-                                                "Observer '{}' slack action must have 'message' field",
-                                                observer.name
-                                            ),
-                                            path:       format!("observers[{idx}].actions[{action_idx}]"),
-                                            severity:   ErrorSeverity::Error,
-                                            suggestion: Some("Add 'message' field".to_string()),
-                                        });
-                                    }
-                                },
-                                "email" => {
-                                    let required_fields = ["to", "subject", "body"];
-                                    for field in &required_fields {
-                                        if !obj.contains_key(*field) {
-                                            report.errors.push(ValidationError {
-                                                message:    format!(
-                                                    "Observer '{}' email action must have '{}' field",
-                                                    observer.name, field
-                                                ),
-                                                path:       format!("observers[{idx}].actions[{action_idx}]"),
-                                                severity:   ErrorSeverity::Error,
-                                                suggestion: Some(format!("Add '{field}' field")),
-                                            });
-                                        }
-                                    }
-                                },
-                                _ => {},
-                            }
-                        } else {
-                            report.errors.push(ValidationError {
-                                message:    format!(
-                                    "Observer '{}' action {} missing 'type' field",
-                                    observer.name, action_idx
-                                ),
-                                path:       format!("observers[{idx}].actions[{action_idx}]"),
-                                severity:   ErrorSeverity::Error,
-                                suggestion: Some(
-                                    "Add 'type' field (webhook, slack, or email)".to_string(),
-                                ),
-                            });
-                        }
-                    } else {
-                        report.errors.push(ValidationError {
-                            message:    format!(
-                                "Observer '{}' action {} must be an object",
-                                observer.name, action_idx
-                            ),
-                            path:       format!("observers[{idx}].actions[{action_idx}]"),
-                            severity:   ErrorSeverity::Error,
-                            suggestion: None,
-                        });
-                    }
-                }
+                // Each action is checked where the observer is compiled, against the type
+                // the runtime reads it through (`converter::observers`).
 
                 // Validate retry config
                 let valid_backoff_strategies = ["exponential", "linear", "fixed"];

@@ -36,6 +36,17 @@ public final class RetryConfig {
     }
 
     /**
+     * Linear back-off retry configuration.
+     *
+     * @param maxAttempts    maximum number of delivery attempts
+     * @param initialDelayMs delay before the first retry (milliseconds)
+     * @param maxDelayMs     upper bound for back-off delay (milliseconds)
+     */
+    public static RetryConfig linear(int maxAttempts, int initialDelayMs, int maxDelayMs) {
+        return new RetryConfig(maxAttempts, "linear", initialDelayMs, maxDelayMs);
+    }
+
+    /**
      * Fixed-interval retry configuration.
      *
      * @param maxAttempts maximum number of delivery attempts

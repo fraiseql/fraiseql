@@ -239,7 +239,10 @@ pub static REGISTRY: &[Registration] = &[
         capability: impls::Observers,
         name: "observers",
         feature: "observers",
-        compiled_sections: &[section("observers_config", SectionActivity::EnabledFlag)],
+        compiled_sections: &[
+            section("observers_config", SectionActivity::EnabledFlag),
+            section("observers", SectionActivity::NonEmptyArray),
+        ],
         runtime_keys: &["observers"],
         docs: Some("docs/operations/observers.md"),
         maturity: Maturity::Stable,

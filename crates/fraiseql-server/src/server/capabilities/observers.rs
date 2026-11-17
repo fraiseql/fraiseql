@@ -76,6 +76,10 @@ impl Capability for Observers {
                 ));
             }
         }
+        if let Some(pool) = server.db_pool.as_ref() {
+            let declared = app_state.executor().schema().observers.clone();
+            store_declared_observers(pool, &declared).await?;
+        }
         info!("Starting observer runtime...");
 
         // Create EventBridge to forward CDC events to GraphQL subscriptions,
@@ -172,4 +176,41 @@ impl Capability for Observers {
         let runtime = app.observer_runtime.as_ref()?;
         Some(runtime.read().await.health().running)
     }
+}
+
+/// Write the observers the compiled schema declares into `core.tb_observer`, which the
+/// runtime is about to load.
+///
+/// A failure refuses the boot: serving on would run without observers the schema says fire.
+#[cfg(feature = "observers")]
+async fn store_declared_observers(
+    pool: &sqlx::PgPool,
+    declared: &[fraiseql_core::schema::ObserverDefinition],
+) -> crate::Result<()> {
+    let outcome = crate::observers::ObserverRepository::new(pool.clone())
+        .reconcile_declared(crate::observers::MANAGED_BY_SCHEMA, declared)
+        .await?;
+    if !(outcome.created.is_empty() && outcome.updated.is_empty() && outcome.removed.is_empty()) {
+        info!(
+            created = ?outcome.created,
+            updated = ?outcome.updated,
+            removed = ?outcome.removed,
+            "Stored the observers the schema declares"
+        );
+    }
+    for name in &outcome.adopted {
+        warn!(
+            observer = %name,
+            "Observer adopted from admin API: the schema declares an observer of this name, \
+             and its declaration replaced the stored one"
+        );
+    }
+    for name in &outcome.disabled {
+        warn!(
+            observer = %name,
+            "A declared observer is disabled and does not fire; enable it with \
+             POST /api/observers/{{id}}/enable"
+        );
+    }
+    Ok(())
 }

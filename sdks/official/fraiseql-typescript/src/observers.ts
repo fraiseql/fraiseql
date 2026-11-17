@@ -4,6 +4,10 @@
  * Observers watch for database changes and trigger actions (webhooks, Slack, email).
  * NO runtime behavior - only used for schema compilation.
  *
+ * Every action factory emits exactly the keys the server's observer runtime reads.
+ * `fraiseql compile` refuses any other key, because the runtime would ignore it and the
+ * action would deliver nothing.
+ *
  * @example
  * ```typescript
  * import { Observer, webhook, slack } from "fraiseql";
@@ -73,16 +77,26 @@ export function Observer(config: ObserverConfig) {
  * Options for the webhook action factory.
  */
 interface WebhookOptions {
+  /** Environment variable holding the URL, read by the server at delivery. */
   url_env?: string;
+  /** HTTP method; the server sends `POST` when unset. */
+  method?: string;
   headers?: Record<string, string>;
+  /** Request body with `{{ field }}` placeholders naming fields of the observed entity. */
   body_template?: string;
+  /**
+   * Environment variable holding the HMAC key the server signs each request with.
+   * The key itself is never authored: a compiled schema is a build artifact.
+   */
+  signing_secret_env?: string;
 }
 
 /**
  * Create a webhook action.
  *
- * @param url - Static URL (mutually exclusive with url_env)
- * @param options - Additional options including url_env, headers, body_template
+ * @param url - Static URL (or use `url_env`)
+ * @param options - Additional options: url_env, method, headers, body_template,
+ *   signing_secret_env
  * @returns Webhook action definition
  * @throws If neither url nor url_env is provided
  */
@@ -94,7 +108,9 @@ export function webhook(url?: string, options?: WebhookOptions): ObserverAction 
     headers: Record<string, string>;
     url?: string;
     url_env?: string;
+    method?: string;
     body_template?: string;
+    signing_secret_env?: string;
   } = {
     type: "webhook",
     headers: { "Content-Type": "application/json", ...(options?.headers ?? {}) },
@@ -105,8 +121,14 @@ export function webhook(url?: string, options?: WebhookOptions): ObserverAction 
   if (options?.url_env !== undefined) {
     action.url_env = options.url_env;
   }
+  if (options?.method !== undefined) {
+    action.method = options.method;
+  }
   if (options?.body_template !== undefined) {
     action.body_template = options.body_template;
+  }
+  if (options?.signing_secret_env !== undefined) {
+    action.signing_secret_env = options.signing_secret_env;
   }
   return action;
 }
@@ -123,20 +145,21 @@ interface SlackOptions {
  * Create a Slack notification action.
  *
  * @param channel - Slack channel (e.g. "#orders")
- * @param message - Message template with {field} placeholders
+ * @param message - Message template with `{{ field }}` placeholders, emitted as
+ *   `message_template`
  * @param options - Optional webhook URL or environment variable override
  * @returns Slack action definition
  */
 export function slack(channel: string, message: string, options?: SlackOptions): ObserverAction {
   const action: ObserverAction & {
     channel: string;
-    message: string;
+    message_template: string;
     webhook_url_env: string;
     webhook_url?: string;
   } = {
     type: "slack",
     channel,
-    message,
+    message_template: message,
     webhook_url_env: options?.webhook_url_env ?? "SLACK_WEBHOOK_URL",
   };
   if (options?.webhook_url !== undefined) {
@@ -146,40 +169,21 @@ export function slack(channel: string, message: string, options?: SlackOptions):
 }
 
 /**
- * Options for the email action factory.
- */
-interface EmailOptions {
-  from_email?: string;
-}
-
-/**
  * Create an email notification action.
  *
+ * The sender is the server's SMTP configuration; an action cannot set one.
+ *
  * @param to - Recipient email address
- * @param subject - Email subject template with {field} placeholders
- * @param body - Email body template with {field} placeholders
- * @param options - Optional sender override
+ * @param subject - Email subject
+ * @param body - Email body template with `{{ field }}` placeholders, emitted as
+ *   `body_template`
  * @returns Email action definition
  */
-export function email(
-  to: string,
-  subject: string,
-  body: string,
-  options?: EmailOptions
-): ObserverAction {
-  const action: ObserverAction & {
-    to: string;
-    subject: string;
-    body: string;
-    from?: string;
-  } = {
+export function email(to: string, subject: string, body: string): ObserverAction {
+  return {
     type: "email",
     to,
     subject,
-    body,
+    body_template: body,
   };
-  if (options?.from_email !== undefined) {
-    action.from = options.from_email;
-  }
-  return action;
 }

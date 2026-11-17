@@ -126,6 +126,9 @@ func (b *ObserverBuilder) Retry(cfg RetryConfig) *ObserverBuilder {
 
 // Register registers the observer with the global schema registry.
 // Returns an error if an observer with the same name is already registered.
+//
+// An action is checked where the schema is compiled, against the type the server's
+// observer runtime reads: `fraiseql compile` refuses a key the runtime would ignore.
 func (b *ObserverBuilder) Register() error {
 	reg := getInstance()
 	reg.mu.Lock()
@@ -151,7 +154,7 @@ func (b *ObserverBuilder) Register() error {
 
 // Webhook creates a webhook observer action.
 // The first argument is the URL. An optional second argument provides extra
-// configuration (headers, body_template, etc.).
+// configuration: method, headers, body_template, signing_secret_env.
 func Webhook(url string, opts ...map[string]interface{}) ObserverAction {
 	cfg := map[string]interface{}{
 		"url": url,
@@ -165,39 +168,58 @@ func Webhook(url string, opts ...map[string]interface{}) ObserverAction {
 }
 
 // WebhookWithEnv creates a webhook observer action whose URL is read from
-// the named environment variable at runtime.
-func WebhookWithEnv(envVar string) ObserverAction {
-	return ObserverAction{
-		Type: "webhook",
-		Config: map[string]interface{}{
-			"url_env": envVar,
-		},
-	}
-}
-
-// Slack creates a Slack notification observer action.
-func Slack(channel, message string) ObserverAction {
-	return ObserverAction{
-		Type: "slack",
-		Config: map[string]interface{}{
-			"channel": channel,
-			"message": message,
-		},
-	}
-}
-
-// EmailAction creates an email observer action.
-// An optional fourth argument provides extra configuration (from_email, etc.).
-func EmailAction(to, subject, body string, opts ...map[string]interface{}) ObserverAction {
+// the named environment variable at runtime. An optional second argument provides
+// extra configuration, as for Webhook.
+func WebhookWithEnv(envVar string, opts ...map[string]interface{}) ObserverAction {
 	cfg := map[string]interface{}{
-		"to":      to,
-		"subject": subject,
-		"body":    body,
+		"url_env": envVar,
 	}
 	if len(opts) > 0 {
 		for k, v := range opts[0] {
 			cfg[k] = v
 		}
 	}
-	return ObserverAction{Type: "email", Config: cfg}
+	return ObserverAction{Type: "webhook", Config: cfg}
+}
+
+// DefaultSlackWebhookEnv names the environment variable a Slack action reads its
+// incoming-webhook URL from unless the action says otherwise.
+const DefaultSlackWebhookEnv = "SLACK_WEBHOOK_URL"
+
+// Slack creates a Slack notification observer action.
+//
+// The message is a template with `{{ field }}` placeholders, emitted as
+// `message_template`. The incoming-webhook URL is read from DefaultSlackWebhookEnv
+// unless an optional third argument sets webhook_url or webhook_url_env.
+func Slack(channel, message string, opts ...map[string]interface{}) ObserverAction {
+	cfg := map[string]interface{}{
+		"channel":          channel,
+		"message_template": message,
+	}
+	if len(opts) > 0 {
+		for k, v := range opts[0] {
+			cfg[k] = v
+		}
+	}
+	_, hasURL := cfg["webhook_url"]
+	_, hasEnv := cfg["webhook_url_env"]
+	if !hasURL && !hasEnv {
+		cfg["webhook_url_env"] = DefaultSlackWebhookEnv
+	}
+	return ObserverAction{Type: "slack", Config: cfg}
+}
+
+// EmailAction creates an email observer action.
+//
+// The body is a template with `{{ field }}` placeholders, emitted as `body_template`.
+// The sender is the server's SMTP configuration; an action cannot set one.
+func EmailAction(to, subject, body string) ObserverAction {
+	return ObserverAction{
+		Type: "email",
+		Config: map[string]interface{}{
+			"to":            to,
+			"subject":       subject,
+			"body_template": body,
+		},
+	}
 }

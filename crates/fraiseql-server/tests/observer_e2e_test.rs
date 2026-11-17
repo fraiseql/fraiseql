@@ -951,3 +951,100 @@ async fn a_webhook_template_reaching_into_the_document_column_is_not_delivered()
     assert_eq!(attempts[0].0, "failed");
     assert!(error.contains("`{{ data.review_status }}`"), "names the placeholder: {error}");
 }
+
+// ---------------------------------------------------------------------------
+// An observer the compiled schema declares fires with no row seeded by hand
+// ---------------------------------------------------------------------------
+
+/// What the receiver got for one change of `entity_type`, once the declared observers are
+/// stored as the server stores them at boot and a runtime is started over them.
+async fn deliver_declared(
+    pool: &sqlx::PgPool,
+    declared: &[fraiseql_core::schema::ObserverDefinition],
+    entity_type: &str,
+    receiver: &MockWebhookServer,
+) -> Vec<serde_json::Value> {
+    fraiseql_server::observers::ObserverRepository::new(pool.clone())
+        .reconcile_declared("schema", declared)
+        .await
+        .expect("the declared observers are stored");
+    receiver.reset().await;
+    receiver.mock_success().await;
+    let mut runtime = start_test_runtime(pool).await;
+
+    let order_id = Uuid::new_v4();
+    insert_change_log_entry(
+        pool,
+        "INSERT",
+        entity_type,
+        &order_id.to_string(),
+        serde_json::json!({"id": order_id.to_string(), "total": 42}),
+        None,
+    )
+    .await
+    .expect("Failed to insert change log entry");
+    wait_for_webhook(receiver, 1, Duration::from_secs(10)).await;
+
+    runtime.stop().await.expect("Failed to stop observer runtime");
+    receiver.received_requests().await
+}
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_declared_observer_fires_with_no_seeded_row_and_follows_its_declaration() {
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("Failed to setup schema");
+    let receiver = MockWebhookServer::start().await;
+    let entity_type = format!("Order_{test_id}");
+    let declared_with = |template: &str| {
+        vec![
+            fraiseql_core::schema::ObserverDefinition::new(
+                format!("declared-{test_id}"),
+                &entity_type,
+                "INSERT",
+            )
+            .with_action(serde_json::json!({
+                "type": "webhook",
+                "url": receiver.webhook_url(),
+                "body_template": template,
+            })),
+        ]
+    };
+
+    let first = deliver_declared(
+        &pool,
+        &declared_with(r#"{"release": 1, "total": {{ total }}}"#),
+        &entity_type,
+        &receiver,
+    )
+    .await;
+    // The declaration is edited and the server redeployed.
+    let second = deliver_declared(
+        &pool,
+        &declared_with(r#"{"release": 2, "total": {{ total }}}"#),
+        &entity_type,
+        &receiver,
+    )
+    .await;
+    // The declaration is removed and the server redeployed: nothing is left to fire.
+    let stored_after_removal: i64 = {
+        fraiseql_server::observers::ObserverRepository::new(pool.clone())
+            .reconcile_declared("schema", &[])
+            .await
+            .expect("the removal is stored");
+        sqlx::query_scalar(
+            "SELECT COUNT(*) FROM core.tb_observer WHERE name = $1 AND deleted_at IS NULL",
+        )
+        .bind(format!("declared-{test_id}"))
+        .fetch_one(&pool)
+        .await
+        .expect("the stored observers are counted")
+    };
+
+    assert_eq!(first, [serde_json::json!({"release": 1, "total": 42})]);
+    assert_eq!(second, [serde_json::json!({"release": 2, "total": 42})]);
+    assert_eq!(stored_after_removal, 0);
+
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
+}

@@ -40,7 +40,7 @@ own requests.
 | `rest` | `rest` | stable | `-full`, `-platform` | binary, `fraiseql run`, listener | `export` | `rest_config` | [architecture/rest.md](architecture/rest.md) |
 | `grpc` | `grpc` | preview | none: build from source | none yet | — | `grpc_config` | [architecture/grpc.md](architecture/grpc.md) |
 | `federation` | `federation` | stable | `-platform` | binary, `fraiseql run`, listener | — | `federation` | [architecture/federation.md](architecture/federation.md) |
-| `observers` | `observers` | stable | `-platform` | binary, `fraiseql run`, listener | `observers` | `observers_config` | [operations/observers.md](operations/observers.md) |
+| `observers` | `observers` | stable | `-platform` | binary, `fraiseql run`, listener | `observers` | `observers_config`, `observers` | [operations/observers.md](operations/observers.md) |
 | `arrow_flight` | `arrow` | stable | `-full`, `-platform` | binary, `fraiseql run` | `flight_bind_addr`, `flight_upload_tables`, `flight_views` | — | [architecture/arrow-flight.md](architecture/arrow-flight.md) |
 | `inbound_webhooks` | `inbound` | stable | `-platform` | binary, `fraiseql run`, listener | `webhooks`, `inbound_dispatch` | — | [architecture/webhooks.md](architecture/webhooks.md) |
 | `inbound_email` | `inbound-email` | stable | `-platform` | binary, `fraiseql run`, listener | `mailbox`, `send` | — | [architecture/inbound-email.md](architecture/inbound-email.md) |

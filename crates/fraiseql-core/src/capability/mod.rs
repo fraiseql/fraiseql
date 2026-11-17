@@ -60,6 +60,9 @@ pub enum SectionActivity {
     /// A top-level array of declarations, each with its own `enabled`. Active when at
     /// least one entry is enabled.
     AnyEntryEnabled,
+    /// A top-level array of declarations with no switch of their own. Active when it is
+    /// non-empty.
+    NonEmptyArray,
 }
 
 impl SectionActivity {
@@ -77,6 +80,7 @@ impl SectionActivity {
                 .and_then(serde_json::Value::as_array)
                 .is_some_and(|d| !d.is_empty()),
             Self::AnyEntryEnabled => value.as_array().is_some_and(|e| e.iter().any(enabled)),
+            Self::NonEmptyArray => value.as_array().is_some_and(|e| !e.is_empty()),
         }
     }
 }

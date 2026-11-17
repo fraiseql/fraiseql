@@ -131,7 +131,9 @@ async fn call(
     let response = admin_api(pool, caller).oneshot(request).await.unwrap();
     let status = response.status();
     let bytes = axum::body::to_bytes(response.into_body(), 1 << 20).await.unwrap();
-    (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+    // A body that is not JSON (a rejected request's reason) is returned as its text.
+    let text = || Value::String(String::from_utf8_lossy(&bytes).into_owned());
+    (status, serde_json::from_slice(&bytes).unwrap_or_else(|_| text()))
 }
 
 async fn insert_observer(pool: &PgPool, name: &str, org: Option<i64>) -> (i64, Uuid) {
@@ -615,4 +617,286 @@ async fn a_database_error_is_not_echoed_to_the_caller() {
         !text.contains("core.vw_observer_stats") && !text.contains("relation"),
         "database text reached the caller: {text}"
     );
+}
+
+/// Observers the compiled schema declares, as the server stores them at boot.
+mod schema_declared_observers {
+    use fraiseql_core::schema::ObserverDefinition;
+
+    use super::*;
+
+    /// Store one declared observer and return its id.
+    async fn declared(pool: &PgPool) -> Uuid {
+        let observer = ObserverDefinition::new("order_created", "Order", "INSERT")
+            .with_action(json!({"type": "webhook", "url": "https://a.test/hook"}));
+        ObserverRepository::new(pool.clone())
+            .reconcile_declared("schema", &[observer])
+            .await
+            .unwrap();
+        sqlx::query_scalar("SELECT id FROM core.tb_observer WHERE name = 'order_created'")
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn the_operator_reads_who_manages_an_observer() {
+        let (pool, _svc) = setup_pg().await;
+        let id = declared(&pool).await;
+
+        let (status, body) =
+            call(&pool, Caller::Operator, Method::GET, &format!("/api/observers/{id}"), None).await;
+
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!((&body["managed_by"], &body["enabled"]), (&json!("schema"), &json!(true)));
+    }
+
+    #[tokio::test]
+    async fn changing_one_is_refused_as_a_conflict_naming_the_schema() {
+        let (pool, _svc) = setup_pg().await;
+        let id = declared(&pool).await;
+
+        let (status, body) = call(
+            &pool,
+            Caller::Operator,
+            Method::PATCH,
+            &format!("/api/observers/{id}"),
+            Some(json!({"condition_expression": "total > 1"})),
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::CONFLICT, "{body}");
+        let error = body["error"].as_str().unwrap_or_default();
+        assert!(error.contains("'order_created'"), "names the observer: {error}");
+        assert!(error.contains("declared in the schema"), "says where to change it: {error}");
+    }
+
+    #[tokio::test]
+    async fn deleting_one_is_refused_as_a_conflict_and_it_stays() {
+        let (pool, _svc) = setup_pg().await;
+        let id = declared(&pool).await;
+
+        let (status, body) =
+            call(&pool, Caller::Operator, Method::DELETE, &format!("/api/observers/{id}"), None)
+                .await;
+
+        assert_eq!(status, StatusCode::CONFLICT, "{body}");
+        assert!(is_live(&pool, id).await);
+    }
+
+    #[tokio::test]
+    async fn the_operator_disables_and_enables_one() {
+        let (pool, _svc) = setup_pg().await;
+        let id = declared(&pool).await;
+
+        let (disabled, body) = call(
+            &pool,
+            Caller::Operator,
+            Method::POST,
+            &format!("/api/observers/{id}/disable"),
+            None,
+        )
+        .await;
+        let off = is_enabled(&pool, id).await;
+        let (patched, _) = call(
+            &pool,
+            Caller::Operator,
+            Method::PATCH,
+            &format!("/api/observers/{id}"),
+            Some(json!({"enabled": true})),
+        )
+        .await;
+
+        assert_eq!(disabled, StatusCode::OK, "{body}");
+        assert_eq!((&body["managed_by"], &body["enabled"]), (&json!("schema"), &json!(false)));
+        assert!(!off, "disabled");
+        assert_eq!(patched, StatusCode::OK);
+        assert!(is_enabled(&pool, id).await, "enabled again by a PATCH of `enabled` alone");
+    }
+
+    #[tokio::test]
+    async fn an_organisation_cannot_disable_one() {
+        let (pool, _svc) = setup_pg().await;
+        let id = declared(&pool).await;
+
+        let (status, _) = call(
+            &pool,
+            Caller::Org(ORG_A),
+            Method::POST,
+            &format!("/api/observers/{id}/disable"),
+            None,
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert!(is_enabled(&pool, id).await);
+    }
+}
+
+/// An action the admin API is sent is read by the check the compiler applies to a declared
+/// observer: what the runtime would ignore is refused, by its key.
+mod actions_the_runtime_would_not_run {
+    use std::time::Duration as StdDuration;
+
+    use fraiseql_server::observers::runtime::{ObserverRuntime, ObserverRuntimeConfig};
+    use tokio::{
+        io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+        net::TcpListener,
+    };
+
+    use super::*;
+
+    fn email(extra: (&str, Value)) -> Value {
+        let mut action = json!({"type": "email", "to": "ops@example.test",
+                                "subject": "New order", "body_template": "Order {{ id }}"});
+        action[extra.0] = extra.1;
+        action
+    }
+
+    async fn create(pool: &PgPool, action: Value) -> (StatusCode, Value) {
+        let body = json!({"name": "notify", "entity_type": "Order", "event_type": "INSERT",
+                          "actions": [action]});
+        call(pool, Caller::Operator, Method::POST, "/api/observers", Some(body)).await
+    }
+
+    async fn stored(pool: &PgPool) -> i64 {
+        sqlx::query_scalar("SELECT COUNT(*) FROM core.tb_observer")
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn creating_with_a_key_the_runtime_ignores_is_refused_naming_it() {
+        let (pool, _svc) = setup_pg().await;
+        let refused = [
+            ("cc", email(("cc", json!("boss@example.test")))),
+            ("to_template", email(("to_template", json!("{{ email }}")))),
+            ("subject_template", email(("subject_template", json!("Order {{ id }}")))),
+            ("reply_to", email(("reply_to", json!("noreply@example.test")))),
+            (
+                "message",
+                json!({"type": "slack", "webhook_url": "https://example.test/slack",
+                       "message_template": "Order", "message": "Order"}),
+            ),
+        ];
+
+        for (key, action) in refused {
+            let (status, body) = create(&pool, action).await;
+
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "`{key}`: {body}");
+            assert!(body.to_string().contains(&format!("`{key}`")), "names `{key}`: {body}");
+        }
+        assert_eq!(stored(&pool).await, 0, "nothing refused was stored");
+    }
+
+    #[tokio::test]
+    async fn updating_with_a_key_the_runtime_ignores_is_refused_and_the_observer_is_unchanged() {
+        let (pool, _svc) = setup_pg().await;
+        let (_, id) = insert_observer(&pool, "notify", None).await;
+
+        let (status, body) = call(
+            &pool,
+            Caller::Operator,
+            Method::PATCH,
+            &format!("/api/observers/{id}"),
+            Some(json!({"actions": [email(("cc", json!("boss@example.test")))]})),
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+        assert!(body.to_string().contains("`cc`"), "{body}");
+        let actions: Value =
+            sqlx::query_scalar("SELECT actions FROM core.tb_observer WHERE id = $1")
+                .bind(id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(actions, json!([]));
+    }
+
+    /// Accept one SMTP conversation and return the message it carried.
+    async fn receive_one_message(listener: TcpListener) -> String {
+        let (stream, _) = listener.accept().await.unwrap();
+        let (reading, mut writing) = stream.into_split();
+        let mut lines = BufReader::new(reading).lines();
+        writing.write_all(b"220 sink ESMTP\r\n").await.unwrap();
+        let mut message = String::new();
+        let mut in_data = false;
+        while let Some(line) = lines.next_line().await.unwrap() {
+            if in_data {
+                if line == "." {
+                    in_data = false;
+                    writing.write_all(b"250 queued\r\n").await.unwrap();
+                } else {
+                    message.push_str(&line);
+                    message.push('\n');
+                }
+                continue;
+            }
+            let command = line.to_ascii_uppercase();
+            let reply: &[u8] = if command.starts_with("DATA") {
+                in_data = true;
+                b"354 go ahead\r\n"
+            } else if command.starts_with("QUIT") {
+                writing.write_all(b"221 bye\r\n").await.unwrap();
+                break;
+            } else {
+                b"250 ok\r\n"
+            };
+            writing.write_all(reply).await.unwrap();
+        }
+        message
+    }
+
+    /// An email observer created through the admin API is delivered: to its recipient,
+    /// with its subject, the body rendered from the changed row.
+    #[tokio::test]
+    async fn an_email_observer_created_through_the_admin_api_is_delivered() {
+        let (pool, _svc) = setup_pg().await;
+        let sink = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = sink.local_addr().unwrap().port();
+        let received = tokio::spawn(receive_one_message(sink));
+
+        let (status, body) = create(
+            &pool,
+            json!({"type": "email", "to": "ops@example.test", "subject": "New order",
+                   "body_template": "Order {{ id }} placed"}),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED, "{body}");
+
+        let smtp = fraiseql_observers::EmailSmtpConfig {
+            host: "127.0.0.1".to_owned(),
+            port,
+            from: "alerts@example.test".to_owned(),
+            username_env: None,
+            password_env: None,
+            tls: fraiseql_observers::SmtpTlsMode::None,
+            timeout_secs: 10,
+        };
+        let mut runtime = ObserverRuntime::new(
+            ObserverRuntimeConfig::new(pool.clone())
+                .with_poll_interval(50)
+                .with_email(Some(smtp)),
+        );
+        runtime.start().await.unwrap();
+        let order = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO core.tb_entity_change_log \
+                 (object_type, object_id, modification_type, object_data) \
+             VALUES ('Order', $1, 'INSERT', jsonb_build_object('id', $1::text))",
+        )
+        .bind(order)
+        .execute(&pool)
+        .await
+        .unwrap();
+        let message = tokio::time::timeout(StdDuration::from_secs(15), received).await;
+        runtime.stop().await.unwrap();
+
+        let message = message.expect("an email is sent within 15s").unwrap();
+        assert!(message.contains("To: ops@example.test"), "{message}");
+        assert!(message.contains("Subject: New order"), "{message}");
+        assert!(message.contains(&format!("Order {order} placed")), "{message}");
+    }
 }

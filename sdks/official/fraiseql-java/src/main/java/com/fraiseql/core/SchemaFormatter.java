@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Formats the schema registry into the intermediate schema {@code fraiseql compile} reads.
@@ -84,8 +85,46 @@ public class SchemaFormatter {
         if (!registry.getAllFunctions().isEmpty()) {
             root.set("functions", formatFunctionsArray(registry.getAllFunctions()));
         }
+        if (!registry.getAllObservers().isEmpty()) {
+            root.set("observers", formatObserversArray(registry.getAllObservers()));
+        }
 
         return root;
+    }
+
+    /**
+     * Format the {@code observers} array, ordered by observer name.
+     *
+     * <p>Each action is emitted as authored: the action factories produce the keys the
+     * server's observer runtime reads, and the compiler refuses any other.
+     *
+     * @param observers registered observers by name
+     * @return the JSON array
+     */
+    private static ArrayNode formatObserversArray(Map<String, SchemaRegistry.ObserverInfo> observers) {
+        ArrayNode array = mapper.createArrayNode();
+        for (SchemaRegistry.ObserverInfo observer : new TreeMap<>(observers).values()) {
+            ObjectNode node = mapper.createObjectNode();
+            node.put("name", observer.name);
+            node.put("entity", observer.entity);
+            node.put("event", observer.event);
+            if (observer.condition != null && !observer.condition.isEmpty()) {
+                node.put("condition", observer.condition);
+            }
+            ArrayNode actions = mapper.createArrayNode();
+            for (Map<String, Object> action : observer.actions) {
+                actions.add(mapper.valueToTree(action));
+            }
+            node.set("actions", actions);
+            ObjectNode retry = mapper.createObjectNode();
+            retry.put("max_attempts", observer.retry.getMaxAttempts());
+            retry.put("backoff_strategy", observer.retry.getBackoffStrategy());
+            retry.put("initial_delay_ms", observer.retry.getInitialDelayMs());
+            retry.put("max_delay_ms", observer.retry.getMaxDelayMs());
+            node.set("retry", retry);
+            array.add(node);
+        }
+        return array;
     }
 
     /**

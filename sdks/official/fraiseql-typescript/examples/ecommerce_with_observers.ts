@@ -7,14 +7,28 @@
  *
  * Usage:
  *   npx tsx examples/ecommerce_with_observers.ts
+ *   fraiseql-cli compile ecommerce_with_observers_schema.json
  *
- * Note: this example does not write a schema file. `fraiseql compile` refuses a schema
- * that declares observers (#779) — observers are configured for the running server, not
- * lowered into the compiled artifact — so writing one here would produce a document the
- * very next command rejects. The registry contents are printed instead.
+ * The project's `fraiseql.toml` must enable the observer runtime, or the compiler
+ * refuses the declarations (no runtime would start, and none of them would fire):
+ *
+ *   [observers]
+ *   enabled = true
+ *
+ * Templates use `{{ field }}` placeholders that name fields of the observed entity by
+ * their stored key. The compiler refuses a webhook `body_template` naming a field the
+ * entity does not hold.
  */
 
-import { Observer, SchemaRegistry, email, registerTypeFields, slack, webhook } from "../src/index";
+import {
+  Observer,
+  SchemaRegistry,
+  email,
+  exportSchema,
+  registerTypeFields,
+  slack,
+  webhook,
+} from "../src/index";
 
 // The entities the observers watch. Declared with `registerTypeFields` rather than
 // `@Type()`: TypeScript erases the field types a class decorator would need, so `@Type()`
@@ -56,11 +70,11 @@ class OrderObservers {
     condition: "total > 1000",
     actions: [
       webhook("https://api.example.com/high-value-orders"),
-      slack("#sales", "🎉 High-value order {id}: ${total}"),
+      slack("#sales", "🎉 High-value order {{ id }}: ${{ total }}"),
       email(
         "sales@example.com",
-        "High-value order {id}",
-        "Order {id} for ${total} was created by {customer_email}"
+        "High-value order",
+        "Order {{ id }} for ${{ total }} was created by {{ customer_email }}"
       ),
     ],
   })
@@ -72,14 +86,16 @@ class OrderObservers {
   @Observer({
     entity: "Order",
     event: "UPDATE",
-    condition: "status.changed() and status == 'shipped'",
+    condition: "field_changed_to('status', 'shipped')",
     actions: [
-      webhook(undefined, { url_env: "SHIPPING_WEBHOOK_URL" }),
+      webhook(undefined, {
+        url_env: "SHIPPING_WEBHOOK_URL",
+        signing_secret_env: "SHIPPING_WEBHOOK_SECRET",
+      }),
       email(
-        "{customer_email}",
-        "Your order {id} has shipped!",
-        "Your order is on its way. Track it here: https://example.com/track/{id}",
-        { from_email: "noreply@example.com" }
+        "fulfilment@example.com",
+        "An order has shipped",
+        "Order {{ id }} for {{ customer_email }} is on its way: https://example.com/track/{{ id }}"
       ),
     ],
   })
@@ -91,7 +107,7 @@ class OrderObservers {
   @Observer({
     entity: "Order",
     event: "INSERT",
-    actions: [slack("#orders", "New order {id} by {customer_email}")],
+    actions: [slack("#orders", "New order {{ id }} by {{ customer_email }}")],
   })
   onOrderCreated() {
     /** Triggered when any order is created */
@@ -103,7 +119,7 @@ class OrderObservers {
     event: "DELETE",
     actions: [
       webhook("https://api.example.com/archive", {
-        body_template: '{"type": "order", "id": "{{id}}", "data": {{_json}}}',
+        body_template: '{"type": "order", "id": "{{ id }}", "status": "{{ status }}"}',
       }),
     ],
   })
@@ -119,9 +135,10 @@ class PaymentObservers {
     event: "UPDATE",
     condition: "status == 'failed'",
     actions: [
-      slack("#payments", "⚠️ Payment failed for order {order_id}: {amount}"),
+      slack("#payments", "⚠️ Payment failed for order {{ order_id }}: {{ amount }}"),
       webhook("https://api.example.com/payment-failures", {
-        headers: { Authorization: "Bearer {PAYMENT_API_TOKEN}" },
+        headers: { "X-Source": "fraiseql" },
+        signing_secret_env: "PAYMENT_WEBHOOK_SECRET",
       }),
     ],
     retry: {
@@ -140,11 +157,10 @@ class PaymentObservers {
 void OrderObservers;
 void PaymentObservers;
 
-// Show what was registered. Every observer's `name` must be a plain string here: when
-// it was the decorator's context object, this printed `[object Object]` and the schema
-// it produced was rejected by the compiler with `invalid type: map, expected a string`.
+exportSchema("ecommerce_with_observers_schema.json");
+
 const observers = SchemaRegistry.getSchema().observers ?? [];
-console.log(`Registered ${observers.length} observer(s):`);
+console.log(`\nRegistered ${observers.length} observer(s):`);
 for (const observer of observers) {
   console.log(`   ${observer.name}  ${observer.entity} ${observer.event}`);
 }

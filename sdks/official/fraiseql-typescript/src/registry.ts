@@ -405,7 +405,7 @@ export interface ObserverAction {
  */
 export interface ObserverRetryConfig {
   max_attempts: number;
-  backoff_strategy: string;
+  backoff_strategy: "exponential" | "linear" | "fixed";
   initial_delay_ms: number;
   max_delay_ms: number;
 }

@@ -87,6 +87,7 @@ mod redaction_tests {
             created_by:           None,
             updated_by:           None,
             deleted_at:           None,
+            managed_by:           None,
         };
 
         let redacted = observer.with_redacted_secrets();
@@ -515,7 +516,7 @@ mod action_type_dispatch {
         for (json, name) in [
             (serde_json::json!({ "type": "webhook", "url": "https://h/x" }), "webhook"),
             (
-                serde_json::json!({ "type": "email", "to": "a@b.c", "subject_template": "s", "body_template": "b" }),
+                serde_json::json!({ "type": "email", "to": "a@b.c", "subject": "s", "body_template": "b" }),
                 "email",
             ),
             (

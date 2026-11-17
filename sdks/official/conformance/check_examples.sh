@@ -25,12 +25,14 @@ trap 'rm -rf "$WORK"' EXIT
 
 failures=0
 compiled=0
+emitted=()
 
 # Compile one emitted schema, or record a failure.
 #
 # A project declares in `fraiseql.toml` the roles that grant the scopes its schema uses:
 # without one, no server loads a scoped schema, and the compiler — which loads what it
-# writes — refuses it. Each schema compiles against a scratch `fraiseql.toml` that
+# writes — refuses it. Likewise a schema declaring observers compiles only where
+# `[observers]` is enabled. Each schema compiles against a scratch `fraiseql.toml` that
 # `project_toml.py` derives, named with `--config` (#1387: discovery reads the schema's
 # own tree, never the working directory).
 compile_schema() {
@@ -47,7 +49,8 @@ compile_schema() {
   fi
 }
 
-# Run an example, then compile every schema it wrote into its own directory.
+# Run an example from `dir`, then compile every schema it wrote there. The schemas are
+# left in `emitted`.
 #
 # An example that exits non-zero fails here even if it wrote nothing: "the program does not
 # run" is the defect two Python examples had for months, and it is invisible to a check
@@ -62,14 +65,35 @@ run_and_compile() {
     return
   fi
   local found=0 schema
+  emitted=()
   while IFS= read -r schema; do
     found=1
+    emitted+=("$schema")
     compile_schema "$label -> $(basename "$schema")" "$schema"
   done < <(find "$dir" -maxdepth 1 -name '*.json' -newer "$WORK" 2>/dev/null)
   if [ "$found" -eq 0 ]; then
-    # Legitimate: an example may demonstrate an authoring API without exporting — the
-    # observer examples do, because `fraiseql compile` refuses declared observers.
+    # Legitimate: an example may demonstrate an authoring API without exporting.
     printf 'ok    %s (ran; emitted no schema)\n' "$label"
+  fi
+}
+
+# Run an example that declares observers, and fail unless a schema it wrote declares them.
+#
+# `run_and_compile` accepts an example that writes nothing. An observer example that
+# stopped exporting, or exported without its observers, would then read as passing while
+# no observer action reached the compiler.
+run_and_compile_observers() {
+  local label="$1" before="$failures" schema declared=0
+  run_and_compile "$@"
+  [ "$failures" -eq "$before" ] || return 0
+  for schema in ${emitted[@]+"${emitted[@]}"}; do
+    if python3 -c 'import json, sys; sys.exit(0 if json.load(open(sys.argv[1])).get("observers") else 1)' "$schema"; then
+      declared=1
+    fi
+  done
+  if [ "$declared" -eq 0 ]; then
+    printf 'FAIL  %s (exported no schema declaring observers)\n' "$label"
+    failures=$((failures + 1))
   fi
 }
 
@@ -77,7 +101,9 @@ echo "== Go =="
 for dir in "$SDK_ROOT"/fraiseql-go/examples/*/; do
   [ -f "$dir/main.go" ] || continue
   rm -f "$dir"/*.json
-  run_and_compile "go/$(basename "$dir")" "$dir" go run .
+  runner=run_and_compile
+  [ "$(basename "$dir")" = ecommerce ] && runner=run_and_compile_observers
+  "$runner" "go/$(basename "$dir")" "$dir" go run .
 done
 
 echo
@@ -102,10 +128,22 @@ for example in "$SDK_ROOT"/fraiseql-typescript/examples/*.ts; do
   [ -f "$example" ] || continue
   workdir="$WORK/ts-$(basename "$example" .ts)"
   mkdir -p "$workdir"
-  run_and_compile \
+  runner=run_and_compile
+  [ "$(basename "$example")" = ecommerce_with_observers.ts ] && runner=run_and_compile_observers
+  "$runner" \
     "typescript/$(basename "$example")" "$workdir" \
     npx --yes tsx --tsconfig "$SDK_ROOT/fraiseql-typescript/tsconfig.json" "$example"
 done
+
+echo
+echo "== Java =="
+# The observer example, run through the `ExamplesExport` test: the Maven build exposes no
+# other entry point. `-f` keeps the working directory the scratch one the schema lands in.
+workdir="$WORK/java-observers"
+mkdir -p "$workdir"
+FRAISEQL_EXAMPLES_OUT="$workdir" run_and_compile_observers \
+  "java/EcommerceWithObserversSchema" "$workdir" \
+  mvn -q -B -f "$SDK_ROOT/fraiseql-java/pom.xml" test -Dtest=ExamplesExport -DfailIfNoTests=false
 
 echo
 echo "== PHP =="

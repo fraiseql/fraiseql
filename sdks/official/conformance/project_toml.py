@@ -43,12 +43,19 @@ def declares_localized(node: object) -> bool:
     return False
 
 
+def declares_observers(exported: object) -> bool:
+    """Whether an exported schema declares at least one observer."""
+    return isinstance(exported, dict) and bool(exported.get("observers"))
+
+
 LOCALE_SECTION = '[locale]\ndefault = "en-US"\nallowed = ["en-US", "fr-FR"]\n'
+OBSERVERS_SECTION = "[observers]\nenabled = true\n"
 
 
 def project_toml(schema: Path) -> str:
     """The `fraiseql.toml` a project compiling `schema` carries: a role granting each scope
-    the schema declares, and a `[locale]` when it declares a localized field.
+    the schema declares, a `[locale]` when it declares a localized field, and an enabled
+    `[observers]` when it declares observers.
 
     A scope is granted only by a role the project's security section defines, and a schema
     declaring `requires_scope` with no such section is one no server can load — so the
@@ -62,10 +69,14 @@ def project_toml(schema: Path) -> str:
     # A localized field needs a `[locale]` to resolve through, or the compiler refuses it;
     # derived from the export for the same reason as the roles below.
     locale = LOCALE_SECTION if declares_localized(exported) else ""
+    # Declared observers fire only where the observer runtime is enabled, and the compiler
+    # refuses them otherwise. Top-level tables go before the role array so neither is read
+    # as a key of it.
+    observers = OBSERVERS_SECTION if declares_observers(exported) else ""
     if not scopes:
-        return locale
+        return locale + observers
     listed = ", ".join(json.dumps(s) for s in scopes)
-    return locale + (
+    return locale + observers + (
         "[[fraiseql.security.role_definitions]]\n"
         'name = "conformance"\n'
         'description = "Grants every scope the exported schema declares"\n'

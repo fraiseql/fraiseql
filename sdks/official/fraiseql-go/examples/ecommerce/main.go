@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/fraiseql/fraiseql-go/fraiseql"
 )
@@ -24,69 +25,81 @@ type Payment struct {
 	ProcessedAt *string `json:"processed_at"`
 }
 
+// must stops the example on a registration the SDK refuses.
+func must(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+// Observers react to database changes with webhooks, Slack messages and emails.
+//
+// Templates use `{{ field }}` placeholders that name fields of the observed entity by
+// their stored key. The compiler refuses a webhook body_template naming a field the
+// entity does not hold.
 func main() {
 	// Register types
-	fraiseql.RegisterType("Order", []fraiseql.FieldInfo{
+	must(fraiseql.RegisterType("Order", []fraiseql.FieldInfo{
 		{Name: "id", Type: "ID", Nullable: false},
 		{Name: "customer_email", Type: "String", Nullable: false},
 		{Name: "status", Type: "String", Nullable: false},
 		{Name: "total", Type: "Float", Nullable: false},
 		{Name: "created_at", Type: "DateTime", Nullable: false},
-	}, "E-commerce order")
+	}, "E-commerce order"))
 
-	fraiseql.RegisterType("Payment", []fraiseql.FieldInfo{
+	must(fraiseql.RegisterType("Payment", []fraiseql.FieldInfo{
 		{Name: "id", Type: "ID", Nullable: false},
 		{Name: "order_id", Type: "ID", Nullable: false},
 		{Name: "amount", Type: "Float", Nullable: false},
 		{Name: "status", Type: "String", Nullable: false},
 		{Name: "processed_at", Type: "DateTime", Nullable: true},
-	}, "Payment record")
+	}, "Payment record"))
 
 	// Observer 1: Notify when high-value orders are created
-	fraiseql.NewObserver("onHighValueOrder").
+	must(fraiseql.NewObserver("onHighValueOrder").
 		Entity("Order").
 		Event("INSERT").
 		Condition("total > 1000").
 		Actions(
 			fraiseql.Webhook("https://api.example.com/high-value-orders"),
-			fraiseql.Slack("#sales", "🎉 High-value order {id}: ${total}"),
+			fraiseql.Slack("#sales", "🎉 High-value order {{ id }}: ${{ total }}"),
 			fraiseql.EmailAction(
 				"sales@example.com",
-				"High-value order {id}",
-				"Order {id} for ${total} was created by {customer_email}",
+				"High-value order",
+				"Order {{ id }} for ${{ total }} was created by {{ customer_email }}",
 			),
 		).
-		Register()
+		Register())
 
 	// Observer 2: Notify when orders are shipped
-	fraiseql.NewObserver("onOrderShipped").
+	must(fraiseql.NewObserver("onOrderShipped").
 		Entity("Order").
 		Event("UPDATE").
-		Condition("status.changed() and status == 'shipped'").
+		Condition("field_changed_to('status', 'shipped')").
 		Actions(
-			fraiseql.WebhookWithEnv("SHIPPING_WEBHOOK_URL"),
+			fraiseql.WebhookWithEnv("SHIPPING_WEBHOOK_URL", map[string]interface{}{
+				"signing_secret_env": "SHIPPING_WEBHOOK_SECRET",
+			}),
 			fraiseql.EmailAction(
-				"{customer_email}",
-				"Your order {id} has shipped!",
-				"Your order is on its way. Track it here: https://example.com/track/{id}",
-				map[string]interface{}{
-					"from_email": "noreply@example.com",
-				},
+				"fulfilment@example.com",
+				"An order has shipped",
+				"Order {{ id }} for {{ customer_email }} is on its way: https://example.com/track/{{ id }}",
 			),
 		).
-		Register()
+		Register())
 
 	// Observer 3: Alert on payment failures with aggressive retry
-	fraiseql.NewObserver("onPaymentFailure").
+	must(fraiseql.NewObserver("onPaymentFailure").
 		Entity("Payment").
 		Event("UPDATE").
 		Condition("status == 'failed'").
 		Actions(
-			fraiseql.Slack("#payments", "⚠️ Payment failed for order {order_id}: {amount}"),
+			fraiseql.Slack("#payments", "⚠️ Payment failed for order {{ order_id }}: {{ amount }}"),
 			fraiseql.Webhook("https://api.example.com/payment-failures", map[string]interface{}{
 				"headers": map[string]string{
-					"Authorization": "Bearer {PAYMENT_API_TOKEN}",
+					"X-Source": "fraiseql",
 				},
+				"signing_secret_env": "PAYMENT_WEBHOOK_SECRET",
 			}),
 		).
 		Retry(fraiseql.RetryConfig{
@@ -95,41 +108,36 @@ func main() {
 			InitialDelayMs:  100,
 			MaxDelayMs:      60000,
 		}).
-		Register()
+		Register())
 
 	// Observer 4: Archive deleted orders
-	fraiseql.NewObserver("onOrderDeleted").
+	must(fraiseql.NewObserver("onOrderDeleted").
 		Entity("Order").
 		Event("DELETE").
 		Action(fraiseql.Webhook("https://api.example.com/archive", map[string]interface{}{
-			"body_template": `{"type": "order", "id": "{{id}}", "data": {{_json}}}`,
+			"body_template": `{"type": "order", "id": "{{ id }}", "status": "{{ status }}"}`,
 		})).
-		Register()
+		Register())
 
 	// Observer 5: Simple notification for all new orders
-	fraiseql.NewObserver("onOrderCreated").
+	must(fraiseql.NewObserver("onOrderCreated").
 		Entity("Order").
 		Event("INSERT").
-		Action(fraiseql.Slack("#orders", "New order {id} by {customer_email}")).
-		Register()
+		Action(fraiseql.Slack("#orders", "New order {{ id }} by {{ customer_email }}")).
+		Register())
 
-	// Deliberately no ExportSchema call.
-	//
-	// `fraiseql compile` refuses a schema.json that declares observers, and it is right
-	// to: the runtime loads observers from the `tb_observer` table and the admin API and
-	// reads nothing from the compiled schema, so a compiled artifact carrying them would
-	// describe observers that never fire. This example used to export anyway and print
-	// "Observers will execute automatically on database changes!" — a claim that was
-	// false in two independent ways.
+	must(fraiseql.ExportSchema("schema.json"))
+
 	fmt.Println("\n🎯 Observers defined:")
 	fmt.Println("   1. onHighValueOrder → Webhooks, Slack, Email for total > 1000")
-	fmt.Println("   2. onOrderShipped → Webhook + customer email when status='shipped'")
+	fmt.Println("   2. onOrderShipped → Webhook + email when status becomes 'shipped'")
 	fmt.Println("   3. onPaymentFailure → Slack + webhook with retry on payment failures")
 	fmt.Println("   4. onOrderDeleted → Archive deleted orders via webhook")
 	fmt.Println("   5. onOrderCreated → Slack notification for all new orders")
-	fmt.Println("\n✨ Installing them:")
-	fmt.Println("   Observers are runtime configuration, not part of the compiled schema.")
-	fmt.Println("   Load these definitions through the admin API, or insert them into")
-	fmt.Println("   `tb_observer` directly. `fraiseql compile` will refuse a schema.json")
-	fmt.Println("   that declares them, naming the reason.")
+	fmt.Println("\n✨ Next steps:")
+	fmt.Println("   1. Enable the observer runtime in fraiseql.toml:")
+	fmt.Println("        [observers]")
+	fmt.Println("        enabled = true")
+	fmt.Println("   2. fraiseql-cli compile schema.json")
+	fmt.Println("      The compiler refuses the declarations while [observers] is not enabled.")
 }

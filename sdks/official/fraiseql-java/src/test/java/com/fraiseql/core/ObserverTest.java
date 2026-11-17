@@ -101,8 +101,8 @@ public class ObserverTest {
             .entity("Order")
             .event("INSERT")
             .addAction(Webhook.create("https://example.com/orders"))
-            .addAction(SlackAction.create("#orders", "New order {id}"))
-            .addAction(EmailAction.create("admin@example.com", "Order created", "Order {id} created"))
+            .addAction(SlackAction.create("#orders", "New order {{ id }}"))
+            .addAction(EmailAction.create("admin@example.com", "Order created", "Order {{ id }} created"))
             .register();
 
         var observer = registry.getAllObservers().get("onOrder");
@@ -139,12 +139,13 @@ public class ObserverTest {
     @Order(8)
     @DisplayName("Slack action")
     void testSlackAction() {
-        var action = SlackAction.create("#orders", "New order {id}");
+        var action = SlackAction.create("#orders", "New order {{ id }}");
 
-        assertEquals("slack", action.get("type"));
-        assertEquals("#orders", action.get("channel"));
-        assertEquals("New order {id}", action.get("message"));
-        assertEquals("SLACK_WEBHOOK_URL", action.get("webhook_url_env"));
+        assertEquals(Map.of(
+            "type", "slack",
+            "channel", "#orders",
+            "message_template", "New order {{ id }}",
+            "webhook_url_env", "SLACK_WEBHOOK_URL"), action);
     }
 
     @Test
@@ -155,7 +156,9 @@ public class ObserverTest {
             "https://hooks.slack.com/services/XXX");
 
         assertEquals("https://hooks.slack.com/services/XXX", action.get("webhook_url"));
+        assertEquals("New order", action.get("message_template"));
         assertFalse(action.containsKey("webhook_url_env"));
+        assertFalse(action.containsKey("message"));
     }
 
     @Test
@@ -163,25 +166,29 @@ public class ObserverTest {
     @DisplayName("Email action")
     void testEmailAction() {
         var action = EmailAction.create("admin@example.com",
-            "Order {id} created",
-            "Order {id} for ${total} was created");
+            "Order created",
+            "Order {{ id }} for ${{ total }} was created");
 
-        assertEquals("email", action.get("type"));
-        assertEquals("admin@example.com", action.get("to"));
-        assertEquals("Order {id} created", action.get("subject"));
-        assertEquals("Order {id} for ${total} was created", action.get("body"));
+        assertEquals(Map.of(
+            "type", "email",
+            "to", "admin@example.com",
+            "subject", "Order created",
+            "body_template", "Order {{ id }} for ${{ total }} was created"), action);
     }
 
     @Test
     @Order(11)
-    @DisplayName("Email with from address")
-    void testEmailWithFrom() {
-        var action = EmailAction.withFrom("customer@example.com",
-            "Order shipped",
-            "Your order is on its way!",
-            "noreply@example.com");
+    @DisplayName("Webhook body template and signing variable")
+    void testWebhookBodyTemplateAndSigning() {
+        var action = Webhook.signedWith(
+            Webhook.bodyTemplate(Webhook.withEnv("ORDER_WEBHOOK_URL"), "{\"id\": \"{{ id }}\"}"),
+            "ORDER_WEBHOOK_SECRET");
 
-        assertEquals("noreply@example.com", action.get("from"));
+        assertEquals(
+            Set.of("type", "url_env", "headers", "body_template", "signing_secret_env"),
+            action.keySet());
+        assertEquals("{\"id\": \"{{ id }}\"}", action.get("body_template"));
+        assertEquals("ORDER_WEBHOOK_SECRET", action.get("signing_secret_env"));
     }
 
     @Test
@@ -204,6 +211,54 @@ public class ObserverTest {
         assertEquals(2, observers.size());
         assertTrue(observers.containsKey("onOrder1"));
         assertTrue(observers.containsKey("onOrder2"));
+
+        var exported = SchemaFormatter.formatSchema(registry).get("observers");
+        assertNotNull(exported, "the exported schema carries the observers");
+        assertEquals(2, exported.size());
+
+        var first = exported.get(0);
+        assertEquals("onOrder1", first.get("name").asText());
+        assertEquals("Order", first.get("entity").asText());
+        assertEquals("INSERT", first.get("event").asText());
+        assertFalse(first.has("condition"));
+        assertEquals("https://example.com", first.get("actions").get(0).get("url").asText());
+        var retry = first.get("retry");
+        assertEquals(
+            Set.of("max_attempts", "backoff_strategy", "initial_delay_ms", "max_delay_ms"),
+            Set.copyOf(iterable(retry.fieldNames())));
+        assertEquals(3, retry.get("max_attempts").asInt());
+        assertEquals("exponential", retry.get("backoff_strategy").asText());
+        assertEquals(100, retry.get("initial_delay_ms").asInt());
+        assertEquals(60000, retry.get("max_delay_ms").asInt());
+
+        var slack = exported.get(1).get("actions").get(0);
+        assertEquals("Updated", slack.get("message_template").asText());
+        assertEquals("SLACK_WEBHOOK_URL", slack.get("webhook_url_env").asText());
+    }
+
+    private static List<String> iterable(Iterator<String> names) {
+        List<String> out = new ArrayList<>();
+        names.forEachRemaining(out::add);
+        return out;
+    }
+
+    @Test
+    @Order(14)
+    @DisplayName("A schema with no observers exports no observers key")
+    void testNoObserversKeyWhenNoneRegistered() {
+        assertFalse(SchemaFormatter.formatSchema(registry).has("observers"));
+    }
+
+    @Test
+    @Order(15)
+    @DisplayName("Linear retry")
+    void testLinearRetry() {
+        var retry = RetryConfig.linear(4, 250, 10_000);
+
+        assertEquals("linear", retry.getBackoffStrategy());
+        assertEquals(4, retry.getMaxAttempts());
+        assertEquals(250, retry.getInitialDelayMs());
+        assertEquals(10_000, retry.getMaxDelayMs());
     }
 
     @Test

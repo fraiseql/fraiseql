@@ -63,7 +63,7 @@ impl ObserverRepository {
             r"SELECT pk_observer, id, name, description, entity_type, event_type,
               condition_expression, actions, enabled, priority, retry_config,
               timeout_ms, fk_customer_org, created_at, updated_at,
-              created_by, updated_by, deleted_at
+              created_by, updated_by, deleted_at, managed_by
               FROM core.tb_observer WHERE 1=1",
         );
 
@@ -111,7 +111,7 @@ impl ObserverRepository {
             r"SELECT pk_observer, id, name, description, entity_type, event_type,
               condition_expression, actions, enabled, priority, retry_config,
               timeout_ms, fk_customer_org, created_at, updated_at,
-              created_by, updated_by, deleted_at
+              created_by, updated_by, deleted_at, managed_by
               FROM core.tb_observer WHERE id = ",
         );
         qb.push_bind(id).push(" AND deleted_at IS NULL");
@@ -157,7 +157,7 @@ impl ObserverRepository {
                 pk_observer, id, name, description, entity_type, event_type,
                 condition_expression, actions, enabled, priority, retry_config,
                 timeout_ms, fk_customer_org, created_at, updated_at,
-                created_by, updated_by, deleted_at
+                created_by, updated_by, deleted_at, managed_by
             ",
         )
         .bind(&request.name)
@@ -243,33 +243,67 @@ impl ObserverRepository {
         }
 
         qb.push(" WHERE id = ").push_bind(id).push(" AND deleted_at IS NULL");
+        if !request.changes_only_enabled() {
+            qb.push(" AND managed_by IS NULL");
+        }
         scope.push_owned(&mut qb, "pk_observer");
         qb.push(
             r" RETURNING
                 pk_observer, id, name, description, entity_type, event_type,
                 condition_expression, actions, enabled, priority, retry_config,
                 timeout_ms, fk_customer_org, created_at, updated_at,
-                created_by, updated_by, deleted_at",
+                created_by, updated_by, deleted_at, managed_by",
         );
 
-        let observer = qb
+        let observer: Option<Observer> = qb
             .build_query_as()
             .fetch_optional(&self.pool)
             .await
             .map_err(|e| ServerError::Database(e.to_string()))?;
+        if observer.is_none() {
+            self.refuse_schema_managed(id, scope, "changed").await?;
+        }
 
         Ok(observer)
+    }
+
+    /// Refuse with `ServerError::Conflict` when `id` is a live observer `scope` owns and
+    /// the compiled schema declares: the write that found no row was refused for that.
+    async fn refuse_schema_managed(
+        &self,
+        id: Uuid,
+        scope: ObserverScope,
+        verb: &str,
+    ) -> Result<(), ServerError> {
+        let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
+            sqlx::QueryBuilder::new("SELECT name FROM core.tb_observer WHERE id = ");
+        qb.push_bind(id).push(" AND deleted_at IS NULL AND managed_by IS NOT NULL");
+        scope.push_owned(&mut qb, "pk_observer");
+        let declared: Option<(String,)> = qb
+            .build_query_as()
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| ServerError::Database(e.to_string()))?;
+        match declared {
+            Some((name,)) => Err(ServerError::Conflict(format!(
+                "Observer '{name}' is declared in the schema and cannot be {verb} here: the \
+                 server writes it from the schema at every boot. Change the declaration and \
+                 redeploy. It can be disabled and enabled here."
+            ))),
+            None => Ok(()),
+        }
     }
 
     /// Soft delete an observer the scope owns.
     ///
     /// # Errors
     ///
-    /// Returns `ServerError::Database` on query failure.
+    /// Returns `ServerError::Database` on query failure, and `ServerError::Conflict` for an
+    /// observer the schema declares.
     pub async fn delete(&self, id: Uuid, scope: ObserverScope) -> Result<bool, ServerError> {
         let mut qb: sqlx::QueryBuilder<sqlx::Postgres> =
             sqlx::QueryBuilder::new("UPDATE core.tb_observer SET deleted_at = NOW() WHERE id = ");
-        qb.push_bind(id).push(" AND deleted_at IS NULL");
+        qb.push_bind(id).push(" AND deleted_at IS NULL AND managed_by IS NULL");
 
         scope.push_owned(&mut qb, "pk_observer");
 
@@ -278,8 +312,145 @@ impl ObserverRepository {
             .execute(&self.pool)
             .await
             .map_err(|e| ServerError::Database(e.to_string()))?;
+        if result.rows_affected() == 0 {
+            self.refuse_schema_managed(id, scope, "deleted").await?;
+        }
 
         Ok(result.rows_affected() > 0)
+    }
+
+    /// Make `core.tb_observer` hold the observers `owner`'s compiled schema declares.
+    ///
+    /// Each declared observer is a global row (`fk_customer_org IS NULL`) whose
+    /// `managed_by` is `owner`: inserted, or rewritten where the declaration changed. A
+    /// global row of the same name the admin API wrote is adopted. A row of `owner` its
+    /// schema no longer declares is soft-deleted. Whether a row is enabled is left as it
+    /// stands, so an observer an operator disabled stays disabled across a deploy.
+    ///
+    /// Another owner's rows are neither rewritten nor removed. A declared name another
+    /// owner already holds is refused: the two would otherwise rewrite one row in turn.
+    ///
+    /// One transaction under an advisory lock: replicas booting together write one set.
+    /// An organisation's observers are never read or written.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError::ConfigError` for a name another owner holds, and
+    /// `ServerError::Database` on query failure. Nothing is written in either case.
+    pub async fn reconcile_declared(
+        &self,
+        owner: &str,
+        declared: &[fraiseql_core::schema::ObserverDefinition],
+    ) -> Result<Reconciled, ServerError> {
+        let db = |e: sqlx::Error| ServerError::Database(e.to_string());
+        let json = |e: serde_json::Error| ServerError::Validation(e.to_string());
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        sqlx::query("SELECT pg_advisory_xact_lock($1)")
+            .bind(RECONCILE_LOCK_KEY)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+
+        let mut outcome = Reconciled::default();
+        for observer in declared {
+            let actions = serde_json::Value::Array(observer.actions.clone());
+            let retry = serde_json::to_value(&observer.retry).map_err(json)?;
+            let stored: Option<(i64, Option<String>, bool, bool)> = sqlx::query_as(
+                "SELECT pk_observer, managed_by, enabled, \
+                        ROW(entity_type::text, event_type::text, condition_expression, actions, \
+                            retry_config) \
+                        IS NOT DISTINCT FROM ROW($2::text, $3::text, $4::text, $5::jsonb, $6::jsonb) \
+                 FROM core.tb_observer \
+                 WHERE name = $1 AND fk_customer_org IS NULL AND deleted_at IS NULL \
+                 FOR UPDATE",
+            )
+            .bind(&observer.name)
+            .bind(&observer.entity)
+            .bind(&observer.event)
+            .bind(&observer.condition)
+            .bind(&actions)
+            .bind(&retry)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(db)?;
+
+            match stored {
+                None => {
+                    sqlx::query(
+                        "INSERT INTO core.tb_observer (name, entity_type, event_type, \
+                             condition_expression, actions, retry_config, managed_by, \
+                             created_by, updated_by) \
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $7)",
+                    )
+                    .bind(&observer.name)
+                    .bind(&observer.entity)
+                    .bind(&observer.event)
+                    .bind(&observer.condition)
+                    .bind(&actions)
+                    .bind(&retry)
+                    .bind(owner)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(db)?;
+                    outcome.created.push(observer.name.clone());
+                },
+                Some((_, Some(other), ..)) if other != owner => {
+                    return Err(ServerError::ConfigError(format!(
+                        "observer `{}` is declared by the schema of `{owner}`, and \
+                         core.tb_observer already holds a global observer of that name \
+                         managed by `{other}`. Two schemas on one database cannot declare \
+                         the same observer name: rename one",
+                        observer.name
+                    )));
+                },
+                Some((pk, managed_by, enabled, same)) => {
+                    let adopted = managed_by.is_none();
+                    if adopted || !same {
+                        sqlx::query(
+                            "UPDATE core.tb_observer SET entity_type = $2, event_type = $3, \
+                                 condition_expression = $4, actions = $5, retry_config = $6, \
+                                 managed_by = $7, updated_by = $7 \
+                             WHERE pk_observer = $1",
+                        )
+                        .bind(pk)
+                        .bind(&observer.entity)
+                        .bind(&observer.event)
+                        .bind(&observer.condition)
+                        .bind(&actions)
+                        .bind(&retry)
+                        .bind(owner)
+                        .execute(&mut *tx)
+                        .await
+                        .map_err(db)?;
+                        let changed = if adopted {
+                            &mut outcome.adopted
+                        } else {
+                            &mut outcome.updated
+                        };
+                        changed.push(observer.name.clone());
+                    }
+                    if !enabled {
+                        outcome.disabled.push(observer.name.clone());
+                    }
+                },
+            }
+        }
+
+        let names: Vec<&str> = declared.iter().map(|o| o.name.as_str()).collect();
+        let removed: Vec<(String,)> = sqlx::query_as(
+            "UPDATE core.tb_observer SET deleted_at = NOW(), updated_by = $1 \
+             WHERE managed_by = $1 AND deleted_at IS NULL AND NOT (name = ANY($2)) \
+             RETURNING name",
+        )
+        .bind(owner)
+        .bind(&names)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(db)?;
+        outcome.removed = removed.into_iter().map(|(name,)| name).collect();
+
+        tx.commit().await.map_err(db)?;
+        Ok(outcome)
     }
 
     /// Get statistics for the observers `scope` owns.
@@ -465,6 +636,24 @@ impl ObserverRepository {
             },
         }
     }
+}
+
+/// The advisory lock [`ObserverRepository::reconcile_declared`] writes under.
+const RECONCILE_LOCK_KEY: i64 = 0x6672_6f62_7372_6563;
+
+/// What [`ObserverRepository::reconcile_declared`] changed, by observer name.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Reconciled {
+    /// Declared observers that had no row.
+    pub created:  Vec<String>,
+    /// Schema-managed rows rewritten to a changed declaration.
+    pub updated:  Vec<String>,
+    /// Global rows the admin API wrote, taken over by a declaration of the same name.
+    pub adopted:  Vec<String>,
+    /// Schema-managed rows the schema no longer declares, soft-deleted.
+    pub removed:  Vec<String>,
+    /// Declared observers whose row is disabled, and so do not fire.
+    pub disabled: Vec<String>,
 }
 
 /// The observer tables an earlier release may have left outside `core`, each with

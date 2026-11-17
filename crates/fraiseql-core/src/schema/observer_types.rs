@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 ///     },
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct ObserverDefinition {
     /// Observer name (unique identifier).
     pub name: String,
@@ -131,7 +131,7 @@ impl ObserverDefinition {
 ///     max_delay_ms: 60000,
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct RetryConfig {
     /// Maximum number of retry attempts.
     pub max_attempts: u32,

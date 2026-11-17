@@ -6,10 +6,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use fraiseql_core::{
-    runtime::Executor,
-    schema::{CompiledSchema, FieldDefinition, FieldType, TypeDefinition},
-};
+use fraiseql_core::{runtime::Executor, schema::CompiledSchema};
 use uuid::Uuid;
 
 use super::{
@@ -48,12 +45,13 @@ pub(super) fn reject_undispatchable_actions(actions: &[ActionConfig]) -> Option<
 /// The runtime renders a webhook template against the changed row and dead-letters an
 /// event whose row has no value for a placeholder, so a typo surfaces only when the first
 /// event fires. Where the compiled schema declares `entity_type`, each placeholder's
-/// dotted path is resolved here against that type's fields, following object fields, and
-/// the first that cannot resolve is refused with `422`. A segment names a field by the key
-/// the row holds for it ([`FieldDefinition::stored_key`]), which is the key the renderer
-/// reads: `review_status` for a field published as `reviewStatus`. An entity type the
-/// schema does not declare, and a path that descends into JSON, a custom scalar, an
-/// interface or a union, are left to delivery: the schema cannot say what they hold.
+/// dotted path is resolved here against that type's fields
+/// ([`CompiledSchema::document_path`], the rule the compiler applies to a declared
+/// observer), and the first that cannot resolve is refused with `422`. A segment names a
+/// field by the key the row holds for it, which is the key the renderer reads:
+/// `review_status` for a field published as `reviewStatus`. An entity type the schema does
+/// not declare, and a path that descends into JSON, a custom scalar, an interface or a
+/// union, are left to delivery: the schema cannot say what they hold.
 pub(super) fn reject_unfillable_templates(
     schema: &CompiledSchema,
     entity_type: Option<&str>,
@@ -70,7 +68,7 @@ pub(super) fn reject_unfillable_templates(
         };
         let (path, unfillable) = fraiseql_observers::body_template_placeholders(template)
             .into_iter()
-            .find_map(|path| fillable(schema, entity, &path).err().map(|why| (path, why)))?;
+            .find_map(|path| schema.document_path(entity, &path).err().map(|why| (path, why)))?;
         let held = unfillable
             .held
             .map_or_else(String::new, |key| format!(" The row holds that field as `{key}`."));
@@ -88,54 +86,6 @@ pub(super) fn reject_unfillable_templates(
                 .into_response(),
         )
     })
-}
-
-/// A placeholder path no row of the entity can fill.
-struct Unfillable {
-    /// The key the row holds, when the segment that failed is a field's published name.
-    held: Option<String>,
-}
-
-/// Whether a row of `entity` can fill the dotted `path`: every segment names a field by the
-/// key the row holds for it.
-///
-/// The row is read as the entity document, the type's fields at the top level. That is what
-/// a mutation stores, and what the capture trigger stores for a table declared to keep its
-/// document in a column (`[subscriptions.capture]`). A table of plain columns is
-/// captured as its row, which holds a field only where a column carries its stored key.
-fn fillable(
-    schema: &CompiledSchema,
-    entity: &TypeDefinition,
-    path: &str,
-) -> Result<(), Unfillable> {
-    let mut current = entity;
-    let mut segments = path.split('.').peekable();
-    while let Some(segment) = segments.next() {
-        let Some(field) = current.fields.iter().find(|f| f.stored_key() == segment) else {
-            let held = current
-                .fields
-                .iter()
-                .find(|f| f.name.as_str() == segment)
-                .map(FieldDefinition::stored_key);
-            return Err(Unfillable { held });
-        };
-        if segments.peek().is_none() {
-            return Ok(());
-        }
-        match &field.field_type {
-            FieldType::Object(name) => match schema.find_type(name) {
-                Some(next) => current = next,
-                None => return Ok(()),
-            },
-            FieldType::Json
-            | FieldType::Scalar(_)
-            | FieldType::Interface(_)
-            | FieldType::Union(_) => return Ok(()),
-            // A list or a scalar has no key to read the next segment from.
-            _ => return Err(Unfillable { held: None }),
-        }
-    }
-    Ok(())
 }
 
 /// Application state for observer handlers.
