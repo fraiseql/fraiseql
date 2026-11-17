@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 /// on_disconnect = "http://localhost:8001/hooks/ws-disconnect"
 /// on_subscribe = "http://localhost:8001/hooks/ws-subscribe"
 /// timeout_ms = 500
+///
+/// [subscriptions.capture.tb_ticket]
+/// document_column = "data"
 /// ```
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -25,6 +28,16 @@ pub struct SubscriptionsConfig {
     /// Webhook lifecycle hooks.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hooks: Option<SubscriptionHooksConfig>,
+
+    /// How the capture trigger reads each table it sits on, by the table's name as a
+    /// type's `subscribable_tables` spells it.
+    ///
+    /// ```toml
+    /// [subscriptions.capture.tb_ticket]
+    /// document_column = "data"
+    /// ```
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub capture: std::collections::BTreeMap<String, fraiseql_core::schema::CaptureTableConfig>,
 }
 
 /// Webhook URLs invoked during subscription lifecycle events.

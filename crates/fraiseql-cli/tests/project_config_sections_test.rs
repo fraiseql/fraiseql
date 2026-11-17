@@ -591,3 +591,91 @@ fn the_naming_convention_is_the_project_configs_when_declared_and_the_documents_
     // Neither says: the workflow's default.
     assert_eq!(naming("", None), json!("camelCase"));
 }
+
+// ── #2013: a captured table that keeps its entity document in a column ───────
+
+/// Compile `capture` (TOML, under `[subscriptions]`) with a schema whose `Order` is
+/// captured from `tb_order`, in the workflow `as_toml_schema` selects, then generate the
+/// capture triggers from the compiled schema. Returns the compile and the trigger DDL.
+fn captured(capture: &str, as_toml_schema: bool) -> (Compiled, String) {
+    let dir = TempDir::new().unwrap();
+    let mut schema = document();
+    schema["types"][0]["subscribable_tables"] = json!(["tb_order"]);
+    let compiled = if as_toml_schema {
+        fs::write(dir.path().join("types.json"), schema.to_string()).unwrap();
+        fs::write(
+            dir.path().join("fraiseql.toml"),
+            format!("{capture}\n[schema]\nname = \"app\"\nversion = \"1.0.0\"\n"),
+        )
+        .unwrap();
+        run(&dir, &["fraiseql.toml", "--types", "types.json"])
+    } else {
+        fs::write(dir.path().join("schema.json"), schema.to_string()).unwrap();
+        fs::write(
+            dir.path().join("fraiseql.toml"),
+            format!("{capture}\n[project]\nname = \"app\"\n"),
+        )
+        .unwrap();
+        run(&dir, &["schema.json"])
+    };
+    let generated = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+        .args(["generate-capture-triggers", "--no-function", "--schema"])
+        .arg(dir.path().join("schema.compiled.json"))
+        .output()
+        .unwrap();
+    (compiled, String::from_utf8_lossy(&generated.stdout).into_owned())
+}
+
+#[test]
+fn a_capture_entry_reaches_the_triggers_generated_from_the_compiled_schema() {
+    for as_toml_schema in [false, true] {
+        let (compiled, ddl) = captured(
+            "[subscriptions.capture.tb_order]\ndocument_column = \"data\"\n",
+            as_toml_schema,
+        );
+        assert!(compiled.ok, "{}", compiled.log);
+        assert_eq!(
+            ddl.matches(
+                "core.fn_entity_change_log_capture('Order', 'id', 'tenant_id', 'false', 'data');"
+            )
+            .count(),
+            3,
+            "toml schema: {as_toml_schema}\n{ddl}"
+        );
+
+        // Without the entry, the triggers are the ones generated before it existed.
+        let (compiled, ddl) = captured("", as_toml_schema);
+        assert!(compiled.ok, "{}", compiled.log);
+        assert_eq!(
+            ddl.matches("core.fn_entity_change_log_capture('Order', 'id', 'tenant_id');")
+                .count(),
+            3,
+            "toml schema: {as_toml_schema}\n{ddl}"
+        );
+    }
+}
+
+#[test]
+fn a_capture_entry_that_cannot_be_generated_from_is_refused_naming_it() {
+    let refused = [
+        // A table no type declares: the entry would be dropped unread.
+        ("[subscriptions.capture.tb_ordr]\ndocument_column = \"data\"\n", "`tb_ordr`"),
+        // Not a column name.
+        (
+            "[subscriptions.capture.tb_order]\ndocument_column = \"data->'x'\"\n",
+            "`data->'x'`",
+        ),
+        // A key the entry does not take.
+        (
+            "[subscriptions.capture.tb_order]\ndocument_colum = \"data\"\n",
+            "document_colum",
+        ),
+    ];
+    for as_toml_schema in [false, true] {
+        for (capture, named) in refused {
+            let (compiled, _) = captured(capture, as_toml_schema);
+            assert!(!compiled.ok, "compiled: {capture}");
+            assert!(compiled.log.contains(named), "{capture}: {}", compiled.log);
+        }
+    }
+}

@@ -114,6 +114,10 @@ disagreed, and the promise was the part that was wrong.
   entry under Fixed. `FieldDefinition::jsonb_key()` is removed; `stored_key()` answers which
   key a stored entity holds for a field.
 
+- **New public field `SubscriptionsConfig.capture` in `fraiseql-core` and `fraiseql-cli`
+  (#2013).** A struct literal that lists every field must add it
+  (`capture: Default::default()`).
+
 - **`AuthenticatedUser` has a `provenance` field (#1628).** It records which authenticator
   produced the user (`fraiseql_core::security::Provenance`) and has no default: code that
   builds an `AuthenticatedUser` with a struct literal sets it (`Provenance::BearerToken` for a
@@ -153,6 +157,17 @@ disagreed, and the promise was the part that was wrong.
   compiled schema carrying them no longer loads: recompile it.
 
 ### Added
+
+- **`[subscriptions.capture.<table>]` declares a captured table that keeps its entity
+  document in a column (#2013).** `document_column = "data"` makes
+  `generate-capture-triggers` pass the column to that table's triggers, and a write captured
+  from outside the engine is then stored as the document, as a mutation of the type stores
+  it. The entry is read from `fraiseql.toml` in both compile workflows and compiled into
+  the schema. A compile refuses an entry for a table no type declares in
+  `subscribable_tables`, and a `document_column` that is not a column name. The capture
+  function takes the column as a fifth trigger argument and the type's native scope columns
+  as a sixth; triggers created before keep storing the row until they are regenerated. See
+  `docs/architecture/external-write-capture.md`.
 
 - **`after:mutation` and `after:capture` dispatch is at-least-once: the function dispatch
   ledger (#1628).** A durable dispatch is recorded in the write's own transaction
@@ -308,6 +323,19 @@ disagreed, and the promise was the part that was wrong.
   accepted for a key a `snake_case` row does not hold. The check now reads the key the row
   holds, at every depth of a dotted path, and a placeholder that writes the published name
   is refused with the key to write instead. A single-word field is unaffected.
+
+- **A table that keeps its entity document in a column is captured as that document
+  (#2013).** A mutation's change-log row stores the entity document; a write captured by
+  the fallback trigger stored the table's row, so for a table shaped
+  `(id, tenant_id, data)` the type's fields sat one level down, under `data`. A webhook
+  `body_template`, an observer condition or a subscription could be written for one
+  producer and not for the other, and the observer admin API accepted the template that
+  dead-lettered on a captured row while refusing the one that delivered. With the table
+  declared under `[subscriptions.capture]` (see Added), both producers store the document.
+  The columns the type's read is scoped by natively are written into a captured document
+  from the row, so a subscription scopes a captured change by the column a query compares.
+  Not changed: a table of plain columns is still captured as its row, and Arrow Flight
+  Upload still records the inserted row under the table's name.
 
 ## [2.19.1] - 2026-11-14
 

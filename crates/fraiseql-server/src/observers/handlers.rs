@@ -98,6 +98,11 @@ struct Unfillable {
 
 /// Whether a row of `entity` can fill the dotted `path`: every segment names a field by the
 /// key the row holds for it.
+///
+/// The row is read as the entity document, the type's fields at the top level. That is what
+/// a mutation stores, and what the capture trigger stores for a table declared to keep its
+/// document in a column (`[subscriptions.capture]`). A table of plain columns is
+/// captured as its row, which holds a field only where a column carries its stored key.
 fn fillable(
     schema: &CompiledSchema,
     entity: &TypeDefinition,

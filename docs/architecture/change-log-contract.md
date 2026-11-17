@@ -81,7 +81,7 @@ Placement: schema `core` (matches the existing reader and the
 | `object_type` | `TEXT NOT NULL` | `text` | perf #392 + reader | executor |
 | `modification_type` | `TEXT NOT NULL` | `text` | perf #392 + reader (INSERT/UPDATE/DELETE/CUSTOM) | executor |
 | `object_id` | `UUID` | `uuid` | perf #392 + reader | executor |
-| `object_data` | `JSONB` | `jsonb` | entity payload | executor |
+| `object_data` | `JSONB` | `jsonb` | entity payload: the entity document (a captured table of plain columns stores its row, see [external-write capture](./external-write-capture.md#a-table-that-keeps-its-entity-document)) | executor |
 | `updated_fields` | `TEXT[]` | `_text` | envelope (`MutationResponse.updated_fields`) | executor |
 | `cascade` | `JSONB` | `jsonb` | envelope (graphql-cascade) | executor |
 | `duration_ms` | `INTEGER` | `int4` | **perf #392** (slowest-mutation ordering) | executor |

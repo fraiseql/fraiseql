@@ -51,6 +51,20 @@ async fn pool() -> PgPool {
 /// triggers pass `'true'` as `TG_ARGV[3]` so the capture function records OLD
 /// into `object_data_before` (the `changelog_pre_image` out-of-band parity).
 async fn setup(pool: &PgPool, src: &str, pk: &str, tenant: &str, pre_image: bool) {
+    // Opt-in tables pass the pre-image flag as the 4th capture-function arg.
+    let pre_image_arg = if pre_image { ", 'true'" } else { "" };
+    setup_table(
+        pool,
+        src,
+        &format!("{pk} UUID PRIMARY KEY DEFAULT gen_random_uuid(), {tenant} UUID, name TEXT"),
+        &format!("'Post', '{pk}', '{tenant}'{pre_image_arg}"),
+    )
+    .await;
+}
+
+/// [`setup`] for a table of any columns, its triggers passing `trigger_args` to the capture
+/// function.
+async fn setup_table(pool: &PgPool, src: &str, columns: &str, trigger_args: &str) {
     // Own the slate: other suites (changelog_views, observer_test_helpers, the
     // core changelog e2e) create this table with `object_data JSONB NOT NULL`,
     // and the additive contract DDL never relaxes a pre-existing column — so on
@@ -72,19 +86,11 @@ async fn setup(pool: &PgPool, src: &str, pk: &str, tenant: &str, pre_image: bool
         .execute(pool)
         .await
         .unwrap();
-    sqlx::query(&format!(
-        "CREATE TABLE {src} (
-            {pk}      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            {tenant}  UUID,
-            name      TEXT
-        )"
-    ))
-    .execute(pool)
-    .await
-    .unwrap();
+    sqlx::query(&format!("CREATE TABLE {src} ({columns})"))
+        .execute(pool)
+        .await
+        .unwrap();
 
-    // Opt-in tables pass the pre-image flag as the 4th capture-function arg.
-    let pre_image_arg = if pre_image { ", 'true'" } else { "" };
     for (suffix, when, referencing) in [
         ("ins", "INSERT", "NEW TABLE AS new_table"),
         ("upd", "UPDATE", "OLD TABLE AS old_table NEW TABLE AS new_table"),
@@ -93,7 +99,7 @@ async fn setup(pool: &PgPool, src: &str, pk: &str, tenant: &str, pre_image: bool
         sqlx::query(&format!(
             "CREATE TRIGGER tr_cdc_capture_{suffix} AFTER {when} ON {src}
              REFERENCING {referencing} FOR EACH STATEMENT
-             EXECUTE FUNCTION core.fn_entity_change_log_capture('Post', '{pk}', '{tenant}'{pre_image_arg})"
+             EXECUTE FUNCTION core.fn_entity_change_log_capture({trigger_args})"
         ))
         .execute(pool)
         .await
@@ -276,6 +282,191 @@ async fn non_opted_in_update_captures_after_image_only() {
     assert!(
         upd.object_data_before.is_null(),
         "no pre-image without the per-table opt-in (cost paid only where wanted)"
+    );
+}
+
+/// A table that keeps its entity document in a `data` column, captured with that column
+/// named as the fifth trigger argument and the pre-image on.
+async fn setup_document_table(pool: &PgPool) {
+    setup_table(
+        pool,
+        "public.tc_ticket",
+        "id UUID PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id UUID, data JSONB",
+        "'Ticket', 'id', 'tenant_id', 'true', 'data'",
+    )
+    .await;
+}
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn a_table_that_keeps_a_document_is_captured_as_that_document() {
+    let pool = pool().await;
+    setup_document_table(&pool).await;
+
+    let id = "66666666-6666-6666-6666-666666666666";
+    let tenant = "77777777-7777-7777-7777-777777777777";
+    sqlx::query(&format!(
+        "INSERT INTO public.tc_ticket (id, tenant_id, data)
+         VALUES ('{id}', '{tenant}', '{{\"review_status\": \"in_review\"}}')"
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(&format!(
+        "UPDATE public.tc_ticket SET data = '{{\"review_status\": \"approved\"}}'
+         WHERE id = '{id}'"
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(&format!("DELETE FROM public.tc_ticket WHERE id = '{id}'"))
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let rows = changelog_rows(&pool).await;
+    assert_eq!(rows.len(), 3, "insert, update and delete each capture one row");
+    let document = |status: &str| serde_json::json!({ "review_status": status });
+
+    assert_eq!(rows[0].object_data, document("in_review"), "the inserted document, whole");
+    assert_eq!(rows[1].object_data, document("approved"), "the updated document");
+    assert_eq!(rows[1].object_data_before, document("in_review"), "the document before it");
+    assert!(rows[2].object_data.is_null(), "a delete has no after-image");
+    assert_eq!(rows[2].object_data_before, document("approved"), "the deleted document");
+    // The row's own columns still name the event, though the image no longer holds them.
+    let stamped: (String, Option<String>) = sqlx::query_as(
+        "SELECT object_id::text, tenant_id::text FROM core.tb_entity_change_log
+         ORDER BY pk_entity_change_log LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(stamped, (id.to_string(), Some(tenant.to_string())));
+}
+
+/// A document table whose triggers also name `tenant_id` and `region` as the columns its
+/// type's reads are scoped by.
+async fn setup_scoped_document_table(pool: &PgPool) {
+    setup_table(
+        pool,
+        "public.tc_ticket",
+        "id UUID PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id UUID, data JSONB",
+        "'Ticket', 'id', 'tenant_id', 'true', 'data', 'tenant_id,region'",
+    )
+    .await;
+}
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn a_scope_column_is_written_into_the_document_over_a_key_of_its_name() {
+    let pool = pool().await;
+    setup_scoped_document_table(&pool).await;
+
+    let id = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+    let column = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+    let claimed = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+    // The document names another tenant than the row's column, and no tenant after the
+    // update: the column is what a SQL read of the type compares.
+    sqlx::query(&format!(
+        "INSERT INTO public.tc_ticket (id, tenant_id, data)
+         VALUES ('{id}', '{column}', '{{\"tenant_id\": \"{claimed}\", \"title\": \"a\"}}')"
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(&format!(
+        "UPDATE public.tc_ticket SET data = '{{\"title\": \"b\"}}' WHERE id = '{id}'"
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let rows = changelog_rows(&pool).await;
+    assert_eq!(rows.len(), 2);
+    // `region` is listed and the row has no such column: nothing is written for it.
+    assert_eq!(rows[0].object_data, serde_json::json!({ "tenant_id": column, "title": "a" }));
+    assert_eq!(rows[1].object_data, serde_json::json!({ "tenant_id": column, "title": "b" }));
+    assert_eq!(
+        rows[1].object_data_before,
+        serde_json::json!({ "tenant_id": column, "title": "a" }),
+        "the before-image is scoped as the after-image is"
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn a_scope_column_is_not_written_into_a_captured_row() {
+    let pool = pool().await;
+    setup_table(
+        &pool,
+        "public.tc_post",
+        "id UUID PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id UUID, name TEXT",
+        "'Post', 'id', 'tenant_id', 'false', '', 'name'",
+    )
+    .await;
+
+    let id = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
+    sqlx::query(&format!("INSERT INTO public.tc_post (id, name) VALUES ('{id}', 'hello')"))
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        changelog_rows(&pool).await[0].object_data,
+        serde_json::json!({ "id": id, "tenant_id": null, "name": "hello" })
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn a_table_without_the_document_column_is_captured_as_its_row() {
+    let pool = pool().await;
+    setup_table(
+        &pool,
+        "public.tc_post",
+        "id UUID PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id UUID, name TEXT",
+        "'Post', 'id', 'tenant_id', 'false', 'data'",
+    )
+    .await;
+
+    let id = "88888888-8888-8888-8888-888888888888";
+    sqlx::query(&format!("INSERT INTO public.tc_post (id, name) VALUES ('{id}', 'hello')"))
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let rows = changelog_rows(&pool).await;
+    assert_eq!(rows.len(), 1);
+    assert_eq!(
+        rows[0].object_data,
+        serde_json::json!({ "id": id, "tenant_id": null, "name": "hello" })
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn a_document_column_that_holds_no_object_leaves_the_row() {
+    let pool = pool().await;
+    setup_document_table(&pool).await;
+
+    let unset = "99999999-9999-9999-9999-999999999999";
+    let scalar = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+    sqlx::query(&format!(
+        "INSERT INTO public.tc_ticket (id, data) VALUES ('{unset}', NULL), ('{scalar}', '\"text\"')"
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let mut images: Vec<Value> =
+        changelog_rows(&pool).await.into_iter().map(|row| row.object_data).collect();
+    images.sort_by_key(|image| image["id"].as_str().map(str::to_owned));
+    assert_eq!(
+        images,
+        vec![
+            serde_json::json!({ "id": unset, "tenant_id": null, "data": null }),
+            serde_json::json!({ "id": scalar, "tenant_id": null, "data": "text" }),
+        ]
     );
 }
 

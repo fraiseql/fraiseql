@@ -684,3 +684,160 @@ async fn a_subscription_payload_is_localized_in_the_subscribers_locale() {
         "{frame}"
     );
 }
+
+// ── #2013: a captured table that keeps its entity document in a column ──
+
+/// A subscriber of `tenant`, as a validated token makes it.
+fn subscriber_of(tenant: &str) -> fraiseql_core::security::SecurityContext {
+    use fraiseql_core::types::{TenantId, UserId};
+
+    fraiseql_core::security::SecurityContext {
+        user_id:          UserId::new("subscriber"),
+        roles:            vec![],
+        tenant_id:        Some(TenantId::new(tenant)),
+        scopes:           vec![],
+        attributes:       std::collections::HashMap::from([(
+            "tenant_id".to_string(),
+            json!(tenant),
+        )]),
+        request_id:       "req-captured-scope".to_string(),
+        ip_address:       None,
+        authenticated_at: chrono::Utc::now(),
+        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
+        email:            None,
+        display_name:     None,
+    }
+}
+
+/// A subscription's scope over changes captured from a table that keeps its document in
+/// `data` and its tenant in a column only.
+///
+/// The triggers are the ones `generate-capture-triggers` writes for the schema, which
+/// declares the document column and scopes the type's read by the native `tenant_id`. Each
+/// change is written from outside, read by the change-log listener, and served by the plan
+/// of a subscriber of each tenant. A tenant is served its own changes, with their fields,
+/// and no other's: not one whose document names it while the row belongs to another.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_captured_document_is_served_to_its_rows_tenant_only() {
+    use fraiseql_core::schema::{
+        CaptureTableConfig, FieldDefinition, FieldType, InjectedParamSource, NativeColumn,
+        QueryDefinition, SubscribableEntity, SubscriptionsConfig, TypeDefinition,
+        generate_capture_trigger_ddl,
+    };
+    use fraiseql_observers::listener::{ChangeLogListener, ChangeLogListenerConfig};
+
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("schema setup");
+    sqlx::raw_sql(fraiseql_observers::migrations::entity_change_log_capture_trigger_sql())
+        .execute(&pool)
+        .await
+        .expect("the capture function installs");
+    let entity_type = format!("Order_{test_id}");
+    let table = format!("tb_order_{test_id}");
+
+    let mut schema = CompiledSchema::new();
+    let mut order = TypeDefinition::new(entity_type.as_str(), "v_order");
+    order.fields = vec![
+        FieldDefinition::new("id", FieldType::Id),
+        FieldDefinition::nullable("status", FieldType::String),
+        FieldDefinition::nullable("tenant_id", FieldType::String),
+    ];
+    schema.types.push(order);
+    let mut orders = QueryDefinition::new("orders", entity_type.as_str())
+        .returning_list()
+        .with_sql_source("v_order");
+    orders
+        .inject_params
+        .insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
+    orders
+        .native_columns
+        .insert("tenant_id".to_string(), NativeColumn::nullable("uuid"));
+    schema.queries.push(orders);
+    schema
+        .subscriptions
+        .push(SubscriptionDefinition::new("orderChanged", &entity_type));
+    schema.subscribable.push(SubscribableEntity {
+        entity_type: entity_type.clone(),
+        tables:      vec![table.clone()],
+        pre_image:   false,
+    });
+    let mut subscriptions = SubscriptionsConfig::default();
+    subscriptions.capture.insert(
+        table.clone(),
+        CaptureTableConfig {
+            document_column: "data".to_string(),
+        },
+    );
+    schema.subscriptions_config = Some(subscriptions);
+    schema.build_indexes();
+
+    sqlx::raw_sql(&format!(
+        "CREATE TABLE {table} (id UUID PRIMARY KEY, tenant_id UUID NOT NULL, data JSONB NOT NULL);
+         {}",
+        generate_capture_trigger_ddl(&schema)
+    ))
+    .execute(&pool)
+    .await
+    .expect("the table and its generated triggers are created");
+
+    let (tenant_a, tenant_b) = (Uuid::new_v4().to_string(), Uuid::new_v4().to_string());
+    let (of_a, of_b, claims_a) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    // Neither tenant's document names its tenant; the third row is tenant B's, and its
+    // document names tenant A.
+    sqlx::raw_sql(&format!(
+        "INSERT INTO {table} (id, tenant_id, data) VALUES
+           ('{of_a}', '{tenant_a}', '{{\"id\": \"{of_a}\", \"status\": \"open\"}}'),
+           ('{of_b}', '{tenant_b}', '{{\"id\": \"{of_b}\", \"status\": \"open\"}}'),
+           ('{claims_a}', '{tenant_b}',
+            '{{\"id\": \"{claims_a}\", \"status\": \"open\", \"tenant_id\": \"{tenant_a}\"}}')"
+    ))
+    .execute(&pool)
+    .await
+    .expect("the rows are written from outside the engine");
+
+    let mut listener = ChangeLogListener::new(ChangeLogListenerConfig::new(pool.clone()));
+    let mut images = Vec::new();
+    loop {
+        let batch = listener.next_batch().await.expect("the change log is read");
+        if batch.is_empty() {
+            break;
+        }
+        for entry in batch.iter().filter(|entry| entry.object_type == entity_type) {
+            images.push(entry.to_entity_event().expect("the row is an event").data);
+        }
+    }
+    sqlx::raw_sql(&format!("DROP TABLE {table} CASCADE")).execute(&pool).await.ok();
+    cleanup_test_data(&pool, &test_id).await.ok();
+    assert_eq!(images.len(), 3, "each write was captured: {images:?}");
+
+    let executor = fraiseql_core::runtime::Executor::new(
+        schema,
+        Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
+    );
+    let document =
+        fraiseql_core::graphql::parse_query("subscription { orderChanged { id status } }")
+            .expect("the subscription parses");
+    let served_to = |tenant: &str| -> Vec<serde_json::Value> {
+        let plan = executor
+            .plan_subscription(&document, None, Some(&subscriber_of(tenant)))
+            .expect("the subscription is planned");
+        images
+            .iter()
+            .filter_map(|image| plan.deliver(image))
+            .map(|served| served.data)
+            .collect()
+    };
+
+    assert_eq!(served_to(&tenant_a), vec![json!({"id": of_a.to_string(), "status": "open"})]);
+    assert_eq!(
+        served_to(&tenant_b),
+        vec![
+            json!({"id": of_b.to_string(), "status": "open"}),
+            json!({"id": claims_a.to_string(), "status": "open"}),
+        ]
+    );
+}

@@ -11,6 +11,13 @@
 //! GraphQL `entity_type` (→ `object_type`), the UUID public-id column, and the
 //! tenant column as `TG_ARGV`, so the capture function needs no schema knowledge.
 //!
+//! A table that keeps its entity document in one column is declared in project
+//! configuration (`[subscriptions.capture.<table>]`, compiled into
+//! [`SubscriptionsConfig::capture`](super::SubscriptionsConfig)). Its triggers also pass
+//! that column, and the columns the type's reads are scoped by natively, so a captured
+//! write is stored as the document a mutation of the type stores. A table with no
+//! entry is generated as it always was.
+//!
 //! This module emits only the per-table triggers (it is dependency-free). The
 //! `core.fn_entity_change_log_capture` function itself ships as
 //! `fraiseql_observers::migrations::entity_change_log_capture_trigger_sql`; the
@@ -22,7 +29,10 @@ mod tests;
 
 use std::fmt::Write as _;
 
-use super::compiled::{CompiledSchema, SubscribableEntity};
+use super::{
+    CaptureTableConfig,
+    compiled::{CompiledSchema, SubscribableEntity},
+};
 
 /// The public-id (UUID) column the capture trigger reads for `object_id`.
 ///
@@ -78,15 +88,88 @@ pub fn generate_capture_trigger_ddl(schema: &CompiledSchema) -> String {
          -- Requires core.tb_entity_change_log + core.fn_entity_change_log_capture().\n\n",
     );
     for entity in &schema.subscribable {
-        out.push_str(&entity_ddl(entity));
+        out.push_str(&entity_ddl(schema, entity));
     }
     out
 }
 
+impl CompiledSchema {
+    /// `[subscriptions.capture.<table>]` entries the capture triggers could not be
+    /// generated from: one for a table no type declares in `subscribable_tables`, which
+    /// would be dropped unread, and one whose `document_column` is not a plain identifier.
+    ///
+    /// One message per violation, empty when every entry can be honoured. Called when a
+    /// schema loads, in the compiler and at server boot.
+    #[must_use]
+    pub fn capture_violations(&self) -> Vec<String> {
+        let declared: std::collections::BTreeSet<&str> = self
+            .subscribable
+            .iter()
+            .flat_map(|entity| entity.tables.iter().map(String::as_str))
+            .collect();
+        let mut violations = Vec::new();
+        for (table, entry) in self.capture_entries() {
+            if !declared.contains(table.as_str()) {
+                let known = if declared.is_empty() {
+                    "no type declares any".to_string()
+                } else {
+                    format!(
+                        "declared: `{}`",
+                        declared.iter().copied().collect::<Vec<_>>().join("`, `")
+                    )
+                };
+                violations.push(format!(
+                    "`subscriptions.capture` names the table `{table}`, which no type \
+                     declares in `subscribable_tables` ({known})"
+                ));
+            }
+            if !is_plain_ident(&entry.document_column) {
+                violations.push(format!(
+                    "`subscriptions.capture.{table}.document_column` is `{}`, which is not \
+                     a column name",
+                    entry.document_column
+                ));
+            }
+        }
+        violations
+    }
+
+    /// The declared capture entries, by table.
+    fn capture_entries(&self) -> impl Iterator<Item = (&String, &CaptureTableConfig)> {
+        self.subscriptions_config.iter().flat_map(|config| config.capture.iter())
+    }
+
+    /// The columns reads of `entity_type` are scoped by natively: each `inject_params`
+    /// column of its scoping read that the read compares as a column of its relation.
+    ///
+    /// A subscription reads these off the captured image under the same names, so
+    /// the trigger writes them into a captured document. A scope key the read takes from
+    /// the document is already in it.
+    fn native_scope_columns(&self, entity_type: &str) -> Vec<&str> {
+        self.scoping_read(entity_type)
+            .into_iter()
+            .flat_map(|read| {
+                read.inject_params
+                    .keys()
+                    .filter(|column| read.native_columns.contains_key(*column))
+                    .map(String::as_str)
+            })
+            .filter(|column| is_plain_ident(column))
+            .collect()
+    }
+}
+
 /// Emit the trigger DDL for one `@subscribable` entity (all its tables).
-fn entity_ddl(entity: &SubscribableEntity) -> String {
+fn entity_ddl(schema: &CompiledSchema, entity: &SubscribableEntity) -> String {
     let mut out = String::new();
     for table in &entity.tables {
+        // The image of a table that keeps a document: the column, then the scope columns.
+        let document = schema
+            .capture_entries()
+            .find(|(declared, _)| *declared == table)
+            .map(|(_, entry)| entry.document_column.as_str())
+            .filter(|column| is_plain_ident(column))
+            .map(|column| (column, schema.native_scope_columns(&entity.entity_type)));
         match split_qualified_ident(table) {
             Some((schema_part, table_part)) => {
                 out.push_str(&table_ddl(
@@ -94,6 +177,7 @@ fn entity_ddl(entity: &SubscribableEntity) -> String {
                     schema_part.as_deref(),
                     &table_part,
                     entity.pre_image,
+                    document.as_ref(),
                 ));
             },
             None => {
@@ -115,6 +199,7 @@ fn table_ddl(
     schema_part: Option<&str>,
     table_part: &str,
     pre_image: bool,
+    document: Option<&(&str, Vec<&str>)>,
 ) -> String {
     let target = match schema_part {
         Some(s) => format!("\"{s}\".\"{table_part}\""),
@@ -125,11 +210,20 @@ fn table_ddl(
     // capture function also records OLD into object_data_before. Omit it
     // otherwise, so a non-opted-in table's DDL is byte-identical to before this
     // flag existed (the function COALESCEs an absent $3 to off).
-    let args = if pre_image {
-        format!("{}, '{PK_COLUMN}', '{TENANT_COLUMN}', 'true'", sql_string_literal(entity_type))
-    } else {
-        format!("{}, '{PK_COLUMN}', '{TENANT_COLUMN}'", sql_string_literal(entity_type))
-    };
+    //
+    // A table declared to keep its entity document passes the column as $4, so $3 is
+    // always written for it, and the type's native scope columns as $5 when it has any.
+    let mut args = format!("{}, '{PK_COLUMN}', '{TENANT_COLUMN}'", sql_string_literal(entity_type));
+    match document {
+        None if pre_image => args.push_str(", 'true'"),
+        None => {},
+        Some((column, scope)) => {
+            let _ = write!(args, ", '{pre_image}', '{column}'");
+            if !scope.is_empty() {
+                let _ = write!(args, ", '{}'", scope.join(","));
+            }
+        },
+    }
 
     let mut out = String::new();
     for (suffix, when, referencing) in [

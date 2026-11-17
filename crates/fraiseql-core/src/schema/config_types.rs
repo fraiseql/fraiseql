@@ -502,6 +502,24 @@ pub struct SubscriptionsConfig {
     /// Webhook lifecycle hooks.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hooks: Option<SubscriptionHooksConfig>,
+    /// How the capture trigger reads each table it sits on, by the table's name as a type's
+    /// `subscribable_tables` spells it (`[subscriptions.capture.<table>]`).
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub capture: std::collections::BTreeMap<String, CaptureTableConfig>,
+}
+
+/// How the capture trigger reads one table (`[subscriptions.capture.<table>]`).
+///
+/// ```toml
+/// [subscriptions.capture.tb_ticket]
+/// document_column = "data"
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CaptureTableConfig {
+    /// The column the table keeps its entity document in. A captured write is stored as
+    /// that document, as a mutation's is, and not as the table's row.
+    pub document_column: String,
 }
 
 /// Webhook URLs invoked during subscription lifecycle events.
