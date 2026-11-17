@@ -624,6 +624,18 @@ impl CompiledSchema {
                 path:    Some("queries.orderBy".to_string()),
             });
         }
+        // A capture entry the trigger generator would drop unread, or could not
+        // write as a column, is refused where it was declared.
+        let violations = self.capture_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "a capture declaration cannot be generated from:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("subscriptions_config.capture".to_string()),
+            });
+        }
         let violations = self.subscription_policy_violations();
         if !violations.is_empty() {
             return Err(FraiseQLError::Validation {

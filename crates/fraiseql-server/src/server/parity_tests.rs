@@ -204,6 +204,7 @@ fn fully_configured_schema() -> CompiledSchema {
                 timeout_ms: 100,
                 ..SubscriptionHooksConfig::default()
             }),
+            ..SubscriptionsConfig::default()
         }),
         ..CompiledSchema::default()
     }

@@ -690,19 +690,36 @@ async fn benchmark_observer_latency() {
     cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
 
-/// A table with a multi-word column, captured by the shipped fallback trigger, observed by
-/// a webhook whose body is `template`: one row is written and the runtime left to deliver
-/// it. Returns the bodies the receiver got and each delivery attempt's logged status and
-/// error.
+/// How the change-log row a ticket's webhook is fired from comes to be written.
+#[derive(Clone, Copy)]
+enum Ticket {
+    /// A table of plain columns, written from outside and captured by the shipped trigger.
+    CapturedColumns,
+    /// A table that keeps the ticket's document in `data`, written from outside and
+    /// captured by the shipped trigger, which is told so.
+    CapturedDocument,
+    /// The same table and trigger, written by a mutation through the executor, whose
+    /// outbox stores the entity the function returns.
+    Mutated,
+}
+
+/// One ticket whose `review_status` is `in_review`, written as `ticket` says and observed
+/// by a webhook whose body is `template`; the runtime is left to deliver it. Returns the
+/// bodies the receiver got, each delivery attempt's logged status and error, and the
+/// change-log row's `cdc_source` (the capture trigger's mark; a mutation leaves none).
 ///
-/// The capture trigger records `to_jsonb(NEW)`, so the event's row holds each column under
-/// the name the table gives it: nothing in the test writes the change-log document.
-async fn deliver_captured_ticket(
+/// Nothing in the test writes the change-log document: a producer does.
+async fn deliver_ticket(
+    ticket: Ticket,
     template: &str,
-) -> (Vec<serde_json::Value>, Vec<(String, Option<String>)>) {
+) -> (Vec<serde_json::Value>, Vec<(String, Option<String>)>, Option<String>) {
     let test_id = Uuid::new_v4().simple().to_string();
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
+    sqlx::raw_sql(fraiseql_observers::migrations::entity_change_log_contract_sql())
+        .execute(&pool)
+        .await
+        .expect("the change log takes the columns a mutation writes");
     sqlx::raw_sql(fraiseql_observers::migrations::entity_change_log_capture_trigger_sql())
         .execute(&pool)
         .await
@@ -710,14 +727,17 @@ async fn deliver_captured_ticket(
 
     let entity_type = format!("Ticket_{test_id}");
     let table = format!("public.tb_ticket_{test_id}");
+    let (columns, trigger_args) = match ticket {
+        Ticket::CapturedColumns => ("review_status TEXT NOT NULL", "'id', ''"),
+        Ticket::CapturedDocument | Ticket::Mutated => {
+            ("data JSONB NOT NULL", "'id', '', 'false', 'data'")
+        },
+    };
     sqlx::raw_sql(&format!(
-        "CREATE TABLE {table} (
-             id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-             review_status TEXT NOT NULL
-         );
+        "CREATE TABLE {table} (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), {columns});
          CREATE TRIGGER tr_cdc_capture_ins AFTER INSERT ON {table}
              REFERENCING NEW TABLE AS new_table FOR EACH STATEMENT
-             EXECUTE FUNCTION core.fn_entity_change_log_capture('{entity_type}', 'id', '')"
+             EXECUTE FUNCTION core.fn_entity_change_log_capture('{entity_type}', {trigger_args})"
     ))
     .execute(&pool)
     .await
@@ -742,13 +762,16 @@ async fn deliver_captured_ticket(
     .expect("the observer is stored");
 
     let mut runtime = start_test_runtime(&pool).await;
-    let (ticket_id,): (Uuid,) = sqlx::query_as(&format!(
-        "INSERT INTO {table} (review_status) VALUES ('in_review') RETURNING id"
-    ))
-    .fetch_one(&pool)
-    .await
-    .expect("the row is written");
-    let ticket_id = ticket_id.to_string();
+    let ticket_id = match ticket {
+        Ticket::CapturedColumns => {
+            insert_ticket(&pool, &format!("{table} (review_status) VALUES ('in_review')")).await
+        },
+        Ticket::CapturedDocument => {
+            let row = format!("{table} (data) VALUES ('{{\"review_status\": \"in_review\"}}')");
+            insert_ticket(&pool, &row).await
+        },
+        Ticket::Mutated => create_ticket_by_mutation(&pool, &entity_type, &table, &test_id).await,
+    };
 
     // The log row is written after the dispatch returns, whichever way it went.
     wait_for_observer_logs(&pool, &ticket_id, 1, Duration::from_secs(10)).await;
@@ -761,11 +784,111 @@ async fn deliver_captured_ticket(
     .fetch_all(&pool)
     .await
     .expect("the attempts are logged");
+    let sources: Vec<(Option<String>,)> = sqlx::query_as(
+        "SELECT extra_metadata->>'cdc_source' FROM core.tb_entity_change_log
+         WHERE object_id = $1::uuid",
+    )
+    .bind(&ticket_id)
+    .fetch_all(&pool)
+    .await
+    .expect("the change-log rows are read");
+    assert_eq!(sources.len(), 1, "one producer wrote the change: {sources:?}");
     let delivered = receiver.received_requests().await;
 
-    sqlx::raw_sql(&format!("DROP TABLE {table} CASCADE")).execute(&pool).await.ok();
+    sqlx::raw_sql(&format!(
+        "DROP FUNCTION IF EXISTS public.fn_create_ticket_{test_id}(text);
+         DROP TABLE {table} CASCADE"
+    ))
+    .execute(&pool)
+    .await
+    .ok();
     cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
-    (delivered, attempts)
+    (delivered, attempts, sources[0].0.clone())
+}
+
+/// Write one ticket from outside the engine; `row` is what follows `INSERT INTO`.
+async fn insert_ticket(pool: &sqlx::PgPool, row: &str) -> String {
+    let (id,): (Uuid,) = sqlx::query_as(&format!("INSERT INTO {row} RETURNING id"))
+        .fetch_one(pool)
+        .await
+        .expect("the row is written");
+    id.to_string()
+}
+
+/// Write one ticket through a mutation of `entity_type`, executed by the engine: its
+/// function stores the document in `table` and returns it as the entity.
+async fn create_ticket_by_mutation(
+    pool: &sqlx::PgPool,
+    entity_type: &str,
+    table: &str,
+    test_id: &str,
+) -> String {
+    use fraiseql_core::{db::postgres::PostgresAdapter, runtime::Executor};
+
+    sqlx::raw_sql(&format!(
+        "CREATE SCHEMA IF NOT EXISTS app;
+         DO $$ BEGIN CREATE TYPE app.mutation_error_class AS ENUM ('validation','conflict',
+             'not_found','unauthorized','forbidden','internal','transaction_failed','timeout',
+             'rate_limited','service_unavailable');
+         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+         DO $$ BEGIN CREATE TYPE app.mutation_response AS (succeeded BOOLEAN,
+             state_changed BOOLEAN, error_class app.mutation_error_class, status_detail TEXT,
+             http_status SMALLINT, message TEXT, entity_id UUID, entity_type TEXT, entity JSONB,
+             updated_fields TEXT[], cascade JSONB, error_detail JSONB, metadata JSONB);
+         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+         CREATE FUNCTION public.fn_create_ticket_{test_id}(p_status text)
+         RETURNS app.mutation_response LANGUAGE plpgsql AS $$
+         DECLARE v_id uuid := gen_random_uuid(); v_response app.mutation_response;
+         BEGIN
+             INSERT INTO {table} (id, data)
+             VALUES (v_id, jsonb_build_object('id', v_id, 'review_status', p_status));
+             v_response.succeeded := true; v_response.state_changed := true;
+             v_response.entity_type := '{entity_type}'; v_response.entity_id := v_id;
+             v_response.entity := (SELECT data FROM {table} WHERE id = v_id);
+             RETURN v_response;
+         END; $$"
+    ))
+    .execute(pool)
+    .await
+    .expect("the mutation function is created");
+
+    let schema = serde_json::from_value(serde_json::json!({
+        "naming_convention": "camelCase",
+        "types": [{
+            "name": entity_type,
+            "sql_source": table,
+            "fields": [
+                { "name": "id", "field_type": "ID" },
+                { "name": "reviewStatus", "field_type": "String" }
+            ]
+        }],
+        "mutations": [{
+            "name": "createTicket",
+            "return_type": entity_type,
+            "sql_source": format!("public.fn_create_ticket_{test_id}"),
+            "operation": { "Insert": { "table": table } },
+            "arguments": [{ "name": "status", "arg_type": "String", "nullable": false }]
+        }]
+    }))
+    .expect("the schema parses");
+    let adapter = PostgresAdapter::new(&fraiseql_test_support::database_url())
+        .await
+        .expect("the adapter");
+    let executor = Executor::new(schema, std::sync::Arc::new(adapter));
+    let answer = executor
+        .execute("mutation { createTicket(status: \"in_review\") { id reviewStatus } }", None)
+        .await
+        .expect("the mutation executes");
+    assert_eq!(
+        answer.pointer("/data/createTicket/reviewStatus"),
+        Some(&serde_json::json!("in_review")),
+        "{answer}"
+    );
+    answer
+        .pointer("/data/createTicket/id")
+        .and_then(serde_json::Value::as_str)
+        .expect("the mutation returns the ticket's id")
+        .to_string()
 }
 
 /// #1999: a placeholder is filled from the key the row holds. A column `review_status`
@@ -774,8 +897,8 @@ async fn deliver_captured_ticket(
 #[tokio::test]
 #[ignore = "requires PostgreSQL"]
 async fn a_webhook_template_is_filled_from_the_key_the_captured_row_holds() {
-    let (delivered, attempts) =
-        deliver_captured_ticket(r#"{"status": "{{ review_status }}"}"#).await;
+    let (delivered, attempts, _) =
+        deliver_ticket(Ticket::CapturedColumns, r#"{"status": "{{ review_status }}"}"#).await;
 
     assert_eq!(delivered, vec![serde_json::json!({ "status": "in_review" })], "{attempts:?}");
 }
@@ -785,8 +908,8 @@ async fn a_webhook_template_is_filled_from_the_key_the_captured_row_holds() {
 #[tokio::test]
 #[ignore = "requires PostgreSQL"]
 async fn a_webhook_template_naming_the_published_field_is_not_delivered() {
-    let (delivered, attempts) =
-        deliver_captured_ticket(r#"{"status": "{{ reviewStatus }}"}"#).await;
+    let (delivered, attempts, _) =
+        deliver_ticket(Ticket::CapturedColumns, r#"{"status": "{{ reviewStatus }}"}"#).await;
 
     assert!(delivered.is_empty(), "nothing reaches the receiver: {delivered:?}");
     assert_eq!(attempts.len(), 1, "one attempt: {attempts:?}");
@@ -794,4 +917,37 @@ async fn a_webhook_template_naming_the_published_field_is_not_delivered() {
     let error = error.as_deref().unwrap_or_default();
     assert_eq!(status, "failed");
     assert!(error.contains("`{{ reviewStatus }}`"), "names the placeholder: {error}");
+}
+
+/// #2013: a table that keeps its entity document in a column is written by a mutation and
+/// from outside, and both changes are stored as that document. One template is filled
+/// from either, which no template was while the captured change held the table's row.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn one_webhook_template_is_filled_whichever_producer_wrote_the_change() {
+    let template = r#"{"status": "{{ review_status }}"}"#;
+    let delivered = vec![serde_json::json!({ "status": "in_review" })];
+
+    let (captured, attempts, source) = deliver_ticket(Ticket::CapturedDocument, template).await;
+    assert_eq!(source.as_deref(), Some("fallback_trigger"), "the capture trigger wrote it");
+    assert_eq!(captured, delivered, "{attempts:?}");
+
+    let (mutated, attempts, source) = deliver_ticket(Ticket::Mutated, template).await;
+    assert_eq!(source, None, "the mutation's outbox wrote it, and the trigger stood down");
+    assert_eq!(mutated, delivered, "{attempts:?}");
+}
+
+/// The path into the table's document column is a path of neither change: the row is not
+/// what is stored. This is the template the admin API's check refuses.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_webhook_template_reaching_into_the_document_column_is_not_delivered() {
+    let (delivered, attempts, _) =
+        deliver_ticket(Ticket::CapturedDocument, r#"{"status": "{{ data.review_status }}"}"#).await;
+
+    assert!(delivered.is_empty(), "nothing reaches the receiver: {delivered:?}");
+    assert_eq!(attempts.len(), 1, "one attempt: {attempts:?}");
+    let error = attempts[0].1.as_deref().unwrap_or_default();
+    assert_eq!(attempts[0].0, "failed");
+    assert!(error.contains("`{{ data.review_status }}`"), "names the placeholder: {error}");
 }

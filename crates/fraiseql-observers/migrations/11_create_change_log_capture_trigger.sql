@@ -40,11 +40,13 @@
 --   * `modification_type` = TG_OP ('INSERT' | 'UPDATE' | 'DELETE').
 --   * `object_id`         = the row's PK column (TG_ARGV[1], default 'id'),
 --                           which MUST be a UUID — see the guard below.
---   * `object_data`       = the AFTER-image (`to_jsonb(NEW)`), or NULL for a
---                           DELETE — uniform with the executor outbox so
---                           `object_data` is the after-image from EVERY producer
---                           (the reader decodes it as the after-image; the op is
---                           `modification_type`). NOT a {op,before,after} envelope.
+--   * `object_data`       = the AFTER-image, or NULL for a DELETE — uniform
+--                           with the executor outbox so `object_data` is the
+--                           after-image from EVERY producer (the reader decodes it
+--                           as the after-image; the op is `modification_type`).
+--                           NOT a {op,before,after} envelope. The image is the row
+--                           (`to_jsonb(NEW)`), or the entity document the row keeps
+--                           — see "The image of a table that keeps a document".
 --   * `object_data_before`= the BEFORE-image (`to_jsonb(OLD)`) for UPDATE/DELETE,
 --                           but ONLY when this table opts into the pre-image
 --                           (TG_ARGV[3] = 'true', the changelog_pre_image parity);
@@ -62,6 +64,24 @@
 --   * `extra_metadata`    = `{"cdc_source": "fallback_trigger"}` so a captured row
 --                           is distinguishable from an executor-written one.
 --   * `seq` / `id` / `created_at` fire from the table's own column defaults.
+--
+-- The image of a table that keeps a document
+-- ------------------------------------------
+-- The executor outbox stores the entity document: the type's fields at the top
+-- level. A table that keeps that document in one column (`id, tenant_id, data`)
+-- would be captured with its fields one level down, under `data`, and no reader
+-- of the image could be written for both producers. A trigger on such a table
+-- names the column as TG_ARGV[4]; the image is then that document, for
+-- `object_data` and `object_data_before` alike. The row's own columns still
+-- supply `object_id` and `tenant_id`.
+--
+-- TG_ARGV[5] lists, comma-separated, the columns the type's reads are scoped by
+-- natively (`WHERE tenant_id = $1`). Each one the row has is written into the
+-- document under its own name, over a key of that name the document may hold: a
+-- reader that scopes on the image then compares what a SQL read compares.
+--
+-- A row whose document column holds no JSON object (NULL, a scalar, an array), a
+-- table without that column, and a trigger that names none keep the row.
 --
 -- UUID-PK guard (poller-stall safety)
 -- -----------------------------------
@@ -85,6 +105,31 @@
 
 CREATE SCHEMA IF NOT EXISTS core;
 
+-- The image of one captured row (`p_row` is `to_jsonb` of it): the entity
+-- document it keeps in `p_document_column`, with each of `p_scope_columns` the
+-- row has written over it, or the row itself when that column holds no object.
+CREATE OR REPLACE FUNCTION core.fn_entity_change_log_image(
+    p_row             JSONB,
+    p_document_column TEXT,
+    p_scope_columns   TEXT[]
+)
+RETURNS JSONB
+LANGUAGE sql
+IMMUTABLE
+SET search_path = pg_catalog
+AS $fn$
+    SELECT CASE
+        WHEN jsonb_typeof(p_row -> p_document_column) = 'object' THEN
+            (p_row -> p_document_column)
+            || COALESCE(
+                (SELECT jsonb_object_agg(c, p_row -> c)
+                   FROM unnest(p_scope_columns) AS c
+                  WHERE p_row ? c),
+                '{}'::jsonb)
+        ELSE p_row
+    END;
+$fn$;
+
 -- SECURITY DEFINER + pinned search_path (#443 / #437 F6)
 -- ------------------------------------------------------
 -- Once `core.tb_entity_change_log` carries `ENABLE ROW LEVEL SECURITY` (migration
@@ -97,7 +142,7 @@ CREATE SCHEMA IF NOT EXISTS core;
 -- owner), who is exempt from the row policies under ENABLE (not FORCE). Because a
 -- SECURITY DEFINER fn can be reached via a trigger on a table in ANY schema, its
 -- search_path MUST be pinned (`SET search_path = pg_catalog, core`) to foreclose a
--- search-path-hijack escalation; the body references only pg_catalog builtins, the
+-- search-path-hijack escalation; the body references only pg_catalog builtins, the image helper above, the
 -- fully-qualified `core.tb_entity_change_log`, and the trigger transition tables.
 CREATE OR REPLACE FUNCTION core.fn_entity_change_log_capture()
 RETURNS trigger
@@ -115,6 +160,11 @@ DECLARE
     -- object_data_before. An absent 4th arg (non-opted-in / pre-this-feature
     -- triggers) COALESCEs to off, capturing the after-image only.
     v_pre_image   BOOLEAN := COALESCE(TG_ARGV[3], 'false')::boolean;
+    -- The column the table keeps its entity document in, and the columns its
+    -- type's reads are scoped by natively. Absent (a trigger generated without
+    -- them) or empty: the image is the row.
+    v_document_col TEXT   := NULLIF(TG_ARGV[4], '');
+    v_scope_cols   TEXT[] := string_to_array(NULLIF(TG_ARGV[5], ''), ',');
     -- Cooperative session enrichment (NULL for an anonymous external write).
     v_actor_type     TEXT := NULLIF(current_setting('fraiseql.actor_type',     true), '');
     v_schema_version TEXT := NULLIF(current_setting('fraiseql.schema_version', true), '');
@@ -152,7 +202,8 @@ BEGIN
             v_object_type,
             'INSERT',
             (to_jsonb(n) ->> v_pk_col)::uuid,
-            to_jsonb(n),   -- object_data = the after-image (NEW), uniform with the executor outbox
+            -- object_data = the after-image (NEW), uniform with the executor outbox
+            core.fn_entity_change_log_image(to_jsonb(n), v_document_col, v_scope_cols),
             NULL,          -- object_data_before: an INSERT has no before-image
             COALESCE(
                 CASE WHEN (to_jsonb(n) ->> v_tenant_col) ~ c_uuid_re
@@ -174,10 +225,12 @@ BEGIN
             v_object_type,
             'UPDATE',
             (to_jsonb(n) ->> v_pk_col)::uuid,
-            to_jsonb(n),   -- object_data = the after-image (NEW)
+            core.fn_entity_change_log_image(to_jsonb(n), v_document_col, v_scope_cols),   -- object_data = the after-image (NEW)
             -- object_data_before = the pre-image (OLD), only when this table opts
             -- into changelog_pre_image (TG_ARGV[3] = 'true'); else NULL.
-            CASE WHEN v_pre_image THEN to_jsonb(o) ELSE NULL END,
+            CASE WHEN v_pre_image
+                 THEN core.fn_entity_change_log_image(to_jsonb(o), v_document_col, v_scope_cols)
+                 ELSE NULL END,
             COALESCE(
                 CASE WHEN (to_jsonb(n) ->> v_tenant_col) ~ c_uuid_re
                      THEN (to_jsonb(n) ->> v_tenant_col)::uuid END,
@@ -202,7 +255,9 @@ BEGIN
             (to_jsonb(o) ->> v_pk_col)::uuid,
             NULL,          -- object_data: a DELETE has no after-image
             -- object_data_before = the pre-image (OLD), only when opted in; else NULL.
-            CASE WHEN v_pre_image THEN to_jsonb(o) ELSE NULL END,
+            CASE WHEN v_pre_image
+                 THEN core.fn_entity_change_log_image(to_jsonb(o), v_document_col, v_scope_cols)
+                 ELSE NULL END,
             COALESCE(
                 CASE WHEN (to_jsonb(o) ->> v_tenant_col) ~ c_uuid_re
                      THEN (to_jsonb(o) ->> v_tenant_col)::uuid END,
@@ -220,4 +275,4 @@ END;
 $fn$;
 
 COMMENT ON FUNCTION core.fn_entity_change_log_capture() IS
-    'FraiseQL #366 suppressible external-write capture. Suppresses when fraiseql.cdc_mediated=on (app-path writes); otherwise writes contract-conforming core.tb_entity_change_log rows for external writes — object_data = the after-image (NEW), object_data_before = the pre-image (OLD) when the table opts into changelog_pre_image (TG_ARGV[3]). Uniform with the executor outbox; a Debezium event is the core.v_entity_change_log_debezium projection. SECURITY DEFINER with a pinned search_path (#443 / #437 F6) so an external write captures a row even under change-log RLS (it runs as the table owner, exempt under ENABLE). Install per table via statement-level transition-table triggers (see fraiseql generate capture-triggers).';
+    'FraiseQL #366 suppressible external-write capture. Suppresses when fraiseql.cdc_mediated=on (app-path writes); otherwise writes contract-conforming core.tb_entity_change_log rows for external writes — object_data = the after-image (NEW), object_data_before = the pre-image (OLD) when the table opts into changelog_pre_image (TG_ARGV[3]). The image is the row, or the entity document the row keeps in the column TG_ARGV[4] names. Uniform with the executor outbox; a Debezium event is the core.v_entity_change_log_debezium projection. SECURITY DEFINER with a pinned search_path (#443 / #437 F6) so an external write captures a row even under change-log RLS (it runs as the table owner, exempt under ENABLE). Install per table via statement-level transition-table triggers (see fraiseql generate capture-triggers).';

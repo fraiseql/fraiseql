@@ -148,3 +148,164 @@ fn distinct_long_tables_get_distinct_trigger_names() {
     assert_eq!(ins_names.len(), 2);
     assert_ne!(ins_names[0], ins_names[1], "hash suffix disambiguates truncated names");
 }
+
+// ── a table that keeps its entity document in a column ──
+
+/// `Ticket`, captured from `tb_ticket`, which `[subscriptions.capture.tb_ticket]` declares
+/// to keep its document in `data`.
+fn document_table_schema() -> CompiledSchema {
+    use crate::schema::{CaptureTableConfig, SubscriptionsConfig};
+
+    let mut schema = schema_with(vec![one("Ticket", &["tb_ticket"]), one("Post", &["tb_post"])]);
+    let mut subscriptions = SubscriptionsConfig::default();
+    subscriptions.capture.insert(
+        "tb_ticket".to_string(),
+        CaptureTableConfig {
+            document_column: "data".to_string(),
+        },
+    );
+    schema.subscriptions_config = Some(subscriptions);
+    schema
+}
+
+/// A list read of `Ticket` scoped by `tenant_id` and `region` from the token, `native`
+/// naming those of them its relation holds as columns.
+fn scoped_read(native: &[&str]) -> crate::schema::QueryDefinition {
+    use crate::schema::{InjectedParamSource, NativeColumn, QueryDefinition};
+
+    let mut tickets = QueryDefinition::new("tickets", "Ticket")
+        .returning_list()
+        .with_sql_source("v_ticket");
+    for column in ["tenant_id", "region"] {
+        tickets
+            .inject_params
+            .insert(column.to_string(), InjectedParamSource::Jwt(column.to_string()));
+    }
+    for column in native {
+        tickets
+            .native_columns
+            .insert((*column).to_string(), NativeColumn::nullable("text"));
+    }
+    tickets
+}
+
+#[test]
+fn a_declared_document_column_is_the_fifth_trigger_arg() {
+    let ddl = generate_capture_trigger_ddl(&document_table_schema());
+    assert_eq!(
+        ddl.matches(
+            "core.fn_entity_change_log_capture('Ticket', 'id', 'tenant_id', 'false', 'data');"
+        )
+        .count(),
+        3,
+        "{ddl}"
+    );
+    // A table with no entry is generated as it was before the entry existed.
+    assert_eq!(
+        ddl.matches("core.fn_entity_change_log_capture('Post', 'id', 'tenant_id');")
+            .count(),
+        3,
+        "{ddl}"
+    );
+}
+
+#[test]
+fn a_document_column_keeps_the_pre_image_flag_in_its_place() {
+    let mut schema = document_table_schema();
+    schema.subscribable[0].pre_image = true;
+    let ddl = generate_capture_trigger_ddl(&schema);
+    assert!(
+        ddl.contains(
+            "core.fn_entity_change_log_capture('Ticket', 'id', 'tenant_id', 'true', 'data');"
+        ),
+        "{ddl}"
+    );
+}
+
+#[test]
+fn the_native_scope_columns_of_the_types_read_are_the_sixth_trigger_arg() {
+    let mut schema = document_table_schema();
+    schema.queries.push(scoped_read(&["tenant_id", "region"]));
+    let ddl = generate_capture_trigger_ddl(&schema);
+    assert!(
+        ddl.contains(
+            "core.fn_entity_change_log_capture('Ticket', 'id', 'tenant_id', 'false', 'data', \
+             'tenant_id,region');"
+        ),
+        "{ddl}"
+    );
+    // `Post` is read by no scoped query, and its table keeps no document.
+    assert!(ddl.contains("core.fn_entity_change_log_capture('Post', 'id', 'tenant_id');"));
+}
+
+#[test]
+fn a_scope_column_the_read_takes_from_the_document_is_not_listed() {
+    let mut schema = document_table_schema();
+    schema.queries.push(scoped_read(&["region"]));
+    let ddl = generate_capture_trigger_ddl(&schema);
+    assert!(
+        ddl.contains(
+            "core.fn_entity_change_log_capture('Ticket', 'id', 'tenant_id', 'false', 'data', \
+             'region');"
+        ),
+        "{ddl}"
+    );
+
+    let mut schema = document_table_schema();
+    schema.queries.push(scoped_read(&[]));
+    let ddl = generate_capture_trigger_ddl(&schema);
+    assert!(
+        ddl.contains(
+            "core.fn_entity_change_log_capture('Ticket', 'id', 'tenant_id', 'false', 'data');"
+        ),
+        "{ddl}"
+    );
+}
+
+#[test]
+fn a_capture_entry_for_a_table_no_type_declares_is_refused_by_name() {
+    let mut schema = document_table_schema();
+    let entry = schema
+        .subscriptions_config
+        .as_mut()
+        .unwrap()
+        .capture
+        .remove("tb_ticket")
+        .unwrap();
+    schema
+        .subscriptions_config
+        .as_mut()
+        .unwrap()
+        .capture
+        .insert("tb_tiket".to_string(), entry);
+    let violations = schema.capture_violations();
+    assert_eq!(violations.len(), 1, "{violations:?}");
+    assert!(violations[0].contains("`tb_tiket`"), "{violations:?}");
+    assert!(violations[0].contains("`tb_post`, `tb_ticket`"), "{violations:?}");
+}
+
+#[test]
+fn a_document_column_that_is_no_identifier_is_refused_by_name() {
+    let mut schema = document_table_schema();
+    schema
+        .subscriptions_config
+        .as_mut()
+        .unwrap()
+        .capture
+        .get_mut("tb_ticket")
+        .unwrap()
+        .document_column = "data->'doc'".to_string();
+    let violations = schema.capture_violations();
+    assert_eq!(violations.len(), 1, "{violations:?}");
+    assert!(
+        violations[0].contains("`subscriptions.capture.tb_ticket.document_column`"),
+        "{violations:?}"
+    );
+    assert!(violations[0].contains("`data->'doc'`"), "{violations:?}");
+}
+
+#[test]
+fn a_schema_whose_capture_entries_name_declared_tables_has_no_violation() {
+    assert!(document_table_schema().capture_violations().is_empty());
+    assert!(CompiledSchema::default().capture_violations().is_empty());
+}

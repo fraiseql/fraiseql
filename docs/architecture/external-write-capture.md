@@ -69,7 +69,9 @@ reader, poller, and NATS bridges fan it out unchanged:
   trigger at install time. The reader and the subscription matcher key on the type
   name, never the table name, so no `table → type` lookup is needed.
 - **`modification_type`** — `INSERT` / `UPDATE` / `DELETE` (`TG_OP`).
-- **`object_data`** — the **after-image** (`NEW`): the full post-mutation row as JSONB.
+- **`object_data`** — the **after-image** (`NEW`): the full post-mutation row as JSONB,
+  or the entity document the row keeps when the table is declared to keep one (see
+  [A table that keeps its entity document](#a-table-that-keeps-its-entity-document)).
   The op code is taken from `modification_type`, not embedded in `object_data`. The reader
   still exposes `ChangeLogEntry::debezium_operation` / `after_values` / `before_values`.
 - **`object_data_before`** — the **pre-image** (`OLD`), recorded only for tables that opt in
@@ -119,6 +121,59 @@ fraiseql generate-capture-triggers -s schema.compiled.json | psql "$DATABASE_URL
 Each subscribable table gets **three** statement-level triggers (INSERT / UPDATE /
 DELETE). The contract table `core.tb_entity_change_log` must already exist — install
 the [change-log contract migration](./change-log-contract.md) first.
+
+### A table that keeps its entity document
+
+A mutation's change-log row stores the **entity document** its function returns: the
+type's fields at the top level. A captured row stores the **table's row**. For a table of
+plain columns the two usually read alike, since a column carries the name of the field it
+holds. For a table that keeps the document in one column they do not:
+
+```sql
+CREATE TABLE tb_ticket (id UUID PRIMARY KEY, tenant_id UUID, data JSONB);
+-- a mutation stores   {"id": "…", "review_status": "in_review"}
+-- the row is          {"id": "…", "tenant_id": "…", "data": {"review_status": "in_review"}}
+```
+
+Everything that reads the image reads it as the entity document: a subscription's
+selection and row scope, an observer's condition, a webhook `body_template`. None of them
+could be written for both producers of such a table. So the table is declared, in project
+configuration, under the name `subscribable_tables` gives it:
+
+```toml
+# fraiseql.toml
+[subscriptions.capture.tb_ticket]
+document_column = "data"
+```
+
+The declaration compiles into the schema, and `generate-capture-triggers` passes the
+column to the table's triggers. A captured write is then stored as the document, for the
+after-image and the pre-image alike. Regenerate and re-apply the triggers after adding or
+removing an entry: a trigger keeps the arguments it was created with.
+
+- **The row's columns still name the event.** `object_id` and `tenant_id` are read from
+  the row, as before.
+- **Scope columns are written into the document.** A subscription scopes each event by
+  the columns the type's read is scoped by (`inject_params`), read off the image. Where
+  the read compares one as a native column of its relation (`WHERE tenant_id = $1`, known
+  from `fraiseql compile --database`), the trigger writes the row's column of that name
+  into the document, over a key of the same name the document may hold. The image then
+  carries what a query of the type compares, whatever an outside writer put in the
+  document.
+- **A row with no document keeps its row.** When the declared column holds no JSON object
+  (`NULL`, a scalar, an array), the row is stored as it was before.
+- **A compile refuses an entry it could not honour**: a table no type declares in
+  `subscribable_tables`, or a `document_column` that is not a column name.
+
+Two limits:
+
+- **A table of plain columns is captured as its row.** Fields the type's view computes or
+  embeds (a nested object, a renamed column) are not in it, and internal columns
+  (`pk_*`, `fk_*`) are. A template or condition written for a mutation's document can
+  name a key such a captured row does not hold.
+- **Arrow Flight Upload is not an event of a type.** It records the inserted row under
+  the *table's* name as `object_type`, so it matches no observer or subscription of a
+  GraphQL type, and it is not changed by this declaration.
 
 ### Requirement: a UUID public-id column
 

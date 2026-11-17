@@ -198,8 +198,9 @@ fn capture_trigger_records_pre_image_only_when_opted_in() {
         "reads the pre-image opt-in flag from TG_ARGV[3]: {sql}"
     );
     assert!(
-        sql.contains("CASE WHEN v_pre_image THEN to_jsonb(o) ELSE NULL END"),
-        "object_data_before = OLD only when the table opts in: {sql}"
+        sql.matches("CASE WHEN v_pre_image\n").count() == 2,
+        "object_data_before = OLD, for an UPDATE and for a DELETE, only when the table opts \
+         in: {sql}"
     );
 }
 
