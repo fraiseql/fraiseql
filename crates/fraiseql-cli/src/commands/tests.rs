@@ -1923,37 +1923,31 @@ mod doctor_tests {
         assert_eq!(check.status, CheckStatus::Pass, "got {check:?}");
     }
 
+    /// The file read beside an SDK's schema document, as the `--against-db` flow passes it,
+    /// loads: settings only, no authoring tables.
     #[test]
-    fn runtime_config_toml_with_compiled_json_schema_is_syntax_only() {
-        // A runtime config (no [[types]]) must NOT be schema-parsed when --schema
-        // is compiled JSON — that spuriously failed before #488.
-        let config = temp_file_ext("[server]\nbind = \"0.0.0.0:8000\"\n", "toml");
-        let schema = temp_file_ext("{}", "json");
-        let check = check_config_toml(config.path(), schema.path());
-        assert_eq!(check.status, CheckStatus::Pass, "runtime config syntax should pass: {check:?}");
+    fn a_settings_file_passes_the_config_check() {
+        let config =
+            temp_file_ext("[server]\nport = 8000\n\n[security.pkce]\nenabled = true\n", "toml");
+        let check = check_toml_parses(config.path());
+        assert_eq!(check.status, CheckStatus::Pass, "{check:?}");
     }
 
     #[test]
     fn malformed_config_toml_still_fails() {
         // Don't mask real problems: malformed TOML is still a failure.
         let config = temp_file_ext("this is = = not valid toml\n", "toml");
-        let schema = temp_file_ext("{}", "json");
-        let check = check_config_toml(config.path(), schema.path());
+        let check = check_toml_parses(config.path());
         assert_eq!(check.status, CheckStatus::Fail, "malformed TOML must fail: {check:?}");
     }
 
+    /// A key no `fraiseql.toml` grammar reads fails, as `fraiseql run` and `compile` refuse
+    /// it.
     #[test]
-    fn schema_toml_as_schema_is_still_schema_parsed() {
-        // When --schema is a TOML, --config is parsed as a schema definition (the
-        // existing behaviour). A runtime config in that slot fails schema parsing.
+    fn a_key_the_grammar_does_not_read_fails_the_config_check() {
         let config = temp_file_ext("[server]\nbind = \"0.0.0.0:8000\"\n", "toml");
-        let schema_toml = temp_file_ext("[[types]]\nname = \"User\"\n", "toml");
-        let check = check_config_toml(config.path(), schema_toml.path());
-        assert_eq!(
-            check.status,
-            CheckStatus::Fail,
-            "schema parse should run for a .toml schema: {check:?}"
-        );
+        let check = check_toml_parses(config.path());
+        assert_eq!(check.status, CheckStatus::Fail, "{check:?}");
     }
 }
 
@@ -4457,5 +4451,111 @@ mod declared_fact_tables_tests {
     fn a_malformed_schema_is_an_error_not_zero_tables() {
         let result = declared_fact_tables(r#"{"fact_tables": 5}"#);
         assert!(result.is_err(), "a schema neither format accepts must fail, got {result:?}");
+    }
+}
+
+/// `doctor`, `migrate` and `sbom` read `fraiseql.toml` as the compiler does: one grammar,
+/// `${VAR}` expanded, a retired spelling refused by name.
+mod one_grammar_reader_tests {
+    use std::path::Path;
+
+    use super::super::{
+        doctor::{CheckStatus, check_rls_cache_coherence, check_tls, check_toml_parses},
+        migrate::configured_database_in,
+        sbom::project_metadata_in,
+    };
+
+    fn project_with(toml: &str) -> (tempfile::TempDir, std::path::PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("fraiseql.toml");
+        std::fs::write(&path, toml).unwrap();
+        (dir, path)
+    }
+
+    #[test]
+    fn migrate_expands_the_database_url_it_reads() {
+        let (_dir, path) = project_with("[database]\nurl = \"${FQ_READER_DB_URL}\"\n");
+        temp_env::with_var("FQ_READER_DB_URL", Some("postgres://db.internal/app"), || {
+            let database = configured_database_in(&path).unwrap().expect("a URL is written");
+            assert_eq!(database.url, "postgres://db.internal/app");
+        });
+    }
+
+    #[test]
+    fn migrate_refuses_a_retired_spelling_by_name() {
+        let (_dir, path) = project_with("[fraiseql.security]\nmulti_tenant = false\n");
+        let refused = configured_database_in(&path).map(|_| ()).unwrap_err();
+        assert!(format!("{refused:#}").contains("[security]"), "{refused:#}");
+    }
+
+    #[test]
+    fn sbom_expands_the_project_version_it_reads() {
+        let (_dir, path) =
+            project_with("[project]\nname = \"app\"\nversion = \"${FQ_READER_VERSION}\"\n");
+        temp_env::with_var("FQ_READER_VERSION", Some("4.2.0"), || {
+            let metadata = project_metadata_in(&path).unwrap();
+            assert_eq!(metadata, Some(("app".to_string(), "4.2.0".to_string())));
+        });
+    }
+
+    /// A file that does not load is an error, not a silent fall back to `Cargo.toml`'s
+    /// name.
+    #[test]
+    fn sbom_refuses_a_file_that_does_not_load() {
+        let (_dir, path) = project_with("[project]\nname = \"app\"\nnmae = \"typo\"\n");
+        assert!(project_metadata_in(&path).is_err());
+    }
+
+    #[test]
+    fn sbom_names_nothing_from_a_file_that_writes_no_project_metadata() {
+        let (_dir, path) = project_with("[server]\nport = 8000\n");
+        assert_eq!(project_metadata_in(&path).unwrap(), None);
+    }
+
+    #[test]
+    fn doctor_finds_a_certificate_named_through_an_env_var() {
+        let cert = tempfile::NamedTempFile::new().unwrap();
+        let (_dir, path) = project_with(
+            "[server.tls]\nenabled = true\ncert_file = \"${FQ_READER_CERT}\"\nkey_file = \"k.pem\"\n",
+        );
+        temp_env::with_var("FQ_READER_CERT", Some(cert.path()), || {
+            let check = check_tls(&path);
+            assert_eq!(check.status, CheckStatus::Pass, "{check:?}");
+        });
+    }
+
+    #[test]
+    fn doctor_fails_a_missing_certificate() {
+        let (_dir, path) = project_with(
+            "[server.tls]\nenabled = true\ncert_file = \"/nonexistent/cert.pem\"\nkey_file = \"k.pem\"\n",
+        );
+        assert_eq!(check_tls(&path).status, CheckStatus::Fail);
+    }
+
+    /// A spelling the compiler refuses fails the config check, naming its replacement,
+    /// whatever `--schema` is (it used to be checked for syntax only beside a compiled
+    /// schema).
+    #[test]
+    fn doctor_fails_a_retired_spelling() {
+        let (_dir, path) = project_with("[fraiseql.security]\nmulti_tenant = false\n");
+        let check = check_toml_parses(&path);
+        assert_eq!(check.status, CheckStatus::Fail, "{check:?}");
+        assert!(check.detail.contains("[security]"), "{check:?}");
+    }
+
+    #[test]
+    fn doctor_counts_role_definitions_as_an_authorization_policy() {
+        let (_dir, path) = project_with(
+            "[caching]\nenabled = true\n\n[[security.role_definitions]]\nname = \"viewer\"\n\
+             scopes = [\"read:*\"]\n",
+        );
+        let check = check_rls_cache_coherence(&path);
+        assert_eq!(check.status, CheckStatus::Pass, "{check:?}");
+    }
+
+    #[test]
+    fn doctor_warns_on_caching_without_an_authorization_policy() {
+        let (_dir, path) = project_with("[caching]\nenabled = true\n");
+        assert_eq!(check_rls_cache_coherence(Path::new(&path)).status, CheckStatus::Warn);
     }
 }

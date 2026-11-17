@@ -16,7 +16,7 @@ use anyhow::{Context, Result};
 use fraiseql_db::postgres::PostgresTlsConfig;
 use tracing::info;
 
-use crate::{config::DatabaseRuntimeConfig, output::OutputFormatter};
+use crate::{config::toml_schema::TomlSchema, output::OutputFormatter};
 
 /// Migration subcommand
 #[derive(Debug, Clone)]
@@ -447,22 +447,9 @@ pub fn resolve_configured_database(explicit: Option<&str>) -> Result<Option<Reso
         }));
     }
 
-    // Try loading from fraiseql.toml
-    let toml_path = Path::new("fraiseql.toml");
-    if toml_path.exists() {
-        let content = std::fs::read_to_string(toml_path).context("Failed to read fraiseql.toml")?;
-        let parsed: toml::Value =
-            toml::from_str(&content).context("Failed to parse fraiseql.toml")?;
-
-        let database = DatabaseRuntimeConfig::from_document(&parsed)
-            .context("Failed to parse [database] in fraiseql.toml")?;
-        if let Some(url) = &database.url {
-            info!("Using database URL from fraiseql.toml");
-            return Ok(Some(ResolvedDatabase {
-                url: url.clone(),
-                tls: database.postgres_tls()?,
-            }));
-        }
+    if let Some(database) = configured_database_in(Path::new("fraiseql.toml"))? {
+        info!("Using database URL from fraiseql.toml");
+        return Ok(Some(database));
     }
     if let Ok(url) = std::env::var("DATABASE_URL") {
         info!("Using DATABASE_URL environment variable");
@@ -473,6 +460,32 @@ pub fn resolve_configured_database(explicit: Option<&str>) -> Result<Option<Reso
     }
 
     Ok(None)
+}
+
+/// The database `[database] url` names in the `fraiseql.toml` at `toml_path`, with its
+/// `ssl_mode`; `None` when there is no such file or it names no URL.
+///
+/// # Errors
+///
+/// Returns an error if the file exists but cannot be read or parsed, or if its `ssl_mode`
+/// names a mode the connector cannot honour.
+pub(crate) fn configured_database_in(toml_path: &Path) -> Result<Option<ResolvedDatabase>> {
+    if !toml_path.exists() {
+        return Ok(None);
+    }
+    let database = TomlSchema::from_file(&toml_path.to_string_lossy())
+        .with_context(|| format!("Failed to load {}", toml_path.display()))?
+        .database;
+    database
+        .url
+        .clone()
+        .map(|url| {
+            Ok(ResolvedDatabase {
+                url,
+                tls: database.postgres_tls()?,
+            })
+        })
+        .transpose()
 }
 
 /// Resolve the migration directory: use explicit flag, or auto-discover

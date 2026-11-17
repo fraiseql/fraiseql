@@ -82,6 +82,12 @@ disagreed, and the promise was the part that was wrong.
     queries in the file or in a `--types` document, rather than compiling an empty schema
     and reporting success: a settings file passed in place of an SDK's `schema.json`. The
     refusal names `fraiseql compile schema.json`.
+  - `fraiseql doctor`, `fraiseql migrate` and `fraiseql sbom` read `fraiseql.toml` as
+    `compile` does. `${VAR}` placeholders expand (`migrate` used a `[database] url` of
+    `${DATABASE_URL}` literally); a retired spelling or a key no table reads is refused
+    by name. `doctor`'s config check no longer falls back to a syntax-only parse when
+    `--schema` is a compiled schema, and `sbom` no longer names the component from
+    `Cargo.toml` when `fraiseql.toml` does not load.
 
 - **`[auth_hs256]` is removed (#1964).** Shared-secret token validation is gone. A
   configuration with an `[auth_hs256]` section is refused at boot, and the error names the

@@ -64,7 +64,7 @@ pub fn run(format: SbomFormat, output: Option<&str>) -> Result<()> {
     info!("Generating SBOM in {format} format");
 
     // Load project metadata from fraiseql.toml (optional)
-    let (project_name, project_version) = load_project_metadata();
+    let (project_name, project_version) = load_project_metadata()?;
 
     // Parse Cargo.lock
     let packages = parse_cargo_lock()?;
@@ -89,26 +89,33 @@ pub fn run(format: SbomFormat, output: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-fn load_project_metadata() -> (String, String) {
-    // Try fraiseql.toml [project] first
-    let toml_path = Path::new("fraiseql.toml");
-    if toml_path.exists() {
-        if let Ok(content) = fs::read_to_string(toml_path) {
-            if let Ok(parsed) = toml::from_str::<toml::Value>(&content) {
-                let name =
-                    parsed.get("project").and_then(|p| p.get("name")).and_then(toml::Value::as_str);
-                let version = parsed
-                    .get("project")
-                    .and_then(|p| p.get("version"))
-                    .and_then(toml::Value::as_str);
-                if name.is_some() || version.is_some() {
-                    return (
-                        name.unwrap_or("unknown").to_string(),
-                        version.unwrap_or("0.0.0").to_string(),
-                    );
-                }
-            }
-        }
+/// The component's name and version, from `[project]` in the `fraiseql.toml` at
+/// `toml_path` when it writes either; `None` otherwise.
+///
+/// # Errors
+///
+/// Returns an error if the file exists but does not load: a name taken from `Cargo.toml`
+/// instead would describe another component.
+pub(crate) fn project_metadata_in(toml_path: &Path) -> Result<Option<(String, String)>> {
+    if !toml_path.exists() {
+        return Ok(None);
+    }
+    let file = crate::config::toml_schema::TomlSchema::from_file(&toml_path.to_string_lossy())
+        .with_context(|| format!("Failed to load {}", toml_path.display()))?;
+    let (name, version) = (file.project_name(), file.project_version());
+    if name.is_none() && version.is_none() {
+        return Ok(None);
+    }
+    Ok(Some((
+        name.unwrap_or("unknown").to_string(),
+        version.unwrap_or("0.0.0").to_string(),
+    )))
+}
+
+fn load_project_metadata() -> Result<(String, String)> {
+    // `[project]` in fraiseql.toml first.
+    if let Some(metadata) = project_metadata_in(Path::new("fraiseql.toml"))? {
+        return Ok(metadata);
     }
 
     // Fall back to workspace Cargo.toml
@@ -151,12 +158,12 @@ fn load_project_metadata() -> (String, String) {
                     })
                     .unwrap_or("0.0.0")
                     .to_string();
-                return (name, version);
+                return Ok((name, version));
             }
         }
     }
 
-    ("unknown".to_string(), "0.0.0".to_string())
+    Ok(("unknown".to_string(), "0.0.0".to_string()))
 }
 
 fn parse_cargo_lock() -> Result<Vec<CargoLockPackage>> {

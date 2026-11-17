@@ -132,9 +132,10 @@ pub struct TomlSchema {
     #[serde(skip)]
     pub declared_tables: std::collections::BTreeSet<String>,
 
-    /// Whether the file writes `[project] name`, which [`Self::project_name`] answers from.
+    /// The `[project]` keys the file writes, which [`Self::project_name`] and
+    /// [`Self::project_version`] answer from.
     #[serde(skip)]
-    pub declares_project_name: bool,
+    pub declared_project: std::collections::BTreeSet<String>,
 
     /// Project-wide default injected parameters (`[inject_defaults]`, #1384), in the shape
     /// the SDK config loaders read.
@@ -341,7 +342,15 @@ impl TomlSchema {
     /// never at its default.
     #[must_use]
     pub fn project_name(&self) -> Option<&str> {
-        self.declares_project_name.then_some(self.project.name.as_str())
+        self.declared_project.contains("name").then_some(self.project.name.as_str())
+    }
+
+    /// `[project] version`, when the file writes it, never at its default.
+    #[must_use]
+    pub fn project_version(&self) -> Option<&str> {
+        self.declared_project
+            .contains("version")
+            .then_some(self.project.version.as_str())
     }
 
     /// Load the `fraiseql.toml` read beside a schema document.
@@ -406,10 +415,11 @@ impl TomlSchema {
             schema.declared_security =
                 crate::config::security_merge::declared_in_toml_schema(table);
             schema.declared_tables = table.keys().cloned().collect();
-            schema.declares_project_name = table
+            schema.declared_project = table
                 .get("project")
                 .and_then(toml::Value::as_table)
-                .is_some_and(|project| project.contains_key("name"));
+                .map(|project| project.keys().cloned().collect())
+                .unwrap_or_default();
         }
         if let Some(local) = schema.auth.as_mut().and_then(|auth| auth.local.as_mut()) {
             security::embed_email_templates(local, project)?;

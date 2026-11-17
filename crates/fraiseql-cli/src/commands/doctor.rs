@@ -219,67 +219,20 @@ pub fn effective_db_url<'a>(
     db_url.or(against_db)
 }
 
-/// Validate the `--config` file as TOML, choosing the right parse for its role.
-///
-/// When `--schema` is a compiled JSON, `--config` is a **runtime** config (server
-/// settings), so only its *syntax* is validated — parsing it as a schema-definition
-/// TOML would spuriously fail on the common Python-SDK + `--against-db` flow (#488).
-/// When `--schema` is itself a TOML (or no compiled JSON is given), `--config` may
-/// be the schema source, so the existing schema parse runs.
-#[must_use]
-pub fn check_config_toml(config_path: &Path, schema_path: &Path) -> DoctorCheck {
-    if schema_is_compiled_json(schema_path) {
-        check_toml_syntax(config_path)
-    } else {
-        check_toml_parses(config_path)
-    }
+/// Load `fraiseql.toml` as the compiler does, in either role: the compile input, or the
+/// file read beside an SDK's schema document.
+fn load_config(path: &Path) -> anyhow::Result<TomlSchema> {
+    TomlSchema::from_file(&path.to_string_lossy())
 }
 
-/// Whether `--schema` points at a compiled-JSON schema (vs a `.toml` schema
-/// source). Path-based by necessity: `run_checks` sees only paths, never schema
-/// *content*, so there is no richer "schema came from TOML" signal to prefer. The
-/// default `--schema schema.compiled.json` is covered by the `.json` extension.
-fn schema_is_compiled_json(schema_path: &Path) -> bool {
-    schema_path.extension().is_some_and(|e| e.eq_ignore_ascii_case("json"))
-}
-
-/// Syntax-only TOML parse — catches malformed TOML without requiring
-/// schema-definition structure. Used for runtime-config `--config` files (#488).
-fn check_toml_syntax(path: &Path) -> DoctorCheck {
-    const NAME: &str = "config TOML syntax valid";
-    let content = match std::fs::read_to_string(path) {
-        Ok(c) => c,
-        Err(e) => {
-            return DoctorCheck::fail(NAME, format!("cannot read: {e}"), "Check file permissions");
-        },
-    };
-    match toml::from_str::<toml::Value>(&content) {
-        Ok(_) => DoctorCheck::pass(NAME, ""),
-        Err(e) => {
-            let short = e.to_string().lines().next().unwrap_or("parse error").to_string();
-            DoctorCheck::fail(NAME, format!("parse error: {short}"), "Fix TOML syntax and retry")
-        },
-    }
-}
-
-/// Parse `fraiseql.toml`. Only called when the file actually exists.
+/// Validate the `--config` file: it loads as `fraiseql.toml`, whatever `--schema` is.
+/// Only called when the file actually exists.
 pub fn check_toml_parses(path: &Path) -> DoctorCheck {
-    let content = match std::fs::read_to_string(path) {
-        Ok(c) => c,
-        Err(e) => {
-            return DoctorCheck::fail(
-                "TOML syntax valid",
-                format!("cannot read: {e}"),
-                "Check file permissions",
-            );
-        },
-    };
-    let project = path.parent().unwrap_or_else(|| Path::new(""));
-    match TomlSchema::parse_toml_in(&content, project) {
+    match load_config(path) {
         Ok(_) => DoctorCheck::pass("TOML syntax valid", ""),
         Err(e) => {
             // Keep only the first line of the error to avoid overwhelming output.
-            let first_line = e.to_string();
+            let first_line = format!("{e:#}");
             let short = first_line.lines().next().unwrap_or("parse error");
             DoctorCheck::fail(
                 "TOML syntax valid",
@@ -425,49 +378,27 @@ pub fn check_redis_reachable() -> DoctorCheck {
     }
 }
 
-/// Check TLS: if the TOML config enables TLS, the cert file must exist.
+/// Check TLS: if `[server.tls]` is enabled, the cert file must exist.
 ///
-/// Reads the config as a generic `toml::Value` rather than as a `TomlSchema`. That matters
-/// because `TomlSchema` is `deny_unknown_fields` and carries no `[metrics]`/`[tracing]`-style
-/// runtime tables, so any *runtime* server config failed the parse — the normal case for the
-/// documented compiled-schema + runtime-config flow. This function then returned
-/// `DoctorCheck::pass(…, "TOML unreadable — TLS check skipped")`, which `print_text_report`
-/// renders as `[✓]` and `run_with_db_checks` counts as a pass. A missing certificate that
-/// would abort server boot was reported as a green tick (#868 item 1).
-///
-/// A check that did not run is now a **warning**, never a pass. And because the generic parse
-/// works for both the schema-TOML and runtime-config shapes, it usually does run.
+/// A check that could not run, the file unreadable or not loading, is a **warning**, never
+/// a pass: `print_text_report` renders a pass as `[✓]`, and a missing certificate aborts
+/// server boot.
 pub fn check_tls(config_path: &Path) -> DoctorCheck {
-    let Ok(content) = std::fs::read_to_string(config_path) else {
-        return DoctorCheck::warn(
-            "TLS certificate",
-            format!("could not read {} — TLS not verified", config_path.display()),
-            "Point --config at a readable config file, or remove the flag if TLS is not used",
-        );
+    let config = match load_config(config_path) {
+        Ok(config) => config,
+        Err(e) => {
+            return DoctorCheck::warn(
+                "TLS certificate",
+                format!("{} does not load ({e}): TLS not verified", config_path.display()),
+                "Fix the config file (see the config check) so the TLS check can run",
+            );
+        },
     };
-    let Ok(value) = content.parse::<toml::Value>() else {
-        return DoctorCheck::warn(
-            "TLS certificate",
-            "config is not valid TOML — TLS not verified",
-            "Fix the TOML syntax so the TLS certificate check can run",
-        );
-    };
-
-    let tls = value.get("server").and_then(|s| s.get("tls"));
-    let enabled = tls
-        .and_then(|t| t.get("enabled"))
-        .and_then(toml::Value::as_bool)
-        .unwrap_or(false);
-    if !enabled {
+    let tls = &config.server.tls;
+    if !tls.enabled {
         return DoctorCheck::pass("TLS certificate", "not configured (OK: TLS disabled)");
     }
-
-    let cert = tls
-        .and_then(|t| t.get("cert_file"))
-        .and_then(toml::Value::as_str)
-        .unwrap_or_default()
-        .to_string();
-    let cert = &cert;
+    let cert = &tls.cert_file;
     if cert.is_empty() {
         return DoctorCheck::fail(
             "TLS certificate",
@@ -490,44 +421,23 @@ pub fn check_tls(config_path: &Path) -> DoctorCheck {
 ///
 /// When caching is active but no authorization policies are configured, cached
 /// results may be served to unauthenticated users — a potential data-leak.
-/// Read as a generic `toml::Value` for the same reason as [`check_tls`], and warn rather than
-/// pass when the check cannot run — this is one of the two security-relevant checks that used
-/// to render as `[✓]` on the documented flow (#868 item 1).
+/// Warns rather than passes when the check cannot run, as [`check_tls`] does.
 pub fn check_rls_cache_coherence(config_path: &Path) -> DoctorCheck {
-    let Ok(content) = std::fs::read_to_string(config_path) else {
-        return DoctorCheck::warn(
-            "Cache + auth coherence",
-            format!("could not read {} — coherence not verified", config_path.display()),
-            "Point --config at a readable config file",
-        );
+    let config = match load_config(config_path) {
+        Ok(config) => config,
+        Err(e) => {
+            return DoctorCheck::warn(
+                "Cache + auth coherence",
+                format!("{} does not load ({e}): coherence not verified", config_path.display()),
+                "Fix the config file (see the config check) so the cache/auth check can run",
+            );
+        },
     };
-    let Ok(value) = content.parse::<toml::Value>() else {
-        return DoctorCheck::warn(
-            "Cache + auth coherence",
-            "config is not valid TOML — coherence not verified",
-            "Fix the TOML syntax so the cache/auth coherence check can run",
-        );
-    };
-
-    let caching_enabled = value
-        .get("caching")
-        .and_then(|c| c.get("enabled"))
-        .and_then(toml::Value::as_bool)
-        .unwrap_or(false);
-    let security = value.get("security");
-    // #983: keyed on the mechanisms that actually gate a cached read — database RLS,
-    // and role definitions backing `requires_scope`. It used to accept the presence of
-    // `[security] default_policy`, a key no enforcer read, so a schema with no access
-    // control at all could pass this check by declaring one word.
-    let has_rls = security
-        .and_then(|s| s.get("rls"))
-        .and_then(|r| r.get("enabled"))
-        .and_then(toml::Value::as_bool)
-        .unwrap_or(false);
-    let has_roles = security
-        .and_then(|s| s.get("role_definitions"))
-        .and_then(toml::Value::as_array)
-        .is_some_and(|a| !a.is_empty());
+    let caching_enabled = config.caching.enabled;
+    // Keyed on the mechanisms that actually gate a cached read: database RLS, and role
+    // definitions backing `requires_scope`.
+    let has_rls = config.security.rls.enabled;
+    let has_roles = !config.security.role_definitions.is_empty();
     let has_auth_policy = has_rls || has_roles;
 
     match (caching_enabled, has_auth_policy) {
@@ -634,12 +544,11 @@ pub fn run_checks(
         checks.push(check_schema_version(schema_path));
     }
 
-    // TOML config checks. When `--schema` is a compiled JSON, `--config` is a
-    // *runtime* config (not a schema definition), so only its syntax is checked —
-    // schema-parsing it would spuriously fail (#488).
+    // The `--config` file loads as `fraiseql.toml`, the compile input or the file read
+    // beside an SDK's schema document.
     checks.push(check_toml_exists(config_path));
     if config_path.exists() {
-        checks.push(check_config_toml(config_path, schema_path));
+        checks.push(check_toml_parses(config_path));
     }
 
     // Environment / connectivity checks
@@ -668,13 +577,11 @@ fn database_tls(config: &Path) -> anyhow::Result<PostgresTlsConfig> {
     if !config.exists() {
         return Ok(PostgresTlsConfig::default());
     }
-    let content = anyhow::Context::with_context(std::fs::read_to_string(config), || {
-        format!("failed to read {}", config.display())
-    })?;
-    let document: toml::Value = anyhow::Context::with_context(toml::from_str(&content), || {
-        format!("failed to parse {}", config.display())
-    })?;
-    crate::config::DatabaseRuntimeConfig::from_document(&document)?.postgres_tls()
+    anyhow::Context::with_context(load_config(config), || {
+        format!("failed to load {}", config.display())
+    })?
+    .database
+    .postgres_tls()
 }
 
 /// Execute the doctor command.
