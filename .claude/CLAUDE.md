@@ -154,7 +154,7 @@ See [docs/architecture/overview.md](../docs/architecture/overview.md) for compre
 │      id: int            │
 │                         │
 │ 2. fraiseql.toml        │
-│    [fraiseql.security]  │
+│    [security]           │
 │    rate_limiting = {...}│
 └────────┬────────────────┘
          │
@@ -228,14 +228,13 @@ pub type Result<T> = std::result::Result<T, FraiseQLError>;
 
 ```toml
 # fraiseql.toml
-[fraiseql.security.rate_limiting]
+[security.rate_limiting]
 enabled = true
 auth_start_max_requests = 100
 auth_start_window_secs = 60
 
-[fraiseql.security.audit_logging]
-enabled = true
-log_level = "info"
+[security.enterprise]
+audit_logging_enabled = true
 ```
 
 **Runtime Loading**:
