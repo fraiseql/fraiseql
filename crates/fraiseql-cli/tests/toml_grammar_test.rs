@@ -345,3 +345,78 @@ fn an_unwritten_project_name_is_not_compiled() {
         }
     }
 }
+
+// ── one merge: a document copy meets the file alike in both roles ───────────
+
+/// A table the file writes, a document copy that disagrees with it, and a word the
+/// refusal carries: refused in both roles, never replaced in silence.
+const DISAGREEING: &[(&str, &str, &str)] = &[
+    (
+        "[[session_variables.variables]]\nname = \"app.region\"\nsource = \"literal\"\n\
+         value = \"eu\"\n",
+        r#"{"session_variables": {"variables": [{"name": "app.region", "source": "literal", "value": "us"}]}}"#,
+        "session_variables",
+    ),
+    (
+        "[locale]\ndefault = \"en-US\"\nallowed = [\"en-US\", \"fr-FR\"]\n",
+        r#"{"locale": {"default": "fr-FR", "allowed": ["en-US", "fr-FR"]}}"#,
+        "locale",
+    ),
+    (
+        "[functions]\nmodule_dir = \"fns\"\n",
+        r#"{"functions_config": {"module_dir": "elsewhere"}}"#,
+        "module_dir",
+    ),
+    (
+        "[observers]\nenabled = true\n",
+        r#"{"observers_config": {"enabled": false}}"#,
+        "observers",
+    ),
+];
+
+#[test]
+fn a_document_copy_that_disagrees_is_refused_in_both_roles() {
+    let mut failures = Vec::new();
+    for (toml, copy, word) in DISAGREEING {
+        let copy: Value = serde_json::from_str(copy).unwrap();
+        for (role, refused) in in_both_roles_with(toml, &copy) {
+            if refused.ok {
+                failures.push(format!("{role}: the copy of {word} was replaced in silence"));
+            } else if !refused.log.contains(word) {
+                failures.push(format!("{role}, {word}: {}", refused.log));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+/// The document's naming convention stands where the file writes none.
+#[test]
+fn the_documents_naming_convention_stands_where_the_file_writes_none_in_both_roles() {
+    let copy = json!({"naming_convention": "preserve"});
+    for (role, compiled) in in_both_roles_with("[project]\nname = \"app\"\n", &copy) {
+        assert!(compiled.ok, "{role}: {}", compiled.log);
+        assert_eq!(compiled.schema["naming_convention"], "preserve", "{role}");
+    }
+}
+
+/// A list query compiles alike in both roles where neither file declares
+/// `[query_defaults]`.
+#[test]
+fn a_list_query_compiles_alike_in_both_roles_without_query_defaults() {
+    let [(_, beside), (_, as_input)] = in_both_roles("[project]\nname = \"app\"\n");
+    assert!(beside.ok && as_input.ok, "{}\n{}", beside.log, as_input.log);
+    assert_eq!(beside.schema["queries"], as_input.schema["queries"]);
+}
+
+/// A refusal names the file the author wrote, whatever its name.
+#[test]
+fn a_disagreement_names_the_input_file_by_its_own_name() {
+    let dir = TempDir::new().unwrap();
+    let copy = json!({"security": {"multi_tenant": false}});
+    fs::write(dir.path().join("types.json"), document_with(&copy).to_string()).unwrap();
+    fs::write(dir.path().join("shop.toml"), "[security]\nmulti_tenant = true\n").unwrap();
+    let refused = run(&dir, &["shop.toml", "--types", "types.json"]);
+    assert!(!refused.ok, "the disagreement compiled");
+    assert!(refused.log.contains("shop.toml and the schema document"), "{}", refused.log);
+}

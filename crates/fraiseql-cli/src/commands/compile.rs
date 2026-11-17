@@ -294,7 +294,6 @@ pub async fn compile_to_schema(
             Ok(config) => {
                 info!("Validating security configuration...");
                 config.validate_self_contained()?;
-                config.security.warn_pkce_without_state_encryption();
 
                 mutation_options.clone_from(&config.mutation_defaults);
                 naming.clone_from(&config.naming);
@@ -303,88 +302,14 @@ pub async fn compile_to_schema(
                 database_tls = config.database.postgres_tls()?;
 
                 info!("Applying security configuration to schema...");
-                // A `security` block in the schema document is merged with this section,
-                // key by key: a key both set must agree, a key only the document sets is
-                // kept. The row-tenancy check below reads the merged section.
-                intermediate.security = Some(crate::config::security_merge::reconcile(
-                    &config_path.display().to_string(),
-                    serde_json::to_value(config.security.to_compiled(&config.tenancy))?,
-                    &config.declared_security,
-                    intermediate.security.take(),
-                )?);
-
-                // Session variables are the mechanism RLS policies read; carry them
-                // through rather than leaving `schema.json` as the only way to
-                // declare them (#628).
-                if config.declares("session_variables") {
-                    // A copy in the schema document must agree with it.
-                    crate::config::toml_schema::runtime_sections::reconcile_values(
-                        "session_variables",
-                        "session_variables",
-                        &serde_json::to_value(&config.session_variables)?,
-                        intermediate
-                            .session_variables
-                            .as_ref()
-                            .map(serde_json::to_value)
-                            .transpose()?
-                            .as_ref(),
-                        "schema.json",
-                    )?;
-                    intermediate.session_variables = Some(config.session_variables.clone());
-                }
-
-                // `[locale]` (#1512) is configuration, so it lives only in `fraiseql.toml`; a
-                // schema document carrying a different one is an authoring conflict.
-                if let Some(locale) = config.locale.clone() {
-                    if intermediate.locale.as_ref().is_some_and(|l| *l != locale) {
-                        anyhow::bail!(
-                            "[locale] in {} disagrees with the `locale` the schema document \
-                             declares; declare it once, in fraiseql.toml",
-                            config_path.display()
-                        );
-                    }
-                    intermediate.locale = Some(locale);
-                }
-
-                // `[functions]` holds deployment settings, so it lives in fraiseql.toml
-                // beside an SDK schema; a copy in the schema document must agree with it.
-                intermediate.functions_config =
-                    config.functions.reconcile(intermediate.functions_config.take())?;
-
-                // `[observers]` names the backend and its URLs, deployment settings too; a
-                // copy in the schema document must agree with it.
-                intermediate.observers_config =
-                    crate::config::toml_schema::ObserversConfig::reconcile(
-                        config.declares("observers").then_some(&config.observers),
-                        intermediate.observers_config.take(),
-                    )?;
-
-                // The runtime sections (`[mcp]`, `[rest]`, `[federation]`, `[auth]`, …): the
-                // tables a TOML schema takes, lowered by its own function and reconciled
-                // with a copy the schema document carries.
-                for section in config.lower_runtime_sections(&|table| config.declares(table))? {
-                    let document = intermediate.runtime_section(section.key)?;
-                    if let Some(value) = section.reconcile(document, "schema.json")? {
-                        intermediate.set_runtime_section(section.key, value)?;
-                    }
-                }
-
-                // `[[caching.rules]]` lower onto the document's own queries and mutations.
-                if config.declares("caching") {
-                    crate::schema::merger::apply_caching_rules_to_schema(
-                        &config.caching,
-                        &mut intermediate,
-                    )?;
-                }
-
-                // `[inject_defaults]` lives in the config the SDK loaders read (#1384); a
-                // copy the SDK emitted into the schema must agree with it.
-                intermediate.inject_defaults =
-                    crate::config::inject_defaults::InjectDefaultsToml::reconcile(
-                        config.inject_defaults.as_ref(),
-                        intermediate.inject_defaults.take(),
-                    )?;
-
+                config.apply_settings(
+                    &mut intermediate,
+                    crate::config::toml_schema::settings::Labels {
+                        toml:     &config_path.display().to_string(),
+                        document: "schema.json",
+                    },
+                    document_declares_naming,
+                )?;
                 info!("Security configuration applied successfully");
             },
             Err(e) => {
@@ -402,12 +327,9 @@ pub async fn compile_to_schema(
     // when none are configured.
     fraiseql_core::utils::casing::set_runtime_acronyms(&naming.acronyms);
 
-    // The naming convention of a schema document: `[naming] convention` decides it when
-    // the project config writes it, an SDK writing its own constant into every document,
-    // so the two are not reconciled. Left unwritten, the document's own convention stands;
-    // a document that carries none would fall to the enum default (Preserve), and the
-    // surface defaults to camelCase instead. A TOML input's convention is applied by the
-    // merger.
+    // The naming convention of a schema document with no `fraiseql.toml` beside it: its
+    // own, or camelCase where it carries none (the enum default would be Preserve). A
+    // `fraiseql.toml` decides it in `apply_settings`, which this leaves as it found it.
     if !is_toml {
         intermediate.naming_convention = naming
             .convention_over(document_declares_naming.then_some(intermediate.naming_convention));

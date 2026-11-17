@@ -14,10 +14,7 @@ use serde_json::{Value, json};
 
 use crate::{
     config::TomlSchema,
-    schema::{
-        IntermediateSchema,
-        intermediate::{IntermediateArgument, IntermediateQueryDefaults},
-    },
+    schema::{IntermediateSchema, intermediate::IntermediateArgument},
 };
 
 /// Convert a PascalCase GraphQL type name to a `snake_case` entity name.
@@ -305,7 +302,7 @@ impl SchemaMerger {
         // from types.json (not yet loaded). Validation happens in the compiler after merge.
 
         // Merge
-        Self::merge_values(&types_value, &toml_schema)
+        Self::merge_values(&types_value, &toml_schema, toml_path)
     }
 
     /// Merge TOML-only (no types.json)
@@ -328,7 +325,7 @@ impl SchemaMerger {
 
         // Convert TOML to intermediate schema
         let types_value = toml_schema.to_intermediate_schema();
-        Self::merge_values(&types_value, &toml_schema)
+        Self::merge_values(&types_value, &toml_schema, toml_path)
     }
 
     /// Merge from directory with auto-discovery
@@ -355,7 +352,7 @@ impl SchemaMerger {
             .context(format!("Failed to load schema from directory {schema_dir}"))?;
 
         // Merge with TOML definitions
-        Self::merge_values(&types_value, &toml_schema)
+        Self::merge_values(&types_value, &toml_schema, toml_path)
     }
 
     /// Load every section from a set of files, returning `None` when the list is empty.
@@ -435,7 +432,7 @@ impl SchemaMerger {
             }
         }
 
-        Self::merge_values(&types_value, &toml_schema)
+        Self::merge_values(&types_value, &toml_schema, toml_path)
     }
 
     /// Merge from domains (domain-based organization)
@@ -465,7 +462,7 @@ impl SchemaMerger {
 
         if domains.is_empty() {
             // No domains found, return empty schema merged with TOML definitions
-            return Self::merge_values(&super::seam::empty_accumulator(), &toml_schema);
+            return Self::merge_values(&super::seam::empty_accumulator(), &toml_schema, toml_path);
         }
 
         let mut types_value = super::seam::empty_accumulator();
@@ -480,7 +477,7 @@ impl SchemaMerger {
         }
 
         // Merge with TOML definitions
-        Self::merge_values(&types_value, &toml_schema)
+        Self::merge_values(&types_value, &toml_schema, toml_path)
     }
 
     /// Merge with TOML includes (glob patterns for schema files)
@@ -525,12 +522,17 @@ impl SchemaMerger {
         }
 
         // Merge with TOML definitions
-        Self::merge_values(&types_value, &toml_schema)
+        Self::merge_values(&types_value, &toml_schema, toml_path)
     }
 
     /// Merge JSON types with TOML schema
     #[allow(clippy::cognitive_complexity)] // Reason: deep merge of two schema formats with many field-level transformations
-    fn merge_values(types_value: &Value, toml_schema: &TomlSchema) -> Result<IntermediateSchema> {
+    /// `toml_path` names the TOML file in a refusal.
+    fn merge_values(
+        types_value: &Value,
+        toml_schema: &TomlSchema,
+        toml_path: &str,
+    ) -> Result<IntermediateSchema> {
         // #1017: every self-contained TOML check runs on EVERY compile path, here at
         // the funnel all six `merge_*` entry points share.
         //
@@ -674,11 +676,6 @@ impl SchemaMerger {
         // analytics query.
         apply_analytics_queries(&toml_schema.analytics, &mut queries_array, &types_array)?;
 
-        // #623: lower [[caching.rules]] onto the compiled fields the runtime's
-        // result cache consumes. Runs after both arrays hold every authored
-        // operation (JSON/SDK and TOML alike), so a rule can target either.
-        apply_caching_rules(&toml_schema.caching, &mut queries_array, &mut mutations_array)?;
-
         // Build the merged schema by **carrying the authored document forward** and
         // overwriting only the three sections this function actually transforms.
         //
@@ -709,116 +706,9 @@ impl SchemaMerger {
         merged["queries"] = json!(queries_array);
         merged["mutations"] = json!(mutations_array);
 
-        toml_schema.security.warn_pkce_without_state_encryption();
-
-        // Add security configuration if available in TOML.
-        //
-        // Constructed as the typed `fraiseql_core::schema::SecurityConfig` and
-        // serialized (#977): the compiled seam owns every section's shape and is
-        // `deny_unknown_fields`, so a key this block emitted under the wrong
-        // name would fail to deserialize instead of landing in a catch-all.
-        // Building the struct — rather than writing key names by hand — makes
-        // that drift a compile error here, before it can reach a file.
-        // `tenancy_gate_seam_test` additionally asks the consumer's questions of
-        // a compiled file rather than checking key presence.
-        let lowered = serde_json::to_value(toml_schema.security.to_compiled(&toml_schema.tenancy))
-            .context("Failed to serialize [security] into the compiled schema")?;
-        // `merged` carries the document's own `security` block forward; it is merged with
-        // the TOML's section key by key (a key both set must agree, a key only the
-        // document sets is kept), and the row-tenancy check reads the result.
-        merged["security"] = crate::config::security_merge::reconcile(
-            "fraiseql.toml",
-            lowered,
-            &toml_schema.declared_security,
-            merged.get("security").cloned(),
-        )?;
-
-        // Embed observers configuration if enabled or if any backend URL is set
-        if toml_schema.observers.is_configured() {
-            if toml_schema.observers.backend == fraiseql_core::schema::ObserversBackend::Nats
-                && toml_schema.observers.nats_url.is_none()
-            {
-                tracing::warn!(
-                    "observers.backend is \"nats\" but observers.nats_url is not set; \
-                     the runtime will require FRAISEQL_NATS_URL to be configured"
-                );
-            }
-            // No `handlers` key (#631): compiled handler declarations are not a
-            // runtime concept — TOML validation has already rejected a non-empty
-            // `[[observers.handlers]]`, and the compiled `ObserversConfig` is
-            // `deny_unknown_fields` so the key cannot be represented.
-            merged["observers_config"] = serde_json::to_value(toml_schema.observers.to_compiled())
-                .context("Failed to serialize observers config")?;
-        }
-
-        // Embed the `[functions]` settings when the project configures any (#1325).
-        // A table left at its defaults produces no section: an empty one would read
-        // as a deliberate choice, and the compiler's own `functions/` convention is
-        // the honest answer to "the author said nothing".
-        if toml_schema.functions.is_configured() {
-            merged["functions_config"] = json!({
-                "module_dir": toml_schema.functions.module_dir,
-                "dlq_store": toml_schema.functions.dlq_store,
-            });
-        }
-
-        // The runtime sections (`[mcp]`, `[rest]`, `[federation]`, `[auth]`, …): lowered by
-        // the one function the project-config path also calls, and reconciled with a copy the
-        // types document carries, so neither file overrides the other in silence.
-        for section in toml_schema.lower_runtime_sections(&|table| toml_schema.declares(table))? {
-            // An SDK writes its federation block under `federation`; the seam binds both.
-            let held = if section.key == "federation_config" && merged.get("federation").is_some() {
-                "federation"
-            } else {
-                section.key
-            };
-            let document = merged.get(held).filter(|copy| !copy.is_null()).cloned();
-            if let Some(value) = section.reconcile(document, "the schema document")? {
-                merged[held] = value;
-            }
-        }
-        // A copy only the document carries is held to the same checks.
-        for (_, key) in crate::config::toml_schema::runtime_sections::RUNTIME_SECTIONS {
-            if let Some(copy) = merged.get(*key) {
-                crate::config::toml_schema::runtime_sections::check_document_copy(key, copy)?;
-            }
-        }
-
-        // Embed naming convention
-        merged["naming_convention"] =
-            serde_json::to_value(toml_schema.naming.convention_over(None))
-                .context("Failed to serialize naming_convention")?;
-
-        // Embed per-request session variables. Serialized from the same type the
-        // runtime deserializes, so the mapping an RLS policy depends on cannot be
-        // lost to a key rename here (#628).
-        if toml_schema.session_variables != fraiseql_core::schema::SessionVariablesConfig::default()
-        {
-            merged["session_variables"] = serde_json::to_value(&toml_schema.session_variables)
-                .context("Failed to serialize session_variables")?;
-        }
-
-        // `[locale]` (#1512): serialized from the type the runtime deserializes.
-        if let Some(locale) = &toml_schema.locale {
-            merged["locale"] =
-                serde_json::to_value(locale).context("Failed to serialize locale")?;
-        }
-
-        // `[inject_defaults]` (#1384): the TOML schema's section, reconciled with a block the
-        // SDK may have emitted into types.json from the same config.
-        let document_defaults = merged
-            .get("inject_defaults")
-            .cloned()
-            .map(serde_json::from_value::<super::intermediate::IntermediateInjectDefaults>)
-            .transpose()
-            .context("Invalid inject_defaults in the merged schema document")?;
-        if let Some(defaults) = crate::config::inject_defaults::InjectDefaultsToml::reconcile(
-            toml_schema.inject_defaults.as_ref(),
-            document_defaults,
-        )? {
-            merged["inject_defaults"] =
-                serde_json::to_value(defaults).context("Failed to serialize inject_defaults")?;
-        }
+        // Whether the document writes its own convention, which the parsed schema cannot
+        // tell from the default.
+        let document_declares_naming = merged.get("naming_convention").is_some();
 
         // Refuse a security control declared under a key that does not bind (#806/#807).
         //
@@ -834,18 +724,15 @@ impl SchemaMerger {
         let mut schema = serde_json::from_value::<IntermediateSchema>(merged)
             .context("Failed to convert merged schema to IntermediateSchema")?;
 
-        // `[query_defaults]` reaches the schema with the runtime sections above. Where neither
-        // file declares it, the converter still gets the defaults as project-wide fallbacks
-        // for list-query auto-params.
-        if schema.query_defaults.is_none() {
-            schema.query_defaults = Some(IntermediateQueryDefaults {
-                where_clause:     toml_schema.query_defaults.where_clause,
-                order_by:         toml_schema.query_defaults.order_by,
-                limit:            toml_schema.query_defaults.limit,
-                offset:           toml_schema.query_defaults.offset,
-                pagination_order: toml_schema.query_defaults.pagination_order,
-            });
-        }
+        // The file's settings, applied as they are beside an SDK's `schema.json`.
+        toml_schema.apply_settings(
+            &mut schema,
+            crate::config::toml_schema::settings::Labels {
+                toml:     toml_path,
+                document: "the schema document",
+            },
+            document_declares_naming,
+        )?;
 
         Ok(schema)
     }

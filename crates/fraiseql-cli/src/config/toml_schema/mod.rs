@@ -14,6 +14,7 @@ pub mod rest;
 pub(crate) mod runtime_sections;
 pub mod security;
 pub mod server_settings;
+pub mod settings;
 pub mod subscriptions;
 pub mod types;
 

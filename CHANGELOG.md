@@ -73,6 +73,11 @@ disagreed, and the promise was the part that was wrong.
   - Beside a schema document, an unwritten `[security.state_encryption]` is no longer
     emitted into the compiled schema at its defaults, as when the file is the input; the
     server's default, off, is unchanged.
+  - As the compile input with its types from a document, the file meets the document's
+    copies as it does beside a `schema.json`: `[session_variables]`, `[locale]`,
+    `[functions]` and `[observers]` that disagree with the document's copy are refused
+    rather than replacing it, and the document's own `naming_convention` stands where
+    the file writes no `[naming] convention`.
 
 - **`[auth_hs256]` is removed (#1964).** Shared-secret token validation is gone. A
   configuration with an `[auth_hs256]` section is refused at boot, and the error names the
