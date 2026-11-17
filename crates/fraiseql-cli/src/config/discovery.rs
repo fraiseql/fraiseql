@@ -89,8 +89,7 @@ impl ConfigSource {
     /// The project config file to read, if any.
     ///
     /// `None` both when no config applies and when the input is itself the
-    /// project file (which the TOML workflow reads as a schema, not as a
-    /// [`TomlProjectConfig`](super::TomlProjectConfig)).
+    /// project file, whose settings the TOML workflow reads with its schema.
     #[must_use]
     pub fn project_config(&self) -> Option<&Path> {
         match self {

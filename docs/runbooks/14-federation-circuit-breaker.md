@@ -133,7 +133,7 @@ success_threshold = 2
 - For a specific entity type that is more flaky:
 
 ```toml
-# fraiseql.toml
+# fraiseql.toml (excerpt): beside the `[[federation.entities]]` it names
 [[federation.circuit_breaker.per_database]]
 database = "Product"
 failure_threshold = 15

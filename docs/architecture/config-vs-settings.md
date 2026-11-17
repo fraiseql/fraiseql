@@ -10,17 +10,16 @@ compiled. Read the source column below, not the suffix alone.
 | Suffix | Source | Lifecycle | Example |
 |--------|--------|-----------|---------|
 | `*Config` | Project `fraiseql.toml` (read by `fraiseql compile`), the server's `--config` TOML, env vars, CLI flags | Project config is compiled into `schema.compiled.json`; server config is read at each boot | `ServerConfig`, `OidcConfig`, `RateLimitConfig` |
-| `*Settings` | Project `fraiseql.toml`, read by `fraiseql-cli` | Compiled into `schema.compiled.json` | `FraiseQLSettings`, `SecuritySettings`, `FunctionsSettings` |
+| `*Settings` | Project `fraiseql.toml`, read by `fraiseql-cli` | Compiled into `schema.compiled.json` | `SecuritySettings`, `FunctionsSettings` |
 
 ## Flow
 
 ```text
 fraiseql.toml                    fraiseql-cli compile               fraiseql-server start
   [security]     --->   fraiseql_cli::config::      --->    CompiledSchema.security:
-  rate_limiting = {...}          SecurityConfig, or                   fraiseql_core::schema::
-  audit_logging = {...}          SecuritySettings for [security]      SecurityConfig, read once
-                                 (validated, embedded under the       at boot
-                                  compiled "security" key)
+  rate_limiting = {...}          SecuritySettings                     fraiseql_core::schema::
+  pkce = {...}                   (validated, embedded under the       SecurityConfig, read once
+                                  compiled "security" key)            at boot
 ```
 
 ### `*Config` (Developer-Facing)
@@ -41,8 +40,8 @@ Settings types are read from the project `fraiseql.toml` by the compiler and low
 `schema.compiled.json`. The server never deserializes them: it reads the compiled result
 through `fraiseql_core` schema types.
 
-- Defined in: `fraiseql-cli/src/config/` (`FraiseQLSettings` in `mod.rs`,
-  `SecuritySettings` and `FunctionsSettings` in `toml_schema/`)
+- Defined in: `fraiseql-cli/src/config/toml_schema/` (`SecuritySettings`,
+  `FunctionsSettings`)
 - Loaded from: project `fraiseql.toml`
 - Validated: at compile time by `fraiseql-cli compile`
 - Fixed for the server's lifetime once loaded: a schema hot-reload that changes a
@@ -56,8 +55,7 @@ exceptions: they are server runtime configuration, not compiled.
 
 | Type | Crate | Purpose |
 |------|-------|---------|
-| `FraiseQLSettings` | `fraiseql-cli` | The `[fraiseql]` table of a project `fraiseql.toml` (`TomlProjectConfig`). Its `security` field is `fraiseql_cli::config::SecurityConfig` |
-| `SecuritySettings` | `fraiseql-cli` | The `[security]` table of a TOML-schema project (`TomlSchema`), compiled into the schema's `"security"` key |
+| `SecuritySettings` | `fraiseql-cli` | The `[security]` table of every `fraiseql.toml` (`TomlSchema`), lowered with `[tenancy]` into the schema's `"security"` key |
 | `FunctionsSettings` | `fraiseql-cli` | The `[functions]` table (module directory, dead-letter store) |
 
 The server reads the compiled `"security"` key as `fraiseql_core::schema::SecurityConfig`
@@ -68,8 +66,9 @@ encryption, rate limiting, API keys, service accounts, token revocation, tenancy
 ## Runtime Sections in a Project `fraiseql.toml`
 
 A project that authors its schema with an SDK keeps a `fraiseql.toml` beside the
-`schema.json` the SDK emits. That file takes the runtime sections a TOML schema takes, in
-the same spelling, and they compile to the same thing in both workflows:
+`schema.json` the SDK emits. Every `fraiseql.toml` is read by one type, `TomlSchema`, so
+that file takes the settings a TOML schema takes, in the same spelling, and they compile
+to the same thing in both workflows:
 
 ```toml
 # fraiseql.toml
@@ -89,17 +88,20 @@ max_query_depth = 12
 
 | Sections | Beside a `schema.json` |
 |---|---|
-| `[mcp]`, `[rest]`, `[grpc]`, `[debug]`, `[validation]`, `[subscriptions]`, `[federation]`, `[auth]`, `[changelog]`, `[hierarchies]`, `[query_defaults]`, `[caching]`, `[observers]`, `[functions]`, `[locale]`, `[inject_defaults]` | Honoured. |
-| `[security]`, `[tenancy]`, `[session_variables]`, `naming_convention` | Refused by name: a project config spells them `[security]`, `[tenancy]`, `[session_variables]` and `[naming] convention`. `[security]` keys with no `[security]` spelling are named in the refusal. |
-| `[schema]`, `[types]`, `[queries]`, `[mutations]`, `[includes]`, `[domain_discovery]`, `[crud]`, `[analytics]` | Refused by name: they author the schema, which the schema document does here. |
-| `[observability]` | Refused by name, as in a TOML schema: metrics and tracing are server settings. |
+| `[project]`, `[security]`, `[tenancy]`, `[session_variables]`, `[naming]`, `[cost_weights]`, `[mutation_defaults]`, `[mcp]`, `[rest]`, `[grpc]`, `[debug]`, `[validation]`, `[subscriptions]`, `[federation]`, `[auth]`, `[changelog]`, `[hierarchies]`, `[query_defaults]`, `[caching]`, `[observers]`, `[functions]`, `[locale]`, `[inject_defaults]` | Honoured. |
+| `[types]`, `[queries]`, `[mutations]`, `[includes]`, `[domain_discovery]`, `[crud]`, `[analytics]` | Refused by name: they author the schema, which the schema document does here. |
+
+A retired spelling is refused by name in both roles, with its replacement: the
+`[fraiseql]` prefix (`[fraiseql.security]` is `[security]`), `[schema]` (`[project]`),
+`naming_convention` (`[naming] convention`), and `[observability]` (metrics and tracing
+are keys of the server's own configuration file).
 
 A schema document may carry its own copy of a section (`mcp_config`, `rest_config`, …).
 One source alone applies. Two that agree compile. Two that differ are refused, and the
 error names both sources and the first key they differ on: neither file overrides the
 other. A table that only says `enabled = false` is still a declaration, and disagrees with
 a copy that says `true`. The same holds between a TOML schema and the types document it is
-compiled with (`--types`), where a table left at its defaults counts as not declared.
+compiled with (`--types`): there too, a table is declared when the file writes it.
 
 `[[caching.rules]]` has no copy to reconcile: each rule lowers onto the query it names. A
 rule for a query whose TTL the schema document already declares is refused, for the same

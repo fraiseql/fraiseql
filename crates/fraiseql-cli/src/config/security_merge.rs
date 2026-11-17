@@ -10,7 +10,7 @@
 //!   [`fraiseql_core::schema::SecurityConfig`], so a section the TOML declares partially still owns
 //!   its defaults.
 //! - set only by the document: the document's value is kept. Several keys (authorization rules, a
-//!   default policy) have no project-config spelling.
+//!   default policy) have no `fraiseql.toml` spelling.
 //! - not in the document: the TOML's lowered value, defaults included.
 //!
 //! "Set by the TOML" means written in the file, not "different from its default": a

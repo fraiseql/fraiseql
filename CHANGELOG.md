@@ -394,6 +394,13 @@ disagreed, and the promise was the part that was wrong.
 - The tenant registration refusal of `max_storage_bytes` outside schema-mode tenancy
   names `[tenancy] mode = "schema"`, the table `fraiseql.toml` spells it with, rather
   than `[security.tenancy]`.
+- Every documented `fraiseql.toml` example that is a whole file now loads, and the
+  documentation gate checks it: the federation gateway's service account has a role
+  ceiling, and the session examples name a sign-in method with its `email_from`
+  (#2020). An example that shows part of a larger file says so in its first line
+  (`# fraiseql.toml (excerpt)`); it must still parse. The Java observers example no
+  longer shows a `[fraiseql.observers]` table no file takes: observers are registered
+  on the running server.
 - **The generated SDL keeps `@deprecated` (#1721).** A deprecated field, argument, input
   field or enum value compiled with its deprecation and introspection reported it, but the
   SDL printed it without the directive. So the federation `_service { sdl }`,

@@ -6,6 +6,10 @@ whether the refresh token can get a new pair:
 
 ```toml
 # fraiseql.toml
+[auth.local]
+otp        = true            # a sign-in FraiseQL serves itself
+email_from = "support"
+
 [auth.session]
 ttl_secs          = 900      # each access token lives 15 minutes
 absolute_ttl_secs = 2592000  # a session can be refreshed for 30 days after sign-in
@@ -97,8 +101,10 @@ keeps them in `HttpOnly` cookies instead:
 ```toml
 # fraiseql.toml
 [auth.local]
-password          = true
-session_transport = "cookie"   # default: "json"
+password           = true
+email_from         = "support"
+reset_url_template = "https://app.example.com/reset?token={token}"
+session_transport  = "cookie"   # default: "json"
 
 [auth.session]
 ttl_secs          = 900

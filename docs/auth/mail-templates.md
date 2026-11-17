@@ -6,7 +6,7 @@ one a subject, a text body and an `HTML` body in your own language, and a sender
 of them:
 
 ```toml
-# fraiseql.toml
+# fraiseql.toml (excerpt): the templates exist only in your project
 [auth.local]
 otp                 = true
 email_from          = "support"

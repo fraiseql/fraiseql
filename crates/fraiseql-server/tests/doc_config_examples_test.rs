@@ -144,22 +144,18 @@ const AUTHORING_KEYS: [&str; 7] = [
     "analytics",
 ];
 
-/// Settings-only `fraiseql.toml` examples that parse and do not load beside a `schema.json`:
-/// by file and the line the block starts on. Shrink-only: these predate the check below and are
-/// tracked to be fixed, never extended to admit a new example.
-const SETTINGS_EXAMPLES_UNLOADED: &[(&str, usize)] = &[
-    // A service account with neither roles nor scopes.
-    ("docs/architecture/federation.md", 277),
-    // Names mail templates that exist only in a real project.
-    ("docs/auth/mail-templates.md", 8),
-    // An empty `[auth]`, and `[auth.local]` password sign-in without `email_from`.
-    ("docs/auth/sessions.md", 7),
-    ("docs/auth/sessions.md", 97),
-    // A circuit-breaker entry naming an entity the file does not declare.
-    ("docs/runbooks/14-federation-circuit-breaker.md", 135),
-];
+/// Whether a block marks itself an excerpt of a larger file in its first line
+/// (`# fraiseql.toml (excerpt): ...`): it names tables or files the rest of a real project
+/// supplies, so it parses but is not expected to load on its own.
+fn is_excerpt(block: &str) -> bool {
+    block
+        .lines()
+        .find(|l| !l.trim().is_empty())
+        .is_some_and(|first| first.contains("(excerpt)"))
+}
 
-/// A settings-only `fraiseql.toml` example that parses is also one that loads.
+/// A settings-only `fraiseql.toml` example that parses is also one that loads, unless it
+/// marks itself an excerpt.
 ///
 /// Parsing is the grammar alone. Loading the file beside a `schema.json` also refuses a
 /// table that authors a schema and validates every section: what `fraiseql compile
@@ -185,7 +181,8 @@ fn a_settings_only_example_loads_and_validates() {
             let settings_only = block
                 .parse::<toml::Table>()
                 .is_ok_and(|table| !table.keys().any(|key| AUTHORING_KEYS.contains(&key.as_str())));
-            if !settings_only || toml::from_str::<TomlSchema>(&block).is_err() {
+            if !settings_only || is_excerpt(&block) || toml::from_str::<TomlSchema>(&block).is_err()
+            {
                 continue;
             }
             let file = scratch.path().join("fraiseql.toml");
@@ -199,21 +196,10 @@ fn a_settings_only_example_loads_and_validates() {
         }
     }
 
-    let new: Vec<_> = failures
-        .iter()
-        .filter(|(file, line, _)| !SETTINGS_EXAMPLES_UNLOADED.contains(&(file.as_str(), *line)))
-        .collect();
-    let gone: Vec<_> = SETTINGS_EXAMPLES_UNLOADED
-        .iter()
-        .filter(|(file, line)| !failures.iter().any(|(f, l, _)| f == file && l == line))
-        .collect();
     assert!(
-        new.is_empty(),
-        "settings-only fraiseql.toml examples that parse and then refuse to load:\n{new:#?}"
-    );
-    assert!(
-        gone.is_empty(),
-        "SETTINGS_EXAMPLES_UNLOADED entries that now load; remove them:\n{gone:#?}"
+        failures.is_empty(),
+        "settings-only fraiseql.toml examples that parse and then refuse to load (mark a \
+         fragment `# fraiseql.toml (excerpt): ...`):\n{failures:#?}"
     );
     assert!(
         loaded >= 6,

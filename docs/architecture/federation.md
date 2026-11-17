@@ -278,7 +278,7 @@ beside `schema.json`:
 # fraiseql.toml
 [security.service_accounts.gateway]
 secret_env = "FRAISEQL_SA_GATEWAY_SECRET"
-roles      = []
+roles      = ["federation:sdl"]   # the ceiling: this one role, nothing more
 scopes     = []
 ```
 

@@ -276,7 +276,7 @@ pub async fn compile_to_schema(
 
     // 2a. Load and apply the project config that belongs to this input (#1387).
     // A TOML input carries its settings itself (`ConfigSource::Input` names no
-    // separate file): it is a TomlSchema, a different format from TomlProjectConfig.
+    // separate file), which the merger applies.
     let config_source = match opts.config {
         Some(source) => source,
         None => ConfigSource::resolve(input_path, None)?,

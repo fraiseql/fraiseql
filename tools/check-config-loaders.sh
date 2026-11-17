@@ -13,7 +13,7 @@
 # got a config that parsed, validated, and did nothing.
 #
 # The two loaders an operator actually reaches — `ServerConfig` (server.toml) and
-# `TomlProjectConfig`/`TomlSchema` (fraiseql.toml) — each have a checked-in coverage
+# `TomlSchema` (fraiseql.toml) — each have a checked-in coverage
 # manifest that maps every accepted key to the subsystem that consumes it (#612 item M).
 # The third loader had none, which is exactly why nobody noticed it consumed nothing.
 #
@@ -22,8 +22,8 @@
 # real coverage test, or it is an unconsumed surface waiting to happen.
 #
 # Untyped introspection (`toml::Value` / `toml::Table`) is not a config surface — it reads
-# a file the typed loader already owns (feature-hint enrichment, `fraiseql run`'s
-# ignored-section advisory, doctor, sbom) — and is always allowed.
+# a file the typed loader already owns (feature-hint enrichment, `fraiseql run`'s list of
+# the settings a file makes, `sbom`'s read of `Cargo.toml`) — and is always allowed.
 #
 # Adding a loader? Put it in tools/config-loaders.allow with the manifest test that owns
 # its keys, and write that manifest. Not the other way round.

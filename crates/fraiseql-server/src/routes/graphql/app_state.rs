@@ -34,7 +34,8 @@ pub struct AppState {
     /// Rate limiter for GraphQL validation errors (per IP).
     #[cfg(feature = "auth")]
     pub graphql_rate_limiter: Arc<KeyedRateLimiter>,
-    /// Secrets manager (optional, configured via `[fraiseql.secrets]`).
+    /// Secrets manager (optional, configured by `FRAISEQL_SECRETS_BACKEND` and its backend's
+    /// environment variables).
     #[cfg(feature = "secrets")]
     pub secrets_manager: Option<Arc<crate::secrets_manager::SecretsManager>>,
     /// Field encryption service for transparent encrypt/decrypt of marked fields.
