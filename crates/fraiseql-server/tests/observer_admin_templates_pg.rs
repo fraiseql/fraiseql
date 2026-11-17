@@ -46,13 +46,14 @@ use serde_json::{Value, json};
 use sqlx::PgPool;
 use tower::ServiceExt;
 
-/// `Order { id, total, customer: Customer }` and `Customer { email }`.
+/// `Order { id, total, reviewStatus, customer: Customer }` and `Customer { email }`.
 fn schema() -> CompiledSchema {
     let mut schema = CompiledSchema::new();
     let mut order = TypeDefinition::new("Order", "v_order");
     order.fields = vec![
         FieldDefinition::new("id", FieldType::Int),
         FieldDefinition::new("total", FieldType::Float),
+        FieldDefinition::new("reviewStatus", FieldType::String),
         FieldDefinition::new("customer", FieldType::Object("Customer".to_string())),
     ];
     let mut customer = TypeDefinition::new("Customer", "v_customer");
@@ -192,6 +193,18 @@ async fn create_accepts_a_template_whose_paths_exist() {
     let rig = rig().await;
     let (status, body) = rig.create("Order", VALID).await;
     assert_eq!(status, StatusCode::CREATED, "{body}");
+}
+
+/// A row holds `reviewStatus` under `review_status`, and that is the name a template reads.
+#[tokio::test]
+async fn create_checks_a_multi_word_field_by_the_key_the_row_holds() {
+    let rig = rig().await;
+    let (status, body) = rig.create("Order", r#"{"s": "{{ review_status }}"}"#).await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+
+    let (status, body) = rig.create("Order", r#"{"s": "{{ reviewStatus }}"}"#).await;
+    assert_refused_naming(status, &body, "reviewStatus");
+    assert_eq!(rig.count().await, 1, "only the first is written");
 }
 
 #[tokio::test]

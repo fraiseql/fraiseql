@@ -831,16 +831,6 @@ impl FieldDefinition {
                 && (self.requires_scope.is_some() || self.authorize))
     }
 
-    /// Get the JSONB key name for this field.
-    ///
-    /// This is always `name`, regardless of alias. Used for:
-    /// - Reading data from JSONB column
-    /// - Building WHERE clause paths
-    #[must_use]
-    pub fn jsonb_key(&self) -> &str {
-        self.name.as_str()
-    }
-
     /// The key a stored entity holds for this field.
     ///
     /// The entity a view or a function returns is keyed `snake_case`, whatever casing the

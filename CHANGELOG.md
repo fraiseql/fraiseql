@@ -108,6 +108,12 @@ disagreed, and the promise was the part that was wrong.
   `descriptor_path` or a zero `stream_batch_size`, were refused in `fraiseql.toml` and
   accepted in a `schema.json`. Both are refused in both.
 
+- **A webhook `body_template` names a field by the key the row holds (#1999).** Creating or
+  updating an observer with `{{ reviewStatus }}` is now refused with `422`, and the error
+  names the key to write, `review_status`. Stored observers are not re-checked. See the
+  entry under Fixed. `FieldDefinition::jsonb_key()` is removed; `stored_key()` answers which
+  key a stored entity holds for a field.
+
 ### Added
 
 - **A `fraiseql.toml` beside a `schema.json` takes the runtime sections a TOML schema takes
@@ -204,6 +210,15 @@ disagreed, and the promise was the part that was wrong.
   predicate is required. A query that does not accept `where` still refuses the argument.
   `nearest` reads the same way: `nearest: null` is no search, and a `null` `limit` or
   `orderBy` beside `nearest` is no longer refused as a conflict.
+
+- **A webhook `body_template` is checked against the keys the row holds (#1999).** The
+  observer admin API checked each placeholder against the field's published name
+  (`reviewStatus`), while delivery fills it from the changed row, which holds the field as
+  `review_status`. For a multi-word field the two disagreed: `{{ review_status }}`, the
+  placeholder delivery can fill, was refused with `422`, and `{{ reviewStatus }}` was
+  accepted for a key a `snake_case` row does not hold. The check now reads the key the row
+  holds, at every depth of a dotted path, and a placeholder that writes the published name
+  is refused with the key to write instead. A single-word field is unaffected.
 
 ## [2.19.1] - 2026-11-14
 

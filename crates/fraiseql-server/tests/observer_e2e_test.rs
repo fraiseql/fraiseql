@@ -689,3 +689,109 @@ async fn benchmark_observer_latency() {
     // Cleanup
     cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
+
+/// A table with a multi-word column, captured by the shipped fallback trigger, observed by
+/// a webhook whose body is `template`: one row is written and the runtime left to deliver
+/// it. Returns the bodies the receiver got and each delivery attempt's logged status and
+/// error.
+///
+/// The capture trigger records `to_jsonb(NEW)`, so the event's row holds each column under
+/// the name the table gives it: nothing in the test writes the change-log document.
+async fn deliver_captured_ticket(
+    template: &str,
+) -> (Vec<serde_json::Value>, Vec<(String, Option<String>)>) {
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("Failed to setup schema");
+    sqlx::raw_sql(fraiseql_observers::migrations::entity_change_log_capture_trigger_sql())
+        .execute(&pool)
+        .await
+        .expect("the capture function installs");
+
+    let entity_type = format!("Ticket_{test_id}");
+    let table = format!("public.tb_ticket_{test_id}");
+    sqlx::raw_sql(&format!(
+        "CREATE TABLE {table} (
+             id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+             review_status TEXT NOT NULL
+         );
+         CREATE TRIGGER tr_cdc_capture_ins AFTER INSERT ON {table}
+             REFERENCING NEW TABLE AS new_table FOR EACH STATEMENT
+             EXECUTE FUNCTION core.fn_entity_change_log_capture('{entity_type}', 'id', '')"
+    ))
+    .execute(&pool)
+    .await
+    .expect("the captured table is created");
+
+    let receiver = MockWebhookServer::start().await;
+    receiver.mock_success().await;
+    sqlx::query(
+        "INSERT INTO core.tb_observer (name, entity_type, event_type, actions, retry_config, enabled)
+         VALUES ($1, $2, 'INSERT', $3, $4, true)",
+    )
+    .bind(format!("test-template-{test_id}"))
+    .bind(&entity_type)
+    .bind(serde_json::json!([
+        { "type": "webhook", "url": receiver.webhook_url(), "body_template": template }
+    ]))
+    .bind(serde_json::json!({
+        "max_attempts": 1, "backoff": "fixed", "initial_delay_ms": 10, "max_delay_ms": 10
+    }))
+    .execute(&pool)
+    .await
+    .expect("the observer is stored");
+
+    let mut runtime = start_test_runtime(&pool).await;
+    let (ticket_id,): (Uuid,) = sqlx::query_as(&format!(
+        "INSERT INTO {table} (review_status) VALUES ('in_review') RETURNING id"
+    ))
+    .fetch_one(&pool)
+    .await
+    .expect("the row is written");
+    let ticket_id = ticket_id.to_string();
+
+    // The log row is written after the dispatch returns, whichever way it went.
+    wait_for_observer_logs(&pool, &ticket_id, 1, Duration::from_secs(10)).await;
+    runtime.stop().await.expect("Failed to stop observer runtime");
+    let attempts: Vec<(String, Option<String>)> = sqlx::query_as(
+        "SELECT status::text, error_message FROM core.tb_observer_log
+         WHERE entity_id = $1::uuid ORDER BY attempt_number",
+    )
+    .bind(&ticket_id)
+    .fetch_all(&pool)
+    .await
+    .expect("the attempts are logged");
+    let delivered = receiver.received_requests().await;
+
+    sqlx::raw_sql(&format!("DROP TABLE {table} CASCADE")).execute(&pool).await.ok();
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
+    (delivered, attempts)
+}
+
+/// #1999: a placeholder is filled from the key the row holds. A column `review_status`
+/// reaches the template as `review_status`, which is the name the admin API's template
+/// check accepts for a field published as `reviewStatus`.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_webhook_template_is_filled_from_the_key_the_captured_row_holds() {
+    let (delivered, attempts) =
+        deliver_captured_ticket(r#"{"status": "{{ review_status }}"}"#).await;
+
+    assert_eq!(delivered, vec![serde_json::json!({ "status": "in_review" })], "{attempts:?}");
+}
+
+/// The published name is not a key of the row: the event is not delivered. This is the
+/// template the check refuses.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_webhook_template_naming_the_published_field_is_not_delivered() {
+    let (delivered, attempts) =
+        deliver_captured_ticket(r#"{"status": "{{ reviewStatus }}"}"#).await;
+
+    assert!(delivered.is_empty(), "nothing reaches the receiver: {delivered:?}");
+    assert_eq!(attempts.len(), 1, "one attempt: {attempts:?}");
+    let (status, error) = &attempts[0];
+    let error = error.as_deref().unwrap_or_default();
+    assert_eq!(status, "failed");
+    assert!(error.contains("`{{ reviewStatus }}`"), "names the placeholder: {error}");
+}

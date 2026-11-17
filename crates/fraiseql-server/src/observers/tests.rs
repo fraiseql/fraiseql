@@ -587,14 +587,15 @@ mod template_paths {
 
     use super::super::{ActionConfig, handlers::reject_unfillable_templates};
 
-    /// `Order { id, total, tags: [String], meta: JSON, customer: Customer }`,
-    /// `Customer { email, address: Address }`, `Address { city }`.
+    /// `Order { id, total, reviewStatus, tags: [String], meta: JSON, customer: Customer }`,
+    /// `Customer { email, billingEmail, address: Address }`, `Address { city }`.
     fn schema() -> CompiledSchema {
         let mut schema = CompiledSchema::new();
         let mut order = TypeDefinition::new("Order", "v_order");
         order.fields = vec![
             FieldDefinition::new("id", FieldType::Int),
             FieldDefinition::new("total", FieldType::Float),
+            FieldDefinition::new("reviewStatus", FieldType::String),
             FieldDefinition::new("tags", FieldType::list(FieldType::String)),
             FieldDefinition::new("meta", FieldType::Json),
             FieldDefinition::new("customer", FieldType::Object("Customer".to_string())),
@@ -602,6 +603,7 @@ mod template_paths {
         let mut customer = TypeDefinition::new("Customer", "v_customer");
         customer.fields = vec![
             FieldDefinition::new("email", FieldType::String),
+            FieldDefinition::new("billingEmail", FieldType::String),
             FieldDefinition::new("address", FieldType::Object("Address".to_string())),
         ];
         let mut address = TypeDefinition::new("Address", "v_address");
@@ -642,6 +644,33 @@ mod template_paths {
             ),
             None
         );
+    }
+
+    /// The renderer reads the changed row, and a row holds a field under its stored key:
+    /// `reviewStatus` is `review_status` there.
+    #[test]
+    fn a_multi_word_field_is_named_by_the_key_the_row_holds() {
+        assert_eq!(refused(Some("Order"), r#"{"s": "{{ review_status }}"}"#), None);
+        assert_eq!(refused(Some("Order"), r#"{"to": "{{ customer.billing_email }}"}"#), None);
+    }
+
+    /// The published name is not a key of the row, so it is refused, and the refusal says
+    /// which key is.
+    #[test]
+    fn the_published_name_of_a_multi_word_field_is_refused_naming_the_stored_key() {
+        let error = refused(Some("Order"), r#"{"s": "{{ reviewStatus }}"}"#).unwrap();
+        assert!(error.contains("`{{ reviewStatus }}`"), "{error}");
+        assert!(error.contains("`review_status`"), "names the key the row holds: {error}");
+
+        let error = refused(Some("Order"), r#"{"to": "{{ customer.billingEmail }}"}"#).unwrap();
+        assert!(error.contains("`billing_email`"), "at depth too: {error}");
+    }
+
+    /// A name that is no field at all gets no such hint.
+    #[test]
+    fn an_unknown_field_is_not_told_of_a_stored_key() {
+        let error = refused(Some("Order"), r#"{"x": "{{ nope }}"}"#).unwrap();
+        assert!(!error.contains("row holds"), "{error}");
     }
 
     #[test]
