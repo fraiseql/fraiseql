@@ -357,7 +357,8 @@ fn a_federation_entity_no_query_returns_is_a_document_too() {
 
 /// A document holds what its types embed, to any depth. `Shipment` is resolved as an entity
 /// and scoped by its own `inject_params`, which bears its declaration out; `Order` embeds
-/// it, so `Order`'s readers are served the lines too and `Order` has to bear it out as well.
+/// it, declared, so `Order`'s readers are served the lines too and `Order` has to bear both
+/// declarations out as well.
 #[test]
 fn a_declaration_is_held_to_every_document_above_it() {
     let build = |order_scope: Value| {
@@ -365,7 +366,7 @@ fn a_declaration_is_held_to_every_document_above_it() {
         let mut shipment =
             stored("Shipment", vec![declared("lines", list_of(object("OrderLine")))]);
         shipment["inject_params"] = tenant();
-        let order = stored("Order", vec![field("shipment", object("Shipment"))]);
+        let order = stored("Order", vec![declared("shipment", object("Shipment"))]);
         let mut document = schema(
             vec![order, shipment, line],
             vec![list_query("orders", "Order", order_scope), lines],
@@ -435,6 +436,27 @@ fn a_type_reached_by_two_routes_is_sampled_along_both() {
         assert_eq!(route.columns, ["tenant_id"]);
     }
     assert_eq!(order.unchecked, 0);
+}
+
+/// A type scoped by its own `inject_params`, which no query returns, is sampled by the
+/// columns it declares: no read of its own carries them.
+#[test]
+fn a_type_scoped_by_its_own_declaration_is_sampled_by_its_columns() {
+    let mut shipment = stored("Shipment", vec![]);
+    shipment["inject_params"] = tenant();
+    let order = stored("Order", vec![declared("shipment", object("Shipment"))]);
+    let schema =
+        loaded(&schema(vec![order, shipment], vec![list_query("orders", "Order", tenant())]));
+    let roots = schema.scoped_embedding_routes();
+
+    let [order] = roots.as_slice() else {
+        panic!("one served document: {roots:#?}")
+    };
+    let [route] = order.routes.as_slice() else {
+        panic!("one route: {order:#?}")
+    };
+    assert_eq!((route.owner, route.field, route.embedded), ("Order", "shipment", "Shipment"));
+    assert_eq!(route.columns, ["tenant_id"]);
 }
 
 /// Walking every route is for the data check only: the rule refused at load names the

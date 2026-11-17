@@ -562,9 +562,9 @@ impl Executor {
     ///
     /// Load-time validation
     /// ([`type_inject_violations`](crate::schema::CompiledSchema::type_inject_violations))
-    /// refuses a schema whose query and type declare the same column from *different*
-    /// sources, so this merge never silently picks a winner between two contradictory
-    /// declarations — at most one source is ever in play for a given column.
+    /// refuses a schema in which a query returning a type scoped by its own declaration is
+    /// scoped otherwise, so where both declare, they declare the same scope and this merge
+    /// never picks a winner.
     fn effective_inject_params(&self, typename: &str) -> IndexMap<String, InjectedParamSource> {
         let mut params = self
             .ctx

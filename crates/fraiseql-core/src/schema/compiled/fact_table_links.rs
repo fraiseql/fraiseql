@@ -24,6 +24,20 @@ pub fn fact_field<'a>(type_def: &'a TypeDefinition, name: &str) -> Option<&'a Fi
         .find(|f| crate::utils::to_snake_case(f.name.as_str()) == key)
 }
 
+/// Where a fact-table name reads: the first key of its dimension path, the key it is
+/// declared at whatever it is called; the name itself for any other reference.
+fn first_key(metadata: &FactTableMetadata, name: &str) -> String {
+    let key = crate::utils::to_snake_case(name);
+    metadata
+        .dimensions
+        .paths
+        .iter()
+        .find(|p| p.name == name || crate::utils::to_snake_case(&p.name) == key)
+        .and_then(|p| p.segments(&metadata.dimensions.name).ok())
+        .and_then(|segments| segments.into_iter().next())
+        .unwrap_or(key)
+}
+
 /// Every name a fact table declares: what a request over it can reference.
 fn declared_names(metadata: &FactTableMetadata) -> Vec<&str> {
     let mut names: Vec<&str> = metadata
@@ -41,6 +55,56 @@ fn declared_names(metadata: &FactTableMetadata) -> Vec<&str> {
 }
 
 impl CompiledSchema {
+    /// The scoped type a fact-table name reads into, when it reads into one: the name's
+    /// first key (of its dimension path, wherever it is declared and whatever it is called;
+    /// the name itself otherwise) is a field of the linked type `type_def` that holds a type
+    /// scoped by `inject_params` ([`type_scope`](Self::type_scope)). Returned as the field
+    /// and the scoped type.
+    ///
+    /// A group key, a selected value or an aggregate is a value, not a row, so no scope
+    /// filters it: such a name is refused when the schema loads and when a request names it.
+    #[must_use]
+    pub fn fact_name_in_scoped_type<'a>(
+        &'a self,
+        metadata: &FactTableMetadata,
+        type_def: &'a TypeDefinition,
+        name: &str,
+    ) -> Option<(&'a str, &'a str)> {
+        let field = fact_field(type_def, &first_key(metadata, name))?;
+        let (scoped, _) = self.scoped_targets(&field.field_type).into_iter().next()?;
+        Some((field.name.as_str(), scoped))
+    }
+
+    /// Fact tables declaring a name that reads into a type scoped by `inject_params`,
+    /// through a field of the type they are read as. One message per name, empty when none
+    /// does; unlinked fact tables are not concerned.
+    #[must_use]
+    pub fn fact_table_scoped_type_violations(&self) -> Vec<String> {
+        let mut tables: Vec<&FactTableMetadata> = self.fact_tables.values().collect();
+        tables.sort_by(|a, b| a.table_name.cmp(&b.table_name));
+        let mut out = Vec::new();
+        for metadata in tables {
+            let Some(type_def) = self.fact_table_type(metadata) else {
+                continue;
+            };
+            for name in declared_names(metadata) {
+                if let Some((field, scoped)) =
+                    self.fact_name_in_scoped_type(metadata, type_def, name)
+                {
+                    out.push(format!(
+                        "fact table '{}' declares `{name}`, which reads inside `{}.{field}`, a \
+                         `{scoped}`: `{scoped}` is scoped by `inject_params`, and a value an \
+                         aggregate or a window serves is not a row its scope can filter. Read \
+                         `{scoped}` through a query of its own, or drop `{name}` from the fact \
+                         table.",
+                        metadata.table_name, type_def.name
+                    ));
+                }
+            }
+        }
+        out
+    }
+
     /// Fact tables that declare one dimension twice, in ways a request could read two
     /// ways (#1231): a `native_dimension_mapping` key that is also a
     /// `denormalized_filters` column mapped to a different column, or two mapping keys

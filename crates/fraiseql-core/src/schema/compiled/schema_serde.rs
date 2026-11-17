@@ -196,8 +196,8 @@ impl CompiledSchema {
     ///
     /// Returns [`FraiseQLError::Validation`] when a role-gated type is declared in a
     /// shape no execution path can enforce — see
-    /// [`CompiledSchema::type_role_violations`] — when a type and its backing query
-    /// scope the same column from different sources, see
+    /// [`CompiledSchema::type_role_violations`] — when a query returns a type scoped by its
+    /// own `inject_params` under another scope, see
     /// [`CompiledSchema::type_inject_violations`], when a federation entity's `@key`
     /// cannot be served, see [`CompiledSchema::federation_key_problems`], or when a
     /// relationship names a target, a join column or a list query the embed executor
@@ -782,6 +782,18 @@ impl CompiledSchema {
                     violations.join("\n  - ")
                 ),
                 path:    Some("fact_tables.type_name".to_string()),
+            });
+        }
+        // A fact table reads values, not rows: a name inside a type scoped by
+        // `inject_params` would serve that type's values to every reader of the table.
+        let violations = self.fact_table_scoped_type_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "fact tables read inside a scoped type:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("fact_tables.dimensions".to_string()),
             });
         }
         // #1800: a fact table's own `inject_params` filter its roots' rows; a declaration the

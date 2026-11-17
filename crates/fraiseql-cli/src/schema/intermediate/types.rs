@@ -62,8 +62,9 @@ pub struct IntermediateType {
     ///
     /// Accepts the same two value shapes as the operation-level key (#806) and threads
     /// through to `TypeDefinition.inject_params`, where both `_entities` consumers read it
-    /// behind the backing query. A type and its query declaring the same column from
-    /// different sources is refused when the compiled schema loads.
+    /// behind the backing query. The declaration holds wherever the type is read, and a
+    /// query returning the type under another scope is refused when the compiled schema
+    /// loads.
     #[serde(
         default,
         with = "super::operations::inject_params_serde",

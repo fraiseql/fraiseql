@@ -59,6 +59,13 @@ fn declare(doc: &mut Value, column: &str, source: Value) {
     doc["fact_tables"]["tf_sales"]["inject_params"][column] = source;
 }
 
+/// Scope the type `Sale` by its own `inject_params`, and `sales`, which reads it, alike: a
+/// query returning a type scoped by its own declaration is scoped as the type is.
+fn scope_type(doc: &mut Value, scope: Value) {
+    doc["queries"][0]["inject_params"] = scope.clone();
+    doc["types"][0]["inject_params"] = scope;
+}
+
 /// The positive control: without it every refusal below would pass against a check that
 /// refused every declaration.
 #[test]
@@ -136,7 +143,7 @@ fn a_declaration_on_a_shared_table_is_refused() {
 fn a_declaration_contradicting_the_linked_type_is_refused() {
     let message = refusal(|d| {
         declare(d, "tenant_id", jwt("org"));
-        d["types"][0]["inject_params"] = json!({"tenant_id": jwt("tid")});
+        scope_type(d, json!({"tenant_id": jwt("tid")}));
     });
     for part in [
         "fact table 'tf_sales'",
@@ -154,7 +161,7 @@ fn a_declaration_contradicting_the_linked_type_is_refused() {
 fn a_declaration_agreeing_with_the_linked_type_loads() {
     let mut doc = fixture();
     declare(&mut doc, "tenant_id", jwt("org"));
-    doc["types"][0]["inject_params"] = json!({"tenant_id": jwt("org")});
+    scope_type(&mut doc, json!({"tenant_id": jwt("org")}));
     load(&doc).expect("the same source in both places loads");
 }
 
@@ -163,7 +170,7 @@ fn a_declaration_agreeing_with_the_linked_type_loads() {
 #[test]
 fn an_inheritance_the_table_cannot_take_still_loads() {
     let mut doc = fixture();
-    doc["types"][0]["inject_params"] = json!({"owner_id": jwt("org")});
+    scope_type(&mut doc, json!({"owner_id": jwt("org")}));
     doc["types"][0]["fields"]
         .as_array_mut()
         .unwrap()
@@ -187,7 +194,7 @@ fn a_scoped_fact_table_is_not_unenforced() {
     let mut declared = fixture();
     declare(&mut declared, "tenant_id", jwt("org"));
     let mut inherited = fixture();
-    inherited["types"][0]["inject_params"] = json!({"tenant_id": jwt("org")});
+    scope_type(&mut inherited, json!({"tenant_id": jwt("org")}));
     for (what, doc) in [("declared", declared), ("inherited", inherited)] {
         let schema = load(&doc).unwrap();
         assert_eq!(

@@ -551,10 +551,10 @@ fn a_query_and_its_type_agreeing_on_an_inject_column_loads() {
     assert_eq!(schema.types[0].inject_params.len(), 1);
 }
 
-/// Control: declaring a column the query does not is the *point* of the field — the
-/// two sets merge. Only a same-column disagreement is a contradiction.
+/// A type scoping a column its query does not is refused: a root read of the query would
+/// apply the query's scope alone, and drop the type's.
 #[test]
-fn a_type_scoping_a_column_its_query_does_not_loads() {
+fn a_type_scoping_a_column_its_query_does_not_is_refused_at_load() {
     let json = r#"{
         "types": [{
             "name":"User","sql_source":"v_user","fields":[],
@@ -567,9 +567,69 @@ fn a_type_scoping_a_column_its_query_does_not_loads() {
         "mutations": [],
         "subscriptions": []
     }"#;
-    let schema = CompiledSchema::from_json(json, false).unwrap();
-    assert_eq!(schema.types[0].inject_params.len(), 1);
-    assert_eq!(schema.queries[0].inject_params.len(), 1);
+    let msg = CompiledSchema::from_json(json, false).unwrap_err().to_string();
+    for needle in ["users", "User", "owner_id", "tenant_id"] {
+        assert!(msg.contains(needle), "the message must name `{needle}`, got: {msg}");
+    }
+}
+
+/// A query scoped by the type's columns and one more is scoped otherwise too: refused.
+#[test]
+fn a_query_scoping_more_columns_than_its_type_is_refused_at_load() {
+    let json = r#"{
+        "types": [{
+            "name":"User","sql_source":"v_user","fields":[],
+            "inject_params": {"tenant_id": {"source":"jwt","claim":"tenant_id"}}
+        }],
+        "queries": [{
+            "name":"users","return_type":"User","sql_source":"v_user",
+            "inject_params": {"tenant_id": {"source":"jwt","claim":"tenant_id"},
+                              "owner_id": {"source":"jwt","claim":"sub"}}
+        }],
+        "mutations": [],
+        "subscriptions": []
+    }"#;
+    let msg = CompiledSchema::from_json(json, false).unwrap_err().to_string();
+    assert!(msg.contains("scoped by its own") && msg.contains("owner_id"), "{msg}");
+}
+
+/// A query returning the type as a member of a union, or counting its rows, reads the
+/// type's rows under the query's scope as well: unscoped, it is refused.
+#[test]
+fn a_union_or_a_count_reading_a_scoped_type_unscoped_is_refused_at_load() {
+    let schema = |query: serde_json::Value| {
+        serde_json::json!({
+            "types": [
+                {"name":"User","sql_source":"v_user","fields":[],
+                 "inject_params": {"tenant_id": {"source":"jwt","claim":"tenant_id"}}},
+                {"name":"Bot","sql_source":"v_bot","fields":[]}
+            ],
+            "unions": [{"name":"Actor","member_types":["User","Bot"]}],
+            "queries": [query],
+            "mutations": [],
+            "subscriptions": []
+        })
+        .to_string()
+    };
+    for (what, query) in [
+        (
+            "union",
+            serde_json::json!({"name":"actors","return_type":"Actor","returns_list":true,
+                               "sql_source":"v_actor"}),
+        ),
+        (
+            "count",
+            serde_json::json!({"name":"usersCount","return_type":"User","returns_count":true,
+                               "sql_source":"v_user"}),
+        ),
+    ] {
+        let name = query["name"].as_str().unwrap().to_string();
+        let msg = CompiledSchema::from_json(&schema(query), false).unwrap_err().to_string();
+        assert!(
+            msg.contains(&name) && msg.contains("User") && msg.contains("scoped by its own"),
+            "{what}: {msg}"
+        );
+    }
 }
 
 /// The queryless shape #1142 exists for: the declaration survives a load/serialize
