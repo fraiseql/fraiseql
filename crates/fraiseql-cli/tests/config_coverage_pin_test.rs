@@ -7,7 +7,7 @@
 //! - **5b** rate-limiting shape — the merger emits the flat `snake_case` `security.rate_limiting`
 //!   the live server reader consumes (the dead nested-`camelCase` reader was removed in
 //!   `fraiseql-auth`).
-//! - **REJECT** rows (#1 `[caching]`, #2 `[analytics]`, #3 `[observability]`, #4
+//! - **REJECT** rows (#1 `[caching]`, #2 `[analytics]`, #3 `[observability]` (at load), #4
 //!   `[security.rules/policies/field_auth]`, #7 `[security.api_keys] storage`) — each
 //!   previously-accepted key now fails **loudly at compile** with a targeted message, replacing the
 //!   earlier "accepted silently" behavior.
@@ -224,10 +224,10 @@ fn analytics_disabled_with_queries_is_rejected_at_compile() {
     assert!(err.contains("enabled"), "err = {err}");
 }
 
-/// #3 `[observability]` — inert on the compiled path; points to `[metrics]`/`[tracing]`.
+/// #3 `[observability]` — no reader: refused at load, pointing at the server's own keys.
 #[test]
-fn observability_section_is_rejected_at_compile() {
-    let err = validate_err(
+fn observability_section_is_rejected_at_load() {
+    let err = TomlSchema::parse_toml(
         r#"
         [project]
         name = "t"
@@ -235,10 +235,14 @@ fn observability_section_is_rejected_at_compile() {
         [observability]
         prometheus_enabled = true
     "#,
-    );
+    )
+    .expect_err("[observability] has no reader")
+    .to_string();
     assert!(err.contains("[observability]"), "err = {err}");
-    assert!(err.contains("[metrics]") && err.contains("[tracing]"), "err = {err}");
-    assert!(err.contains("/issues/625"), "err = {err}");
+    assert!(
+        err.contains("metrics_enabled") && err.contains("tracing_enabled"),
+        "err = {err}"
+    );
 }
 
 /// #7 `[security.api_keys] storage` — `env` and `postgres` are both implemented

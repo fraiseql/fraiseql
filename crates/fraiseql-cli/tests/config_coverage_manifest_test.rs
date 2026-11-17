@@ -206,7 +206,6 @@ const MANIFEST: &[(&str, &str)] = &[
          (compile-validated sql_source, SELECT list from return_type); no-op shapes \
          REJECTED at load",
     ),
-    ("observability.*", "REJECTED at load (#3) — use [metrics]/[tracing] (#625)"),
 ];
 
 /// Recursively collect the dotted paths of every leaf in `value`.

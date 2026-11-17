@@ -453,3 +453,22 @@ fn a_settings_only_file_with_a_types_document_compiles() {
         assert!(compiled.ok, "{document}: {}", compiled.log);
     }
 }
+
+// ── tables configured elsewhere ──────────────────────────────────────────────
+
+/// `[observability]` has no reader in either role: refused by name, even written empty,
+/// pointing at the keys the server's configuration file spells metrics and tracing with.
+/// The server's file has no `[metrics]` or `[tracing]` table.
+#[test]
+fn observability_is_refused_in_both_roles_naming_the_server_keys() {
+    for toml in [
+        "[observability]\n",
+        "[observability]\nprometheus_enabled = true\n",
+    ] {
+        for (role, refused) in in_both_roles(toml) {
+            assert_refused_by_name(role, &refused, "[observability]", "metrics_enabled");
+            assert!(refused.log.contains("tracing_enabled"), "{role}: {}", refused.log);
+            assert!(!refused.log.contains("[metrics]"), "{role}: {}", refused.log);
+        }
+    }
+}

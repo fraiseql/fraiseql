@@ -227,7 +227,6 @@ const REFUSED: &[(&str, &str, &str)] = &[
     ("domain_discovery", "[domain_discovery]\nenabled = true\n", "compile input"),
     ("crud", "[crud]\nfunction_schema = \"app\"\n", "compile input"),
     ("analytics", "[analytics]\nenabled = true\n", "compile input"),
-    ("observability", "[observability]\nprometheus_enabled = true\n", "[metrics]"),
 ];
 
 /// What a compile did: whether it succeeded, its output, and the compiled schema.

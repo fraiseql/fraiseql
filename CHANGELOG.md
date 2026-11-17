@@ -88,6 +88,11 @@ disagreed, and the promise was the part that was wrong.
     by name. `doctor`'s config check no longer falls back to a syntax-only parse when
     `--schema` is a compiled schema, and `sbom` no longer names the component from
     `Cargo.toml` when `fraiseql.toml` does not load.
+  - `[observability]` is refused when the file loads, in both roles and even written
+    empty (a TOML schema accepted it at its defaults). The refusal names the keys the
+    server's configuration file spells metrics and tracing with, `metrics_enabled` and
+    `tracing_enabled` among them; it used to point at `[metrics]` and `[tracing]` tables
+    that file refuses.
 
 - **`[auth_hs256]` is removed (#1964).** Shared-secret token validation is gone. A
   configuration with an `[auth_hs256]` section is refused at boot, and the error names the
@@ -386,7 +391,9 @@ disagreed, and the promise was the part that was wrong.
   against the entity's fields, by the key the stored document holds each under, with the
   rule the admin API already applied to a stored observer. A typo used to surface only when
   the first event was dead-lettered.
-
+- The tenant registration refusal of `max_storage_bytes` outside schema-mode tenancy
+  names `[tenancy] mode = "schema"`, the table `fraiseql.toml` spells it with, rather
+  than `[security.tenancy]`.
 - **The generated SDL keeps `@deprecated` (#1721).** A deprecated field, argument, input
   field or enum value compiled with its deprecation and introspection reported it, but the
   SDL printed it without the directive. So the federation `_service { sdl }`,

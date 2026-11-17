@@ -297,7 +297,7 @@ pub async fn upsert_tenant_handler(
             .map_err(|e| ApiError::validation_error(format!("invalid schema: {e}")))?;
         if mode != fraiseql_core::schema::TenancyMode::Schema {
             return Err(ApiError::validation_error(
-                "`max_storage_bytes` needs schema-mode tenancy (`[security.tenancy] mode = \
+                "`max_storage_bytes` needs schema-mode tenancy (`[tenancy] mode = \
                  \"schema\"`): it is measured on the tenant's own schema, and this tenant's \
                  schema is not in schema mode",
             ));

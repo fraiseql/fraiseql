@@ -324,6 +324,8 @@ async fn a_row_mode_tenant_cannot_have_a_storage_quota() {
     .expect_err("row mode + max_storage_bytes");
     let message = format!("{refused:?}");
     assert!(message.contains("max_storage_bytes") && message.contains("schema"), "{message}");
+    // The table `fraiseql.toml` spells it with.
+    assert!(message.contains(r#"[tenancy] mode = \"schema\""#), "{message}");
 }
 
 /// The old advisory key is refused by name, and the refusal names the key that replaced it.

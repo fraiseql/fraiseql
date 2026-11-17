@@ -56,56 +56,32 @@ impl Default for ProjectMetadata {
     }
 }
 
-/// What a top-level key of a TOML schema that does not belong in a project config is told.
-enum Misplaced {
-    /// It authors the schema, which beside a schema document the document does.
-    Authoring,
-    /// It is refused in a TOML schema too, with this pointer.
-    Elsewhere(&'static str),
-}
-
-/// The tables a TOML schema takes that a `fraiseql.toml` read beside a schema document
-/// does not: each is refused by name with where it belongs, where `deny_unknown_fields`
-/// would only say the key is unknown.
-const MISPLACED_SECTIONS: &[(&str, Misplaced)] = &[
-    ("types", Misplaced::Authoring),
-    ("queries", Misplaced::Authoring),
-    ("mutations", Misplaced::Authoring),
-    ("includes", Misplaced::Authoring),
-    ("domain_discovery", Misplaced::Authoring),
-    ("crud", Misplaced::Authoring),
-    ("analytics", Misplaced::Authoring),
-    (
-        "observability",
-        Misplaced::Elsewhere(
-            "metrics and tracing are configured on the server, under `[metrics]` and \
-             `[tracing]` in the file FRAISEQL_CONFIG names",
-        ),
-    ),
+/// The tables that author a schema: a TOML schema takes them, a `fraiseql.toml` read beside
+/// a schema document does not, since the document authors the schema there. Each is refused
+/// by name with where it belongs, where `deny_unknown_fields` would only say the key is
+/// unknown.
+const AUTHORING_SECTIONS: &[&str] = &[
+    "types",
+    "queries",
+    "mutations",
+    "includes",
+    "domain_discovery",
+    "crud",
+    "analytics",
 ];
 
-/// Refuse the first top-level key of [`MISPLACED_SECTIONS`] that `table` sets.
+/// Refuse the first top-level key of [`AUTHORING_SECTIONS`] that `table` sets.
 ///
 /// # Errors
 ///
 /// Returns an error naming the table and where it belongs.
 pub(crate) fn refuse_misplaced_sections(table: &toml::Table) -> Result<()> {
-    for (name, misplaced) in MISPLACED_SECTIONS {
-        if !table.contains_key(*name) {
-            continue;
-        }
-        let pointer = match misplaced {
-            Misplaced::Authoring => {
-                "it authors the schema, which the schema document does \
-                                     here. Declare it there, or author the schema in TOML and \
-                                     pass that file as the compile input (`fraiseql compile \
-                                     <schema>.toml`)"
-            },
-            Misplaced::Elsewhere(pointer) => pointer,
-        };
+    if let Some(name) = AUTHORING_SECTIONS.iter().find(|name| table.contains_key(**name)) {
         anyhow::bail!(
             "fraiseql.toml: `{name}` does not belong in a project configuration, the \
-             fraiseql.toml read beside a schema document: {pointer}."
+             fraiseql.toml read beside a schema document: it authors the schema, which the \
+             schema document does here. Declare it there, or author the schema in TOML and \
+             pass that file as the compile input (`fraiseql compile <schema>.toml`)."
         );
     }
     Ok(())
@@ -156,6 +132,15 @@ enum Retired {
 /// of an unknown field. Checked in every role the file plays.
 const RETIRED_SPELLINGS: &[(&str, &str, Retired)] = &[
     ("schema", "", Retired::Write("`[project]`")),
+    (
+        "observability",
+        "",
+        Retired::Write(
+            "`metrics_enabled`, `metrics_token`, `tracing_enabled`, `otlp_endpoint` and \
+             `tracing_service_name` at the top level of the server's configuration file, the \
+             file FRAISEQL_CONFIG names (logging through `RUST_LOG`)",
+        ),
+    ),
     ("project", "description", Retired::Unread),
     ("", "naming_convention", Retired::Write("`[naming] convention`")),
     ("security.constant_time", "", Retired::Unread),

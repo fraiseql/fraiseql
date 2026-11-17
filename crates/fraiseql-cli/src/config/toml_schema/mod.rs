@@ -7,7 +7,6 @@ pub mod caching;
 pub mod domain;
 pub mod federation;
 pub mod functions;
-pub mod observability;
 pub mod observers;
 pub mod operations;
 pub mod rest;
@@ -38,7 +37,6 @@ pub use federation::{
 };
 use fraiseql_core::schema::{ChangelogConfig, CrudNamingConfig};
 pub use functions::FunctionsSettings;
-pub use observability::ObservabilityConfig;
 pub use observers::{EventHandler, ObserversConfig};
 pub use operations::{
     MutationDefaults, MutationDefinition, NamingConfig, PaginationPosture, QueryDefaults,
@@ -165,10 +163,6 @@ pub struct TomlSchema {
     /// Analytics configuration
     #[serde(rename = "analytics")]
     pub analytics: AnalyticsConfig,
-
-    /// Observability configuration
-    #[serde(rename = "observability")]
-    pub observability: ObservabilityConfig,
 
     /// Schema includes configuration for multi-file composition
     #[serde(default)]
@@ -440,7 +434,7 @@ impl TomlSchema {
     ///
     /// Returns an error if any of `[security.rules]` / `[security.policies]` /
     /// `[security.field_auth]` (declared-but-unenforced authorization), `[caching]`,
-    /// `[analytics]`, a non-default `[observability]`, or a non-`env`
+    /// `[analytics]`, or a non-`env`
     /// `[security.api_keys] storage` is present.
     ///
     /// Called from both [`Self::validate`] and the merger's `merge_values` so that no
@@ -520,18 +514,6 @@ impl TomlSchema {
             anyhow::bail!(
                 "[analytics] enabled = true with no [[analytics.queries]] does nothing. Add \
                  queries or remove the section."
-            );
-        }
-
-        // #3 [observability]: inert on the compiled path — the real metrics/tracing config
-        // lives in the server's runtime `[metrics]` / `[tracing]` sections.
-        if self.observability != ObservabilityConfig::default() {
-            anyhow::bail!(
-                "[observability] is accepted but not consumed on the compiled path. Configure \
-                 metrics under the server's [metrics] section and tracing under [tracing] in \
-                 fraiseql.toml (logging via RUST_LOG / the server log settings), then remove \
-                 [observability]. Alias-vs-remove rationale: \
-                 https://github.com/fraiseql/fraiseql/issues/625."
             );
         }
 

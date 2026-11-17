@@ -51,7 +51,7 @@ const UNREACHED: &[&str] = &[
 ];
 
 /// Tables `Default` reaches, the root itself included.
-const TABLES: usize = 32;
+const TABLES: usize = 31;
 
 fn table_paths(prefix: &str, table: &toml::Table, out: &mut Vec<String>) {
     for (key, value) in table {
