@@ -79,9 +79,10 @@ disagreed, and the promise was the part that was wrong.
     rather than replacing it, and the document's own `naming_convention` stands where
     the file writes no `[naming] convention`.
   - `fraiseql compile fraiseql.toml` is refused when no schema results, no types or
-    queries in the file or in a `--types` document, rather than compiling an empty schema
-    and reporting success: a settings file passed in place of an SDK's `schema.json`. The
-    refusal names `fraiseql compile schema.json`.
+    queries once compiled, rather than compiling an empty schema and reporting success: a
+    settings file passed in place of an SDK's `schema.json`. The refusal names `fraiseql
+    compile schema.json`. A file exposing only the change log still compiles: the
+    compiler adds its queries.
   - `fraiseql doctor`, `fraiseql migrate` and `fraiseql sbom` read `fraiseql.toml` as
     `compile` does. `${VAR}` placeholders expand (`migrate` used a `[database] url` of
     `${DATABASE_URL}` literally); a retired spelling or a key no table reads is refused

@@ -160,13 +160,13 @@ pub fn load_intermediate_schema(
         .context("Failed to load schema from TOML")
 }
 
-/// Refuse a TOML input from which no schema results: no types, queries or mutations, in
-/// the file or in what it was given. Most often the settings file read beside an SDK's
-/// `schema.json`, passed in its place; compiled, it is an empty schema that reports
-/// success.
+/// Refuse a TOML input from which no schema results: no types or queries once compiled,
+/// from the file, what it was given, or what the compiler adds (the change-log API). Most
+/// often the settings file read beside an SDK's `schema.json`, passed in its place;
+/// compiled, it is an empty schema that reports success.
 fn refuse_a_settings_only_input(
-    opts: &CompileOptions<'_>,
-    schema: &IntermediateSchema,
+    input: &str,
+    schema: &fraiseql_core::schema::CompiledSchema,
 ) -> Result<()> {
     // A mutation returns a composite type, so a schema with mutations has types too.
     if !schema.types.is_empty() || !schema.queries.is_empty() {
@@ -176,7 +176,7 @@ fn refuse_a_settings_only_input(
         "{} authors no schema: no types, queries or mutations, in it or in a document given \
          with it (`--types`). Beside an SDK's schema document it is that document's settings \
          file: compile the document (`fraiseql compile schema.json`).",
-        opts.input
+        input
     )
 }
 
@@ -207,6 +207,7 @@ pub async fn compile_to_schema(
 
     // 1. Determine workflow based on input file and options
     let input_path = Path::new(opts.input);
+    let input_path_shown = opts.input;
     if !input_path.exists() {
         anyhow::bail!("Input file not found: {}", opts.input);
     }
@@ -220,16 +221,14 @@ pub async fn compile_to_schema(
     let mut document_declares_naming = false;
     let mut intermediate: IntermediateSchema = if is_toml {
         info!("Using TOML-based workflow");
-        let schema = load_intermediate_schema(
+        load_intermediate_schema(
             opts.input,
             &opts.type_files,
             &opts.query_files,
             &opts.mutation_files,
             opts.schema_dir,
             opts.types,
-        )?;
-        refuse_a_settings_only_input(&opts, &schema)?;
-        schema
+        )?
     } else {
         // Legacy JSON workflow
         info!("Using legacy JSON workflow");
@@ -451,6 +450,9 @@ pub async fn compile_to_schema(
         },
     )
     .context("Failed to convert schema to compiled format")?;
+    if is_toml {
+        refuse_a_settings_only_input(input_path_shown, &schema)?;
+    }
 
     // Carry the project's casing acronyms into the compiled schema so the runtime
     // installs them at boot (see `fraiseql_db::utils::set_runtime_acronyms`).

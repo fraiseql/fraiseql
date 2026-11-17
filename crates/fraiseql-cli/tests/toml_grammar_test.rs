@@ -472,3 +472,17 @@ fn observability_is_refused_in_both_roles_naming_the_server_keys() {
         }
     }
 }
+
+/// A file that authors no type but exposes the change log compiles: the compiler injects
+/// the change-log queries, so a schema results.
+#[test]
+fn a_file_exposing_only_the_change_log_compiles() {
+    let dir = TempDir::new().unwrap();
+    fs::write(
+        dir.path().join("fraiseql.toml"),
+        "[project]\nname = \"log\"\n\n[observers]\nenabled = true\n\n[changelog]\nexpose = true\n",
+    )
+    .unwrap();
+    let compiled = run(&dir, &["fraiseql.toml"]);
+    assert!(compiled.ok, "{}", compiled.log);
+}
