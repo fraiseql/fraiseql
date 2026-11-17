@@ -282,8 +282,8 @@ pub async fn compile_to_schema(
     };
     info!("Project config: {config_source}");
     // The settings of the `fraiseql.toml` this compile reads that the converter takes
-    // beside the schema: `[naming]`, `[cost_weights]` (#379) and `[mutation_defaults]`,
-    // and `[database] ssl_mode` for the `--database` checks (#1429); unset, the URL's own
+    // beside the schema: `[naming]`, `[cost_weights]` and `[mutation_defaults]`,
+    // and `[database] ssl_mode` for the `--database` checks; unset, the URL's own
     // `?sslmode=` stays in charge. A TOML input carries them itself; a schema document
     // takes them from the project config below. The file is taken apart here rather than
     // held, so it is not carried across the awaits below.

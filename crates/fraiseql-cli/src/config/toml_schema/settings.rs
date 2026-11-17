@@ -50,7 +50,7 @@ impl TomlSchema {
             schema.security.take(),
         )?);
 
-        // Session variables are the mechanism RLS policies read (#628).
+        // Session variables are the mechanism RLS policies read.
         if self.declares("session_variables") {
             super::runtime_sections::reconcile_values(
                 "session_variables",
@@ -67,7 +67,7 @@ impl TomlSchema {
             schema.session_variables = Some(self.session_variables.clone());
         }
 
-        // `[locale]` (#1512) is configuration; a document carrying another one is an
+        // `[locale]` is configuration; a document carrying another one is an
         // authoring conflict.
         if let Some(locale) = self.locale.clone() {
             if schema.locale.as_ref().is_some_and(|l| *l != locale) {
@@ -114,7 +114,7 @@ impl TomlSchema {
         // `[[caching.rules]]` lower onto the document's own queries and mutations.
         crate::schema::merger::apply_caching_rules_to_schema(&self.caching, schema)?;
 
-        // `[inject_defaults]` (#1384), which the SDK loaders read too.
+        // `[inject_defaults]`, which the SDK loaders read too.
         schema.inject_defaults = crate::config::inject_defaults::InjectDefaultsToml::reconcile(
             self.inject_defaults.as_ref(),
             schema.inject_defaults.take(),

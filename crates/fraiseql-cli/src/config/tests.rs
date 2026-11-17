@@ -495,7 +495,7 @@ mod security_tests {
         assert!(config.error_sanitization.is_none());
         assert!(config.rate_limiting.is_none());
         // State encryption demands a key, and demanding one the operator never configured
-        // stops the server from booting (#1151).
+        // stops the server from booting.
         assert!(
             config.state_encryption.is_none(),
             "state encryption must stay off until asked for"

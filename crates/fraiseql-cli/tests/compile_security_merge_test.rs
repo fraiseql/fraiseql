@@ -296,7 +296,7 @@ fn types_a_document_without_security_takes_the_toml_section() {
 // Captured from the compiler before the merge rule existed: these three paths carry no
 // document `security` block next to a TOML, so the rule must leave them unchanged. The two
 // TOML ones were recaptured when `enterprise` lost its nine unread keys and an unwritten
-// `error_sanitization` / `rate_limiting` stopped being emitted by a project config (#2019),
+// `error_sanitization` / `rate_limiting` stopped being emitted by a project config,
 // and are one since both roles of a `fraiseql.toml` lower `[security]` alike: an unwritten
 // `state_encryption` is emitted by neither.
 const SDK_NO_TOML_SECURITY: &str = r#"{"multi_tenant":true,"rls":{"enabled":true},"tenancy":{"mode":"row","tenant_claim":"org_id"},"cost_budget":{"per_request_max":100}}"#;
