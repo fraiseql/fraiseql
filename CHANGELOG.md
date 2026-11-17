@@ -225,6 +225,11 @@ disagreed, and the promise was the part that was wrong.
   can disable a declared observer through the admin API, and it stays disabled across
   deploys. See "Declaring observers in the schema" in `docs/operations/observers.md`.
 
+- **`[project] name` is compiled as the schema's `project_name` (#1647).** It is the
+  identity under which a schema owns what it declares in a database other schemas share.
+  It is compiled only when the file writes it, in either role of `fraiseql.toml`, and a
+  hot reload that changes it is refused: restart the server instead.
+
 - **`[subscriptions.capture.<table>]` declares a captured table that keeps its entity
   document in a column (#2013).** `document_column = "data"` makes
   `generate-capture-triggers` pass the column to that table's triggers, and a write captured

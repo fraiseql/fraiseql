@@ -266,19 +266,25 @@ pub async fn compile_to_schema(
     // `?sslmode=` stays in charge. A TOML input carries them itself; a schema document
     // takes them from the project config below. The file is taken apart here rather than
     // held, so it is not carried across the awaits below.
-    let (mut naming, mut operation_cost_weights, mut mutation_options, mut database_tls) =
-        if is_toml {
-            let input = crate::config::TomlSchema::from_file(opts.input)
-                .with_context(|| format!("Failed to load TOML from {}", opts.input))?;
-            let tls = if opts.database.is_some() {
-                input.database.postgres_tls()?
-            } else {
-                PostgresTlsConfig::default()
-            };
-            (input.naming, input.cost_weights, input.mutation_defaults, tls)
+    let (
+        mut naming,
+        mut operation_cost_weights,
+        mut mutation_options,
+        mut database_tls,
+        mut project_name,
+    ) = if is_toml {
+        let input = crate::config::TomlSchema::from_file(opts.input)
+            .with_context(|| format!("Failed to load TOML from {}", opts.input))?;
+        let tls = if opts.database.is_some() {
+            input.database.postgres_tls()?
         } else {
-            Default::default()
+            PostgresTlsConfig::default()
         };
+        let name = input.project_name().map(str::to_owned);
+        (input.naming, input.cost_weights, input.mutation_defaults, tls, name)
+    } else {
+        Default::default()
+    };
     if let Some(config_path) = config_source.project_config() {
         info!("Loading security configuration from {}...", config_path.display());
         let config_file = config_path.to_str().ok_or_else(|| {
@@ -293,6 +299,7 @@ pub async fn compile_to_schema(
                 mutation_options.clone_from(&config.mutation_defaults);
                 naming.clone_from(&config.naming);
                 operation_cost_weights.clone_from(&config.cost_weights);
+                project_name = config.project_name().map(str::to_owned);
                 database_tls = config.database.postgres_tls()?;
 
                 info!("Applying security configuration to schema...");
@@ -504,6 +511,7 @@ pub async fn compile_to_schema(
     // Carry the project's casing acronyms into the compiled schema so the runtime
     // installs them at boot (see `fraiseql_db::utils::set_runtime_acronyms`).
     schema.naming_acronyms = naming.acronyms;
+    schema.project_name = project_name;
 
     // Carry the project's @cost weight overrides (#379) into the compiled schema so
     // the runtime per-tenant cost-budget check can apply them. Non-clobbering: only

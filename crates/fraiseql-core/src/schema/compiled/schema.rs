@@ -336,7 +336,7 @@ pub struct CompiledSchema {
     ///
     /// When set to `CamelCase`, operation names are converted from `snake_case`
     /// (e.g., `create_dns_server` → `createDnsServer`) in the introspection
-    /// schema and lookup indexes. Compiled from `[fraiseql]` in `fraiseql.toml`.
+    /// schema and lookup indexes. Compiled from `[naming]` in `fraiseql.toml`.
     #[serde(default)]
     pub naming_convention: NamingConvention,
 
@@ -347,6 +347,12 @@ pub struct CompiledSchema {
     /// as before this field existed (no schema-hash churn; back-compat on load).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub naming_acronyms: Vec<String>,
+
+    /// The project this schema belongs to: `[project] name` in `fraiseql.toml`, absent when
+    /// the file does not write it. The identity under which the schema owns what it
+    /// declares in a database other schemas may share.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_name: Option<String>,
 
     /// The fraiseql build that produced this compiled schema (#1304).
     ///

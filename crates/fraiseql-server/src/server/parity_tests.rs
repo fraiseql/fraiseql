@@ -746,6 +746,33 @@ async fn hot_reload_refuses_a_schema_whose_boot_frozen_config_changed() {
     );
 }
 
+/// The project a schema belongs to is the identity what it declares is owned under; a
+/// reload may not hand the running server another one.
+#[tokio::test]
+async fn hot_reload_refuses_a_schema_naming_another_project() {
+    let server = Server::new(
+        fully_configured_server_config(),
+        fully_configured_schema(),
+        Arc::new(NoopRelayAdapter::default()),
+        None,
+    )
+    .await
+    .expect("Server::new must boot the fixture schema");
+    let state = server.build_app_state();
+
+    let mut drifted = hot_reloadable_variant();
+    drifted.project_name = Some("another-project".to_string());
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = write_schema(dir.path(), &drifted).await;
+
+    let err = state
+        .reload_schema(&path)
+        .await
+        .expect_err("a reload that changes the project must be refused");
+    assert!(err.contains("project_name"), "the refusal must name the field: {err}");
+}
+
 #[tokio::test]
 async fn hot_reload_runs_the_boot_safety_gates() {
     use fraiseql_core::schema::{

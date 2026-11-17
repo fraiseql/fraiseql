@@ -323,3 +323,25 @@ fn a_service_account_with_no_ceiling_is_refused_in_both_roles() {
         assert!(refused.log.contains("neither roles nor scopes"), "{role}: {}", refused.log);
     }
 }
+
+// ── `[project] name`: the schema's identity ──────────────────────────────────
+
+/// A written `[project] name` is compiled as the schema's `project_name`, in both roles.
+#[test]
+fn a_written_project_name_is_compiled_in_both_roles() {
+    for (role, compiled) in in_both_roles("[project]\nname = \"shop\"\n") {
+        assert!(compiled.ok, "{role}: {}", compiled.log);
+        assert_eq!(compiled.schema["project_name"], "shop", "{role}");
+    }
+}
+
+/// An unwritten name is not compiled at its default: declared is written.
+#[test]
+fn an_unwritten_project_name_is_not_compiled() {
+    for toml in ["", "[project]\nversion = \"1.0.0\"\n"] {
+        for (role, compiled) in in_both_roles(toml) {
+            assert!(compiled.ok, "{role}: {}", compiled.log);
+            assert!(compiled.schema.get("project_name").is_none(), "{role}: {toml:?}");
+        }
+    }
+}

@@ -40,7 +40,10 @@ const MANIFEST: &[(&str, &str)] = &[
         "project.database_target",
         "ProjectMetadata::validate_database_target (refuses a non-PostgreSQL target)",
     ),
-    ("project.name", "`fraiseql sbom`: the component's name"),
+    (
+        "project.name",
+        "compiled `project_name`, when written; `fraiseql sbom`: the component's name",
+    ),
     ("project.version", "`fraiseql sbom`: the component's version"),
     ("types", "user schema data — object types (empty by default)"),
     ("queries", "user schema data — query definitions (empty by default)"),

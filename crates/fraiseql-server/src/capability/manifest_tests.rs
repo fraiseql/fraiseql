@@ -155,6 +155,11 @@ const SERVED_BY_EVERY_BUILD: &[(&str, &str)] = &[
     ("hierarchies_config", "hierarchy resolution in fraiseql-core"),
     ("naming_convention", "casing resolution in fraiseql-core"),
     ("naming_acronyms", "casing resolution in fraiseql-core"),
+    (
+        "project_name",
+        "the schema's identity, from `[project] name`; carried in every build for what the \
+         schema owns in a shared database",
+    ),
     ("fraiseql_version", "the #1304 build-identity stamp, checked in every build"),
     ("schema_sdl", "served by introspection"),
     (
