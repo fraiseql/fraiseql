@@ -71,6 +71,13 @@ ignore = [
   # 0.39, which only sqlx 0.9 accepts.
   # deadline: 2027-02-09 — move to sqlx 0.9.
   { id = "RUSTSEC-2026-0459", reason = "libsqlite3-sys under sqlx 0.8's SQLite driver: lock-only, no workspace crate enables sqlx/sqlite (not-compiled, check-advisory-paths.sh). Fix needs sqlx 0.9. Deadline 2027-02-09." },
+  # chrono 0.4.45 and chrono-tz 0.10.4: marked unmaintained by RustSec (all versions), no
+  # vulnerability and no exploit path; `unmaintained = "workspace"` fails because workspace
+  # crates depend on them directly. The move to jiff is #2026.
+  # deadline: 2027-05-17 — move workspace crates to jiff (#2026).
+  { id = "RUSTSEC-2026-0543", reason = "chrono unmaintained (maintenance advisory, no vulnerability): direct dependency of workspace crates; move to jiff is #2026. Deadline 2027-05-17." },
+  # deadline: 2027-05-17 — move workspace crates to jiff (#2026).
+  { id = "RUSTSEC-2026-0555", reason = "chrono-tz unmaintained (maintenance advisory, no vulnerability): cron/source time zones in fraiseql-functions; move to jiff is #2026. Deadline 2027-05-17." },
 ]
 unmaintained = "workspace"
 

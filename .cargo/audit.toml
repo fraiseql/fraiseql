@@ -42,6 +42,12 @@ ignore = [
   # Fix needs sqlx 0.9.
   # deadline: 2027-02-09 — matches deny.toml.
   "RUSTSEC-2026-0459",
+  # chrono / chrono-tz: unmaintained (maintenance advisories, no vulnerability); move to
+  # jiff is #2026.
+  # deadline: 2027-05-17 — matches deny.toml.
+  "RUSTSEC-2026-0543",
+  # deadline: 2027-05-17 — matches deny.toml.
+  "RUSTSEC-2026-0555",
 ]
 # Surface unsound + unmaintained advisories as warnings so new soundness issues are visible
 # in `cargo audit` output.
