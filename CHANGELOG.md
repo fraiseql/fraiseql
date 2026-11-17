@@ -18,6 +18,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A type scoped by its own `inject_params` is scoped wherever it is read.** Before, only
+  `_entities` read the type's own declaration: a nested read, a write's returned
+  document, a relation filter, a REST selection or stream, a subscription and an
+  aggregate read the type as the query returning it was scoped, or unscoped when no
+  query returned it. Each now applies the type's scope. A schema is refused at load,
+  naming both, when a query that reads a relation can return such a type (by name, as a
+  union or interface member, or as the rows it counts) under any other scope or none; an
+  embedding of it must be declared `scoped_like_parent` under a parent scoped alike; and
+  a fact-table dimension reading inside a field that holds it is refused. Declare the
+  query with the type's `inject_params`, or the embedding `scoped_like_parent`.
+
 - **A token claim whose value is JSON `null` is treated as absent.** An injected
   function-root argument, a list root's row filter, a mutation argument and a `jwt`
   session variable refuse it, or leave it unset, as they do a claim the token omits; a

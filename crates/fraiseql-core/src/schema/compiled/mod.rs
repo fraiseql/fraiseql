@@ -25,6 +25,7 @@ mod sort_direction_rule;
 mod type_inject;
 mod type_relationships;
 mod type_roles;
+mod type_scope;
 mod type_scopes;
 pub mod validation;
 

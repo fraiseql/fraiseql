@@ -555,8 +555,9 @@ impl NestedRowGates {
     }
 }
 
-/// The SQL-backed read of `type_name` a nested level of it is gated as: the schema's
-/// [`scoping_read`](CompiledSchema::scoping_read), which the load-time check reads too.
+/// The query whose `requires_role` and `requires_actor` a nested level of `type_name` is
+/// gated by: the schema's [`scoping_read`](CompiledSchema::scoping_read). The scope of the
+/// level's rows is [`CompiledSchema::type_scope`], which the load-time check reads too.
 pub(in super::super) fn own_read<'a>(
     schema: &'a CompiledSchema,
     type_name: &str,
@@ -571,7 +572,7 @@ fn row_gate(
     field: &FieldDefinition,
     target: &str,
 ) -> Option<NestedRowGate> {
-    let read = own_read(schema, target)?;
+    let read = schema.type_scope(target)?;
     if policy.is_none() && read.inject_params.is_empty() {
         return None;
     }
@@ -995,10 +996,10 @@ fn row_predicate(
     over: Over,
     security_context: Option<&SecurityContext>,
 ) -> Result<Option<WhereClause>> {
-    let Some(read) = schema.queries.iter().find(|q| q.name == query) else {
+    let Some(read) = schema.scoped_read_named(query, target) else {
         return Ok(None);
     };
-    super::root_read::row_predicate(schema, policy, read, target, over, security_context)?
+    super::root_read::row_predicate(schema, policy, &read, target, over, security_context)?
         .or_refuse(&read.name, target)
 }
 
@@ -1624,12 +1625,12 @@ impl RootRowFilter {
     ) -> Result<Option<Self>> {
         let schema = &ctx.schema;
         let policy = ctx.config.rls_policy.as_deref();
-        let read = own_read(schema, type_name);
-        let target = read.map_or_else(
+        let read = schema.type_scope(type_name);
+        let target = read.as_deref().map_or_else(
             || RlsTarget::query(subscription, type_name),
             |read| RlsTarget::query(&read.name, type_name),
         );
-        let clause = match read {
+        let clause = match read.as_deref() {
             Some(read) => level_predicate(ctx, &read.name, type_name, Over::Documents, principal)?,
             None => match (policy, principal) {
                 (Some(policy), Some(principal)) => policy
@@ -1666,7 +1667,7 @@ impl RootRowFilter {
             },
         };
         // A native column is read as the document key of the same name (#1579).
-        for column in read.map(|r| r.inject_params.keys()).into_iter().flatten() {
+        for column in read.as_deref().map(|r| r.inject_params.keys()).into_iter().flatten() {
             paths.push(crate::utils::to_snake_case(column));
         }
         let declared = schema.find_type(type_name);

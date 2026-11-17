@@ -12,11 +12,12 @@
 //!
 //! # The rule
 //!
-//! A **scoped type** is one whose [`scoping_read`](CompiledSchema::scoping_read) carries
-//! `inject_params`. A **served document** is the document of a type the server reads
-//! directly: a query that reads a relation returns it, a subscription streams it, or
-//! federation resolves it as an entity. The document holds the type's fields and the fields
-//! of every type beneath them, to any depth: what a view embeds is served with it.
+//! A **scoped type** is one whose [`type_scope`](CompiledSchema::type_scope) carries
+//! `inject_params`: its query's, or its own declaration whether or not a query reads it. A **served
+//! document** is the document of a type the server reads directly: a query that reads a relation
+//! returns it, a subscription streams it, or federation resolves it as an entity. The document
+//! holds the type's fields and the fields of every type beneath them, to any depth: what a view
+//! embeds is served with it.
 //!
 //! A field of a served document that holds a scoped type is refused, unless it declares
 //! [`scoped_like_parent`](crate::schema::FieldDefinition::scoped_like_parent). The
@@ -33,7 +34,10 @@
 //! run time scopes a type without the schema saying so; such a type is not covered here, and
 //! the nested level is gated when it is read.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+};
 
 use indexmap::IndexMap;
 
@@ -76,7 +80,7 @@ pub struct ScopedEmbeddingRoot<'a> {
 struct Embedding<'a> {
     field:    &'a FieldDefinition,
     embedded: &'a str,
-    read:     &'a QueryDefinition,
+    read:     Cow<'a, QueryDefinition>,
     roots:    BTreeSet<&'a str>,
 }
 
@@ -84,9 +88,8 @@ impl CompiledSchema {
     /// The relation-reading query a level of `type_name` is scoped as: its list query when
     /// it has one, otherwise any. `None` for a type no query reads.
     ///
-    /// One answer for the nested row gate and for
-    /// [`embedded_scope_violations`](Self::embedded_scope_violations), so the schema is
-    /// refused for exactly the levels the runtime would gate.
+    /// The query whose `requires_role` and `requires_actor` gate a level of the type; the
+    /// scope of its rows is [`type_scope`](Self::type_scope), which starts from it.
     #[must_use]
     pub fn scoping_read(&self, type_name: &str) -> Option<&QueryDefinition> {
         let reads = |q: &&QueryDefinition| {
@@ -183,14 +186,20 @@ impl CompiledSchema {
         for field in &holder.fields {
             path.push(field.name.as_str());
             if field.scoped_like_parent {
-                for (embedded, read) in self.scoped_targets(&field.field_type) {
+                for (embedded, _) in self.scoped_targets(&field.field_type) {
                     if found.routes.len() < SCOPED_ROUTE_CAP {
+                        // The columns `type_scope` reads: the type's own scope, else its
+                        // read's, borrowed from the schema rather than the scoped read.
+                        let scope = self
+                            .own_scope(embedded)
+                            .or_else(|| self.scoping_read(embedded).map(|q| &q.inject_params));
                         found.routes.push(ScopedEmbeddingRoute {
                             owner: holder.name.as_str(),
                             field: field.name.as_str(),
                             embedded,
                             path: path.clone(),
-                            columns: read.inject_params.keys().map(String::as_str).collect(),
+                            columns: scope
+                                .map_or_else(Vec::new, |s| s.keys().map(String::as_str).collect()),
                         });
                     } else {
                         found.unchecked += 1;
@@ -237,12 +246,17 @@ impl CompiledSchema {
             .collect()
     }
 
-    /// The scoped types a field of `field_type` can hold, each with its scoping read.
-    fn scoped_targets(&self, field_type: &FieldType) -> Vec<(&str, &QueryDefinition)> {
+    /// The scoped types a field of `field_type` can hold, each with the read it is scoped
+    /// as ([`type_scope`](Self::type_scope)): one answer for this check and for the nested
+    /// row gate, so the schema is refused for exactly the levels the runtime gates.
+    pub(super) fn scoped_targets(
+        &self,
+        field_type: &FieldType,
+    ) -> Vec<(&str, Cow<'_, QueryDefinition>)> {
         self.object_types_of(field_type)
             .into_iter()
             .filter_map(|name| {
-                let read = self.scoping_read(name)?;
+                let read = self.type_scope(name)?;
                 (!read.inject_params.is_empty()).then_some((name, read))
             })
             .collect()
@@ -250,7 +264,7 @@ impl CompiledSchema {
 
     /// The object types a field of `field_type` can hold: through lists, and every member of
     /// a union or an interface.
-    fn object_types_of(&self, field_type: &FieldType) -> Vec<&str> {
+    pub(super) fn object_types_of(&self, field_type: &FieldType) -> Vec<&str> {
         let mut base = field_type;
         while let FieldType::List { item, .. } = base {
             base = item;
@@ -281,7 +295,7 @@ impl CompiledSchema {
         }
         for field in &holder.fields {
             let scoped = self.scoped_targets(&field.field_type);
-            for (embedded, read) in &scoped {
+            for (embedded, read) in scoped {
                 embeddings
                     .entry((holder.name.as_str(), field.name.as_str(), embedded))
                     .or_insert_with(|| Embedding {

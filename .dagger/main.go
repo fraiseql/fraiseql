@@ -2133,6 +2133,10 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// (a read, a write's result, a relation filter) and filtered on its document key;
 		// one that does not publish it is still refused. Creates and drops its own schema.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test nested_inject_document_key_e2e_pg -- --test-threads=1",
+		// A type scoped by its own `inject_params` is scoped wherever it is read: embedded,
+		// written back, filtered through, streamed, subscribed to, or aggregated. Owns its
+		// schema and a public fact table → serial.
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test embedded_type_scope_e2e_pg -- --test-threads=1",
 		// #1271: a declared field name and the stored JSONB key it reads are two
 		// different strings. The REST runner reads the whole `data` document and
 		// projects in Rust, and that projector took the declared name verbatim

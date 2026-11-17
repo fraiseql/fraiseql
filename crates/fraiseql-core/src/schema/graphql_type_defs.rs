@@ -99,11 +99,11 @@ pub struct TypeDefinition {
     /// the relation fallback in
     /// `CompiledSchema::entity_sources()` (feature `federation`): the deny gate refuses an
     /// anonymous caller for a scoped type, and the per-row filter composes the equality
-    /// predicate. Where a query *and* its return type both declare a column, load-time
-    /// validation refuses a schema whose two declarations disagree
-    /// ([`type_inject_violations`](super::CompiledSchema::type_inject_violations)) — so at
-    /// most one source is ever in play for a given column, and a merge can never silently
-    /// pick a winner.
+    /// predicate. The declaration holds wherever a level of the type is read, embedded,
+    /// returned by a write, filtered through or delivered by a subscription
+    /// ([`type_scope`](super::CompiledSchema::type_scope)), and a query that returns the
+    /// type under another scope is refused at load
+    /// ([`type_inject_violations`](super::CompiledSchema::type_inject_violations)).
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub inject_params: IndexMap<String, InjectedParamSource>,
 

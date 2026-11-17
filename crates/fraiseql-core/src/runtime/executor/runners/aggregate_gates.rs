@@ -255,6 +255,17 @@ fn refuse(
                 path:    None,
             });
         };
+        if let Some((holder, scoped)) = schema.fact_name_in_scoped_type(metadata, type_def, name) {
+            return Err(FraiseQLError::Authorization {
+                message:  format!(
+                    "Access denied: '{name}' ({usage}) reads inside '{type_name}.{holder}', a \
+                     '{scoped}', whose rows are scoped; a value an aggregate or a window \
+                     serves cannot be filtered by that scope"
+                ),
+                action:   Some("read".to_string()),
+                resource: Some(scoped.to_string()),
+            });
+        }
         super::super::support::security::refuse_unreadable_reference(
             schema,
             type_name,
