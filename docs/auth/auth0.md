@@ -40,8 +40,6 @@ algorithm = "chacha20-poly1305"
 key_env = "STATE_ENCRYPTION_KEY"
 ```
 
-In a TOML schema (`fraiseql compile fraiseql.toml`), the same tables are spelled without the `fraiseql.` prefix: `[security.pkce]` and `[security.state_encryption]`.
-
 ## Environment variables
 
 ```bash
@@ -105,8 +103,6 @@ key_hash = "sha256:<hex-encoded-sha256-of-your-key>"
 scopes = ["read:*", "write:*"]
 name = "backend-service"
 ```
-
-In a TOML schema (`fraiseql compile fraiseql.toml`), the same tables are spelled without the `fraiseql.` prefix: `[security.api_keys]` and `[[security.api_keys.static]]`.
 
 Generate a key hash:
 

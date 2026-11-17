@@ -292,8 +292,6 @@ server_redirect_uri = "https://api.yourdomain.com/auth/callback"
 enabled = true
 ```
 
-In a TOML schema (`fraiseql compile fraiseql.toml`), the same table is spelled without the `fraiseql.` prefix: `[security.pkce]`.
-
 ## Example: Dex as SAML-to-OIDC bridge
 
 Dex is lightweight and Kubernetes-native:

@@ -78,6 +78,10 @@ disagreed, and the promise was the part that was wrong.
     `[functions]` and `[observers]` that disagree with the document's copy are refused
     rather than replacing it, and the document's own `naming_convention` stands where
     the file writes no `[naming] convention`.
+  - `fraiseql compile fraiseql.toml` is refused when no schema results, no types or
+    queries in the file or in a `--types` document, rather than compiling an empty schema
+    and reporting success: a settings file passed in place of an SDK's `schema.json`. The
+    refusal names `fraiseql compile schema.json`.
 
 - **`[auth_hs256]` is removed (#1964).** Shared-secret token validation is gone. A
   configuration with an `[auth_hs256]` section is refused at boot, and the error names the

@@ -170,8 +170,6 @@ per_tenant_per_minute_default = 100000
 # (cost_budget, cost_budget_per_minute). (#379)
 ```
 
-In a TOML schema (`fraiseql compile fraiseql.toml`), the same table is spelled without the `fraiseql.` prefix: `[security.cost_budget]`. `[validation]` is spelled alike in both.
-
 ---
 
 ## Recommended Gaps to Address

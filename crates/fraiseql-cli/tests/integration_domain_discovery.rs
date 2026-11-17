@@ -370,10 +370,12 @@ root_dir = "schema"
 
     fs::write(temp_path.join("fraiseql.toml"), toml_content).expect("Failed to write TOML");
 
-    // Compile - should succeed but with empty schema (no domains discovered)
-    let output = compile_schema(&temp_path.join("fraiseql.toml"))
-        .expect("Failed to compile with disabled discovery");
-
-    assert!(output.contains("Schema compiled successfully"), "Expected success");
-    assert!(output.contains("Types: 0"), "Expected 0 types (discovery disabled)");
+    // Discovery disabled, the domain's `User` is not read: the file authors nothing, and
+    // is refused as a settings file passed in place of a schema.
+    let err = compile_schema(&temp_path.join("fraiseql.toml"))
+        .expect_err("a disabled discovery found a domain");
+    assert!(
+        err.contains("authors no schema"),
+        "Expected no types (discovery disabled): {err}"
+    );
 }

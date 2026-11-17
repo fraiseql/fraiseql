@@ -420,3 +420,36 @@ fn a_disagreement_names_the_input_file_by_its_own_name() {
     assert!(!refused.ok, "the disagreement compiled");
     assert!(refused.log.contains("shop.toml and the schema document"), "{}", refused.log);
 }
+
+// ── the wrong file as the compile input ──────────────────────────────────────
+
+/// A `fraiseql.toml` that authors nothing, given as the input with no document, is the
+/// settings file of an SDK's `schema.json`: refused naming the command that was meant,
+/// not compiled to an empty schema.
+#[test]
+fn a_settings_only_file_as_the_input_is_refused_naming_the_document() {
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("fraiseql.toml"), "[project]\nname = \"app\"\n").unwrap();
+    let refused = run(&dir, &["fraiseql.toml"]);
+    assert!(!refused.ok, "compiled an empty schema: {}", refused.log);
+    assert!(refused.log.contains("authors no schema"), "{}", refused.log);
+    assert!(refused.log.contains("fraiseql compile schema.json"), "{}", refused.log);
+}
+
+/// The same file with a types document is a schema, whether the document declares only
+/// types or only a query.
+#[test]
+fn a_settings_only_file_with_a_types_document_compiles() {
+    for document in [
+        json!({"types": [{"name": "Order", "sql_source": "v_order",
+                          "fields": [{"name": "id", "type": "ID", "nullable": false}]}]}),
+        json!({"queries": [{"name": "now", "return_type": "String", "returns_list": false,
+                            "sql_source": "fn_now"}]}),
+    ] {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("types.json"), document.to_string()).unwrap();
+        fs::write(dir.path().join("fraiseql.toml"), "[project]\nname = \"app\"\n").unwrap();
+        let compiled = run(&dir, &["fraiseql.toml", "--types", "types.json"]);
+        assert!(compiled.ok, "{document}: {}", compiled.log);
+    }
+}

@@ -102,7 +102,8 @@ pub fn check_schema_exists(path: &Path) -> DoctorCheck {
         DoctorCheck::fail(
             "Schema file exists",
             format!("not found: {}", path.display()),
-            "Run `fraiseql compile fraiseql.toml` to generate schema.compiled.json",
+            "Run `fraiseql compile` on the schema: `schema.json` from an SDK, or a TOML \
+             schema such as `fraiseql.toml`, to generate schema.compiled.json",
         )
     }
 }
@@ -119,7 +120,8 @@ pub fn check_schema_parses(path: &Path) -> DoctorCheck {
             Err(e) => DoctorCheck::fail(
                 "Schema parses",
                 format!("JSON parse error: {e}"),
-                "Run `fraiseql compile fraiseql.toml` to regenerate the schema",
+                "Run `fraiseql compile` on the schema (`schema.json` from an SDK, or a TOML \
+                 schema) to regenerate it",
             ),
             Ok(schema) => {
                 let types = schema.get("types").and_then(|v| v.as_array()).map_or(0, Vec::len);
