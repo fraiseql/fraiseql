@@ -388,7 +388,7 @@ test-leg:
 	cargo test -p fraiseql-kafka
 	@echo ""
 	@echo "### config-coverage manifest + doc config examples"
-	cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka' --test config_coverage_manifest_test --test doc_config_examples_test
+	cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka' --test config_coverage_manifest_test --test doc_config_examples_test --test project_security_keys_honoured_test
 	@echo ""
 	@echo "### observers (--lib + in-process binaries), saga"
 	cargo test -p fraiseql-observers --lib --features 'caching,checkpoint,metrics,nats,postgres'

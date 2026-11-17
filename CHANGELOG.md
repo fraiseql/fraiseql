@@ -162,6 +162,16 @@ disagreed, and the promise was the part that was wrong.
   mutation, rules with `enabled = false`, a backend other than `memory`, and a rule for a
   query whose TTL the document already declares.
 
+- **`[fraiseql.security]` takes the access-control sections of a TOML schema (#2011).**
+  `pkce`, `api_keys`, `cost_budget`, `token_revocation`, `trusted_documents` and
+  `persisted_queries_only` could be written only in a TOML schema's `[security]`; beside a
+  `schema.json` they were refused, so an SDK author could configure `[auth]` and
+  `[validation]` but not the PKCE flow or cost budget the docs pair them with. Each is now
+  written under `[fraiseql.security]`, in the same type, compiled by the same lowering, held
+  to the same checks, and reconciled with a copy the schema document carries.
+  `[fraiseql.security.state_encryption]` takes the compiled table too, so `key_env` names
+  the key's variable there as it does in a TOML schema.
+
 - **`run_as.static_enriched` (#1989).** A function's, scheduled source's or saga step's
   `run_as` declares the enriched fields its identity presents, as a service account's
   `static_enriched` does. A schema whose session variables or inject params read
@@ -215,6 +225,12 @@ disagreed, and the promise was the part that was wrong.
   the schema document sets is kept; the row-tenancy `@tenant_id` check reads the merged
   section. A project whose two copies of a key differ fails to compile until they agree or
   one is removed.
+
+- A top-level `[security]` beside a `schema.json` names `[fraiseql.security]` as the
+  spelling of `pkce`, `api_keys`, `cost_budget`, `token_revocation`, `trusted_documents` and
+  `persisted_queries_only`, where it said they had none (#2011). An unsupported
+  `state_encryption` `algorithm` is refused in a TOML schema with the text a project config
+  gives, naming the supported algorithms, instead of serde's unknown-variant message.
 
 ### Fixed
 

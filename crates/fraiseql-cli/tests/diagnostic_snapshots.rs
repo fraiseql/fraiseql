@@ -435,11 +435,10 @@ fn diagnostic_security_rate_limit_zero_max_requests() {
 
 #[test]
 fn diagnostic_security_unsupported_encryption_algorithm() {
-    let mut config = SecurityConfig::default();
-    config.state_encryption.algorithm = "rot13".to_string();
-
-    let err = config.validate().unwrap_err();
-    insta::assert_snapshot!(err.to_string());
+    // Refused as the table is read: the compiled type has no variant to hold it.
+    let err = toml::from_str::<SecurityConfig>("[state_encryption]\nalgorithm = \"rot13\"\n")
+        .unwrap_err();
+    insta::assert_snapshot!(err.message());
 }
 
 // ---------------------------------------------------------------------------

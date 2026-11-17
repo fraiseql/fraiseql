@@ -158,17 +158,19 @@ max_page_size = 1000
 # holds across a hot reload (SIGUSR1) and binds every registered tenant. #1534
 # max_response_bytes = 10485760
 
-[security.cost_budget]
+[fraiseql.security.cost_budget]
 # Hard per-operation cost ceiling, enforced inside the executor for every
 # transport (#379). Omit for no ceiling.
 per_request_max = 10000
 # Default rolling per-minute budget for registered tenants without their own
 # cost_budget_per_minute. Omit for no default.
 per_tenant_per_minute_default = 100000
-# Per-operation @cost weights are declared under [fraiseql.cost_weights] in the
-# project config read beside schema.json; per-tenant cost budgets are configured
-# via the tenant-quota admin API (cost_budget, cost_budget_per_minute). (#379)
+# Per-operation @cost weights are declared under [fraiseql.cost_weights];
+# per-tenant cost budgets are configured via the tenant-quota admin API
+# (cost_budget, cost_budget_per_minute). (#379)
 ```
+
+In a TOML schema (`fraiseql compile fraiseql.toml`), the same table is spelled without the `fraiseql.` prefix: `[security.cost_budget]`. `[validation]` is spelled alike in both.
 
 ---
 

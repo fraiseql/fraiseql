@@ -158,10 +158,6 @@ const AUTHORING_KEYS: [&str; 8] = [
 /// name with its project spelling (#1719). Shrink-only: a new example must work in both
 /// files, or say which one it is by declaring a schema.
 const TOML_SCHEMA_ONLY: &[(&str, &str)] = &[
-    // `[security]` keys with no `[fraiseql.security]` spelling (pkce, api_keys, cost_budget).
-    ("docs/auth/auth0.md", "security"),
-    ("docs/auth/saml-sso.md", "security"),
-    ("docs/security/graphql-complexity-limits.md", "security"),
     // Spelled `[fraiseql.tenancy]` and `[fraiseql.session_variables]` in a project config.
     ("docs/auth/auth0.md", "tenancy"),
     ("docs/features/session-variables.md", "session_variables"),
@@ -223,5 +219,80 @@ fn a_settings_only_fraiseql_toml_example_is_also_a_project_config() {
     assert!(
         gone.is_empty(),
         "TOML_SCHEMA_ONLY entries that no longer apply; remove them:\n{gone:#?}"
+    );
+}
+
+/// `fraiseql.toml` examples a project config parses that it does not load: by file and the
+/// line the block starts on. Shrink-only: these predate the check below and are tracked to be
+/// fixed, never extended to admit a new example.
+const PROJECT_CONFIG_UNLOADED: &[(&str, usize)] = &[
+    // A service account with neither roles nor scopes.
+    ("docs/architecture/federation.md", 277),
+    // Names mail templates that exist only in a real project.
+    ("docs/auth/mail-templates.md", 8),
+    // An empty `[auth]`, and `[auth.local]` password sign-in without `email_from`.
+    ("docs/auth/sessions.md", 7),
+    ("docs/auth/sessions.md", 97),
+    // A circuit-breaker entry naming an entity the file does not declare.
+    ("docs/runbooks/14-federation-circuit-breaker.md", 135),
+];
+
+/// A `fraiseql.toml` example a project config parses is also one it loads.
+///
+/// Parsing is the struct alone. Loading a project config also expands `${VAR}`, refuses a
+/// misplaced or never-applied key by name, and validates every section, the TOML schema's
+/// checks of the sections both files take included: what `fraiseql compile schema.json` does
+/// with the file. An example that parses and then fails there is one a reader copies into a
+/// refused compile.
+#[test]
+fn a_project_config_example_loads_and_validates() {
+    let root = repo_root();
+    let mut files = vec![root.join("README.md")];
+    markdown_files(&root.join("docs"), &mut files);
+    files.sort();
+
+    let scratch = tempfile::TempDir::new().unwrap();
+    let mut failures: Vec<(String, usize, String)> = Vec::new();
+    let mut loaded = 0usize;
+    for path in &files {
+        let content = std::fs::read_to_string(path).unwrap();
+        let shown = path.strip_prefix(&root).unwrap().display().to_string();
+        for (line, block) in toml_blocks(&content) {
+            if !named_file(&block).is_some_and(|name| name.ends_with("fraiseql.toml")) {
+                continue;
+            }
+            if toml::from_str::<TomlProjectConfig>(&block).is_err() {
+                continue;
+            }
+            let file = scratch.path().join("fraiseql.toml");
+            std::fs::write(&file, &block).unwrap();
+            let result = TomlProjectConfig::from_file(file.to_str().unwrap())
+                .and_then(|config| config.validate());
+            match result {
+                Ok(()) => loaded += 1,
+                Err(e) => failures.push((shown.clone(), line, format!("{e:#}"))),
+            }
+        }
+    }
+
+    let new: Vec<_> = failures
+        .iter()
+        .filter(|(file, line, _)| !PROJECT_CONFIG_UNLOADED.contains(&(file.as_str(), *line)))
+        .collect();
+    let gone: Vec<_> = PROJECT_CONFIG_UNLOADED
+        .iter()
+        .filter(|(file, line)| !failures.iter().any(|(f, l, _)| f == file && l == line))
+        .collect();
+    assert!(
+        new.is_empty(),
+        "fraiseql.toml examples a project config parses and then refuses to load:\n{new:#?}"
+    );
+    assert!(
+        gone.is_empty(),
+        "PROJECT_CONFIG_UNLOADED entries that now load; remove them:\n{gone:#?}"
+    );
+    assert!(
+        loaded >= 6,
+        "expected at least 6 project-config examples to load, found {loaded}"
     );
 }

@@ -9,8 +9,8 @@
 //!   comparison is per whole section, after both values are read through the compiled
 //!   [`fraiseql_core::schema::SecurityConfig`], so a section the TOML declares partially still owns
 //!   its defaults.
-//! - set only by the document: the document's value is kept. Several keys (a cost budget,
-//!   authorization rules, a default policy) have no project-config spelling.
+//! - set only by the document: the document's value is kept. Several keys (authorization rules, a
+//!   default policy) have no project-config spelling.
 //! - not in the document: the TOML's lowered value, defaults included.
 //!
 //! "Set by the TOML" means written in the file, not "different from its default": a

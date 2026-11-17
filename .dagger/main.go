@@ -1243,12 +1243,12 @@ func (m *FraiseqlCi) Test(
 		// run. It needs the export/sources/inbound features on top of
 		// SYNC:SERVER_FEATURES so every feature-gated manifest entry matches a
 		// real leaf.
-		"echo '### cargo test -p fraiseql-server config coverage manifest + doc config examples (not covered by --lib)'",
+		"echo '### cargo test -p fraiseql-server config coverage manifest + doc config examples + project security keys honoured (not covered by --lib)'",
 		// Every `cfg`-gated `ServerConfig` field must be COMPILED IN here, or the
 		// manifest gate's two directions disagree: a leaf that does not exist has
 		// no consumer to name, and its manifest entry reads as stale. Grow this
 		// list whenever a new feature adds a config section (#381 added `saml`).
-		"cargo test -p fraiseql-server --features '" + serverTestFeatures + ",export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka' --test config_coverage_manifest_test --test doc_config_examples_test",
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + ",export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka' --test config_coverage_manifest_test --test doc_config_examples_test --test project_security_keys_honoured_test",
 		// fraiseql-observers --lib: the Docker-free unit tests (config, executor,
 		// DLQ, email). DB/redis/nats tests are #[ignore]d (or skip-on-None)
 		// and run in the integration legs. Previously observers was excluded from the workspace

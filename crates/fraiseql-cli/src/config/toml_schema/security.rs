@@ -48,6 +48,7 @@ pub struct SecuritySettings {
     /// Rate limiting — per-endpoint request caps
     pub rate_limiting:          Option<RateLimitingSecurityConfig>,
     /// State encryption — AEAD encryption for OAuth state and PKCE blobs
+    #[serde(default, deserialize_with = "optional_state_encryption")]
     pub state_encryption:       Option<StateEncryptionConfig>,
     /// PKCE — Proof Key for Code Exchange for OAuth Authorization Code flows
     pub pkce:                   Option<PkceConfig>,
@@ -83,6 +84,100 @@ pub use fraiseql_core::schema::{
     PkceSecurityConfig as PkceConfig, RateLimitingSecurityConfig, StateEncryptionConfig,
     StaticApiKeyEntry, TokenRevocationSecurityConfig, TrustedDocumentMode, TrustedDocumentsConfig,
 };
+
+/// The access-control sections of a `[security]` table, as the compiled schema carries them.
+///
+/// A TOML schema's `[security]` and a project config's `[fraiseql.security]` both take these
+/// sections, in these types: [`SecuritySettings::access_sections`] is the one lowering both
+/// files compile them through. Destructured where it is consumed, so a section added here
+/// and not emitted is a compile error.
+#[derive(Debug, Clone, Default)]
+pub struct AccessSections {
+    /// `pkce`
+    pub pkce:                   Option<PkceConfig>,
+    /// `api_keys`
+    pub api_keys:               Option<ApiKeySecurityConfig>,
+    /// `token_revocation`
+    pub token_revocation:       Option<TokenRevocationSecurityConfig>,
+    /// `trusted_documents`
+    pub trusted_documents:      Option<TrustedDocumentsConfig>,
+    /// `persisted_queries_only`
+    pub persisted_queries_only: bool,
+    /// `cost_budget`
+    pub cost_budget:            Option<fraiseql_core::schema::CostBudgetConfig>,
+}
+
+impl SecuritySettings {
+    /// The access-control sections, lowered for the compiled `security` section.
+    #[must_use]
+    pub fn access_sections(&self) -> AccessSections {
+        AccessSections {
+            pkce:                   self.pkce.clone(),
+            api_keys:               self.api_keys.clone(),
+            token_revocation:       self.token_revocation.clone(),
+            trusted_documents:      self.trusted_documents.clone(),
+            persisted_queries_only: self.persisted_queries_only,
+            cost_budget:            self.cost_budget.clone(),
+        }
+    }
+
+    /// Warn when PKCE is enabled without state encryption: the PKCE state would be stored
+    /// unencrypted, which the server refuses to boot with in production.
+    pub fn warn_pkce_without_state_encryption(&self) {
+        let pkce = self.pkce.as_ref().is_some_and(|pkce| pkce.enabled);
+        let encrypted = self.state_encryption.as_ref().is_some_and(|e| e.enabled);
+        if pkce && !encrypted {
+            tracing::warn!(
+                "pkce.enabled = true but state_encryption.enabled = false. PKCE state will be \
+                 stored unencrypted. Set [security.state_encryption] enabled = true (in a \
+                 project config, [fraiseql.security.state_encryption]) for production."
+            );
+        }
+    }
+}
+
+/// The AEAD algorithms `state_encryption.algorithm` takes.
+const STATE_ENCRYPTION_ALGORITHMS: &[&str] = &["chacha20-poly1305", "aes-256-gcm"];
+
+/// A `state_encryption` table, refusing an unsupported `algorithm` by the names it takes.
+///
+/// Both files read the table through this, so an unsupported algorithm is refused with one
+/// text, where the compiled type alone would answer with serde's unknown-variant message.
+///
+/// # Errors
+///
+/// Returns the deserializer's error for an unsupported `algorithm`, or for anything the
+/// compiled [`StateEncryptionConfig`] refuses.
+pub(crate) fn state_encryption<'de, D>(deserializer: D) -> Result<StateEncryptionConfig, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error as _;
+
+    let table = toml::Table::deserialize(deserializer)?;
+    if let Some(algorithm) = table.get("algorithm") {
+        if !algorithm
+            .as_str()
+            .is_some_and(|name| STATE_ENCRYPTION_ALGORITHMS.contains(&name))
+        {
+            return Err(D::Error::custom(format!(
+                "algorithm {algorithm} is not supported; must be one of: {}",
+                STATE_ENCRYPTION_ALGORITHMS.join(", ")
+            )));
+        }
+    }
+    toml::Value::Table(table).try_into().map_err(D::Error::custom)
+}
+
+/// [`state_encryption`] for a table that may be left out.
+fn optional_state_encryption<'de, D>(
+    deserializer: D,
+) -> Result<Option<StateEncryptionConfig>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    state_encryption(deserializer).map(Some)
+}
 
 /// OIDC configuration for `[auth]`.
 ///

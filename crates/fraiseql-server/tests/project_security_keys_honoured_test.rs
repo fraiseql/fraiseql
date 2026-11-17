@@ -1,0 +1,463 @@
+//! The `[fraiseql.security]` sections a project config now takes are honoured by the
+//! server, not only accepted by the compiler.
+//!
+//! Each case compiles an SDK `schema.json` beside a project `fraiseql.toml` through the
+//! compiler library, boots the real [`Server`] from the result on a database-free
+//! [`FailingAdapter`], and observes the setting's effect against a control compiled without
+//! it: whether a request reaches the database (`query_count`), or whether the server boots.
+//!
+//! **Execution engine:** none (`FailingAdapter`) · **Infrastructure:** none ·
+//! **Parallelism:** the boot cases set process environment variables under `temp_env`'s
+//! lock.
+#![allow(clippy::unwrap_used, clippy::panic, clippy::expect_used)] // Reason: test code
+#![allow(clippy::future_not_send)] // Reason: `temp_env` holds its non-`Send` lock across the await; tests run on one thread
+#![allow(clippy::large_futures)] // Reason: each case boots a whole server inline; boxing would obscure the case
+
+use std::sync::Arc;
+
+use fraiseql_cli::commands::compile::{CompileOptions, compile_to_schema};
+use fraiseql_core::schema::CompiledSchema;
+use fraiseql_server::{Server, server_config::ServerConfig};
+use fraiseql_test_support::issuer::TestIssuer;
+use fraiseql_test_utils::failing_adapter::FailingAdapter;
+use serde_json::{Value, json};
+use tempfile::TempDir;
+
+mod common;
+
+use crate::common::{server_harness::TestServer, test_issuer::oidc_config};
+
+/// The schema an SDK emits: one type and its list query.
+fn document() -> Value {
+    json!({
+        "types": [{"name": "Order", "sql_source": "v_order",
+                   "fields": [{"name": "id", "type": "ID", "nullable": false}]}],
+        "queries": [{"name": "orders", "return_type": "Order", "returns_list": true,
+                     "sql_source": "v_order"}],
+        "mutations": []
+    })
+}
+
+const QUERY: &str = "query { orders { id } }";
+
+/// A trusted-documents manifest holding [`QUERY`] under the id `orders`.
+fn manifest(dir: &TempDir) -> String {
+    let path = dir.path().join("trusted.json");
+    std::fs::write(&path, json!({"version": 1, "documents": {"orders": QUERY}}).to_string())
+        .unwrap();
+    path.display().to_string()
+}
+
+/// `schema.json` compiled beside a project config holding `security` (a TOML text that
+/// may name `{manifest}`), with the project directory, which holds the manifest.
+async fn compile(security: &str) -> (TempDir, CompiledSchema) {
+    let dir = TempDir::new().unwrap();
+    let security = security.replace("{manifest}", &manifest(&dir));
+    std::fs::write(dir.path().join("schema.json"), document().to_string()).unwrap();
+    std::fs::write(
+        dir.path().join("fraiseql.toml"),
+        format!("{security}\n[project]\nname = \"app\"\n"),
+    )
+    .unwrap();
+    let input = dir.path().join("schema.json");
+    let (compiled, _) = compile_to_schema(CompileOptions {
+        skip_hash: true,
+        ..CompileOptions::new(input.to_str().unwrap())
+    })
+    .await
+    .unwrap_or_else(|e| panic!("compile {security:?}: {e:#}"));
+    let mut schema = CompiledSchema::from_json(&compiled.schema.to_json().unwrap(), false).unwrap();
+    schema.build_indexes();
+    (dir, schema)
+}
+
+async fn boot(
+    schema: CompiledSchema,
+    adapter: Arc<FailingAdapter>,
+) -> fraiseql_server::Result<Server> {
+    let config = ServerConfig {
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    Box::pin(Server::new(config, schema, adapter, None)).await
+}
+
+/// One `/graphql` request on the booted server: the response, and whether it reached the
+/// database.
+struct Answer {
+    status:  u16,
+    body:    Value,
+    reached: bool,
+}
+
+async fn graphql(security: &str, body: Value, headers: &[(&str, &str)]) -> Answer {
+    let adapter = Arc::new(FailingAdapter::new());
+    let (_project, schema) = compile(security).await;
+    let server = boot(schema, Arc::clone(&adapter))
+        .await
+        .unwrap_or_else(|e| panic!("boot {security:?}: {e}"));
+    // What the boot itself asked of the database is not the request's doing.
+    let before = adapter.query_count();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let (stop, rx) = tokio::sync::oneshot::channel::<()>();
+    tokio::spawn(async move {
+        server
+            .serve_on_listener(listener, async {
+                let _ = rx.await;
+            })
+            .await
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+
+    let mut request = reqwest::Client::new()
+        .post(format!("http://127.0.0.1:{port}/graphql"))
+        .json(&body);
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let response = request.send().await.expect("graphql request");
+    let status = response.status().as_u16();
+    let body: Value = response.json().await.unwrap_or(Value::Null);
+    let _ = stop.send(());
+    Answer {
+        status,
+        body,
+        reached: adapter.query_count() > before,
+    }
+}
+
+/// The requests below run as a development deployment, so a production-only boot refusal
+/// unrelated to the setting under test cannot answer for it.
+async fn in_development<F: std::future::Future<Output = ()>>(case: F) {
+    temp_env::async_with_vars([("FRAISEQL_ENV", Some("development"))], case).await;
+}
+
+// ── refused before the database ──────────────────────────────────────────────
+
+#[tokio::test]
+async fn a_cost_budget_in_a_project_config_refuses_an_operation_above_it() {
+    in_development(async {
+        let refused = graphql(
+            "[fraiseql.security.cost_budget]\nper_request_max = 1\n",
+            json!({"query": QUERY}),
+            &[],
+        )
+        .await;
+        assert!(
+            !refused.reached,
+            "an operation above the budget reached the database: {}",
+            refused.body
+        );
+        assert!(refused.body["errors"].is_array(), "no refusal: {}", refused.body);
+
+        let control = graphql("", json!({"query": QUERY}), &[]).await;
+        assert!(control.reached, "control: {}", control.body);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn strict_trusted_documents_in_a_project_config_refuse_a_raw_query() {
+    in_development(async {
+        let strict = "[fraiseql.security.trusted_documents]\nenabled = true\nmode = \"strict\"\n\
+                      manifest_path = \"{manifest}\"\n";
+        let raw = graphql(strict, json!({"query": QUERY}), &[]).await;
+        assert!(!raw.reached, "a raw query reached the database under strict documents");
+        assert!(raw.body["errors"].is_array(), "no refusal: {}", raw.body);
+
+        let trusted = graphql(strict, json!({"documentId": "sha256:orders"}), &[]).await;
+        assert!(trusted.reached, "the trusted document was not run: {}", trusted.body);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn persisted_queries_only_in_a_project_config_refuses_a_raw_query() {
+    in_development(async {
+        let permissive = "[fraiseql.security.trusted_documents]\nenabled = true\n\
+                          mode = \"permissive\"\nmanifest_path = \"{manifest}\"\n";
+        let control = graphql(permissive, json!({"query": QUERY}), &[]).await;
+        assert!(
+            control.reached,
+            "permissive documents alone refused a raw query: {}",
+            control.body
+        );
+
+        let only = format!("[fraiseql.security]\npersisted_queries_only = true\n{permissive}");
+        let raw = graphql(&only, json!({"query": QUERY}), &[]).await;
+        assert!(!raw.reached, "a raw query reached the database with persisted_queries_only");
+        assert!(raw.body["errors"].is_array(), "no refusal: {}", raw.body);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn an_api_key_section_in_a_project_config_authenticates_on_its_header() {
+    // sha256("p2011-key")
+    let hash = format!(
+        "sha256:{}",
+        hex::encode(<sha2::Sha256 as sha2::Digest>::digest(b"p2011-key").as_slice())
+    );
+    let section = format!(
+        "[fraiseql.security.api_keys]\nenabled = true\nheader = \"X-Service-Key\"\n\
+         storage = \"env\"\n[[fraiseql.security.api_keys.static]]\nkey_hash = \"{hash}\"\n\
+         scopes = [\"read:*\"]\nname = \"backend\"\n"
+    );
+    in_development(async {
+        let wrong =
+            graphql(&section, json!({"query": QUERY}), &[("X-Service-Key", "not-the-key")]).await;
+        assert!(
+            !wrong.reached,
+            "a wrong key on the configured header reached the database: {} {}",
+            wrong.status, wrong.body
+        );
+        assert_eq!(wrong.status, 401, "{}", wrong.body);
+
+        let right =
+            graphql(&section, json!({"query": QUERY}), &[("X-Service-Key", "p2011-key")]).await;
+        assert!(right.reached, "the configured key was not admitted: {}", right.body);
+
+        // Without the section the header means nothing.
+        let control =
+            graphql("", json!({"query": QUERY}), &[("X-Service-Key", "not-the-key")]).await;
+        assert!(control.reached, "control: {}", control.body);
+    })
+    .await;
+}
+
+// ── read at boot ─────────────────────────────────────────────────────────────
+
+/// Boot a server from `security` under `vars`; `Err` carries the refusal.
+async fn boots(
+    security: &str,
+    vars: Vec<(&'static str, Option<&'static str>)>,
+) -> Result<(), String> {
+    let (_project, schema) = compile(security).await;
+    temp_env::async_with_vars(vars, async {
+        boot(schema, Arc::new(FailingAdapter::new()))
+            .await
+            .map(drop)
+            .map_err(|e| e.to_string())
+    })
+    .await
+}
+
+/// A server compiled from `security` whose `[auth]` trusts `issuer` and requires a bearer,
+/// with its project directory and its adapter.
+async fn trusting(
+    issuer: &TestIssuer,
+    security: &str,
+) -> (TempDir, Arc<FailingAdapter>, TestServer) {
+    let (project, schema) = compile(security).await;
+    let adapter = Arc::new(FailingAdapter::new());
+    let config = ServerConfig {
+        auth: Some(oidc_config(issuer, true)),
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    let server =
+        Box::pin(TestServer::start_with_config(config, schema, Arc::clone(&adapter))).await;
+    (project, adapter, server)
+}
+
+/// `/graphql` with `token` as the bearer: the status, and whether it reached the database.
+async fn as_bearer(server: &TestServer, adapter: &FailingAdapter, token: &str) -> (u16, bool) {
+    let before = adapter.query_count();
+    let status = reqwest::Client::new()
+        .post(format!("{}/graphql", server.url))
+        .bearer_auth(token)
+        .json(&json!({"query": QUERY}))
+        .send()
+        .await
+        .expect("graphql request")
+        .status()
+        .as_u16();
+    (status, adapter.query_count() > before)
+}
+
+#[tokio::test]
+async fn token_revocation_in_a_project_config_refuses_a_token_without_jti_and_a_revoked_one() {
+    in_development(async {
+        let issuer = TestIssuer::start().await;
+        let no_jti = issuer.mint(&issuer.claims().without("jti"));
+
+        // Without the section, a token without `jti` is admitted.
+        let (_control_project, adapter, control) = trusting(&issuer, "").await;
+        let (status, reached) = as_bearer(&control, &adapter, &no_jti).await;
+        assert!(reached, "control: a token without jti was refused ({status})");
+
+        let section =
+            "[fraiseql.security.token_revocation]\nenabled = true\nbackend = \"memory\"\n";
+        let (_project, adapter, server) = trusting(&issuer, section).await;
+
+        // `require_jti` defaults on: a token without `jti` is refused.
+        let (status, reached) = as_bearer(&server, &adapter, &no_jti).await;
+        assert_eq!(status, 401, "a token without jti was not refused");
+        assert!(!reached, "a token without jti reached the database");
+
+        // A token with one is admitted until it is revoked through the configured store.
+        let token = issuer.mint(&issuer.claims());
+        let (status, reached) = as_bearer(&server, &adapter, &token).await;
+        assert!(reached, "a token with a jti was refused ({status})");
+
+        let revoked = reqwest::Client::new()
+            .post(format!("{}/auth/revoke", server.url))
+            .bearer_auth(&token)
+            .json(&json!({}))
+            .send()
+            .await
+            .expect("revoke request");
+        assert_eq!(revoked.status().as_u16(), 200, "{:?}", revoked.text().await);
+
+        let (status, reached) = as_bearer(&server, &adapter, &token).await;
+        assert_eq!(status, 401, "a revoked token was not refused");
+        assert!(!reached, "a revoked token reached the database");
+    })
+    .await;
+}
+
+/// A provider whose discovery document names the endpoints a PKCE client resolves at boot.
+async fn oauth_provider() -> wiremock::MockServer {
+    use wiremock::{
+        Mock, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    let provider = wiremock::MockServer::start().await;
+    let base = provider.uri();
+    Mock::given(method("GET"))
+        .and(path("/.well-known/openid-configuration"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "issuer": base,
+            "authorization_endpoint": format!("{base}/authorize"),
+            "token_endpoint": format!("{base}/token"),
+            "userinfo_endpoint": format!("{base}/userinfo"),
+            "jwks_uri": format!("{base}/jwks"),
+            "response_types_supported": ["code"],
+            "subject_types_supported": ["public"],
+            "id_token_signing_alg_values_supported": ["ES256"],
+        })))
+        .mount(&provider)
+        .await;
+    provider
+}
+
+/// `GET /auth/start` on a server compiled from `security`: the status and the `Location`.
+async fn auth_start(security: &str) -> (u16, String) {
+    let (_project, schema) = compile(security).await;
+    let config = ServerConfig {
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    let server =
+        Box::pin(TestServer::start_with_config(config, schema, Arc::new(FailingAdapter::new())))
+            .await;
+    let response = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap()
+        .get(format!("{}/auth/start", server.url))
+        .query(&[("redirect_uri", "https://app.example/after")])
+        .send()
+        .await
+        .expect("auth/start request");
+    let location = response
+        .headers()
+        .get(reqwest::header::LOCATION)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .to_string();
+    (response.status().as_u16(), location)
+}
+
+#[cfg(feature = "auth")]
+#[tokio::test]
+async fn pkce_in_a_project_config_mounts_auth_start_with_an_s256_challenge() {
+    let provider = oauth_provider().await;
+    let client = format!(
+        "[auth]\ndiscovery_url = \"{}\"\nclient_id = \"p2011\"\n\
+         client_secret_env = \"P2011_CLIENT_SECRET\"\n\
+         server_redirect_uri = \"https://api.example/auth/callback\"\n",
+        provider.uri()
+    );
+    let vars = [
+        ("FRAISEQL_ENV", Some("development")),
+        ("FRAISEQL_OIDC_ALLOW_INSECURE", Some("1")),
+        ("P2011_CLIENT_SECRET", Some("p2011-secret")),
+    ];
+    temp_env::async_with_vars(vars, async {
+        let (status, location) =
+            auth_start(&format!("{client}[fraiseql.security.pkce]\nenabled = true\n")).await;
+        assert!((300..400).contains(&status), "/auth/start answered {status}");
+        assert_eq!(
+            location.split('?').next(),
+            Some(format!("{}/authorize", provider.uri()).as_str()),
+            "redirected elsewhere: {location}"
+        );
+        assert!(location.contains("code_challenge_method=S256"), "{location}");
+        assert!(location.contains("code_challenge="), "{location}");
+
+        // The same client without the section mounts no PKCE flow.
+        let (status, _) = auth_start(&client).await;
+        assert_eq!(status, 404, "/auth/start is mounted without [fraiseql.security.pkce]");
+    })
+    .await;
+}
+
+/// A valid 32-byte hex key.
+const STATE_KEY: &str = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+
+#[cfg(feature = "auth")]
+#[tokio::test]
+async fn pkce_in_a_project_config_requires_state_encryption_in_production() {
+    let production = || {
+        vec![
+            ("FRAISEQL_ENV", None),
+            ("STATE_ENCRYPTION_KEY", Some(STATE_KEY)),
+        ]
+    };
+    let refused = boots("[fraiseql.security.pkce]\nenabled = true\n", production())
+        .await
+        .expect_err("PKCE without state encryption booted in production");
+    assert!(refused.contains("[security.pkce] enabled = true"), "{refused}");
+
+    boots(
+        "[fraiseql.security.pkce]\nenabled = true\n[fraiseql.security.state_encryption]\n\
+         enabled = true\n",
+        production(),
+    )
+    .await
+    .unwrap_or_else(|e| panic!("PKCE with state encryption: {e}"));
+}
+
+#[cfg(feature = "auth")]
+#[tokio::test]
+async fn state_encryption_key_env_in_a_project_config_names_the_variable_read() {
+    let section = "[fraiseql.security.state_encryption]\nenabled = true\n\
+                   key_env = \"P2011_STATE_KEY\"\n";
+    // The declared variable is read, with the default name unset.
+    boots(
+        section,
+        vec![
+            ("FRAISEQL_ENV", Some("development")),
+            ("STATE_ENCRYPTION_KEY", None),
+            ("P2011_STATE_KEY", Some(STATE_KEY)),
+        ],
+    )
+    .await
+    .unwrap_or_else(|e| panic!("the key in P2011_STATE_KEY: {e}"));
+
+    // And it is the one read: the default name set does not stand in for it.
+    let refused = boots(
+        section,
+        vec![
+            ("FRAISEQL_ENV", Some("development")),
+            ("STATE_ENCRYPTION_KEY", Some(STATE_KEY)),
+            ("P2011_STATE_KEY", None),
+        ],
+    )
+    .await
+    .expect_err("booted without the declared key variable");
+    assert!(refused.contains("P2011_STATE_KEY"), "{refused}");
+}

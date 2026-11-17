@@ -311,7 +311,12 @@ impl TomlProjectConfig {
     /// TOML schema uses, so a section compiles alike in both workflows.
     #[must_use]
     pub fn runtime_sections(&self) -> (TomlSchema, Vec<&'static str>) {
-        let mut schema = TomlSchema::default();
+        let mut schema = TomlSchema {
+            // The `[security]` sections both files take, so the TOML schema's checks of them
+            // (`validate_self_contained`) run on a project config's too.
+            security: self.fraiseql.security.toml_schema_settings(),
+            ..TomlSchema::default()
+        };
         let mut declared = Vec::new();
         macro_rules! section {
             ($field:ident) => {
@@ -410,6 +415,12 @@ const PROJECT_SECURITY_KEYS: &[&str] = &[
     "multi_tenant",
     "rls",
     "service_accounts",
+    "pkce",
+    "api_keys",
+    "cost_budget",
+    "token_revocation",
+    "trusted_documents",
+    "persisted_queries_only",
 ];
 
 /// Refuse the first top-level key of [`MISPLACED_SECTIONS`] that `table` sets.

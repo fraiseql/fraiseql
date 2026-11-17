@@ -257,58 +257,6 @@ impl RateLimitConfig {
     }
 }
 
-/// State encryption configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct StateEncryptionConfig {
-    /// Enable state encryption
-    pub enabled:   bool,
-    /// Encryption algorithm ("chacha20-poly1305")
-    pub algorithm: String,
-    // `key_rotation_enabled`, `nonce_size` and `key_size` were accepted here and
-    // reached no runtime shape — nonce and key sizes are fixed by the algorithm, so
-    // there was nothing for them to size (#983). `deny_unknown_fields` refuses them
-    // by name now.
-}
-
-impl Default for StateEncryptionConfig {
-    fn default() -> Self {
-        Self {
-            // Off unless the operator asks for it, matching
-            // `fraiseql_core::schema::StateEncryptionConfig` (#1151). This field is not an
-            // `Option` and the enclosing `SecurityConfig` carries `#[serde(default)]`, so an
-            // absent `[security.state_encryption]` table lands here and is lowered verbatim
-            // into the compiled artifact. Defaulting it on therefore enabled a control the
-            // operator never chose, and the server refuses to boot when the key env var is
-            // unset — a hard upgrade failure for every project that never opted in.
-            enabled:   false,
-            algorithm: "chacha20-poly1305".to_string(),
-        }
-    }
-}
-
-/// Supported encryption algorithms for `[security.state_encryption]`.
-const SUPPORTED_ALGORITHMS: &[&str] = &["chacha20-poly1305", "aes-256-gcm"];
-
-impl StateEncryptionConfig {
-    /// Validate state encryption configuration
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `algorithm` is not a supported value, if `key_size`
-    /// is not 16, 24, or 32 bytes, or if `nonce_size` is not 12 bytes.
-    pub fn validate(&self) -> Result<()> {
-        if !SUPPORTED_ALGORITHMS.contains(&self.algorithm.as_str()) {
-            anyhow::bail!(
-                "algorithm {:?} is not supported; must be one of: {}",
-                self.algorithm,
-                SUPPORTED_ALGORITHMS.join(", ")
-            );
-        }
-        Ok(())
-    }
-}
-
 /// Constant-time comparison configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -478,9 +426,14 @@ pub struct SecurityConfig {
     /// Rate limiting configuration
     #[serde(rename = "rate_limiting")]
     pub rate_limiting:      RateLimitConfig,
-    /// State encryption configuration
-    #[serde(rename = "state_encryption")]
-    pub state_encryption:   StateEncryptionConfig,
+    /// State encryption: the compiled type, read as a TOML schema reads it, so `key_env`
+    /// names the key's variable here too. Off unless written (#1151): an absent table lowers
+    /// the compiled default, which is disabled.
+    #[serde(
+        rename = "state_encryption",
+        deserialize_with = "super::toml_schema::security::state_encryption"
+    )]
+    pub state_encryption:   fraiseql_core::schema::StateEncryptionConfig,
     /// Constant-time comparison configuration
     #[serde(rename = "constant_time")]
     pub constant_time:      ConstantTimeConfig,
@@ -518,6 +471,30 @@ pub struct SecurityConfig {
     #[serde(skip_serializing_if = "std::collections::HashMap::is_empty")]
     pub service_accounts:
         std::collections::HashMap<String, fraiseql_core::schema::ServiceAccountConfig>,
+
+    /// PKCE for the OAuth Authorization Code flow (`[fraiseql.security.pkce]`).
+    ///
+    /// This and the access-control sections below are the TOML schema's `[security]`
+    /// sections, in the same compiled types, lowered by the same
+    /// [`SecuritySettings::access_sections`](super::toml_schema::security::SecuritySettings::access_sections).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pkce:                   Option<fraiseql_core::schema::PkceSecurityConfig>,
+    /// API key authentication (`[fraiseql.security.api_keys]`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_keys:               Option<fraiseql_core::schema::ApiKeySecurityConfig>,
+    /// Token revocation by `jti` (`[fraiseql.security.token_revocation]`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_revocation:       Option<fraiseql_core::schema::TokenRevocationSecurityConfig>,
+    /// The trusted-documents allowlist (`[fraiseql.security.trusted_documents]`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trusted_documents:      Option<fraiseql_core::schema::TrustedDocumentsConfig>,
+    /// Refuse every operation that is not a trusted document
+    /// (`[fraiseql.security] persisted_queries_only`).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub persisted_queries_only: bool,
+    /// Operation cost budgets (`[fraiseql.security.cost_budget]`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost_budget:            Option<fraiseql_core::schema::CostBudgetConfig>,
 }
 
 impl SecurityConfig {
@@ -530,7 +507,6 @@ impl SecurityConfig {
     pub fn validate(&self) -> Result<()> {
         self.error_sanitization.validate()?;
         self.rate_limiting.validate()?;
-        self.state_encryption.validate()?;
         self.reject_constant_time_section()?;
 
         for (name, account) in &self.service_accounts {
@@ -604,19 +580,23 @@ impl SecurityConfig {
     /// - `[fraiseql.security.error_sanitization] enabled` lowers onto the compiled
     ///   `error_sanitization.enabled`; its other keys (`generic_messages`, `user_facing_format`, …)
     ///   likewise have no consumer and are not emitted.
-    /// - `state_encryption` lowers `enabled` + `algorithm`; `key_rotation_enabled`, `nonce_size`
-    ///   and `key_size` have no consumer (nonce/key sizes are fixed by the algorithm) and are not
-    ///   emitted.
+    /// - `state_encryption` is the compiled type and is emitted as read; `key_rotation_enabled`,
+    ///   `nonce_size` and `key_size` have no consumer (nonce/key sizes are fixed by the algorithm)
+    ///   and are refused as unknown.
+    /// - `pkce`, `api_keys`, `token_revocation`, `trusted_documents`, `persisted_queries_only` and
+    ///   `cost_budget` are lowered by the TOML schema's own lowering.
     pub fn to_json(&self) -> serde_json::Value {
         let role_definitions: Vec<fraiseql_core::schema::RoleDefinition> =
             self.role_definitions.iter().map(RoleDefinitionConfig::to_runtime).collect();
 
-        let algorithm = if self.state_encryption.algorithm == "aes-256-gcm" {
-            fraiseql_core::schema::EncryptionAlgorithm::Aes256Gcm
-        } else {
-            // `validate()` restricts the field to the two supported names.
-            fraiseql_core::schema::EncryptionAlgorithm::Chacha20Poly1305
-        };
+        let super::toml_schema::security::AccessSections {
+            pkce,
+            api_keys,
+            token_revocation,
+            trusted_documents,
+            persisted_queries_only,
+            cost_budget,
+        } = self.toml_schema_settings().access_sections();
 
         let runtime = fraiseql_core::schema::SecurityConfig {
             role_definitions,
@@ -670,11 +650,13 @@ impl SecurityConfig {
                 trusted_proxy_cidrs: Some(self.rate_limiting.trusted_proxy_cidrs.clone()),
                 max_buckets: self.rate_limiting.max_buckets,
             }),
-            state_encryption: Some(fraiseql_core::schema::StateEncryptionConfig {
-                enabled: self.state_encryption.enabled,
-                algorithm,
-                ..Default::default()
-            }),
+            state_encryption: Some(self.state_encryption.clone()),
+            pkce,
+            api_keys,
+            token_revocation,
+            trusted_documents,
+            persisted_queries_only,
+            cost_budget,
             // #983: the server has read this since #977; this is the authoring side
             // it never had. Absent when empty so the compiled section stays quiet.
             service_accounts: (!self.service_accounts.is_empty())
@@ -682,6 +664,22 @@ impl SecurityConfig {
             ..fraiseql_core::schema::SecurityConfig::default()
         };
         serde_json::to_value(runtime).unwrap_or_else(|_| serde_json::json!({}))
+    }
+
+    /// The sections this table shares with a TOML schema's `[security]`, as that table: what
+    /// the TOML schema's lowering and checks read.
+    #[must_use]
+    pub fn toml_schema_settings(&self) -> super::toml_schema::security::SecuritySettings {
+        super::toml_schema::security::SecuritySettings {
+            state_encryption: Some(self.state_encryption.clone()),
+            pkce: self.pkce.clone(),
+            api_keys: self.api_keys.clone(),
+            token_revocation: self.token_revocation.clone(),
+            trusted_documents: self.trusted_documents.clone(),
+            persisted_queries_only: self.persisted_queries_only,
+            cost_budget: self.cost_budget.clone(),
+            ..Default::default()
+        }
     }
 }
 

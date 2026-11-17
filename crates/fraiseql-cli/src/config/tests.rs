@@ -496,19 +496,16 @@ mod security_tests {
         );
     }
 
-    /// #1151 — the two structs named `StateEncryptionConfig` must agree on the default.
-    ///
-    /// `fraiseql-core`'s is the documented contract ("off unless asked for"); this crate's is the
-    /// one that reaches the artifact. They disagreed silently, which is what made the divergence
-    /// survive: each looked correct on its own.
+    /// #1151 — the project table is the compiled `StateEncryptionConfig` itself, so an absent
+    /// table lowers the compiled default, which is off. Two structs of that name used to
+    /// disagree on it silently.
     #[test]
-    fn state_encryption_default_agrees_with_fraiseql_core() {
+    fn state_encryption_default_is_the_compiled_default() {
         assert_eq!(
-            StateEncryptionConfig::default().enabled,
-            fraiseql_core::schema::StateEncryptionConfig::default().enabled,
-            "fraiseql-cli and fraiseql-core disagree on the state_encryption default; the cli's \
-             is the one compiled into the artifact (#1151)"
+            SecurityConfig::default().state_encryption,
+            fraiseql_core::schema::StateEncryptionConfig::default(),
         );
+        assert!(!SecurityConfig::default().state_encryption.enabled);
     }
 
     #[test]
@@ -601,22 +598,22 @@ mod security_tests {
         );
     }
 
+    /// `[fraiseql.security.state_encryption]`, parsed as the project config reads it.
+    fn state_encryption(body: &str) -> Result<SecurityConfig, toml::de::Error> {
+        toml::from_str::<SecurityConfig>(&format!("[state_encryption]\n{body}"))
+    }
+
     /// #983 — nonce and key sizes are fixed by the algorithm, so there was nothing
     /// for these keys to size. Refused by name rather than validated into a range
     /// that had no effect.
     #[test]
     fn state_encryption_refuses_the_keys_that_never_had_a_consumer() {
-        StateEncryptionConfig::default()
-            .validate()
-            .unwrap_or_else(|e| panic!("expected Ok for default config: {e}"));
-
         for key in [
             "key_rotation_enabled = true",
             "nonce_size = 12",
             "key_size = 32",
         ] {
-            let toml = format!("enabled = true\n{key}\n");
-            let err = toml::from_str::<StateEncryptionConfig>(&toml)
+            let err = state_encryption(&format!("enabled = true\n{key}\n"))
                 .expect_err("a key with no consumer must not parse");
             assert!(
                 err.to_string().contains("unknown field"),
@@ -627,9 +624,7 @@ mod security_tests {
 
     #[test]
     fn test_state_encryption_unsupported_algorithm_rejected() {
-        let mut config = StateEncryptionConfig::default();
-        config.algorithm = "rot13".to_string();
-        let err = config.validate().unwrap_err();
+        let err = state_encryption("algorithm = \"rot13\"\n").unwrap_err();
         assert!(err.to_string().contains("rot13"), "error should name the bad algorithm: {err}");
         assert!(
             err.to_string().contains("chacha20-poly1305"),
@@ -639,18 +634,29 @@ mod security_tests {
 
     #[test]
     fn test_state_encryption_aes_256_gcm_accepted() {
-        let mut config = StateEncryptionConfig::default();
-        config.algorithm = "aes-256-gcm".to_string();
-        config.validate().unwrap_or_else(|e| panic!("expected Ok for aes-256-gcm: {e}"));
+        let config = state_encryption("algorithm = \"aes-256-gcm\"\n")
+            .unwrap_or_else(|e| panic!("expected Ok for aes-256-gcm: {e}"));
+        assert_eq!(
+            config.state_encryption.algorithm,
+            fraiseql_core::schema::EncryptionAlgorithm::Aes256Gcm
+        );
     }
 
     #[test]
     fn test_state_encryption_chacha20_poly1305_accepted() {
-        let config = StateEncryptionConfig::default();
-        // default is "chacha20-poly1305"
-        config
-            .validate()
-            .unwrap_or_else(|e| panic!("expected Ok for default chacha20-poly1305: {e}"));
+        let config = state_encryption("algorithm = \"chacha20-poly1305\"\n")
+            .unwrap_or_else(|e| panic!("expected Ok for chacha20-poly1305: {e}"));
+        assert_eq!(
+            config.state_encryption.algorithm,
+            fraiseql_core::schema::EncryptionAlgorithm::Chacha20Poly1305
+        );
+    }
+
+    /// `key_env` names the variable the key is read from, as in a TOML schema.
+    #[test]
+    fn state_encryption_key_env_reaches_the_compiled_section() {
+        let config = state_encryption("enabled = true\nkey_env = \"OAUTH_STATE_KEY\"\n").unwrap();
+        assert_eq!(config.to_json()["state_encryption"]["key_env"], "OAUTH_STATE_KEY");
     }
 
     #[test]

@@ -17,7 +17,7 @@ authentication flow. This guide covers configuration.
 
 1. An Auth0 tenant (e.g. `your-tenant.auth0.com`)
 2. A **Regular Web Application** created in the Auth0 dashboard
-3. FraiseQL compiled with `[security.pkce]` and `[auth]` configured
+3. FraiseQL compiled with `[fraiseql.security.pkce]` and `[auth]` configured
 
 ## fraiseql.toml
 
@@ -29,16 +29,18 @@ client_id           = "your-auth0-client-id"
 client_secret_env   = "AUTH0_CLIENT_SECRET"
 server_redirect_uri = "https://api.yourdomain.com/auth/callback"
 
-[security.pkce]
+[fraiseql.security.pkce]
 enabled = true
 code_challenge_method = "S256"
 state_ttl_secs = 600
 
-[security.state_encryption]
+[fraiseql.security.state_encryption]
 enabled = true
 algorithm = "chacha20-poly1305"
 key_env = "STATE_ENCRYPTION_KEY"
 ```
+
+In a TOML schema (`fraiseql compile fraiseql.toml`), the same tables are spelled without the `fraiseql.` prefix: `[security.pkce]` and `[security.state_encryption]`.
 
 ## Environment variables
 
@@ -92,17 +94,19 @@ For service-to-service communication that bypasses Auth0, configure API keys:
 
 ```toml
 # fraiseql.toml
-[security.api_keys]
+[fraiseql.security.api_keys]
 enabled = true
 header = "X-API-Key"
 hash_algorithm = "sha256"
 storage = "env"
 
-[[security.api_keys.static]]
+[[fraiseql.security.api_keys.static]]
 key_hash = "sha256:<hex-encoded-sha256-of-your-key>"
 scopes = ["read:*", "write:*"]
 name = "backend-service"
 ```
+
+In a TOML schema (`fraiseql compile fraiseql.toml`), the same tables are spelled without the `fraiseql.` prefix: `[security.api_keys]` and `[[security.api_keys.static]]`.
 
 Generate a key hash:
 

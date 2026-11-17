@@ -295,6 +295,7 @@ pub async fn compile_to_schema(
                 info!("Validating security configuration...");
                 config.validate()?;
                 let (sections, declared) = config.runtime_sections();
+                sections.security.warn_pkce_without_state_encryption();
 
                 auto_error_union = config.fraiseql.mutations.auto_error_union;
                 naming_acronyms.clone_from(&config.fraiseql.naming.acronyms);

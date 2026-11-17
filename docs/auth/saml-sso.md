@@ -288,9 +288,11 @@ client_id           = "fraiseql"
 client_secret_env   = "KEYCLOAK_CLIENT_SECRET"
 server_redirect_uri = "https://api.yourdomain.com/auth/callback"
 
-[security.pkce]
+[fraiseql.security.pkce]
 enabled = true
 ```
+
+In a TOML schema (`fraiseql compile fraiseql.toml`), the same table is spelled without the `fraiseql.` prefix: `[security.pkce]`.
 
 ## Example: Dex as SAML-to-OIDC bridge
 

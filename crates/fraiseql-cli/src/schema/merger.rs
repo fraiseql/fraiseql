@@ -709,20 +709,7 @@ impl SchemaMerger {
         merged["queries"] = json!(queries_array);
         merged["mutations"] = json!(mutations_array);
 
-        // Warn when PKCE is enabled without state encryption (insecure configuration).
-        if let Some(pkce) = &toml_schema.security.pkce {
-            if pkce.enabled {
-                let enc_enabled =
-                    toml_schema.security.state_encryption.as_ref().is_some_and(|e| e.enabled);
-                if !enc_enabled {
-                    tracing::warn!(
-                        "pkce.enabled = true but state_encryption.enabled = false. \
-                         PKCE state will be stored unencrypted. \
-                         Set [security.state_encryption] enabled = true for production."
-                    );
-                }
-            }
-        }
+        toml_schema.security.warn_pkce_without_state_encryption();
 
         // Add security configuration if available in TOML.
         //
@@ -735,44 +722,54 @@ impl SchemaMerger {
         // `tenancy_gate_seam_test` additionally asks the consumer's questions of
         // a compiled file rather than checking key presence.
         let sec = &toml_schema.security;
+        // The access-control sections, through the lowering a project config's
+        // `[fraiseql.security]` shares.
+        let crate::config::toml_schema::security::AccessSections {
+            pkce,
+            api_keys,
+            token_revocation,
+            trusted_documents,
+            persisted_queries_only,
+            cost_budget,
+        } = sec.access_sections();
         let lowered = serde_json::to_value(fraiseql_core::schema::SecurityConfig {
             // #897: lowered from `[[security.role_definitions]]` / `default_role`, through
             // the same `to_runtime` the project-config producer uses. Hard-coded empty
             // until then, which made field-level RBAC undeclarable on this workflow: a
             // field marked `requires_scope` was denied to everyone, because no role could
             // be defined to grant the scope.
-            role_definitions:       sec
+            role_definitions: sec
                 .role_definitions
                 .iter()
                 .map(crate::config::security::RoleDefinitionConfig::to_runtime)
                 .collect(),
-            default_role:           sec.default_role.clone(),
-            multi_tenant:           sec.multi_tenant,
-            rls:                    sec.rls.clone(),
+            default_role: sec.default_role.clone(),
+            multi_tenant: sec.multi_tenant,
+            rls: sec.rls.clone(),
             // #892: lowered from `[tenancy]`, through the same `to_runtime` the project-
             // config path uses. Hard-coded to the default until then, which made
             // `tenancy.mode` — and so schema-per-tenant provisioning, row-mode
             // `@tenant_id` validation and `is_multi_tenant()` — unreachable from this
             // workflow and from every `[domain_discovery]` project.
-            tenancy:                toml_schema.tenancy.to_runtime(),
-            cost_budget:            sec.cost_budget.clone(),
+            tenancy: toml_schema.tenancy.to_runtime(),
+            cost_budget,
             // #983: not emitted — no consumer reads it, and every Workflow-A schema
             // used to carry `"authenticated"` here by default, which is precisely the
             // kind of declaration an operator reads as an enforced boundary.
-            default_policy:         None,
-            rules:                  sec.rules.clone(),
-            policies:               sec.policies.clone(),
-            field_auth:             sec.field_auth.clone(),
-            enterprise:             Some(sec.enterprise.clone()),
-            error_sanitization:     sec.error_sanitization.clone(),
-            rate_limiting:          sec.rate_limiting.clone(),
-            state_encryption:       sec.state_encryption.clone(),
-            pkce:                   sec.pkce.clone(),
-            api_keys:               sec.api_keys.clone(),
-            token_revocation:       sec.token_revocation.clone(),
-            trusted_documents:      sec.trusted_documents.clone(),
-            persisted_queries_only: sec.persisted_queries_only,
-            service_accounts:       None,
+            default_policy: None,
+            rules: sec.rules.clone(),
+            policies: sec.policies.clone(),
+            field_auth: sec.field_auth.clone(),
+            enterprise: Some(sec.enterprise.clone()),
+            error_sanitization: sec.error_sanitization.clone(),
+            rate_limiting: sec.rate_limiting.clone(),
+            state_encryption: sec.state_encryption.clone(),
+            pkce,
+            api_keys,
+            token_revocation,
+            trusted_documents,
+            persisted_queries_only,
+            service_accounts: None,
         })
         .context("Failed to serialize [security] into the compiled schema")?;
         // `merged` carries the document's own `security` block forward; it is merged with
