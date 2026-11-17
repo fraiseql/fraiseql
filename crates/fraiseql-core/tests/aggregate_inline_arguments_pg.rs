@@ -270,3 +270,92 @@ async fn a_null_where_or_order_by_reads_as_absent_on_an_aggregate_and_a_window()
         .unwrap();
     assert_eq!(sorted(&by_variable, "inline_sale_aggregate"), ["r1", "r2", "r3", "r4"]);
 }
+
+/// #1997: a `where`, `having` or `orderBy` that is neither `null` nor its published shape is
+/// refused naming the argument. It answered every group or row, unfiltered or unordered.
+#[tokio::test]
+async fn an_argument_of_another_shape_is_refused_where_it_answered_unfiltered() {
+    let Some(executor) = executor().await else {
+        return;
+    };
+
+    // The controls: each argument, of its published shape, changes the answer.
+    let filtered = executor
+        .execute(
+            r#"{ inline_sale_aggregate(groupBy: {region: true}, aggregates: [{qty_sum: true}],
+                 where: {region_eq: "r1"}) { region } }"#,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(regions(&filtered, "inline_sale_aggregate"), ["r1"], "{filtered}");
+    let kept = executor
+        .execute(
+            r"{ inline_sale_aggregate(groupBy: {region: true}, aggregates: [{qty_sum: true}],
+                 having: {qty_sum_gt: 4}, orderBy: {region: ASC}) { region } }",
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(regions(&kept, "inline_sale_aggregate"), ["r1", "r2"], "{kept}");
+
+    let aggregate = |argument: &str| {
+        format!(
+            "{{ inline_sale_aggregate(groupBy: {{region: true}}, aggregates: [{{qty_sum: \
+             true}}], {argument}) {{ region }} }}"
+        )
+    };
+    let window = |argument: &str| {
+        format!(
+            r#"{{ inline_sale_window(select: [{{type: "dimension", path: "region", alias: "region"}}],
+                 windows: [{{function: {{type: "row_number"}}, alias: "position"}}], {argument}) }}"#
+        )
+    };
+    let mut documents = Vec::new();
+    for (argument, named) in [
+        (r#"where: "region_eq""#, "where"),
+        ("where: []", "where"),
+        ("where: 7", "where"),
+        (r#"orderBy: "region""#, "orderBy"),
+        ("orderBy: 7", "orderBy"),
+    ] {
+        documents.push((aggregate(argument), named));
+        documents.push((window(argument), named));
+    }
+    for (argument, named) in [
+        (r#"having: "qty_sum_gt""#, "having"),
+        ("having: 7", "having"),
+        ("having: {bogus: 4}", "bogus"),
+    ] {
+        documents.push((aggregate(argument), named));
+    }
+    for (document, named) in documents {
+        let err = executor
+            .execute(&document, None)
+            .await
+            .expect_err(&format!("refused, not answered unfiltered: {document}"))
+            .to_string();
+        assert!(err.contains(named), "{document}: does not name `{named}`: {err}");
+    }
+}
+
+/// #1997: a window `orderBy` given one object is its one-item list (GraphQL input coercion),
+/// and orders the rows; it was read as no order.
+#[tokio::test]
+async fn a_window_order_by_of_one_object_orders_the_rows() {
+    let Some(executor) = executor().await else {
+        return;
+    };
+
+    let response = executor
+        .execute(
+            r#"{ inline_sale_window(select: [{type: "dimension", path: "region", alias: "region"}],
+                 windows: [{function: {type: "row_number"}, alias: "position"}],
+                 orderBy: {field: "region", direction: DESC}) }"#,
+            None,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(regions(&response, "inline_sale_window"), ["r4", "r3", "r2", "r1"], "{response}");
+}

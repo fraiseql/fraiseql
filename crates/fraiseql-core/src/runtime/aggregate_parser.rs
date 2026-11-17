@@ -72,6 +72,55 @@ pub fn table_argument_refusal(table_name: &str) -> FraiseQLError {
     }
 }
 
+/// A root argument's value: `None` when it is absent or an explicit `null`, which is the
+/// argument's absence (#1745).
+pub(super) fn argument<'a>(request: &'a Value, name: &str) -> Option<&'a Value> {
+    request.get(name).filter(|value| !value.is_null())
+}
+
+/// `refusal`, naming the argument at `path`.
+fn naming(mut refusal: FraiseQLError, path: &str) -> FraiseQLError {
+    if let FraiseQLError::Validation { path: slot, .. } = &mut refusal {
+        *slot = Some(path.to_string());
+    }
+    refusal
+}
+
+/// The argument named by `path` (`windows.orderBy` names `orderBy`).
+fn argument_name(path: &str) -> &str {
+    path.rsplit('.').next().unwrap_or(path)
+}
+
+/// The members of a `where`: any other value is refused as a list query refuses it.
+pub(super) fn where_argument(value: &Value) -> Result<&serde_json::Map<String, Value>> {
+    value.as_object().ok_or_else(|| naming(WhereClause::not_an_object(), "where"))
+}
+
+/// The members of an argument published as an input object; any other value is refused,
+/// naming the argument, rather than read as its absence.
+pub(super) fn object_argument<'a>(
+    value: &'a Value,
+    path: &str,
+) -> Result<&'a serde_json::Map<String, Value>> {
+    value.as_object().ok_or_else(|| {
+        naming(fraiseql_db::argument_shape_refusal(argument_name(path), "an object"), path)
+    })
+}
+
+/// The items of an argument published as a list: an array's items, or one object as a
+/// one-item list (GraphQL input coercion). Any other value is refused, naming the argument,
+/// rather than read as an empty list.
+pub(super) fn list_argument<'a>(value: &'a Value, path: &str) -> Result<&'a [Value]> {
+    match value {
+        Value::Array(items) => Ok(items),
+        Value::Object(_) => Ok(std::slice::from_ref(value)),
+        _ => Err(naming(
+            fraiseql_db::argument_shape_refusal(argument_name(path), "an object or array"),
+            path,
+        )),
+    }
+}
+
 /// Aggregate query parser
 pub struct AggregateQueryParser;
 
@@ -118,39 +167,30 @@ impl AggregateQueryParser {
         }
         let table_name = metadata.table_name.clone();
 
-        // Parse WHERE clause (if present)
-        let where_clause = if let Some(where_obj) = query_json.get("where") {
-            Some(Self::parse_where_clause(where_obj, metadata, native_columns)?)
-        } else {
-            None
+        // Each argument: absent or `null` is no argument, the published shape is read, and
+        // any other value is refused naming the argument.
+        let where_clause = argument(query_json, "where")
+            .map(|where_obj| Self::parse_where_clause(where_obj, metadata, native_columns))
+            .transpose()?;
+
+        let group_by = match argument(query_json, "groupBy") {
+            Some(group_by_obj) => Self::parse_group_by(group_by_obj, metadata, native_columns)?,
+            None => vec![],
         };
 
-        // Parse GROUP BY selections
-        let group_by = if let Some(group_by_obj) = query_json.get("groupBy") {
-            Self::parse_group_by(group_by_obj, metadata, native_columns)?
-        } else {
-            vec![]
+        let aggregates = match argument(query_json, "aggregates") {
+            Some(agg_array) => Self::parse_aggregates(agg_array, metadata)?,
+            None => vec![],
         };
 
-        // Parse aggregate selections from requested fields
-        let aggregates = if let Some(agg_array) = query_json.get("aggregates") {
-            Self::parse_aggregates(agg_array, metadata)?
-        } else {
-            vec![]
+        let having = match argument(query_json, "having") {
+            Some(having_obj) => Self::parse_having(having_obj, &aggregates, metadata)?,
+            None => vec![],
         };
 
-        // Parse HAVING conditions
-        let having = if let Some(having_obj) = query_json.get("having") {
-            Self::parse_having(having_obj, &aggregates, metadata)?
-        } else {
-            vec![]
-        };
-
-        // Parse ORDER BY clauses
-        let order_by = if let Some(order_obj) = query_json.get("orderBy") {
-            Self::parse_order_by(order_obj)?
-        } else {
-            vec![]
+        let order_by = match argument(query_json, "orderBy") {
+            Some(order_obj) => Self::parse_order_by(order_obj)?,
+            None => vec![],
         };
 
         // Parse LIMIT
@@ -191,9 +231,7 @@ impl AggregateQueryParser {
         metadata: &FactTableMetadata,
         native_columns: &std::collections::HashMap<String, String>,
     ) -> Result<WhereClause> {
-        let Some(obj) = where_obj.as_object() else {
-            return Ok(WhereClause::And(vec![]));
-        };
+        let obj = where_argument(where_obj)?;
 
         let mut conditions = Vec::new();
 
@@ -223,10 +261,7 @@ impl AggregateQueryParser {
     ) -> Result<Vec<GroupBySelection>> {
         let mut selections = Vec::new();
 
-        let Some(obj) = group_by_obj.as_object() else {
-            return Ok(selections);
-        };
-        for (key, value) in obj {
+        for (key, value) in object_argument(group_by_obj, "groupBy")? {
             if let Some(column) = Self::tree_column(key, "_level", metadata) {
                 let level = value
                     .as_u64()
@@ -464,27 +499,30 @@ impl AggregateQueryParser {
     ) -> Result<Vec<AggregateSelection>> {
         let mut aggregates = Vec::new();
 
-        if let Some(arr) = agg_array.as_array() {
-            for item in arr {
-                if let Some(obj) = item.as_object() {
-                    // Each object should have one key (the aggregate name), set to the
-                    // published `Boolean`: `true` computes it, `false` does not.
-                    for (agg_name, value) in obj {
-                        match value {
-                            Value::Bool(true) => aggregates
-                                .push(Self::parse_aggregate_selection(agg_name, metadata)?),
-                            Value::Bool(false) => {},
-                            other => {
-                                return Err(FraiseQLError::Validation {
-                                    message: format!(
-                                        "aggregates item `{agg_name}` takes `true` (computed) \
-                                         or `false`, got {other}"
-                                    ),
-                                    path:    None,
-                                });
-                            },
-                        }
-                    }
+        for item in list_argument(agg_array, "aggregates")? {
+            let obj = item.as_object().ok_or_else(|| {
+                naming(
+                    fraiseql_db::argument_shape_refusal("aggregates items", "objects"),
+                    "aggregates",
+                )
+            })?;
+            // Each object should have one key (the aggregate name), set to the published
+            // `Boolean`: `true` computes it, `false` does not.
+            for (agg_name, value) in obj {
+                match value {
+                    Value::Bool(true) => {
+                        aggregates.push(Self::parse_aggregate_selection(agg_name, metadata)?);
+                    },
+                    Value::Bool(false) => {},
+                    other => {
+                        return Err(FraiseQLError::Validation {
+                            message: format!(
+                                "aggregates item `{agg_name}` takes `true` (computed) or \
+                                 `false`, got {other}"
+                            ),
+                            path:    None,
+                        });
+                    },
                 }
             }
         }
@@ -674,29 +712,32 @@ impl AggregateQueryParser {
     ) -> Result<Vec<HavingCondition>> {
         let mut conditions = Vec::new();
 
-        if let Some(obj) = having_obj.as_object() {
-            for (key, value) in obj {
-                // Parse condition: revenue_sum_gt: 1000
-                if let Some((agg_name, operator)) = Self::parse_having_key(key) {
-                    // Find the aggregate
-                    let aggregate = aggregates
-                        .iter()
-                        .find(|a| a.alias() == agg_name)
-                        .ok_or_else(|| FraiseQLError::Validation {
-                            message: format!(
-                                "HAVING condition references non-selected aggregate: {agg_name}"
-                            ),
-                            path:    None,
-                        })?
-                        .clone();
+        for (key, value) in object_argument(having_obj, "having")? {
+            // Parse condition: revenue_sum_gt: 1000. A key that is not one is refused, not
+            // skipped: a skipped condition answers every group.
+            let (agg_name, operator) =
+                Self::parse_having_key(key).ok_or_else(|| FraiseQLError::Validation {
+                    message: format!(
+                        "having `{key}` is not an aggregate and a comparison, as `count_gt` is"
+                    ),
+                    path:    Some("having".to_string()),
+                })?;
+            let aggregate = aggregates
+                .iter()
+                .find(|a| a.alias() == agg_name)
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: format!(
+                        "HAVING condition references non-selected aggregate: {agg_name}"
+                    ),
+                    path:    None,
+                })?
+                .clone();
 
-                    conditions.push(HavingCondition {
-                        aggregate,
-                        operator,
-                        value: value.clone(),
-                    });
-                }
-            }
+            conditions.push(HavingCondition {
+                aggregate,
+                operator,
+                value: value.clone(),
+            });
         }
 
         Ok(conditions)
@@ -719,28 +760,25 @@ impl AggregateQueryParser {
         None
     }
 
-    /// Parse ORDER BY clauses: each key takes the published `SortDirection`, `ASC` or `DESC`
-    /// (#1800). Any other value is refused rather than read as `ASC`.
+    /// Parse ORDER BY clauses: the published `…OrderBy` is an object, not a list, and each
+    /// key takes the published `SortDirection`, `ASC` or `DESC` (#1800). Any other value is
+    /// refused rather than read as `ASC`, or as no order.
     fn parse_order_by(order_obj: &Value) -> Result<Vec<OrderByClause>> {
         let mut clauses = Vec::new();
 
-        if let Some(obj) = order_obj.as_object() {
-            for (field, value) in obj {
-                let direction = match value.as_str() {
-                    Some("ASC") => OrderDirection::Asc,
-                    Some("DESC") => OrderDirection::Desc,
-                    _ => {
-                        return Err(FraiseQLError::Validation {
-                            message: format!(
-                                "orderBy `{field}` takes `ASC` or `DESC`, got {value}"
-                            ),
-                            path:    None,
-                        });
-                    },
-                };
+        for (field, value) in object_argument(order_obj, "orderBy")? {
+            let direction = match value.as_str() {
+                Some("ASC") => OrderDirection::Asc,
+                Some("DESC") => OrderDirection::Desc,
+                _ => {
+                    return Err(FraiseQLError::Validation {
+                        message: format!("orderBy `{field}` takes `ASC` or `DESC`, got {value}"),
+                        path:    None,
+                    });
+                },
+            };
 
-                clauses.push(OrderByClause::new(field.clone(), direction));
-            }
+            clauses.push(OrderByClause::new(field.clone(), direction));
         }
 
         Ok(clauses)

@@ -56,7 +56,7 @@
 
 use serde_json::Value;
 
-use super::aggregate_parser::where_condition;
+use super::aggregate_parser::{argument, list_argument, where_argument, where_condition};
 use crate::{
     backend::where_clause::WhereClause,
     compiler::{
@@ -94,32 +94,26 @@ impl WindowQueryParser {
         }
         let table_name = metadata.table_name.clone();
 
-        // Parse SELECT columns
-        let select = if let Some(select_array) = query_json.get("select") {
-            Self::parse_select_columns(select_array)?
-        } else {
-            vec![]
+        // Each argument: absent or `null` is no argument, the published shape is read (a list
+        // takes one object as a one-item list), and any other value is refused naming the
+        // argument.
+        let select = match argument(query_json, "select") {
+            Some(select_array) => Self::parse_select_columns(select_array)?,
+            None => vec![],
         };
 
-        // Parse window functions
-        let windows = if let Some(windows_array) = query_json.get("windows") {
-            Self::parse_window_functions(windows_array)?
-        } else {
-            vec![]
+        let windows = match argument(query_json, "windows") {
+            Some(windows_array) => Self::parse_window_functions(windows_array)?,
+            None => vec![],
         };
 
-        // Parse WHERE clause
-        let where_clause = if let Some(where_obj) = query_json.get("where") {
-            Some(Self::parse_where_clause(where_obj, metadata)?)
-        } else {
-            None
-        };
+        let where_clause = argument(query_json, "where")
+            .map(|where_obj| Self::parse_where_clause(where_obj, metadata))
+            .transpose()?;
 
-        // Parse final ORDER BY
-        let order_by = if let Some(order_array) = query_json.get("orderBy") {
-            Self::parse_order_by(order_array)?
-        } else {
-            vec![]
+        let order_by = match argument(query_json, "orderBy") {
+            Some(order_array) => Self::parse_order_by(order_array, "orderBy")?,
+            None => vec![],
         };
 
         // Parse LIMIT/OFFSET
@@ -144,11 +138,10 @@ impl WindowQueryParser {
 
     /// Parse SELECT columns from JSON array.
     fn parse_select_columns(select_array: &Value) -> Result<Vec<WindowSelectColumn>> {
-        let Some(arr) = select_array.as_array() else {
-            return Ok(vec![]);
-        };
-
-        arr.iter().map(Self::parse_single_select_column).collect()
+        list_argument(select_array, "select")?
+            .iter()
+            .map(Self::parse_single_select_column)
+            .collect()
     }
 
     fn parse_single_select_column(col: &Value) -> Result<WindowSelectColumn> {
@@ -212,11 +205,10 @@ impl WindowQueryParser {
 
     /// Parse window functions from JSON array.
     fn parse_window_functions(windows_array: &Value) -> Result<Vec<WindowFunctionRequest>> {
-        let Some(arr) = windows_array.as_array() else {
-            return Ok(vec![]);
-        };
-
-        arr.iter().map(Self::parse_single_window_function).collect()
+        list_argument(windows_array, "windows")?
+            .iter()
+            .map(Self::parse_single_window_function)
+            .collect()
     }
 
     fn parse_single_window_function(window: &Value) -> Result<WindowFunctionRequest> {
@@ -239,22 +231,18 @@ impl WindowQueryParser {
             })?
             .to_string();
 
-        // Parse PARTITION BY
-        let partition_by = if let Some(partition_array) = window.get("partitionBy") {
-            Self::parse_partition_by(partition_array)?
-        } else {
-            vec![]
+        // The window's own arguments, read as the root's are.
+        let partition_by = match argument(window, "partitionBy") {
+            Some(partition_array) => Self::parse_partition_by(partition_array)?,
+            None => vec![],
         };
 
-        // Parse ORDER BY within window
-        let order_by = if let Some(order_array) = window.get("orderBy") {
-            Self::parse_order_by(order_array)?
-        } else {
-            vec![]
+        let order_by = match argument(window, "orderBy") {
+            Some(order_array) => Self::parse_order_by(order_array, "windows.orderBy")?,
+            None => vec![],
         };
 
-        // Parse frame
-        let frame = window.get("frame").map(Self::parse_frame).transpose()?;
+        let frame = argument(window, "frame").map(Self::parse_frame).transpose()?;
 
         Ok(WindowFunctionRequest {
             function,
@@ -392,11 +380,8 @@ impl WindowQueryParser {
 
     /// Parse PARTITION BY from JSON array.
     fn parse_partition_by(partition_array: &Value) -> Result<Vec<PartitionByColumn>> {
-        let Some(arr) = partition_array.as_array() else {
-            return Ok(vec![]);
-        };
-
-        arr.iter()
+        list_argument(partition_array, "windows.partitionBy")?
+            .iter()
             .map(|item| {
                 let col_type = item.get("type").and_then(|v| v.as_str()).ok_or_else(|| {
                     FraiseQLError::Validation {
@@ -448,13 +433,11 @@ impl WindowQueryParser {
             .collect()
     }
 
-    /// Parse ORDER BY from JSON array: `[{field, direction}]`.
-    fn parse_order_by(order_array: &Value) -> Result<Vec<WindowOrderBy>> {
-        let Some(arr) = order_array.as_array() else {
-            return Ok(vec![]);
-        };
-
-        arr.iter()
+    /// Parse ORDER BY from JSON array: `[{field, direction}]`, or one `{field, direction}`
+    /// as a one-item list. `path` names the argument: the root's, or a window's.
+    fn parse_order_by(order_array: &Value, path: &str) -> Result<Vec<WindowOrderBy>> {
+        list_argument(order_array, path)?
+            .iter()
             .map(|item| {
                 let field = item
                     .get("field")
@@ -490,9 +473,7 @@ impl WindowQueryParser {
 
     /// Parse WHERE clause from JSON: `{ "<field>_<operator>": value, … }`.
     fn parse_where_clause(where_obj: &Value, metadata: &FactTableMetadata) -> Result<WhereClause> {
-        let Some(obj) = where_obj.as_object() else {
-            return Ok(WhereClause::And(vec![]));
-        };
+        let obj = where_argument(where_obj)?;
 
         // The aggregate parser's resolution (#1517): filter columns and mapped dimensions are
         // read from their column, declared paths at their location, other keys recased (#486).

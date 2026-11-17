@@ -412,7 +412,14 @@ The arguments decide what is computed, and the selection set decides what is ret
 ```
 
 - `groupBy` takes `true` (grouped) or `false` per key, and `<column>_level: n` for an `LTREE`
-  roll-up. `aggregates` is a list of `{<alias>: true}`. `orderBy` takes `ASC` or `DESC`.
+  roll-up. `aggregates` is a list of `{<alias>: true}`. `orderBy` takes `ASC` or `DESC`, per
+  key that names a grouped key or a computed aggregate.
+- Every argument is read as a list query's is. An explicit `null` is the argument's absence.
+  An argument published as a list (`aggregates`, `select`, `windows`, a window's `orderBy` and
+  `partitionBy`) takes one object as a one-item list. Any other value of another shape is
+  refused, naming the argument: `where clause must be a JSON object`, `groupBy must be an
+  object`, `orderBy must be an object or array`. So is a `having` key that is not an
+  aggregate and a comparison (`count_gt`).
 - An aggregate row holds exactly the fields its selection set selects, under their response
   keys (aliases and `__typename` included). A selected field the arguments did not compute
   is `null`. Every row field is nullable, and the root must select at least one.

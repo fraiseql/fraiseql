@@ -208,6 +208,20 @@ disagreed, and the promise was the part that was wrong.
   and on a function root, as `limit: null` and `offset: null` already did. A `null` inside a
   filter (`_and: [null]`, `_or: [null]`, `_not: null`) is still refused: it stands where a
   predicate is required. A query that does not accept `where` still refuses the argument.
+
+- **An aggregate or window argument of another shape is refused, not read as absent
+  (#1997).** On an aggregate or window root, a `where` or `orderBy` that was neither `null`
+  nor its published shape (`where: "region_eq"`, `where: []`, `orderBy: 7`) answered every
+  group or row, unfiltered or unordered, where a list query refuses it. The same silent drop
+  applied to `groupBy`, `aggregates` (and a non-object item), `having`, and the window
+  arguments `select`, `windows`, and each window's `partitionBy` and `orderBy`. Each is now
+  read as a list query's argument is: `null` is its absence, an argument published as a list
+  takes one object as a one-item list (so a window `orderBy: {field: "region"}` now orders
+  the rows), and any other value is refused naming the argument, with the list query's text
+  for `where`. A `having` key that is not an aggregate and a comparison is refused rather
+  than skipped, and an aggregate `orderBy` key that names neither a grouped key nor a
+  computed aggregate is refused before the statement is sent. A window's `frame: null` is
+  its absence; it was refused.
   `nearest` reads the same way: `nearest: null` is no search, and a `null` `limit` or
   `orderBy` beside `nearest` is no longer refused as a conflict.
 

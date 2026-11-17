@@ -959,3 +959,7 @@ mod aggregate_rls_tests;
 #[cfg(test)]
 #[path = "aggregate_inject_tests.rs"]
 mod aggregate_inject_tests;
+
+#[cfg(test)]
+#[path = "aggregate_argument_tests.rs"]
+mod aggregate_argument_tests;

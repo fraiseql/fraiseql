@@ -251,6 +251,16 @@ impl WhereClause {
         }
     }
 
+    /// The refusal of a `where` value that is not an input object: one text on every root
+    /// that takes a `where`, list or analytics.
+    #[must_use]
+    pub fn not_an_object() -> FraiseQLError {
+        FraiseQLError::Validation {
+            message: "where clause must be a JSON object".to_string(),
+            path:    None,
+        }
+    }
+
     /// Parse a `WhereClause` from a nested GraphQL JSON `where` variable.
     ///
     /// Expected format (nested object with field → operator → value):
@@ -333,10 +343,7 @@ impl WhereClause {
         discovered: &mut Vec<(String, ScalarFieldType)>,
     ) -> Result<Self> {
         let Some(obj) = value.as_object() else {
-            return Err(FraiseQLError::Validation {
-                message: "where clause must be a JSON object".to_string(),
-                path:    None,
-            });
+            return Err(Self::not_an_object());
         };
 
         let mut conditions = Vec::new();

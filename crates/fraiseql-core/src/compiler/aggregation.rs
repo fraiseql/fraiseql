@@ -468,6 +468,9 @@ impl AggregationPlanner {
         // Validate HAVING conditions
         let having_conditions = Self::validate_having(&request.having, &aggregate_expressions)?;
 
+        // An ORDER BY sorts the groups, so it names one of their outputs.
+        Self::validate_order_by(&request)?;
+
         // #1459: a measure not additive over time is reduced per entity and bucket first, or
         // the request is refused.
         let time_reduction = super::time_reduction::plan_time_reduction(&request, &metadata)?;
@@ -483,6 +486,30 @@ impl AggregationPlanner {
     }
 
     /// Validate GROUP BY selections
+    /// Refuse an `orderBy` key that names neither a grouped key nor a computed aggregate of
+    /// the request: the groups have no other column to sort by.
+    fn validate_order_by(request: &AggregationRequest) -> Result<()> {
+        for clause in &request.order_by {
+            let output = request
+                .group_by
+                .iter()
+                .map(GroupBySelection::alias)
+                .chain(request.aggregates.iter().map(AggregateSelection::alias))
+                .any(|alias| alias == clause.field);
+            if !output {
+                return Err(FraiseQLError::Validation {
+                    message: format!(
+                        "orderBy `{}` is neither a grouped key nor a computed aggregate of this \
+                         request",
+                        clause.field
+                    ),
+                    path:    Some("orderBy".to_string()),
+                });
+            }
+        }
+        Ok(())
+    }
+
     fn validate_group_by(
         selections: &[GroupBySelection],
         metadata: &FactTableMetadata,

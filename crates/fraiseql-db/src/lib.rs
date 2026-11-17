@@ -101,7 +101,7 @@ pub use types::{
     DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,
     sql_hints::{
         OrderByClause, OrderDirection, RelevanceOrder, ScalarFieldType, SqlProjectionHint,
-        VectorDistanceOrder, VectorOperandKind,
+        VectorDistanceOrder, VectorOperandKind, argument_shape_refusal,
     },
 };
 /// The `uuid` this crate's public API is built against (#1198).

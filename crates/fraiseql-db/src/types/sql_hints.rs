@@ -452,11 +452,20 @@ impl OrderByClause {
                 })
                 .collect()
         } else {
-            Err(FraiseQLError::Validation {
-                message: "orderBy must be an object or array".to_string(),
-                path:    None,
-            })
+            Err(argument_shape_refusal("orderBy", "an object or array"))
         }
+    }
+}
+
+/// The refusal of a root argument whose value is not of its published shape.
+///
+/// `<argument> must be <shape>`: one grammar on every root, a list query's `orderBy` and
+/// each argument of an aggregate or window root.
+#[must_use]
+pub fn argument_shape_refusal(argument: &str, shape: &str) -> FraiseQLError {
+    FraiseQLError::Validation {
+        message: format!("{argument} must be {shape}"),
+        path:    None,
     }
 }
 
