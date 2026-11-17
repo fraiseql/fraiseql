@@ -45,21 +45,13 @@ const NAMED_KEYS: &[&str] = &[
     "trusted_documents",
 ];
 
-/// Project-config tables the compiled `enterprise` section is derived from.
-const ENTERPRISE_SOURCES: &[&str] = &["audit_logging", "error_sanitization", "rate_limiting"];
-
 /// Compiled `security` keys a project `fraiseql.toml` sets: its `[fraiseql.security]`
-/// keys by name, `tenancy` for `[fraiseql.tenancy]`, and `enterprise` when any table it
-/// is derived from is written.
+/// keys by name, and `tenancy` for `[fraiseql.tenancy]`.
 #[must_use]
 pub fn declared_in_project_config(table: &toml::Table) -> BTreeSet<String> {
     let fraiseql = table.get("fraiseql").and_then(toml::Value::as_table);
     let security = fraiseql.and_then(|f| f.get("security")).and_then(toml::Value::as_table);
-    let mut declared = declared_keys(security, fraiseql.is_some_and(|f| f.contains_key("tenancy")));
-    if security.is_some_and(|s| ENTERPRISE_SOURCES.iter().any(|k| s.contains_key(*k))) {
-        declared.insert("enterprise".to_owned());
-    }
-    declared
+    declared_keys(security, fraiseql.is_some_and(|f| f.contains_key("tenancy")))
 }
 
 /// Compiled `security` keys a TOML schema sets: its `[security]` keys by name, and

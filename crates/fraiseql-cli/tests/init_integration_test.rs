@@ -535,6 +535,20 @@ fn test_compiled_schema_has_security_section() {
         compiled.get("security").is_some(),
         "Compiled schema should have security section from fraiseql.toml"
     );
+    // The template writes the global rate limit on: a project with no such table compiles
+    // none, and the server then leaves the limit off (#2019).
+    assert_eq!(
+        compiled["security"]["rate_limiting"]["enabled"],
+        serde_json::Value::Bool(true),
+        "a new project must compile to an enabled rate_limiting: {}",
+        compiled["security"]
+    );
+    assert_eq!(
+        compiled["security"]["enterprise"]["audit_logging_enabled"],
+        serde_json::Value::Bool(true),
+        "a new project must compile with audit logging on: {}",
+        compiled["security"]
+    );
 }
 
 // ============================================================================

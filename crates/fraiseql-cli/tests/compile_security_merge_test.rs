@@ -238,15 +238,15 @@ fn types_cost_budget_set_by_both_and_disagreeing_is_refused() {
     assert!(log.contains("`cost_budget`"), "refusal must name the key: {log}");
 }
 
-/// `enterprise` is derived from `[fraiseql.security.rate_limiting]` (and the audit and
-/// sanitization tables), so declaring one of them sets it.
+/// `enterprise` is its own table, `[fraiseql.security.enterprise]`: declaring the rate
+/// limiting table no longer declares it, so the document's copy is the document's.
 #[test]
-fn sdk_enterprise_derived_from_a_declared_table_must_agree() {
+fn sdk_enterprise_is_not_declared_by_the_rate_limiting_table() {
     let toml = "[project]\nname = \"app\"\n\n[fraiseql.security.rate_limiting]\nenabled = false\n";
-    let security = json!({"enterprise": {"rate_limiting_enabled": true}});
+    let security = json!({"enterprise": {"audit_logging_enabled": false}});
     let dir = project(Workflow::Sdk, Some(toml), &document(Some(security), false));
-    let log = refused(Workflow::Sdk, &dir);
-    assert!(log.contains("`enterprise`"), "refusal must name the key: {log}");
+    let schema = compiled(Workflow::Sdk, &dir);
+    assert_eq!(schema["security"]["enterprise"], json!({"audit_logging_enabled": false}));
 }
 
 // ── The row-tenancy check reads the merged result ───────────────────────────────────
@@ -293,7 +293,9 @@ fn types_a_document_without_security_takes_the_toml_section() {
 }
 
 // Captured from the compiler before the merge rule existed: these three paths carry no
-// document `security` block next to a TOML, so the rule must leave them unchanged.
+// document `security` block next to a TOML, so the rule must leave them unchanged. The two
+// TOML ones were recaptured when `enterprise` lost its nine unread keys and an unwritten
+// `error_sanitization` / `rate_limiting` stopped being emitted by a project config (#2019).
 const SDK_NO_TOML_SECURITY: &str = r#"{"multi_tenant":true,"rls":{"enabled":true},"tenancy":{"mode":"row","tenant_claim":"org_id"},"cost_budget":{"per_request_max":100}}"#;
-const SDK_PROJECT_ONLY_SECURITY: &str = r#"{"enterprise":{"rate_limiting_enabled":true,"auth_endpoint_max_requests":100,"auth_endpoint_window_seconds":60,"audit_logging_enabled":true,"audit_log_backend":"postgresql","audit_retention_days":365,"error_sanitization":true,"hide_implementation_details":true,"constant_time_comparison":true,"pkce_enabled":true},"error_sanitization":{"enabled":true,"hide_implementation_details":true,"sanitize_database_errors":true,"custom_error_message":null},"rate_limiting":{"enabled":true,"requests_per_second":100,"burst_size":500,"auth_start_max_requests":30,"auth_start_window_secs":60,"auth_callback_max_requests":30,"auth_callback_window_secs":60,"auth_refresh_max_requests":300,"auth_refresh_window_secs":300,"auth_logout_max_requests":30,"auth_logout_window_secs":60,"auth_otp_send_max_requests":30,"auth_otp_send_window_secs":900,"auth_otp_verify_max_requests":60,"auth_otp_verify_window_secs":900,"auth_password_max_requests":30,"auth_password_window_secs":60,"auth_anonymous_signup_max_requests":30,"auth_anonymous_signup_window_secs":600,"auth_rules_enabled":true,"failed_login_max_attempts":10,"failed_login_lockout_secs":900,"trust_proxy_headers":false,"trusted_proxy_cidrs":[],"max_buckets":100000},"state_encryption":{"enabled":false,"algorithm":"chacha20-poly1305","key_source":"env","key_env":"STATE_ENCRYPTION_KEY"}}"#;
-const TYPES_SCHEMA_ONLY_SECURITY: &str = r#"{"enterprise":{"rate_limiting_enabled":true,"auth_endpoint_max_requests":100,"auth_endpoint_window_seconds":60,"audit_logging_enabled":true,"audit_log_backend":"postgresql","audit_retention_days":365,"error_sanitization":true,"hide_implementation_details":true,"constant_time_comparison":true,"pkce_enabled":true}}"#;
+const SDK_PROJECT_ONLY_SECURITY: &str = r#"{"enterprise":{"audit_logging_enabled":true},"state_encryption":{"enabled":false,"algorithm":"chacha20-poly1305","key_source":"env","key_env":"STATE_ENCRYPTION_KEY"}}"#;
+const TYPES_SCHEMA_ONLY_SECURITY: &str = r#"{"enterprise":{"audit_logging_enabled":true}}"#;

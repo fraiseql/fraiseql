@@ -15,8 +15,8 @@ mod config_tests {
     #[test]
     fn test_default_security_config() {
         let config = TomlProjectConfig::default();
-        assert!(config.fraiseql.security.audit_logging.enabled);
-        assert!(config.fraiseql.security.rate_limiting.enabled);
+        assert!(config.fraiseql.security.enterprise.audit_logging_enabled);
+        assert!(config.fraiseql.security.rate_limiting.is_none());
     }
 
     #[test]
@@ -511,10 +511,11 @@ mod security_tests {
     #[test]
     fn test_default_security_config() {
         let config = SecurityConfig::default();
-        assert!(config.audit_logging.enabled);
-        assert!(config.error_sanitization.enabled);
-        assert!(config.rate_limiting.enabled);
+        assert!(config.enterprise.audit_logging_enabled);
         assert!(config.constant_time.enabled);
+        // Unwritten, these two are the server's to decide, as in a TOML schema.
+        assert!(config.error_sanitization.is_none());
+        assert!(config.rate_limiting.is_none());
         // state_encryption is deliberately NOT in the on-by-default list. This test used to
         // assert it was, which is how the divergence from fraiseql-core survived review: the
         // wrong default had a test pinning it in place (#1151). The controls above are inert
@@ -533,18 +534,14 @@ mod security_tests {
     /// half of that sentence.
     #[test]
     fn error_sanitization_refuses_the_keys_that_never_had_a_consumer() {
-        ErrorSanitizationConfig::default()
-            .validate()
-            .unwrap_or_else(|e| panic!("expected Ok for default config: {e}"));
-
         for key in [
             "generic_messages = true",
             "internal_logging = true",
             "leak_sensitive_details = true",
             "user_facing_format = \"detailed\"",
         ] {
-            let toml = format!("enabled = true\n{key}\n");
-            let err = toml::from_str::<ErrorSanitizationConfig>(&toml)
+            let toml = format!("[error_sanitization]\nenabled = true\n{key}\n");
+            let err = toml::from_str::<SecurityConfig>(&toml)
                 .expect_err("a key with no consumer must not parse");
             assert!(
                 err.to_string().contains("unknown field"),
@@ -553,22 +550,27 @@ mod security_tests {
         }
     }
 
+    /// `[fraiseql.security.rate_limiting]` with `body`, validated as a project config is.
+    fn rate_limiting(body: &str) -> anyhow::Result<()> {
+        let toml =
+            format!("[fraiseql.security.rate_limiting]\n{body}\n[project]\nname = \"app\"\n");
+        toml::from_str::<crate::config::TomlProjectConfig>(&toml)
+            .expect("parses")
+            .validate()
+    }
+
     #[test]
     fn test_rate_limiting_validation() {
-        let mut config = RateLimitConfig::default();
-        config
-            .validate()
-            .unwrap_or_else(|e| panic!("expected Ok for default config: {e}"));
-
-        config.auth_start_window_secs = 0;
-        assert!(config.validate().is_err(), "expected Err when auth_start_window_secs=0, got Ok");
+        rate_limiting("").unwrap_or_else(|e| panic!("expected Ok for default config: {e}"));
+        assert!(
+            rate_limiting("auth_start_window_secs = 0").is_err(),
+            "expected Err when auth_start_window_secs=0, got Ok"
+        );
     }
 
     #[test]
     fn test_rate_limiting_zero_max_requests_rejected() {
-        let mut config = RateLimitConfig::default();
-        config.auth_start_max_requests = 0;
-        let err = config.validate().unwrap_err();
+        let err = rate_limiting("auth_start_max_requests = 0").unwrap_err();
         assert!(
             err.to_string().contains("auth_start_max_requests"),
             "error should name the field: {err}"
@@ -581,19 +583,14 @@ mod security_tests {
 
     #[test]
     fn test_rate_limiting_one_max_requests_accepted() {
-        let mut config = RateLimitConfig::default();
-        config.auth_start_max_requests = 1;
-        config
-            .validate()
+        rate_limiting("auth_start_max_requests = 1")
             .unwrap_or_else(|e| panic!("expected Ok for max_requests=1: {e}"));
     }
 
     #[test]
     fn test_rate_limiting_callback_zero_max_requests_rejected() {
-        let mut config = RateLimitConfig::default();
-        config.auth_callback_max_requests = 0;
         assert!(
-            config.validate().is_err(),
+            rate_limiting("auth_callback_max_requests = 0").is_err(),
             "expected Err when auth_callback_max_requests=0, got Ok"
         );
     }
@@ -661,9 +658,9 @@ mod security_tests {
 
     #[test]
     fn test_security_config_serialization() {
-        let config = SecurityConfig::default();
+        let config: SecurityConfig = toml::from_str("[rate_limiting]\n").unwrap();
         let json = config.to_json();
-        // `audit_logging` lowers onto the key the runtime reads (#977).
+        // `enterprise` carries the key the runtime reads (#977).
         assert!(json["enterprise"]["audit_logging_enabled"].is_boolean());
         assert!(json["state_encryption"]["algorithm"].is_string());
 

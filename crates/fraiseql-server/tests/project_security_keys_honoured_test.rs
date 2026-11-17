@@ -19,7 +19,7 @@ use fraiseql_cli::commands::compile::{CompileOptions, compile_to_schema};
 use fraiseql_core::schema::CompiledSchema;
 use fraiseql_server::{Server, server_config::ServerConfig};
 use fraiseql_test_support::issuer::TestIssuer;
-use fraiseql_test_utils::failing_adapter::FailingAdapter;
+use fraiseql_test_utils::failing_adapter::{FailError, FailingAdapter};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
@@ -91,7 +91,17 @@ struct Answer {
 }
 
 async fn graphql(security: &str, body: Value, headers: &[(&str, &str)]) -> Answer {
-    let adapter = Arc::new(FailingAdapter::new());
+    graphql_on(FailingAdapter::new(), security, body, headers).await
+}
+
+/// [`graphql`] on `adapter`, which may be set to fail.
+async fn graphql_on(
+    adapter: FailingAdapter,
+    security: &str,
+    body: Value,
+    headers: &[(&str, &str)],
+) -> Answer {
+    let adapter = Arc::new(adapter);
     let (_project, schema) = compile(security).await;
     let server = boot(schema, Arc::clone(&adapter))
         .await
@@ -460,4 +470,139 @@ async fn state_encryption_key_env_in_a_project_config_names_the_variable_read() 
     .await
     .expect_err("booted without the declared key variable");
     assert!(refused.contains("P2011_STATE_KEY"), "{refused}");
+}
+
+// ── error_sanitization, rate_limiting, enterprise ────────────────────────────
+
+/// Text the database put in an error, which a sanitizer replaces.
+const DATABASE_TEXT: &str = "relation \"v_order\" has column secret_x";
+
+/// The first error's message for [`QUERY`] on an adapter that fails with [`DATABASE_TEXT`].
+async fn database_error_message(security: &str) -> String {
+    let adapter = FailingAdapter::new().fail_with_error(FailError::Database {
+        message:   DATABASE_TEXT.to_owned(),
+        sql_state: Some("XX000".to_owned()),
+    });
+    let answer = graphql_on(adapter, security, json!({"query": QUERY}), &[]).await;
+    assert!(answer.reached, "the query never reached the failing adapter: {}", answer.body);
+    answer.body["errors"][0]["message"].as_str().unwrap_or_default().to_owned()
+}
+
+#[tokio::test]
+async fn error_sanitization_keys_in_a_project_config_shape_a_database_error() {
+    in_development(async {
+        let table = "[fraiseql.security.error_sanitization]\n";
+
+        // Written with no keys: on, so the database text is replaced.
+        let sanitized = database_error_message(table).await;
+        assert!(
+            !sanitized.contains("secret_x"),
+            "the default section kept the database text: {sanitized}"
+        );
+
+        let custom =
+            database_error_message(&format!("{table}custom_error_message = \"Try again\"\n")).await;
+        assert_eq!(custom, "Try again");
+        assert_ne!(sanitized, "Try again", "the control already said it");
+
+        let raw =
+            database_error_message(&format!("{table}sanitize_database_errors = false\n")).await;
+        assert!(raw.contains("secret_x"), "sanitize_database_errors = false was ignored: {raw}");
+    })
+    .await;
+}
+
+/// The status of each of `n` requests from one verified caller, and the
+/// `X-RateLimit-Limit` the last one reported.
+async fn as_one_caller(server: &TestServer, token: &str, n: usize) -> (Vec<u16>, String) {
+    let client = reqwest::Client::new();
+    let mut statuses = Vec::new();
+    let mut limit = String::new();
+    for _ in 0..n {
+        let response = client
+            .post(format!("{}/graphql", server.url))
+            .bearer_auth(token)
+            .json(&json!({"query": QUERY}))
+            .send()
+            .await
+            .expect("graphql request");
+        statuses.push(response.status().as_u16());
+        if let Some(value) = response.headers().get("X-RateLimit-Limit") {
+            value.to_str().unwrap_or_default().clone_into(&mut limit);
+        }
+    }
+    (statuses, limit)
+}
+
+#[tokio::test]
+async fn requests_per_second_per_user_in_a_project_config_limits_a_verified_caller() {
+    in_development(async {
+        let issuer = TestIssuer::start().await;
+        let token = issuer.mint(&issuer.claims());
+        let table =
+            "[fraiseql.security.rate_limiting]\nrequests_per_second = 1000\nburst_size = 2\n";
+
+        // Without the key, a verified caller refills at 10 × 1000 a second.
+        let (_project, _adapter, control) = trusting(&issuer, table).await;
+        let (statuses, limit) = as_one_caller(&control, &token, 3).await;
+        assert!(!statuses.contains(&429), "control: {statuses:?}");
+        assert_eq!(limit, "10000");
+
+        let (_project, _adapter, limited) =
+            trusting(&issuer, &format!("{table}requests_per_second_per_user = 1\n")).await;
+        let (statuses, limit) = as_one_caller(&limited, &token, 3).await;
+        assert_eq!(statuses.last(), Some(&429), "the third request in a second: {statuses:?}");
+        assert_eq!(limit, "1");
+    })
+    .await;
+}
+
+#[cfg(feature = "redis-rate-limiting")]
+#[tokio::test]
+async fn rate_limiting_redis_url_in_a_project_config_is_connected_at_boot() {
+    let production = || vec![("FRAISEQL_ENV", None)];
+    let table = "[fraiseql.security.rate_limiting]\nenabled = true\n";
+    boots(table, production())
+        .await
+        .unwrap_or_else(|e| panic!("control, in-memory limiter: {e}"));
+
+    // Nothing listens on port 1: the operator asked for a shared limiter it cannot have.
+    let refused = boots(&format!("{table}redis_url = \"redis://127.0.0.1:1\"\n"), production())
+        .await
+        .expect_err("booted without the Redis limiter it was given");
+    assert!(refused.contains("[security.rate_limiting] redis_url"), "{refused}");
+}
+
+#[tokio::test]
+async fn failed_login_keys_in_a_project_config_are_refused_in_production() {
+    let production = || vec![("FRAISEQL_ENV", None)];
+    let table = "[fraiseql.security.rate_limiting]\n";
+    boots(table, production())
+        .await
+        .unwrap_or_else(|e| panic!("control, default failed-login budget: {e}"));
+
+    for key in [
+        "failed_login_max_attempts = 5",
+        "failed_login_lockout_secs = 60",
+    ] {
+        let refused = boots(&format!("{table}{key}\n"), production())
+            .await
+            .expect_err("booted with a lockout the binary cannot enforce");
+        assert!(
+            refused.contains("failed_login_max_attempts / failed_login_lockout_secs"),
+            "{key}: {refused}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn audit_logging_enabled_in_a_project_config_reaches_the_executor() {
+    let audits = |security: &'static str| async move {
+        let (_project, schema) = compile(security).await;
+        fraiseql_core::runtime::RuntimeConfig::from_compiled_schema(&schema)
+            .unwrap()
+            .audit_mutations
+    };
+    assert!(audits("").await, "control: audit logging is on unless written off");
+    assert!(!audits("[fraiseql.security.enterprise]\naudit_logging_enabled = false\n").await);
 }

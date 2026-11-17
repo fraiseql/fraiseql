@@ -584,6 +584,7 @@ impl TomlSchema {
         // parses these into `ipnet::IpNet`; catching a bad value here surfaces the
         // error where the operator is authoring rather than at server boot.
         if let Some(rate_limiting) = &self.security.rate_limiting {
+            refuse_unusable_rate_limit_budgets(rate_limiting)?;
             if let Some(cidrs) = &rate_limiting.trusted_proxy_cidrs {
                 for cidr in cidrs {
                     if cidr.parse::<ipnet::IpNet>().is_err() {
@@ -785,6 +786,53 @@ impl TomlSchema {
             "queries": queries_json,
         })
     }
+}
+
+/// Refuse a rate-limit window of zero seconds, or an endpoint budget of zero requests.
+///
+/// A zero window divides the budget by nothing, and a zero budget refuses every request to
+/// the endpoint for good; neither is a setting anyone means.
+///
+/// # Errors
+///
+/// Returns an error naming the first such key.
+fn refuse_unusable_rate_limit_budgets(
+    rl: &fraiseql_core::schema::RateLimitingSecurityConfig,
+) -> Result<()> {
+    for (name, window) in [
+        ("auth_start_window_secs", rl.auth_start_window_secs),
+        ("auth_callback_window_secs", rl.auth_callback_window_secs),
+        ("auth_refresh_window_secs", rl.auth_refresh_window_secs),
+        ("auth_logout_window_secs", rl.auth_logout_window_secs),
+        ("auth_otp_send_window_secs", rl.auth_otp_send_window_secs),
+        ("auth_otp_verify_window_secs", rl.auth_otp_verify_window_secs),
+        ("auth_password_window_secs", rl.auth_password_window_secs),
+        ("auth_anonymous_signup_window_secs", rl.auth_anonymous_signup_window_secs),
+        ("failed_login_lockout_secs", rl.failed_login_lockout_secs),
+    ] {
+        if window == 0 {
+            anyhow::bail!("[security.rate_limiting] {name} must be positive");
+        }
+    }
+    for (name, budget) in [
+        ("auth_start_max_requests", rl.auth_start_max_requests),
+        ("auth_callback_max_requests", rl.auth_callback_max_requests),
+        ("auth_refresh_max_requests", rl.auth_refresh_max_requests),
+        ("auth_logout_max_requests", rl.auth_logout_max_requests),
+        ("auth_otp_send_max_requests", rl.auth_otp_send_max_requests),
+        ("auth_otp_verify_max_requests", rl.auth_otp_verify_max_requests),
+        ("auth_password_max_requests", rl.auth_password_max_requests),
+        ("auth_anonymous_signup_max_requests", rl.auth_anonymous_signup_max_requests),
+        ("failed_login_max_attempts", rl.failed_login_max_attempts),
+    ] {
+        if budget == 0 {
+            anyhow::bail!(
+                "[security.rate_limiting] {name} must be at least 1; setting it to 0 blocks all \
+                 requests permanently"
+            );
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

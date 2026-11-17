@@ -125,7 +125,6 @@ sql_source = "v_{}"
 [security]
 
 [security.enterprise]
-rate_limiting_enabled = false
 audit_logging_enabled = false
 "#,
         type_name,
@@ -244,7 +243,6 @@ required = true
 [security]
 
 [security.enterprise]
-rate_limiting_enabled = false
 audit_logging_enabled = false
 "#;
 
@@ -347,7 +345,6 @@ field_name = "secret"
 policy = "admin_only"
 
 [security.enterprise]
-rate_limiting_enabled = false
 audit_logging_enabled = false
 "#;
 
@@ -414,7 +411,6 @@ database_target = "postgresql"
 url = "postgresql://localhost/test"
 [security]
 [security.enterprise]
-rate_limiting_enabled = false
 audit_logging_enabled = false
 "#;
         let types_path = temp_dir.path().join("types.json");
@@ -565,7 +561,6 @@ url = "postgresql://localhost/test"
 [security]
 
 [security.enterprise]
-rate_limiting_enabled = false
 audit_logging_enabled = false
 "#;
 

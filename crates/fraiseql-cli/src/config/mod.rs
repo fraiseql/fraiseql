@@ -276,6 +276,7 @@ impl TomlProjectConfig {
         // A file that is not TOML at all is reported by the typed parse below.
         let declared_security = if let Ok(table) = toml_content.parse::<toml::Table>() {
             refuse_unapplied_keys(&table)?;
+            refuse_retired_spellings(&table)?;
             refuse_misplaced_sections(&table)?;
             security_merge::declared_in_project_config(&table)
         } else {
@@ -406,7 +407,7 @@ const MISPLACED_SECTIONS: &[(&str, Misplaced)] = &[
 
 /// The `[security]` keys of a TOML schema that `[fraiseql.security]` also takes.
 const PROJECT_SECURITY_KEYS: &[&str] = &[
-    "audit_logging",
+    "enterprise",
     "error_sanitization",
     "rate_limiting",
     "state_encryption",
@@ -491,6 +492,50 @@ const UNAPPLIED_KEYS: &[(&str, &str, &str)] = &[
         "remove it: the database pool has no idle timeout",
     ),
 ];
+
+/// Spellings only a project config took, each with the one that replaced it: the section,
+/// the key (or the section itself, when `key` is empty), and the compiled spelling.
+///
+/// The project config read these tables through CLI-local types until the compiled ones
+/// replaced them. Refused by name, with no alias, so a config that used one learns its
+/// replacement instead of an unknown field.
+const RETIRED_SPELLINGS: &[(&str, &str, &str)] = &[
+    (
+        "fraiseql.security.audit_logging",
+        "",
+        "`[fraiseql.security.enterprise] audit_logging_enabled`",
+    ),
+    (
+        "fraiseql.security.rate_limiting",
+        "failed_login_max_requests",
+        "`failed_login_max_attempts`",
+    ),
+    (
+        "fraiseql.security.rate_limiting",
+        "failed_login_window_secs",
+        "`failed_login_lockout_secs`",
+    ),
+];
+
+/// Refuse the first spelling of [`RETIRED_SPELLINGS`] that `table` writes.
+fn refuse_retired_spellings(table: &toml::Table) -> Result<()> {
+    for (section, key, instead) in RETIRED_SPELLINGS {
+        let mut found = Some(table);
+        for part in section.split('.') {
+            found = found.and_then(|t| t.get(part)).and_then(toml::Value::as_table);
+        }
+        let Some(found) = found else { continue };
+        if key.is_empty() {
+            anyhow::bail!("fraiseql.toml: `[{section}]` is no longer accepted; write {instead}");
+        }
+        if found.contains_key(*key) {
+            anyhow::bail!(
+                "fraiseql.toml: `[{section}] {key}` is no longer accepted; it is spelled {instead}"
+            );
+        }
+    }
+    Ok(())
+}
 
 /// Refuse the first key of [`UNAPPLIED_KEYS`] that `table` sets.
 fn refuse_unapplied_keys(table: &toml::Table) -> Result<()> {

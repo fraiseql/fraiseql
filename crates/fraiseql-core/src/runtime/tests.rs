@@ -5434,7 +5434,6 @@ mod runtime_config_from_schema_tests {
         let security = SecurityConfig {
             enterprise: Some(crate::schema::EnterpriseSecurityConfig {
                 audit_logging_enabled: true,
-                ..Default::default()
             }),
             ..SecurityConfig::default()
         };

@@ -5,9 +5,11 @@
 //! `pkce`, `api_keys`, `cost_budget`, `token_revocation`, `trusted_documents`,
 //! `persisted_queries_only` and `state_encryption`'s `key_env` could be written only in a
 //! TOML schema: a project config refused the first six as unknown fields, and read
-//! `state_encryption` through a narrower table without `key_env`. Each now compiles in a
-//! project config to what it compiles to in a TOML schema, is refused there for what a TOML
-//! schema refuses, and is reconciled with a copy the schema document carries.
+//! `state_encryption` through a narrower table without `key_env`. `error_sanitization`,
+//! `rate_limiting` and the audit flag were read through CLI-local tables with other keys,
+//! names and defaults. Each now compiles in a project config to what it compiles to in a
+//! TOML schema, is refused there for what a TOML schema refuses, and is reconciled with a
+//! copy the schema document carries; the CLI-local spellings are refused by name.
 //!
 //! **Execution engine:** none · **Infrastructure:** none · **Parallelism:** safe
 
@@ -96,6 +98,32 @@ const KEYS: &[Key] = &[
         defaults:  "",
         differing: || json!({"enabled": true, "key_env": "OTHER_KEY"}),
     },
+    Key {
+        name:      "error_sanitization",
+        table:     true,
+        written:   "enabled = true\nhide_implementation_details = false\n\
+                    sanitize_database_errors = false\ncustom_error_message = \"Try again\"\n",
+        defaults:  "",
+        differing: || json!({"enabled": true, "custom_error_message": "Other"}),
+    },
+    Key {
+        name:      "rate_limiting",
+        table:     true,
+        written:   "enabled = true\nrequests_per_second = 50\nrequests_per_second_per_user = 400\n\
+                    burst_size = 80\nredis_url = \"redis://cache:6379\"\n\
+                    failed_login_max_attempts = 5\nfailed_login_lockout_secs = 600\n\
+                    trust_proxy_headers = true\ntrusted_proxy_cidrs = [\"10.0.0.0/8\"]\n\
+                    auth_start_max_requests = 7\n",
+        defaults:  "",
+        differing: || json!({"enabled": true, "requests_per_second": 51}),
+    },
+    Key {
+        name:      "enterprise",
+        table:     true,
+        written:   "audit_logging_enabled = false\n",
+        defaults:  "",
+        differing: || json!({"audit_logging_enabled": true}),
+    },
 ];
 
 /// The two spellings of the security table.
@@ -180,9 +208,8 @@ fn as_a_toml_schema(toml: &str) -> Compiled {
 
 // ── one lowering, both files ─────────────────────────────────────────────────
 
-/// The compiled value is compared under the key, not as the whole `security` section: a
-/// project config also emits the sections it always lowers (`enterprise`,
-/// `rate_limiting`, …), which a TOML schema leaves out unless written.
+/// The compiled value is compared under the key; `untouched_files_compile_alike` compares
+/// the whole section.
 #[test]
 fn a_key_compiles_in_a_project_config_to_what_it_compiles_to_in_a_toml_schema() {
     for key in KEYS {
@@ -224,6 +251,46 @@ fn a_key_written_at_its_defaults_compiles_alike_in_both_files() {
     }
 }
 
+/// Nothing written under `[security]`: both files compile the same section.
+#[test]
+fn untouched_files_compile_alike() {
+    let reference = as_a_toml_schema("");
+    let project = beside_a_document("", None);
+    assert!(reference.ok && project.ok, "{}{}", reference.log, project.log);
+    let without = |security: &Value| {
+        let mut security = security.clone();
+        // A project config always lowers its `state_encryption` table (#2011).
+        security.as_object_mut().unwrap().remove("state_encryption");
+        security
+    };
+    assert_eq!(without(&project.schema["security"]), without(&reference.schema["security"]));
+}
+
+/// A table written to tune one setting keeps its control on. With the compiled default
+/// at `enabled = false`, each of these switched the control off, in both files.
+#[test]
+fn a_table_written_without_enabled_is_enabled_in_both_files() {
+    for (name, body) in [
+        ("rate_limiting", "requests_per_second = 50\n"),
+        ("error_sanitization", "custom_error_message = \"Try again\"\n"),
+    ] {
+        for (file, compiled) in [
+            ("TOML schema", as_a_toml_schema(&format!("[{TOML_SCHEMA}.{name}]\n{body}"))),
+            (
+                "project config",
+                beside_a_document(&format!("[{PROJECT}.{name}]\n{body}"), None),
+            ),
+        ] {
+            assert!(compiled.ok, "{file}, `{name}`: {}", compiled.log);
+            assert_eq!(
+                compiled.security(name)["enabled"],
+                Value::Bool(true),
+                "{file}: `[{name}]` {body:?} switched the control off"
+            );
+        }
+    }
+}
+
 // ── refused alike ────────────────────────────────────────────────────────────
 
 /// A body each file must refuse, and the text both refusals carry.
@@ -252,6 +319,64 @@ const REFUSED: &[(&str, &str, &str)] = &[
         "algorithm = \"rot13\"\n",
         "algorithm \"rot13\" is not supported; must be one of: chacha20-poly1305, aes-256-gcm",
     ),
+    ("error_sanitization", "bogus = 1\n", "unknown field `bogus`"),
+    ("error_sanitization", "custom_error_message = 7\n", "invalid type"),
+    ("rate_limiting", "bogus = 1\n", "unknown field `bogus`"),
+    ("rate_limiting", "requests_per_second_per_user = \"many\"\n", "invalid type"),
+    (
+        "rate_limiting",
+        "auth_start_window_secs = 0\n",
+        "auth_start_window_secs must be positive",
+    ),
+    (
+        "rate_limiting",
+        "failed_login_max_attempts = 0\n",
+        "failed_login_max_attempts must be at least 1",
+    ),
+    ("enterprise", "bogus = 1\n", "unknown field `bogus`"),
+    ("enterprise", "audit_logging_enabled = \"yes\"\n", "invalid type"),
+    // Read by nothing, so neither file takes them.
+    (
+        "enterprise",
+        "rate_limiting_enabled = false\n",
+        "unknown field `rate_limiting_enabled`",
+    ),
+    (
+        "enterprise",
+        "auth_endpoint_max_requests = 5\n",
+        "unknown field `auth_endpoint_max_requests`",
+    ),
+    (
+        "enterprise",
+        "auth_endpoint_window_seconds = 5\n",
+        "unknown field `auth_endpoint_window_seconds`",
+    ),
+    (
+        "enterprise",
+        "audit_log_backend = \"file\"\n",
+        "unknown field `audit_log_backend`",
+    ),
+    (
+        "enterprise",
+        "audit_retention_days = 7\n",
+        "unknown field `audit_retention_days`",
+    ),
+    (
+        "enterprise",
+        "error_sanitization = false\n",
+        "unknown field `error_sanitization`",
+    ),
+    (
+        "enterprise",
+        "hide_implementation_details = false\n",
+        "unknown field `hide_implementation_details`",
+    ),
+    (
+        "enterprise",
+        "constant_time_comparison = false\n",
+        "unknown field `constant_time_comparison`",
+    ),
+    ("enterprise", "pkce_enabled = false\n", "unknown field `pkce_enabled`"),
 ];
 
 #[test]
@@ -365,5 +490,39 @@ fn a_document_copy_alone_still_applies() {
         let kept = beside_a_document("", Some(copy));
         assert!(kept.ok, "`{}` from the document alone: {}", key.name, kept.log);
         assert_eq!(kept.security(key.name), reference.security(key.name), "`{}`", key.name);
+    }
+}
+
+// ── one spelling: the CLI-local ones are refused, naming their replacement ───
+
+/// The spellings only a project config took, and what each became.
+const RETIRED: &[(&str, &str, &str)] = &[
+    (
+        "[fraiseql.security.audit_logging]\nenabled = true\n",
+        "[fraiseql.security.audit_logging]",
+        "[fraiseql.security.enterprise] audit_logging_enabled",
+    ),
+    (
+        "[fraiseql.security.rate_limiting]\nfailed_login_max_requests = 10\n",
+        "failed_login_max_requests",
+        "failed_login_max_attempts",
+    ),
+    (
+        "[fraiseql.security.rate_limiting]\nfailed_login_window_secs = 900\n",
+        "failed_login_window_secs",
+        "failed_login_lockout_secs",
+    ),
+];
+
+#[test]
+fn a_retired_project_spelling_is_refused_naming_its_replacement() {
+    for (toml, old, new) in RETIRED {
+        let refused = beside_a_document(toml, None);
+        assert!(!refused.ok, "{old} compiled");
+        // The named refusal, not serde's unknown-field list, which names every key of the
+        // table and so both spellings of a renamed one.
+        assert!(refused.log.contains("is no longer accepted"), "{old}: {}", refused.log);
+        assert!(refused.log.contains(old), "{old}: {}", refused.log);
+        assert!(refused.log.contains(new), "{old} does not name {new}: {}", refused.log);
     }
 }

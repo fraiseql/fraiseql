@@ -463,9 +463,8 @@ pub(super) const fn effective_trusted_doc_mode(
 ///   default deployment does not render raw DB/SQL error text on 5xx) and **disabled in
 ///   development** (verbose errors aid local debugging).
 ///
-/// The pure `ErrorSanitizationConfig::default()` (shared with `fraiseql-cli`) is
-/// left untouched at `enabled = false`; the secure default lives here, at the
-/// server boot seam, so it does not change compile-time/authoring behavior.
+/// `ErrorSanitizationConfig::default()` is the default of a *written* section, and is
+/// enabled; an absent section is decided here, at the server boot seam.
 pub(super) fn build_error_sanitizer(
     compiled: Option<crate::config::error_sanitization::ErrorSanitizationConfig>,
     deployment: Deployment,

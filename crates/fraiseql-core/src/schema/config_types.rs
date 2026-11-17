@@ -175,75 +175,25 @@ pub struct FieldAuthRule {
     pub policy:     String,
 }
 
-/// Enterprise security features.
+/// Enterprise security features, compiled from `[security.enterprise]`.
+///
+/// One key, the one the runtime reads. Nine others (`rate_limiting_enabled`,
+/// `auth_endpoint_max_requests`, `auth_endpoint_window_seconds`, `audit_log_backend`,
+/// `audit_retention_days`, `error_sanitization`, `hide_implementation_details`,
+/// `constant_time_comparison`, `pkce_enabled`) were accepted and read by nothing; the
+/// sections that do the work are `[security.rate_limiting]`, `[security.error_sanitization]`
+/// and `[security.pkce]`. `deny_unknown_fields` refuses them by name.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct EnterpriseSecurityConfig {
-    /// Enable rate limiting.
-    #[serde(default = "default_true")]
-    pub rate_limiting_enabled:        bool,
-    /// Max requests per window.
-    #[serde(default = "default_auth_max_requests")]
-    pub auth_endpoint_max_requests:   u32,
-    /// Rate limit window in seconds.
-    #[serde(default = "default_auth_window")]
-    pub auth_endpoint_window_seconds: u64,
-    /// Enable audit logging.
-    #[serde(default = "default_true")]
-    pub audit_logging_enabled:        bool,
-    /// Audit log backend: postgresql, file, syslog.
-    #[serde(default = "default_audit_backend")]
-    pub audit_log_backend:            String,
-    /// Audit log retention in days.
-    #[serde(default = "default_audit_retention")]
-    pub audit_retention_days:         u32,
-    /// Enable error sanitization.
-    #[serde(default = "default_true")]
-    pub error_sanitization:           bool,
-    /// Hide implementation details.
-    #[serde(default = "default_true")]
-    pub hide_implementation_details:  bool,
-    /// Enable constant-time comparison.
-    #[serde(default = "default_true")]
-    pub constant_time_comparison:     bool,
-    /// Enable PKCE for OAuth.
-    #[serde(default = "default_true")]
-    pub pkce_enabled:                 bool,
-}
-
-const fn default_true() -> bool {
-    true
-}
-
-const fn default_auth_max_requests() -> u32 {
-    100
-}
-
-const fn default_auth_window() -> u64 {
-    60
-}
-
-fn default_audit_backend() -> String {
-    "postgresql".to_string()
-}
-
-const fn default_audit_retention() -> u32 {
-    365
+    /// Record mutations in the audit log (default: true).
+    pub audit_logging_enabled: bool,
 }
 
 impl Default for EnterpriseSecurityConfig {
     fn default() -> Self {
         Self {
-            rate_limiting_enabled:        default_true(),
-            auth_endpoint_max_requests:   default_auth_max_requests(),
-            auth_endpoint_window_seconds: default_auth_window(),
-            audit_logging_enabled:        default_true(),
-            audit_log_backend:            default_audit_backend(),
-            audit_retention_days:         default_audit_retention(),
-            error_sanitization:           default_true(),
-            hide_implementation_details:  default_true(),
-            constant_time_comparison:     default_true(),
-            pkce_enabled:                 default_true(),
+            audit_logging_enabled: true,
         }
     }
 }
