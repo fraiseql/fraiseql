@@ -1,6 +1,6 @@
 # A TOML schema: this fixture authors its types here. The `cron` fixture declares `[mcp]`
 # beside an SDK `schema.json`.
-[schema]
+[project]
 name = "capability-mcp"
 
 [types.Note]

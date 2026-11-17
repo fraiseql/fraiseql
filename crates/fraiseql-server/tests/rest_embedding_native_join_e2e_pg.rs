@@ -97,7 +97,7 @@ async fn provision(url: &str) -> bool {
 fn fraiseql_toml() -> String {
     format!(
         r#"
-[schema]
+[project]
 name = "native-join-1587"
 version = "1.0.0"
 database_target = "postgresql"

@@ -19,7 +19,7 @@ fn toml_auth_pkce_group_carries_through_merger_and_converter() {
     let mut f = NamedTempFile::new().unwrap();
     f.write_all(
         br#"
-        [schema]
+        [project]
         name = "app"
 
         [types.User]
@@ -56,7 +56,7 @@ fn the_client_secret_is_never_embedded_in_the_compiled_schema() {
     let mut f = NamedTempFile::new().unwrap();
     f.write_all(
         br#"
-        [schema]
+        [project]
         name = "app"
 
         [types.User]
@@ -96,7 +96,7 @@ fn toml_auth_social_group_carries_through_to_compiled_schema() {
     let mut f = NamedTempFile::new().unwrap();
     f.write_all(
         br#"
-        [schema]
+        [project]
         name = "app"
 
         [types.User]
@@ -148,7 +148,7 @@ fn an_unimplemented_social_provider_is_refused_at_compile_time() {
     let mut f = NamedTempFile::new().unwrap();
     f.write_all(
         br#"
-        [schema]
+        [project]
         name = "app"
 
         [types.User]
@@ -181,7 +181,7 @@ fn the_apple_provider_compiles_with_its_assertion_key_material() {
     let mut f = NamedTempFile::new().unwrap();
     f.write_all(
         br#"
-        [schema]
+        [project]
         name = "app"
 
         [types.User]
@@ -222,7 +222,7 @@ fn the_discord_and_facebook_providers_compile_with_their_overrides() {
     let mut f = NamedTempFile::new().unwrap();
     f.write_all(
         br#"
-        [schema]
+        [project]
         name = "app"
 
         [types.User]
@@ -284,7 +284,7 @@ fn apple_needs_exactly_one_private_key_source() {
         f.write_all(
             format!(
                 r#"
-        [schema]
+        [project]
         name = "app"
 
         [types.User]
@@ -317,7 +317,7 @@ fn an_empty_social_block_is_refused_at_compile_time() {
     let mut f = NamedTempFile::new().unwrap();
     f.write_all(
         br#"
-        [schema]
+        [project]
         name = "app"
 
         [types.User]
@@ -347,7 +347,7 @@ fn toml_auth_local_group_carries_through_to_compiled_schema() {
     let mut f = NamedTempFile::new().unwrap();
     f.write_all(
         br#"
-        [schema]
+        [project]
         name = "app"
 
         [types.User]
@@ -390,7 +390,7 @@ fn local_auth_refuses_mail_methods_with_no_email_from() {
     let mut f = NamedTempFile::new().unwrap();
     f.write_all(
         br#"
-        [schema]
+        [project]
         name = "app"
 
         [types.User]
@@ -415,7 +415,7 @@ fn local_auth_refuses_password_with_no_reset_template() {
     let mut f = NamedTempFile::new().unwrap();
     f.write_all(
         br#"
-        [schema]
+        [project]
         name = "app"
 
         [types.User]
@@ -445,7 +445,7 @@ fn local_auth_refuses_a_template_without_its_placeholder() {
     let mut f = NamedTempFile::new().unwrap();
     f.write_all(
         br#"
-        [schema]
+        [project]
         name = "app"
 
         [types.User]
@@ -472,7 +472,7 @@ fn local_auth_refuses_a_block_that_enables_nothing() {
     let mut f = NamedTempFile::new().unwrap();
     f.write_all(
         br#"
-        [schema]
+        [project]
         name = "app"
 
         [types.User]
@@ -499,7 +499,7 @@ fn a_jwt_only_auth_block_produces_no_compiled_auth_client() {
     let mut f = NamedTempFile::new().unwrap();
     f.write_all(
         br#"
-        [schema]
+        [project]
         name = "app"
 
         [types.User]
@@ -527,7 +527,7 @@ fn merge_otp_with(extra: &str) -> anyhow::Result<fraiseql_cli::schema::Intermedi
     write!(
         f,
         r#"
-        [schema]
+        [project]
         name = "app"
 
         [types.User]
@@ -696,7 +696,7 @@ fn merge_session(session: &str) -> anyhow::Result<fraiseql_cli::schema::Intermed
     write!(
         f,
         r#"
-        [schema]
+        [project]
         name = "app"
 
         [types.User]
@@ -793,7 +793,7 @@ fn compile_project_with(
         &toml,
         format!(
             r#"
-            [schema]
+            [project]
             name = "app"
 
             [types.User]
@@ -990,7 +990,7 @@ fn merge_transport(
     write!(
         f,
         r#"
-        [schema]
+        [project]
         name = "app"
 
         [types.User]
@@ -1066,7 +1066,7 @@ fn merge_database(
     write!(
         f,
         r#"
-        [schema]
+        [project]
         name = "app"
 
         [types.User]

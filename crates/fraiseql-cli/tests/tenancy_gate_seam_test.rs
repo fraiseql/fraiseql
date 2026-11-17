@@ -88,7 +88,7 @@ const TYPES_JSON: &str = r#"{
 fn toml_schema(security_extra: &str) -> String {
     format!(
         r#"
-[schema]
+[project]
 name = "tenancy_seam"
 version = "1.0.0"
 database_target = "postgresql"

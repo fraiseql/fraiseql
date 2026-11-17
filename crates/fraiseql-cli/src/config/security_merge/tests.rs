@@ -88,6 +88,6 @@ fn a_toml_schema_sets_tenancy_and_named_security_keys() {
             .parse()
             .unwrap();
     assert_eq!(declared_in_toml_schema(&table), declared(&["cost_budget", "tenancy"]));
-    let table: toml::Table = "[schema]\nname = \"app\"\n".parse().unwrap();
+    let table: toml::Table = "[project]\nname = \"app\"\n".parse().unwrap();
     assert!(declared_in_toml_schema(&table).is_empty());
 }

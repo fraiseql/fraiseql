@@ -109,7 +109,7 @@ fn test_sdk_integration(sdk_name: &str, type_name: &str, types_json: &str) {
     // 2. Create fraiseql.toml with queries/mutations/security (minimal valid config)
     let toml_config = format!(
         r#"
-[schema]
+[project]
 name = "test_schema"
 version = "1.0.0"
 database_target = "postgresql"
@@ -217,7 +217,7 @@ fn test_types_and_toml_config_merged() {
 
     // fraiseql.toml with queries and mutations
     let toml_config = r#"
-[schema]
+[project]
 name = "merged_test"
 version = "1.0.0"
 database_target = "postgresql"
@@ -314,7 +314,7 @@ fn test_declared_authorization_is_rejected_at_compile() {
 "#;
 
     let toml_config = r#"
-[schema]
+[project]
 name = "secure_test"
 version = "1.0.0"
 database_target = "postgresql"
@@ -403,7 +403,7 @@ mod schema_integrity_cli_tests {
     ) -> (std::path::PathBuf, std::path::PathBuf, std::path::PathBuf) {
         let types_json = r#"{"types":[{"name":"Thing","sql_source":"v_thing","fields":[{"name":"id","type":"ID","nullable":false}]}],"queries":[{"name":"things","return_type":"Thing","returns_list":true,"nullable":false,"sql_source":"v_thing"}],"mutations":[]}"#;
         let toml_config = r#"
-[schema]
+[project]
 name = "hash_test"
 version = "1.0.0"
 database_target = "postgresql"
@@ -550,7 +550,7 @@ fn test_field_values_survive_full_cli_pipeline() {
 "#;
 
     let toml_config = r#"
-[schema]
+[project]
 name = "field_survival_test"
 version = "1.0.0"
 database_target = "postgresql"

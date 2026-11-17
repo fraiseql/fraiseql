@@ -52,7 +52,7 @@ fn toml_file(content: &str) -> NamedTempFile {
 fn rate_limiting_is_emitted_as_flat_snake_case_for_the_live_reader() {
     let f = toml_file(
         r#"
-        [schema]
+        [project]
         name = "test"
 
         [security.rate_limiting]
@@ -107,7 +107,7 @@ fn rate_limiting_is_emitted_as_flat_snake_case_for_the_live_reader() {
 fn declared_authorization_is_rejected_at_compile() {
     let err = validate_err(
         r#"
-        [schema]
+        [project]
         name = "t"
 
         [[security.rules]]
@@ -123,7 +123,7 @@ fn declared_authorization_is_rejected_at_compile() {
     assert!(
         validate_err(
             r#"
-        [schema]
+        [project]
         name = "t"
         [[security.policies]]
         name = "admin_only"
@@ -143,7 +143,7 @@ fn declared_authorization_is_rejected_at_compile() {
 fn caching_nonexistent_backend_is_rejected_at_compile() {
     let err = validate_err(
         r#"
-        [schema]
+        [project]
         name = "t"
 
         [caching]
@@ -160,7 +160,7 @@ fn caching_nonexistent_backend_is_rejected_at_compile() {
 fn caching_redis_url_is_rejected_at_compile() {
     let err = validate_err(
         r#"
-        [schema]
+        [project]
         name = "t"
 
         [caching]
@@ -176,7 +176,7 @@ fn caching_redis_url_is_rejected_at_compile() {
 fn caching_enabled_without_rules_is_rejected_at_compile() {
     let err = validate_err(
         r#"
-        [schema]
+        [project]
         name = "t"
 
         [caching]
@@ -193,7 +193,7 @@ fn caching_enabled_without_rules_is_rejected_at_compile() {
 fn analytics_enabled_without_queries_is_rejected_at_compile() {
     let err = validate_err(
         r#"
-        [schema]
+        [project]
         name = "t"
 
         [analytics]
@@ -209,7 +209,7 @@ fn analytics_enabled_without_queries_is_rejected_at_compile() {
 fn analytics_disabled_with_queries_is_rejected_at_compile() {
     let err = validate_err(
         r#"
-        [schema]
+        [project]
         name = "t"
 
         [analytics]
@@ -229,7 +229,7 @@ fn analytics_disabled_with_queries_is_rejected_at_compile() {
 fn observability_section_is_rejected_at_compile() {
     let err = validate_err(
         r#"
-        [schema]
+        [project]
         name = "t"
 
         [observability]
@@ -249,7 +249,7 @@ fn api_keys_storage_accepts_implemented_backends_and_rejects_the_rest() {
     for storage in ["env", "postgres"] {
         let schema = TomlSchema::parse_toml(&format!(
             r#"
-            [schema]
+            [project]
             name = "t"
 
             [security.api_keys]
@@ -267,7 +267,7 @@ fn api_keys_storage_accepts_implemented_backends_and_rejects_the_rest() {
 
     let err = validate_err(
         r#"
-        [schema]
+        [project]
         name = "t"
 
         [security.api_keys]
@@ -288,7 +288,7 @@ fn api_keys_storage_accepts_implemented_backends_and_rejects_the_rest() {
 fn compiled_observer_handlers_are_rejected_at_compile() {
     let err = validate_err(
         r#"
-        [schema]
+        [project]
         name = "t"
 
         [[observers.handlers]]
@@ -308,7 +308,7 @@ fn compiled_observer_handlers_are_rejected_at_compile() {
     // `[observers] enabled` without handlers is a consumed changelog gate — still valid.
     let schema = TomlSchema::parse_toml(
         r#"
-        [schema]
+        [project]
         name = "t"
 
         [observers]
@@ -327,7 +327,7 @@ fn compiled_observer_handlers_are_rejected_at_compile() {
 fn observers_settings_are_embedded_in_the_compiled_shape() {
     let f = toml_file(
         r#"
-        [schema]
+        [project]
         name = "t"
 
         [observers]

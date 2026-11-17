@@ -1507,7 +1507,7 @@ mod doctor_tests {
     #[test]
     fn test_toml_exists_pass() {
         let f = temp_file_with(
-            "[schema]\nname = \"test\"\nversion = \"1.0\"\ndatabase_target = \"postgresql\"\n",
+            "[project]\nname = \"test\"\nversion = \"1.0\"\ndatabase_target = \"postgresql\"\n",
         );
         let result = check_toml_exists(f.path());
         assert_eq!(result.status, CheckStatus::Pass);
@@ -1522,7 +1522,7 @@ mod doctor_tests {
     #[test]
     fn test_toml_parses_valid() {
         let toml =
-            "[schema]\nname = \"myapp\"\nversion = \"1.0\"\ndatabase_target = \"postgresql\"\n";
+            "[project]\nname = \"myapp\"\nversion = \"1.0\"\ndatabase_target = \"postgresql\"\n";
         let f = temp_file_with(toml);
         let result = check_toml_parses(f.path());
         assert_eq!(result.status, CheckStatus::Pass);
@@ -1537,7 +1537,7 @@ mod doctor_tests {
         let toml = project.path().join("fraiseql.toml");
         std::fs::write(
             &toml,
-            "[schema]\nname = \"app\"\n\n[auth.local]\notp = true\nemail_from = \"support\"\n\n\
+            "[project]\nname = \"app\"\n\n[auth.local]\notp = true\nemail_from = \"support\"\n\n\
              [auth.local.email.otp]\ntext_template = \"templates/otp.txt\"\n",
         )
         .unwrap();
@@ -1683,7 +1683,7 @@ mod doctor_tests {
 
     #[test]
     fn test_tls_disabled_in_config_is_pass() {
-        let toml = "[schema]\nname = \"a\"\nversion = \"1\"\ndatabase_target = \"postgresql\"\n";
+        let toml = "[project]\nname = \"a\"\nversion = \"1\"\ndatabase_target = \"postgresql\"\n";
         let f = temp_file_with(toml);
         let result = check_tls(f.path());
         assert_eq!(result.status, CheckStatus::Pass);
@@ -1691,7 +1691,7 @@ mod doctor_tests {
 
     #[test]
     fn test_cache_auth_coherence_cache_disabled_is_pass() {
-        let toml = "[schema]\nname = \"a\"\nversion = \"1\"\ndatabase_target = \"postgresql\"\n";
+        let toml = "[project]\nname = \"a\"\nversion = \"1\"\ndatabase_target = \"postgresql\"\n";
         let f = temp_file_with(toml);
         let result = check_rls_cache_coherence(f.path());
         assert_eq!(result.status, CheckStatus::Pass);
@@ -1699,7 +1699,7 @@ mod doctor_tests {
 
     #[test]
     fn test_cache_auth_coherence_cache_enabled_no_policy_is_warn() {
-        let toml = "[schema]\nname = \"a\"\nversion = \"1\"\ndatabase_target = \"postgresql\"\n\n[caching]\nenabled = true\n\n[security]\nmulti_tenant = false\n";
+        let toml = "[project]\nname = \"a\"\nversion = \"1\"\ndatabase_target = \"postgresql\"\n\n[caching]\nenabled = true\n\n[security]\nmulti_tenant = false\n";
         let f = temp_file_with(toml);
         let result = check_rls_cache_coherence(f.path());
         assert!(matches!(result.status, CheckStatus::Pass | CheckStatus::Warn));
@@ -1711,7 +1711,7 @@ mod doctor_tests {
     /// access control at all cleared the coherence check by declaring one word.
     #[test]
     fn test_cache_auth_coherence_cache_enabled_with_policy_is_pass() {
-        let toml = "[schema]\nname = \"a\"\nversion = \"1\"\ndatabase_target = \"postgresql\"\n\n[caching]\nenabled = true\n\n[security.rls]\nenabled = true\n";
+        let toml = "[project]\nname = \"a\"\nversion = \"1\"\ndatabase_target = \"postgresql\"\n\n[caching]\nenabled = true\n\n[security.rls]\nenabled = true\n";
         let f = temp_file_with(toml);
         let result = check_rls_cache_coherence(f.path());
         assert_eq!(result.status, CheckStatus::Pass);
@@ -3248,7 +3248,7 @@ mod run_tests {
         std::fs::write(
             &toml_path,
             r#"
-[schema]
+[project]
 name = "test"
 database_target = "postgresql"
 
@@ -3310,7 +3310,7 @@ url = "postgresql://toml-host/testdb"
         std::fs::write(
             &toml_path,
             r#"
-[schema]
+[project]
 name = "test"
 database_target = "postgresql"
 
@@ -3338,7 +3338,7 @@ url = "postgresql://toml-host/testdb"
         std::fs::write(
             &toml_path,
             r#"
-[schema]
+[project]
 name = "test"
 database_target = "postgresql"
 
@@ -3362,7 +3362,7 @@ url = "postgresql://toml-host/testdb"
         std::fs::write(
             &toml_path,
             r#"
-[schema]
+[project]
 name = "test"
 database_target = "postgresql"
 
@@ -3398,7 +3398,7 @@ port = 9999
         std::fs::write(
             &toml_path,
             r#"
-[schema]
+[project]
 name = "test"
 database_target = "postgresql"
 
@@ -3441,7 +3441,7 @@ port = 9999
         std::fs::write(
             &toml_path,
             r#"
-[schema]
+[project]
 name = "test"
 database_target = "postgresql"
 
@@ -3474,7 +3474,7 @@ port = 0
         std::fs::write(
             &toml_path,
             r#"
-[schema]
+[project]
 name = "test"
 database_target = "postgresql"
 
@@ -3500,7 +3500,7 @@ pool_max = 10
         std::fs::write(
             &toml_path,
             r#"
-[schema]
+[project]
 name = "test"
 database_target = "postgresql"
 "#,
@@ -4354,7 +4354,7 @@ mod compile_database_url_tests {
     async fn a_removed_engine_url_is_refused_naming_postgresql_only() {
         let tmp = tempfile::tempdir().unwrap();
         let input = tmp.path().join("schema.toml");
-        std::fs::write(&input, "[schema]\nname = \"a\"\nversion = \"1\"\n").unwrap();
+        std::fs::write(&input, "[project]\nname = \"a\"\nversion = \"1\"\n").unwrap();
         let input = input.to_str().unwrap();
 
         for url in ["sqlite://x.db", "mysql://localhost/db", "mssql://h/db"] {

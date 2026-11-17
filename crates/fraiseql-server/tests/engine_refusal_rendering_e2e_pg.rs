@@ -59,7 +59,7 @@ fn fraiseql_toml(ceiling: Ceiling) -> String {
     };
     format!(
         r#"
-[schema]
+[project]
 name = "refusal-1543"
 version = "1.0.0"
 database_target = "postgresql"

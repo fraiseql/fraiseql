@@ -441,7 +441,7 @@ fn test_parse_query_defaults_where_false() {
     use fraiseql_cli::config::TomlSchema;
 
     let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -461,7 +461,7 @@ fn test_parse_no_query_defaults_gives_all_true() {
     use fraiseql_cli::config::TomlSchema;
 
     let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -478,7 +478,7 @@ fn test_parse_partial_query_defaults() {
     use fraiseql_cli::config::TomlSchema;
 
     let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -504,7 +504,7 @@ fn test_parse_naming_convention_camel_case() {
     let toml = r#"
 naming_convention = "camelCase"
 
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -522,7 +522,7 @@ fn test_parse_naming_convention_default_is_camel_case() {
     // standard GraphQL surface with input-key recasing — not the old `preserve`
     // default that silently forwarded camelCase keys to snake_case SQL functions.
     let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -538,7 +538,7 @@ fn test_parse_naming_convention_explicit_preserve_honored() {
     let toml = r#"
 naming_convention = "preserve"
 
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -562,7 +562,7 @@ fn test_end_to_end_relay_first_defaults() -> anyhow::Result<()> {
 
     // Relay-first project: limit=false, offset=false in [query_defaults]
     let toml = r#"
-[schema]
+[project]
 name = "relay_app"
 version = "1.0.0"
 database_target = "postgresql"
@@ -646,7 +646,7 @@ fn test_end_to_end_partial_per_query_override() -> anyhow::Result<()> {
 
     // Security-first defaults: where=false
     let toml = r#"
-[schema]
+[project]
 name = "secure_app"
 version = "1.0.0"
 database_target = "postgresql"
@@ -712,7 +712,7 @@ fn test_typo_guard_queries_defaults_key() -> anyhow::Result<()> {
 
     // [queries.defaults] is a common typo for [query_defaults]
     let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"

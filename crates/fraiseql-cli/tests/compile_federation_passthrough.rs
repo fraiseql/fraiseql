@@ -211,7 +211,7 @@ fn toml_federation_carries_through_merger_and_converter() {
     let mut f = NamedTempFile::new().unwrap();
     f.write_all(
         br#"
-        [schema]
+        [project]
         name = "orders"
 
         [types.Order]
@@ -252,7 +252,7 @@ fn toml_federation_service_name_and_version_reach_compiled_schema() {
     let mut f = NamedTempFile::new().unwrap();
     f.write_all(
         br#"
-        [schema]
+        [project]
         name = "orders"
 
         [types.Order]
@@ -325,7 +325,7 @@ fn toml_federation_declares_an_extended_entity_and_renders_it() {
     let mut f = NamedTempFile::new().unwrap();
     f.write_all(
         br#"
-        [schema]
+        [project]
         name = "orders"
 
         [types.Order]

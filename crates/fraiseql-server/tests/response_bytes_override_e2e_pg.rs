@@ -56,7 +56,7 @@ fn fraiseql_toml(with_label: bool) -> String {
     };
     format!(
         r#"
-[schema]
+[project]
 name = "bytes-1534"
 version = "1.0.0"
 database_target = "postgresql"

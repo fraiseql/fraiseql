@@ -1,4 +1,4 @@
-[schema]
+[project]
 name = "capability-session-state"
 
 [types.Note]

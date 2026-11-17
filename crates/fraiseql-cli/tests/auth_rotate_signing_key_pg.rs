@@ -152,7 +152,7 @@ async fn keys(pool: &PgPool) -> Vec<(String, bool)> {
 fn project(auth_database: bool, issuer: bool) -> TempDir {
     let dir = tempfile::tempdir().expect("tempdir");
     let mut toml = String::from(
-        r#"[schema]
+        r#"[project]
 name = "rotate-signing-key"
 
 [types.Note]

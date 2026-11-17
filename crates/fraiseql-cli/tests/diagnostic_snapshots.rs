@@ -202,7 +202,7 @@ fn diagnostic_database_pool_min_exceeds_pool_max() {
 #[test]
 fn diagnostic_unknown_toml_key() {
     let bad_toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"

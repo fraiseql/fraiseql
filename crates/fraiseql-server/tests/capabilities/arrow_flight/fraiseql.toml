@@ -1,4 +1,4 @@
-[schema]
+[project]
 name = "capability-arrow-flight"
 
 [types.Note]

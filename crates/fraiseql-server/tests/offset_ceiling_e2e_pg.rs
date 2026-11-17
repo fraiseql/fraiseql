@@ -49,7 +49,7 @@ fn fraiseql_toml(max_offset: Option<u32>) -> String {
     };
     format!(
         r#"
-[schema]
+[project]
 name = "offset-1306"
 version = "1.0.0"
 database_target = "postgresql"

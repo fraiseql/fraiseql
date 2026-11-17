@@ -39,9 +39,7 @@ use fraiseql_core::schema::{ChangelogConfig, CrudNamingConfig, NamingConvention}
 pub use functions::FunctionsSettings;
 pub use observability::ObservabilityConfig;
 pub use observers::{EventHandler, ObserversConfig};
-pub use operations::{
-    MutationDefinition, PaginationPosture, QueryDefaults, QueryDefinition, SchemaMetadata,
-};
+pub use operations::{MutationDefinition, PaginationPosture, QueryDefaults, QueryDefinition};
 use rest::RestTomlConfig;
 pub use security::{
     ApiKeySecurityConfig, AuthorizationPolicy, AuthorizationRule, CodeChallengeMethod,
@@ -73,9 +71,9 @@ fn default_naming_convention() -> NamingConvention {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TomlSchema {
-    /// Schema metadata
-    #[serde(rename = "schema")]
-    pub schema: SchemaMetadata,
+    /// `[project]`: the metadata every `fraiseql.toml` takes.
+    #[serde(rename = "project")]
+    pub project: crate::config::ProjectMetadata,
 
     /// Database connection pool configuration (optional — all fields have defaults).
     ///
@@ -365,10 +363,16 @@ impl TomlSchema {
     /// [`Self::parse_toml`], reading the files the TOML names relative to `project`.
     pub(crate) fn parse_toml_in(content: &str, project: &std::path::Path) -> Result<Self> {
         let expanded = expand_env_vars(content)?;
+        // A file that is not TOML at all is reported by the typed parse below.
+        let table = expanded.parse::<toml::Table>().ok();
+        if let Some(table) = &table {
+            crate::config::refuse_unapplied_keys(table)?;
+            crate::config::refuse_retired_spellings(table)?;
+        }
         let mut schema: Self = toml::from_str(&expanded).context("Failed to parse TOML schema")?;
-        if let Ok(table) = expanded.parse::<toml::Table>() {
+        if let Some(table) = &table {
             schema.declared_security =
-                crate::config::security_merge::declared_in_toml_schema(&table);
+                crate::config::security_merge::declared_in_toml_schema(table);
         }
         if let Some(local) = schema.auth.as_mut().and_then(|auth| auth.local.as_mut()) {
             security::embed_email_templates(local, project)?;
@@ -544,7 +548,7 @@ impl TomlSchema {
     /// or rate-limiting configuration is invalid.
     pub(crate) fn validate_self_contained(&self) -> Result<()> {
         self.reject_accepted_but_unconsumed_config()?;
-        self.schema.validate_database_target()?;
+        self.project.validate_database_target()?;
 
         // #892: the same validation the project-config path runs (`config::mod`'s
         // `self.fraiseql.tenancy.validate()`). An empty `tenant_claim` under a non-`none`

@@ -25,9 +25,9 @@ use tracing::info;
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TomlProjectConfig {
-    /// Project metadata (name, version, description)
+    /// Project metadata (`[project]`: name, version, database target)
     #[serde(rename = "project")]
-    pub project: ProjectConfig,
+    pub project: ProjectMetadata,
 
     /// FraiseQL-specific settings
     #[serde(rename = "fraiseql")]
@@ -131,28 +131,41 @@ pub struct TomlProjectConfig {
     pub declares_naming_convention: bool,
 }
 
-/// Project metadata
+/// `[project]`: the metadata of every `fraiseql.toml`, the compile input or the file read
+/// beside a schema document.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct ProjectConfig {
-    /// Project name
+pub struct ProjectMetadata {
+    /// Project name (`fraiseql sbom` names the component after it).
     pub name:            String,
-    /// Project version
+    /// Project version (`fraiseql sbom` versions the component after it).
     pub version:         String,
-    /// Optional project description
-    pub description:     Option<String>,
     /// Target database backend. Only `"postgresql"` is accepted: MySQL, SQLite and SQL
-    /// Server were removed in v2.15.0 (#374), and [`TomlProjectConfig::validate`] refuses
-    /// them (see `config::validate_database_target`).
+    /// Server were removed in v2.15.0 (#374), and [`Self::validate_database_target`]
+    /// refuses them.
     pub database_target: Option<String>,
 }
 
-impl Default for ProjectConfig {
+impl ProjectMetadata {
+    /// Refuse a `database_target` other than `postgresql`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error naming the removed backends and `docs/database-compatibility.md`
+    /// when the target is anything but `postgresql` (compared case-insensitively).
+    pub fn validate_database_target(&self) -> Result<()> {
+        match &self.database_target {
+            Some(target) => validate_database_target("[project]", target),
+            None => Ok(()),
+        }
+    }
+}
+
+impl Default for ProjectMetadata {
     fn default() -> Self {
         Self {
             name:            "my-fraiseql-app".to_string(),
             version:         "1.0.0".to_string(),
-            description:     None,
             database_target: None,
         }
     }
@@ -357,9 +370,7 @@ impl TomlProjectConfig {
     /// unsupported algorithm, zero window, or bad port range).
     pub fn validate(&self) -> Result<()> {
         info!("Validating configuration");
-        if let Some(target) = &self.project.database_target {
-            validate_database_target("[project]", target)?;
-        }
+        self.project.validate_database_target()?;
         self.fraiseql.security.validate()?;
         self.fraiseql.tenancy.validate()?;
         self.server.validate()?;
@@ -384,7 +395,6 @@ enum Misplaced {
 /// does not: each is refused by name with where it belongs, where `deny_unknown_fields`
 /// would only say the key is unknown.
 const MISPLACED_SECTIONS: &[(&str, Misplaced)] = &[
-    ("schema", Misplaced::Authoring),
     ("types", Misplaced::Authoring),
     ("queries", Misplaced::Authoring),
     ("mutations", Misplaced::Authoring),
@@ -493,52 +503,81 @@ const UNAPPLIED_KEYS: &[(&str, &str, &str)] = &[
     ),
 ];
 
-/// Spellings only a project config took, each with the one that replaced it: the section,
-/// the key (or the section itself, when `key` is empty), and the compiled spelling.
+/// What a retired spelling is told.
+enum Retired {
+    /// The section moved: write this instead.
+    Write(&'static str),
+    /// The key was renamed: it is spelled this.
+    SpelledAs(&'static str),
+    /// Nothing reads the key: it is refused rather than accepted and ignored.
+    Unread,
+}
+
+/// Spellings `fraiseql.toml` no longer takes, each with what replaced it: the section, the
+/// key (or the section itself, when `key` is empty), and what it is told.
 ///
-/// The project config read these tables through CLI-local types until the compiled ones
-/// replaced them. Refused by name, with no alias, so a config that used one learns its
-/// replacement instead of an unknown field.
-const RETIRED_SPELLINGS: &[(&str, &str, &str)] = &[
+/// Refused by name, with no alias, so a file that used one learns its replacement instead
+/// of an unknown field. Checked in every role the file plays.
+const RETIRED_SPELLINGS: &[(&str, &str, Retired)] = &[
+    ("schema", "", Retired::Write("`[project]`")),
+    ("project", "description", Retired::Unread),
     (
         "fraiseql.security.audit_logging",
         "",
-        "`[fraiseql.security.enterprise] audit_logging_enabled`",
+        Retired::Write("`[fraiseql.security.enterprise] audit_logging_enabled`"),
     ),
     (
         "fraiseql.security.rate_limiting",
         "failed_login_max_requests",
-        "`failed_login_max_attempts`",
+        Retired::SpelledAs("`failed_login_max_attempts`"),
     ),
     (
         "fraiseql.security.rate_limiting",
         "failed_login_window_secs",
-        "`failed_login_lockout_secs`",
+        Retired::SpelledAs("`failed_login_lockout_secs`"),
     ),
 ];
 
 /// Refuse the first spelling of [`RETIRED_SPELLINGS`] that `table` writes.
-fn refuse_retired_spellings(table: &toml::Table) -> Result<()> {
-    for (section, key, instead) in RETIRED_SPELLINGS {
+///
+/// # Errors
+///
+/// Returns an error naming the retired spelling and what replaced it.
+pub(crate) fn refuse_retired_spellings(table: &toml::Table) -> Result<()> {
+    for (section, key, retired) in RETIRED_SPELLINGS {
         let mut found = Some(table);
         for part in section.split('.') {
             found = found.and_then(|t| t.get(part)).and_then(toml::Value::as_table);
         }
         let Some(found) = found else { continue };
-        if key.is_empty() {
-            anyhow::bail!("fraiseql.toml: `[{section}]` is no longer accepted; write {instead}");
-        }
-        if found.contains_key(*key) {
-            anyhow::bail!(
-                "fraiseql.toml: `[{section}] {key}` is no longer accepted; it is spelled {instead}"
-            );
+        let spelling = if key.is_empty() {
+            format!("[{section}]")
+        } else if found.contains_key(*key) {
+            format!("[{section}] {key}")
+        } else {
+            continue;
+        };
+        match retired {
+            Retired::Write(instead) => {
+                anyhow::bail!("fraiseql.toml: `{spelling}` is no longer accepted; write {instead}")
+            },
+            Retired::SpelledAs(instead) => anyhow::bail!(
+                "fraiseql.toml: `{spelling}` is no longer accepted; it is spelled {instead}"
+            ),
+            Retired::Unread => {
+                anyhow::bail!("fraiseql.toml: `{spelling}` is no longer accepted: nothing reads it")
+            },
         }
     }
     Ok(())
 }
 
 /// Refuse the first key of [`UNAPPLIED_KEYS`] that `table` sets.
-fn refuse_unapplied_keys(table: &toml::Table) -> Result<()> {
+///
+/// # Errors
+///
+/// Returns an error naming the key and what to do instead.
+pub(crate) fn refuse_unapplied_keys(table: &toml::Table) -> Result<()> {
     for (section, key, instead) in UNAPPLIED_KEYS {
         let mut found = Some(table);
         for part in section.split('.') {
@@ -556,9 +595,8 @@ fn refuse_unapplied_keys(table: &toml::Table) -> Result<()> {
 
 /// Refuse a `database_target` other than `postgresql` (compared case-insensitively).
 ///
-/// The one rule for both keys that carry a target: `[project] database_target`, which
-/// `fraiseql init` writes into every new `fraiseql.toml`, and `[schema] database_target`
-/// in a TOML schema. `section` names the key in the message.
+/// The rule for `[project] database_target`, which `fraiseql init` writes into every new
+/// `fraiseql.toml`. `section` names the key in the message.
 ///
 /// # Errors
 ///

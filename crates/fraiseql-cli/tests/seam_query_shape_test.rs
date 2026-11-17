@@ -160,7 +160,7 @@ fn the_domain_discovery_workflow_names_the_other_surfaces_spelling() {
     .unwrap();
     fs::write(
         dir.path().join("fraiseql.toml"),
-        "[schema]\nname = \"tenants\"\n\n[domain_discovery]\nenabled = true\nroot_dir = \"schema\"\n",
+        "[project]\nname = \"tenants\"\n\n[domain_discovery]\nenabled = true\nroot_dir = \"schema\"\n",
     )
     .unwrap();
 
@@ -187,7 +187,7 @@ fn the_toml_queries_surface_keeps_its_own_spelling() {
     let dir = TempDir::new().unwrap();
     fs::write(
         dir.path().join("fraiseql.toml"),
-        r#"[schema]
+        r#"[project]
 name = "tenants"
 version = "1.0.0"
 database_target = "postgresql"

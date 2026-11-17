@@ -103,46 +103,6 @@ fn default_true() -> bool {
     true
 }
 
-/// Schema metadata
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct SchemaMetadata {
-    /// Schema name
-    pub name:            String,
-    /// Schema version
-    pub version:         String,
-    /// Optional schema description
-    pub description:     Option<String>,
-    /// Target database. Only `postgresql` is accepted: MySQL, SQLite and SQL Server
-    /// were removed in v2.15.0 (#374), and [`Self::validate_database_target`] refuses
-    /// them rather than compiling PostgreSQL SQL under a target the engine cannot serve.
-    pub database_target: String,
-}
-
-impl SchemaMetadata {
-    /// Refuse a `database_target` other than `postgresql` (see
-    /// `config::validate_database_target`, shared with `[project] database_target`).
-    ///
-    /// # Errors
-    ///
-    /// Returns an error naming the removed backends and `docs/database-compatibility.md`
-    /// when the target is anything but `postgresql` (compared case-insensitively).
-    pub fn validate_database_target(&self) -> anyhow::Result<()> {
-        crate::config::validate_database_target("[schema]", &self.database_target)
-    }
-}
-
-impl Default for SchemaMetadata {
-    fn default() -> Self {
-        Self {
-            name:            "myapp".to_string(),
-            version:         "1.0.0".to_string(),
-            description:     None,
-            database_target: "postgresql".to_string(),
-        }
-    }
-}
-
 /// Query definition in TOML
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]

@@ -191,7 +191,7 @@ sql_source = "v_org"
             let dir = TempDir::new().unwrap();
             let types = if with_types_json { "" } else { TOML_TYPES };
             let toml = format!(
-                "[schema]\nname = \"orgs\"\n{types}\n[federation]\nenabled = true\n\
+                "[project]\nname = \"orgs\"\n{types}\n[federation]\nenabled = true\n\
                  version = \"v2\"\n\n[[federation.entities]]\nname = \"Org\"\n\
                  key_fields = {key}\n"
             );

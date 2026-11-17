@@ -209,11 +209,11 @@ const ALREADY_HONOURED: &[&str] = &[
     "inject_defaults",
     "server",
     "database",
+    "project",
 ];
 
 /// Sections refused beside a schema document, each with what its refusal points to.
 const REFUSED: &[(&str, &str, &str)] = &[
-    ("schema", "[schema]\nversion = \"1.0.0\"\n", "compile input"),
     ("types", "[types.Order]\nsql_source = \"v_order\"\n", "compile input"),
     ("queries", "[queries.orders]\nreturn_type = \"Order\"\n", "compile input"),
     ("mutations", "[mutations.touch]\nreturn_type = \"Order\"\n", "compile input"),
@@ -289,7 +289,7 @@ fn as_a_toml_schema(toml: &str, copy: Option<(&str, Value)>) -> Compiled {
     fs::write(dir.path().join("types.json"), types.to_string()).unwrap();
     fs::write(
         dir.path().join("fraiseql.toml"),
-        format!("{toml}\n[schema]\nname = \"app\"\nversion = \"1.0.0\"\n"),
+        format!("{toml}\n[project]\nname = \"app\"\nversion = \"1.0.0\"\n"),
     )
     .unwrap();
     run(&dir, &["fraiseql.toml", "--types", "types.json"])
@@ -605,7 +605,7 @@ fn captured(capture: &str, as_toml_schema: bool) -> (Compiled, String) {
         fs::write(dir.path().join("types.json"), schema.to_string()).unwrap();
         fs::write(
             dir.path().join("fraiseql.toml"),
-            format!("{capture}\n[schema]\nname = \"app\"\nversion = \"1.0.0\"\n"),
+            format!("{capture}\n[project]\nname = \"app\"\nversion = \"1.0.0\"\n"),
         )
         .unwrap();
         run(&dir, &["fraiseql.toml", "--types", "types.json"])

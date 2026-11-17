@@ -1,4 +1,4 @@
-[schema]
+[project]
 name = "capability-subscription-kafka"
 
 # A TOML schema has no table for subscription definitions; they come from an included file.

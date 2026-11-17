@@ -49,6 +49,14 @@ disagreed, and the promise was the part that was wrong.
   server's SMTP configuration. Go's `Register()` refuses an action key the runtime does
   not read. The Java SDK now exports the observers it registers; it exported none.
 
+- **One grammar for every `fraiseql.toml` (#1647).** A `fraiseql.toml` given to `compile`
+  as its input and one read beside a schema document now take the same spellings. A spelling
+  the grammar no longer takes is refused by name, with what to write instead:
+
+  - `[schema]`, the metadata table of a TOML schema, is `[project]`, as in a project
+    config.
+  - `[project] description` is refused: nothing read it.
+
 - **`[auth_hs256]` is removed (#1964).** Shared-secret token validation is gone. A
   configuration with an `[auth_hs256]` section is refused at boot, and the error names the
   replacements: `[auth_issuer]` signs and validates the sessions this server mints, and

@@ -200,7 +200,7 @@ fn as_a_toml_schema(toml: &str) -> Compiled {
     fs::write(dir.path().join("types.json"), document().to_string()).unwrap();
     fs::write(
         dir.path().join("fraiseql.toml"),
-        format!("{toml}\n[schema]\nname = \"app\"\nversion = \"1.0.0\"\n"),
+        format!("{toml}\n[project]\nname = \"app\"\nversion = \"1.0.0\"\n"),
     )
     .unwrap();
     run(&dir, &["fraiseql.toml", "--types", "types.json"])

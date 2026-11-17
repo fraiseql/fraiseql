@@ -12,9 +12,8 @@ url = "postgresql://localhost/saas"
 enabled = true
 root_dir = "schema"
 
-[schema]
+[project]
 database_target = "postgresql"
-description = "SaaS platform with account management, billing, teams, and integrations"
 name = "saas"
 version = "1.0.0"
 

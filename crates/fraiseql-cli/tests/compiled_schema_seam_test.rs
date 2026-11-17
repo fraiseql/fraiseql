@@ -161,7 +161,7 @@ fn sdk_corpus() -> Value {
 /// Deliberately minimal: every construct asserted below is authored in the SDK JSON, so a
 /// drop is attributable to the merge/convert seam rather than to TOML precedence.
 const MINIMAL_TOML: &str = r#"
-[schema]
+[project]
 name = "seam"
 version = "1.0.0"
 database_target = "postgresql"
@@ -450,7 +450,7 @@ fn toml_declared_query_argument_reaches_compiled_schema() {
     fs::write(
         dir.path().join("fraiseql.toml"),
         r#"
-[schema]
+[project]
 name = "argtest"
 version = "1.0.0"
 database_target = "postgresql"
@@ -500,7 +500,7 @@ fn toml_declared_mutation_argument_reaches_compiled_schema() {
     fs::write(
         dir.path().join("fraiseql.toml"),
         r#"
-[schema]
+[project]
 name = "argtest"
 version = "1.0.0"
 database_target = "postgresql"
@@ -889,7 +889,7 @@ fn a_grpc_toml_section_reaches_the_compiled_schema() {
     fs::write(
         dir.path().join("fraiseql.toml"),
         r#"
-[schema]
+[project]
 name = "g"
 version = "1.0.0"
 database_target = "postgresql"
@@ -967,7 +967,7 @@ fn functions_project(module_dir: &str, dlq_store: &str) -> TempDir {
         dir.path().join("fraiseql.toml"),
         format!(
             r#"
-[schema]
+[project]
 name = "f"
 version = "1.0.0"
 database_target = "postgresql"
@@ -1032,7 +1032,7 @@ fn a_project_declaring_no_function_compiles_to_no_section() {
     fs::write(
         dir.path().join("fraiseql.toml"),
         r#"
-[schema]
+[project]
 name = "n"
 version = "1.0.0"
 database_target = "postgresql"
@@ -1068,7 +1068,7 @@ fn functions_settings_without_a_declared_function_fail_the_compile() {
     fs::write(
         dir.path().join("fraiseql.toml"),
         r#"
-[schema]
+[project]
 name = "f"
 version = "1.0.0"
 database_target = "postgresql"
@@ -1133,7 +1133,7 @@ fn grpc_enabled_without_a_descriptor_path_fails_the_compile() {
     fs::write(
         dir.path().join("fraiseql.toml"),
         r#"
-[schema]
+[project]
 name = "g"
 version = "1.0.0"
 database_target = "postgresql"
@@ -1171,7 +1171,7 @@ fn a_disabled_grpc_section_leaves_the_compiled_config_absent() {
     fs::write(
         dir.path().join("fraiseql.toml"),
         r#"
-[schema]
+[project]
 name = "g"
 version = "1.0.0"
 database_target = "postgresql"
@@ -1424,7 +1424,7 @@ fn what_compile_writes_for_the_strict_sections_loads() {
     fs::write(
         dir.path().join("fraiseql.toml"),
         r#"
-[schema]
+[project]
 name = "s"
 version = "1.0.0"
 database_target = "postgresql"

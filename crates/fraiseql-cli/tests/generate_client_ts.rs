@@ -281,7 +281,7 @@ fn functions_dts_is_generated_from_a_compiled_schema() {
     .unwrap();
     std::fs::write(
         tmp.path().join("fraiseql.toml"),
-        "[schema]\nname = \"dts\"\nversion = \"1.0.0\"\ndatabase_target = \"postgresql\"\n",
+        "[project]\nname = \"dts\"\nversion = \"1.0.0\"\ndatabase_target = \"postgresql\"\n",
     )
     .unwrap();
 

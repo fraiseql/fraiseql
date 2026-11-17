@@ -14,5 +14,5 @@ write_role = "changelog_writer" # role required for upsert_transport_checkpoint
 # `[changelog] expose = true` without this.
 enabled = true
 
-[schema]
+[project]
 name = "changelog-sidecar-demo"

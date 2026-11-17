@@ -21,7 +21,6 @@
 [project]
 name = "my-fraiseql-app"
 version = "1.0.0"
-#description = "My GraphQL API"
 #database_target = "postgresql"         # PostgreSQL is the only backend; anything else is refused
 
 # =============================================================================

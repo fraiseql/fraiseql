@@ -21,7 +21,7 @@ resolve = [
   { enrichment = "tenant_locale" },
 ]
 
-[schema]
+[project]
 database_target = "postgresql"
 name = "localized-catalog"
 version = "1.0.0"

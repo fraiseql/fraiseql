@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use fraiseql_cli::config::TomlProjectConfig;
 
 /// Settings the template leaves off. Fewer means the second load checks less.
-const SETTINGS_LEFT_OFF: usize = 31;
+const SETTINGS_LEFT_OFF: usize = 30;
 
 fn template() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fraiseql.toml.example")

@@ -36,7 +36,12 @@ use serde_json::Value;
 /// #6, #9, 5b — are pinned separately in `config_coverage_pin_test.rs`).
 const MANIFEST: &[(&str, &str)] = &[
     // ── Compiled-schema authoring surface (CLI → compiled.json) ──────────────
-    ("schema.*", "compiled schema metadata header (SchemaMetadata → compiled.json)"),
+    (
+        "project.database_target",
+        "ProjectMetadata::validate_database_target (refuses a non-PostgreSQL target)",
+    ),
+    ("project.name", "`fraiseql sbom`: the component's name"),
+    ("project.version", "`fraiseql sbom`: the component's version"),
     ("types", "user schema data — object types (empty by default)"),
     ("queries", "user schema data — query definitions (empty by default)"),
     ("mutations", "user schema data — mutation definitions (empty by default)"),
@@ -282,7 +287,8 @@ fn an_unmanifested_key_is_flagged_as_uncovered() {
         "a new security sub-block must be uncovered"
     );
     // And a genuinely-owned key is covered, so the gate is not vacuously strict.
-    assert!(is_covered("schema.name"), "schema.name is owned by the schema.* entry");
+    assert!(is_covered("federation.enabled"), "federation.enabled is owned by federation.*");
+    assert!(is_covered("project.name"), "project.name has its own entry");
     assert!(is_covered("security.rate_limiting"), "rate_limiting is owned");
 }
 
@@ -295,12 +301,10 @@ fn an_unmanifested_key_is_flagged_as_uncovered() {
 const PROJECT_MANIFEST: &[(&str, &str)] = &[
     (
         "project.database_target",
-        "TomlProjectConfig::validate → validate_database_target (refuses a non-PostgreSQL target)",
+        "ProjectMetadata::validate_database_target (refuses a non-PostgreSQL target)",
     ),
-    // Written by `fraiseql init` and read by nothing: recorded as such, not given an owner.
-    ("project.name", "NO CONSUMER: project metadata `fraiseql init` writes"),
-    ("project.version", "NO CONSUMER: project metadata `fraiseql init` writes"),
-    ("project.description", "NO CONSUMER: project metadata"),
+    ("project.name", "`fraiseql sbom`: the component's name"),
+    ("project.version", "`fraiseql sbom`: the component's version"),
     (
         "fraiseql.schema_file",
         "NO CONSUMER: `fraiseql init` writes it; compile takes its input as an argument",

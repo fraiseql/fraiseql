@@ -307,7 +307,6 @@ fn create_toml_config(project_dir: &Path, config: &InitConfig) -> Result<()> {
         r#"[project]
 name = "{name}"
 version = "0.1.0"
-description = "A FraiseQL project"
 database_target = "{db_target}"
 
 [fraiseql]

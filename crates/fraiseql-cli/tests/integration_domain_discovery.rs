@@ -120,7 +120,7 @@ fn test_domain_discovery_simple() {
         .expect("Failed to write types.json");
 
     // Create fraiseql.toml
-    let toml_content = r#"[schema]
+    let toml_content = r#"[project]
 name = "test"
 version = "1.0.0"
 database_target = "postgresql"
@@ -215,7 +215,7 @@ fn test_domain_discovery_multiple_domains() {
         .expect("Failed to write posts types.json");
 
     // Create fraiseql.toml
-    let toml_content = r#"[schema]
+    let toml_content = r#"[project]
 name = "test"
 version = "1.0.0"
 database_target = "postgresql"
@@ -298,7 +298,7 @@ fn test_cross_domain_references() {
         .expect("Failed to write posts types.json");
 
     // Create fraiseql.toml
-    let toml_content = r#"[schema]
+    let toml_content = r#"[project]
 name = "test"
 version = "1.0.0"
 database_target = "postgresql"
@@ -352,7 +352,7 @@ fn test_domain_discovery_disabled() {
         .expect("Failed to write types.json");
 
     // Create fraiseql.toml with disabled domain discovery
-    let toml_content = r#"[schema]
+    let toml_content = r#"[project]
 name = "test"
 version = "1.0.0"
 database_target = "postgresql"

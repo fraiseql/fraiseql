@@ -65,7 +65,7 @@ const SCHEMA: &str = "p1266_embed";
 fn fraiseql_toml() -> String {
     format!(
         r#"
-[schema]
+[project]
 name = "embed-1266"
 version = "1.0.0"
 database_target = "postgresql"

@@ -1228,7 +1228,7 @@ mod merger_tests {
     #[test]
     fn test_merge_toml_only() {
         let toml_content = r#"
-[schema]
+[project]
 name = "test"
 version = "1.0.0"
 database_target = "postgresql"
@@ -1282,7 +1282,7 @@ sql_source = "v_user"
         // Create TOML with includes
         let toml_content = format!(
             r#"
-[schema]
+[project]
 name = "test"
 version = "1.0.0"
 database_target = "postgresql"
@@ -1314,7 +1314,7 @@ mutations = []
         let temp_dir = TempDir::new()?;
 
         let toml_content = r#"
-[schema]
+[project]
 name = "test"
 version = "1.0.0"
 database_target = "postgresql"
@@ -1379,7 +1379,7 @@ mutations = []
         let schema_dir_str = schema_dir.to_string_lossy().to_string();
         let toml_content = format!(
             r#"
-[schema]
+[project]
 name = "test"
 version = "1.0.0"
 database_target = "postgresql"
@@ -1431,7 +1431,7 @@ root_dir = "{schema_dir_str}"
         let schema_dir_str = schema_dir.to_string_lossy().to_string();
         let toml_content = format!(
             r#"
-[schema]
+[project]
 name = "test"
 version = "1.0.0"
 database_target = "postgresql"
@@ -1464,7 +1464,7 @@ root_dir = "{schema_dir_str}"
     #[test]
     fn test_merge_toml_only_with_validation_config() {
         let toml_content = r#"
-[schema]
+[project]
 name = "test"
 version = "1.0.0"
 database_target = "postgresql"
@@ -1501,7 +1501,7 @@ max_page_size = 750
     #[test]
     fn test_merge_toml_only_without_validation_config() {
         let toml_content = r#"
-[schema]
+[project]
 name = "test"
 version = "1.0.0"
 database_target = "postgresql"
@@ -1557,7 +1557,7 @@ type = "ID"
     #[test]
     fn crud_trinity_resolves_create_mutation() {
         let toml = r#"
-[schema]
+[project]
 name = "test"
 version = "1.0.0"
 
@@ -1585,7 +1585,7 @@ operation = "CREATE"
     #[test]
     fn crud_trinity_resolves_pascal_return_type() {
         let toml = r#"
-[schema]
+[project]
 name = "test"
 version = "1.0.0"
 
@@ -1612,7 +1612,7 @@ operation = "CREATE"
     #[test]
     fn explicit_sql_source_wins_over_crud() {
         let toml = r#"
-[schema]
+[project]
 name = "test"
 version = "1.0.0"
 
@@ -1641,7 +1641,7 @@ sql_source = "custom_create_user_fn"
     #[test]
     fn no_sql_source_no_crud_errors_with_mutation_name() {
         let toml = r#"
-[schema]
+[project]
 name = "test"
 version = "1.0.0"
 
@@ -1666,7 +1666,7 @@ operation = "CREATE"
     #[test]
     fn crud_custom_template_resolved_in_merger() {
         let toml = r#"
-[schema]
+[project]
 name = "test"
 version = "1.0.0"
 
@@ -1694,7 +1694,7 @@ operation = "CREATE"
     #[test]
     fn crud_update_and_delete_resolved() {
         let toml = r#"
-[schema]
+[project]
 name = "test"
 version = "1.0.0"
 
@@ -1729,7 +1729,7 @@ operation = "DELETE"
     fn toml_mutation_input_style_threads_to_intermediate() {
         use fraiseql_core::schema::InputStyle;
         let toml = r#"
-[schema]
+[project]
 name = "test"
 version = "1.0.0"
 
@@ -1764,7 +1764,7 @@ sql_source = "touch_order"
     #[test]
     fn toml_mutation_changelog_pre_image_threads_to_intermediate() {
         let toml = r#"
-[schema]
+[project]
 name = "test"
 version = "1.0.0"
 
@@ -1799,7 +1799,7 @@ sql_source = "touch_price"
     #[test]
     fn toml_mutation_cascade_threads_to_intermediate() {
         let toml = r#"
-[schema]
+[project]
 name = "test"
 version = "1.0.0"
 

@@ -238,7 +238,7 @@ fn toml_schema_dir(security_extra: &str) -> TempDir {
     fs::write(
         dir.path().join("schema.toml"),
         format!(
-            r#"[schema]
+            r#"[project]
 name = "rbac_seam"
 version = "1.0.0"
 database_target = "postgresql"

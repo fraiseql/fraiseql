@@ -88,7 +88,7 @@ fn fraiseql_toml(max_response_bytes: Option<u64>, per_request_max: Option<u64>) 
     };
     format!(
         r#"
-[schema]
+[project]
 name = "budget-1351"
 version = "1.0.0"
 database_target = "postgresql"

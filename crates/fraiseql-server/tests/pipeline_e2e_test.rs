@@ -45,7 +45,7 @@ use tokio::{net::TcpListener, sync::oneshot};
 /// `apply_ddl()` below. Entity tables/views follow the singular convention
 /// (`tb_pipeline_user` / `v_pipeline_user`).
 const FRAISEQL_TOML: &str = r#"
-[schema]
+[project]
 name = "pipeline-e2e-test"
 version = "1.0.0"
 database_target = "postgresql"

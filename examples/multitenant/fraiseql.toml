@@ -16,9 +16,8 @@ url = "postgresql://localhost/multitenant"
 enabled = true
 root_dir = "schema"
 
-[schema]
+[project]
 database_target = "postgresql"
-description = "Multi-tenant application with shared core and isolated tenant domains"
 name = "multitenant"
 version = "1.0.0"
 

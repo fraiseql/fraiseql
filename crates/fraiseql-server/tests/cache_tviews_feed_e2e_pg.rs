@@ -168,7 +168,7 @@ async fn provision(url: &str) {
 fn fraiseql_toml() -> String {
     format!(
         r#"
-[schema]
+[project]
 name = "feed-1589"
 version = "1.0.0"
 database_target = "postgresql"

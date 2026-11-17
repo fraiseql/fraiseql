@@ -36,8 +36,7 @@ return_array = true
 return_type = "User"
 sql_source = "v_user"
 
-[schema]
+[project]
 database_target = "postgresql"
-description = "SQL-backed half of the async-jobs federation example (issue #170)"
 name = "async-jobs-fraiseql-side"
 version = "0.1.0"

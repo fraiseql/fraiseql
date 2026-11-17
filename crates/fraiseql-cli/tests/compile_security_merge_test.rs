@@ -26,7 +26,7 @@ enum Workflow {
 }
 
 const PROJECT_ONLY: &str = "[project]\nname = \"app\"\n";
-const SCHEMA_ONLY: &str = "[schema]\nname = \"app\"\nversion = \"1.0.0\"\n";
+const SCHEMA_ONLY: &str = "[project]\nname = \"app\"\nversion = \"1.0.0\"\n";
 
 const fn base_toml(path: Workflow) -> &'static str {
     match path {
@@ -186,7 +186,7 @@ fn sdk_tenancy_set_by_both_and_disagreeing_is_refused() {
 fn types_tenancy_set_by_both_and_disagreeing_is_refused() {
     tenancy_disagreement_is_refused(
         Workflow::Types,
-        "[schema]\nname = \"app\"\nversion = \"1.0.0\"\n\n[tenancy]\nmode = \"none\"\n",
+        "[project]\nname = \"app\"\nversion = \"1.0.0\"\n\n[tenancy]\nmode = \"none\"\n",
     );
 }
 
@@ -231,7 +231,7 @@ fn sdk_a_partially_declared_section_must_match_the_document_in_full() {
 
 #[test]
 fn types_cost_budget_set_by_both_and_disagreeing_is_refused() {
-    let toml = "[schema]\nname = \"app\"\nversion = \"1.0.0\"\n\n\
+    let toml = "[project]\nname = \"app\"\nversion = \"1.0.0\"\n\n\
                 [security.cost_budget]\nper_request_max = 50\n";
     let dir = project(Workflow::Types, Some(toml), &document(Some(tenant_security()), true));
     let log = refused(Workflow::Types, &dir);

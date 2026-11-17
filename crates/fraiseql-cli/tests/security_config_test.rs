@@ -13,7 +13,7 @@ use fraiseql_cli::config::toml_schema::{
 #[test]
 fn test_error_sanitization_config_parses() {
     let toml = r#"
-        [schema]
+        [project]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"
@@ -51,7 +51,7 @@ fn test_error_sanitization_defaults_are_safe() {
 #[test]
 fn test_rate_limiting_config_parses() {
     let toml = r#"
-        [schema]
+        [project]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"
@@ -93,7 +93,7 @@ fn test_rate_limiting_defaults() {
 #[test]
 fn test_state_encryption_config_parses() {
     let toml = r#"
-        [schema]
+        [project]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"
@@ -118,7 +118,7 @@ fn test_state_encryption_config_parses() {
 fn test_state_encryption_valid_algorithms() {
     for algo in ["chacha20-poly1305", "aes-256-gcm"] {
         let toml = format!(
-            "[schema]\nname=\"t\"\nversion=\"1.0.0\"\ndatabase_target=\"postgresql\"\n\
+            "[project]\nname=\"t\"\nversion=\"1.0.0\"\ndatabase_target=\"postgresql\"\n\
              [database]\nurl=\"postgresql://localhost/t\"\n\
              [security.state_encryption]\nenabled=true\nalgorithm=\"{algo}\""
         );
@@ -134,7 +134,7 @@ fn test_state_encryption_valid_algorithms() {
 #[test]
 fn test_pkce_config_parses() {
     let toml = r#"
-        [schema]
+        [project]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"
@@ -158,7 +158,7 @@ fn test_pkce_config_parses() {
 fn test_pkce_plain_method_allowed_in_config() {
     // "plain" is allowed by the spec; we warn at runtime but must not error at parse time.
     let toml = r#"
-        [schema]
+        [project]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"
@@ -182,7 +182,7 @@ fn test_pkce_plain_method_allowed_in_config() {
 #[test]
 fn test_all_security_subsections_parse_together() {
     let toml = r#"
-        [schema]
+        [project]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"
@@ -216,7 +216,7 @@ fn test_all_security_subsections_parse_together() {
 fn test_existing_enterprise_field_not_broken() {
     // Regression: the existing [security.enterprise] section still works.
     let toml = r#"
-        [schema]
+        [project]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"
@@ -249,7 +249,7 @@ fn test_existing_enterprise_field_not_broken() {
 #[test]
 fn test_auth_jwt_only_compiles() {
     let toml = r#"
-        [schema]
+        [project]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"
@@ -268,7 +268,7 @@ fn test_auth_jwt_only_compiles() {
 #[test]
 fn test_auth_issuer_without_audience_compiles() {
     let toml = r#"
-        [schema]
+        [project]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"
@@ -288,7 +288,7 @@ fn test_auth_issuer_without_audience_compiles() {
 #[test]
 fn test_auth_issuerless_jwks_uri_compiles() {
     let toml = r#"
-        [schema]
+        [project]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"
@@ -370,7 +370,7 @@ fn cli_auth_schema_mirrors_every_oidcconfig_field() {
 #[test]
 fn test_auth_issuer_and_jwks_uri_compiles() {
     let toml = r#"
-        [schema]
+        [project]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"
@@ -390,7 +390,7 @@ fn test_auth_issuer_and_jwks_uri_compiles() {
 #[test]
 fn test_auth_complete_client_group_accepted() {
     let toml = r#"
-        [schema]
+        [project]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"
@@ -410,7 +410,7 @@ fn test_auth_complete_client_group_accepted() {
 #[test]
 fn test_auth_partial_client_group_rejected_names_missing() {
     let toml = r#"
-        [schema]
+        [project]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"
@@ -432,7 +432,7 @@ fn test_auth_partial_client_group_rejected_names_missing() {
 fn test_auth_empty_block_rejected() {
     // A present-but-empty [auth] table configures nothing and must not pass silently.
     let toml = r#"
-        [schema]
+        [project]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"
@@ -449,7 +449,7 @@ fn test_auth_audience_without_jwt_group_rejected() {
     // `audience` alone is not a JWT-validation group: it needs either an issuer
     // (for discovery / `iss` validation) or a pinned jwks_uri (issuer-less mode).
     let toml = r#"
-        [schema]
+        [project]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"
@@ -467,7 +467,7 @@ fn test_auth_audience_without_jwt_group_rejected() {
 #[test]
 fn test_auth_absent_by_default() {
     let toml = r#"
-        [schema]
+        [project]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"
@@ -484,7 +484,7 @@ fn test_auth_client_secret_field_rejected() {
     // SECURITY: `client_secret` must NEVER appear in the TOML config.
     // `deny_unknown_fields` on OidcClientConfig must reject it.
     let toml = r#"
-        [schema]
+        [project]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"
@@ -543,7 +543,7 @@ fn test_unset_revoke_all_ttl_secs_is_absent_from_the_compiled_schema() -> anyhow
 
     let temp = TempDir::new()?;
     let toml = r#"
-[schema]
+[project]
 name = "test"
 version = "1.0.0"
 database_target = "postgresql"
@@ -574,7 +574,7 @@ fn test_revoke_all_ttl_secs_reaches_compiled_schema() -> anyhow::Result<()> {
 
     let temp = TempDir::new()?;
     let toml = r#"
-[schema]
+[project]
 name = "test"
 version = "1.0.0"
 database_target = "postgresql"
@@ -642,7 +642,7 @@ fn test_trusted_proxy_cidrs_reach_compiled_schema() -> anyhow::Result<()> {
 
     let temp = TempDir::new()?;
     let toml = r#"
-[schema]
+[project]
 name = "test"
 version = "1.0.0"
 database_target = "postgresql"
@@ -671,7 +671,7 @@ trusted_proxy_cidrs = ["10.0.0.0/8"]
 #[test]
 fn test_malformed_trusted_proxy_cidr_fails_validation() {
     let toml = r#"
-        [schema]
+        [project]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"
@@ -691,7 +691,7 @@ fn test_malformed_trusted_proxy_cidr_fails_validation() {
 #[test]
 fn test_valid_trusted_proxy_cidrs_pass_validation() {
     let toml = r#"
-        [schema]
+        [project]
         name = "test"
         version = "1.0.0"
         database_target = "postgresql"

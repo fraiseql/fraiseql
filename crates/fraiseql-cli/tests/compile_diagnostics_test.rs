@@ -371,7 +371,7 @@ fn a_configured_domain_root_that_is_missing_fails_the_compile() {
     fs::write(
         dir.path().join("fraiseql.toml"),
         r#"
-[schema]
+[project]
 name = "d"
 version = "1.0.0"
 database_target = "postgresql"
@@ -413,7 +413,7 @@ fn a_malformed_domain_file_fails_the_compile() {
     fs::write(
         dir.path().join("fraiseql.toml"),
         r#"
-[schema]
+[project]
 name = "d"
 version = "1.0.0"
 database_target = "postgresql"
@@ -449,7 +449,7 @@ fn a_configured_include_that_is_missing_fails_the_compile() {
     fs::write(
         dir.path().join("fraiseql.toml"),
         r#"
-[schema]
+[project]
 name = "i"
 version = "1.0.0"
 database_target = "postgresql"
@@ -487,7 +487,7 @@ fn a_malformed_include_fails_the_compile() {
     fs::write(
         dir.path().join("fraiseql.toml"),
         r#"
-[schema]
+[project]
 name = "i"
 version = "1.0.0"
 database_target = "postgresql"
@@ -526,7 +526,7 @@ fn a_toml_with_no_domains_or_includes_still_compiles() {
     fs::write(
         dir.path().join("fraiseql.toml"),
         r#"
-[schema]
+[project]
 name = "plain"
 version = "1.0.0"
 database_target = "postgresql"

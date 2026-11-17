@@ -1,4 +1,4 @@
-[schema]
+[project]
 name = "capability-cdc-outbound"
 
 [types.Order]

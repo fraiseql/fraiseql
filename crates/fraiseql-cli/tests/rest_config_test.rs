@@ -25,7 +25,7 @@ fn toml_file(content: &str) -> NamedTempFile {
 fn test_rest_config_flows_through_merger() {
     let f = toml_file(
         r#"
-        [schema]
+        [project]
         name = "test"
 
         [rest]
@@ -51,7 +51,7 @@ fn test_rest_config_flows_through_merger() {
 fn test_rest_config_absent_when_disabled() {
     let f = toml_file(
         r#"
-        [schema]
+        [project]
         name = "test"
     "#,
     );
@@ -64,7 +64,7 @@ fn test_rest_config_absent_when_disabled() {
 fn test_rest_config_absent_when_explicitly_disabled() {
     let f = toml_file(
         r#"
-        [schema]
+        [project]
         name = "test"
 
         [rest]
@@ -83,7 +83,7 @@ fn test_rest_config_absent_when_explicitly_disabled() {
 fn test_rest_config_rejects_invalid_path() {
     let f = toml_file(
         r#"
-        [schema]
+        [project]
         name = "test"
 
         [rest]
@@ -100,7 +100,7 @@ fn test_rest_config_rejects_invalid_path() {
 fn test_rest_config_accepts_root_path() {
     let f = toml_file(
         r#"
-        [schema]
+        [project]
         name = "test"
 
         [rest]
@@ -118,7 +118,7 @@ fn test_rest_config_accepts_root_path() {
 fn test_rest_config_accepts_trailing_slash() {
     let f = toml_file(
         r#"
-        [schema]
+        [project]
         name = "test"
 
         [rest]
@@ -136,7 +136,7 @@ fn test_rest_config_accepts_trailing_slash() {
 fn test_rest_config_rejects_empty_path() {
     let f = toml_file(
         r#"
-        [schema]
+        [project]
         name = "test"
 
         [rest]
@@ -155,7 +155,7 @@ fn test_rest_config_rejects_empty_path() {
 fn test_rest_config_round_trip_toml_to_compiled() {
     let f = toml_file(
         r#"
-        [schema]
+        [project]
         name = "rest_test"
 
         [types.Post]
@@ -197,7 +197,7 @@ fn test_rest_config_round_trip_toml_to_compiled() {
 fn test_rest_config_absent_in_compiled_when_disabled() {
     let f = toml_file(
         r#"
-        [schema]
+        [project]
         name = "no_rest"
 
         [types.Post]

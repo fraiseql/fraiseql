@@ -75,7 +75,7 @@ fn a_toml_schema_takes_its_own_section() {
     fs::write(
         dir.path().join("schema.toml"),
         format!(
-            "[schema]\nname = \"t\"\nversion = \"1.0.0\"\ndatabase_target = \"postgresql\"\n\n\
+            "[project]\nname = \"t\"\nversion = \"1.0.0\"\ndatabase_target = \"postgresql\"\n\n\
              [queries.orders]\nreturn_type = \"Order\"\nreturn_array = true\n\
              sql_source = \"v_order\"\n\n{DEFAULTS}"
         ),

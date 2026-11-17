@@ -119,7 +119,7 @@ async fn a_type_declared_in_a_sibling_file_of_the_schema_dir_compiles() {
     let toml = dir.path().join("fraiseql.toml");
     std::fs::write(
         &toml,
-        "[schema]\nname = \"p1530\"\nversion = \"1.0.0\"\ndatabase_target = \"postgresql\"\n",
+        "[project]\nname = \"p1530\"\nversion = \"1.0.0\"\ndatabase_target = \"postgresql\"\n",
     )
     .unwrap();
 

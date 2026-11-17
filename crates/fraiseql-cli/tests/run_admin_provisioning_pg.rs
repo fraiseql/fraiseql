@@ -200,7 +200,7 @@ async fn verifier(admin_url: &str, rolname: &str) -> Option<String> {
 fn project(auth_database: Option<&str>) -> TempDir {
     let dir = tempfile::tempdir().expect("tempdir");
     let mut toml = String::from(
-        r#"[schema]
+        r#"[project]
 name = "admin-provisioning"
 
 [types.Note]

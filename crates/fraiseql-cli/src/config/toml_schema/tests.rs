@@ -7,7 +7,7 @@ mod toml_schema_tests {
     #[test]
     fn test_parse_toml_schema() {
         let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -29,7 +29,7 @@ return_array = true
 sql_source = "v_user"
 "#;
         let schema = TomlSchema::parse_toml(toml).expect("Failed to parse");
-        assert_eq!(schema.schema.name, "myapp");
+        assert_eq!(schema.project.name, "myapp");
         assert!(schema.types.contains_key("User"));
     }
 
@@ -44,7 +44,7 @@ sql_source = "v_user"
     #[test]
     fn test_observers_config_nats_url_round_trip() {
         let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -64,7 +64,7 @@ nats_url = "nats://localhost:4222"
     #[test]
     fn test_observers_config_redis_url_is_refused() {
         let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -91,7 +91,7 @@ redis_url = "redis://localhost:6379"
         // The same fraiseql.toml feeds both `fraiseql compile` and the server.
         // The compiler must not reject the server's `[observers.runtime]` tuning.
         let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -119,7 +119,7 @@ max_connections = 9
     fn test_observers_unknown_toplevel_key_still_rejected() {
         // deny_unknown_fields stays the strict gate for genuine `[observers]` typos.
         let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -140,7 +140,7 @@ poll_interval_ms = 500
     #[test]
     fn test_federation_circuit_breaker_round_trip() {
         let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -177,7 +177,7 @@ success_threshold = 1
         // subgraph identity fields the compiled schema needs — previously absent,
         // so `deny_unknown_fields` rejected them and the subgraph had no name.
         let toml = r#"
-[schema]
+[project]
 name = "orders"
 
 [types.Order]
@@ -212,7 +212,7 @@ key_fields = ["id"]
     fn test_federation_apollo_version_back_compat_maps_to_version() {
         // The legacy integer `apollo_version` keeps working: `2` ⇒ "v2".
         let toml = r#"
-[schema]
+[project]
 name = "orders"
 
 [federation]
@@ -226,7 +226,7 @@ apollo_version = 2
     #[test]
     fn test_federation_explicit_version_wins_over_apollo_version() {
         let toml = r#"
-[schema]
+[project]
 name = "orders"
 
 [federation]
@@ -244,7 +244,7 @@ version = "v2"
         // the runtime (`circuit_breaker.per_entity`); the raw serde passthrough used
         // to drop them on the `per_database` ⇒ `per_entity` key rename.
         let toml = r#"
-[schema]
+[project]
 name = "orders"
 
 [types.Order]
@@ -281,7 +281,7 @@ recovery_timeout_secs = 60
     #[test]
     fn test_federation_circuit_breaker_zero_failure_threshold_rejected() {
         let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -303,7 +303,7 @@ success_threshold = 2
     #[test]
     fn test_federation_circuit_breaker_zero_recovery_timeout_rejected() {
         let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -325,7 +325,7 @@ success_threshold = 2
     #[test]
     fn test_federation_circuit_breaker_per_database_unknown_entity_rejected() {
         let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -358,7 +358,7 @@ failure_threshold = 3
     #[test]
     fn test_federation_circuit_breaker_per_database_valid() {
         let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -396,7 +396,7 @@ recovery_timeout_secs = 15
     #[test]
     fn test_toml_schema_parses_server_section() {
         let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -417,7 +417,7 @@ origins = ["https://example.com"]
     #[test]
     fn test_toml_schema_database_uses_runtime_config() {
         let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -439,7 +439,7 @@ ssl_mode = "require"
     fn test_env_var_expansion_in_toml_schema() {
         temp_env::with_var("SCHEMA_TEST_DB_URL", Some("postgres://test/fraiseql"), || {
             let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -455,7 +455,7 @@ url = "${SCHEMA_TEST_DB_URL}"
     #[test]
     fn test_toml_schema_defaults_without_server_section() {
         let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -574,7 +574,7 @@ path_column = "some_path"
     #[test]
     fn test_hierarchy_field_reference_validated() {
         let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -605,7 +605,7 @@ sql_source = "v_category"
     #[test]
     fn test_hierarchy_field_reference_rejects_invalid_name() {
         let toml = r#"
-[schema]
+[project]
 name = "myapp"
 version = "1.0.0"
 database_target = "postgresql"
@@ -774,7 +774,7 @@ mod relationships {
     fn schema_with(relationship_block: &str) -> TomlSchema {
         toml::from_str(&format!(
             r#"
-[schema]
+[project]
 name = "app"
 version = "1.0.0"
 database_target = "postgresql"
@@ -821,7 +821,7 @@ referenced_key = "id"
     fn a_misspelled_relationship_key_is_refused() {
         let err = toml::from_str::<TomlSchema>(
             r#"
-[schema]
+[project]
 name = "app"
 version = "1.0.0"
 database_target = "postgresql"
@@ -845,7 +845,7 @@ forgein_key = "typo"
     fn an_unknown_cardinality_is_refused() {
         let err = toml::from_str::<TomlSchema>(
             r#"
-[schema]
+[project]
 name = "app"
 version = "1.0.0"
 database_target = "postgresql"
@@ -896,7 +896,7 @@ referenced_key = "id"
     fn a_unique_field_emits_the_key() {
         let schema: TomlSchema = toml::from_str(
             r#"
-[schema]
+[project]
 name = "app"
 version = "1.0.0"
 database_target = "postgresql"
@@ -933,7 +933,7 @@ fields.name = { type = "String" }
     fn a_field_declared_scoped_like_its_parent_is_emitted() {
         let schema: TomlSchema = toml::from_str(
             r#"
-[schema]
+[project]
 name = "app"
 version = "1.0.0"
 database_target = "postgresql"
@@ -979,7 +979,7 @@ mod retired_rest_keys {
     fn a_document_setting_the_retired_embed_read_tally_is_refused() {
         let schema = TomlSchema::parse_toml(
             r#"
-    [schema]
+    [project]
     name = "app"
     version = "1.0.0"
     database_target = "postgresql"
@@ -995,14 +995,14 @@ mod retired_rest_keys {
     }
 }
 
-/// #1341: `[schema] database_target` names a backend the engine removed in v2.15.0
+/// #1341: `[project] database_target` names a backend the engine removed in v2.15.0
 /// (#374). It used to compile clean and emit PostgreSQL SQL under any target.
 mod database_target_tests {
     use super::super::*;
 
     fn schema_targeting(target: Option<&str>) -> TomlSchema {
         let key = target.map_or_else(String::new, |t| format!("database_target = \"{t}\"\n"));
-        let toml = format!("[schema]\nname = \"myapp\"\nversion = \"1.0.0\"\n{key}");
+        let toml = format!("[project]\nname = \"myapp\"\nversion = \"1.0.0\"\n{key}");
         TomlSchema::parse_toml(&toml)
             .expect("the key parses so that it can be refused with a sentence")
     }
@@ -1058,7 +1058,7 @@ mod subscription_policy {
     fn a_toml_subscription_policy_reaches_the_intermediate_type() {
         let schema: TomlSchema = toml::from_str(
             r#"
-[schema]
+[project]
 name = "app"
 version = "1.0.0"
 database_target = "postgresql"

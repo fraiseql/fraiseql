@@ -92,7 +92,7 @@ const TYPES_JSON: &str = r#"
 #[test]
 fn enterprise_audit_toggle_survives_emit_parse_runtime() {
     let toml = r#"
-[schema]
+[project]
 name = "contract_audit"
 version = "1.0.0"
 database_target = "postgresql"
@@ -126,7 +126,7 @@ audit_logging_enabled = true
 #[test]
 fn enterprise_audit_toggle_off_is_respected() {
     let toml = r#"
-[schema]
+[project]
 name = "contract_audit_off"
 version = "1.0.0"
 database_target = "postgresql"
@@ -153,7 +153,7 @@ audit_logging_enabled = false
 #[test]
 fn every_emitted_field_survives_parse_roundtrip() {
     let toml = r#"
-[schema]
+[project]
 name = "contract_roundtrip"
 version = "1.0.0"
 database_target = "postgresql"
@@ -216,7 +216,7 @@ audit_logging_enabled = true
 #[test]
 fn persisted_queries_only_survives_emit_parse() {
     let toml = r#"
-[schema]
+[project]
 name = "contract_pqo"
 version = "1.0.0"
 database_target = "postgresql"
@@ -242,7 +242,7 @@ persisted_queries_only = true
 #[test]
 fn persisted_queries_only_defaults_false() {
     let toml = r#"
-[schema]
+[project]
 name = "contract_pqo_off"
 version = "1.0.0"
 database_target = "postgresql"
@@ -268,7 +268,7 @@ url = "postgresql://localhost/test"
 #[test]
 fn cost_budget_survives_emit_parse_into_typed_field() {
     let toml = r#"
-[schema]
+[project]
 name = "contract_cost_budget"
 version = "1.0.0"
 database_target = "postgresql"
@@ -298,7 +298,7 @@ per_tenant_per_minute_default = 1000
 #[test]
 fn cost_budget_defaults_to_absent() {
     let toml = r#"
-[schema]
+[project]
 name = "contract_cost_budget_off"
 version = "1.0.0"
 database_target = "postgresql"
@@ -394,7 +394,7 @@ const CACHING_TYPES_JSON: &str = r#"
 "#;
 
 const CACHING_TOML_HEAD: &str = r#"
-[schema]
+[project]
 name = "contract_caching"
 version = "1.0.0"
 database_target = "postgresql"
@@ -744,7 +744,7 @@ enabled = true
 #[test]
 fn the_compiler_stamps_its_own_build_and_the_seam_requires_it() {
     let toml = r#"
-[schema]
+[project]
 name = "contract_producer_version"
 version = "1.0.0"
 database_target = "postgresql"

@@ -79,7 +79,7 @@ fn write_schema_declaring(dir: &TempDir, functions: &serde_json::Value) -> PathB
     std::fs::write(
         &toml_path,
         format!(
-            "[schema]\nname = \"invoke\"\nversion = \"1.0.0\"\n\
+            "[project]\nname = \"invoke\"\nversion = \"1.0.0\"\n\
              database_target = \"postgresql\"\n\n\
              [functions]\nmodule_dir = \"{}\"\n",
             module_dir.display()
@@ -339,7 +339,7 @@ fn write_before_mutation_schema(dir: &TempDir) -> PathBuf {
     std::fs::write(
         &toml_path,
         format!(
-            "[schema]\nname = \"invoke\"\nversion = \"1.0.0\"\n\
+            "[project]\nname = \"invoke\"\nversion = \"1.0.0\"\n\
              database_target = \"postgresql\"\n\n\
              [functions]\nmodule_dir = \"{}\"\n",
             module_dir.display()

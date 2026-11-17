@@ -730,8 +730,8 @@ mod security_tests {
     }
 }
 
-/// #1341: `[project] database_target` — the key `fraiseql init` writes into every new
-/// `fraiseql.toml` — is refused under the same rule as `[schema] database_target`.
+/// #1341: `[project] database_target`, the key `fraiseql init` writes into every new
+/// `fraiseql.toml`, refuses a backend the engine removed.
 mod project_database_target_tests {
     use super::super::*;
 

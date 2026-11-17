@@ -37,7 +37,7 @@ const SCHEMA: &str = "p1614_items";
 fn fraiseql_toml() -> String {
     format!(
         r#"
-[schema]
+[project]
 name = "items-1614"
 version = "1.0.0"
 database_target = "postgresql"

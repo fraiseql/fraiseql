@@ -139,7 +139,7 @@ fn a_declaration_that_cannot_be_planned_fails_the_compile() {
 fn toml_with_validation(validation: &str) -> String {
     format!(
         r#"
-[schema]
+[project]
 name = "additivity-1459"
 version = "1.0.0"
 database_target = "postgresql"
