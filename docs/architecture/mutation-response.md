@@ -483,7 +483,7 @@ connection and merges the report into the function's `cascade`:
   fails naming pg_tviews, and commits nothing.
 * **Observed** as the histogram `fraiseql_cascade_derived_entries` on `/metrics`.
 
-The tests run against `docker/pg-tviews` (PostgreSQL 18 with pg_tviews v0.1.0-beta.37 and the
+The tests run against `docker/pg-tviews` (PostgreSQL 18 with pg_tviews v0.1.0-beta.40 and the
 jsonb_delta it requires, built from source, preloaded): `make test-pg-tviews`.
 
 **What pg_tviews needs.** pg_tviews must be in `shared_preload_libraries` and installed by a
@@ -493,6 +493,24 @@ table a TVIEW reads, or flushes, must run at `READ COMMITTED`: at `REPEATABLE RE
 `SERIALIZABLE` pg_tviews refuses it with `0A000`. FraiseQL opens its write transactions at
 the database's default level, `READ COMMITTED` unless `default_transaction_isolation` is set
 otherwise, and the webhook pipeline offers no other level (#1894).
+
+**Upgrading pg_tviews to beta.40.** Only beta.39 updates to beta.40, and only beta.38 to
+beta.39: from beta.37, take each step in turn (install the new library, restart PostgreSQL,
+then run `ALTER EXTENSION pg_tviews UPDATE;` in each database that has the extension), or
+drop the extension and create the TVIEWs again from their definitions. From installing the
+library until the update, every write to a table a TVIEW reads fails with `55000`, FraiseQL's
+mutations included: pause the writers for that window. The update now completes even when it
+cannot re-derive a TVIEW: it names each such TVIEW in a WARNING, leaves it marked
+`needs_reregister`, and `tviews.pg_tviews_check_health()` lists it under `reregister` until
+`tviews.pg_tviews_reregister('<tview>')` succeeds. Creating, replacing or re-registering a
+TVIEW is refused (`42P16`, naming the table and the role) when a policy on a table it reads
+applies to a role it reads that table as: its owner, the owner of a view it reads through, or
+the owner of a function it declares. Let the TVIEW's owner own the tables it reads.
+`tviews.pg_tviews_suspend_triggers()` and `tviews.pg_tviews_resume_triggers()` are no longer
+executable by every role: `GRANT EXECUTE` on both to the role that loads data in bulk. A TVIEW
+that reads a table whole (`to_jsonb(t)`, `jsonb_agg(t)`, a system column, a function it
+declares) is now refreshed on every write to that table. pg_tviews' own upgrade notes list the
+rest.
 
 **Upgrading pg_tviews to beta.37.** Only beta.36 updates to beta.37: install the new library,
 restart PostgreSQL, then run `ALTER EXTENSION pg_tviews UPDATE;` in each database that has
@@ -525,7 +543,8 @@ base table, `trg_tview_<role>_on_<schema>_<table>`. If an old per-TVIEW trigger 
 say from a dump taken before the update, every write to its table fails, FraiseQL's mutations
 included, until `SELECT * FROM tviews.pg_tviews_reregister_all();`. Disabling one of the new
 triggers with `ALTER TABLE … DISABLE TRIGGER` pauses every TVIEW that reads the table; to pause
-refresh for a bulk load, call `tviews.pg_tviews_suspend_triggers()` in that session instead.
+refresh for a bulk load, call `tviews.pg_tviews_suspend_triggers()` in that session instead
+(from beta.40, as a role granted `EXECUTE` on it and on `tviews.pg_tviews_resume_triggers()`).
 Upgrade FraiseQL in the same step: beta.35 renamed the change-feed gap count
 FraiseQL reads (#1896), so a FraiseQL and a pg_tviews from either side of the rename cannot
 count gaps; the server logs that once and falls back on reconnects and the cache TTL

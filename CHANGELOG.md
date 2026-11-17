@@ -233,6 +233,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **pg_tviews 0.1.0-beta.40 is the supported release (#2025).** The test image builds it at
+  the tag's commit, 6c94c30e; jsonb_delta stays at v0.3.0. Only beta.39 updates to beta.40:
+  from beta.37, update through beta.38 and beta.39 in turn, or drop the extension and create
+  the TVIEWs again. Writes to the tables a TVIEW reads fail from installing the library until
+  the update. `tviews.pg_tviews_suspend_triggers()` and `tviews.pg_tviews_resume_triggers()`
+  must now be granted to the role that loads data in bulk. Creating, replacing or
+  re-registering a TVIEW is refused (`42P16`) when a policy on a table it reads applies to the
+  role it reads that table as. See "Upgrading pg_tviews to beta.40" in
+  `docs/architecture/mutation-response.md`.
+
 - **Every reader of the enriched identity needs `[identity.enrichment]` (#2005).** A
   subscription policy's `identity_field`, and an `enrichment` inject param on a type
   (federation entity resolution) or a fact table (its aggregate roots), now count as
@@ -336,6 +346,11 @@ disagreed, and the promise was the part that was wrong.
   from the row, so a subscription scopes a captured change by the column a query compares.
   Not changed: a table of plain columns is still captured as its row, and Arrow Flight
   Upload still records the inserted row under the table's name.
+
+### Security
+
+- **Build and test against pg_tviews v0.1.0-beta.40, which carries upstream fixes listed in
+  #2025.**
 
 ## [2.19.1] - 2026-11-14
 
