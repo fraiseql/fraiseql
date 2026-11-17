@@ -1795,8 +1795,7 @@ pub fn field_encryption_unsupported_check(schema: &CompiledSchema) -> crate::Res
         "Field-level at-rest encryption is configured for {} but is not supported in this \
          release: the mutation path does not encrypt on write, so these field(s) would be \
          stored in plaintext and then fail to decrypt on read (HTTP 500). Remove the \
-         `encryption` marker from these field(s) — and any `[security.field_encryption]` \
-         config — to start the server.",
+         `encryption` marker from these field(s) to start the server.",
         encrypted.join(", ")
     )))
 }

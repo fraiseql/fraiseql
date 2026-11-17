@@ -429,6 +429,11 @@ mod initialization_tests {
             matches!(&result, Err(crate::ServerError::ConfigError(msg)) if msg.contains("User.email")),
             "a field marked for encryption must refuse to boot and name the field (H12): {result:?}"
         );
+        // No file has a `[security.field_encryption]` table to remove.
+        assert!(
+            matches!(&result, Err(crate::ServerError::ConfigError(msg)) if !msg.contains("field_encryption")),
+            "{result:?}"
+        );
     }
 
     #[test]

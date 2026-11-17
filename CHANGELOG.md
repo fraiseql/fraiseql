@@ -395,6 +395,8 @@ disagreed, and the promise was the part that was wrong.
 - The tenant registration refusal of `max_storage_bytes` outside schema-mode tenancy
   names `[tenancy] mode = "schema"`, the table `fraiseql.toml` spells it with, rather
   than `[security.tenancy]`.
+- The boot refusal of a field marked for at-rest encryption no longer tells the operator
+  to remove a `[security.field_encryption]` table, which no configuration file has.
 - Every documented `fraiseql.toml` example that is a whole file now loads, and the
   documentation gate checks it: the federation gateway's service account has a role
   ceiling, and the session examples name a sign-in method with its `email_from`
