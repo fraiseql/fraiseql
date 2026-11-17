@@ -10,126 +10,11 @@ pub mod security;
 pub mod security_merge;
 pub mod toml_schema;
 
-use std::path::Path;
-
-use anyhow::{Context, Result};
+use anyhow::Result;
 pub use discovery::ConfigSource;
-use fraiseql_core::schema::NamingConvention;
 pub use runtime::{DatabaseRuntimeConfig, ServerRuntimeConfig};
-pub use security::SecurityConfig;
 use serde::{Deserialize, Serialize};
 pub use toml_schema::TomlSchema;
-use tracing::info;
-
-/// Project configuration from fraiseql.toml
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct TomlProjectConfig {
-    /// Project metadata (`[project]`: name, version, database target)
-    #[serde(rename = "project")]
-    pub project: ProjectMetadata,
-
-    /// FraiseQL-specific settings
-    #[serde(rename = "fraiseql")]
-    pub fraiseql: FraiseQLSettings,
-
-    /// HTTP server runtime configuration (optional — all fields have defaults).
-    #[serde(default)]
-    pub server: ServerRuntimeConfig,
-
-    /// Database connection pool configuration (optional — all fields have defaults).
-    #[serde(default)]
-    pub database: DatabaseRuntimeConfig,
-
-    /// Project-wide default injected parameters (`[inject_defaults]`, #1384) — the
-    /// section the SDK config loaders read from this same file.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub inject_defaults: Option<inject_defaults::InjectDefaultsToml>,
-
-    /// The request locale (`[locale]`, #1512): `default`, `allowed`, `fallback`, `resolve`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub locale: Option<fraiseql_core::schema::LocaleConfig>,
-
-    /// The functions subsystem's deployment settings (`[functions]`: `module_dir`,
-    /// `dlq_store`), for a schema document an SDK authored; see
-    /// [`toml_schema::FunctionsSettings`].
-    #[serde(default)]
-    pub functions: toml_schema::FunctionsSettings,
-
-    /// The observer backend's deployment settings (`[observers]`: `enabled`, `backend`,
-    /// `redis_url`, `nats_url`), for a schema document an SDK authored; see
-    /// [`toml_schema::ObserversConfig::reconcile`]. The server's `[observers.runtime]`
-    /// sub-table is accepted and left to the server.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub observers: Option<toml_schema::ObserversConfig>,
-
-    /// The compiled `security` keys this file writes, which a schema document's own
-    /// `security` block must agree with; see [`security_merge::reconcile`]. Filled by
-    /// [`Self::from_file`].
-    #[serde(skip)]
-    pub declared_security: std::collections::BTreeSet<String>,
-
-    /// `[mcp]`: the Model Context Protocol transport. This and the sections below are the
-    /// runtime sections a TOML schema takes (#1719), in the same types, lowered by the same
-    /// function (`TomlSchema::lower_runtime_sections`) and reconciled with a copy the
-    /// schema document carries. Each is optional, so a table an author wrote, even one that
-    /// only says `enabled = false`, is told from one left out.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mcp: Option<toml_schema::McpConfig>,
-
-    /// `[rest]`: the REST transport.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub rest: Option<toml_schema::rest::RestTomlConfig>,
-
-    /// `[grpc]`: the gRPC transport.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub grpc: Option<fraiseql_core::schema::GrpcConfig>,
-
-    /// `[debug]`: database `EXPLAIN` and SQL exposure, for development.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub debug: Option<toml_schema::DebugConfig>,
-
-    /// `[validation]`: query depth and complexity limits.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub validation: Option<toml_schema::ValidationConfig>,
-
-    /// `[subscriptions]`: WebSocket subscription hooks and limits.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub subscriptions: Option<toml_schema::SubscriptionsConfig>,
-
-    /// `[federation]`: the subgraph's federation settings.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub federation: Option<toml_schema::FederationConfig>,
-
-    /// `[auth]`: the OAuth client and sign-in groups.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub auth: Option<toml_schema::OidcClientConfig>,
-
-    /// `[changelog]`: the change log's GraphQL exposure. Requires `[observers]`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub changelog: Option<fraiseql_core::schema::ChangelogConfig>,
-
-    /// `[hierarchies.<name>]`: the tables the ID-based ltree operators resolve against.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hierarchies: Option<std::collections::HashMap<String, toml_schema::HierarchyConfig>>,
-
-    /// `[query_defaults]`: project-wide defaults for list-query auto-params.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub query_defaults: Option<toml_schema::QueryDefaults>,
-
-    /// `[caching]`: `[[caching.rules]]`, each lowered onto the query it names and the
-    /// mutations that invalidate it, as in a TOML schema.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub caching: Option<toml_schema::CachingConfig>,
-
-    /// Whether the file this was loaded from writes `[fraiseql.naming] convention`.
-    ///
-    /// The convention has a default, so the parsed value cannot say whether the author
-    /// chose it. A convention the author wrote decides the schema's; one left unwritten
-    /// leaves the schema document's own in place. Set by [`Self::from_file`].
-    #[serde(skip)]
-    pub declares_naming_convention: bool,
-}
 
 /// `[project]`: the metadata of every `fraiseql.toml`, the compile input or the file read
 /// beside a schema document.
@@ -171,227 +56,15 @@ impl Default for ProjectMetadata {
     }
 }
 
-/// FraiseQL-specific settings
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct FraiseQLSettings {
-    /// Path to the GraphQL schema file
-    pub schema_file:       String,
-    /// Path to the output compiled schema file
-    pub output_file:       String,
-    /// Security configuration
-    #[serde(rename = "security")]
-    pub security:          SecurityConfig,
-    /// Tenancy isolation configuration
-    #[serde(default)]
-    pub tenancy:           security::TenancyTomlConfig,
-    /// Mutation compilation options (`[fraiseql.mutations]`)
-    #[serde(default)]
-    pub mutations:         MutationsConfig,
-    /// Naming/casing options (`[fraiseql.naming]`)
-    #[serde(default)]
-    pub naming:            NamingTomlConfig,
-    /// Per-operation `@cost` weight overrides (`[fraiseql.cost_weights]`, #379):
-    /// root query/mutation name → manual cost weight, consulted by the runtime
-    /// per-tenant cost-budget check. Empty by default.
-    #[serde(default)]
-    pub cost_weights:      std::collections::HashMap<String, usize>,
-    /// Per-request PostgreSQL session variables (`[fraiseql.session_variables]`).
-    ///
-    /// Applied with `set_config(name, value, true)` before every query and
-    /// mutation, so RLS policies can read them with `current_setting(…)`. This is
-    /// the mechanism database-layer tenant isolation is built on (#628).
-    ///
-    /// Deliberately the same type the runtime consumes — a mirror struct here is
-    /// exactly the producer↔consumer seam that keeps dropping declarations.
-    #[serde(default)]
-    pub session_variables: fraiseql_core::schema::SessionVariablesConfig,
-}
-
-impl Default for FraiseQLSettings {
-    fn default() -> Self {
-        Self {
-            schema_file:       "schema.json".to_string(),
-            output_file:       "schema.compiled.json".to_string(),
-            security:          SecurityConfig::default(),
-            tenancy:           security::TenancyTomlConfig::default(),
-            mutations:         MutationsConfig::default(),
-            naming:            NamingTomlConfig::default(),
-            cost_weights:      std::collections::HashMap::new(),
-            session_variables: fraiseql_core::schema::SessionVariablesConfig::default(),
-        }
-    }
-}
-
-/// Naming/casing options from `[fraiseql.naming]`.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct NamingTomlConfig {
-    /// GraphQL surface naming convention for the JSON-schema compile workflow
-    /// (`fraiseql-cli compile schema.json`). Defaults to `camelCase`:
-    /// `snake_case` columns/functions in the database, `camelCase` operation and
-    /// field names exposed to clients, with incoming mutation input keys recased
-    /// `camelCase` → `snake_case` before they reach the SQL functions. Set
-    /// `convention = "preserve"` to keep names exactly as authored (`snake_case`
-    /// on the wire, no recasing). This knob does not apply to the author-in-TOML
-    /// workflow, which carries its own `naming_convention`.
-    pub convention: NamingConvention,
-    /// Acronyms whose internal digit stays attached when a GraphQL field name is
-    /// mapped back to its `snake_case` JSONB key (e.g. `s3`, `ipv4`, `oauth2`),
-    /// added on top of the engine's built-in defaults. Author the atomic form
-    /// (`s3`, not `s_3`). Example: `acronyms = ["s3", "ipv4"]`.
-    pub acronyms:   Vec<String>,
-}
-
-impl Default for NamingTomlConfig {
-    fn default() -> Self {
-        Self {
-            // Workflow-B compiles to a camelCase GraphQL surface by default; see
-            // the `convention` field docs. Override with `convention = "preserve"`.
-            convention: NamingConvention::CamelCase,
-            acronyms:   Vec::new(),
-        }
-    }
-}
-
-/// Mutation compilation options from `[fraiseql.mutations]`.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct MutationsConfig {
-    /// Opt-in: auto-synthesize a shared `MutationError` type and a per-mutation
-    /// result union (`<Mutation>Result = Entity | MutationError`) for every
-    /// object-returning mutation, rewriting its return type to that union so the
-    /// server's success/error discrimination has a union to resolve against.
-    /// Off by default; mutations that already return a union are left untouched.
-    pub auto_error_union: bool,
-}
-
-impl TomlProjectConfig {
-    /// Load configuration from fraiseql.toml file.
-    ///
-    /// Supports `${VAR}` environment variable interpolation throughout the file.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the file does not exist, cannot be read, or cannot be
-    /// parsed as valid TOML matching the `TomlProjectConfig` structure.
-    pub fn from_file(path: &str) -> Result<Self> {
-        info!("Loading configuration from {path}");
-
-        let path = Path::new(path);
-        if !path.exists() {
-            anyhow::bail!("Configuration file not found: {}", path.display());
-        }
-
-        let raw = std::fs::read_to_string(path).context("Failed to read fraiseql.toml")?;
-        let toml_content = expand_env_vars(&raw)?;
-
-        // A file that is not TOML at all is reported by the typed parse below.
-        let declared_security = if let Ok(table) = toml_content.parse::<toml::Table>() {
-            refuse_unapplied_keys(&table)?;
-            refuse_retired_spellings(&table)?;
-            refuse_misplaced_sections(&table)?;
-            security_merge::declared_in_project_config(&table)
-        } else {
-            std::collections::BTreeSet::new()
-        };
-
-        let mut config: TomlProjectConfig = toml::from_str(&toml_content)
-            .map_err(|e| anyhow::anyhow!("Failed to parse fraiseql.toml: {e}"))?;
-        config.declared_security = declared_security;
-        config.declares_naming_convention = toml_content
-            .parse::<toml::Table>()
-            .ok()
-            .as_ref()
-            .and_then(|table| table.get("fraiseql"))
-            .and_then(|fraiseql| fraiseql.get("naming"))
-            .and_then(|naming| naming.get("convention"))
-            .is_some();
-
-        // The files `[auth.local]` names (mail templates) are read beside the config, as a
-        // TOML schema reads them.
-        let project = path.parent().unwrap_or(Path::new(""));
-        if let Some(local) = config.auth.as_mut().and_then(|auth| auth.local.as_mut()) {
-            toml_schema::security::embed_email_templates(local, project)?;
-        }
-
-        Ok(config)
-    }
-
-    /// The runtime sections this config declares, as the TOML schema that declares the same
-    /// tables and nothing else, with the tables it declares.
-    ///
-    /// The project config holds no lowering of its own: it hands its sections to the one a
-    /// TOML schema uses, so a section compiles alike in both workflows.
-    #[must_use]
-    pub fn runtime_sections(&self) -> (TomlSchema, Vec<&'static str>) {
-        let mut schema = TomlSchema {
-            // The `[security]` sections both files take, so the TOML schema's checks of them
-            // (`validate_self_contained`) run on a project config's too.
-            security: self.fraiseql.security.toml_schema_settings(),
-            ..TomlSchema::default()
-        };
-        let mut declared = Vec::new();
-        macro_rules! section {
-            ($field:ident) => {
-                if let Some(value) = &self.$field {
-                    schema.$field = value.clone();
-                    declared.push(stringify!($field));
-                }
-            };
-            (optional $field:ident) => {
-                if let Some(value) = &self.$field {
-                    schema.$field = Some(value.clone());
-                    declared.push(stringify!($field));
-                }
-            };
-        }
-        section!(mcp);
-        section!(rest);
-        section!(grpc);
-        section!(debug);
-        section!(validation);
-        section!(subscriptions);
-        section!(federation);
-        section!(query_defaults);
-        section!(caching);
-        section!(optional auth);
-        section!(optional changelog);
-        section!(optional hierarchies);
-        (schema, declared)
-    }
-
-    /// Validate configuration.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `[project] database_target` names anything but PostgreSQL, or
-    /// if any security, server, or database configuration value is invalid (e.g.
-    /// unsupported algorithm, zero window, or bad port range).
-    pub fn validate(&self) -> Result<()> {
-        info!("Validating configuration");
-        self.project.validate_database_target()?;
-        self.fraiseql.security.validate()?;
-        self.fraiseql.tenancy.validate()?;
-        self.server.validate()?;
-        self.database.validate()?;
-        // The runtime sections are checked as a TOML schema checks them.
-        self.runtime_sections().0.validate_self_contained()?;
-        Ok(())
-    }
-}
-
 /// What a top-level key of a TOML schema that does not belong in a project config is told.
 enum Misplaced {
     /// It authors the schema, which beside a schema document the document does.
     Authoring,
-    /// The project config spells it under this table.
-    SpelledAs(&'static str),
     /// It is refused in a TOML schema too, with this pointer.
     Elsewhere(&'static str),
 }
 
-/// The sections a TOML schema takes that a project config, read beside a schema document,
+/// The tables a TOML schema takes that a `fraiseql.toml` read beside a schema document
 /// does not: each is refused by name with where it belongs, where `deny_unknown_fields`
 /// would only say the key is unknown.
 const MISPLACED_SECTIONS: &[(&str, Misplaced)] = &[
@@ -409,63 +82,26 @@ const MISPLACED_SECTIONS: &[(&str, Misplaced)] = &[
              `[tracing]` in the file FRAISEQL_CONFIG names",
         ),
     ),
-    ("security", Misplaced::SpelledAs("[fraiseql.security]")),
-    ("tenancy", Misplaced::SpelledAs("[fraiseql.tenancy]")),
-    ("session_variables", Misplaced::SpelledAs("[fraiseql.session_variables]")),
-    ("naming_convention", Misplaced::SpelledAs("[fraiseql.naming] convention")),
-];
-
-/// The `[security]` keys of a TOML schema that `[fraiseql.security]` also takes.
-const PROJECT_SECURITY_KEYS: &[&str] = &[
-    "enterprise",
-    "error_sanitization",
-    "rate_limiting",
-    "state_encryption",
-    "role_definitions",
-    "default_role",
-    "multi_tenant",
-    "rls",
-    "service_accounts",
-    "pkce",
-    "api_keys",
-    "cost_budget",
-    "token_revocation",
-    "trusted_documents",
-    "persisted_queries_only",
 ];
 
 /// Refuse the first top-level key of [`MISPLACED_SECTIONS`] that `table` sets.
-fn refuse_misplaced_sections(table: &toml::Table) -> Result<()> {
+///
+/// # Errors
+///
+/// Returns an error naming the table and where it belongs.
+pub(crate) fn refuse_misplaced_sections(table: &toml::Table) -> Result<()> {
     for (name, misplaced) in MISPLACED_SECTIONS {
-        let Some(written) = table.get(*name) else {
+        if !table.contains_key(*name) {
             continue;
-        };
+        }
         let pointer = match misplaced {
-            Misplaced::Authoring => "it authors the schema, which the schema document does \
+            Misplaced::Authoring => {
+                "it authors the schema, which the schema document does \
                                      here. Declare it there, or author the schema in TOML and \
                                      pass that file as the compile input (`fraiseql compile \
                                      <schema>.toml`)"
-                .to_string(),
-            Misplaced::Elsewhere(pointer) => (*pointer).to_string(),
-            Misplaced::SpelledAs(spelling) => {
-                let mut pointer = format!("a project configuration spells it `{spelling}`");
-                // `[security]` and `[fraiseql.security]` do not take the same keys: say, for
-                // each key written, whether the project configuration has it.
-                if let (true, Some(keys)) = (*name == "security", written.as_table()) {
-                    for key in keys.keys() {
-                        if PROJECT_SECURITY_KEYS.contains(&key.as_str()) {
-                            pointer
-                                .push_str(&format!("; `{key}` is `[fraiseql.security]` `{key}`"));
-                        } else {
-                            pointer.push_str(&format!(
-                                "; `{key}` has no project-configuration spelling, and is set \
-                                 in a TOML schema"
-                            ));
-                        }
-                    }
-                }
-                pointer
             },
+            Misplaced::Elsewhere(pointer) => pointer,
         };
         anyhow::bail!(
             "fraiseql.toml: `{name}` does not belong in a project configuration, the \
@@ -521,20 +157,38 @@ enum Retired {
 const RETIRED_SPELLINGS: &[(&str, &str, Retired)] = &[
     ("schema", "", Retired::Write("`[project]`")),
     ("project", "description", Retired::Unread),
+    ("", "naming_convention", Retired::Write("`[naming] convention`")),
+    ("security.constant_time", "", Retired::Unread),
     (
-        "fraiseql.security.audit_logging",
+        "security.audit_logging",
         "",
-        Retired::Write("`[fraiseql.security.enterprise] audit_logging_enabled`"),
+        Retired::Write("`[security.enterprise] audit_logging_enabled`"),
     ),
     (
-        "fraiseql.security.rate_limiting",
+        "security.rate_limiting",
         "failed_login_max_requests",
         Retired::SpelledAs("`failed_login_max_attempts`"),
     ),
     (
-        "fraiseql.security.rate_limiting",
+        "security.rate_limiting",
         "failed_login_window_secs",
         Retired::SpelledAs("`failed_login_lockout_secs`"),
+    ),
+    // The project configuration's former `[fraiseql]` prefix: every table it held is a
+    // top-level table now, as in a TOML schema.
+    ("fraiseql.security.constant_time", "", Retired::Unread),
+    ("fraiseql.security", "", Retired::Write("`[security]`")),
+    ("fraiseql.tenancy", "", Retired::Write("`[tenancy]`")),
+    ("fraiseql.session_variables", "", Retired::Write("`[session_variables]`")),
+    ("fraiseql.naming", "", Retired::Write("`[naming]`")),
+    ("fraiseql.cost_weights", "", Retired::Write("`[cost_weights]`")),
+    ("fraiseql.mutations", "", Retired::Write("`[mutation_defaults]`")),
+    ("fraiseql", "schema_file", Retired::Unread),
+    ("fraiseql", "output_file", Retired::Unread),
+    (
+        "fraiseql",
+        "",
+        Retired::Write("each of its tables at the top level, without the `fraiseql.` prefix"),
     ),
 ];
 
@@ -546,16 +200,18 @@ const RETIRED_SPELLINGS: &[(&str, &str, Retired)] = &[
 pub(crate) fn refuse_retired_spellings(table: &toml::Table) -> Result<()> {
     for (section, key, retired) in RETIRED_SPELLINGS {
         let mut found = Some(table);
-        for part in section.split('.') {
+        for part in section.split('.').filter(|part| !part.is_empty()) {
             found = found.and_then(|t| t.get(part)).and_then(toml::Value::as_table);
         }
         let Some(found) = found else { continue };
         let spelling = if key.is_empty() {
             format!("[{section}]")
-        } else if found.contains_key(*key) {
-            format!("[{section}] {key}")
-        } else {
+        } else if !found.contains_key(*key) {
             continue;
+        } else if section.is_empty() {
+            (*key).to_string()
+        } else {
+            format!("[{section}] {key}")
         };
         match retired {
             Retired::Write(instead) => {

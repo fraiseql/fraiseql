@@ -10,15 +10,12 @@
 //! in its first non-empty line, a comment such as `# fraiseql.toml`, and parses as it:
 //!
 //! * `server.toml` deserializes into the server's [`ServerConfig`];
-//! * `fraiseql.toml` deserializes into one of the compiler's two readers of that file:
-//!   [`TomlSchema`] (the file as `fraiseql compile`'s input, TOML-first authoring) or
-//!   [`TomlProjectConfig`] (the project config beside a `schema.json`). Two structs for one file
-//!   name is the dialect split #1641 removes; until then either counts, and both deny unknown keys,
-//!   so an invented key still fails;
+//! * `fraiseql.toml` parses as [`TomlSchema`], the one grammar of that file, whether it is
+//!   `fraiseql compile`'s input or the file read beside a `schema.json`; it denies unknown keys, so
+//!   an invented key or a retired spelling still fails;
 //! * any other `*.toml` (`Cargo.toml`, `pyproject.toml`, ...) is valid TOML.
 //!
-//! A block that names no file fails: an unnamed example is one a reader cannot check,
-//! and the two config dialects (D-9) make "which file is this?" a real question.
+//! A block that names no file fails: an unnamed example is one a reader cannot check.
 //!
 //! Wired in `.dagger/main.go`'s test leg next to `config_coverage_manifest_test`,
 //! with the full server feature set so every feature-gated section exists. The
@@ -31,7 +28,7 @@
 
 use std::path::{Path, PathBuf};
 
-use fraiseql_cli::config::{TomlProjectConfig, TomlSchema};
+use fraiseql_cli::config::TomlSchema;
 use fraiseql_server::ServerConfig;
 
 /// Repo root, resolved from this crate's manifest dir.
@@ -108,11 +105,7 @@ fn every_documented_toml_example_parses_as_the_file_it_names() {
                 },
                 Some(name) if name.ends_with("fraiseql.toml") => {
                     compiler += 1;
-                    toml::from_str::<TomlSchema>(&block).map(drop).or_else(|schema| {
-                        toml::from_str::<TomlProjectConfig>(&block).map(drop).map_err(|project| {
-                            format!("as TomlSchema: {schema}; as TomlProjectConfig: {project}")
-                        })
-                    })
+                    toml::from_str::<TomlSchema>(&block).map(drop).map_err(|e| e.to_string())
                 },
                 Some(_) => {
                     other += 1;
@@ -140,9 +133,8 @@ fn every_documented_toml_example_parses_as_the_file_it_names() {
 }
 
 /// Top-level keys that author the schema: a block holding one is a TOML schema, the compile
-/// input, and is not expected to be a project config.
-const AUTHORING_KEYS: [&str; 8] = [
-    "schema",
+/// input, and is not expected to load beside a `schema.json`.
+const AUTHORING_KEYS: [&str; 7] = [
     "types",
     "queries",
     "mutations",
@@ -152,80 +144,10 @@ const AUTHORING_KEYS: [&str; 8] = [
     "analytics",
 ];
 
-/// `fraiseql.toml` examples that hold only settings and still parse as a TOML schema alone,
-/// by file and by the top-level key the project config does not take. A reader who authors
-/// with an SDK keeps a project config beside a `schema.json`, where that key is refused by
-/// name with its project spelling (#1719). Shrink-only: a new example must work in both
-/// files, or say which one it is by declaring a schema.
-const TOML_SCHEMA_ONLY: &[(&str, &str)] = &[
-    // Spelled `[fraiseql.tenancy]` and `[fraiseql.session_variables]` in a project config.
-    ("docs/auth/auth0.md", "tenancy"),
-    ("docs/features/session-variables.md", "session_variables"),
-    ("docs/modules/fact-table.md", "session_variables"),
-];
-
-/// A settings-only `fraiseql.toml` example works beside a `schema.json` too.
-#[test]
-fn a_settings_only_fraiseql_toml_example_is_also_a_project_config() {
-    let root = repo_root();
-    let mut files = vec![root.join("README.md")];
-    markdown_files(&root.join("docs"), &mut files);
-    files.sort();
-
-    let mut schema_only: Vec<(String, String)> = Vec::new();
-    for path in &files {
-        let content = std::fs::read_to_string(path).unwrap();
-        let shown = path.strip_prefix(&root).unwrap().display().to_string();
-        for (_, block) in toml_blocks(&content) {
-            if !named_file(&block).is_some_and(|name| name.ends_with("fraiseql.toml")) {
-                continue;
-            }
-            let Ok(table) = block.parse::<toml::Table>() else {
-                continue;
-            };
-            let settings_only = !table.keys().any(|key| AUTHORING_KEYS.contains(&key.as_str()));
-            if !settings_only || toml::from_str::<TomlSchema>(&block).is_err() {
-                continue;
-            }
-            if toml::from_str::<TomlProjectConfig>(&block).is_ok() {
-                continue;
-            }
-            // The keys the project config does not take, each once per file.
-            let taken = toml::Table::try_from(TomlProjectConfig::default()).unwrap();
-            for key in table.keys() {
-                let probe = toml::Table::from_iter([(key.clone(), table[key].clone())]);
-                let refused = toml::from_str::<TomlProjectConfig>(&probe.to_string()).is_err();
-                if refused && !taken.contains_key(key) {
-                    let entry = (shown.clone(), key.clone());
-                    if !schema_only.contains(&entry) {
-                        schema_only.push(entry);
-                    }
-                }
-            }
-        }
-    }
-
-    let expected: Vec<(String, String)> = TOML_SCHEMA_ONLY
-        .iter()
-        .map(|(file, key)| ((*file).to_string(), (*key).to_string()))
-        .collect();
-    let new: Vec<_> = schema_only.iter().filter(|entry| !expected.contains(entry)).collect();
-    let gone: Vec<_> = expected.iter().filter(|entry| !schema_only.contains(entry)).collect();
-    assert!(
-        new.is_empty(),
-        "settings-only fraiseql.toml examples a project config refuses; make each work beside \
-         a schema.json, or list it in TOML_SCHEMA_ONLY:\n{new:#?}"
-    );
-    assert!(
-        gone.is_empty(),
-        "TOML_SCHEMA_ONLY entries that no longer apply; remove them:\n{gone:#?}"
-    );
-}
-
-/// `fraiseql.toml` examples a project config parses that it does not load: by file and the
-/// line the block starts on. Shrink-only: these predate the check below and are tracked to be
-/// fixed, never extended to admit a new example.
-const PROJECT_CONFIG_UNLOADED: &[(&str, usize)] = &[
+/// Settings-only `fraiseql.toml` examples that parse and do not load beside a `schema.json`:
+/// by file and the line the block starts on. Shrink-only: these predate the check below and are
+/// tracked to be fixed, never extended to admit a new example.
+const SETTINGS_EXAMPLES_UNLOADED: &[(&str, usize)] = &[
     // A service account with neither roles nor scopes.
     ("docs/architecture/federation.md", 277),
     // Names mail templates that exist only in a real project.
@@ -237,15 +159,14 @@ const PROJECT_CONFIG_UNLOADED: &[(&str, usize)] = &[
     ("docs/runbooks/14-federation-circuit-breaker.md", 135),
 ];
 
-/// A `fraiseql.toml` example a project config parses is also one it loads.
+/// A settings-only `fraiseql.toml` example that parses is also one that loads.
 ///
-/// Parsing is the struct alone. Loading a project config also expands `${VAR}`, refuses a
-/// misplaced or never-applied key by name, and validates every section, the TOML schema's
-/// checks of the sections both files take included: what `fraiseql compile schema.json` does
-/// with the file. An example that parses and then fails there is one a reader copies into a
-/// refused compile.
+/// Parsing is the grammar alone. Loading the file beside a `schema.json` also refuses a
+/// table that authors a schema and validates every section: what `fraiseql compile
+/// schema.json` does with the file. An example that parses and then fails there is one a reader
+/// copies into a refused compile.
 #[test]
-fn a_project_config_example_loads_and_validates() {
+fn a_settings_only_example_loads_and_validates() {
     let root = repo_root();
     let mut files = vec![root.join("README.md")];
     markdown_files(&root.join("docs"), &mut files);
@@ -261,12 +182,15 @@ fn a_project_config_example_loads_and_validates() {
             if !named_file(&block).is_some_and(|name| name.ends_with("fraiseql.toml")) {
                 continue;
             }
-            if toml::from_str::<TomlProjectConfig>(&block).is_err() {
+            let settings_only = block
+                .parse::<toml::Table>()
+                .is_ok_and(|table| !table.keys().any(|key| AUTHORING_KEYS.contains(&key.as_str())));
+            if !settings_only || toml::from_str::<TomlSchema>(&block).is_err() {
                 continue;
             }
             let file = scratch.path().join("fraiseql.toml");
             std::fs::write(&file, &block).unwrap();
-            let result = TomlProjectConfig::from_file(file.to_str().unwrap())
+            let result = TomlSchema::from_project_file(file.to_str().unwrap())
                 .and_then(|config| config.validate());
             match result {
                 Ok(()) => loaded += 1,
@@ -277,22 +201,22 @@ fn a_project_config_example_loads_and_validates() {
 
     let new: Vec<_> = failures
         .iter()
-        .filter(|(file, line, _)| !PROJECT_CONFIG_UNLOADED.contains(&(file.as_str(), *line)))
+        .filter(|(file, line, _)| !SETTINGS_EXAMPLES_UNLOADED.contains(&(file.as_str(), *line)))
         .collect();
-    let gone: Vec<_> = PROJECT_CONFIG_UNLOADED
+    let gone: Vec<_> = SETTINGS_EXAMPLES_UNLOADED
         .iter()
         .filter(|(file, line)| !failures.iter().any(|(f, l, _)| f == file && l == line))
         .collect();
     assert!(
         new.is_empty(),
-        "fraiseql.toml examples a project config parses and then refuses to load:\n{new:#?}"
+        "settings-only fraiseql.toml examples that parse and then refuse to load:\n{new:#?}"
     );
     assert!(
         gone.is_empty(),
-        "PROJECT_CONFIG_UNLOADED entries that now load; remove them:\n{gone:#?}"
+        "SETTINGS_EXAMPLES_UNLOADED entries that now load; remove them:\n{gone:#?}"
     );
     assert!(
         loaded >= 6,
-        "expected at least 6 project-config examples to load, found {loaded}"
+        "expected at least 6 settings-only examples to load, found {loaded}"
     );
 }

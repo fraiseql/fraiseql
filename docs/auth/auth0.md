@@ -17,7 +17,7 @@ authentication flow. This guide covers configuration.
 
 1. An Auth0 tenant (e.g. `your-tenant.auth0.com`)
 2. A **Regular Web Application** created in the Auth0 dashboard
-3. FraiseQL compiled with `[fraiseql.security.pkce]` and `[auth]` configured
+3. FraiseQL compiled with `[security.pkce]` and `[auth]` configured
 
 ## fraiseql.toml
 
@@ -29,12 +29,12 @@ client_id           = "your-auth0-client-id"
 client_secret_env   = "AUTH0_CLIENT_SECRET"
 server_redirect_uri = "https://api.yourdomain.com/auth/callback"
 
-[fraiseql.security.pkce]
+[security.pkce]
 enabled = true
 code_challenge_method = "S256"
 state_ttl_secs = 600
 
-[fraiseql.security.state_encryption]
+[security.state_encryption]
 enabled = true
 algorithm = "chacha20-poly1305"
 key_env = "STATE_ENCRYPTION_KEY"
@@ -94,13 +94,13 @@ For service-to-service communication that bypasses Auth0, configure API keys:
 
 ```toml
 # fraiseql.toml
-[fraiseql.security.api_keys]
+[security.api_keys]
 enabled = true
 header = "X-API-Key"
 hash_algorithm = "sha256"
 storage = "env"
 
-[[fraiseql.security.api_keys.static]]
+[[security.api_keys.static]]
 key_hash = "sha256:<hex-encoded-sha256-of-your-key>"
 scopes = ["read:*", "write:*"]
 name = "backend-service"
@@ -146,7 +146,7 @@ tenant_claim = "org_id"
 ```
 
 (In a project config read beside `schema.json`, the same key sits under
-`[fraiseql.tenancy]`.)
+`[tenancy]`.)
 
 The request's tenant (per-tenant dispatch, the default RLS policy, caches, subscriptions) is
 read from the configured `tenant_claim`, which defaults to `tenant_id`. Without this line an

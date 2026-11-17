@@ -16,7 +16,7 @@ compiled. Read the source column below, not the suffix alone.
 
 ```text
 fraiseql.toml                    fraiseql-cli compile               fraiseql-server start
-  [fraiseql.security]     --->   fraiseql_cli::config::      --->    CompiledSchema.security:
+  [security]     --->   fraiseql_cli::config::      --->    CompiledSchema.security:
   rate_limiting = {...}          SecurityConfig, or                   fraiseql_core::schema::
   audit_logging = {...}          SecuritySettings for [security]      SecurityConfig, read once
                                  (validated, embedded under the       at boot
@@ -90,7 +90,7 @@ max_query_depth = 12
 | Sections | Beside a `schema.json` |
 |---|---|
 | `[mcp]`, `[rest]`, `[grpc]`, `[debug]`, `[validation]`, `[subscriptions]`, `[federation]`, `[auth]`, `[changelog]`, `[hierarchies]`, `[query_defaults]`, `[caching]`, `[observers]`, `[functions]`, `[locale]`, `[inject_defaults]` | Honoured. |
-| `[security]`, `[tenancy]`, `[session_variables]`, `naming_convention` | Refused by name: a project config spells them `[fraiseql.security]`, `[fraiseql.tenancy]`, `[fraiseql.session_variables]` and `[fraiseql.naming] convention`. `[security]` keys with no `[fraiseql.security]` spelling are named in the refusal. |
+| `[security]`, `[tenancy]`, `[session_variables]`, `naming_convention` | Refused by name: a project config spells them `[security]`, `[tenancy]`, `[session_variables]` and `[naming] convention`. `[security]` keys with no `[security]` spelling are named in the refusal. |
 | `[schema]`, `[types]`, `[queries]`, `[mutations]`, `[includes]`, `[domain_discovery]`, `[crud]`, `[analytics]` | Refused by name: they author the schema, which the schema document does here. |
 | `[observability]` | Refused by name, as in a TOML schema: metrics and tracing are server settings. |
 
@@ -105,7 +105,7 @@ compiled with (`--types`), where a table left at its defaults counts as not decl
 rule for a query whose TTL the schema document already declares is refused, for the same
 reason.
 
-`[fraiseql.naming] convention` is the one setting that is not reconciled: an SDK writes its
+`[naming] convention` is the one setting that is not reconciled: an SDK writes its
 own convention into every document, so the project config decides when it writes the key,
 and the document's value stands when it does not.
 

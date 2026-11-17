@@ -309,14 +309,10 @@ name = "{name}"
 version = "0.1.0"
 database_target = "{db_target}"
 
-[fraiseql]
-schema_file = "schema.json"
-output_file = "schema.compiled.json"
-
-[fraiseql.security.rate_limiting]
+[security.rate_limiting]
 enabled = true
 
-[fraiseql.security.enterprise]
+[security.enterprise]
 audit_logging_enabled = true
 
 # Database connection URL — set via DATABASE_URL environment variable at runtime

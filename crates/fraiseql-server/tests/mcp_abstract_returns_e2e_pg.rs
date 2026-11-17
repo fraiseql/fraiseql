@@ -199,7 +199,7 @@ fn schema() -> CompiledSchema {
     schema
 }
 
-/// The same mutation authored without a union and compiled under `[fraiseql.mutations]
+/// The same mutation authored without a union and compiled under `[mutation_defaults]
 /// auto_error_union = true`, which rewrites its return type to `CreateUserResult`.
 fn auto_error_union_schema() -> CompiledSchema {
     let intermediate: IntermediateSchema = serde_json::from_value(json!({

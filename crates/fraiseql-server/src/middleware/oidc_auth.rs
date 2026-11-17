@@ -30,7 +30,7 @@ fn bearer_challenge(issuer: Option<&str>) -> String {
 }
 
 /// Request extension naming the JWT claim that carries the caller's tenant
-/// (`[fraiseql.tenancy] tenant_claim`, see
+/// (`[tenancy] tenant_claim`, see
 /// [`CompiledSchema::tenant_claim`](fraiseql_core::schema::CompiledSchema::tenant_claim)).
 ///
 /// Both auth middlewares insert it beside [`AuthUser`], from the claim their state was

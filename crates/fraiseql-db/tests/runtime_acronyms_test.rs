@@ -1,5 +1,5 @@
 //! #1372 through the path the issue reported: an acronym registered by the project
-//! (`[fraiseql.naming] acronyms = ["co2"]`), after the first word of a camelCase name.
+//! (`[naming] acronyms = ["co2"]`), after the first word of a camelCase name.
 //!
 //! Its own test binary, holding a single test, because `set_runtime_acronyms` installs a
 //! process-global set and only the first call wins: in the crate's unit tests another

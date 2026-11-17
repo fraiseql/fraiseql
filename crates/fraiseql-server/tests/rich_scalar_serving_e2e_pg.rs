@@ -103,11 +103,7 @@ async fn compile() -> CompiledSchema {
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("schema.json");
     std::fs::write(&path, schema_json().to_string()).unwrap();
-    std::fs::write(
-        dir.path().join("fraiseql.toml"),
-        "[project]\nname = \"p1530\"\n\n[fraiseql]\nschema_file = \"schema.json\"\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("fraiseql.toml"), "[project]\nname = \"p1530\"\n\n").unwrap();
     let (compiled, _) = compile_to_schema(CompileOptions {
         skip_hash: true,
         ..CompileOptions::new(path.to_str().unwrap())

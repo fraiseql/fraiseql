@@ -1,4 +1,4 @@
-//! The `[fraiseql.security]` sections a project config now takes are honoured by the
+//! The `[security]` sections a project config now takes are honoured by the
 //! server, not only accepted by the compiler.
 //!
 //! Each case compiles an SDK `schema.json` beside a project `fraiseql.toml` through the
@@ -148,12 +148,9 @@ async fn in_development<F: std::future::Future<Output = ()>>(case: F) {
 #[tokio::test]
 async fn a_cost_budget_in_a_project_config_refuses_an_operation_above_it() {
     in_development(async {
-        let refused = graphql(
-            "[fraiseql.security.cost_budget]\nper_request_max = 1\n",
-            json!({"query": QUERY}),
-            &[],
-        )
-        .await;
+        let refused =
+            graphql("[security.cost_budget]\nper_request_max = 1\n", json!({"query": QUERY}), &[])
+                .await;
         assert!(
             !refused.reached,
             "an operation above the budget reached the database: {}",
@@ -170,7 +167,7 @@ async fn a_cost_budget_in_a_project_config_refuses_an_operation_above_it() {
 #[tokio::test]
 async fn strict_trusted_documents_in_a_project_config_refuse_a_raw_query() {
     in_development(async {
-        let strict = "[fraiseql.security.trusted_documents]\nenabled = true\nmode = \"strict\"\n\
+        let strict = "[security.trusted_documents]\nenabled = true\nmode = \"strict\"\n\
                       manifest_path = \"{manifest}\"\n";
         let raw = graphql(strict, json!({"query": QUERY}), &[]).await;
         assert!(!raw.reached, "a raw query reached the database under strict documents");
@@ -185,7 +182,7 @@ async fn strict_trusted_documents_in_a_project_config_refuse_a_raw_query() {
 #[tokio::test]
 async fn persisted_queries_only_in_a_project_config_refuses_a_raw_query() {
     in_development(async {
-        let permissive = "[fraiseql.security.trusted_documents]\nenabled = true\n\
+        let permissive = "[security.trusted_documents]\nenabled = true\n\
                           mode = \"permissive\"\nmanifest_path = \"{manifest}\"\n";
         let control = graphql(permissive, json!({"query": QUERY}), &[]).await;
         assert!(
@@ -194,7 +191,7 @@ async fn persisted_queries_only_in_a_project_config_refuses_a_raw_query() {
             control.body
         );
 
-        let only = format!("[fraiseql.security]\npersisted_queries_only = true\n{permissive}");
+        let only = format!("[security]\npersisted_queries_only = true\n{permissive}");
         let raw = graphql(&only, json!({"query": QUERY}), &[]).await;
         assert!(!raw.reached, "a raw query reached the database with persisted_queries_only");
         assert!(raw.body["errors"].is_array(), "no refusal: {}", raw.body);
@@ -210,8 +207,8 @@ async fn an_api_key_section_in_a_project_config_authenticates_on_its_header() {
         hex::encode(<sha2::Sha256 as sha2::Digest>::digest(b"p2011-key").as_slice())
     );
     let section = format!(
-        "[fraiseql.security.api_keys]\nenabled = true\nheader = \"X-Service-Key\"\n\
-         storage = \"env\"\n[[fraiseql.security.api_keys.static]]\nkey_hash = \"{hash}\"\n\
+        "[security.api_keys]\nenabled = true\nheader = \"X-Service-Key\"\n\
+         storage = \"env\"\n[[security.api_keys.static]]\nkey_hash = \"{hash}\"\n\
          scopes = [\"read:*\"]\nname = \"backend\"\n"
     );
     in_development(async {
@@ -297,8 +294,7 @@ async fn token_revocation_in_a_project_config_refuses_a_token_without_jti_and_a_
         let (status, reached) = as_bearer(&control, &adapter, &no_jti).await;
         assert!(reached, "control: a token without jti was refused ({status})");
 
-        let section =
-            "[fraiseql.security.token_revocation]\nenabled = true\nbackend = \"memory\"\n";
+        let section = "[security.token_revocation]\nenabled = true\nbackend = \"memory\"\n";
         let (_project, adapter, server) = trusting(&issuer, section).await;
 
         // `require_jti` defaults on: a token without `jti` is refused.
@@ -398,7 +394,7 @@ async fn pkce_in_a_project_config_mounts_auth_start_with_an_s256_challenge() {
     ];
     temp_env::async_with_vars(vars, async {
         let (status, location) =
-            auth_start(&format!("{client}[fraiseql.security.pkce]\nenabled = true\n")).await;
+            auth_start(&format!("{client}[security.pkce]\nenabled = true\n")).await;
         assert!((300..400).contains(&status), "/auth/start answered {status}");
         assert_eq!(
             location.split('?').next(),
@@ -410,7 +406,7 @@ async fn pkce_in_a_project_config_mounts_auth_start_with_an_s256_challenge() {
 
         // The same client without the section mounts no PKCE flow.
         let (status, _) = auth_start(&client).await;
-        assert_eq!(status, 404, "/auth/start is mounted without [fraiseql.security.pkce]");
+        assert_eq!(status, 404, "/auth/start is mounted without [security.pkce]");
     })
     .await;
 }
@@ -427,13 +423,13 @@ async fn pkce_in_a_project_config_requires_state_encryption_in_production() {
             ("STATE_ENCRYPTION_KEY", Some(STATE_KEY)),
         ]
     };
-    let refused = boots("[fraiseql.security.pkce]\nenabled = true\n", production())
+    let refused = boots("[security.pkce]\nenabled = true\n", production())
         .await
         .expect_err("PKCE without state encryption booted in production");
     assert!(refused.contains("[security.pkce] enabled = true"), "{refused}");
 
     boots(
-        "[fraiseql.security.pkce]\nenabled = true\n[fraiseql.security.state_encryption]\n\
+        "[security.pkce]\nenabled = true\n[security.state_encryption]\n\
          enabled = true\n",
         production(),
     )
@@ -444,7 +440,7 @@ async fn pkce_in_a_project_config_requires_state_encryption_in_production() {
 #[cfg(feature = "auth")]
 #[tokio::test]
 async fn state_encryption_key_env_in_a_project_config_names_the_variable_read() {
-    let section = "[fraiseql.security.state_encryption]\nenabled = true\n\
+    let section = "[security.state_encryption]\nenabled = true\n\
                    key_env = \"P2011_STATE_KEY\"\n";
     // The declared variable is read, with the default name unset.
     boots(
@@ -491,7 +487,7 @@ async fn database_error_message(security: &str) -> String {
 #[tokio::test]
 async fn error_sanitization_keys_in_a_project_config_shape_a_database_error() {
     in_development(async {
-        let table = "[fraiseql.security.error_sanitization]\n";
+        let table = "[security.error_sanitization]\n";
 
         // Written with no keys: on, so the database text is replaced.
         let sanitized = database_error_message(table).await;
@@ -539,8 +535,7 @@ async fn requests_per_second_per_user_in_a_project_config_limits_a_verified_call
     in_development(async {
         let issuer = TestIssuer::start().await;
         let token = issuer.mint(&issuer.claims());
-        let table =
-            "[fraiseql.security.rate_limiting]\nrequests_per_second = 1000\nburst_size = 2\n";
+        let table = "[security.rate_limiting]\nrequests_per_second = 1000\nburst_size = 2\n";
 
         // Without the key, a verified caller refills at 10 × 1000 a second.
         let (_project, _adapter, control) = trusting(&issuer, table).await;
@@ -561,7 +556,7 @@ async fn requests_per_second_per_user_in_a_project_config_limits_a_verified_call
 #[tokio::test]
 async fn rate_limiting_redis_url_in_a_project_config_is_connected_at_boot() {
     let production = || vec![("FRAISEQL_ENV", None)];
-    let table = "[fraiseql.security.rate_limiting]\nenabled = true\n";
+    let table = "[security.rate_limiting]\nenabled = true\n";
     boots(table, production())
         .await
         .unwrap_or_else(|e| panic!("control, in-memory limiter: {e}"));
@@ -576,7 +571,7 @@ async fn rate_limiting_redis_url_in_a_project_config_is_connected_at_boot() {
 #[tokio::test]
 async fn failed_login_keys_in_a_project_config_are_refused_in_production() {
     let production = || vec![("FRAISEQL_ENV", None)];
-    let table = "[fraiseql.security.rate_limiting]\n";
+    let table = "[security.rate_limiting]\n";
     boots(table, production())
         .await
         .unwrap_or_else(|e| panic!("control, default failed-login budget: {e}"));
@@ -604,5 +599,5 @@ async fn audit_logging_enabled_in_a_project_config_reaches_the_executor() {
             .audit_mutations
     };
     assert!(audits("").await, "control: audit logging is on unless written off");
-    assert!(!audits("[fraiseql.security.enterprise]\naudit_logging_enabled = false\n").await);
+    assert!(!audits("[security.enterprise]\naudit_logging_enabled = false\n").await);
 }

@@ -46,7 +46,7 @@ async fn emitted_from(
     std::fs::write(dir.path().join("schema.json"), schema).unwrap();
     std::fs::write(
         dir.path().join("fraiseql.toml"),
-        format!("[project]\nname = \"p\"\n\n[fraiseql]\nschema_file = \"schema.json\"\n{locale}"),
+        format!("[project]\nname = \"p\"\n\n{locale}"),
     )
     .unwrap();
     let input = dir.path().join("schema.json");
@@ -116,7 +116,7 @@ async fn compile_prints_the_localized_index_report() {
     std::fs::write(dir.path().join("schema.json"), &localized).unwrap();
     std::fs::write(
         dir.path().join("fraiseql.toml"),
-        format!("[project]\nname = \"p\"\n\n[fraiseql]\nschema_file = \"schema.json\"\n{LOCALE}"),
+        format!("[project]\nname = \"p\"\n\n{LOCALE}"),
     )
     .unwrap();
     let input = dir.path().join("schema.json");

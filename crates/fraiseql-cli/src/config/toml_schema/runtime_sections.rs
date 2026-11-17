@@ -51,11 +51,15 @@ pub fn is_default<T: Serialize + Default>(value: &T) -> bool {
 }
 
 impl TomlSchema {
-    /// Whether this TOML schema declares runtime section `table`.
+    /// Whether this `fraiseql.toml` declares section `table`.
     ///
-    /// Its sections are not optional in the grammar, so a table equal to its defaults reads
-    /// as not declared: the rule the merger has always applied before writing one.
+    /// A table the file writes is declared, at its defaults or not. A schema built in code
+    /// rather than parsed records no written tables, so for one a table that differs from
+    /// its defaults is declared too.
     pub fn declares(&self, table: &str) -> bool {
+        if self.declared_tables.contains(table) {
+            return true;
+        }
         match table {
             "federation" => !is_default(&self.federation),
             "auth" => self.auth.is_some(),

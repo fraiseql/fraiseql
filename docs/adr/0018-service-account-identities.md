@@ -51,12 +51,12 @@ the standard request path and recorded as `ActorType::ServiceAccount`.
 ### 1. A service account is `named identity + credential + run_as ceiling`
 
 Declared in the project `fraiseql.toml` read beside `schema.json` as a
-`[fraiseql.security.service_accounts.<name>]` block, and compiled into the schema's
+`[security.service_accounts.<name>]` block, and compiled into the schema's
 `security.service_accounts`:
 
 ```toml
 # fraiseql.toml
-[fraiseql.security.service_accounts.reconciler]
+[security.service_accounts.reconciler]
 secret_env = "FRAISEQL_SA_RECONCILER_SECRET"   # names an env var; never the secret inline
 # The run_as ceiling — identical shape to sources'/functions' `run_as`.
 roles      = ["ledger:read", "ledger:reconcile"]

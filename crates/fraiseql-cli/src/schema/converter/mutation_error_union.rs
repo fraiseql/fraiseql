@@ -1,4 +1,4 @@
-//! Auto-synthesis of mutation result unions (`[fraiseql.mutations] auto_error_union`).
+//! Auto-synthesis of mutation result unions (`[mutation_defaults] auto_error_union`).
 //!
 //! Every mutation backed by the `app.mutation_response` composite can resolve to a
 //! success entity *or* an error, and the runtime already discriminates on

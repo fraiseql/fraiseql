@@ -71,7 +71,7 @@ async fn compiled_fixture() -> CompiledSchema {
     std::fs::write(
         &config,
         "[locale]\ndefault = \"en-US\"\nallowed = [\"en-US\", \"fr-FR\"]\n\
-         [[fraiseql.security.role_definitions]]\nname = \"conformance\"\n\
+         [[security.role_definitions]]\nname = \"conformance\"\n\
          scopes = [\"read:User.salary\"]\n",
     )
     .unwrap();

@@ -1,15 +1,13 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
-//! The `[security]` sections a TOML schema takes, spelled `[fraiseql.security]` in a
-//! project `fraiseql.toml` beside an SDK `schema.json`, through the real binary.
+//! The `[security]` sections of a `fraiseql.toml`, in both its roles: the compile input,
+//! and the file beside an SDK `schema.json`, through the real binary.
 //!
 //! `pkce`, `api_keys`, `cost_budget`, `token_revocation`, `trusted_documents`,
-//! `persisted_queries_only` and `state_encryption`'s `key_env` could be written only in a
-//! TOML schema: a project config refused the first six as unknown fields, and read
-//! `state_encryption` through a narrower table without `key_env`. `error_sanitization`,
-//! `rate_limiting` and the audit flag were read through CLI-local tables with other keys,
-//! names and defaults. Each now compiles in a project config to what it compiles to in a
-//! TOML schema, is refused there for what a TOML schema refuses, and is reconciled with a
-//! copy the schema document carries; the CLI-local spellings are refused by name.
+//! `persisted_queries_only` and `state_encryption`'s `key_env` could once be written only
+//! when the file was the compile input, and `error_sanitization`, `rate_limiting` and the
+//! audit flag were read beside a document through CLI-local tables with other keys, names
+//! and defaults. Each now compiles alike in both roles, is refused alike, and beside a
+//! document is reconciled with a copy the document carries.
 //!
 //! **Execution engine:** none · **Infrastructure:** none · **Parallelism:** safe
 
@@ -126,9 +124,8 @@ const KEYS: &[Key] = &[
     },
 ];
 
-/// The two spellings of the security table.
-const PROJECT: &str = "fraiseql.security";
-const TOML_SCHEMA: &str = "security";
+/// The security table, spelled alike in both roles.
+const SECURITY: &str = "security";
 
 impl Key {
     /// `body` written under this key in the table spelled `table`.
@@ -213,9 +210,9 @@ fn as_a_toml_schema(toml: &str) -> Compiled {
 #[test]
 fn a_key_compiles_in_a_project_config_to_what_it_compiles_to_in_a_toml_schema() {
     for key in KEYS {
-        let reference = as_a_toml_schema(&key.spelled(TOML_SCHEMA, key.written));
+        let reference = as_a_toml_schema(&key.spelled(SECURITY, key.written));
         assert!(reference.ok, "`{}` in a TOML schema: {}", key.name, reference.log);
-        let project = beside_a_document(&key.spelled(PROJECT, key.written), None);
+        let project = beside_a_document(&key.spelled(SECURITY, key.written), None);
         assert!(project.ok, "`{}` in a project config: {}", key.name, project.log);
 
         assert_eq!(
@@ -238,9 +235,9 @@ fn a_key_compiles_in_a_project_config_to_what_it_compiles_to_in_a_toml_schema() 
 #[test]
 fn a_key_written_at_its_defaults_compiles_alike_in_both_files() {
     for key in KEYS {
-        let reference = as_a_toml_schema(&key.spelled(TOML_SCHEMA, key.defaults));
+        let reference = as_a_toml_schema(&key.spelled(SECURITY, key.defaults));
         assert!(reference.ok, "`{}` defaults in a TOML schema: {}", key.name, reference.log);
-        let project = beside_a_document(&key.spelled(PROJECT, key.defaults), None);
+        let project = beside_a_document(&key.spelled(SECURITY, key.defaults), None);
         assert!(project.ok, "`{}` defaults in a project config: {}", key.name, project.log);
         assert_eq!(
             project.security(key.name),
@@ -275,10 +272,10 @@ fn a_table_written_without_enabled_is_enabled_in_both_files() {
         ("error_sanitization", "custom_error_message = \"Try again\"\n"),
     ] {
         for (file, compiled) in [
-            ("TOML schema", as_a_toml_schema(&format!("[{TOML_SCHEMA}.{name}]\n{body}"))),
+            ("TOML schema", as_a_toml_schema(&format!("[{SECURITY}.{name}]\n{body}"))),
             (
                 "project config",
-                beside_a_document(&format!("[{PROJECT}.{name}]\n{body}"), None),
+                beside_a_document(&format!("[{SECURITY}.{name}]\n{body}"), None),
             ),
         ] {
             assert!(compiled.ok, "{file}, `{name}`: {}", compiled.log);
@@ -383,8 +380,8 @@ const REFUSED: &[(&str, &str, &str)] = &[
 fn a_key_is_refused_in_a_project_config_for_what_a_toml_schema_refuses() {
     for (name, body, text) in REFUSED {
         let key = KEYS.iter().find(|key| key.name == *name).unwrap();
-        let reference = as_a_toml_schema(&key.spelled(TOML_SCHEMA, body));
-        let project = beside_a_document(&key.spelled(PROJECT, body), None);
+        let reference = as_a_toml_schema(&key.spelled(SECURITY, body));
+        let project = beside_a_document(&key.spelled(SECURITY, body), None);
         assert!(!reference.ok, "`{name}` {body:?} compiled in a TOML schema");
         assert!(!project.ok, "`{name}` {body:?} compiled in a project config");
         assert!(
@@ -400,8 +397,8 @@ fn a_key_is_refused_in_a_project_config_for_what_a_toml_schema_refuses() {
 fn pkce_without_state_encryption_is_warned_alike_in_both_files() {
     let key = KEYS.iter().find(|key| key.name == "pkce").unwrap();
     let warning = "pkce.enabled = true but state_encryption.enabled = false";
-    let reference = as_a_toml_schema(&key.spelled(TOML_SCHEMA, "enabled = true\n"));
-    let project = beside_a_document(&key.spelled(PROJECT, "enabled = true\n"), None);
+    let reference = as_a_toml_schema(&key.spelled(SECURITY, "enabled = true\n"));
+    let project = beside_a_document(&key.spelled(SECURITY, "enabled = true\n"), None);
     assert!(reference.log.contains(warning), "TOML schema: {}", reference.log);
     assert!(project.log.contains(warning), "project config: {}", project.log);
 
@@ -412,27 +409,8 @@ fn pkce_without_state_encryption_is_warned_alike_in_both_files() {
             key.spelled(table, "enabled = true\n")
         )
     };
-    assert!(!as_a_toml_schema(&both(TOML_SCHEMA)).log.contains(warning));
-    assert!(!beside_a_document(&both(PROJECT), None).log.contains(warning));
-}
-
-// ── a `[security]` table beside a schema document names the project spelling ─
-
-#[test]
-fn a_toml_schema_security_key_beside_a_document_is_told_its_project_spelling() {
-    for key in KEYS {
-        let refused = beside_a_document(&key.spelled(TOML_SCHEMA, key.written), None);
-        assert!(!refused.ok, "`[security]` `{}` beside a schema document compiled", key.name);
-        let spelling = format!("`{0}` is `[fraiseql.security]` `{0}`", key.name);
-        assert!(refused.log.contains(&spelling), "`{}`: {}", key.name, refused.log);
-    }
-    // A key with no project spelling still says so.
-    let rules = beside_a_document("[[security.rules]]\nname = \"r\"\nrule = \"true\"\n", None);
-    assert!(
-        rules.log.contains("`rules` has no project-configuration spelling"),
-        "{}",
-        rules.log
-    );
+    assert!(!as_a_toml_schema(&both(SECURITY)).log.contains(warning));
+    assert!(!beside_a_document(&both(SECURITY), None).log.contains(warning));
 }
 
 // ── reconciled with the schema document's copy ───────────────────────────────
@@ -440,7 +418,7 @@ fn a_toml_schema_security_key_beside_a_document_is_told_its_project_spelling() {
 #[test]
 fn a_document_copy_that_agrees_with_the_project_key_compiles() {
     for key in KEYS {
-        let project = key.spelled(PROJECT, key.written);
+        let project = key.spelled(SECURITY, key.written);
         let alone = beside_a_document(&project, None);
         assert!(alone.ok, "`{}`: {}", key.name, alone.log);
         let copy = json!({ key.name: alone.security(key.name).clone() });
@@ -454,7 +432,7 @@ fn a_document_copy_that_agrees_with_the_project_key_compiles() {
 fn a_document_copy_that_differs_from_the_project_key_is_refused_naming_it() {
     for key in KEYS {
         let copy = json!({ key.name: (key.differing)() });
-        let refused = beside_a_document(&key.spelled(PROJECT, key.written), Some(copy));
+        let refused = beside_a_document(&key.spelled(SECURITY, key.written), Some(copy));
         assert!(!refused.ok, "`{}` with a differing copy compiled", key.name);
         assert!(
             refused.log.contains(&format!("both set security `{}`", key.name)),
@@ -471,7 +449,7 @@ fn a_document_copy_that_differs_from_the_project_key_is_refused_naming_it() {
 fn a_key_written_at_its_default_still_disagrees_with_a_document_that_sets_it() {
     let key = KEYS.iter().find(|key| key.name == "persisted_queries_only").unwrap();
     let refused = beside_a_document(
-        &key.spelled(PROJECT, key.defaults),
+        &key.spelled(SECURITY, key.defaults),
         Some(json!({"persisted_queries_only": true})),
     );
     assert!(!refused.ok, "a written `false` was overridden by the document");
@@ -485,44 +463,10 @@ fn a_key_written_at_its_default_still_disagrees_with_a_document_that_sets_it() {
 #[test]
 fn a_document_copy_alone_still_applies() {
     for key in KEYS {
-        let reference = as_a_toml_schema(&key.spelled(TOML_SCHEMA, key.written));
+        let reference = as_a_toml_schema(&key.spelled(SECURITY, key.written));
         let copy = json!({ key.name: reference.security(key.name).clone() });
         let kept = beside_a_document("", Some(copy));
         assert!(kept.ok, "`{}` from the document alone: {}", key.name, kept.log);
         assert_eq!(kept.security(key.name), reference.security(key.name), "`{}`", key.name);
-    }
-}
-
-// ── one spelling: the CLI-local ones are refused, naming their replacement ───
-
-/// The spellings only a project config took, and what each became.
-const RETIRED: &[(&str, &str, &str)] = &[
-    (
-        "[fraiseql.security.audit_logging]\nenabled = true\n",
-        "[fraiseql.security.audit_logging]",
-        "[fraiseql.security.enterprise] audit_logging_enabled",
-    ),
-    (
-        "[fraiseql.security.rate_limiting]\nfailed_login_max_requests = 10\n",
-        "failed_login_max_requests",
-        "failed_login_max_attempts",
-    ),
-    (
-        "[fraiseql.security.rate_limiting]\nfailed_login_window_secs = 900\n",
-        "failed_login_window_secs",
-        "failed_login_lockout_secs",
-    ),
-];
-
-#[test]
-fn a_retired_project_spelling_is_refused_naming_its_replacement() {
-    for (toml, old, new) in RETIRED {
-        let refused = beside_a_document(toml, None);
-        assert!(!refused.ok, "{old} compiled");
-        // The named refusal, not serde's unknown-field list, which names every key of the
-        // table and so both spellings of a renamed one.
-        assert!(refused.log.contains("is no longer accepted"), "{old}: {}", refused.log);
-        assert!(refused.log.contains(old), "{old}: {}", refused.log);
-        assert!(refused.log.contains(new), "{old} does not name {new}: {}", refused.log);
     }
 }

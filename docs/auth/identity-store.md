@@ -64,7 +64,7 @@ indexes. No row moves, and existing accounts stay platform accounts.
 
 A session minted by FraiseQL's own sign-in (SAML, password, OTP, social, MFA) carries the
 tenant of the account it signs into. The session store reads it from `auth.tb_user`, never
-from the request, and mints it under the schema's `[fraiseql.tenancy] tenant_claim`
+from the request, and mints it under the schema's `[tenancy] tenant_claim`
 (default `tenant_id`), so the token's tenant reaches `SecurityContext::tenant_id` exactly as
 an external identity provider's does. A platform account's session carries no tenant claim.
 

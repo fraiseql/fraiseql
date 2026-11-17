@@ -13,13 +13,10 @@
 
 use std::collections::BTreeMap;
 
-use fraiseql_cli::config::{
-    SecurityConfig,
-    toml_schema::{
-        FederationCircuitBreakerConfig, FederationEntity, MutationDefinition,
-        PerDatabaseCircuitBreakerOverride, QueryDefinition, RateLimitingSecurityConfig, TomlSchema,
-        TypeDefinition,
-    },
+use fraiseql_cli::config::toml_schema::{
+    FederationCircuitBreakerConfig, FederationEntity, MutationDefinition,
+    PerDatabaseCircuitBreakerOverride, QueryDefinition, RateLimitingSecurityConfig, TomlSchema,
+    TypeDefinition,
 };
 
 // ---------------------------------------------------------------------------
@@ -405,7 +402,7 @@ fn diagnostic_circuit_breaker_per_database_zero_success_threshold() {
 // ===========================================================================
 
 // ---------------------------------------------------------------------------
-// 24. SecurityConfig: rate limit window = 0
+// 24. [security]: rate limit window = 0
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -421,7 +418,7 @@ fn diagnostic_security_rate_limit_zero_window() {
 }
 
 // ---------------------------------------------------------------------------
-// 25. SecurityConfig: rate limit max_requests = 0
+// 25. [security]: rate limit max_requests = 0
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -437,52 +434,48 @@ fn diagnostic_security_rate_limit_zero_max_requests() {
 }
 
 // ---------------------------------------------------------------------------
-// 26. SecurityConfig: unsupported encryption algorithm
+// 26. [security]: unsupported encryption algorithm
 // ---------------------------------------------------------------------------
 
 #[test]
 fn diagnostic_security_unsupported_encryption_algorithm() {
     // Refused as the table is read: the compiled type has no variant to hold it.
-    let err = toml::from_str::<SecurityConfig>("[state_encryption]\nalgorithm = \"rot13\"\n")
-        .unwrap_err();
+    let err = toml::from_str::<fraiseql_cli::config::toml_schema::security::SecuritySettings>(
+        "[state_encryption]\nalgorithm = \"rot13\"\n",
+    )
+    .unwrap_err();
     insta::assert_snapshot!(err.message());
 }
 
 // ---------------------------------------------------------------------------
-// 29. SecurityConfig: role with empty name
+// 29. [security]: role with empty name
 // ---------------------------------------------------------------------------
 
 #[test]
 fn diagnostic_security_role_empty_name() {
-    let mut config = SecurityConfig::default();
-    config
-        .role_definitions
-        .push(fraiseql_cli::config::security::RoleDefinitionConfig {
-            name:        String::new(),
-            description: None,
-            scopes:      vec!["read:*".to_string()],
-        });
+    let role = fraiseql_cli::config::security::RoleDefinitionConfig {
+        name:        String::new(),
+        description: None,
+        scopes:      vec!["read:*".to_string()],
+    };
 
-    let err = config.validate().unwrap_err();
+    let err = role.validate().unwrap_err();
     insta::assert_snapshot!(err.to_string());
 }
 
 // ---------------------------------------------------------------------------
-// 30. SecurityConfig: role with no scopes
+// 30. [security]: role with no scopes
 // ---------------------------------------------------------------------------
 
 #[test]
 fn diagnostic_security_role_no_scopes() {
-    let mut config = SecurityConfig::default();
-    config
-        .role_definitions
-        .push(fraiseql_cli::config::security::RoleDefinitionConfig {
-            name:        "viewer".to_string(),
-            description: None,
-            scopes:      vec![],
-        });
+    let role = fraiseql_cli::config::security::RoleDefinitionConfig {
+        name:        "viewer".to_string(),
+        description: None,
+        scopes:      vec![],
+    };
 
-    let err = config.validate().unwrap_err();
+    let err = role.validate().unwrap_err();
     insta::assert_snapshot!(err.to_string());
 }
 

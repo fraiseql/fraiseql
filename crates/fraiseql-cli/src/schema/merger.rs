@@ -721,61 +721,8 @@ impl SchemaMerger {
         // that drift a compile error here, before it can reach a file.
         // `tenancy_gate_seam_test` additionally asks the consumer's questions of
         // a compiled file rather than checking key presence.
-        let sec = &toml_schema.security;
-        // The access-control sections, through the lowering a project config's
-        // `[fraiseql.security]` shares.
-        let crate::config::toml_schema::security::SharedSections {
-            enterprise,
-            error_sanitization,
-            rate_limiting,
-            state_encryption,
-            pkce,
-            api_keys,
-            token_revocation,
-            trusted_documents,
-            persisted_queries_only,
-            cost_budget,
-        } = sec.shared_sections();
-        let lowered = serde_json::to_value(fraiseql_core::schema::SecurityConfig {
-            // #897: lowered from `[[security.role_definitions]]` / `default_role`, through
-            // the same `to_runtime` the project-config producer uses. Hard-coded empty
-            // until then, which made field-level RBAC undeclarable on this workflow: a
-            // field marked `requires_scope` was denied to everyone, because no role could
-            // be defined to grant the scope.
-            role_definitions: sec
-                .role_definitions
-                .iter()
-                .map(crate::config::security::RoleDefinitionConfig::to_runtime)
-                .collect(),
-            default_role: sec.default_role.clone(),
-            multi_tenant: sec.multi_tenant,
-            rls: sec.rls.clone(),
-            // #892: lowered from `[tenancy]`, through the same `to_runtime` the project-
-            // config path uses. Hard-coded to the default until then, which made
-            // `tenancy.mode` — and so schema-per-tenant provisioning, row-mode
-            // `@tenant_id` validation and `is_multi_tenant()` — unreachable from this
-            // workflow and from every `[domain_discovery]` project.
-            tenancy: toml_schema.tenancy.to_runtime(),
-            cost_budget,
-            // #983: not emitted — no consumer reads it, and every Workflow-A schema
-            // used to carry `"authenticated"` here by default, which is precisely the
-            // kind of declaration an operator reads as an enforced boundary.
-            default_policy: None,
-            rules: sec.rules.clone(),
-            policies: sec.policies.clone(),
-            field_auth: sec.field_auth.clone(),
-            enterprise: Some(enterprise),
-            error_sanitization,
-            rate_limiting,
-            state_encryption,
-            pkce,
-            api_keys,
-            token_revocation,
-            trusted_documents,
-            persisted_queries_only,
-            service_accounts: None,
-        })
-        .context("Failed to serialize [security] into the compiled schema")?;
+        let lowered = serde_json::to_value(toml_schema.security.to_compiled(&toml_schema.tenancy))
+            .context("Failed to serialize [security] into the compiled schema")?;
         // `merged` carries the document's own `security` block forward; it is merged with
         // the TOML's section key by key (a key both set must agree, a key only the
         // document sets is kept), and the row-tenancy check reads the result.
@@ -838,8 +785,9 @@ impl SchemaMerger {
         }
 
         // Embed naming convention
-        merged["naming_convention"] = serde_json::to_value(toml_schema.naming_convention)
-            .context("Failed to serialize naming_convention")?;
+        merged["naming_convention"] =
+            serde_json::to_value(toml_schema.naming.convention_over(None))
+                .context("Failed to serialize naming_convention")?;
 
         // Embed per-request session variables. Serialized from the same type the
         // runtime deserializes, so the mapping an RLS policy depends on cannot be

@@ -274,7 +274,7 @@ type to that union:
 
 ```toml
 # fraiseql.toml
-[fraiseql.mutations]
+[mutation_defaults]
 auto_error_union = true
 ```
 

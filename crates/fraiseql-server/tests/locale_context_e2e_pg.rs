@@ -79,7 +79,7 @@ async fn compile(locale_toml: &str) -> anyhow::Result<CompiledSchema> {
     std::fs::write(dir.path().join("schema.json"), SCHEMA_JSON).unwrap();
     std::fs::write(
         dir.path().join("fraiseql.toml"),
-        format!("[project]\nname = \"locale\"\n\n[fraiseql]\nschema_file = \"schema.json\"\n{locale_toml}"),
+        format!("[project]\nname = \"locale\"\n\n{locale_toml}"),
     )
     .unwrap();
     let input = dir.path().join("schema.json");
@@ -1013,9 +1013,7 @@ async fn localized_schema(url: &str) -> CompiledSchema {
     std::fs::write(dir.path().join("schema.json"), LOCALIZED_SCHEMA_JSON).unwrap();
     std::fs::write(
         dir.path().join("fraiseql.toml"),
-        format!(
-            "[project]\nname = \"l\"\n\n[fraiseql]\nschema_file = \"schema.json\"\n{LOCALE_TOML}"
-        ),
+        format!("[project]\nname = \"l\"\n\n{LOCALE_TOML}"),
     )
     .unwrap();
     let input = dir.path().join("schema.json");

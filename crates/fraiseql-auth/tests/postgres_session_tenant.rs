@@ -110,7 +110,7 @@ async fn a_platform_accounts_session_carries_no_tenant() {
     assert!(!claims.contains_key("tenant_id"), "{claims:?}");
 }
 
-/// The claim is the schema's `[fraiseql.tenancy] tenant_claim`, so the token is read
+/// The claim is the schema's `[tenancy] tenant_claim`, so the token is read
 /// exactly like an external identity provider's.
 #[tokio::test]
 async fn the_tenant_goes_under_the_configured_claim() {

@@ -9,7 +9,7 @@
 
 use std::path::{Path, PathBuf};
 
-use fraiseql_cli::config::TomlProjectConfig;
+use fraiseql_cli::config::TomlSchema;
 
 /// Settings the template leaves off. Fewer means the second load checks less.
 const SETTINGS_LEFT_OFF: usize = 30;
@@ -19,8 +19,8 @@ fn template() -> PathBuf {
 }
 
 /// Loads and validates `path` the way `fraiseql compile` and `fraiseql run` do.
-fn load(path: &Path) -> anyhow::Result<TomlProjectConfig> {
-    let config = TomlProjectConfig::from_file(path.to_str().unwrap())?;
+fn load(path: &Path) -> anyhow::Result<TomlSchema> {
+    let config = TomlSchema::from_project_file(path.to_str().unwrap())?;
     config.validate()?;
     Ok(config)
 }

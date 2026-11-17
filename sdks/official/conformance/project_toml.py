@@ -77,7 +77,7 @@ def project_toml(schema: Path) -> str:
         return locale + observers
     listed = ", ".join(json.dumps(s) for s in scopes)
     return locale + observers + (
-        "[[fraiseql.security.role_definitions]]\n"
+        "[[security.role_definitions]]\n"
         'name = "conformance"\n'
         'description = "Grants every scope the exported schema declares"\n'
         f"scopes = [{listed}]\n"

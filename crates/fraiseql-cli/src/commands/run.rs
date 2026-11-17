@@ -44,8 +44,7 @@ use super::{
     run_provision,
 };
 use crate::config::{
-    ConfigSource, DatabaseRuntimeConfig, ServerRuntimeConfig, TomlProjectConfig, TomlSchema,
-    runtime::TlsRuntimeConfig,
+    ConfigSource, DatabaseRuntimeConfig, ServerRuntimeConfig, TomlSchema, runtime::TlsRuntimeConfig,
 };
 
 /// Run the `fraiseql run` command.
@@ -363,7 +362,7 @@ pub(crate) fn resolve_runtime_config(
 ///
 /// For `.toml` input files the sections are embedded directly. For `.json` input
 /// files the project config is the one [`ConfigSource::resolve`] names — the same
-/// file the compile step reads (#1387) — loaded as `TomlProjectConfig`. Defaults
+/// file the compile step reads (#1387) — loaded as a `TomlSchema`. Defaults
 /// apply only when no config applies; one that fails to parse is an error.
 fn load_runtime_config_from_toml(
     input_path: &Path,
@@ -390,7 +389,7 @@ fn load_runtime_config_from_toml(
             BTreeSet::new(),
         ));
     };
-    let cfg = TomlProjectConfig::from_file(toml_path.to_str().unwrap_or_default())
+    let cfg = TomlSchema::from_project_file(toml_path.to_str().unwrap_or_default())
         .with_context(|| format!("Failed to load runtime config from {}", toml_path.display()))?;
     info!("Loaded [server] and [database] config from {}", toml_path.display());
     Ok((cfg.server, cfg.database, settings_made(toml_path)?))

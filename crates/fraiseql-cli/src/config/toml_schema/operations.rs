@@ -1,5 +1,6 @@
 //! Query and mutation operation definitions for TOML schema.
 
+use fraiseql_core::schema::NamingConvention;
 use serde::{Deserialize, Serialize};
 
 use super::types::ArgumentDefinition;
@@ -200,4 +201,44 @@ impl Default for MutationDefinition {
 /// Serde default for [`MutationDefinition::input_style`]: positional flatten.
 fn default_input_style() -> String {
     "flatten".to_string()
+}
+
+/// `[naming]`: the GraphQL surface's casing.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct NamingConfig {
+    /// The GraphQL surface's naming convention. Unwritten, a schema document's own
+    /// convention stands, and with none the surface is `camelCase`: `snake_case`
+    /// columns and functions in the database, `camelCase` operation and field names for
+    /// clients, and mutation input keys recased `camelCase` → `snake_case` before they
+    /// reach the SQL functions. `"preserve"` keeps names exactly as authored.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub convention: Option<NamingConvention>,
+    /// Acronyms whose internal digit stays attached when a GraphQL field name is mapped
+    /// back to its `snake_case` JSONB key (e.g. `s3`, `ipv4`, `oauth2`), added on top of
+    /// the engine's built-in defaults. Author the atomic form (`s3`, not `s_3`).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub acronyms:   Vec<String>,
+}
+
+impl NamingConfig {
+    /// The convention the schema compiles to: the written one, else `document`'s own,
+    /// else `camelCase`.
+    #[must_use]
+    pub fn convention_over(&self, document: Option<NamingConvention>) -> NamingConvention {
+        self.convention.or(document).unwrap_or(NamingConvention::CamelCase)
+    }
+}
+
+/// `[mutation_defaults]`: project-wide mutation compilation options, beside
+/// `[query_defaults]`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MutationDefaults {
+    /// Opt-in: synthesize a shared `MutationError` type and a per-mutation result union
+    /// (`<Mutation>Result = Entity | MutationError`) for every object-returning mutation,
+    /// rewriting its return type to that union so the server's success/error
+    /// discrimination has a union to resolve against. Mutations that already return a
+    /// union are left untouched.
+    pub auto_error_union: bool,
 }

@@ -56,6 +56,23 @@ disagreed, and the promise was the part that was wrong.
   - `[schema]`, the metadata table of a TOML schema, is `[project]`, as in a project
     config.
   - `[project] description` is refused: nothing read it.
+  - The `[fraiseql]` prefix is gone: `[fraiseql.security]` is `[security]`,
+    `[fraiseql.tenancy]` is `[tenancy]`, `[fraiseql.session_variables]` is
+    `[session_variables]`, `[fraiseql.naming]` is `[naming]`, `[fraiseql.cost_weights]` is
+    `[cost_weights]`, and `[fraiseql.mutations]` is `[mutation_defaults]`. `[fraiseql]
+    schema_file` and `output_file` are refused: nothing read them.
+  - The top-level `naming_convention` key is `[naming] convention`.
+  - `[security.constant_time]` is refused in every file: constant-time comparison is not
+    configurable, and nothing read the section. A project config used to accept it at its
+    defaults.
+  - `[naming]`, `[cost_weights]`, `[mutation_defaults]` and `[security.service_accounts]`
+    are now taken when the file is the compile input, too.
+  - Beside a schema document, a table written at its defaults is declared, so a
+    document copy that sets it otherwise is refused rather than kept: `[mcp] enabled =
+    false` disagrees with a document that turns MCP on.
+  - Beside a schema document, an unwritten `[security.state_encryption]` is no longer
+    emitted into the compiled schema at its defaults, as when the file is the input; the
+    server's default, off, is unchanged.
 
 - **`[auth_hs256]` is removed (#1964).** Shared-secret token validation is gone. A
   configuration with an `[auth_hs256]` section is refused at boot, and the error names the

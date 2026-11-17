@@ -153,7 +153,7 @@ docker logs fraiseql-server | grep "429\|rate limit" | \
    ```
 
    The **auth-endpoint brute-force limits** (`auth_start_max_requests`, …) are compiled
-   settings with no runtime override: change `[fraiseql.security.rate_limiting]` in the
+   settings with no runtime override: change `[security.rate_limiting]` in the
    project `fraiseql.toml`, re-run `fraiseql compile`, and redeploy the compiled schema.
    Do not hand-edit `schema.compiled.json`.
 

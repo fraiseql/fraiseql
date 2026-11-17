@@ -58,26 +58,22 @@ min_version = "1.2"                     # "1.2" or "1.3"
 # COMPILER
 # =============================================================================
 
-[fraiseql]
-schema_file = "schema.json"
-output_file = "schema.compiled.json"
-
-[fraiseql.naming]
+[naming]
 convention = "camelCase"                # camelCase | preserve (keep the names as authored)
 acronyms = []                           # Added to the built-in acronyms, e.g. ["SKU"]
 
-[fraiseql.mutations]
+[mutation_defaults]
 auto_error_union = false                # Synthesize a shared MutationError type for every mutation
 
 # Per-operation @cost weight overrides, keyed by operation name.
-[fraiseql.cost_weights]
+[cost_weights]
 #searchProducts = 5
 
 # =============================================================================
 # TENANCY
 # =============================================================================
 
-[fraiseql.tenancy]
+[tenancy]
 mode = "none"                           # none | row | schema
 tenant_claim = "tenant_id"              # JWT claim that carries the tenant
 
@@ -86,7 +82,7 @@ tenant_claim = "tenant_id"              # JWT claim that carries the tenant
 # =============================================================================
 
 # PostgreSQL settings set on each request's transaction.
-[fraiseql.session_variables]
+[session_variables]
 inject_started_at = true                # Set fraiseql.started_at on each mutation
 # source: jwt (claim), enrichment (field), literal (value), or header (header).
 # A header is sent by the client: never use one for row-level security or tenant scoping.
@@ -96,36 +92,36 @@ inject_started_at = true                # Set fraiseql.started_at on each mutati
 # SECURITY
 # =============================================================================
 
-[fraiseql.security]
+[security]
 multi_tenant = false                    # Implied by a tenancy mode other than "none"
 #default_role = "viewer"                # Role of an authenticated caller with none
 
 # Roles and the scopes they grant.
-#[[fraiseql.security.role_definitions]]
+#[[security.role_definitions]]
 #name = "admin"
 #description = "Full access"
 #scopes = ["admin:*"]
 
 # Machine service accounts, keyed by name. The secret is read from the environment.
-#[fraiseql.security.service_accounts.reconciler]
+#[security.service_accounts.reconciler]
 #secret_env = "FRAISEQL_SA_RECONCILER_SECRET"
 #roles = ["reconciler"]
 #scopes = ["write:Invoice"]
 
 # Record mutations in the audit log.
-[fraiseql.security.enterprise]
+[security.enterprise]
 audit_logging_enabled = true
 
 # Written, a table below is on unless it says `enabled = false`. Left out, the server
 # decides: errors are sanitized in production only, and the global rate limit is off
 # (the auth endpoint limits still apply).
-[fraiseql.security.error_sanitization]
+[security.error_sanitization]
 enabled = true
 hide_implementation_details = true      # Drop `extensions.detail` from errors
 sanitize_database_errors = true         # Replace database error text with a generic message
 #custom_error_message = "Something went wrong"
 
-[fraiseql.security.rate_limiting]
+[security.rate_limiting]
 enabled = true
 requests_per_second = 100               # Per client IP, on the GraphQL surface
 #requests_per_second_per_user = 1000    # Per authenticated user; default 10 × requests_per_second
@@ -169,20 +165,13 @@ failed_login_lockout_secs = 900
 
 # Encrypts PKCE OAuth state. The 32-byte hex key is read from STATE_ENCRYPTION_KEY
 # (generate one with `openssl rand -hex 32`).
-[fraiseql.security.state_encryption]
+[security.state_encryption]
 enabled = false
 algorithm = "chacha20-poly1305"         # chacha20-poly1305 | aes-256-gcm
 
-[fraiseql.security.constant_time]
-enabled = true
-apply_to_jwt = true
-apply_to_session_tokens = true
-apply_to_csrf_tokens = true
-apply_to_refresh_tokens = true
-
 # Declares that PostgreSQL Row-Level Security isolates this schema's data; checked
 # against the database's catalog when the server starts.
-[fraiseql.security.rls]
+[security.rls]
 enabled = false
 
 # =============================================================================

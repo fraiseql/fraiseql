@@ -192,13 +192,13 @@ Two rules follow from the merge:
 - A type and its backing query may declare the same column, but only from the **same**
   source. Two different sources for one column is refused when the compiled schema loads,
   naming the query, the type, the column and both sources.
-- With `[fraiseql.tenancy] mode = "row"`, a `@tenant_id`-annotated type that **no query
+- With `[tenancy] mode = "row"`, a `@tenant_id`-annotated type that **no query
   returns** has the scoping auto-injected onto the type, exactly as a query would get it.
   A type a query returns is left alone — the query already carries it.
 - `mode = "row"` on a schema where **no** field carries `@tenant_id` is refused at compile
   ("matched 0 of N types"): row isolation configured to scope nothing is a
   misconfiguration. A project whose isolation is enforced by database RLS declares
-  `[fraiseql.security] multi_tenant = true` with `[fraiseql.security.rls] enabled = true`
+  `[security] multi_tenant = true` with `[security.rls] enabled = true`
   instead.
 - A **mutation** returning an annotated type is scoped when any of its `inject_params`
   reads `jwt:<tenant_claim>`, under whatever name its function's parameter has — the

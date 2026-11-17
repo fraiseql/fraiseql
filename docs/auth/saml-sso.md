@@ -288,7 +288,7 @@ client_id           = "fraiseql"
 client_secret_env   = "KEYCLOAK_CLIENT_SECRET"
 server_redirect_uri = "https://api.yourdomain.com/auth/callback"
 
-[fraiseql.security.pkce]
+[security.pkce]
 enabled = true
 ```
 

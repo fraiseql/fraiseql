@@ -55,30 +55,15 @@ fn a_document_block_that_is_not_an_object_is_refused() {
 }
 
 #[test]
-fn the_project_config_sets_enterprise_and_its_former_sources_by_name() {
+fn enterprise_and_its_former_sources_declare_themselves_by_name() {
     for name in ["enterprise", "error_sanitization", "rate_limiting"] {
-        let table: toml::Table = format!("[fraiseql.security.{name}]\n").parse().unwrap();
+        let table: toml::Table = format!("[security.{name}]\n").parse().unwrap();
         assert_eq!(
-            declared_in_project_config(&table).into_iter().collect::<Vec<_>>(),
+            declared_in_toml_schema(&table).into_iter().collect::<Vec<_>>(),
             [name],
             "`{name}` declares itself and nothing else"
         );
     }
-    let table: toml::Table = "[project]\nname = \"app\"\n".parse().unwrap();
-    assert!(declared_in_project_config(&table).is_empty());
-}
-
-#[test]
-fn the_project_config_sets_tenancy_and_named_security_keys() {
-    let table: toml::Table =
-        "[fraiseql]\n[fraiseql.tenancy]\nmode = \"row\"\n[fraiseql.security]\nmulti_tenant = \
-         true\n[fraiseql.security.rls]\nenabled = true\n"
-            .parse()
-            .unwrap();
-    assert_eq!(
-        declared_in_project_config(&table),
-        declared(&["multi_tenant", "rls", "tenancy"])
-    );
 }
 
 #[test]

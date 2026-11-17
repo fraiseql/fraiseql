@@ -37,7 +37,7 @@ impl CompiledSchema {
                         format!(
                             "field '{}.{}' requires scope '{scope}', but the schema has no \
                              `security` section, so no role can grant it. Declare the roles \
-                             that grant it (`[fraiseql.security]` in fraiseql.toml), or drop \
+                             that grant it (`[security]` in fraiseql.toml), or drop \
                              `requires_scope`.",
                             t.name, f.name
                         )

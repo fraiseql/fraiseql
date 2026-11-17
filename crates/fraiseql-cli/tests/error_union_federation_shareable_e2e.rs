@@ -2,7 +2,7 @@
 //! Regression: the `MutationError` type `auto_error_union` synthesizes must be `@shareable`
 //! so two federated subgraphs that both use the flag compose (#1944).
 //!
-//! `[fraiseql.mutations] auto_error_union = true` makes the cli synthesize one shared
+//! `[mutation_defaults] auto_error_union = true` makes the cli synthesize one shared
 //! `MutationError` value type, structurally identical in every subgraph that synthesizes it
 //! and carrying no identity. Emitted without `@shareable`, a supergraph composing two such
 //! subgraphs fails Federation-v2 validation with one `INVALID_FIELD_SHARING` per field

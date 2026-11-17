@@ -13,14 +13,16 @@ use std::{fs, process::Command};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
-/// The schema an SDK emits: one type and its list query.
+/// The schema an SDK emits: one type, its list query, and a mutation returning it.
 fn document() -> Value {
     json!({
         "types": [{"name": "Order", "sql_source": "v_order",
-                   "fields": [{"name": "id", "type": "ID", "nullable": false}]}],
+                   "fields": [{"name": "id", "type": "ID", "nullable": false},
+                              {"name": "created_at", "type": "String", "nullable": true}]}],
         "queries": [{"name": "orders", "return_type": "Order", "returns_list": true,
                      "sql_source": "v_order"}],
-        "mutations": []
+        "mutations": [{"name": "create_order", "return_type": "Order",
+                       "sql_source": "fn_create_order", "operation": "insert"}]
     })
 }
 
@@ -55,27 +57,42 @@ fn run(dir: &TempDir, args: &[&str]) -> Compiled {
     }
 }
 
-/// `toml`, verbatim, as the `fraiseql.toml` beside a schema document.
-fn beside_a_document(toml: &str) -> Compiled {
+/// [`document`] with `extra`'s keys added.
+fn document_with(extra: &Value) -> Value {
+    let mut document = document();
+    for (key, value) in extra.as_object().into_iter().flatten() {
+        document[key] = value.clone();
+    }
+    document
+}
+
+/// `toml`, verbatim, as the `fraiseql.toml` beside a schema document carrying `extra`.
+fn beside_a_document_with(toml: &str, extra: &Value) -> Compiled {
     let dir = TempDir::new().unwrap();
-    fs::write(dir.path().join("schema.json"), document().to_string()).unwrap();
+    fs::write(dir.path().join("schema.json"), document_with(extra).to_string()).unwrap();
     fs::write(dir.path().join("fraiseql.toml"), toml).unwrap();
     run(&dir, &["schema.json"])
 }
 
-/// `toml`, verbatim, as the compile input, its types from the same document (`--types`).
-fn as_the_input(toml: &str) -> Compiled {
+/// `toml`, verbatim, as the compile input, its types from the same document carrying
+/// `extra` (`--types`).
+fn as_the_input_with(toml: &str, extra: &Value) -> Compiled {
     let dir = TempDir::new().unwrap();
-    fs::write(dir.path().join("types.json"), document().to_string()).unwrap();
+    fs::write(dir.path().join("types.json"), document_with(extra).to_string()).unwrap();
     fs::write(dir.path().join("fraiseql.toml"), toml).unwrap();
     run(&dir, &["fraiseql.toml", "--types", "types.json"])
 }
 
 /// Both roles a `fraiseql.toml` plays, labelled for assertion messages.
 fn in_both_roles(toml: &str) -> [(&'static str, Compiled); 2] {
+    in_both_roles_with(toml, &json!({}))
+}
+
+/// [`in_both_roles`], the document carrying `extra`.
+fn in_both_roles_with(toml: &str, extra: &Value) -> [(&'static str, Compiled); 2] {
     [
-        ("beside a document", beside_a_document(toml)),
-        ("as the input", as_the_input(toml)),
+        ("beside a document", beside_a_document_with(toml, extra)),
+        ("as the input", as_the_input_with(toml, extra)),
     ]
 }
 
@@ -126,5 +143,183 @@ fn project_description_is_refused_as_read_by_nothing() {
     let toml = "[project]\nname = \"app\"\ndescription = \"An app\"\n";
     for (role, refused) in in_both_roles(toml) {
         assert_refused_by_name(role, &refused, "[project] description", "nothing reads it");
+    }
+}
+
+// ── the settings only a project config took ─────────────────────────────────
+
+/// A service account and the role it runs as, under `{S}`.
+const SERVICE_ACCOUNT: &str = "[{S}.service_accounts.gateway]\nsecret_env = \"GATEWAY_SECRET\"\n\
+                               roles = [\"reader\"]\n[[{S}.role_definitions]]\nname = \"reader\"\n\
+                               scopes = [\"read:*\"]\n";
+
+/// Each setting only a project config took, in its one spelling, and the compiled values
+/// (JSON pointers) both roles must agree on.
+fn project_only() -> Vec<(String, &'static [&'static str])> {
+    vec![
+        (
+            "[naming]\nconvention = \"preserve\"\nacronyms = [\"co2\"]\n".into(),
+            &["/naming_convention", "/naming_acronyms"],
+        ),
+        ("[cost_weights]\norders = 7\n".into(), &["/operation_cost_weights"]),
+        (
+            "[mutation_defaults]\nauto_error_union = true\n".into(),
+            &["/unions", "/mutations/0/return_type"],
+        ),
+        (
+            SERVICE_ACCOUNT.replace("{S}", "security"),
+            &["/security/service_accounts", "/security/role_definitions"],
+        ),
+    ]
+}
+
+#[test]
+fn a_project_only_setting_compiles_alike_in_both_roles() {
+    for (toml, pointers) in project_only() {
+        let [(_, beside), (_, as_input)] = in_both_roles(&toml);
+        assert!(as_input.ok, "{toml} as the input: {}", as_input.log);
+        assert!(beside.ok, "{toml} beside a document: {}", beside.log);
+        for pointer in pointers {
+            let compiled = &as_input.schema.pointer(pointer);
+            assert!(compiled.is_some_and(|v| !v.is_null()), "{toml}: no {pointer}");
+            assert_eq!(*compiled, beside.schema.pointer(pointer), "{toml}: {pointer}");
+        }
+    }
+}
+
+#[test]
+fn the_naming_convention_key_is_refused_naming_its_table() {
+    for (role, refused) in in_both_roles("naming_convention = \"preserve\"\n") {
+        assert_refused_by_name(role, &refused, "naming_convention", "[naming] convention");
+    }
+}
+
+#[test]
+fn constant_time_is_refused_as_read_by_nothing() {
+    for table in ["security.constant_time", "fraiseql.security.constant_time"] {
+        let toml = format!("[{table}]\napply_to_jwt = true\n");
+        for (role, refused) in in_both_roles(&toml) {
+            assert_refused_by_name(role, &refused, &format!("[{table}]"), "nothing reads it");
+        }
+    }
+}
+
+// ── `[fraiseql.*]`: the project config's former prefix ──────────────────────
+
+/// Each table a project config wrote under `[fraiseql]`, as written, the spelling the
+/// refusal names, and what it names instead.
+const FRAISEQL_PREFIX: &[(&str, &str, &str)] = &[
+    (
+        "[fraiseql.security.pkce]\nenabled = true\n",
+        "[fraiseql.security]",
+        "`[security]`",
+    ),
+    ("[fraiseql.tenancy]\nmode = \"row\"\n", "[fraiseql.tenancy]", "`[tenancy]`"),
+    (
+        "[fraiseql.session_variables]\nvariables = []\n",
+        "[fraiseql.session_variables]",
+        "`[session_variables]`",
+    ),
+    (
+        "[fraiseql.naming]\nconvention = \"preserve\"\n",
+        "[fraiseql.naming]",
+        "`[naming]`",
+    ),
+    (
+        "[fraiseql.cost_weights]\norders = 7\n",
+        "[fraiseql.cost_weights]",
+        "`[cost_weights]`",
+    ),
+    (
+        "[fraiseql.mutations]\nauto_error_union = true\n",
+        "[fraiseql.mutations]",
+        "`[mutation_defaults]`",
+    ),
+    (
+        "[fraiseql]\nschema_file = \"schema.json\"\n",
+        "[fraiseql] schema_file",
+        "nothing reads it",
+    ),
+    (
+        "[fraiseql]\noutput_file = \"schema.compiled.json\"\n",
+        "[fraiseql] output_file",
+        "nothing reads it",
+    ),
+];
+
+#[test]
+fn a_fraiseql_table_is_refused_naming_its_top_level_spelling() {
+    for (toml, old, new) in FRAISEQL_PREFIX {
+        for (role, refused) in in_both_roles(toml) {
+            assert_refused_by_name(role, &refused, old, new);
+        }
+    }
+}
+
+/// The spellings retired before the prefix was, now under `[security]`.
+const SECURITY_RETIRED: &[(&str, &str, &str)] = &[
+    (
+        "[security.audit_logging]\nenabled = true\n",
+        "[security.audit_logging]",
+        "[security.enterprise] audit_logging_enabled",
+    ),
+    (
+        "[security.rate_limiting]\nfailed_login_max_requests = 10\n",
+        "failed_login_max_requests",
+        "failed_login_max_attempts",
+    ),
+    (
+        "[security.rate_limiting]\nfailed_login_window_secs = 900\n",
+        "failed_login_window_secs",
+        "failed_login_lockout_secs",
+    ),
+];
+
+#[test]
+fn a_retired_security_spelling_is_refused_naming_its_replacement_in_both_roles() {
+    for (toml, old, new) in SECURITY_RETIRED {
+        for (role, refused) in in_both_roles(toml) {
+            assert_refused_by_name(role, &refused, old, new);
+        }
+    }
+}
+
+// ── one settings grammar in both roles ───────────────────────────────────────
+
+#[test]
+fn a_settings_section_is_taken_in_both_roles_in_one_spelling() {
+    let toml = "[project]\nname = \"app\"\n[tenancy]\nmode = \"schema\"\n\
+                [session_variables]\nvariables = [{name = \"app.region\", source = \"literal\", \
+                value = \"eu\"}]\n[security.pkce]\nenabled = true\n\
+                [security.state_encryption]\nenabled = true\nkey_env = \"STATE_KEY\"\n";
+    let [(_, beside), (_, as_input)] = in_both_roles(toml);
+    assert!(beside.ok, "beside a document: {}", beside.log);
+    assert!(as_input.ok, "as the input: {}", as_input.log);
+    for pointer in ["/security/tenancy", "/session_variables", "/security/pkce"] {
+        let compiled = as_input.schema.pointer(pointer);
+        assert!(compiled.is_some_and(|v| !v.is_null()), "as the input: no {pointer}");
+        assert_eq!(compiled, beside.schema.pointer(pointer), "{pointer}");
+    }
+}
+
+/// A table written at its defaults is declared, in both roles, and so disagrees with a
+/// document copy that sets it otherwise.
+#[test]
+fn a_table_written_at_its_defaults_is_declared_in_both_roles() {
+    let copy = json!({"mcp_config": {"enabled": true}});
+    for (role, refused) in in_both_roles_with("[mcp]\nenabled = false\n", &copy) {
+        assert!(!refused.ok, "{role}: the document's `mcp_config` replaced `[mcp]` in silence");
+        assert!(refused.log.contains("mcp"), "{role}: {}", refused.log);
+    }
+}
+
+/// A service account that grants nothing is refused in both roles, not compiled into a
+/// credential with no authority.
+#[test]
+fn a_service_account_with_no_ceiling_is_refused_in_both_roles() {
+    let toml = "[security.service_accounts.ghost]\nsecret_env = \"GHOST_SECRET\"\n";
+    for (role, refused) in in_both_roles(toml) {
+        assert!(!refused.ok, "{role}: compiled");
+        assert!(refused.log.contains("neither roles nor scopes"), "{role}: {}", refused.log);
     }
 }

@@ -81,7 +81,7 @@ config) still counts the request like any other.
 ## Cost Budgets (#379)
 
 The estimated operation cost (the complexity score, with root-operation
-`[fraiseql.cost_weights]` overriding their subtree walk) is enforced at three
+`[cost_weights]` overriding their subtree walk) is enforced at three
 levels:
 
 | Level | Config | Rejection | Scope |
@@ -158,14 +158,14 @@ max_page_size = 1000
 # holds across a hot reload (SIGUSR1) and binds every registered tenant. #1534
 # max_response_bytes = 10485760
 
-[fraiseql.security.cost_budget]
+[security.cost_budget]
 # Hard per-operation cost ceiling, enforced inside the executor for every
 # transport (#379). Omit for no ceiling.
 per_request_max = 10000
 # Default rolling per-minute budget for registered tenants without their own
 # cost_budget_per_minute. Omit for no default.
 per_tenant_per_minute_default = 100000
-# Per-operation @cost weights are declared under [fraiseql.cost_weights];
+# Per-operation @cost weights are declared under [cost_weights];
 # per-tenant cost budgets are configured via the tenant-quota admin API
 # (cost_budget, cost_budget_per_minute). (#379)
 ```

@@ -413,7 +413,7 @@ audience = "your-api-audience"
 # Request throttling (token bucket, per IP / per user). The table carries
 # `#[serde(default)]` (#874), so naming only the keys you are changing is fine.
 # The auth endpoint brute-force limits are separate: they are compiled settings
-# ([fraiseql.security.rate_limiting] in the project fraiseql.toml).
+# ([security.rate_limiting] in the project fraiseql.toml).
 #
 # ⚠ This whole table is ignored when the compiled schema carries a
 # [security.rate_limiting] section — that section wins, and env overrides win over
@@ -458,7 +458,7 @@ server.serve().await?;
 - [ ] TLS configured (or terminated at load balancer with mTLS inside cluster)
 - [ ] Auth provider configured (`[auth]` section of the `--config` file)
 - [ ] Rate limiting enabled (`[rate_limiting]` above for request throttling; compiled
-      `[fraiseql.security.rate_limiting]` for auth-endpoint brute-force limits)
+      `[security.rate_limiting]` for auth-endpoint brute-force limits)
 - [ ] `pool_max_size` sized for expected concurrency
 - [ ] `shutdown_timeout_secs` set (default 30 is usually appropriate)
 - [ ] Structured logging initialised (`FRAISEQL_LOG_FORMAT=json`, `RUST_LOG=info`) and

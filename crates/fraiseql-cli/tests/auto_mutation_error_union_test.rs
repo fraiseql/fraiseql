@@ -1,7 +1,7 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::pedantic)]
 //! Compiler tests for opt-in mutation-error-union synthesis
-//! (`[fraiseql.mutations] auto_error_union`).
+//! (`[mutation_defaults] auto_error_union`).
 //!
 //! Verifies that, when enabled, the converter:
 //! - synthesizes one shared `MutationError` type (`is_error`, with status/message/

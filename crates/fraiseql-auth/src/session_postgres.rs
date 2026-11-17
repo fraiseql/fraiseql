@@ -47,7 +47,7 @@ pub const DEFAULT_TOKEN_ISSUER: &str = "fraiseql";
 /// Default `aud` claim for minted access tokens (see [`PostgresSessionStore::with_token_claims`]).
 pub const DEFAULT_TOKEN_AUDIENCE: &str = "fraiseql-api";
 /// Default claim a minted access token carries the account's tenant under (#1450): the
-/// default of `[fraiseql.tenancy] tenant_claim`. See [`PostgresSessionStore::with_tenant_claim`].
+/// default of `[tenancy] tenant_claim`. See [`PostgresSessionStore::with_tenant_claim`].
 pub const DEFAULT_TENANT_CLAIM: &str = "tenant_id";
 
 /// PostgreSQL-backed session store
@@ -146,7 +146,7 @@ impl PostgresSessionStore {
     }
 
     /// Mint the account's tenant under `claim`: the schema's
-    /// `[fraiseql.tenancy] tenant_claim`, so a FraiseQL-minted token's tenant reaches
+    /// `[tenancy] tenant_claim`, so a FraiseQL-minted token's tenant reaches
     /// `SecurityContext::tenant_id` exactly as an external IdP's does (#1450).
     #[must_use]
     pub fn with_tenant_claim(mut self, claim: impl Into<String>) -> Self {

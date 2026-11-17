@@ -104,7 +104,7 @@ impl RoleDefinition {
 /// Tenancy isolation mode for multi-tenant deployments.
 ///
 /// Determines how tenant data is separated at the database level.
-/// Configured via `[fraiseql.tenancy]` in `fraiseql.toml`.
+/// Configured via `[tenancy]` in `fraiseql.toml`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
@@ -149,7 +149,7 @@ impl std::fmt::Display for TenancyMode {
 
 /// Tenancy configuration for multi-tenant deployments.
 ///
-/// Compiled from `[fraiseql.tenancy]` in `fraiseql.toml` into the
+/// Compiled from `[tenancy]` in `fraiseql.toml` into the
 /// `security.tenancy` section of `schema.compiled.json`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TenancyConfig {
@@ -168,7 +168,7 @@ pub struct TenancyConfig {
     pub tenant_claim: String,
 }
 
-/// The JWT claim that names a request's tenant when `[fraiseql.tenancy]` does not
+/// The JWT claim that names a request's tenant when `[tenancy]` does not
 /// say otherwise.
 pub const DEFAULT_TENANT_CLAIM: &str = "tenant_id";
 

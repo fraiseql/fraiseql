@@ -12,7 +12,7 @@ use fraiseql_db::postgres::PostgresTlsConfig;
 use tracing::{info, warn};
 
 use crate::{
-    config::{ConfigSource, TomlProjectConfig},
+    config::ConfigSource,
     schema::{
         CompiledArtifact, ConvertOptions, IntermediateSchema, OptimizationReport, SchemaConverter,
         SchemaOptimizer, SchemaValidator,
@@ -260,66 +260,48 @@ pub async fn compile_to_schema(
         None => ConfigSource::resolve(input_path, None)?,
     };
     info!("Project config: {config_source}");
-    // Opt-in mutation-error-union synthesis, read from [fraiseql.mutations] below.
-    let mut auto_error_union = false;
-    // Casing acronyms from [fraiseql.naming], added on top of the built-in defaults.
-    let mut naming_acronyms: Vec<String> = Vec::new();
-    // Per-operation @cost weight overrides from [fraiseql.cost_weights] (#379).
-    let mut operation_cost_weights: std::collections::HashMap<String, usize> =
-        std::collections::HashMap::new();
-    // GraphQL surface convention for the legacy JSON (Workflow-B) path. Defaults
-    // to camelCase (snake_case DB, camelCase client surface + input recasing);
-    // [fraiseql.naming] convention = "preserve" restores the as-authored names.
-    // The TomlSchema path carries its own naming_convention via the merger and is
-    // left untouched (see the `if !is_toml` apply below).
-    let mut naming_convention = NamingConvention::CamelCase;
-    // Whether the project config writes `[fraiseql.naming] convention` itself.
-    let mut project_declares_naming = false;
-    // Transport security for the `--database` checks (#1429): `[database] ssl_mode` from
-    // the config this compile loaded. Unset leaves the URL's own `?sslmode=` in charge.
-    let mut database_tls = if is_toml && opts.database.is_some() {
-        crate::config::TomlSchema::from_file(opts.input)
-            .with_context(|| format!("Failed to load TOML from {}", opts.input))?
-            .database
-            .postgres_tls()?
-    } else {
-        PostgresTlsConfig::default()
-    };
+    // The settings of the `fraiseql.toml` this compile reads that the converter takes
+    // beside the schema: `[naming]`, `[cost_weights]` (#379) and `[mutation_defaults]`,
+    // and `[database] ssl_mode` for the `--database` checks (#1429); unset, the URL's own
+    // `?sslmode=` stays in charge. A TOML input carries them itself; a schema document
+    // takes them from the project config below. The file is taken apart here rather than
+    // held, so it is not carried across the awaits below.
+    let (mut naming, mut operation_cost_weights, mut mutation_options, mut database_tls) =
+        if is_toml {
+            let input = crate::config::TomlSchema::from_file(opts.input)
+                .with_context(|| format!("Failed to load TOML from {}", opts.input))?;
+            let tls = if opts.database.is_some() {
+                input.database.postgres_tls()?
+            } else {
+                PostgresTlsConfig::default()
+            };
+            (input.naming, input.cost_weights, input.mutation_defaults, tls)
+        } else {
+            Default::default()
+        };
     if let Some(config_path) = config_source.project_config() {
         info!("Loading security configuration from {}...", config_path.display());
         let config_file = config_path.to_str().ok_or_else(|| {
             anyhow::anyhow!("Config path is not valid UTF-8: {}", config_path.display())
         })?;
-        match TomlProjectConfig::from_file(config_file) {
+        match crate::config::TomlSchema::from_project_file(config_file) {
             Ok(config) => {
                 info!("Validating security configuration...");
-                config.validate()?;
-                let (sections, declared) = config.runtime_sections();
-                sections.security.warn_pkce_without_state_encryption();
+                config.validate_self_contained()?;
+                config.security.warn_pkce_without_state_encryption();
 
-                auto_error_union = config.fraiseql.mutations.auto_error_union;
-                naming_acronyms.clone_from(&config.fraiseql.naming.acronyms);
-                operation_cost_weights.clone_from(&config.fraiseql.cost_weights);
-                naming_convention = config.fraiseql.naming.convention;
-                project_declares_naming = config.declares_naming_convention;
+                mutation_options.clone_from(&config.mutation_defaults);
+                naming.clone_from(&config.naming);
+                operation_cost_weights.clone_from(&config.cost_weights);
                 database_tls = config.database.postgres_tls()?;
 
                 info!("Applying security configuration to schema...");
-                // Merge security config into intermediate schema
-                let mut security_json = config.fraiseql.security.to_json();
-
-                // Embed the tenancy configuration whatever its mode: `tenant_claim` names the
-                // request's tenant on every path since #1388, not only under row or schema
-                // isolation, and dropping it with `mode = "none"` reverted the runtime to
-                // `tenant_id` without a word (#1542).
-                security_json["tenancy"] = config.fraiseql.tenancy.to_json();
-
                 // A `security` block in the schema document is merged with this section,
                 // key by key: a key both set must agree, a key only the document sets is
                 // kept. The row-tenancy check below reads the merged section.
                 intermediate.security = Some(crate::config::security_merge::reconcile(
                     &config_path.display().to_string(),
-                    security_json,
+                    serde_json::to_value(config.security.to_compiled(&config.tenancy))?,
                     &config.declared_security,
                     intermediate.security.take(),
                 )?);
@@ -327,14 +309,12 @@ pub async fn compile_to_schema(
                 // Session variables are the mechanism RLS policies read; carry them
                 // through rather than leaving `schema.json` as the only way to
                 // declare them (#628).
-                if config.fraiseql.session_variables
-                    != fraiseql_core::schema::SessionVariablesConfig::default()
-                {
+                if config.declares("session_variables") {
                     // A copy in the schema document must agree with it.
                     crate::config::toml_schema::runtime_sections::reconcile_values(
-                        "fraiseql.session_variables",
                         "session_variables",
-                        &serde_json::to_value(&config.fraiseql.session_variables)?,
+                        "session_variables",
+                        &serde_json::to_value(&config.session_variables)?,
                         intermediate
                             .session_variables
                             .as_ref()
@@ -343,13 +323,12 @@ pub async fn compile_to_schema(
                             .as_ref(),
                         "schema.json",
                     )?;
-                    intermediate.session_variables =
-                        Some(config.fraiseql.session_variables.clone());
+                    intermediate.session_variables = Some(config.session_variables.clone());
                 }
 
                 // `[locale]` (#1512) is configuration, so it lives only in `fraiseql.toml`; a
                 // schema document carrying a different one is an authoring conflict.
-                if let Some(locale) = config.locale {
+                if let Some(locale) = config.locale.clone() {
                     if intermediate.locale.as_ref().is_some_and(|l| *l != locale) {
                         anyhow::bail!(
                             "[locale] in {} disagrees with the `locale` the schema document \
@@ -369,16 +348,14 @@ pub async fn compile_to_schema(
                 // copy in the schema document must agree with it.
                 intermediate.observers_config =
                     crate::config::toml_schema::ObserversConfig::reconcile(
-                        config.observers.as_ref(),
+                        config.declares("observers").then_some(&config.observers),
                         intermediate.observers_config.take(),
                     )?;
 
                 // The runtime sections (`[mcp]`, `[rest]`, `[federation]`, `[auth]`, …): the
                 // tables a TOML schema takes, lowered by its own function and reconciled
                 // with a copy the schema document carries.
-                for section in
-                    sections.lower_runtime_sections(&|table| declared.contains(&table))?
-                {
+                for section in config.lower_runtime_sections(&|table| config.declares(table))? {
                     let document = intermediate.runtime_section(section.key)?;
                     if let Some(value) = section.reconcile(document, "schema.json")? {
                         intermediate.set_runtime_section(section.key, value)?;
@@ -386,9 +363,9 @@ pub async fn compile_to_schema(
                 }
 
                 // `[[caching.rules]]` lower onto the document's own queries and mutations.
-                if let Some(caching) = &config.caching {
+                if config.declares("caching") {
                     crate::schema::merger::apply_caching_rules_to_schema(
-                        caching,
+                        &config.caching,
                         &mut intermediate,
                     )?;
                 }
@@ -405,7 +382,7 @@ pub async fn compile_to_schema(
             },
             Err(e) => {
                 anyhow::bail!(
-                    "Failed to parse {}: {e}\n\
+                    "Failed to parse {}: {e:#}\n\
                      Fix the configuration file or remove it to use defaults.",
                     config_path.display()
                 );
@@ -416,17 +393,17 @@ pub async fn compile_to_schema(
     // Install the project's casing acronyms so compile-time key inference
     // (native-column resolution, DDL) agrees with the runtime. Defaults apply
     // when none are configured.
-    fraiseql_core::utils::casing::set_runtime_acronyms(&naming_acronyms);
+    fraiseql_core::utils::casing::set_runtime_acronyms(&naming.acronyms);
 
-    // Apply the naming convention to the legacy JSON (Workflow-B) path.
-    // `[fraiseql.naming] convention` decides it when the project config writes it: that is
-    // the documented knob, and an SDK writes its own constant into every document, so the
-    // two are not reconciled. Left unwritten, the document's own convention stands; a
-    // document that carries none would fall to the enum default (Preserve), and Workflow-B
-    // defaults to CamelCase instead. The TomlSchema path already carries its own convention
-    // from the merger, so it is left untouched.
-    if !is_toml && (project_declares_naming || !document_declares_naming) {
-        intermediate.naming_convention = naming_convention;
+    // The naming convention of a schema document: `[naming] convention` decides it when
+    // the project config writes it, an SDK writing its own constant into every document,
+    // so the two are not reconciled. Left unwritten, the document's own convention stands;
+    // a document that carries none would fall to the enum default (Preserve), and the
+    // surface defaults to camelCase instead. A TOML input's convention is applied by the
+    // merger.
+    if !is_toml {
+        intermediate.naming_convention = naming
+            .convention_over(document_declares_naming.then_some(intermediate.naming_convention));
     }
 
     // 2b. Validate @tenant_id annotations when tenancy mode is "row".
@@ -516,12 +493,17 @@ pub async fn compile_to_schema(
     let CompiledArtifact {
         mut schema,
         functions,
-    } = SchemaConverter::convert_artifact(intermediate, &ConvertOptions { auto_error_union })
-        .context("Failed to convert schema to compiled format")?;
+    } = SchemaConverter::convert_artifact(
+        intermediate,
+        &ConvertOptions {
+            auto_error_union: mutation_options.auto_error_union,
+        },
+    )
+    .context("Failed to convert schema to compiled format")?;
 
     // Carry the project's casing acronyms into the compiled schema so the runtime
     // installs them at boot (see `fraiseql_db::utils::set_runtime_acronyms`).
-    schema.naming_acronyms = naming_acronyms;
+    schema.naming_acronyms = naming.acronyms;
 
     // Carry the project's @cost weight overrides (#379) into the compiled schema so
     // the runtime per-tenant cost-budget check can apply them. Non-clobbering: only

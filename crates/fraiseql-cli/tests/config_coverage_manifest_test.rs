@@ -47,7 +47,15 @@ const MANIFEST: &[(&str, &str)] = &[
     ("mutations", "user schema data — mutation definitions (empty by default)"),
     ("crud", "compiler CRUD generation (authoring-time codegen input)"),
     ("hierarchies", "compiler hierarchy generation (authoring-time codegen input)"),
-    ("naming_convention", "compiler naming convention (#400/#410) → recasing"),
+    (
+        "naming.*",
+        "compile: naming_convention (#400/#410, recasing) and naming_acronyms",
+    ),
+    (
+        "cost_weights",
+        "compile → operation_cost_weights → the per-tenant cost budget (#379)",
+    ),
+    ("mutation_defaults.*", "auto_error_union → the converter's ConvertOptions"),
     (
         "query_defaults.*",
         "compiled query defaults (limit/offset/order_by/where) → runtime executor",
@@ -290,148 +298,4 @@ fn an_unmanifested_key_is_flagged_as_uncovered() {
     assert!(is_covered("federation.enabled"), "federation.enabled is owned by federation.*");
     assert!(is_covered("project.name"), "project.name has its own entry");
     assert!(is_covered("security.rate_limiting"), "rate_limiting is owned");
-}
-
-// ── The project config: the fraiseql.toml read beside a schema document ─────
-
-/// Every leaf of `TomlProjectConfig::default()` mapped to what consumes it, as [`MANIFEST`]
-/// does for the TOML schema. The runtime sections the two files share (#1719) are optional
-/// in the project config, so `default()` holds none of them: they are the same types,
-/// lowered by the same function, and [`MANIFEST`] is checked to own each one.
-const PROJECT_MANIFEST: &[(&str, &str)] = &[
-    (
-        "project.database_target",
-        "ProjectMetadata::validate_database_target (refuses a non-PostgreSQL target)",
-    ),
-    ("project.name", "`fraiseql sbom`: the component's name"),
-    ("project.version", "`fraiseql sbom`: the component's version"),
-    (
-        "fraiseql.schema_file",
-        "NO CONSUMER: `fraiseql init` writes it; compile takes its input as an argument",
-    ),
-    (
-        "fraiseql.output_file",
-        "NO CONSUMER: `fraiseql init` writes it; compile takes `--output`",
-    ),
-    (
-        "fraiseql.security.*",
-        "SecurityConfig::to_json → compiled `security` (commands::compile); the keys it does not \
-         emit are named in its doc comment",
-    ),
-    (
-        "fraiseql.tenancy.*",
-        "compiled `security.tenancy` (commands::compile) → tenant isolation",
-    ),
-    ("fraiseql.mutations.*", "auto_error_union → the converter's ConvertOptions"),
-    (
-        "fraiseql.naming.*",
-        "convention → compiled naming_convention; acronyms → casing registry",
-    ),
-    (
-        "fraiseql.cost_weights",
-        "per-operation cost overrides (#379) → compiled operations",
-    ),
-    (
-        "fraiseql.session_variables.*",
-        "compiled session_variables → executor `set_config`",
-    ),
-    (
-        "server.*",
-        "`fraiseql run` server settings (commands::run), each paired with a server key",
-    ),
-    (
-        "database.*",
-        "`fraiseql run` pool settings; `compile --database` transport security",
-    ),
-    ("functions.*", "FunctionsSettings::reconcile → compiled functions_config"),
-];
-
-/// The runtime sections the project config shares with the TOML schema.
-const SHARED_SECTIONS: &[&str] = &[
-    "mcp",
-    "rest",
-    "grpc",
-    "debug",
-    "validation",
-    "subscriptions",
-    "federation",
-    "auth",
-    "changelog",
-    "hierarchies",
-    "query_defaults",
-    "caching",
-];
-
-fn project_leaves() -> Vec<String> {
-    let default_json =
-        serde_json::to_value(fraiseql_cli::config::TomlProjectConfig::default()).unwrap();
-    let mut leaves = Vec::new();
-    collect_leaves(&default_json, "", &mut leaves);
-    leaves.sort();
-    leaves.dedup();
-    leaves
-}
-
-fn covers(pattern: &str, path: &str) -> bool {
-    pattern.strip_suffix(".*").map_or(pattern == path, |prefix| {
-        path == prefix || path.starts_with(&format!("{prefix}."))
-    })
-}
-
-#[test]
-fn every_project_config_leaf_has_a_named_consumer() {
-    let leaves = project_leaves();
-    let uncovered: Vec<&String> = leaves
-        .iter()
-        .filter(|leaf| !PROJECT_MANIFEST.iter().any(|(pattern, _)| covers(pattern, leaf)))
-        .collect();
-    assert!(
-        uncovered.is_empty(),
-        "TomlProjectConfig has config leaves with no named consumer. Add each to \
-         PROJECT_MANIFEST in {}:\n{}",
-        file!(),
-        uncovered
-            .iter()
-            .map(|p| format!("    (\"{p}\", \"<consumer>\"),"))
-            .collect::<Vec<_>>()
-            .join("\n")
-    );
-}
-
-#[test]
-fn every_project_manifest_entry_matches_a_real_leaf() {
-    let leaves = project_leaves();
-    let stale: Vec<&str> = PROJECT_MANIFEST
-        .iter()
-        .map(|(pattern, _)| *pattern)
-        .filter(|pattern| !leaves.iter().any(|leaf| covers(pattern, leaf)))
-        .collect();
-    assert!(stale.is_empty(), "entries that match no TomlProjectConfig leaf: {stale:?}");
-}
-
-/// The shared sections are fields of both roots, and the TOML schema's manifest owns them.
-#[test]
-fn every_shared_runtime_section_is_a_field_of_both_roots_and_owned() {
-    for section in SHARED_SECTIONS {
-        assert!(
-            is_covered(section) || is_covered(&format!("{section}.x")),
-            "`{section}` has no owner in MANIFEST"
-        );
-        // Declared with an unknown key, each root refuses the key, not the section.
-        let probe = format!("[{section}]\nzz_not_a_key = 1\n");
-        for (root, error) in [
-            ("TomlSchema", toml::from_str::<TomlSchema>(&probe).err()),
-            (
-                "TomlProjectConfig",
-                toml::from_str::<fraiseql_cli::config::TomlProjectConfig>(&probe).err(),
-            ),
-        ] {
-            let error = error.map(|e| e.to_string()).unwrap_or_default();
-            assert!(
-                error.contains("zz_not_a_key")
-                    && !error.contains(&format!("unknown field `{section}`")),
-                "{root} does not take `[{section}]`: {error}"
-            );
-        }
-    }
 }

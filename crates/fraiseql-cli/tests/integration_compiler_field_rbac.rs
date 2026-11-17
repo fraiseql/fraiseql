@@ -15,25 +15,24 @@ use tempfile::TempDir;
 fn create_test_toml_with_roles(temp_dir: &TempDir) -> PathBuf {
     let toml_path = temp_dir.path().join("fraiseql.toml");
     let toml_content = r#"
-[fraiseql]
 version = "2.0"
 
-[[fraiseql.security.role_definitions]]
+[[security.role_definitions]]
 name = "viewer"
 description = "Read-only access to public fields"
 scopes = ["read:User.*", "read:Post.*"]
 
-[[fraiseql.security.role_definitions]]
+[[security.role_definitions]]
 name = "editor"
 description = "Can edit public and internal fields"
 scopes = ["read:*", "write:User.name", "write:Post.content"]
 
-[[fraiseql.security.role_definitions]]
+[[security.role_definitions]]
 name = "admin"
 description = "Full access"
 scopes = ["admin:*"]
 
-[fraiseql.security]
+[security]
 default_role = "viewer"
 "#;
     fs::write(&toml_path, toml_content).expect("Failed to write TOML");
@@ -337,13 +336,11 @@ fn test_role_definitions_parse_from_toml() {
 
     // Verify role_definitions are in TOML
     assert!(
-        parsed["fraiseql"]["security"]["role_definitions"].is_array(),
+        parsed["security"]["role_definitions"].is_array(),
         "role_definitions should be an array"
     );
 
-    let roles = parsed["fraiseql"]["security"]["role_definitions"]
-        .as_array()
-        .expect("Should be array");
+    let roles = parsed["security"]["role_definitions"].as_array().expect("Should be array");
     assert_eq!(roles.len(), 3, "Should have 3 roles");
 
     // Verify each role has name and scopes
@@ -356,7 +353,7 @@ fn test_role_definitions_parse_from_toml() {
 
 #[test]
 fn test_compiler_includes_role_definitions_in_compiled_output() {
-    // This verifies the SecurityConfig::to_json() includes role definitions
+    // This verifies the fraiseql.toml carries role definitions
 
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let _schema_path = create_schema_with_field_scopes(&temp_dir);
@@ -367,7 +364,7 @@ fn test_compiler_includes_role_definitions_in_compiled_output() {
     let parsed: toml::Value = toml::from_str(&toml_content).expect("Failed to parse TOML");
 
     // Extract security section
-    let security = &parsed["fraiseql"]["security"];
+    let security = &parsed["security"];
     assert!(security["role_definitions"].is_array(), "Should have role_definitions array");
 
     let roles = security["role_definitions"].as_array().expect("Should be array");

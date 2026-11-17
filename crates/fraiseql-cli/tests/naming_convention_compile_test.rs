@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 //! End-to-end coverage for the JSON-schema compile workflow (Workflow-B) naming
-//! convention knob (`[fraiseql.naming] convention`).
+//! convention knob (`[naming] convention`).
 //!
 //! Workflow-B compiles to a `camelCase` GraphQL surface by default (`snake_case`
 //! in the database, `camelCase` exposed to clients), overridable to `preserve`. This
@@ -71,23 +71,23 @@ async fn workflow_b_naming_convention_default_and_override() {
     assert!(json.contains("\"camelCase\""), "compiled JSON must record camelCase: {json}");
     assert_eq!(display, "listWidgets", "operation names expose camelCase");
 
-    // fraiseql.toml present but no [fraiseql.naming]: still camelCase.
-    let toml = "[project]\nname = \"t\"\n\n[fraiseql]\nschema_file = \"schema.json\"\n";
+    // fraiseql.toml present but no [naming]: still camelCase.
+    let toml = "[project]\nname = \"t\"\n\n";
     let (convention, _json, display) = compile_in_dir(Some(toml)).await;
-    assert_eq!(convention, NamingConvention::CamelCase, "absent [fraiseql.naming] is camelCase");
+    assert_eq!(convention, NamingConvention::CamelCase, "absent [naming] is camelCase");
     assert_eq!(display, "listWidgets");
 
     // Explicit opt-out restores the as-authored snake_case surface.
-    let toml = "[project]\nname = \"t\"\n\n[fraiseql]\nschema_file = \"schema.json\"\n\n\
-                [fraiseql.naming]\nconvention = \"preserve\"\n";
+    let toml = "[project]\nname = \"t\"\n\n\
+                [naming]\nconvention = \"preserve\"\n";
     let (convention, json, display) = compile_in_dir(Some(toml)).await;
     assert_eq!(convention, NamingConvention::Preserve, "preserve override honored");
     assert!(json.contains("\"preserve\""), "compiled JSON must record preserve: {json}");
     assert_eq!(display, "list_widgets", "preserve keeps names as authored");
 
     // Explicit camelCase is accepted and matches the default.
-    let toml = "[project]\nname = \"t\"\n\n[fraiseql]\nschema_file = \"schema.json\"\n\n\
-                [fraiseql.naming]\nconvention = \"camelCase\"\n";
+    let toml = "[project]\nname = \"t\"\n\n\
+                [naming]\nconvention = \"camelCase\"\n";
     let (convention, _json, display) = compile_in_dir(Some(toml)).await;
     assert_eq!(convention, NamingConvention::CamelCase, "explicit camelCase honored");
     assert_eq!(display, "listWidgets");

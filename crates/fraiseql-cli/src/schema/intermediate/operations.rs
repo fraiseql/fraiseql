@@ -133,7 +133,7 @@ pub struct IntermediateRest {
 ///
 /// ## Ordering, and why it is not the one the issue suggested
 ///
-/// `#847` proposed merging these in *before* `[fraiseql.tenancy]` validation. That is
+/// `#847` proposed merging these in *before* `[tenancy]` validation. That is
 /// wrong, and the two features would have become mutually exclusive: tenancy auto-injects
 /// the annotated field when an operation's `inject_params` is empty and **fails the
 /// compile** when it is non-empty but lacks the field. A default supplying any unrelated
@@ -144,7 +144,7 @@ pub struct IntermediateRest {
 /// most specific first:
 ///
 /// 1. the operation's own `inject_params`
-/// 2. `[fraiseql.tenancy]` auto-injection
+/// 2. `[tenancy]` auto-injection
 /// 3. `[inject_defaults].queries` / `.mutations`
 /// 4. `[inject_defaults].base`
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]

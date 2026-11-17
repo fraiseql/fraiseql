@@ -4,7 +4,7 @@
 //!
 //! Drives the real binary in the issue's layout: two subgraphs in one repository,
 //! each with its own config, the compile run from the *other* subgraph's
-//! directory. The configs differ in `[fraiseql.naming] convention`, which lands in
+//! directory. The configs differ in `[naming] convention`, which lands in
 //! the artifact as `naming_convention`, so the test reads the effect, not only the
 //! announcement.
 //!
@@ -23,8 +23,8 @@ const SCHEMA_JSON: &str = r#"{
   "mutations": []
 }"#;
 
-const PRESERVE: &str = "[fraiseql.naming]\nconvention = \"preserve\"\n";
-const CAMEL: &str = "[fraiseql.naming]\nconvention = \"camelCase\"\n";
+const PRESERVE: &str = "[naming]\nconvention = \"preserve\"\n";
+const CAMEL: &str = "[naming]\nconvention = \"camelCase\"\n";
 
 /// `repo/.git`, `repo/alpha/fraiseql.toml` (preserve) with `alpha/schema/schema.json`,
 /// and `repo/beta/fraiseql.toml` (camelCase).

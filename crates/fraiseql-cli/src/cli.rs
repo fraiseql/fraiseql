@@ -655,7 +655,7 @@ EXAMPLES:
         max_cost: Option<u64>,
 
         /// Compiled schema (`schema.compiled.json`) supplying the
-        /// `[fraiseql.cost_weights]` used to score documents — the same numbers
+        /// `[cost_weights]` used to score documents — the same numbers
         /// the runtime enforces. Without it, cost equals the complexity score.
         #[arg(long, value_name = "SCHEMA")]
         schema: Option<String>,

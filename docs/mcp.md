@@ -324,7 +324,7 @@ MCP accepts the same Bearer tokens as `/graphql`: an external OIDC provider's
 `require_auth = true` (the default) and neither configured, the HTTP endpoint
 refuses to mount, loudly. A validated
 token becomes the same security context `/graphql` builds — the claim named by
-`[fraiseql.tenancy] tenant_claim` (default `tenant_id`) resolves the tenant, custom
+`[tenancy] tenant_claim` (default `tenant_id`) resolves the tenant, custom
 claims feed RLS session variables, and the #390
 actor classification is derived — so an MCP call is authorized exactly like a
 GraphQL request, by construction.
@@ -367,7 +367,7 @@ cannot forge or suppress it.
 
 An MCP tool call goes through the same per-tenant dispatch as `/graphql`. An
 authenticated caller is served the tenant its token names in the schema's tenant claim
-(`[fraiseql.tenancy] tenant_claim`, default `tenant_id`); an `X-Tenant-ID` or `Host`
+(`[tenancy] tenant_claim`, default `tenant_id`); an `X-Tenant-ID` or `Host`
 header may only agree with it, and one naming another tenant, or sent with a token that
 names none, is refused. An anonymous caller is addressed by `X-Tenant-ID`, then `Host`.
 An unregistered key is refused rather than served from the default executor, a suspended

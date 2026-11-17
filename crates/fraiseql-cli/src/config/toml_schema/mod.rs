@@ -35,11 +35,14 @@ pub use federation::{
     FederationCircuitBreakerConfig, FederationConfig, FederationEntity,
     PerDatabaseCircuitBreakerOverride,
 };
-use fraiseql_core::schema::{ChangelogConfig, CrudNamingConfig, NamingConvention};
+use fraiseql_core::schema::{ChangelogConfig, CrudNamingConfig};
 pub use functions::FunctionsSettings;
 pub use observability::ObservabilityConfig;
 pub use observers::{EventHandler, ObserversConfig};
-pub use operations::{MutationDefinition, PaginationPosture, QueryDefaults, QueryDefinition};
+pub use operations::{
+    MutationDefaults, MutationDefinition, NamingConfig, PaginationPosture, QueryDefaults,
+    QueryDefinition,
+};
 use rest::RestTomlConfig;
 pub use security::{
     ApiKeySecurityConfig, AuthorizationPolicy, AuthorizationRule, CodeChallengeMethod,
@@ -57,15 +60,6 @@ use super::{
     expand_env_vars,
     runtime::{DatabaseRuntimeConfig, ServerRuntimeConfig},
 };
-
-/// Default `naming_convention` for the TomlSchema compile path: `CamelCase`,
-/// matching the JSON-schema compile path (#456). Note: the derived
-/// [`Default`] for [`TomlSchema`] still yields the enum default (`Preserve`) for
-/// this field; only deserialization (the real compile path, via
-/// [`TomlSchema::parse_toml`]) applies this `camelCase` default.
-fn default_naming_convention() -> NamingConvention {
-    NamingConvention::CamelCase
-}
 
 /// Complete TOML schema configuration
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -109,14 +103,14 @@ pub struct TomlSchema {
 
     /// Tenant isolation strategy (`#892`).
     ///
-    /// Mirrors `[fraiseql.tenancy]` in a project `fraiseql.toml`, minus the prefix, and
+    /// Mirrors `[tenancy]` in a project `fraiseql.toml`, minus the prefix, and
     /// lowers into the compiled schema's `security.tenancy` — the same place, read by the
     /// same runtime. Before this existed, `tenancy.mode` was unreachable from this
     /// authoring surface *and* from every `[domain_discovery]` project, because
     /// `commands::compile` deliberately skips the project config when the compile input is
     /// itself TOML (the two formats are not compatible). An operator wanting
     /// schema-per-tenant had no knob at all: `[tenancy]` was an unknown field, and
-    /// `[fraiseql.tenancy]` was ignored.
+    /// `[tenancy]` was ignored.
     ///
     /// Shares `TenancyTomlConfig` with the project-config path so there is one authoring
     /// shape and one lowering ([`crate::config::security::TenancyTomlConfig::to_runtime`]),
@@ -130,6 +124,12 @@ pub struct TomlSchema {
     /// ([`Self::from_file`], [`Self::parse_toml`]).
     #[serde(skip)]
     pub declared_security: std::collections::BTreeSet<String>,
+
+    /// The top-level tables this file writes, at their defaults or not: a table written
+    /// is declared, so a copy in a schema document must agree with it. Filled when the
+    /// TOML is parsed ([`Self::from_file`], [`Self::parse_toml`]).
+    #[serde(skip)]
+    pub declared_tables: std::collections::BTreeSet<String>,
 
     /// Project-wide default injected parameters (`[inject_defaults]`, #1384), in the shape
     /// the SDK config loaders read.
@@ -232,17 +232,18 @@ pub struct TomlSchema {
     #[serde(default)]
     pub changelog: Option<ChangelogConfig>,
 
-    /// Naming convention for GraphQL operation names.
-    ///
-    /// Defaults to `"camelCase"` — the standard GraphQL surface (`snake_case` in
-    /// the database, `camelCase` exposed to clients, with single-JSONB input-key
-    /// recasing) — matching the JSON-schema (`fraiseql-cli compile schema.json`)
-    /// compile path. This avoids the silent footgun where a TomlSchema-authored
-    /// schema defaulted to `Preserve` and forwarded camelCase input keys verbatim
-    /// to `snake_case` SQL functions (#456). Set `"preserve"` to keep names exactly
-    /// as authored (`snake_case`).
-    #[serde(default = "default_naming_convention")]
-    pub naming_convention: NamingConvention,
+    /// `[naming]`: the GraphQL surface's naming convention and casing acronyms.
+    #[serde(default)]
+    pub naming: NamingConfig,
+
+    /// `[cost_weights]`: per-operation `@cost` weight overrides, root query or mutation
+    /// name → manual cost weight, consulted by the runtime per-tenant cost-budget check.
+    #[serde(default)]
+    pub cost_weights: std::collections::HashMap<String, usize>,
+
+    /// `[mutation_defaults]`: project-wide mutation compilation options.
+    #[serde(default)]
+    pub mutation_defaults: MutationDefaults,
 
     /// CRUD function naming config for automatic `sql_source` resolution.
     ///
@@ -331,6 +332,25 @@ impl HierarchyConfig {
 }
 
 impl TomlSchema {
+    /// Load the `fraiseql.toml` read beside a schema document.
+    ///
+    /// The same grammar as [`Self::from_file`], less the tables that author a schema, which
+    /// the document does: each is refused by name with where it belongs.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read, writes a table that authors a schema,
+    /// or cannot be parsed as a valid `TomlSchema`.
+    pub fn from_project_file(path: &str) -> Result<Self> {
+        let content =
+            std::fs::read_to_string(path).context(format!("Failed to read TOML file: {path}"))?;
+        if let Ok(table) = expand_env_vars(&content)?.parse::<toml::Table>() {
+            crate::config::refuse_misplaced_sections(&table)?;
+        }
+        let project = std::path::Path::new(path).parent().unwrap_or(std::path::Path::new(""));
+        Self::parse_toml_in(&content, project)
+    }
+
     /// Load schema from TOML file
     ///
     /// Files the TOML names, such as mail templates, are read relative to the TOML file.
@@ -373,6 +393,7 @@ impl TomlSchema {
         if let Some(table) = &table {
             schema.declared_security =
                 crate::config::security_merge::declared_in_toml_schema(table);
+            schema.declared_tables = table.keys().cloned().collect();
         }
         if let Some(local) = schema.auth.as_mut().and_then(|auth| auth.local.as_mut()) {
             security::embed_email_templates(local, project)?;
@@ -561,6 +582,7 @@ impl TomlSchema {
         for role in &self.security.role_definitions {
             role.validate()?;
         }
+        self.security.validate_service_accounts()?;
 
         // Validate hierarchy configs have non-empty values
         if let Some(ref hierarchies) = self.hierarchies {

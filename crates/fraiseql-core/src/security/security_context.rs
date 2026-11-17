@@ -330,9 +330,9 @@ impl SecurityContext {
     /// - A claim in the framework-reserved `fraiseql.` namespace is skipped, so a token carrying a
     ///   claim literally named `fraiseql.actor_type` cannot forge the recorded actor.
     /// - `tenant_id` comes from `tenant_claim`, the claim the compiled schema names its tenant by
-    ///   (`[fraiseql.tenancy] tenant_claim`). A tenant is a non-empty string or a number spelled in
-    ///   decimal; any other shape names none. `None` means no claim is configured on this path, so
-    ///   there is no tenant, and everything that scopes by tenant fails closed instead of guessing.
+    ///   (`[tenancy] tenant_claim`). A tenant is a non-empty string or a number spelled in decimal;
+    ///   any other shape names none. `None` means no claim is configured on this path, so there is
+    ///   no tenant, and everything that scopes by tenant fails closed instead of guessing.
     ///
     /// [`from_user`]: Self::from_user
     #[must_use]

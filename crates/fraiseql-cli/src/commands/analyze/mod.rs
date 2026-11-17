@@ -169,19 +169,19 @@ fn security_findings(schema: &CompiledSchema) -> Vec<Recommendation> {
         (
             sec.and_then(|s| s.rate_limiting.as_ref()).map(|c| c.enabled),
             "Rate limiting",
-            "Add [fraiseql.security.rate_limiting] with enabled = true to throttle per-IP \
+            "Add [security.rate_limiting] with enabled = true to throttle per-IP \
              request rates.",
         ),
         (
             sec.and_then(|s| s.enterprise.as_ref()).map(|e| e.audit_logging_enabled),
             "Audit logging",
-            "Add [fraiseql.security.enterprise] with audit_logging_enabled = true to record \
+            "Add [security.enterprise] with audit_logging_enabled = true to record \
              security events.",
         ),
         (
             sec.and_then(|s| s.error_sanitization.as_ref()).map(|c| c.enabled),
             "Error sanitization",
-            "Add [fraiseql.security.error_sanitization] with enabled = true so internal error \
+            "Add [security.error_sanitization] with enabled = true so internal error \
              detail is not returned to clients.",
         ),
     ] {

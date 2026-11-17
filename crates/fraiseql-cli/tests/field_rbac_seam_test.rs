@@ -1,4 +1,4 @@
-//! #757: `[fraiseql.security]` role definitions were compiled as camelCase keys the
+//! #757: `[security]` role definitions were compiled as camelCase keys the
 //! runtime deserializes as `snake_case`, so **every field-level RBAC grant silently
 //! evaporated**.
 //!
@@ -75,7 +75,6 @@ fn project_dir(fraiseql_extra: &str) -> TempDir {
         dir.path().join("fraiseql.toml"),
         format!(
             r"
-[fraiseql]
 {fraiseql_extra}
 "
         ),
@@ -85,7 +84,7 @@ fn project_dir(fraiseql_extra: &str) -> TempDir {
 }
 
 const HR_ROLE: &str = r#"
-[[fraiseql.security.role_definitions]]
+[[security.role_definitions]]
 name = "hr"
 description = "Human resources"
 scopes = ["read:Employee.salary"]
@@ -102,7 +101,7 @@ fn role_definitions_reach_the_runtime_security_config() {
     let security = schema.security.as_ref().expect("compiled schema carries a security section");
     assert!(
         !security.role_definitions.is_empty(),
-        "#757: `[[fraiseql.security.role_definitions]]` must land in the typed field the \
+        "#757: `[[security.role_definitions]]` must land in the typed field the \
          runtime reads (the untyped catch-all is gone since #977)"
     );
     assert_eq!(security.role_definitions[0].name, "hr");
@@ -152,7 +151,7 @@ fn an_undeclared_role_grants_nothing() {
 /// dropped by the same rename.
 #[test]
 fn default_role_reaches_the_runtime_security_config() {
-    let dir = project_dir(&format!("[fraiseql.security]\ndefault_role = \"viewer\"\n{HR_ROLE}"));
+    let dir = project_dir(&format!("[security]\ndefault_role = \"viewer\"\n{HR_ROLE}"));
     let schema = compile(&dir, &["schema.json"]);
     let security = schema.security.as_ref().expect("security section");
     assert_eq!(
@@ -167,7 +166,7 @@ fn default_role_reaches_the_runtime_security_config() {
 /// runtime read `tenant_claim` and silently fell back to its `"tenant_id"` default.
 #[test]
 fn tenant_claim_reaches_the_runtime_tenancy_config() {
-    let dir = project_dir("[fraiseql.tenancy]\nmode = \"schema\"\ntenant_claim = \"org_id\"");
+    let dir = project_dir("[tenancy]\nmode = \"schema\"\ntenant_claim = \"org_id\"");
     let schema = compile(&dir, &["schema.json"]);
     let tenancy = schema.tenancy_config().expect("compiled schema carries a tenancy section");
     assert_eq!(
@@ -186,8 +185,8 @@ fn tenant_claim_reaches_the_runtime_tenancy_config() {
 #[test]
 fn no_camel_case_security_keys_survive_the_compile() {
     let dir = project_dir(&format!(
-        "[fraiseql.security]\ndefault_role = \"viewer\"\n{HR_ROLE}\n\
-         [fraiseql.tenancy]\nmode = \"row\"\ntenant_claim = \"org_id\"\n"
+        "[security]\ndefault_role = \"viewer\"\n{HR_ROLE}\n\
+         [tenancy]\nmode = \"row\"\ntenant_claim = \"org_id\"\n"
     ));
     let out = dir.path().join("schema.compiled.json");
     let result = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
@@ -346,7 +345,7 @@ fn a_toml_schema_role_with_no_scopes_is_refused() {
 /// `org_id` token had no tenant.
 #[test]
 fn tenant_claim_reaches_the_runtime_without_an_isolation_mode() {
-    let dir = project_dir("[fraiseql.tenancy]\ntenant_claim = \"org_id\"");
+    let dir = project_dir("[tenancy]\ntenant_claim = \"org_id\"");
     let schema = compile(&dir, &["schema.json"]);
     assert_eq!(schema.tenant_claim(), "org_id");
     assert!(!schema.is_multi_tenant(), "no mode is still no isolation machinery");

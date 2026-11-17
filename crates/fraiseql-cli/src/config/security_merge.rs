@@ -45,15 +45,6 @@ const NAMED_KEYS: &[&str] = &[
     "trusted_documents",
 ];
 
-/// Compiled `security` keys a project `fraiseql.toml` sets: its `[fraiseql.security]`
-/// keys by name, and `tenancy` for `[fraiseql.tenancy]`.
-#[must_use]
-pub fn declared_in_project_config(table: &toml::Table) -> BTreeSet<String> {
-    let fraiseql = table.get("fraiseql").and_then(toml::Value::as_table);
-    let security = fraiseql.and_then(|f| f.get("security")).and_then(toml::Value::as_table);
-    declared_keys(security, fraiseql.is_some_and(|f| f.contains_key("tenancy")))
-}
-
 /// Compiled `security` keys a TOML schema sets: its `[security]` keys by name, and
 /// `tenancy` for `[tenancy]`.
 #[must_use]
@@ -80,7 +71,7 @@ fn declared_keys(security: Option<&toml::Table>, tenancy: bool) -> BTreeSet<Stri
 /// Merge the TOML's lowered `security` section with the schema document's block.
 ///
 /// `toml_label` names the TOML file in a refusal; `declared` holds the keys the TOML
-/// sets (see [`declared_in_project_config`] and [`declared_in_toml_schema`]). Without a
+/// sets (see [`declared_in_toml_schema`]). Without a
 /// document block, `lowered` is returned unchanged.
 ///
 /// # Errors

@@ -520,7 +520,7 @@ A fact table is **tenant-scoped** when either:
 - one of its `denormalized_filters` is a column some query or type injects (a `tenant_id`
   column beside list roots that inject `tenant_id`, say).
 
-`[fraiseql.tenancy] mode = "row"` counts: `@tenant_id` is lowered onto the queries'
+`[tenancy] mode = "row"` counts: `@tenant_id` is lowered onto the queries'
 `inject_params` before this is decided.
 
 For a tenant-scoped fact table that none of the three declarations below scopes:

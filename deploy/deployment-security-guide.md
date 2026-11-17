@@ -668,7 +668,7 @@ Splunk or Loki), and treat that store as the record.
 Mutation auditing is switched in `fraiseql.toml`, and is on unless written off:
 
 ```toml
-[fraiseql.security.enterprise]
+[security.enterprise]
 audit_logging_enabled = true
 ```
 

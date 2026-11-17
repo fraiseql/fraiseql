@@ -7,35 +7,36 @@ mod config_tests {
 
     #[test]
     fn test_default_config() {
-        let config = TomlProjectConfig::default();
+        let config = TomlSchema::default();
         assert_eq!(config.project.name, "my-fraiseql-app");
-        assert_eq!(config.fraiseql.schema_file, "schema.json");
     }
 
     #[test]
     fn test_default_security_config() {
-        let config = TomlProjectConfig::default();
-        assert!(config.fraiseql.security.enterprise.audit_logging_enabled);
-        assert!(config.fraiseql.security.rate_limiting.is_none());
+        let config = TomlSchema::default();
+        assert!(config.security.enterprise.audit_logging_enabled);
+        assert!(config.security.rate_limiting.is_none());
     }
 
     #[test]
     fn test_validation() {
-        let config = TomlProjectConfig::default();
-        config.validate().unwrap_or_else(|e| panic!("expected Ok from validate: {e:?}"));
+        let config = TomlSchema::default();
+        config
+            .validate_self_contained()
+            .unwrap_or_else(|e| panic!("expected Ok from validate: {e:?}"));
     }
 
     #[test]
     fn test_role_definitions_default() {
-        let config = TomlProjectConfig::default();
-        assert!(config.fraiseql.security.role_definitions.is_empty());
-        assert!(config.fraiseql.security.default_role.is_none());
+        let config = TomlSchema::default();
+        assert!(config.security.role_definitions.is_empty());
+        assert!(config.security.default_role.is_none());
     }
 
     #[test]
     fn test_naming_acronyms_default_empty() {
-        let config = TomlProjectConfig::default();
-        assert!(config.fraiseql.naming.acronyms.is_empty());
+        let config = TomlSchema::default();
+        assert!(config.naming.acronyms.is_empty());
     }
 
     #[test]
@@ -44,20 +45,17 @@ mod config_tests {
 [project]
 name = "test-app"
 
-[fraiseql]
-schema_file = "schema.json"
-
-[fraiseql.naming]
+[naming]
 acronyms = ["s3", "widget5"]
 "#;
-        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
-        assert_eq!(config.fraiseql.naming.acronyms, vec!["s3", "widget5"]);
+        let config = TomlSchema::parse_toml(toml_str).expect("Failed to parse TOML");
+        assert_eq!(config.naming.acronyms, vec!["s3", "widget5"]);
     }
 
     #[test]
     fn test_cost_weights_default_empty() {
-        let config = TomlProjectConfig::default();
-        assert!(config.fraiseql.cost_weights.is_empty());
+        let config = TomlSchema::default();
+        assert!(config.cost_weights.is_empty());
     }
 
     #[test]
@@ -66,38 +64,38 @@ acronyms = ["s3", "widget5"]
 [project]
 name = "test-app"
 
-[fraiseql]
-schema_file = "schema.json"
-
-[fraiseql.cost_weights]
+[cost_weights]
 expensiveReport = 5000
 searchUsers = 250
 "#;
-        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
-        assert_eq!(config.fraiseql.cost_weights.get("expensiveReport"), Some(&5000));
-        assert_eq!(config.fraiseql.cost_weights.get("searchUsers"), Some(&250));
+        let config = TomlSchema::parse_toml(toml_str).expect("Failed to parse TOML");
+        assert_eq!(config.cost_weights.get("expensiveReport"), Some(&5000));
+        assert_eq!(config.cost_weights.get("searchUsers"), Some(&250));
     }
 
     #[test]
     fn test_naming_convention_defaults_to_camel_case() {
-        // Workflow-B compiles to a camelCase GraphQL surface by default, both when
-        // [fraiseql.naming] is absent entirely and when it is present without a
+        // A `fraiseql.toml` compiles to a camelCase GraphQL surface by default, both when
+        // [naming] is absent entirely and when it is present without a
         // `convention` key.
-        let config = TomlProjectConfig::default();
-        assert_eq!(config.fraiseql.naming.convention, NamingConvention::CamelCase);
+        let config = TomlSchema::default();
+        assert_eq!(
+            config.naming.convention_over(None),
+            fraiseql_core::schema::NamingConvention::CamelCase
+        );
 
         let toml_str = r#"
 [project]
 name = "test-app"
 
-[fraiseql]
-schema_file = "schema.json"
-
-[fraiseql.naming]
+[naming]
 acronyms = ["s3"]
 "#;
-        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
-        assert_eq!(config.fraiseql.naming.convention, NamingConvention::CamelCase);
+        let config = TomlSchema::parse_toml(toml_str).expect("Failed to parse TOML");
+        assert_eq!(
+            config.naming.convention_over(None),
+            fraiseql_core::schema::NamingConvention::CamelCase
+        );
     }
 
     #[test]
@@ -106,14 +104,14 @@ acronyms = ["s3"]
 [project]
 name = "test-app"
 
-[fraiseql]
-schema_file = "schema.json"
-
-[fraiseql.naming]
+[naming]
 convention = "preserve"
 "#;
-        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
-        assert_eq!(config.fraiseql.naming.convention, NamingConvention::Preserve);
+        let config = TomlSchema::parse_toml(toml_str).expect("Failed to parse TOML");
+        assert_eq!(
+            config.naming.convention_over(None),
+            fraiseql_core::schema::NamingConvention::Preserve
+        );
     }
 
     #[test]
@@ -122,14 +120,14 @@ convention = "preserve"
 [project]
 name = "test-app"
 
-[fraiseql]
-schema_file = "schema.json"
-
-[fraiseql.naming]
+[naming]
 convention = "camelCase"
 "#;
-        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
-        assert_eq!(config.fraiseql.naming.convention, NamingConvention::CamelCase);
+        let config = TomlSchema::parse_toml(toml_str).expect("Failed to parse TOML");
+        assert_eq!(
+            config.naming.convention_over(None),
+            fraiseql_core::schema::NamingConvention::CamelCase
+        );
     }
 
     #[test]
@@ -138,54 +136,51 @@ convention = "camelCase"
 [project]
 name = "test-app"
 
-[fraiseql]
-schema_file = "schema.json"
-
-[[fraiseql.security.role_definitions]]
+[[security.role_definitions]]
 name = "viewer"
 description = "Read-only access"
 scopes = ["read:*"]
 
-[[fraiseql.security.role_definitions]]
+[[security.role_definitions]]
 name = "admin"
 description = "Full access"
 scopes = ["admin:*"]
 
-[fraiseql.security]
+[security]
 default_role = "viewer"
 "#;
 
-        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+        let config = TomlSchema::parse_toml(toml_str).expect("Failed to parse TOML");
 
-        assert_eq!(config.fraiseql.security.role_definitions.len(), 2);
-        assert_eq!(config.fraiseql.security.role_definitions[0].name, "viewer");
-        assert_eq!(config.fraiseql.security.role_definitions[0].scopes[0], "read:*");
-        assert_eq!(config.fraiseql.security.role_definitions[1].name, "admin");
-        assert_eq!(config.fraiseql.security.default_role, Some("viewer".to_string()));
+        assert_eq!(config.security.role_definitions.len(), 2);
+        assert_eq!(config.security.role_definitions[0].name, "viewer");
+        assert_eq!(config.security.role_definitions[0].scopes[0], "read:*");
+        assert_eq!(config.security.role_definitions[1].name, "admin");
+        assert_eq!(config.security.default_role, Some("viewer".to_string()));
     }
 
     #[test]
     fn test_security_config_validation_empty_role_name() {
         let toml_str = r#"
-[[fraiseql.security.role_definitions]]
+[[security.role_definitions]]
 name = ""
 scopes = ["read:*"]
 "#;
 
-        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
-        assert!(config.validate().is_err(), "Should fail with empty role name");
+        let config = TomlSchema::parse_toml(toml_str).expect("Failed to parse TOML");
+        assert!(config.validate_self_contained().is_err(), "Should fail with empty role name");
     }
 
     #[test]
     fn test_security_config_validation_empty_scopes() {
         let toml_str = r#"
-[[fraiseql.security.role_definitions]]
+[[security.role_definitions]]
 name = "viewer"
 scopes = []
 "#;
 
-        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
-        assert!(config.validate().is_err(), "Should fail with empty scopes");
+        let config = TomlSchema::parse_toml(toml_str).expect("Failed to parse TOML");
+        assert!(config.validate_self_contained().is_err(), "Should fail with empty scopes");
     }
 
     #[test]
@@ -198,7 +193,7 @@ port = 9000
 [server.cors]
 origins = ["https://example.com"]
 "#;
-        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+        let config = TomlSchema::parse_toml(toml_str).expect("Failed to parse TOML");
         assert_eq!(config.server.host, "127.0.0.1");
         assert_eq!(config.server.port, 9000);
         assert_eq!(config.server.cors.origins, ["https://example.com"]);
@@ -213,7 +208,7 @@ pool_min = 3
 pool_max = 15
 ssl_mode = "require"
 "#;
-        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+        let config = TomlSchema::parse_toml(toml_str).expect("Failed to parse TOML");
         assert_eq!(config.database.url, Some("postgresql://localhost/testdb".to_string()));
         assert_eq!(config.database.pool_min, 3);
         assert_eq!(config.database.pool_max, 15);
@@ -228,8 +223,7 @@ ssl_mode = "require"
 url = "${TEST_DB_URL}"
 "#;
             let expanded = expand_env_vars(toml_str).unwrap();
-            let config: TomlProjectConfig =
-                toml::from_str(&expanded).expect("Failed to parse TOML");
+            let config = TomlSchema::parse_toml(&expanded).expect("Failed to parse TOML");
             assert_eq!(config.database.url, Some("postgres://test/db".to_string()));
         });
     }
@@ -259,16 +253,13 @@ url = "${TEST_DB_URL}"
 [project]
 name = "test-app"
 
-[fraiseql]
-schema_file = "schema.json"
-
-[fraiseql.tenancy]
+[tenancy]
 mode = "row"
 tenant_claim = "tenant_id"
 "#;
-        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
-        assert!(matches!(config.fraiseql.tenancy.mode, security::TenancyModeConfig::Row));
-        assert_eq!(config.fraiseql.tenancy.tenant_claim, "tenant_id");
+        let config = TomlSchema::parse_toml(toml_str).expect("Failed to parse TOML");
+        assert!(matches!(config.tenancy.mode, security::TenancyModeConfig::Row));
+        assert_eq!(config.tenancy.tenant_claim, "tenant_id");
     }
 
     #[test]
@@ -277,13 +268,13 @@ tenant_claim = "tenant_id"
 [project]
 name = "test-app"
 
-[fraiseql.tenancy]
+[tenancy]
 mode = "schema"
 tenant_claim = "org_id"
 "#;
-        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
-        assert!(matches!(config.fraiseql.tenancy.mode, security::TenancyModeConfig::Schema));
-        assert_eq!(config.fraiseql.tenancy.tenant_claim, "org_id");
+        let config = TomlSchema::parse_toml(toml_str).expect("Failed to parse TOML");
+        assert!(matches!(config.tenancy.mode, security::TenancyModeConfig::Schema));
+        assert_eq!(config.tenancy.tenant_claim, "org_id");
     }
 
     #[test]
@@ -292,18 +283,18 @@ tenant_claim = "org_id"
 [project]
 name = "test-app"
 "#;
-        let config: TomlProjectConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
-        assert!(matches!(config.fraiseql.tenancy.mode, security::TenancyModeConfig::None));
-        assert_eq!(config.fraiseql.tenancy.tenant_claim, "tenant_id");
+        let config = TomlSchema::parse_toml(toml_str).expect("Failed to parse TOML");
+        assert!(matches!(config.tenancy.mode, security::TenancyModeConfig::None));
+        assert_eq!(config.tenancy.tenant_claim, "tenant_id");
     }
 
     #[test]
     fn test_parse_tenancy_invalid_mode_rejected() {
         let toml_str = r#"
-[fraiseql.tenancy]
+[tenancy]
 mode = "invalid"
 "#;
-        let result: Result<TomlProjectConfig, _> = toml::from_str(toml_str);
+        let result = TomlSchema::parse_toml(toml_str);
         assert!(result.is_err(), "invalid tenancy mode should be rejected");
     }
 }
@@ -461,28 +452,28 @@ ssl_mode = "require"
 }
 
 mod security_tests {
-    use super::super::security::*;
+    use super::super::{security::*, toml_schema::security::SecuritySettings};
 
-    /// #1151 — a project that never mentions `[fraiseql.security.state_encryption]` must not
+    /// `settings`, with a default `[tenancy]`, lowered to the compiled `security` block.
+    fn lowered(settings: &SecuritySettings) -> serde_json::Value {
+        serde_json::to_value(settings.to_compiled(&TenancyTomlConfig::default())).unwrap()
+    }
+
+    /// #1151: a `fraiseql.toml` that never mentions `[security.state_encryption]` must not
     /// compile an artifact declaring it enabled.
     ///
-    /// This struct's `state_encryption` field is **not** an `Option` and the struct carries
-    /// `#[serde(default)]`, so an absent table becomes `StateEncryptionConfig::default()`. When
-    /// that default was `enabled: true`, `to_json()` lowered `enabled: true` into the compiled
-    /// artifact, and the server refused to boot:
+    /// When the absent table's default was `enabled: true`, the lowering emitted it into the
+    /// compiled artifact, and the server refused to boot:
     ///
     /// ```text
     /// Error: Configuration error: state_encryption enabled but key env var
     /// 'STATE_ENCRYPTION_KEY' failed: env var STATE_ENCRYPTION_KEY not set
     /// ```
     ///
-    /// The value had been `true` since before 2.14, but the compiled key was emitted as
-    /// `stateEncryption` while the runtime read `state_encryption`, so nothing ever read it.
-    /// Fixing that casing (#893/#977/#983) turned a silent no-op into a hard boot failure — so
-    /// the assertion that matters is on the **lowered artifact**, not just the struct field.
+    /// The assertion that matters is on the **lowered artifact**, not the struct field.
     #[test]
     fn state_encryption_is_off_unless_the_operator_asks_for_it() {
-        let lowered = SecurityConfig::default().to_json();
+        let lowered = lowered(&SecuritySettings::default());
         let enabled = lowered
             .get("state_encryption")
             .and_then(|se| se.get("enabled"))
@@ -496,42 +487,23 @@ mod security_tests {
         );
     }
 
-    /// #1151 — the project table is the compiled `StateEncryptionConfig` itself, so an absent
-    /// table lowers the compiled default, which is off. Two structs of that name used to
-    /// disagree on it silently.
-    #[test]
-    fn state_encryption_default_is_the_compiled_default() {
-        assert_eq!(
-            SecurityConfig::default().state_encryption,
-            fraiseql_core::schema::StateEncryptionConfig::default(),
-        );
-        assert!(!SecurityConfig::default().state_encryption.enabled);
-    }
-
     #[test]
     fn test_default_security_config() {
-        let config = SecurityConfig::default();
+        let config = SecuritySettings::default();
         assert!(config.enterprise.audit_logging_enabled);
-        assert!(config.constant_time.enabled);
-        // Unwritten, these two are the server's to decide, as in a TOML schema.
+        // Unwritten, these are the server's to decide.
         assert!(config.error_sanitization.is_none());
         assert!(config.rate_limiting.is_none());
-        // state_encryption is deliberately NOT in the on-by-default list. This test used to
-        // assert it was, which is how the divergence from fraiseql-core survived review: the
-        // wrong default had a test pinning it in place (#1151). The controls above are inert
-        // without further configuration; state encryption is not — enabling it demands a key,
-        // and demanding a key the operator never configured stops the server from booting.
+        // State encryption demands a key, and demanding one the operator never configured
+        // stops the server from booting (#1151).
         assert!(
-            !config.state_encryption.enabled,
-            "state encryption must stay off until asked for — see #1151"
+            config.state_encryption.is_none(),
+            "state encryption must stay off until asked for"
         );
     }
 
-    /// #983 — the four `[fraiseql.security.error_sanitization]` keys that reached no
-    /// runtime shape are gone, so `deny_unknown_fields` refuses them by name. The
-    /// old test asserted that `leak_sensitive_details = true` was rejected as "a
-    /// security risk"; it switched nothing either way, which is the more alarming
-    /// half of that sentence.
+    /// #983: the four `[security.error_sanitization]` keys that reached no runtime shape are
+    /// gone, so `deny_unknown_fields` refuses them by name.
     #[test]
     fn error_sanitization_refuses_the_keys_that_never_had_a_consumer() {
         for key in [
@@ -541,7 +513,7 @@ mod security_tests {
             "user_facing_format = \"detailed\"",
         ] {
             let toml = format!("[error_sanitization]\nenabled = true\n{key}\n");
-            let err = toml::from_str::<SecurityConfig>(&toml)
+            let err = toml::from_str::<SecuritySettings>(&toml)
                 .expect_err("a key with no consumer must not parse");
             assert!(
                 err.to_string().contains("unknown field"),
@@ -550,13 +522,12 @@ mod security_tests {
         }
     }
 
-    /// `[fraiseql.security.rate_limiting]` with `body`, validated as a project config is.
+    /// `[security.rate_limiting]` with `body`, validated as every `fraiseql.toml` is.
     fn rate_limiting(body: &str) -> anyhow::Result<()> {
-        let toml =
-            format!("[fraiseql.security.rate_limiting]\n{body}\n[project]\nname = \"app\"\n");
-        toml::from_str::<crate::config::TomlProjectConfig>(&toml)
+        let toml = format!("[security.rate_limiting]\n{body}\n[project]\nname = \"app\"\n");
+        crate::config::TomlSchema::parse_toml(&toml)
             .expect("parses")
-            .validate()
+            .validate_self_contained()
     }
 
     #[test]
@@ -595,9 +566,9 @@ mod security_tests {
         );
     }
 
-    /// `[fraiseql.security.state_encryption]`, parsed as the project config reads it.
-    fn state_encryption(body: &str) -> Result<SecurityConfig, toml::de::Error> {
-        toml::from_str::<SecurityConfig>(&format!("[state_encryption]\n{body}"))
+    /// `[security.state_encryption]`, parsed as every `fraiseql.toml` reads it.
+    fn state_encryption(body: &str) -> Result<SecuritySettings, toml::de::Error> {
+        toml::from_str::<SecuritySettings>(&format!("[state_encryption]\n{body}"))
     }
 
     /// #983 — nonce and key sizes are fixed by the algorithm, so there was nothing
@@ -634,7 +605,7 @@ mod security_tests {
         let config = state_encryption("algorithm = \"aes-256-gcm\"\n")
             .unwrap_or_else(|e| panic!("expected Ok for aes-256-gcm: {e}"));
         assert_eq!(
-            config.state_encryption.algorithm,
+            config.state_encryption.unwrap().algorithm,
             fraiseql_core::schema::EncryptionAlgorithm::Aes256Gcm
         );
     }
@@ -644,7 +615,7 @@ mod security_tests {
         let config = state_encryption("algorithm = \"chacha20-poly1305\"\n")
             .unwrap_or_else(|e| panic!("expected Ok for chacha20-poly1305: {e}"));
         assert_eq!(
-            config.state_encryption.algorithm,
+            config.state_encryption.unwrap().algorithm,
             fraiseql_core::schema::EncryptionAlgorithm::Chacha20Poly1305
         );
     }
@@ -653,13 +624,14 @@ mod security_tests {
     #[test]
     fn state_encryption_key_env_reaches_the_compiled_section() {
         let config = state_encryption("enabled = true\nkey_env = \"OAUTH_STATE_KEY\"\n").unwrap();
-        assert_eq!(config.to_json()["state_encryption"]["key_env"], "OAUTH_STATE_KEY");
+        assert_eq!(lowered(&config)["state_encryption"]["key_env"], "OAUTH_STATE_KEY");
     }
 
     #[test]
     fn test_security_config_serialization() {
-        let config: SecurityConfig = toml::from_str("[rate_limiting]\n").unwrap();
-        let json = config.to_json();
+        let config: SecuritySettings =
+            toml::from_str("[rate_limiting]\n[state_encryption]\n").unwrap();
+        let json = lowered(&config);
         // `enterprise` carries the key the runtime reads (#977).
         assert!(json["enterprise"]["audit_logging_enabled"].is_boolean());
         assert!(json["state_encryption"]["algorithm"].is_string());
@@ -682,24 +654,24 @@ mod security_tests {
     }
 
     #[test]
-    fn test_tenancy_to_json_row_mode() {
+    fn test_tenancy_to_runtime_row_mode() {
         let config = TenancyTomlConfig {
             mode:         TenancyModeConfig::Row,
             tenant_claim: "tenant_id".to_string(),
         };
-        let json = config.to_json();
+        let json = serde_json::to_value(config.to_runtime()).unwrap();
         assert_eq!(json["mode"], "row");
         // `tenant_claim`, the name the runtime `TenancyConfig` declares (#757).
         assert_eq!(json["tenant_claim"], "tenant_id");
     }
 
     #[test]
-    fn test_tenancy_to_json_schema_mode() {
+    fn test_tenancy_to_runtime_schema_mode() {
         let config = TenancyTomlConfig {
             mode:         TenancyModeConfig::Schema,
             tenant_claim: "org_id".to_string(),
         };
-        let json = config.to_json();
+        let json = serde_json::to_value(config.to_runtime()).unwrap();
         assert_eq!(json["mode"], "schema");
         assert_eq!(json["tenant_claim"], "org_id");
     }
@@ -735,16 +707,19 @@ mod security_tests {
 mod project_database_target_tests {
     use super::super::*;
 
-    fn project_targeting(target: Option<&str>) -> TomlProjectConfig {
+    fn project_targeting(target: Option<&str>) -> TomlSchema {
         let key = target.map_or_else(String::new, |t| format!("database_target = \"{t}\"\n"));
-        toml::from_str(&format!("[project]\nname = \"x\"\nversion = \"0.1.0\"\n{key}"))
+        TomlSchema::parse_toml(&format!("[project]\nname = \"x\"\nversion = \"0.1.0\"\n{key}"))
             .expect("the key parses so that it can be refused with a sentence")
     }
 
     #[test]
     fn a_removed_backend_is_refused_naming_the_section_and_the_doc() {
         for target in ["mysql", "sqlite", "sqlserver", "MySQL", "oracle"] {
-            let err = project_targeting(Some(target)).validate().expect_err(target).to_string();
+            let err = project_targeting(Some(target))
+                .validate_self_contained()
+                .expect_err(target)
+                .to_string();
             assert!(err.contains("[project] database_target"), "{target}: {err}");
             assert!(err.contains(&format!("{target:?}")), "{target}: {err}");
             assert!(err.contains("docs/database-compatibility.md"), "{target}: {err}");
@@ -753,23 +728,23 @@ mod project_database_target_tests {
 
     #[test]
     fn postgresql_and_an_absent_key_are_accepted() {
-        project_targeting(Some("postgresql")).validate().unwrap();
-        project_targeting(Some("PostgreSQL")).validate().unwrap();
-        project_targeting(None).validate().unwrap();
+        project_targeting(Some("postgresql")).validate_self_contained().unwrap();
+        project_targeting(Some("PostgreSQL")).validate_self_contained().unwrap();
+        project_targeting(None).validate_self_contained().unwrap();
     }
 }
 
 /// `fraiseql.toml` keys that `fraiseql run` never applied. Each is refused when it is written,
 /// naming what to do instead, so a project that relied on one learns it never worked.
 mod refused_key_tests {
-    use super::super::TomlProjectConfig;
+    use super::super::TomlSchema;
 
     /// Load `contents` as a `fraiseql.toml`, through the loader `run` and `compile` share.
-    fn load(contents: &str) -> anyhow::Result<TomlProjectConfig> {
+    fn load(contents: &str) -> anyhow::Result<TomlSchema> {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("fraiseql.toml");
         std::fs::write(&path, contents).unwrap();
-        TomlProjectConfig::from_file(path.to_str().unwrap())
+        TomlSchema::from_project_file(path.to_str().unwrap())
     }
 
     #[test]

@@ -8,7 +8,7 @@ use std::{
 /// Built-in acronyms whose internal digit boundary is **not** split by
 /// [`to_snake_case`], so they round-trip atomically (`s3` ↔ `s3`, not `s_3`).
 /// Lowercased; only `<word><digit>` shapes are relevant. Extend per project via
-/// the `[fraiseql.naming] acronyms` config — see [`set_runtime_acronyms`].
+/// the `[naming] acronyms` config — see [`set_runtime_acronyms`].
 static DEFAULT_ACRONYMS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     [
         "s3", "ec2", "ipv4", "ipv6", "oauth1", "oauth2", "sha1", "sha256", "sha512", "md5",
@@ -23,7 +23,7 @@ static DEFAULT_ACRONYMS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
 /// [`to_snake_case`] falls back to the built-in defaults.
 static RUNTIME_ACRONYMS: OnceLock<HashSet<String>> = OnceLock::new();
 
-/// Install the project's acronym additions (from `[fraiseql.naming] acronyms`) on
+/// Install the project's acronym additions (from `[naming] acronyms`) on
 /// top of the built-in defaults.
 ///
 /// Idempotent — only the first call wins, so the server (at boot) and the CLI (at
@@ -85,7 +85,7 @@ fn acronym_spans_digit(chars: &[char], word_start: usize, digit_start: usize) ->
 /// matches the acronym registry stays whole — `"s3"` → `"s3"`, `"ipv4"` → `"ipv4"`,
 /// `"s3Bucket"` → `"s3_bucket"`, and wherever it sits in the name:
 /// `"hostIpv4"` → `"host_ipv4"`. The built-in defaults (`s3`, `ipv4`, `oauth2`, …)
-/// are extended per project via `[fraiseql.naming] acronyms` (see
+/// are extended per project via `[naming] acronyms` (see
 /// [`set_runtime_acronyms`]); an unregistered `oauth2`-shaped name still splits.
 ///
 /// # Examples

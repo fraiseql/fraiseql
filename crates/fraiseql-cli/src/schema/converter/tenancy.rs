@@ -1,6 +1,6 @@
 //! Compile-time `@tenant_id` validation for row-isolation tenancy.
 //!
-//! When `[fraiseql.tenancy] mode = "row"`, the compiler:
+//! When `[tenancy] mode = "row"`, the compiler:
 //! 1. Collects all types with fields annotated `@tenant_id`.
 //! 2. For each query/mutation referencing such a type:
 //!    - If `inject` is empty → auto-adds `{ <field>: jwt:<tenant_claim> }`.
@@ -102,12 +102,12 @@ pub fn validate_tenant_annotations(
     // the scope of the no-op, and name the setting for isolation enforced elsewhere.
     if !index.has_annotations() {
         bail!(
-            "[fraiseql.tenancy] mode = \"row\" matched 0 of {} types: no field carries the \
+            "[tenancy] mode = \"row\" matched 0 of {} types: no field carries the \
              @tenant_id directive, so no query would be scoped to the caller's tenant. Mark \
              the field that holds the tenant on each per-tenant type with @tenant_id. If row \
              isolation is enforced by database RLS instead, remove `mode = \"row\"` and \
-             declare `[fraiseql.security] multi_tenant = true` with \
-             `[fraiseql.security.rls] enabled = true`.",
+             declare `[security] multi_tenant = true` with \
+             `[security.rls] enabled = true`.",
             schema.types.len()
         );
     }

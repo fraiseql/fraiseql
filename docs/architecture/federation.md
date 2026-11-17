@@ -276,7 +276,7 @@ beside `schema.json`:
 
 ```toml
 # fraiseql.toml
-[fraiseql.security.service_accounts.gateway]
+[security.service_accounts.gateway]
 secret_env = "FRAISEQL_SA_GATEWAY_SECRET"
 roles      = []
 scopes     = []

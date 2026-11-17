@@ -211,7 +211,7 @@ scope returns 403.
 
 ### Tenant Scope
 
-The token's tenant (the claim `[fraiseql.tenancy] tenant_claim` names, `tenant_id` by
+The token's tenant (the claim `[tenancy] tenant_claim` names, `tenant_id` by
 default) decides what an admin acts on.
 
 - **No tenant: the operator.** Every observer, every execution, and every route below.

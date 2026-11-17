@@ -722,7 +722,7 @@ async fn hot_reload_refuses_a_schema_whose_boot_frozen_config_changed() {
     .expect("Server::new must boot the fixture schema");
     let state = server.build_app_state();
 
-    // `[fraiseql.naming] acronyms` is installed into a process-global `OnceLock`
+    // `[naming] acronyms` is installed into a process-global `OnceLock`
     // at boot; only the first call wins. A reload cannot apply a change, so it
     // must refuse rather than serve a schema whose JSONB-key resolution disagrees
     // with the compiled surface (#782).

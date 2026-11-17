@@ -272,7 +272,7 @@ pub struct IntermediateSchema {
     ///
     /// Emitted as a top-level key by seven SDKs' `ConfigLoader`s and consumed by the
     /// converter. See [`IntermediateInjectDefaults`] for the precedence rules and for why
-    /// the merge happens after `[fraiseql.tenancy]` validation rather than before it
+    /// the merge happens after `[tenancy]` validation rather than before it
     /// (#847).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub inject_defaults: Option<IntermediateInjectDefaults>,

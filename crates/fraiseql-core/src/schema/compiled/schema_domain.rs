@@ -360,7 +360,7 @@ impl CompiledSchema {
         self.security.as_ref().map(|s| &s.tenancy)
     }
 
-    /// The JWT claim that names a request's tenant: `[fraiseql.tenancy] tenant_claim`,
+    /// The JWT claim that names a request's tenant: `[tenancy] tenant_claim`,
     /// or [`DEFAULT_TENANT_CLAIM`](crate::schema::security_config::DEFAULT_TENANT_CLAIM)
     /// when the schema declares none.
     ///

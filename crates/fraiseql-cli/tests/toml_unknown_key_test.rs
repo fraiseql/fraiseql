@@ -4,22 +4,22 @@
 //! type needs it. Without it a misspelt key is discarded and the setting it meant stays at
 //! its default: `[grpc] enabeld = true` compiled with gRPC off.
 //!
-//! The tables are discovered by serializing each root's `Default`, so a section added
+//! The tables are discovered by serializing the root's `Default`, so a section added
 //! later is checked without editing this file. `Default` cannot reach an `Option` section,
 //! an array-of-tables entry or a map entry, so those are listed; the table counts are
 //! asserted so the walk cannot quietly measure less.
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 
-use fraiseql_cli::config::{TomlProjectConfig, toml_schema::TomlSchema};
+use fraiseql_cli::config::toml_schema::TomlSchema;
 use serde::{Serialize, de::DeserializeOwned};
 
 const UNKNOWN: &str = "zz_not_a_key";
 
 /// Tables whose keys are names the user chooses, not fields: any key is valid.
-const NAME_KEYED: &[&str] = &["fraiseql.cost_weights", "types", "queries", "mutations"];
+const NAME_KEYED: &[&str] = &["cost_weights", "types", "queries", "mutations"];
 
-/// `fraiseql compile`'s root: sections `Default` leaves out, written as TOML headers.
-const SCHEMA_UNREACHED: &[&str] = &[
+/// Sections `Default` leaves out, written as TOML headers.
+const UNREACHED: &[&str] = &[
     "[auth]",
     "[auth.me]",
     "[changelog]",
@@ -34,6 +34,8 @@ const SCHEMA_UNREACHED: &[&str] = &[
     "[security.state_encryption]",
     "[security.pkce]",
     "[security.api_keys]",
+    "[security.cost_budget]",
+    "[observers]",
     "[security.token_revocation]",
     "[security.trusted_documents]",
     "[subscriptions.hooks]",
@@ -48,50 +50,8 @@ const SCHEMA_UNREACHED: &[&str] = &[
     "[[observers.handlers]]",
 ];
 
-/// The project file's root: sections `Default` leaves out, among them the optional
-/// `[fraiseql.security]` sections a project shares with a TOML schema's `[security]`.
-const PROJECT_UNREACHED: &[&str] = &[
-    "[locale]",
-    "[observers]",
-    "[[observers.handlers]]",
-    "[fraiseql.security.error_sanitization]",
-    "[fraiseql.security.rate_limiting]",
-    "[fraiseql.security.pkce]",
-    "[fraiseql.security.api_keys]",
-    "[fraiseql.security.cost_budget]",
-    "[fraiseql.security.token_revocation]",
-    "[fraiseql.security.trusted_documents]",
-];
-
-/// The runtime sections the project file shares with `fraiseql compile`'s root (#1719).
-/// Each is optional there, so `Default` reaches none of them: their tables are taken from
-/// the compile root's own walk and from [`SCHEMA_UNREACHED`], and swept on the project root.
-const SHARED_SECTIONS: &[&str] = &[
-    "mcp",
-    "rest",
-    "grpc",
-    "debug",
-    "validation",
-    "subscriptions",
-    "federation",
-    "auth",
-    "changelog",
-    "hierarchies",
-    "query_defaults",
-    "caching",
-];
-
-/// Whether the TOML header or table path `table` belongs to one of [`SHARED_SECTIONS`].
-fn is_shared(table: &str) -> bool {
-    let first = table.trim_matches(|c| c == '[' || c == ']').split('.').next().unwrap_or("");
-    SHARED_SECTIONS.contains(&first)
-}
-
-/// Tables `Default` reaches on each root, the root itself included.
-const SCHEMA_TABLES: usize = 29;
-const PROJECT_TABLES: usize = 18;
-/// Tables of the shared sections swept on the project root.
-const SHARED_TABLES: usize = 18;
+/// Tables `Default` reaches, the root itself included.
+const TABLES: usize = 32;
 
 fn table_paths(prefix: &str, table: &toml::Table, out: &mut Vec<String>) {
     for (key, value) in table {
@@ -144,44 +104,10 @@ fn sweep<T: DeserializeOwned + Serialize + Default>(unreached: &[&str]) -> (usiz
 }
 
 #[test]
-fn every_compile_toml_table_refuses_a_key_it_does_not_declare() {
-    let (tables, failures) = sweep::<TomlSchema>(SCHEMA_UNREACHED);
+fn every_toml_table_refuses_a_key_it_does_not_declare() {
+    let (tables, failures) = sweep::<TomlSchema>(UNREACHED);
     assert!(failures.is_empty(), "tables that accept a misspelt key: {failures:#?}");
-    assert_eq!(
-        tables, SCHEMA_TABLES,
-        "fewer tables means the walk measures less; more, re-count"
-    );
-}
-
-#[test]
-fn every_project_toml_table_refuses_a_key_it_does_not_declare() {
-    // The shared sections' tables, as the compile root has them.
-    let mut shared = Vec::new();
-    table_paths("", &toml::Table::try_from(TomlSchema::default()).unwrap(), &mut shared);
-    let mut unreached: Vec<String> = PROJECT_UNREACHED.iter().map(ToString::to_string).collect();
-    unreached.extend(shared.iter().filter(|path| is_shared(path)).map(|path| format!("[{path}]")));
-    unreached.extend(
-        SCHEMA_UNREACHED
-            .iter()
-            .filter(|header| is_shared(header))
-            .map(ToString::to_string),
-    );
-    let swept = unreached.iter().filter(|header| is_shared(header)).count();
-    let unreached: Vec<&str> = unreached.iter().map(String::as_str).collect();
-
-    let (tables, failures) = sweep::<TomlProjectConfig>(&unreached);
-    assert!(failures.is_empty(), "tables that accept a misspelt key: {failures:#?}");
-    assert_eq!(
-        tables, PROJECT_TABLES,
-        "fewer tables means the walk measures less; more, re-count"
-    );
-    assert_eq!(swept, SHARED_TABLES, "the shared sections' tables; re-count on a change");
-    for section in SHARED_SECTIONS {
-        assert!(
-            unreached.iter().any(|header| is_shared(header) && header.contains(section)),
-            "`{section}` contributes no table to the sweep"
-        );
-    }
+    assert_eq!(tables, TABLES, "fewer tables means the walk measures less; more, re-count");
 }
 
 /// The misspellings #1837 was filed for, through the loaders `fraiseql compile` and
@@ -204,7 +130,7 @@ fn each_misspelling_is_refused_by_name_where_it_was_written() {
 
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("fraiseql.toml");
-    std::fs::write(&path, "[fraiseql.session_variables]\ninject_started = false\n").unwrap();
-    let err = TomlProjectConfig::from_file(path.to_str().unwrap()).unwrap_err();
+    std::fs::write(&path, "[session_variables]\ninject_started = false\n").unwrap();
+    let err = TomlSchema::from_project_file(path.to_str().unwrap()).unwrap_err();
     assert!(format!("{err:#}").contains("inject_started"), "{err:#}");
 }

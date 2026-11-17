@@ -112,7 +112,7 @@ fn toml_schema_dir(security_extra: &str) -> TempDir {
 }
 
 /// A TOML schema carrying whole extra top-level sections rather than `[security]` keys —
-/// `[tenancy]` is a sibling of `[security]`, mirroring `[fraiseql.tenancy]` (`#892`).
+/// `[tenancy]` is a sibling of `[security]`, mirroring `[tenancy]` (`#892`).
 fn toml_schema_dir_with_sections(sections: &str) -> TempDir {
     toml_schema_dir(&format!("\n{sections}"))
 }
@@ -135,7 +135,6 @@ fn project_config_dir(fraiseql_extra: &str) -> TempDir {
         dir.path().join("fraiseql.toml"),
         format!(
             r"
-[fraiseql]
 {fraiseql_extra}
 "
         ),
@@ -159,11 +158,11 @@ fn toml_schema_can_declare_multi_tenant() {
 
 #[test]
 fn project_config_can_declare_multi_tenant() {
-    let dir = project_config_dir("[fraiseql.security]\nmulti_tenant = true");
+    let dir = project_config_dir("[security]\nmulti_tenant = true");
     let schema = compile(&dir, &["schema.json"]);
     assert!(
         schema.is_multi_tenant(),
-        "#758: `[fraiseql.security] multi_tenant` must reach the runtime"
+        "#758: `[security] multi_tenant` must reach the runtime"
     );
 }
 
@@ -172,20 +171,19 @@ fn project_config_can_declare_multi_tenant() {
 /// the gate ended up permanently off.
 #[test]
 fn row_tenancy_mode_implies_multi_tenant() {
-    let dir =
-        project_config_dir("[fraiseql.tenancy]\nmode = \"row\"\ntenant_claim = \"tenant_id\"");
+    let dir = project_config_dir("[tenancy]\nmode = \"row\"\ntenant_claim = \"tenant_id\"");
     let schema = compile(&dir, &["schema.json"]);
     assert_eq!(schema.tenancy_mode(), TenancyMode::Row);
     assert!(
         schema.is_multi_tenant(),
-        "#758: `[fraiseql.tenancy] mode = \"row\"` is a multi-tenant declaration; the \
+        "#758: `[tenancy] mode = \"row\"` is a multi-tenant declaration; the \
          subscription fail-closed gate and the cache+RLS boot gate must both see it"
     );
 }
 
 #[test]
 fn schema_tenancy_mode_implies_multi_tenant() {
-    let dir = project_config_dir("[fraiseql.tenancy]\nmode = \"schema\"");
+    let dir = project_config_dir("[tenancy]\nmode = \"schema\"");
     let schema = compile(&dir, &["schema.json"]);
     assert_eq!(schema.tenancy_mode(), TenancyMode::Schema);
     assert!(schema.is_multi_tenant());
@@ -197,7 +195,7 @@ fn schema_tenancy_mode_implies_multi_tenant() {
 // defect: `[tenancy]` was not a field of `TomlSchema`, and `commands::compile` skips
 // the project config when the input is TOML, so a TOML-schema author — including
 // every `[domain_discovery]` project — could not select an isolation mode at all.
-// `[tenancy] mode = "schema"` was an unknown field and `[fraiseql.tenancy]` was
+// `[tenancy] mode = "schema"` was an unknown field and `[tenancy]` was
 // ignored, with no error and no warning either way.
 //
 // Asked of `tenancy_mode()`, not of key presence: a key can be in the file and still
@@ -279,7 +277,7 @@ fn toml_schema_can_declare_rls() {
 
 #[test]
 fn project_config_can_declare_rls() {
-    let dir = project_config_dir("[fraiseql.security.rls]\nenabled = true");
+    let dir = project_config_dir("[security.rls]\nenabled = true");
     let schema = compile(&dir, &["schema.json"]);
     assert!(schema.has_rls_configured());
 }
@@ -341,9 +339,9 @@ claim = "tenant_id"
 #[test]
 fn project_config_can_declare_session_variables() {
     let dir = project_config_dir(
-        "[fraiseql.session_variables]\n\
+        "[session_variables]\n\
          inject_started_at = false\n\n\
-         [[fraiseql.session_variables.variables]]\n\
+         [[session_variables.variables]]\n\
          name = \"app.tenant_id\"\n\
          source = \"jwt\"\n\
          claim = \"tenant_id\"",
@@ -384,7 +382,7 @@ claim = "tenant_id"
 /// would name no claim at all.
 #[test]
 fn an_empty_tenant_claim_is_refused_without_an_isolation_mode() {
-    let dir = project_config_dir("[fraiseql.tenancy]\ntenant_claim = \"\"");
+    let dir = project_config_dir("[tenancy]\ntenant_claim = \"\"");
     let err = compile_err(&dir, &["schema.json"]);
     assert!(err.contains("tenant_claim"), "{err}");
 }

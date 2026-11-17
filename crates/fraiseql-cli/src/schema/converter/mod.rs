@@ -134,7 +134,7 @@ impl DeclaredTypeNames {
 #[derive(Debug, Clone, Default)]
 pub struct ConvertOptions {
     /// Auto-synthesize a shared `MutationError` type + per-mutation result unions
-    /// and rewrite object-returning mutations to those unions (`[fraiseql.mutations]
+    /// and rewrite object-returning mutations to those unions (`[mutation_defaults]
     /// auto_error_union`).
     pub auto_error_union: bool,
 }
@@ -330,7 +330,7 @@ impl SchemaConverter {
         // converter is the single path every caller of the public API goes through, so a
         // default cannot be lost by reaching the compiled schema some other way.
         //
-        // It is also deliberately *after* `[fraiseql.tenancy]` validation (which
+        // It is also deliberately *after* `[tenancy]` validation (which
         // `commands::compile` performs on the intermediate schema before calling this).
         // Tenancy auto-injects when `inject_params` is empty and errors when it is
         // non-empty but lacks the annotated field, so applying defaults first would make a
@@ -604,7 +604,7 @@ impl SchemaConverter {
         cascade_types::synthesize_cascade_types(&mut compiled)?;
 
         // Auto-synthesize a shared MutationError type + per-mutation result unions
-        // when opted in (`[fraiseql.mutations] auto_error_union`), so the runtime's
+        // when opted in (`[mutation_defaults] auto_error_union`), so the runtime's
         // success/error discrimination has a union to resolve against.
         if options.auto_error_union {
             mutation_error_union::synthesize_mutation_error_unions(&mut compiled);

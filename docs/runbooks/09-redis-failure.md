@@ -1,7 +1,7 @@
 # Runbook: Redis Failure (PKCE Store / Observers Backend Down)
 
 FraiseQL uses Redis for an **explicit, configured** set of subsystems: the PKCE login
-state store (`[fraiseql.security.pkce] redis_url`, compiled into the schema), the
+state store (`[security.pkce] redis_url`, compiled into the schema), the
 observers cache/dedup backend
 (`FRAISEQL_REDIS_URL`), and the Redis-backed auth rate limiter (opt-in
 `redis-rate-limiting` build feature). The GraphQL query result cache is **in-process,
@@ -161,7 +161,7 @@ docker logs fraiseql-server | grep -i "redis" | head -1
 
    ```bash
    # PKCE state store: its config is COMPILED — remove `redis_url` from
-   # [fraiseql.security.pkce] in the project fraiseql.toml, re-run
+   # [security.pkce] in the project fraiseql.toml, re-run
    # `fraiseql compile`, redeploy the compiled schema — and make sure the
    # enforcement flag is unset:
    unset FRAISEQL_REQUIRE_REDIS
@@ -243,7 +243,7 @@ docker logs fraiseql-server | grep -i "redis" | head -1
 1. **Run without Redis, deliberately**
 
    Remove every piece of configuration that names Redis (see "De-configure the
-   Redis-backed subsystems" above: the compiled `[fraiseql.security.pkce] redis_url`,
+   Redis-backed subsystems" above: the compiled `[security.pkce] redis_url`,
    `FRAISEQL_REDIS_URL`, `FRAISEQL_REQUIRE_REDIS`), then restart.
 
    ```bash

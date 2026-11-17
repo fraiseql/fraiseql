@@ -210,6 +210,12 @@ const ALREADY_HONOURED: &[&str] = &[
     "server",
     "database",
     "project",
+    "security",
+    "tenancy",
+    "session_variables",
+    "naming",
+    "cost_weights",
+    "mutation_defaults",
 ];
 
 /// Sections refused beside a schema document, each with what its refusal points to.
@@ -222,14 +228,6 @@ const REFUSED: &[(&str, &str, &str)] = &[
     ("crud", "[crud]\nfunction_schema = \"app\"\n", "compile input"),
     ("analytics", "[analytics]\nenabled = true\n", "compile input"),
     ("observability", "[observability]\nprometheus_enabled = true\n", "[metrics]"),
-    ("security", "[security]\nmulti_tenant = true\n", "[fraiseql.security]"),
-    ("tenancy", "[tenancy]\nmode = \"row\"\n", "[fraiseql.tenancy]"),
-    (
-        "session_variables",
-        "[[session_variables.variables]]\nname = \"app.v\"\nsource = \"literal\"\nvalue = \"x\"\n",
-        "[fraiseql.session_variables]",
-    ),
-    ("naming_convention", "naming_convention = \"preserve\"\n", "[fraiseql.naming]"),
 ];
 
 /// What a compile did: whether it succeeded, its output, and the compiled schema.
@@ -476,7 +474,7 @@ fn a_toml_schema_and_its_types_document_are_reconciled_the_same_way() {
 
 #[test]
 fn session_variables_declared_in_both_places_must_agree() {
-    let table = "[[fraiseql.session_variables.variables]]\nname = \"app.region\"\n\
+    let table = "[[session_variables.variables]]\nname = \"app.region\"\n\
                  source = \"literal\"\nvalue = \"eu\"\n";
     let variables = |value: &str| json!({"variables": [{"name": "app.region", "source": "literal", "value": value}]});
 
@@ -486,7 +484,7 @@ fn session_variables_declared_in_both_places_must_agree() {
 
     assert!(!refused.ok, "a differing copy was replaced silently");
     for needle in [
-        "fraiseql.toml [fraiseql.session_variables]",
+        "fraiseql.toml [session_variables]",
         "schema.json session_variables",
     ] {
         assert!(refused.log.contains(needle), "names `{needle}`: {}", refused.log);
@@ -570,7 +568,7 @@ fn a_table_that_turns_a_transport_off_disagrees_with_a_copy_that_turns_it_on() {
 
 // ── the naming convention: decided by the project config when it says so ────
 
-/// An SDK writes its own convention into every document, and `[fraiseql.naming] convention`
+/// An SDK writes its own convention into every document, and `[naming] convention`
 /// is the documented way to choose another: the two are not reconciled. The project config
 /// decides when it writes the key, and only then.
 #[test]
@@ -580,12 +578,12 @@ fn the_naming_convention_is_the_project_configs_when_declared_and_the_documents_
         assert!(compiled.ok, "{}", compiled.log);
         compiled.schema["naming_convention"].clone()
     };
-    let preserve = "[fraiseql.naming]\nconvention = \"preserve\"\n";
-    let acronyms_only = "[fraiseql.naming]\nacronyms = [\"s3\"]\n";
+    let preserve = "[naming]\nconvention = \"preserve\"\n";
+    let acronyms_only = "[naming]\nacronyms = [\"s3\"]\n";
 
     // Declared: it decides, over what the SDK wrote.
     assert_eq!(naming(preserve, Some("camelCase")), json!("preserve"));
-    // Not declared: the document's own stands, with or without a `[fraiseql.naming]` table.
+    // Not declared: the document's own stands, with or without a `[naming]` table.
     assert_eq!(naming("", Some("preserve")), json!("preserve"));
     assert_eq!(naming(acronyms_only, Some("preserve")), json!("preserve"));
     // Neither says: the workflow's default.

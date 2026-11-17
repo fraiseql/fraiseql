@@ -70,6 +70,20 @@ pub struct SecuritySettings {
     /// without their own budget). Shares the runtime's own type so the
     /// authoring and consuming shapes cannot drift.
     pub cost_budget:            Option<fraiseql_core::schema::CostBudgetConfig>,
+    /// Machine service accounts, keyed by account name (`[security.service_accounts.<name>]`).
+    ///
+    /// ```toml
+    /// [security.service_accounts.reconciler]
+    /// secret_env = "FRAISEQL_SA_RECONCILER_SECRET"
+    /// roles      = ["reconciler"]
+    /// scopes     = ["write:Invoice"]
+    /// ```
+    ///
+    /// The secret is never inlined: `secret_env` names the environment variable holding
+    /// it (ADR-0018).
+    #[serde(skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub service_accounts:
+        std::collections::HashMap<String, fraiseql_core::schema::ServiceAccountConfig>,
 }
 
 // The `[security.*]` section shapes are owned by `fraiseql_core::schema` (#977):
@@ -87,12 +101,23 @@ pub use fraiseql_core::schema::{
 
 /// The sections of a `[security]` table both files take, as the compiled schema carries them.
 ///
-/// A TOML schema's `[security]` and a project config's `[fraiseql.security]` both take these
+/// A TOML schema's `[security]` and a project config's `[security]` both take these
 /// sections, in these types: [`SecuritySettings::shared_sections`] is the one lowering both
 /// files compile them through. Destructured where it is consumed, so a section added here
 /// and not emitted is a compile error.
 #[derive(Debug, Clone, Default)]
 pub struct SharedSections {
+    /// `role_definitions`, lowered to the runtime's roles.
+    pub role_definitions:       Vec<fraiseql_core::schema::RoleDefinition>,
+    /// `default_role`
+    pub default_role:           Option<String>,
+    /// `multi_tenant`
+    pub multi_tenant:           bool,
+    /// `rls`
+    pub rls:                    fraiseql_core::schema::RlsConfig,
+    /// `service_accounts`; absent when none is declared.
+    pub service_accounts:
+        Option<std::collections::HashMap<String, fraiseql_core::schema::ServiceAccountConfig>>,
     /// `enterprise`, always emitted: its one key, `audit_logging_enabled`, defaults on.
     pub enterprise:             EnterpriseSecurityConfig,
     /// `error_sanitization`; absent is decided by the server at boot.
@@ -116,10 +141,44 @@ pub struct SharedSections {
 }
 
 impl SecuritySettings {
+    /// Refuse a service account with no `secret_env`, or one that grants nothing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error naming the account.
+    pub fn validate_service_accounts(&self) -> anyhow::Result<()> {
+        for (name, account) in &self.service_accounts {
+            if account.secret_env.trim().is_empty() {
+                anyhow::bail!(
+                    "service account '{name}' must set `secret_env` — the name of the \
+                     environment variable holding its bearer secret. The secret itself is \
+                     never written to the config."
+                );
+            }
+            if account.roles.is_empty() && account.scopes.is_empty() {
+                anyhow::bail!(
+                    "service account '{name}' grants neither roles nor scopes, so it can do \
+                     nothing. Give it a `run_as` ceiling, or remove it."
+                );
+            }
+        }
+        Ok(())
+    }
+
     /// The shared sections, lowered for the compiled `security` section.
     #[must_use]
     pub fn shared_sections(&self) -> SharedSections {
         SharedSections {
+            role_definitions:       self
+                .role_definitions
+                .iter()
+                .map(crate::config::security::RoleDefinitionConfig::to_runtime)
+                .collect(),
+            default_role:           self.default_role.clone(),
+            multi_tenant:           self.multi_tenant,
+            rls:                    self.rls.clone(),
+            service_accounts:       (!self.service_accounts.is_empty())
+                .then(|| self.service_accounts.clone()),
             enterprise:             self.enterprise.clone(),
             error_sanitization:     self.error_sanitization.clone(),
             rate_limiting:          self.rate_limiting.clone(),
@@ -133,6 +192,60 @@ impl SecuritySettings {
         }
     }
 
+    /// `[security]` and `[tenancy]` lowered to the compiled `security` block.
+    ///
+    /// Built as the typed `fraiseql_core::schema::SecurityConfig`, which owns every
+    /// section's shape and is `deny_unknown_fields`, so a key emitted under the wrong name
+    /// is a compile error here rather than a block the server cannot read.
+    #[must_use]
+    pub fn to_compiled(
+        &self,
+        tenancy: &crate::config::security::TenancyTomlConfig,
+    ) -> fraiseql_core::schema::SecurityConfig {
+        let SharedSections {
+            role_definitions,
+            default_role,
+            multi_tenant,
+            rls,
+            service_accounts,
+            enterprise,
+            error_sanitization,
+            rate_limiting,
+            state_encryption,
+            pkce,
+            api_keys,
+            token_revocation,
+            trusted_documents,
+            persisted_queries_only,
+            cost_budget,
+        } = self.shared_sections();
+        fraiseql_core::schema::SecurityConfig {
+            role_definitions,
+            default_role,
+            multi_tenant,
+            rls,
+            // `tenant_claim` names the request's tenant whatever the mode, so the section
+            // is lowered even under `mode = "none"`.
+            tenancy: tenancy.to_runtime(),
+            cost_budget,
+            // No consumer reads it; a default here reads as an enforced boundary.
+            default_policy: None,
+            rules: self.rules.clone(),
+            policies: self.policies.clone(),
+            field_auth: self.field_auth.clone(),
+            enterprise: Some(enterprise),
+            error_sanitization,
+            rate_limiting,
+            state_encryption,
+            pkce,
+            api_keys,
+            token_revocation,
+            trusted_documents,
+            persisted_queries_only,
+            service_accounts,
+        }
+    }
+
     /// Warn when PKCE is enabled without state encryption: the PKCE state would be stored
     /// unencrypted, which the server refuses to boot with in production.
     pub fn warn_pkce_without_state_encryption(&self) {
@@ -142,7 +255,7 @@ impl SecuritySettings {
             tracing::warn!(
                 "pkce.enabled = true but state_encryption.enabled = false. PKCE state will be \
                  stored unencrypted. Set [security.state_encryption] enabled = true (in a \
-                 project config, [fraiseql.security.state_encryption]) for production."
+                 project config, [security.state_encryption]) for production."
             );
         }
     }

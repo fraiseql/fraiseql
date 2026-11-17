@@ -3,7 +3,7 @@
 //! section is refused, and a copy in the schema document must agree.
 
 use super::InjectDefaultsToml;
-use crate::{config::TomlProjectConfig, schema::intermediate::IntermediateInjectDefaults};
+use crate::{config::TomlSchema, schema::intermediate::IntermediateInjectDefaults};
 
 /// The shape every SDK config loader documents, verbatim from the Python SDK.
 const SDK_SHAPE: &str = r#"
@@ -20,7 +20,7 @@ user_id = "jwt:sub"
 /// #1384: the project config the SDKs tell users to write is accepted by the compiler.
 #[test]
 fn the_sdk_documented_section_is_accepted_in_the_project_config() {
-    let config: TomlProjectConfig = toml::from_str(SDK_SHAPE).unwrap();
+    let config = TomlSchema::parse_toml(SDK_SHAPE).unwrap();
     let defaults = config.inject_defaults.unwrap().to_intermediate().unwrap();
 
     assert_eq!(defaults.base.get("tenant_id").map(String::as_str), Some("jwt:tenant_id"));
@@ -33,7 +33,7 @@ fn the_sdk_documented_section_is_accepted_in_the_project_config() {
 #[test]
 fn a_misspelled_sub_table_is_refused() {
     let toml = "[inject_defaults.querys]\nread_scope = \"jwt:scope\"\n";
-    assert!(toml::from_str::<TomlProjectConfig>(toml).is_err());
+    assert!(TomlSchema::parse_toml(toml).is_err());
 }
 
 #[test]

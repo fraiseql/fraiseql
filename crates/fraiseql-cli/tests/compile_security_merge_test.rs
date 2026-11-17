@@ -178,7 +178,7 @@ fn tenancy_disagreement_is_refused(path: Workflow, toml: &str) {
 fn sdk_tenancy_set_by_both_and_disagreeing_is_refused() {
     tenancy_disagreement_is_refused(
         Workflow::Sdk,
-        "[project]\nname = \"app\"\n\n[fraiseql.tenancy]\nmode = \"none\"\n",
+        "[project]\nname = \"app\"\n\n[tenancy]\nmode = \"none\"\n",
     );
 }
 
@@ -192,7 +192,8 @@ fn types_tenancy_set_by_both_and_disagreeing_is_refused() {
 
 #[test]
 fn sdk_tenancy_set_by_both_and_agreeing_compiles() {
-    let toml = "[project]\nname = \"app\"\n\n[fraiseql.tenancy]\nmode = \"row\"\ntenant_claim = \"org_id\"\n";
+    let toml =
+        "[project]\nname = \"app\"\n\n[tenancy]\nmode = \"row\"\ntenant_claim = \"org_id\"\n";
     let dir = project(Workflow::Sdk, Some(toml), &document(Some(tenant_security()), true));
     let schema = compiled(Workflow::Sdk, &dir);
     assert_eq!(schema["security"]["tenancy"]["tenant_claim"], json!("org_id"), "{schema}");
@@ -203,11 +204,11 @@ fn sdk_tenancy_set_by_both_and_agreeing_compiles() {
 }
 
 /// Agreement is judged on the compiled section, not the spelling: the TOML lowers
-/// `[fraiseql.tenancy] mode = "row"` with its default claim written out, and a document
+/// `[tenancy] mode = "row"` with its default claim written out, and a document
 /// copy that leaves the claim to the same default agrees with it.
 #[test]
 fn sdk_tenancy_spelled_differently_with_the_same_meaning_compiles() {
-    let toml = "[project]\nname = \"app\"\n\n[fraiseql.tenancy]\nmode = \"row\"\n";
+    let toml = "[project]\nname = \"app\"\n\n[tenancy]\nmode = \"row\"\n";
     let security = json!({"tenancy": {"mode": "row"}});
     let dir = project(Workflow::Sdk, Some(toml), &document(Some(security), true));
     let schema = compiled(Workflow::Sdk, &dir);
@@ -218,12 +219,12 @@ fn sdk_tenancy_spelled_differently_with_the_same_meaning_compiles() {
     );
 }
 
-/// The comparison is per section: a TOML that declares `[fraiseql.tenancy]` with only
+/// The comparison is per section: a TOML that declares `[tenancy]` with only
 /// `mode` still owns the whole section, so a document claim other than the TOML's
 /// default claim is a disagreement, refused by section name.
 #[test]
 fn sdk_a_partially_declared_section_must_match_the_document_in_full() {
-    let toml = "[project]\nname = \"app\"\n\n[fraiseql.tenancy]\nmode = \"row\"\n";
+    let toml = "[project]\nname = \"app\"\n\n[tenancy]\nmode = \"row\"\n";
     let dir = project(Workflow::Sdk, Some(toml), &document(Some(tenant_security()), true));
     let log = refused(Workflow::Sdk, &dir);
     assert!(log.contains("`tenancy`"), "refusal must name the section: {log}");
@@ -238,11 +239,11 @@ fn types_cost_budget_set_by_both_and_disagreeing_is_refused() {
     assert!(log.contains("`cost_budget`"), "refusal must name the key: {log}");
 }
 
-/// `enterprise` is its own table, `[fraiseql.security.enterprise]`: declaring the rate
+/// `enterprise` is its own table, `[security.enterprise]`: declaring the rate
 /// limiting table no longer declares it, so the document's copy is the document's.
 #[test]
 fn sdk_enterprise_is_not_declared_by_the_rate_limiting_table() {
-    let toml = "[project]\nname = \"app\"\n\n[fraiseql.security.rate_limiting]\nenabled = false\n";
+    let toml = "[project]\nname = \"app\"\n\n[security.rate_limiting]\nenabled = false\n";
     let security = json!({"enterprise": {"audit_logging_enabled": false}});
     let dir = project(Workflow::Sdk, Some(toml), &document(Some(security), false));
     let schema = compiled(Workflow::Sdk, &dir);
@@ -282,20 +283,21 @@ fn sdk_without_a_toml_the_document_security_is_compiled_as_written() {
 fn sdk_a_document_without_security_takes_the_project_config_section() {
     let dir = project(Workflow::Sdk, Some(PROJECT_ONLY), &document(None, false));
     let schema = compiled(Workflow::Sdk, &dir);
-    assert_eq!(schema["security"], SDK_PROJECT_ONLY_SECURITY.parse::<Value>().unwrap());
+    assert_eq!(schema["security"], SETTINGS_ONLY_SECURITY.parse::<Value>().unwrap());
 }
 
 #[test]
 fn types_a_document_without_security_takes_the_toml_section() {
     let dir = project(Workflow::Types, Some(SCHEMA_ONLY), &document(None, false));
     let schema = compiled(Workflow::Types, &dir);
-    assert_eq!(schema["security"], TYPES_SCHEMA_ONLY_SECURITY.parse::<Value>().unwrap());
+    assert_eq!(schema["security"], SETTINGS_ONLY_SECURITY.parse::<Value>().unwrap());
 }
 
 // Captured from the compiler before the merge rule existed: these three paths carry no
 // document `security` block next to a TOML, so the rule must leave them unchanged. The two
 // TOML ones were recaptured when `enterprise` lost its nine unread keys and an unwritten
-// `error_sanitization` / `rate_limiting` stopped being emitted by a project config (#2019).
+// `error_sanitization` / `rate_limiting` stopped being emitted by a project config (#2019),
+// and are one since both roles of a `fraiseql.toml` lower `[security]` alike: an unwritten
+// `state_encryption` is emitted by neither.
 const SDK_NO_TOML_SECURITY: &str = r#"{"multi_tenant":true,"rls":{"enabled":true},"tenancy":{"mode":"row","tenant_claim":"org_id"},"cost_budget":{"per_request_max":100}}"#;
-const SDK_PROJECT_ONLY_SECURITY: &str = r#"{"enterprise":{"audit_logging_enabled":true},"state_encryption":{"enabled":false,"algorithm":"chacha20-poly1305","key_source":"env","key_env":"STATE_ENCRYPTION_KEY"}}"#;
-const TYPES_SCHEMA_ONLY_SECURITY: &str = r#"{"enterprise":{"audit_logging_enabled":true}}"#;
+const SETTINGS_ONLY_SECURITY: &str = r#"{"enterprise":{"audit_logging_enabled":true}}"#;
