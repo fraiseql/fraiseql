@@ -34,6 +34,13 @@ impl Server {
         #[cfg(feature = "functions-runtime")]
         if let Some(observer) = &self.after_mutation_observer {
             observer.bind_executor(&crate::query_bridge::ExecutorSource::of(&state));
+            // The ledger was provisioned above, so writes may record into it now.
+            // Its settings were validated in `provision_persistent_schemas`.
+            if self.records_function_dispatches() {
+                if let Ok(settings) = self.config.function_dispatch.settings() {
+                    observer.bind_ledger(settings, state.service_account_authenticator.clone());
+                }
+            }
         }
         Ok(state)
     }

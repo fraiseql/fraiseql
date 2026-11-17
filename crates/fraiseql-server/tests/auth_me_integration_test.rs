@@ -52,6 +52,7 @@ fn make_auth_user(user_id: &str, extra_claims: HashMap<String, serde_json::Value
         email: None,
         display_name: None,
         extra_claims,
+        provenance: fraiseql_core::security::Provenance::BearerToken,
     })
 }
 

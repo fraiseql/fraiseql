@@ -71,6 +71,7 @@ fn flight_session_context() -> SecurityContext {
         email:        None,
         display_name: None,
         extra_claims: std::collections::HashMap::new(),
+        provenance:   fraiseql_core::security::Provenance::BearerToken,
     };
     SecurityContext::from_user(&user, "req-flight-1".to_string())
 }

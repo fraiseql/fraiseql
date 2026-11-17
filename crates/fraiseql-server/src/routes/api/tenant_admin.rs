@@ -309,6 +309,12 @@ pub async fn upsert_tenant_handler(
     // `prepare_functions_runtime` rebuilds the executor to install the before:mutation
     // gate.
     let runtime_config = state.executor().config().clone();
+    // Whether this server's writes record their function dispatches.
+    let records_dispatches = runtime_config
+        .after_mutation_observer
+        .as_deref()
+        .and_then(fraiseql_core::runtime::AfterMutationObserver::ledger_lease)
+        .is_some();
 
     let executor = factory(key.clone(), schema_json, body.connection, runtime_config)
         .await
@@ -321,6 +327,18 @@ pub async fn upsert_tenant_handler(
             },
             _ => ApiError::internal_error(e),
         })?;
+
+    // A tenant's writes record their function dispatches where its connections
+    // resolve the ledger (its own schema, in schema mode). Created before the tenant serves,
+    // or its first triggering write would fail on a missing table.
+    if records_dispatches {
+        executor.provision_dispatch_ledger().await.map_err(|e| {
+            ApiError::new(
+                format!("Function dispatch ledger (_fraiseql_function_dispatch) could not be created: {e}"),
+                "SERVICE_UNAVAILABLE",
+            )
+        })?;
+    }
 
     let was_insert = registry.upsert_with_quota(&key, executor, quota);
     // #633: measured now, so a tenant registered over its quota is refused its first write.

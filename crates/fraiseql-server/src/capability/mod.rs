@@ -174,7 +174,7 @@ pub static REGISTRY: &[Registration] = &[
         name: "functions",
         feature: "functions-runtime",
         compiled_sections: &[section("functions", SectionActivity::NonEmptyDefinitions)],
-        runtime_keys: &[],
+        runtime_keys: &["function_dispatch"],
         docs: Some("docs/architecture/functions.md"),
         maturity: Maturity::Stable,
         release: Release::Platform,

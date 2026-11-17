@@ -67,6 +67,9 @@ impl Server {
         // dispatch sweep can read the ledger settings without failing.
         #[cfg(feature = "inbound")]
         self.config.inbound_dispatch.settings().map_err(ServerError::ConfigError)?;
+        // The function-dispatch ledger's settings, refused here for the same reason.
+        #[cfg(feature = "functions-runtime")]
+        self.config.function_dispatch.settings().map_err(ServerError::ConfigError)?;
 
         // Every table a mounted route depends on, one ordered step per configured
         // subsystem, each under the migration lock.

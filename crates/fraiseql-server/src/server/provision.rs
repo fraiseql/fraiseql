@@ -74,6 +74,9 @@ fn target(pool: &sqlx::PgPool) -> (String, String, u16, Option<String>) {
     )
 }
 
+/// PostgreSQL's SQLSTATE for a privilege the role does not hold.
+const INSUFFICIENT_PRIVILEGE: &str = "42501";
+
 /// Run each step under the migration lock, in order.
 ///
 /// # Errors
@@ -84,7 +87,20 @@ pub(super) async fn run(steps: Vec<ProvisionStep>) -> Result<()> {
         crate::migration_lock::run_migrations(&step.pool, &step.scripts)
             .await
             .map_err(|e| {
-                ServerError::Database(format!("Failed to provision the {} schema: {e}", step.name))
+                // A role that may not create the step's tables is the operator's to fix, and
+                // what to grant is not in PostgreSQL's own message.
+                let hint = if e.as_database_error().and_then(|d| d.code()).as_deref()
+                    == Some(INSUFFICIENT_PRIVILEGE)
+                {
+                    ". The database role may not create it: grant it the CREATE privilege on \
+                     the schema the server provisions in"
+                } else {
+                    ""
+                };
+                ServerError::Database(format!(
+                    "Failed to provision the {} schema: {e}{hint}",
+                    step.name
+                ))
             })?;
         info!(step = step.name, scripts = step.scripts.len(), "Boot schema ready");
     }

@@ -196,6 +196,71 @@ impl ServiceAccountAuthenticator {
     }
 }
 
+/// Domain separator of a service account's credential fingerprint (#1628): the fingerprint
+/// is never equal to a hash computed for any other purpose.
+const CREDENTIAL_FINGERPRINT_DOMAIN: &[u8] =
+    b"fraiseql.service-account.credential-fingerprint.v1\0";
+
+impl ServiceAccountAuthenticator {
+    fn account_of(&self, principal: &SecurityContext) -> Option<&ResolvedServiceAccount> {
+        let name = principal.user_id.as_str().strip_prefix("service_account:")?;
+        self.accounts.iter().find(|account| account.name == name)
+    }
+
+    /// A fingerprint of the secret the account `principal` names is configured with now, to
+    /// tell later whether it was rotated (#1628). Derived from the secret's hash under a domain
+    /// separator: never the secret, nor a hash it is checked against. `None` when no such
+    /// account is configured.
+    #[must_use]
+    pub fn credential_fingerprint(&self, principal: &SecurityContext) -> Option<String> {
+        let account = self.account_of(principal)?;
+        let mut input = CREDENTIAL_FINGERPRINT_DOMAIN.to_vec();
+        input.extend_from_slice(&account.secret_hash);
+        Some(hex::encode(sha256_hash(&input)))
+    }
+
+    /// Whether the service account `principal` was minted for still stands as it was: the
+    /// account is configured, with the same ceiling and `static_enriched`, and the secret
+    /// `fingerprint` was taken from (#1628). Rotating an account's secret withdraws it.
+    ///
+    /// # Errors
+    ///
+    /// What changed, in words that name the account, not the secret.
+    pub fn still_grants(
+        &self,
+        principal: &SecurityContext,
+        fingerprint: Option<&str>,
+    ) -> Result<(), String> {
+        let name = principal.user_id.as_str();
+        let account = self
+            .account_of(principal)
+            .ok_or_else(|| format!("service account `{name}` is no longer configured"))?;
+        let now = build_context(account);
+        let same = now.roles == principal.roles
+            && now.scopes == principal.scopes
+            && now.tenant_id == principal.tenant_id
+            && enriched(&now) == enriched(principal);
+        if !same {
+            return Err(format!("service account `{name}` changed its ceiling"));
+        }
+        if fingerprint != self.credential_fingerprint(principal).as_deref() {
+            return Err(format!("service account `{name}` changed its credential"));
+        }
+        Ok(())
+    }
+}
+
+/// The server-injected `fraiseql.enriched.*` fields of `principal`.
+fn enriched(principal: &SecurityContext) -> Vec<(&String, &serde_json::Value)> {
+    let mut fields: Vec<_> = principal
+        .attributes
+        .iter()
+        .filter(|(key, _)| key.starts_with(ENRICHED_NAMESPACE_PREFIX))
+        .collect();
+    fields.sort_by(|a, b| a.0.cmp(b.0));
+    fields
+}
+
 /// Strip a leading `ApiKey ` / `Bearer ` scheme (case-insensitive) from a header value.
 /// The prefix is ASCII, so the byte slice that follows is on a char boundary.
 fn strip_scheme_prefix(raw: &str) -> &str {

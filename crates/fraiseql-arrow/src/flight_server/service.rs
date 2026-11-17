@@ -1671,6 +1671,7 @@ mod bulk_export_authz_tests {
             email:        None,
             display_name: None,
             extra_claims: std::collections::HashMap::new(),
+            provenance:   fraiseql_core::security::Provenance::BearerToken,
         };
         fraiseql_core::security::SecurityContext::from_user(&user, "req-1".to_string())
     }
@@ -1818,6 +1819,7 @@ mod bulk_export_document_tests {
             email:        None,
             display_name: None,
             extra_claims: std::collections::HashMap::new(),
+            provenance:   fraiseql_core::security::Provenance::BearerToken,
         };
         fraiseql_core::security::SecurityContext::from_user(&user, "req-1".to_string())
     }

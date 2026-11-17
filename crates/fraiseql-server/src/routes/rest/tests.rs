@@ -315,6 +315,7 @@ mod stream_decisions {
             email:        None,
             display_name: None,
             extra_claims: std::collections::HashMap::new(),
+            provenance:   fraiseql_core::security::Provenance::BearerToken,
         };
         let ctx = SecurityContext::from_user(&user, "req-1113".to_string());
         match tenant {

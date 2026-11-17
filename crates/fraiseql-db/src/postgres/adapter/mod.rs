@@ -3,6 +3,7 @@
 mod admin_sql;
 mod composed;
 mod database;
+mod dispatch_ledger;
 mod numeric;
 mod query_stats;
 mod relay;

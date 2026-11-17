@@ -1254,6 +1254,7 @@ mod idempotency_key_owner {
             email:        None,
             display_name: None,
             extra_claims: HashMap::new(),
+            provenance:   fraiseql_core::security::Provenance::BearerToken,
         }));
         send_request(router, request).await.0
     }
@@ -1328,6 +1329,7 @@ mod cache_visibility {
                 email:        None,
                 display_name: None,
                 extra_claims: HashMap::new(),
+                provenance:   fraiseql_core::security::Provenance::BearerToken,
             }));
         }
         let (status, headers, _) = send_request(&router, request).await;

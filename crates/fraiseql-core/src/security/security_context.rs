@@ -256,6 +256,9 @@ impl SecurityContext {
     /// the fail-closed case the engine refuses when the schema declares an
     /// enrichment consumer — see [`EnrichmentMark`].
     pub const ENRICHMENT_ATTRIBUTE: &'static str = "fraiseql.enrichment";
+    /// Attribute key recording the authenticator this principal came from (#1628). Set only
+    /// by the constructors; read by [`provenance`](Self::provenance).
+    pub const PROVENANCE_ATTRIBUTE: &'static str = "fraiseql.provenance";
     /// Attribute key under which the originating request's full W3C trace context
     /// is carried (a JSON object), used to populate the change-log `trace_context`
     /// JSONB column (#375).
@@ -316,6 +319,7 @@ impl SecurityContext {
         }
         .with_actor_type(actor_type)
         .with_acting_for(acting_for)
+        .with_provenance(user.provenance)
     }
 
     /// The principal a validated token names, as every transport builds it: [`from_user`],
@@ -392,7 +396,8 @@ impl SecurityContext {
             scopes,
             tenant,
             ActorType::SystemJob,
-        );
+        )
+        .with_provenance(crate::security::Provenance::SystemJob);
         // #1336: the server acting as itself has no subject a resolver could look
         // up, so it is exempt from the enrichment requirement — stated here, at the
         // one site that mints such a principal, rather than inferred downstream from
@@ -426,6 +431,7 @@ impl SecurityContext {
             tenant,
             ActorType::ServiceAccount,
         )
+        .with_provenance(crate::security::Provenance::ServiceAccount)
     }
 
     /// Shared body for a machine principal minted from a `run_as` ceiling. The authority
@@ -642,6 +648,24 @@ impl SecurityContext {
             Some(EnrichmentMark::EXEMPT) => Some(EnrichmentMark::Exempt),
             _ => None,
         }
+    }
+
+    /// The authenticator this principal came from, or `None` when none was recorded or the
+    /// value is not one this build knows: a principal of unknown provenance.
+    #[must_use]
+    pub fn provenance(&self) -> Option<crate::security::Provenance> {
+        self.attributes
+            .get(Self::PROVENANCE_ATTRIBUTE)
+            .and_then(serde_json::Value::as_str)
+            .and_then(crate::security::Provenance::parse)
+    }
+
+    fn with_provenance(mut self, provenance: crate::security::Provenance) -> Self {
+        self.attributes.insert(
+            Self::PROVENANCE_ATTRIBUTE.to_string(),
+            serde_json::Value::String(provenance.as_str().to_string()),
+        );
+        self
     }
 
     /// Record that this principal passed the enrichment seam.

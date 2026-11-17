@@ -981,6 +981,7 @@ mod principal_production {
             scopes:       Vec::new(),
             expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
             extra_claims: extra,
+            provenance:   fraiseql_core::security::Provenance::BearerToken,
         }
     }
 

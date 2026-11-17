@@ -261,9 +261,6 @@ async fn serve(scratch: &Path, database_url: &str, generation: u8) -> Served {
         .env("FRAISEQL_FUNCTIONS_RETRY_MAX_ATTEMPTS", "5")
         .env("FRAISEQL_FUNCTIONS_RETRY_INITIAL_DELAY_MS", "1500")
         .env("FRAISEQL_FUNCTIONS_RETRY_MAX_DELAY_MS", "60000")
-        // A dispatch's lease, and how often a server looks for one whose lease ran out.
-        .env("FRAISEQL_FUNCTIONS_DISPATCH_LEASE_SECS", "8")
-        .env("FRAISEQL_FUNCTIONS_DISPATCH_SWEEP_INTERVAL_SECS", "1")
         .env("RUST_LOG", "info")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -427,9 +424,13 @@ async fn serve_a_restart_child() {
         .with_writer(std::io::stderr)
         .try_init();
     let scratch = PathBuf::from(scratch);
-    let mut config: fraiseql_server::ServerConfig =
-        toml::from_str("cors_enabled = false\n[observers.runtime]\npoll_interval_ms = 200\n")
-            .unwrap();
+    let mut config: fraiseql_server::ServerConfig = toml::from_str(concat!(
+        "cors_enabled = false\n",
+        "[observers.runtime]\npoll_interval_ms = 200\n",
+        // A dispatch's lease, and how often a server looks for one whose lease ran out.
+        "[function_dispatch]\nlease_secs = 8\nsweep_interval_secs = 1\n",
+    ))
+    .unwrap();
     config.schema_path = scratch.join("schema.compiled.json");
     config.database_url = fraiseql_test_support::database_url();
     config.bind_addr = std::env::var("FRAISEQL_BIND_ADDR").unwrap().parse().unwrap();

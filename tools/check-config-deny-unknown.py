@@ -43,7 +43,7 @@ ROOT_STRUCT = "ServerConfig"
 
 # The discovered-struct count, asserted so the walk cannot quietly measure less.
 # Bump it deliberately, with the section that was added.
-EXPECTED_REACHABLE = 51  # -1: [auth_hs256] retired; [auth_issuer] (#1964) signs and validates first-party sessions
+EXPECTED_REACHABLE = 52  # +1: [function_dispatch] (#1628) leases and sweeps the function dispatch ledger
 
 # Types that are not config structs of ours.
 LEAF_TYPES = {

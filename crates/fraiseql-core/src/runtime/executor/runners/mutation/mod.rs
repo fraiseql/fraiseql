@@ -1394,7 +1394,8 @@ pub(in super::super) async fn execute_mutation_impl(
     )
     .await?;
     let parts = prepared.parts();
-    let request = parts.request(&prepared);
+    let sink = dispatch_sink(ctx);
+    let request = parts.request(&prepared).with_dispatch_ledger(sink.as_ref());
 
     // Every write commits only once it has been adjudicated (ruling Z 1): the
     // response is built from the row inside the write's transaction, and its
@@ -1423,7 +1424,11 @@ pub(in super::super) async fn execute_mutation_impl(
     // unchanged, whatever its variant.
     let built = std::sync::OnceLock::new();
     let gate = |rows: &[std::collections::HashMap<String, serde_json::Value>]| {
-        drop(built.set(prepared.adjudicate(rows)?));
+        let adjudicated = prepared.adjudicate(rows)?;
+        if let Some(sink) = sink.as_ref() {
+            prepared.stage_dispatches(writer, &adjudicated.0, sink)?;
+        }
+        drop(built.set(adjudicated));
         Ok(())
     };
     // The adapter returns the gate's error verbatim once the rollback has
@@ -1441,8 +1446,16 @@ pub(in super::super) async fn execute_mutation_impl(
         Err(error) => prepared.answer_violation(error).await?,
     };
 
-    after_commit(ctx, writer, prepared.mutation_def, mutation_name, security_ctx, &[&adjudicated])
-        .await?;
+    after_commit(
+        ctx,
+        writer,
+        prepared.mutation_def,
+        mutation_name,
+        security_ctx,
+        &[&adjudicated],
+        std::slice::from_ref(&sink),
+    )
+    .await?;
     Ok(prepared.execution(adjudicated))
 }
 
@@ -2228,6 +2241,35 @@ impl PreparedWrite<'_> {
         )
     }
 
+    /// Stage into `sink` the dispatches this call's adjudicated `outcome` calls for (#1628),
+    /// for the adapter to record in this attempt's transaction. A durable dispatch the
+    /// adapter cannot record refuses the write: it would be dispatched from memory only, and
+    /// lost to a crash.
+    fn stage_dispatches(
+        &self,
+        writer: &dyn crate::backend::Writer,
+        outcome: &MutationOutcome,
+        sink: &crate::backend::DispatchLedgerSink,
+    ) -> Result<()> {
+        let Some(observer) = self.ctx.config.after_mutation_observer.as_deref() else {
+            return Ok(());
+        };
+        let staged = with_committed(
+            self.ctx,
+            self.mutation_def,
+            self.mutation_name,
+            outcome,
+            self.security_ctx,
+            |mutation| observer.pending(mutation),
+        )
+        .unwrap_or_default();
+        if staged.iter().any(|dispatch| dispatch.durable) {
+            writer.dispatch_ledger()?;
+        }
+        sink.stage(staged);
+        Ok(())
+    }
+
     /// 5/6. Row → outcome → response, as one step, because all of it has to happen before
     /// the transaction commits (see [`execute_mutation_impl`]).
     fn adjudicate(
@@ -2388,6 +2430,54 @@ fn max_entities(ctx: &ExecutorContext) -> i32 {
     i32::try_from(ctx.config.cascade_limits.max_updated_entities).unwrap_or(i32::MAX)
 }
 
+/// What the after-mutation observer is told of one call: the committed view of a
+/// successful outcome, handed to `f`. `None` for an outcome that did not succeed, or whose
+/// produced type cannot be named.
+///
+/// The produced type is the stamp the gates validated, else the one type an unstamped
+/// success can be. An ambiguous unstamped success is refused, and rolled back, before the
+/// commit, so after a commit one of the two is always present.
+fn with_committed<R>(
+    ctx: &ExecutorContext,
+    mutation_def: &crate::schema::MutationDefinition,
+    mutation_name: &str,
+    envelope: &MutationOutcome,
+    security_ctx: Option<&SecurityContext>,
+    f: impl FnOnce(&crate::runtime::CommittedMutation<'_>) -> R,
+) -> Option<R> {
+    let MutationOutcome::Success {
+        entity,
+        entity_type,
+        entity_id,
+        ..
+    } = envelope
+    else {
+        return None;
+    };
+    let produced = entity_type
+        .clone()
+        .or_else(|| unstamped_type(&ctx.schema, &mutation_def.return_type, mutation_def.cascade))?;
+    Some(f(&crate::runtime::CommittedMutation {
+        mutation_name,
+        entity_type: &produced,
+        operation: &mutation_def.operation,
+        entity,
+        entity_id: entity_id.as_deref(),
+        security_ctx,
+        dispatch_depth: crate::runtime::current_dispatch_depth(),
+    }))
+}
+
+/// The sink a write call's dispatches are staged into, when the after-mutation observer
+/// records them (#1628).
+fn dispatch_sink(ctx: &ExecutorContext) -> Option<crate::backend::DispatchLedgerSink> {
+    ctx.config
+        .after_mutation_observer
+        .as_deref()
+        .and_then(crate::runtime::AfterMutationObserver::ledger_lease)
+        .map(crate::backend::DispatchLedgerSink::new)
+}
+
 /// What follows a commit follows only a commit (ruling AD 3), once for every call a
 /// transaction committed together: a dry run rolled back, so no fact table moved, no cached
 /// read is stale, and nothing was executed to audit.
@@ -2398,6 +2488,7 @@ async fn after_commit(
     mutation_name: &str,
     security_ctx: Option<&SecurityContext>,
     written: &[&Adjudicated],
+    sinks: &[Option<crate::backend::DispatchLedgerSink>],
 ) -> Result<()> {
     if ctx.config.dry_run_mutations {
         return Ok(());
@@ -2463,7 +2554,7 @@ async fn after_commit(
         ctx.adapter.invalidate_by_entity(etype, eid).await?;
     }
 
-    for (envelope, ..) in written.iter().copied() {
+    for (index, (envelope, ..)) in written.iter().copied().enumerate() {
         // 7. Emit structured mutation audit event when audit_mutations is enabled.
         //
         // This is the single chokepoint for all mutation paths (GraphQL handler,
@@ -2486,34 +2577,17 @@ async fn after_commit(
         //    every transport fires the same `after:mutation` work: this is the one place that knows
         //    the write committed and what it produced. A failure is `MutationOutcome::Error` even
         //    when it is served as union data, and a dry run committed nothing, so neither reaches
-        //    the observer. The row is the function's whole entity, not the client's selection.
-        if let (
-            Some(observer),
-            MutationOutcome::Success {
-                entity,
-                entity_type,
-                entity_id,
-                ..
-            },
-        ) = (ctx.config.after_mutation_observer.as_deref(), envelope)
-        {
-            // The produced type: the stamp the gates validated, else the one type an
-            // unstamped success can be. An ambiguous unstamped success was refused, and
-            // rolled back, before the commit, so one of the two is always present here.
-            let produced = entity_type.clone().or_else(|| {
-                unstamped_type(&ctx.schema, &mutation_def.return_type, mutation_def.cascade)
+        //    the observer. The row is the function's whole entity, not the client's selection. With
+        //    a ledger, the dispatches recorded in the transaction that committed are handed over
+        //    with it, so the observer runs exactly those and settles their rows.
+        if let Some(observer) = ctx.config.after_mutation_observer.as_deref() {
+            let sink = sinks.get(index).and_then(Option::as_ref);
+            with_committed(ctx, mutation_def, mutation_name, envelope, security_ctx, |mutation| {
+                match sink {
+                    Some(sink) => observer.on_recorded(mutation, sink.staged()),
+                    None => observer.on_committed(mutation),
+                }
             });
-            if let Some(produced) = produced {
-                observer.on_committed(&crate::runtime::CommittedMutation {
-                    mutation_name,
-                    entity_type: &produced,
-                    operation: &mutation_def.operation,
-                    entity,
-                    entity_id: entity_id.as_deref(),
-                    security_ctx,
-                    dispatch_depth: crate::runtime::current_dispatch_depth(),
-                });
-            }
         }
     }
     Ok(())
@@ -2558,8 +2632,14 @@ pub(in super::super) async fn execute_mutation_batch_impl(
         prepared.push(write);
     }
     let parts: Vec<WriteParts<'_>> = prepared.iter().map(PreparedWrite::parts).collect();
-    let requests: Vec<crate::backend::WriteRequest<'_>> =
-        parts.iter().zip(&prepared).map(|(parts, write)| parts.request(write)).collect();
+    let sinks: Vec<Option<crate::backend::DispatchLedgerSink>> =
+        std::iter::repeat_with(|| dispatch_sink(ctx)).take(count).collect();
+    let requests: Vec<crate::backend::WriteRequest<'_>> = parts
+        .iter()
+        .zip(&prepared)
+        .zip(&sinks)
+        .map(|((parts, write), sink)| parts.request(write).with_dispatch_ledger(sink.as_ref()))
+        .collect();
 
     // Every call commits only once it has been adjudicated, as a single write does; here a
     // failed outcome also refuses, because the batch cannot commit in part.
@@ -2570,6 +2650,11 @@ pub(in super::super) async fn execute_mutation_batch_impl(
             prepared[index].adjudicate(rows).map_err(|e| e.in_batch_item(index, count))?;
         if let Some(refused) = refused_item(index, count, mutation_name, &adjudicated.0) {
             return Err(refused);
+        }
+        if let Some(sink) = sinks[index].as_ref() {
+            prepared[index]
+                .stage_dispatches(writer, &adjudicated.0, sink)
+                .map_err(|e| e.in_batch_item(index, count))?;
         }
         drop(built[index].set(adjudicated));
         Ok(())
@@ -2589,8 +2674,16 @@ pub(in super::super) async fn execute_mutation_batch_impl(
 
     if let Some(first) = prepared.first() {
         let written: Vec<&Adjudicated> = built.iter().collect();
-        after_commit(ctx, writer, first.mutation_def, mutation_name, security_ctx, &written)
-            .await?;
+        after_commit(
+            ctx,
+            writer,
+            first.mutation_def,
+            mutation_name,
+            security_ctx,
+            &written,
+            &sinks,
+        )
+        .await?;
     }
     Ok(prepared
         .iter()

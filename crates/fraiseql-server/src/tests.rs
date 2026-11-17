@@ -926,6 +926,7 @@ mod extractors_tests {
             email:        None,
             display_name: None,
             extra_claims: std::collections::HashMap::new(),
+            provenance:   fraiseql_core::security::Provenance::BearerToken,
         });
 
         let mut headers = axum::http::HeaderMap::new();

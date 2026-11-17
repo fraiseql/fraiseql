@@ -190,6 +190,43 @@ invocation is dead-lettered so money- and send-path work is never silently lost.
 - **Fire-and-forget opt-out.** Set `re_runnable = true` on a function definition
   for re-runnable/idempotent work (e.g. LLM scoring): such dispatch stays
   fire-and-forget with no retry or dead-letter overhead.
+- **Surviving a restart: the dispatch ledger (#1628).** A durable `after:mutation`
+  dispatch is recorded in the write's own transaction, after the write passed every check
+  and before it commits: one `pending` row per function in `_fraiseql_function_dispatch`,
+  leased to the dispatch that runs after the commit. A write that does not commit records
+  nothing. An `after:capture` dispatch is recorded before the change-log reader moves past
+  the change; if it cannot be recorded, the reader does not move past it and reads it again.
+  A dispatch that ends deletes its row, and one that is dead-lettered keeps it as
+  `dead_lettered`, with its reason, until an operator removes it. A row still `pending` when
+  its lease runs out was lost (the process died or shut down mid-dispatch). The server's
+  sweep, which runs at startup and then on an interval, over the serving executor and every
+  active tenant's (`FOR UPDATE SKIP LOCKED`, so replicas share it), runs it again within
+  the tenant that recorded it.
+
+  So durable dispatch is **at-least-once**: a function runs once per write, or more than
+  once when a lease expires while a slow first run is still going, never zero times.
+  **Handlers must be idempotent.** A replay hands the function the idempotency token the
+  first run had. A `re_runnable` function records no row and is not replayed.
+
+  A replay acts for the caller whose write triggered it only while that caller could still
+  act: a bearer token that has not expired and still passes the revocation check, or a
+  service account that is still configured with the same roles, scopes, tenant,
+  `static_enriched` and secret. A dispatch whose caller fails this, or was authenticated in
+  any other way (an API key, for instance), is dead-lettered, and its reason names how the
+  caller was authenticated. A dispatch with no caller runs as the function's `run_as`
+  identity, as it did the first time.
+
+  ```toml
+  # server.toml
+  [function_dispatch]         # server configuration; these are the defaults
+  lease_secs = 300            # longer than a dispatch's own retries take, or a slow one runs twice
+  sweep_interval_secs = 30
+  batch_size = 100            # dispatches one sweep claims at most, per executor
+  ```
+
+  The table is created at boot when a function has an `after:mutation` or `after:capture`
+  trigger, and in each tenant's schema when the tenant is registered. Its `payload` and
+  `caller` columns hold row data and the caller's identity: treat it as sensitive.
 - **Configuration.** The retry policy round-trips per-function from the compiled
   schema (`FunctionDefinition.retry`); server-level defaults are overridable via
   `FRAISEQL_FUNCTIONS_RETRY_MAX_ATTEMPTS`,

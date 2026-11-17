@@ -1575,6 +1575,7 @@ async fn a_configured_rls_policy_is_the_one_a_grpc_read_applies() {
             scopes:       Vec::new(),
             expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
             extra_claims: std::collections::HashMap::new(),
+            provenance:   fraiseql_core::security::Provenance::BearerToken,
         },
         "req-1348".to_string(),
     );
@@ -1631,6 +1632,7 @@ async fn an_unconfigured_policy_is_not_invented_for_a_grpc_read() {
             scopes:       Vec::new(),
             expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
             extra_claims: std::collections::HashMap::new(),
+            provenance:   fraiseql_core::security::Provenance::BearerToken,
         },
         "req-1348".to_string(),
     );
@@ -1681,6 +1683,7 @@ fn p1348_principal() -> fraiseql_core::security::SecurityContext {
             scopes:       Vec::new(),
             expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
             extra_claims: std::collections::HashMap::new(),
+            provenance:   fraiseql_core::security::Provenance::BearerToken,
         },
         "req-1348".to_string(),
     )

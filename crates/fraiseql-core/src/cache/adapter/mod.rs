@@ -1377,4 +1377,9 @@ impl<A: Writer> Writer for CachedDatabaseAdapter<A> {
     async fn bump_fact_table_versions(&self, tables: &[String]) -> Result<()> {
         self.bump_fact_table_versions_impl(tables).await
     }
+
+    /// The wrapped adapter's ledger: the cache keeps none of its own, and must not hide one.
+    fn dispatch_ledger(&self) -> Result<&dyn crate::backend::DispatchLedger> {
+        self.adapter.dispatch_ledger()
+    }
 }

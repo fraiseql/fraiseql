@@ -174,6 +174,7 @@ use crate::{
 
 mod core;
 pub use core::Executor;
+mod dispatch_ledger;
 
 /// Projected response rows delivered as the database produces them (#958).
 ///

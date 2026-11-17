@@ -125,6 +125,7 @@ fn principal() -> SecurityContext {
         email:        None,
         display_name: None,
         extra_claims: HashMap::new(),
+        provenance:   fraiseql_core::security::Provenance::BearerToken,
     };
     SecurityContext::from_user(&user, "req-1".to_string())
 }

@@ -408,6 +408,8 @@ fn impersonated_session_vars(
         email: None,
         display_name: None,
         extra_claims,
+        // A preview of a principal, built by an operator, never authenticated.
+        provenance: fraiseql_core::security::Provenance::Impersonation,
     };
 
     // The same builder a validated token goes through, so the preview cannot resolve a

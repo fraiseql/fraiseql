@@ -21,6 +21,7 @@ fn create_test_user(user_id: &str, scopes: Vec<&str>) -> AuthenticatedUser {
         email:        None,
         display_name: None,
         extra_claims: std::collections::HashMap::new(),
+        provenance:   fraiseql_core::security::Provenance::BearerToken,
     }
 }
 

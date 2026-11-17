@@ -12,6 +12,26 @@ use super::{Server, ServerError};
 use crate::subsystems::loader::{SourceConnector, build_functions_subsystem};
 
 impl Server {
+    /// Whether a function this server was built with is triggered by a `kind` trigger.
+    pub(crate) fn has_function_trigger(
+        &self,
+        kind: impl Fn(&fraiseql_functions::triggers::ParsedTrigger) -> bool,
+    ) -> bool {
+        self.functions_config.as_ref().is_some_and(|functions| {
+            functions.definitions.iter().any(|definition| {
+                fraiseql_functions::triggers::ParsedTrigger::parse(&definition.trigger)
+                    .is_ok_and(|trigger| kind(&trigger))
+            })
+        })
+    }
+
+    /// Whether this server records its `after:mutation` and `after:capture` dispatches in
+    /// the dispatch ledger (#1628): it has a database, and a function with such a trigger.
+    /// Answers the same before and after the functions section is taken.
+    pub(crate) const fn records_function_dispatches(&self) -> bool {
+        self.db_pool.is_some() && self.dispatches_after_writes
+    }
+
     /// Prepare functions-runtime dispatch from the functions section this server
     /// was built with.
     ///

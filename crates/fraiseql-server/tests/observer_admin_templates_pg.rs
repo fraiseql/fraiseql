@@ -89,6 +89,7 @@ async fn rig() -> Rig {
         email:        None,
         display_name: None,
         extra_claims: HashMap::new(),
+        provenance:   fraiseql_core::security::Provenance::BearerToken,
     });
     let api = Router::new()
         .nest(

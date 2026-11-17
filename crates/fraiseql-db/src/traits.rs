@@ -7,6 +7,7 @@
 mod adapter_types;
 mod composed_read;
 mod decimal_text;
+mod dispatch_ledger;
 mod mutations;
 mod raw_rows;
 mod relay;
@@ -22,6 +23,11 @@ pub use composed_read::{
 pub use decimal_text::{
     DecimalFields, DecimalNode, DecimalShape, WriteColumn, WriteDecimals, quote_cascade_decimals,
     quote_composed_decimals, quote_decimals,
+};
+pub use dispatch_ledger::{
+    DispatchLedger, DispatchLedgerSink, DispatchSettlement, DueDispatch,
+    FUNCTION_DISPATCH_LEDGER_DDL, FUNCTION_DISPATCH_TABLE, PendingDispatch,
+    dispatch_ledger_unsupported,
 };
 use fraiseql_error::{FraiseQLError, Result};
 pub use mutations::{

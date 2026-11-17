@@ -224,6 +224,7 @@ fn principal(sub: &str, roles: &[&str]) -> AuthUser {
         email:        None,
         display_name: None,
         extra_claims: HashMap::from([("roles".to_string(), json!(roles))]),
+        provenance:   fraiseql_core::security::Provenance::BearerToken,
     })
 }
 

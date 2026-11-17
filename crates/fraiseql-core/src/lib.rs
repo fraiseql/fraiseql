@@ -139,6 +139,11 @@ pub mod db {
             self, ArcDatabaseAdapter, CursorValue, DatabaseAdapter, RelayCursor,
             RelayDatabaseAdapter, ResultCacheStats, TviewProfile, WriteMode, WriteRequest, Writer,
         },
+        // The function-dispatch ledger's values: what an after-mutation observer
+        // stages, and what the executor's sweep methods hand back; its DDL is what the
+        // server's provisioning step runs under the migration lock. The server reaches the
+        // ledger through the executor, not through an adapter.
+        traits::{DispatchSettlement, DueDispatch, FUNCTION_DISPATCH_LEDGER_DDL, PendingDispatch},
         types::{
             self, DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,
             sql_hints::{OrderByClause, RelevanceOrder, ScalarFieldType},

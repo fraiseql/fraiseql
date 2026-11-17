@@ -856,6 +856,7 @@ async fn an_authenticated_caller_cannot_select_another_tenant_by_header() {
                     "tenant_id".to_string(),
                     serde_json::json!("tenant_a"),
                 )]),
+                provenance:   fraiseql_core::security::Provenance::BearerToken,
             };
             request.extensions_mut().insert(AuthUser(user));
             request.extensions_mut().insert(TenantClaim(Arc::from("tenant_id")));

@@ -189,7 +189,8 @@ subscriptions — event-driven reconciliation instead of cron-polling. Declare a
 `after:capture:<Entity>[:<operation>]` trigger; the change-log reader dispatches it
 on the same durable / `re_runnable` / DLQ machinery as `after:mutation`, on the
 phase-02 I/O host (so the function can `fraiseql_query` back under its `run_as`
-ceiling).
+ceiling). Its dispatches are recorded in the same dispatch ledger before the reader moves
+past the change, so they run at least once (see `functions.md`, "Surviving a restart").
 
 - **Loop safety.** Dispatch keys on the captured-row discriminator
   `extra_metadata.cdc_source = "fallback_trigger"`: only genuinely-external writes

@@ -212,6 +212,20 @@ const MANIFEST: &[(&str, &str)] = &[
     ("storage_token", "storage admin token (Option)"),
     ("files", "file-serving config (Option)"),
     ("usage", "usage-metering config (Option)"),
+    // #1628: `[function_dispatch]`, the dispatch ledger's lease and sweep.
+    (
+        "function_dispatch.lease_secs",
+        "how long a recorded dispatch is leased: the after-write writer leases each row it \
+         records, and the sweep leases each one it claims (function_dispatch::sweep_executor)",
+    ),
+    (
+        "function_dispatch.sweep_interval_secs",
+        "the pause between sweeps (function_dispatch::run_sweeper)",
+    ),
+    (
+        "function_dispatch.batch_size",
+        "dispatches one sweep claims at most, per executor (function_dispatch::sweep_executor)",
+    ),
     ("tenancy*", "multi-tenant runtime config (tenancy.runtime.enabled)"),
     // #917: `[export]`, whose leaves are read by the REST transport. Before this phase
     // `ExportConfig` was never deserialized anywhere — every consumer built its own

@@ -381,7 +381,14 @@ pub struct ObserverRuntime {
 ///
 /// Dispatches `after:capture` functions; it owns the function hooks + the `run_as`
 /// query-executor factory, and is a no-op for non-captured (executor-written) rows.
-pub type CaptureDispatchFn = Arc<dyn Fn(&ObserverEntityEvent) + Send + Sync>;
+///
+/// It resolves once the event's dispatches are recorded in the dispatch ledger (#1628), and
+/// errs when they could not be: the reader then does not move past the event.
+pub type CaptureDispatchFn = Arc<
+    dyn Fn(&ObserverEntityEvent) -> futures::future::BoxFuture<'static, Result<(), String>>
+        + Send
+        + Sync,
+>;
 
 impl ObserverRuntime {
     /// Create a new observer runtime
@@ -877,6 +884,7 @@ impl ObserverRuntime {
 
                                 debug!("Processing batch of {} change log entries", entries.len());
 
+                                let mut unrecorded = None;
                                 for entry in &entries {
                                     // Convert ChangeLogEntry to EntityEvent
                                     let event = match entry.to_entity_event() {
@@ -906,8 +914,28 @@ impl ObserverRuntime {
                                     // no-op for executor-written (non-captured)
                                     // rows, so mediated writes never loop back.
                                     if let Some(ref dispatch) = capture_dispatch {
-                                        dispatch(&event);
+                                        if let Err(e) = dispatch(&event).await {
+                                            unrecorded = Some(e);
+                                            break;
+                                        }
                                     }
+                                }
+
+                                // A captured change whose function dispatches could
+                                // not be recorded is not moved past. Neither the ledger nor
+                                // the cursor records the batch, and the next pass resumes
+                                // from the stored checkpoint, as a takeover does, so the
+                                // change is read again: its dispatches are never lost.
+                                if let Some(e) = unrecorded {
+                                    errors.fetch_add(1, Ordering::Relaxed);
+                                    error!(
+                                        %listener_id,
+                                        "Could not record a captured change's function \
+                                         dispatches; re-reading from the last checkpoint: {e}"
+                                    );
+                                    polling = false;
+                                    tokio::time::sleep(poll_interval).await;
+                                    continue;
                                 }
 
                                 // Record the batch as dispatched (#935) BEFORE the

@@ -119,6 +119,22 @@ const RECORD_RECEIPT: &str = r"export default async (event) => {
 };
 ";
 
+/// Fails every time; with one attempt allowed, its dispatch dead-letters (#1628).
+const ALWAYS_FAILS: &str = r"export default async () => {
+  throw new Error('this function always fails, as the test needs it to');
+};
+";
+
+/// `schema`'s function-dispatch ledger: `(function_name, state)` per row.
+async fn ledger(pool: &PgPool, schema: &str) -> Vec<(String, String)> {
+    sqlx::query_as(&format!(
+        "SELECT function_name, state FROM {schema}._fraiseql_function_dispatch ORDER BY 1"
+    ))
+    .fetch_all(pool)
+    .await
+    .unwrap()
+}
+
 fn with_database(url: &str, db: &str) -> String {
     let (base, _old) = url.rsplit_once('/').expect("database URL has a path component");
     format!("{base}/{db}")
@@ -173,11 +189,15 @@ async fn an_anonymous_tenant_writes_function_runs_within_that_tenant() {
 
     let modules = tempfile::tempdir().unwrap();
     std::fs::write(modules.path().join("recordReceipt.ts"), RECORD_RECEIPT).unwrap();
+    std::fs::write(modules.path().join("alwaysFails.ts"), ALWAYS_FAILS).unwrap();
     let functions = serde_json::from_value(json!({
         "module_dir": modules.path(),
         "definitions": [{
             "name": "recordReceipt", "trigger": "after:mutation:Order", "runtime": "Deno",
             "run_as": { "roles": ["receipt_writer"] }
+        }, {
+            "name": "alwaysFails", "trigger": "after:mutation:Order", "runtime": "Deno",
+            "retry": { "max_attempts": 1 }
         }]
     }))
     .unwrap();
@@ -191,6 +211,7 @@ async fn an_anonymous_tenant_writes_function_runs_within_that_tenant() {
         ..ServerConfig::default()
     };
     config.tenancy.runtime.enabled = true;
+    config.function_dispatch.sweep_interval_secs = 1;
     let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.expect("adapter"));
     let server = Box::pin(Server::new(config, schema(), adapter, Some(pool.clone())))
         .await
@@ -271,9 +292,56 @@ async fn an_anonymous_tenant_writes_function_runs_within_that_tenant() {
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
 
+    // #1628: the failing function's dispatch dead-letters in the tenant's own ledger.
+    let mut tenant_ledger = Vec::new();
+    for _ in 0..150 {
+        tenant_ledger = ledger(&pool, &tenant_schema).await;
+        if tenant_ledger.iter().any(|(_, state)| state == "dead_lettered") {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let default_ledger = ledger(&pool, "public").await;
+
+    // A dispatch the tenant recorded and never settled (its process died) is replayed by the
+    // tenant's sweep, within the tenant: point the row at the receipt function and make it due.
+    sqlx::query(&format!(
+        "UPDATE {tenant_schema}._fraiseql_function_dispatch SET state = 'pending', \
+         reason = NULL, function_name = 'recordReceipt', lease_until = now()"
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+    let mut replayed = (Vec::new(), Vec::new(), Vec::new());
+    for _ in 0..150 {
+        replayed = (
+            receipts(&pool, &tenant_schema).await,
+            receipts(&pool, "public").await,
+            ledger(&pool, &tenant_schema).await,
+        );
+        if replayed.0.len() > 1 && replayed.2.is_empty() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
     let _ = stop.send(());
     let _ = handle.await;
     pool.close().await;
+
+    assert_eq!(
+        tenant_ledger,
+        [("alwaysFails".to_owned(), "dead_lettered".to_owned())],
+        "the tenant's dispatch is recorded in the tenant's schema, and settles there"
+    );
+    assert!(default_ledger.is_empty(), "nothing in the default's ledger: {default_ledger:?}");
+    assert_eq!(
+        replayed.0,
+        ["ANON-1", "ANON-1"],
+        "the tenant's sweep replayed its dispatch within the tenant: {replayed:?}"
+    );
+    assert!(replayed.1.is_empty(), "the replay wrote nothing to the default: {replayed:?}");
+    assert!(replayed.2.is_empty(), "the replayed dispatch settled: {replayed:?}");
 
     assert!(
         landed["default"].is_empty(),

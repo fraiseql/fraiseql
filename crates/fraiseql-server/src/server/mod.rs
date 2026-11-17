@@ -338,6 +338,12 @@ pub struct Server {
     #[cfg(feature = "functions-runtime")]
     pub(super) functions_config: Option<crate::schema::loader::FunctionsConfig>,
 
+    /// Whether a function runs after a mutation or a captured change (#1628), read when the
+    /// functions section is set: [`prepare_functions_runtime`](Self::prepare_functions_runtime)
+    /// takes that section, and the ledger's binding and sweep are decided after it does.
+    #[cfg(feature = "functions-runtime")]
+    pub(super) dispatches_after_writes: bool,
+
     /// Factory for building per-tenant executors at registration time.
     ///
     /// Set by the binary's PostgreSQL boot path (where the concrete adapter

@@ -200,6 +200,81 @@ fn a_bridge_write_is_not_dispatched() {
     assert!(observer.plans_for(&committed("Order", &update, &entity, 1)).is_empty());
 }
 
+/// D1 (#1628): a `run_as` job's principal is never stored to act again. Every write a
+/// `system_job` makes in this server goes through the query bridge at depth 1 (cron and
+/// sources, `query_bridge.rs`, pinned by `a_bridge_write_runs_at_dispatch_depth_one`), and a
+/// depth-1 write stages no dispatch, so no row carries one. A future caller that writes as a
+/// `system_job` at depth 0 reaches the replay's refusal instead
+/// (`a_caller_of_an_authenticator_a_replay_cannot_reverify_is_not_acted_for`).
+#[cfg(feature = "functions-runtime")]
+#[test]
+fn a_system_jobs_bridge_write_stages_no_dispatch() {
+    let hooks = Arc::new(hooks(&[("onOrder", "after:mutation:Order")], &["onOrder"]));
+    let observer = FunctionDispatchObserver::new(hooks);
+    let update = MutationOperation::Update {
+        table: "tb_order".to_string(),
+    };
+    let entity = json!({ "id": "o1" });
+    let job = fraiseql_core::security::SecurityContext::system_job(
+        "nightly",
+        "req-1",
+        vec!["writer".into()],
+        vec![],
+        None,
+    );
+    let mut write = committed("Order", &update, &entity, 1);
+    write.security_ctx = Some(&job);
+    assert!(observer.pending(&write).is_empty());
+
+    // The control: the same write at depth 0 stages its dispatch, with the job recorded.
+    write.dispatch_depth = 0;
+    let staged = observer.pending(&write);
+    assert_eq!(staged.len(), 1);
+    let caller = staged[0].caller.as_ref().expect("the job is recorded");
+    assert_eq!(caller["principal"]["attributes"]["fraiseql.provenance"], json!("system_job"));
+}
+
+/// #1628: a `re_runnable` function asks for one attempt and no record, so its dispatch is
+/// staged as not durable (the ledger skips it); every other function's is durable.
+#[cfg(feature = "functions-runtime")]
+#[test]
+fn a_re_runnable_functions_dispatch_is_staged_not_durable() {
+    let mut hooks = hooks(
+        &[
+            ("onOrder", "after:mutation:Order"),
+            ("scoreOrder", "after:mutation:Order"),
+        ],
+        &["onOrder", "scoreOrder"],
+    );
+    hooks.dispatch_settings.insert(
+        "scoreOrder".to_owned(),
+        FunctionDispatchSetting {
+            re_runnable: true,
+            ..FunctionDispatchSetting::default()
+        },
+    );
+    let observer = FunctionDispatchObserver::new(Arc::new(hooks));
+    let update = MutationOperation::Update {
+        table: "tb_order".to_string(),
+    };
+    let entity = json!({ "id": "o1" });
+
+    let mut staged: Vec<(String, bool)> = observer
+        .pending(&committed("Order", &update, &entity, 0))
+        .into_iter()
+        .map(|dispatch| (dispatch.function_name, dispatch.durable))
+        .collect();
+    staged.sort();
+
+    assert_eq!(
+        staged,
+        [
+            ("onOrder".to_owned(), true),
+            ("scoreOrder".to_owned(), false)
+        ]
+    );
+}
+
 // ── after:ingest planning ───────────────────────────────────────────────────
 
 #[test]

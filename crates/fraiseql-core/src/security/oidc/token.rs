@@ -543,6 +543,15 @@ impl OidcValidator {
         if let Some(iss) = claims.iss {
             extra_claims.insert("iss".to_string(), serde_json::Value::String(iss));
         }
+        // `jti` and `iat` likewise: a principal stored to act again later (a function
+        // dispatch run after a restart) is re-checked against revocation with them, by the
+        // rule the request path applies to the bearer itself.
+        if let Some(jti) = claims.jti {
+            extra_claims.insert("jti".to_string(), serde_json::Value::String(jti));
+        }
+        if let Some(iat) = claims.iat {
+            extra_claims.insert("iat".to_string(), serde_json::Value::from(iat));
+        }
 
         Ok(AuthenticatedUser {
             user_id,
@@ -551,6 +560,7 @@ impl OidcValidator {
             email,
             display_name,
             extra_claims,
+            provenance: crate::security::Provenance::BearerToken,
         })
     }
 

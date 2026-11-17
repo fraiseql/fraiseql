@@ -396,6 +396,14 @@ async fn run_functions_in_txn(
                 if let Err(refusal) = gate(index, &rows) {
                     return Err(Ended::Refused(refusal));
                 }
+                // The dispatches the gate staged for this call are recorded in this attempt's
+                // transaction: they commit with the write or not at all, and a retried
+                // attempt records what its own gate staged.
+                if let Some(sink) = requests[index].dispatch_ledger {
+                    super::dispatch_ledger::insert_pending(&*txn, &sink.staged(), sink.lease())
+                        .await
+                        .map_err(|e| Ended::Failed(index, at(index, e)))?;
+                }
                 results.push(rows);
             }
             Ok(results)
@@ -2200,5 +2208,9 @@ impl Writer for PostgresAdapter {
         gate: crate::traits::BatchRowGate<'_>,
     ) -> Result<Vec<Vec<std::collections::HashMap<String, serde_json::Value>>>> {
         run_functions_in_txn(self, requests, gate, true).await
+    }
+
+    fn dispatch_ledger(&self) -> Result<&dyn crate::traits::DispatchLedger> {
+        Ok(self)
     }
 }

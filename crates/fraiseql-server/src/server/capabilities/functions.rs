@@ -28,24 +28,31 @@ impl Capability for Functions {
         cx.app.before_mutation_hooks.is_some()
     }
 
-    /// `_fraiseql_cron_state`, the cross-restart fire guard, when a function is scheduled.
+    /// `_fraiseql_cron_state`, the cross-restart fire guard, when a function is scheduled;
+    /// `_fraiseql_function_dispatch`, the dispatch ledger (#1628), when one runs after a
+    /// mutation or a captured change.
     #[cfg(feature = "functions-runtime")]
     fn provision(&self, cx: &BootCx<'_>) -> Vec<ProvisionStep> {
         let server = cx.server;
-        let scheduled = server.functions_config.as_ref().is_some_and(|functions| {
-            functions.definitions.iter().any(|definition| {
-                fraiseql_functions::triggers::ParsedTrigger::parse(&definition.trigger)
-                    .is_ok_and(|trigger| trigger.is_cron())
-            })
-        });
-        match server.db_pool.as_ref() {
-            Some(pool) if scheduled => vec![ProvisionStep::new(
+        let Some(pool) = server.db_pool.as_ref() else {
+            return Vec::new();
+        };
+        let mut steps = Vec::new();
+        if server.has_function_trigger(fraiseql_functions::triggers::ParsedTrigger::is_cron) {
+            steps.push(ProvisionStep::new(
                 "cron state",
                 pool,
                 &[fraiseql_functions::migrations::cron_migration_sql()],
-            )],
-            _ => Vec::new(),
+            ));
         }
+        if server.records_function_dispatches() {
+            steps.push(ProvisionStep::new(
+                "function dispatch ledger (_fraiseql_function_dispatch)",
+                pool,
+                &[fraiseql_core::db::FUNCTION_DISPATCH_LEDGER_DDL],
+            ));
+        }
+        steps
     }
 
     /// Start the `cron:` scheduler: one leased poller per cron function in the compiled

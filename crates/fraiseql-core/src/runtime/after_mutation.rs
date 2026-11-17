@@ -26,7 +26,7 @@
 
 use std::{future::Future, sync::Arc};
 
-use crate::{schema::MutationOperation, security::SecurityContext};
+use crate::{backend::PendingDispatch, schema::MutationOperation, security::SecurityContext};
 
 /// A mutation that committed successfully, as the engine saw it.
 #[derive(Debug, Clone, Copy)]
@@ -82,6 +82,33 @@ pub struct CommittedMutation<'a> {
 pub trait AfterMutationObserver: Send + Sync {
     /// A mutation committed successfully.
     fn on_committed(&self, mutation: &CommittedMutation<'_>);
+
+    /// How long a dispatch this observer records is leased to the process about to run it,
+    /// or `None` when it records none (#1628). Provided: `None`.
+    ///
+    /// With `Some`, the commit gate asks [`pending`](Self::pending) for each successful
+    /// call's dispatches and the adapter records the durable ones in the write's own
+    /// transaction: they commit with the write or not at all.
+    fn ledger_lease(&self) -> Option<std::time::Duration> {
+        None
+    }
+
+    /// The dispatches `mutation` calls for, asked inside its transaction, before the
+    /// commit, on every attempt (#1628). Must be pure and cheap: the transaction is open.
+    /// Provided: none.
+    fn pending(&self, mutation: &CommittedMutation<'_>) -> Vec<PendingDispatch> {
+        let _ = mutation;
+        Vec::new()
+    }
+
+    /// A mutation committed with `staged` recorded alongside it: what
+    /// [`pending`](Self::pending) returned on the attempt that committed. Called instead of
+    /// [`on_committed`](Self::on_committed) when [`ledger_lease`](Self::ledger_lease) is
+    /// `Some`. Provided: [`on_committed`](Self::on_committed).
+    fn on_recorded(&self, mutation: &CommittedMutation<'_>, staged: Vec<PendingDispatch>) {
+        let _ = staged;
+        self.on_committed(mutation);
+    }
 
     /// This observer as installed on the executor serving `tenant`, or `None` to install it
     /// unchanged.

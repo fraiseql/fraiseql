@@ -1764,7 +1764,10 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// (`fraiseql_test_support::postgres()`, `try_database_url()`) and the only
 		// leg compiling them was the service-less workspace run, where every
 		// DB-backed case returned early and read exactly like a pass.
-		"cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: server::after_mutation_wiring_tests:: server::functions_setup:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: --test-threads=1",
+		// `function_dispatch::` and `server::provision_tests::` joined in #1628:
+		// the dispatch ledger's caller replay and its boot provisioning are
+		// functions-runtime-gated, and no other `--lib` line compiled them.
+		"cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: server::after_mutation_wiring_tests:: server::functions_setup:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: function_dispatch:: server::provision_tests:: --test-threads=1",
 		// The entry-point parity and `/health` capability suites boot a server with the
 		// observer runtime and Flight, through a skip-clean `postgres()` getter. The
 		// `Test` leg compiles them with no database, where they returned early and read
@@ -2428,6 +2431,9 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// was killed runs again after a restart, with its token, exactly once more. Each test
 		// re-executes this binary as its server process (one V8 isolate each) → serial.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test function_dispatch_restart_e2e_pg -- --test-threads=1",
+		// #1628: a role that may not create the dispatch ledger stops the boot, and the error
+		// names the table and the CREATE privilege. Owns a scratch database and role → serial.
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test function_dispatch_boot_pg -- --test-threads=1",
 		// pipeline_e2e is env-gated (FRAISEQL_PIPELINE_E2E); it compiles a schema and drives a server.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test pipeline_e2e_test -- --test-threads=1",
 		// P18 verification gate (PG half): the FULL subscription delivery path —

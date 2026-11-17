@@ -276,6 +276,7 @@ fn build_security_context(key_name: &str, scopes: &[String]) -> SecurityContext 
         email:        None,
         display_name: None,
         extra_claims: std::collections::HashMap::new(),
+        provenance:   fraiseql_core::security::Provenance::ApiKey,
     };
     // An API key is a non-human credential: classify it ServiceAccount explicitly
     // (compile-checked) rather than relying on a token marker (#390).

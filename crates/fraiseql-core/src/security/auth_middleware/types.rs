@@ -44,6 +44,10 @@ pub struct AuthenticatedUser {
     /// claims (e.g. `"email"`, `"tenant_id"`, namespaced claims) to the
     /// frontend without requiring client-side script to touch the `HttpOnly` cookie.
     pub extra_claims: HashMap<String, serde_json::Value>,
+
+    /// The authenticator that produced this user (#1628): what a principal stored to act
+    /// again later is re-verified by. Stated by every producer, never defaulted.
+    pub provenance: crate::security::Provenance,
 }
 
 impl fmt::Display for AuthenticatedUser {

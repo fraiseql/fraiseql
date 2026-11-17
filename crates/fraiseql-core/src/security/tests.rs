@@ -2836,6 +2836,7 @@ mod actor_context_tests {
             email:        None,
             display_name: None,
             extra_claims: extra,
+            provenance:   crate::security::Provenance::BearerToken,
         }
     }
 
@@ -3018,6 +3019,7 @@ mod issuer_tests {
             email:        None,
             display_name: None,
             extra_claims: extra,
+            provenance:   crate::security::Provenance::BearerToken,
         }
     }
 
@@ -3068,6 +3070,7 @@ mod scope_grant_tests {
             email:        None,
             display_name: None,
             extra_claims: HashMap::new(),
+            provenance:   crate::security::Provenance::BearerToken,
         }
     }
 

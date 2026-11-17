@@ -74,6 +74,8 @@ pub(super) fn of_runtime_key(key: &str) -> Option<Value> {
         "webhooks" => {
             Some(of::<std::collections::HashMap<String, crate::config::WebhookRouteConfig>>())
         },
+        #[cfg(feature = "functions-runtime")]
+        "function_dispatch" => Some(of::<crate::server_config::FunctionDispatchConfig>()),
         #[cfg(feature = "inbound")]
         "inbound_dispatch" => Some(of::<crate::server_config::InboundDispatchConfig>()),
         #[cfg(feature = "inbound-email")]

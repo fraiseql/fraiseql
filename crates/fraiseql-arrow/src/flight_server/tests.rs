@@ -612,6 +612,7 @@ mod identity_enrichment {
                 scopes:       Vec::new(),
                 expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
                 extra_claims: std::collections::HashMap::new(),
+                provenance:   fraiseql_core::security::Provenance::BearerToken,
             },
             "req-1349".to_string(),
         )
@@ -749,6 +750,7 @@ mod principal_parity {
             ]
             .into_iter()
             .collect(),
+            provenance:   fraiseql_core::security::Provenance::BearerToken,
         }
     }
 
@@ -823,7 +825,15 @@ mod principal_parity {
         assert_eq!(flight.tenant_id, graphql.tenant_id);
         assert_eq!(flight.roles, graphql.roles);
         assert_eq!(flight.scopes, graphql.scopes);
-        assert_eq!(flight.attributes, graphql.attributes);
+        // The same attributes but one: the authenticator each principal came from (#1628).
+        let without_provenance = |principal: &SecurityContext| {
+            let mut attributes = principal.attributes.clone();
+            attributes.remove(SecurityContext::PROVENANCE_ATTRIBUTE);
+            attributes
+        };
+        assert_eq!(without_provenance(&flight), without_provenance(&graphql));
+        assert_eq!(flight.provenance(), Some(fraiseql_core::security::Provenance::FlightSession));
+        assert_eq!(graphql.provenance(), Some(fraiseql_core::security::Provenance::BearerToken));
         assert_eq!(flight.actor_type(), graphql.actor_type());
         assert!(flight.tenant_id.is_some(), "the token's tenant, not none");
     }

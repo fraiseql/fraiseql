@@ -4,7 +4,10 @@
 use async_trait::async_trait;
 use fraiseql_error::{FraiseQLError, Result};
 
-use super::{BatchRowGate, ChangeLogWrite, DatabaseAdapter, MutationRowGate};
+use super::{
+    BatchRowGate, ChangeLogWrite, DatabaseAdapter, DispatchLedger, DispatchLedgerSink,
+    MutationRowGate, dispatch_ledger_unsupported,
+};
 
 /// Whether a write commits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -229,6 +232,9 @@ pub struct WriteRequest<'a> {
     /// Where the response row's documents hold a `Decimal`, read as its digits; `None`:
     /// decoded as JSON numbers.
     pub decimals:        Option<&'a super::WriteDecimals>,
+    /// The function dispatches the commit gate stages for this call, recorded in the same
+    /// transaction once the gate passes (#1628). `None`: the write records none.
+    pub dispatch_ledger: Option<&'a DispatchLedgerSink>,
 }
 
 impl<'a> WriteRequest<'a> {
@@ -244,7 +250,16 @@ impl<'a> WriteRequest<'a> {
             derived_cascade: None,
             report_changes: None,
             decimals: None,
+            dispatch_ledger: None,
         }
+    }
+
+    /// Recording the dispatches `sink` holds once the gate passes, in this call's transaction
+    /// (#1628).
+    #[must_use]
+    pub const fn with_dispatch_ledger(mut self, sink: Option<&'a DispatchLedgerSink>) -> Self {
+        self.dispatch_ledger = sink;
+        self
     }
 
     /// Reading the response row's `Decimal`s as `decimals` places them.
@@ -314,9 +329,12 @@ impl<'a> WriteRequest<'a> {
 /// In ONE transaction: apply `session_vars` transaction-locally, run the function (and write
 /// the change-log outbox row when `changelog` is `Some`), call `gate` on the rows it returned
 /// **before** the transaction ends, then roll back and return the gate's error verbatim if it
-/// errs; otherwise commit in [`WriteMode::Commit`] and roll back in [`WriteMode::DryRun`], and
-/// return the rows. An adapter that cannot hold a transaction open for the gate must not
-/// implement this trait: it stays read-only.
+/// errs; otherwise insert the durable dispatches the request's
+/// [`dispatch_ledger`](WriteRequest::dispatch_ledger) sink then holds, in the same transaction
+/// (an adapter that cannot must refuse such a request, never drop the rows), and commit in
+/// [`WriteMode::Commit`] and roll back in [`WriteMode::DryRun`], and return the rows. An adapter
+/// that cannot hold a transaction open for the gate must not implement this trait: it stays
+/// read-only.
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 pub trait Writer: DatabaseAdapter {
@@ -356,6 +374,18 @@ pub trait Writer: DatabaseAdapter {
             message: "this database adapter cannot run a batch of writes in one transaction"
                 .to_string(),
         })
+    }
+
+    /// The function-dispatch ledger this adapter records into (#1628).
+    ///
+    /// Provided: refuses, naming the missing support. An adapter in front of another one
+    /// forwards it, or the ledger is lost behind it.
+    ///
+    /// # Errors
+    ///
+    /// [`FraiseQLError::Unsupported`] unless the adapter keeps a ledger.
+    fn dispatch_ledger(&self) -> Result<&dyn DispatchLedger> {
+        Err(dispatch_ledger_unsupported())
     }
 
     /// Bump the version counters of `tables` after a committed write that changed them, so

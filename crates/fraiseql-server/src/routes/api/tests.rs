@@ -977,6 +977,7 @@ mod schema_identity_tests {
                 scopes:       Vec::new(),
                 expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
                 extra_claims: std::collections::HashMap::new(),
+                provenance:   fraiseql_core::security::Provenance::BearerToken,
             })))
     }
 

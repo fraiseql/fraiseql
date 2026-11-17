@@ -35,6 +35,7 @@ fn admin(tenant: Option<Value>) -> AuthenticatedUser {
         email: None,
         display_name: None,
         extra_claims,
+        provenance: fraiseql_core::security::Provenance::BearerToken,
     }
 }
 

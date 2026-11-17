@@ -114,7 +114,35 @@ disagreed, and the promise was the part that was wrong.
   entry under Fixed. `FieldDefinition::jsonb_key()` is removed; `stored_key()` answers which
   key a stored entity holds for a field.
 
+- **`AuthenticatedUser` has a `provenance` field (#1628).** It records which authenticator
+  produced the user (`fraiseql_core::security::Provenance`) and has no default: code that
+  builds an `AuthenticatedUser` with a struct literal sets it (`Provenance::BearerToken` for a
+  token an OIDC validator verified). `SecurityContext::provenance()` reads it back.
+
+- **A server with an `after:mutation` or `after:capture` function creates
+  `_fraiseql_function_dispatch` at boot (#1628).** A deployment whose database role may not
+  create tables in the schema the server provisions in stops booting at the upgrade. The
+  error names the table and the missing CREATE privilege: grant the role CREATE on that
+  schema, or create the table beforehand with the DDL the server runs
+  (`fraiseql_core::db::FUNCTION_DISPATCH_LEDGER_DDL`). Tenants registered at runtime create
+  it in their own schema the same way.
+
 ### Added
+
+- **`after:mutation` and `after:capture` dispatch is at-least-once: the function dispatch
+  ledger (#1628).** A durable dispatch is recorded in the write's own transaction
+  (`_fraiseql_function_dispatch`, created at boot and in each tenant's schema), and the
+  change-log reader does not move past a captured change until its dispatches are recorded.
+  A dispatch that ends deletes its row; a dead-lettered one keeps it, with its reason. One
+  that a crash or a shutdown left `pending` is run again once its lease runs out, with the
+  idempotency token of its first run, by a sweep the server runs at startup and on an
+  interval over every active tenant; handlers must be idempotent. A replay acts for the
+  original caller only while its bearer token is unexpired and still passes the revocation
+  check, or its service account is configured unchanged, secret included; otherwise the
+  dispatch is dead-lettered with a reason naming how the caller was authenticated.
+  `[function_dispatch]` sets `lease_secs` (300), `sweep_interval_secs` (30) and `batch_size`
+  (100). Before this, a dispatch still running or retrying when the process died was lost.
+  See `docs/architecture/functions.md`.
 
 - **A `fraiseql.toml` beside a `schema.json` takes the runtime sections a TOML schema takes
   (#1719).** `[mcp]`, `[rest]`, `[grpc]`, `[debug]`, `[validation]`, `[subscriptions]`,

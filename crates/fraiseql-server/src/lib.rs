@@ -62,6 +62,8 @@ pub mod error;
 pub mod extractors;
 #[cfg(feature = "federation")]
 pub mod federation;
+#[cfg(feature = "functions-runtime")]
+pub mod function_dispatch;
 /// Prometheus metrics for function-trigger dispatch (#598) — the sibling of
 /// [`sources::metrics`](crate::sources).
 ///

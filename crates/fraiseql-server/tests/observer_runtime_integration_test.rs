@@ -2241,3 +2241,82 @@ async fn test_nats_event_of_a_runtime_that_died_mid_dispatch_is_redelivered() {
 
     assert_eq!(requests, 2, "the event must be redelivered to the surviving runtime");
 }
+
+/// #1628: a captured change whose `after:capture` dispatches could not be recorded is not
+/// moved past. The capture hook fails the first time it is handed the change; the cursor must
+/// still stand before it when the change is handed over again, and move past it once the
+/// hook succeeds.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_change_whose_dispatches_could_not_be_recorded_is_read_again() {
+    use std::sync::{Arc, Mutex};
+
+    init_test_tracing();
+    let test_id = Uuid::new_v4().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("Failed to setup schema");
+    sqlx::query("DELETE FROM core.observer_checkpoints")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let entity_type = format!("Captured_{test_id}");
+
+    // Each hand-over: the cursor as it stood then. The first one fails.
+    let handed: Arc<Mutex<Vec<i64>>> = Arc::default();
+    let config = ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(50);
+    let mut runtime = ObserverRuntime::new(config);
+    let (seen, hook_pool, watched) = (Arc::clone(&handed), pool.clone(), entity_type.clone());
+    runtime.set_capture_dispatch(Arc::new(move |event| {
+        let (seen, pool) = (Arc::clone(&seen), hook_pool.clone());
+        let ours = event.entity_type == watched;
+        Box::pin(async move {
+            if !ours {
+                return Ok(());
+            }
+            let cursor = get_checkpoint_value(&pool, "change_log").await.unwrap();
+            let mut seen = seen.lock().unwrap();
+            seen.push(cursor);
+            if seen.len() == 1 {
+                Err("the ledger could not record it".to_owned())
+            } else {
+                Ok(())
+            }
+        })
+    }));
+    runtime.start().await.expect("Failed to start runtime");
+
+    let entity_id = Uuid::new_v4();
+    let change = insert_change_log_entry(
+        &pool,
+        "INSERT",
+        &entity_type,
+        &entity_id.to_string(),
+        serde_json::json!({ "id": entity_id.to_string() }),
+        None,
+    )
+    .await
+    .expect("Failed to insert change log entry");
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(20);
+    let mut cursor = 0;
+    while tokio::time::Instant::now() < deadline {
+        cursor = get_checkpoint_value(&pool, "change_log").await.unwrap();
+        if handed.lock().unwrap().len() >= 2 && cursor >= change {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    runtime.stop().await.expect("Failed to stop runtime");
+
+    let handed = handed.lock().unwrap().clone();
+    assert!(
+        handed.len() >= 2,
+        "the change was handed over again after the failure: {handed:?}"
+    );
+    assert!(
+        handed[1] < change,
+        "the cursor did not move past the change its failed record left unrecorded: {handed:?}"
+    );
+    assert!(cursor >= change, "the cursor moved past it once recorded: {cursor} < {change}");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
+}

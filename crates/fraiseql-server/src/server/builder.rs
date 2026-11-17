@@ -1197,6 +1197,8 @@ impl Server {
             after_mutation_observer: None,
             #[cfg(feature = "functions-runtime")]
             functions_config: None,
+            #[cfg(feature = "functions-runtime")]
+            dispatches_after_writes: false,
             tenant_executor_factory: None,
             #[cfg(feature = "rest")]
             rest_router_builder: None,
@@ -1413,6 +1415,8 @@ impl Server {
         self.spawn_async_operation_workers(state);
         #[cfg(feature = "inbound")]
         self.spawn_inbound_dispatch_sweep(state);
+        #[cfg(feature = "functions-runtime")]
+        self.spawn_function_dispatch_sweep(state);
         self.spawn_storage_quota_sweep(state);
         #[cfg(feature = "auth")]
         self.spawn_signing_key_tick();
@@ -1513,6 +1517,40 @@ impl Server {
             lease_secs = settings.lease.as_secs(),
             sweep_interval_secs = settings.sweep_interval.as_secs(),
             "after:ingest dispatch sweep started"
+        );
+    }
+
+    /// Start the `after:mutation` / `after:capture` dispatch-ledger sweep (#1628) on the
+    /// server's [`JoinSet`](tokio::task::JoinSet): once now (the startup scan), then on its
+    /// interval, over the serving executor and every active tenant's. It re-runs every
+    /// recorded dispatch whose lease ran out before it settled, which is what makes those
+    /// dispatches at-least-once. A no-op unless the server records them.
+    #[cfg(feature = "functions-runtime")]
+    fn spawn_function_dispatch_sweep(&mut self, state: &crate::routes::graphql::AppState) {
+        let Some(hooks) = state.before_mutation_hooks.clone() else {
+            return;
+        };
+        if !self.records_function_dispatches() {
+            return;
+        }
+        // Validated in `provision_persistent_schemas`, which every entry point runs first.
+        let Ok(settings) = self.config.function_dispatch.settings() else {
+            return;
+        };
+        self.tasks.spawn(crate::function_dispatch::run_sweeper(
+            crate::query_bridge::ExecutorSource::of(state),
+            crate::function_dispatch::Replay {
+                hooks,
+                // D1: a stored caller is re-verified by its authenticator's rule.
+                revocation: state.revocation_manager.clone(),
+                service_accounts: state.service_account_authenticator.clone(),
+            },
+            settings,
+        ));
+        tracing::info!(
+            lease_secs = settings.lease.as_secs(),
+            sweep_interval_secs = settings.sweep_interval.as_secs(),
+            "function dispatch sweep started"
         );
     }
 
@@ -2022,6 +2060,13 @@ impl Server {
         functions: Option<crate::schema::loader::FunctionsConfig>,
     ) -> Self {
         self.functions_config = functions;
+        self.dispatches_after_writes = self.has_function_trigger(|trigger| {
+            matches!(
+                trigger,
+                fraiseql_functions::triggers::ParsedTrigger::AfterMutation { .. }
+                    | fraiseql_functions::triggers::ParsedTrigger::AfterCapture { .. }
+            )
+        });
         self
     }
 

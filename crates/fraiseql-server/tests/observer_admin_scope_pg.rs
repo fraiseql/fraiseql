@@ -92,6 +92,7 @@ fn auth_user(caller: Caller) -> AuthUser {
         email: None,
         display_name: None,
         extra_claims,
+        provenance: fraiseql_core::security::Provenance::BearerToken,
     })
 }
 

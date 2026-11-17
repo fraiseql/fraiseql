@@ -639,6 +639,7 @@ mod revocation_tests {
             email:        None,
             display_name: None,
             extra_claims: HashMap::new(),
+            provenance:   fraiseql_core::security::Provenance::BearerToken,
         }
     }
 

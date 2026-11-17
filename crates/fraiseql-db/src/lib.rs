@@ -92,10 +92,12 @@ pub use traits::{
     CHANGED_ROWS_KEY, COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ChangeLogWrite,
     ChangedCollections, ChangedRows, ColumnRowStream, Compacted, ComposedEmbed, ComposedKeyset,
     ComposedLevel, ConstraintDescription, CursorValue, DERIVED_CASCADE_KEY, DatabaseAdapter,
-    DerivedCascade, EmbedShape, EmbedSource, JsonTally, JsonbRowStream, LevelKeys, MutationRowGate,
-    NativeCorrelation, ProjectionRequest, RawRow, RawRows, RelayCursor, RelayDatabaseAdapter,
-    RelayPageResult, ResultCacheStats, TviewProfile, WriteMode, WriteRequest, Writer, compact_json,
-    composed_read_unsupported,
+    DerivedCascade, DispatchLedger, DispatchLedgerSink, DispatchSettlement, DueDispatch,
+    EmbedShape, EmbedSource, FUNCTION_DISPATCH_LEDGER_DDL, FUNCTION_DISPATCH_TABLE, JsonTally,
+    JsonbRowStream, LevelKeys, MutationRowGate, NativeCorrelation, PendingDispatch,
+    ProjectionRequest, RawRow, RawRows, RelayCursor, RelayDatabaseAdapter, RelayPageResult,
+    ResultCacheStats, TviewProfile, WriteMode, WriteRequest, Writer, compact_json,
+    composed_read_unsupported, dispatch_ledger_unsupported,
 };
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,

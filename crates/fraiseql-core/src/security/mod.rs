@@ -30,6 +30,7 @@ pub mod introspection_enforcer;
 pub mod kms;
 pub mod mutation_gate;
 pub mod oidc;
+pub mod provenance;
 pub mod query_validator;
 pub mod request_budget;
 pub mod response_budget;
@@ -75,6 +76,7 @@ pub use kms::{
 };
 pub use mutation_gate::{BeforeMutationGate, BeforeMutationOutcome, BeforeMutationRequest};
 pub use oidc::{OidcConfig, OidcValidator};
+pub use provenance::Provenance;
 pub use query_validator::{QueryValidator, QueryValidatorConfig};
 pub use request_budget::{CostBudget, RequestBudget};
 pub use response_budget::{ResponseBudget, column_bytes, json_bytes};

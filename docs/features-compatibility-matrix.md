@@ -34,7 +34,7 @@ own requests.
 <!-- capabilities:begin -->
 | Capability | Feature | Maturity | Published in | Started by | Config keys | Compiled-schema sections | Docs |
 |---|---|---|---|---|---|---|---|
-| `functions` | `functions-runtime` | stable | `-platform` | binary, `fraiseql run`, listener, MCP stdio | — | `functions` | [architecture/functions.md](architecture/functions.md) |
+| `functions` | `functions-runtime` | stable | `-platform` | binary, `fraiseql run`, listener, MCP stdio | `function_dispatch` | `functions` | [architecture/functions.md](architecture/functions.md) |
 | `sources` | `sources` | stable | `-platform` | binary, `fraiseql run`, listener | `sources` | `sources` | [architecture/sources.md](architecture/sources.md) |
 | `mcp` | `mcp` | stable | `-platform` | binary, `fraiseql run`, listener, MCP stdio | — | `mcp_config` | [mcp.md](mcp.md) |
 | `rest` | `rest` | stable | `-full`, `-platform` | binary, `fraiseql run`, listener | `export` | `rest_config` | [architecture/rest.md](architecture/rest.md) |

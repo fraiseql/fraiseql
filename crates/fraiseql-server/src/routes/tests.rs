@@ -48,6 +48,7 @@ mod auth_tests {
             email:        None,
             display_name: None,
             extra_claims: extra,
+            provenance:   fraiseql_core::security::Provenance::BearerToken,
         })
     }
 
@@ -64,6 +65,7 @@ mod auth_tests {
             email:        email.map(str::to_owned),
             display_name: display_name.map(str::to_owned),
             extra_claims: extra,
+            provenance:   fraiseql_core::security::Provenance::BearerToken,
         })
     }
 
@@ -459,6 +461,7 @@ mod revoke_tests {
             email:        None,
             display_name: None,
             extra_claims: std::collections::HashMap::new(),
+            provenance:   fraiseql_core::security::Provenance::BearerToken,
         })
     }
 

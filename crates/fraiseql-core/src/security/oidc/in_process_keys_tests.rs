@@ -361,3 +361,20 @@ async fn the_operators_refresh_and_invalidate_reach_the_held_issuer_too() {
     assert_eq!(keys.refreshes.load(Ordering::SeqCst), 1);
     assert_eq!(keys.invalidations.load(Ordering::SeqCst), 1);
 }
+
+/// #1628: the validator hands on what a later revocation check needs (`jti`, `iat`) and
+/// records that the user came from a bearer token.
+#[tokio::test]
+async fn a_validated_user_carries_its_tokens_jti_and_iat_and_bearer_provenance() {
+    let issuer = TestIssuer::start().await;
+    let validator =
+        OidcValidator::from_issuer_keys(held_issuer_config(&issuer), HeldKeys::of(&issuer))
+            .unwrap();
+    let claims = issuer.claims();
+
+    let user = validator.validate_token(&issuer.mint(&claims)).await.unwrap();
+
+    assert_eq!(user.extra_claims.get("jti"), claims.get("jti"));
+    assert_eq!(user.extra_claims.get("iat"), claims.get("iat"));
+    assert_eq!(user.provenance, crate::security::Provenance::BearerToken);
+}

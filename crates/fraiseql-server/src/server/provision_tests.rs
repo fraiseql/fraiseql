@@ -378,3 +378,75 @@ async fn each_configured_capability_plans_its_own_tables() {
         );
     }
 }
+
+/// #1628: a function triggered after a write or a captured change needs the dispatch ledger,
+/// and the server still knows it once the functions runtime has taken its section (the first
+/// thing `prepare_functions_runtime` does): the boot provisions the ledger, and the sweep
+/// starts, after that step ran.
+#[cfg(feature = "functions-runtime")]
+#[tokio::test]
+async fn an_after_write_function_provisions_the_dispatch_ledger_and_keeps_it_after_the_runtime_loads()
+ {
+    for trigger in ["after:mutation:Order", "after:capture:Order"] {
+        let modules = tempfile::tempdir().unwrap();
+        std::fs::write(modules.path().join("onOrder.wasm"), b"\0asm\x01\0\0\0").unwrap();
+        let functions: crate::schema::loader::FunctionsConfig =
+            serde_json::from_value(serde_json::json!({
+                "module_dir": modules.path(),
+                "definitions": [{ "name": "onOrder", "trigger": trigger, "runtime": "Wasm" }]
+            }))
+            .unwrap();
+        let mut server =
+            server_over(CompiledSchema::new()).await.with_functions_config(Some(functions));
+        let ledger = (
+            "function dispatch ledger (_fraiseql_function_dispatch)",
+            vec![fraiseql_core::db::FUNCTION_DISPATCH_LEDGER_DDL],
+        );
+        assert_eq!(planned(&server), vec![ledger.clone()], "{trigger}");
+
+        let taken = server.functions_config.take();
+        assert!(taken.is_some(), "{trigger}: the section was there to take");
+
+        assert!(server.records_function_dispatches(), "{trigger}: the sweep still starts");
+        assert_eq!(planned(&server), vec![ledger], "{trigger}: still provisioned");
+    }
+}
+
+/// #1628: no `after:` function, no ledger: a deployment that never dispatches after a write
+/// boots without the table and starts no sweep. A server without a database records nothing.
+#[cfg(feature = "functions-runtime")]
+#[tokio::test]
+async fn without_an_after_write_function_or_a_database_nothing_is_recorded() {
+    let functions = |trigger: &str| -> crate::schema::loader::FunctionsConfig {
+        serde_json::from_value(serde_json::json!({
+            "module_dir": "functions",
+            "definitions": [{ "name": "f", "trigger": trigger, "runtime": "Wasm" }]
+        }))
+        .unwrap()
+    };
+    for trigger in ["cron:0 3 * * *", "before:mutation:Order"] {
+        let server = server_over(CompiledSchema::new())
+            .await
+            .with_functions_config(Some(functions(trigger)));
+        assert!(!server.records_function_dispatches(), "{trigger}");
+        assert!(
+            planned(&server).iter().all(|(_, scripts)| {
+                !scripts.contains(&fraiseql_core::db::FUNCTION_DISPATCH_LEDGER_DDL)
+            }),
+            "{trigger}"
+        );
+    }
+    let without_database = Box::pin(Server::new(
+        ServerConfig {
+            cors_enabled: false,
+            ..ServerConfig::default()
+        },
+        CompiledSchema::new(),
+        Arc::new(FailingAdapter::new()),
+        None,
+    ))
+    .await
+    .unwrap()
+    .with_functions_config(Some(functions("after:mutation:Order")));
+    assert!(!without_database.records_function_dispatches());
+}

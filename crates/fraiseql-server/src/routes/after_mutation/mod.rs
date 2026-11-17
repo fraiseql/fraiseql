@@ -136,12 +136,19 @@ pub struct FunctionDispatchObserver {
 /// What every tenant's copy of a [`FunctionDispatchObserver`] shares.
 #[cfg(feature = "functions-runtime")]
 struct DispatchShared {
-    hooks:    std::sync::Arc<BeforeMutationHooks>,
+    hooks:            std::sync::Arc<BeforeMutationHooks>,
     /// Where the dispatched functions' `fraiseql_query` bridge finds its executor: the
     /// serving one, or the tenant's under the tenancy runtime (#1550). Bound once the
     /// `AppState` owning it exists, and held weakly: the executor holds this observer, so a
     /// strong handle would be a reference cycle.
-    executor: std::sync::OnceLock<crate::query_bridge::WeakExecutorSource>,
+    executor:         std::sync::OnceLock<crate::query_bridge::WeakExecutorSource>,
+    /// The dispatch ledger's settings (#1628), bound once its table is provisioned. Unbound,
+    /// dispatch runs from memory only, as it did before the ledger.
+    ledger:           std::sync::OnceLock<crate::function_dispatch::LedgerSettings>,
+    /// The service accounts a recorded caller's credential is fingerprinted against (D1).
+    service_accounts: std::sync::OnceLock<
+        Option<std::sync::Arc<crate::service_account::ServiceAccountAuthenticator>>,
+    >,
 }
 
 #[cfg(feature = "functions-runtime")]
@@ -154,6 +161,8 @@ impl FunctionDispatchObserver {
             shared: std::sync::Arc::new(DispatchShared {
                 hooks,
                 executor: std::sync::OnceLock::new(),
+                ledger: std::sync::OnceLock::new(),
+                service_accounts: std::sync::OnceLock::new(),
             }),
             tenant: None,
         }
@@ -163,6 +172,19 @@ impl FunctionDispatchObserver {
     /// binding wins: there is one serving state per server.
     pub fn bind_executor(&self, source: &crate::query_bridge::ExecutorSource) {
         let _ = self.shared.executor.set(source.downgrade());
+    }
+
+    /// Record every durable dispatch in the ledger `settings` describe (#1628). The first
+    /// binding wins.
+    pub fn bind_ledger(
+        &self,
+        settings: crate::function_dispatch::LedgerSettings,
+        service_accounts: Option<
+            std::sync::Arc<crate::service_account::ServiceAccountAuthenticator>,
+        >,
+    ) {
+        let _ = self.shared.service_accounts.set(service_accounts);
+        let _ = self.shared.ledger.set(settings);
     }
 
     /// The source this observer is bound to, if it is still alive.
@@ -227,6 +249,192 @@ impl AfterMutationObserver for FunctionDispatchObserver {
     fn bind_tenant(&self, tenant: &str) -> Option<std::sync::Arc<dyn AfterMutationObserver>> {
         Some(std::sync::Arc::new(self.for_tenant(tenant)))
     }
+
+    fn ledger_lease(&self) -> Option<std::time::Duration> {
+        self.shared.ledger.get().map(|settings| settings.lease)
+    }
+
+    /// One dispatch per plan, all keyed by one reference minted for this write, each with the
+    /// token every run of it hands the function. A `re_runnable` function's is not durable:
+    /// it asks for one attempt and no record.
+    fn pending(&self, mutation: &CommittedMutation<'_>) -> Vec<fraiseql_core::db::PendingDispatch> {
+        let plans = self.plans_for(mutation);
+        if plans.is_empty() {
+            return Vec::new();
+        }
+        let hooks = &self.shared.hooks;
+        let ref_key = uuid::Uuid::new_v4().to_string();
+        // The caller is stored with the dispatch, for a run after a restart.
+        let caller = mutation.security_ctx.and_then(|caller| {
+            crate::function_dispatch::stored_caller(
+                caller,
+                self.shared.service_accounts.get().and_then(Option::as_deref),
+            )
+        });
+        plans
+            .iter()
+            .map(|plan| {
+                let durable = is_durable(hooks, &plan.module.name);
+                fraiseql_core::db::PendingDispatch {
+                    source: crate::function_dispatch::AFTER_MUTATION.to_owned(),
+                    ref_key: ref_key.clone(),
+                    function_name: plan.module.name.clone(),
+                    payload: serde_json::to_value(&plan.payload).unwrap_or(serde_json::Value::Null),
+                    idempotency_token: dispatch_idempotency_token(
+                        hooks.idempotency_key.as_deref(),
+                        fraiseql_observers::DispatchSource::AfterMutation,
+                        &plan.module.name,
+                        &plan.payload,
+                    ),
+                    caller: caller.clone(),
+                    tenant: self.tenant.clone(),
+                    durable,
+                }
+            })
+            .collect()
+    }
+
+    fn on_recorded(
+        &self,
+        mutation: &CommittedMutation<'_>,
+        staged: Vec<fraiseql_core::db::PendingDispatch>,
+    ) {
+        if staged.is_empty() {
+            return;
+        }
+        let source = self
+            .shared
+            .executor
+            .get()
+            .and_then(crate::query_bridge::WeakExecutorSource::upgrade);
+        let query_executor_factory = source.clone().map(make_query_executor_factory);
+        run_recorded(
+            &self.shared.hooks,
+            staged,
+            fraiseql_observers::DispatchSource::AfterMutation,
+            query_executor_factory,
+            // The dispatched host reflects the caller whose write triggered it.
+            mutation.security_ctx.cloned(),
+            self.tenant.as_deref(),
+            source.as_ref(),
+        );
+    }
+}
+
+/// Run each staged dispatch as a background task with the token it was recorded with, and
+/// settle the durable ones' rows when they end (#1628). A dispatch that does not settle is
+/// left `pending`, and the sweep runs it again once its lease runs out.
+#[cfg(feature = "functions-runtime")]
+pub fn run_recorded(
+    hooks: &std::sync::Arc<BeforeMutationHooks>,
+    staged: Vec<fraiseql_core::db::PendingDispatch>,
+    source: fraiseql_observers::DispatchSource,
+    query_executor_factory: Option<QueryExecutorFactory>,
+    caller: Option<fraiseql_core::security::SecurityContext>,
+    tenant: Option<&str>,
+    executors: Option<&crate::query_bridge::ExecutorSource>,
+) {
+    let base =
+        base_dispatcher(hooks, source, query_executor_factory, caller, tenant.map(str::to_owned));
+    for dispatch in staged {
+        let Some(plan) = recorded_plan(hooks, &dispatch) else {
+            continue;
+        };
+        let (dispatcher, setting) = plan_dispatcher(&base, hooks, &plan);
+        let executors = executors.cloned();
+        let tenant = tenant.map(str::to_owned);
+        tokio::spawn(async move {
+            let outcome = dispatcher
+                .dispatch_with_token(
+                    plan.module,
+                    plan.payload,
+                    &setting,
+                    dispatch.idempotency_token,
+                )
+                .await;
+            if !dispatch.durable {
+                return;
+            }
+            let executor = executors.as_ref().map(|source| source.executor_for(tenant.as_deref()));
+            if let Some(Ok(executor)) = executor {
+                crate::function_dispatch::settle(
+                    &executor,
+                    &dispatch.source,
+                    &dispatch.ref_key,
+                    &dispatch.function_name,
+                    outcome,
+                )
+                .await;
+            } else {
+                tracing::warn!(
+                    function = %dispatch.function_name,
+                    "function dispatch ran, but its executor is gone, so its ledger row stays \
+                     pending and the sweep will run it again"
+                );
+            }
+        });
+    }
+}
+
+/// Whether `function`'s dispatch is recorded in the ledger (#1628): every function's is, but a
+/// `re_runnable` one's, which asks for one attempt and no record.
+#[cfg(feature = "functions-runtime")]
+fn is_durable(hooks: &BeforeMutationHooks, function: &str) -> bool {
+    !hooks.dispatch_settings.get(function).is_some_and(|setting| setting.re_runnable)
+}
+
+/// The plan a recorded dispatch runs: its function's module, and the payload it was
+/// recorded with. `None` when the function is no longer loaded or the payload cannot be
+/// read back.
+#[cfg(feature = "functions-runtime")]
+fn recorded_plan(
+    hooks: &BeforeMutationHooks,
+    dispatch: &fraiseql_core::db::PendingDispatch,
+) -> Option<AfterMutationDispatch> {
+    let module = hooks.module_registry.get(&dispatch.function_name)?.clone();
+    let payload = serde_json::from_value(dispatch.payload.clone()).ok()?;
+    Some(AfterMutationDispatch { module, payload })
+}
+
+/// Run a dispatch the sweep claimed (#1628) to completion, on the dispatcher its trigger
+/// kind runs on, with the token it was recorded with, within `tenant`: the tenant whose
+/// executor claimed it, which the claim scoped it to. `Err` carries why it cannot run, for a
+/// dead-lettered row's reason.
+#[cfg(feature = "functions-runtime")]
+pub async fn replay_recorded(
+    replay: &crate::function_dispatch::Replay,
+    query_executor_factory: Option<QueryExecutorFactory>,
+    due: &fraiseql_core::db::DueDispatch,
+    tenant: Option<&str>,
+) -> Result<DispatchOutcome, String> {
+    let hooks = &replay.hooks;
+    let source = match due.source.as_str() {
+        crate::function_dispatch::AFTER_MUTATION => {
+            fraiseql_observers::DispatchSource::AfterMutation
+        },
+        crate::function_dispatch::AFTER_CAPTURE => fraiseql_observers::DispatchSource::AfterCapture,
+        other => return Err(format!("unknown trigger kind `{other}`")),
+    };
+    let module = hooks
+        .module_registry
+        .get(&due.function_name)
+        .cloned()
+        .ok_or_else(|| format!("function `{}` is no longer loaded", due.function_name))?;
+    let payload: EventPayload = serde_json::from_value(due.payload.clone())
+        .map_err(|e| format!("the recorded payload cannot be read: {e}"))?;
+    let caller = crate::function_dispatch::replay_caller(
+        due.caller.as_ref(),
+        replay.caller_checks(),
+        chrono::Utc::now(),
+    )
+    .await?;
+    let base =
+        base_dispatcher(hooks, source, query_executor_factory, caller, tenant.map(str::to_owned));
+    let plan = AfterMutationDispatch { module, payload };
+    let (dispatcher, setting) = plan_dispatcher(&base, hooks, &plan);
+    Ok(dispatcher
+        .dispatch_with_token(plan.module, plan.payload, &setting, due.idempotency_token.clone())
+        .await)
 }
 
 /// Plan the `after:ingest` dispatch for a persisted inbound message.
@@ -746,15 +954,8 @@ impl DurableDispatcher {
         payload: EventPayload,
         setting: &FunctionDispatchSetting,
     ) -> DispatchOutcome {
-        let function_name = module.name.clone();
-        // Wall-clock for the dispatch (all retry attempts included), reported on the
-        // run-duration histogram under whichever outcome branch is taken below.
-        let started = std::time::Instant::now();
-        // Coarse trigger-kind label for `/metrics` — the facade owns the mapping.
-        let trigger_kind = crate::function_metrics::trigger_kind(self.source);
-
         // Derive the per-dispatch idempotency token ONCE, from the dispatch's
-        // stable identity (never wall-clock/random), so every retry attempt below
+        // stable identity (never wall-clock/random), so every retry attempt
         // sees the same token and a durable retry of a money/mail call stays
         // at-most-once. For after:capture this is also the *crash-redelivery* key:
         // the same change-log row re-derives the same token (see
@@ -762,9 +963,28 @@ impl DurableDispatcher {
         let idempotency_token = dispatch_idempotency_token(
             self.idempotency_key.as_deref(),
             self.source,
-            &function_name,
+            &module.name,
             &payload,
         );
+        self.dispatch_with_token(module, payload, setting, idempotency_token).await
+    }
+
+    /// [`dispatch`](Self::dispatch), with the token already fixed: the one a recorded
+    /// dispatch (#1628) carries, so a run after a restart hands the function the token the
+    /// first run did, even if the server's idempotency key has changed since.
+    async fn dispatch_with_token(
+        &self,
+        module: FunctionModule,
+        payload: EventPayload,
+        setting: &FunctionDispatchSetting,
+        idempotency_token: String,
+    ) -> DispatchOutcome {
+        let function_name = module.name.clone();
+        // Wall-clock for the dispatch (all retry attempts included), reported on the
+        // run-duration histogram under whichever outcome branch is taken below.
+        let started = std::time::Instant::now();
+        // Coarse trigger-kind label for `/metrics` — the facade owns the mapping.
+        let trigger_kind = crate::function_metrics::trigger_kind(self.source);
 
         if setting.re_runnable {
             // Fire-and-forget: a single attempt; a failure is re-runnable later
@@ -1053,6 +1273,77 @@ pub fn spawn_after_capture(
         None,
         None,
     );
+}
+
+/// The `after:capture` dispatches one change-log event calls for (#366): none for a row
+/// FraiseQL wrote itself, or one no function triggers on.
+#[cfg(all(feature = "functions-runtime", feature = "observers"))]
+pub fn plan_capture_event(
+    hooks: &BeforeMutationHooks,
+    event: &fraiseql_observers::EntityEvent,
+) -> Vec<AfterMutationDispatch> {
+    observer_event_to_capture(event).map_or_else(Vec::new, |(fn_event, cdc)| {
+        plan_after_capture_dispatch(hooks, &fn_event, cdc.as_deref())
+    })
+}
+
+/// Record `plans`, the `after:capture` dispatches of the change-log row `ref_key`, in the
+/// serving executor's ledger, then run them (#1628).
+///
+/// Resolves once they are recorded, before any runs, so the reader moves past the row only
+/// when a crash can no longer lose them; a row read twice records them once. With no `lease`
+/// the server keeps no ledger, and they run from memory only.
+///
+/// # Errors
+///
+/// When the dispatches could not be recorded: none was run, and the reader re-reads the
+/// row.
+#[cfg(all(feature = "functions-runtime", feature = "observers"))]
+pub async fn record_and_run_capture(
+    hooks: std::sync::Arc<BeforeMutationHooks>,
+    executors: crate::query_bridge::ExecutorSource,
+    lease: Option<std::time::Duration>,
+    ref_key: String,
+    plans: Vec<AfterMutationDispatch>,
+) -> Result<(), String> {
+    let factory = make_query_executor_factory(executors.clone());
+    let Some(lease) = lease else {
+        spawn_after_capture(&hooks, plans, Some(factory));
+        return Ok(());
+    };
+    let staged: Vec<fraiseql_core::db::PendingDispatch> = plans
+        .iter()
+        .map(|plan| fraiseql_core::db::PendingDispatch {
+            source:            crate::function_dispatch::AFTER_CAPTURE.to_owned(),
+            ref_key:           ref_key.clone(),
+            function_name:     plan.module.name.clone(),
+            payload:           serde_json::to_value(&plan.payload)
+                .unwrap_or(serde_json::Value::Null),
+            idempotency_token: dispatch_idempotency_token(
+                hooks.idempotency_key.as_deref(),
+                fraiseql_observers::DispatchSource::AfterCapture,
+                &plan.module.name,
+                &plan.payload,
+            ),
+            // An externally-captured write has no request caller and no tenant: the host
+            // runs as the function's `run_as` identity.
+            caller:            None,
+            tenant:            None,
+            durable:           is_durable(&hooks, &plan.module.name),
+        })
+        .collect();
+    let executor = executors.executor_for(None).map_err(|e| e.to_string())?;
+    executor.record_dispatches(&staged, lease).await.map_err(|e| e.to_string())?;
+    run_recorded(
+        &hooks,
+        staged,
+        fraiseql_observers::DispatchSource::AfterCapture,
+        Some(factory),
+        None,
+        None,
+        Some(&executors),
+    );
+    Ok(())
 }
 
 /// Spawn each plan on a durable dispatcher tagged with `source`.

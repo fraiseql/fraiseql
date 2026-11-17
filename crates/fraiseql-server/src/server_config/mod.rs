@@ -76,6 +76,56 @@ impl InboundDispatchConfig {
     }
 }
 
+/// `[function_dispatch]` (#1628): the lease, sweep interval and batch of the ledger that makes
+/// `after:mutation` and `after:capture` dispatch at-least-once.
+#[cfg(feature = "functions-runtime")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct FunctionDispatchConfig {
+    /// Seconds a recorded dispatch runs before the sweep may run it again (default 300).
+    /// Keep it longer than a dispatch's own retries take, or a slow dispatch runs twice.
+    pub lease_secs:          u64,
+    /// Seconds between sweeps for dispatches whose lease ran out (default 30). A sweep also
+    /// runs at startup.
+    pub sweep_interval_secs: u64,
+    /// Dispatches one sweep claims at most, per executor (default 100).
+    pub batch_size:          u32,
+}
+
+#[cfg(feature = "functions-runtime")]
+impl Default for FunctionDispatchConfig {
+    fn default() -> Self {
+        let defaults = crate::function_dispatch::LedgerSettings::default();
+        Self {
+            lease_secs:          defaults.lease.as_secs(),
+            sweep_interval_secs: defaults.sweep_interval.as_secs(),
+            batch_size:          defaults.batch_size,
+        }
+    }
+}
+
+#[cfg(feature = "functions-runtime")]
+impl FunctionDispatchConfig {
+    /// The ledger settings this configures.
+    ///
+    /// # Errors
+    ///
+    /// When a value is 0: a zero lease or interval would sweep in-flight dispatches
+    /// continuously, and a zero batch would sweep nothing.
+    pub fn settings(&self) -> Result<crate::function_dispatch::LedgerSettings, String> {
+        if self.lease_secs == 0 || self.sweep_interval_secs == 0 || self.batch_size == 0 {
+            return Err("[function_dispatch] lease_secs, sweep_interval_secs and batch_size \
+                        must each be at least 1"
+                .to_string());
+        }
+        Ok(crate::function_dispatch::LedgerSettings {
+            lease:          std::time::Duration::from_secs(self.lease_secs),
+            sweep_interval: std::time::Duration::from_secs(self.sweep_interval_secs),
+            batch_size:     self.batch_size,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests;
 
@@ -1082,6 +1132,14 @@ pub struct ServerConfig {
     #[serde(default)]
     pub inbound_dispatch: InboundDispatchConfig,
 
+    /// How the dispatch ledger makes `after:mutation` and `after:capture` dispatch
+    /// at-least-once (`[function_dispatch]`, #1628): the lease a recorded dispatch takes, how
+    /// often the sweep re-runs those whose lease ran out, and how many one sweep claims.
+    /// Requires the `functions-runtime` feature.
+    #[cfg(feature = "functions-runtime")]
+    #[serde(default)]
+    pub function_dispatch: FunctionDispatchConfig,
+
     /// Connected mailbox accounts (`[mailbox.<name>]`), keyed by account name.
     ///
     /// Each account carries an optional poll-IMAP receive half
@@ -1576,6 +1634,8 @@ impl Default for ServerConfig {
             webhooks: HashMap::new(), // No inbound webhook routes by default
             #[cfg(feature = "inbound")]
             inbound_dispatch: InboundDispatchConfig::default(),
+            #[cfg(feature = "functions-runtime")]
+            function_dispatch: FunctionDispatchConfig::default(),
             #[cfg(feature = "inbound-email")]
             mailbox: HashMap::new(), // No connected mailboxes by default
             #[cfg(feature = "inbound-email")]

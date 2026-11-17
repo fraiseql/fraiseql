@@ -263,6 +263,7 @@ fn user_expiring_in(duration: chrono::Duration) -> fraiseql_core::security::Auth
         email:        None,
         display_name: None,
         extra_claims: std::collections::HashMap::new(),
+        provenance:   fraiseql_core::security::Provenance::BearerToken,
     }
 }
 

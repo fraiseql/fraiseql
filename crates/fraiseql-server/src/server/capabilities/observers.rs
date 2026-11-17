@@ -101,26 +101,27 @@ impl Capability for Observers {
         #[cfg(feature = "functions-runtime")]
         if let Some(hooks) = app_state.before_mutation_hooks.as_ref() {
             let hooks = std::sync::Arc::clone(hooks);
-            let factory = crate::routes::after_mutation::make_query_executor_factory(
-                crate::query_bridge::ExecutorSource::of(app_state),
-            );
+            let executors = crate::query_bridge::ExecutorSource::of(app_state);
+            // Recorded in the dispatch ledger, before the reader moves past the
+            // change, when the server keeps one. Its settings were validated at provisioning.
+            let lease = server
+                .records_function_dispatches()
+                .then(|| server.config.function_dispatch.settings().ok())
+                .flatten()
+                .map(|settings| settings.lease);
             guard.set_capture_dispatch(std::sync::Arc::new(move |event| {
-                if let Some((fn_event, cdc)) =
-                    crate::routes::after_mutation::observer_event_to_capture(event)
-                {
-                    let plans = crate::routes::after_mutation::plan_after_capture_dispatch(
-                        &hooks,
-                        &fn_event,
-                        cdc.as_deref(),
-                    );
-                    if !plans.is_empty() {
-                        crate::routes::after_mutation::spawn_after_capture(
-                            &hooks,
-                            plans,
-                            Some(factory.clone()),
-                        );
-                    }
+                let plans = crate::routes::after_mutation::plan_capture_event(&hooks, event);
+                if plans.is_empty() {
+                    return Box::pin(std::future::ready(Ok(())));
                 }
+                Box::pin(crate::routes::after_mutation::record_and_run_capture(
+                    std::sync::Arc::clone(&hooks),
+                    executors.clone(),
+                    lease,
+                    // The change-log row's id: a row read twice records its dispatches once.
+                    event.id.to_string(),
+                    plans,
+                ))
             }));
         }
         #[cfg(not(feature = "functions-runtime"))]

@@ -2272,3 +2272,41 @@ fn the_unread_enrichment_warning_fires_only_when_nothing_reads_the_field() {
     type_inject_only.types.push(order);
     assert_eq!(super::unread_enrichment_warning(&type_inject_only), None);
 }
+
+/// #1628: what an enrichment query returns is merged under `fraiseql.enriched.`, so no
+/// column or mapped field name, however it is spelt, can set the principal's provenance.
+#[tokio::test]
+async fn an_enrichment_field_cannot_set_the_provenance() {
+    use fraiseql_core::security::{Provenance, auth_middleware::AuthenticatedUser};
+
+    let user = AuthenticatedUser {
+        user_id:      UserId::new("u1"),
+        scopes:       Vec::new(),
+        expires_at:   Utc::now() + chrono::Duration::hours(1),
+        email:        None,
+        display_name: None,
+        extra_claims: HashMap::new(),
+        provenance:   Provenance::ApiKey,
+    };
+    let mut ctx = SecurityContext::from_token_claims(&user, "req-test".to_owned(), None);
+    let resolver = IdentityResolver::new(
+        config(
+            "SELECT p, q FROM tb_actor WHERE sub = $sub",
+            &[
+                ("p", "provenance"),
+                ("q", SecurityContext::PROVENANCE_ATTRIBUTE),
+            ],
+        ),
+        Arc::new(MockStore::returning(vec![row(&[
+            ("p", json!("bearer_token")),
+            ("q", json!("bearer_token")),
+        ])])),
+    );
+
+    assert_eq!(enrich_security_context(&resolver, &mut ctx).await, EnrichmentOutcome::Proceed);
+    assert_eq!(
+        ctx.attributes[&format!("{ENRICHED_NAMESPACE_PREFIX}provenance")],
+        "bearer_token"
+    );
+    assert_eq!(ctx.provenance(), Some(Provenance::ApiKey));
+}

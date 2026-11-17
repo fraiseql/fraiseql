@@ -16,6 +16,7 @@ mod authenticated_user_tests {
             email:        None,
             display_name: None,
             extra_claims: HashMap::new(),
+            provenance:   crate::security::Provenance::BearerToken,
         };
 
         assert!(user.has_scope("read"));
@@ -32,6 +33,7 @@ mod authenticated_user_tests {
             email:        None,
             display_name: None,
             extra_claims: HashMap::new(),
+            provenance:   crate::security::Provenance::BearerToken,
         };
 
         assert!(!user.is_expired());
@@ -46,6 +48,7 @@ mod authenticated_user_tests {
             email:        None,
             display_name: None,
             extra_claims: HashMap::new(),
+            provenance:   crate::security::Provenance::BearerToken,
         };
 
         assert!(user.is_expired());
@@ -62,6 +65,7 @@ mod authenticated_user_tests {
             email: None,
             display_name: None,
             extra_claims: HashMap::new(),
+            provenance: crate::security::Provenance::BearerToken,
         };
 
         let ttl = user.ttl_secs();
@@ -78,6 +82,7 @@ mod authenticated_user_tests {
             email:        None,
             display_name: None,
             extra_claims: HashMap::new(),
+            provenance:   crate::security::Provenance::BearerToken,
         };
 
         let display_str = user.to_string();

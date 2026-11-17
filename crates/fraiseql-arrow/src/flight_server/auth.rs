@@ -111,6 +111,8 @@ pub fn validate_session_token(
         email: None,
         display_name: None,
         extra_claims: claims.claims,
+        // A session the Flight handshake minted.
+        provenance: fraiseql_core::security::Provenance::FlightSession,
     })
 }
 
