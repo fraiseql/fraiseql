@@ -113,16 +113,26 @@ multi_tenant = false                    # Implied by a tenancy mode other than "
 #roles = ["reconciler"]
 #scopes = ["write:Invoice"]
 
-[fraiseql.security.audit_logging]
-enabled = true
+# Record mutations in the audit log.
+[fraiseql.security.enterprise]
+audit_logging_enabled = true
 
+# Written, a table below is on unless it says `enabled = false`. Left out, the server
+# decides: errors are sanitized in production only, and the global rate limit is off
+# (the auth endpoint limits still apply).
 [fraiseql.security.error_sanitization]
 enabled = true
+hide_implementation_details = true      # Drop `extensions.detail` from errors
+sanitize_database_errors = true         # Replace database error text with a generic message
+#custom_error_message = "Something went wrong"
 
 [fraiseql.security.rate_limiting]
 enabled = true
 requests_per_second = 100               # Per client IP, on the GraphQL surface
-burst_size = 500
+#requests_per_second_per_user = 1000    # Per authenticated user; default 10 × requests_per_second
+burst_size = 200
+# Share the limits across replicas. Production refuses to boot if Redis cannot be reached.
+#redis_url = "redis://cache:6379"
 # Read the client IP from X-Real-IP / X-Forwarded-For. Production refuses it with no
 # trusted_proxy_cidrs: only a listed proxy may set those headers.
 trust_proxy_headers = false
@@ -153,8 +163,10 @@ auth_password_max_requests = 30         # each /auth/v1/password/* and /auth/v1/
 auth_password_window_secs = 60
 auth_anonymous_signup_max_requests = 30 # /auth/v1/signup: each request mints a guest session
 auth_anonymous_signup_window_secs = 600
-failed_login_max_requests = 10
-failed_login_window_secs = 900
+# The binary performs no first-factor login, so production refuses to boot with these
+# changed from their defaults: limit failed logins at your identity provider instead.
+failed_login_max_attempts = 10
+failed_login_lockout_secs = 900
 
 # Encrypts PKCE OAuth state. The 32-byte hex key is read from STATE_ENCRYPTION_KEY
 # (generate one with `openssl rand -hex 32`).

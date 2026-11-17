@@ -16,13 +16,7 @@
 //!
 //! The chain seed (initial HMAC key) must be 32 bytes. In production it should
 //! be stored in Vault or read from an environment variable (never in plaintext
-//! config). Configure via `fraiseql.toml`:
-//!
-//! ```toml
-//! [fraiseql.security.audit_logging]
-//! tamper_evident = true
-//! chain_seed_env = "AUDIT_CHAIN_SEED"  # 32-byte hex-encoded value
-//! ```
+//! config). No configuration key supplies it: the caller passes the seed in.
 
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;

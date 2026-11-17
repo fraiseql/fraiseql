@@ -85,14 +85,22 @@ pub use fraiseql_core::schema::{
     StaticApiKeyEntry, TokenRevocationSecurityConfig, TrustedDocumentMode, TrustedDocumentsConfig,
 };
 
-/// The access-control sections of a `[security]` table, as the compiled schema carries them.
+/// The sections of a `[security]` table both files take, as the compiled schema carries them.
 ///
 /// A TOML schema's `[security]` and a project config's `[fraiseql.security]` both take these
-/// sections, in these types: [`SecuritySettings::access_sections`] is the one lowering both
+/// sections, in these types: [`SecuritySettings::shared_sections`] is the one lowering both
 /// files compile them through. Destructured where it is consumed, so a section added here
 /// and not emitted is a compile error.
 #[derive(Debug, Clone, Default)]
-pub struct AccessSections {
+pub struct SharedSections {
+    /// `enterprise`, always emitted: its one key, `audit_logging_enabled`, defaults on.
+    pub enterprise:             EnterpriseSecurityConfig,
+    /// `error_sanitization`; absent is decided by the server at boot.
+    pub error_sanitization:     Option<ErrorSanitizationTomlConfig>,
+    /// `rate_limiting`; absent leaves the global limit off.
+    pub rate_limiting:          Option<RateLimitingSecurityConfig>,
+    /// `state_encryption`
+    pub state_encryption:       Option<StateEncryptionConfig>,
     /// `pkce`
     pub pkce:                   Option<PkceConfig>,
     /// `api_keys`
@@ -108,10 +116,14 @@ pub struct AccessSections {
 }
 
 impl SecuritySettings {
-    /// The access-control sections, lowered for the compiled `security` section.
+    /// The shared sections, lowered for the compiled `security` section.
     #[must_use]
-    pub fn access_sections(&self) -> AccessSections {
-        AccessSections {
+    pub fn shared_sections(&self) -> SharedSections {
+        SharedSections {
+            enterprise:             self.enterprise.clone(),
+            error_sanitization:     self.error_sanitization.clone(),
+            rate_limiting:          self.rate_limiting.clone(),
+            state_encryption:       self.state_encryption.clone(),
             pkce:                   self.pkce.clone(),
             api_keys:               self.api_keys.clone(),
             token_revocation:       self.token_revocation.clone(),

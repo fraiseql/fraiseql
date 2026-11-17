@@ -48,8 +48,20 @@ const SCHEMA_UNREACHED: &[&str] = &[
     "[[observers.handlers]]",
 ];
 
-/// The project file's root: sections `Default` leaves out.
-const PROJECT_UNREACHED: &[&str] = &["[locale]", "[observers]", "[[observers.handlers]]"];
+/// The project file's root: sections `Default` leaves out, among them the optional
+/// `[fraiseql.security]` sections a project shares with a TOML schema's `[security]`.
+const PROJECT_UNREACHED: &[&str] = &[
+    "[locale]",
+    "[observers]",
+    "[[observers.handlers]]",
+    "[fraiseql.security.error_sanitization]",
+    "[fraiseql.security.rate_limiting]",
+    "[fraiseql.security.pkce]",
+    "[fraiseql.security.api_keys]",
+    "[fraiseql.security.cost_budget]",
+    "[fraiseql.security.token_revocation]",
+    "[fraiseql.security.trusted_documents]",
+];
 
 /// The runtime sections the project file shares with `fraiseql compile`'s root (#1719).
 /// Each is optional there, so `Default` reaches none of them: their tables are taken from
@@ -77,7 +89,7 @@ fn is_shared(table: &str) -> bool {
 
 /// Tables `Default` reaches on each root, the root itself included.
 const SCHEMA_TABLES: usize = 29;
-const PROJECT_TABLES: usize = 20;
+const PROJECT_TABLES: usize = 18;
 /// Tables of the shared sections swept on the project root.
 const SHARED_TABLES: usize = 18;
 

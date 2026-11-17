@@ -724,14 +724,18 @@ impl SchemaMerger {
         let sec = &toml_schema.security;
         // The access-control sections, through the lowering a project config's
         // `[fraiseql.security]` shares.
-        let crate::config::toml_schema::security::AccessSections {
+        let crate::config::toml_schema::security::SharedSections {
+            enterprise,
+            error_sanitization,
+            rate_limiting,
+            state_encryption,
             pkce,
             api_keys,
             token_revocation,
             trusted_documents,
             persisted_queries_only,
             cost_budget,
-        } = sec.access_sections();
+        } = sec.shared_sections();
         let lowered = serde_json::to_value(fraiseql_core::schema::SecurityConfig {
             // #897: lowered from `[[security.role_definitions]]` / `default_role`, through
             // the same `to_runtime` the project-config producer uses. Hard-coded empty
@@ -760,10 +764,10 @@ impl SchemaMerger {
             rules: sec.rules.clone(),
             policies: sec.policies.clone(),
             field_auth: sec.field_auth.clone(),
-            enterprise: Some(sec.enterprise.clone()),
-            error_sanitization: sec.error_sanitization.clone(),
-            rate_limiting: sec.rate_limiting.clone(),
-            state_encryption: sec.state_encryption.clone(),
+            enterprise: Some(enterprise),
+            error_sanitization,
+            rate_limiting,
+            state_encryption,
             pkce,
             api_keys,
             token_revocation,

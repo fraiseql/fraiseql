@@ -30,7 +30,10 @@ impl ErrorSanitizer {
     /// Create a disabled sanitizer — current behaviour unchanged.
     #[must_use]
     pub fn disabled() -> Self {
-        Self::new(ErrorSanitizationConfig::default())
+        Self::new(ErrorSanitizationConfig {
+            enabled: false,
+            ..ErrorSanitizationConfig::default()
+        })
     }
 
     /// Sanitize a single GraphQL error.

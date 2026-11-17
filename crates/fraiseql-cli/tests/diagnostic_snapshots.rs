@@ -17,7 +17,8 @@ use fraiseql_cli::config::{
     SecurityConfig,
     toml_schema::{
         FederationCircuitBreakerConfig, FederationEntity, MutationDefinition,
-        PerDatabaseCircuitBreakerOverride, QueryDefinition, TomlSchema, TypeDefinition,
+        PerDatabaseCircuitBreakerOverride, QueryDefinition, RateLimitingSecurityConfig, TomlSchema,
+        TypeDefinition,
     },
 };
 
@@ -409,10 +410,13 @@ fn diagnostic_circuit_breaker_per_database_zero_success_threshold() {
 
 #[test]
 fn diagnostic_security_rate_limit_zero_window() {
-    let mut config = SecurityConfig::default();
-    config.rate_limiting.auth_start_window_secs = 0;
+    let mut schema = base_schema_with_user();
+    schema.security.rate_limiting = Some(RateLimitingSecurityConfig {
+        auth_start_window_secs: 0,
+        ..RateLimitingSecurityConfig::DEFAULT
+    });
 
-    let err = config.validate().unwrap_err();
+    let err = schema.validate().unwrap_err();
     insta::assert_snapshot!(err.to_string());
 }
 
@@ -422,10 +426,13 @@ fn diagnostic_security_rate_limit_zero_window() {
 
 #[test]
 fn diagnostic_security_rate_limit_zero_max_requests() {
-    let mut config = SecurityConfig::default();
-    config.rate_limiting.auth_callback_max_requests = 0;
+    let mut schema = base_schema_with_user();
+    schema.security.rate_limiting = Some(RateLimitingSecurityConfig {
+        auth_callback_max_requests: 0,
+        ..RateLimitingSecurityConfig::DEFAULT
+    });
 
-    let err = config.validate().unwrap_err();
+    let err = schema.validate().unwrap_err();
     insta::assert_snapshot!(err.to_string());
 }
 

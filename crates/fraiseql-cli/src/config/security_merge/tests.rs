@@ -55,11 +55,14 @@ fn a_document_block_that_is_not_an_object_is_refused() {
 }
 
 #[test]
-fn the_project_config_sets_enterprise_through_the_tables_it_is_derived_from() {
-    for source in ENTERPRISE_SOURCES {
-        let table: toml::Table =
-            format!("[fraiseql.security.{source}]\nenabled = true\n").parse().unwrap();
-        assert!(declared_in_project_config(&table).contains("enterprise"), "{source}");
+fn the_project_config_sets_enterprise_and_its_former_sources_by_name() {
+    for name in ["enterprise", "error_sanitization", "rate_limiting"] {
+        let table: toml::Table = format!("[fraiseql.security.{name}]\n").parse().unwrap();
+        assert_eq!(
+            declared_in_project_config(&table).into_iter().collect::<Vec<_>>(),
+            [name],
+            "`{name}` declares itself and nothing else"
+        );
     }
     let table: toml::Table = "[project]\nname = \"app\"\n".parse().unwrap();
     assert!(declared_in_project_config(&table).is_empty());

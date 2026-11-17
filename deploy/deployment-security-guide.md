@@ -665,27 +665,17 @@ Splunk or Loki), and treat that store as the record.
 
 ### External Audit Log Export
 
-FraiseQL supports streaming audit entries to external systems via pluggable
-export sinks, configured in `fraiseql.toml`:
+Mutation auditing is switched in `fraiseql.toml`, and is on unless written off:
 
 ```toml
-[fraiseql.security.audit_logging]
-enabled = true
-log_level = "info"
-
-# Optional: stream audit entries to syslog (requires audit-syslog feature)
-# [fraiseql.security.audit_logging.export.syslog]
-# address = "syslog.internal"
-# port = 514
-# protocol = "tcp"   # "tcp" or "udp"
-
-# Optional: stream audit entries to a webhook (requires audit-webhook feature)
-# [fraiseql.security.audit_logging.export.webhook]
-# url = "https://logs.example.com/ingest"
-# batch_size = 100
-# flush_interval_secs = 30
-# headers = { "Authorization" = "Bearer <token>" }
+[fraiseql.security.enterprise]
+audit_logging_enabled = true
 ```
+
+`fraiseql-core` ships two export sinks, `SyslogAuditExporter` (the `audit-syslog`
+feature) and `WebhookAuditExporter` (`audit-webhook`), for an application that embeds
+the library. The `fraiseql-server` binary has no configuration for them: with the
+binary, ship the structured log events above.
 
 **Integration patterns for common external stores:**
 

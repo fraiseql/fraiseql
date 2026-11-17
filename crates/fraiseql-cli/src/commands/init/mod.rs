@@ -317,8 +317,8 @@ output_file = "schema.compiled.json"
 [fraiseql.security.rate_limiting]
 enabled = true
 
-[fraiseql.security.audit_logging]
-enabled = true
+[fraiseql.security.enterprise]
+audit_logging_enabled = true
 
 # Database connection URL — set via DATABASE_URL environment variable at runtime
 # {db_url}

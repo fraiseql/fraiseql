@@ -349,7 +349,11 @@ pub struct SecurityConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ErrorSanitizationConfig {
-    /// Enable error sanitization (default: false — opt-in).
+    /// Enable error sanitization (default: true).
+    ///
+    /// A table written to tune the sanitizer keeps it on: with a default of `false`, a
+    /// section that set only `custom_error_message` switched sanitization off. A section
+    /// left out is not this default; the server decides it at boot.
     pub enabled:                     bool,
     /// Strip stack traces, SQL fragments, file paths (default: true).
     pub hide_implementation_details: bool,
@@ -362,7 +366,7 @@ pub struct ErrorSanitizationConfig {
 impl Default for ErrorSanitizationConfig {
     fn default() -> Self {
         Self {
-            enabled:                     false,
+            enabled:                     true,
             hide_implementation_details: true,
             sanitize_database_errors:    true,
             custom_error_message:        None,
@@ -385,7 +389,7 @@ pub const DEFAULT_RATE_LIMIT_MAX_BUCKETS: usize = 100_000;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct RateLimitingSecurityConfig {
-    /// Enable rate limiting.
+    /// Enable the global limit (default: true, when the table is written).
     pub enabled: bool,
     /// Global request rate cap (requests per second, per IP).
     pub requests_per_second: u32,
@@ -493,7 +497,10 @@ impl RateLimitingSecurityConfig {
     /// and they still cap a single client far below what brute force or mail abuse needs.
     /// The per-address limits inside the stores are what protect one account.
     pub const DEFAULT: Self = Self {
-        enabled: false,
+        // A table written to tune the limit keeps it on: with `false` here, a section
+        // that set only `requests_per_second` switched the global limit off. A section
+        // left out is not this default (the server leaves the global limit off).
+        enabled: true,
         requests_per_second: 100,
         requests_per_second_per_user: None,
         burst_size: 200,

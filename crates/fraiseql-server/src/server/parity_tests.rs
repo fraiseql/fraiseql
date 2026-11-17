@@ -182,7 +182,6 @@ fn fully_configured_schema() -> CompiledSchema {
     let security = SecurityConfig {
         enterprise: Some(fraiseql_core::schema::EnterpriseSecurityConfig {
             audit_logging_enabled: true,
-            ..Default::default()
         }),
         ..SecurityConfig::default()
     };

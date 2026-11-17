@@ -36,9 +36,10 @@ fn test_error_sanitization_config_parses() {
 
 #[test]
 fn test_error_sanitization_defaults_are_safe() {
-    // Default: enabled=false (opt-in), but sub-flags default to protective values.
+    // A written section is on, and its sub-flags protective: with `enabled = false` here,
+    // a section that set only `custom_error_message` switched sanitization off (#2019).
     let cfg = ErrorSanitizationTomlConfig::default();
-    assert!(!cfg.enabled);
+    assert!(cfg.enabled);
     assert!(cfg.hide_implementation_details);
     assert!(cfg.sanitize_database_errors);
 }
@@ -78,8 +79,9 @@ fn test_rate_limiting_config_parses() {
 
 #[test]
 fn test_rate_limiting_defaults() {
+    // A written section is on (#2019): see `test_error_sanitization_defaults_are_safe`.
     let cfg = RateLimitingSecurityConfig::default();
-    assert!(!cfg.enabled);
+    assert!(cfg.enabled);
     assert_eq!(cfg.requests_per_second, 100);
     assert_eq!(cfg.burst_size, 200);
 }
@@ -223,12 +225,10 @@ fn test_existing_enterprise_field_not_broken() {
         url = "postgresql://localhost/test"
 
         [security.enterprise]
-        rate_limiting_enabled = false
-        pkce_enabled          = false
+        audit_logging_enabled = false
     "#;
     let schema: TomlSchema = toml::from_str(toml).unwrap();
-    assert!(!schema.security.enterprise.rate_limiting_enabled);
-    assert!(!schema.security.enterprise.pkce_enabled);
+    assert!(!schema.security.enterprise.audit_logging_enabled);
     // New fields should be None when omitted
     assert!(schema.security.error_sanitization.is_none());
     assert!(schema.security.rate_limiting.is_none());

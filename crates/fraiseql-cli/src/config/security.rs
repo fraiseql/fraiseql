@@ -3,260 +3,6 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-/// Audit logging configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct AuditLoggingConfig {
-    /// Enable audit logging.
-    ///
-    /// The only key with a consumer: it lowers onto
-    /// `enterprise.audit_logging_enabled`, which the runtime reads. `log_level`,
-    /// `include_sensitive_data`, `async_logging`, `buffer_size` and
-    /// `flush_interval_secs` were accepted here and read by nothing, so they are
-    /// gone and `deny_unknown_fields` now refuses them by name (#983).
-    pub enabled: bool,
-}
-
-impl Default for AuditLoggingConfig {
-    fn default() -> Self {
-        Self { enabled: true }
-    }
-}
-
-/// Error sanitization configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct ErrorSanitizationConfig {
-    /// Enable error sanitization.
-    ///
-    /// The only key with a consumer. `generic_messages`, `internal_logging`,
-    /// `leak_sensitive_details` and `user_facing_format` reached no runtime shape,
-    /// so they are gone and `deny_unknown_fields` refuses them by name (#983).
-    /// `leak_sensitive_details = true` used to be refused here as "a security risk";
-    /// it switched nothing, which is the more alarming half of that sentence.
-    pub enabled: bool,
-}
-
-impl Default for ErrorSanitizationConfig {
-    fn default() -> Self {
-        Self { enabled: true }
-    }
-}
-
-impl ErrorSanitizationConfig {
-    /// Validate error sanitization configuration.
-    ///
-    /// # Errors
-    ///
-    /// Currently infallible; kept so the section keeps its place in
-    /// [`SecurityConfig::validate`]'s sequence as keys are added.
-    pub const fn validate(&self) -> Result<()> {
-        Ok(())
-    }
-}
-
-/// The consumer's defaults for the auth endpoint budgets, which this table mirrors.
-const DEFAULT_AUTH: fraiseql_core::schema::RateLimitingSecurityConfig =
-    fraiseql_core::schema::RateLimitingSecurityConfig::DEFAULT;
-
-/// Rate limiting configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct RateLimitConfig {
-    /// Enable rate limiting
-    pub enabled: bool,
-
-    /// Max requests for auth start endpoint (per IP)
-    pub auth_start_max_requests: u32,
-    /// Time window for auth start in seconds
-    pub auth_start_window_secs:  u64,
-
-    /// Max requests for auth callback endpoint (per IP)
-    pub auth_callback_max_requests: u32,
-    /// Time window for auth callback in seconds
-    pub auth_callback_window_secs:  u64,
-
-    /// Max requests for auth refresh endpoint (per user)
-    pub auth_refresh_max_requests: u32,
-    /// Time window for auth refresh in seconds
-    pub auth_refresh_window_secs:  u64,
-
-    /// Max requests for auth logout endpoint (per user)
-    pub auth_logout_max_requests: u32,
-    /// Time window for auth logout in seconds
-    pub auth_logout_window_secs:  u64,
-
-    /// Max `OTP` send requests (`/auth/v1/otp`) per client per window
-    pub auth_otp_send_max_requests:         u32,
-    /// Time window for `OTP` send in seconds
-    pub auth_otp_send_window_secs:          u64,
-    /// Max `OTP` verify requests (`/auth/v1/verify`) per client per window
-    pub auth_otp_verify_max_requests:       u32,
-    /// Time window for `OTP` verify in seconds
-    pub auth_otp_verify_window_secs:        u64,
-    /// Max requests per client per window to each local-password endpoint
-    pub auth_password_max_requests:         u32,
-    /// Time window for the local-password endpoints in seconds
-    pub auth_password_window_secs:          u64,
-    /// Max anonymous signups (`/auth/v1/signup`) per client per window
-    pub auth_anonymous_signup_max_requests: u32,
-    /// Time window for anonymous signup in seconds
-    pub auth_anonymous_signup_window_secs:  u64,
-    /// Apply the per-client auth endpoint rules. On unless written `false`; the
-    /// rules run whether or not `enabled` turns the global limit on.
-    pub auth_rules_enabled:                 bool,
-
-    /// Max failed login attempts per IP.
-    ///
-    /// Emitted as the consumer's `failed_login_max_attempts`. The binary performs no
-    /// first-factor login, so a value tuned away from the default is refused at boot
-    /// in production (#356) — hence the default matching the consumer's, so an
-    /// untouched config signals no intent and boots.
-    pub failed_login_max_requests: u32,
-    /// Time window for failed login tracking in seconds. See
-    /// [`failed_login_max_requests`](Self::failed_login_max_requests).
-    pub failed_login_window_secs:  u64,
-
-    /// Global per-IP request rate (requests/second) for the GraphQL surface.
-    pub requests_per_second: u32,
-    /// Burst allowance above `requests_per_second`.
-    pub burst_size:          u32,
-
-    /// Trust `X-Real-IP` / `X-Forwarded-For` for the client IP.
-    ///
-    /// Only safe behind a proxy named in `trusted_proxy_cidrs`; the server refuses to
-    /// boot in production if this is on and that list is empty (#618).
-    pub trust_proxy_headers: bool,
-    /// CIDR ranges trusted as proxies, e.g. `["10.0.0.0/8"]`.
-    pub trusted_proxy_cidrs: Vec<String>,
-
-    /// Maximum tracked rate-limit buckets per map — a memory ceiling, not a security
-    /// control (#1171). ~200 bytes a bucket, so the default is about 20 MiB per map.
-    /// Reaching it evicts the least-recently-used entry rather than refusing the new
-    /// client, so a low value costs accuracy and never availability.
-    pub max_buckets: usize,
-}
-
-impl Default for RateLimitConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            // The consumer's defaults, so a project that writes `[fraiseql.security]`
-            // gets the same budgets as one that does not. They differed: this
-            // table allowed 100 starts and 50 callbacks a minute where the server's own
-            // default allowed 5 and 10.
-            auth_start_max_requests: DEFAULT_AUTH.auth_start_max_requests,
-            auth_start_window_secs: DEFAULT_AUTH.auth_start_window_secs,
-            auth_callback_max_requests: DEFAULT_AUTH.auth_callback_max_requests,
-            auth_callback_window_secs: DEFAULT_AUTH.auth_callback_window_secs,
-            auth_refresh_max_requests: DEFAULT_AUTH.auth_refresh_max_requests,
-            auth_refresh_window_secs: DEFAULT_AUTH.auth_refresh_window_secs,
-            auth_logout_max_requests: DEFAULT_AUTH.auth_logout_max_requests,
-            auth_logout_window_secs: DEFAULT_AUTH.auth_logout_window_secs,
-            auth_otp_send_max_requests: DEFAULT_AUTH.auth_otp_send_max_requests,
-            auth_otp_send_window_secs: DEFAULT_AUTH.auth_otp_send_window_secs,
-            auth_otp_verify_max_requests: DEFAULT_AUTH.auth_otp_verify_max_requests,
-            auth_otp_verify_window_secs: DEFAULT_AUTH.auth_otp_verify_window_secs,
-            auth_password_max_requests: DEFAULT_AUTH.auth_password_max_requests,
-            auth_password_window_secs: DEFAULT_AUTH.auth_password_window_secs,
-            auth_anonymous_signup_max_requests: DEFAULT_AUTH.auth_anonymous_signup_max_requests,
-            auth_anonymous_signup_window_secs: DEFAULT_AUTH.auth_anonymous_signup_window_secs,
-            auth_rules_enabled: DEFAULT_AUTH.auth_rules_enabled,
-            // Matching `DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS` / `_LOCKOUT_SECS` in the
-            // consumer, so an untouched config is recognisably untouched. The previous
-            // 5 / 3600 read as deliberately tuned, and now that this section actually
-            // reaches the runtime that would refuse every production boot (#356).
-            failed_login_max_requests: 10,
-            failed_login_window_secs: 900,
-            requests_per_second: 100,
-            burst_size: 500,
-            trust_proxy_headers: false,
-            trusted_proxy_cidrs: Vec::new(),
-            max_buckets: fraiseql_core::schema::DEFAULT_RATE_LIMIT_MAX_BUCKETS,
-        }
-    }
-}
-
-impl RateLimitConfig {
-    /// Validate rate limiting configuration
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if any time-window is zero or if any `max_requests`
-    /// value is zero (which would permanently block all requests).
-    pub fn validate(&self) -> Result<()> {
-        for (name, window) in &[
-            ("auth_start_window_secs", self.auth_start_window_secs),
-            ("auth_callback_window_secs", self.auth_callback_window_secs),
-            ("auth_refresh_window_secs", self.auth_refresh_window_secs),
-            ("auth_logout_window_secs", self.auth_logout_window_secs),
-            ("auth_otp_send_window_secs", self.auth_otp_send_window_secs),
-            ("auth_otp_verify_window_secs", self.auth_otp_verify_window_secs),
-            ("auth_password_window_secs", self.auth_password_window_secs),
-            ("auth_anonymous_signup_window_secs", self.auth_anonymous_signup_window_secs),
-            ("failed_login_window_secs", self.failed_login_window_secs),
-        ] {
-            if *window == 0 {
-                anyhow::bail!("{name} must be positive");
-            }
-        }
-        for (name, max_req) in &[
-            ("auth_start_max_requests", self.auth_start_max_requests),
-            ("auth_callback_max_requests", self.auth_callback_max_requests),
-            ("auth_refresh_max_requests", self.auth_refresh_max_requests),
-            ("auth_logout_max_requests", self.auth_logout_max_requests),
-            ("auth_otp_send_max_requests", self.auth_otp_send_max_requests),
-            ("auth_otp_verify_max_requests", self.auth_otp_verify_max_requests),
-            ("auth_password_max_requests", self.auth_password_max_requests),
-            ("auth_anonymous_signup_max_requests", self.auth_anonymous_signup_max_requests),
-            ("failed_login_max_requests", self.failed_login_max_requests),
-        ] {
-            if *max_req == 0 {
-                anyhow::bail!(
-                    "{name} must be at least 1; \
-                     setting it to 0 blocks all requests permanently"
-                );
-            }
-        }
-        Ok(())
-    }
-
-    /// Convert to JSON representation for schema
-    pub fn to_json(&self) -> serde_json::Value {
-        // Flat, snake_case, one key per field of the consumer's
-        // `RateLimitingSecurityConfig`. The nested camelCase shape below
-        // (`authStart.maxRequests`) matched no reader anywhere, so a project
-        // `fraiseql.toml` that configured rate limiting produced a section the server
-        // could not use even after the section name was corrected (#893).
-        serde_json::json!({
-            "enabled": self.enabled,
-            "requests_per_second": self.requests_per_second,
-            "burst_size": self.burst_size,
-            "trust_proxy_headers": self.trust_proxy_headers,
-            "trusted_proxy_cidrs": self.trusted_proxy_cidrs,
-            "auth_start_max_requests": self.auth_start_max_requests,
-            "auth_start_window_secs": self.auth_start_window_secs,
-            "auth_callback_max_requests": self.auth_callback_max_requests,
-            "auth_callback_window_secs": self.auth_callback_window_secs,
-            "auth_refresh_max_requests": self.auth_refresh_max_requests,
-            "auth_refresh_window_secs": self.auth_refresh_window_secs,
-            "auth_logout_max_requests": self.auth_logout_max_requests,
-            "auth_logout_window_secs": self.auth_logout_window_secs,
-            "auth_otp_send_max_requests": self.auth_otp_send_max_requests,
-            "auth_otp_send_window_secs": self.auth_otp_send_window_secs,
-            "auth_otp_verify_max_requests": self.auth_otp_verify_max_requests,
-            "auth_otp_verify_window_secs": self.auth_otp_verify_window_secs,
-            "auth_password_max_requests": self.auth_password_max_requests,
-            "auth_password_window_secs": self.auth_password_window_secs,
-            "auth_anonymous_signup_max_requests": self.auth_anonymous_signup_max_requests,
-            "auth_anonymous_signup_window_secs": self.auth_anonymous_signup_window_secs,
-            "auth_rules_enabled": self.auth_rules_enabled,
-            "failed_login_max_attempts": self.failed_login_max_requests,
-            "failed_login_lockout_secs": self.failed_login_window_secs,
-        })
-    }
-}
-
 /// Constant-time comparison configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -417,15 +163,20 @@ impl TenancyTomlConfig {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SecurityConfig {
-    /// Audit logging configuration
-    #[serde(rename = "audit_logging")]
-    pub audit_logging:      AuditLoggingConfig,
-    /// Error sanitization configuration
-    #[serde(rename = "error_sanitization")]
-    pub error_sanitization: ErrorSanitizationConfig,
-    /// Rate limiting configuration
-    #[serde(rename = "rate_limiting")]
-    pub rate_limiting:      RateLimitConfig,
+    /// `[fraiseql.security.enterprise]`: `audit_logging_enabled`, on unless written off.
+    ///
+    /// This, `error_sanitization`, `rate_limiting` and `state_encryption` are the TOML
+    /// schema's sections, in the same compiled types, lowered by the same
+    /// [`SecuritySettings::shared_sections`](super::toml_schema::security::SecuritySettings::shared_sections).
+    pub enterprise:         fraiseql_core::schema::EnterpriseSecurityConfig,
+    /// `[fraiseql.security.error_sanitization]`. Absent, the server decides at boot
+    /// (sanitizing in production); written, it is on unless `enabled = false`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_sanitization: Option<fraiseql_core::schema::ErrorSanitizationConfig>,
+    /// `[fraiseql.security.rate_limiting]`. Absent, the global limit is off and the auth
+    /// endpoint rules apply; written, it is on unless `enabled = false`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limiting:      Option<fraiseql_core::schema::RateLimitingSecurityConfig>,
     /// State encryption: the compiled type, read as a TOML schema reads it, so `key_env`
     /// names the key's variable here too. Off unless written (#1151): an absent table lowers
     /// the compiled default, which is disabled.
@@ -474,9 +225,8 @@ pub struct SecurityConfig {
 
     /// PKCE for the OAuth Authorization Code flow (`[fraiseql.security.pkce]`).
     ///
-    /// This and the access-control sections below are the TOML schema's `[security]`
-    /// sections, in the same compiled types, lowered by the same
-    /// [`SecuritySettings::access_sections`](super::toml_schema::security::SecuritySettings::access_sections).
+    /// This and the access-control sections below are lowered by the same
+    /// [`SecuritySettings::shared_sections`](super::toml_schema::security::SecuritySettings::shared_sections).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pkce:                   Option<fraiseql_core::schema::PkceSecurityConfig>,
     /// API key authentication (`[fraiseql.security.api_keys]`).
@@ -505,8 +255,6 @@ impl SecurityConfig {
     /// Returns an error if any sub-configuration is invalid, if a role name is
     /// empty, or if a role definition contains no scopes.
     pub fn validate(&self) -> Result<()> {
-        self.error_sanitization.validate()?;
-        self.rate_limiting.validate()?;
         self.reject_constant_time_section()?;
 
         for (name, account) in &self.service_accounts {
@@ -573,84 +321,35 @@ impl SecurityConfig {
     /// with a misspelled `applytoCsrfTokens`) that no consumer read in any casing
     /// (#757, #893).
     ///
-    /// Mapping notes:
-    /// - `[fraiseql.security.audit_logging] enabled` lowers onto `enterprise.audit_logging_enabled`
-    ///   — the field the runtime actually reads. Its other keys (`log_level`, `buffer_size`, …)
-    ///   have no consumer anywhere and are not emitted.
-    /// - `[fraiseql.security.error_sanitization] enabled` lowers onto the compiled
-    ///   `error_sanitization.enabled`; its other keys (`generic_messages`, `user_facing_format`, …)
-    ///   likewise have no consumer and are not emitted.
-    /// - `state_encryption` is the compiled type and is emitted as read; `key_rotation_enabled`,
-    ///   `nonce_size` and `key_size` have no consumer (nonce/key sizes are fixed by the algorithm)
-    ///   and are refused as unknown.
-    /// - `pkce`, `api_keys`, `token_revocation`, `trusted_documents`, `persisted_queries_only` and
-    ///   `cost_budget` are lowered by the TOML schema's own lowering.
+    /// Every section the TOML schema also takes (`enterprise`, `error_sanitization`,
+    /// `rate_limiting`, `state_encryption` and the access-control sections) is in the compiled
+    /// type and lowered by the TOML schema's own lowering, so both files compile it alike.
     pub fn to_json(&self) -> serde_json::Value {
         let role_definitions: Vec<fraiseql_core::schema::RoleDefinition> =
             self.role_definitions.iter().map(RoleDefinitionConfig::to_runtime).collect();
 
-        let super::toml_schema::security::AccessSections {
+        let super::toml_schema::security::SharedSections {
+            enterprise,
+            error_sanitization,
+            rate_limiting,
+            state_encryption,
             pkce,
             api_keys,
             token_revocation,
             trusted_documents,
             persisted_queries_only,
             cost_budget,
-        } = self.toml_schema_settings().access_sections();
+        } = self.toml_schema_settings().shared_sections();
 
         let runtime = fraiseql_core::schema::SecurityConfig {
             role_definitions,
             default_role: self.default_role.clone(),
             multi_tenant: self.multi_tenant,
             rls: self.rls.clone(),
-            enterprise: Some(fraiseql_core::schema::EnterpriseSecurityConfig {
-                audit_logging_enabled: self.audit_logging.enabled,
-                error_sanitization: self.error_sanitization.enabled,
-                rate_limiting_enabled: self.rate_limiting.enabled,
-                ..Default::default()
-            }),
-            error_sanitization: Some(fraiseql_core::schema::ErrorSanitizationConfig {
-                enabled: self.error_sanitization.enabled,
-                ..Default::default()
-            }),
-            rate_limiting: Some(fraiseql_core::schema::RateLimitingSecurityConfig {
-                enabled: self.rate_limiting.enabled,
-                requests_per_second: self.rate_limiting.requests_per_second,
-                burst_size: self.rate_limiting.burst_size,
-                auth_start_max_requests: self.rate_limiting.auth_start_max_requests,
-                auth_start_window_secs: self.rate_limiting.auth_start_window_secs,
-                auth_callback_max_requests: self.rate_limiting.auth_callback_max_requests,
-                auth_callback_window_secs: self.rate_limiting.auth_callback_window_secs,
-                auth_refresh_max_requests: self.rate_limiting.auth_refresh_max_requests,
-                auth_refresh_window_secs: self.rate_limiting.auth_refresh_window_secs,
-                auth_logout_max_requests: self.rate_limiting.auth_logout_max_requests,
-                auth_logout_window_secs: self.rate_limiting.auth_logout_window_secs,
-                auth_otp_send_max_requests: self.rate_limiting.auth_otp_send_max_requests,
-                auth_otp_send_window_secs: self.rate_limiting.auth_otp_send_window_secs,
-                auth_otp_verify_max_requests: self.rate_limiting.auth_otp_verify_max_requests,
-                auth_otp_verify_window_secs: self.rate_limiting.auth_otp_verify_window_secs,
-                auth_password_max_requests: self.rate_limiting.auth_password_max_requests,
-                auth_password_window_secs: self.rate_limiting.auth_password_window_secs,
-                auth_anonymous_signup_max_requests: self
-                    .rate_limiting
-                    .auth_anonymous_signup_max_requests,
-                auth_anonymous_signup_window_secs: self
-                    .rate_limiting
-                    .auth_anonymous_signup_window_secs,
-                auth_rules_enabled: self.rate_limiting.auth_rules_enabled,
-                failed_login_max_attempts: self.rate_limiting.failed_login_max_requests,
-                failed_login_lockout_secs: self.rate_limiting.failed_login_window_secs,
-                requests_per_second_per_user: None,
-                redis_url: None,
-                trust_proxy_headers: self.rate_limiting.trust_proxy_headers,
-                // Emitted even when empty: with `trust_proxy_headers = true`, an
-                // explicit empty list is what the #618 boot guard refuses, while an
-                // absent list means "trust every proxy" (warned). Collapsing empty
-                // to absent would silently weaken the guard.
-                trusted_proxy_cidrs: Some(self.rate_limiting.trusted_proxy_cidrs.clone()),
-                max_buckets: self.rate_limiting.max_buckets,
-            }),
-            state_encryption: Some(self.state_encryption.clone()),
+            enterprise: Some(enterprise),
+            error_sanitization,
+            rate_limiting,
+            state_encryption,
             pkce,
             api_keys,
             token_revocation,
@@ -671,6 +370,9 @@ impl SecurityConfig {
     #[must_use]
     pub fn toml_schema_settings(&self) -> super::toml_schema::security::SecuritySettings {
         super::toml_schema::security::SecuritySettings {
+            enterprise: self.enterprise.clone(),
+            error_sanitization: self.error_sanitization.clone(),
+            rate_limiting: self.rate_limiting.clone(),
             state_encryption: Some(self.state_encryption.clone()),
             pkce: self.pkce.clone(),
             api_keys: self.api_keys.clone(),
@@ -696,15 +398,10 @@ mod security_seam_tests {
     /// rename on either side has to come here.
     // A default config serializes exactly these sections: the typed
     // `SecurityConfig` (#977) skips fields carrying no information
-    // (`multi_tenant = false`, a default `rls`, empty lists, `None`s), and
-    // `audit_logging` lowers onto `enterprise.audit_logging_enabled` — the key
-    // the runtime actually reads.
-    const EXPECTED_SECTIONS: &[&str] = &[
-        "enterprise",
-        "error_sanitization",
-        "rate_limiting",
-        "state_encryption",
-    ];
+    // (`multi_tenant = false`, a default `rls`, empty lists, `None`s, an unwritten
+    // `error_sanitization` or `rate_limiting`), and `enterprise` carries
+    // `audit_logging_enabled`, which defaults on.
+    const EXPECTED_SECTIONS: &[&str] = &["enterprise", "state_encryption"];
 
     /// #983 — the server has consumed `security.service_accounts` since #977, but no
     /// authoring workflow could write it: only a hand-written `schema.json` could, so
@@ -782,55 +479,51 @@ secret_env = "FRAISEQL_SA_GHOST_SECRET"
         }
     }
 
+    /// `[fraiseql.security.rate_limiting]` written with no keys.
+    fn written_rate_limiting() -> serde_json::Value {
+        let config: SecurityConfig = toml::from_str("[rate_limiting]\n").expect("parses");
+        config.to_json()["rate_limiting"].clone()
+    }
+
     #[test]
     fn rate_limiting_is_flat_and_carries_a_usable_budget() {
-        let json = SecurityConfig::default().to_json();
-        let rl = json.get("rate_limiting").expect("rate_limiting section").clone();
+        let rl = written_rate_limiting();
 
         // Flat, not the old nested `authStart: { maxRequests }` shape, which matched
         // no reader even once the section name was right.
         assert!(rl.get("authStart").is_none(), "the nested camelCase shape must be gone");
         assert_eq!(
             rl.get("auth_start_max_requests").and_then(serde_json::Value::as_u64),
-            Some(u64::from(DEFAULT_AUTH.auth_start_max_requests))
+            Some(u64::from(
+                fraiseql_core::schema::RateLimitingSecurityConfig::DEFAULT.auth_start_max_requests
+            ))
         );
 
         // The trap in #893: a section emitted without these two keys deserializes them
         // to zero on the consumer side, giving a limiter that denies every request.
         let rps = rl.get("requests_per_second").and_then(serde_json::Value::as_u64).unwrap();
         let burst = rl.get("burst_size").and_then(serde_json::Value::as_u64).unwrap();
-        assert!(rps > 0, "a default project config must not compile to a zero-rps limiter");
-        assert!(burst > 0, "a default project config must not compile to a zero-burst limiter");
+        assert!(rps > 0, "a written section must not compile to a zero-rps limiter");
+        assert!(burst > 0, "a written section must not compile to a zero-burst limiter");
     }
 
-    /// This table and the runtime's kept two sets of auth budgets, and this one
-    /// was the looser — 100 starts and 50 callbacks a minute against the runtime's 5 and
-    /// 10 — so writing `[fraiseql.security]` weakened sign-in throttling. Every auth field
-    /// an untouched project emits must be the runtime default. The fields this table owns
-    /// on purpose (the global switch and budget, the proxy list) are taken from the output;
-    /// a new auth field is compared without being listed here.
+    /// A project that writes no `[fraiseql.security.rate_limiting]` emits none, as a TOML
+    /// schema does: the server then leaves the global limit off and applies its own auth
+    /// endpoint budgets. Emitting a section here is what made the two files compile one
+    /// untouched config to two postures.
     #[test]
-    fn an_untouched_project_emits_the_runtime_auth_budgets() {
+    fn an_untouched_project_emits_no_rate_limiting_or_error_sanitization() {
         let json = SecurityConfig::default().to_json();
-        let emitted: fraiseql_core::schema::RateLimitingSecurityConfig =
-            serde_json::from_value(json["rate_limiting"].clone()).expect("the consumer's shape");
-        let expected = fraiseql_core::schema::RateLimitingSecurityConfig {
-            enabled: emitted.enabled,
-            requests_per_second: emitted.requests_per_second,
-            burst_size: emitted.burst_size,
-            trusted_proxy_cidrs: emitted.trusted_proxy_cidrs.clone(),
-            ..DEFAULT_AUTH
-        };
-        assert_eq!(emitted, expected);
+        assert!(json.get("rate_limiting").is_none(), "{json}");
+        assert!(json.get("error_sanitization").is_none(), "{json}");
     }
 
     #[test]
-    fn failed_login_defaults_match_the_runtimes_so_an_untouched_config_boots() {
+    fn failed_login_defaults_match_the_runtimes_so_a_written_section_boots() {
         // The runtime refuses to boot in production when these are tuned away from its
         // defaults (#356), because the binary has no first-factor login to enforce
-        // them. An untouched project config must therefore emit exactly those defaults.
-        let json = SecurityConfig::default().to_json();
-        let rl = json.get("rate_limiting").unwrap();
+        // them. A section that does not write them must therefore emit exactly those.
+        let rl = written_rate_limiting();
         assert_eq!(
             rl.get("failed_login_max_attempts").and_then(serde_json::Value::as_u64),
             Some(10)

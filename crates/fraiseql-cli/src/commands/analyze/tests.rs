@@ -52,7 +52,6 @@ fn compiled_schema(controls_enabled: Option<bool>) -> String {
             }),
             enterprise: Some(fraiseql_core::schema::EnterpriseSecurityConfig {
                 audit_logging_enabled: enabled,
-                ..Default::default()
             }),
             error_sanitization: Some(fraiseql_core::schema::ErrorSanitizationConfig {
                 enabled,

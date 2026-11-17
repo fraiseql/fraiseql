@@ -103,7 +103,6 @@ url = "postgresql://localhost/test"
 [security]
 
 [security.enterprise]
-rate_limiting_enabled = false
 audit_logging_enabled = true
 "#;
     let compiled_json = compile(TYPES_JSON, toml);
@@ -138,7 +137,6 @@ url = "postgresql://localhost/test"
 [security]
 
 [security.enterprise]
-rate_limiting_enabled = false
 audit_logging_enabled = false
 "#;
     let compiled_json = compile(TYPES_JSON, toml);
@@ -181,7 +179,6 @@ required = true
 # by the remaining security fields (enterprise).
 
 [security.enterprise]
-rate_limiting_enabled = true
 audit_logging_enabled = true
 "#;
     let compiled_json = compile(TYPES_JSON, toml);

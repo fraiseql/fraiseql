@@ -127,6 +127,31 @@ disagreed, and the promise was the part that was wrong.
   (`fraiseql_core::db::FUNCTION_DISPATCH_LEDGER_DDL`). Tenants registered at runtime create
   it in their own schema the same way.
 
+- **A project `fraiseql.toml` spells `error_sanitization`, `rate_limiting` and the audit flag
+  as a TOML schema does (#2019).** The project config read them through tables of its own;
+  it now reads the compiled types, so each setting has one spelling, refused by name in the
+  old one:
+  - `[fraiseql.security.audit_logging] enabled` is
+    `[fraiseql.security.enterprise] audit_logging_enabled`;
+  - `[fraiseql.security.rate_limiting]` `failed_login_max_requests` and
+    `failed_login_window_secs` are `failed_login_max_attempts` and `failed_login_lockout_secs`.
+
+  A project with no `[fraiseql.security.rate_limiting]` table no longer turns the global
+  per-client limit on: it compiles no section, as a TOML schema does, and the server leaves
+  that limit off (the auth endpoint limits still apply). With no
+  `[fraiseql.security.error_sanitization]` table, errors are sanitized in production as
+  before and no longer in development. `fraiseql init` writes the rate limit on. A written
+  `[fraiseql.security.rate_limiting]` table now bursts to 200, the compiled default, instead
+  of 500.
+
+- **`[security.enterprise]` takes only `audit_logging_enabled` (#2019).**
+  `rate_limiting_enabled`, `auth_endpoint_max_requests`, `auth_endpoint_window_seconds`,
+  `audit_log_backend`, `audit_retention_days`, `error_sanitization`,
+  `hide_implementation_details`, `constant_time_comparison` and `pkce_enabled` were read by
+  nothing and are refused as unknown fields; `[security.rate_limiting]`,
+  `[security.error_sanitization]` and `[security.pkce]` hold the settings that act. A
+  compiled schema carrying them no longer loads: recompile it.
+
 ### Added
 
 - **`after:mutation` and `after:capture` dispatch is at-least-once: the function dispatch
@@ -231,6 +256,12 @@ disagreed, and the promise was the part that was wrong.
   `persisted_queries_only`, where it said they had none (#2011). An unsupported
   `state_encryption` `algorithm` is refused in a TOML schema with the text a project config
   gives, naming the supported algorithms, instead of serde's unknown-variant message.
+
+- A `[security.rate_limiting]` or `[security.error_sanitization]` table that leaves out
+  `enabled` is on (#2019). A table written to tune `requests_per_second` or
+  `custom_error_message` switched its control off. A TOML schema now also refuses a rate
+  limit window of zero seconds and an endpoint budget of zero requests, as a project config
+  did.
 
 ### Fixed
 
