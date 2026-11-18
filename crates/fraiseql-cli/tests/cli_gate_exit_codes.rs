@@ -245,3 +245,125 @@ fn federation_check_reads_what_compile_writes() {
         "{stdout}"
     );
 }
+
+// ── graph commands: a schema that does not validate exits 2 ──────────────────────
+
+/// Two types that reference each other: `dependency-graph` refuses the cycle.
+const CYCLIC_SCHEMA: &str = r#"{
+    "types": [
+        { "name": "A", "sql_source": "v_a", "jsonb_column": "data", "implements": [],
+          "fields": [ { "name": "id", "field_type": "ID" },
+                      { "name": "b", "field_type": { "Object": "B" }, "nullable": true } ] },
+        { "name": "B", "sql_source": "v_b", "jsonb_column": "data", "implements": [],
+          "fields": [ { "name": "id", "field_type": "ID" },
+                      { "name": "a", "field_type": { "Object": "A" }, "nullable": true } ] }
+    ],
+    "queries": [ { "name": "items", "sql_source": "v_a", "return_type": "[A]",
+                   "arguments": [], "max_results": 1000 } ]
+}"#;
+
+/// A compiled schema with no federation block: `federation graph` refuses it.
+const UNFEDERATED_SCHEMA: &str = r#"{
+    "types": [ { "name": "User", "sql_source": "v_user",
+                 "fields": [ { "name": "id", "field_type": "ID" } ] } ]
+}"#;
+
+/// `args` run on `schema`: its exit code and its stdout under `--json`.
+fn run_on(schema: &str, args: &[&str]) -> (i32, serde_json::Value) {
+    let dir = TempDir::new().unwrap();
+    let path = write_schema(&dir, schema);
+    let out = cli().arg("--json").args(args).arg(&path).output().unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let result = serde_json::from_str(&stdout).unwrap_or_else(|e| panic!("{e}: {stdout}"));
+    (out.status.code().unwrap_or(-1), result)
+}
+
+/// A cyclic schema is `validation-failed`, and `dependency-graph` exits 2 for it, as
+/// `validate` does for the same schema.
+#[test]
+fn dependency_graph_on_a_cyclic_schema_exits_2() {
+    let (code, result) = run_on(CYCLIC_SCHEMA, &["dependency-graph"]);
+    assert_eq!(result["status"], "validation-failed", "{result}");
+    assert_eq!(code, 2, "{result}");
+}
+
+/// A schema `federation graph` cannot place is `validation-failed`, and the command exits 2
+/// for it, as `federation check` does.
+#[test]
+fn federation_graph_on_an_unfederated_schema_exits_2() {
+    let (code, result) = run_on(UNFEDERATED_SCHEMA, &["federation", "graph"]);
+    assert_eq!(result["status"], "validation-failed", "{result}");
+    assert_eq!(code, 2, "{result}");
+}
+
+/// Every command module that can build a `validation-failed` result is dispatched through an
+/// arm that reaches `report` or `enforce_exit_code`, so a new one cannot print the status and
+/// exit 0.
+///
+/// The producers are discovered, not listed: a list would be the same omission one layer up.
+/// The ones known today are asserted present, so a discovery that finds fewer fails rather
+/// than passing on less.
+#[test]
+fn every_validation_failed_producer_reaches_the_exit_code() {
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let commands = src.join("commands");
+
+    let mut producers = std::collections::BTreeSet::new();
+    for entry in walkdir::WalkDir::new(&commands) {
+        let path = entry.unwrap().into_path();
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        if path.extension().is_none_or(|e| e != "rs")
+            || name.ends_with("tests.rs")
+            || path.components().any(|c| c.as_os_str() == "tests")
+        {
+            continue;
+        }
+        let source = std::fs::read_to_string(&path).unwrap();
+        if !source.contains("validation_failed(") && !source.contains("\"validation-failed\"") {
+            continue;
+        }
+        let relative = path.strip_prefix(&commands).unwrap().with_extension("");
+        let mut module: Vec<String> = relative
+            .components()
+            .map(|c| c.as_os_str().to_string_lossy().into_owned())
+            .collect();
+        if module.last().is_some_and(|last| last == "mod") {
+            module.pop();
+        }
+        producers.insert(module.join("::"));
+    }
+    for known in [
+        "dependency_graph",
+        "federation::check",
+        "federation::graph",
+        "lint",
+        "validate",
+    ] {
+        assert!(producers.contains(known), "discovery missed `{known}`: found {producers:?}");
+    }
+
+    let runner = std::fs::read_to_string(src.join("runner.rs")).unwrap();
+    let arm_start = regex::Regex::new(r"\n\s*(?:\w+Commands|Commands)::\w+\s*[{=(]").unwrap();
+    let mut unreported = Vec::new();
+    for module in &producers {
+        let call =
+            regex::Regex::new(&format!(r"commands::{}::run\w*\(", regex::escape(module))).unwrap();
+        let calls: Vec<_> = call.find_iter(&runner).collect();
+        assert!(
+            !calls.is_empty(),
+            "`commands::{module}` builds `validation-failed` but runner.rs never runs it"
+        );
+        for found in calls {
+            let rest = &runner[found.end()..];
+            let arm = arm_start.find(rest).map_or(rest, |next| &rest[..next.start()]);
+            if !arm.contains("report(") && !arm.contains("enforce_exit_code(") {
+                unreported.push(module.clone());
+            }
+        }
+    }
+    assert!(
+        unreported.is_empty(),
+        "these commands can print `validation-failed` and exit 0; report their result through \
+         `report` in runner.rs: {unreported:?}"
+    );
+}

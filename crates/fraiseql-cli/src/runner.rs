@@ -72,7 +72,7 @@ pub async fn run() {
 
         Commands::Explain { query } => match commands::explain::run(&query) {
             Ok(result) => {
-                println!("{}", output::OutputFormatter::new(cli.json, cli.quiet).format(&result));
+                report(&result, cli.json, cli.quiet);
                 Ok(())
             },
             Err(e) => Err(e),
@@ -80,7 +80,7 @@ pub async fn run() {
 
         Commands::Cost { query } => match commands::cost::run(&query) {
             Ok(result) => {
-                println!("{}", output::OutputFormatter::new(cli.json, cli.quiet).format(&result));
+                report(&result, cli.json, cli.quiet);
                 Ok(())
             },
             Err(e) => Err(e),
@@ -88,7 +88,7 @@ pub async fn run() {
 
         Commands::Analyze { schema } => match commands::analyze::run(&schema) {
             Ok(result) => {
-                println!("{}", output::OutputFormatter::new(cli.json, cli.quiet).format(&result));
+                report(&result, cli.json, cli.quiet);
                 Ok(())
             },
             Err(e) => Err(e),
@@ -98,10 +98,7 @@ pub async fn run() {
             match commands::dependency_graph::GraphFormat::from_str(&format) {
                 Ok(fmt) => match commands::dependency_graph::run(&schema, fmt) {
                     Ok(result) => {
-                        println!(
-                            "{}",
-                            output::OutputFormatter::new(cli.json, cli.quiet).format(&result)
-                        );
+                        report(&result, cli.json, cli.quiet);
                         Ok(())
                     },
                     Err(e) => Err(e),
@@ -133,13 +130,9 @@ pub async fn run() {
             };
             match commands::lint::run(&schema, opts) {
                 Ok(result) => {
-                    println!(
-                        "{}",
-                        output::OutputFormatter::new(cli.json, cli.quiet).format(&result)
-                    );
                     // H21: `--fail-on-critical`/`--fail-on-warning` must affect the
                     // exit code, not just the printed status.
-                    enforce_exit_code(&result);
+                    report(&result, cli.json, cli.quiet);
                     Ok(())
                 },
                 Err(e) => Err(e),
@@ -151,10 +144,7 @@ pub async fn run() {
                 match commands::federation::graph::GraphFormat::from_str(&format) {
                     Ok(fmt) => match commands::federation::graph::run(&schema, fmt) {
                         Ok(result) => {
-                            println!(
-                                "{}",
-                                output::OutputFormatter::new(cli.json, cli.quiet).format(&result)
-                            );
+                            report(&result, cli.json, cli.quiet);
                             Ok(())
                         },
                         Err(e) => Err(e),
@@ -271,10 +261,6 @@ pub async fn run() {
                     };
                     match commands::validate::run_with_options(&input, opts) {
                         Ok(result) => {
-                            println!(
-                                "{}",
-                                output::OutputFormatter::new(cli.json, cli.quiet).format(&result)
-                            );
                             // Exit 2 for "the schema is invalid", 1 for "the tool broke" —
                             // the contract `--help-json` publishes, and what `lint` and
                             // `federation check` already do. This used to wrap the status in
@@ -283,7 +269,7 @@ pub async fn run() {
                             // cyclic schema from a broken toolchain. It also discarded the
                             // per-error list that the JSON on stdout already carried
                             // (#868 item 6).
-                            enforce_exit_code(&result);
+                            report(&result, cli.json, cli.quiet);
                             Ok(())
                         },
                         Err(e) => Err(e),
@@ -716,6 +702,14 @@ pub async fn run() {
 /// The configuration refusal `error` carries, at any depth of its chain.
 fn config_diagnostic(error: &anyhow::Error) -> Option<&ConfigDiagnostic> {
     error.chain().find_map(|cause| cause.downcast_ref::<ConfigDiagnostic>())
+}
+
+/// Print `result` as `--json` and `--quiet` ask, then exit with the code its status
+/// publishes ([`enforce_exit_code`]). Every command that returns a [`CommandResult`] reports
+/// through here, so none can print `validation-failed` and exit 0.
+fn report(result: &crate::output::CommandResult, json: bool, quiet: bool) {
+    println!("{}", crate::output::OutputFormatter::new(json, quiet).format(result));
+    enforce_exit_code(result);
 }
 
 /// Enforce the CLI exit-code contract for a command that returns a [`CommandResult`].

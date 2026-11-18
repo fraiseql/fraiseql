@@ -18,6 +18,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql federation graph` and `fraiseql dependency-graph` exit 2 on a schema they
+  refuse (#2047).** Both printed a `validation-failed` result (a schema with no federation
+  block or `service_name`; a circular type dependency) and exited 0, so a CI step running
+  either passed on a schema `validate` and `federation check` refuse with exit 2. They now
+  exit 2 too. A script that ran either command on such a schema and relied on exit 0 must
+  accept 2.
 - **A refused configuration exits 2, not 1 (#2034).** `fraiseql compile`, `doctor`, `run`
   and every other command that reads `fraiseql.toml` (and `fraiseql run` reading the
   server's configuration file) exit 2 when they refuse the configuration: a retired
