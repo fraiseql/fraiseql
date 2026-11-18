@@ -61,12 +61,11 @@ jobs:
     needs: already-passed
     if: ${{ !cancelled() && needs.already-passed.outputs.passed != 'true' }}
     name: image
-    # archbox's main runner only. On forge `images` alone took 31 min with the box
-    # otherwise idle, and the leg hit its cap on all seven forge runs from 2026-10-04
-    # to 10-07; the six archbox runs passed in 34-43 min. `fraiseql-8core` keeps it
-    # off `archbox-2`, which is reserved for test and feature matrix. The cap leaves
-    # headroom over archbox's worst measured run (42.8 min) rather than 2 min.
-    runs-on: [self-hosted, fraiseql-8core, archbox]
+    # fraiseql-heavy only. On forge `images` alone took 31 min with the box otherwise
+    # idle, and the leg hit its cap on all seven forge runs from 2026-10-04 to 10-07;
+    # the six archbox runs passed in 34-43 min. The cap leaves headroom over
+    # archbox's worst measured run (42.8 min) rather than 2 min.
+    runs-on: [self-hosted, fraiseql-8core, fraiseql-heavy]
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6

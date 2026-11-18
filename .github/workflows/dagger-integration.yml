@@ -14,9 +14,10 @@ name: Dagger — integration
 # (`<volume>-lane-N`, as feature-combos.go names its lanes). Unset is lane 0: the
 # unsuffixed volumes every run used before lanes. Each box runs its own engine, so
 # lanes need only differ between runners on the same box: forge runs lanes 0 and
-# 1, archbox lane 0. A runner added to a box needs a lane no other runner on
-# that box has, and max-parallel follows the total; two runners on one lane queue.
-# RAM is not the limit (94 GiB on forge, 94 on archbox). Disk is: each lane adds its
+# 1, archbox lane 0, enclume (enclume-1, fraiseql-heavy) lane 0. A runner added to
+# a box needs a lane no other runner on that box has, and max-parallel follows the
+# total; two runners on one lane queue. RAM has not been the limit (94 GiB on
+# forge, 94 on archbox; enclume has 32 GB, unmeasured under a suite). Disk is: each lane adds its
 # own copy of the integ4 and fed target volumes, about as large as lane 0's, on its
 # box's engine; GC reclaims an idle lane's.
 #

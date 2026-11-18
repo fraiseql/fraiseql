@@ -6,8 +6,12 @@ self-hosted-runner:
     # Shared by every self-hosted runner (archbox and forge): a job on this
     # label lands on whichever box is free.
     - fraiseql-8core
-    # archbox only (i7-13700K). The heavy legs — test, feature matrix — pin here:
-    # on forge (Xeon E5-1650 v4) they run 2-3x slower.
+    # The heavy legs (test, perf, feature matrix, image) pin here: on forge (Xeon
+    # E5-1650 v4) they run 2-3x slower. Carried by enclume-1 (OVH RISE-LE-3, Ryzen 7
+    # 5800X, 16 threads, 32 GB), its own Docker and Dagger engine, lane 0.
+    - fraiseql-heavy
+    # archbox only (i7-13700K). No leg pins here any more; its runners are to be
+    # retired after a week of measurements on fraiseql-heavy.
     - archbox
     # forge only (OVH, Xeon E5-1650 v4, 125 GiB).
     - forge

@@ -1,7 +1,7 @@
 name: Dagger — test
 
 # Phase 03 workspace test suite (Track 0). Runs the workspace test suite
-# on the self-hosted runner archbox at ~$0/min, on latest stable. `dagger call test
+# on the self-hosted runner fraiseql-heavy at ~$0/min, on latest stable. `dagger call test
 # --rust=stable` does the full cargo build --all-features + the feature-scoped cargo
 # test invocations + doctests, reusing the box's cargo/target/sccache cache volumes.
 #
@@ -66,9 +66,9 @@ jobs:
     needs: already-passed
     if: ${{ !cancelled() && needs.already-passed.outputs.passed != 'true' }}
     name: test (stable)
-    # archbox only: on forge this leg runs ~1.7x slower and would become the
+    # fraiseql-heavy only: on forge this leg runs ~1.7x slower and would become the
     # longest job of every push; pinning it also keeps one Dagger cache warm for it.
-    runs-on: [self-hosted, archbox]
+    runs-on: [self-hosted, fraiseql-heavy]
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -86,13 +86,13 @@ jobs:
 
   # The performance gate (#1636): instruction counts of `Executor::execute` under
   # callgrind against benchmarks/instructions-baseline.json, failing above 3% either
-  # way. archbox only, like the test leg: the baseline is the count this container
-  # measures, and one runner keeps it one binary.
+  # way. fraiseql-heavy only, like the test leg: the baseline is the count this
+  # container measures, and one runner keeps it one binary.
   perf:
     needs: already-passed
     if: ${{ !cancelled() && needs.already-passed.outputs.passed != 'true' }}
     name: perf (instructions)
-    runs-on: [self-hosted, archbox]
+    runs-on: [self-hosted, fraiseql-heavy]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
