@@ -4,7 +4,7 @@ fraiseql 0
 fraiseql-arrow 28
 fraiseql-auth 28
 fraiseql-cdc-sinks 1
-fraiseql-cli 235
+fraiseql-cli 214
 fraiseql-codegen 17
 fraiseql-core 409
 fraiseql-db 87

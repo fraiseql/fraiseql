@@ -1081,3 +1081,34 @@ identity_field = "user_id"
         );
     }
 }
+
+mod settings_tests {
+    use crate::{
+        config::toml_schema::QueryDefaults, schema::intermediate::IntermediateQueryDefaults,
+    };
+
+    /// An undeclared `[query_defaults]` reaches the converter as `None`, which it reads as
+    /// `IntermediateQueryDefaults::default()`: that is the table's own default only while
+    /// the two agree.
+    #[test]
+    fn an_undeclared_query_defaults_table_converts_to_its_own_defaults() {
+        let table = QueryDefaults::default();
+        let converted = IntermediateQueryDefaults::default();
+        assert_eq!(
+            (
+                table.where_clause,
+                table.order_by,
+                table.limit,
+                table.offset,
+                table.pagination_order
+            ),
+            (
+                converted.where_clause,
+                converted.order_by,
+                converted.limit,
+                converted.offset,
+                converted.pagination_order
+            )
+        );
+    }
+}
