@@ -4,8 +4,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::{
-    CreateObserverRequest, ListObserverLogsQuery, ListObserversQuery, Observer, ObserverLog,
-    ObserverScope, ObserverStats, UpdateObserverRequest,
+    CreateObserverRequest, ListObserverLogsQuery, ListObserversQuery, MANAGED_BY_PROJECT_PREFIX,
+    MANAGED_BY_SCHEMA, Observer, ObserverLog, ObserverScope, ObserverStats, UpdateObserverRequest,
 };
 use crate::ServerError;
 
@@ -330,6 +330,11 @@ impl ObserverRepository {
     /// Another owner's rows are neither rewritten nor removed. A declared name another
     /// owner already holds is refused: the two would otherwise rewrite one row in turn.
     ///
+    /// The rows of the unnamed owner ([`MANAGED_BY_SCHEMA`], what every schema was stored
+    /// under before owners carried a project name) belong to whichever named owner
+    /// reconciles first: one it still declares is taken over in place, and one it does
+    /// not is soft-deleted, since no declaration stands behind it any more.
+    ///
     /// One transaction under an advisory lock: replicas booting together write one set.
     /// An organisation's observers are never read or written.
     ///
@@ -351,6 +356,8 @@ impl ObserverRepository {
             .await
             .map_err(db)?;
 
+        // A named owner inherits the unnamed owner's rows; the unnamed owner inherits none.
+        let inherits = |holder: &str| holder == MANAGED_BY_SCHEMA && owner != MANAGED_BY_SCHEMA;
         let mut outcome = Reconciled::default();
         for observer in declared {
             let actions = serde_json::Value::Array(observer.actions.clone());
@@ -394,18 +401,22 @@ impl ObserverRepository {
                     .map_err(db)?;
                     outcome.created.push(observer.name.clone());
                 },
-                Some((_, Some(other), ..)) if other != owner => {
+                Some((_, Some(other), ..)) if other != owner && !inherits(&other) => {
                     return Err(ServerError::ConfigError(format!(
-                        "observer `{}` is declared by the schema of `{owner}`, and \
-                         core.tb_observer already holds a global observer of that name \
-                         managed by `{other}`. Two schemas on one database cannot declare \
-                         the same observer name: rename one",
-                        observer.name
+                        "observer `{}` is declared by {}, and core.tb_observer already holds \
+                         a global observer of that name declared by {}. Two projects on one \
+                         database cannot declare the same observer name: rename one of the \
+                         two, and check that each schema's `[project] name` is the one \
+                         intended",
+                        observer.name,
+                        owner_shown(owner),
+                        owner_shown(&other)
                     )));
                 },
                 Some((pk, managed_by, enabled, same)) => {
                     let adopted = managed_by.is_none();
-                    if adopted || !same {
+                    let taken_over = managed_by.as_deref().is_some_and(inherits);
+                    if adopted || taken_over || !same {
                         sqlx::query(
                             "UPDATE core.tb_observer SET entity_type = $2, event_type = $3, \
                                  condition_expression = $4, actions = $5, retry_config = $6, \
@@ -424,6 +435,8 @@ impl ObserverRepository {
                         .map_err(db)?;
                         let changed = if adopted {
                             &mut outcome.adopted
+                        } else if taken_over {
+                            &mut outcome.taken_over
                         } else {
                             &mut outcome.updated
                         };
@@ -437,17 +450,25 @@ impl ObserverRepository {
         }
 
         let names: Vec<&str> = declared.iter().map(|o| o.name.as_str()).collect();
-        let removed: Vec<(String,)> = sqlx::query_as(
+        let removed: Vec<(String, bool)> = sqlx::query_as(
             "UPDATE core.tb_observer SET deleted_at = NOW(), updated_by = $1 \
-             WHERE managed_by = $1 AND deleted_at IS NULL AND NOT (name = ANY($2)) \
-             RETURNING name",
+             WHERE (managed_by = $1 OR managed_by = $3) AND deleted_at IS NULL \
+               AND NOT (name = ANY($2)) \
+             RETURNING name, managed_by = $1",
         )
         .bind(owner)
         .bind(&names)
+        .bind(MANAGED_BY_SCHEMA)
         .fetch_all(&mut *tx)
         .await
         .map_err(db)?;
-        outcome.removed = removed.into_iter().map(|(name,)| name).collect();
+        for (name, own) in removed {
+            if own {
+                outcome.removed.push(name);
+            } else {
+                outcome.removed_unnamed.push(name);
+            }
+        }
 
         tx.commit().await.map_err(db)?;
         Ok(outcome)
@@ -638,6 +659,13 @@ impl ObserverRepository {
     }
 }
 
+/// An owner as a refusal shows it: the project behind `schema:<name>`.
+fn owner_shown(owner: &str) -> String {
+    owner
+        .strip_prefix(MANAGED_BY_PROJECT_PREFIX)
+        .map_or_else(|| format!("the owner `{owner}`"), |project| format!("project `{project}`"))
+}
+
 /// The advisory lock [`ObserverRepository::reconcile_declared`] writes under.
 const RECONCILE_LOCK_KEY: i64 = 0x6672_6f62_7372_6563;
 
@@ -645,15 +673,33 @@ const RECONCILE_LOCK_KEY: i64 = 0x6672_6f62_7372_6563;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Reconciled {
     /// Declared observers that had no row.
-    pub created:  Vec<String>,
+    pub created:         Vec<String>,
     /// Schema-managed rows rewritten to a changed declaration.
-    pub updated:  Vec<String>,
+    pub updated:         Vec<String>,
     /// Global rows the admin API wrote, taken over by a declaration of the same name.
-    pub adopted:  Vec<String>,
+    pub adopted:         Vec<String>,
     /// Schema-managed rows the schema no longer declares, soft-deleted.
-    pub removed:  Vec<String>,
+    pub removed:         Vec<String>,
     /// Declared observers whose row is disabled, and so do not fire.
-    pub disabled: Vec<String>,
+    pub disabled:        Vec<String>,
+    /// Rows of the unnamed owner ([`MANAGED_BY_SCHEMA`]) the schema still declares, now
+    /// its named owner's: same row, same id, same log.
+    pub taken_over:      Vec<String>,
+    /// Rows of the unnamed owner the schema does not declare, soft-deleted.
+    pub removed_unnamed: Vec<String>,
+}
+
+impl Reconciled {
+    /// Every row the reconcile of `owner` soft-deleted, with the owner that held it: its
+    /// own rows, then the unnamed owner's.
+    pub fn removed_with_owner<'a>(
+        &'a self,
+        owner: &'a str,
+    ) -> impl Iterator<Item = (&'a str, &'a str)> {
+        let own = self.removed.iter().map(move |name| (name.as_str(), owner));
+        let unnamed = self.removed_unnamed.iter().map(|name| (name.as_str(), MANAGED_BY_SCHEMA));
+        own.chain(unnamed)
+    }
 }
 
 /// The observer tables an earlier release may have left outside `core`, each with

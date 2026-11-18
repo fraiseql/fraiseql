@@ -465,6 +465,16 @@ pub async fn compile_to_schema(
     // installs them at boot (see `fraiseql_db::utils::set_runtime_acronyms`).
     schema.naming_acronyms = naming.acronyms;
     schema.project_name = project_name;
+    // Declared observers are stored under the project's name, which is known only here:
+    // the converter sees the schema, not the file its name is written in.
+    if let (None, Some(observer)) = (&schema.project_name, schema.observers.first()) {
+        anyhow::bail!(
+            "the schema declares observers (`{}`), which the server stores under the \
+             project's name so that another project on the same database cannot remove \
+             them. Set `[project] name` in fraiseql.toml",
+            observer.name
+        );
+    }
 
     // Carry the project's @cost weight overrides (#379) into the compiled schema so
     // the runtime per-tenant cost-budget check can apply them. Non-clobbering: only

@@ -117,20 +117,52 @@ pub struct Observer {
     pub deleted_at: Option<DateTime<Utc>>,
 
     /// Who owns the row: `None` for the admin API, the owner a schema's declared observers
-    /// are stored under (today [`MANAGED_BY_SCHEMA`]) otherwise.
+    /// are stored under ([`declared_owner`]) otherwise.
     pub managed_by: Option<String>,
 }
 
-/// The owner the observers a compiled schema declares are stored under, in
-/// `tb_observer.managed_by`.
+/// The owner every schema's declared observers were stored under, in
+/// `tb_observer.managed_by`, before an owner carried its project's name.
 ///
-/// One owner for every schema, so one schema per database declares observers: a second
-/// one booted against the same database would remove the first one's. The store itself
-/// keeps owners apart ([`ObserverRepository::reconcile_declared`]).
+/// One owner for every schema let a second schema booted against the same database remove
+/// the first one's observers. Rows still under it are inherited by the first named owner
+/// that reconciles ([`ObserverRepository::reconcile_declared`]). A schema that declares no
+/// observer and writes no `[project] name` still reconciles under it, so the rows it once
+/// declared are removed.
+pub const MANAGED_BY_SCHEMA: &str = "schema";
+
+/// What precedes the project name in the owner of a schema's declared observers.
+pub const MANAGED_BY_PROJECT_PREFIX: &str = "schema:";
+
+/// The owner the observers `schema` declares are stored under, in
+/// `tb_observer.managed_by`: `schema:<[project] name>`.
+///
+/// Two projects on one database each keep their own declared observers, because the store
+/// keeps owners apart. Two schemas compiled under one project name are one owner: each
+/// boot removes what the other declares, as a redeploy of one project would.
 ///
 /// The server writes these rows at boot from the schema, so the admin API changes nothing
 /// of one but whether it is enabled: any other change would last until the next boot.
-pub const MANAGED_BY_SCHEMA: &str = "schema";
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` for a schema that declares observers and carries no
+/// project name: stored under a shared owner, they would be removed by the next schema
+/// booted against the database.
+pub fn declared_owner(
+    schema: &fraiseql_core::schema::CompiledSchema,
+) -> Result<String, crate::ServerError> {
+    match (schema.project_name.as_deref(), schema.observers.first()) {
+        (Some(project), _) => Ok(format!("{MANAGED_BY_PROJECT_PREFIX}{project}")),
+        (None, None) => Ok(MANAGED_BY_SCHEMA.to_owned()),
+        (None, Some(observer)) => Err(crate::ServerError::ConfigError(format!(
+            "the schema declares observers (`{}`) and carries no project name, which is the \
+             owner they are stored under. Set `[project] name` in fraiseql.toml and compile \
+             again",
+            observer.name
+        ))),
+    }
+}
 
 /// Placeholder substituted for secret-bearing values in API response bodies.
 const REDACTED_PLACEHOLDER: &str = "[REDACTED]";

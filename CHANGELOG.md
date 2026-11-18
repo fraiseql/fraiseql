@@ -37,11 +37,12 @@ disagreed, and the promise was the part that was wrong.
 - **A global observer whose name the schema declares is taken over at boot (#1655).** The
   server now writes the observers the schema declares into `core.tb_observer` at every
   boot. A global row (`fk_customer_org` null) of the same name, written by the admin API or
-  a seed script, is rewritten from the declaration and marked `managed_by = 'schema'`; the
+  a seed script, is rewritten from the declaration and marked with the schema's owner
+  (`managed_by = 'schema:<[project] name>'`); the
   server logs a `WARN` naming it. An organisation's observers are untouched. Once an
   observer is declared, drop the script that seeded it.
 - **The admin API changes nothing of a declared observer but whether it is enabled
-  (#1655).** `PATCH` and `DELETE` on an observer whose `managed_by` is `schema` answer
+  (#1655).** `PATCH` and `DELETE` on an observer the schema declares (`managed_by` set) answer
   `409`; `/enable`, `/disable` and a `PATCH` of `enabled` alone still work. Change the
   declaration and redeploy.
 - **The admin API refuses an observer action key the runtime ignores, and its email action
@@ -53,6 +54,24 @@ disagreed, and the promise was the part that was wrong.
   observer created through the admin API failed at delivery. `cc`, `to_template`,
   `subject_template` and `reply_to` are refused. A stored row that carries one still
   loads. `fraiseql_server::observers::ActionConfig::Email` changes accordingly.
+- **A schema that declares observers needs a `[project] name` (#2043).** Declared observers
+  are stored under the project's name (`managed_by = 'schema:<name>'`), so that two projects
+  on one database each keep their own. `fraiseql compile` and `fraiseql run` refuse a
+  schema that declares observers when `fraiseql.toml` writes no `[project] name`, and the
+  server refuses to boot a compiled schema that carries observers and no `project_name`.
+  Write the name and compile again. Two schemas compiled under one name are one owner:
+  each boot removes what the other declares.
+- **Rows stored under the owner `schema` move to the first named project that boots
+  (#2043).** An observer it still declares keeps its row, id, execution log and enabled
+  state under the new owner. One it does not declare is soft-deleted. Each is logged at
+  `WARN`. `fraiseql_server::observers::Reconciled` gains `taken_over` and
+  `removed_unnamed`, and `ObserverRepository::reconcile_declared` treats the owner
+  `schema` as the one every named owner inherits from.
+- **`core.tb_observer.managed_by`, `created_by` and `updated_by` become `TEXT` (#2043).**
+  The server alters them once, at the first boot of this release. A replica of the
+  earlier release still running against the database can answer an observer admin API
+  request with a database error ("cached plan must not change result type") until it
+  restarts; its observers keep firing.
 - **Observer rows and the Rust types that carry them gain a field (#1655).**
   `core.tb_observer` gains `managed_by` (the server adds the column at boot), every
   observer in an admin API response carries `managed_by`, and
@@ -450,6 +469,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Two projects on one database each keep the observers they declare (#2043).** Every
+  schema's declared observers were stored under one owner, so a second schema booted
+  against the same database removed the first one's. They are now stored under the
+  project's name, and an observer name two projects declare refuses the second boot,
+  naming both.
 - **A declared observer is no longer refused by the compiler (#1655).** `fraiseql compile`
   refused any schema that declared observers, because nothing loaded them; applications
   seeded `core.tb_observer` with their own scripts. They are now compiled and stored at

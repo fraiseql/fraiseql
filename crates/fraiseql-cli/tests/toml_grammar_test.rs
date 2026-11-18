@@ -346,6 +346,38 @@ fn an_unwritten_project_name_is_not_compiled() {
     }
 }
 
+/// A schema's declared observers are stored under its project's name, so a schema that
+/// declares one and writes no name is refused, in both roles, naming the key to write.
+#[test]
+fn observers_declared_with_no_project_name_are_refused_in_both_roles() {
+    let declaring = json!({"observers": [{
+        "name": "order_created", "entity": "Order", "event": "INSERT",
+        "actions": [{"type": "webhook", "url": "https://example.test/hook"}],
+        "retry": {"max_attempts": 3, "backoff_strategy": "exponential",
+                  "initial_delay_ms": 100, "max_delay_ms": 5000}
+    }]});
+    let enabled = "[observers]\nenabled = true\n";
+
+    for unnamed in [
+        enabled.to_owned(),
+        format!("[project]\nversion = \"1.0.0\"\n{enabled}"),
+    ] {
+        for (role, refused) in in_both_roles_with(&unnamed, &declaring) {
+            assert!(!refused.ok, "{role}: compiled with no owner for its observers");
+            assert!(refused.log.contains("[project] name"), "{role}: {}", refused.log);
+            assert!(refused.log.contains("order_created"), "{role}: {}", refused.log);
+        }
+    }
+    let named = format!("[project]\nname = \"shop\"\n{enabled}");
+    for (role, compiled) in in_both_roles_with(&named, &declaring) {
+        assert!(compiled.ok, "{role}: {}", compiled.log);
+        assert_eq!(compiled.schema["observers"][0]["name"], "order_created", "{role}");
+    }
+    for (role, compiled) in in_both_roles(enabled) {
+        assert!(compiled.ok, "{role}: no observer declared, no name needed: {}", compiled.log);
+    }
+}
+
 // ── one merge: a document copy meets the file alike in both roles ───────────
 
 /// A table the file writes, a document copy that disagrees with it, and a word the
