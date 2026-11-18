@@ -6,7 +6,7 @@ name: Dagger — feature matrix
 # combo list as typed Go data (.dagger/feature-combos.go). cargo check / clippy only
 # — no test binaries, so NO backing services: it only pulls the rust:1.95.0 base (from
 # the private ghcr.io/fraiseql mirror, see mirror-base-images.yml). Runs on the
-# self-hosted runner archbox at ~$0/min, reusing the box's cargo/sccache
+# self-hosted runner fraiseql-heavy at ~$0/min, reusing the box's cargo/sccache
 # cache volumes (warm = fast). See docs/contributing/dagger-parity-notes.md.
 #
 # ONE job, `dagger call feature-matrix`, which fans the combos across N lanes
@@ -69,9 +69,10 @@ jobs:
     needs: already-passed
     if: ${{ !cancelled() && needs.already-passed.outputs.passed != 'true' }}
     name: feature matrix
-    # archbox only: its combos fan across per-lane target volumes, and keeping the
-    # leg on one box keeps those volumes warm (cold on forge it ran ~20 min, ~6 here).
-    runs-on: [self-hosted, archbox]
+    # fraiseql-heavy only: its combos fan across per-lane target volumes, and keeping
+    # the leg on one box keeps those volumes warm (cold on forge it ran ~20 min, ~6 on
+    # archbox).
+    runs-on: [self-hosted, fraiseql-heavy]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
