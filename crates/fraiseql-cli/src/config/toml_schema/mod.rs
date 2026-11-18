@@ -35,7 +35,10 @@ pub use federation::{
     FederationCircuitBreakerConfig, FederationConfig, FederationEntity,
     PerDatabaseCircuitBreakerOverride,
 };
-use fraiseql_core::schema::{ChangelogConfig, CrudNamingConfig};
+use fraiseql_core::{
+    schema::{ChangelogConfig, CrudNamingConfig},
+    utils::config_diagnostic::DiagnosticCode,
+};
 pub use functions::FunctionsSettings;
 pub use observers::{EventHandler, ObserversConfig};
 pub use operations::{
@@ -455,11 +458,16 @@ impl TomlSchema {
         // not enforce. `RuntimeConfig::from_compiled_schema` pins the operation- and
         // field-authorizers to None, so any access boundary these blocks imply does not
         // exist. Fail loud rather than let a deployment believe it enforces authz.
-        if !self.security.rules.is_empty()
-            || !self.security.policies.is_empty()
-            || !self.security.field_auth.is_empty()
-        {
-            anyhow::bail!(
+        let unenforced = [
+            ("security.rules", self.security.rules.is_empty()),
+            ("security.policies", self.security.policies.is_empty()),
+            ("security.field_auth", self.security.field_auth.is_empty()),
+        ];
+        if let Some((table, _)) = unenforced.iter().find(|(_, empty)| !empty) {
+            return Err(crate::config::refusal(
+                DiagnosticCode::Unread,
+                table,
+                "",
                 "[security.rules] / [security.policies] / [security.field_auth] declare \
                  authorization that the FraiseQL runtime does NOT enforce: the server pins \
                  the operation- and field-authorizers to None, so the access boundary these \
@@ -468,7 +476,8 @@ impl TomlSchema {
                  sets from the request identity) until a compiled-schema declarative \
                  authorization engine ships — tracked at \
                  https://github.com/fraiseql/fraiseql/issues/626."
-            );
+                    .to_owned(),
+            ));
         }
 
         // #1 [caching] (#623): `[[caching.rules]]` are lowered by the merger onto the
@@ -484,11 +493,15 @@ impl TomlSchema {
             );
         }
         if self.caching.redis_url.is_some() {
-            anyhow::bail!(
+            return Err(crate::config::refusal(
+                DiagnosticCode::Unread,
+                "caching",
+                "redis_url",
                 "[caching] redis_url is set, but there is no Redis-backed result cache to \
                  connect it to. Remove the key. (Redis features elsewhere — APQ, rate \
                  limiting, PKCE — are separate subsystems with their own configuration.)"
-            );
+                    .to_owned(),
+            ));
         }
         if !self.caching.enabled && !self.caching.rules.is_empty() {
             anyhow::bail!(

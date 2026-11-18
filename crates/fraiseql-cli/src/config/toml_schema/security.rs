@@ -754,10 +754,17 @@ pub(crate) fn embed_email_templates(
             ("html_template", "html", &mut template.html_template, &mut template.html),
         ] {
             if body.is_some() {
-                anyhow::bail!(
-                    "[auth.local.email.{kind}] {inline} is the compiled body. In fraiseql.toml, \
-                     write it in a file and name the file with {key}."
-                );
+                return Err(fraiseql_core::utils::config_diagnostic::ConfigDiagnostic::new(
+                    fraiseql_core::utils::config_diagnostic::DiagnosticCode::Misplaced,
+                    &format!("auth.local.email.{kind}"),
+                    inline,
+                    format!(
+                        "[auth.local.email.{kind}] {inline} is the compiled body. In \
+                         fraiseql.toml, write it in a file and name the file with {key}."
+                    ),
+                )
+                .with_replacement(&format!("`{key}`"))
+                .into());
             }
             if let Some(file) = path.take() {
                 let read = project.join(&file);

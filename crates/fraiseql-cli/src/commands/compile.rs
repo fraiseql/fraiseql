@@ -228,7 +228,9 @@ pub async fn compile_to_schema(
             &opts.mutation_files,
             opts.schema_dir,
             opts.types,
-        )?
+        )
+        // A refusal raised while the TOML input's sections are merged names that file.
+        .map_err(|e| crate::config::name_the_file(e, opts.input))?
     } else {
         // Legacy JSON workflow
         info!("Using legacy JSON workflow");

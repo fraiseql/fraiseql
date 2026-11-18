@@ -243,6 +243,105 @@ fn cases() -> Vec<Case> {
             replacement: None,
             belongs_in:  None,
         },
+        Case {
+            site:        "[rest] key removed with its replacement",
+            toml:        "[rest]\nmax_embedded_reads = 5\n",
+            document:    json!({}),
+            phrase:      "max_embedded_reads was removed",
+            code:        "E-CONFIG-RETIRED",
+            table:       "rest",
+            key:         Some("max_embedded_reads"),
+            replacement: Some("`[security.cost_budget] per_request_max`"),
+            belongs_in:  None,
+        },
+        Case {
+            site:        "[observers] redis_url nothing reads",
+            toml:        "[observers]\nredis_url = \"redis://cache:6379\"\n",
+            document:    json!({}),
+            phrase:      "configures nothing",
+            code:        "E-CONFIG-UNREAD",
+            table:       "observers",
+            key:         Some("redis_url"),
+            replacement: None,
+            belongs_in:  None,
+        },
+        Case {
+            site:        "[[observers.handlers]] nothing runs",
+            toml:        "[[observers.handlers]]\nname = \"h\"\nevent = \"order.created\"\naction = \"webhook\"\n",
+            document:    json!({}),
+            phrase:      "[[observers.handlers]] is not supported",
+            code:        "E-CONFIG-UNREAD",
+            table:       "observers.handlers",
+            key:         None,
+            replacement: None,
+            belongs_in:  None,
+        },
+        Case {
+            site:        "[caching] redis_url nothing reads",
+            toml:        "[caching]\nredis_url = \"redis://cache:6379\"\n",
+            document:    json!({}),
+            phrase:      "no Redis-backed result cache",
+            code:        "E-CONFIG-UNREAD",
+            table:       "caching",
+            key:         Some("redis_url"),
+            replacement: None,
+            belongs_in:  None,
+        },
+        Case {
+            site:        "[[security.rules]] the runtime does not enforce",
+            toml:        "[[security.rules]]\nname = \"r\"\nrule = \"true\"\n",
+            document:    json!({}),
+            phrase:      "the FraiseQL runtime does NOT enforce",
+            code:        "E-CONFIG-UNREAD",
+            table:       "security.rules",
+            key:         None,
+            replacement: None,
+            belongs_in:  None,
+        },
+        Case {
+            site:        "[[security.policies]] the runtime does not enforce",
+            toml:        "[[security.policies]]\nname = \"p\"\ntype = \"rbac\"\n",
+            document:    json!({}),
+            phrase:      "the FraiseQL runtime does NOT enforce",
+            code:        "E-CONFIG-UNREAD",
+            table:       "security.policies",
+            key:         None,
+            replacement: None,
+            belongs_in:  None,
+        },
+        Case {
+            site:        "[[security.field_auth]] the runtime does not enforce",
+            toml:        "[[security.field_auth]]\ntype_name = \"Order\"\nfield_name = \"total\"\npolicy = \"p\"\n",
+            document:    json!({}),
+            phrase:      "the FraiseQL runtime does NOT enforce",
+            code:        "E-CONFIG-UNREAD",
+            table:       "security.field_auth",
+            key:         None,
+            replacement: None,
+            belongs_in:  None,
+        },
+        Case {
+            site:        "[inject_defaults] and the document's copy",
+            toml:        "[inject_defaults]\ntenant_id = \"jwt:tenant_id\"\n",
+            document:    json!({"inject_defaults": {"base": {"tenant_id": "jwt:org_id"}}}),
+            phrase:      "differs from `inject_defaults` in the",
+            code:        "E-CONFIG-DISAGREES",
+            table:       "inject_defaults",
+            key:         None,
+            replacement: None,
+            belongs_in:  None,
+        },
+        Case {
+            site:        "[auth.local.email] compiled body written inline",
+            toml:        "[auth.local.email.otp]\ntext = \"Your code\"\n",
+            document:    json!({}),
+            phrase:      "text is the compiled body",
+            code:        "E-CONFIG-MISPLACED",
+            table:       "auth.local.email.otp",
+            key:         Some("text"),
+            replacement: Some("`text_template`"),
+            belongs_in:  None,
+        },
     ]
 }
 
@@ -323,6 +422,45 @@ fn a_refused_toml_schema_input_names_its_file() {
     assert_eq!(refused.code, Some(2), "{error}");
     assert_eq!(error["diagnostic"]["code"], "E-CONFIG-RETIRED", "{error}");
     assert_eq!(error["diagnostic"]["file"], "fraiseql.toml", "{error}");
+}
+
+/// `fraiseql --json compile fraiseql.toml --types types.json`: the TOML file as the compile
+/// input, a role in which it declares queries.
+fn compile_toml_input(toml: &str) -> Refused {
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("types.json"), document().to_string()).unwrap();
+    fs::write(dir.path().join("fraiseql.toml"), toml).unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+        .args([
+            "--json",
+            "compile",
+            "fraiseql.toml",
+            "--types",
+            "types.json",
+        ])
+        .args(["--output", "schema.compiled.json"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    Refused {
+        code:   out.status.code(),
+        stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+    }
+}
+
+/// A query named `defaults` is refused as the misspelt `[query_defaults]` it most likely is.
+#[test]
+fn a_query_named_defaults_is_refused_as_misplaced() {
+    let refused = compile_toml_input("[queries.defaults]\nreturn_type = \"User\"\n");
+    let error = refused.error();
+    let diagnostic = &error["diagnostic"];
+    assert!(error.to_string().contains("under [queries.defaults]"), "{error}");
+    assert_eq!(refused.code, Some(2), "{error}");
+    assert_eq!(diagnostic["code"], "E-CONFIG-MISPLACED", "{error}");
+    assert_eq!(diagnostic["table"], "queries", "{error}");
+    assert_eq!(diagnostic["key"], "defaults", "{error}");
+    assert_eq!(diagnostic["replacement"], "`[query_defaults]`", "{error}");
+    assert_eq!(diagnostic["file"], "fraiseql.toml", "{error}");
 }
 
 /// A failure that is not a refused configuration keeps exit 1 and carries no diagnostic:

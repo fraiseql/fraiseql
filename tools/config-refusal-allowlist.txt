@@ -1,0 +1,83 @@
+# Every `bail!` / `anyhow!` on the fraiseql.toml load path that is not a key refusal, with the
+# key it checks and why it carries no diagnostic code. Read by tools/check-config-refusals.py.
+# A refused KEY (retired, read by nothing, misplaced, disagreeing) is not listed here: it is
+# `crate::config::refusal(...)`, so it exits 2 and names its code, table and key.
+#
+# <file> | <message prefix, or the raising line> | <key it checks> | <why it carries no code>
+crates/fraiseql-cli/src/config/discovery.rs | --config {} cannot be combined with the TOML input {}: that | --config | command-line conflict: the TOML input and --config name two files
+crates/fraiseql-cli/src/config/discovery.rs | --config {}: no such file | --config | command-line value: the named file does not exist
+crates/fraiseql-cli/src/config/mod.rs | {section} database_target = {target:?} is not supported: Fra | [*] database_target | value check: an unsupported database_target value
+crates/fraiseql-cli/src/config/runtime.rs | [server] port must be non-zero | [server] port | value check: port 0
+crates/fraiseql-cli/src/config/runtime.rs | [server.tls] cert_file is required when tls.enabled = true | [server.tls] cert_file | a key one setting requires (tls.enabled), not a refused key
+crates/fraiseql-cli/src/config/runtime.rs | [server.tls] key_file is required when tls.enabled = true | [server.tls] key_file | a key one setting requires (tls.enabled), not a refused key
+crates/fraiseql-cli/src/config/runtime.rs | [server.tls] min_version must be | [server.tls] min_version | value check: an unknown TLS version
+crates/fraiseql-cli/src/config/runtime.rs | [database] pool_min ({}) must be <= pool_max ({}) | [database] pool_min | value check: pool_min above pool_max
+crates/fraiseql-cli/src/config/runtime.rs | [database.transaction_retry] {e} | [database.transaction_retry] | value check: the retry bounds' own check
+crates/fraiseql-cli/src/config/runtime.rs | [database] connect_timeout_ms must be greater than 0; a zero | [database] connect_timeout_ms | value check: a zero timeout
+crates/fraiseql-cli/src/config/runtime.rs | [database] ssl_mode: {e} | [database] ssl_mode | value check: an unknown ssl_mode
+crates/fraiseql-cli/src/config/security.rs | Role name cannot be empty | [[security.role_definitions]] name | value check: an empty role name
+crates/fraiseql-cli/src/config/security.rs | Role '{}' must have at least one scope | [[security.role_definitions]] scopes | value check: a role with no scope
+crates/fraiseql-cli/src/config/security.rs | tenancy.tenant_claim must not be empty: it names the JWT cla | [tenancy] tenant_claim | value check: an empty claim name
+crates/fraiseql-cli/src/config/security_merge.rs | the schema document's `security` must be an object, found {d | security (schema document) | the schema document's shape, not a fraiseql.toml key
+crates/fraiseql-cli/src/config/toml_schema/domain.rs | Domain discovery root not found: {} | [domain_discovery] root_dir | value check: the directory does not exist
+crates/fraiseql-cli/src/config/toml_schema/domain.rs | Invalid domain name: {} | [domain_discovery] root_dir | value check: a domain directory without a usable name
+crates/fraiseql-cli/src/config/toml_schema/domain.rs | Error resolving {group} glob pattern '{pattern}': {e} | [includes] * | value check: a glob pattern that does not parse
+crates/fraiseql-cli/src/config/toml_schema/domain.rs | [includes] {group} pattern '{pattern}' matched no files. Fix | [includes] * | value check: a pattern that matches no file
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | hierarchy table must not be empty | [hierarchies.*] table | value check: an empty table name
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | hierarchy path_column must not be empty | [hierarchies.*] path_column | value check: an empty column name
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | [caching] backend = | [caching] backend | value check: a backend other than "memory"
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | [caching] declares {} [[caching.rules]] but `enabled = false | [caching] enabled | two keys that contradict (rules declared, caching off), not a refused key
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | [caching] enabled = true with no [[caching.rules]] does noth | [caching] enabled | two keys that contradict (caching on, no rules), not a refused key
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | [analytics] declares {} [[analytics.queries]] but `enabled = | [analytics] enabled | two keys that contradict (queries declared, analytics off), not a refused key
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | [analytics] enabled = true with no [[analytics.queries]] doe | [analytics] enabled | two keys that contradict (analytics on, no queries), not a refused key
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | [security.api_keys] storage = | [security.api_keys] storage | value check: an unimplemented storage
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | Invalid hierarchy config '{name}': {e} | [hierarchies.*] | value check: the hierarchy's own check
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | [security.rate_limiting] trusted_proxy_cidrs contains an inv | [security.rate_limiting] trusted_proxy_cidrs | value check: a CIDR that does not parse
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | federation.circuit_breaker.failure_threshold must be greater | [federation.circuit_breaker] failure_threshold | value check: zero
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | federation.circuit_breaker.recovery_timeout_secs must be gre | [federation.circuit_breaker] recovery_timeout_secs | value check: zero
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | federation.circuit_breaker.success_threshold must be greater | [federation.circuit_breaker] success_threshold | value check: zero
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | federation.circuit_breaker.per_database entry '{}' does not | [federation.circuit_breaker.per_database] | value check: an entry naming no declared database
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | federation.circuit_breaker.per_database['{}'].failure_thresh | [federation.circuit_breaker.per_database] failure_threshold | value check: zero
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | federation.circuit_breaker.per_database['{}'].recovery_timeo | [federation.circuit_breaker.per_database] recovery_timeout_secs | value check: zero
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | federation.circuit_breaker.per_database['{}'].success_thresh | [federation.circuit_breaker.per_database] success_threshold | value check: zero
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | Query '{query_name}' references undefined type '{}'{hint} | [queries.*] return_type | value check: a type the schema does not declare
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | Mutation '{mut_name}' references undefined type '{}'{hint} | [mutations.*] return_type | value check: a type the schema does not declare
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | Field '{type_name}.{field_name}' references undefined hierar | [types.*.fields.*] hierarchy | value check: a hierarchy the file does not declare
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | [security.rate_limiting] {name} must be positive | [security.rate_limiting] * | value check: a non-positive limit
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | [security.rate_limiting] {name} must be at least 1; setting | [security.rate_limiting] * | value check: a limit below 1
+crates/fraiseql-cli/src/config/toml_schema/runtime_sections.rs | REST config: `path` must start with '/' (got {:?}) | [rest] path | value check: a path not starting with '/'
+crates/fraiseql-cli/src/config/toml_schema/runtime_sections.rs | [grpc] enabled = true requires `descriptor_path`, the path t | [grpc] descriptor_path | a key one setting requires (enabled = true), not a refused key
+crates/fraiseql-cli/src/config/toml_schema/runtime_sections.rs | [grpc] stream_batch_size must be greater than 0 (got 0) — a | [grpc] stream_batch_size | value check: zero
+crates/fraiseql-cli/src/config/toml_schema/security.rs | service account '{name}' must set `secret_env` — the name of | [security.service_accounts.*] secret_env | value check: an empty variable name
+crates/fraiseql-cli/src/config/toml_schema/security.rs | service account '{name}' grants neither roles nor scopes, so | [security.service_accounts.*] | value check: an account granting nothing
+crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth] PKCE OAuth-client config is incomplete: discovery_url | [auth] discovery_url | keys one setting requires (the PKCE client), not a refused key
+crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth] audience is set but neither issuer nor jwks_uri is co | [auth] audience | a key another requires (issuer or jwks_uri), not a refused key
+crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth.social] is configured but names no provider. Add an | [auth.social] | value check: a section naming no provider
+crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth.social.apple] names both private_key_env and private_k | [auth.social.apple] private_key_env | two keys that exclude each other, not a refused key
+crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth.social.apple] needs exactly one of private_key_env / | [auth.social.apple] private_key_env | one of two keys is required, not a refused key
+crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth.social.{provider}] {field} must not be empty. | [auth.social.*] * | value check: an empty provider field
+crates/fraiseql-cli/src/config/toml_schema/security.rs | session.check().map_err(|message| anyhow::anyhow!(message))?; | [auth.session] | value check: the session settings' own check
+crates/fraiseql-cli/src/config/toml_schema/security.rs | database.check().map_err(|message| anyhow::anyhow!(message))?; | [auth.database] | value check: the auth database settings' own check
+crates/fraiseql-cli/src/config/toml_schema/security.rs | .map_err(|message| anyhow::anyhow!(message))?; | [auth.local] session transport | value check: the local sign-in's session transport check
+crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth.local] is configured but enables no method. Set at lea | [auth.local] | value check: a section enabling no method
+crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth.local] email_verification = true needs password = true | [auth.local] email_verification | a key another requires (password = true), not a refused key
+crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth.local] email_verification = true needs verification_ur | [auth.local] verification_url_template | a key one setting requires (email_verification), not a refused key
+crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth.local] enables {} but sets no email_from. These flows | [auth.local] email_from | a key the enabled flows require, not a refused key
+crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth.local] password = true needs reset_url_template — the | [auth.local] reset_url_template | a key one setting requires (password = true), not a refused key
+crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth.local] otp_allowed_query decides who may sign in by OT | [auth.local] otp_allowed_query | a key that needs another (otp = true), not a refused key
+crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth.local] otp_allowed_query is refused: {problem}: {query | [auth.local] otp_allowed_query | value check: a query the statement check refuses
+crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth.local] magic_link_template must contain the {{token}} | [auth.local] magic_link_template | value check: a template without its placeholder
+crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth.local] {field} must contain the {placeholder} placehol | [auth.local] *_template | value check: a template without its placeholder
+crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth] is empty. Configure JWT validation with issuer (or jw | [auth] | value check: a section configuring no validation
+crates/fraiseql-cli/src/config/toml_schema/server_settings.rs | [validation] max_offset = 0 would refuse every offset page. | [validation] max_offset | value check: zero
+crates/fraiseql-cli/src/config/toml_schema/server_settings.rs | [validation] max_semi_additive_cells = 0 would refuse every | [validation] max_semi_additive_cells | value check: zero
+crates/fraiseql-cli/src/schema/merger.rs | Mutation '{mutation_name}' has no `sql_source` and no `[crud | [crud] / [mutations.*] sql_source | a mutation with no sql_source the naming config can name, not a refused key
+crates/fraiseql-cli/src/schema/merger.rs | [[analytics.queries]] name '{}' collides with an existing qu | [[analytics.queries]] name | value check: a name another query takes
+crates/fraiseql-cli/src/schema/merger.rs | [[analytics.queries]] name '{}' ends in a reserved suffix: t | [[analytics.queries]] name | value check: a reserved suffix
+crates/fraiseql-cli/src/schema/merger.rs | [[analytics.queries]] '{}' declares return_type '{}', which | [[analytics.queries]] return_type | value check: a type the schema does not declare
+crates/fraiseql-cli/src/schema/merger.rs | [[caching.rules]] names query '{}', which does not exist. De | [[caching.rules]] query | value check: a query the schema does not declare
+crates/fraiseql-cli/src/schema/merger.rs | [[caching.rules]] targets query '{}', which has no sql_sourc | [[caching.rules]] query | value check: a query with no sql_source
+crates/fraiseql-cli/src/schema/merger.rs | [[caching.rules]] for query '{}' names invalidation trigger | [[caching.rules]] invalidation_triggers | value check: a mutation the schema does not declare
+crates/fraiseql-cli/src/schema/merger.rs | mutation '{trigger}' has a non-array invalidates_views; cann | invalidates_views (schema document) | the schema document's shape, not a fraiseql.toml key
+crates/fraiseql-cli/src/schema/merger.rs | Expected a JSON object at the top level of the schema input, | (schema input) | the merged schema input's shape, not a fraiseql.toml key
+crates/fraiseql-cli/src/schema/merger.rs | {e} | (authoring keys) | the authoring IR's drifted-key check, whose keys are the schema document's, not fraiseql.toml's

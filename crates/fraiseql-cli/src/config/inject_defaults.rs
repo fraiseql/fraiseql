@@ -19,7 +19,7 @@
 //! When `schema.json` also carries `inject_defaults` — an SDK emitted it from this same
 //! file — the two must agree; a difference is refused rather than one silently winning.
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
@@ -77,13 +77,19 @@ impl InjectDefaultsToml {
         };
         let from_config = config.to_intermediate()?;
         match document {
-            Some(from_document) if from_document != from_config => bail!(
-                "[inject_defaults] in fraiseql.toml differs from `inject_defaults` in the \
-                 schema document.\n  fraiseql.toml: {}\n  schema:        {}\nRegenerate the \
-                 schema from this fraiseql.toml, or remove the block from one of them.",
-                serde_json::to_string(&from_config).unwrap_or_default(),
-                serde_json::to_string(&from_document).unwrap_or_default(),
-            ),
+            Some(from_document) if from_document != from_config => Err(crate::config::refusal(
+                fraiseql_core::utils::config_diagnostic::DiagnosticCode::Disagrees,
+                "inject_defaults",
+                "",
+                format!(
+                    "[inject_defaults] in fraiseql.toml differs from `inject_defaults` in \
+                         the schema document.\n  fraiseql.toml: {}\n  schema:        \
+                         {}\nRegenerate the schema from this fraiseql.toml, or remove the \
+                         block from one of them.",
+                    serde_json::to_string(&from_config).unwrap_or_default(),
+                    serde_json::to_string(&from_document).unwrap_or_default(),
+                ),
+            )),
             _ => Ok(Some(from_config)),
         }
     }

@@ -1,6 +1,9 @@
 //! REST transport TOML configuration.
 
-use fraiseql_core::schema::{DeleteResponse, RestConfig};
+use fraiseql_core::{
+    schema::{DeleteResponse, RestConfig},
+    utils::config_diagnostic::{ConfigDiagnostic, DiagnosticCode},
+};
 use serde::{Deserialize, Serialize};
 
 /// REST transport configuration parsed from the `[rest]` TOML section.
@@ -73,14 +76,20 @@ impl RestTomlConfig {
     /// When `max_embedded_reads` is set.
     pub fn reject_retired_keys(&self) -> anyhow::Result<()> {
         if self.max_embedded_reads.is_some() {
-            anyhow::bail!(
+            return Err(ConfigDiagnostic::new(
+                DiagnosticCode::Retired,
+                "rest",
+                "max_embedded_reads",
                 "[rest] max_embedded_reads was removed: a `?select=` embed is no longer a \
                  sub-read per parent row but one composed statement, and there are no sub-reads \
                  left to count. It is bounded by the request's cost ceiling — set \
                  [security.cost_budget] per_request_max (and [validation] max_response_bytes \
                  for its bytes) — and each embedded level's page by [rest] \
                  default_embed_page_size. Remove the key."
-            );
+                    .to_owned(),
+            )
+            .with_replacement("`[security.cost_budget] per_request_max`")
+            .into());
         }
         Ok(())
     }

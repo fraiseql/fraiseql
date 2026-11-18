@@ -560,11 +560,17 @@ impl SchemaMerger {
 
         // Typo guard: [queries.defaults] is a common mistake for [query_defaults].
         if toml_schema.queries.contains_key("defaults") {
-            anyhow::bail!(
+            return Err(fraiseql_core::utils::config_diagnostic::ConfigDiagnostic::new(
+                fraiseql_core::utils::config_diagnostic::DiagnosticCode::Misplaced,
+                "queries",
+                "defaults",
                 "Found a query definition named 'defaults' under [queries.defaults]. \
                  Did you mean [query_defaults] to set global auto-param defaults?\n\
                  If you intended a query called 'defaults', rename it to avoid confusion."
-            );
+                    .to_owned(),
+            )
+            .with_replacement("`[query_defaults]`")
+            .into());
         }
 
         // Start with arrays for types, queries, mutations (not objects!)

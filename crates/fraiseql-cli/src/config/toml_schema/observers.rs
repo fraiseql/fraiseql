@@ -1,6 +1,6 @@
 //! Observer/event system configuration for TOML schema.
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use fraiseql_core::{schema::ObserversBackend, utils::config_diagnostic::DiagnosticCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -77,13 +77,17 @@ impl ObserversConfig {
         // `tb_observer` row: one the authoring schema declares, stored at boot, or one
         // the admin API adds.
         if !self.handlers.is_empty() {
-            bail!(
+            return Err(crate::config::refusal(
+                DiagnosticCode::Unread,
+                "observers.handlers",
+                "",
                 "[[observers.handlers]] is not supported: compiled TOML handlers are not a \
                  runtime concept (#631) — runtime observers are the `tb_observer` rows the \
                  authoring schema declares and the admin observer API adds. Declare observers \
                  in the schema, or add them with `POST /api/observers`, and remove the \
                  [[observers.handlers]] block."
-            );
+                    .to_owned(),
+            ));
         }
         Ok(())
     }
@@ -95,7 +99,12 @@ impl ObserversConfig {
     /// Returns an error when the table declares `redis_url`.
     pub fn refuse_redis_url(&self) -> Result<()> {
         if self.redis_url.is_some() {
-            bail!("{REDIS_URL_REFUSED}");
+            return Err(crate::config::refusal(
+                DiagnosticCode::Unread,
+                "observers",
+                "redis_url",
+                REDIS_URL_REFUSED.to_owned(),
+            ));
         }
         Ok(())
     }
