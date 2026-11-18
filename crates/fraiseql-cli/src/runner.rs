@@ -705,8 +705,11 @@ fn config_diagnostic(error: &anyhow::Error) -> Option<&ConfigDiagnostic> {
 }
 
 /// Print `result` as `--json` and `--quiet` ask, then exit with the code its status
-/// publishes ([`enforce_exit_code`]). Every command that returns a [`CommandResult`] reports
-/// through here, so none can print `validation-failed` and exit 0.
+/// publishes ([`enforce_exit_code`]). Every command that returns a
+/// [`CommandResult`](crate::output::CommandResult) reports through here except `federation check`:
+/// its `check::run` already prints the result under `--json`, so its arm prints only the human form
+/// and calls [`enforce_exit_code`] itself. Either way none can print `validation-failed` and exit
+/// 0; `cli_gate_exit_codes.rs` refuses an arm that reaches neither.
 fn report(result: &crate::output::CommandResult, json: bool, quiet: bool) {
     println!("{}", crate::output::OutputFormatter::new(json, quiet).format(result));
     enforce_exit_code(result);
