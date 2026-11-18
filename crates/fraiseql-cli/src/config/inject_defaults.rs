@@ -31,6 +31,9 @@ use crate::schema::intermediate::IntermediateInjectDefaults;
 /// A sub-table under any other name is refused by the base map, whose values must be
 /// strings — so `[inject_defaults.querys]` is an error, not a silently ignored table (the
 /// SDK loaders ignore it).
+///
+/// The table is open on purpose: a base key is a parameter name the author chooses, so no
+/// list of keys could close it.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct InjectDefaultsToml {
     /// Applied to queries only, overriding a base entry of the same name.

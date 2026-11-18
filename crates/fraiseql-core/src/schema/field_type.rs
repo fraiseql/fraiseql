@@ -34,6 +34,7 @@ use crate::error::{FraiseQLError, Result};
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct VectorConfig {
     /// Number of dimensions in the vector: float components for
     /// [`FieldType::Vector`], bits for [`FieldType::BitVector`]

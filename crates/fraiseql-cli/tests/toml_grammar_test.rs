@@ -569,3 +569,77 @@ fn a_file_exposing_only_the_change_log_compiles() {
     let compiled = run(&dir, &["fraiseql.toml"]);
     assert!(compiled.ok, "{}", compiled.log);
 }
+
+// ── `[[session_variables.variables]]`: each source takes its own keys ─────────
+
+/// Each source, the key it takes, and a key another source takes.
+const SESSION_SOURCES: &[(&str, &str, &str)] = &[
+    ("jwt", "claim", "header"),
+    ("header", "header", "claim"),
+    ("literal", "value", "field"),
+    ("enrichment", "field", "value"),
+];
+
+/// `[[session_variables.variables]]` with `source`, its own key, and `extra`.
+fn session_variable(source: &str, own: &str, extra: &str) -> String {
+    format!(
+        "[[session_variables.variables]]\nname = \"app.tenant\"\nsource = \"{source}\"\n\
+         {own} = \"tenant_id\"\n{extra}"
+    )
+}
+
+/// A key no source takes is refused in both roles, naming it and the keys the source takes,
+/// rather than compiled without effect.
+#[test]
+fn a_key_no_session_variable_takes_is_refused_in_both_roles() {
+    for (source, own, _) in SESSION_SOURCES {
+        let toml = session_variable(source, own, "not_a_key = 1\n");
+        for (role, refused) in in_both_roles(&toml) {
+            assert!(!refused.ok, "{role}: {source}: an unknown key compiled: {}", refused.log);
+            assert!(refused.log.contains("not_a_key"), "{role}: {source}: {}", refused.log);
+            assert!(refused.log.contains(own), "{role}: {source}: names no {own}: {}", refused.log);
+        }
+    }
+}
+
+/// A key another source takes is refused: it would read as a setting and be ignored.
+#[test]
+fn a_key_of_another_session_variable_source_is_refused_in_both_roles() {
+    for (source, own, foreign) in SESSION_SOURCES {
+        let toml = session_variable(source, own, &format!("{foreign} = \"x\"\n"));
+        for (role, refused) in in_both_roles(&toml) {
+            assert!(!refused.ok, "{role}: {source} took `{foreign}`: {}", refused.log);
+            assert!(refused.log.contains(foreign), "{role}: {source}: {}", refused.log);
+        }
+    }
+}
+
+/// Every source still compiles with exactly its own keys, in both roles.
+#[test]
+fn each_session_variable_source_compiles_with_its_own_keys_in_both_roles() {
+    for (source, own, _) in SESSION_SOURCES {
+        let toml = session_variable(source, own, "");
+        for (role, compiled) in in_both_roles(&toml) {
+            assert!(compiled.ok, "{role}: {source}: {}", compiled.log);
+            let variable = &compiled.schema["session_variables"]["variables"][0];
+            assert_eq!(variable["source"], *source, "{role}: {}", compiled.log);
+            assert_eq!(variable[own], "tenant_id", "{role}: {}", compiled.log);
+        }
+    }
+}
+
+/// A schema document's `session_variables` is read by the same type: an unknown key there
+/// is refused too.
+#[test]
+fn a_key_no_session_variable_takes_is_refused_in_the_document() {
+    for (source, own, _) in SESSION_SOURCES {
+        let mut variable = json!({"name": "app.tenant", "source": source, "not_a_key": 1});
+        variable[*own] = json!("tenant_id");
+        let dir = TempDir::new().unwrap();
+        let document = document_with(&json!({"session_variables": {"variables": [variable]}}));
+        fs::write(dir.path().join("schema.json"), document.to_string()).unwrap();
+        let refused = run(&dir, &["schema.json"]);
+        assert!(!refused.ok, "{source}: an unknown key compiled: {}", refused.log);
+        assert!(refused.log.contains("not_a_key"), "{source}: {}", refused.log);
+    }
+}
