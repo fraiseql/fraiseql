@@ -338,3 +338,91 @@ fn a_failure_that_is_not_a_configuration_refusal_exits_1_without_a_diagnostic() 
         assert!(error.get("diagnostic").is_none(), "{input}: {error}");
     }
 }
+
+// ── the server's configuration file, read by `fraiseql run` ─────────────────────────
+
+/// `fraiseql --json run` in a project with a schema document, `FRAISEQL_CONFIG` naming a
+/// server file that is `server_toml`. The server file is read before any database is
+/// reached, and no database URL is given, so nothing is served.
+#[cfg(feature = "run-server")]
+fn run_with_server_file(server_toml: &str) -> Refused {
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("schema.json"), document().to_string()).unwrap();
+    fs::write(dir.path().join("server.toml"), server_toml).unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+        .args(["--json", "run", "schema.json"])
+        .env("FRAISEQL_CONFIG", dir.path().join("server.toml"))
+        .env_remove("DATABASE_URL")
+        .env_remove("FRAISEQL_DATABASE_URL")
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    Refused {
+        code:   out.status.code(),
+        stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+    }
+}
+
+/// A `fraiseql.toml` spelling in the server's file is refused by `fraiseql run` with the
+/// code and exit a `fraiseql.toml` refusal has, naming the server's file.
+#[cfg(feature = "run-server")]
+#[test]
+fn run_refuses_a_fraiseql_toml_spelling_in_the_server_file_as_misplaced() {
+    let refused = run_with_server_file("[tls]\ncert_file = \"cert.pem\"\n");
+    let error = refused.error();
+    assert!(format!("{error}").contains("this file spells it `cert_path`"), "{error}");
+    assert_eq!(refused.code, Some(2), "{error}");
+    let diagnostic = &error["diagnostic"];
+    assert_eq!(diagnostic["code"], "E-CONFIG-MISPLACED", "{error}");
+    assert_eq!(diagnostic["table"], "tls", "{error}");
+    assert_eq!(diagnostic["key"], "cert_file", "{error}");
+    assert_eq!(diagnostic["replacement"], "`cert_path`", "{error}");
+    assert!(
+        diagnostic["file"].as_str().is_some_and(|f| f.ends_with("server.toml")),
+        "{error}"
+    );
+}
+
+/// Each kind of refusal note the server's file gets carries its diagnostic: a grouping
+/// table it never had, and a section it no longer takes.
+#[cfg(feature = "run-server")]
+#[test]
+fn run_refuses_each_kind_of_server_file_spelling_with_its_code() {
+    let cases = [
+        ("[cors]\nenabled = true\n", "E-CONFIG-MISPLACED", "cors", "`cors_enabled`"),
+        (
+            "[auth_hs256]\nsecret = \"s\"\n",
+            "E-CONFIG-RETIRED",
+            "auth_hs256",
+            "`[auth_issuer]`",
+        ),
+    ];
+    for (toml, code, table, names) in cases {
+        let refused = run_with_server_file(toml);
+        let error = refused.error();
+        assert_eq!(refused.code, Some(2), "{toml}: {error}");
+        let diagnostic = &error["diagnostic"];
+        assert_eq!(diagnostic["code"], code, "{toml}: {error}");
+        assert_eq!(diagnostic["table"], table, "{toml}: {error}");
+        assert_eq!(diagnostic["key"], Value::Null, "{toml}: {error}");
+        assert!(
+            diagnostic["replacement"].as_str().is_some_and(|r| r.contains(names)),
+            "{toml}: {error}"
+        );
+    }
+}
+
+/// Two refused spellings in one server file: the diagnostic is the first the loader checks,
+/// a table the file never had before a `fraiseql.toml` spelling, whatever order the file
+/// writes them in. Every note is still printed.
+#[cfg(feature = "run-server")]
+#[test]
+fn the_first_refusal_the_server_loader_checks_sets_the_diagnostic() {
+    let refused =
+        run_with_server_file("[database_tls]\nssl_mode = \"require\"\n\n[cors]\nenabled = true\n");
+    let error = refused.error();
+    let text = format!("{error}");
+    assert!(text.contains("postgres_ssl_mode") && text.contains("cors_enabled"), "{error}");
+    assert_eq!(error["diagnostic"]["table"], "cors", "{error}");
+    assert_eq!(error["diagnostic"]["key"], Value::Null, "{error}");
+}

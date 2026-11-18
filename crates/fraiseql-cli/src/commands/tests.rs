@@ -3111,10 +3111,11 @@ mod run_tests {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("server.toml");
         std::fs::write(&path, "not_a_server_key = 1\n").unwrap();
-        let err = ServerFile::load(path.to_str().unwrap())
-            .err()
-            .expect("an unknown key")
-            .to_string();
+        // The loader's message is the cause of "failed to parse config file": read the chain.
+        let err = format!(
+            "{:#}",
+            ServerFile::load(path.to_str().unwrap()).err().expect("an unknown key")
+        );
         assert!(err.contains("not_a_server_key"), "{err}");
     }
 

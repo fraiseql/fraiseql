@@ -339,7 +339,7 @@ pub use logging::{
 pub use metrics_server::{MetricsCollector, PrometheusMetrics};
 pub use schema::CompiledSchemaLoader;
 pub use server::Server;
-pub use server_config::ServerConfig;
+pub use server_config::{ServerConfig, ServerConfigLoadError};
 pub use tls::TlsSetup;
 pub use validation::{ComplexityValidationError, RequestValidator};
 

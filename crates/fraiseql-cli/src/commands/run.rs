@@ -458,8 +458,9 @@ impl ServerFile {
     ///
     /// Returns an error if the file cannot be read or the server's loader refuses it.
     pub(crate) fn load(path: &str) -> Result<Self> {
-        let config = ServerConfig::from_file(path)
-            .map_err(|e| anyhow::anyhow!("failed to parse config file `{path}`: {e}"))?;
+        let config = ServerConfig::load_file(path).map_err(|e| {
+            anyhow::Error::new(e).context(format!("failed to parse config file `{path}`"))
+        })?;
         let table: toml::Table = std::fs::read_to_string(path)?.parse()?;
         Ok(Self {
             path: path.to_owned(),

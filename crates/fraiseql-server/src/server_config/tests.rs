@@ -235,7 +235,8 @@ fn every_removed_section_gets_a_replacement_note() {
             &[],
             &content,
             format!("Invalid TOML config: unknown field `{section}`"),
-        );
+        )
+        .0;
         assert!(msg.contains(expected), "[{section}] must point at {expected}; got: {msg}");
     }
 }
@@ -257,7 +258,8 @@ fn compiled_out_section_error_names_the_build_feature() {
         sections,
         content,
         "Invalid TOML config: unknown field `observers`".to_string(),
-    );
+    )
+    .0;
 
     assert!(
         msg.contains("`observers` feature"),
@@ -1103,7 +1105,7 @@ fn an_auth_hs256_section_is_refused_as_an_unknown_field() {
     let err = toml::from_str::<ServerConfig>(toml_str).unwrap_err().to_string();
     assert!(err.contains("auth_hs256"), "the refusal names the section: {err}");
 
-    let msg = super::methods::enrich_parse_error(&[], toml_str, err);
+    let msg = super::methods::enrich_parse_error(&[], toml_str, err).0;
     assert!(
         msg.contains("`[auth_hs256]` is no longer supported") && msg.contains("`[auth_issuer]`"),
         "the refusal points at what replaced it: {msg}"
@@ -2036,4 +2038,55 @@ mod transaction_retry {
             )
         );
     }
+}
+
+/// The refused spelling in a server file is data on the loader's error, the file named;
+/// the message is the one `from_file` gives.
+#[test]
+fn a_refused_spelling_in_the_server_file_carries_its_diagnostic() {
+    use fraiseql_core::utils::config_diagnostic::DiagnosticCode;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("server.toml");
+    std::fs::write(&path, "[tls]\nkey_file = \"key.pem\"\n").unwrap();
+    let refused = ServerConfig::load_file(&path).expect_err("a fraiseql.toml spelling");
+    let diagnostic = refused.diagnostic().expect("a refused spelling");
+    assert_eq!(diagnostic.code, DiagnosticCode::Misplaced);
+    assert_eq!(
+        (diagnostic.table.as_str(), diagnostic.key.as_deref()),
+        ("tls", Some("key_file"))
+    );
+    assert_eq!(diagnostic.replacement.as_deref(), Some("`key_path`"));
+    assert_eq!(diagnostic.file.as_deref(), Some(path.display().to_string().as_str()));
+    assert_eq!(refused.to_string(), ServerConfig::from_file(&path).unwrap_err());
+}
+
+/// A file that is not a refused spelling (here, not TOML at all) carries no diagnostic.
+#[test]
+fn a_server_file_that_does_not_parse_carries_no_diagnostic() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("server.toml");
+    std::fs::write(&path, "bind_addr = \n").unwrap();
+    let refused = ServerConfig::load_file(&path).expect_err("not TOML");
+    assert!(refused.diagnostic().is_none(), "{refused}");
+}
+
+/// The flat `[observers]` tuning keys are a misplaced spelling too: `[observers.runtime]`.
+#[cfg(feature = "observers")]
+#[test]
+fn a_flat_observers_key_carries_its_diagnostic() {
+    use fraiseql_core::utils::config_diagnostic::DiagnosticCode;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("server.toml");
+    std::fs::write(&path, "[observers]\npoll_interval_ms = 200\n").unwrap();
+    let refused = ServerConfig::load_file(&path).expect_err("a flat observers key");
+    let diagnostic = refused.diagnostic().expect("a refused spelling");
+    assert_eq!(diagnostic.code, DiagnosticCode::Misplaced);
+    assert_eq!(
+        (diagnostic.table.as_str(), diagnostic.key.as_deref()),
+        ("observers", Some("poll_interval_ms"))
+    );
+    assert_eq!(diagnostic.replacement.as_deref(), Some("`[observers.runtime]`"));
+    assert_eq!(diagnostic.file.as_deref(), Some(path.display().to_string().as_str()));
 }

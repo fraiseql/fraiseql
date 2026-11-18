@@ -152,6 +152,7 @@ use fraiseql_core::{
     db::postgres::{HnswIterativeScan, IvfflatIterativeScan},
     security::OidcConfig,
 };
+pub use methods::ServerConfigLoadError;
 pub use observers::AdmissionConfig;
 #[cfg(feature = "observers")]
 pub use observers::{

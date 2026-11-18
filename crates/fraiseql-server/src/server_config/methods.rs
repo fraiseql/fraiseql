@@ -1,4 +1,7 @@
-use fraiseql_core::db::postgres::PostgresTlsConfig;
+use fraiseql_core::{
+    db::postgres::PostgresTlsConfig,
+    utils::config_diagnostic::{ConfigDiagnostic, DiagnosticCode},
+};
 
 use super::{DatabaseTlsConfig, ServerConfig};
 
@@ -48,35 +51,41 @@ const RETIRED_SECTIONS: &[(&str, &str)] = &[(
 )];
 
 /// `fraiseql.toml` spellings of settings the server's file makes too: the section, the key,
-/// and the note. Copied into the server's file they are unknown fields; the note names where
-/// they belong. `[tenancy]` holds unrelated keys in the two files.
-const FRAISEQL_TOML_SPELLINGS: &[(&str, &str, &str)] = &[
+/// the note, and this file's spelling when it has one. Copied into the server's file they are
+/// unknown fields; the note names where they belong. `[tenancy]` holds unrelated keys in the
+/// two files.
+const FRAISEQL_TOML_SPELLINGS: &[(&str, &str, &str, Option<&str>)] = &[
     (
         "tls",
         "cert_file",
         "is fraiseql.toml's `[server.tls]` spelling; this file spells it `cert_path`",
+        Some("`cert_path`"),
     ),
     (
         "tls",
         "key_file",
         "is fraiseql.toml's `[server.tls]` spelling; this file spells it `key_path`",
+        Some("`key_path`"),
     ),
     (
         "database_tls",
         "ssl_mode",
         "is fraiseql.toml's `[database]` spelling; this file spells it `postgres_ssl_mode`",
+        Some("`postgres_ssl_mode`"),
     ),
     (
         "tenancy",
         "mode",
         "is set in fraiseql.toml's `[tenancy]` and compiled into the schema; this file's \
          `[tenancy]` holds `runtime` and `storage_quota`",
+        None,
     ),
     (
         "tenancy",
         "tenant_claim",
         "is set in fraiseql.toml's `[tenancy]` and compiled into the schema; this file's \
          `[tenancy]` holds `runtime` and `storage_quota`",
+        None,
     ),
 ];
 
@@ -104,12 +113,20 @@ fn parse_error_message(error: &toml::de::Error, content: &str, expanded: bool) -
 /// Takes the section table as a parameter so the mechanism is testable under any
 /// feature set — a test gated on `cfg(not(feature = …))` would silently never run
 /// in the all-features CI leg.
+///
+/// With the message, the refusal the first note names, in the order the notes are checked: a
+/// table this file never had, a `fraiseql.toml` spelling, a retired section. A section this
+/// build compiled out is not a refused configuration, and carries none.
 pub(super) fn enrich_parse_error(
     sections: &[(&str, &str, bool)],
     content: &str,
     mut msg: String,
-) -> String {
+) -> (String, Option<ConfigDiagnostic>) {
     use std::fmt::Write as _;
+    let mut first: Option<ConfigDiagnostic> = None;
+    let mut refused = |diagnostic: ConfigDiagnostic| {
+        first.get_or_insert(diagnostic);
+    };
     if let Ok(table) = toml::from_str::<toml::Table>(content) {
         for (key, feature, compiled_in) in sections {
             if !compiled_in && table.contains_key(*key) {
@@ -124,29 +141,83 @@ pub(super) fn enrich_parse_error(
         }
         for (key, replacement) in REMOVED_SECTIONS {
             if table.contains_key(*key) {
-                let _ = write!(
-                    msg,
-                    "\nnote: there is no `[{key}]` table in a server config file; the keys \
-                     are top-level. Use {replacement}."
+                let note = format!(
+                    "there is no `[{key}]` table in a server config file; the keys are \
+                     top-level. Use {replacement}."
+                );
+                let _ = write!(msg, "\nnote: {note}");
+                refused(
+                    ConfigDiagnostic::new(DiagnosticCode::Misplaced, key, "", note)
+                        .with_replacement(replacement),
                 );
             }
         }
-        for (section, key, note) in FRAISEQL_TOML_SPELLINGS {
+        for (section, key, note, spelled) in FRAISEQL_TOML_SPELLINGS {
             let written = table
                 .get(*section)
                 .and_then(toml::Value::as_table)
                 .is_some_and(|t| t.contains_key(*key));
             if written {
-                let _ = write!(msg, "\nnote: `[{section}] {key}` {note}.");
+                let note = format!("`[{section}] {key}` {note}.");
+                let _ = write!(msg, "\nnote: {note}");
+                let diagnostic =
+                    ConfigDiagnostic::new(DiagnosticCode::Misplaced, section, key, note);
+                refused(match spelled {
+                    Some(spelled) => diagnostic.with_replacement(spelled),
+                    None => diagnostic,
+                });
             }
         }
         for (key, replacement) in RETIRED_SECTIONS {
             if table.contains_key(*key) {
-                let _ = write!(msg, "\nnote: `[{key}]` is no longer supported: {replacement}.");
+                let note = format!("`[{key}]` is no longer supported: {replacement}.");
+                let _ = write!(msg, "\nnote: {note}");
+                refused(
+                    ConfigDiagnostic::new(DiagnosticCode::Retired, key, "", note)
+                        .with_replacement(replacement),
+                );
             }
         }
     }
-    msg
+    (msg, first)
+}
+
+/// A server configuration file the loader refused: the message [`ServerConfig::from_file`]
+/// returns, and the refused spelling, when the refusal is one.
+///
+/// The diagnostic is this error's [`source`](std::error::Error::source), so a caller that
+/// wraps the error still finds it in the chain.
+#[derive(Debug)]
+pub struct ServerConfigLoadError {
+    message:    String,
+    diagnostic: Option<Box<ConfigDiagnostic>>,
+}
+
+impl ServerConfigLoadError {
+    const fn plain(message: String) -> Self {
+        Self {
+            message,
+            diagnostic: None,
+        }
+    }
+
+    /// The refused spelling, when the file was refused for one.
+    #[must_use]
+    pub fn diagnostic(&self) -> Option<&ConfigDiagnostic> {
+        self.diagnostic.as_deref()
+    }
+}
+
+impl std::fmt::Display for ServerConfigLoadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for ServerConfigLoadError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.diagnostic.as_deref().map(|d| d as &(dyn std::error::Error + 'static))
+    }
 }
 
 impl ServerConfig {
@@ -163,24 +234,45 @@ impl ServerConfig {
     ///
     /// Returns an error string if the file cannot be read or the TOML cannot be parsed.
     pub fn from_file(path: impl AsRef<std::path::Path>) -> Result<Self, String> {
-        let written = std::fs::read_to_string(path.as_ref())
-            .map_err(|e| format!("Cannot read config file: {e}"))?;
+        Self::load_file(path).map_err(|e| e.to_string())
+    }
+
+    /// [`Self::from_file`], its error carrying the refused spelling when the refusal is one,
+    /// with the file named.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_file`].
+    pub fn load_file(path: impl AsRef<std::path::Path>) -> Result<Self, ServerConfigLoadError> {
+        let path = path.as_ref();
+        let named = |mut error: ServerConfigLoadError| {
+            if let Some(diagnostic) = error.diagnostic.as_mut() {
+                diagnostic.file.get_or_insert_with(|| path.display().to_string());
+            }
+            error
+        };
+        let written = std::fs::read_to_string(path)
+            .map_err(|e| ServerConfigLoadError::plain(format!("Cannot read config file: {e}")))?;
         // An unset variable refuses the file: kept as written, `${ADMIN_TOKEN}` would become
         // the token.
         let content = fraiseql_core::utils::env_expand::expand_env_vars(
             &written,
             fraiseql_core::utils::env_expand::UnsetVariable::Refuse,
         )
-        .map_err(|e| format!("Invalid config file: {e}"))?;
+        .map_err(|e| ServerConfigLoadError::plain(format!("Invalid config file: {e}")))?;
         let config: Self = toml::from_str(&content).map_err(|e| {
-            enrich_parse_error(
+            let (message, diagnostic) = enrich_parse_error(
                 &crate::capability::feature_gated_keys(),
                 &content,
                 parse_error_message(&e, &content, content != written),
-            )
+            );
+            named(ServerConfigLoadError {
+                message,
+                diagnostic: diagnostic.map(Box::new),
+            })
         })?;
         #[cfg(feature = "observers")]
-        config.refuse_misplaced_observer_keys()?;
+        config.refuse_misplaced_observer_keys().map_err(named)?;
         Ok(config)
     }
 
@@ -192,18 +284,31 @@ impl ServerConfig {
     /// schema (#342). A flat key is captured as a migration trap rather than silently
     /// ignored. The loader refuses it, so every reader of a config file does.
     #[cfg(feature = "observers")]
-    fn refuse_misplaced_observer_keys(&self) -> Result<(), String> {
+    fn refuse_misplaced_observer_keys(&self) -> Result<(), ServerConfigLoadError> {
         let Some(observers) = &self.observers else {
             return Ok(());
         };
         let misplaced = observers.misplaced_runtime_keys();
         match misplaced.first() {
-            Some(first) => Err(format!(
-                "the [observers] key(s) `{}` moved to [observers.runtime] in v2.5.0. Move them \
-                 under an `[observers.runtime]` table, e.g.\n\n    [observers.runtime]\n    \
-                 {first} = ...\n",
-                misplaced.join("`, `"),
-            )),
+            Some(first) => {
+                let message = format!(
+                    "the [observers] key(s) `{}` moved to [observers.runtime] in v2.5.0. Move \
+                     them under an `[observers.runtime]` table, e.g.\n\n    \
+                     [observers.runtime]\n    {first} = ...\n",
+                    misplaced.join("`, `"),
+                );
+                let diagnostic = ConfigDiagnostic::new(
+                    DiagnosticCode::Misplaced,
+                    "observers",
+                    first,
+                    message.clone(),
+                )
+                .with_replacement("`[observers.runtime]`");
+                Err(ServerConfigLoadError {
+                    message,
+                    diagnostic: Some(Box::new(diagnostic)),
+                })
+            },
             None => Ok(()),
         }
     }
