@@ -172,6 +172,27 @@ fn reject_unknown_event_type(event_type: Option<&String>) -> Option<Response> {
     })
 }
 
+/// Refuse a `condition_expression` the observer runtime cannot parse.
+///
+/// The runtime parses a condition when an event reaches the observer, so one that does not
+/// parse was stored and then failed on every event: the observer never ran. It is parsed
+/// here with the runtime's own parser, as the compiler parses a condition declared in the
+/// schema, and refused with `400` naming the field and the parser's reason. An empty
+/// condition does not parse either: to store an observer with no condition, leave the
+/// field out.
+fn reject_unparsable_condition(condition: Option<&str>) -> Option<Response> {
+    let reason = fraiseql_observers::ConditionParser::new().parse(condition?).err()?;
+    Some(
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": format!("condition_expression does not parse: {reason}")
+            })),
+        )
+            .into_response(),
+    )
+}
+
 /// List the observers the caller can see.
 ///
 /// GET /api/observers
@@ -243,6 +264,9 @@ pub async fn create_observer(
     if let Some(resp) = reject_unknown_event_type(request.event_type.as_ref()) {
         return resp;
     }
+    if let Some(resp) = reject_unparsable_condition(request.condition_expression.as_deref()) {
+        return resp;
+    }
     if let Some(resp) = reject_unfillable_templates(
         state.executor.load().schema(),
         request.entity_type.as_deref(),
@@ -272,6 +296,11 @@ pub async fn update_observer(
     Path(id): Path<Uuid>,
     Json(request): Json<UpdateObserverRequest>,
 ) -> Response {
+    // Before the stored observer is read: a condition that does not parse is refused
+    // whatever the id names.
+    if let Some(resp) = reject_unparsable_condition(request.condition_expression.as_deref()) {
+        return resp;
+    }
     if let Some(resp) = reject_unknown_event_type(request.event_type.as_ref()) {
         return resp;
     }

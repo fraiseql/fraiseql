@@ -308,6 +308,14 @@ disagreed, and the promise was the part that was wrong.
   `[security.error_sanitization]` and `[security.pkce]` hold the settings that act. A
   compiled schema carrying them no longer loads: recompile it.
 
+- **The admin API refuses an observer condition that does not parse (#2061).**
+  `POST /api/observers` and `PATCH /api/observers/{id}` parse `condition_expression` with
+  the observer runtime's parser and answer `400`, naming the field and the parser's
+  reason, where they used to store it: the runtime then failed to parse it on every event
+  and the observer never ran. An empty or blank condition is refused the same way; to
+  store an observer with no condition, leave `condition_expression` out. A condition
+  declared in the schema was already parsed when it is compiled.
+
 ### Added
 
 - **A refused configuration names its code, file, table and key (#2034).** Under `--json`

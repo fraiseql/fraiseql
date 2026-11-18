@@ -2074,6 +2074,9 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// #1670: a webhook body_template is checked against the observed entity's fields at
 		// create and update; an update reads the stored observer it leaves.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test observer_admin_templates_pg -- --test-threads=1",
+		// #2061: a condition_expression is parsed at create and update, as the runtime parses
+		// it; one that does not parse is refused and nothing is written.
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test observer_admin_conditions_pg -- --test-threads=1",
 		// #751: the inbound webhook replay defence is only provable against a real
 		// idempotency claim — the defect it guards lived precisely where no
 		// real-system test reached.
