@@ -31,6 +31,7 @@ crates/fraiseql-core/src/security/oidc/tests.rs
 crates/fraiseql-server/tests/first_party_issuer_e2e_pg.rs
 crates/fraiseql-server/src/server_config/methods.rs
 crates/fraiseql-server/src/server_config/tests.rs
+crates/fraiseql-cli/tests/config_diagnostics_test.rs
 '
 
 PENDING='
