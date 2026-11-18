@@ -1205,6 +1205,29 @@ fn an_environment_value_with_toml_metacharacters_refuses_the_server_file() {
     });
 }
 
+/// Each value that could end the TOML string it is placed in, or start a line of its own,
+/// refuses the file: expansion runs on the text before it is parsed. One case per refusal,
+/// each through the server's loader, and each would otherwise have set `admin_api_enabled`.
+#[test]
+fn a_value_that_could_escape_its_string_refuses_the_server_file() {
+    for (file, value) in [
+        ("admin_token = \"${FQ_SRV_ESC}\"\n", "x\" admin_api_enabled = true #"),
+        ("admin_token = \"${FQ_SRV_ESC}\"\n", "x\nadmin_api_enabled = true"),
+        ("admin_token = \"${FQ_SRV_ESC}\"\n", "x\radmin_api_enabled = true"),
+        ("admin_token = '${FQ_SRV_ESC}'\n", "x' admin_api_enabled = true #"),
+        (
+            "admin_token = \"\"\"${FQ_SRV_ESC}\"\"\"\n",
+            "x\"\"\" admin_api_enabled = true #",
+        ),
+        ("admin_token = \"${FQ_SRV_ESC}\"\n", "x\\"),
+    ] {
+        temp_env::with_var("FQ_SRV_ESC", Some(value), || {
+            let err = load(file).expect_err(value);
+            assert!(err.contains("FQ_SRV_ESC"), "{value:?}: names the variable: {err}");
+        });
+    }
+}
+
 /// A parse error in a file whose variables were expanded does not echo the expanded line:
 /// it may hold a secret.
 #[test]
