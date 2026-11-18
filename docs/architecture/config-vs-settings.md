@@ -175,6 +175,46 @@ keeps its own exit status.
 A command may document outcome codes of its own: `fraiseql functions invoke` exits 3 and 4
 (see [functions.md](./functions.md)).
 
+## Editor Support
+
+`fraiseql.toml` has a JSON Schema, generated from the grammar the compiler reads:
+
+```text
+https://raw.githubusercontent.com/fraiseql/fraiseql/v2.19.1/docs/schemas/fraiseql.toml.schema.json
+```
+
+The URL is the schema committed at the release's tag, so a file pointing at it is checked
+against the grammar of the compiler it was written for. It returns 404 until that release
+is tagged; a build from an unreleased checkout has its schema at
+`docs/schemas/fraiseql.toml.schema.json` in that checkout.
+
+Taplo (and the Even Better TOML extension, which runs it) reads the schema from a
+`#:schema` line at the top of the file. `fraiseql init` writes that line for its own
+version:
+
+```toml
+#:schema https://raw.githubusercontent.com/fraiseql/fraiseql/v2.19.1/docs/schemas/fraiseql.toml.schema.json
+
+[project]
+name = "my-app"
+```
+
+Or associate every `fraiseql.toml` of a repository in its `.taplo.toml`:
+
+```toml
+[[rule]]
+include = ["**/fraiseql.toml"]
+
+[rule.schema]
+path = "https://raw.githubusercontent.com/fraiseql/fraiseql/v2.19.1/docs/schemas/fraiseql.toml.schema.json"
+```
+
+An editor then flags what the compiler refuses: a key no table takes (the compiler's
+`E-CONFIG-UNKNOWN-KEY`), a key the compiler refuses by name (shown as deprecated, with the
+compiler's refusal as its description), and a value of the wrong type. The tables that
+author a schema (`[types]`, `[queries]` and the rest) are accepted: a schema authored in
+TOML takes them, and the compiler refuses them only beside a schema document.
+
 ## Environment Variable Overrides
 
 Most compiled settings are **immutable at runtime** — that is the point of compiling them.

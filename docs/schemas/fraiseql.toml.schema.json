@@ -1,0 +1,4227 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fraiseql.toml",
+  "description": "The configuration the FraiseQL compiler reads: a project configuration beside a schema document, or a schema authored in TOML.",
+  "type": "object",
+  "properties": {
+    "project": {
+      "description": "`[project]`: the metadata every `fraiseql.toml` takes.",
+      "$ref": "#/$defs/ProjectMetadata",
+      "default": {
+        "name": "my-fraiseql-app",
+        "version": "1.0.0",
+        "database_target": null
+      }
+    },
+    "database": {
+      "description": "Database connection pool configuration (optional — all fields have defaults).\n\nSupports `${VAR}` environment variable interpolation in the `url` field.",
+      "$ref": "#/$defs/DatabaseRuntimeConfig",
+      "default": {
+        "url": null,
+        "pool_min": 5,
+        "pool_max": 20,
+        "connect_timeout_ms": 30000,
+        "ssl_mode": null,
+        "transaction_retry": null
+      }
+    },
+    "server": {
+      "description": "HTTP server runtime configuration (optional — all fields have defaults).\n\nCLI flags (`--port`, `--bind`) take precedence over these settings.",
+      "$ref": "#/$defs/ServerRuntimeConfig",
+      "default": {
+        "host": "0.0.0.0",
+        "port": 8080,
+        "cors": {
+          "origins": []
+        },
+        "tls": {
+          "enabled": false,
+          "cert_file": "",
+          "key_file": "",
+          "min_version": "1.2"
+        }
+      }
+    },
+    "types": {
+      "description": "Type definitions",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/TypeDefinition"
+      },
+      "default": {}
+    },
+    "queries": {
+      "description": "Query definitions",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/QueryDefinition"
+      },
+      "default": {}
+    },
+    "mutations": {
+      "description": "Mutation definitions",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/MutationDefinition"
+      },
+      "default": {}
+    },
+    "federation": {
+      "description": "Federation configuration",
+      "$ref": "#/$defs/FederationConfig",
+      "default": {
+        "enabled": false,
+        "service_name": null,
+        "version": null,
+        "schema_url": null,
+        "apollo_version": 2,
+        "entities": [],
+        "shareable_types": [],
+        "circuit_breaker": null
+      }
+    },
+    "security": {
+      "description": "Security configuration",
+      "$ref": "#/$defs/SecuritySettings",
+      "default": {
+        "multi_tenant": false,
+        "rls": {
+          "enabled": false
+        },
+        "role_definitions": [],
+        "default_role": null,
+        "rules": [],
+        "policies": [],
+        "field_auth": [],
+        "enterprise": {
+          "audit_logging_enabled": true
+        },
+        "error_sanitization": null,
+        "rate_limiting": null,
+        "state_encryption": null,
+        "pkce": null,
+        "api_keys": null,
+        "token_revocation": null,
+        "trusted_documents": null,
+        "persisted_queries_only": false,
+        "cost_budget": null
+      }
+    },
+    "tenancy": {
+      "description": "Tenant isolation strategy (`#892`).\n\nMirrors `[tenancy]` in a project `fraiseql.toml`, minus the prefix, and\nlowers into the compiled schema's `security.tenancy` — the same place, read by the\nsame runtime. Before this existed, `tenancy.mode` was unreachable from this\nauthoring surface *and* from every `[domain_discovery]` project, because\n`commands::compile` deliberately skips the project config when the compile input is\nitself TOML (the two formats are not compatible). An operator wanting\nschema-per-tenant had no knob at all: `[tenancy]` was an unknown field, and\n`[tenancy]` was ignored.\n\nShares `TenancyTomlConfig` with the project-config path so there is one authoring\nshape and one lowering ([`crate::config::security::TenancyTomlConfig::to_runtime`]),\nnot two that can drift.",
+      "$ref": "#/$defs/TenancyTomlConfig",
+      "default": {
+        "mode": "none",
+        "tenant_claim": "tenant_id"
+      }
+    },
+    "inject_defaults": {
+      "description": "Project-wide default injected parameters (`[inject_defaults]`, #1384), in the shape\nthe SDK config loaders read.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/InjectDefaultsToml"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "locale": {
+      "description": "The request locale (`[locale]`, #1512).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LocaleConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "observers": {
+      "description": "Observers/event system configuration",
+      "$ref": "#/$defs/ObserversConfig",
+      "default": {
+        "enabled": false,
+        "backend": "postgres",
+        "nats_url": null,
+        "handlers": []
+      }
+    },
+    "functions": {
+      "description": "Serverless-function settings (`[functions]`, #1325).\n\nThe operational half of the functions surface — where the modules live and\nwhich dead-letter store backs dispatch. The definitions themselves are\nschema, authored by an SDK; see [`FunctionsSettings`].",
+      "$ref": "#/$defs/FunctionsSettings",
+      "default": {
+        "module_dir": null,
+        "dlq_store": null
+      }
+    },
+    "caching": {
+      "description": "Result caching configuration",
+      "$ref": "#/$defs/CachingConfig",
+      "default": {
+        "enabled": false,
+        "backend": "memory",
+        "redis_url": null,
+        "rules": []
+      }
+    },
+    "analytics": {
+      "description": "Analytics configuration",
+      "$ref": "#/$defs/AnalyticsConfig",
+      "default": {
+        "enabled": false,
+        "queries": []
+      }
+    },
+    "includes": {
+      "description": "Schema includes configuration for multi-file composition",
+      "$ref": "#/$defs/SchemaIncludes",
+      "default": {
+        "types": [],
+        "queries": [],
+        "mutations": []
+      }
+    },
+    "domain_discovery": {
+      "description": "Domain discovery configuration for domain-based organization",
+      "$ref": "#/$defs/DomainDiscovery",
+      "default": {
+        "enabled": false,
+        "root_dir": ""
+      }
+    },
+    "query_defaults": {
+      "description": "Global defaults for list-query auto-params.\n\nProvides project-wide defaults for `where`, `order_by`, `limit`, and `offset`\nparameters on list queries. Per-query `auto_params` overrides are partial —\nonly the specified flags override the defaults. Relay queries and single-item\nqueries are never affected.",
+      "$ref": "#/$defs/QueryDefaults",
+      "default": {
+        "where": true,
+        "order_by": true,
+        "limit": true,
+        "offset": true,
+        "pagination_order": "identity"
+      }
+    },
+    "auth": {
+      "description": "OAuth2 client identity for server-side PKCE flows.\n\nRequired when `[security.pkce] enabled = true`.\nHolds the OIDC provider discovery URL, client_id, and a reference to\nthe env var containing the client secret. Never stores the secret itself.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OidcClientConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "subscriptions": {
+      "description": "WebSocket subscription configuration (hooks, limits).",
+      "$ref": "#/$defs/SubscriptionsConfig",
+      "default": {}
+    },
+    "validation": {
+      "description": "Query validation limits (depth, complexity).",
+      "$ref": "#/$defs/ValidationConfig",
+      "default": {}
+    },
+    "debug": {
+      "description": "Debug/development settings (database EXPLAIN, SQL exposure).",
+      "$ref": "#/$defs/DebugConfig",
+      "default": {
+        "enabled": false,
+        "database_explain": false,
+        "expose_sql": true
+      }
+    },
+    "mcp": {
+      "description": "MCP (Model Context Protocol) server configuration.",
+      "$ref": "#/$defs/McpConfig",
+      "default": {
+        "enabled": false,
+        "transport": "http",
+        "path": "/mcp",
+        "require_auth": true,
+        "include": [],
+        "exclude": [],
+        "read_only": false,
+        "session_state": false
+      }
+    },
+    "rest": {
+      "description": "REST transport configuration.",
+      "$ref": "#/$defs/RestTomlConfig",
+      "default": {
+        "enabled": false,
+        "path": "/rest/v1",
+        "max_page_size": 1000,
+        "default_page_size": 100,
+        "default_embed_page_size": 50,
+        "ndjson_batch_size": 500,
+        "max_bulk_affected": 10000,
+        "max_filter_bytes": 4096,
+        "delete_response": "no_content",
+        "default_cache_ttl": 0,
+        "cdn_max_age": null,
+        "require_auth": false,
+        "sse_heartbeat_seconds": 30,
+        "sse_max_replay_events": 10000,
+        "max_embedding_depth": 3,
+        "include": [],
+        "exclude": [],
+        "etag": true,
+        "idempotency_ttl_seconds": 300
+      }
+    },
+    "grpc": {
+      "description": "gRPC transport configuration.\n\n`CompiledSchema.grpc_config` gates the server's entire gRPC transport, and its own\ndoc comment said it was \"compiled from `[grpc]` in `fraiseql.toml`\" — but no compile\npath could produce it, and `TomlSchema` is `deny_unknown_fields`, so following that\ndocumentation failed with \"unknown field `grpc`\". Removing the section compiled, and\nthe server then silently never mounted gRPC: there was no supported way to turn on a\nshipped, e2e-tested transport (#780).\n\nReuses the compiled type directly rather than defining a TOML mirror, so the two\ncannot drift the way the REST pair did.",
+      "$ref": "#/$defs/GrpcConfig",
+      "default": {
+        "enabled": false,
+        "include_types": [],
+        "exclude_types": [],
+        "descriptor_path": "",
+        "reflection": true,
+        "stream_batch_size": 500
+      }
+    },
+    "changelog": {
+      "description": "Changelog GraphQL-exposure configuration.\n\nWhen `[changelog] expose = true`, the compiler injects the observer\nentity-change-log (`EntityChangeLog` / `TransportCheckpoint`) types plus\ntheir cursor query, point-lookup query, and checkpoint upsert mutation.\nRequires `[observers]` to be enabled. Absent by default.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ChangelogConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "naming": {
+      "description": "`[naming]`: the GraphQL surface's naming convention and casing acronyms.",
+      "$ref": "#/$defs/NamingConfig",
+      "default": {}
+    },
+    "cost_weights": {
+      "description": "`[cost_weights]`: per-operation `@cost` weight overrides, root query or mutation\nname → manual cost weight, consulted by the runtime per-tenant cost-budget check.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "format": "uint",
+        "minimum": 0
+      },
+      "default": {}
+    },
+    "mutation_defaults": {
+      "description": "`[mutation_defaults]`: project-wide mutation compilation options.",
+      "$ref": "#/$defs/MutationDefaults",
+      "default": {
+        "auto_error_union": false
+      }
+    },
+    "crud": {
+      "description": "CRUD function naming config for automatic `sql_source` resolution.\n\nWhen set, mutations that omit `sql_source` have their PostgreSQL function\nname resolved at compile time using the configured template and the entity\nname derived from `return_type`.\n\nExample:\n```toml\n[crud]\nfunction_schema = \"app\"\nfunction_naming = \"trinity\"\n```",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CrudNamingConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "hierarchies": {
+      "description": "Hierarchy definitions for ID-based ltree operators (`descendantOfId`, `ancestorOfId`).\n\nMaps a hierarchy name to its table and ltree path column. Used by the compiler\nto generate subquery-based ltree WHERE clauses that resolve an entity's ltree\npath from its UUID.\n\nExample:\n```toml\n[hierarchies.category]\ntable = \"tb_category\"\npath_column = \"category_path\"\n```",
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "$ref": "#/$defs/HierarchyConfig"
+      },
+      "default": null
+    },
+    "session_variables": {
+      "description": "Per-request PostgreSQL session variables resolved from the request identity.\n\nThe runtime applies each mapping with `set_config(name, value, true)` before\nevery query and mutation, so RLS policies can read it with\n`current_setting('app.tenant_id', true)`. This is the mechanism that makes\ndatabase-layer tenant isolation work.\n\n```toml\n[[session_variables.variables]]\nname = \"app.tenant_id\"\nsource = \"jwt\"\nclaim = \"tenant_id\"\n```\n\nThe compiled-schema field has documented itself as \"compiled from the\n`[session_variables]` TOML section\" since it was introduced; until #628 no\nsuch section existed in either TOML format, so the only way to declare the\nmapping was to hand-author `schema.json`.\n\nDeliberately the *same* type the runtime consumes: a CLI-side mirror struct\nis exactly the producer↔consumer seam that keeps dropping declarations.",
+      "$ref": "#/$defs/SessionVariablesConfig",
+      "default": {
+        "variables": [],
+        "inject_started_at": true
+      }
+    },
+    "schema": {
+      "not": {},
+      "deprecated": true,
+      "description": "fraiseql.toml: `[schema]` is no longer accepted; write `[project]`"
+    },
+    "observability": {
+      "not": {},
+      "deprecated": true,
+      "description": "fraiseql.toml: `[observability]` is no longer accepted; write `metrics_enabled`, `metrics_token`, `tracing_enabled`, `otlp_endpoint` and `tracing_service_name` at the top level of the server's configuration file, the file FRAISEQL_CONFIG names (logging through `RUST_LOG`)"
+    },
+    "naming_convention": {
+      "not": {},
+      "deprecated": true,
+      "description": "fraiseql.toml: `naming_convention` is no longer accepted; write `[naming] convention`"
+    },
+    "fraiseql": {
+      "not": {},
+      "deprecated": true,
+      "description": "fraiseql.toml: `[fraiseql]` is no longer accepted; write each of its tables at the top level, without the `fraiseql.` prefix",
+      "properties": {
+        "security": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[fraiseql.security]` is no longer accepted; write `[security]`",
+          "properties": {
+            "constant_time": {
+              "not": {},
+              "deprecated": true,
+              "description": "fraiseql.toml: `[fraiseql.security.constant_time]` is no longer accepted: nothing reads it"
+            }
+          }
+        },
+        "tenancy": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[fraiseql.tenancy]` is no longer accepted; write `[tenancy]`"
+        },
+        "session_variables": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[fraiseql.session_variables]` is no longer accepted; write `[session_variables]`"
+        },
+        "naming": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[fraiseql.naming]` is no longer accepted; write `[naming]`"
+        },
+        "cost_weights": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[fraiseql.cost_weights]` is no longer accepted; write `[cost_weights]`"
+        },
+        "mutations": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[fraiseql.mutations]` is no longer accepted; write `[mutation_defaults]`"
+        },
+        "schema_file": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[fraiseql] schema_file` is no longer accepted: nothing reads it"
+        },
+        "output_file": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[fraiseql] output_file` is no longer accepted: nothing reads it"
+        }
+      }
+    },
+    "bind_addr": {
+      "not": {},
+      "deprecated": true,
+      "description": "fraiseql.toml: `bind_addr` is how the server's configuration file (the file FRAISEQL_CONFIG names) spells this setting; in fraiseql.toml write `[server] host` and `port`"
+    },
+    "database_url": {
+      "not": {},
+      "deprecated": true,
+      "description": "fraiseql.toml: `database_url` is how the server's configuration file (the file FRAISEQL_CONFIG names) spells this setting; in fraiseql.toml write `[database] url`"
+    },
+    "pool_min_size": {
+      "not": {},
+      "deprecated": true,
+      "description": "fraiseql.toml: `pool_min_size` is how the server's configuration file (the file FRAISEQL_CONFIG names) spells this setting; in fraiseql.toml write `[database] pool_min`"
+    },
+    "pool_max_size": {
+      "not": {},
+      "deprecated": true,
+      "description": "fraiseql.toml: `pool_max_size` is how the server's configuration file (the file FRAISEQL_CONFIG names) spells this setting; in fraiseql.toml write `[database] pool_max`"
+    },
+    "pool_timeout_secs": {
+      "not": {},
+      "deprecated": true,
+      "description": "fraiseql.toml: `pool_timeout_secs` is how the server's configuration file (the file FRAISEQL_CONFIG names) spells this setting; in fraiseql.toml write `[database] connect_timeout_ms`, in milliseconds"
+    },
+    "tls": {
+      "not": {},
+      "deprecated": true,
+      "description": "fraiseql.toml: `[tls]` is how the server's configuration file (the file FRAISEQL_CONFIG names) spells this setting; in fraiseql.toml write `[server.tls]`"
+    },
+    "database_tls": {
+      "not": {},
+      "deprecated": true,
+      "description": "fraiseql.toml: `[database_tls]` is how the server's configuration file (the file FRAISEQL_CONFIG names) spells this setting; in fraiseql.toml write `[database] ssl_mode`"
+    },
+    "transaction_retry": {
+      "not": {},
+      "deprecated": true,
+      "description": "fraiseql.toml: `[transaction_retry]` is how the server's configuration file (the file FRAISEQL_CONFIG names) spells this setting; in fraiseql.toml write `[database.transaction_retry]`"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "ProjectMetadata": {
+      "description": "`[project]`: the metadata of every `fraiseql.toml`, the compile input or the file read\nbeside a schema document.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Project name (`fraiseql sbom` names the component after it).",
+          "type": "string",
+          "default": "my-fraiseql-app"
+        },
+        "version": {
+          "description": "Project version (`fraiseql sbom` versions the component after it).",
+          "type": "string",
+          "default": "1.0.0"
+        },
+        "database_target": {
+          "description": "Target database backend. Only `\"postgresql\"` is accepted: MySQL, SQLite and SQL\nServer were removed in v2.15.0 (#374), and [`Self::validate_database_target`]\nrefuses them.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "description": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[project] description` is no longer accepted: nothing reads it"
+        }
+      },
+      "additionalProperties": false
+    },
+    "DatabaseRuntimeConfig": {
+      "description": "Database connection pool runtime configuration.\n\nThe `[database]` section in `fraiseql.toml` is **optional**.  When absent,\nconnection parameters fall back to the `DATABASE_URL` environment variable\nor the `--database` CLI flag.\n\nSupports `${VAR}` environment variable interpolation in the `url` field:\n\n```toml\n[database]\nurl      = \"${DATABASE_URL}\"\npool_min = 5\npool_max = 20\nssl_mode = \"prefer\"\n```",
+      "type": "object",
+      "properties": {
+        "url": {
+          "description": "Database connection URL.  Supports `${VAR}` interpolation.\n\nIf not set here, the runtime falls back to the `DATABASE_URL` environment\nvariable or the `--database` CLI flag.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "pool_min": {
+          "description": "Minimum connection pool size.  Default: `5`, as the server file's `pool_min_size`.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0,
+          "default": 5
+        },
+        "pool_max": {
+          "description": "Maximum connection pool size.  Default: `20`, as the server file's `pool_max_size`.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0,
+          "default": 20
+        },
+        "connect_timeout_ms": {
+          "description": "How long acquiring a pooled connection, and opening a new one, may take, in\nmilliseconds.  Default: `30 000` (30 s), as the server file's `pool_timeout_secs`.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 30000
+        },
+        "ssl_mode": {
+          "description": "PostgreSQL SSL mode: `\"disable\"`, `\"prefer\"`, `\"require\"`, or\n`\"verify-full\"`. Default: `\"prefer\"`.\n\nReaches the connection pool through\n[`postgres_tls`](Self::postgres_tls). It was previously validated here and\nthen dropped by `build_config_from`, so `fraiseql run` connected in\ncleartext under `ssl_mode = \"require\"` while a typo in the same field\nfailed loudly — the rejected typo being the reason an operator believed the\nsetting was live (#824).\n\nUnset means \"whatever the connection URL says\", not \"prefer\": a concrete\ndefault here would override an explicit `?sslmode=require` in `url` with a\nvalue the operator never wrote.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "transaction_retry": {
+          "description": "`[database.transaction_retry]`: how often a mutation's transaction runs when\nPostgreSQL aborts it with `40P01` or `40001` (#1879). Absent, once. An empty table\nopts in at its defaults. The server file's `[transaction_retry]`, in the same shape.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TransactionRetryConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "postgres_ssl_mode": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[database] postgres_ssl_mode` is how the server's configuration file (the file FRAISEQL_CONFIG names) spells this setting; in fraiseql.toml write `ssl_mode`"
+        },
+        "idle_timeout_ms": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[database] idle_timeout_ms` was never applied by `fraiseql run` and is no longer accepted; remove it: the database pool has no idle timeout"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TransactionRetryConfig": {
+      "description": "How often a mutation's transaction runs when PostgreSQL aborts it.\n\nAbsent, a mutation runs once, as it always has. A retried function runs its body again,\nso an effect outside the transaction (`dblink`, `pg_background`, a sequence) can repeat:\nthat is why retry is opt-in. An empty section opts in, at the defaults below.\n\nThe server reads it as `[transaction_retry]`, `fraiseql run` as\n`[database.transaction_retry]` in `fraiseql.toml`:\n\n```toml\n[transaction_retry]\nmax_attempts = 3   # the first attempt included\nbase_ms = 10       # the first retry waits up to this long\nmax_ms = 200       # no wait exceeds this\n```",
+      "type": "object",
+      "properties": {
+        "max_attempts": {
+          "description": "Attempts, the first included. Default: 3.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 3
+        },
+        "base_ms": {
+          "description": "The first retry waits a random duration up to this many milliseconds; each later\nretry up to twice the one before. Default: 10.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 10
+        },
+        "max_ms": {
+          "description": "No wait exceeds this many milliseconds. Default: 200.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 200
+        }
+      },
+      "additionalProperties": false
+    },
+    "ServerRuntimeConfig": {
+      "description": "HTTP server runtime configuration.\n\nThe `[server]` section in `fraiseql.toml` is **optional**.  When absent,\nthe server listens on `0.0.0.0:8080` with no TLS, and CORS allows\n`http://localhost:3000` only (suitable for local development).\n\nCLI flags (`--port`, `--bind`) take precedence over these settings.\n\n# Example\n\n```toml\n[server]\nhost = \"127.0.0.1\"\nport = 9000\n\n[server.cors]\norigins = [\"https://app.example.com\"]\n\n[server.tls]\nenabled   = true\ncert_file = \"/etc/fraiseql/cert.pem\"\nkey_file  = \"/etc/fraiseql/key.pem\"\n```",
+      "type": "object",
+      "properties": {
+        "host": {
+          "description": "Bind host.  Default: `\"0.0.0.0\"`.",
+          "type": "string",
+          "default": "0.0.0.0"
+        },
+        "port": {
+          "description": "TCP port.  Default: `8080`.",
+          "type": "integer",
+          "format": "uint16",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 8080
+        },
+        "cors": {
+          "description": "CORS settings.",
+          "$ref": "#/$defs/CorsRuntimeConfig",
+          "default": {
+            "origins": []
+          }
+        },
+        "tls": {
+          "description": "TLS settings.",
+          "$ref": "#/$defs/TlsRuntimeConfig",
+          "default": {
+            "enabled": false,
+            "cert_file": "",
+            "key_file": "",
+            "min_version": "1.2"
+          }
+        },
+        "request_timeout_ms": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[server] request_timeout_ms` was never applied by `fraiseql run` and is no longer accepted; set `request_timeout_secs` (in seconds) in the server configuration file, the file FRAISEQL_CONFIG names"
+        },
+        "keep_alive_secs": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[server] keep_alive_secs` was never applied by `fraiseql run` and is no longer accepted; remove it: the server has no keep-alive setting"
+        }
+      },
+      "additionalProperties": false
+    },
+    "CorsRuntimeConfig": {
+      "description": "CORS configuration for the HTTP server.\n\n```toml\n[server.cors]\norigins = [\"https://app.example.com\"]\n```",
+      "type": "object",
+      "properties": {
+        "origins": {
+          "description": "Allowed origins. Empty: the server allows `http://localhost:3000` only, and\nrefuses to start in production.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "credentials": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[server.cors] credentials` was never applied by `fraiseql run` and is no longer accepted; remove it: the server never sends `Access-Control-Allow-Credentials`, so a browser app on another origin cannot send the session cookie; serve the app from the same origin as the API, or authenticate with a bearer token"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TlsRuntimeConfig": {
+      "description": "TLS/HTTPS configuration for the HTTP server.\n\n```toml\n[server.tls]\nenabled  = true\ncert_file = \"/etc/fraiseql/cert.pem\"\nkey_file  = \"/etc/fraiseql/key.pem\"\nmin_version = \"1.2\"   # \"1.2\" or \"1.3\"\n```",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Enable TLS (HTTPS).  Default: `false`.",
+          "type": "boolean",
+          "default": false
+        },
+        "cert_file": {
+          "description": "Path to the PEM-encoded certificate file.",
+          "type": "string",
+          "default": ""
+        },
+        "key_file": {
+          "description": "Path to the PEM-encoded private key file.",
+          "type": "string",
+          "default": ""
+        },
+        "min_version": {
+          "description": "Minimum TLS version: `\"1.2\"` (default) or `\"1.3\"`.",
+          "type": "string",
+          "default": "1.2"
+        },
+        "cert_path": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[server.tls] cert_path` is how the server's configuration file (the file FRAISEQL_CONFIG names) spells this setting; in fraiseql.toml write `cert_file`"
+        },
+        "key_path": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[server.tls] key_path` is how the server's configuration file (the file FRAISEQL_CONFIG names) spells this setting; in fraiseql.toml write `key_file`"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TypeDefinition": {
+      "description": "Type definition in TOML",
+      "type": "object",
+      "properties": {
+        "sql_source": {
+          "description": "SQL source table or view",
+          "type": "string",
+          "default": "v_entity"
+        },
+        "description": {
+          "description": "Human-readable type description",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "fields": {
+          "description": "Field definitions",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/FieldDefinition"
+          },
+          "default": {}
+        },
+        "relationships": {
+          "description": "Relationships to other types, followed by REST resource embedding (#1266).\n\nKeyed by relationship name, like [`fields`](Self::fields), so the name is the\ntable header rather than a key inside it:\n\n```toml\n[types.Author.relationships.posts]\ntarget_type = \"Post\"\ncardinality = \"OneToMany\"\nforeign_key = \"fk_author\"     # column on the child table\nreferenced_key = \"id\"         # column on the parent table\n```\n\nThe name is what a client writes in `?select=posts(id,title)`. Both the code\ncomment on `embedding::executor::declared_key` and CHANGELOG 2.14.0 used to cite\na top-level `[[relationships]]` block instead; no such block ever parsed, and no\nauthoring surface of any kind existed until this one.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/RelationshipDefinition"
+          },
+          "default": {}
+        },
+        "subscription_policy": {
+          "description": "Per-row visibility for this type's subscription deliveries (#1657):\n\n```toml\n[types.Order.subscription_policy]\nowner_path = \"$.owner_id\"      # the row's stored key\nidentity_field = \"user_id\"     # the enriched-identity field\n```",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SubscriptionPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false
+    },
+    "FieldDefinition": {
+      "description": "Field definition",
+      "type": "object",
+      "properties": {
+        "type": {
+          "description": "GraphQL field type (ID, String, Int, Boolean, DateTime, etc.)",
+          "type": "string"
+        },
+        "nullable": {
+          "description": "Whether field can be null",
+          "type": "boolean",
+          "default": false
+        },
+        "description": {
+          "description": "Field description",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hierarchy": {
+          "description": "Named hierarchy reference for ID-based ltree operators.\nReferences a key in `[hierarchies.<name>]` config.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "vector": {
+          "description": "pgvector configuration for `Vector` and `BitVector` fields (#386, #959):\ndimensions (required — bits, for a `BitVector`), index type and distance\nmetric. Authored as\n`vector = { dimensions = 1536, index_type = \"hnsw\", distance_metric = \"cosine\" }`,\nor `vector = { dimensions = 768, distance_metric = \"hamming\" }` for a\nbinary one. Reuses the compiled-schema type directly so the authored and\ncompiled shapes cannot drift.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VectorConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "vector_distance": {
+          "description": "Names the vector field whose search distance this field carries (#959).\nAuthored as `vector_distance = \"embedding\"` on a `Float` field; the value\nis the distance the `nearest` search ordered by.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "unique": {
+          "description": "Whether this field's column is unique over the type's relation.\n\nAuthored as `unique = true`. Needed to declare a **to-one** relationship\n(`ManyToOne`/`OneToOne`) that joins on this field, because such an embed answers\nwith one object and a non-unique key would make it an arbitrary one; the schema is\notherwise refused at load. The entity identity (`id: ID`) needs no declaration —\nsee\n[`FieldDefinition::is_unique_key`](fraiseql_core::schema::FieldDefinition::is_unique_key).\n\nA FraiseQL type is usually a view, where the catalogue reports no uniqueness, so\nthis is the author's assertion about the relation rather than something the\ncompiler can confirm — the same standing as the ordering key in\n[`PaginationOrder::Column`](fraiseql_core::schema::PaginationOrder::Column).",
+          "type": "boolean",
+          "default": false
+        },
+        "scoped_like_parent": {
+          "description": "Declares that the scoped type this field embeds is scoped like the document that\nholds it (#1737). Authored as `scoped_like_parent = true`; see\n[`FieldDefinition::scoped_like_parent`](fraiseql_core::schema::FieldDefinition::scoped_like_parent).",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ]
+    },
+    "VectorConfig": {
+      "description": "Configuration for a vector field (pgvector).\n\nThis represents the configuration for a vector embedding field,\nincluding dimensions, index type, and distance metric.\n\nThe same config describes both vector field types: for\n[`FieldType::Vector`] `dimensions` counts float components, for\n[`FieldType::BitVector`] it counts **bits**. Which distance metrics are\nlegal follows from the field type — see [`VectorConfig::validate_for`].\n\n# Example\n\n```\nuse fraiseql_core::schema::{VectorConfig, VectorIndexType, DistanceMetric};\n\nlet config = VectorConfig {\n    dimensions: 1536,\n    index_type: VectorIndexType::Hnsw,\n    distance_metric: DistanceMetric::Cosine,\n};\n```",
+      "type": "object",
+      "properties": {
+        "dimensions": {
+          "description": "Number of dimensions in the vector: float components for\n[`FieldType::Vector`], bits for [`FieldType::BitVector`]\n(e.g., 1536 for `OpenAI` embeddings).",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "index_type": {
+          "description": "Type of index to use for similarity search.",
+          "$ref": "#/$defs/VectorIndexType",
+          "default": "hnsw"
+        },
+        "distance_metric": {
+          "description": "Distance metric for similarity calculations.",
+          "$ref": "#/$defs/DistanceMetric",
+          "default": "cosine"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "dimensions"
+      ]
+    },
+    "VectorIndexType": {
+      "description": "Index type for vector similarity search.\n\npgvector supports two main index types:\n- HNSW: Hierarchical Navigable Small World (faster queries, more memory)\n- `IVFFlat`: Inverted File with Flat compression (slower queries, less memory)",
+      "oneOf": [
+        {
+          "description": "HNSW index - best for most use cases.\nPros: Fast queries, good recall\nCons: More memory, slower index builds",
+          "type": "string",
+          "const": "hnsw"
+        },
+        {
+          "description": "IVF Flat index - good for memory-constrained environments.\nPros: Less memory, faster index builds\nCons: Slower queries, requires training",
+          "type": "string",
+          "const": "ivf_flat"
+        },
+        {
+          "description": "No index - exact nearest neighbor search.\nOnly suitable for small datasets (<10K vectors).",
+          "type": "string",
+          "const": "none"
+        }
+      ]
+    },
+    "DistanceMetric": {
+      "description": "Distance metric for vector similarity calculations.\n\nEach metric has a corresponding pgvector operator:\n- Cosine: `<=>` (most common for text embeddings)\n- L2: `<->` (Euclidean distance)\n- `InnerProduct`: `<#>` (dot product, negate for similarity)",
+      "oneOf": [
+        {
+          "description": "Cosine distance (1 - cosine similarity).\nBest for normalized embeddings (`OpenAI`, most text embeddings).\nOperator: `<=>`",
+          "type": "string",
+          "const": "cosine"
+        },
+        {
+          "description": "L2 (Euclidean) distance.\nGood for image embeddings and when magnitude matters.\nOperator: `<->`",
+          "type": "string",
+          "const": "l2"
+        },
+        {
+          "description": "Inner product (negative for similarity).\nUse when embeddings are already normalized and you want max inner product.\nOperator: `<#>`",
+          "type": "string",
+          "const": "inner_product"
+        },
+        {
+          "description": "Hamming distance — the number of differing bits (#959).\nBinary vectors ([`FieldType::BitVector`]) only.\nOperator: `<~>`",
+          "type": "string",
+          "const": "hamming"
+        },
+        {
+          "description": "Jaccard distance — `1 - |intersection| / |union|` over set bits (#959).\nBinary vectors ([`FieldType::BitVector`]) only; unlike hamming it\nnormalises by how many bits are set, so a sparse near-match beats a\ndense one.\nOperator: `<%>`",
+          "type": "string",
+          "const": "jaccard"
+        }
+      ]
+    },
+    "RelationshipDefinition": {
+      "description": "Relationship definition in TOML (#1266).\n\nDeserialized straight into the intermediate shape; see\n[`IntermediateRelationship`](crate::schema::intermediate::IntermediateRelationship) for\nwhich key is read off which side per cardinality.",
+      "type": "object",
+      "properties": {
+        "target_type": {
+          "description": "Target GraphQL type name, e.g. `\"Post\"`.",
+          "type": "string"
+        },
+        "cardinality": {
+          "description": "`\"OneToMany\"`, `\"ManyToOne\"` or `\"OneToOne\"`.",
+          "$ref": "#/$defs/Cardinality"
+        },
+        "foreign_key": {
+          "description": "Foreign key column on the child table, e.g. `fk_author`.",
+          "type": "string"
+        },
+        "referenced_key": {
+          "description": "Referenced key column on the parent table, e.g. `id`.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "target_type",
+        "cardinality",
+        "foreign_key",
+        "referenced_key"
+      ]
+    },
+    "Cardinality": {
+      "description": "Relationship cardinality between REST resources.",
+      "oneOf": [
+        {
+          "description": "Parent has many children (array embed).",
+          "type": "string",
+          "const": "OneToMany"
+        },
+        {
+          "description": "Child points to one parent (object embed).",
+          "type": "string",
+          "const": "ManyToOne"
+        },
+        {
+          "description": "Exactly one related resource (object or null).",
+          "type": "string",
+          "const": "OneToOne"
+        }
+      ]
+    },
+    "SubscriptionPolicy": {
+      "description": "An entity's row-visibility policy for subscription delivery (#596).\n\nDeclared per entity in the compiled schema\n([`TypeDefinition::subscription_policy`](super::TypeDefinition)):\n\n```jsonc\n\"subscription_policy\": {\n  \"owner_path\": \"$.owner_id\",      // single-level path into the after-image\n  \"identity_field\": \"user_id\",     // the fraiseql.enriched.* field (#539)\n  \"bypass_roles\": [\"admin\"]        // roles that get full visibility\n}\n```",
+      "type": "object",
+      "properties": {
+        "owner_path": {
+          "description": "The single-level JSON path into the after-image holding the owner id\n(e.g. `\"$.owner_id\"`). Only `$.<field>` is supported — the delivery matchers\nkey on a flat field name.",
+          "type": "string"
+        },
+        "identity_field": {
+          "description": "The enriched-identity field (in the `fraiseql.enriched.*` namespace, #539)\nwhose value the owner must equal (e.g. `\"user_id\"`).",
+          "type": "string"
+        },
+        "bypass_roles": {
+          "description": "Roles that bypass the policy entirely (full visibility, e.g. `[\"admin\"]`).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "owner_path",
+        "identity_field"
+      ]
+    },
+    "QueryDefinition": {
+      "description": "Query definition in TOML",
+      "type": "object",
+      "properties": {
+        "return_type": {
+          "description": "Return type name",
+          "type": "string",
+          "default": "String"
+        },
+        "return_array": {
+          "description": "Whether query returns an array",
+          "type": "boolean",
+          "default": false
+        },
+        "sql_source": {
+          "description": "SQL source for the query",
+          "type": "string",
+          "default": "v_entity"
+        },
+        "description": {
+          "description": "Query description",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "args": {
+          "description": "Query arguments",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArgumentDefinition"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "ArgumentDefinition": {
+      "description": "Argument definition",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Argument name",
+          "type": "string"
+        },
+        "type": {
+          "description": "Argument type",
+          "type": "string"
+        },
+        "required": {
+          "description": "Whether argument is required",
+          "type": "boolean",
+          "default": false
+        },
+        "default": {
+          "description": "Default value if not provided"
+        },
+        "description": {
+          "description": "Argument description",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "type"
+      ]
+    },
+    "MutationDefinition": {
+      "description": "Mutation definition in TOML",
+      "type": "object",
+      "properties": {
+        "return_type": {
+          "description": "Return type name",
+          "type": "string",
+          "default": "String"
+        },
+        "sql_source": {
+          "description": "SQL function or procedure source.\n\nWhen absent, the compiler resolves the function name from the `[crud]`\nnaming config using the `operation` and the entity name derived from\n`return_type`. A compile error is emitted if both are missing.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "operation": {
+          "description": "Operation type (CREATE, UPDATE, DELETE)",
+          "type": "string",
+          "default": "CREATE"
+        },
+        "input_style": {
+          "description": "How the GraphQL `input` argument is passed to the SQL function:\n`\"flatten\"` (positional columns, the default) or `\"jsonb\"` (the whole\ninput as one `jsonb` arg).\n\nOrthogonal to `operation`: set `\"jsonb\"` so a backend using the\nsingle-`jsonb`-wrapper convention can register the real DML verb and\nstill receive the whole input as one argument — letting the Change Spine\nrecord the true `modification_type`. Defaults to `\"flatten\"`.",
+          "type": "string",
+          "default": "flatten"
+        },
+        "changelog_pre_image": {
+          "description": "Whether a successful, state-changing run of this mutation also records the\nchanged entity's pre-image (before-state) into the Change-Spine\n`object_data_before` column, sourced from an optional `entity_before` on the\nmutation's `app.mutation_response`.\n\nSet `true` to opt an audit-sensitive mutation into an inline Debezium-style\n`{before, after}` on the single change event. Defaults to `false`,\nbyte-identical to a schema authored before this field existed.",
+          "type": "boolean",
+          "default": false
+        },
+        "cascade": {
+          "description": "Whether this mutation exposes the typed graphql-cascade `cascade` field\non its success payload.\n\nSet `true` to expose a typed, selection-gated `cascade` (mutation\nresponses carrying all affected entities per the graphql-cascade spec),\nprojected to camelCase and field-authorized per entity. Defaults to\n`false`, byte-identical to a schema authored before this field existed.",
+          "type": "boolean",
+          "default": false
+        },
+        "description": {
+          "description": "Mutation description",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "args": {
+          "description": "Mutation arguments",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArgumentDefinition"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "FederationConfig": {
+      "description": "Federation configuration",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Enable Apollo federation",
+          "type": "boolean",
+          "default": false
+        },
+        "service_name": {
+          "description": "Subgraph service name (surfaced in Apollo Studio and the subgraph listing)",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "version": {
+          "description": "Apollo Federation spec version string (e.g. `\"v2\"`).\n\nPreferred over [`apollo_version`](Self::apollo_version); when both are set,\n`version` wins. When neither is set, the runtime defaults to `\"v2\"`.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "schema_url": {
+          "description": "Subgraph SDL URL (exposed at `/__subgraph_schema`)",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "apollo_version": {
+          "description": "Apollo federation major version (legacy integer form; `2` ⇒ `\"v2\"`).\n\nRetained for backward compatibility; prefer the [`version`](Self::version)\nstring. Ignored when `version` is set.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0,
+          "default": 2
+        },
+        "entities": {
+          "description": "Federated entities",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FederationEntity"
+          },
+          "default": []
+        },
+        "shareable_types": {
+          "description": "Keyless `@shareable` value types — types every subgraph may define identically.\n\nThey are not entities: no `@key`, never members of the `_Entity` union. Without\nthem a value type defined in two subgraphs fails composition with\n`INVALID_FIELD_SHARING`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "circuit_breaker": {
+          "description": "Circuit breaker configuration for federation fan-out requests",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FederationCircuitBreakerConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false
+    },
+    "FederationEntity": {
+      "description": "Federation entity",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Entity name",
+          "type": "string"
+        },
+        "key_fields": {
+          "description": "Key fields for entity resolution",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "extends": {
+          "description": "This subgraph `extend`s an entity another subgraph owns.\n\nRenders `extend type Name @key(...)` instead of `type Name @key(...)`, which is\nhow a subgraph contributes fields to an entity it does not own — the central\npattern of Apollo Federation. The compiled schema and the SDL renderer have\nalways carried it; this surface could not express it (#1195).",
+          "type": "boolean",
+          "default": false
+        },
+        "external_fields": {
+          "description": "Fields owned by another subgraph and only referenced here — typically the\nborrowed `@key` field of an extended entity. Rendered `@external`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "shareable_fields": {
+          "description": "Fields resolvable in more than one subgraph. Rendered `@shareable`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "key_fields"
+      ]
+    },
+    "FederationCircuitBreakerConfig": {
+      "description": "Circuit breaker configuration for Apollo Federation fan-out requests",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Enable circuit breaker protection on federation fan-out",
+          "type": "boolean",
+          "default": true
+        },
+        "failure_threshold": {
+          "description": "Consecutive failures before the breaker opens (default: 5, must be > 0)",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 5
+        },
+        "recovery_timeout_secs": {
+          "description": "Seconds to wait before attempting a probe request (default: 30, must be > 0)",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 30
+        },
+        "success_threshold": {
+          "description": "Probe successes needed to transition from half-open to closed (default: 2, must be > 0)",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 2
+        },
+        "per_database": {
+          "description": "Per-database overrides (database name must match a defined federation entity)",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PerDatabaseCircuitBreakerOverride"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "PerDatabaseCircuitBreakerOverride": {
+      "description": "Circuit breaker configuration for a specific federated database/service",
+      "type": "object",
+      "properties": {
+        "database": {
+          "description": "Database or service name matching a federation entity",
+          "type": "string"
+        },
+        "failure_threshold": {
+          "description": "Override: number of consecutive failures before opening (must be > 0)",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "recovery_timeout_secs": {
+          "description": "Override: seconds to wait before attempting recovery (must be > 0)",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "success_threshold": {
+          "description": "Override: successes required in half-open state to close the breaker (must be > 0)",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "database"
+      ]
+    },
+    "SecuritySettings": {
+      "description": "Security configuration",
+      "type": "object",
+      "properties": {
+        "multi_tenant": {
+          "description": "Declare that this schema serves multiple tenants.\n\nActivates the subscription tenant fail-closed gate and the cache+RLS boot\ngate. Both gates named this key in their own error messages while\n`deny_unknown_fields` made it a compile error to set (#758).",
+          "type": "boolean",
+          "default": false
+        },
+        "rls": {
+          "description": "Declare that database Row-Level Security isolates this schema's data.\n\n`[security.rls] enabled = true`. Verified against the live catalog at boot.",
+          "$ref": "#/$defs/RlsConfig",
+          "default": {
+            "enabled": false
+          }
+        },
+        "role_definitions": {
+          "description": "Field-level RBAC role definitions — `[[security.role_definitions]]` (`#897`).\n\n`role_has_scope` is the only input to field-level access, and it consults nothing\nelse. Without a producer on this workflow, marking a field `requires_scope` in a\n`--schema-dir` or TOML-schema project produced a schema where no role could ever\ngrant that scope, so every caller was denied the field with no way out but\nmigrating to the other compile workflow.\n\nShares `RoleDefinitionConfig` and its single lowering with the project-config\nproducer, so the two cannot drift the way #757's did.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RoleDefinitionConfig"
+          },
+          "default": []
+        },
+        "default_role": {
+          "description": "Role granted to an authenticated principal that carries none — `[security]\ndefault_role` (`#897`).\n\nConsulted by `can_access_scope` when the principal's role set is empty (#894).\nNever reaches an anonymous request, which is classified before that point.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "rules": {
+          "description": "Custom authorization rules",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AuthorizationRule"
+          },
+          "default": []
+        },
+        "policies": {
+          "description": "Authorization policies",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AuthorizationPolicy"
+          },
+          "default": []
+        },
+        "field_auth": {
+          "description": "Field-level authorization rules",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FieldAuthRule"
+          },
+          "default": []
+        },
+        "enterprise": {
+          "description": "Enterprise security configuration (legacy flags)",
+          "$ref": "#/$defs/EnterpriseSecurityConfig",
+          "default": {
+            "audit_logging_enabled": true
+          }
+        },
+        "error_sanitization": {
+          "description": "Error sanitization — controls what detail clients see in error responses",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorSanitizationConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rate_limiting": {
+          "description": "Rate limiting — per-endpoint request caps",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RateLimitingSecurityConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "state_encryption": {
+          "description": "State encryption — AEAD encryption for OAuth state and PKCE blobs",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StateEncryptionConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "pkce": {
+          "description": "PKCE — Proof Key for Code Exchange for OAuth Authorization Code flows",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PkceSecurityConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "api_keys": {
+          "description": "API key authentication — static or database-backed key-based auth",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ApiKeySecurityConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "token_revocation": {
+          "description": "Token revocation — reject JWTs by `jti` after revocation",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TokenRevocationSecurityConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "trusted_documents": {
+          "description": "Trusted documents — query allowlist (strict or permissive mode)",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrustedDocumentsConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "persisted_queries_only": {
+          "description": "Force persisted-operations-only enforcement (#379).\n\nWhen `true`, the runtime forces the trusted-document store into `strict` mode\n(reject any non-persisted operation) regardless of `[security.trusted_documents].mode`.\nRequires a configured trusted-documents manifest to have any effect.",
+          "type": "boolean",
+          "default": false
+        },
+        "cost_budget": {
+          "description": "Operation cost budgets (#379): `per_request_max` (a hard per-operation\nceiling the executor enforces on every transport) and\n`per_tenant_per_minute_default` (the rolling window seeded for tenants\nwithout their own budget). Shares the runtime's own type so the\nauthoring and consuming shapes cannot drift.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CostBudgetConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "service_accounts": {
+          "description": "Machine service accounts, keyed by account name (`[security.service_accounts.<name>]`).\n\n```toml\n[security.service_accounts.reconciler]\nsecret_env = \"FRAISEQL_SA_RECONCILER_SECRET\"\nroles      = [\"reconciler\"]\nscopes     = [\"write:Invoice\"]\n```\n\nThe secret is never inlined: `secret_env` names the environment variable holding\nit (ADR-0018).",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ServiceAccountConfig"
+          }
+        },
+        "constant_time": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[security.constant_time]` is no longer accepted: nothing reads it"
+        },
+        "audit_logging": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[security.audit_logging]` is no longer accepted; write `[security.enterprise] audit_logging_enabled`"
+        }
+      },
+      "additionalProperties": false
+    },
+    "RlsConfig": {
+      "description": "Declaration that this deployment relies on database Row-Level Security.\n\nCompiled from `[security.rls]` in `fraiseql.toml`. FraiseQL does not author RLS\npolicies — they live in the database, keyed on the session variables the runtime\nsets from the request identity — so the compiled schema can only carry the\noperator's *declaration* that they exist. The server turns that declaration into\na checkable claim: when a multi-tenant schema declares RLS, boot verifies against\nthe live catalog that policies really are in force, and refuses to start if they\nare not (#762).\n\nBefore this section existed, [`CompiledSchema::has_rls_configured`] counted\n`security.additional[\"policies\"]` — a key #612 made a hard compile error — so it\nanswered `false` for every schema any supported workflow could produce, and the\ngates that depend on it were inert (#758).\n\n[`CompiledSchema::has_rls_configured`]: crate::schema::CompiledSchema::has_rls_configured",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Whether database Row-Level Security is relied upon for data isolation.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "RoleDefinitionConfig": {
+      "description": "Field-level RBAC role definition from fraiseql.toml",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Role name identifier",
+          "type": "string"
+        },
+        "description": {
+          "description": "Role description",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scopes": {
+          "description": "Permission scopes assigned to this role",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "scopes"
+      ]
+    },
+    "AuthorizationRule": {
+      "description": "Custom authorization rule.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Rule name.",
+          "type": "string"
+        },
+        "rule": {
+          "description": "Rule expression.",
+          "type": "string"
+        },
+        "description": {
+          "description": "Optional description.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cacheable": {
+          "description": "Whether result can be cached.",
+          "type": "boolean",
+          "default": false
+        },
+        "cache_ttl_seconds": {
+          "description": "Cache TTL in seconds.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "rule"
+      ]
+    },
+    "AuthorizationPolicy": {
+      "description": "Authorization policy (RBAC/ABAC).",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Policy name.",
+          "type": "string"
+        },
+        "type": {
+          "description": "Policy type: RBAC, ABAC, CUSTOM, HYBRID.",
+          "type": "string"
+        },
+        "rule": {
+          "description": "Optional rule expression.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "roles": {
+          "description": "Roles this policy applies to.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "strategy": {
+          "description": "Combination strategy: ANY, ALL, EXACTLY.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "attributes": {
+          "description": "Attributes for ABAC.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "description": {
+          "description": "Optional description.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cache_ttl_seconds": {
+          "description": "Cache TTL in seconds.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "type"
+      ]
+    },
+    "FieldAuthRule": {
+      "description": "Field-level authorization rule.",
+      "type": "object",
+      "properties": {
+        "type_name": {
+          "description": "Type name.",
+          "type": "string"
+        },
+        "field_name": {
+          "description": "Field name.",
+          "type": "string"
+        },
+        "policy": {
+          "description": "Policy to enforce.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type_name",
+        "field_name",
+        "policy"
+      ]
+    },
+    "EnterpriseSecurityConfig": {
+      "description": "Enterprise security features, compiled from `[security.enterprise]`.\n\nOne key, the one the runtime reads. Nine others (`rate_limiting_enabled`,\n`auth_endpoint_max_requests`, `auth_endpoint_window_seconds`, `audit_log_backend`,\n`audit_retention_days`, `error_sanitization`, `hide_implementation_details`,\n`constant_time_comparison`, `pkce_enabled`) were accepted and read by nothing; the\nsections that do the work are `[security.rate_limiting]`, `[security.error_sanitization]`\nand `[security.pkce]`. `deny_unknown_fields` refuses them by name.",
+      "type": "object",
+      "properties": {
+        "audit_logging_enabled": {
+          "description": "Record mutations in the audit log (default: true).",
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "ErrorSanitizationConfig": {
+      "description": "Controls how much error detail is exposed to API clients.\n\nWhen enabled, internal error messages, SQL, and stack traces are stripped.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Enable error sanitization (default: true).\n\nA table written to tune the sanitizer keeps it on: with a default of `false`, a\nsection that set only `custom_error_message` switched sanitization off. A section\nleft out is not this default; the server decides it at boot.",
+          "type": "boolean",
+          "default": true
+        },
+        "hide_implementation_details": {
+          "description": "Strip stack traces, SQL fragments, file paths (default: true).",
+          "type": "boolean",
+          "default": true
+        },
+        "sanitize_database_errors": {
+          "description": "Replace raw database error messages with a generic message (default: true).",
+          "type": "boolean",
+          "default": true
+        },
+        "custom_error_message": {
+          "description": "Replacement message shown to clients when an internal error is sanitized.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false
+    },
+    "RateLimitingSecurityConfig": {
+      "description": "Per-endpoint and global rate limiting configuration for `[security.rate_limiting]`.\n\nThe single shape for this section: the CLI authors it from TOML and the\nserver consumes it from the compiled schema, so the two cannot drift (before\n#977 each side kept its own copy — with different defaults).",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Enable the global limit (default: true, when the table is written).",
+          "type": "boolean",
+          "default": true
+        },
+        "requests_per_second": {
+          "description": "Global request rate cap (requests per second, per IP).",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 100
+        },
+        "burst_size": {
+          "description": "Burst allowance above the steady-state rate.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 200
+        },
+        "auth_start_max_requests": {
+          "description": "Auth initiation endpoint — max requests per window.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 30
+        },
+        "auth_start_window_secs": {
+          "description": "Auth initiation window in seconds.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 60
+        },
+        "auth_callback_max_requests": {
+          "description": "OAuth callback endpoint — max requests per window.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 30
+        },
+        "auth_callback_window_secs": {
+          "description": "OAuth callback window in seconds.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 60
+        },
+        "auth_refresh_max_requests": {
+          "description": "Token refresh endpoint — max requests per window.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 300
+        },
+        "auth_refresh_window_secs": {
+          "description": "Token refresh window in seconds.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 300
+        },
+        "auth_logout_max_requests": {
+          "description": "Logout endpoint — max requests per window (#893).",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 30
+        },
+        "auth_logout_window_secs": {
+          "description": "Logout window in seconds.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 60
+        },
+        "auth_otp_send_max_requests": {
+          "description": "`OTP` send endpoint (`/auth/v1/otp`) — max requests per window, per client.\n\nEach request mails a code through the operator's account, so this bounds how many\naddresses one client can mail; the store's per-address cap cannot.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 30
+        },
+        "auth_otp_send_window_secs": {
+          "description": "`OTP` send window in seconds.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 900
+        },
+        "auth_otp_verify_max_requests": {
+          "description": "`OTP` verify endpoint (`/auth/v1/verify`) — max requests per window, per client.\nBounds guessing spread across many addresses.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 60
+        },
+        "auth_otp_verify_window_secs": {
+          "description": "`OTP` verify window in seconds.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 900
+        },
+        "auth_password_max_requests": {
+          "description": "Each local-password endpoint (`/auth/v1/password/{signup,login,reset,reset/confirm}`)\n— max requests per window, per client and per endpoint.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 30
+        },
+        "auth_password_window_secs": {
+          "description": "Local-password window in seconds.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 60
+        },
+        "auth_anonymous_signup_max_requests": {
+          "description": "Anonymous signup (`/auth/v1/signup`) — max requests per window, per client. Each\nrequest mints a guest account and a session with no credential to check.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 30
+        },
+        "auth_anonymous_signup_window_secs": {
+          "description": "Anonymous signup window in seconds.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 600
+        },
+        "auth_rules_enabled": {
+          "description": "Apply the per-client rules on the auth endpoints.\n\nOn unless an operator writes `false`. The rules run whether or not the global\nlimit (`enabled`) is on, and with no `[security.rate_limiting]` section at all: an\nabsent section is not a decision to leave sign-in unthrottled.",
+          "type": "boolean",
+          "default": true
+        },
+        "failed_login_max_attempts": {
+          "description": "Maximum failed first-factor login attempts before lockout.\n\nThe off-the-shelf binary performs no first-factor login of its own, so it\ncannot enforce this; a value tuned away from the default is rejected at\nstartup in production (#356) — see the server's `failed_login_lockout_check`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 10
+        },
+        "failed_login_lockout_secs": {
+          "description": "Lockout window in seconds after `failed_login_max_attempts` is exceeded.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 900
+        },
+        "requests_per_second_per_user": {
+          "description": "Per-authenticated-user request rate in requests/second.\nDefaults to 10× `requests_per_second` if not set.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "redis_url": {
+          "description": "Redis URL for distributed rate limiting.\n\nOptional: when unset, budgets are tracked in-memory, per process. When\nset, an unreachable Redis is a **boot error** in production (#770/#777\nclass) — the server does not silently downgrade to per-process limits.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trust_proxy_headers": {
+          "description": "Trust `X-Real-IP` / `X-Forwarded-For` headers for client IP extraction.\n\nSet to `true` only when FraiseQL is deployed behind a trusted reverse\nproxy that sets these headers. Enabling without a trusted proxy allows\nclients to spoof their IP address.",
+          "type": "boolean",
+          "default": false
+        },
+        "trusted_proxy_cidrs": {
+          "description": "CIDR ranges trusted as proxy IPs (e.g. `[\"10.0.0.0/8\"]`).\n\nWhen set and `trust_proxy_headers = true`, `X-Forwarded-For` is only\nhonoured when the direct connection IP falls within one of these ranges.\nWhen omitted with `trust_proxy_headers = true`, all proxy IPs are trusted\n(less secure — the server emits a startup warning).",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "max_buckets": {
+          "description": "Maximum tracked buckets per map — a **memory ceiling, not a security control**.\n\nThe limiter keeps one token bucket per key in each of its maps (per-IP,\nper-user, per-path-and-IP, per-tenant). This caps how many it holds at once,\nat roughly 200 bytes each: the default 100 000 is about 20 `MiB` per map.\n\nReaching the cap evicts the least-recently-used of a sample rather than\nrefusing the newcomer (#1080/#1143), so setting it low degrades *accuracy* —\na client whose bucket was evicted starts again with a full one — and never\navailability. It is a knob to size to the host, not to tune for protection.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0,
+          "default": 100000
+        },
+        "failed_login_max_requests": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[security.rate_limiting] failed_login_max_requests` is no longer accepted; it is spelled `failed_login_max_attempts`"
+        },
+        "failed_login_window_secs": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[security.rate_limiting] failed_login_window_secs` is no longer accepted; it is spelled `failed_login_lockout_secs`"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StateEncryptionConfig": {
+      "description": "AEAD encryption for the OAuth state parameter and PKCE code challenges.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Enable state encryption.",
+          "type": "boolean",
+          "default": false
+        },
+        "algorithm": {
+          "description": "AEAD algorithm to use.",
+          "$ref": "#/$defs/EncryptionAlgorithm",
+          "default": "chacha20-poly1305"
+        },
+        "key_source": {
+          "description": "Where to source the encryption key.",
+          "$ref": "#/$defs/KeySource",
+          "default": "env"
+        },
+        "key_env": {
+          "description": "Environment variable holding the 32-byte hex-encoded key.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": "STATE_ENCRYPTION_KEY"
+        }
+      },
+      "additionalProperties": false
+    },
+    "EncryptionAlgorithm": {
+      "description": "AEAD algorithm for OAuth state and PKCE state blobs.",
+      "oneOf": [
+        {
+          "description": "ChaCha20-Poly1305 (recommended — constant-time, software-friendly).",
+          "type": "string",
+          "const": "chacha20-poly1305"
+        },
+        {
+          "description": "AES-256-GCM (hardware-accelerated on modern CPUs).",
+          "type": "string",
+          "const": "aes-256-gcm"
+        }
+      ]
+    },
+    "KeySource": {
+      "description": "Where the state-encryption key is sourced from.",
+      "oneOf": [
+        {
+          "description": "Read the key from an environment variable.",
+          "type": "string",
+          "const": "env"
+        }
+      ]
+    },
+    "PkceSecurityConfig": {
+      "description": "PKCE (Proof Key for Code Exchange) configuration for `[security.pkce]`.\n\nRequires `state_encryption` to be enabled for secure state storage.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Enable PKCE for OAuth Authorization Code flows.",
+          "type": "boolean",
+          "default": false
+        },
+        "code_challenge_method": {
+          "description": "Code challenge method (`S256` recommended).",
+          "$ref": "#/$defs/CodeChallengeMethod",
+          "default": "S256"
+        },
+        "state_ttl_secs": {
+          "description": "How long the PKCE state is valid before the auth flow expires (seconds).",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 600
+        },
+        "redis_url": {
+          "description": "Redis URL for distributed PKCE state storage across multiple replicas.\n\nRequired for multi-replica deployments; without Redis, `/auth/start` and\n`/auth/callback` must hit the same replica. Requires the `redis-pkce`\nCargo feature.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "CodeChallengeMethod": {
+      "description": "PKCE code challenge method.",
+      "oneOf": [
+        {
+          "description": "SHA-256 (required in production).",
+          "type": "string",
+          "const": "S256"
+        },
+        {
+          "description": "Plain (spec-allowed but insecure — warns at runtime).",
+          "type": "string",
+          "const": "plain"
+        }
+      ]
+    },
+    "ApiKeySecurityConfig": {
+      "description": "API key authentication configuration for `[security.api_keys]`.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Enable API key authentication.",
+          "type": "boolean",
+          "default": false
+        },
+        "header": {
+          "description": "HTTP header name to read the API key from.",
+          "type": "string",
+          "default": "X-API-Key"
+        },
+        "hash_algorithm": {
+          "description": "Hash algorithm for key verification (`sha256`).",
+          "type": "string",
+          "default": "sha256"
+        },
+        "storage": {
+          "description": "Storage backend: `\"env\"` for static keys, `\"postgres\"` for DB-backed.",
+          "type": "string",
+          "default": "env"
+        },
+        "static": {
+          "description": "Static API key entries (only for `storage = \"env\"`).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StaticApiKeyEntry"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "StaticApiKeyEntry": {
+      "description": "A single static API key entry.",
+      "type": "object",
+      "properties": {
+        "key_hash": {
+          "description": "Hex-encoded hash, optionally prefixed with the algorithm (`sha256:…`).",
+          "type": "string"
+        },
+        "scopes": {
+          "description": "OAuth-style scopes granted by this key.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "name": {
+          "description": "Human-readable name (for audit logging).",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "key_hash",
+        "name"
+      ]
+    },
+    "TokenRevocationSecurityConfig": {
+      "description": "Token revocation configuration for `[security.token_revocation]`.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Enable token revocation.",
+          "type": "boolean",
+          "default": false
+        },
+        "backend": {
+          "description": "Storage backend: `\"redis\"`, `\"postgres\"`, or `\"memory\"`.",
+          "type": "string",
+          "default": "memory"
+        },
+        "require_jti": {
+          "description": "Reject JWTs without a `jti` claim when revocation is enabled.",
+          "type": "boolean",
+          "default": true
+        },
+        "fail_open": {
+          "description": "If the revocation store is unreachable: `false` = reject (fail-closed),\n`true` = allow (fail-open).",
+          "type": "boolean",
+          "default": false
+        },
+        "redis_url": {
+          "description": "Redis URL for distributed revocation (inherited from `[fraiseql.redis]`\nif absent).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "revoke_all_ttl_secs": {
+          "description": "How long (seconds) a `revoke-all` epoch is retained.\n\n`revoke-all` records a per-user epoch rather than deleting individual\ntokens, so the entry must outlive every token that could have been issued\nbefore the revocation. Once it expires a pre-revocation token would resume\nworking (until its own `exp`).\n\nUnset, the server keeps it as long as a session it signs is accepted, and\nat least 86400 (24h). Set, a server with `[auth_issuer]` refuses a value\nshorter than that; for tokens from another issuer, set it above their\nlongest validity.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "TrustedDocumentsConfig": {
+      "description": "Trusted documents / query allowlist configuration for\n`[security.trusted_documents]`.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Enable trusted documents.",
+          "type": "boolean",
+          "default": false
+        },
+        "mode": {
+          "description": "Enforcement mode: `strict` or `permissive`.",
+          "$ref": "#/$defs/TrustedDocumentMode",
+          "default": "permissive"
+        },
+        "manifest_path": {
+          "description": "Path to the trusted documents manifest JSON file.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "manifest_url": {
+          "description": "URL the manifest is re-fetched from every `reload_interval_secs`. The manifest is\nloaded at startup from `manifest_path`, which an enabled store requires.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reload_interval_secs": {
+          "description": "Poll interval in seconds for hot-reloading the manifest (0 = no reload).",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "TrustedDocumentMode": {
+      "description": "Trusted document enforcement mode.",
+      "oneOf": [
+        {
+          "description": "Only documentId requests allowed; raw query strings rejected.",
+          "type": "string",
+          "const": "strict"
+        },
+        {
+          "description": "documentId requests use the manifest; raw queries fall through.",
+          "type": "string",
+          "const": "permissive"
+        }
+      ]
+    },
+    "CostBudgetConfig": {
+      "description": "Compiled `[security.cost_budget]` (#379).\n\n`deny_unknown_fields`: a typo'd budget key must fail the load, not silently\nleave the budget unenforced (the compiled-schema seam rule).",
+      "type": "object",
+      "properties": {
+        "per_request_max": {
+          "description": "Hard ceiling on a single operation's estimated cost, enforced in the\nexecutor's dispatch for **every** transport. `None` = no ceiling.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "per_tenant_per_minute_default": {
+          "description": "Default rolling per-minute cost budget for registered tenants that do\nnot set their own `cost_budget_per_minute`. `None` = no default.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "ServiceAccountConfig": {
+      "description": "A machine service account (`security.service_accounts.<name>`).\n\nThe bearer secret is **never** inlined — `secret_env` names the environment\nvariable that holds it.",
+      "type": "object",
+      "properties": {
+        "secret_env": {
+          "description": "Name of the environment variable holding the plaintext bearer secret.",
+          "type": "string"
+        },
+        "roles": {
+          "description": "The `run_as` ceiling — roles granted. Empty ⇒ no role authority.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "scopes": {
+          "description": "The `run_as` ceiling — scopes granted. Empty ⇒ no scope authority.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "tenant": {
+          "description": "Optional tenant pin. Omitted ⇒ global / NULL tenant.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "static_enriched": {
+          "description": "Optional server-injected `fraiseql.enriched.*` fields, the **only**\nsanctioned deviation from uniform enrichment (ADR-0016 decision 6 /\nADR-0018 decision 5) — for a daemon with no natural actor row.\nServer-injected, never token-asserted.",
+          "type": "object",
+          "additionalProperties": true,
+          "default": {}
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "secret_env"
+      ]
+    },
+    "TenancyTomlConfig": {
+      "description": "Tenancy configuration from `[tenancy]` in fraiseql.toml.",
+      "type": "object",
+      "properties": {
+        "mode": {
+          "description": "Isolation strategy: `\"none\"`, `\"row\"`, or `\"schema\"`.",
+          "$ref": "#/$defs/TenancyModeConfig",
+          "default": "none"
+        },
+        "tenant_claim": {
+          "description": "JWT claim name that carries the tenant identifier.",
+          "type": "string",
+          "default": "tenant_id"
+        },
+        "runtime": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[tenancy] runtime` is read from the server's configuration file, the file FRAISEQL_CONFIG names; set it there"
+        },
+        "storage_quota": {
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[tenancy] storage_quota` is read from the server's configuration file, the file FRAISEQL_CONFIG names; set it there"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TenancyModeConfig": {
+      "description": "Tenancy isolation mode from fraiseql.toml.\n\nDetermines how tenant data is separated at the database level.",
+      "oneOf": [
+        {
+          "description": "Single-tenant deployment, no isolation machinery.",
+          "type": "string",
+          "const": "none"
+        },
+        {
+          "description": "Row-level isolation via `@tenant_id` column injection.",
+          "type": "string",
+          "const": "row"
+        },
+        {
+          "description": "Schema-level isolation via PostgreSQL schemas.",
+          "type": "string",
+          "const": "schema"
+        }
+      ]
+    },
+    "InjectDefaultsToml": {
+      "description": "`[inject_defaults]` as written in `fraiseql.toml`: base keys at the top of the table,\n`queries` / `mutations` sub-tables beside them.\n\nA sub-table under any other name is refused by the base map, whose values must be\nstrings — so `[inject_defaults.querys]` is an error, not a silently ignored table (the\nSDK loaders ignore it).\n\nThe table is open on purpose: a base key is a parameter name the author chooses, so no\nlist of keys could close it.",
+      "type": "object",
+      "properties": {
+        "queries": {
+          "description": "Applied to queries only, overriding a base entry of the same name.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "mutations": {
+          "description": "Applied to mutations only, overriding a base entry of the same name.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "LocaleConfig": {
+      "description": "`[locale]`, as compiled and as loaded.",
+      "type": "object",
+      "properties": {
+        "default": {
+          "description": "The locale a request gets when no source names an allowed one. Must be allowed.",
+          "type": "string"
+        },
+        "allowed": {
+          "description": "Every locale the deployment serves, in canonical BCP 47 casing (`fr-FR`).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fallback": {
+          "description": "Explicit substitutes, tried before truncation: `{ \"fr-CA\" = \"fr-FR\" }`. A key may be\nany well-formed tag; a target must be allowed.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "resolve": {
+          "description": "The sources, in order. Default: the `locale` argument, then `Accept-Language`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LocaleSource"
+          },
+          "default": [
+            {
+              "argument": "locale"
+            },
+            {
+              "header": "Accept-Language"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "default",
+        "allowed"
+      ]
+    },
+    "LocaleSource": {
+      "description": "Where a request's locale may come from, tried in the order `resolve` lists them.",
+      "anyOf": [
+        {
+          "description": "An explicit request value: GraphQL `extensions.<name>`, REST `?<name>=`.",
+          "type": "object",
+          "properties": {
+            "argument": {
+              "description": "The argument's name (`locale`).",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "argument"
+          ]
+        },
+        {
+          "description": "A request header. `Accept-Language` is parsed with its q-values; any other header\ncarries one tag.",
+          "type": "object",
+          "properties": {
+            "header": {
+              "description": "The header name.",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "header"
+          ]
+        },
+        {
+          "description": "A field of the enriched identity (`[identity.enrichment]`'s `map`).",
+          "type": "object",
+          "properties": {
+            "enrichment": {
+              "description": "The enriched field.",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "enrichment"
+          ]
+        }
+      ]
+    },
+    "ObserversConfig": {
+      "description": "Observers/event system configuration — the **declarative compile-time**\nshape of the `[observers]` table.\n\nThis is NOT the server's runtime schema. The same `fraiseql.toml` is fed to\nboth `fraiseql compile` (this struct) and `fraiseql-server`; the server's\nruntime tuning lives under `[observers.runtime]` (see the server's\n`ObserverRuntimeSettings` / issue #342). The [`runtime`](Self::runtime)\nfield is declared-and-ignored here so a shared config carrying the server's\n`[observers.runtime]` sub-table still compiles — the compiler does not\nvalidate its contents.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Enable observers system",
+          "type": "boolean",
+          "default": false
+        },
+        "backend": {
+          "description": "The runtime's event transport: `postgres` (the default) or `nats`.",
+          "$ref": "#/$defs/ObserversBackend",
+          "default": "postgres"
+        },
+        "redis_url": {
+          "description": "Refused: the runtime has no Redis transport. Captured only so the refusal can\nsay so, instead of an unknown-field error.",
+          "writeOnly": true
+        },
+        "nats_url": {
+          "description": "NATS connection URL (required when backend = \"nats\")\n\nExample: `nats://localhost:4222`\nCan be overridden at runtime via the `FRAISEQL_NATS_URL` environment variable.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "handlers": {
+          "description": "Event handlers",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EventHandler"
+          },
+          "default": []
+        },
+        "runtime": {
+          "description": "Server-runtime tuning sub-table (`[observers.runtime]`).\n\nDeclared-and-ignored: owned and validated by `fraiseql-server`, not the\ncompiler. Captured as an opaque value so a shared `fraiseql.toml` that\ncarries server runtime tuning still passes `fraiseql compile` (#342)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ObserversBackend": {
+      "description": "The observer runtime's event transport: `\"postgres\"` (the default) or `\"nats\"`.\n\n`\"redis\"` is refused with a pointer: the runtime has no Redis transport, and the\nvalue used to compile into artifacts as the default without selecting anything.",
+      "oneOf": [
+        {
+          "description": "PostgreSQL `LISTEN`/`NOTIFY` over the change log.",
+          "type": "string",
+          "const": "postgres"
+        },
+        {
+          "description": "NATS `JetStream`.",
+          "type": "string",
+          "const": "nats"
+        }
+      ]
+    },
+    "EventHandler": {
+      "description": "Event handler configuration",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Handler name",
+          "type": "string"
+        },
+        "event": {
+          "description": "Event type to handle",
+          "type": "string"
+        },
+        "action": {
+          "description": "Action to perform: an observer action type, such as `webhook`, `slack` or `email`",
+          "type": "string"
+        },
+        "webhook_url": {
+          "description": "Webhook URL for webhook actions",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "retry_strategy": {
+          "description": "Retry strategy",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "max_retries": {
+          "description": "Maximum retry attempts",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "description": {
+          "description": "Handler description",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "event",
+        "action"
+      ]
+    },
+    "FunctionsSettings": {
+      "description": "The `[functions]` table — the operational half of the functions surface.\n\nThe split is the one `docs/architecture/config-vs-settings.md` prescribes, and\nit has exactly one owner per key. The **definitions** (what fires, on what\ntrigger, under what authority) are schema: an SDK authors them and they travel\nin `schema.json`. The **settings** here say where the modules live and which\ndead-letter store backs dispatch — deployment facts that differ between a\nlaptop and production, and that no decorator should be able to set.\n\nNeither half can reach into the other: a `FunctionDefinition` is\n`deny_unknown_fields` and has no `module_dir` or `dlq_store` key, so a schema\ncannot set a setting; and this table has no way to declare a function.",
+      "type": "object",
+      "properties": {
+        "module_dir": {
+          "description": "Directory holding the function modules (`.wasm`, `.js`, `.ts`), resolved\nrelative to the server's working directory.\n\nUnset ⇒ the compiler emits the convention, `functions/`. The compiled\nartifact always carries an explicit value, so the server can keep requiring\none and a hand-written compiled schema that omits it still fails loudly.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "dlq_store": {
+          "description": "Which dead-letter store backs function dispatch (#598): `\"memory\"` (the\ndefault — dead-letters vanish on restart) or `\"postgres\"` (durable).\n`FRAISEQL_FUNCTIONS_DLQ_STORE` overrides it in production.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false
+    },
+    "CachingConfig": {
+      "description": "Declarative result-cache rules (#623).\n\nRules are **lowered at compile time** onto the two compiled fields the\nruntime's result cache already consumes: the named query's\n`cache_ttl_seconds` (the per-view TTL map) and each trigger mutation's\n`invalidates_views` (mutation-driven invalidation). Runtime enablement\nremains the server's `cache_enabled`.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Gate for the rules below: `true` with rules lowers them; `false` with\nrules — or `true` without rules — is refused at compile time.",
+          "type": "boolean",
+          "default": false
+        },
+        "backend": {
+          "description": "Cache backend. Only `\"memory\"` exists — the runtime result cache is\nin-process; any other value is refused at compile time.",
+          "type": "string",
+          "default": "memory"
+        },
+        "redis_url": {
+          "description": "Refused at compile time: there is no Redis-backed result cache.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "rules": {
+          "description": "Per-query cache rules.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CacheRule"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "CacheRule": {
+      "description": "One declarative cache rule (#623).",
+      "type": "object",
+      "properties": {
+        "query": {
+          "description": "Name of an existing query (compile error otherwise).",
+          "type": "string"
+        },
+        "ttl_seconds": {
+          "description": "TTL lowered onto the query's `cache_ttl_seconds`. A query that already\ndeclares one (SDK/JSON-authored) is a compile error — two authoring\nsources must not silently last-write-win.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "invalidation_triggers": {
+          "description": "Names of existing mutations (compile error otherwise) whose success\nmust invalidate this query's cached results; each gains the query's\nview in its `invalidates_views`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "query",
+        "ttl_seconds",
+        "invalidation_triggers"
+      ]
+    },
+    "AnalyticsConfig": {
+      "description": "Analytics query definitions (#624).\n\nEach entry is **lowered at compile time into an ordinary compiled query**:\nan operator-authored, compile-validated `sql_source` (a view, typically an\naggregate/materialized one) served with the SELECT list of its declared\n`return_type`. No client-supplied identifier can reach `FROM` or the\nSELECT list because neither exists on this path at request time.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Gate for the queries below: `true` with queries lowers them; `false`\nwith queries — or `true` without queries — is refused at compile time.",
+          "type": "boolean",
+          "default": false
+        },
+        "queries": {
+          "description": "Analytics query definitions.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AnalyticsQuery"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "AnalyticsQuery": {
+      "description": "One analytics query (#624), compiled into a list-returning view query.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "GraphQL field name. Must not collide with an existing query and must\nnot end in `_aggregate` / `_window` (the executor classifies those\nsuffixes before query resolution, so such a query would be\nunreachable).",
+          "type": "string"
+        },
+        "return_type": {
+          "description": "Declared type whose fields form the SELECT list (compile error if the\ntype does not exist).",
+          "type": "string"
+        },
+        "sql_source": {
+          "description": "The view to serve — validated as a SQL identifier at compile time\n(reject, never escape).",
+          "type": "string"
+        },
+        "description": {
+          "description": "Query description.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "return_type",
+        "sql_source"
+      ]
+    },
+    "SchemaIncludes": {
+      "description": "Schema includes for multi-file composition (glob patterns)\n\nSupports glob patterns for flexible file inclusion:\n```toml\n[schema.includes]\ntypes = [\"schema/types/**/*.json\"]\nqueries = [\"schema/queries/**/*.json\"]\nmutations = [\"schema/mutations/**/*.json\"]\n```",
+      "type": "object",
+      "properties": {
+        "types": {
+          "description": "Glob patterns for type files",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "queries": {
+          "description": "Glob patterns for query files",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "mutations": {
+          "description": "Glob patterns for mutation files",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "DomainDiscovery": {
+      "description": "Domain-based schema organization\n\nAutomatically discovers schema files in domain directories:\n```toml\n[schema.domain_discovery]\nenabled = true\nroot_dir = \"schema\"\n```\n\nExpects structure:\n```text\nschema/\n├── auth/\n│   ├── types.json\n│   ├── queries.json\n│   └── mutations.json\n├── products/\n│   ├── types.json\n│   ├── queries.json\n│   └── mutations.json\n```",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Enable automatic domain discovery",
+          "type": "boolean",
+          "default": false
+        },
+        "root_dir": {
+          "description": "Root directory containing domains",
+          "type": "string",
+          "default": ""
+        }
+      },
+      "additionalProperties": false
+    },
+    "QueryDefaults": {
+      "description": "Global defaults for list-query auto-params.\n\nApplied when a per-query `auto_params` does not specify a given flag.\nRelay queries and single-item queries are never affected.\n\n```toml\n[query_defaults]\nwhere            = true\norder_by         = true\nlimit            = false  # e.g. Relay-first project\noffset           = false\npagination_order = \"identity\"\n```",
+      "type": "object",
+      "properties": {
+        "where": {
+          "description": "Enable automatic `where` filter parameter (default: true)",
+          "type": "boolean",
+          "default": true
+        },
+        "order_by": {
+          "description": "Enable automatic `order_by` parameter (default: true)",
+          "type": "boolean",
+          "default": true
+        },
+        "limit": {
+          "description": "Enable automatic `limit` parameter (default: true)",
+          "type": "boolean",
+          "default": true
+        },
+        "offset": {
+          "description": "Enable automatic `offset` parameter (default: true)",
+          "type": "boolean",
+          "default": true
+        },
+        "pagination_order": {
+          "description": "What the compiler does about the order paginated reads are cut in (#1303).\n\n```toml\n[query_defaults]\npagination_order = \"identity\"  # default | \"refuse\" | \"allow\"\n```",
+          "$ref": "#/$defs/PaginationPosture",
+          "default": "identity"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PaginationPosture": {
+      "description": "What the compiler does about the order a paginated read's pages are cut in\n(#1303).\n\nAn offset page is a slice of a *sequence*, and a read with no `ORDER BY` is not\na sequence — two pages of the same relation can overlap and skip rows, under a\n`200`. The deployment-wide answer is here; a query overrides it with its own\n`pagination_order`.\n\n# Why all three are compile-time\n\n#1303 framed the strict posture as a request-time `400`, because it framed the\nordering as a request property. It is not one: since the order is recorded per\nquery in the compiled schema, every posture resolves into what the compiler\nwrites there, and a second switch at runtime would be a second place the answer\nlives — free to disagree with the artifact that is supposed to *be* the answer.\nRefusing at compile time is also strictly earlier than refusing at request time.",
+      "oneOf": [
+        {
+          "description": "Every paginating query gets the entity identity, and an author may declare\n`pagination_order = \"none\"` to keep a self-ordering view's own `ORDER BY`.\n\nThe default, and the founder decision of 2026-09-08: the boilerplate of a\nmust-declare rule is a permanent tax on every paginated query written from\nnow on, while the identity default's cost is bounded, measured (1.7–7.7×\non unordered paginated reads) and recoverable by one declaration in the\nminority of cases where it is wrong.",
+          "type": "string",
+          "const": "identity"
+        },
+        {
+          "description": "As [`Identity`](Self::Identity), and `pagination_order = \"none\"` is refused.\n\n#1303's option 1, kept as a posture rather than a default: in this\ndeployment every paginated read has a total order and there are no\nexceptions, including the self-ordering-view one. The refusal is a compile\nerror naming the query, not a `400` a client discovers.",
+          "type": "string",
+          "const": "refuse"
+        },
+        {
+          "description": "Derive nothing: a query is ordered only where its author declared a column.\n\nThe pre-#1303 behaviour, kept because this release changes what an\nunordered paginated read returns and an operator may need the old answer\nwhile their clients catch up. It restores the defect with it — which is why\nthe compile warns for every query it leaves unordered.",
+          "type": "string",
+          "const": "allow"
+        }
+      ]
+    },
+    "OidcClientConfig": {
+      "description": "OIDC configuration for `[auth]`.\n\nThis is the CLI's **compile-time view** of the `[auth]` block. The server\nreads the same `[auth]` block independently into its own\n[`OidcConfig`](fraiseql_core::security::OidcConfig) at runtime, so this\nschema exists to *accept and structurally validate* the same block the\nserver consumes — not to lower it into the compiled schema (the compiled\nschema carries no auth). Every JWT-validation field here must therefore stay\nfield-compatible with `OidcConfig`, or `deny_unknown_fields` would reject a\nconfig the server accepts.\n\nTwo independent groups may be configured, together or separately:\n\n- **JWT validation** — `issuer` **or** `jwks_uri`, plus `audience` and the rest of\n  `OidcConfig`'s JWT settings (`additional_audiences`, `allowed_algorithms`,\n  `jwks_cache_ttl_secs`, `clock_skew_secs`, `required`, `scope_claim`, `require_jti`,\n  `[auth.me]`). The server consumes these to validate incoming bearer tokens; the CLI accepts\n  them so the same file parses under both. Accepted and functional. `issuer` may be omitted for\n  identity providers whose access tokens carry no `iss` claim (e.g. self-hosted Hanko); in that\n  **issuer-less** mode `jwks_uri` must be pinned, since discovery cannot locate the JWKS\n  endpoint without an issuer.\n- **PKCE OAuth client** (server-side login) — `discovery_url`, `client_id`, `client_secret_env`,\n  `server_redirect_uri`, configured all four together. **Not yet functional on the compiled path\n  (tracked in #621):** the compiled schema carries no `auth`/`auth_endpoints` for the server to\n  consume, so a complete client group is *rejected at compile time* rather than silently\n  accepted.\n\nAt least one group must be present; an empty `[auth]` is a load error. The client\nsecret itself must never appear here — `client_secret_env` names the environment\nvariable that holds it.\n\n```toml\n[auth]\nissuer   = \"https://accounts.google.com\"\naudience = \"my-api\"\n```\n\nIssuer-less (e.g. Hanko), pinning the JWKS endpoint:\n\n```toml\n[auth]\njwks_uri = \"https://hanko.example.com/.well-known/jwks.json\"\naudience = \"my-relying-party-id\"\n```",
+      "type": "object",
+      "properties": {
+        "issuer": {
+          "description": "OIDC issuer URL for JWT validation (e.g. `\"https://accounts.google.com\"`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "audience": {
+          "description": "Expected `aud` claim for JWT validation. Required at runtime by the\nserver's `OidcConfig` to prevent token-confusion attacks.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "jwks_uri": {
+          "description": "Pinned JWKS endpoint for JWT validation (skips OIDC discovery).\n\nRequired for **issuer-less** identity providers — IdPs whose access\ntokens omit the `iss` claim (e.g. self-hosted Hanko). With `issuer`\nunset, discovery cannot locate the JWKS endpoint, so it must be pinned\nhere. May also be set alongside `issuer` to skip discovery.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "additional_audiences": {
+          "description": "Additional accepted `aud` values (union-compat with `OidcConfig`).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowed_algorithms": {
+          "description": "Allowed JWT signing algorithms (union-compat; the server defaults to RS256).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "jwks_cache_ttl_secs": {
+          "description": "JWKS cache TTL in seconds (union-compat with `OidcConfig`).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "clock_skew_secs": {
+          "description": "Clock-skew tolerance in seconds (union-compat with `OidcConfig`).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "required": {
+          "description": "Require authentication for all requests (union-compat with `OidcConfig`).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "scope_claim": {
+          "description": "JWT scope-claim name (union-compat with `OidcConfig`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "require_jti": {
+          "description": "Require the `jti` claim on every token (union-compat with `OidcConfig`).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "me": {
+          "description": "`[auth.me]` session-identity endpoint config (union-compat with `OidcConfig`).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MeEndpointConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "additional_issuers": {
+          "description": "`[[auth.additional_issuers]]` further trusted token issuers (#1400; union-compat\nwith `OidcConfig`). The server's own type, so the two cannot drift.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TrustedIssuer"
+          }
+        },
+        "discovery_url": {
+          "description": "PKCE: OIDC provider discovery URL. **Not yet functional (#621).**",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "client_id": {
+          "description": "PKCE: OAuth2 `client_id` registered with the provider. **Not yet functional (#621).**",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "client_secret_env": {
+          "description": "PKCE: name of the environment variable that holds the client secret.\nThe secret itself must never appear in TOML or the compiled schema.\n**Not yet functional (#621).**",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "server_redirect_uri": {
+          "description": "PKCE: the full URL of this server's `/auth/callback` endpoint.\n**Not yet functional (#621).**",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "social": {
+          "description": "Social-login providers (`[auth.social.google]` / `[auth.social.github]`,\n#368). Deserializes directly into the **compiled** type so the authored\nand compiled shapes cannot drift; the merger embeds it verbatim under\nthe compiled `auth.social` object. An unimplemented provider key\n(`apple`, `discord`, …) is an unknown-field load error, not a\nsilently-ignored table.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SocialAuthConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "local": {
+          "description": "First-party auth methods the server operates itself (`[auth.local]`,\n#367): email+password, email `OTP`/magic link, `TOTP` `MFA`, anonymous\nguest sessions. Deserializes directly into the compiled type so the\nauthored and compiled shapes cannot drift.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalAuthConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "session": {
+          "description": "How long the sessions the server mints last, and whether they can be refreshed\n(`[auth.session]`, #1853). Deserializes directly into the compiled type.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SessionConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "database": {
+          "description": "The database first-party auth connects to, as its own role (`[auth.database]`,\n#1965). Deserializes directly into the compiled type.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AuthDatabaseConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "MeEndpointConfig": {
+      "description": "Configuration for the `GET /auth/me` session-identity endpoint.\n\nExposed at `/auth/me` when enabled.  The endpoint reads the validated\nJWT already in the request context and returns a JSON object containing\n`sub`, `user_id` (alias for `sub`), `expires_at`, plus any extra claims\nlisted in `expose_claims` that are present in the token.\n\n# Example (TOML)\n\n```toml\n[auth.me]\nenabled = true\nexpose_claims = [\"email\", \"tenant_id\", \"https://myapp.com/role\"]\n```",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Enable the `GET /auth/me` endpoint.  Default: `false` (opt-in).",
+          "type": "boolean",
+          "default": false
+        },
+        "expose_claims": {
+          "description": "Raw JWT claim names to include in the response body, beyond the\nalways-present `sub`, `user_id`, and `expires_at`.\n\nNames must match the raw claim key in the token (e.g. `\"email\"`,\n`\"https://myapp.com/role\"`).  Claims absent from the token are silently\nomitted.  The `user_id` alias for `sub` is always included and must\n**not** be listed here — listing `\"user_id\"` would silently return\nnothing because the JWT only carries `sub`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "TrustedIssuer": {
+      "description": "One additional trusted token issuer (`[[auth.additional_issuers]]`, #1400).\n\nThe issuer-level settings of [`OidcConfig`], for a second (third, …) issuer. `issuer`\nis mandatory: it is what routes a token here.",
+      "type": "object",
+      "properties": {
+        "issuer": {
+          "description": "The issuer URL, matched exactly against a token's `iss`.",
+          "type": "string"
+        },
+        "audience": {
+          "description": "Expected audience; see [`OidcConfig::audience`].",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "additional_audiences": {
+          "description": "Further accepted audiences; see [`OidcConfig::additional_audiences`].",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "allowed_algorithms": {
+          "description": "Allowed signing algorithms; see [`OidcConfig::allowed_algorithms`].",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "RS256"
+          ]
+        },
+        "clock_skew_secs": {
+          "description": "Clock-skew tolerance; see [`OidcConfig::clock_skew_secs`].",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 60
+        },
+        "jwks_uri": {
+          "description": "Pinned JWKS endpoint; discovered from `issuer` when unset.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "scope_claim": {
+          "description": "Claim scopes are read from; see [`OidcConfig::scope_claim`].",
+          "type": "string",
+          "default": "scope"
+        },
+        "require_jti": {
+          "description": "Require a `jti` claim; see [`OidcConfig::require_jti`].",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "issuer"
+      ]
+    },
+    "SocialAuthConfig": {
+      "description": "Social-login provider configuration compiled from `[auth.social]` (#368).\n\nEach configured provider is auto-registered by the server and served through\nthe account-linking trust gate at `/auth/v1/authorize` / `/auth/v1/callback`.\nOnly implemented providers are typable: an `[auth.social.apple]` block is a\ncompile-time unknown-field error, not a silently-ignored table.",
+      "type": "object",
+      "properties": {
+        "redirect_uri_allowlist": {
+          "description": "Allow-listed `redirect_uri` values for the post-login token hand-off\n(#427). Empty (the default) keeps the JSON-token response: the\nclient-supplied `redirect_uri` is never used as a redirect target, so\nthere is no open-redirect surface. Non-empty switches the callback to an\nimplicit-style fragment redirect, refusing any URI not matched here.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "google": {
+          "description": "`Google` `OIDC` social login.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GoogleSocialConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "github": {
+          "description": "`GitHub` `OAuth2` social login (non-`OIDC`; fixed well-known endpoints).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GitHubSocialConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "apple": {
+          "description": "Sign in with `Apple`. Configuring it also mounts the `POST` variant of\n`/auth/v1/callback` that `Apple`'s `response_mode=form_post` requires.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AppleSocialConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "discord": {
+          "description": "`Discord` `OAuth2` social login (non-`OIDC`).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DiscordSocialConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "facebook": {
+          "description": "`Facebook` `OAuth2` social login (non-`OIDC`).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FacebookSocialConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "GoogleSocialConfig": {
+      "description": "`[auth.social.google]` — `Google` `OIDC` social-login client (#368).",
+      "type": "object",
+      "properties": {
+        "client_id": {
+          "description": "`OAuth2` `client_id` from the `Google` Cloud Console.",
+          "type": "string"
+        },
+        "client_secret_env": {
+          "description": "Name of the environment variable holding the client secret.",
+          "type": "string"
+        },
+        "redirect_uri": {
+          "description": "This server's `/auth/v1/callback` URL, registered with `Google`.",
+          "type": "string"
+        },
+        "discovery_url": {
+          "description": "`OIDC` issuer override (default `https://accounts.google.com`). For\n`Google`-compatible stand-ins; the runtime's SSRF guards still apply.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "client_id",
+        "client_secret_env",
+        "redirect_uri"
+      ]
+    },
+    "GitHubSocialConfig": {
+      "description": "`[auth.social.github]` — `GitHub` `OAuth2` social-login client (#368).\n\n`GitHub` serves no `OIDC` discovery document; the endpoints are the fixed\nwell-known paths under [`base_url`](Self::base_url) /\n[`api_base_url`](Self::api_base_url), overridable for `GitHub` Enterprise\nServer deployments.",
+      "type": "object",
+      "properties": {
+        "client_id": {
+          "description": "`OAuth2` `client_id` of the `GitHub` OAuth app.",
+          "type": "string"
+        },
+        "client_secret_env": {
+          "description": "Name of the environment variable holding the client secret.",
+          "type": "string"
+        },
+        "redirect_uri": {
+          "description": "This server's `/auth/v1/callback` URL, registered with `GitHub`.",
+          "type": "string"
+        },
+        "base_url": {
+          "description": "Web base URL override (default `https://github.com`) — `GitHub` Enterprise\nServer. The runtime's SSRF guards still apply.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "api_base_url": {
+          "description": "API base URL override (default `https://api.github.com`) — `GitHub`\nEnterprise Server (`https://HOSTNAME/api/v3`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "client_id",
+        "client_secret_env",
+        "redirect_uri"
+      ]
+    },
+    "AppleSocialConfig": {
+      "description": "`[auth.social.apple]` — Sign in with `Apple` (#943).\n\n`Apple` has no `client_secret_env`: its client secret is an ES256 assertion\nthe runtime mints from the `.p8` key over\n([`team_id`](Self::team_id), [`key_id`](Self::key_id),\n[`client_id`](Self::client_id)) and re-mints before expiry. Supply the key\nthrough exactly one of [`private_key_env`](Self::private_key_env) or\n[`private_key_path`](Self::private_key_path) — naming both, or neither, is a\nconfiguration error rather than a silent preference.",
+      "type": "object",
+      "properties": {
+        "client_id": {
+          "description": "The services ID registered with `Apple` (its `OAuth2` `client_id`, and\nthe `aud` of every `id_token`).",
+          "type": "string"
+        },
+        "team_id": {
+          "description": "`Apple` developer team ID — the client-secret assertion's `iss`.",
+          "type": "string"
+        },
+        "key_id": {
+          "description": "Key ID of the `.p8` signing key — the assertion header's `kid`.",
+          "type": "string"
+        },
+        "private_key_env": {
+          "description": "Name of the environment variable holding the `.p8` private key, PEM text\nand all. Mutually exclusive with\n[`private_key_path`](Self::private_key_path).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "private_key_path": {
+          "description": "Filesystem path to the `.p8` private key. Mutually exclusive with\n[`private_key_env`](Self::private_key_env).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "redirect_uri": {
+          "description": "This server's `/auth/v1/callback` URL, registered with `Apple`.",
+          "type": "string"
+        },
+        "base_url": {
+          "description": "Base URL override (default `https://appleid.apple.com`). This is also\nthe issuer every `id_token` must name, so the two move together. The\nruntime's SSRF guards still apply.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "client_id",
+        "team_id",
+        "key_id",
+        "redirect_uri"
+      ]
+    },
+    "DiscordSocialConfig": {
+      "description": "`[auth.social.discord]` — `Discord` `OAuth2` social login (#944).\n\n`Discord` reports `verified` on the user object, and the runtime honours it:\nan unverified address keys on `(discord, id)` rather than on the email. That\ncheck is why `discord` is in the default trusted-email set.",
+      "type": "object",
+      "properties": {
+        "client_id": {
+          "description": "`OAuth2` `client_id` of the `Discord` application.",
+          "type": "string"
+        },
+        "client_secret_env": {
+          "description": "Name of the environment variable holding the client secret.",
+          "type": "string"
+        },
+        "redirect_uri": {
+          "description": "This server's `/auth/v1/callback` URL, registered with `Discord`.",
+          "type": "string"
+        },
+        "base_url": {
+          "description": "Base URL override (default `https://discord.com`). The runtime's SSRF\nguards still apply.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "client_id",
+        "client_secret_env",
+        "redirect_uri"
+      ]
+    },
+    "FacebookSocialConfig": {
+      "description": "`[auth.social.facebook]` — `Facebook` `OAuth2` social login (#944).\n\n`Facebook` publishes **no** email-verification signal, so every `Facebook`\nidentity keys on `(facebook, id)` and `facebook` is deliberately absent from\nthe default trusted-email set. The Graph API version is part of the request\npath and `Meta` deprecates versions on a schedule, so it is configuration\nrather than a constant.",
+      "type": "object",
+      "properties": {
+        "client_id": {
+          "description": "`OAuth2` `client_id` (the `Meta` app ID).",
+          "type": "string"
+        },
+        "client_secret_env": {
+          "description": "Name of the environment variable holding the client secret.",
+          "type": "string"
+        },
+        "redirect_uri": {
+          "description": "This server's `/auth/v1/callback` URL, registered with `Meta`.",
+          "type": "string"
+        },
+        "api_version": {
+          "description": "Graph API version segment (default `v21.0`), e.g. `v22.0`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "base_url": {
+          "description": "Web base URL override (default `https://www.facebook.com`) — the\nauthorization dialog. The runtime's SSRF guards still apply.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "graph_base_url": {
+          "description": "Graph API base URL override (default `https://graph.facebook.com`) — the\ntoken and profile endpoints. The runtime's SSRF guards still apply.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "client_id",
+        "client_secret_env",
+        "redirect_uri"
+      ]
+    },
+    "LocalAuthConfig": {
+      "description": "`[auth.local]` — the auth methods `FraiseQL` operates itself, rather than\ndelegating to an `IdP` (#367).\n\nEvery enabled method mounts real `HTTP` routes and requires a database pool:\ncredentials, `MFA` enrollments, `OTP` budgets and sessions are all durable\nstate. A method enabled without what it needs refuses to boot rather than\nmounting a flow that cannot complete.",
+      "type": "object",
+      "properties": {
+        "password": {
+          "description": "Email + password sign-in: mounts `/auth/v1/password/{signup,login}` and\nthe reset pair. Reset-link delivery additionally requires\n[`email_from`](Self::email_from).",
+          "type": "boolean",
+          "default": false
+        },
+        "otp": {
+          "description": "Email `OTP` / magic-link sign-in: mounts `/auth/v1/otp` and\n`/auth/v1/verify`. Requires [`email_from`](Self::email_from) — a code\nnobody receives is not a login method.",
+          "type": "boolean",
+          "default": false
+        },
+        "mfa": {
+          "description": "`TOTP` `MFA`: mounts `/auth/v1/mfa/{enroll,challenge,verify,unenroll}`,\nbacked by the Postgres enrollment store (enrollments must survive a\nrestart, or a deploy locks every user out of their own account).",
+          "type": "boolean",
+          "default": false
+        },
+        "anonymous": {
+          "description": "Anonymous guest sessions: mounts `POST /auth/v1/signup`, which issues a\nsession to any caller with no credentials at all. Off by default — this\nis a deliberate \"anyone may hold a session\" posture, not a convenience.",
+          "type": "boolean",
+          "default": false
+        },
+        "email_verification": {
+          "description": "Email verification for local-password accounts (#945): mounts\n`POST /auth/v1/email/verify/{start,confirm}`, both of which require an\nauthenticated caller and act only on that caller's own account.\n\nRequires [`password`](Self::password) — verification proves the address a\n*local* identity claims, and an account without one has nothing to verify\n— plus [`email_from`](Self::email_from) and\n[`verification_url_template`](Self::verification_url_template).\n\nConfirming promotes the account's own `auth.tb_user.email`, which is what\nlets a later trusted social sign-in for the same address link into it. It\nnever merges two accounts: an address already verified elsewhere is\nrefused.",
+          "type": "boolean",
+          "default": false
+        },
+        "mfa_issuer": {
+          "description": "Service name shown in authenticator apps for `MFA` enrollment\n(`otpauth://…?issuer=`). Defaults to `\"`FraiseQL`\"`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "email_from": {
+          "description": "The `[mailbox.<name>]` account whose `SMTP` half delivers `OTP` codes and\npassword-reset links. Required whenever `otp` or `password` is enabled;\nnaming a mailbox with no `[mailbox.<name>.smtp]` section refuses to boot.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "email_from_name": {
+          "description": "The sender name shown beside [`email_from`](Self::email_from)'s address. Unset sends\nthe bare address.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "email": {
+          "description": "The subject and bodies of each mail these methods send (`[auth.local.email]`). Unset\nkeeps the built-in English text. Boxed: every compiled schema carries this struct, and\nfew carry mail templates.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalEmailConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reset_url_template": {
+          "description": "Template for the password-reset link, with `{token}` substituted for the\nopaque reset token — e.g. `https://app.example.com/reset?token={token}`.\nRequired when `password` is enabled: the link points at the operator's\nfront end, which `FraiseQL` cannot guess.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "magic_link_template": {
+          "description": "Template for the `OTP` magic link, with `{token}` substituted for a link\ntoken that signs in alone, and `{code}` for the six-digit code. Optional:\nwhen absent the email carries the bare six-digit code.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "otp_allowed_query": {
+          "description": "`SELECT` deciding who may sign in by `OTP`, with `$email` bound to the normalized\naddress — e.g. `SELECT 1 FROM tb_member WHERE email = $email AND active`. A row\nadmits the address; no row or a failed query refuses it. A refused address gets the\nsame answers as an admitted one, and no mail and no account. Unset admits every\naddress. It governs `OTP` only: password signup and social sign-in stay open.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "verification_url_template": {
+          "description": "Template for the email-verification link, with `{token}` substituted for\nthe opaque verification token — e.g.\n`https://app.example.com/verify-email?token={token}`. Required when\n[`email_verification`](Self::email_verification) is enabled: the link\npoints at the operator's front end, which `FraiseQL` cannot guess.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "session_transport": {
+          "description": "How these methods hand a session to the client. [`SessionTransport::Json`], the\ndefault, puts the tokens in the response body;\n[`SessionTransport::Cookie`] puts them in `HttpOnly` cookies instead.",
+          "$ref": "#/$defs/SessionTransport"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LocalEmailConfig": {
+      "description": "`[auth.local.email]`: the subject and body of each mail `[auth.local]` sends. A kind left\nunset keeps the built-in English text.",
+      "type": "object",
+      "properties": {
+        "otp": {
+          "description": "The sign-in mail: its code, and its magic link when `magic_link_template` is set.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EmailTemplate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reset": {
+          "description": "The password-reset mail.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EmailTemplate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "verification": {
+          "description": "The email-verification mail.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EmailTemplate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "EmailTemplate": {
+      "description": "One mail's subject and bodies.\n\nIn `fraiseql.toml` the bodies are files, `text_template` and `html_template`, relative to\nthe file. `fraiseql compile` reads them into `text` and `html` and drops the paths, so the\nserver needs only the compiled schema.",
+      "type": "object",
+      "properties": {
+        "subject": {
+          "description": "The subject line, sent as written: no placeholders.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text_template": {
+          "description": "Path of the plain-text body, in `fraiseql.toml` only.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "html_template": {
+          "description": "Path of the `HTML` body, in `fraiseql.toml` only. Sent beside the text body as\n`multipart/alternative`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text": {
+          "description": "The plain-text body, as the compiler read it from `text_template`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "html": {
+          "description": "The `HTML` body, as the compiler read it from `html_template`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "SessionTransport": {
+      "description": "`[auth.local] session_transport`: how a session reaches the client.",
+      "oneOf": [
+        {
+          "description": "The access and refresh tokens are in the `JSON` response body, for the client to\nkeep and send as a bearer token.",
+          "type": "string",
+          "const": "json"
+        },
+        {
+          "description": "The access token is in the `__Host-access_token` cookie and the refresh token in\n`__Secure-refresh_token`, scoped to `/auth/v1/session`; both are `HttpOnly`,\n`Secure` and `SameSite=Strict`, and no response body carries either token.\n\nRequires `[auth.session] absolute_ttl_secs`: without it no logout route is\nmounted, and nothing could clear the cookies.",
+          "type": "string",
+          "const": "cookie"
+        }
+      ]
+    },
+    "SessionConfig": {
+      "description": "`[auth.session]` — the lifetime of the sessions this server mints (#1853).\n\nGoverns password, `OTP`, `MFA`, social and `SAML` sign-in. Anonymous guest\nsessions keep their fixed lifetime.",
+      "type": "object",
+      "properties": {
+        "ttl_secs": {
+          "description": "Lifetime of an access token, in seconds. Unset, each sign-in method keeps\nits own lifetime.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "absolute_ttl_secs": {
+          "description": "How long a session can be kept alive by refreshing, in seconds from\nsign-in. Setting it mounts `/auth/v1/session/refresh` and\n`/auth/v1/session/logout`; unset, neither is mounted.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "AuthDatabaseConfig": {
+      "description": "`[auth.database]` — the database first-party auth connects to, as its own role\n(#1965).\n\nEvery auth table lives in schema `auth`, owned by the role this connection\nauthenticates as; the engine's own role needs no grant on it. Only the name of the\nenvironment variable holding the URL is compiled: the URL carries credentials.",
+      "type": "object",
+      "properties": {
+        "url_env": {
+          "description": "The environment variable that holds the auth role's connection URL.",
+          "type": "string"
+        },
+        "pool_min": {
+          "description": "Connections the pool keeps open. Unset: none until needed.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "pool_max": {
+          "description": "The most connections the pool opens. Unset: [`Self::DEFAULT_POOL_MAX`].",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "acquire_timeout_secs": {
+          "description": "How long a request waits for a connection, in seconds. Unset:\n[`Self::DEFAULT_ACQUIRE_TIMEOUT_SECS`].",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "url_env"
+      ]
+    },
+    "SubscriptionsConfig": {
+      "description": "WebSocket subscription configuration.\n\n```toml\n[subscriptions]\nmax_subscriptions_per_connection = 50\n\n[subscriptions.hooks]\non_connect = \"http://localhost:8001/hooks/ws-connect\"\non_disconnect = \"http://localhost:8001/hooks/ws-disconnect\"\non_subscribe = \"http://localhost:8001/hooks/ws-subscribe\"\ntimeout_ms = 500\n\n[subscriptions.capture.tb_ticket]\ndocument_column = \"data\"\n```",
+      "type": "object",
+      "properties": {
+        "max_subscriptions_per_connection": {
+          "description": "Maximum subscriptions per WebSocket connection.\n`None` (or omitted) means unlimited.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "hooks": {
+          "description": "Webhook lifecycle hooks.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SubscriptionHooksConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "capture": {
+          "description": "How the capture trigger reads each table it sits on, by the table's name as a\ntype's `subscribable_tables` spells it.\n\n```toml\n[subscriptions.capture.tb_ticket]\ndocument_column = \"data\"\n```",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/CaptureTableConfig"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "SubscriptionHooksConfig": {
+      "description": "Webhook URLs invoked during subscription lifecycle events.",
+      "type": "object",
+      "properties": {
+        "on_connect": {
+          "description": "URL to POST on WebSocket `connection_init` (fail-closed).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "on_disconnect": {
+          "description": "URL to POST on WebSocket disconnect (fire-and-forget).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "on_subscribe": {
+          "description": "URL to POST before a subscription is registered (fail-closed).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timeout_ms": {
+          "description": "Timeout in milliseconds for fail-closed hooks (default: 500).",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 500
+        }
+      },
+      "additionalProperties": false
+    },
+    "CaptureTableConfig": {
+      "description": "How the capture trigger reads one table (`[subscriptions.capture.<table>]`).\n\n```toml\n[subscriptions.capture.tb_ticket]\ndocument_column = \"data\"\n```",
+      "type": "object",
+      "properties": {
+        "document_column": {
+          "description": "The column the table keeps its entity document in. A captured write is stored as\nthat document, as a mutation's is, and not as the table's row.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "document_column"
+      ]
+    },
+    "ValidationConfig": {
+      "description": "Query validation limits (depth and complexity).\n\n```toml\n[validation]\nmax_query_depth = 10\nmax_query_complexity = 100\n```",
+      "type": "object",
+      "properties": {
+        "max_query_depth": {
+          "description": "Maximum allowed query nesting depth. `None` uses the server default (10).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "max_query_complexity": {
+          "description": "Maximum allowed query complexity score. `None` uses the server default (100).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "max_response_bytes": {
+          "description": "Maximum bytes a single read may deliver, measured on the rows returned.\n\nDepth and complexity score the request; this bounds the answer, which is\nthe only cost a read from a materialised view actually has. `None` leaves\nreads unbounded by size.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "max_page_size": {
+          "description": "Maximum rows a top-level `first`/`last`/`limit` argument may request,\nguarding against unbounded-pagination denial of service (#421). `None`\nuses the server default (1000); the server also honours the\n`FRAISEQL_MAX_PAGE_SIZE` environment variable as an override.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "max_offset": {
+          "description": "The deepest offset a client may page to (#1306): a GraphQL `offset:`, REST\n`?offset=` or `?rel.offset=` beyond it is refused before any statement, naming the\nrelay connection as the path that pages at any depth. `None` (the default) refuses\nnone; the server also honours `FRAISEQL_MAX_OFFSET` as an override.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "max_semi_additive_cells": {
+          "description": "The most (bucket, entity) cells an aggregate carrying a semi-additive measure forward\nmay read (#1459): each is one index seek, and a larger request is refused before the\nmeasure is read. `None` uses the runtime default (250,000).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "DebugConfig": {
+      "description": "Debug/development configuration.\n\nControls features that should only be enabled during development or\nin trusted environments. All flags default to off.\n\n```toml\n[debug]\nenabled = true\ndatabase_explain = true\nexpose_sql = true\n```",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Master switch — all debug features require this to be `true`.",
+          "type": "boolean",
+          "default": false
+        },
+        "database_explain": {
+          "description": "When `true`, the explain endpoint will also run `EXPLAIN` against the\ndatabase and include the query plan in the response.",
+          "type": "boolean",
+          "default": false
+        },
+        "expose_sql": {
+          "description": "When `true`, the explain endpoint includes the generated SQL in the\nresponse. Defaults to `true` (SQL is shown even without\n`database_explain`).",
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "McpConfig": {
+      "description": "MCP (Model Context Protocol) server configuration: the `[mcp]` table of\n`fraiseql.toml`, read by the compiler and compiled into the schema the server reads,\none type at both ends.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Whether MCP is enabled.",
+          "type": "boolean",
+          "default": false
+        },
+        "transport": {
+          "description": "How the server is reached: `\"http\"`, `\"stdio\"`, or `\"both\"`.",
+          "$ref": "#/$defs/McpTransport",
+          "default": "http"
+        },
+        "path": {
+          "description": "HTTP path for MCP endpoint (e.g., \"/mcp\").",
+          "type": "string",
+          "default": "/mcp"
+        },
+        "require_auth": {
+          "description": "Require authentication for MCP requests.",
+          "type": "boolean",
+          "default": true
+        },
+        "include": {
+          "description": "Whitelist of query/mutation names to expose (empty = all).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "exclude": {
+          "description": "Blacklist of query/mutation names to hide.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "read_only": {
+          "description": "**Read-only exposure**: when `true`, no mutation is ever exposed as an MCP\ntool, regardless of [`include`](Self::include)/[`exclude`](Self::exclude) —\na fail-closed default for AI callers, so a mutation added later is not\nsilently exposed. Wins over `include` listing a mutation.",
+          "type": "boolean",
+          "default": false
+        },
+        "session_state": {
+          "description": "Keep per-thread working state across an agent's tool calls, in the\n`[session_state]` store (#967).\n\nOff by default, and opt-in rather than automatic for two reasons: it\nwrites to a durable store on every authenticated tool call, and it makes\none call's result depend on the calls before it — which is the point, and\nalso a behaviour change no deployment should acquire by upgrading.\n\nRequires an authenticated caller and a configured `[session_state]`\nbackend. With either missing, tool calls run exactly as they do today: an\nanonymous caller has no principal to scope a thread to, so there is\nnothing safe to key on.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "McpTransport": {
+      "description": "How an MCP server is reached.",
+      "oneOf": [
+        {
+          "description": "Over HTTP, at [`McpConfig::path`].",
+          "type": "string",
+          "const": "http"
+        },
+        {
+          "description": "Over standard input and output, when the server is started as an MCP stdio server.",
+          "type": "string",
+          "const": "stdio"
+        },
+        {
+          "description": "Both.",
+          "type": "string",
+          "const": "both"
+        }
+      ]
+    },
+    "RestTomlConfig": {
+      "description": "REST transport configuration parsed from the `[rest]` TOML section.\n\nAll fields have defaults matching `RestConfig::default()` in `fraiseql-core`.\nWhen `enabled` is `false` (the default), the REST transport is not mounted.\n\nUnknown keys are refused. `[rest]` used to accept anything, so a retired key — or a\nmisspelled one — compiled and was silently the default.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Whether the REST transport is enabled.",
+          "type": "boolean",
+          "default": false
+        },
+        "path": {
+          "description": "Base URL path for REST endpoints.",
+          "type": "string",
+          "default": "/rest/v1"
+        },
+        "max_page_size": {
+          "description": "Maximum rows per page (clamps `?limit=`).",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 1000
+        },
+        "default_page_size": {
+          "description": "Default page size when no `?limit=` is specified.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 100
+        },
+        "default_embed_page_size": {
+          "description": "Page each parent row gets of an embedded relationship when the request names none\n(`?rel.limit=`). Applied at most at `max_page_size`.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 50
+        },
+        "ndjson_batch_size": {
+          "description": "Batch size for NDJSON streaming responses.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 500
+        },
+        "max_bulk_affected": {
+          "description": "Maximum affected rows for bulk PATCH/DELETE.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 10000
+        },
+        "max_filter_bytes": {
+          "description": "Maximum byte length for `?filter=` JSON values.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 4096
+        },
+        "delete_response": {
+          "description": "How DELETE endpoints report success: `\"no_content\"` (default) or `\"entity\"`.",
+          "$ref": "#/$defs/DeleteResponseToml",
+          "default": "no_content"
+        },
+        "default_cache_ttl": {
+          "description": "Default result cache TTL in seconds (0 = no caching): the `max-age` of a GET's\n`Cache-Control`. An authenticated read (any credential) is `private`; only an\nanonymous read is `public`, and only a public one carries `s-maxage`.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 0
+        },
+        "cdn_max_age": {
+          "description": "CDN `s-maxage` value in seconds (`None` = omit).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0,
+          "default": null
+        },
+        "require_auth": {
+          "description": "Whether REST endpoints require authentication by default.",
+          "type": "boolean",
+          "default": false
+        },
+        "sse_heartbeat_seconds": {
+          "description": "SSE heartbeat interval in seconds.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 30
+        },
+        "sse_max_replay_events": {
+          "description": "How many delivered events a `Last-Event-ID` resume may reach back over\n(0 = no bound; see `RestConfig::sse_max_replay_events`).",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 10000
+        },
+        "max_embedding_depth": {
+          "description": "Maximum depth for resource embedding (`?select=posts(comments)`).",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 3
+        },
+        "include": {
+          "description": "Allowlist of type names to expose as REST resources (empty = all).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "exclude": {
+          "description": "Denylist of type names to exclude from REST resources.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "etag": {
+          "description": "Whether to enable `ETag` / `If-None-Match` conditional response support.",
+          "type": "boolean",
+          "default": true
+        },
+        "idempotency_ttl_seconds": {
+          "description": "TTL in seconds for idempotency key deduplication.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 300
+        },
+        "max_embedded_reads": {
+          "description": "Declarable **only to be refused**, with its replacement named.\n\nThe key bounded `?select=`'s fan-out of sub-reads, and there are no sub-reads left:\nan embed is one composed statement, bounded by the request's cost ceiling. Denied as\nan unknown field it would read `unknown field max_embedded_reads`, which tells an\noperator what is wrong but not what to write instead.",
+          "writeOnly": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "DeleteResponseToml": {
+      "description": "DELETE response mode for TOML configuration.\n\nUses lowercase serde names for TOML ergonomics.",
+      "oneOf": [
+        {
+          "description": "Return `204 No Content`.",
+          "type": "string",
+          "const": "no_content"
+        },
+        {
+          "description": "Return `200` with the deleted entity in the body.",
+          "type": "string",
+          "const": "entity"
+        }
+      ]
+    },
+    "GrpcConfig": {
+      "description": "gRPC transport configuration (compiled from `[grpc]` in `fraiseql.toml`).",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Whether the gRPC transport is enabled.",
+          "type": "boolean",
+          "default": false
+        },
+        "include_types": {
+          "description": "Whitelist of type names to include (empty = all).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "exclude_types": {
+          "description": "Blacklist of type names to exclude.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "descriptor_path": {
+          "description": "Path to the `FileDescriptorSet` binary (`.binpb`).",
+          "type": "string",
+          "default": ""
+        },
+        "reflection": {
+          "description": "Whether to enable gRPC Server Reflection.",
+          "type": "boolean",
+          "default": true
+        },
+        "stream_batch_size": {
+          "description": "Batch size for server-streaming responses.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 500
+        }
+      },
+      "additionalProperties": false
+    },
+    "ChangelogConfig": {
+      "description": "Configuration for exposing the observer entity-change log as queryable GraphQL types.\n\nWhen `expose = true`, the compiler injects two read-only object types\n(`EntityChangeLog`, `TransportCheckpoint`), a cursor-paginated list query, a\npoint-lookup query, and a checkpoint upsert mutation, all backed by the views the\nchangelog migration installs. Sidecar consumers can then poll the changelog over the\nsame GraphQL endpoint they use for everything else — same auth, audit, rate limiting.\n\nThe generated operations are gated by `read_role` / `write_role` (RBAC). The views\nread from `tb_entity_change_log` / `tb_transport_checkpoint`, which the observer\nsystem installs (or which the operator supplies as a documented prerequisite).",
+      "type": "object",
+      "properties": {
+        "expose": {
+          "description": "Master switch. When `false`, no changelog types are registered (default).",
+          "type": "boolean",
+          "default": false
+        },
+        "schema": {
+          "description": "PostgreSQL schema holding `tb_entity_change_log` and `tb_transport_checkpoint`.\nDefault `\"core\"` (the observer install convention).",
+          "type": "string",
+          "default": "core"
+        },
+        "read_role": {
+          "description": "Role required to query the changelog (`entity_change_logs`, `transport_checkpoint`).\n\nMatched against `SecurityContext.roles`. `None` disables the read gate (not\nrecommended for production). Default `Some(\"changelog_reader\")`.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": "changelog_reader"
+        },
+        "write_role": {
+          "description": "Role required to upsert checkpoints (`upsert_transport_checkpoint`).\n\nMatched against `SecurityContext.roles`. `None` disables the write gate.\nDefault `Some(\"changelog_writer\")`.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": "changelog_writer"
+        },
+        "max_limit": {
+          "description": "Maximum rows a single `entity_change_logs` page should return.\n\nEnforced as a documented/runtime clamp rather than a GraphQL argument\nconstraint (the argument system has no max). Default `1000`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 1000
+        },
+        "write_enabled": {
+          "description": "Whether the mutation executor writes the `tb_entity_change_log` outbox row\nin-transaction (the Change-Spine transactional outbox). Default `true`.\n\nDistinct from [`expose`](Self::expose), which gates the *read* path (the\n#149 GraphQL changelog types): `write_enabled` gates the *write* path. Set\n`false` to disable the outbox write **globally** — e.g. for an application\nthat does not consume the Change Spine — so no mutation pays the write.\nOverridable at runtime by `FRAISEQL_CHANGELOG_ENABLED`; composes (AND) with\nthe per-mutation\n[`MutationDefinition.changelog`](crate::schema::MutationDefinition) flag.",
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "NamingConfig": {
+      "description": "`[naming]`: the GraphQL surface's casing.",
+      "type": "object",
+      "properties": {
+        "convention": {
+          "description": "The GraphQL surface's naming convention. Unwritten, a schema document's own\nconvention stands, and with none the surface is `camelCase`: `snake_case`\ncolumns and functions in the database, `camelCase` operation and field names for\nclients, and mutation input keys recased `camelCase` → `snake_case` before they\nreach the SQL functions. `\"preserve\"` keeps names exactly as authored.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NamingConvention"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acronyms": {
+          "description": "Acronyms whose internal digit stays attached when a GraphQL field name is mapped\nback to its `snake_case` JSONB key (e.g. `s3`, `ipv4`, `oauth2`), added on top of\nthe engine's built-in defaults. Author the atomic form (`s3`, not `s_3`).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "NamingConvention": {
+      "description": "Naming convention for GraphQL operation names.\n\nControls how operation names (queries, mutations, subscriptions) are exposed\nin the introspection schema and resolved at execution time.\n\nPython/TypeScript SDKs emit `snake_case` operation names (e.g., `create_dns_server`).\nStandard GraphQL convention is `camelCase` (`createDnsServer`). This setting\ncontrols whether the compiler/runtime converts names automatically.",
+      "oneOf": [
+        {
+          "description": "Preserve operation names as authored (`snake_case` from Python, etc.).",
+          "type": "string",
+          "const": "preserve"
+        },
+        {
+          "description": "Convert operation names to camelCase for GraphQL convention.",
+          "type": "string",
+          "const": "camelCase"
+        }
+      ]
+    },
+    "MutationDefaults": {
+      "description": "`[mutation_defaults]`: project-wide mutation compilation options, beside\n`[query_defaults]`.",
+      "type": "object",
+      "properties": {
+        "auto_error_union": {
+          "description": "Opt-in: synthesize a shared `MutationError` type and a per-mutation result union\n(`<Mutation>Result = Entity | MutationError`) for every object-returning mutation,\nrewriting its return type to that union so the server's success/error\ndiscrimination has a union to resolve against. Mutations that already return a\nunion are left untouched.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "CrudNamingConfig": {
+      "description": "CRUD function naming configuration, compiled from `[crud]` in `fraiseql.toml`.\n\nWhen a mutation's `sql_source` is absent, the compiler resolves the PostgreSQL\nfunction name using these templates and the entity name derived from the\nmutation's `return_type`.\n\n**Precedence** (highest first):\n1. Explicit `sql_source` on the mutation — always wins.\n2. Per-operation custom template (`create_template`, `update_template`, `delete_template`).\n3. Built-in preset (`function_naming = \"trinity\"`).\n\n`function_schema` is applied as a prefix to the resolved name\n(e.g. `\"app\"` + `\"create_user\"` → `\"app.create_user\"`).",
+      "type": "object",
+      "properties": {
+        "function_schema": {
+          "description": "PostgreSQL schema prefix (e.g. `\"app\"` → `\"app.create_user\"`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "function_naming": {
+          "description": "Built-in naming preset (expands to fixed templates).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CrudNamingPreset"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "create_template": {
+          "description": "Custom template for CREATE mutations (e.g. `\"insert_{entity}\"`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "update_template": {
+          "description": "Custom template for UPDATE mutations.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "delete_template": {
+          "description": "Custom template for DELETE mutations.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "CrudNamingPreset": {
+      "description": "Built-in CRUD naming preset for automatic `sql_source` resolution.",
+      "oneOf": [
+        {
+          "description": "Trinity pattern: `create_{entity}` / `update_{entity}` / `delete_{entity}`.",
+          "type": "string",
+          "const": "trinity"
+        }
+      ]
+    },
+    "HierarchyConfig": {
+      "description": "Configuration for a single hierarchy used by ID-based ltree operators.\n\nDefines the database table and ltree path column for a named hierarchy.\nThe `id` column is always `id` (UUID) per the trinity pattern — not configurable.",
+      "type": "object",
+      "properties": {
+        "table": {
+          "description": "Database table containing the ltree column (e.g., `\"tb_category\"`).",
+          "type": "string"
+        },
+        "path_column": {
+          "description": "Name of the ltree column in the table (e.g., `\"category_path\"`).",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "table",
+        "path_column"
+      ]
+    },
+    "SessionVariablesConfig": {
+      "description": "Top-level session variables configuration in the compiled schema.\n\nWhen populated, the executor calls `set_config()` before each query and\nmutation to inject per-request values (JWT claims, HTTP headers, or literals)\nas PostgreSQL transaction-scoped settings.  SQL functions and RLS policies can\nthen read these via `current_setting('app.tenant_id', true)`.",
+      "type": "object",
+      "properties": {
+        "variables": {
+          "description": "Per-request session variable mappings.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionVariableMapping"
+          },
+          "default": []
+        },
+        "inject_started_at": {
+          "description": "Inject the built-in `fraiseql.started_at` timestamp before every mutation (and\nonly mutations: no read consults it).",
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "SessionVariableMapping": {
+      "description": "One session variable declaration.\n\nThe source is flattened, so a mapping is one flat table in both JSON and TOML:\n\n```toml\n[[session_variables.variables]]\nname = \"app.tenant_id\"\nsource = \"jwt\"\nclaim = \"tenant_id\"\n```\n\nFlat is what lets `[session_variables]` be declared in `fraiseql.toml` against\nthis exact type, rather than through a CLI-side mirror struct — and a mirror\nstruct at a producer↔consumer seam is how declarations get silently dropped\n(#806/#807/#758).\n\nA key the mapping's source does not take is refused, the keys of another source\nincluded: serde cannot deny unknown keys through a flatten, so it is read through\n`FlatSessionVariable`, a private enum with one closed table per source.",
+      "oneOf": [
+        {
+          "description": "Pull from a JWT claim.",
+          "type": "object",
+          "properties": {
+            "name": {
+              "description": "The PostgreSQL setting name (e.g. `\"app.tenant_id\"`).",
+              "type": "string"
+            },
+            "claim": {
+              "description": "JWT claim name to look up (e.g. `\"sub\"`, `\"tenant_id\"`).",
+              "type": "string"
+            },
+            "source": {
+              "type": "string",
+              "const": "jwt"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "name",
+            "claim"
+          ]
+        },
+        {
+          "description": "Pull from an HTTP request header (gRPC metadata on gRPC). A header is\nclient-controlled: never use one for row-level security or tenant scoping.",
+          "type": "object",
+          "properties": {
+            "name": {
+              "description": "The PostgreSQL setting name (e.g. `\"app.tenant_id\"`).",
+              "type": "string"
+            },
+            "header": {
+              "description": "HTTP header name (e.g. `\"x-tenant-id\"`).",
+              "type": "string"
+            },
+            "source": {
+              "type": "string",
+              "const": "header"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "name",
+            "header"
+          ]
+        },
+        {
+          "description": "A fixed literal value.",
+          "type": "object",
+          "properties": {
+            "name": {
+              "description": "The PostgreSQL setting name (e.g. `\"app.tenant_id\"`).",
+              "type": "string"
+            },
+            "value": {
+              "description": "The literal string value to inject.",
+              "type": "string"
+            },
+            "source": {
+              "type": "string",
+              "const": "literal"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "name",
+            "value"
+          ]
+        },
+        {
+          "description": "Pull from a field of the enriched identity the database supplies; a missing field\nis an error, never an empty setting.",
+          "type": "object",
+          "properties": {
+            "name": {
+              "description": "The PostgreSQL setting name (e.g. `\"app.tenant_id\"`).",
+              "type": "string"
+            },
+            "field": {
+              "description": "The enriched field name, without the `fraiseql.enriched.` prefix (e.g.\n`\"actor_role\"`).",
+              "type": "string"
+            },
+            "source": {
+              "type": "string",
+              "const": "enrichment"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "name",
+            "field"
+          ]
+        }
+      ]
+    }
+  },
+  "$id": "https://raw.githubusercontent.com/fraiseql/fraiseql/v2.19.1/docs/schemas/fraiseql.toml.schema.json"
+}

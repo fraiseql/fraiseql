@@ -359,6 +359,13 @@ disagreed, and the promise was the part that was wrong.
   Schema generated from the grammar the compiler parses (`toml_json_schema()`), checked
   table by table to accept and refuse the keys the parser does. `fraiseql doctor`'s hint
   says "did you mean" or "remove it".
+- **A JSON Schema for `fraiseql.toml` (#2035).** Editors running Taplo (Even Better TOML)
+  check the file against it: an unknown key, a key the compiler refuses by name (marked
+  deprecated, with the compiler's refusal as its description), and a value of the wrong
+  type. It is generated from the compiler's grammar, committed as
+  `docs/schemas/fraiseql.toml.schema.json` and served from each release's tag; `fraiseql
+  init` writes the `#:schema` line naming it. See "Editor Support" in
+  `docs/architecture/config-vs-settings.md`.
 - **Observers are declared in the authoring schema (#1655).** An observer declared with an
   SDK, or in the `observers` array of `schema.json`, is compiled into the schema and
   written into `core.tb_observer` when the server boots, so it fires after a deploy with

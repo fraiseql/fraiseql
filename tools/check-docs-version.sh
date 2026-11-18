@@ -67,4 +67,35 @@ if [ -f "$readme" ]; then
   fi
 fi
 
-echo "OK: every 'vX.Y.Z released' status line in docs/ matches Cargo.toml (v${version}), and README.md pins ${version}."
+# ── fraiseql.toml JSON Schema URL ────────────────────────────────────────────────
+# The schema's URL is the committed file at a release tag, and it is the schema's `$id`. A
+# documented URL naming another version points readers at another compiler's grammar.
+schema_file="docs/schemas/fraiseql.toml.schema.json"
+url_tail='/docs/schemas/fraiseql\.toml\.schema\.json'
+url_re="https://raw\.githubusercontent\.com/fraiseql/fraiseql/v[^/\"]+${url_tail}"
+if [ ! -f "$schema_file" ]; then
+  echo "ERROR: ${schema_file} is missing; run \`make bless-toml-schema\`." >&2
+  exit 1
+fi
+id_ver=$(sed -nE "s|^  \"\\\$id\": \"https://raw\.githubusercontent\.com/fraiseql/fraiseql/v([^/\"]+)${url_tail}\",?\$|\1|p" \
+  "$schema_file" | head -1)
+if [ "$id_ver" != "$version" ]; then
+  echo "ERROR: ${schema_file}'s \$id names v${id_ver:-<none>}, but the workspace is v${version}." >&2
+  echo "       Run \`make bless-toml-schema\`, or re-run the release bump." >&2
+  exit 1
+fi
+documented=$(grep -rnoE --include='*.md' "$url_re" docs README.md || true)
+if [ -z "$documented" ]; then
+  echo "ERROR: no page in docs/ gives the fraiseql.toml JSON Schema URL." >&2
+  exit 1
+fi
+stale=$(printf '%s\n' "$documented" | grep -vF "/v${version}/docs/schemas/" || true)
+if [ -n "$stale" ]; then
+  {
+    echo "ERROR: a documented fraiseql.toml JSON Schema URL names another version than v${version}:"
+    echo "$stale"
+  } >&2
+  exit 1
+fi
+
+echo "OK: every 'vX.Y.Z released' status line in docs/ matches Cargo.toml (v${version}), README.md pins ${version}, and the fraiseql.toml JSON Schema URL names v${version}."

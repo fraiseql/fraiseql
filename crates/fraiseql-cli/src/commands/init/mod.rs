@@ -304,7 +304,9 @@ fn create_toml_config(project_dir: &Path, config: &InitConfig) -> Result<()> {
     let db_target = config.database.toml_target();
 
     let content = format!(
-        r#"[project]
+        r#"#:schema {schema_url}
+
+[project]
 name = "{name}"
 version = "0.1.0"
 database_target = "{db_target}"
@@ -319,6 +321,7 @@ audit_logging_enabled = true
 # {db_url}
 "#,
         name = config.project_name,
+        schema_url = crate::config::toml_schema::json_schema::toml_json_schema_url(),
     );
 
     fs::write(project_dir.join("fraiseql.toml"), content)
