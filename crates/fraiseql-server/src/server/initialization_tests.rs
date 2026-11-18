@@ -117,6 +117,30 @@ fn a_disabled_cache_says_nothing_here() {
     assert!(cache_opt_in_events(&schema_with_users(None), false).is_empty());
 }
 
+// ── the server's `cache_enabled = false` over a schema whose queries declare cache TTLs ──
+
+/// The JSON log events `warn_on_inert_cache_ttls` emits for `schema`.
+fn inert_ttl_events(schema: &CompiledSchema, cache_enabled: bool) -> Vec<serde_json::Value> {
+    log_events(|| super::warn_on_inert_cache_ttls(schema, cache_enabled))
+}
+
+/// A `[[caching.rules]]` TTL compiled into the schema is inert when the server's file turns
+/// the result cache off, and the operator is told which queries lost it.
+#[test]
+fn compiled_cache_ttls_under_a_disabled_cache_are_reported_at_boot() {
+    let events = inert_ttl_events(&schema_with_users(Some(60)), false);
+    assert_eq!(events.len(), 1, "{events:?}");
+    assert_eq!(events[0]["level"], "WARN");
+    assert_eq!(events[0]["fields"]["queries"], "[\"users\"]");
+    let message = events[0]["fields"]["message"].as_str().unwrap();
+    assert!(message.contains("cache_enabled = false"), "{message}");
+}
+
+#[test]
+fn compiled_cache_ttls_under_an_enabled_cache_say_nothing() {
+    assert!(inert_ttl_events(&schema_with_users(Some(60)), true).is_empty());
+}
+
 // ── #1577: the cache is per process; an entry that never expires is stale on every other ──
 
 /// The JSON log events `warn_on_entries_no_other_server_evicts` emits for `schema`.
