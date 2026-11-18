@@ -678,6 +678,7 @@ func (m *FraiseqlCi) ShellGates(
 		// without a word — `[auth] require_jti`, `[tls] require_client_cert` and
 		// `[rate_limiting] enabled` among them.
 		"python3 tools/check-config-deny-unknown.py",
+		"bash tools/tests/config_deny_unknown_test.sh",
 		"python3 tools/check-config-refusals.py",
 		"bash tools/tests/config_refusals_test.sh",
 		"bash tools/check-audit-lockstep.sh",

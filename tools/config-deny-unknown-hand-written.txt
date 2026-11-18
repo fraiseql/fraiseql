@@ -1,0 +1,4 @@
+# Each hand-written `Deserialize` that tools/check-config-deny-unknown.py reaches from
+# `ServerConfig`, with the test that feeds it an unknown key and requires the refusal.
+# <struct> <test file> <test fn>
+ServerRateLimitingConfig crates/fraiseql-server/src/server_config/tests.rs an_unknown_rate_limiting_key_is_refused
