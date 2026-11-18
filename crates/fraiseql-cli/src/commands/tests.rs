@@ -3541,6 +3541,130 @@ mod run_tests {
         assert!(!config.introspection_enabled);
     }
 
+    /// The env keys `ServerArgs::from_env` reads for the auth switches, unset so a case
+    /// observes only what `fraiseql run` writes.
+    const AUTH_SWITCH_ENV: [&str; 8] = [
+        "DATABASE_URL",
+        "FRAISEQL_INTROSPECTION_ENABLED",
+        "FRAISEQL_INTROSPECTION_REQUIRE_AUTH",
+        "FRAISEQL_METADATA_REQUIRE_AUTH",
+        "FRAISEQL_SCHEMA_EXPORT_REQUIRE_AUTH",
+        "FRAISEQL_SERVICE_SDL_REQUIRE_AUTH",
+        "FRAISEQL_PLAYGROUND_REQUIRE_AUTH",
+        "FRAISEQL_SUBSCRIPTION_REQUIRE_AUTH",
+    ];
+
+    /// An `[auth]` validator whose JWKS URI is pinned, as a server file declares it.
+    const AUTH: &str = "[auth]\naudience = \"https://api.example.test\"\n\
+                        jwks_uri = \"https://idp.example.test/.well-known/jwks.json\"\n";
+
+    /// What `fraiseql run` hands its server, with or without `--introspection`, from a
+    /// server file holding `server_toml` when there is one.
+    fn handed_to_the_server(introspection: bool, server_toml: Option<&str>) -> ServerConfig {
+        let dir = TempDir::new().unwrap();
+        let file = server_toml.map(|toml| server_file(&dir, toml));
+        temp_env::with_vars_unset(AUTH_SWITCH_ENV, || {
+            build_config_from(
+                "postgres://localhost/test",
+                "127.0.0.1:8080".parse().unwrap(),
+                &ServerRuntimeConfig::default(),
+                &DatabaseRuntimeConfig::default(),
+                introspection,
+                file.as_ref(),
+            )
+            .expect("build_config_from")
+        })
+    }
+
+    /// Every switch but introspection's still requires a credential, wherever `/graphql`
+    /// requires one.
+    fn assert_no_other_endpoint_is_opened(config: &ServerConfig) {
+        assert!(config.schema_export_requires_auth(), "schema export");
+        assert!(config.metadata_requires_auth(), "metadata");
+        assert!(config.service_sdl_requires_auth(), "service SDL");
+        assert!(config.subscription_requires_auth(true), "subscriptions");
+        assert!(config.playground_requires_auth(true), "playground");
+    }
+
+    #[test]
+    fn a_server_file_that_enables_introspection_keeps_it_behind_auth_under_run() {
+        let config = handed_to_the_server(false, Some("introspection_enabled = true\n"));
+        assert!(config.introspection_enabled);
+        assert!(
+            config.introspection_require_auth,
+            "run must not lower an auth switch the server file left at its default"
+        );
+        assert_no_other_endpoint_is_opened(&config);
+    }
+
+    #[test]
+    fn run_without_the_introspection_flag_lowers_no_auth_switch() {
+        let config = handed_to_the_server(false, None);
+        assert!(!config.introspection_enabled);
+        assert!(config.introspection_require_auth);
+        assert_no_other_endpoint_is_opened(&config);
+    }
+
+    #[test]
+    fn a_server_file_that_opens_introspection_is_honoured_under_run() {
+        let config = handed_to_the_server(
+            false,
+            Some("introspection_enabled = true\nintrospection_require_auth = false\n"),
+        );
+        assert!(config.introspection_enabled && !config.introspection_require_auth);
+        assert_no_other_endpoint_is_opened(&config);
+    }
+
+    #[test]
+    fn the_introspection_flag_opens_introspection_and_nothing_else() {
+        let config = handed_to_the_server(true, None);
+        assert!(config.introspection_enabled && !config.introspection_require_auth);
+        assert_no_other_endpoint_is_opened(&config);
+    }
+
+    /// What `f` logs at warn level and above, as plain text.
+    fn warnings_of(f: impl FnOnce()) -> String {
+        #[derive(Clone, Default)]
+        struct Captured(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+        impl std::io::Write for Captured {
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(buf);
+                Ok(buf.len())
+            }
+
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let captured = Captured::default();
+        let writer = captured.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .with_ansi(false)
+            .with_max_level(tracing::Level::WARN)
+            .with_writer(move || writer.clone())
+            .finish();
+        fraiseql_test_support::tracing_capture::with_default(subscriber, f);
+        let log = captured.0.lock().unwrap().clone();
+        String::from_utf8(log).unwrap()
+    }
+
+    #[test]
+    fn the_introspection_flag_warns_where_callers_are_authenticated() {
+        let log = warnings_of(|| {
+            handed_to_the_server(true, Some(AUTH));
+        });
+        assert!(log.contains("--introspection"), "no warning names the flag: {log:?}");
+    }
+
+    #[test]
+    fn the_introspection_flag_does_not_warn_where_no_caller_is_authenticated() {
+        let log = warnings_of(|| {
+            handed_to_the_server(true, None);
+        });
+        assert!(!log.contains("--introspection"), "{log}");
+    }
+
     #[test]
     fn test_build_config_pool_sizes_from_db_cfg() {
         let addr: SocketAddr = "0.0.0.0:8080".parse().unwrap();

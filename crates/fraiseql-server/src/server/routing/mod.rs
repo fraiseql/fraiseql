@@ -179,6 +179,13 @@ impl Server {
 }
 
 impl Server {
+    /// Whether `/graphql` refuses a caller that presents no credential: a validator is
+    /// configured and it requires one (`[auth] required`). A data transport left unset
+    /// takes this posture, so it admits exactly the callers `/graphql` admits.
+    pub(super) fn graphql_requires_auth(&self) -> bool {
+        self.oidc_validator.as_ref().is_some_and(|validator| validator.is_required())
+    }
+
     /// Build an [`OidcAuthState`] for `validator`, attaching the configured
     /// token-revocation manager (if any) so revoked tokens are rejected on **every**
     /// authenticated route (H8).

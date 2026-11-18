@@ -172,8 +172,8 @@ failure_threshold = 10
 to the principals the subgraph serves anything to, and refused to an anonymous or unknown
 caller. On a subgraph that does serve anonymous callers, the SDL is still refused to them
 while `service_sdl_require_auth` is on (env `FRAISEQL_SERVICE_SDL_REQUIRE_AUTH`). Unset, it
-takes `introspection_require_auth`, which defaults to `true`, so a gateway presents a
-credential. The SDL is not introspection: it is served whether `introspection_enabled` is on
+is on, so a gateway presents a credential; it does not follow `introspection_require_auth`,
+so opening introspection leaves the SDL refused to anonymous callers. The SDL is not introspection: it is served whether `introspection_enabled` is on
 or off, because a gateway composes it from a subgraph whose introspection is off. Turning
 the switch off serves it to whoever the subgraph serves, and nothing more: no setting makes
 it public on a secured subgraph, by design (ADR-0016 §6: a permissive case is named and

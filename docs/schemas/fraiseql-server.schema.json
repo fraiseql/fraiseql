@@ -231,13 +231,13 @@
       "x-fraiseql-env": "FRAISEQL_INTROSPECTION_ENABLED"
     },
     "introspection_require_auth": {
-      "description": "Require authentication for introspection endpoint (default: true).\n\nWhen true and OIDC is configured, introspection requires same auth as GraphQL endpoint.\nWhen false, introspection is publicly accessible (use only in development).",
+      "description": "Require authentication for introspection endpoint (default: true).\n\nWhen true and OIDC is configured, introspection requires same auth as GraphQL endpoint.\nWhen false, introspection is publicly accessible (use only in development). It governs\nintrospection only: schema export, metadata and the service SDL have their own\nswitches, and the data transports follow `/graphql`.",
       "type": "boolean",
       "default": true,
       "x-fraiseql-env": "FRAISEQL_INTROSPECTION_REQUIRE_AUTH"
     },
     "metadata_require_auth": {
-      "description": "Require authentication for the schema metadata endpoint (default: None).\n\nWhen `Some(true)`, the `/api/v1/schema/metadata` endpoint requires OIDC auth\nindependently of introspection. When `Some(false)`, metadata is publicly\naccessible regardless of introspection auth. When `None` (default), falls\nback to `introspection_require_auth` for backwards compatibility.",
+      "description": "Require authentication for the schema metadata endpoint (default: None).\n\nWhen `Some(true)`, the `/api/v1/schema/metadata` endpoint requires OIDC auth\nindependently of introspection. When `Some(false)`, metadata is publicly\naccessible regardless of introspection auth. When `None` (default), it requires\nauth: it serves the schema, and does not follow `introspection_require_auth`.",
       "type": [
         "boolean",
         "null"
@@ -245,7 +245,7 @@
       "x-fraiseql-env": "FRAISEQL_METADATA_REQUIRE_AUTH"
     },
     "schema_export_require_auth": {
-      "description": "Require authentication for schema export endpoints (default: None).\n\nControls `/api/v1/schema.graphql` and `/api/v1/schema.json` independently of\nintrospection auth. When `Some(true)`, schema export requires OIDC auth. When\n`Some(false)`, schema export is publicly accessible. When `None` (default),\nfalls back to `introspection_require_auth` for backwards compatibility.",
+      "description": "Require authentication for schema export endpoints (default: None).\n\nControls `/api/v1/schema.graphql` and `/api/v1/schema.json` independently of\nintrospection auth. When `Some(true)`, schema export requires OIDC auth. When\n`Some(false)`, schema export is publicly accessible. When `None` (default), it\nrequires auth: it serves the schema, and does not follow\n`introspection_require_auth`.",
       "type": [
         "boolean",
         "null"
@@ -253,7 +253,7 @@
       "x-fraiseql-env": "FRAISEQL_SCHEMA_EXPORT_REQUIRE_AUTH"
     },
     "service_sdl_require_auth": {
-      "description": "Require authentication for the federation service SDL (default: None).\n\nControls `{ _service { sdl } }` on `/graphql`. The service SDL is not\nintrospection: it is served whether `introspection_enabled` is on or off, because a\ngateway composes it from a subgraph whose introspection is off. When `Some(true)`,\nan anonymous caller is refused it, so the gateway presents a credential. When\n`Some(false)`, it is served to anyone. When `None` (default), falls back to\n`introspection_require_auth`.",
+      "description": "Require authentication for the federation service SDL (default: None).\n\nControls `{ _service { sdl } }` on `/graphql`. The service SDL is not\nintrospection: it is served whether `introspection_enabled` is on or off, because a\ngateway composes it from a subgraph whose introspection is off. When `Some(true)`,\nan anonymous caller is refused it, so the gateway presents a credential. When\n`Some(false)`, it is served to anyone. When `None` (default), it requires auth: it serves\nthe schema, and does not follow `introspection_require_auth`.",
       "type": [
         "boolean",
         "null"
@@ -269,7 +269,7 @@
       "x-fraiseql-env": "FRAISEQL_SUGGESTIONS_ENABLED"
     },
     "playground_require_auth": {
-      "description": "Require authentication for the GraphQL Playground endpoint (default: None).\n\nControls the playground independently of introspection auth. When `Some(true)`,\nthe playground requires OIDC auth. When `Some(false)`, the playground is publicly\naccessible. When `None` (default), falls back to `introspection_require_auth`\nfor backwards compatibility.",
+      "description": "Require authentication for the GraphQL Playground endpoint (default: None).\n\nControls the playground independently of introspection auth. When `Some(true)`,\nthe playground requires OIDC auth. When `Some(false)`, the playground is publicly\naccessible. When `None` (default), it admits the callers `/graphql` admits: auth is\nrequired exactly when `[auth]` is configured with `required = true`.",
       "type": [
         "boolean",
         "null"
@@ -277,7 +277,7 @@
       "x-fraiseql-env": "FRAISEQL_PLAYGROUND_REQUIRE_AUTH"
     },
     "subscription_require_auth": {
-      "description": "Require authentication for the `WebSocket` subscription endpoint (default: None).\n\nControls the `/subscriptions` endpoint independently of introspection auth. The\nendpoint is authenticated by the deployment's configured authentication either\nway. When `Some(true)`, an upgrade that resolved no principal is\nrefused, and the endpoint is not mounted without configured authentication. When\n`Some(false)`, an upgrade without a principal is served where that authentication\nlets it through. When `None` (default), falls back to `introspection_require_auth`\nfor backwards compatibility.",
+      "description": "Require authentication for the `WebSocket` subscription endpoint (default: None).\n\nControls the `/subscriptions` endpoint independently of introspection auth. The\nendpoint is authenticated by the deployment's configured authentication either\nway. When `Some(true)`, an upgrade that resolved no principal is\nrefused, and the endpoint is not mounted without configured authentication. When\n`Some(false)`, an upgrade without a principal is served where that authentication\nlets it through. When `None` (default), it admits the callers `/graphql` admits:\nauth is required exactly when `[auth]` is configured with `required = true`.",
       "type": [
         "boolean",
         "null"

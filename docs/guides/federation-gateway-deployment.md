@@ -26,8 +26,8 @@ surface.
 
 - Put the subgraph on a network only the gateway reaches. A client that bypasses the gateway
   sees the subgraph's own surface, including its `_service { sdl }` if it holds a credential.
-- Leave `service_sdl_require_auth` on (`FRAISEQL_SERVICE_SDL_REQUIRE_AUTH`; unset, it follows
-  `introspection_require_auth`, which defaults to `true`). The gateway authenticates as a
+- Leave `service_sdl_require_auth` on (`FRAISEQL_SERVICE_SDL_REQUIRE_AUTH`; unset, it is on,
+  whatever `introspection_require_auth` says). The gateway authenticates as a
   [service account](../adr/0018-service-account-identities.md) whose ceiling grants no more
   than reading the schema, or you compose offline from the artifact
   (`fraiseql federation sdl schema.compiled.json`). See

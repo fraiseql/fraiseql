@@ -1,8 +1,8 @@
 //! The service SDL's auth switch reaches the serving state as configured.
 //!
-//! `service_sdl_require_auth` is resolved once, when the state is built: unset, it takes
-//! `introspection_require_auth`, as its five `*_require_auth` siblings do. A request test
-//! sets the state directly, so only a test of the built state sees this resolution.
+//! `service_sdl_require_auth` is resolved once, when the state is built: unset, it requires
+//! a credential whatever `introspection_require_auth` says. A request test sets the state
+//! directly, so only a test of the built state sees this resolution.
 
 #![allow(clippy::unwrap_used)] // Reason: test code
 
@@ -27,9 +27,9 @@ async fn resolved(explicit: Option<bool>, introspection_require_auth: bool) -> b
 }
 
 #[tokio::test]
-async fn an_unset_switch_takes_introspection_require_auth() {
+async fn an_unset_switch_requires_auth_whatever_introspection_says() {
     assert!(resolved(None, true).await);
-    assert!(!resolved(None, false).await);
+    assert!(resolved(None, false).await);
 }
 
 #[tokio::test]
