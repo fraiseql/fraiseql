@@ -823,19 +823,20 @@ fn init_logging(verbose: bool, debug: bool) {
         .init();
 }
 
-/// Serialize a value to a JSON `Value`, printing to stderr and exiting with code 2 on failure.
+/// Serialize a value to a JSON `Value`, printing to stderr and exiting with code 1 on failure:
+/// the CLI failing to serialize its own output is the command failing, not a refused input.
 fn serialize_or_exit<T: serde::Serialize>(value: &T, context: &str) -> serde_json::Value {
     serde_json::to_value(value).unwrap_or_else(|e| {
         eprintln!("fraiseql: failed to serialize {context}: {e}");
-        std::process::exit(2);
+        std::process::exit(1);
     })
 }
 
-/// Serialize a value to pretty-printed JSON, printing to stderr and exiting with code 2 on failure.
+/// Serialize a value to pretty-printed JSON, printing to stderr and exiting with code 1 on failure.
 fn pretty_or_exit<T: serde::Serialize>(value: &T, context: &str) -> String {
     serde_json::to_string_pretty(value).unwrap_or_else(|e| {
         eprintln!("fraiseql: failed to format {context}: {e}");
-        std::process::exit(2);
+        std::process::exit(1);
     })
 }
 
