@@ -34,6 +34,14 @@ disagreed, and the promise was the part that was wrong.
   standalone `fraiseql-server` keeps its exit status. `--help` and `--help-json` describe
   exit 2 as "Input refused", the `--help-json` name `validation_failed` unchanged. Failing
   to serialize the CLI's own output now exits 1, not 2.
+- **A key a vector table or a session variable does not take is refused (#2051).** A
+  vector table (`[types.<T>.fields.<F>.vector]` in `fraiseql.toml`, `vector_config` in a
+  schema document) takes `dimensions`, `index_type` and `distance_metric`. A session
+  variable (`[[session_variables.variables]]`, or `session_variables` in a schema
+  document) takes `name`, `source` and the one key of that source (`claim`, `header`,
+  `value` or `field`). Any other key, the key of another source included, used to compile
+  and have no effect; it now fails the compile, naming the key and the keys the table
+  takes. Remove the key, or write the one the table takes.
 - **A global observer whose name the schema declares is taken over at boot (#1655).** The
   server now writes the observers the schema declares into `core.tb_observer` at every
   boot. A global row (`fk_customer_org` null) of the same name, written by the admin API or

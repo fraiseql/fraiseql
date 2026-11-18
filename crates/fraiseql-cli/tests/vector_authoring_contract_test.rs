@@ -542,3 +542,41 @@ fn every_vector_field_type_is_a_known_type_name() {
         );
     }
 }
+
+/// A key `[types.*.fields.*.vector]` does not take is refused, naming it and the keys it
+/// takes, rather than compiled without effect.
+#[test]
+fn a_key_the_toml_vector_table_does_not_take_is_refused() {
+    let toml = r#"
+[types.Doc]
+sql_source = "v_doc"
+
+[types.Doc.fields.id]
+type = "ID"
+
+[types.Doc.fields.embedding]
+type = "Vector"
+
+[types.Doc.fields.embedding.vector]
+dimensions = 4
+not_a_key = 1
+
+[queries.docs]
+return_type = "Doc"
+return_array = true
+sql_source = "v_doc"
+"#;
+    let (ok, log, _dir) = run_compile(r#"{"types": []}"#, toml, false);
+    assert!(!ok, "an unknown key in the vector table compiled: {log}");
+    assert!(log.contains("not_a_key"), "{log}");
+    assert!(log.contains("distance_metric"), "the refusal names no accepted key: {log}");
+}
+
+/// The document's `vector_config` is read by the same type: an unknown key there is refused.
+#[test]
+fn a_key_the_ir_vector_config_does_not_take_is_refused() {
+    let types = vector_types_json(r#", "vector_config": {"dimensions": 3, "not_a_key": 1}"#);
+    let (ok, log, _dir) = run_compile(&types, BASE_TOML, false);
+    assert!(!ok, "an unknown key in vector_config compiled: {log}");
+    assert!(log.contains("not_a_key"), "{log}");
+}

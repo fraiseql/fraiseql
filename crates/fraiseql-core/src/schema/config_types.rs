@@ -709,13 +709,49 @@ pub enum SessionVariableSource {
 /// this exact type, rather than through a CLI-side mirror struct — and a mirror
 /// struct at a producer↔consumer seam is how declarations get silently dropped
 /// (#806/#807/#758).
+///
+/// A key the mapping's source does not take is refused, the keys of another source
+/// included: serde cannot deny unknown keys through a flatten, so it is read through
+/// `FlatSessionVariable`, a private enum with one closed table per source.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "FlatSessionVariable")]
 pub struct SessionVariableMapping {
     /// The PostgreSQL setting name (e.g. `"app.tenant_id"`).
     pub name:   String,
     /// Where the value comes from.
     #[serde(flatten)]
     pub source: SessionVariableSource,
+}
+
+/// [`SessionVariableMapping`] as written: `name` and `source`, and the keys of that
+/// source, nothing else.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", tag = "source", deny_unknown_fields)]
+enum FlatSessionVariable {
+    Jwt { name: String, claim: String },
+    Header { name: String, header: String },
+    Literal { name: String, value: String },
+    Enrichment { name: String, field: String },
+}
+
+impl From<FlatSessionVariable> for SessionVariableMapping {
+    fn from(flat: FlatSessionVariable) -> Self {
+        let (name, source) = match flat {
+            FlatSessionVariable::Jwt { name, claim } => {
+                (name, SessionVariableSource::Jwt { claim })
+            },
+            FlatSessionVariable::Header { name, header } => {
+                (name, SessionVariableSource::Header { header })
+            },
+            FlatSessionVariable::Literal { name, value } => {
+                (name, SessionVariableSource::Literal { value })
+            },
+            FlatSessionVariable::Enrichment { name, field } => {
+                (name, SessionVariableSource::Enrichment { field })
+            },
+        };
+        Self { name, source }
+    }
 }
 
 /// Top-level session variables configuration in the compiled schema.
@@ -1107,5 +1143,59 @@ mod native_join_tests {
         assert_eq!(unproven.native_correlation(), None);
         let json = serde_json::to_value(&unproven).unwrap_or_default();
         assert!(json.get("native_join").is_none(), "{json}");
+    }
+}
+
+#[cfg(test)]
+mod session_variable_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use super::*;
+
+    fn every_source() -> [SessionVariableSource; 4] {
+        [
+            SessionVariableSource::Jwt {
+                claim: "sub".to_owned(),
+            },
+            SessionVariableSource::Header {
+                header: "x-region".to_owned(),
+            },
+            SessionVariableSource::Literal {
+                value: "eu".to_owned(),
+            },
+            SessionVariableSource::Enrichment {
+                field: "actor_role".to_owned(),
+            },
+        ]
+    }
+
+    /// What the compiler writes is what the server reads back, for every source.
+    #[test]
+    fn every_source_round_trips_through_the_compiled_json() {
+        for source in every_source() {
+            let mapping = SessionVariableMapping {
+                name: "app.x".to_owned(),
+                source,
+            };
+            let json = serde_json::to_value(&mapping).unwrap();
+            let back: SessionVariableMapping = serde_json::from_value(json.clone()).unwrap();
+            assert_eq!(back, mapping, "{json}");
+        }
+    }
+
+    /// A key beside the ones the compiler writes is refused, not dropped.
+    #[test]
+    fn a_key_the_mapping_does_not_write_is_refused() {
+        for source in every_source() {
+            let mut json = serde_json::to_value(SessionVariableMapping {
+                name: "app.x".to_owned(),
+                source,
+            })
+            .unwrap();
+            json["not_a_key"] = serde_json::json!(1);
+            let refused = serde_json::from_value::<SessionVariableMapping>(json.clone());
+            let message = refused.unwrap_err().to_string();
+            assert!(message.contains("not_a_key"), "{json}: {message}");
+        }
     }
 }
