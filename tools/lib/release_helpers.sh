@@ -334,6 +334,24 @@ bump_readme_install_snippet() {
     sed -i -E "s|^(fraiseql = \{ *version *= *)\"[^\"]*\"|\1\"${version}\"|" "$readme"
 }
 
+# Point the fraiseql.toml JSON Schema URL at the release's tag, in the committed schema's
+# `$id` and in every page that gives it.
+#
+# The URL is the committed schema at a tag, so it names a version; anchored on the whole URL,
+# never on a bare version shape, like bump_readme_install_snippet. The compiler generates the
+# same `$id` from its own version, so the schema test agrees after the bump.
+#
+# Usage: bump_toml_schema_urls <version> <file>...
+bump_toml_schema_urls() {
+    local version="$1"
+    shift
+    local file
+    for file in "$@"; do
+        [ -f "$file" ] || continue
+        sed -i -E "s|(https://raw\.githubusercontent\.com/fraiseql/fraiseql/v)[^/\"]+(/docs/schemas/fraiseql\.toml\.schema\.json)|\1${version}\2|g" "$file"
+    done
+}
+
 # Rotate CHANGELOG.md's Keep a Changelog link definitions at cut time.
 #
 # The file follows Keep a Changelog — `## [Unreleased]` and `## [x.y.z]` headings — but

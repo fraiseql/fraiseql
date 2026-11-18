@@ -133,6 +133,25 @@ enum Retired {
     Unread,
 }
 
+impl Retired {
+    /// What `spelling` is told when the file writes it.
+    fn message(&self, spelling: &str) -> String {
+        match self {
+            Self::Write(instead) => {
+                format!("fraiseql.toml: `{spelling}` is no longer accepted; write {instead}")
+            },
+            Self::SpelledAs(instead) => {
+                format!(
+                    "fraiseql.toml: `{spelling}` is no longer accepted; it is spelled {instead}"
+                )
+            },
+            Self::Unread => {
+                format!("fraiseql.toml: `{spelling}` is no longer accepted: nothing reads it")
+            },
+        }
+    }
+}
+
 /// Spellings `fraiseql.toml` no longer takes, each with what replaced it: the section, the
 /// key (or the section itself, when `key` is empty), and what it is told.
 ///
@@ -241,38 +260,15 @@ pub(crate) fn refuse_retired_spellings(table: &toml::Table) -> Result<()> {
         let Some(spelling) = written_spelling(table, section, key) else {
             continue;
         };
-        match retired {
-            Retired::Write(instead) => {
-                return Err(ConfigDiagnostic::new(
-                    DiagnosticCode::Retired,
-                    section,
-                    key,
-                    format!("fraiseql.toml: `{spelling}` is no longer accepted; write {instead}"),
-                )
-                .with_replacement(instead)
-                .into());
+        let message = retired.message(&spelling);
+        return Err(match retired {
+            Retired::Write(instead) | Retired::SpelledAs(instead) => {
+                ConfigDiagnostic::new(DiagnosticCode::Retired, section, key, message)
+                    .with_replacement(instead)
+                    .into()
             },
-            Retired::SpelledAs(instead) => {
-                return Err(ConfigDiagnostic::new(
-                    DiagnosticCode::Retired,
-                    section,
-                    key,
-                    format!(
-                        "fraiseql.toml: `{spelling}` is no longer accepted; it is spelled {instead}"
-                    ),
-                )
-                .with_replacement(instead)
-                .into());
-            },
-            Retired::Unread => {
-                return Err(refusal(
-                    DiagnosticCode::Unread,
-                    section,
-                    key,
-                    format!("fraiseql.toml: `{spelling}` is no longer accepted: nothing reads it"),
-                ));
-            },
-        }
+            Retired::Unread => refusal(DiagnosticCode::Unread, section, key, message),
+        });
     }
     Ok(())
 }
@@ -283,6 +279,22 @@ enum ServerFile {
     SpelledHere(&'static str),
     /// Only the server's file makes the setting.
     ReadThere,
+}
+
+impl ServerFile {
+    /// What `spelling` is told when `fraiseql.toml` writes it.
+    fn message(&self, spelling: &str) -> String {
+        match self {
+            Self::SpelledHere(instead) => format!(
+                "fraiseql.toml: `{spelling}` is how the server's configuration file (the file \
+                 FRAISEQL_CONFIG names) spells this setting; in fraiseql.toml write {instead}"
+            ),
+            Self::ReadThere => format!(
+                "fraiseql.toml: `{spelling}` is read from the server's configuration file, the \
+                 file FRAISEQL_CONFIG names; set it there"
+            ),
+        }
+    }
 }
 
 /// Spellings of the server's configuration file (the file `FRAISEQL_CONFIG` names) that
@@ -325,36 +337,18 @@ pub(crate) fn refuse_server_file_spellings(table: &toml::Table) -> Result<()> {
         let Some(spelling) = written_spelling(table, section, key) else {
             continue;
         };
-        match belongs {
-            ServerFile::SpelledHere(instead) => {
-                return Err(ConfigDiagnostic::new(
-                    DiagnosticCode::Misplaced,
-                    section,
-                    key,
-                    format!(
-                        "fraiseql.toml: `{spelling}` is how the server's configuration file (the \
-                         file FRAISEQL_CONFIG names) spells this setting; in fraiseql.toml write \
-                         {instead}"
-                    ),
-                )
-                .with_replacement(instead)
-                .with_belongs_in(SERVER_FILE)
-                .into());
-            },
-            ServerFile::ReadThere => {
-                return Err(ConfigDiagnostic::new(
-                    DiagnosticCode::Misplaced,
-                    section,
-                    key,
-                    format!(
-                        "fraiseql.toml: `{spelling}` is read from the server's configuration \
-                         file, the file FRAISEQL_CONFIG names; set it there"
-                    ),
-                )
-                .with_belongs_in(SERVER_FILE)
-                .into());
-            },
+        let diagnostic = ConfigDiagnostic::new(
+            DiagnosticCode::Misplaced,
+            section,
+            key,
+            belongs.message(&spelling),
+        )
+        .with_belongs_in(SERVER_FILE);
+        return Err(match belongs {
+            ServerFile::SpelledHere(instead) => diagnostic.with_replacement(instead),
+            ServerFile::ReadThere => diagnostic,
         }
+        .into());
     }
     Ok(())
 }
@@ -393,6 +387,49 @@ pub(crate) fn refuse_unknown_keys(table: &toml::Table) -> Result<()> {
     .into())
 }
 
+/// What a key of [`UNAPPLIED_KEYS`] is told.
+fn unapplied_message(section: &str, key: &str, instead: &str) -> String {
+    format!(
+        "fraiseql.toml: `[{section}] {key}` was never applied by `fraiseql run` and is no longer \
+         accepted; {instead}"
+    )
+}
+
+/// A key `fraiseql.toml` refuses by name in every role it plays: where it is written (the
+/// section, and the key or `""` for the section itself) and what the refusal says.
+pub(crate) struct RefusedKey {
+    pub(crate) section: &'static str,
+    pub(crate) key:     &'static str,
+    pub(crate) message: String,
+}
+
+/// Every row of [`RETIRED_SPELLINGS`], [`SERVER_FILE_SPELLINGS`] and [`UNAPPLIED_KEYS`], with
+/// the message its refusal gives for the canonical spelling. The tables that author a schema
+/// are not among them: a TOML schema takes them.
+pub(crate) fn refused_keys() -> Vec<RefusedKey> {
+    let canonical = |section: &str, key: &str| match (section, key) {
+        (section, "") => format!("[{section}]"),
+        ("", key) => key.to_owned(),
+        (section, key) => format!("[{section}] {key}"),
+    };
+    let retired = RETIRED_SPELLINGS.iter().map(|(section, key, retired)| RefusedKey {
+        section,
+        key,
+        message: retired.message(&canonical(section, key)),
+    });
+    let server_file = SERVER_FILE_SPELLINGS.iter().map(|(section, key, belongs)| RefusedKey {
+        section,
+        key,
+        message: belongs.message(&canonical(section, key)),
+    });
+    let unapplied = UNAPPLIED_KEYS.iter().map(|(section, key, instead)| RefusedKey {
+        section,
+        key,
+        message: unapplied_message(section, key, instead),
+    });
+    retired.chain(server_file).chain(unapplied).collect()
+}
+
 /// Refuse the first key of [`UNAPPLIED_KEYS`] that `table` sets.
 ///
 /// # Errors
@@ -409,10 +446,7 @@ pub(crate) fn refuse_unapplied_keys(table: &toml::Table) -> Result<()> {
                 DiagnosticCode::Unapplied,
                 section,
                 key,
-                format!(
-                    "fraiseql.toml: `[{section}] {key}` was never applied by `fraiseql run` and \
-                     is no longer accepted; {instead}"
-                ),
+                unapplied_message(section, key, instead),
             ));
         }
     }

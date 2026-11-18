@@ -199,6 +199,36 @@ fn test_toml_config_is_valid() {
     assert!(parsed["project"]["name"].as_str().is_some());
 }
 
+/// The generated `fraiseql.toml` opens on the `#:schema` line naming this release's JSON
+/// Schema, so an editor running Taplo checks it with no further setup.
+#[test]
+fn the_generated_toml_names_this_releases_json_schema() {
+    let tmp = tempfile::tempdir().expect("test");
+    let project_dir = tmp.path().join("schema_line");
+    let config = InitConfig {
+        project_name: project_dir.to_string_lossy().to_string(),
+        language:     Language::Python,
+        database:     Database::Postgres,
+        size:         ProjectSize::S,
+        no_git:       true,
+    };
+
+    run(&config).expect("test");
+
+    let toml_content = fs::read_to_string(project_dir.join("fraiseql.toml")).expect("test");
+    assert_eq!(
+        toml_content.lines().next(),
+        Some(
+            format!(
+                "#:schema https://raw.githubusercontent.com/fraiseql/fraiseql/v{}/docs/schemas/\
+                 fraiseql.toml.schema.json",
+                env!("CARGO_PKG_VERSION")
+            )
+            .as_str()
+        )
+    );
+}
+
 #[test]
 fn test_schema_json_is_valid() {
     let tmp = tempfile::tempdir().expect("test");

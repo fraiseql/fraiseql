@@ -216,6 +216,15 @@ README="README.md"
 bump_readme_install_snippet "$VERSION" "$README"
 echo "      README install snippet pinned to ${VERSION}."
 
+# The fraiseql.toml JSON Schema URL is the committed schema at this tag: its `$id`, and every
+# page that gives it.
+TOML_SCHEMA_URL_FILES=(docs/schemas/fraiseql.toml.schema.json)
+while IFS= read -r page; do
+    TOML_SCHEMA_URL_FILES+=("$page")
+done < <(grep -rlF --include='*.md' "docs/schemas/fraiseql.toml.schema.json" docs README.md || true)
+bump_toml_schema_urls "$VERSION" "${TOML_SCHEMA_URL_FILES[@]}"
+echo "      fraiseql.toml JSON Schema URL pinned to v${VERSION}."
+
 # ── Step 4: cargo check to validate version bump didn't break anything ─────────
 
 echo "[4/7] Running cargo check..."
@@ -254,6 +263,7 @@ RELEASE_FILES=(
     docs/value-proposition.md
     docs/architecture/overview.md
     "${STAMPED_SCHEMAS[@]}"
+    "${TOML_SCHEMA_URL_FILES[@]}"
     "$CHANGELOG"
     "$README"
 )

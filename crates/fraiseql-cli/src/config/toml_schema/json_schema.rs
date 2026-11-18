@@ -6,10 +6,29 @@
 //! the first key no table takes: where it was written, and every key that table does take.
 //! It is a second reader of the file, so it refuses only where the schema says a table is
 //! closed; a shape it cannot judge is left to serde, which refuses it in prose.
+//!
+//! A key the compiler refuses by name in every role the file plays (a retired spelling, a
+//! key never applied, a spelling of the server's file) is in the schema as `"not": {}`, so an
+//! editor flags it, with `"deprecated": true` and the compiler's own refusal as its
+//! description.
 
 use std::sync::OnceLock;
 
 use serde_json::Value;
+
+/// Where the schema is committed, from the repository root.
+pub const TOML_JSON_SCHEMA_PATH: &str = "docs/schemas/fraiseql.toml.schema.json";
+
+/// The schema's URL for this release: the committed file at the release's tag, so a file
+/// pointing at it is checked against the grammar of the compiler it was written for. It is
+/// the schema's `$id`.
+#[must_use]
+pub fn toml_json_schema_url() -> String {
+    format!(
+        "https://raw.githubusercontent.com/fraiseql/fraiseql/v{}/{TOML_JSON_SCHEMA_PATH}",
+        env!("CARGO_PKG_VERSION")
+    )
+}
 
 /// The JSON Schema an editor checks `fraiseql.toml` against.
 #[must_use]
@@ -20,8 +39,101 @@ pub fn toml_json_schema() -> Value {
 fn schema() -> &'static Value {
     static SCHEMA: OnceLock<Value> = OnceLock::new();
     SCHEMA.get_or_init(|| {
-        serde_json::to_value(schemars::schema_for!(super::TomlSchema)).unwrap_or_default()
+        let mut schema =
+            serde_json::to_value(schemars::schema_for!(super::TomlSchema)).unwrap_or_default();
+        for refused in crate::config::refused_keys() {
+            mark_refused(&mut schema, &refused);
+        }
+        schema["$id"] = Value::String(toml_json_schema_url());
+        schema["title"] = Value::String("fraiseql.toml".to_owned());
+        schema["description"] = Value::String(
+            "The configuration the FraiseQL compiler reads: a project configuration beside a \
+             schema document, or a schema authored in TOML."
+                .to_owned(),
+        );
+        schema
     })
+}
+
+/// Whether `node` is a key the compiler refuses by name.
+fn is_refused(node: &Value) -> bool {
+    node.get("not").is_some()
+}
+
+/// The JSON pointer of the object schema `pointer` stands for: every `$ref` followed, and an
+/// `Option`'s value arm taken.
+fn object_at(root: &Value, mut pointer: String) -> String {
+    for _ in 0..64 {
+        let Some(node) = root.pointer(&pointer) else {
+            return pointer;
+        };
+        if let Some(name) = node
+            .get("$ref")
+            .and_then(Value::as_str)
+            .and_then(|r| r.strip_prefix("#/$defs/"))
+        {
+            pointer = format!("/$defs/{}", escape(name));
+            continue;
+        }
+        let arm = ["anyOf", "oneOf"].into_iter().find_map(|combinator| {
+            let arms = node.get(combinator)?.as_array()?;
+            let index = arms
+                .iter()
+                .position(|arm| arm.get("type").and_then(Value::as_str) != Some("null"))?;
+            Some(format!("{pointer}/{combinator}/{index}"))
+        });
+        match arm {
+            Some(arm) => pointer = arm,
+            None => return pointer,
+        }
+    }
+    pointer
+}
+
+fn escape(segment: &str) -> String {
+    segment.replace('~', "~0").replace('/', "~1")
+}
+
+/// The property `name` of the object at `pointer`, made when the schema has none.
+fn property(root: &mut Value, pointer: &str, name: &str) -> String {
+    let object = object_at(root, pointer.to_owned());
+    if let Some(Value::Object(node)) = root.pointer_mut(&object) {
+        let properties = node
+            .entry("properties")
+            .or_insert_with(|| Value::Object(serde_json::Map::new()));
+        if let Value::Object(properties) = properties {
+            properties.entry(name).or_insert_with(|| Value::Object(serde_json::Map::new()));
+        }
+    }
+    format!("{object}/properties/{}", escape(name))
+}
+
+/// `refused` written into `schema`: any value refused, deprecated, described by its refusal.
+/// A refused table keeps the refused keys under it, so each is still described.
+fn mark_refused(schema: &mut Value, refused: &crate::config::RefusedKey) {
+    let mut pointer = String::new();
+    for part in refused.section.split('.').filter(|part| !part.is_empty()) {
+        pointer = property(schema, &pointer, part);
+    }
+    if !refused.key.is_empty() {
+        pointer = property(schema, &pointer, refused.key);
+    }
+    let kept = schema
+        .pointer(&pointer)
+        .and_then(|node| node.get("properties"))
+        .filter(|_| refused.key.is_empty())
+        .cloned();
+    let mut node = serde_json::json!({
+        "not": {},
+        "deprecated": true,
+        "description": refused.message,
+    });
+    if let Some(kept) = kept {
+        node["properties"] = kept;
+    }
+    if let Some(target) = schema.pointer_mut(&pointer) {
+        *target = node;
+    }
 }
 
 /// A key the file's grammar does not take.
@@ -150,7 +262,14 @@ fn walk_table(
                 return Some(UnknownKey {
                     table:    path.join("."),
                     key:      key.clone(),
-                    accepted: properties.map(|p| p.keys().cloned().collect()).unwrap_or_default(),
+                    accepted: properties
+                        .map(|p| {
+                            p.iter()
+                                .filter(|(_, schema)| !is_refused(schema))
+                                .map(|(key, _)| key.clone())
+                                .collect()
+                        })
+                        .unwrap_or_default(),
                 });
             },
             // An open table, or one this walk cannot judge: serde reads it.
