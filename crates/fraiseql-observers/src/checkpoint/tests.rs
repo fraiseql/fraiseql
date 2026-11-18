@@ -140,16 +140,18 @@ mod checkpoint_tests {
     #[test]
     fn test_require_persistent_not_set_allows_dev() {
         // Env var absent → DevOnly is fine.
-        std::env::remove_var("FRAISEQL_CHECKPOINT_REQUIRE_PERSISTENT");
-        check_checkpoint_requirement(CheckpointMode::DevOnly)
-            .unwrap_or_else(|e| panic!("expected Ok when env var absent (DevOnly): {e}"));
+        temp_env::with_var("FRAISEQL_CHECKPOINT_REQUIRE_PERSISTENT", None::<&str>, || {
+            check_checkpoint_requirement(CheckpointMode::DevOnly)
+                .unwrap_or_else(|e| panic!("expected Ok when env var absent (DevOnly): {e}"));
+        });
     }
 
     #[test]
     fn test_require_persistent_not_set_allows_persistent() {
-        std::env::remove_var("FRAISEQL_CHECKPOINT_REQUIRE_PERSISTENT");
-        check_checkpoint_requirement(CheckpointMode::Persistent)
-            .unwrap_or_else(|e| panic!("expected Ok when env var absent (Persistent): {e}"));
+        temp_env::with_var("FRAISEQL_CHECKPOINT_REQUIRE_PERSISTENT", None::<&str>, || {
+            check_checkpoint_requirement(CheckpointMode::Persistent)
+                .unwrap_or_else(|e| panic!("expected Ok when env var absent (Persistent): {e}"));
+        });
     }
 
     #[test]
