@@ -403,6 +403,7 @@ impl TomlSchema {
         if let Some(table) = &table {
             crate::config::refuse_unapplied_keys(table)?;
             crate::config::refuse_retired_spellings(table)?;
+            crate::config::refuse_server_file_spellings(table)?;
         }
         let mut schema: Self = toml::from_str(&expanded).context("Failed to parse TOML schema")?;
         if let Some(table) = &table {

@@ -12,10 +12,16 @@ use super::{DatabaseTlsConfig, ServerConfig};
 /// is spelled `cache_enabled` and lives at the top level. Naming the working knob is
 /// the difference between a refusal and a usable one.
 const REMOVED_SECTIONS: &[(&str, &str)] = &[
-    ("server", "`bind_addr`, `max_request_body_bytes`"),
+    (
+        "server",
+        "`bind_addr`, `max_request_body_bytes` (`[server]` is fraiseql.toml's spelling, read \
+         only by `fraiseql run`)",
+    ),
     (
         "database",
-        "`database_url`, `pool_max_size`, `pool_min_size`, `pool_timeout_secs`, `[database_tls]`",
+        "`database_url`, `pool_max_size`, `pool_min_size`, `pool_timeout_secs`, `[database_tls]`, \
+         `[transaction_retry]` (`[database]` is fraiseql.toml's spelling, read only by \
+         `fraiseql run`)",
     ),
     ("cors", "`cors_enabled`, `cors_origins`"),
     (
@@ -40,6 +46,39 @@ const RETIRED_SECTIONS: &[(&str, &str)] = &[(
     "shared-secret token validation was removed. `[auth_issuer]` signs and validates the \
      sessions this server mints; `[auth]` validates an external OIDC provider's tokens",
 )];
+
+/// `fraiseql.toml` spellings of settings the server's file makes too: the section, the key,
+/// and the note. Copied into the server's file they are unknown fields; the note names where
+/// they belong. `[tenancy]` holds unrelated keys in the two files.
+const FRAISEQL_TOML_SPELLINGS: &[(&str, &str, &str)] = &[
+    (
+        "tls",
+        "cert_file",
+        "is fraiseql.toml's `[server.tls]` spelling; this file spells it `cert_path`",
+    ),
+    (
+        "tls",
+        "key_file",
+        "is fraiseql.toml's `[server.tls]` spelling; this file spells it `key_path`",
+    ),
+    (
+        "database_tls",
+        "ssl_mode",
+        "is fraiseql.toml's `[database]` spelling; this file spells it `postgres_ssl_mode`",
+    ),
+    (
+        "tenancy",
+        "mode",
+        "is set in fraiseql.toml's `[tenancy]` and compiled into the schema; this file's \
+         `[tenancy]` holds `runtime` and `storage_quota`",
+    ),
+    (
+        "tenancy",
+        "tenant_claim",
+        "is set in fraiseql.toml's `[tenancy]` and compiled into the schema; this file's \
+         `[tenancy]` holds `runtime` and `storage_quota`",
+    ),
+];
 
 /// Append a build-feature hint to a config parse error for every compiled-out
 /// section the raw TOML declares.
@@ -72,6 +111,15 @@ pub(super) fn enrich_parse_error(
                     "\nnote: there is no `[{key}]` table in a server config file; the keys \
                      are top-level. Use {replacement}."
                 );
+            }
+        }
+        for (section, key, note) in FRAISEQL_TOML_SPELLINGS {
+            let written = table
+                .get(*section)
+                .and_then(toml::Value::as_table)
+                .is_some_and(|t| t.contains_key(*key));
+            if written {
+                let _ = write!(msg, "\nnote: `[{section}] {key}` {note}.");
             }
         }
         for (key, replacement) in RETIRED_SECTIONS {

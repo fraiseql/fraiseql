@@ -161,7 +161,7 @@ impl ServerRuntimeConfig {
 /// ```toml
 /// [database]
 /// url      = "${DATABASE_URL}"
-/// pool_min = 2
+/// pool_min = 5
 /// pool_max = 20
 /// ssl_mode = "prefer"
 /// ```
@@ -174,13 +174,14 @@ pub struct DatabaseRuntimeConfig {
     /// variable or the `--database` CLI flag.
     pub url: Option<String>,
 
-    /// Minimum connection pool size.  Default: `2`.
+    /// Minimum connection pool size.  Default: `5`, as the server file's `pool_min_size`.
     pub pool_min: usize,
 
-    /// Maximum connection pool size.  Default: `20`.
+    /// Maximum connection pool size.  Default: `20`, as the server file's `pool_max_size`.
     pub pool_max: usize,
 
-    /// Connection acquisition timeout in milliseconds.  Default: `5 000` (5 s).
+    /// How long acquiring a pooled connection, and opening a new one, may take, in
+    /// milliseconds.  Default: `30 000` (30 s), as the server file's `pool_timeout_secs`.
     pub connect_timeout_ms: u64,
 
     /// PostgreSQL SSL mode: `"disable"`, `"prefer"`, `"require"`, or
@@ -208,9 +209,9 @@ impl Default for DatabaseRuntimeConfig {
     fn default() -> Self {
         Self {
             url:                None,
-            pool_min:           2,
+            pool_min:           5,
             pool_max:           20,
-            connect_timeout_ms: 5_000,
+            connect_timeout_ms: 30_000,
             ssl_mode:           None,
             transaction_retry:  None,
         }

@@ -464,7 +464,7 @@ database_target = "postgresql"
         // Defaults should apply
         assert_eq!(schema.server.host, "0.0.0.0");
         assert_eq!(schema.server.port, 8080);
-        assert_eq!(schema.database.pool_min, 2);
+        assert_eq!(schema.database.pool_min, 5);
         assert_eq!(schema.database.pool_max, 20);
         assert!(schema.database.url.is_none());
     }

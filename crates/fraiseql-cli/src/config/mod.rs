@@ -177,6 +177,25 @@ const RETIRED_SPELLINGS: &[(&str, &str, Retired)] = &[
     ),
 ];
 
+/// How `table` writes `key` of `section` (the section itself when `key` is empty), or `None`
+/// when it does not.
+fn written_spelling(table: &toml::Table, section: &str, key: &str) -> Option<String> {
+    let mut found = Some(table);
+    for part in section.split('.').filter(|part| !part.is_empty()) {
+        found = found.and_then(|t| t.get(part)).and_then(toml::Value::as_table);
+    }
+    let found = found?;
+    if key.is_empty() {
+        Some(format!("[{section}]"))
+    } else if !found.contains_key(key) {
+        None
+    } else if section.is_empty() {
+        Some(key.to_string())
+    } else {
+        Some(format!("[{section}] {key}"))
+    }
+}
+
 /// Refuse the first spelling of [`RETIRED_SPELLINGS`] that `table` writes.
 ///
 /// # Errors
@@ -184,19 +203,8 @@ const RETIRED_SPELLINGS: &[(&str, &str, Retired)] = &[
 /// Returns an error naming the retired spelling and what replaced it.
 pub(crate) fn refuse_retired_spellings(table: &toml::Table) -> Result<()> {
     for (section, key, retired) in RETIRED_SPELLINGS {
-        let mut found = Some(table);
-        for part in section.split('.').filter(|part| !part.is_empty()) {
-            found = found.and_then(|t| t.get(part)).and_then(toml::Value::as_table);
-        }
-        let Some(found) = found else { continue };
-        let spelling = if key.is_empty() {
-            format!("[{section}]")
-        } else if !found.contains_key(*key) {
+        let Some(spelling) = written_spelling(table, section, key) else {
             continue;
-        } else if section.is_empty() {
-            (*key).to_string()
-        } else {
-            format!("[{section}] {key}")
         };
         match retired {
             Retired::Write(instead) => {
@@ -208,6 +216,68 @@ pub(crate) fn refuse_retired_spellings(table: &toml::Table) -> Result<()> {
             Retired::Unread => {
                 anyhow::bail!("fraiseql.toml: `{spelling}` is no longer accepted: nothing reads it")
             },
+        }
+    }
+    Ok(())
+}
+
+/// Where a spelling of the server's configuration file belongs instead.
+enum ServerFile {
+    /// `fraiseql.toml` makes the same setting, spelled this.
+    SpelledHere(&'static str),
+    /// Only the server's file makes the setting.
+    ReadThere,
+}
+
+/// Spellings of the server's configuration file (the file `FRAISEQL_CONFIG` names) that
+/// `fraiseql.toml` does not take: the section, the key (or the section itself, when `key` is
+/// empty), and where the setting belongs. The two files spell some settings differently, and
+/// `[tenancy]` holds unrelated keys in each, so a key copied from one into the other is named
+/// rather than reported as an unknown field.
+const SERVER_FILE_SPELLINGS: &[(&str, &str, ServerFile)] = &[
+    ("", "bind_addr", ServerFile::SpelledHere("`[server] host` and `port`")),
+    ("", "database_url", ServerFile::SpelledHere("`[database] url`")),
+    ("", "pool_min_size", ServerFile::SpelledHere("`[database] pool_min`")),
+    ("", "pool_max_size", ServerFile::SpelledHere("`[database] pool_max`")),
+    (
+        "",
+        "pool_timeout_secs",
+        ServerFile::SpelledHere("`[database] connect_timeout_ms`, in milliseconds"),
+    ),
+    ("tls", "", ServerFile::SpelledHere("`[server.tls]`")),
+    ("database_tls", "", ServerFile::SpelledHere("`[database] ssl_mode`")),
+    (
+        "transaction_retry",
+        "",
+        ServerFile::SpelledHere("`[database.transaction_retry]`"),
+    ),
+    ("server.tls", "cert_path", ServerFile::SpelledHere("`cert_file`")),
+    ("server.tls", "key_path", ServerFile::SpelledHere("`key_file`")),
+    ("database", "postgres_ssl_mode", ServerFile::SpelledHere("`ssl_mode`")),
+    ("tenancy", "runtime", ServerFile::ReadThere),
+    ("tenancy", "storage_quota", ServerFile::ReadThere),
+];
+
+/// Refuse the first spelling of [`SERVER_FILE_SPELLINGS`] that `table` writes.
+///
+/// # Errors
+///
+/// Returns an error naming the spelling, the server's configuration file, and what
+/// `fraiseql.toml` writes instead.
+pub(crate) fn refuse_server_file_spellings(table: &toml::Table) -> Result<()> {
+    for (section, key, belongs) in SERVER_FILE_SPELLINGS {
+        let Some(spelling) = written_spelling(table, section, key) else {
+            continue;
+        };
+        match belongs {
+            ServerFile::SpelledHere(instead) => anyhow::bail!(
+                "fraiseql.toml: `{spelling}` is how the server's configuration file (the file \
+                 FRAISEQL_CONFIG names) spells this setting; in fraiseql.toml write {instead}"
+            ),
+            ServerFile::ReadThere => anyhow::bail!(
+                "fraiseql.toml: `{spelling}` is read from the server's configuration file, the \
+                 file FRAISEQL_CONFIG names; set it there"
+            ),
         }
     }
     Ok(())

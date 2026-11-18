@@ -1110,6 +1110,64 @@ fn an_auth_hs256_section_is_refused_as_an_unknown_field() {
     );
 }
 
+/// The refusal `ServerConfig::from_file` gives for a file holding `toml`.
+fn load_refusal(toml: &str) -> String {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("server.toml");
+    std::fs::write(&path, toml).unwrap();
+    ServerConfig::from_file(&path).expect_err("the file must be refused")
+}
+
+/// A setting both files make, written with `fraiseql.toml`'s spelling, is refused with a
+/// note naming the server file's spelling. Serde's unknown-field list names neither file.
+#[test]
+fn a_fraiseql_toml_spelling_is_refused_naming_the_server_files_spelling() {
+    for (toml, spelling, instead) in [
+        (
+            "[tls]\nenabled = true\ncert_file = \"/c\"\nkey_path = \"/k\"\n",
+            "[tls] cert_file",
+            "`cert_path`",
+        ),
+        (
+            "[tls]\nenabled = true\ncert_path = \"/c\"\nkey_file = \"/k\"\n",
+            "[tls] key_file",
+            "`key_path`",
+        ),
+        (
+            "[database_tls]\nssl_mode = \"require\"\n",
+            "[database_tls] ssl_mode",
+            "`postgres_ssl_mode`",
+        ),
+        ("[server]\nhost = \"0.0.0.0\"\n", "[server]", "`bind_addr`"),
+        ("[database]\nurl = \"postgres://db/app\"\n", "[database]", "`database_url`"),
+        (
+            "[database.transaction_retry]\nmax_attempts = 3\n",
+            "[database]",
+            "`[transaction_retry]`",
+        ),
+    ] {
+        let msg = load_refusal(toml);
+        assert!(msg.contains(&format!("`{spelling}`")), "{spelling}: {msg}");
+        assert!(msg.contains("fraiseql.toml"), "{spelling}: names no other file: {msg}");
+        assert!(msg.contains(instead), "{spelling}: does not name {instead}: {msg}");
+    }
+}
+
+/// `[tenancy]` names a different table in each file: `fraiseql.toml`'s keys are refused here
+/// naming that file, which compiles them into the schema.
+#[test]
+fn fraiseql_tomls_tenancy_keys_are_refused_naming_that_file() {
+    for (toml, spelling) in [
+        ("[tenancy]\nmode = \"schema\"\n", "[tenancy] mode"),
+        ("[tenancy]\ntenant_claim = \"org\"\n", "[tenancy] tenant_claim"),
+    ] {
+        let msg = load_refusal(toml);
+        assert!(msg.contains(&format!("`{spelling}`")), "{spelling}: {msg}");
+        assert!(msg.contains("compiled"), "{spelling}: {msg}");
+        assert!(msg.contains("fraiseql.toml"), "{spelling}: {msg}");
+    }
+}
+
 // ── observers_tests ───────────────────────────────────────────────────────────
 
 #[cfg(feature = "observers")]

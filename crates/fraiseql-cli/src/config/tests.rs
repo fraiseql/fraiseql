@@ -400,9 +400,9 @@ enabled = false
     fn test_database_runtime_config_default() {
         let cfg = DatabaseRuntimeConfig::default();
         assert!(cfg.url.is_none());
-        assert_eq!(cfg.pool_min, 2);
+        assert_eq!(cfg.pool_min, 5);
         assert_eq!(cfg.pool_max, 20);
-        assert_eq!(cfg.connect_timeout_ms, 5_000);
+        assert_eq!(cfg.connect_timeout_ms, 30_000);
         // Unset, so the connection URL decides — see `DatabaseRuntimeConfig::ssl_mode`.
         assert_eq!(cfg.ssl_mode, None);
     }

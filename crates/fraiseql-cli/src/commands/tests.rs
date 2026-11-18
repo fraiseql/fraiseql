@@ -3141,6 +3141,29 @@ mod run_tests {
         });
     }
 
+    /// An empty `[database]` boots `fraiseql run` with the pool `fraiseql-server` boots with:
+    /// `pool_min`/`pool_min_size` and `connect_timeout_ms`/`pool_timeout_secs` are the same
+    /// settings, so their defaults are one number.
+    #[test]
+    fn run_boots_the_server_pool_defaults() {
+        temp_env::with_var_unset("DATABASE_URL", || {
+            let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+            let config = build_config_from(
+                "postgres://localhost/test",
+                addr,
+                &ServerRuntimeConfig::default(),
+                &DatabaseRuntimeConfig::default(),
+                false,
+                None,
+            )
+            .expect("build_config_from");
+            let server = fraiseql_server::ServerConfig::default();
+            assert_eq!(config.pool_min_size, server.pool_min_size);
+            assert_eq!(config.pool_max_size, server.pool_max_size);
+            assert_eq!(config.pool_timeout_secs, server.pool_timeout_secs);
+        });
+    }
+
     #[test]
     fn test_build_config_sets_bind_addr() {
         let addr: SocketAddr = "127.0.0.1:3000".parse().unwrap();

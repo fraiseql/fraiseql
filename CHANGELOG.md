@@ -49,6 +49,11 @@ disagreed, and the promise was the part that was wrong.
   server's SMTP configuration. Go's `Register()` refuses an action key the runtime does
   not read. The Java SDK now exports the observers it registers; it exported none.
 
+- **`fraiseql run` boots the database pool `fraiseql-server` boots (#2033).** An unwritten
+  `[database] pool_min` is 5 (was 2) and an unwritten `connect_timeout_ms` is 30000 (was
+  5000): they are the server file's `pool_min_size` and `pool_timeout_secs`, whose defaults
+  are 5 and 30 seconds. `connect_timeout_ms` bounds opening a connection as well as
+  acquiring one.
 - **The server's `[rate_limiting]` table takes the keys of `[security.rate_limiting]`
   (#2033).** The table in the server's configuration file and the section compiled from
   `fraiseql.toml` are now one type, with one set of keys and defaults:
@@ -345,6 +350,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **A setting written with the other configuration file's spelling is refused naming the
+  right one (#2033).** `fraiseql.toml` and the server's configuration file (the file
+  `FRAISEQL_CONFIG` names) spell some settings differently. In `fraiseql.toml`,
+  `bind_addr`, `database_url`, `pool_min_size`, `pool_max_size`, `pool_timeout_secs`,
+  `[tls]`, `[database_tls]`, `[transaction_retry]`, `[server.tls] cert_path`/`key_path` and
+  `[database] postgres_ssl_mode` are refused naming the `fraiseql.toml` spelling, and
+  `[tenancy] runtime`/`storage_quota` naming the server's file. In the server's file,
+  `[tls] cert_file`/`key_file`, `[database_tls] ssl_mode`, `[tenancy] mode`/`tenant_claim`,
+  `[server]` and `[database]` are refused with a note naming the spelling it takes. Each was
+  an unknown field before, with no word of the other file.
 - **pg_tviews 0.1.0-beta.40 is the supported release (#2025).** The test image builds it at
   the tag's commit, 6c94c30e; jsonb_delta stays at v0.3.0. Only beta.39 updates to beta.40:
   from beta.37, update through beta.38 and beta.39 in turn, or drop the extension and create

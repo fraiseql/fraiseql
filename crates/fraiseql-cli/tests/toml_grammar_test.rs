@@ -473,6 +473,89 @@ fn observability_is_refused_in_both_roles_naming_the_server_keys() {
     }
 }
 
+/// `refused` failed because `spelling` is the server configuration file's, and the refusal
+/// says what `fraiseql.toml` writes instead (`instead`), not serde's unknown-field list.
+fn assert_refused_as_the_server_files(
+    role: &str,
+    refused: &Compiled,
+    spelling: &str,
+    instead: &str,
+) {
+    assert!(!refused.ok, "{role}: {spelling} compiled");
+    assert!(
+        refused.log.contains("the server's configuration file"),
+        "{role}: {spelling}: the refusal does not name the server's file: {}",
+        refused.log
+    );
+    assert!(
+        refused.log.contains(spelling),
+        "{role}: does not name {spelling}: {}",
+        refused.log
+    );
+    assert!(
+        refused.log.contains(instead),
+        "{role}: {spelling} does not name {instead}: {}",
+        refused.log
+    );
+}
+
+/// A setting both files make, written with the server file's spelling, is refused naming the
+/// `fraiseql.toml` spelling. Serde's unknown-field list names neither file.
+#[test]
+fn a_server_file_spelling_is_refused_naming_the_fraiseql_toml_spelling() {
+    for (toml, spelling, instead) in [
+        ("bind_addr = \"0.0.0.0:8080\"\n", "bind_addr", "`[server] host` and `port`"),
+        ("database_url = \"postgres://db/app\"\n", "database_url", "`[database] url`"),
+        ("pool_min_size = 5\n", "pool_min_size", "`[database] pool_min`"),
+        ("pool_max_size = 20\n", "pool_max_size", "`[database] pool_max`"),
+        (
+            "pool_timeout_secs = 30\n",
+            "pool_timeout_secs",
+            "`[database] connect_timeout_ms`",
+        ),
+        ("[tls]\nenabled = true\n", "[tls]", "`[server.tls]`"),
+        (
+            "[database_tls]\npostgres_ssl_mode = \"require\"\n",
+            "[database_tls]",
+            "`[database] ssl_mode`",
+        ),
+        (
+            "[transaction_retry]\nmax_attempts = 3\n",
+            "[transaction_retry]",
+            "`[database.transaction_retry]`",
+        ),
+        (
+            "[server.tls]\ncert_path = \"/c.pem\"\n",
+            "[server.tls] cert_path",
+            "`cert_file`",
+        ),
+        ("[server.tls]\nkey_path = \"/k.pem\"\n", "[server.tls] key_path", "`key_file`"),
+        (
+            "[database]\npostgres_ssl_mode = \"require\"\n",
+            "[database] postgres_ssl_mode",
+            "`ssl_mode`",
+        ),
+    ] {
+        for (role, refused) in in_both_roles(toml) {
+            assert_refused_as_the_server_files(role, &refused, spelling, instead);
+        }
+    }
+}
+
+/// `[tenancy]` names a different table in each file. The server file's keys are refused
+/// here naming that file, which is where they are read.
+#[test]
+fn the_server_files_tenancy_keys_are_refused_naming_that_file() {
+    for (toml, spelling) in [
+        ("[tenancy.runtime]\nenabled = true\n", "[tenancy] runtime"),
+        ("[tenancy.storage_quota]\ninterval_secs = 60\n", "[tenancy] storage_quota"),
+    ] {
+        for (role, refused) in in_both_roles(toml) {
+            assert_refused_as_the_server_files(role, &refused, spelling, "FRAISEQL_CONFIG");
+        }
+    }
+}
+
 /// A file that authors no type but exposes the change log compiles: the compiler injects
 /// the change-log queries, so a schema results.
 #[test]
