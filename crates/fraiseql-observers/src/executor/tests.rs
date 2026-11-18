@@ -1053,6 +1053,44 @@ async fn test_process_event_condition_false_skips_action() {
 }
 
 #[tokio::test]
+async fn a_stored_condition_that_does_not_parse_skips_the_actions_and_reports_the_reason() {
+    use crate::config::{FailurePolicy as FP, ObserverDefinition, RetryConfig};
+
+    let dispatcher = Arc::new(crate::testing::mocks::MockActionDispatcher::new());
+    dispatcher.expect_ok("webhook", 1.0);
+
+    // A row written before the lexer refused this shape, or through a path
+    // that does not parse the condition.
+    let observer = ObserverDefinition {
+        event_type: "INSERT".to_string(),
+        entity:     "Order".to_string(),
+        condition:  Some("id >".to_string()),
+        actions:    vec![webhook_action()],
+        retry:      RetryConfig::default(),
+        on_failure: FP::Log,
+    };
+    let mut observers = std::collections::HashMap::new();
+    observers.insert("obs".to_string(), observer);
+    let matcher = EventMatcher::build(observers).unwrap();
+
+    let dlq = Arc::new(crate::testing::mocks::MockDeadLetterQueue::new());
+    let executor =
+        make_mock_executor_with_matcher(matcher, Arc::clone(&dispatcher), Arc::clone(&dlq));
+
+    let summary = executor.process_event(&test_event()).await.unwrap();
+
+    assert_eq!(dispatcher.call_count(), 0, "no action runs");
+    assert_eq!(summary.successful_actions, 0);
+    assert_eq!(summary.failed_actions, 0, "nothing is retried or counted as a failed action");
+    assert_eq!(summary.conditions_skipped, 0, "an error is not a condition that held false");
+    assert_eq!(summary.errors.len(), 1, "{:?}", summary.errors);
+    assert!(
+        summary.errors[0].contains("`id >` has nothing after the operator"),
+        "{summary:?}"
+    );
+}
+
+#[tokio::test]
 async fn test_process_event_multiple_observers_all_succeed() {
     use crate::config::{FailurePolicy as FP, ObserverDefinition, RetryConfig};
 

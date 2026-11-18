@@ -501,9 +501,11 @@ the condition is true.
 ### Condition DSL
 
 ```text
-# Field comparisons
+# Field comparisons. The value is a quoted string, a number, `true`, `false`
+# or `null`; text is always quoted, and `>`, `<`, `>=`, `<=` take a number.
 status == 'shipped'
 total > 100
+archived == false
 
 # Field-change detection — requires the producing mutation to record a
 # pre-image (`changelog_pre_image = true`, off by default). Without it these
