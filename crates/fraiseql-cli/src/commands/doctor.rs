@@ -571,17 +571,28 @@ const DATABASE_TLS_NAME: &str = "Database TLS settings";
 ///
 /// # Errors
 ///
-/// Returns an error when the file cannot be read or parsed, or names a mode the
-/// connector cannot honour.
-fn database_tls(config: &Path) -> anyhow::Result<PostgresTlsConfig> {
+/// Returns the failed check when the file cannot be read or loaded as `fraiseql.toml`, or
+/// names a mode the connector cannot honour. The database checks are then skipped rather
+/// than run without the file's `ssl_mode`.
+pub(crate) fn database_tls_check(config: &Path) -> Result<PostgresTlsConfig, DoctorCheck> {
     if !config.exists() {
         return Ok(PostgresTlsConfig::default());
     }
-    anyhow::Context::with_context(load_config(config), || {
-        format!("failed to load {}", config.display())
-    })?
-    .database
-    .postgres_tls()
+    let loaded = load_config(config).map_err(|e| {
+        DoctorCheck::fail(
+            DATABASE_TLS_NAME,
+            format!("failed to load {}: {e:#}", config.display()),
+            "The config file does not load as fraiseql.toml (see \"TOML syntax valid\"); \
+             database checks were skipped rather than run without its [database] ssl_mode.",
+        )
+    })?;
+    loaded.database.postgres_tls().map_err(|e| {
+        DoctorCheck::fail(
+            DATABASE_TLS_NAME,
+            format!("{e:#}"),
+            "Fix [database] ssl_mode in the config file; database checks were skipped.",
+        )
+    })
 }
 
 /// Execute the doctor command.
@@ -616,14 +627,10 @@ pub async fn run_with_db_checks(
     // that cannot be honoured stops the database checks rather than falling back to a
     // weaker one.
     let tls = if wants_database {
-        match database_tls(config) {
+        match database_tls_check(config) {
             Ok(tls) => Some(tls),
-            Err(e) => {
-                checks.push(DoctorCheck::fail(
-                    DATABASE_TLS_NAME,
-                    format!("{e:#}"),
-                    "Fix [database] ssl_mode in the config file; database checks were skipped.",
-                ));
+            Err(check) => {
+                checks.push(check);
                 None
             },
         }

@@ -88,7 +88,10 @@ disagreed, and the promise was the part that was wrong.
     `${DATABASE_URL}` literally); a retired spelling or a key no table reads is refused
     by name. `doctor`'s config check no longer falls back to a syntax-only parse when
     `--schema` is a compiled schema, and `sbom` no longer names the component from
-    `Cargo.toml` when `fraiseql.toml` does not load.
+    `Cargo.toml` when `fraiseql.toml` does not load. A `--config` that does not load
+    skips `doctor`'s database checks (`--against-db`, `--runtime`) with a failed check
+    naming the load, rather than connecting without its `[database] ssl_mode`; they used
+    to run when only a key outside `[database]` was wrong.
   - `[observability]` is refused when the file loads, in both roles and even written
     empty (a TOML schema accepted it at its defaults). The refusal names the keys the
     server's configuration file spells metrics and tracing with, `metrics_enabled` and

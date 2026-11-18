@@ -304,7 +304,7 @@ async fn doctor_reports_view_drift_as_structured_fail() {
     assert!(ok, "--allow-drift compile must succeed to feed doctor. log:\n{log}");
 
     let mut config = Builder::new().suffix(".toml").tempfile().unwrap();
-    config.write_all(b"[server]\nbind = \"0.0.0.0:8000\"\n").unwrap();
+    config.write_all(b"[server]\nhost = \"0.0.0.0\"\nport = 8000\n").unwrap();
     config.flush().unwrap();
 
     let output = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))

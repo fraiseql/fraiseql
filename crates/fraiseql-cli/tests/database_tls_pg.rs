@@ -190,14 +190,27 @@ fn compile_applies_ssl_mode_from_its_config() {
 }
 
 /// A TOML input carries its own `[database]` section; compile reads `ssl_mode` from it.
+///
+/// The input authors a schema over the rig's `v_test_entity`, so it compiles once connected:
+/// the handshake is the only thing that can fail it. A `fraiseql.toml` that authors no
+/// schema is refused before compile connects, which would satisfy `!ok` with no connection
+/// attempted, and a view the rig lacks would satisfy it after an unverified one.
 #[test]
 fn compile_applies_ssl_mode_from_a_toml_input() {
     let Some(url) = tls_url("compile_applies_ssl_mode_from_a_toml_input") else {
         return;
     };
     let dir = TempDir::new().unwrap();
-    std::fs::write(dir.path().join("fraiseql.toml"), "[database]\nssl_mode = \"verify-full\"\n")
-        .unwrap();
+    std::fs::write(
+        dir.path().join("fraiseql.toml"),
+        "[types.TestEntity]\nsql_source = \"v_test_entity\"\n\n\
+         [types.TestEntity.fields.index]\ntype = \"Int\"\n\n\
+         [types.TestEntity.fields.tag]\ntype = \"String\"\n\n\
+         [queries.testEntities]\nreturn_type = \"TestEntity\"\nreturn_array = true\n\
+         sql_source = \"v_test_entity\"\n\n\
+         [database]\nssl_mode = \"verify-full\"\n",
+    )
+    .unwrap();
     let (ok, log) = cli(
         dir.path(),
         &[

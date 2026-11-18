@@ -1949,6 +1949,30 @@ mod doctor_tests {
         let check = check_toml_parses(config.path());
         assert_eq!(check.status, CheckStatus::Fail, "{check:?}");
     }
+
+    /// A config file that does not load skips the database checks with a failed check, so
+    /// they never run without its `[database] ssl_mode`. The hint names the load failure,
+    /// not `ssl_mode`, which the file may not even set.
+    #[test]
+    fn a_config_that_does_not_load_skips_the_database_checks_naming_the_load() {
+        let config = temp_file_ext("[server]\nbind = \"0.0.0.0:8000\"\n", "toml");
+        let check = crate::commands::doctor::database_tls_check(config.path()).unwrap_err();
+        assert_eq!(check.status, CheckStatus::Fail, "{check:?}");
+        let hint = check.hint.as_deref().unwrap_or_default();
+        assert!(hint.contains("does not load"), "{check:?}");
+        assert!(hint.contains("skipped"), "{check:?}");
+    }
+
+    /// A file that loads but names a mode the connector cannot honour keeps the `ssl_mode`
+    /// hint.
+    #[test]
+    fn an_unusable_ssl_mode_skips_the_database_checks_naming_ssl_mode() {
+        let config = temp_file_ext("[database]\nssl_mode = \"sometimes\"\n", "toml");
+        assert!(check_toml_parses(config.path()).status == CheckStatus::Pass, "the file loads");
+        let check = crate::commands::doctor::database_tls_check(config.path()).unwrap_err();
+        let hint = check.hint.as_deref().unwrap_or_default();
+        assert!(hint.contains("ssl_mode") && hint.contains("skipped"), "{check:?}");
+    }
 }
 
 mod explain_tests {
