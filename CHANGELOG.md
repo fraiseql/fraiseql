@@ -80,6 +80,27 @@ disagreed, and the promise was the part that was wrong.
   earlier release still running against the database can answer an observer admin API
   request with a database error ("cached plan must not change result type") until it
   restarts; its observers keep firing.
+- **An observer condition that is missing part of a comparison or a call is refused
+  (#2038).** The condition parser accepted these and the observer then failed, or
+  compared something other than what was written, on every event. Each is now an
+  `InvalidCondition` error naming the comparison or the call: `fraiseql compile`
+  refuses a declared observer that carries one, naming the observer and `condition`.
+  - No operand, `total >`: write the value, `total > 0`. `note ==` used to mean
+    `note == ''`; write that.
+  - An unquoted word, `status == paid`: quote it, `status == 'paid'`. Unquoted, only a
+    number, `true`, `false` and `null` are values.
+  - An operand that only starts like a number, `total > 1.2.3`, `total > -`,
+    `total > 01`: write a number, or quote it to compare as text.
+  - `>`, `<`, `>=` or `<=` against something that is not a number, `total > 'ten'`,
+    `total > true`: write a number, or compare with `==` or `!=`.
+  - A quote that is never closed, `status == 'paid`, or a call that is never closed,
+    `has_field('total'`: close it. A call's arguments are quoted strings separated by
+    commas, so `has_field('a',)` and `has_field(a)` are refused by that rule.
+
+  An observer already stored through the admin API with such a condition now fails to
+  parse when an event reaches it: its actions are skipped and the reason is logged at
+  error level, as for any stored condition that does not parse. The admin API does not
+  parse a condition when it stores one (#2061).
 - **Observer rows and the Rust types that carry them gain a field (#1655).**
   `core.tb_observer` gains `managed_by` (the server adds the column at boot), every
   observer in an admin API response carries `managed_by`, and

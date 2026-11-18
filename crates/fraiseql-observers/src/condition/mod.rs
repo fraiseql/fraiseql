@@ -9,6 +9,15 @@
 //! - Logical operators: `&&` (AND), `||` (OR)
 //! - Grouping: `(condition1) && (condition2)`
 //!
+//! # What a comparison compares against
+//!
+//! The operand is a quoted string (`'shipped'`), a number (`10`, `-1.5`, `1e3`),
+//! `true`, `false` or `null`. Text is always quoted: `status == paid` is refused,
+//! as is an operand that only starts like a number (`1.2.3`, `-`). The ordered
+//! operators `>`, `<`, `>=`, `<=` take a number. A comparison with no operand, a
+//! quote that is never closed and a call that is never closed are refused too.
+//! Each refusal is an `InvalidCondition` naming the comparison or the call.
+//!
 //! # Equality semantics (#843)
 //!
 //! `==` / `!=` compare numbers **numerically**, exactly like the ordered

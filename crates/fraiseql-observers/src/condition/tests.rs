@@ -3,7 +3,10 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::*;
-use crate::event::{EventKind, FieldChanges};
+use crate::{
+    error::ObserverError,
+    event::{EventKind, FieldChanges},
+};
 
 #[test]
 fn test_parse_simple_comparison() {
@@ -824,4 +827,165 @@ mod change_tracking_unavailable_845 {
 
         assert!(!parser.parse_and_evaluate("field_changed('status')", &event).unwrap());
     }
+}
+
+// ── Shapes the lexer refuses ────────────────────────────────────────────────
+
+fn refusal(condition: &str) -> String {
+    match ConditionParser::new().parse(condition) {
+        Err(ObserverError::InvalidCondition { reason }) => reason,
+        other => panic!("`{condition}` must be refused as an invalid condition, got {other:?}"),
+    }
+}
+
+fn order_event() -> EntityEvent {
+    EntityEvent::new(
+        EventKind::Created,
+        "Order".to_string(),
+        Uuid::new_v4(),
+        json!({"total": 5, "note": "", "status": "paid", "flag": true, "n": null, "big": 2000}),
+    )
+}
+
+#[test]
+fn a_comparison_with_no_operand_is_refused_naming_the_field_and_operator() {
+    for op in ["==", "!=", ">", "<", ">=", "<="] {
+        for condition in [
+            format!("total {op}"),
+            format!("total {op} "),
+            format!("(total {op})"),
+            format!("!total {op}"),
+            format!("total {op} && flag == true"),
+        ] {
+            let reason = refusal(&condition);
+            assert!(reason.contains(&format!("`total {op}`")), "{condition}: {reason}");
+            assert!(reason.contains("write the value"), "{condition}: {reason}");
+        }
+    }
+    assert!(refusal("total >").contains("has nothing after the operator"));
+    assert!(refusal("total > +1").contains("followed by `+`"));
+}
+
+#[test]
+fn an_unquoted_operand_that_is_no_json_literal_is_refused_naming_it() {
+    for operand in [
+        "-", ".", "1.2.3", "--1", "1-", "1e", "-.5", "5.", "01", "1abc", "٣", "paid", "PAID",
+        "pa-id", "été", "True", "nil",
+    ] {
+        let reason = refusal(&format!("status == {operand}"));
+        assert!(reason.contains(&format!("`{operand}` is not a number")), "{operand}: {reason}");
+        assert!(
+            reason.contains(&format!("`status == '{operand}'`")),
+            "{operand}: says how to quote it: {reason}"
+        );
+    }
+}
+
+#[test]
+fn an_ordered_operator_with_an_operand_that_is_no_number_is_refused_naming_both() {
+    for op in [">", "<", ">=", "<="] {
+        for operand in ["'x'", "'2024-01-01'", "'10'", "''", "true", "false", "null"] {
+            let reason = refusal(&format!("total {op} {operand}"));
+            assert!(
+                reason.contains(&format!("`{op}` orders numbers, and `{operand}` is not one")),
+                "{op} {operand}: {reason}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_quoted_operand_that_is_never_closed_is_refused() {
+    for condition in [
+        "status == 'paid",
+        "status == '",
+        "status == 'paid' && note != 'x",
+    ] {
+        let reason = refusal(condition);
+        assert!(reason.contains("is never closed: add the closing `'`"), "{condition}: {reason}");
+    }
+    assert!(refusal("status == 'paid").contains("`status ==`"));
+}
+
+#[test]
+fn a_call_that_is_never_closed_is_refused_naming_the_function() {
+    for condition in [
+        "has_field('a'",
+        "has_field('a',",
+        "has_field(",
+        "field_changed_to('a','b'",
+        "field_changed_to('a', 'b' ",
+    ] {
+        let reason = refusal(condition);
+        let name = condition.split('(').next().unwrap();
+        assert!(
+            reason.contains(&format!("`{name}(` is never closed: add the closing `)`")),
+            "{condition}: {reason}"
+        );
+    }
+}
+
+#[test]
+fn a_call_argument_whose_quote_is_never_closed_is_refused() {
+    for condition in ["has_field('a", "field_changed_to('a', 'b", "has_field('a)"] {
+        let reason = refusal(condition);
+        assert!(
+            reason.contains("a quoted argument of") && reason.contains("add the closing `'`"),
+            "{condition}: {reason}"
+        );
+    }
+}
+
+#[test]
+fn a_call_with_malformed_arguments_is_refused_naming_what_was_found() {
+    for (condition, found) in [
+        ("has_field(a)", "takes quoted arguments, as in `has_field('field')`: found `a`"),
+        (
+            "has_field('a',)",
+            "takes quoted arguments, as in `has_field('field')`: found `)`",
+        ),
+        ("has_field('a',,'b')", "found `,`"),
+        ("has_field('a' 'b')", "expects `,` or `)` after an argument: found `'`"),
+    ] {
+        let reason = refusal(condition);
+        assert!(reason.contains(found), "{condition}: {reason}");
+    }
+}
+
+#[test]
+fn the_forms_a_condition_is_written_in_still_parse_and_evaluate() {
+    let parser = ConditionParser::new();
+    let event = order_event();
+    for (condition, expected) in [
+        ("total > 0", true),
+        ("total>0", true),
+        ("total > -1.5", true),
+        ("total >= 5", true),
+        ("total < 5", false),
+        ("total <= 1.5", false),
+        ("big >= 1e3", true),
+        ("total > 9223372036854775808", false),
+        ("note == ''", true),
+        ("note != ''", false),
+        ("status == 'paid'", true),
+        ("status != 'paid'", false),
+        ("flag == true", true),
+        ("flag == false", false),
+        ("n == null", true),
+        ("total == 5", true),
+        ("total != 5.0", false),
+        ("has_field('total')", true),
+        ("has_field ( 'total' )", true),
+        ("has_field('absent')", false),
+        ("field_changed_to( 'status' , 'paid' )", false),
+        ("(total > 0) && !(status == 'void') || has_field('x')", true),
+    ] {
+        let result = parser.parse_and_evaluate(condition, &event);
+        assert!(
+            matches!(result, Ok(v) if v == expected),
+            "`{condition}` should evaluate to {expected}, got {result:?}"
+        );
+    }
+    // A call with no argument reaches the arity check, which names the function.
+    assert!(refusal("has_field()").contains("has_field expects 1 argument, got 0"));
 }

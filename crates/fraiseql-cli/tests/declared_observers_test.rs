@@ -174,6 +174,31 @@ fn a_condition_the_runtime_cannot_parse_is_refused_naming_the_observer() {
 }
 
 #[test]
+fn a_condition_missing_part_of_a_comparison_or_call_is_refused_with_the_reason() {
+    for (condition, reason) in [
+        ("total >", "`total >` has nothing after the operator"),
+        ("status == paid", "`status == 'paid'`"),
+        ("total > 1.2.3", "`1.2.3` is not a number"),
+        ("total > 'ten'", "`>` orders numbers, and `'ten'` is not one"),
+        ("status == 'paid", "is never closed: add the closing `'`"),
+        ("has_field('total'", "`has_field(` is never closed"),
+    ] {
+        let mut observers =
+            observing_with(&json!({"type": "webhook", "url": "https://example.test"}));
+        observers[0]["condition"] = json!(condition);
+
+        let refusal = format!("{:#}", compile(schema_declaring(&observers)).unwrap_err());
+
+        assert!(
+            refusal.contains("`order_created`"),
+            "{condition}: names the observer: {refusal}"
+        );
+        assert!(refusal.contains("`condition`"), "{condition}: names the key: {refusal}");
+        assert!(refusal.contains(reason), "{condition}: says why: {refusal}");
+    }
+}
+
+#[test]
 fn a_retry_key_the_runtime_does_not_read_is_refused_naming_it() {
     let mut observers = observing_with(&json!({"type": "webhook", "url": "https://example.test"}));
     observers[0]["retry"] = json!({"max_attempts": 3, "backoff_strategy": "quadratic",
