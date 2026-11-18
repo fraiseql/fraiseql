@@ -171,6 +171,7 @@ impl fmt::Debug for TransactionRetry {
 /// max_ms = 200       # no wait exceeds this
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields, default)]
 pub struct TransactionRetryConfig {
     /// Attempts, the first included. Default: 3.

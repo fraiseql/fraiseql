@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 /// `cache_ttl_seconds` (the per-view TTL map) and each trigger mutation's
 /// `invalidates_views` (mutation-driven invalidation). Runtime enablement
 /// remains the server's `cache_enabled`.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct CachingConfig {
     /// Gate for the rules below: `true` with rules lowers them; `false` with
@@ -37,7 +37,7 @@ impl Default for CachingConfig {
 }
 
 /// One declarative cache rule (#623).
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CacheRule {
     /// Name of an existing query (compile error otherwise).
@@ -59,7 +59,7 @@ pub struct CacheRule {
 /// aggregate/materialized one) served with the SELECT list of its declared
 /// `return_type`. No client-supplied identifier can reach `FROM` or the
 /// SELECT list because neither exists on this path at request time.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct AnalyticsConfig {
     /// Gate for the queries below: `true` with queries lowers them; `false`
@@ -71,7 +71,7 @@ pub struct AnalyticsConfig {
 }
 
 /// One analytics query (#624), compiled into a list-returning view query.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AnalyticsQuery {
     /// GraphQL field name. Must not collide with an existing query and must

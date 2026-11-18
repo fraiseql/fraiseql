@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// `[auth.local.email]`: the subject and body of each mail `[auth.local]` sends. A kind left
 /// unset keeps the built-in English text.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct LocalEmailConfig {
     /// The sign-in mail: its code, and its magic link when `magic_link_template` is set.
@@ -25,7 +25,7 @@ pub struct LocalEmailConfig {
 /// In `fraiseql.toml` the bodies are files, `text_template` and `html_template`, relative to
 /// the file. `fraiseql compile` reads them into `text` and `html` and drops the paths, so the
 /// server needs only the compiled schema.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EmailTemplate {
     /// The subject line, sent as written: no placeholders.

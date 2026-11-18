@@ -34,16 +34,19 @@ use crate::schema::intermediate::IntermediateInjectDefaults;
 ///
 /// The table is open on purpose: a base key is a parameter name the author chooses, so no
 /// list of keys could close it.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, schemars::JsonSchema)]
 pub struct InjectDefaultsToml {
     /// Applied to queries only, overriding a base entry of the same name.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    #[schemars(with = "std::collections::BTreeMap<String, String>")]
     pub queries:   IndexMap<String, String>,
     /// Applied to mutations only, overriding a base entry of the same name.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    #[schemars(with = "std::collections::BTreeMap<String, String>")]
     pub mutations: IndexMap<String, String>,
     /// Applied to queries and mutations.
     #[serde(flatten)]
+    #[schemars(with = "std::collections::BTreeMap<String, String>")]
     pub base:      IndexMap<String, String>,
 }
 

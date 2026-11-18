@@ -288,6 +288,12 @@ pub(crate) fn refusal_hint(diagnostic: &ConfigDiagnostic) -> String {
             "{spelling} is declared in both fraiseql.toml and the schema document, differently; \
              declare it once, in fraiseql.toml"
         ),
+        (DiagnosticCode::UnknownKey, Some(instead)) => {
+            format!("fraiseql.toml takes no {spelling}; did you mean {instead}?")
+        },
+        (DiagnosticCode::UnknownKey, None) => {
+            format!("fraiseql.toml takes no {spelling}; remove it")
+        },
     }
 }
 

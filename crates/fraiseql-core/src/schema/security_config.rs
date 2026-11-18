@@ -210,7 +210,7 @@ fn is_default_tenancy(t: &TenancyConfig) -> bool {
 /// [`CompiledSchema::has_rls_configured`]: crate::schema::CompiledSchema::has_rls_configured
 // Deliberately not `Copy`: the serde `skip_serializing_if` predicate must take a
 // reference, and a config struct that gains a second field would lose `Copy` anyway.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct RlsConfig {
     /// Whether database Row-Level Security is relied upon for data isolation.
@@ -346,7 +346,7 @@ pub struct SecurityConfig {
 /// Controls how much error detail is exposed to API clients.
 ///
 /// When enabled, internal error messages, SQL, and stack traces are stripped.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct ErrorSanitizationConfig {
     /// Enable error sanitization (default: true).
@@ -386,7 +386,7 @@ pub const DEFAULT_RATE_LIMIT_MAX_BUCKETS: usize = 100_000;
 /// The single shape for this section: the CLI authors it from TOML and the
 /// server consumes it from the compiled schema, so the two cannot drift (before
 /// #977 each side kept its own copy — with different defaults).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct RateLimitingSecurityConfig {
     /// Enable the global limit (default: true, when the table is written).
@@ -537,7 +537,7 @@ impl Default for RateLimitingSecurityConfig {
 }
 
 /// AEAD algorithm for OAuth state and PKCE state blobs.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[non_exhaustive]
 pub enum EncryptionAlgorithm {
     /// ChaCha20-Poly1305 (recommended — constant-time, software-friendly).
@@ -559,7 +559,7 @@ impl std::fmt::Display for EncryptionAlgorithm {
 }
 
 /// Where the state-encryption key is sourced from.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum KeySource {
@@ -569,7 +569,7 @@ pub enum KeySource {
 }
 
 /// AEAD encryption for the OAuth state parameter and PKCE code challenges.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct StateEncryptionConfig {
     /// Enable state encryption.
@@ -594,7 +594,7 @@ impl Default for StateEncryptionConfig {
 }
 
 /// PKCE code challenge method.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[non_exhaustive]
 pub enum CodeChallengeMethod {
     /// SHA-256 (required in production).
@@ -620,7 +620,7 @@ impl CodeChallengeMethod {
 /// PKCE (Proof Key for Code Exchange) configuration for `[security.pkce]`.
 ///
 /// Requires `state_encryption` to be enabled for secure state storage.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct PkceSecurityConfig {
     /// Enable PKCE for OAuth Authorization Code flows.
@@ -650,7 +650,7 @@ impl Default for PkceSecurityConfig {
 }
 
 /// API key authentication configuration for `[security.api_keys]`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct ApiKeySecurityConfig {
     /// Enable API key authentication.
@@ -679,7 +679,7 @@ impl Default for ApiKeySecurityConfig {
 }
 
 /// A single static API key entry.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StaticApiKeyEntry {
     /// Hex-encoded hash, optionally prefixed with the algorithm (`sha256:…`).
@@ -692,7 +692,9 @@ pub struct StaticApiKeyEntry {
 }
 
 /// Trusted document enforcement mode.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum TrustedDocumentMode {
@@ -705,7 +707,7 @@ pub enum TrustedDocumentMode {
 
 /// Trusted documents / query allowlist configuration for
 /// `[security.trusted_documents]`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct TrustedDocumentsConfig {
     /// Enable trusted documents.
@@ -736,7 +738,7 @@ impl Default for TrustedDocumentsConfig {
 }
 
 /// Token revocation configuration for `[security.token_revocation]`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct TokenRevocationSecurityConfig {
     /// Enable token revocation.
@@ -784,7 +786,7 @@ impl Default for TokenRevocationSecurityConfig {
 ///
 /// The bearer secret is **never** inlined — `secret_env` names the environment
 /// variable that holds it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ServiceAccountConfig {
     /// Name of the environment variable holding the plaintext bearer secret.
@@ -810,7 +812,7 @@ pub struct ServiceAccountConfig {
 ///
 /// `deny_unknown_fields`: a typo'd budget key must fail the load, not silently
 /// leave the budget unenforced (the compiled-schema seam rule).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CostBudgetConfig {
     /// Hard ceiling on a single operation's estimated cost, enforced in the

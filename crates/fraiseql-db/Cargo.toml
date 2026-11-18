@@ -23,6 +23,7 @@ rustls = { version = "0.23", default-features = false, features = [
 rustls-native-certs = { version = "0.8.3", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+schemars = { workspace = true, optional = true }
 tokio = { workspace = true }
 # Database — PostgreSQL (optional; enabled by the "postgres" feature)
 tokio-postgres = { workspace = true, features = [
@@ -58,6 +59,9 @@ postgres = [
 # Integration test features
 test-postgres = []
 wire-backend = ["fraiseql-wire"]
+# The JSON Schema of the configuration types the CLI publishes for `fraiseql.toml`; only the
+# CLI enables it, so the server does not build the derives.
+json-schema = ["dep:schemars"]
 
 [lints]
 workspace = true

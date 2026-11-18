@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 /// │   ├── queries.json
 /// │   └── mutations.json
 /// ```
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct DomainDiscovery {
     /// Enable automatic domain discovery
@@ -97,7 +97,7 @@ impl DomainDiscovery {
 /// queries = ["schema/queries/**/*.json"]
 /// mutations = ["schema/mutations/**/*.json"]
 /// ```
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct SchemaIncludes {
     /// Glob patterns for type files

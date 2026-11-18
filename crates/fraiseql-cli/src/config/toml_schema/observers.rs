@@ -21,7 +21,7 @@ pub const REDIS_URL_REFUSED: &str = "observers `redis_url` configures nothing: t
 /// field is declared-and-ignored here so a shared config carrying the server's
 /// `[observers.runtime]` sub-table still compiles — the compiler does not
 /// validate its contents.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct ObserversConfig {
     /// Enable observers system
@@ -32,6 +32,7 @@ pub struct ObserversConfig {
     /// Refused: the runtime has no Redis transport. Captured only so the refusal can
     /// say so, instead of an unknown-field error.
     #[serde(default, skip_serializing)]
+    #[schemars(with = "Option<serde_json::Value>")]
     pub redis_url: Option<toml::Value>,
     /// NATS connection URL (required when backend = "nats")
     ///
@@ -46,6 +47,7 @@ pub struct ObserversConfig {
     /// compiler. Captured as an opaque value so a shared `fraiseql.toml` that
     /// carries server runtime tuning still passes `fraiseql compile` (#342).
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<serde_json::Value>")]
     pub runtime:   Option<toml::Value>,
 }
 
@@ -168,7 +170,7 @@ impl ObserversConfig {
 }
 
 /// Event handler configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EventHandler {
     /// Handler name

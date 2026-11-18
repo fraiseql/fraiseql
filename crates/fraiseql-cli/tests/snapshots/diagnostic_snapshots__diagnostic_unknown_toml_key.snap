@@ -2,4 +2,4 @@
 source: crates/fraiseql-cli/tests/diagnostic_snapshots.rs
 expression: err.to_string()
 ---
-Failed to parse TOML schema
+fraiseql.toml takes no `[project] bogus_field`; remove it. That table takes: name, version, database_target

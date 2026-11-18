@@ -740,3 +740,41 @@ fn the_exit_codes_are_documented_alike_everywhere() {
     assert_eq!(printed, listed, "--help and --help-json");
     assert_eq!(documented, listed, "the documentation and --help-json");
 }
+
+// ── unknown keys ─────────────────────────────────────────────────────────────────
+
+/// A key `fraiseql.toml` does not take is refused with its own code, where it was written,
+/// and the accepted spelling nearest to it.
+#[test]
+fn an_unknown_key_is_refused_with_its_nearest_spelling() {
+    let refused = compile_beside_a_document("[project]\nname = \"app\"\nnmae = \"app\"\n", true);
+    let error = refused.error();
+    let diagnostic = &error["diagnostic"];
+    assert_eq!(refused.code, Some(2), "{error}");
+    assert_eq!(diagnostic["code"], "E-CONFIG-UNKNOWN-KEY", "{error}");
+    assert_eq!(diagnostic["table"], "project", "{error}");
+    assert_eq!(diagnostic["key"], "nmae", "{error}");
+    assert_eq!(diagnostic["replacement"], "`name`", "{error}");
+    assert!(
+        diagnostic["file"].as_str().is_some_and(|f| f.ends_with("fraiseql.toml")),
+        "{error}"
+    );
+}
+
+/// An unknown key nowhere near an accepted one is refused with nothing to write instead, and
+/// one inside an array of tables is placed in that array's table.
+#[test]
+fn an_unknown_key_with_no_near_spelling_names_no_replacement() {
+    let refused = compile_beside_a_document(
+        "[caching]\nenabled = true\n\n[[caching.rules]]\nquery = \"orders\"\nttl_seconds = 60\n\
+         invalidation_triggers = []\ncompletely_unrelated = 1\n",
+        true,
+    );
+    let error = refused.error();
+    let diagnostic = &error["diagnostic"];
+    assert_eq!(refused.code, Some(2), "{error}");
+    assert_eq!(diagnostic["code"], "E-CONFIG-UNKNOWN-KEY", "{error}");
+    assert_eq!(diagnostic["table"], "caching.rules", "{error}");
+    assert_eq!(diagnostic["key"], "completely_unrelated", "{error}");
+    assert_eq!(diagnostic["replacement"], Value::Null, "{error}");
+}

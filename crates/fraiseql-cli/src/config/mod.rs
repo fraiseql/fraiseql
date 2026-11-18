@@ -19,7 +19,7 @@ pub use toml_schema::TomlSchema;
 
 /// `[project]`: the metadata of every `fraiseql.toml`, the compile input or the file read
 /// beside a schema document.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct ProjectMetadata {
     /// Project name (`fraiseql sbom` names the component after it).
@@ -357,6 +357,40 @@ pub(crate) fn refuse_server_file_spellings(table: &toml::Table) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Refuse the first key `fraiseql.toml`'s grammar does not take, naming where it was written
+/// and the accepted spelling nearest to it.
+///
+/// Runs after the refusals that know a key by name (retired, never applied, misplaced), so a
+/// key one of them names keeps its own advice.
+pub(crate) fn refuse_unknown_keys(table: &toml::Table) -> Result<()> {
+    let Some(unknown) = toml_schema::json_schema::unknown_key(table) else {
+        return Ok(());
+    };
+    let accepted: Vec<&str> = unknown.accepted.iter().map(String::as_str).collect();
+    let near = fraiseql_core::runtime::suggest_similar(&unknown.key, &accepted)
+        .first()
+        .copied();
+    let spelling = if unknown.table.is_empty() {
+        format!("`{}`", unknown.key)
+    } else {
+        format!("`[{}] {}`", unknown.table, unknown.key)
+    };
+    let message = match near {
+        Some(near) => format!("fraiseql.toml takes no {spelling}; did you mean `{near}`?"),
+        None => format!(
+            "fraiseql.toml takes no {spelling}; remove it. That table takes: {}",
+            accepted.join(", ")
+        ),
+    };
+    let diagnostic =
+        ConfigDiagnostic::new(DiagnosticCode::UnknownKey, &unknown.table, &unknown.key, message);
+    Err(match near {
+        Some(near) => diagnostic.with_replacement(&format!("`{near}`")),
+        None => diagnostic,
+    }
+    .into())
 }
 
 /// Refuse the first key of [`UNAPPLIED_KEYS`] that `table` sets.

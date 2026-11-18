@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 /// [subscriptions.capture.tb_ticket]
 /// document_column = "data"
 /// ```
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct SubscriptionsConfig {
     /// Maximum subscriptions per WebSocket connection.
@@ -41,7 +41,7 @@ pub struct SubscriptionsConfig {
 }
 
 /// Webhook URLs invoked during subscription lifecycle events.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct SubscriptionHooksConfig {
     /// URL to POST on WebSocket `connection_init` (fail-closed).

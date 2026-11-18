@@ -20,7 +20,7 @@ use crate::schema::intermediate::IntermediateFunctionsConfig;
 /// Neither half can reach into the other: a `FunctionDefinition` is
 /// `deny_unknown_fields` and has no `module_dir` or `dlq_store` key, so a schema
 /// cannot set a setting; and this table has no way to declare a function.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct FunctionsSettings {
     /// Directory holding the function modules (`.wasm`, `.js`, `.ts`), resolved

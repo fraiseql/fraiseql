@@ -162,6 +162,7 @@ keeps its own exit status.
 | `E-CONFIG-UNAPPLIED` | A key `fraiseql run` never applied |
 | `E-CONFIG-MISPLACED` | A setting written in the wrong file or table |
 | `E-CONFIG-DISAGREES` | A setting `fraiseql.toml` and the schema document both declare, differently |
+| `E-CONFIG-UNKNOWN-KEY` | A key the table it is written in does not take; the replacement names the nearest accepted spelling, if one is near |
 
 ### Exit Codes
 

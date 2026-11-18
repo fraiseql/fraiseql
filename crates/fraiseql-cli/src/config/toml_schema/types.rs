@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 /// Type definition in TOML
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct TypeDefinition {
     /// SQL source table or view
@@ -118,7 +118,7 @@ impl TypeDefinition {
 /// Deserialized straight into the intermediate shape; see
 /// [`IntermediateRelationship`](crate::schema::intermediate::IntermediateRelationship) for
 /// which key is read off which side per cardinality.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RelationshipDefinition {
     /// Target GraphQL type name, e.g. `"Post"`.
@@ -152,7 +152,7 @@ impl RelationshipDefinition {
 }
 
 /// Field definition
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FieldDefinition {
     /// GraphQL field type (ID, String, Int, Boolean, DateTime, etc.)
@@ -246,7 +246,7 @@ impl FieldDefinition {
 }
 
 /// Argument definition
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ArgumentDefinition {
     /// Argument name

@@ -7,6 +7,7 @@ pub mod caching;
 pub mod domain;
 pub mod federation;
 pub mod functions;
+pub mod json_schema;
 pub mod observers;
 pub mod operations;
 pub mod rest;
@@ -64,7 +65,7 @@ use super::{
 };
 
 /// Complete TOML schema configuration
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct TomlSchema {
     /// `[project]`: the metadata every `fraiseql.toml` takes.
@@ -307,7 +308,7 @@ pub struct TomlSchema {
 ///
 /// Defines the database table and ltree path column for a named hierarchy.
 /// The `id` column is always `id` (UUID) per the trinity pattern — not configurable.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct HierarchyConfig {
     /// Database table containing the ltree column (e.g., `"tb_category"`).
@@ -411,6 +412,7 @@ impl TomlSchema {
             crate::config::refuse_unapplied_keys(table)?;
             crate::config::refuse_retired_spellings(table)?;
             crate::config::refuse_server_file_spellings(table)?;
+            crate::config::refuse_unknown_keys(table)?;
         }
         let mut schema: Self = toml::from_str(&expanded).context("Failed to parse TOML schema")?;
         if let Some(table) = &table {
