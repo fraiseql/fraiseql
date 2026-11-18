@@ -1290,13 +1290,15 @@ lint-rls-policy-construction:
 # serde does not propagate `deny_unknown_fields` into nested structs, so a mistyped key
 # in a section was discarded in silence — leaving security switches at their defaults.
 # The sections are DISCOVERED, and the count asserted, so a new one cannot join unchecked.
+# A second walk does the same from `TomlSchema`, the type `fraiseql.toml` is read into.
 .PHONY: lint-config-deny-unknown
 lint-config-deny-unknown:
 	@python3 tools/check-config-deny-unknown.py
 
 # Unit tests for the gate above, for a hand-written `Deserialize`: each way its allow-list
 # entry can pin nothing (no entry, a missing or ignored test, a stale or malformed entry)
-# must fail by name.
+# must fail by name. For the walk from `TomlSchema`: an open table, a flatten, a stale or
+# malformed open entry, a type read through another and a name two crates define.
 .PHONY: test-config-deny-unknown-gate
 test-config-deny-unknown-gate:
 	@bash tools/tests/config_deny_unknown_test.sh
