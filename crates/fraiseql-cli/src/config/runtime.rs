@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 /// key_file  = "/etc/fraiseql/key.pem"
 /// min_version = "1.2"   # "1.2" or "1.3"
 /// ```
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct TlsRuntimeConfig {
     /// Enable TLS (HTTPS).  Default: `false`.
@@ -55,7 +55,7 @@ impl Default for TlsRuntimeConfig {
 /// [server.cors]
 /// origins = ["https://app.example.com"]
 /// ```
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct CorsRuntimeConfig {
     /// Allowed origins. Empty: the server allows `http://localhost:3000` only, and
@@ -88,7 +88,7 @@ pub struct CorsRuntimeConfig {
 /// cert_file = "/etc/fraiseql/cert.pem"
 /// key_file  = "/etc/fraiseql/key.pem"
 /// ```
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct ServerRuntimeConfig {
     /// Bind host.  Default: `"0.0.0.0"`.
@@ -165,7 +165,7 @@ impl ServerRuntimeConfig {
 /// pool_max = 20
 /// ssl_mode = "prefer"
 /// ```
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct DatabaseRuntimeConfig {
     /// Database connection URL.  Supports `${VAR}` interpolation.

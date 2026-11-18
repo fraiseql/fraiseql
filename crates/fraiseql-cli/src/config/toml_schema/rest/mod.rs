@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Unknown keys are refused. `[rest]` used to accept anything, so a retired key — or a
 /// misspelled one — compiled and was silently the default.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct RestTomlConfig {
     /// Whether the REST transport is enabled.
@@ -65,6 +65,7 @@ pub struct RestTomlConfig {
     /// an unknown field it would read `unknown field max_embedded_reads`, which tells an
     /// operator what is wrong but not what to write instead.
     #[serde(skip_serializing)]
+    #[schemars(with = "Option<serde_json::Value>")]
     pub max_embedded_reads:      Option<serde::de::IgnoredAny>,
 }
 
@@ -98,7 +99,9 @@ impl RestTomlConfig {
 /// DELETE response mode for TOML configuration.
 ///
 /// Uses lowercase serde names for TOML ergonomics.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum DeleteResponseToml {
     /// Return `204 No Content`.

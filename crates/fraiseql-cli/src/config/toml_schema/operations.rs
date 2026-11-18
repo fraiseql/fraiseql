@@ -21,7 +21,9 @@ use super::types::ArgumentDefinition;
 /// writes there, and a second switch at runtime would be a second place the answer
 /// lives — free to disagree with the artifact that is supposed to *be* the answer.
 /// Refusing at compile time is also strictly earlier than refusing at request time.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum PaginationPosture {
     /// Every paginating query gets the entity identity, and an author may declare
@@ -63,7 +65,7 @@ pub enum PaginationPosture {
 /// offset           = false
 /// pagination_order = "identity"
 /// ```
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct QueryDefaults {
     /// Enable automatic `where` filter parameter (default: true)
@@ -105,7 +107,7 @@ fn default_true() -> bool {
 }
 
 /// Query definition in TOML
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct QueryDefinition {
     /// Return type name
@@ -134,7 +136,7 @@ impl Default for QueryDefinition {
 }
 
 /// Mutation definition in TOML
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct MutationDefinition {
     /// Return type name
@@ -204,7 +206,7 @@ fn default_input_style() -> String {
 }
 
 /// `[naming]`: the GraphQL surface's casing.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct NamingConfig {
     /// The GraphQL surface's naming convention. Unwritten, a schema document's own
@@ -232,7 +234,7 @@ impl NamingConfig {
 
 /// `[mutation_defaults]`: project-wide mutation compilation options, beside
 /// `[query_defaults]`.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct MutationDefaults {
     /// Opt-in: synthesize a shared `MutationError` type and a per-mutation result union

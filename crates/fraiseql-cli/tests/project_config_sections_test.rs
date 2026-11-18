@@ -292,11 +292,11 @@ fn as_a_toml_schema(toml: &str, copy: Option<(&str, Value)>) -> Compiled {
     run(&dir, &["fraiseql.toml", "--types", "types.json"])
 }
 
-/// The top-level keys a grammar accepts, as serde lists them when it refuses an unknown one.
+/// The top-level keys a grammar accepts, as the refusal of a key nothing near lists them.
 fn accepted_keys(compiled: &Compiled) -> Vec<String> {
     let listed = compiled
         .log
-        .split("expected one of ")
+        .split("That table takes: ")
         .nth(1)
         .unwrap_or_else(|| panic!("no field list in: {}", compiled.log));
     listed

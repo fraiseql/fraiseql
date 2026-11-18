@@ -42,6 +42,11 @@ disagreed, and the promise was the part that was wrong.
   `value` or `field`). Any other key, the key of another source included, used to compile
   and have no effect; it now fails the compile, naming the key and the keys the table
   takes. Remove the key, or write the one the table takes.
+- **A key `fraiseql.toml` does not take exits 2, and its message changed (#2035).** It
+  exited 1 with the parser's `unknown field `x`, expected one of …`; it now exits 2 with
+  `E-CONFIG-UNKNOWN-KEY` and "fraiseql.toml takes no `[table] key`", followed by the
+  nearest accepted spelling (`did you mean `name`?`), or, when none is near, by every key
+  that table takes. A script matching the old text must match the new one.
 - **A global observer whose name the schema declares is taken over at boot (#1655).** The
   server now writes the observers the schema declares into `core.tb_observer` at every
   boot. A global row (`fk_customer_org` null) of the same name, written by the admin API or
@@ -319,6 +324,12 @@ disagreed, and the promise was the part that was wrong.
   `docs/architecture/config-vs-settings.md`. `ConfigDiagnostic` and `DiagnosticCode` are in
   `fraiseql_core::utils::config_diagnostic`; `ServerConfig::load_file` returns
   `ServerConfigLoadError`, which carries it (`from_file` is unchanged).
+- **`E-CONFIG-UNKNOWN-KEY` (#2035).** A key no table of `fraiseql.toml` takes is refused
+  with its table (as its header is written: `types.User.fields.id`), the key, and as
+  `replacement` the nearest accepted spelling, if one is near. The keys are read from a JSON
+  Schema generated from the grammar the compiler parses (`toml_json_schema()`), checked
+  table by table to accept and refuse the keys the parser does. `fraiseql doctor`'s hint
+  says "did you mean" or "remove it".
 - **Observers are declared in the authoring schema (#1655).** An observer declared with an
   SDK, or in the `observers` array of `schema.json`, is compiled into the schema and
   written into `core.tb_observer` when the server boots, so it fires after a deploy with

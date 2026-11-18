@@ -5,7 +5,7 @@ use fraiseql_core::security::oidc::MeEndpointConfig;
 use serde::{Deserialize, Serialize};
 
 /// Security configuration
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct SecuritySettings {
     /// Declare that this schema serves multiple tenants.
@@ -348,7 +348,7 @@ where
 /// jwks_uri = "https://hanko.example.com/.well-known/jwks.json"
 /// audience = "my-relying-party-id"
 /// ```
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct OidcClientConfig {
     /// OIDC issuer URL for JWT validation (e.g. `"https://accounts.google.com"`).

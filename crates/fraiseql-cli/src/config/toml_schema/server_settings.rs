@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 /// max_query_depth = 10
 /// max_query_complexity = 100
 /// ```
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct ValidationConfig {
     /// Maximum allowed query nesting depth. `None` uses the server default (10).
@@ -88,7 +88,7 @@ impl ValidationConfig {
 /// database_explain = true
 /// expose_sql = true
 /// ```
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct DebugConfig {
     /// Master switch — all debug features require this to be `true`.

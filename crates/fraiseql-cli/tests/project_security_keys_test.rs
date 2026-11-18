@@ -292,33 +292,53 @@ fn a_table_written_without_enabled_is_enabled_in_both_files() {
 
 /// A body each file must refuse, and the text both refusals carry.
 const REFUSED: &[(&str, &str, &str)] = &[
-    ("pkce", "bogus = 1\n", "unknown field `bogus`"),
+    ("pkce", "bogus = 1\n", "takes no `[security.pkce] bogus`"),
     ("pkce", "code_challenge_method = \"S512\"\n", "unknown variant `S512`"),
     ("pkce", "state_ttl_secs = -1\n", "invalid value"),
-    ("api_keys", "bogus = 1\n", "unknown field `bogus`"),
+    ("api_keys", "bogus = 1\n", "takes no `[security.api_keys] bogus`"),
     ("api_keys", "header = 7\n", "invalid type"),
     (
         "api_keys",
         "enabled = true\nstorage = \"redis\"\n",
         "storage = \"redis\" is not implemented: supported values are \"env\"",
     ),
-    ("cost_budget", "bogus = 1\n", "unknown field `bogus`"),
+    ("cost_budget", "bogus = 1\n", "takes no `[security.cost_budget] bogus`"),
     ("cost_budget", "per_request_max = \"many\"\n", "invalid type"),
-    ("token_revocation", "bogus = 1\n", "unknown field `bogus`"),
+    (
+        "token_revocation",
+        "bogus = 1\n",
+        "takes no `[security.token_revocation] bogus`",
+    ),
     ("token_revocation", "require_jti = \"yes\"\n", "invalid type"),
-    ("trusted_documents", "bogus = 1\n", "unknown field `bogus`"),
+    (
+        "trusted_documents",
+        "bogus = 1\n",
+        "takes no `[security.trusted_documents] bogus`",
+    ),
     ("trusted_documents", "mode = \"lenient\"\n", "unknown variant `lenient`"),
     ("persisted_queries_only", "persisted_queries_only = \"yes\"\n", "invalid type"),
-    ("state_encryption", "bogus = 1\n", "unknown field `bogus`"),
-    ("state_encryption", "key_size = 32\n", "unknown field `key_size`"),
+    (
+        "state_encryption",
+        "bogus = 1\n",
+        "takes no `[security.state_encryption] bogus`",
+    ),
+    (
+        "state_encryption",
+        "key_size = 32\n",
+        "takes no `[security.state_encryption] key_size`",
+    ),
     (
         "state_encryption",
         "algorithm = \"rot13\"\n",
         "algorithm \"rot13\" is not supported; must be one of: chacha20-poly1305, aes-256-gcm",
     ),
-    ("error_sanitization", "bogus = 1\n", "unknown field `bogus`"),
+    (
+        "error_sanitization",
+        "bogus = 1\n",
+        "takes no `[security.error_sanitization] bogus`",
+    ),
     ("error_sanitization", "custom_error_message = 7\n", "invalid type"),
-    ("rate_limiting", "bogus = 1\n", "unknown field `bogus`"),
+    ("rate_limiting", "bogus = 1\n", "takes no `[security.rate_limiting] bogus`"),
     ("rate_limiting", "requests_per_second_per_user = \"many\"\n", "invalid type"),
     (
         "rate_limiting",
@@ -330,50 +350,54 @@ const REFUSED: &[(&str, &str, &str)] = &[
         "failed_login_max_attempts = 0\n",
         "failed_login_max_attempts must be at least 1",
     ),
-    ("enterprise", "bogus = 1\n", "unknown field `bogus`"),
+    ("enterprise", "bogus = 1\n", "takes no `[security.enterprise] bogus`"),
     ("enterprise", "audit_logging_enabled = \"yes\"\n", "invalid type"),
     // Read by nothing, so neither file takes them.
     (
         "enterprise",
         "rate_limiting_enabled = false\n",
-        "unknown field `rate_limiting_enabled`",
+        "takes no `[security.enterprise] rate_limiting_enabled`",
     ),
     (
         "enterprise",
         "auth_endpoint_max_requests = 5\n",
-        "unknown field `auth_endpoint_max_requests`",
+        "takes no `[security.enterprise] auth_endpoint_max_requests`",
     ),
     (
         "enterprise",
         "auth_endpoint_window_seconds = 5\n",
-        "unknown field `auth_endpoint_window_seconds`",
+        "takes no `[security.enterprise] auth_endpoint_window_seconds`",
     ),
     (
         "enterprise",
         "audit_log_backend = \"file\"\n",
-        "unknown field `audit_log_backend`",
+        "takes no `[security.enterprise] audit_log_backend`",
     ),
     (
         "enterprise",
         "audit_retention_days = 7\n",
-        "unknown field `audit_retention_days`",
+        "takes no `[security.enterprise] audit_retention_days`",
     ),
     (
         "enterprise",
         "error_sanitization = false\n",
-        "unknown field `error_sanitization`",
+        "takes no `[security.enterprise] error_sanitization`",
     ),
     (
         "enterprise",
         "hide_implementation_details = false\n",
-        "unknown field `hide_implementation_details`",
+        "takes no `[security.enterprise] hide_implementation_details`",
     ),
     (
         "enterprise",
         "constant_time_comparison = false\n",
-        "unknown field `constant_time_comparison`",
+        "takes no `[security.enterprise] constant_time_comparison`",
     ),
-    ("enterprise", "pkce_enabled = false\n", "unknown field `pkce_enabled`"),
+    (
+        "enterprise",
+        "pkce_enabled = false\n",
+        "takes no `[security.enterprise] pkce_enabled`",
+    ),
 ];
 
 #[test]

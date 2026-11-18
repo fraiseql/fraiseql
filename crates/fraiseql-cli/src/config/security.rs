@@ -4,7 +4,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 /// Field-level RBAC role definition from fraiseql.toml
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RoleDefinitionConfig {
     /// Role name identifier
@@ -50,7 +50,7 @@ impl RoleDefinitionConfig {
 /// Tenancy isolation mode from fraiseql.toml.
 ///
 /// Determines how tenant data is separated at the database level.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum TenancyModeConfig {
     /// Single-tenant deployment, no isolation machinery.
@@ -63,7 +63,7 @@ pub enum TenancyModeConfig {
 }
 
 /// Tenancy configuration from `[tenancy]` in fraiseql.toml.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct TenancyTomlConfig {
     /// Isolation strategy: `"none"`, `"row"`, or `"schema"`.

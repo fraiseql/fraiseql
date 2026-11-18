@@ -504,7 +504,7 @@ pub struct AuthClientConfig {
 /// Every auth table lives in schema `auth`, owned by the role this connection
 /// authenticates as; the engine's own role needs no grant on it. Only the name of the
 /// environment variable holding the URL is compiled: the URL carries credentials.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AuthDatabaseConfig {
     /// The environment variable that holds the auth role's connection URL.
@@ -583,7 +583,7 @@ impl AuthDatabaseConfig {
 ///
 /// Governs password, `OTP`, `MFA`, social and `SAML` sign-in. Anonymous guest
 /// sessions keep their fixed lifetime.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SessionConfig {
     /// Lifetime of an access token, in seconds. Unset, each sign-in method keeps
@@ -645,7 +645,7 @@ impl SessionConfig {
 /// credentials, `MFA` enrollments, `OTP` budgets and sessions are all durable
 /// state. A method enabled without what it needs refuses to boot rather than
 /// mounting a flow that cannot complete.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct LocalAuthConfig {
     /// Email + password sign-in: mounts `/auth/v1/password/{signup,login}` and
@@ -747,7 +747,9 @@ pub struct LocalAuthConfig {
 }
 
 /// `[auth.local] session_transport`: how a session reaches the client.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum SessionTransport {
     /// The access and refresh tokens are in the `JSON` response body, for the client to
@@ -819,7 +821,7 @@ pub struct PkceClientConfig {
 /// the account-linking trust gate at `/auth/v1/authorize` / `/auth/v1/callback`.
 /// Only implemented providers are typable: an `[auth.social.apple]` block is a
 /// compile-time unknown-field error, not a silently-ignored table.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SocialAuthConfig {
     /// Allow-listed `redirect_uri` values for the post-login token hand-off
@@ -853,7 +855,7 @@ pub struct SocialAuthConfig {
 }
 
 /// `[auth.social.google]` — `Google` `OIDC` social-login client (#368).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GoogleSocialConfig {
     /// `OAuth2` `client_id` from the `Google` Cloud Console.
@@ -874,7 +876,7 @@ pub struct GoogleSocialConfig {
 /// well-known paths under [`base_url`](Self::base_url) /
 /// [`api_base_url`](Self::api_base_url), overridable for `GitHub` Enterprise
 /// Server deployments.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GitHubSocialConfig {
     /// `OAuth2` `client_id` of the `GitHub` OAuth app.
@@ -902,7 +904,7 @@ pub struct GitHubSocialConfig {
 /// through exactly one of [`private_key_env`](Self::private_key_env) or
 /// [`private_key_path`](Self::private_key_path) — naming both, or neither, is a
 /// configuration error rather than a silent preference.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AppleSocialConfig {
     /// The services ID registered with `Apple` (its `OAuth2` `client_id`, and
@@ -935,7 +937,7 @@ pub struct AppleSocialConfig {
 /// `Discord` reports `verified` on the user object, and the runtime honours it:
 /// an unverified address keys on `(discord, id)` rather than on the email. That
 /// check is why `discord` is in the default trusted-email set.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DiscordSocialConfig {
     /// `OAuth2` `client_id` of the `Discord` application.
@@ -957,7 +959,7 @@ pub struct DiscordSocialConfig {
 /// the default trusted-email set. The Graph API version is part of the request
 /// path and `Meta` deprecates versions on a schedule, so it is configuration
 /// rather than a constant.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FacebookSocialConfig {
     /// `OAuth2` `client_id` (the `Meta` app ID).

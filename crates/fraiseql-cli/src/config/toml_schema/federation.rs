@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Circuit breaker configuration for a specific federated database/service
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PerDatabaseCircuitBreakerOverride {
     /// Database or service name matching a federation entity
@@ -17,7 +17,7 @@ pub struct PerDatabaseCircuitBreakerOverride {
 }
 
 /// Circuit breaker configuration for Apollo Federation fan-out requests
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct FederationCircuitBreakerConfig {
     /// Enable circuit breaker protection on federation fan-out
@@ -45,7 +45,7 @@ impl Default for FederationCircuitBreakerConfig {
 }
 
 /// Federation configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct FederationConfig {
     /// Enable Apollo federation
@@ -157,7 +157,7 @@ impl FederationConfig {
 }
 
 /// Federation entity
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FederationEntity {
     /// Entity name

@@ -27,16 +27,21 @@ pub enum DiagnosticCode {
     /// Two sources declare one setting and differ.
     #[serde(rename = "E-CONFIG-DISAGREES")]
     Disagrees,
+    /// A key the file's grammar does not take; the replacement names the accepted spelling
+    /// nearest to it, when one is near.
+    #[serde(rename = "E-CONFIG-UNKNOWN-KEY")]
+    UnknownKey,
 }
 
 impl DiagnosticCode {
     /// Every code, in the order the documentation lists them.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Retired,
         Self::Unread,
         Self::Unapplied,
         Self::Misplaced,
         Self::Disagrees,
+        Self::UnknownKey,
     ];
 
     /// The code as tools see it, such as `E-CONFIG-RETIRED`.
@@ -48,6 +53,7 @@ impl DiagnosticCode {
             Self::Unapplied => "E-CONFIG-UNAPPLIED",
             Self::Misplaced => "E-CONFIG-MISPLACED",
             Self::Disagrees => "E-CONFIG-DISAGREES",
+            Self::UnknownKey => "E-CONFIG-UNKNOWN-KEY",
         }
     }
 }

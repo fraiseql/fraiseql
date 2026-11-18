@@ -42,7 +42,7 @@ use crate::security::ENRICHED_NAMESPACE_PREFIX;
 ///   "bypass_roles": ["admin"]        // roles that get full visibility
 /// }
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SubscriptionPolicy {
     /// The single-level JSON path into the after-image holding the owner id

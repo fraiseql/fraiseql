@@ -122,7 +122,7 @@ pub struct EntityCircuitBreakerOverride {
 }
 
 /// Custom authorization rule.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AuthorizationRule {
     /// Rule name.
@@ -139,7 +139,7 @@ pub struct AuthorizationRule {
 }
 
 /// Authorization policy (RBAC/ABAC).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AuthorizationPolicy {
     /// Policy name.
@@ -164,7 +164,7 @@ pub struct AuthorizationPolicy {
 }
 
 /// Field-level authorization rule.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FieldAuthRule {
     /// Type name.
@@ -183,7 +183,7 @@ pub struct FieldAuthRule {
 /// `constant_time_comparison`, `pkce_enabled`) were accepted and read by nothing; the
 /// sections that do the work are `[security.rate_limiting]`, `[security.error_sanitization]`
 /// and `[security.pkce]`. `deny_unknown_fields` refuses them by name.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct EnterpriseSecurityConfig {
     /// Record mutations in the audit log (default: true).
@@ -263,7 +263,7 @@ impl<'de> Deserialize<'de> for ObserversBackend {
 /// The generated operations are gated by `read_role` / `write_role` (RBAC). The views
 /// read from `tb_entity_change_log` / `tb_transport_checkpoint`, which the observer
 /// system installs (or which the operator supplies as a documented prerequisite).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct ChangelogConfig {
     /// Master switch. When `false`, no changelog types are registered (default).
@@ -514,7 +514,7 @@ pub struct SubscriptionsConfig {
 /// [subscriptions.capture.tb_ticket]
 /// document_column = "data"
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CaptureTableConfig {
     /// The column the table keeps its entity document in. A captured write is stored as
@@ -562,7 +562,9 @@ impl Default for SubscriptionHooksConfig {
 /// Python/TypeScript SDKs emit `snake_case` operation names (e.g., `create_dns_server`).
 /// Standard GraphQL convention is `camelCase` (`createDnsServer`). This setting
 /// controls whether the compiler/runtime converts names automatically.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[non_exhaustive]
 pub enum NamingConvention {
     /// Preserve operation names as authored (`snake_case` from Python, etc.).
@@ -575,7 +577,7 @@ pub enum NamingConvention {
 }
 
 /// Built-in CRUD naming preset for automatic `sql_source` resolution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[non_exhaustive]
 pub enum CrudNamingPreset {
     /// Trinity pattern: `create_{entity}` / `update_{entity}` / `delete_{entity}`.
@@ -596,7 +598,7 @@ pub enum CrudNamingPreset {
 ///
 /// `function_schema` is applied as a prefix to the resolved name
 /// (e.g. `"app"` + `"create_user"` → `"app.create_user"`).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct CrudNamingConfig {
     /// PostgreSQL schema prefix (e.g. `"app"` → `"app.create_user"`).
@@ -657,7 +659,7 @@ impl CrudNamingConfig {
 }
 
 /// Where a session variable's value comes from.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase", tag = "source")]
 pub enum SessionVariableSource {
     /// Pull from a JWT claim (e.g. `"sub"`, `"tenant_id"`, or a custom claim).
@@ -713,7 +715,7 @@ pub enum SessionVariableSource {
 /// A key the mapping's source does not take is refused, the keys of another source
 /// included: serde cannot deny unknown keys through a flatten, so it is read through
 /// `FlatSessionVariable`, a private enum with one closed table per source.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(from = "FlatSessionVariable")]
 pub struct SessionVariableMapping {
     /// The PostgreSQL setting name (e.g. `"app.tenant_id"`).
@@ -725,13 +727,43 @@ pub struct SessionVariableMapping {
 
 /// [`SessionVariableMapping`] as written: `name` and `source`, and the keys of that
 /// source, nothing else.
-#[derive(Deserialize)]
+///
+/// The JSON Schema of [`SessionVariableMapping`] is this type's (`#[serde(from)]`), so an
+/// editor closes each source's table as the parser does.
+#[derive(Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase", tag = "source", deny_unknown_fields)]
 enum FlatSessionVariable {
-    Jwt { name: String, claim: String },
-    Header { name: String, header: String },
-    Literal { name: String, value: String },
-    Enrichment { name: String, field: String },
+    /// Pull from a JWT claim.
+    Jwt {
+        /// The PostgreSQL setting name (e.g. `"app.tenant_id"`).
+        name:  String,
+        /// JWT claim name to look up (e.g. `"sub"`, `"tenant_id"`).
+        claim: String,
+    },
+    /// Pull from an HTTP request header (gRPC metadata on gRPC). A header is
+    /// client-controlled: never use one for row-level security or tenant scoping.
+    Header {
+        /// The PostgreSQL setting name (e.g. `"app.tenant_id"`).
+        name:   String,
+        /// HTTP header name (e.g. `"x-tenant-id"`).
+        header: String,
+    },
+    /// A fixed literal value.
+    Literal {
+        /// The PostgreSQL setting name (e.g. `"app.tenant_id"`).
+        name:  String,
+        /// The literal string value to inject.
+        value: String,
+    },
+    /// Pull from a field of the enriched identity the database supplies; a missing field
+    /// is an error, never an empty setting.
+    Enrichment {
+        /// The PostgreSQL setting name (e.g. `"app.tenant_id"`).
+        name:  String,
+        /// The enriched field name, without the `fraiseql.enriched.` prefix (e.g.
+        /// `"actor_role"`).
+        field: String,
+    },
 }
 
 impl From<FlatSessionVariable> for SessionVariableMapping {
@@ -760,7 +792,7 @@ impl From<FlatSessionVariable> for SessionVariableMapping {
 /// mutation to inject per-request values (JWT claims, HTTP headers, or literals)
 /// as PostgreSQL transaction-scoped settings.  SQL functions and RLS policies can
 /// then read these via `current_setting('app.tenant_id', true)`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SessionVariablesConfig {
     /// Per-request session variable mappings.
@@ -802,7 +834,7 @@ pub enum DeleteResponse {
 }
 
 /// Relationship cardinality between REST resources.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[non_exhaustive]
 pub enum Cardinality {
     /// Parent has many children (array embed).

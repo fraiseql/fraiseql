@@ -23,7 +23,7 @@ use crate::security::errors::{Result, SecurityError};
 /// expose_claims = ["email", "tenant_id", "https://myapp.com/role"]
 /// ```
 // #1337: nested inside `OidcConfig`, same surface, same reason.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct MeEndpointConfig {
     /// Enable the `GET /auth/me` endpoint.  Default: `false` (opt-in).
@@ -185,7 +185,7 @@ pub struct OidcConfig {
 ///
 /// The issuer-level settings of [`OidcConfig`], for a second (third, …) issuer. `issuer`
 /// is mandatory: it is what routes a token here.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TrustedIssuer {
     /// The issuer URL, matched exactly against a token's `iss`.

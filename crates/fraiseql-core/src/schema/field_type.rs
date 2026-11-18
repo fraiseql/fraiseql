@@ -33,7 +33,7 @@ use crate::error::{FraiseQLError, Result};
 ///     distance_metric: DistanceMetric::Cosine,
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct VectorConfig {
     /// Number of dimensions in the vector: float components for
@@ -164,7 +164,9 @@ impl Default for VectorConfig {
 /// pgvector supports two main index types:
 /// - HNSW: Hierarchical Navigable Small World (faster queries, more memory)
 /// - `IVFFlat`: Inverted File with Flat compression (slower queries, less memory)
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum VectorIndexType {
@@ -276,7 +278,9 @@ impl VectorIndexType {
 /// - Cosine: `<=>` (most common for text embeddings)
 /// - L2: `<->` (Euclidean distance)
 /// - `InnerProduct`: `<#>` (dot product, negate for similarity)
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum DistanceMetric {

@@ -49,7 +49,7 @@ const MAX_ACCEPT_LANGUAGE_ENTRIES: usize = 32;
 const MAX_TAG_BYTES: usize = 35;
 
 /// Where a request's locale may come from, tried in the order `resolve` lists them.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(untagged, deny_unknown_fields)]
 pub enum LocaleSource {
     /// An explicit request value: GraphQL `extensions.<name>`, REST `?<name>=`.
@@ -83,7 +83,7 @@ pub struct LocaleInputs<'a> {
 }
 
 /// `[locale]`, as compiled and as loaded.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct LocaleConfig {
     /// The locale a request gets when no source names an allowed one. Must be allowed.
