@@ -1168,6 +1168,54 @@ fn fraiseql_tomls_tenancy_keys_are_refused_naming_that_file() {
     }
 }
 
+/// `ServerConfig::from_file` over a file holding `toml`.
+fn load(toml: &str) -> Result<ServerConfig, String> {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("server.toml");
+    std::fs::write(&path, toml).unwrap();
+    ServerConfig::from_file(&path)
+}
+
+/// `${VAR}` expands in the server's file as in `fraiseql.toml`.
+#[test]
+fn an_environment_variable_expands_in_the_server_file() {
+    temp_env::with_var("FQ_SRV_DB_URL", Some("postgres://db.internal/app"), || {
+        let config = load("database_url = \"${FQ_SRV_DB_URL}\"\n").unwrap();
+        assert_eq!(config.database_url, "postgres://db.internal/app");
+    });
+}
+
+/// An unset variable refuses the file. Kept literal, `admin_token = "${ADMIN_TOKEN}"` would
+/// boot with the placeholder as the token.
+#[test]
+fn an_unset_environment_variable_refuses_the_server_file() {
+    temp_env::with_var_unset("FQ_SRV_UNSET_TOKEN", || {
+        let err = load("admin_token = \"${FQ_SRV_UNSET_TOKEN}\"\n").unwrap_err();
+        assert!(err.contains("FQ_SRV_UNSET_TOKEN"), "names the variable: {err}");
+        assert!(err.contains("not set"), "{err}");
+    });
+}
+
+/// A value that would break out of its TOML string is refused, as in `fraiseql.toml`.
+#[test]
+fn an_environment_value_with_toml_metacharacters_refuses_the_server_file() {
+    temp_env::with_var("FQ_SRV_BAD", Some("x\"\nadmin_api_enabled = true"), || {
+        let err = load("admin_token = \"${FQ_SRV_BAD}\"\n").unwrap_err();
+        assert!(err.contains("FQ_SRV_BAD"), "names the variable: {err}");
+    });
+}
+
+/// A parse error in a file whose variables were expanded does not echo the expanded line:
+/// it may hold a secret.
+#[test]
+fn a_parse_error_after_expansion_does_not_print_the_expanded_value() {
+    temp_env::with_var("FQ_SRV_SECRET", Some("s3cr3t-token-value"), || {
+        let err = load("admin_token = \"${FQ_SRV_SECRET}\" bogus\n").unwrap_err();
+        assert!(!err.contains("s3cr3t-token-value"), "{err}");
+        assert!(err.contains("line 1"), "still says where: {err}");
+    });
+}
+
 // ── observers_tests ───────────────────────────────────────────────────────────
 
 #[cfg(feature = "observers")]

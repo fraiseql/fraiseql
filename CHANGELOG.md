@@ -49,6 +49,14 @@ disagreed, and the promise was the part that was wrong.
   server's SMTP configuration. Go's `Register()` refuses an action key the runtime does
   not read. The Java SDK now exports the observers it registers; it exported none.
 
+- **The server's configuration file expands `${VAR}` (#2033).** A placeholder in the file
+  `--config`/`FRAISEQL_CONFIG` names is replaced from the environment, with the expander
+  `fraiseql.toml` uses: a value holding a newline, a NUL or a TOML metacharacter is refused,
+  naming the variable. An unset variable refuses the file, where `fraiseql.toml` keeps it as
+  written: kept, `admin_token = "${ADMIN_TOKEN}"` would boot with the placeholder as the
+  token. A file holding literal `${NAME}` text no longer loads unless `NAME` is set. A
+  parse error in a file whose variables were expanded gives the line and the reason, not the
+  line's text.
 - **`fraiseql run` boots the database pool `fraiseql-server` boots (#2033).** An unwritten
   `[database] pool_min` is 5 (was 2) and an unwritten `connect_timeout_ms` is 30000 (was
   5000): they are the server file's `pool_min_size` and `pool_timeout_secs`, whose defaults

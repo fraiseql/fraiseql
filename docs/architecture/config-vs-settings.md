@@ -117,6 +117,22 @@ and the document's value stands when it does not.
 - **Adding a new security policy** that gets baked into the compiled schema -> a field on the `fraiseql-cli` config type for its section, lowered into `fraiseql_core::schema::SecurityConfig`
 - **Adding runtime-only middleware config** (rate limiting per IP, CORS origins) -> `*Config` in `server_config/`
 
+## `${VAR}` Placeholders
+
+Both files expand `${VAR}` from the environment before they are parsed, with one
+expander. A value holding a newline, a NUL or a TOML metacharacter (`"`, `'`, `\`, `[`,
+`]`, `{`, `}`) is refused, naming the variable. The two differ on a variable that is not
+set:
+
+- `fraiseql.toml` keeps the placeholder as written: the file is compiled where the
+  deployment's variables may not exist.
+- The server's configuration file (`--config`, `FRAISEQL_CONFIG`) is refused, naming the
+  variable: it is read where the deployment runs, and a placeholder kept as a value would
+  become that value, an `admin_token` of `${ADMIN_TOKEN}`.
+
+A parse error in a server file whose variables were expanded gives the line and the reason,
+not the line's text, which may hold a secret.
+
 ## Environment Variable Overrides
 
 Most compiled settings are **immutable at runtime** — that is the point of compiling them.

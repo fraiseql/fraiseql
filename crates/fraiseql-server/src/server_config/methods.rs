@@ -80,6 +80,24 @@ const FRAISEQL_TOML_SPELLINGS: &[(&str, &str, &str)] = &[
     ),
 ];
 
+/// The message for a parse error in the server's file.
+///
+/// When variables were expanded, the message gives the line and the parser's reason but not
+/// the source line the parser would quote: that line holds the expanded value, which may be a
+/// secret.
+fn parse_error_message(error: &toml::de::Error, content: &str, expanded: bool) -> String {
+    if !expanded {
+        return format!("Invalid TOML config: {error}");
+    }
+    let line = error
+        .span()
+        .map(|span| content[..span.start.min(content.len())].matches('\n').count() + 1);
+    match line {
+        Some(line) => format!("Invalid TOML config at line {line}: {}", error.message()),
+        None => format!("Invalid TOML config: {}", error.message()),
+    }
+}
+
 /// Append a build-feature hint to a config parse error for every compiled-out
 /// section the raw TOML declares.
 ///
@@ -145,13 +163,20 @@ impl ServerConfig {
     ///
     /// Returns an error string if the file cannot be read or the TOML cannot be parsed.
     pub fn from_file(path: impl AsRef<std::path::Path>) -> Result<Self, String> {
-        let content = std::fs::read_to_string(path.as_ref())
+        let written = std::fs::read_to_string(path.as_ref())
             .map_err(|e| format!("Cannot read config file: {e}"))?;
+        // An unset variable refuses the file: kept as written, `${ADMIN_TOKEN}` would become
+        // the token.
+        let content = fraiseql_core::utils::env_expand::expand_env_vars(
+            &written,
+            fraiseql_core::utils::env_expand::UnsetVariable::Refuse,
+        )
+        .map_err(|e| format!("Invalid config file: {e}"))?;
         let config: Self = toml::from_str(&content).map_err(|e| {
             enrich_parse_error(
                 &crate::capability::feature_gated_keys(),
                 &content,
-                format!("Invalid TOML config: {e}"),
+                parse_error_message(&e, &content, content != written),
             )
         })?;
         #[cfg(feature = "observers")]

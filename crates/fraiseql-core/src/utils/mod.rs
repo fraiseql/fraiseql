@@ -4,12 +4,14 @@
 //!
 //! - `casing`: String case conversion (`snake_case`, camelCase, `PascalCase`)
 //! - `clock`: Clock abstraction for deterministic time-based testing
+//! - `env_expand`: `${VAR}` placeholders in a configuration file's text
 //! - `operators`: GraphQL operator registry and validation
 //! - `opaque_id`: ID encoding to prevent enumeration attacks
 //! - `text`: UTF-8-safe string truncation for error/log/audit display
 
 pub mod casing;
 pub mod clock;
+pub mod env_expand;
 pub mod opaque_id;
 pub mod operators;
 pub mod text;
