@@ -43,7 +43,12 @@ ROOT_STRUCT = "ServerConfig"
 
 # The discovered-struct count, asserted so the walk cannot quietly measure less.
 # Bump it deliberately, with the section that was added.
-EXPECTED_REACHABLE = 52  # +1: [function_dispatch] (#1628) leases and sweeps the function dispatch ledger
+EXPECTED_REACHABLE = 53  # +1: [function_dispatch] (#1628) leases and sweeps the function dispatch ledger
+# +1 (#2033): `[rate_limiting]` is `ServerRateLimitingConfig` over the compiled
+# `RateLimitingSecurityConfig`, replacing `RateLimitConfig`. Its `Deserialize` is written by
+# hand, so the derive check in `main` does not see it: it hands every key but
+# `cleanup_interval_secs` to `RateLimitingSecurityConfig`, which denies unknown fields
+# (pinned by `server_config::tests::an_unknown_rate_limiting_key_is_refused`).
 
 # Types that are not config structs of ours.
 LEAF_TYPES = {

@@ -155,17 +155,14 @@ runtime override is:
 | `FRAISEQL_EGRESS_ALLOWED_DOMAINS` | `[egress] allowed_domains`, the hosts functions and source connectors may call |
 | `FRAISEQL_SOURCES_ALLOWED_ENV_VARS` | The sources env-var allowlist |
 
-Rate limiting is the special case, and its precedence is implemented and pinned by tests
-(`server::tests::rate_limit_boot_guard_tests`). Resolution order, **lowest to highest**,
-each layer applied over the last:
-
-```text
-server [rate_limiting] table (the TOML file passed via --config)
-    < compiled [security.rate_limiting] (schema.compiled.json)
-    < CLI flags / env vars (FRAISEQL_RATE_LIMITING_ENABLED,
-      FRAISEQL_RATE_LIMIT_RPS_PER_IP, FRAISEQL_RATE_LIMIT_RPS_PER_USER,
-      FRAISEQL_RATE_LIMIT_BURST_SIZE — each per-field)
-```
+Rate limiting is the special case, pinned by tests
+(`server::tests::rate_limit_boot_guard_tests`). Its policy is declared in one file: the
+compiled `[security.rate_limiting]` (from `fraiseql.toml`) or the server's `[rate_limiting]`
+table, which takes the same keys plus `cleanup_interval_secs`. When both carry it the
+server refuses to boot: neither replaces the other. The CLI flags and environment
+variables (`FRAISEQL_RATE_LIMITING_ENABLED`, `FRAISEQL_RATE_LIMIT_RPS_PER_IP`,
+`FRAISEQL_RATE_LIMIT_RPS_PER_USER`, `FRAISEQL_RATE_LIMIT_BURST_SIZE`) then override it,
+each per field.
 
 The proxy-trust and zero-budget boot guards run once on whatever configuration comes out
 of that resolution, so no source can smuggle an unguarded limiter past them.
