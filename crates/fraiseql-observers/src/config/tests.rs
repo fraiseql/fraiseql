@@ -41,10 +41,23 @@ fn test_transport_config_validation() {
 
 #[test]
 fn test_nats_transport_config_default() {
-    let config = NatsTransportConfig::default();
-    assert!(config.url.contains("localhost:4222"));
-    assert_eq!(config.subject_prefix, "fraiseql.mutation");
-    assert_eq!(config.consumer_name, "fraiseql_observer_worker");
+    // The defaults read the environment, and sibling tests set these variables
+    // under the `temp_env` lock: take the same lock, with each one unset.
+    temp_env::with_vars(
+        [
+            ("FRAISEQL_NATS_URL", None::<&str>),
+            ("FRAISEQL_NATS_SUBJECT_PREFIX", None),
+            ("FRAISEQL_NATS_CONSUMER_NAME", None),
+            ("FRAISEQL_NATS_STREAM_NAME", None),
+        ],
+        || {
+            let config = NatsTransportConfig::default();
+            assert_eq!(config.url, "nats://localhost:4222");
+            assert_eq!(config.subject_prefix, "fraiseql.mutation");
+            assert_eq!(config.consumer_name, "fraiseql_observer_worker");
+            assert_eq!(config.stream_name, "fraiseql_events");
+        },
+    );
 }
 
 #[test]
@@ -307,12 +320,16 @@ fn test_email_action_validation() {
 
 #[test]
 fn test_redis_config_defaults() {
-    let config = RedisConfig::default();
-    assert!(config.url.contains("localhost:6379"));
-    assert_eq!(config.pool_size, 10);
-    assert_eq!(config.connect_timeout_secs, 5);
-    assert_eq!(config.command_timeout_secs, 2);
-    assert_eq!(config.cache_ttl_secs, 60);
+    // The default URL reads the environment, and a sibling test sets it under
+    // the `temp_env` lock: take the same lock, with the variable unset.
+    temp_env::with_vars([("FRAISEQL_REDIS_URL", None::<&str>)], || {
+        let config = RedisConfig::default();
+        assert_eq!(config.url, "redis://localhost:6379");
+        assert_eq!(config.pool_size, 10);
+        assert_eq!(config.connect_timeout_secs, 5);
+        assert_eq!(config.command_timeout_secs, 2);
+        assert_eq!(config.cache_ttl_secs, 60);
+    });
 }
 
 #[test]
