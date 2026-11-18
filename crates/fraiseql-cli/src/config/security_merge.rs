@@ -101,11 +101,23 @@ pub fn reconcile(
         }
         let from_toml = merged.get(&key).cloned().unwrap_or(Value::Null);
         if normalized(&key, &from_toml) != normalized(&key, &from_document) {
-            bail!(
-                "{toml_label} and the schema document both set security `{key}`, with \
-                 different values.\n  {toml_label}: {from_toml}\n  schema document: \
-                 {from_document}\nSet it in one place, or make the two agree."
-            );
+            // `tenancy` is written as its own `[tenancy]` table; every other key under
+            // `[security]`.
+            let (table, written) = if key == "tenancy" {
+                ("tenancy", "")
+            } else {
+                ("security", key.as_str())
+            };
+            return Err(crate::config::refusal(
+                fraiseql_core::utils::config_diagnostic::DiagnosticCode::Disagrees,
+                table,
+                written,
+                format!(
+                    "{toml_label} and the schema document both set security `{key}`, with \
+                     different values.\n  {toml_label}: {from_toml}\n  schema document: \
+                     {from_document}\nSet it in one place, or make the two agree."
+                ),
+            ));
         }
     }
     Ok(Value::Object(merged))

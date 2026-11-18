@@ -4,6 +4,7 @@
 //!
 //! - `casing`: String case conversion (`snake_case`, camelCase, `PascalCase`)
 //! - `clock`: Clock abstraction for deterministic time-based testing
+//! - `config_diagnostic`: a refused configuration as data (code, file, table, key)
 //! - `env_expand`: `${VAR}` placeholders in a configuration file's text
 //! - `operators`: GraphQL operator registry and validation
 //! - `opaque_id`: ID encoding to prevent enumeration attacks
@@ -11,6 +12,7 @@
 
 pub mod casing;
 pub mod clock;
+pub mod config_diagnostic;
 pub mod env_expand;
 pub mod opaque_id;
 pub mod operators;

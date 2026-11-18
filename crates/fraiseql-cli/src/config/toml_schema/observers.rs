@@ -1,7 +1,7 @@
 //! Observer/event system configuration for TOML schema.
 
 use anyhow::{Result, bail};
-use fraiseql_core::schema::ObserversBackend;
+use fraiseql_core::{schema::ObserversBackend, utils::config_diagnostic::DiagnosticCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -140,13 +140,19 @@ impl ObserversConfig {
         .into_iter()
         .find_map(|(key, differs)| differs.then_some(key));
         if let Some(key) = differing {
-            bail!(
-                "fraiseql.toml [observers] and schema.json observers_config disagree on \
-                 `{key}`.\n  fraiseql.toml [observers]:      {}\n  schema.json observers_config: \
-                 {}\nDeclare the observers settings once, in fraiseql.toml.",
-                serde_json::to_string(&from_config).unwrap_or_default(),
-                serde_json::to_string(&from_document).unwrap_or_default(),
-            );
+            return Err(crate::config::refusal(
+                DiagnosticCode::Disagrees,
+                "observers",
+                key,
+                format!(
+                    "fraiseql.toml [observers] and schema.json observers_config disagree on \
+                     `{key}`.\n  fraiseql.toml [observers]:      {}\n  schema.json \
+                     observers_config: {}\nDeclare the observers settings once, in \
+                     fraiseql.toml.",
+                    serde_json::to_string(&from_config).unwrap_or_default(),
+                    serde_json::to_string(&from_document).unwrap_or_default(),
+                ),
+            ));
         }
         Ok(Some(document))
     }

@@ -312,7 +312,7 @@ pub async fn compile_to_schema(
             anyhow::anyhow!("Config path is not valid UTF-8: {}", config_path.display())
         })?;
         match crate::config::TomlSchema::from_project_file(config_file) {
-            Ok(config) => {
+            Ok(config) => (|| -> Result<()> {
                 info!("Validating security configuration...");
                 config.validate_self_contained()?;
 
@@ -332,13 +332,18 @@ pub async fn compile_to_schema(
                     document_declares_naming,
                 )?;
                 info!("Security configuration applied successfully");
-            },
+                Ok(())
+            })()
+            // A refusal raised after the load (the document and this file disagree) names
+            // this file too.
+            .map_err(|e| crate::config::name_the_file(e, config_file))?,
+            // Kept as the cause, not flattened into this message: the runner reads a
+            // refusal's diagnostic from the error itself.
             Err(e) => {
-                anyhow::bail!(
-                    "Failed to parse {}: {e:#}\n\
-                     Fix the configuration file or remove it to use defaults.",
+                return Err(e.context(format!(
+                    "Failed to parse {}; fix the configuration file or remove it to use defaults",
                     config_path.display()
-                );
+                )));
             },
         }
     }

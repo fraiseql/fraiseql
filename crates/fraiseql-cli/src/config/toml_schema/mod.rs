@@ -357,6 +357,10 @@ impl TomlSchema {
     /// Returns an error if the file cannot be read, writes a table that authors a schema,
     /// or cannot be parsed as a valid `TomlSchema`.
     pub fn from_project_file(path: &str) -> Result<Self> {
+        Self::read_project_file(path).map_err(|e| crate::config::name_the_file(e, path))
+    }
+
+    fn read_project_file(path: &str) -> Result<Self> {
         let content =
             std::fs::read_to_string(path).context(format!("Failed to read TOML file: {path}"))?;
         if let Ok(table) = expand_env_vars(&content)?.parse::<toml::Table>() {
@@ -378,7 +382,7 @@ impl TomlSchema {
         let content =
             std::fs::read_to_string(path).context(format!("Failed to read TOML file: {path}"))?;
         let project = std::path::Path::new(path).parent().unwrap_or(std::path::Path::new(""));
-        Self::parse_toml_in(&content, project)
+        Self::parse_toml_in(&content, project).map_err(|e| crate::config::name_the_file(e, path))
     }
 
     /// Parse schema from TOML string.

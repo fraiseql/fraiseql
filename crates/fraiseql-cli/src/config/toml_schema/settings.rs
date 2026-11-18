@@ -71,12 +71,16 @@ impl TomlSchema {
         // authoring conflict.
         if let Some(locale) = self.locale.clone() {
             if schema.locale.as_ref().is_some_and(|l| *l != locale) {
-                anyhow::bail!(
-                    "[locale] in {} disagrees with the `locale` {} declares; declare it once, \
-                     in fraiseql.toml",
-                    labels.toml,
-                    labels.document
-                );
+                return Err(crate::config::refusal(
+                    fraiseql_core::utils::config_diagnostic::DiagnosticCode::Disagrees,
+                    "locale",
+                    "",
+                    format!(
+                        "[locale] in {} disagrees with the `locale` {} declares; declare it \
+                         once, in fraiseql.toml",
+                        labels.toml, labels.document
+                    ),
+                ));
             }
             schema.locale = Some(locale);
         }

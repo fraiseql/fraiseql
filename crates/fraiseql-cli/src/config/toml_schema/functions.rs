@@ -2,7 +2,8 @@
 
 use std::path::PathBuf;
 
-use anyhow::{Result, bail};
+use anyhow::Result;
+use fraiseql_core::utils::config_diagnostic::DiagnosticCode;
 use serde::{Deserialize, Serialize};
 
 use crate::schema::intermediate::IntermediateFunctionsConfig;
@@ -76,13 +77,19 @@ impl FunctionsSettings {
             Some("module_dir")
         };
         if let Some(key) = differing {
-            bail!(
-                "fraiseql.toml [functions] and schema.json functions_config disagree on \
-                 `{key}`.\n  fraiseql.toml [functions]:      {}\n  schema.json functions_config: \
-                 {}\nDeclare the functions settings once, in fraiseql.toml.",
-                serde_json::to_string(&from_config).unwrap_or_default(),
-                serde_json::to_string(&from_document).unwrap_or_default(),
-            );
+            return Err(crate::config::refusal(
+                DiagnosticCode::Disagrees,
+                "functions",
+                key,
+                format!(
+                    "fraiseql.toml [functions] and schema.json functions_config disagree on \
+                     `{key}`.\n  fraiseql.toml [functions]:      {}\n  schema.json \
+                     functions_config: {}\nDeclare the functions settings once, in \
+                     fraiseql.toml.",
+                    serde_json::to_string(&from_config).unwrap_or_default(),
+                    serde_json::to_string(&from_document).unwrap_or_default(),
+                ),
+            ));
         }
         Ok(Some(from_config))
     }

@@ -10,6 +10,7 @@
 //! `schema.json`.
 
 use anyhow::{Context, Result, bail};
+use fraiseql_core::utils::config_diagnostic::DiagnosticCode;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
@@ -333,11 +334,16 @@ pub fn reconcile_values(
     } else {
         differing.as_str()
     };
-    bail!(
-        "fraiseql.toml [{table}] and {document_name} {key} disagree on `{differing}`.\n  \
-         fraiseql.toml [{table}]: {ours}\n  {document_name} {key}: {theirs}\nDeclare the \
-         {table} settings once, in fraiseql.toml."
-    )
+    Err(crate::config::refusal(
+        DiagnosticCode::Disagrees,
+        table,
+        differing,
+        format!(
+            "fraiseql.toml [{table}] and {document_name} {key} disagree on `{differing}`.\n  \
+             fraiseql.toml [{table}]: {ours}\n  {document_name} {key}: {theirs}\nDeclare the \
+             {table} settings once, in fraiseql.toml."
+        ),
+    ))
 }
 
 impl LoweredSection {

@@ -161,13 +161,18 @@ fn apply_caching_rules(
             );
         };
         if query.get("cache_ttl_seconds").is_some_and(|v| !v.is_null()) {
-            anyhow::bail!(
-                "[[caching.rules]] sets ttl_seconds for query '{}', but the query already \
-                 declares cache_ttl_seconds (SDK/JSON-authored, or an earlier rule). Two \
-                 authoring sources for one TTL must not silently last-write-win — remove \
-                 one of them.",
-                rule.query
-            );
+            return Err(crate::config::refusal(
+                fraiseql_core::utils::config_diagnostic::DiagnosticCode::Disagrees,
+                "caching.rules",
+                "ttl_seconds",
+                format!(
+                    "[[caching.rules]] sets ttl_seconds for query '{}', but the query already \
+                     declares cache_ttl_seconds (SDK/JSON-authored, or an earlier rule). Two \
+                     authoring sources for one TTL must not silently last-write-win — remove \
+                     one of them.",
+                    rule.query
+                ),
+            ));
         }
         let Some(view) = query.get("sql_source").and_then(Value::as_str).map(str::to_owned) else {
             anyhow::bail!(

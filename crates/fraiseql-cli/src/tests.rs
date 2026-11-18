@@ -184,7 +184,7 @@ mod runner_tests {
 
     #[test]
     fn format_cli_error_json_mode_produces_structured_object() {
-        let output = format_cli_error("something went wrong", &[], None, true, 1);
+        let output = format_cli_error("something went wrong", &[], None, true, 1, None);
         let parsed: serde_json::Value = serde_json::from_str(&output).expect("must be valid JSON");
         assert_eq!(parsed["error"]["message"], "something went wrong");
         assert_eq!(parsed["error"]["code"], 1);
@@ -192,7 +192,7 @@ mod runner_tests {
 
     #[test]
     fn format_cli_error_json_mode_uses_exit_code() {
-        let output = format_cli_error("validation failed", &[], None, true, 2);
+        let output = format_cli_error("validation failed", &[], None, true, 2, None);
         let parsed: serde_json::Value = serde_json::from_str(&output).expect("must be valid JSON");
         assert_eq!(parsed["error"]["code"], 2);
     }
@@ -200,13 +200,13 @@ mod runner_tests {
     #[test]
     fn format_cli_error_plain_mode_produces_human_readable_text() {
         // No causes → byte-identical to the pre-chain output (backward compatible).
-        let output = format_cli_error("file not found", &[], None, false, 1);
+        let output = format_cli_error("file not found", &[], None, false, 1, None);
         assert_eq!(output, "Error: file not found");
     }
 
     #[test]
     fn format_cli_error_plain_mode_appends_debug_info() {
-        let output = format_cli_error("oops", &[], Some("stack trace here"), false, 1);
+        let output = format_cli_error("oops", &[], Some("stack trace here"), false, 1, None);
         assert!(output.contains("Error: oops"));
         assert!(output.contains("Debug info:"));
         assert!(output.contains("stack trace here"));
@@ -215,7 +215,7 @@ mod runner_tests {
     #[test]
     fn format_cli_error_json_mode_omits_debug_info() {
         // In JSON mode, debug_info is not included — keep the output machine-parseable.
-        let output = format_cli_error("oops", &[], Some("secret internals"), true, 1);
+        let output = format_cli_error("oops", &[], Some("secret internals"), true, 1, None);
         let parsed: serde_json::Value = serde_json::from_str(&output).expect("must be valid JSON");
         let serialized = parsed.to_string();
         assert!(!serialized.contains("secret internals"));
@@ -234,6 +234,7 @@ mod runner_tests {
             None,
             false,
             1,
+            None,
         );
         assert!(output.starts_with("Error: Failed to convert schema to compiled format"));
         assert!(output.contains("caused by: Type 'Order' implements interface 'CascadeNode'"));
@@ -243,7 +244,7 @@ mod runner_tests {
     fn format_cli_error_json_mode_includes_causes_array() {
         // `--json` must carry the chain too — previously it dropped it entirely.
         let causes = vec!["root reason".to_string()];
-        let output = format_cli_error("top context", &causes, None, true, 1);
+        let output = format_cli_error("top context", &causes, None, true, 1, None);
         let parsed: serde_json::Value = serde_json::from_str(&output).expect("must be valid JSON");
         assert_eq!(parsed["error"]["message"], "top context");
         assert_eq!(parsed["error"]["causes"][0], "root reason");
@@ -252,7 +253,7 @@ mod runner_tests {
     #[test]
     fn format_cli_error_plain_mode_lists_every_cause_in_order() {
         let causes = vec!["middle".to_string(), "root".to_string()];
-        let output = format_cli_error("top", &causes, None, false, 1);
+        let output = format_cli_error("top", &causes, None, false, 1, None);
         let mid = output.find("caused by: middle").expect("middle cause present");
         let root = output.find("caused by: root").expect("root cause present");
         assert!(mid < root, "causes are rendered outermost-first");

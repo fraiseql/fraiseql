@@ -3,6 +3,7 @@
 use std::{env, process, str::FromStr};
 
 use clap::{CommandFactory, Parser};
+use fraiseql_core::utils::config_diagnostic::ConfigDiagnostic;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::cli::{
@@ -693,12 +694,28 @@ pub async fn run() {
             None
         };
         let causes = error_causes(&e);
+        // A refused configuration is a refused input: exit 2, as a schema that does not
+        // validate does. Anything else is the command failing: exit 1.
+        let diagnostic = config_diagnostic(&e);
+        let code = if diagnostic.is_some() { 2 } else { 1 };
         eprintln!(
             "{}",
-            format_cli_error(&e.to_string(), &causes, debug_info.as_deref(), json_output, 1)
+            format_cli_error(
+                &e.to_string(),
+                &causes,
+                debug_info.as_deref(),
+                json_output,
+                code,
+                diagnostic,
+            )
         );
-        process::exit(1);
+        process::exit(code);
     }
+}
+
+/// The configuration refusal `error` carries, at any depth of its chain.
+fn config_diagnostic(error: &anyhow::Error) -> Option<&ConfigDiagnostic> {
+    error.chain().find_map(|cause| cause.downcast_ref::<ConfigDiagnostic>())
 }
 
 /// Enforce the CLI exit-code contract for a command that returns a [`CommandResult`].
@@ -749,26 +766,34 @@ pub(crate) fn error_causes(err: &anyhow::Error) -> Vec<String> {
 ///   caused by: <cause 2>
 /// ```
 /// If `debug_info` is provided and `json` is `false`, a debug section is appended.
+///
+/// `diagnostic`, the configuration refusal the error carries, is `error.diagnostic` under
+/// `json` and a last line naming its code in text.
 pub(crate) fn format_cli_error(
     message: &str,
     causes: &[String],
     debug_info: Option<&str>,
     json: bool,
     code: i32,
+    diagnostic: Option<&ConfigDiagnostic>,
 ) -> String {
     if json {
-        serde_json::json!({
-            "error": {
-                "message": message,
-                "causes": causes,
-                "code": code
-            }
-        })
-        .to_string()
+        let mut error = serde_json::json!({
+            "message": message,
+            "causes": causes,
+            "code": code
+        });
+        if let Some(diagnostic) = diagnostic {
+            error["diagnostic"] = serialize_or_exit(diagnostic, "configuration diagnostic");
+        }
+        serde_json::json!({ "error": error }).to_string()
     } else {
         let mut out = format!("Error: {message}");
         for cause in causes {
             out.push_str(&format!("\n  caused by: {cause}"));
+        }
+        if let Some(diagnostic) = diagnostic {
+            out.push_str(&format!("\n  diagnostic: {}", diagnostic.code));
         }
         if let Some(debug) = debug_info {
             out.push_str("\n\nDebug info:\n");

@@ -12,6 +12,7 @@ pub mod toml_schema;
 
 use anyhow::Result;
 pub use discovery::ConfigSource;
+use fraiseql_core::utils::config_diagnostic::{ConfigDiagnostic, DiagnosticCode};
 pub use runtime::{DatabaseRuntimeConfig, ServerRuntimeConfig};
 use serde::{Deserialize, Serialize};
 pub use toml_schema::TomlSchema;
@@ -77,12 +78,17 @@ const AUTHORING_SECTIONS: &[&str] = &[
 /// Returns an error naming the table and where it belongs.
 pub(crate) fn refuse_misplaced_sections(table: &toml::Table) -> Result<()> {
     if let Some(name) = AUTHORING_SECTIONS.iter().find(|name| table.contains_key(**name)) {
-        anyhow::bail!(
-            "fraiseql.toml: `{name}` does not belong in a project configuration, the \
-             fraiseql.toml read beside a schema document: it authors the schema, which the \
-             schema document does here. Declare it there, or author the schema in TOML and \
-             pass that file as the compile input (`fraiseql compile <schema>.toml`)."
-        );
+        return Err(refusal(
+            DiagnosticCode::Misplaced,
+            name,
+            "",
+            format!(
+                "fraiseql.toml: `{name}` does not belong in a project configuration, the \
+                 fraiseql.toml read beside a schema document: it authors the schema, which the \
+                 schema document does here. Declare it there, or author the schema in TOML and \
+                 pass that file as the compile input (`fraiseql compile <schema>.toml`)."
+            ),
+        ));
     }
     Ok(())
 }
@@ -196,6 +202,28 @@ fn written_spelling(table: &toml::Table, section: &str, key: &str) -> Option<Str
     }
 }
 
+/// A configuration refusal of `table` (and `key`, when not empty), with nothing to write
+/// instead.
+pub(crate) fn refusal(
+    code: DiagnosticCode,
+    table: &str,
+    key: &str,
+    message: String,
+) -> anyhow::Error {
+    ConfigDiagnostic::new(code, table, key, message).into()
+}
+
+/// `error`, its configuration diagnostic (if it carries one) naming the file `path`.
+///
+/// A refusal is raised where the table is read, which does not know the path; the loader
+/// that read the file names it on the way out.
+pub(crate) fn name_the_file(mut error: anyhow::Error, path: &str) -> anyhow::Error {
+    if let Some(diagnostic) = error.downcast_mut::<ConfigDiagnostic>() {
+        diagnostic.file.get_or_insert_with(|| path.to_owned());
+    }
+    error
+}
+
 /// Refuse the first spelling of [`RETIRED_SPELLINGS`] that `table` writes.
 ///
 /// # Errors
@@ -208,13 +236,34 @@ pub(crate) fn refuse_retired_spellings(table: &toml::Table) -> Result<()> {
         };
         match retired {
             Retired::Write(instead) => {
-                anyhow::bail!("fraiseql.toml: `{spelling}` is no longer accepted; write {instead}")
+                return Err(ConfigDiagnostic::new(
+                    DiagnosticCode::Retired,
+                    section,
+                    key,
+                    format!("fraiseql.toml: `{spelling}` is no longer accepted; write {instead}"),
+                )
+                .with_replacement(instead)
+                .into());
             },
-            Retired::SpelledAs(instead) => anyhow::bail!(
-                "fraiseql.toml: `{spelling}` is no longer accepted; it is spelled {instead}"
-            ),
+            Retired::SpelledAs(instead) => {
+                return Err(ConfigDiagnostic::new(
+                    DiagnosticCode::Retired,
+                    section,
+                    key,
+                    format!(
+                        "fraiseql.toml: `{spelling}` is no longer accepted; it is spelled {instead}"
+                    ),
+                )
+                .with_replacement(instead)
+                .into());
+            },
             Retired::Unread => {
-                anyhow::bail!("fraiseql.toml: `{spelling}` is no longer accepted: nothing reads it")
+                return Err(refusal(
+                    DiagnosticCode::Unread,
+                    section,
+                    key,
+                    format!("fraiseql.toml: `{spelling}` is no longer accepted: nothing reads it"),
+                ));
             },
         }
     }
@@ -270,14 +319,31 @@ pub(crate) fn refuse_server_file_spellings(table: &toml::Table) -> Result<()> {
             continue;
         };
         match belongs {
-            ServerFile::SpelledHere(instead) => anyhow::bail!(
-                "fraiseql.toml: `{spelling}` is how the server's configuration file (the file \
-                 FRAISEQL_CONFIG names) spells this setting; in fraiseql.toml write {instead}"
-            ),
-            ServerFile::ReadThere => anyhow::bail!(
-                "fraiseql.toml: `{spelling}` is read from the server's configuration file, the \
-                 file FRAISEQL_CONFIG names; set it there"
-            ),
+            ServerFile::SpelledHere(instead) => {
+                return Err(ConfigDiagnostic::new(
+                    DiagnosticCode::Misplaced,
+                    section,
+                    key,
+                    format!(
+                        "fraiseql.toml: `{spelling}` is how the server's configuration file (the \
+                         file FRAISEQL_CONFIG names) spells this setting; in fraiseql.toml write \
+                         {instead}"
+                    ),
+                )
+                .with_replacement(instead)
+                .into());
+            },
+            ServerFile::ReadThere => {
+                return Err(refusal(
+                    DiagnosticCode::Misplaced,
+                    section,
+                    key,
+                    format!(
+                        "fraiseql.toml: `{spelling}` is read from the server's configuration \
+                         file, the file FRAISEQL_CONFIG names; set it there"
+                    ),
+                ));
+            },
         }
     }
     Ok(())
@@ -295,10 +361,15 @@ pub(crate) fn refuse_unapplied_keys(table: &toml::Table) -> Result<()> {
             found = found.and_then(|t| t.get(part)).and_then(toml::Value::as_table);
         }
         if found.is_some_and(|t| t.contains_key(*key)) {
-            anyhow::bail!(
-                "fraiseql.toml: `[{section}] {key}` was never applied by `fraiseql run` and is \
-                 no longer accepted; {instead}"
-            );
+            return Err(refusal(
+                DiagnosticCode::Unapplied,
+                section,
+                key,
+                format!(
+                    "fraiseql.toml: `[{section}] {key}` was never applied by `fraiseql run` and \
+                     is no longer accepted; {instead}"
+                ),
+            ));
         }
     }
     Ok(())
