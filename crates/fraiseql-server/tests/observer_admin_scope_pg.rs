@@ -651,6 +651,35 @@ mod schema_declared_observers {
         assert_eq!((&body["managed_by"], &body["enabled"]), (&json!("schema"), &json!(true)));
     }
 
+    /// A project name has no length rule, and the owner is written to three columns.
+    #[tokio::test]
+    async fn an_owner_of_any_length_is_stored_and_read_back_whole() {
+        let (pool, _svc) = setup_pg().await;
+        let owner = format!("schema:{}", "n".repeat(300));
+        let observer = ObserverDefinition::new("order_created", "Order", "INSERT")
+            .with_action(json!({"type": "webhook", "url": "https://a.test/hook"}));
+        ObserverRepository::new(pool.clone())
+            .reconcile_declared(&owner, &[observer])
+            .await
+            .unwrap();
+        let id: Uuid =
+            sqlx::query_scalar("SELECT id FROM core.tb_observer WHERE name = 'order_created'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+
+        let path = format!("/api/observers/{id}");
+        let (status, body) = call(&pool, Caller::Operator, Method::GET, &path, None).await;
+        let (disabled, _) =
+            call(&pool, Caller::Operator, Method::POST, &format!("{path}/disable"), None).await;
+
+        assert_eq!(status, StatusCode::OK, "{body}");
+        for column in ["managed_by", "created_by", "updated_by"] {
+            assert_eq!(body[column], json!(owner), "{column}");
+        }
+        assert_eq!(disabled, StatusCode::OK, "the switch works on a long owner's row");
+    }
+
     #[tokio::test]
     async fn changing_one_is_refused_as_a_conflict_naming_the_schema() {
         let (pool, _svc) = setup_pg().await;

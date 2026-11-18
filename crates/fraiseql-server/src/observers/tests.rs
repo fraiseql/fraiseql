@@ -722,3 +722,49 @@ mod template_paths {
         assert!(reject_unfillable_templates(&schema(), Some("Order"), &actions).is_some());
     }
 }
+
+mod declared_owner {
+    use fraiseql_core::schema::{CompiledSchema, ObserverDefinition};
+
+    use crate::{
+        ServerError,
+        observers::{MANAGED_BY_SCHEMA, declared_owner},
+    };
+
+    fn schema(project: Option<&str>, observers: &[&str]) -> CompiledSchema {
+        CompiledSchema {
+            project_name: project.map(str::to_owned),
+            observers: observers
+                .iter()
+                .map(|name| ObserverDefinition::new(*name, "Order", "INSERT"))
+                .collect(),
+            ..CompiledSchema::default()
+        }
+    }
+
+    #[test]
+    fn a_named_project_owns_its_declared_observers_under_its_name() {
+        for observers in [&["order_created"][..], &[]] {
+            let owner = declared_owner(&schema(Some("billing"), observers));
+            assert!(matches!(owner.as_deref(), Ok("schema:billing")), "{owner:?}");
+        }
+    }
+
+    #[test]
+    fn observers_declared_with_no_project_name_are_refused_naming_the_key() {
+        let refused = declared_owner(&schema(None, &["order_created"]));
+
+        let message = match refused {
+            Err(ServerError::ConfigError(message)) => message,
+            other => format!("not a configuration error: {other:?}"),
+        };
+        assert!(message.contains("`order_created`"), "names an observer: {message}");
+        assert!(message.contains("[project] name"), "names the key to set: {message}");
+    }
+
+    #[test]
+    fn a_schema_with_neither_removes_what_it_once_declared_under_the_unnamed_owner() {
+        let owner = declared_owner(&schema(None, &[]));
+        assert!(matches!(owner.as_deref(), Ok(MANAGED_BY_SCHEMA)), "{owner:?}");
+    }
+}

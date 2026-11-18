@@ -32,7 +32,7 @@ emitted=()
 # A project declares in `fraiseql.toml` the roles that grant the scopes its schema uses:
 # without one, no server loads a scoped schema, and the compiler — which loads what it
 # writes — refuses it. Likewise a schema declaring observers compiles only where
-# `[observers]` is enabled. Each schema compiles against a scratch `fraiseql.toml` that
+# `[observers]` is enabled and the project is named. Each schema compiles against a scratch `fraiseql.toml` that
 # `project_toml.py` derives, named with `--config` (#1387: discovery reads the schema's
 # own tree, never the working directory).
 compile_schema() {

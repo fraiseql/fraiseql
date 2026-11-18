@@ -91,31 +91,49 @@ when the runtime could not run it as written:
   field by the key the stored document holds it under: `{{ review_status }}` for a field
   published as `reviewStatus`.
 - The `condition` does not parse, or `retry` is not a policy the runtime reads.
+- `fraiseql.toml` writes no `[project] name`. The name is the owner the observers are
+  stored under (see below), so a schema that declares one needs it.
 
 Header values are stored as written, in the compiled schema and in `core.tb_observer`.
 Do not put a credential in a declared header.
 
 **What the boot writes.** A declared observer is a global row (`fk_customer_org` null)
-whose `managed_by` is `schema`:
+whose `managed_by` is `schema:<[project] name>`, for example `schema:billing`:
 
 | The schema | `core.tb_observer` at boot |
 |------------|----------------------------|
 | declares an observer no row holds | a new row |
 | declares an observer whose row differs | the same row, rewritten (its id and its execution log stay) |
-| declares a name a global row from the admin API or a seed script already holds | that row is adopted: rewritten from the declaration and marked `schema`. The server logs a `WARN` naming it |
-| no longer declares an observer it once did | the row is soft-deleted |
+| declares a name a global row from the admin API or a seed script already holds | that row is adopted: rewritten from the declaration and marked with the project's owner. The server logs a `WARN` naming it |
+| no longer declares an observer it once did | the row is soft-deleted. The server logs a `WARN` naming the observer and its owner: "removed because the current schema no longer declares it" |
 
 An organisation's observers are never read or written by this, whatever their names.
 The write is one transaction under an advisory lock, so replicas booting together store
 one set. During a rolling deploy the last replica to boot decides what is stored, and
 replicas of the earlier release pick it up on their next reload.
 
-One schema per database declares observers. Every schema's declared observers are stored
-under the same owner today (`managed_by = 'schema'`), so two servers booted from
-different schemas on one database would each remove the other's.
+Several projects can declare observers on one database. Each project's are stored under
+its own name, and a boot writes and removes only its own project's rows.
+
+- **One observer name, two projects.** A name is held by one project. The boot of a second
+  project that declares it is refused, naming both projects, and writes nothing. Rename
+  one of the two observers.
+- **One project name, two schemas.** Two schemas compiled with the same `[project] name`
+  are one owner. Each boot then removes the observers the other declares, exactly as a
+  redeploy of one project with a changed schema does; the server cannot tell the two
+  apart. The `WARN` above is where it shows. Give each schema that declares observers on
+  the database its own `[project] name`.
+- **A compiled schema with observers and no project name** does not boot. The compiler
+  refuses to produce one; this covers a compiled schema written by hand.
+
+A database whose observers were declared before owners carried a project name holds them
+under the owner `schema`. The first boot of a named project takes over the ones it still
+declares, in place (same id, same execution log, enabled or disabled as they were), and
+soft-deletes the ones it does not, each with a `WARN`. Where two projects share such a
+database, the first one to boot decides.
 
 **Changing a declared observer.** Change the declaration and redeploy. The admin API
-refuses to update or delete a `schema` row with `409`, because the next boot would undo
+refuses to update or delete a declared observer's row with `409`, because the next boot would undo
 it. The one exception is the switch: `POST /api/observers/{id}/disable` and `/enable`
 (or a `PATCH` of `enabled` alone) work on a declared observer, so an operator can stop a
 misbehaving webhook without a deploy. A disabled declared observer stays disabled across
@@ -215,7 +233,7 @@ The token's tenant (the claim `[tenancy] tenant_claim` names, `tenant_id` by
 default) decides what an admin acts on.
 
 - **No tenant: the operator.** Every observer, every execution, and every route below.
-  An observer the schema declares (`managed_by: "schema"`) is the exception: the operator
+  An observer the schema declares (`managed_by: "schema:<project name>"`) is the exception: the operator
   enables and disables it, and changes it in the schema.
 - **A numeric tenant: that organisation** (`fk_customer_org`).
   - It creates observers it owns.

@@ -49,13 +49,15 @@ def declares_observers(exported: object) -> bool:
 
 
 LOCALE_SECTION = '[locale]\ndefault = "en-US"\nallowed = ["en-US", "fr-FR"]\n'
-OBSERVERS_SECTION = "[observers]\nenabled = true\n"
+# Declared observers are stored under the project's name, so the compiler refuses a
+# schema that declares one where the project writes none.
+OBSERVERS_SECTION = '[project]\nname = "conformance"\n\n[observers]\nenabled = true\n'
 
 
 def project_toml(schema: Path) -> str:
     """The `fraiseql.toml` a project compiling `schema` carries: a role granting each scope
-    the schema declares, a `[locale]` when it declares a localized field, and an enabled
-    `[observers]` when it declares observers.
+    the schema declares, a `[locale]` when it declares a localized field, and a
+    `[project] name` with an enabled `[observers]` when it declares observers.
 
     A scope is granted only by a role the project's security section defines, and a schema
     declaring `requires_scope` with no such section is one no server can load — so the
@@ -69,8 +71,8 @@ def project_toml(schema: Path) -> str:
     # A localized field needs a `[locale]` to resolve through, or the compiler refuses it;
     # derived from the export for the same reason as the roles below.
     locale = LOCALE_SECTION if declares_localized(exported) else ""
-    # Declared observers fire only where the observer runtime is enabled, and the compiler
-    # refuses them otherwise. Top-level tables go before the role array so neither is read
+    # Declared observers fire only where the observer runtime is enabled, under a project
+    # name, and the compiler refuses them otherwise. Top-level tables go before the role array so neither is read
     # as a key of it.
     observers = OBSERVERS_SECTION if declares_observers(exported) else ""
     if not scopes:

@@ -988,6 +988,10 @@ async fn two_owners_on_one_database_keep_their_own_declared_observers() {
 
     assert!(first_boot.removed.is_empty(), "shipping removed {:?}", first_boot.removed);
     assert_eq!(second_boot.removed, ["parcel_sent"]);
+    assert_eq!(
+        second_boot.removed_with_owner("schema:shipping").collect::<Vec<_>>(),
+        [("parcel_sent", "schema:shipping")]
+    );
     let owners: Vec<(String, Option<String>)> =
         live_observers(&pool).await.into_iter().map(|row| (row.0, row.2)).collect();
     assert_eq!(owners, [("invoice_sent".to_owned(), Some("schema:billing".to_owned()))]);
@@ -1017,8 +1021,12 @@ async fn a_name_another_owner_declares_refuses_the_boot_naming_both_and_writes_n
     };
     assert!(message.contains("`order_created`"), "names the observer: {message}");
     assert!(
-        message.contains("`schema:billing`") && message.contains("`schema:shipping`"),
-        "names both owners: {message}"
+        message.contains("project `billing`") && message.contains("project `shipping`"),
+        "names both projects: {message}"
+    );
+    assert!(
+        message.contains("[project] name"),
+        "names the key that sets the owner: {message}"
     );
     let stored: Vec<(String, Option<String>, Option<String>)> = live_observers(&pool)
         .await
@@ -1064,4 +1072,130 @@ async fn two_replicas_booting_together_store_one_set_of_declared_observers() {
 
     assert_eq!(created, 80, "each observer is created by exactly one replica");
     assert_eq!(live_observers(&pool).await.len(), 80);
+}
+
+/// A project name of any length: the owner column an earlier release created held 50
+/// characters, and `schema:` takes seven of them.
+const LONG_OWNER: &str =
+    "schema:a-project-whose-name-is-longer-than-the-forty-three-characters-left";
+
+#[tokio::test]
+async fn an_owner_longer_than_the_first_column_width_is_stored_whole() {
+    let (pool, _svc) = setup_pg().await;
+    let repo = ObserverRepository::new(pool.clone());
+    let very_long = format!("schema:{}", "n".repeat(400));
+
+    for (name, owner) in [("long", LONG_OWNER), ("very_long", very_long.as_str())] {
+        let stored = repo.reconcile_declared(owner, &[declared(name, "https://a.test")]).await;
+        assert!(stored.is_ok(), "{} characters: {stored:?}", owner.len());
+    }
+
+    let owners: Vec<Option<String>> =
+        live_observers(&pool).await.into_iter().map(|row| row.2).collect();
+    assert_eq!(owners, [Some(LONG_OWNER.to_owned()), Some(very_long)]);
+}
+
+#[tokio::test]
+async fn a_table_an_earlier_release_created_gains_the_wide_owner_columns_at_boot() {
+    let (pool, svc) = setup_pg().await;
+    // The shape the earlier release left, the statistics view over it included.
+    sqlx::raw_sql(
+        "ALTER TABLE core.tb_observer ALTER COLUMN managed_by TYPE VARCHAR(50),
+             ALTER COLUMN created_by TYPE VARCHAR(255), ALTER COLUMN updated_by TYPE VARCHAR(255)",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    // On connections of its own: a statement prepared against the narrow column is not
+    // one a server booted after the change holds.
+    let earlier = pool_with_search_path(&svc, "public").await;
+    let narrow = ObserverRepository::new(earlier.clone())
+        .reconcile_declared(LONG_OWNER, &[declared("order_created", "https://a.test")])
+        .await;
+    earlier.close().await;
+    assert!(
+        matches!(&narrow, Err(ServerError::Database(e)) if e.contains("too long")),
+        "the earlier shape holds a long owner: {narrow:?}"
+    );
+    let repo = ObserverRepository::new(pool.clone());
+
+    apply_boot_ddl(&pool).await;
+    apply_boot_ddl(&pool).await;
+
+    let widths: Vec<(String, String)> = sqlx::query_as(
+        "SELECT column_name::text, data_type::text FROM information_schema.columns \
+         WHERE table_schema = 'core' AND table_name = 'tb_observer' \
+           AND column_name IN ('managed_by', 'created_by', 'updated_by') ORDER BY 1",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        widths,
+        ["created_by", "managed_by", "updated_by"].map(|c| (c.to_owned(), "text".to_owned()))
+    );
+    repo.reconcile_declared(LONG_OWNER, &[declared("order_created", "https://a.test")])
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn the_first_named_boot_takes_over_the_unnamed_owners_rows_it_still_declares() {
+    let (pool, _svc) = setup_pg().await;
+    let repo = ObserverRepository::new(pool.clone());
+    repo.reconcile_declared(
+        "schema",
+        &[
+            declared("order_created", "https://a.test"),
+            declared("order_audited", "https://a.test"),
+        ],
+    )
+    .await
+    .unwrap();
+    let id = id_of(&pool, "order_created").await;
+    sqlx::query("UPDATE core.tb_observer SET enabled = false WHERE id = $1")
+        .bind(id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let named = repo
+        .reconcile_declared("schema:billing", &[declared("order_created", "https://a.test")])
+        .await
+        .unwrap();
+
+    assert_eq!(named.taken_over, ["order_created"], "{named:?}");
+    assert_eq!(named.removed_unnamed, ["order_audited"], "{named:?}");
+    assert_eq!(
+        named.removed_with_owner("schema:billing").collect::<Vec<_>>(),
+        [("order_audited", "schema")],
+        "the removal is reported under the owner that held the row"
+    );
+    assert!(named.created.is_empty() && named.removed.is_empty(), "{named:?}");
+    assert_eq!(named.disabled, ["order_created"], "{named:?}");
+    assert_eq!(id_of(&pool, "order_created").await, id, "the row is kept, with its id");
+    let stored: Vec<(String, Option<String>, bool)> = live_observers(&pool)
+        .await
+        .into_iter()
+        .map(|row| (row.0, row.2, row.3))
+        .collect();
+    assert_eq!(
+        stored,
+        [("order_created".to_owned(), Some("schema:billing".to_owned()), false)],
+        "taken over in place as the operator left it; the undeclared one is gone"
+    );
+}
+
+#[tokio::test]
+async fn a_named_owner_never_takes_over_another_named_owners_row() {
+    let (pool, _svc) = setup_pg().await;
+    let repo = ObserverRepository::new(pool.clone());
+    repo.reconcile_declared("schema:billing", &[declared("invoice_sent", "https://a.test")])
+        .await
+        .unwrap();
+
+    let other = repo.reconcile_declared("schema:shipping", &[]).await.unwrap();
+
+    assert!(other.removed.is_empty() && other.removed_unnamed.is_empty(), "{other:?}");
+    assert_eq!(live_observers(&pool).await.len(), 1);
 }
