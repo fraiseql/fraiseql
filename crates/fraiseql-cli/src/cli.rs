@@ -7,7 +7,7 @@ pub(crate) const EXIT_CODES_HELP: &str = "\
 EXIT CODES:
     0  Success - Command completed successfully
     1  Error - Command failed with an error
-    2  Validation failed - Schema or input validation failed";
+    2  Input refused - Input refused: the schema, a document or the configuration did not validate";
 
 /// FraiseQL CLI - Compile GraphQL schemas to optimized SQL execution
 #[derive(Parser)]

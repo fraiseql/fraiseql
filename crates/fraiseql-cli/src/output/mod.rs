@@ -285,7 +285,9 @@ pub fn get_exit_codes() -> Vec<ExitCodeHelp> {
         ExitCodeHelp {
             code:        2,
             name:        "validation_failed".to_string(),
-            description: "Validation failed (schema or input invalid)".to_string(),
+            description:
+                "Input refused: the schema, a document or the configuration did not validate"
+                    .to_string(),
         },
     ]
 }

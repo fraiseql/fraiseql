@@ -133,6 +133,47 @@ set:
 A parse error in a server file whose variables were expanded gives the line and the reason,
 not the line's text, which may hold a secret.
 
+## Refused Configuration
+
+A configuration `fraiseql` refuses exits with code 2, as a schema that does not validate
+does. Under `--json` the error carries a `diagnostic`, so a tool can tell which kind of
+refusal it is and find the key without reading the message:
+
+```json
+{"error": {"message": "Failed to parse fraiseql.toml; …", "code": 2,
+           "diagnostic": {"code": "E-CONFIG-RETIRED", "file": "fraiseql.toml",
+                          "table": "schema", "key": null, "replacement": "`[project]`",
+                          "belongs_in": null}}}
+```
+
+`table` is dotted (`security.rate_limiting`) and empty for a top-level key; `key` is `null`
+when the whole table is refused; `replacement` is what to write instead, when there is
+something; `belongs_in` names the file a misplaced setting belongs in, when it is another
+file. `fraiseql doctor --json` puts the same diagnostic on its config check, and `fraiseql
+run` gives it for the server's configuration file too. The standalone `fraiseql-server`
+keeps its own exit status.
+
+### Diagnostic Codes
+
+| Code | Refused |
+|---|---|
+| `E-CONFIG-RETIRED` | A spelling the file no longer takes; `replacement` names the one it takes |
+| `E-CONFIG-UNREAD` | A key nothing reads; there is nothing to write instead |
+| `E-CONFIG-UNAPPLIED` | A key `fraiseql run` never applied |
+| `E-CONFIG-MISPLACED` | A setting written in the wrong file or table |
+| `E-CONFIG-DISAGREES` | A setting `fraiseql.toml` and the schema document both declare, differently |
+
+### Exit Codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Command completed successfully |
+| 1 | Command failed with an error |
+| 2 | Input refused: the schema, a document or the configuration did not validate |
+
+A command may document outcome codes of its own: `fraiseql functions invoke` exits 3 and 4
+(see [functions.md](./functions.md)).
+
 ## Environment Variable Overrides
 
 Most compiled settings are **immutable at runtime** — that is the point of compiling them.

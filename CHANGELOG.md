@@ -18,6 +18,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A refused configuration exits 2, not 1 (#2034).** `fraiseql compile`, `doctor`, `run`
+  and every other command that reads `fraiseql.toml` (and `fraiseql run` reading the
+  server's configuration file) exit 2 when they refuse the configuration: a retired
+  spelling, a key nothing reads, a key `fraiseql run` never applied, a setting in the
+  wrong file, or two sources that disagree. Exit 2 already meant a refused input (a schema
+  that does not validate, a document that fails); a script that treated any non-zero exit
+  alike is unaffected, one that expected 1 for a refused configuration must accept 2. The
+  standalone `fraiseql-server` keeps its exit status. `--help` and `--help-json` describe
+  exit 2 as "Input refused", the `--help-json` name `validation_failed` unchanged. Failing
+  to serialize the CLI's own output now exits 1, not 2.
 - **A global observer whose name the schema declares is taken over at boot (#1655).** The
   server now writes the observers the schema declares into `core.tb_observer` at every
   boot. A global row (`fk_customer_org` null) of the same name, written by the admin API or
@@ -267,6 +277,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **A refused configuration names its code, file, table and key (#2034).** Under `--json`
+  the error carries `diagnostic`: `code` (`E-CONFIG-RETIRED`, `E-CONFIG-UNREAD`,
+  `E-CONFIG-UNAPPLIED`, `E-CONFIG-MISPLACED`, `E-CONFIG-DISAGREES`), `file`, `table`,
+  `key`, `replacement` and, for a misplaced setting, `belongs_in`. `fraiseql doctor --json`
+  carries it on its config check, whose hint now says what to do about the refusal
+  instead of "Fix TOML syntax". The codes are listed in
+  `docs/architecture/config-vs-settings.md`. `ConfigDiagnostic` and `DiagnosticCode` are in
+  `fraiseql_core::utils::config_diagnostic`; `ServerConfig::load_file` returns
+  `ServerConfigLoadError`, which carries it (`from_file` is unchanged).
 - **Observers are declared in the authoring schema (#1655).** An observer declared with an
   SDK, or in the `observers` array of `schema.json`, is compiled into the schema and
   written into `core.tb_observer` when the server boots, so it fires after a deploy with

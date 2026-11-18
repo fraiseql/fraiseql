@@ -513,3 +513,92 @@ fn doctor_hints_by_the_refusal_it_failed_on() {
         .collect();
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+
+// ── what is documented ───────────────────────────────────────────────────────────
+
+/// `docs/architecture/config-vs-settings.md`, where the codes and exit codes are listed.
+fn documentation() -> String {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../docs/architecture/config-vs-settings.md");
+    fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+}
+
+/// A row of a Markdown table's body: not its header (`| Code |`) or its rule.
+fn is_body_row(line: &str) -> bool {
+    line.get(..2) == Some("| ") && line.get(..6) != Some("| Code") && !line.contains("---")
+}
+
+/// The first cell of every row of the table under `heading`, backticks stripped.
+fn first_cells_under(doc: &str, heading: &str) -> Vec<String> {
+    let section = doc.split(heading).nth(1).unwrap_or_else(|| panic!("no {heading:?}"));
+    // Up to the next heading, of any level.
+    let section = section.split("\n#").next().unwrap_or_default();
+    section
+        .lines()
+        .filter(|line| is_body_row(line))
+        .filter_map(|line| line.split('|').nth(1))
+        .map(|cell| cell.trim().trim_matches('`').to_owned())
+        .collect()
+}
+
+/// Every diagnostic code is documented, and every documented code is one the CLI emits.
+#[test]
+fn the_documented_diagnostic_codes_are_the_codes() {
+    let documented = first_cells_under(&documentation(), "\n### Diagnostic Codes\n");
+    let emitted: Vec<String> = fraiseql_core::utils::config_diagnostic::DiagnosticCode::ALL
+        .iter()
+        .map(|code| code.as_str().to_owned())
+        .collect();
+    assert_eq!(documented, emitted);
+}
+
+/// The exit codes `--help` prints, the ones `--help-json` lists, and the documented ones
+/// are the same codes with the same descriptions.
+#[test]
+fn the_exit_codes_are_documented_alike_everywhere() {
+    let help = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli")).arg("--help").output().unwrap();
+    let help = String::from_utf8_lossy(&help.stdout).into_owned();
+    let printed: Vec<(i64, String)> = help
+        .split("EXIT CODES:")
+        .nth(1)
+        .unwrap_or_else(|| panic!("no EXIT CODES: {help}"))
+        .lines()
+        .filter_map(|line| {
+            let (code, rest) = line.trim().split_once(char::is_whitespace)?;
+            let description = rest.split_once(" - ")?.1.trim().to_owned();
+            Some((code.parse().ok()?, description))
+        })
+        .collect();
+
+    let json = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+        .arg("--help-json")
+        .output()
+        .unwrap();
+    let json: Value = serde_json::from_slice(&json.stdout).unwrap();
+    let listed: Vec<(i64, String)> = json["data"]["exit_codes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| (e["code"].as_i64().unwrap(), e["description"].as_str().unwrap().to_owned()))
+        .collect();
+
+    let doc = documentation();
+    let section = doc
+        .split("\n### Exit Codes\n")
+        .nth(1)
+        .unwrap_or_else(|| panic!("no Exit Codes"));
+    let documented: Vec<(i64, String)> = section
+        .split("\n#")
+        .next()
+        .unwrap_or_default()
+        .lines()
+        .filter(|line| is_body_row(line))
+        .filter_map(|line| {
+            let cells: Vec<&str> = line.split('|').map(str::trim).collect();
+            Some((cells.get(1)?.parse().ok()?, (*cells.get(2)?).to_owned()))
+        })
+        .collect();
+
+    assert_eq!(printed, listed, "--help and --help-json");
+    assert_eq!(documented, listed, "the documentation and --help-json");
+}
