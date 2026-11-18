@@ -1,0 +1,4 @@
+# Each table tools/check-config-deny-unknown.py reaches from `TomlSchema` that takes keys the
+# author chooses, so no list of keys could close it.
+# <type> <file> <reason>
+InjectDefaultsToml crates/fraiseql-cli/src/config/inject_defaults.rs a base key of [inject_defaults] is a parameter name the author chooses; a sub-table other than queries / mutations is refused, as values must be strings
