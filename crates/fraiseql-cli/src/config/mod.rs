@@ -78,7 +78,7 @@ const AUTHORING_SECTIONS: &[&str] = &[
 /// Returns an error naming the table and where it belongs.
 pub(crate) fn refuse_misplaced_sections(table: &toml::Table) -> Result<()> {
     if let Some(name) = AUTHORING_SECTIONS.iter().find(|name| table.contains_key(**name)) {
-        return Err(refusal(
+        return Err(ConfigDiagnostic::new(
             DiagnosticCode::Misplaced,
             name,
             "",
@@ -88,7 +88,9 @@ pub(crate) fn refuse_misplaced_sections(table: &toml::Table) -> Result<()> {
                  schema document does here. Declare it there, or author the schema in TOML and \
                  pass that file as the compile input (`fraiseql compile <schema>.toml`)."
             ),
-        ));
+        )
+        .with_belongs_in(SCHEMA_DOCUMENT)
+        .into());
     }
     Ok(())
 }
@@ -201,6 +203,11 @@ fn written_spelling(table: &toml::Table, section: &str, key: &str) -> Option<Str
         Some(format!("[{section}] {key}"))
     }
 }
+
+/// Where a misplaced `fraiseql.toml` setting belongs, as a refusal names it.
+const SERVER_FILE: &str = "the server's configuration file (the file FRAISEQL_CONFIG names)";
+/// Where a schema-authoring table beside a schema document belongs.
+const SCHEMA_DOCUMENT: &str = "the schema document";
 
 /// A configuration refusal of `table` (and `key`, when not empty), with nothing to write
 /// instead.
@@ -331,10 +338,11 @@ pub(crate) fn refuse_server_file_spellings(table: &toml::Table) -> Result<()> {
                     ),
                 )
                 .with_replacement(instead)
+                .with_belongs_in(SERVER_FILE)
                 .into());
             },
             ServerFile::ReadThere => {
-                return Err(refusal(
+                return Err(ConfigDiagnostic::new(
                     DiagnosticCode::Misplaced,
                     section,
                     key,
@@ -342,7 +350,9 @@ pub(crate) fn refuse_server_file_spellings(table: &toml::Table) -> Result<()> {
                         "fraiseql.toml: `{spelling}` is read from the server's configuration \
                          file, the file FRAISEQL_CONFIG names; set it there"
                     ),
-                ));
+                )
+                .with_belongs_in(SERVER_FILE)
+                .into());
             },
         }
     }

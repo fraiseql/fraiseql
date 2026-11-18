@@ -100,6 +100,7 @@ struct Case {
     table:       &'static str,
     key:         Option<&'static str>,
     replacement: Option<&'static str>,
+    belongs_in:  Option<&'static str>,
 }
 
 fn cases() -> Vec<Case> {
@@ -113,6 +114,7 @@ fn cases() -> Vec<Case> {
             table:       "security.rate_limiting",
             key:         Some("failed_login_max_requests"),
             replacement: Some("`failed_login_max_attempts`"),
+            belongs_in:  None,
         },
         Case {
             site:        "retired spelling nothing reads",
@@ -123,6 +125,7 @@ fn cases() -> Vec<Case> {
             table:       "project",
             key:         Some("description"),
             replacement: None,
+            belongs_in:  None,
         },
         Case {
             site:        "key `fraiseql run` never applied",
@@ -133,6 +136,7 @@ fn cases() -> Vec<Case> {
             table:       "server",
             key:         Some("keep_alive_secs"),
             replacement: None,
+            belongs_in:  None,
         },
         Case {
             site:        "schema-authoring table beside a document",
@@ -143,6 +147,7 @@ fn cases() -> Vec<Case> {
             table:       "types",
             key:         None,
             replacement: None,
+            belongs_in:  Some("the schema document"),
         },
         Case {
             site:        "server-file spelling fraiseql.toml spells otherwise",
@@ -153,6 +158,7 @@ fn cases() -> Vec<Case> {
             table:       "",
             key:         Some("bind_addr"),
             replacement: Some("`[server] host` and `port`"),
+            belongs_in:  Some("the server's configuration file (the file FRAISEQL_CONFIG names)"),
         },
         Case {
             site:        "server-file setting fraiseql.toml does not make",
@@ -163,6 +169,7 @@ fn cases() -> Vec<Case> {
             table:       "tenancy",
             key:         Some("runtime"),
             replacement: None,
+            belongs_in:  Some("the server's configuration file (the file FRAISEQL_CONFIG names)"),
         },
         Case {
             site:        "runtime section and the document's copy",
@@ -173,6 +180,7 @@ fn cases() -> Vec<Case> {
             table:       "mcp",
             key:         Some("enabled"),
             replacement: None,
+            belongs_in:  None,
         },
         Case {
             site:        "[functions] and the document's copy",
@@ -183,6 +191,7 @@ fn cases() -> Vec<Case> {
             table:       "functions",
             key:         Some("module_dir"),
             replacement: None,
+            belongs_in:  None,
         },
         Case {
             site:        "[observers] and the document's copy",
@@ -193,6 +202,7 @@ fn cases() -> Vec<Case> {
             table:       "observers",
             key:         Some("enabled"),
             replacement: None,
+            belongs_in:  None,
         },
         Case {
             site:        "[locale] and the document's locale",
@@ -203,6 +213,7 @@ fn cases() -> Vec<Case> {
             table:       "locale",
             key:         None,
             replacement: None,
+            belongs_in:  None,
         },
         Case {
             site:        "[security] and the document's security",
@@ -217,6 +228,7 @@ fn cases() -> Vec<Case> {
             table:       "tenancy",
             key:         None,
             replacement: None,
+            belongs_in:  None,
         },
         Case {
             site:        "[[caching.rules]] and the query's own TTL",
@@ -229,6 +241,7 @@ fn cases() -> Vec<Case> {
             table:       "caching.rules",
             key:         Some("ttl_seconds"),
             replacement: None,
+            belongs_in:  None,
         },
     ]
 }
@@ -246,6 +259,7 @@ fn each_refusal_site_carries_its_code_table_key_and_replacement() {
             "table": diagnostic["table"],
             "key": diagnostic["key"],
             "replacement": diagnostic["replacement"],
+            "belongs_in": diagnostic["belongs_in"],
             "file_is_the_toml": diagnostic["file"]
                 .as_str()
                 .is_some_and(|f| f.ends_with("fraiseql.toml")),
@@ -256,6 +270,7 @@ fn each_refusal_site_carries_its_code_table_key_and_replacement() {
             "table": case.table,
             "key": case.key,
             "replacement": case.replacement,
+            "belongs_in": case.belongs_in,
             "file_is_the_toml": true,
         });
         if got != want {
@@ -425,4 +440,76 @@ fn the_first_refusal_the_server_loader_checks_sets_the_diagnostic() {
     assert!(text.contains("postgres_ssl_mode") && text.contains("cors_enabled"), "{error}");
     assert_eq!(error["diagnostic"]["table"], "cors", "{error}");
     assert_eq!(error["diagnostic"]["key"], Value::Null, "{error}");
+}
+
+// ── `fraiseql doctor` ────────────────────────────────────────────────────────────
+
+/// The `TOML syntax valid` check of `doctor --json --config fraiseql.toml`, the file being
+/// `toml`.
+fn doctor_config_check(toml: &str) -> Value {
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("fraiseql.toml"), toml).unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+        .args(["doctor", "--json", "--config", "fraiseql.toml"])
+        .env_remove("DATABASE_URL")
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let checks: Value = serde_json::from_str(&stdout).unwrap_or_else(|e| panic!("{e}: {stdout}"));
+    checks
+        .as_array()
+        .and_then(|checks| checks.iter().find(|c| c["name"] == "TOML syntax valid"))
+        .cloned()
+        .unwrap_or_else(|| panic!("no config check: {stdout}"))
+}
+
+/// `doctor --json` reports a refused `fraiseql.toml` on its config check with the same
+/// diagnostic `compile` gives, the file named; the check still fails.
+#[test]
+fn doctor_json_carries_the_refusal_on_its_config_check() {
+    let check = doctor_config_check("[schema]\nname = \"app\"\n");
+    assert_eq!(check["status"], "fail", "{check}");
+    let diagnostic = &check["diagnostic"];
+    assert_eq!(diagnostic["code"], "E-CONFIG-RETIRED", "{check}");
+    assert_eq!(diagnostic["table"], "schema", "{check}");
+    assert_eq!(diagnostic["replacement"], "`[project]`", "{check}");
+    assert_eq!(diagnostic["file"], "fraiseql.toml", "{check}");
+}
+
+/// The config check's hint says what to do about the refusal, by its code; only a file
+/// that is not TOML is told to fix its syntax.
+#[test]
+fn doctor_hints_by_the_refusal_it_failed_on() {
+    let cases = [
+        ("[schema]\nname = \"app\"\n", "write `[project]` instead of `[schema]`"),
+        (
+            "[project]\nname = \"app\"\ndescription = \"An app\"\n",
+            "nothing reads `[project] description`; remove it",
+        ),
+        (
+            "[server]\nkeep_alive_secs = 5\n",
+            "`fraiseql run` never applied `[server] keep_alive_secs`; remove it from fraiseql.toml",
+        ),
+        (
+            "bind_addr = \"0.0.0.0:8000\"\n",
+            "`bind_addr` belongs in the server's configuration file (the file FRAISEQL_CONFIG \
+             names); here, write `[server] host` and `port`",
+        ),
+        (
+            "[tenancy]\nruntime = {}\n",
+            "`[tenancy] runtime` belongs in the server's configuration file (the file \
+             FRAISEQL_CONFIG names)",
+        ),
+        ("[project\nname = \"app\"\n", "Fix TOML syntax in fraiseql.toml and retry"),
+    ];
+    let wrong: Vec<String> = cases
+        .into_iter()
+        .filter_map(|(toml, hint)| {
+            let check = doctor_config_check(toml);
+            (check["hint"] != hint)
+                .then(|| format!("{toml:?}:\n  got  {}\n  want {hint}", check["hint"]))
+        })
+        .collect();
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }

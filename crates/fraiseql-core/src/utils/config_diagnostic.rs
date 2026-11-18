@@ -71,6 +71,8 @@ pub struct ConfigDiagnostic {
     pub key:         Option<String>,
     /// What to write instead, when there is something to write.
     pub replacement: Option<String>,
+    /// For a misplaced setting, the file it belongs in, when that is another file.
+    pub belongs_in:  Option<String>,
     /// The refusal as a person reads it.
     #[serde(skip)]
     pub message:     String,
@@ -86,6 +88,7 @@ impl ConfigDiagnostic {
             table: table.to_owned(),
             key: (!key.is_empty()).then(|| key.to_owned()),
             replacement: None,
+            belongs_in: None,
             message,
         }
     }
@@ -94,6 +97,13 @@ impl ConfigDiagnostic {
     #[must_use]
     pub fn with_replacement(mut self, replacement: &str) -> Self {
         self.replacement = Some(replacement.to_owned());
+        self
+    }
+
+    /// The same refusal, naming the file the setting belongs in.
+    #[must_use]
+    pub fn with_belongs_in(mut self, file: &str) -> Self {
+        self.belongs_in = Some(file.to_owned());
         self
     }
 }

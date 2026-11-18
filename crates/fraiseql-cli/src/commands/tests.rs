@@ -1166,6 +1166,60 @@ mod doctor_tests {
 
     use super::super::doctor::*;
 
+    /// The config check's hint, for every code and every shape of misplaced setting.
+    #[test]
+    fn a_refusal_hint_names_what_to_do_for_each_code() {
+        use fraiseql_core::utils::config_diagnostic::{ConfigDiagnostic, DiagnosticCode};
+
+        let refused =
+            |code, table: &str, key: &str| ConfigDiagnostic::new(code, table, key, String::new());
+        let cases = [
+            (
+                refused(DiagnosticCode::Retired, "schema", "").with_replacement("`[project]`"),
+                "write `[project]` instead of `[schema]`",
+            ),
+            (
+                refused(DiagnosticCode::Unread, "project", "description"),
+                "nothing reads `[project] description`; remove it",
+            ),
+            (
+                refused(DiagnosticCode::Unapplied, "server", "keep_alive_secs"),
+                "`fraiseql run` never applied `[server] keep_alive_secs`; remove it from \
+                 fraiseql.toml",
+            ),
+            (
+                refused(DiagnosticCode::Misplaced, "types", "")
+                    .with_belongs_in("the schema document"),
+                "`[types]` belongs in the schema document",
+            ),
+            (
+                refused(DiagnosticCode::Misplaced, "", "bind_addr")
+                    .with_replacement("`[server] host` and `port`")
+                    .with_belongs_in("the server's configuration file"),
+                "`bind_addr` belongs in the server's configuration file; here, write `[server] \
+                 host` and `port`",
+            ),
+            (
+                refused(DiagnosticCode::Misplaced, "tls", "cert_file")
+                    .with_replacement("`cert_path`"),
+                "write `cert_path` instead of `[tls] cert_file`",
+            ),
+            (
+                refused(DiagnosticCode::Disagrees, "mcp", "enabled"),
+                "`[mcp] enabled` is declared in both fraiseql.toml and the schema document, \
+                 differently; declare it once, in fraiseql.toml",
+            ),
+            (
+                refused(DiagnosticCode::Disagrees, "locale", ""),
+                "`[locale]` is declared in both fraiseql.toml and the schema document, \
+                 differently; declare it once, in fraiseql.toml",
+            ),
+        ];
+        for (diagnostic, hint) in cases {
+            assert_eq!(refusal_hint(&diagnostic), hint, "{diagnostic:?}");
+        }
+    }
+
     fn temp_file_with(content: &str) -> NamedTempFile {
         let mut f = NamedTempFile::new().unwrap();
         f.write_all(content.as_bytes()).unwrap();

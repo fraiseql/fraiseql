@@ -162,9 +162,11 @@ pub(super) fn enrich_parse_error(
                 let _ = write!(msg, "\nnote: {note}");
                 let diagnostic =
                     ConfigDiagnostic::new(DiagnosticCode::Misplaced, section, key, note);
+                // A setting this file spells otherwise is fixed here; one it does not make at
+                // all belongs in fraiseql.toml.
                 refused(match spelled {
                     Some(spelled) => diagnostic.with_replacement(spelled),
-                    None => diagnostic,
+                    None => diagnostic.with_belongs_in("fraiseql.toml"),
                 });
             }
         }

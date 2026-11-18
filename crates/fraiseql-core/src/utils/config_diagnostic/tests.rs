@@ -27,7 +27,8 @@ fn a_diagnostic_serializes_without_its_message_and_with_a_null_key_for_a_table()
             "file": null,
             "table": "schema",
             "key": null,
-            "replacement": "`[project]`"
+            "replacement": "`[project]`",
+            "belongs_in": null
         })
     );
     assert_eq!(diagnostic.to_string(), "`[schema]` is no longer accepted");

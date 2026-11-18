@@ -11,6 +11,7 @@ use fraiseql_core::{
     db::postgres::PostgresTlsConfig,
     runtime::{Executor, RuntimeConfig},
     schema::{ArgumentDefinition, CompiledSchema, MutationDefinition, QueryDefinition},
+    utils::config_diagnostic::{ConfigDiagnostic, DiagnosticCode},
 };
 use fraiseql_observers::migrations::ENTITY_CHANGE_LOG_CONTRACT;
 use serde::{Deserialize, Serialize};
@@ -46,13 +47,17 @@ pub enum CheckStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DoctorCheck {
     /// Short display name shown in the report.
-    pub name:   &'static str,
+    pub name:       &'static str,
     /// Outcome of the check.
-    pub status: CheckStatus,
+    pub status:     CheckStatus,
     /// One-line detail appended after the name.
-    pub detail: String,
+    pub detail:     String,
     /// Optional actionable hint shown on the next line when status is not Pass.
-    pub hint:   Option<String>,
+    pub hint:       Option<String>,
+    /// The refused configuration this check failed on, when it failed on one: the
+    /// diagnostic `compile` gives for the same file. Only in JSON output.
+    #[serde(default, skip_serializing_if = "Option::is_none", skip_deserializing)]
+    pub diagnostic: Option<Box<ConfigDiagnostic>>,
 }
 
 impl DoctorCheck {
@@ -62,6 +67,7 @@ impl DoctorCheck {
             status: CheckStatus::Pass,
             detail: detail.into(),
             hint: None,
+            diagnostic: None,
         }
     }
 
@@ -75,6 +81,7 @@ impl DoctorCheck {
             status: CheckStatus::Warn,
             detail: detail.into(),
             hint: Some(hint.into()),
+            diagnostic: None,
         }
     }
 
@@ -88,6 +95,7 @@ impl DoctorCheck {
             status: CheckStatus::Fail,
             detail: detail.into(),
             hint: Some(hint.into()),
+            diagnostic: None,
         }
     }
 }
@@ -234,12 +242,52 @@ pub fn check_toml_parses(path: &Path) -> DoctorCheck {
             // Keep only the first line of the error to avoid overwhelming output.
             let first_line = format!("{e:#}");
             let short = first_line.lines().next().unwrap_or("parse error");
-            DoctorCheck::fail(
-                "TOML syntax valid",
-                format!("parse error: {short}"),
-                "Fix TOML syntax in fraiseql.toml and retry",
-            )
+            let diagnostic =
+                e.chain().find_map(|cause| cause.downcast_ref::<ConfigDiagnostic>()).cloned();
+            // A refused spelling is told what to do about it; only a file that is not TOML is
+            // told to fix its syntax.
+            let hint = diagnostic.as_ref().map_or_else(
+                || "Fix TOML syntax in fraiseql.toml and retry".to_owned(),
+                refusal_hint,
+            );
+            let mut check =
+                DoctorCheck::fail("TOML syntax valid", format!("parse error: {short}"), hint);
+            check.diagnostic = diagnostic.map(Box::new);
+            check
         },
+    }
+}
+
+/// What to do about a refused configuration, by its code.
+pub(crate) fn refusal_hint(diagnostic: &ConfigDiagnostic) -> String {
+    let spelling = match (diagnostic.table.as_str(), diagnostic.key.as_deref()) {
+        (table, None) => format!("`[{table}]`"),
+        ("", Some(key)) => format!("`{key}`"),
+        (table, Some(key)) => format!("`[{table}] {key}`"),
+    };
+    let replacement = diagnostic.replacement.as_deref();
+    match (diagnostic.code, replacement) {
+        (DiagnosticCode::Retired, Some(instead)) => {
+            format!("write {instead} instead of {spelling}")
+        },
+        (DiagnosticCode::Retired | DiagnosticCode::Unread, _) => {
+            format!("nothing reads {spelling}; remove it")
+        },
+        (DiagnosticCode::Unapplied, _) => {
+            format!("`fraiseql run` never applied {spelling}; remove it from fraiseql.toml")
+        },
+        (DiagnosticCode::Misplaced, instead) => match (diagnostic.belongs_in.as_deref(), instead) {
+            (Some(file), Some(instead)) => {
+                format!("{spelling} belongs in {file}; here, write {instead}")
+            },
+            (Some(file), None) => format!("{spelling} belongs in {file}"),
+            (None, Some(instead)) => format!("write {instead} instead of {spelling}"),
+            (None, None) => format!("{spelling} does not belong here; see the detail"),
+        },
+        (DiagnosticCode::Disagrees, _) => format!(
+            "{spelling} is declared in both fraiseql.toml and the schema document, differently; \
+             declare it once, in fraiseql.toml"
+        ),
     }
 }
 

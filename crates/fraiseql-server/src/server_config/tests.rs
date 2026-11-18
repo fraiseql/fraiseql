@@ -2090,3 +2090,22 @@ fn a_flat_observers_key_carries_its_diagnostic() {
     assert_eq!(diagnostic.replacement.as_deref(), Some("`[observers.runtime]`"));
     assert_eq!(diagnostic.file.as_deref(), Some(path.display().to_string().as_str()));
 }
+
+/// A `fraiseql.toml` setting this file does not make at all is refused as belonging in
+/// `fraiseql.toml`; one it spells otherwise is fixed here, with its spelling.
+#[test]
+fn a_fraiseql_toml_setting_in_the_server_file_names_where_it_belongs() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("server.toml");
+    std::fs::write(&path, "[tenancy]\nmode = \"row\"\n").unwrap();
+    let refused = ServerConfig::load_file(&path).expect_err("a fraiseql.toml setting");
+    let diagnostic = refused.diagnostic().expect("a refused spelling");
+    assert_eq!(diagnostic.belongs_in.as_deref(), Some("fraiseql.toml"));
+    assert_eq!(diagnostic.replacement, None);
+
+    std::fs::write(&path, "[tls]\ncert_file = \"c.pem\"\n").unwrap();
+    let refused = ServerConfig::load_file(&path).expect_err("a fraiseql.toml spelling");
+    let diagnostic = refused.diagnostic().expect("a refused spelling");
+    assert_eq!(diagnostic.belongs_in, None);
+    assert_eq!(diagnostic.replacement.as_deref(), Some("`cert_path`"));
+}
