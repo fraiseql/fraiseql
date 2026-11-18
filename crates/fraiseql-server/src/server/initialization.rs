@@ -729,14 +729,16 @@ const PKCE_REDIS_CONSEQUENCE: &str = "PKCE login state would live only in this p
 /// * the compiled schema won unconditionally, so the documented CLI > env > config precedence was
 ///   inverted and `FRAISEQL_RATE_LIMITING_ENABLED=false` could not turn throttling off (#774).
 ///
-/// Resolution order, lowest to highest: server `[rate_limiting]`, compiled
-/// schema `[security.rate_limiting]`, then CLI/env overrides — each applied
-/// over the last, with the guards run once on whatever comes out.
+/// The policy comes from one file: the compiled schema's `[security.rate_limiting]` or the
+/// server's `[rate_limiting]`, which share one type. Both present is refused rather than one
+/// replacing the other. CLI/env overrides then apply over it, and the guards run on whatever
+/// comes out.
 ///
 /// # Errors
 ///
-/// Returns `ServerError::ConfigError` when the compiled section is malformed, a
-/// CIDR does not parse, or a boot guard refuses the effective configuration.
+/// Returns `ServerError::ConfigError` when both files configure rate limiting, the
+/// section is malformed, a CIDR does not parse, or a boot guard refuses the effective
+/// configuration.
 ///
 /// `deployment` is a parameter rather than an `env::var` read: the server reads it once,
 /// and a test exercises both deployments without mutating process-global state.
@@ -745,36 +747,30 @@ pub(super) async fn resolve_rate_limiter(
     config: &crate::ServerConfig,
     deployment: Deployment,
 ) -> crate::Result<Option<Arc<RateLimiter>>> {
-    let schema_sec = rate_limiting_from_schema(schema);
+    let section = rate_limiting_section(schema, config)?;
     let overrides = &config.rate_limit_overrides;
 
     // The auth endpoint rules come from the section when there is one and from
     // the defaults when there is not: an absent section is not a decision to leave
     // sign-in unthrottled. Only `auth_rules_enabled = false`, written, turns them off.
-    let auth_rules = schema_sec.clone().unwrap_or_default();
+    let auth_rules = section.clone().unwrap_or_default();
     auth_rule_budgets_check(&auth_rules)?;
 
-    // Base: compiled schema first, then the server's own table. Both are checked, so
-    // whichever supplies the values also faces the guards.
-    let mut effective = match (&schema_sec, &config.rate_limiting) {
-        (Some(sec), _) => rate_limit_config_checked(sec, deployment)?,
-        (None, Some(server_cfg)) => {
-            proxy_trust_check_parsed(
-                server_cfg.trust_proxy_headers,
-                &server_cfg.trusted_proxy_cidrs,
-                deployment,
-            )?;
-            server_cfg.clone()
-        },
+    // Base: the one configured section, which faces the guards whichever file it came from.
+    let mut effective = match &section {
+        Some(sec) => rate_limit_config_checked(sec, deployment)?,
         // Nothing configured anywhere. An override may still switch it on, in which
         // case the defaults apply; otherwise the global limit is off and only the auth
         // rules run.
-        (None, None) if overrides.enables() => crate::middleware::RateLimitConfig::default(),
-        (None, None) => crate::middleware::RateLimitConfig {
+        None if overrides.enables() => crate::middleware::RateLimitConfig::default(),
+        None => crate::middleware::RateLimitConfig {
             enabled: false,
             ..crate::middleware::RateLimitConfig::default()
         },
     };
+    if let Some(server_table) = &config.rate_limiting {
+        effective.cleanup_interval_secs = server_table.cleanup_interval_secs;
+    }
 
     overrides.apply_to(&mut effective);
 
@@ -797,8 +793,7 @@ pub(super) async fn resolve_rate_limiter(
         deployment,
     )?;
 
-    let limiter =
-        build_rate_limiter(effective, &auth_rules, schema_sec.as_ref(), deployment).await?;
+    let limiter = build_rate_limiter(effective, &auth_rules, section.as_ref(), deployment).await?;
     Ok(Some(Arc::new(limiter)))
 }
 
@@ -811,7 +806,8 @@ fn zero_global_budget_check(effective: &crate::middleware::RateLimitConfig) -> c
     // deployment that 429s all traffic with a healthy-looking startup log.
     if effective.rps_per_ip == 0 || effective.burst_size == 0 {
         return Err(crate::ServerError::ConfigError(format!(
-            "rate limiting is enabled but its budget is zero (rps_per_ip = {}, burst_size = {}), \
+            "rate limiting is enabled but its budget is zero (requests_per_second = {}, \
+             burst_size = {}), \
              so every request would be rejected. Set a positive requests_per_second and \
              burst_size, or disable rate limiting.",
             effective.rps_per_ip, effective.burst_size
@@ -939,6 +935,29 @@ fn rate_limiting_from_schema(
     schema: &CompiledSchema,
 ) -> Option<crate::middleware::RateLimitingSecurityConfig> {
     schema.security.as_ref().and_then(|s| s.rate_limiting.clone())
+}
+
+/// The rate-limit policy, from whichever of the two files configures it.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when both do: the compiled section used to replace the
+/// server's table whole, with no message, so the table's values did nothing.
+fn rate_limiting_section(
+    schema: &CompiledSchema,
+    config: &crate::ServerConfig,
+) -> crate::Result<Option<crate::middleware::RateLimitingSecurityConfig>> {
+    match (rate_limiting_from_schema(schema), &config.rate_limiting) {
+        (Some(_), Some(_)) => Err(crate::ServerError::ConfigError(
+            "rate limiting is configured twice: the compiled schema carries \
+             `[security.rate_limiting]` (from fraiseql.toml) and the server's configuration \
+             file has a `[rate_limiting]` table. Neither replaces the other; keep one of them. \
+             They take the same keys."
+                .to_string(),
+        )),
+        (Some(compiled), None) => Ok(Some(compiled)),
+        (None, server_table) => Ok(server_table.as_ref().map(|table| table.policy.clone())),
+    }
 }
 
 /// Lower a security-block rate-limit section onto a `RateLimitConfig`, running every

@@ -1886,10 +1886,13 @@ const VERIFY_BUDGET: usize = 50;
 /// A server whose request limiter trusts forwarded addresses from `trusted_proxies`.
 async fn boot_behind(trusted_proxies: &str, pool: PgPool, scratch_url: &str) -> RunningServer {
     let config = ServerConfig {
-        rate_limiting: Some(fraiseql_server::middleware::RateLimitConfig {
-            trust_proxy_headers: true,
-            trusted_proxy_cidrs: vec![trusted_proxies.parse().expect("a CIDR")],
-            ..fraiseql_server::middleware::RateLimitConfig::default()
+        rate_limiting: Some(fraiseql_server::middleware::ServerRateLimitingConfig {
+            policy: fraiseql_core::schema::RateLimitingSecurityConfig {
+                trust_proxy_headers: true,
+                trusted_proxy_cidrs: Some(vec![trusted_proxies.to_string()]),
+                ..fraiseql_core::schema::RateLimitingSecurityConfig::default()
+            },
+            ..fraiseql_server::middleware::ServerRateLimitingConfig::default()
         }),
         ..local_config(scratch_url)
     };

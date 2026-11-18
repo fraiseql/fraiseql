@@ -954,16 +954,13 @@ mod lifecycle_tests {
 /// inspected the string list, so `["10.0.0.0/8typo"]` passed the non-empty check and
 /// yielded an empty trust list — the trust-everyone posture the guard exists to refuse.
 mod rate_limit_boot_guard_tests {
-    #![allow(clippy::unwrap_used, clippy::expect_used)] // Reason: test code.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)] // Reason: test code.
     use fraiseql_core::schema::CompiledSchema;
     use fraiseql_guard::deployment::Deployment;
     use serde_json::json;
 
     use super::super::initialization::resolve_rate_limiter;
-    use crate::{
-        ServerConfig,
-        middleware::{RateLimitConfig, RateLimitOverrides},
-    };
+    use crate::{ServerConfig, middleware::RateLimitOverrides};
 
     const PRODUCTION: Deployment = Deployment::Production;
     const DEVELOPMENT: Deployment = Deployment::Development;
@@ -1048,7 +1045,7 @@ mod rate_limit_boot_guard_tests {
     fn fraiseql_server_rule_count(
         sec: &fraiseql_core::schema::RateLimitingSecurityConfig,
     ) -> usize {
-        crate::middleware::RateLimiter::new(RateLimitConfig::default())
+        crate::middleware::RateLimiter::new(crate::middleware::RateLimitConfig::default())
             .with_path_rules_from_security(sec)
             .path_rule_count()
     }
@@ -1143,15 +1140,8 @@ mod rate_limit_boot_guard_tests {
     async fn the_proxy_trust_guard_runs_when_the_server_table_configures_it() {
         // The #837 branch: `[rate_limiting]` in the server's own fraiseql.toml built
         // a `RateLimiter` directly and never reached a guard.
-        let config = ServerConfig {
-            rate_limiting: Some(RateLimitConfig {
-                enabled: true,
-                trust_proxy_headers: true,
-                trusted_proxy_cidrs: vec![],
-                ..RateLimitConfig::default()
-            }),
-            ..ServerConfig::default()
-        };
+        let config =
+            server_table("enabled = true\ntrust_proxy_headers = true\ntrusted_proxy_cidrs = []");
 
         assert!(
             resolve_rate_limiter(&bare_schema(), &config, PRODUCTION).await.is_err(),
@@ -1165,17 +1155,11 @@ mod rate_limit_boot_guard_tests {
         // An override can switch the limiter on over a base that was disabled, so the
         // guard has to run on the merged result, not only on the base.
         let config = ServerConfig {
-            rate_limiting: Some(RateLimitConfig {
-                enabled: false,
-                trust_proxy_headers: true,
-                trusted_proxy_cidrs: vec![],
-                ..RateLimitConfig::default()
-            }),
             rate_limit_overrides: RateLimitOverrides {
                 enabled: Some(true),
                 ..RateLimitOverrides::default()
             },
-            ..ServerConfig::default()
+            ..server_table("enabled = false\ntrust_proxy_headers = true")
         };
 
         assert!(resolve_rate_limiter(&bare_schema(), &config, PRODUCTION).await.is_err());
@@ -1299,24 +1283,92 @@ mod rate_limit_boot_guard_tests {
         assert_eq!(limiter.config().burst_size, 9, "an unset override must not clobber the schema");
     }
 
+    /// A server configuration whose file holds `table` (the body of `[rate_limiting]`).
+    fn server_table(table: &str) -> ServerConfig {
+        toml::from_str(&format!("[rate_limiting]\n{table}\n")).expect("the table parses")
+    }
+
     #[tokio::test]
-    async fn the_compiled_schema_still_wins_over_the_server_table() {
-        // Unchanged precedence between the two file-based sources, pinned so the
-        // override work above cannot quietly reorder it.
+    async fn a_compiled_section_and_a_server_table_together_refuse_to_boot() {
+        // The compiled section used to replace the server's table whole, with no message:
+        // an operator tuning `[rate_limiting]` in the server's file saw no effect.
         let schema = schema_with_rate_limiting(json!({
             "enabled": true, "requests_per_second": 42, "burst_size": 1,
         }));
-        let config = ServerConfig {
-            rate_limiting: Some(RateLimitConfig {
-                enabled: true,
-                rps_per_ip: 7,
-                ..RateLimitConfig::default()
-            }),
-            ..ServerConfig::default()
-        };
+        let config = server_table("enabled = true");
 
-        let limiter = resolve_rate_limiter(&schema, &config, PRODUCTION).await.unwrap().unwrap();
-        assert_eq!(limiter.config().rps_per_ip, 42);
+        let Err(err) = resolve_rate_limiter(&schema, &config, PRODUCTION).await else {
+            panic!("both sources configured: the server must refuse to boot");
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("[security.rate_limiting]"), "{msg}");
+        assert!(msg.contains("`[rate_limiting]` table"), "{msg}");
+    }
+
+    #[tokio::test]
+    async fn the_server_table_takes_the_compiled_sections_keys() {
+        let config = server_table("requests_per_second = 9\nrequests_per_second_per_user = 90");
+        let limiter = resolve_rate_limiter(&bare_schema(), &config, PRODUCTION)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(limiter.config().rps_per_ip, 9);
+        assert_eq!(limiter.config().rps_per_user, 90);
+    }
+
+    #[tokio::test]
+    async fn the_server_table_has_the_compiled_sections_defaults() {
+        let from_server = server_table("enabled = true");
+        let from_schema = schema_with_rate_limiting(json!({ "enabled": true }));
+
+        let server = resolve_rate_limiter(&bare_schema(), &from_server, PRODUCTION)
+            .await
+            .unwrap()
+            .unwrap();
+        let compiled = resolve_rate_limiter(&from_schema, &ServerConfig::default(), PRODUCTION)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(server.config().burst_size, compiled.config().burst_size);
+        assert_eq!(server.config().rps_per_user, compiled.config().rps_per_user);
+    }
+
+    #[tokio::test]
+    async fn the_server_table_can_turn_the_auth_endpoint_rules_off() {
+        // `auth_rules_enabled` is a key of the shared type, so the server's table reaches
+        // the auth endpoint rules as the compiled section does: with the global limit off
+        // too, no limiter is built.
+        let config = server_table("enabled = false\nauth_rules_enabled = false");
+        assert!(
+            resolve_rate_limiter(&bare_schema(), &config, PRODUCTION)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn the_server_table_keeps_its_sweep_interval() {
+        // Housekeeping, not policy: it stays a server-file key.
+        let config = server_table("enabled = true\ncleanup_interval_secs = 60");
+        let limiter = resolve_rate_limiter(&bare_schema(), &config, PRODUCTION)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(limiter.config().cleanup_interval_secs, 60);
+    }
+
+    #[test]
+    fn the_server_tables_old_spellings_are_refused_with_the_shared_name() {
+        for (old, new) in [
+            ("rps_per_ip", "requests_per_second"),
+            ("rps_per_user", "requests_per_second_per_user"),
+        ] {
+            let err = toml::from_str::<ServerConfig>(&format!("[rate_limiting]\n{old} = 50\n"))
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains(&format!("`[rate_limiting] {old}` is spelled `{new}`")), "{err}");
+        }
     }
 
     #[tokio::test]

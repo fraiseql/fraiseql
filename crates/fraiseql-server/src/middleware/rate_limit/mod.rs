@@ -18,7 +18,10 @@ mod middleware_fn;
 mod redis;
 mod token_bucket;
 
-pub use config::{CheckResult, RateLimitConfig, RateLimitOverrides, RateLimitingSecurityConfig};
+pub use config::{
+    CheckResult, RateLimitConfig, RateLimitOverrides, RateLimitingSecurityConfig,
+    ServerRateLimitingConfig,
+};
 pub(crate) use config::{DEFAULT_FAILED_LOGIN_LOCKOUT_SECS, DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS};
 pub use dispatch::RateLimiter;
 pub use identity::VerifiedSubject;

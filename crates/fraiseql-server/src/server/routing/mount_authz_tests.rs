@@ -418,18 +418,21 @@ mod rate_limit_subject_wiring {
     use axum::{extract::ConnectInfo, routing::get};
 
     use super::*;
-    use crate::middleware::RateLimitConfig;
+    use crate::middleware::{RateLimitingSecurityConfig, ServerRateLimitingConfig};
 
     async fn limited_app(idp: &TestIdp) -> Router {
         let config = ServerConfig {
             cors_enabled: false,
             auth: Some(idp.oidc_config(true)),
-            rate_limiting: Some(RateLimitConfig {
-                enabled: true,
-                rps_per_ip: 1,
-                rps_per_user: 1,
-                burst_size: 1,
-                ..RateLimitConfig::default()
+            rate_limiting: Some(ServerRateLimitingConfig {
+                policy: RateLimitingSecurityConfig {
+                    enabled: true,
+                    requests_per_second: 1,
+                    requests_per_second_per_user: Some(1),
+                    burst_size: 1,
+                    ..RateLimitingSecurityConfig::default()
+                },
+                ..ServerRateLimitingConfig::default()
             }),
             ..ServerConfig::default()
         };

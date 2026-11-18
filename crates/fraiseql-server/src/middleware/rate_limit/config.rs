@@ -14,6 +14,82 @@ pub const DEFAULT_FAILED_LOGIN_LOCKOUT_SECS: u64 = 900;
 /// producer's).
 pub use fraiseql_core::schema::RateLimitingSecurityConfig;
 
+/// The default interval, in seconds, between two sweeps of idle rate-limit buckets.
+pub const DEFAULT_CLEANUP_INTERVAL_SECS: u64 = 300;
+
+/// Keys the server's `[rate_limiting]` table once spelled differently from
+/// `[security.rate_limiting]`, with the shared spelling.
+const RENAMED_SERVER_KEYS: &[(&str, &str)] = &[
+    ("rps_per_ip", "requests_per_second"),
+    ("rps_per_user", "requests_per_second_per_user"),
+];
+
+/// The server configuration file's `[rate_limiting]` table.
+///
+/// The same policy type as the compiled schema's `[security.rate_limiting]`, so the table
+/// takes the same keys with the same defaults in either file, plus one key of server
+/// housekeeping, `cleanup_interval_secs`. A deployment configures rate limiting in one of
+/// the two places: the server refuses to boot when both carry it.
+///
+/// ```toml
+/// [rate_limiting]
+/// requests_per_second = 100
+/// requests_per_second_per_user = 1000
+/// burst_size = 200
+/// cleanup_interval_secs = 300
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ServerRateLimitingConfig {
+    /// The rate-limit policy, as `[security.rate_limiting]` spells it.
+    #[serde(flatten)]
+    pub policy:                RateLimitingSecurityConfig,
+    /// Seconds between two sweeps of idle buckets. Default 300.
+    pub cleanup_interval_secs: u64,
+}
+
+impl Default for ServerRateLimitingConfig {
+    fn default() -> Self {
+        Self {
+            policy:                RateLimitingSecurityConfig::DEFAULT,
+            cleanup_interval_secs: DEFAULT_CLEANUP_INTERVAL_SECS,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ServerRateLimitingConfig {
+    // Written by hand: serde's `flatten` cannot be combined with `deny_unknown_fields`, and
+    // an unknown key must stay an error here as it is in the compiled section.
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use serde::de::Error as _;
+
+        let mut table = toml::Table::deserialize(deserializer)?;
+        if let Some((old, new)) =
+            RENAMED_SERVER_KEYS.iter().find(|(old, _)| table.contains_key(*old))
+        {
+            return Err(D::Error::custom(format!(
+                "`[rate_limiting] {old}` is spelled `{new}`: the server's `[rate_limiting]` \
+                 table takes the keys of `[security.rate_limiting]`"
+            )));
+        }
+        let cleanup_interval_secs = match table.remove("cleanup_interval_secs") {
+            None => DEFAULT_CLEANUP_INTERVAL_SECS,
+            Some(value) => {
+                value.as_integer().and_then(|secs| u64::try_from(secs).ok()).ok_or_else(|| {
+                    D::Error::custom(format!(
+                        "`[rate_limiting] cleanup_interval_secs` must be a whole number of \
+                         seconds, not {value}"
+                    ))
+                })?
+            },
+        };
+        let policy = toml::Value::Table(table).try_into().map_err(D::Error::custom)?;
+        Ok(Self {
+            policy,
+            cleanup_interval_secs,
+        })
+    }
+}
+
 /// Rate limiting configuration (token-bucket algorithm).
 ///
 /// Enforces request-per-second limits per IP/user across all GraphQL
@@ -138,7 +214,7 @@ impl RateLimitConfig {
                 .requests_per_second_per_user
                 .unwrap_or_else(|| sec.requests_per_second.saturating_mul(10)),
             burst_size: sec.burst_size,
-            cleanup_interval_secs: 300,
+            cleanup_interval_secs: DEFAULT_CLEANUP_INTERVAL_SECS,
             trust_proxy_headers: sec.trust_proxy_headers,
             trusted_proxy_cidrs,
             max_buckets: sec.max_buckets,

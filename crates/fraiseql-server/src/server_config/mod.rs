@@ -169,7 +169,7 @@ pub use subscription_kafka::SubscriptionKafkaConfig;
 pub use tls::{DatabaseTlsConfig, PlaygroundTool, TlsServerConfig};
 pub use transaction_retry::{retry_metric, retry_metrics_observer};
 
-use crate::middleware::{RateLimitConfig, RateLimitOverrides};
+use crate::middleware::{RateLimitOverrides, ServerRateLimitingConfig};
 
 /// Server configuration.
 ///
@@ -909,22 +909,22 @@ pub struct ServerConfig {
     #[serde(default = "defaults::default_max_get_query_bytes")]
     pub max_get_query_bytes: usize,
 
-    /// Rate limiting configuration for GraphQL requests.
+    /// Rate limiting for GraphQL requests and the auth endpoints (`[rate_limiting]`).
     ///
-    /// When configured, enables per-IP and per-user rate limiting with token bucket algorithm.
-    /// Defaults to enabled with sensible per-IP limits for security-by-default.
+    /// The same keys and defaults as the compiled schema's `[security.rate_limiting]`, plus
+    /// `cleanup_interval_secs`. Configure it in one place: the server refuses to boot when
+    /// this table and the compiled section are both present.
     ///
     /// # Example (TOML)
     ///
     /// ```toml
     /// [rate_limiting]
-    /// enabled = true
-    /// rps_per_ip = 100      # 100 requests/second per IP
-    /// rps_per_user = 1000   # 1000 requests/second per authenticated user
-    /// burst_size = 500      # Allow bursts up to 500 requests
+    /// requests_per_second = 100            # per client IP
+    /// requests_per_second_per_user = 1000  # per authenticated user
+    /// burst_size = 200
     /// ```
     #[serde(default)]
-    pub rate_limiting: Option<RateLimitConfig>,
+    pub rate_limiting: Option<ServerRateLimitingConfig>,
 
     /// Rate-limit values supplied by CLI flags or environment variables.
     ///

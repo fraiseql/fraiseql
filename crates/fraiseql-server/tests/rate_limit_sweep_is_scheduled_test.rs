@@ -33,7 +33,7 @@
 //! evict-never-deny there is no denial to observe. The count is the only remaining
 //! signal that distinguishes "the sweep ran" from "the sweep does not exist".
 //!
-//! Staleness is `burst_size / rps_per_ip` seconds (see `InMemoryRateLimiter::cleanup`),
+//! Staleness is `burst_size / requests_per_second` seconds (see `InMemoryRateLimiter::cleanup`),
 //! so the config below makes a bucket stale after 1s and the ticker fire every 1s, and
 //! the rate limit itself never fires — a denial here would make the test ambiguous.
 
@@ -48,7 +48,11 @@ use fraiseql_core::{
     error::Result as FraiseQLResult,
     schema::{CompiledSchema, SqlProjectionHint},
 };
-use fraiseql_server::{Server, middleware::RateLimitConfig, server_config::ServerConfig};
+use fraiseql_server::{
+    Server,
+    middleware::{RateLimitingSecurityConfig, ServerRateLimitingConfig},
+    server_config::ServerConfig,
+};
 
 #[derive(Debug, Clone)]
 struct NoopAdapter;
@@ -129,22 +133,23 @@ impl fraiseql_core::db::traits::Writer for NoopAdapter {
     }
 }
 
-/// A bucket goes stale after `burst_size / rps_per_ip` seconds — `10_000/10_000` = **1s**
-/// — and the ticker fires every `cleanup_interval_secs` = **1s**.
+/// A bucket goes stale after `burst_size / requests_per_second` seconds — `10_000/10_000` =
+/// **1s** — and the ticker fires every `cleanup_interval_secs` = **1s**.
 ///
-/// `rps_per_ip`/`burst_size` are equal and high so the *rate* limit never fires: every
-/// request here must be allowed, or a denial would confound the count. `max_buckets` is
-/// left generous for the same reason — this test is about the sweep, not the cap.
-const fn rate_limit_config() -> RateLimitConfig {
-    RateLimitConfig {
-        enabled:               true,
-        rps_per_ip:            10_000,
-        rps_per_user:          10_000,
-        burst_size:            10_000,
+/// `requests_per_second`/`burst_size` are equal and high so the *rate* limit never fires:
+/// every request here must be allowed, or a denial would confound the count. `max_buckets`
+/// is left generous for the same reason — this test is about the sweep, not the cap.
+fn rate_limit_config() -> ServerRateLimitingConfig {
+    ServerRateLimitingConfig {
+        policy:                RateLimitingSecurityConfig {
+            enabled: true,
+            requests_per_second: 10_000,
+            requests_per_second_per_user: Some(10_000),
+            burst_size: 10_000,
+            max_buckets: 1_024,
+            ..RateLimitingSecurityConfig::default()
+        },
         cleanup_interval_secs: 1,
-        trust_proxy_headers:   false,
-        trusted_proxy_cidrs:   Vec::new(),
-        max_buckets:           1_024,
     }
 }
 

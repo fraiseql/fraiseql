@@ -410,18 +410,15 @@ key_path = "/etc/ssl/private/server.key"
 issuer = "https://your-auth-provider.example.com"
 audience = "your-api-audience"
 
-# Request throttling (token bucket, per IP / per user). The table carries
-# `#[serde(default)]` (#874), so naming only the keys you are changing is fine.
-# The auth endpoint brute-force limits are separate: they are compiled settings
-# ([security.rate_limiting] in the project fraiseql.toml).
-#
-# ⚠ This whole table is ignored when the compiled schema carries a
-# [security.rate_limiting] section — that section wins, and env overrides win over
-# it. Set the values there, or override per deployment with FRAISEQL_RATE_LIMIT_*.
+# Request throttling (token bucket, per IP / per user) and the auth endpoint
+# limits. The same keys and defaults as [security.rate_limiting] in the project
+# fraiseql.toml, plus cleanup_interval_secs. Configure it in one of the two: the
+# server refuses to boot when the compiled schema carries [security.rate_limiting]
+# and this table is present too. FRAISEQL_RATE_LIMIT_* overrides apply over either.
 [rate_limiting]
 enabled = true
-rps_per_ip = 100
-rps_per_user = 1000
+requests_per_second = 100
+requests_per_second_per_user = 1000
 burst_size = 200
 cleanup_interval_secs = 60
 trust_proxy_headers = false   # true requires trusted_proxy_cidrs in production

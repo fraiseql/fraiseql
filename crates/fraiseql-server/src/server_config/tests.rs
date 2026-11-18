@@ -1227,26 +1227,34 @@ mod flight_bind_addr_874 {
     }
 }
 
-/// #874 (5.1): the `[rate_limiting]` example in `ServerConfig`'s own rustdoc
-/// must parse. It once could not — `RateLimitConfig` lacked a container-level
-/// `#[serde(default)]`, so the documented partial block died on
-/// `missing field cleanup_interval_secs`, a key no documentation mentions.
-/// P06 fixed the struct; this pins the exact documented block.
+/// #874 (5.1): the `[rate_limiting]` example in `ServerConfig`'s own rustdoc must parse,
+/// and a partial table starts from the documented defaults. This pins the exact block.
 #[test]
 fn rustdoc_rate_limiting_example_parses() {
     let toml_str = r"
         [rate_limiting]
-        enabled = true
-        rps_per_ip = 100
-        rps_per_user = 1000
-        burst_size = 500
+        requests_per_second = 100            # per client IP
+        requests_per_second_per_user = 1000  # per authenticated user
+        burst_size = 200
     ";
     let config: ServerConfig =
         toml::from_str(toml_str).expect("the documented [rate_limiting] example must parse");
     let rl = config.rate_limiting.expect("section present");
-    assert!(rl.enabled);
-    assert_eq!(rl.rps_per_ip, 100);
-    assert_eq!(rl.burst_size, 500);
+    assert!(rl.policy.enabled);
+    assert_eq!(rl.policy.requests_per_second, 100);
+    assert_eq!(rl.policy.requests_per_second_per_user, Some(1000));
+    assert_eq!(rl.policy.burst_size, 200);
+}
+
+/// An unknown key in the server's `[rate_limiting]` stays an error, as it is in the compiled
+/// section: the table is read by hand, and dropping `deny_unknown_fields` there would accept
+/// a typo silently.
+#[test]
+fn an_unknown_rate_limiting_key_is_refused() {
+    let err = toml::from_str::<ServerConfig>("[rate_limiting]\nrequests_per_secnd = 5\n")
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("requests_per_secnd"), "{err}");
 }
 
 mod read_replicas_407 {

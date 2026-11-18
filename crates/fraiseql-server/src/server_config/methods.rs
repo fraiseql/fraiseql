@@ -490,12 +490,14 @@ impl ServerConfig {
 
         // Rate limiting sanity check
         if let Some(ref rl) = self.rate_limiting {
-            if rl.rps_per_ip > 0 && rl.rps_per_user > 0 && rl.rps_per_ip > rl.rps_per_user {
+            let per_ip = rl.policy.requests_per_second;
+            let per_user = rl.policy.requests_per_second_per_user;
+            if let Some(per_user) = per_user.filter(|&u| per_ip > 0 && u > 0 && per_ip > u) {
                 tracing::warn!(
-                    rps_per_ip = rl.rps_per_ip,
-                    rps_per_user = rl.rps_per_user,
-                    "rps_per_ip exceeds rps_per_user — authenticated users are more \
-                     restricted than anonymous IPs"
+                    requests_per_second = per_ip,
+                    requests_per_second_per_user = per_user,
+                    "requests_per_second exceeds requests_per_second_per_user — authenticated \
+                     users are more restricted than anonymous IPs"
                 );
             }
         }

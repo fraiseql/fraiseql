@@ -49,6 +49,22 @@ disagreed, and the promise was the part that was wrong.
   server's SMTP configuration. Go's `Register()` refuses an action key the runtime does
   not read. The Java SDK now exports the observers it registers; it exported none.
 
+- **The server's `[rate_limiting]` table takes the keys of `[security.rate_limiting]`
+  (#2033).** The table in the server's configuration file and the section compiled from
+  `fraiseql.toml` are now one type, with one set of keys and defaults:
+
+  - `rps_per_ip` is `requests_per_second` and `rps_per_user` is
+    `requests_per_second_per_user`. The old spellings are refused by name.
+  - An unwritten `burst_size` is 200, as in the compiled section; it was 500 in the server's
+    table. An unwritten `requests_per_second_per_user` is ten times `requests_per_second`.
+  - The table now takes the auth endpoint limits (`auth_*`, `auth_rules_enabled`),
+    `failed_login_*` and `redis_url`, which only the compiled section took.
+    `cleanup_interval_secs` stays a server-file key.
+  - A server whose compiled schema carries `[security.rate_limiting]` and whose
+    configuration file has a `[rate_limiting]` table refuses to boot. The compiled section
+    used to replace the server's table whole, with no message, so the table's values did
+    nothing. Keep one of the two.
+
 - **One grammar for every `fraiseql.toml` (#1647).** A `fraiseql.toml` given to `compile`
   as its input and one read beside a schema document now take the same spellings. A spelling
   the grammar no longer takes is refused by name, with what to write instead:

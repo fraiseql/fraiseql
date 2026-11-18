@@ -141,7 +141,11 @@ mod cli_tests {
 
     use clap::Parser as _;
 
-    use crate::{cli::*, middleware::RateLimitConfig, server_config::ServerConfig};
+    use crate::{
+        cli::*,
+        middleware::{RateLimitingSecurityConfig, ServerRateLimitingConfig},
+        server_config::ServerConfig,
+    };
 
     #[test]
     fn cli_parse_config_flag() {
@@ -393,15 +397,15 @@ mod cli_tests {
             ..Default::default()
         };
         let mut config = ServerConfig::default();
-        config.rate_limiting = Some(RateLimitConfig {
-            enabled:               true,
-            rps_per_ip:            42,
-            rps_per_user:          420,
-            burst_size:            100,
+        config.rate_limiting = Some(ServerRateLimitingConfig {
+            policy:                RateLimitingSecurityConfig {
+                requests_per_second: 42,
+                requests_per_second_per_user: Some(420),
+                burst_size: 100,
+                trust_proxy_headers: true,
+                ..RateLimitingSecurityConfig::default()
+            },
             cleanup_interval_secs: 60,
-            trust_proxy_headers:   true,
-            trusted_proxy_cidrs:   Vec::new(),
-            max_buckets:           100_000,
         });
         args.apply_to_config(&mut config);
 
@@ -412,9 +416,9 @@ mod cli_tests {
              back-filled from the config"
         );
         // The base config is untouched; the resolver composes the two.
-        let rl = config.rate_limiting.as_ref().unwrap();
+        let rl = &config.rate_limiting.as_ref().unwrap().policy;
         assert_eq!(rl.burst_size, 100);
-        assert_eq!(rl.rps_per_ip, 42);
+        assert_eq!(rl.requests_per_second, 42);
         assert!(rl.trust_proxy_headers);
     }
 
