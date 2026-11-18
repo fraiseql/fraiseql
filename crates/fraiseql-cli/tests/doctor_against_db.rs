@@ -41,7 +41,7 @@ async fn catalog() -> Option<PgCatalog> {
 }
 
 /// #488 end-to-end: the common Python-SDK flow — `doctor --against-db <url>
-/// --schema <compiled.json>` with a runtime-config `fraiseql.toml` — must produce
+/// --schema <compiled.json>` with a settings `fraiseql.toml` — must produce
 /// no spurious connectivity or TOML-schema reds. Drives `run_checks` with the
 /// effective URL (no `--db-url`), a compiled-JSON schema, and a runtime config.
 #[tokio::test]
@@ -52,7 +52,7 @@ async fn doctor_against_db_has_no_spurious_connectivity_or_toml_reds() {
     };
 
     let mut config = Builder::new().suffix(".toml").tempfile().unwrap();
-    config.write_all(b"[server]\nbind = \"0.0.0.0:8000\"\n").unwrap();
+    config.write_all(b"[server]\nhost = \"0.0.0.0\"\nport = 8000\n").unwrap();
     config.flush().unwrap();
     let mut schema = Builder::new().suffix(".json").tempfile().unwrap();
     schema
@@ -84,11 +84,11 @@ async fn doctor_against_db_has_no_spurious_connectivity_or_toml_reds() {
         !check("DATABASE_URL reachable").detail.contains("not set"),
         "reachable check must use the --against-db URL, not env: {checks:?}"
     );
-    // A runtime-config TOML must be syntax-checked, not schema-parsed.
-    assert_ne!(
-        check("config TOML syntax valid").status,
-        CheckStatus::Fail,
-        "a runtime-config TOML must not be schema-parsed: {checks:?}"
+    // The settings file read beside a compiled schema loads as `fraiseql.toml`: no red.
+    assert_eq!(
+        check("TOML syntax valid").status,
+        CheckStatus::Pass,
+        "a settings `fraiseql.toml` beside a compiled schema must load: {checks:?}"
     );
 }
 
