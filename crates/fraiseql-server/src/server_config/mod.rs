@@ -483,7 +483,9 @@ pub struct ServerConfig {
     /// Require authentication for introspection endpoint (default: true).
     ///
     /// When true and OIDC is configured, introspection requires same auth as GraphQL endpoint.
-    /// When false, introspection is publicly accessible (use only in development).
+    /// When false, introspection is publicly accessible (use only in development). It governs
+    /// introspection only: schema export, metadata and the service SDL have their own
+    /// switches, and the data transports follow `/graphql`.
     #[serde(default = "defaults::default_true")]
     pub introspection_require_auth: bool,
 
@@ -491,8 +493,8 @@ pub struct ServerConfig {
     ///
     /// When `Some(true)`, the `/api/v1/schema/metadata` endpoint requires OIDC auth
     /// independently of introspection. When `Some(false)`, metadata is publicly
-    /// accessible regardless of introspection auth. When `None` (default), falls
-    /// back to `introspection_require_auth` for backwards compatibility.
+    /// accessible regardless of introspection auth. When `None` (default), it requires
+    /// auth: it serves the schema, and does not follow `introspection_require_auth`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metadata_require_auth: Option<bool>,
 
@@ -500,8 +502,9 @@ pub struct ServerConfig {
     ///
     /// Controls `/api/v1/schema.graphql` and `/api/v1/schema.json` independently of
     /// introspection auth. When `Some(true)`, schema export requires OIDC auth. When
-    /// `Some(false)`, schema export is publicly accessible. When `None` (default),
-    /// falls back to `introspection_require_auth` for backwards compatibility.
+    /// `Some(false)`, schema export is publicly accessible. When `None` (default), it
+    /// requires auth: it serves the schema, and does not follow
+    /// `introspection_require_auth`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schema_export_require_auth: Option<bool>,
 
@@ -511,8 +514,8 @@ pub struct ServerConfig {
     /// introspection: it is served whether `introspection_enabled` is on or off, because a
     /// gateway composes it from a subgraph whose introspection is off. When `Some(true)`,
     /// an anonymous caller is refused it, so the gateway presents a credential. When
-    /// `Some(false)`, it is served to anyone. When `None` (default), falls back to
-    /// `introspection_require_auth`.
+    /// `Some(false)`, it is served to anyone. When `None` (default), it requires auth: it serves
+    /// the schema, and does not follow `introspection_require_auth`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub service_sdl_require_auth: Option<bool>,
 
@@ -531,8 +534,8 @@ pub struct ServerConfig {
     ///
     /// Controls the playground independently of introspection auth. When `Some(true)`,
     /// the playground requires OIDC auth. When `Some(false)`, the playground is publicly
-    /// accessible. When `None` (default), falls back to `introspection_require_auth`
-    /// for backwards compatibility.
+    /// accessible. When `None` (default), it admits the callers `/graphql` admits: auth is
+    /// required exactly when `[auth]` is configured with `required = true`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub playground_require_auth: Option<bool>,
 
@@ -543,8 +546,8 @@ pub struct ServerConfig {
     /// way. When `Some(true)`, an upgrade that resolved no principal is
     /// refused, and the endpoint is not mounted without configured authentication. When
     /// `Some(false)`, an upgrade without a principal is served where that authentication
-    /// lets it through. When `None` (default), falls back to `introspection_require_auth`
-    /// for backwards compatibility.
+    /// lets it through. When `None` (default), it admits the callers `/graphql` admits:
+    /// auth is required exactly when `[auth]` is configured with `required = true`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subscription_require_auth: Option<bool>,
 
@@ -1604,12 +1607,12 @@ impl Default for ServerConfig {
             admin_readonly_token: None,
             introspection_enabled: false, // Disabled by default for security
             introspection_require_auth: true, // Require auth when enabled
-            metadata_require_auth: None,  // Falls back to introspection_require_auth
-            schema_export_require_auth: None, // Falls back to introspection_require_auth
-            service_sdl_require_auth: None, // Falls back to introspection_require_auth
+            metadata_require_auth: None,  // Required unless set
+            schema_export_require_auth: None, // Required unless set
+            service_sdl_require_auth: None, // Required unless set
             suggestions_enabled: None,    // The deployment decides
-            playground_require_auth: None, // Falls back to introspection_require_auth
-            subscription_require_auth: None, // Falls back to introspection_require_auth
+            playground_require_auth: None, // Follows /graphql unless set
+            subscription_require_auth: None, // Follows /graphql unless set
             subscription_auth_recheck_secs: default_subscription_auth_recheck_secs(),
             design_api_require_auth: true, // Require auth for design endpoints
             pool_min_size: default_pool_min_size(),

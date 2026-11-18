@@ -587,7 +587,8 @@ TOML CONFIG:
         #[arg(short, long)]
         watch: bool,
 
-        /// Enable the GraphQL introspection endpoint (no auth required)
+        /// Serve introspection to every caller, unauthenticated ones included (development only;
+        /// schema export, metadata, the service SDL and subscriptions keep their own auth)
         #[arg(long)]
         introspection: bool,
 

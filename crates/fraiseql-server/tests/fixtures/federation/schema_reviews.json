@@ -22,5 +22,10 @@
             {"name": "User", "key_fields": ["id"]}
         ]
     },
+    "security": {
+        "service_accounts": {
+            "gateway": {"secret_env": "FRAISEQL_FEDERATION_GATEWAY_SECRET"}
+        }
+    },
     "schema_sdl": "extend type User @key(fields: \"id\") {\n  id: ID! @external\n  reviewcount: Int!\n}\n"
 }

@@ -468,14 +468,51 @@ impl ServerConfig {
         }
     }
 
-    /// Effective `service_sdl_require_auth` (#1717): unset, it follows
-    /// `introspection_require_auth`.
+    /// Effective `service_sdl_require_auth` (#1717): as written when set, else required.
     ///
-    /// The single seam: the gate on `{ _service { sdl } }` and the boot warning that a
-    /// gateway has no credential to present both read this, so they cannot disagree.
+    /// The SDL serves the schema, so it answers its own switch and no other's:
+    /// opening introspection does not open it. The single seam: the gate on
+    /// `{ _service { sdl } }` and the boot warning that a gateway has no credential to
+    /// present both read this, so they cannot disagree.
     #[must_use]
     pub fn service_sdl_requires_auth(&self) -> bool {
-        self.service_sdl_require_auth.unwrap_or(self.introspection_require_auth)
+        self.service_sdl_require_auth.unwrap_or(true)
+    }
+
+    /// Effective `schema_export_require_auth`: as written when set, else required.
+    ///
+    /// Schema export serves the schema, so it answers its own switch and no other's.
+    #[must_use]
+    pub fn schema_export_requires_auth(&self) -> bool {
+        self.schema_export_require_auth.unwrap_or(true)
+    }
+
+    /// Effective `metadata_require_auth`: as written when set, else required.
+    ///
+    /// The metadata endpoint describes the schema, so it answers its own switch and no
+    /// other's.
+    #[must_use]
+    pub fn metadata_requires_auth(&self) -> bool {
+        self.metadata_require_auth.unwrap_or(true)
+    }
+
+    /// Effective `subscription_require_auth`: as written when set, else
+    /// `graphql_requires_auth`, whether `/graphql` refuses a caller that presents no
+    /// credential.
+    ///
+    /// Subscriptions carry data, so unset they admit exactly the callers `/graphql`
+    /// admits: one posture per server, whatever the introspection switches say.
+    #[must_use]
+    pub fn subscription_requires_auth(&self, graphql_requires_auth: bool) -> bool {
+        self.subscription_require_auth.unwrap_or(graphql_requires_auth)
+    }
+
+    /// Effective `playground_require_auth`: as written when set, else
+    /// `graphql_requires_auth`, as for
+    /// [`subscription_requires_auth`](Self::subscription_requires_auth).
+    #[must_use]
+    pub fn playground_requires_auth(&self, graphql_requires_auth: bool) -> bool {
+        self.playground_require_auth.unwrap_or(graphql_requires_auth)
     }
 
     /// Effective `suggestions_enabled` in `deployment`: as written when set, else

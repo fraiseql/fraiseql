@@ -3,7 +3,7 @@
 //! Tests for introspection endpoint and schema export protection:
 //! - Introspection endpoints disabled by default
 //! - Introspection can require authentication
-//! - Schema export endpoints follow introspection settings
+//! - Schema export, metadata and the service SDL require auth on their own switches
 //! - Configuration validation
 //!
 //! **Execution engine:** none
@@ -159,7 +159,7 @@ fn test_introspection_production_config() {
 
 #[test]
 fn test_schema_export_follows_introspection_setting() {
-    // When introspection is enabled, schema export should also be available
+    // When introspection is enabled, schema export is mounted too, behind its own switch
     let config = ServerConfig {
         introspection_enabled: true,
         introspection_require_auth: false,
@@ -170,7 +170,8 @@ fn test_schema_export_follows_introspection_setting() {
     config.validate().unwrap_or_else(|e| {
         panic!("Config with introspection enabled for schema export should validate: {e}")
     });
-    // Both introspection and schema export endpoints would be available
+    // Introspection is public; schema export still requires auth (its own switch)
+    assert!(config.schema_export_requires_auth());
 }
 
 #[test]
@@ -190,7 +191,7 @@ fn test_schema_export_disabled_when_introspection_disabled() {
 
 #[test]
 fn test_schema_export_protected_with_auth() {
-    // Schema export endpoints should have same protection as introspection
+    // Schema export endpoints require auth unless their own switch says otherwise
     let config = ServerConfig {
         introspection_enabled: true,
         introspection_require_auth: true,
@@ -201,7 +202,7 @@ fn test_schema_export_protected_with_auth() {
     config.validate().unwrap_or_else(|e| {
         panic!("Config with auth-protected schema export should validate: {e}")
     });
-    // Schema export endpoints would require OIDC authentication
+    assert!(config.schema_export_requires_auth());
 }
 
 // =============================================================================
@@ -276,7 +277,7 @@ fn test_metadata_require_auth_defaults_to_none() {
     let config = ServerConfig::default();
     assert!(
         config.metadata_require_auth.is_none(),
-        "metadata_require_auth should default to None (fallback to introspection_require_auth)"
+        "metadata_require_auth should default to None (required unless set)"
     );
 }
 
@@ -296,9 +297,10 @@ fn test_metadata_require_auth_true_while_introspection_public() {
         panic!("Config with metadata_require_auth=true, introspection public should validate: {e}")
     });
 
-    // Effective metadata auth: Some(true) overrides introspection_require_auth=false
-    let effective = config.metadata_require_auth.unwrap_or(config.introspection_require_auth);
-    assert!(effective, "metadata should require auth when explicitly set to true");
+    assert!(
+        config.metadata_requires_auth(),
+        "metadata should require auth when explicitly set to true"
+    );
 }
 
 #[test]
@@ -317,39 +319,29 @@ fn test_metadata_require_auth_false_while_introspection_auth_required() {
         panic!("Config with metadata_require_auth=false, introspection auth should validate: {e}")
     });
 
-    // Effective metadata auth: Some(false) overrides introspection_require_auth=true
-    let effective = config.metadata_require_auth.unwrap_or(config.introspection_require_auth);
-    assert!(!effective, "metadata should be public when explicitly set to false");
+    assert!(
+        !config.metadata_requires_auth(),
+        "metadata should be public when explicitly set to false"
+    );
 }
 
 #[test]
-fn test_metadata_require_auth_unset_falls_back_to_introspection_require_auth() {
-    // When metadata_require_auth is None, it should fall back to introspection_require_auth.
-    let config_auth = ServerConfig {
-        introspection_enabled: true,
-        introspection_require_auth: true,
-        metadata_require_auth: None,
-        cors_enabled: false,
-        ..ServerConfig::default()
-    };
-
-    let effective_auth = config_auth
-        .metadata_require_auth
-        .unwrap_or(config_auth.introspection_require_auth);
-    assert!(effective_auth, "should fall back to introspection_require_auth=true");
-
-    let config_public = ServerConfig {
-        introspection_enabled: true,
-        introspection_require_auth: false,
-        metadata_require_auth: None,
-        cors_enabled: false,
-        ..ServerConfig::default()
-    };
-
-    let effective_public = config_public
-        .metadata_require_auth
-        .unwrap_or(config_public.introspection_require_auth);
-    assert!(!effective_public, "should fall back to introspection_require_auth=false");
+fn test_metadata_require_auth_unset_is_required_whatever_introspection_says() {
+    // Unset, it requires auth: it serves the schema, and opening introspection does
+    // not open it.
+    for introspection_require_auth in [true, false] {
+        let config = ServerConfig {
+            introspection_enabled: true,
+            introspection_require_auth,
+            metadata_require_auth: None,
+            cors_enabled: false,
+            ..ServerConfig::default()
+        };
+        assert!(
+            config.metadata_requires_auth(),
+            "introspection_require_auth = {introspection_require_auth}"
+        );
+    }
 }
 
 #[test]
@@ -392,7 +384,7 @@ fn test_schema_export_require_auth_defaults_to_none() {
     let config = ServerConfig::default();
     assert!(
         config.schema_export_require_auth.is_none(),
-        "schema_export_require_auth should default to None (fallback to introspection_require_auth)"
+        "schema_export_require_auth should default to None (required unless set)"
     );
 }
 
@@ -414,36 +406,29 @@ fn test_schema_export_require_auth_true_while_introspection_public() {
         )
     });
 
-    let effective = config.schema_export_require_auth.unwrap_or(config.introspection_require_auth);
-    assert!(effective, "schema export should require auth when explicitly set to true");
+    assert!(
+        config.schema_export_requires_auth(),
+        "schema export should require auth when explicitly set to true"
+    );
 }
 
 #[test]
-fn test_schema_export_require_auth_unset_falls_back_to_introspection_require_auth() {
-    // When schema_export_require_auth is None it falls back to introspection_require_auth.
-    let config_auth = ServerConfig {
-        introspection_enabled: true,
-        introspection_require_auth: true,
-        schema_export_require_auth: None,
-        cors_enabled: false,
-        ..ServerConfig::default()
-    };
-    let effective_auth = config_auth
-        .schema_export_require_auth
-        .unwrap_or(config_auth.introspection_require_auth);
-    assert!(effective_auth, "should fall back to introspection_require_auth=true");
-
-    let config_public = ServerConfig {
-        introspection_enabled: true,
-        introspection_require_auth: false,
-        schema_export_require_auth: None,
-        cors_enabled: false,
-        ..ServerConfig::default()
-    };
-    let effective_public = config_public
-        .schema_export_require_auth
-        .unwrap_or(config_public.introspection_require_auth);
-    assert!(!effective_public, "should fall back to introspection_require_auth=false");
+fn test_schema_export_require_auth_unset_is_required_whatever_introspection_says() {
+    // Unset, it requires auth: it serves the schema, and opening introspection does
+    // not open it.
+    for introspection_require_auth in [true, false] {
+        let config = ServerConfig {
+            introspection_enabled: true,
+            introspection_require_auth,
+            schema_export_require_auth: None,
+            cors_enabled: false,
+            ..ServerConfig::default()
+        };
+        assert!(
+            config.schema_export_requires_auth(),
+            "introspection_require_auth = {introspection_require_auth}"
+        );
+    }
 }
 
 #[test]
@@ -470,7 +455,7 @@ fn test_playground_require_auth_defaults_to_none() {
     let config = ServerConfig::default();
     assert!(
         config.playground_require_auth.is_none(),
-        "playground_require_auth should default to None (fallback to introspection_require_auth)"
+        "playground_require_auth should default to None (follows /graphql unless set)"
     );
 }
 
@@ -493,37 +478,27 @@ fn test_playground_require_auth_true_overrides_public_introspection() {
         )
     });
 
-    // Effective playground auth: Some(true) overrides introspection_require_auth=false
-    let effective = config.playground_require_auth.unwrap_or(config.introspection_require_auth);
-    assert!(effective, "playground should require auth when explicitly set to true");
+    // Some(true) wins even where /graphql admits anonymous callers
+    assert!(
+        config.playground_requires_auth(false),
+        "playground should require auth when explicitly set to true"
+    );
 }
 
 #[test]
-fn test_playground_require_auth_fallback_both_directions() {
-    // When playground_require_auth is None, it falls back to introspection_require_auth.
-    let config_auth = ServerConfig {
-        introspection_enabled: true,
-        introspection_require_auth: true,
-        playground_require_auth: None,
-        cors_enabled: false,
-        ..ServerConfig::default()
-    };
-    let effective_auth = config_auth
-        .playground_require_auth
-        .unwrap_or(config_auth.introspection_require_auth);
-    assert!(effective_auth, "should fall back to introspection_require_auth=true");
-
-    let config_public = ServerConfig {
-        introspection_enabled: true,
-        introspection_require_auth: false,
-        playground_require_auth: None,
-        cors_enabled: false,
-        ..ServerConfig::default()
-    };
-    let effective_public = config_public
-        .playground_require_auth
-        .unwrap_or(config_public.introspection_require_auth);
-    assert!(!effective_public, "should fall back to introspection_require_auth=false");
+fn test_playground_require_auth_unset_follows_graphql() {
+    // Unset, it admits exactly the callers /graphql admits, whatever introspection says.
+    for introspection_require_auth in [true, false] {
+        let config = ServerConfig {
+            introspection_enabled: true,
+            introspection_require_auth,
+            playground_require_auth: None,
+            cors_enabled: false,
+            ..ServerConfig::default()
+        };
+        assert!(config.playground_requires_auth(true), "/graphql requires auth");
+        assert!(!config.playground_requires_auth(false), "/graphql admits anonymous callers");
+    }
 }
 
 #[test]
@@ -550,7 +525,7 @@ fn test_subscription_require_auth_defaults_to_none() {
     let config = ServerConfig::default();
     assert!(
         config.subscription_require_auth.is_none(),
-        "subscription_require_auth should default to None (fallback to introspection_require_auth)"
+        "subscription_require_auth should default to None (follows /graphql unless set)"
     );
 }
 
@@ -572,36 +547,27 @@ fn test_subscription_require_auth_true_overrides_public_introspection() {
         )
     });
 
-    let effective = config.subscription_require_auth.unwrap_or(config.introspection_require_auth);
-    assert!(effective, "subscription should require auth when explicitly set to true");
+    // Some(true) wins even where /graphql admits anonymous callers
+    assert!(
+        config.subscription_requires_auth(false),
+        "subscription should require auth when explicitly set to true"
+    );
 }
 
 #[test]
-fn test_subscription_require_auth_fallback_both_directions() {
-    // When subscription_require_auth is None, it falls back to introspection_require_auth.
-    let config_auth = ServerConfig {
-        subscriptions_enabled: true,
-        introspection_require_auth: true,
-        subscription_require_auth: None,
-        cors_enabled: false,
-        ..ServerConfig::default()
-    };
-    let effective_auth = config_auth
-        .subscription_require_auth
-        .unwrap_or(config_auth.introspection_require_auth);
-    assert!(effective_auth, "should fall back to introspection_require_auth=true");
-
-    let config_public = ServerConfig {
-        subscriptions_enabled: true,
-        introspection_require_auth: false,
-        subscription_require_auth: None,
-        cors_enabled: false,
-        ..ServerConfig::default()
-    };
-    let effective_public = config_public
-        .subscription_require_auth
-        .unwrap_or(config_public.introspection_require_auth);
-    assert!(!effective_public, "should fall back to introspection_require_auth=false");
+fn test_subscription_require_auth_unset_follows_graphql() {
+    // Unset, it admits exactly the callers /graphql admits, whatever introspection says.
+    for introspection_require_auth in [true, false] {
+        let config = ServerConfig {
+            subscriptions_enabled: true,
+            introspection_require_auth,
+            subscription_require_auth: None,
+            cors_enabled: false,
+            ..ServerConfig::default()
+        };
+        assert!(config.subscription_requires_auth(true), "/graphql requires auth");
+        assert!(!config.subscription_requires_auth(false), "/graphql admits anonymous callers");
+    }
 }
 
 #[test]

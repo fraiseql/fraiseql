@@ -100,7 +100,8 @@ pub struct AppState {
     /// Whether the federation service SDL (`_service`) is refused to an anonymous caller.
     ///
     /// Resolved in `build_app_state` from `ServerConfig::service_sdl_require_auth`, which
-    /// falls back to `introspection_require_auth`. It is its own switch, not part of
+    /// is `true` unless set and does not follow `introspection_require_auth`. It is its own
+    /// switch, not part of
     /// [`introspection_policy`](Self::introspection_policy): a gateway composes the
     /// service SDL from a subgraph whose introspection is off. Defaults to `true`
     /// (fail-closed) when no config is wired.

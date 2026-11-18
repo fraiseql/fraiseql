@@ -34,5 +34,10 @@
             {"name": "User", "key_fields": ["id"]}
         ]
     },
+    "security": {
+        "service_accounts": {
+            "gateway": {"secret_env": "FRAISEQL_FEDERATION_GATEWAY_SECRET"}
+        }
+    },
     "schema_sdl": "type User {\n  id: ID!\n  name: String!\n}\n\ntype Query {\n  user(id: ID!): User\n}\n"
 }

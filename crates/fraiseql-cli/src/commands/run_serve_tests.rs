@@ -15,7 +15,8 @@ use fraiseql_core::schema::CompiledSchema;
 use fraiseql_server::{ServerConfig, capability::REGISTRY};
 use tokio::net::TcpListener;
 
-use super::run::build_server;
+use super::run::{ServerFile, build_config_from, build_server};
+use crate::config::runtime::{DatabaseRuntimeConfig, ServerRuntimeConfig};
 
 fn compiled_in(name: &str) -> bool {
     REGISTRY.iter().any(|entry| entry.meta.name == name && entry.compiled_in)
@@ -382,4 +383,91 @@ async fn two_projects_on_one_database_each_keep_their_declared_observers() {
     let unnamed = unnamed.expect_err("observers under no project name booted");
     assert!(unnamed.contains("[project] name"), "names the key to set: {unnamed}");
     assert_eq!(after_refusals, both, "a refused boot wrote nothing");
+}
+
+/// An `[auth]` validator whose JWKS URI is pinned, as a server file declares it.
+const AUTH: &str = "[auth]\naudience = \"https://api.example.test\"\n\
+                    jwks_uri = \"https://idp.example.test/.well-known/jwks.json\"\n";
+
+/// `fraiseql run` over a server file holding `server_toml`, assembled as the command
+/// assembles it, serving on an ephemeral port until the returned sender drops.
+async fn serve_run(
+    url: &str,
+    server_toml: &str,
+) -> (std::net::SocketAddr, tokio::sync::oneshot::Sender<()>) {
+    let dir = tempfile::TempDir::new().unwrap();
+    let path = dir.path().join("server.toml");
+    std::fs::write(&path, server_toml).unwrap();
+    let file = ServerFile::load(path.to_str().unwrap()).unwrap();
+    let config = build_config_from(
+        url,
+        "127.0.0.1:0".parse().unwrap(),
+        &ServerRuntimeConfig::default(),
+        &DatabaseRuntimeConfig::default(),
+        false,
+        Some(&file),
+    )
+    .unwrap();
+    let server = build_server(config, CompiledSchema::new(), None).await.unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
+    tokio::spawn(server.serve_on_listener(listener, async {
+        let _ = stopped.await;
+    }));
+    (addr, stop)
+}
+
+/// A server file that enables introspection and leaves its auth switch at the default:
+/// `fraiseql run` serves introspection, schema export and metadata only to an
+/// authenticated caller, as the server binary does on the same file.
+#[tokio::test]
+async fn run_serves_an_enabled_introspection_only_to_an_authenticated_caller() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!(
+            "SKIP run_serves_an_enabled_introspection_only_to_an_authenticated_caller: no \
+             DATABASE_URL"
+        );
+        return;
+    };
+    let (addr, _stop) =
+        serve_run(&url, &format!("cors_enabled = false\nintrospection_enabled = true\n{AUTH}"))
+            .await;
+
+    for path in [
+        "/introspection",
+        "/api/v1/schema.graphql",
+        "/api/v1/schema.json",
+        "/api/v1/schema/metadata",
+    ] {
+        let status = reqwest::get(format!("http://{addr}{path}")).await.unwrap().status();
+        assert_eq!(status, reqwest::StatusCode::UNAUTHORIZED, "{path} served an anonymous caller");
+    }
+}
+
+/// `fraiseql run` with no authentication keeps its subscription endpoint: `/graphql`
+/// serves anonymous callers there, and so does `/ws`.
+#[tokio::test]
+async fn run_without_authentication_keeps_its_subscription_endpoint() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!(
+            "SKIP run_without_authentication_keeps_its_subscription_endpoint: no DATABASE_URL"
+        );
+        return;
+    };
+    let (addr, _stop) = serve_run(&url, "cors_enabled = false\n").await;
+
+    let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+    let request = format!(
+        "GET /ws HTTP/1.1\r\nHost: {addr}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\
+         Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+         Sec-WebSocket-Protocol: graphql-transport-ws\r\n\r\n"
+    );
+    stream.write_all(request.as_bytes()).await.unwrap();
+    let mut head = [0_u8; 64];
+    let read = stream.read(&mut head).await.unwrap();
+    let line = String::from_utf8_lossy(&head[..read]).into_owned();
+    assert!(line.starts_with("HTTP/1.1 101"), "/ws did not serve the upgrade: {line:?}");
 }

@@ -1614,6 +1614,30 @@ disagreed, and the promise was the part that was wrong.
   nothing and are refused as unknown fields; `[security.rate_limiting]`,
   `[security.error_sanitization]` and `[security.pkce]` hold the settings that act. A
   compiled schema carrying them no longer loads: recompile it.
+- **Each endpoint's auth switch answers for that endpoint only.** Unset, the schema
+  endpoints (schema export, the metadata endpoint, the federation `_service { sdl }`)
+  require auth, and the data transports (WebSocket subscriptions, the playground) admit
+  the callers `/graphql` admits. None follows `introspection_require_auth` any more.
+  - A server that sets `introspection_require_auth = false` serves introspection to
+    anyone and no longer serves schema export, metadata or the service SDL with it: set
+    `schema_export_require_auth`, `metadata_require_auth` or `service_sdl_require_auth`
+    to `false` to keep one public.
+  - A gateway that fetches a subgraph's `_service { sdl }` sends a credential: a service
+    account's secret on `x-api-key`, declared as a `[security.service_accounts.<name>]`
+    block whose `secret_env` names the variable holding it, or a token `[auth]` admits. A
+    gateway reading a supergraph composed offline (`fraiseql federation sdl`) sends nothing.
+  - With `[auth]` and `required = false`, an unauthenticated WebSocket subscription is
+    admitted as an unauthenticated `/graphql` request is, and a server with no
+    authentication mounts its subscription endpoint. Set `subscription_require_auth = true`
+    to refuse callers without a credential.
+  - The playground already admitted the callers `/graphql` admits wherever `[auth]` is
+    configured; with `playground_enabled = true`, a server with no authentication now
+    mounts it too.
+  - `fraiseql run` keeps `introspection_require_auth` at its default: a server
+    configuration file that sets `introspection_enabled = true` serves introspection to
+    authenticated callers only, as `fraiseql-server` does. `--introspection` still serves
+    it to every caller, opens nothing else, and warns when the server authenticates its
+    callers.
 
 - **The admin API refuses an observer condition that does not parse (#2061).**
   `POST /api/observers` and `PATCH /api/observers/{id}` parse `condition_expression` with

@@ -169,10 +169,8 @@ impl Server {
     }
 
     fn mount_playground(&self, mut app: Router, _state: &AppState) -> Router {
-        let playground_require_auth = self
-            .config
-            .playground_require_auth
-            .unwrap_or(self.config.introspection_require_auth);
+        let playground_require_auth =
+            self.config.playground_requires_auth(self.graphql_requires_auth());
 
         let playground_state =
             PlaygroundState::new(self.config.graphql_path.clone(), self.config.playground_tool);
@@ -298,10 +296,8 @@ impl Server {
             subscription_state = subscription_state.with_identity(state.identity.clone());
         }
 
-        let subscription_require_auth = self
-            .config
-            .subscription_require_auth
-            .unwrap_or(self.config.introspection_require_auth);
+        let subscription_require_auth =
+            self.config.subscription_requires_auth(self.graphql_requires_auth());
 
         let authenticates = self.oidc_validator.is_some();
         if subscription_require_auth && !authenticates {
@@ -332,14 +328,8 @@ impl Server {
     }
 
     fn mount_introspection(&self, mut app: Router, state: &AppState) -> Router {
-        let metadata_require_auth = self
-            .config
-            .metadata_require_auth
-            .unwrap_or(self.config.introspection_require_auth);
-        let schema_export_require_auth = self
-            .config
-            .schema_export_require_auth
-            .unwrap_or(self.config.introspection_require_auth);
+        let metadata_require_auth = self.config.metadata_requires_auth();
+        let schema_export_require_auth = self.config.schema_export_requires_auth();
 
         if self.config.introspection_require_auth {
             if let Some(ref validator) = self.oidc_validator {

@@ -118,7 +118,7 @@ const (
 	// integration legs, loud-panic on a missing DATABASE_URL by contract).
 	// The suite-coverage gate (tools/check-suite-coverage.py, preflight)
 	// fails when a new binary lands in no leg, so this list cannot rot (#992).
-	serverInProcessTests = " --test admin_api_security_test --test admin_authz_test --test admin_cache_vocabulary_e2e --test admission_control_test --test api_admin_tests --test api_design_audit_tests --test api_design_security_tests --test api_federation_tests --test api_infrastructure_tests --test api_query_tests --test api_schema_tests --test apq_mutation_e2e_test --test auth_me_integration_test --test auth_regression_test --test backpressure_overload_test --test backpressure_test --test cache_wiring_tests --test changelog_cascade_compose_boot --test config_struct_test --test constructor_drift_test --test endpoint_health_tests --test error_handling_validation_test --test example_validation_test --test functions_platform_pins_test --test graphql_http_layer_test --test graphql_request_validation_test --test grpc_transport_e2e_test --test introspection_gate_e2e_test --test introspection_mutation_authz_test --test introspection_security_test --test metrics_facade_scrape --test metrics_integration_test --test multitenancy_test --test observability_test --test platform_e2e_test --test production_safety_test --test profile_error_redaction_test --test profile_query_limits_test --test rate_limiting_integration_test --test rate_limit_sweep_is_scheduled_test --test rest_transport_e2e_test --test security --test property --test security_stack_integration_test --test service_account_conformance_test --test studio_admin_api_test --test studio_e2e_test --test studio_metrics_test --test studio_shell_test --test tracing_integration_test --test typename_e2e_test --test v230_integration_tests"
+	serverInProcessTests = " --test admin_api_security_test --test admin_authz_test --test admin_cache_vocabulary_e2e --test admission_control_test --test api_admin_tests --test api_design_audit_tests --test api_design_security_tests --test api_federation_tests --test api_infrastructure_tests --test api_query_tests --test api_schema_tests --test apq_mutation_e2e_test --test auth_me_integration_test --test auth_regression_test --test backpressure_overload_test --test backpressure_test --test cache_wiring_tests --test changelog_cascade_compose_boot --test config_struct_test --test constructor_drift_test --test endpoint_auth_defaults_test --test endpoint_health_tests --test error_handling_validation_test --test example_validation_test --test functions_platform_pins_test --test graphql_http_layer_test --test graphql_request_validation_test --test grpc_transport_e2e_test --test introspection_gate_e2e_test --test introspection_mutation_authz_test --test introspection_security_test --test metrics_facade_scrape --test metrics_integration_test --test multitenancy_test --test observability_test --test platform_e2e_test --test production_safety_test --test profile_error_redaction_test --test profile_query_limits_test --test rate_limiting_integration_test --test rate_limit_sweep_is_scheduled_test --test rest_transport_e2e_test --test security --test property --test security_stack_integration_test --test service_account_conformance_test --test studio_admin_api_test --test studio_e2e_test --test studio_metrics_test --test studio_shell_test --test tracing_integration_test --test typename_e2e_test --test v230_integration_tests"
 )
 
 // suiteCountPrelude makes a shard's per-suite test counts readable from its log.
@@ -1170,6 +1170,11 @@ const (
 	fedSubgraphBBindHost = "fed-subgraph-b"
 	apolloRouterBindHost = "apollo-router"
 	apolloRouterImage    = "ghcr.io/apollographql/router:v1.45.0"
+	// The secret of the `gateway` service account the federation fixtures declare: a
+	// gateway fetches each subgraph's `_service { sdl }` on `x-api-key`, which a
+	// subgraph refuses to an anonymous caller.
+	fedGatewaySecretEnv = "FRAISEQL_FEDERATION_GATEWAY_SECRET"
+	fedGatewaySecret    = "federation-suite-gateway"
 	// Dedicated target cache for the federation-feature build (the subgraph binary +
 	// the test compile both link `--features federation`, a distinct artifact set).
 	fedTargetVol = "fraiseql-rust-target-fed-1-92"
@@ -2678,6 +2683,7 @@ func (m *FraiseqlCi) integrationFederation(ctx context.Context, source *dagger.D
 		WithEnvVariable("ROUTER_URL", routerURL).
 		WithEnvVariable("SUBGRAPH_A_URL", subgraphAURL).
 		WithEnvVariable("SUBGRAPH_B_URL", subgraphBURL).
+		WithEnvVariable("FEDERATION_GATEWAY_SECRET", fedGatewaySecret).
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }
@@ -2719,6 +2725,7 @@ func (m *FraiseqlCi) fedSubgraphService(source *dagger.Directory, binary *dagger
 		WithEnvVariable("FRAISEQL_BIND_ADDR", bindAddr).
 		WithEnvVariable("FRAISEQL_INTROSPECTION_ENABLED", "true").
 		WithEnvVariable("FRAISEQL_INTROSPECTION_REQUIRE_AUTH", "false").
+		WithEnvVariable(fedGatewaySecretEnv, fedGatewaySecret).
 		WithEnvVariable("FRAISEQL_ENV", "development").
 		WithEnvVariable("RUST_LOG", "info").
 		WithExposedPort(port).

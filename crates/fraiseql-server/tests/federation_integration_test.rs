@@ -45,6 +45,24 @@ async fn post_gql(http: &Client, base: &str, body: Value) -> Value {
         .expect("json parse failed")
 }
 
+/// The environment variable the federation fixtures' `gateway` service account reads its
+/// secret from.
+const GATEWAY_SECRET_ENV: &str = "FRAISEQL_FEDERATION_GATEWAY_SECRET";
+
+/// POST `{ _service { sdl } }` to `{base}/graphql` as a gateway does: presenting its service
+/// account's secret on `x-api-key`.
+async fn gateway_sdl(http: &Client, base: &str, secret: &str) -> Value {
+    http.post(format!("{base}/graphql"))
+        .header("x-api-key", secret)
+        .json(&json!({"query": "{ _service { sdl } }"}))
+        .send()
+        .await
+        .expect("graphql request failed")
+        .json::<Value>()
+        .await
+        .expect("json parse failed")
+}
+
 // ─── Schema helpers ─────────────────────────────────────────────────────────
 
 /// Compiled schema representing a federation-enabled `User` subgraph (id, name).
@@ -172,6 +190,33 @@ async fn the_service_sdl_is_refused_to_an_anonymous_caller_by_default() {
     assert!(resp["data"]["_service"]["sdl"].is_null(), "the SDL was served: {resp}");
     let message = resp["errors"][0]["message"].as_str().unwrap_or_default();
     assert!(message.contains("requires authentication"), "{resp}");
+}
+
+/// A gateway composing the subgraph authenticates as its service account on `x-api-key` and
+/// is served the SDL a server left at the default refuses to an anonymous caller.
+#[tokio::test]
+async fn a_gateway_presenting_its_service_account_is_served_the_sdl() {
+    const SECRET: &str = "in-process-gateway";
+    temp_env::async_with_vars([(GATEWAY_SECRET_ENV, Some(SECRET))], async {
+        let schema = user_schema_with_federation();
+        let offline = schema.federation_service_sdl().expect("a federated schema renders its SDL");
+        let server = TestServer::start(schema, Arc::new(FailingAdapter::new())).await;
+        let http = Client::new();
+
+        let anonymous =
+            post_gql(&http, &server.url, json!({"query": "{ _service { sdl } }"})).await;
+        assert!(
+            anonymous["data"]["_service"]["sdl"].is_null(),
+            "served anonymously: {anonymous}"
+        );
+
+        let wrong = gateway_sdl(&http, &server.url, "not-the-secret").await;
+        assert!(wrong["data"]["_service"]["sdl"].is_null(), "served on a wrong secret: {wrong}");
+
+        let gateway = gateway_sdl(&http, &server.url, SECRET).await;
+        assert_eq!(gateway["data"]["_service"]["sdl"], json!(offline), "{gateway}");
+    })
+    .await;
 }
 
 /// #1801: a federated server whose trusted documents are strict, by `mode = "strict"` or by
@@ -321,7 +366,8 @@ async fn apollo_router_routes_query_to_fraiseql_subgraph() {
 ///   "id")`
 ///
 /// This test validates:
-/// - Both subgraphs respond to `_service { sdl }`
+/// - Both subgraphs refuse `_service { sdl }` to an anonymous caller and serve it to the gateway's
+///   service account (`FEDERATION_GATEWAY_SECRET`, on `x-api-key`)
 /// - Subgraph A resolves `_entities` for User by ID (returns name)
 /// - Subgraph B resolves `_entities` for User by ID (returns reviewcount)
 /// - The two responses can be merged on the `id` key (mini gateway fan-out)
@@ -336,16 +382,25 @@ async fn cross_subgraph_entity_resolution_e2e() {
         return;
     };
 
+    let secret = env_opt("FEDERATION_GATEWAY_SECRET")
+        .expect("the federation suite sets FEDERATION_GATEWAY_SECRET with the subgraph URLs");
     let http = Client::new();
 
-    // ── Validate both subgraphs serve federation SDL ────────────────────────
+    // ── Validate both subgraphs serve federation SDL to the gateway only ────
 
-    let sdl_a = post_gql(&http, &subgraph_a, json!({"query": "{ _service { sdl } }"})).await;
+    for subgraph in [&subgraph_a, &subgraph_b] {
+        let anonymous = post_gql(&http, subgraph, json!({"query": "{ _service { sdl } }"})).await;
+        assert!(
+            anonymous["data"]["_service"]["sdl"].is_null(),
+            "{subgraph} served its SDL anonymously: {anonymous}"
+        );
+    }
+    let sdl_a = gateway_sdl(&http, &subgraph_a, &secret).await;
     assert!(
         sdl_a["data"]["_service"]["sdl"].is_string(),
         "Subgraph A should serve SDL: {sdl_a}"
     );
-    let sdl_b = post_gql(&http, &subgraph_b, json!({"query": "{ _service { sdl } }"})).await;
+    let sdl_b = gateway_sdl(&http, &subgraph_b, &secret).await;
     assert!(
         sdl_b["data"]["_service"]["sdl"].is_string(),
         "Subgraph B should serve SDL: {sdl_b}"

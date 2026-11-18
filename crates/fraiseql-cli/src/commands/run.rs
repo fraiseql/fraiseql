@@ -40,7 +40,7 @@ use fraiseql_server::{
 use notify::{
     Config as NotifyConfig, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
 };
-use tracing::info;
+use tracing::{info, warn};
 
 use super::{
     compile::{CompileOptions, compile_to_schema},
@@ -591,19 +591,16 @@ pub(crate) fn build_config_from(
     if unset("transaction_retry") {
         config.transaction_retry.clone_from(&db_cfg.transaction_retry);
     }
-    // `--introspection` serves it without requiring auth (development convenience;
-    // production setups use fraiseql-server directly). Without the flag, the server file
-    // decides, and `fraiseql run` keeps it off.
+    // `--introspection` serves introspection without requiring auth (development
+    // convenience; production setups use fraiseql-server directly). It lowers that one
+    // switch: schema export, metadata and the service SDL answer their own, and the data
+    // transports follow `/graphql`. Without the flag, the server file decides and
+    // `fraiseql run` keeps introspection off, behind auth when the file turns it on.
     if introspection {
         config.introspection_enabled = true;
         config.introspection_require_auth = false;
-    } else {
-        if unset("introspection_enabled") {
-            config.introspection_enabled = false;
-        }
-        if unset("introspection_require_auth") {
-            config.introspection_require_auth = false;
-        }
+    } else if unset("introspection_enabled") {
+        config.introspection_enabled = false;
     }
 
     // Apply any server-production env var overrides (metrics, admin, rate
@@ -613,6 +610,15 @@ pub(crate) fn build_config_from(
     let server_args = fraiseql_server::ServerArgs::from_env()
         .map_err(|e| anyhow::anyhow!("invalid server environment variable: {e}"))?;
     server_args.apply_to_config(&mut config);
+
+    if introspection && (config.auth.is_some() || config.auth_issuer.is_some()) {
+        warn!(
+            "--introspection serves the schema to every caller, including unauthenticated \
+             ones, although this server authenticates its callers. Drop the flag, or set \
+             `introspection_enabled = true` in the server configuration file to serve it to \
+             authenticated callers only."
+        );
+    }
 
     Ok(config)
 }
