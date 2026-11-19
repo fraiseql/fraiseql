@@ -116,8 +116,30 @@ fn test_jetstream_config_validation() {
 fn test_retry_config_defaults() {
     let config = RetryConfig::default();
     assert_eq!(config.max_attempts, 3);
-    assert_eq!(config.initial_delay_ms, 100);
-    assert_eq!(config.max_delay_ms, 30000);
+    assert_eq!(config.initial_delay_ms, 1000);
+    assert_eq!(config.max_delay_ms, 60000);
+    assert_eq!(config.backoff_strategy, BackoffStrategy::Exponential);
+}
+
+/// A policy document that states nothing is the default policy: each field left out is
+/// filled from the same values `Default` gives.
+#[test]
+fn a_policy_that_states_nothing_is_the_default_policy() {
+    let read: RetryConfig = serde_json::from_value(serde_json::json!({})).unwrap();
+
+    assert_eq!(read, RetryConfig::default());
+}
+
+/// The name a strategy gives for itself is the string a stored policy carries for it.
+#[test]
+fn a_backoff_strategy_names_itself_as_it_is_stored() {
+    for strategy in [
+        BackoffStrategy::Exponential,
+        BackoffStrategy::Linear,
+        BackoffStrategy::Fixed,
+    ] {
+        assert_eq!(serde_json::json!(strategy.as_str()), serde_json::to_value(strategy).unwrap());
+    }
 }
 
 #[test]

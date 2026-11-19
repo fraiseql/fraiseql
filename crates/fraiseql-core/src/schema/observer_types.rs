@@ -147,6 +147,9 @@ pub struct RetryConfig {
 }
 
 impl Default for RetryConfig {
+    /// The policy the observer runtime runs when it is given none. The runtime's crate is
+    /// not a dependency of this one, so the values are stated here; a test in
+    /// `fraiseql-server`, which sees both, holds them equal.
     fn default() -> Self {
         Self {
             max_attempts:     3,

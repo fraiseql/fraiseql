@@ -498,6 +498,21 @@ disagreed, and the promise was the part that was wrong.
   with `observers` whose `[database_tls]` asks for more than its URL did (for example
   `postgres_ssl_mode = "verify-full"` against a database whose certificate does not
   verify) may now be refused at boot, where the observer pool connects.
+- **A retry policy has one set of defaults (#2090).** The server filled in a field left out
+  of an observer's `retry_config` with one value and the runtime with another: a first
+  retry after 1000 ms and a 60000 ms cap when the server stored the document, 100 ms and
+  30000 ms when the runtime read a row written without the field, or could not read the
+  row's document at all. Both now use 3 attempts, exponential backoff, 1000 ms and
+  60000 ms. Two things change with it. An observer row whose document lacks
+  `initial_delay_ms` or `max_delay_ms`, or is one the runtime refuses, waits 1000 ms
+  before its first retry and up to 60000 ms, where it waited 100 ms and up to 30000 ms.
+  And a function dispatched after a mutation with no `retry` of its own does the same,
+  as does a `retry` that leaves either field out: set
+  `FRAISEQL_FUNCTIONS_RETRY_INITIAL_DELAY_MS=100` and
+  `FRAISEQL_FUNCTIONS_RETRY_MAX_DELAY_MS=30000` to keep the earlier timing. In Rust,
+  `fraiseql_observers::RetryConfig::default()` returns the new values, and
+  `fraiseql_observers::config::DEFAULT_RETRY_MAX_ATTEMPTS`,
+  `DEFAULT_RETRY_INITIAL_DELAY_MS` and `DEFAULT_RETRY_MAX_DELAY_MS` name them.
 - **The `fraiseql.toml` JSON Schema refuses the keys a section's own check refuses (#2050).**
   `[rest] max_embedded_reads`, `[caching] redis_url`, `[observers] redis_url`, and `text`
   and `html` in `[auth.local.email.otp]`, `.reset` and `.verification` are refused by the

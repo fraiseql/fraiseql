@@ -233,6 +233,17 @@ invocation is dead-lettered so money- and send-path work is never silently lost.
   `FRAISEQL_FUNCTIONS_RETRY_INITIAL_DELAY_MS`,
   `FRAISEQL_FUNCTIONS_RETRY_MAX_DELAY_MS`, and `FRAISEQL_FUNCTIONS_DLQ_MAX_SIZE`.
 
+  | Variable | Unset |
+  |---|---|
+  | `FRAISEQL_FUNCTIONS_RETRY_MAX_ATTEMPTS` | 3 attempts |
+  | `FRAISEQL_FUNCTIONS_RETRY_INITIAL_DELAY_MS` | 1000 ms before the first retry |
+  | `FRAISEQL_FUNCTIONS_RETRY_MAX_DELAY_MS` | 60000 ms, the most one backoff waits |
+  | `FRAISEQL_FUNCTIONS_DLQ_MAX_SIZE` | no limit |
+
+  The backoff is exponential. These are the values an observer's retry policy defaults
+  to: one policy serves both. A function that states its own `retry` takes from it any
+  field it leaves out.
+
 Durable dispatch requires the `functions-runtime` feature, which enables the
 `observers` subsystem (whose dead-letter-queue store is reused).
 

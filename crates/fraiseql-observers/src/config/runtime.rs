@@ -79,11 +79,11 @@ pub struct RetryConfig {
     #[serde(default = "default_max_attempts")]
     pub max_attempts: u32,
 
-    /// Initial retry delay in milliseconds (default: 100)
+    /// Initial retry delay in milliseconds (default: 1000)
     #[serde(default = "default_initial_delay")]
     pub initial_delay_ms: u64,
 
-    /// Maximum retry delay in milliseconds (default: 30000)
+    /// Maximum retry delay in milliseconds (default: 60000)
     #[serde(default = "default_max_delay")]
     pub max_delay_ms: u64,
 
@@ -148,16 +148,31 @@ impl RetryConfig {
     }
 }
 
-const fn default_max_attempts() -> u32 {
-    3
+/// The attempts a retry policy makes when it does not say.
+///
+/// These three constants and [`BackoffStrategy`]'s default are the one definition of the
+/// policy a retry runs without being told: a field left out of a stored document, a
+/// document the runtime cannot read, a function with no policy of its own, and the
+/// policy the server stores for an observer created without one. They are narrower than
+/// the fields they fill so that each consumer widens them losslessly to its own type.
+pub const DEFAULT_RETRY_MAX_ATTEMPTS: u16 = 3;
+
+/// The delay before the first retry, in milliseconds, when a retry policy does not say.
+pub const DEFAULT_RETRY_INITIAL_DELAY_MS: u32 = 1000;
+
+/// The longest delay between two attempts, in milliseconds, when a retry policy does not say.
+pub const DEFAULT_RETRY_MAX_DELAY_MS: u32 = 60_000;
+
+fn default_max_attempts() -> u32 {
+    u32::from(DEFAULT_RETRY_MAX_ATTEMPTS)
 }
 
-const fn default_initial_delay() -> u64 {
-    100
+fn default_initial_delay() -> u64 {
+    u64::from(DEFAULT_RETRY_INITIAL_DELAY_MS)
 }
 
-const fn default_max_delay() -> u64 {
-    30000
+fn default_max_delay() -> u64 {
+    u64::from(DEFAULT_RETRY_MAX_DELAY_MS)
 }
 
 /// Backoff strategy for retries
@@ -174,6 +189,19 @@ pub enum BackoffStrategy {
     Linear,
     /// Fixed delay between retries
     Fixed,
+}
+
+impl BackoffStrategy {
+    /// The name the strategy is stored under: the string a `retry_config` document carries
+    /// in `backoff_strategy`.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Exponential => "exponential",
+            Self::Linear => "linear",
+            Self::Fixed => "fixed",
+        }
+    }
 }
 
 /// What to do when an action fails permanently

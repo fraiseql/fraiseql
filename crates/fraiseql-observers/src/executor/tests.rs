@@ -162,8 +162,8 @@ async fn test_process_event_no_matching_observers() {
 fn test_retry_config_defaults() {
     let config = RetryConfig::default();
     assert_eq!(config.max_attempts, 3);
-    assert_eq!(config.initial_delay_ms, 100);
-    assert_eq!(config.max_delay_ms, 30000);
+    assert_eq!(config.initial_delay_ms, 1000);
+    assert_eq!(config.max_delay_ms, 60000);
 }
 
 // Listener integration tests ()

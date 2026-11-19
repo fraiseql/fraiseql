@@ -43,6 +43,18 @@ use crate::{
     subscriptions::event_bridge::EntityEvent as BridgeEntityEvent,
 };
 
+/// Read a stored `retry_config` document as the policy the runtime runs.
+///
+/// # Errors
+///
+/// The document is not one the runtime reads: an unknown key, or a value of the wrong
+/// type or outside a field's range.
+fn stored_retry(
+    retry_config: &serde_json::Value,
+) -> Result<ObserverRetryConfig, serde_json::Error> {
+    serde::Deserialize::deserialize(retry_config)
+}
+
 #[cfg(test)]
 mod tests;
 
@@ -498,21 +510,17 @@ impl ObserverRuntime {
             ))
         })?;
 
-        // Parse retry config — fall back to default if deserialization fails, but warn so
-        // operators know the stored value is invalid and the observer may behave unexpectedly.
-        let retry_config: ObserverRetryConfig =
-            match serde_json::from_value(observer.retry_config.clone()) {
-                Ok(cfg) => cfg,
-                Err(e) => {
-                    warn!(
-                        observer = %observer.name,
-                        error = %e,
-                        "Observer retry_config could not be deserialized; using defaults. \
-                         Check the stored JSON in core.tb_observer."
-                    );
-                    ObserverRetryConfig::default()
-                },
-            };
+        // A policy the runtime cannot read does not stop the observer: it runs on the
+        // default, and the warning names the row so the stored document can be corrected.
+        let retry_config = stored_retry(&observer.retry_config).unwrap_or_else(|e| {
+            warn!(
+                observer = %observer.name,
+                error = %e,
+                "Observer retry_config could not be deserialized; using defaults. \
+                 Check the stored JSON in core.tb_observer."
+            );
+            ObserverRetryConfig::default()
+        });
 
         Ok(ObserverDefinition {
             event_type: observer.event_type.clone().unwrap_or_else(|| "INSERT".to_string()),

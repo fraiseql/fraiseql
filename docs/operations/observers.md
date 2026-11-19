@@ -281,6 +281,13 @@ matching event; an empty condition is refused with `400`, as one that does not p
 with exponential backoff from 1000 ms up to 60000 ms, and a 30000 ms timeout. On an
 observer the schema declares, `null` is refused with `409`, as any change but `enabled` is.
 
+A `retry_config` that leaves a field out takes that field from the same policy: 3 for
+`max_attempts`, `exponential` for `backoff_strategy`, 1000 for `initial_delay_ms`, 60000
+for `max_delay_ms`. The field means the same whether the server fills it in when it stores
+the document or the runtime does when it reads a row written without it. A row whose
+document the runtime cannot read runs on that policy too, and the server logs a warning
+naming the observer.
+
 ### Runtime and Dead Letter Queue
 
 Mounted only when the observer runtime is running (`[observers] enabled = true`).

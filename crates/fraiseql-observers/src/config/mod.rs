@@ -24,5 +24,8 @@ mod tests;
 
 pub use email::{EmailSmtpConfig, SmtpTlsMode};
 pub use redis::RedisConfig;
-pub use runtime::{ActionConfig, BackoffStrategy, FailurePolicy, ObserverDefinition, RetryConfig};
+pub use runtime::{
+    ActionConfig, BackoffStrategy, DEFAULT_RETRY_INITIAL_DELAY_MS, DEFAULT_RETRY_MAX_ATTEMPTS,
+    DEFAULT_RETRY_MAX_DELAY_MS, FailurePolicy, ObserverDefinition, RetryConfig,
+};
 pub use transport::{JetStreamConfig, NatsTransportConfig, TransportConfig, TransportKind};

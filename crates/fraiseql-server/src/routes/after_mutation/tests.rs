@@ -566,7 +566,7 @@ mod dispatch_config {
     #[test]
     fn unset_env_uses_library_defaults() {
         let defaults = DispatchDefaults::from_getter(|_| None);
-        assert_eq!(defaults.retry.max_attempts, RetryConfig::default().max_attempts);
+        assert_eq!(defaults.retry, RetryConfig::default());
         assert_eq!(defaults.dlq_max_size, None, "unbounded DLQ when unset");
     }
 

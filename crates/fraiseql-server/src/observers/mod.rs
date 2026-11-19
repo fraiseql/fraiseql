@@ -563,10 +563,10 @@ pub struct RetryConfig {
 impl Default for RetryConfig {
     fn default() -> Self {
         Self {
-            max_attempts:     3,
-            backoff_strategy: "exponential".to_string(),
-            initial_delay_ms: 1000,
-            max_delay_ms:     60000,
+            max_attempts:     default_max_attempts(),
+            backoff_strategy: default_backoff(),
+            initial_delay_ms: default_initial_delay(),
+            max_delay_ms:     default_max_delay(),
         }
     }
 }
@@ -768,17 +768,19 @@ fn default_method() -> String {
 fn default_log_level() -> String {
     "info".to_string()
 }
-const fn default_max_attempts() -> i32 {
-    3
+/// The retry policy's defaults are the runtime's, by name: a field the server fills in
+/// when it stores a policy is the value the runtime would give a document without it.
+fn default_max_attempts() -> i32 {
+    i32::from(fraiseql_observers::config::DEFAULT_RETRY_MAX_ATTEMPTS)
 }
 fn default_backoff() -> String {
-    "exponential".to_string()
+    fraiseql_observers::BackoffStrategy::default().as_str().to_string()
 }
-const fn default_initial_delay() -> i64 {
-    1000
+fn default_initial_delay() -> i64 {
+    i64::from(fraiseql_observers::config::DEFAULT_RETRY_INITIAL_DELAY_MS)
 }
-const fn default_max_delay() -> i64 {
-    60000
+fn default_max_delay() -> i64 {
+    i64::from(fraiseql_observers::config::DEFAULT_RETRY_MAX_DELAY_MS)
 }
 const fn default_page() -> i64 {
     1

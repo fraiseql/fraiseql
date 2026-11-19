@@ -540,34 +540,75 @@ fn retry_of(retry_config: serde_json::Value) -> fraiseql_observers::RetryConfig 
 }
 
 /// The policy the server stores when none is given, which is the column's default, is
-/// the policy the runtime runs: its values differ from the runtime's own fallback, so a
-/// document the runtime refused would show here as 100 ms and 30 s.
-///
-/// The two sets of defaults differing is what tells the two apart here. If they are made
-/// one (#2090), this test needs another way to see a refused document, not removal.
+/// one the runtime reads, and reads as its own.
 #[test]
 fn the_policy_the_server_stores_by_default_is_the_one_the_runtime_runs() {
     let stored = serde_json::to_value(crate::observers::RetryConfig::default()).unwrap();
 
-    let retry = retry_of(stored);
+    let read = super::stored_retry(&stored).expect("the runtime reads the stored default");
 
-    assert_eq!(
-        retry,
-        fraiseql_observers::RetryConfig {
-            max_attempts:     3,
-            initial_delay_ms: 1000,
-            max_delay_ms:     60_000,
-            backoff_strategy: fraiseql_observers::BackoffStrategy::Exponential,
-        }
-    );
-    assert_ne!(retry, fraiseql_observers::RetryConfig::default());
+    assert_eq!(read, fraiseql_observers::RetryConfig::default());
+    assert_eq!(retry_of(stored), read);
 }
 
+/// A document the runtime refuses is refused by the reader, and the observer then runs on
+/// the runtime's default. The default being the stored policy, the outcome alone would not
+/// tell a refused document from a read one: the reader's own answer does.
 #[test]
 fn a_retry_document_the_runtime_refuses_runs_on_the_runtimes_fallback() {
-    let retry = retry_of(serde_json::json!({
-        "max_attempts": 3, "backoff": "exponential", "initial_delay_ms": 1000
-    }));
+    let refused = serde_json::json!({
+        "max_attempts": 7, "backoff": "fixed", "initial_delay_ms": 250
+    });
 
-    assert_eq!(retry, fraiseql_observers::RetryConfig::default());
+    assert!(
+        super::stored_retry(&refused).is_err(),
+        "`backoff` is not a key the runtime reads"
+    );
+    assert_eq!(retry_of(refused), fraiseql_observers::RetryConfig::default());
+}
+
+const RETRY_FIELDS: [&str; 4] = [
+    "max_attempts",
+    "backoff_strategy",
+    "initial_delay_ms",
+    "max_delay_ms",
+];
+
+/// A policy that leaves a field out means the same to the server that stores it and to the
+/// runtime that runs it. Each field is left out in turn: the server fills it in when it
+/// stores the document, the runtime when it reads a document stored without it.
+#[test]
+fn a_field_left_out_of_a_policy_takes_one_value_stored_or_read() {
+    let whole = serde_json::json!({
+        "max_attempts": 7, "backoff_strategy": "fixed",
+        "initial_delay_ms": 250, "max_delay_ms": 9000
+    });
+
+    for left_out in RETRY_FIELDS {
+        let mut partial = whole.clone();
+        partial.as_object_mut().unwrap().remove(left_out);
+
+        let as_the_server_stores_it = serde_json::to_value(
+            serde_json::from_value::<crate::observers::RetryConfig>(partial.clone()).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            retry_of(partial),
+            retry_of(as_the_server_stores_it),
+            "`{left_out}` left out of the policy"
+        );
+    }
+}
+
+/// The compiled schema's default policy is the runtime's. `fraiseql-core` cannot name the
+/// runtime's values (the observers crate is not one of its dependencies), so it states its
+/// own, and this is where the two are held equal.
+#[test]
+fn the_compiled_schemas_default_policy_is_the_runtimes() {
+    let compiled = serde_json::to_value(fraiseql_core::schema::RetryConfig::default()).unwrap();
+
+    let read = super::stored_retry(&compiled).expect("the runtime reads the compiled default");
+
+    assert_eq!(read, fraiseql_observers::RetryConfig::default());
 }
