@@ -193,6 +193,7 @@ Taplo (and the Even Better TOML extension, which runs it) reads the schema from 
 version:
 
 ```toml
+# fraiseql.toml
 #:schema https://raw.githubusercontent.com/fraiseql/fraiseql/v2.19.1/docs/schemas/fraiseql.toml.schema.json
 
 [project]
@@ -202,6 +203,7 @@ name = "my-app"
 Or associate every `fraiseql.toml` of a repository in its `.taplo.toml`:
 
 ```toml
+# .taplo.toml
 [[rule]]
 include = ["**/fraiseql.toml"]
 
