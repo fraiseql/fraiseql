@@ -17,20 +17,14 @@
 //! `lease.rs` holds the distributed checkpoint lease that keeps a second replica from
 //! claiming the same change-log cursor.
 
-#[cfg(feature = "postgres")]
 pub mod change_log;
 pub mod lease;
-#[cfg(feature = "postgres")]
 pub mod replay;
-#[cfg(feature = "postgres")]
 pub mod tail;
 
-#[cfg(feature = "postgres")]
 pub use change_log::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig, DocumentDecoder};
 pub use lease::CheckpointLease;
-#[cfg(feature = "postgres")]
 pub use replay::{ChangeLogReplayReader, ReplayScope, ReplayedEvent, ResumeAnchor, ResumePosition};
-#[cfg(feature = "postgres")]
 pub use tail::ChangeLogTail;
 
 #[cfg(test)]

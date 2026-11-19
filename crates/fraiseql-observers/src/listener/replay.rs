@@ -45,14 +45,6 @@
 //! gives the join its referenced side. Without them the same query hash-joins the whole
 //! ledger against every row of the entity type — measured at 13 ms on a 60 000-row log,
 //! and linear in the log from there.
-//!
-//! **Requires the `postgres` Cargo feature.**
-
-#[cfg(not(feature = "postgres"))]
-compile_error!(
-    "`fraiseql-observers::listener::replay` requires the `postgres` feature. \
-     Enable it with: fraiseql-observers = { features = [\"postgres\"] }"
-);
 
 use chrono::{DateTime, Utc};
 use sqlx::postgres::PgPool;

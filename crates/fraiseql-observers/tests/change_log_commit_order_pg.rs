@@ -15,11 +15,10 @@
 //!
 //! ```bash
 //! DATABASE_URL=postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql \
-//!   cargo test -p fraiseql-observers --features postgres \
+//!   cargo test -p fraiseql-observers \
 //!   --test change_log_commit_order_pg -- --ignored --test-threads=1
 //! ```
 
-#![cfg(feature = "postgres")]
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: integration test file
 
 use std::str::FromStr;

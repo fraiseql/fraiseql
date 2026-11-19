@@ -263,13 +263,10 @@ impl ObserverExecutor {
     /// `listener.checkpoint()` after processed batches — otherwise every
     /// process start replays the entire change log.
     ///
-    /// **Requires the `postgres` Cargo feature.**
-    ///
     /// # Errors
     ///
     /// Returns `ObserverError` if the listener encounters an unrecoverable database error
     /// after exhausting retry attempts.
-    #[cfg(feature = "postgres")]
     #[allow(clippy::cognitive_complexity)] // Reason: postgres LISTEN/NOTIFY loop with reconnection, batch processing, and retry logic
     pub async fn run_listener_loop(
         &self,
@@ -392,9 +389,6 @@ impl ObserverExecutor {
     ///
     /// # Returns
     /// `JoinHandle` for the background listener task
-    ///
-    /// **Requires the `postgres` Cargo feature.**
-    #[cfg(feature = "postgres")]
     #[must_use]
     pub fn spawn_listener(
         self: Arc<Self>,

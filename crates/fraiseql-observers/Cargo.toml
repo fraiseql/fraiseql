@@ -29,8 +29,13 @@ serde = { version = "1.0", features = ["derive"] }
 schemars = { workspace = true }
 serde_json = { workspace = true }
 sha2 = "0.11"
-# sqlx with multiple database backends (features enabled conditionally)
-sqlx = { version = "0.8", features = ["runtime-tokio", "uuid", "chrono"] }
+# PostgreSQL is the only backend, so its sqlx driver is always built.
+sqlx = { version = "0.8", features = [
+  "runtime-tokio",
+  "uuid",
+  "chrono",
+  "postgres",
+] }
 thiserror = "2.0"
 tokio = { workspace = true }
 tracing = "0.1"
@@ -64,18 +69,13 @@ tokio-test = "0.4"
 wiremock = "0.6"
 
 [features]
-all-db = ["postgres"]
 caching = ["redis"]
 checkpoint = []
-# Default features (PostgreSQL for backward compatibility)
-default = ["postgres"]
 # Descriptive bundles
 enterprise = ["checkpoint", "caching", "metrics"]
 metrics = ["prometheus"]
 # NATS Features
 nats = ["async-nats"]
-# Database backends (enable sqlx features)
-postgres = ["sqlx/postgres"]
 redis-lease = ["redis"]
 testing = []
 

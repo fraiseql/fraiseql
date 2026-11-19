@@ -18,6 +18,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql-observers` has no `postgres` or `all-db` feature (#2100).** PostgreSQL is
+  the only backend, so the crate's PostgreSQL paths are always built: the change-log
+  listener and replay, the advisory lease, the source cursor, PostgreSQL event storage and
+  the `database` action. A manifest that names `postgres` or `all-db` in its
+  `fraiseql-observers` features must drop them; cargo refuses a feature the crate does
+  not have. Built without `postgres`, the library did not compile, so no working build
+  changes.
 - **`PATCH /api/observers/{id}` clears a condition sent as `null` (#2069).** A
   `"condition_expression": null` was read as leaving the condition unchanged, and an empty
   condition is refused since #2061, so a condition once set could not be removed. `null`

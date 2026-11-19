@@ -5,7 +5,7 @@
 //! | Backend | Coordination scope | Requires |
 //! |---------|-------------------|----------|
 //! | [`CheckpointLease::in_process`] | single process | nothing |
-//! | [`CheckpointLease::postgres`] | multi-process | PostgreSQL (`postgres` feature) |
+//! | [`CheckpointLease::postgres`] | multi-process | PostgreSQL |
 //! | `CheckpointLease::redis` | multi-process | Redis (`redis-lease` feature) |
 //!
 //! **In-process** is suitable for testing and single-node deployments.
@@ -145,7 +145,6 @@ impl InProcessLease {
 /// as held first checks that the holding session is still alive: a session that
 /// ended (database restart, failover, an idle-session timeout) took the lock with
 /// it, and another session may hold it now.
-#[cfg(feature = "postgres")]
 pub struct PostgresAdvisoryLease {
     pool:          sqlx::PgPool,
     listener_id:   String,
@@ -154,7 +153,6 @@ pub struct PostgresAdvisoryLease {
     conn:          Arc<Mutex<Option<sqlx::pool::PoolConnection<sqlx::Postgres>>>>,
 }
 
-#[cfg(feature = "postgres")]
 impl PostgresAdvisoryLease {
     /// Create a new Postgres-backed advisory lease.
     #[must_use]
@@ -464,7 +462,6 @@ impl RedisAdvisoryLease {
 
 enum LeaseKind {
     InProcess(InProcessLease),
-    #[cfg(feature = "postgres")]
     Postgres(PostgresAdvisoryLease),
     #[cfg(feature = "redis-lease")]
     Redis(RedisAdvisoryLease),
@@ -498,7 +495,6 @@ impl CheckpointLease {
     }
 
     /// Create a distributed lease backed by a PostgreSQL session advisory lock.
-    #[cfg(feature = "postgres")]
     #[must_use]
     pub fn postgres(pool: sqlx::PgPool, listener_id: String, checkpoint_id: i64) -> Self {
         Self(LeaseKind::Postgres(PostgresAdvisoryLease::new(
@@ -535,7 +531,6 @@ impl CheckpointLease {
     pub async fn acquire(&self) -> Result<bool> {
         match &self.0 {
             LeaseKind::InProcess(l) => l.acquire().await,
-            #[cfg(feature = "postgres")]
             LeaseKind::Postgres(l) => l.acquire().await,
             #[cfg(feature = "redis-lease")]
             LeaseKind::Redis(l) => l.acquire().await,
@@ -550,7 +545,6 @@ impl CheckpointLease {
     pub async fn release(&self) -> Result<()> {
         match &self.0 {
             LeaseKind::InProcess(l) => l.release().await,
-            #[cfg(feature = "postgres")]
             LeaseKind::Postgres(l) => l.release().await,
             #[cfg(feature = "redis-lease")]
             LeaseKind::Redis(l) => l.release().await,
@@ -567,7 +561,6 @@ impl CheckpointLease {
     pub async fn renew(&self) -> Result<bool> {
         match &self.0 {
             LeaseKind::InProcess(l) => l.renew().await,
-            #[cfg(feature = "postgres")]
             LeaseKind::Postgres(l) => l.renew().await,
             #[cfg(feature = "redis-lease")]
             LeaseKind::Redis(l) => l.renew().await,
@@ -582,7 +575,6 @@ impl CheckpointLease {
     pub async fn is_valid(&self) -> Result<bool> {
         match &self.0 {
             LeaseKind::InProcess(l) => l.is_valid().await,
-            #[cfg(feature = "postgres")]
             LeaseKind::Postgres(l) => l.is_valid().await,
             #[cfg(feature = "redis-lease")]
             LeaseKind::Redis(l) => l.is_valid().await,
@@ -597,7 +589,6 @@ impl CheckpointLease {
     pub async fn get_holder(&self) -> Result<Option<String>> {
         match &self.0 {
             LeaseKind::InProcess(l) => l.get_holder().await,
-            #[cfg(feature = "postgres")]
             LeaseKind::Postgres(l) => l.get_holder().await,
             #[cfg(feature = "redis-lease")]
             LeaseKind::Redis(l) => l.get_holder().await,
@@ -614,7 +605,6 @@ impl CheckpointLease {
     pub async fn time_remaining_ms(&self) -> Result<u64> {
         match &self.0 {
             LeaseKind::InProcess(l) => l.time_remaining_ms().await,
-            #[cfg(feature = "postgres")]
             LeaseKind::Postgres(l) => l.time_remaining_ms().await,
             #[cfg(feature = "redis-lease")]
             LeaseKind::Redis(l) => l.time_remaining_ms().await,
@@ -626,7 +616,6 @@ impl CheckpointLease {
     pub const fn checkpoint_id(&self) -> i64 {
         match &self.0 {
             LeaseKind::InProcess(l) => l.checkpoint_id,
-            #[cfg(feature = "postgres")]
             LeaseKind::Postgres(l) => l.checkpoint_id,
             #[cfg(feature = "redis-lease")]
             LeaseKind::Redis(l) => l.checkpoint_id,
@@ -638,7 +627,6 @@ impl CheckpointLease {
     pub fn listener_id(&self) -> &str {
         match &self.0 {
             LeaseKind::InProcess(l) => &l.listener_id,
-            #[cfg(feature = "postgres")]
             LeaseKind::Postgres(l) => &l.listener_id,
             #[cfg(feature = "redis-lease")]
             LeaseKind::Redis(l) => &l.listener_id,

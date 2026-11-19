@@ -12,7 +12,6 @@
 //!   cargo test -p fraiseql-observers --test changelog_views -- --ignored
 //! ```
 
-#![cfg(feature = "postgres")]
 #![allow(clippy::unwrap_used, clippy::print_stdout)] // Reason: integration test file
 
 use fraiseql_observers::migrations::entity_change_log_contract_sql;

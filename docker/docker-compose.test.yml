@@ -7,7 +7,7 @@
 # Usage:
 #   docker compose -f docker/docker-compose.test.yml up -d
 #   cargo test --features test-postgres -p fraiseql-core -- db::postgres
-#   cargo test --features "postgres,dedup,caching,testing" -p fraiseql-observers --test integration_test
+#   cargo test --features "caching,testing" -p fraiseql-observers --test integration_test
 #   docker compose -f docker/docker-compose.test.yml down -v
 
 services:

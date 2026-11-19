@@ -13,7 +13,7 @@
 //! cargo bench --bench observer_benchmarks
 //!
 //! # With Redis features
-//! cargo bench --bench observer_benchmarks --features "postgres,dedup,caching"
+//! cargo bench --bench observer_benchmarks --features caching
 //! ```
 #![allow(missing_docs)]
 
@@ -382,7 +382,7 @@ fn benchmark_throughput(c: &mut Criterion) {
 // cargo bench --bench observer_benchmarks
 //
 // # With optional features
-// cargo bench --bench observer_benchmarks --features "postgres,dedup,caching"
+// cargo bench --bench observer_benchmarks --features caching
 //
 // # Single benchmark group
 // cargo bench --bench observer_benchmarks -- event_processing

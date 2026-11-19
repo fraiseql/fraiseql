@@ -66,7 +66,6 @@ pub(super) struct DefaultActionDispatcher {
     /// after construction. Unset means no pool was wired: a `database` action
     /// then fails loud (permanent) rather than silently no-opping, exactly like
     /// an email action with no SMTP backend.
-    #[cfg(feature = "postgres")]
     pub(super) database_pool:     Arc<std::sync::OnceLock<sqlx::PgPool>>,
 }
 
@@ -429,7 +428,6 @@ impl DefaultActionDispatcher {
     /// config-load validation alone is not a boundary), then interpolated;
     /// the envelope is bound as a real `$1` parameter. Fails loud without a
     /// wired pool — never a fabricated success.
-    #[cfg(feature = "postgres")]
     async fn dispatch_database(
         &self,
         function_name: &str,
@@ -479,21 +477,6 @@ impl DefaultActionDispatcher {
             message: format!("called {function_name}"),
             duration_ms,
             status_code: None,
-        })
-    }
-
-    /// Dispatch a `database` action without the `postgres` feature: no driver
-    /// exists, so the action always fails loud.
-    #[cfg(not(feature = "postgres"))]
-    #[allow(clippy::unused_self, clippy::unused_async)] // Reason: mirrors the `postgres` async signature so the call site is feature-agnostic
-    async fn dispatch_database(
-        &self,
-        _function_name: &str,
-        _params: Option<&serde_json::Value>,
-        _event: &EntityEvent,
-    ) -> Result<ActionResult> {
-        Err(ObserverError::UnsupportedActionType {
-            action_type: "database".to_string(),
         })
     }
 }
@@ -611,7 +594,6 @@ mod dispatch_632_tests {
 
     /// #632 fail-loud: a `database` action with no wired pool must error, never
     /// fabricate success.
-    #[cfg(feature = "postgres")]
     #[tokio::test]
     async fn database_action_without_pool_fails_loud() {
         let dispatcher = DefaultActionDispatcher {
@@ -636,7 +618,6 @@ mod dispatch_632_tests {
     /// #632 injection guard: the function name is interpolated into SQL, so a
     /// non-identifier must be rejected at dispatch even if it somehow bypassed
     /// config-load validation (operator-edited `tb_observer.actions`).
-    #[cfg(feature = "postgres")]
     #[tokio::test]
     async fn database_action_rejects_non_identifier_function_names() {
         let dispatcher = DefaultActionDispatcher {
@@ -669,7 +650,6 @@ mod dispatch_632_tests {
 
     /// #632 end-to-end: a `database` action calls the configured PostgreSQL
     /// function with the `{"event": ..., "params": ...}` envelope.
-    #[cfg(feature = "postgres")]
     #[tokio::test]
     #[ignore = "requires PostgreSQL"]
     async fn database_action_calls_the_function_for_real() {

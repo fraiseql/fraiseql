@@ -115,7 +115,7 @@ test-full: db-up
 	cargo test -p fraiseql-observers --features "nats" --test nats_integration -- --ignored --test-threads=1
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 	TEST_DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
-		cargo test -p fraiseql-observers --features "postgres,redis-lease" --lib -- --ignored --test-threads=1
+		cargo test -p fraiseql-observers --features redis-lease --lib -- --ignored --test-threads=1
 	@echo ""
 	@echo "[7/8] Vault secrets manager tests..."
 	VAULT_ADDR="http://localhost:8200" \
@@ -129,7 +129,7 @@ test-full: db-up
 		cargo test -p fraiseql-server --features "observers-nats" --test observer_runtime_integration_test -- --ignored --test-threads=1
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 	REDIS_URL="redis://localhost:6379" \
-		cargo test --features "postgres,caching,testing" -p fraiseql-observers --test integration_test -- --ignored
+		cargo test --features "caching,testing" -p fraiseql-observers --test integration_test -- --ignored
 	@echo ""
 	@echo "=== Full test suite complete (all 8 steps passed) ==="
 
@@ -162,7 +162,7 @@ test-integration: test-integration-postgres
 	@echo "=== fraiseql-observers integration tests ==="
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 	REDIS_URL="redis://localhost:6379" \
-		cargo test --features "postgres,caching,testing" -p fraiseql-observers --test integration_test -- --ignored
+		cargo test --features "caching,testing" -p fraiseql-observers --test integration_test -- --ignored
 	@echo ""
 	@echo "=== fraiseql-server integration tests ==="
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
@@ -391,7 +391,7 @@ test-leg:
 	cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka' --test config_coverage_manifest_test --test doc_config_examples_test --test project_security_keys_honoured_test
 	@echo ""
 	@echo "### observers (--lib + in-process binaries), saga"
-	cargo test -p fraiseql-observers --lib --features 'caching,checkpoint,metrics,nats,postgres'
+	cargo test -p fraiseql-observers --lib --features 'caching,checkpoint,metrics,nats'
 	cargo test -p fraiseql-observers --features 'metrics,testing' --test stress_tests --test transport_pipeline_test
 	cargo test -p fraiseql-saga --lib
 	@echo ""
@@ -418,7 +418,7 @@ test-all-ignored: db-up
 	@echo "=== Observer PostgreSQL transport + lease tests ==="
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 	TEST_DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
-		cargo test -p fraiseql-observers --features "postgres,redis-lease" --lib -- --ignored --test-threads=1
+		cargo test -p fraiseql-observers --features redis-lease --lib -- --ignored --test-threads=1
 	@echo ""
 	@echo "=== Vault secrets manager tests ==="
 	VAULT_ADDR="http://localhost:8200" \

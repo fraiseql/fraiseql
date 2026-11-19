@@ -1272,8 +1272,8 @@ func (m *FraiseqlCi) Test(
 		// so these unit tests never executed in CI.
 		// checkpoint/metrics are pure lib features whose unit modules were
 		// compiled out of every leg before (#992).
-		"echo '### cargo test -p fraiseql-observers --lib --features caching,checkpoint,metrics,nats,postgres (Docker-free unit tests; DB/redis/nats tests are #[ignore]d → integration legs)'",
-		"cargo test -p fraiseql-observers --lib --features 'caching,checkpoint,metrics,nats,postgres'",
+		"echo '### cargo test -p fraiseql-observers --lib --features caching,checkpoint,metrics,nats (Docker-free unit tests; DB/redis/nats tests are #[ignore]d → integration legs)'",
+		"cargo test -p fraiseql-observers --lib --features 'caching,checkpoint,metrics,nats'",
 		// #992: observers in-process test binaries — the crate is excluded from
 		// the workspace run, so these executed nowhere.
 		"echo '### cargo test -p fraiseql-observers in-process test binaries (#992)'",
@@ -3246,19 +3246,19 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		"echo '### integration: observers (Dagger-bound postgres+redis+nats)'",
 		// postgres_notify lib tests are skip-on-None (not #[ignore]d); run name-filtered
 		// (no --ignored) so the NOTIFY transport tests exercise the bound Postgres.
-		"bash tools/ci-target-canary.sh -- test -p fraiseql-observers --features postgres --lib postgres_notify", // #880 canary
-		"cargo test -p fraiseql-observers --features postgres --lib postgres_notify -- --test-threads=1",
+		"bash tools/ci-target-canary.sh -- test -p fraiseql-observers --lib postgres_notify", // #880 canary
+		"cargo test -p fraiseql-observers --lib postgres_notify -- --test-threads=1",
 		// Lease/storage: kept as the legacy `--lib --ignored` no-op. Those tests are
 		// skip-on-None (not #[ignore]d) so this runs 0; running them unfiltered pulls in
 		// the SSRF-guard unit tests, which assert the guard is ON and so fail under this
 		// suite's FRAISEQL_OBSERVERS_ALLOW_INSECURE=true. Lease coverage gap == legacy.
-		"cargo test -p fraiseql-observers --features 'postgres,caching,redis-lease' --lib -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --lib -- --ignored --test-threads=1",
 		// #1297 closes the gap the comment above records. The four advisory-lease
 		// tests are skip-on-None, so the `--ignored` line runs none of them; a
 		// NAME-FILTERED plain run reaches them without pulling in the SSRF-guard
 		// unit tests that fail under this suite's FRAISEQL_OBSERVERS_ALLOW_INSECURE.
 		// This leg binds both Postgres and Redis, so both halves execute here.
-		"cargo test -p fraiseql-observers --features 'postgres,caching,redis-lease' --lib listener::tests -- --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --lib listener::tests -- --test-threads=1",
 		"cargo test -p fraiseql-server --features observers-nats --test observer_runtime_integration_test -- --ignored --test-threads=1",
 		// #928: the observer E2E suite. It had never run in any leg — none of its
 		// tests constructed a runtime, so all 8 waited for webhooks nothing could
@@ -3282,30 +3282,30 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// #443 / #437 F6: change-log RLS isolation under a NOBYPASSRLS role (the
 		// superuser DATABASE_URL would mask the policy). The test creates its own
 		// tenant/consumer roles off the superuser connection — no extra env needed.
-		"cargo test -p fraiseql-observers --features postgres --test rls_isolation -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --test rls_isolation -- --ignored --test-threads=1",
 		// #390 (P29): the change-log contract suite — including the actor_type CHECK
 		// constraint tests — plus the views + capture-trigger suites. All three binaries
 		// had run in NO leg since they were written (the #[ignore]-with-no---ignored-leg
 		// form of the skip-green pattern); capture_trigger is order-independent since it
 		// drops the ambient table (an ambient NOT-NULL object_data red-flagged it).
-		"cargo test -p fraiseql-observers --features postgres --test entity_change_log_contract -- --ignored --test-threads=1",
-		"cargo test -p fraiseql-observers --features postgres --test changelog_views -- --ignored --test-threads=1",
-		"cargo test -p fraiseql-observers --features postgres --test capture_trigger -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --test entity_change_log_contract -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --test changelog_views -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --test capture_trigger -- --ignored --test-threads=1",
 		// #935: the two-session commit-order repro. Identity pks are allocated in
 		// statement order but become visible in commit order, so the old
 		// `pk > watermark` cursor permanently skipped late-committing rows and
 		// their observers never fired. Needs a real Postgres — a mock cannot
 		// produce the divergence — and its own binary, since it owns
 		// core.tb_entity_change_log and the dispatch ledger.
-		"cargo test -p fraiseql-observers --features postgres --test change_log_commit_order_pg -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --test change_log_commit_order_pg -- --ignored --test-threads=1",
 		// #573 source coordination primitives: the advisory-lease mutual-exclusion
 		// + crash-safety boundary (Phase 00), and the source cursor store (CAS
 		// advance, in-tx rollback, deny-by-default RLS) + single-firing runner
 		// (Phase 01), all vs the bound Postgres. Self-skip on no DATABASE_URL (not
 		// #[ignore]d) → run WITHOUT --ignored, as separate binaries so they never
 		// pull in the SSRF-guard unit tests this suite disables.
-		"cargo test -p fraiseql-observers --features postgres --test advisory_lease_pg -- --test-threads=1",
-		"cargo test -p fraiseql-observers --features postgres --test source_cursor_pg -- --test-threads=1",
+		"cargo test -p fraiseql-observers --test advisory_lease_pg -- --test-threads=1",
+		"cargo test -p fraiseql-observers --test source_cursor_pg -- --test-threads=1",
 		// #382 outbound CDC: the drain-worker state machine vs the bound Postgres
 		// (stub sink, no broker) + the NATS JetStream sink end-to-end vs the bound
 		// JetStream (DATABASE_URL + NATS_URL + FRAISEQL_NATS_ALLOW_PLAINTEXT below).

@@ -103,9 +103,7 @@ pub use event::{EntityEvent, EventKind, FieldChanges};
 pub use executor::{ActionExecutionDetail, ExecutionSummary, ObserverExecutor};
 /// The `futures` this crate's public API is built against (#1198).
 pub use futures;
-pub use listener::CheckpointLease;
-#[cfg(feature = "postgres")]
-pub use listener::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig};
+pub use listener::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig, CheckpointLease};
 pub use logging::{
     StructuredLogger, TraceIdExtractor, correlation::TraceContext, get_current_trace_id,
     set_trace_id_context,
@@ -135,18 +133,15 @@ pub use source::{
 };
 /// The `sqlx` this crate's public API is built against (#1198).
 pub use sqlx;
-pub use storage::EventStorage;
-#[cfg(feature = "postgres")]
-pub use storage::postgres::PostgresEventStorage;
+pub use storage::{EventStorage, postgres::PostgresEventStorage};
 pub use traits::{
     ActionExecutor, ActionResult, ConditionEvaluator, DeadLetterQueue, DlqItem, EventSource,
     TemplateRenderer,
 };
-#[cfg(feature = "postgres")]
-pub use transport::PostgresNotifyTransport;
 pub use transport::{
     AckedEventStream, Acker, EventFilter, EventStream, EventTransport, HealthStatus,
-    InMemoryTransport, TenantScope, TransportHealth, TransportType, progress_ack_failures,
+    InMemoryTransport, PostgresNotifyTransport, TenantScope, TransportHealth, TransportType,
+    progress_ack_failures,
 };
 /// The `uuid` this crate's public API is built against (#1198).
 pub use uuid;
@@ -224,7 +219,7 @@ mod integration_tests {
     }
 }
 
-#[cfg(all(test, feature = "postgres"))]
+#[cfg(test)]
 mod e2e_tests {
     //! End-to-end integration tests
     //!

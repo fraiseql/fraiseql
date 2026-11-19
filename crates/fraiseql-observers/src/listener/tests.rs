@@ -22,7 +22,6 @@ mod listener_mod_tests {
     }
 }
 
-#[cfg(feature = "postgres")]
 #[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 mod change_log_tests {
     use serde_json::{Value, json};
@@ -727,7 +726,6 @@ mod lease_tests {
 
     // ── PostgreSQL advisory lease (integration, requires real PG) ─────────
 
-    #[cfg(feature = "postgres")]
     #[tokio::test]
     async fn test_postgres_advisory_acquire_release() {
         let Some(url) = fraiseql_test_support::try_database_url() else {
@@ -749,7 +747,6 @@ mod lease_tests {
         assert!(!lease.is_valid().await.unwrap());
     }
 
-    #[cfg(feature = "postgres")]
     #[tokio::test]
     async fn test_postgres_advisory_contention() {
         let Some(url) = fraiseql_test_support::try_database_url() else {

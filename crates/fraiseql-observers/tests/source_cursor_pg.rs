@@ -19,7 +19,6 @@
 //!
 //! **Execution engine:** PostgreSQL · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** creates a shared subordinate role → run `--test-threads=1`.
-#![cfg(feature = "postgres")]
 #![allow(clippy::unwrap_used)] // Reason: integration test file — panics are acceptable
 #![allow(clippy::panic)] // Reason: integration test file
 #![allow(clippy::print_stderr)] // Reason: skip diagnostic when no backing Postgres

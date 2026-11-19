@@ -61,25 +61,25 @@ docker compose -f "$(git rev-parse --show-toplevel)/docker/docker-compose.test.y
 **All integration tests with Redis**:
 
 ```bash
-cargo test --test integration_test --features "postgres,caching,testing"
+cargo test --test integration_test --features "caching,testing"
 ```
 
 **With checkpoint tests enabled**:
 
 ```bash
-cargo test --test integration_test --features "postgres,caching,checkpoint,testing"
+cargo test --test integration_test --features "caching,checkpoint,testing"
 ```
 
 **Run a specific test**:
 
 ```bash
-cargo test --test integration_test test_event_processing_with_caching --features "postgres,caching,testing"
+cargo test --test integration_test test_event_processing_with_caching --features "caching,testing"
 ```
 
 **With output logging**:
 
 ```bash
-cargo test --test integration_test --features "postgres,caching,testing" -- --nocapture
+cargo test --test integration_test --features "caching,testing" -- --nocapture
 ```
 
 ### Feature Flags
@@ -108,7 +108,7 @@ docker compose -f "$(git rev-parse --show-toplevel)/docker/docker-compose.test.y
 docker run -d -p 6379:6379 redis:7-alpine
 
 # Or use a custom Redis URL
-REDIS_URL=redis://your-redis:6379 cargo test --test integration_test --features "postgres,caching,testing"
+REDIS_URL=redis://your-redis:6379 cargo test --test integration_test --features "caching,testing"
 ```
 
 ### Test Timeout
@@ -128,7 +128,7 @@ REDIS_URL=redis://your-redis:6379 cargo test --test integration_test --features 
 **Solution**: Include the features the test is gated on:
 
 ```bash
-cargo test --test integration_test --features "postgres,caching,testing"
+cargo test --test integration_test --features "caching,testing"
 ```
 
 ## Performance Benchmarks

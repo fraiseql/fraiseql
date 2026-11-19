@@ -213,8 +213,6 @@ Defaults: `auth`, `cli`. `fraiseql-core` is always built with `postgres` and `sc
 
 | Feature | Default | Description | Activates |
 |---------|---------|-------------|-----------|
-| `postgres` | yes | PostgreSQL storage | `sqlx/postgres` |
-| `all-db` | no | Alias | `postgres` |
 | `checkpoint` | no | Durable listener checkpoint | (empty) |
 | `nats` | no | NATS transport | `async-nats` |
 | `caching` | no | Redis cache | `redis` |
@@ -325,7 +323,7 @@ The `-full` archive is not built for `x86_64-unknown-linux-musl` (`lean_only` in
 | fraiseql-server | always, through `fraiseql-core/postgres`; also `sqlx` (postgres) and `tokio-postgres` directly |
 | fraiseql-wire | its own PostgreSQL protocol client; Unix-like systems only |
 | fraiseql-auth, fraiseql-webhooks, fraiseql-storage, fraiseql-functions, fraiseql-arrow | `sqlx` |
-| fraiseql-observers | `sqlx`, `postgres` feature (default) |
+| fraiseql-observers | always, through `sqlx` (postgres) |
 | fraiseql-saga | `tokio-postgres` + `deadpool-postgres` |
 
 ## Feature Dependencies and Implied Activations

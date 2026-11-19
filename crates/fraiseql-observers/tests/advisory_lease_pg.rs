@@ -22,7 +22,6 @@
 //!
 //! **Execution engine:** PostgreSQL · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** independent lock keys → safe to run in parallel.
-#![cfg(feature = "postgres")]
 #![allow(clippy::unwrap_used)] // Reason: integration test file — panics are acceptable
 #![allow(clippy::panic)] // Reason: integration test file
 #![allow(clippy::print_stderr)] // Reason: skip diagnostic when no backing Postgres

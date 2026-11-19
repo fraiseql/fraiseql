@@ -28,14 +28,6 @@
 //!   `checkpoint`, + [`ChangeLogListenerConfig::with_resume_from`]) and persist it after each
 //!   dispatched batch (#805). The cursor is now a scan bound and the floor a sweep drops back to,
 //!   so without it a fresh process still walks the whole change log.
-//!
-//! **Requires the `postgres` Cargo feature.**
-
-#[cfg(not(feature = "postgres"))]
-compile_error!(
-    "`fraiseql-observers::listener::change_log` requires the `postgres` feature. \
-     Enable it with: fraiseql-observers = { features = [\"postgres\"] }"
-);
 
 use std::{
     collections::{HashMap, VecDeque},

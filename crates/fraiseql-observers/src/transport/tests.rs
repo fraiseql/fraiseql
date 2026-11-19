@@ -204,7 +204,6 @@ mod nats_tests {
     }
 }
 
-#[cfg(feature = "postgres")]
 mod postgres_notify_tests {
     use std::{env, time::Duration};
 

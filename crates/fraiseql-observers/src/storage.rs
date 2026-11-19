@@ -49,7 +49,6 @@ pub trait EventStorage: Send + Sync {
     ) -> Result<usize>;
 }
 
-#[cfg(feature = "postgres")]
 pub mod postgres {
     //! PostgreSQL implementation of event storage.
 

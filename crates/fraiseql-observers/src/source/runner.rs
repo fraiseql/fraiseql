@@ -58,7 +58,6 @@ impl LeaseGuardedRunner {
     /// A runner backed by a PostgreSQL session advisory lock — the lock key is the
     /// stable [`lock_id`] of the source name, so every replica contends on the
     /// same key.
-    #[cfg(feature = "postgres")]
     #[must_use]
     pub fn postgres(pool: sqlx::PgPool, source_name: impl Into<String>) -> Self {
         let source_name = source_name.into();

@@ -24,7 +24,6 @@
 //!   -- --ignored --test-threads=1
 //! ```
 
-#![cfg(feature = "postgres")]
 #![allow(clippy::unwrap_used)] // Reason: integration test file
 
 use fraiseql_observers::{

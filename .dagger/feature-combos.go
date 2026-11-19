@@ -269,25 +269,22 @@ var featureCombos = []featureCombo{
 	{name: "cdc-kinesis", crate: "fraiseql-cdc-sinks", clippy: true, features: []string{"cdc-kinesis"}},
 
 	// ── observers: the narrow builds nothing else compiles (#1311) ────────────
-	// The crate had NO entry here at all, and every other leg builds it with
-	// `postgres` on: the test leg passes ten features including `postgres`,
-	// preflight is `--all-features`, and `integration (observers)` names `postgres`.
-	// So `default = ["postgres"]` being off — a configuration the crate declares by
-	// making `postgres` optional — was compiled by nothing, and three separate
-	// mis-gatings had accumulated behind that, each found by the combo below it.
+	// Every other leg builds the crate with most of its optional features on, so the
+	// shapes with them off were compiled by nothing, and mis-gatings accumulated there.
 	//
-	// clippy `--all-targets` rather than `cargo check`: two of the three defects were
-	// in TEST targets (`check` alone never compiles them) and the third was an unused
+	// clippy `--all-targets` rather than `cargo check`: two of the defects #1311 found
+	// were in TEST targets (`check` alone never compiles them) and one was an unused
 	// import, which is a warning rather than an error and needs `-D warnings` to bite.
-	// There is no pre-existing lint debt to take on — measured clean at all three.
-	//
-	// `observers-no-default` is the shape from the issue: `executor/tests.rs` called
-	// `ObserverExecutor::run_listener_loop` and imported `crate::listener`, both
-	// `#[cfg(feature = "postgres")]`, with no gate of its own.
 	{name: "observers-no-default", crate: "fraiseql-observers", noDefaultFeatures: true, clippy: true},
-	// `nats` without `postgres`: the NATS transport builds without the PostgreSQL
-	// listener. The combo above has `nats` off, so it does not reach this shape.
-	{name: "observers-nats-no-postgres", crate: "fraiseql-observers", noDefaultFeatures: true, clippy: true, features: []string{"nats"}},
+	// The NATS transport with the other optional features off. The combo above has
+	// `nats` off, so it does not reach this shape.
+	{name: "observers-nats", crate: "fraiseql-observers", noDefaultFeatures: true, clippy: true, features: []string{"nats"}},
+	// The library alone, with nothing from the dev-dependencies. The two clippy combos
+	// above build the test targets, and `fraiseql-webhooks`, a dev-dependency, turns on
+	// `sqlx/postgres`. When this crate still had a `postgres` feature, the library used
+	// sqlx's PostgreSQL types without it and both combos passed. The feature-combo check
+	// cannot see that, because it compares this crate's features, not its dependencies'.
+	{name: "observers-no-default-lib", crate: "fraiseql-observers", noDefaultFeatures: true},
 }
 
 // cargoArgs builds the `cargo check|clippy` invocation for this combo, mirroring the

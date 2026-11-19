@@ -6,7 +6,7 @@
 //!
 //! ```bash
 //! DATABASE_URL=postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql \
-//!   cargo test -p fraiseql-observers --features postgres --lib listener::replay -- \
+//!   cargo test -p fraiseql-observers --lib listener::replay -- \
 //!   --ignored --test-threads=1
 //! ```
 

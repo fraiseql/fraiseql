@@ -80,7 +80,6 @@ pub struct ObserverExecutor {
     ///
     /// Created at construction and shared with the dispatcher; populated by
     /// [`Self::with_database_pool`]. Unset ⇒ `database` actions fail loud.
-    #[cfg(feature = "postgres")]
     pub(super) database_pool_slot:     Arc<std::sync::OnceLock<sqlx::PgPool>>,
     /// Shared slot holding the Redis cache-invalidation transport (#428/#985).
     ///
@@ -100,7 +99,7 @@ fn make_dispatcher(
     #[cfg(feature = "caching")] cache_invalidator: Arc<
         std::sync::OnceLock<Arc<crate::cache::redis::RedisCacheInvalidator>>,
     >,
-    #[cfg(feature = "postgres")] database_pool: Arc<std::sync::OnceLock<sqlx::PgPool>>,
+    database_pool: Arc<std::sync::OnceLock<sqlx::PgPool>>,
 ) -> Arc<DefaultActionDispatcher> {
     Arc::new(DefaultActionDispatcher {
         webhook_action: Arc::new(WebhookAction::new()),
@@ -108,7 +107,6 @@ fn make_dispatcher(
         email_action: Arc::new(email_action),
         #[cfg(feature = "caching")]
         cache_invalidator,
-        #[cfg(feature = "postgres")]
         database_pool,
     })
 }
@@ -120,7 +118,6 @@ impl ObserverExecutor {
     /// use [`new_with_email`](ObserverExecutor::new_with_email) to enable real
     /// email delivery.
     pub fn new(matcher: EventMatcher, dlq: Arc<dyn DeadLetterQueue>) -> Self {
-        #[cfg(feature = "postgres")]
         let database_pool_slot = Arc::new(std::sync::OnceLock::new());
         #[cfg(feature = "caching")]
         let cache_invalidator_slot = Arc::new(std::sync::OnceLock::new());
@@ -132,7 +129,6 @@ impl ObserverExecutor {
                 EmailAction::new(),
                 #[cfg(feature = "caching")]
                 Arc::clone(&cache_invalidator_slot),
-                #[cfg(feature = "postgres")]
                 Arc::clone(&database_pool_slot),
             ),
             dlq,
@@ -145,7 +141,6 @@ impl ObserverExecutor {
             metrics: MetricsRegistry::global().unwrap_or_default(),
             #[cfg(feature = "caching")]
             cache_invalidator_slot,
-            #[cfg(feature = "postgres")]
             database_pool_slot,
         }
     }
@@ -166,7 +161,6 @@ impl ObserverExecutor {
         email_config: Option<&EmailSmtpConfig>,
     ) -> Result<Self> {
         let email_action = EmailAction::from_smtp_config(email_config)?;
-        #[cfg(feature = "postgres")]
         let database_pool_slot = Arc::new(std::sync::OnceLock::new());
         #[cfg(feature = "caching")]
         let cache_invalidator_slot = Arc::new(std::sync::OnceLock::new());
@@ -178,7 +172,6 @@ impl ObserverExecutor {
                 email_action,
                 #[cfg(feature = "caching")]
                 Arc::clone(&cache_invalidator_slot),
-                #[cfg(feature = "postgres")]
                 Arc::clone(&database_pool_slot),
             ),
             dlq,
@@ -189,7 +182,6 @@ impl ObserverExecutor {
             cache_backend: None,
             #[cfg(feature = "metrics")]
             metrics: MetricsRegistry::global().unwrap_or_default(),
-            #[cfg(feature = "postgres")]
             database_pool_slot,
             #[cfg(feature = "caching")]
             cache_invalidator_slot,
@@ -220,7 +212,6 @@ impl ObserverExecutor {
         dlq: Arc<dyn DeadLetterQueue>,
         cache_backend: Option<Arc<dyn CacheBackendDyn>>,
     ) -> Self {
-        #[cfg(feature = "postgres")]
         let database_pool_slot = Arc::new(std::sync::OnceLock::new());
         #[cfg(feature = "caching")]
         let cache_invalidator_slot = Arc::new(std::sync::OnceLock::new());
@@ -232,7 +223,6 @@ impl ObserverExecutor {
                 EmailAction::new(),
                 #[cfg(feature = "caching")]
                 Arc::clone(&cache_invalidator_slot),
-                #[cfg(feature = "postgres")]
                 Arc::clone(&database_pool_slot),
             ),
             dlq,
@@ -244,7 +234,6 @@ impl ObserverExecutor {
             metrics: MetricsRegistry::global().unwrap_or_default(),
             #[cfg(feature = "caching")]
             cache_invalidator_slot,
-            #[cfg(feature = "postgres")]
             database_pool_slot,
         }
     }
@@ -297,7 +286,6 @@ impl ObserverExecutor {
     /// Without a wired pool every `database` action fails loud (permanent) —
     /// never a fabricated success. Setting a pool twice keeps the first one;
     /// the builder is called once at boot.
-    #[cfg(feature = "postgres")]
     #[must_use]
     pub fn with_database_pool(self, pool: sqlx::PgPool) -> Self {
         let _ = self.database_pool_slot.set(pool);
@@ -327,7 +315,6 @@ impl ObserverExecutor {
             cache_backend: None,
             #[cfg(feature = "metrics")]
             metrics: MetricsRegistry::global().unwrap_or_default(),
-            #[cfg(feature = "postgres")]
             database_pool_slot: Arc::new(std::sync::OnceLock::new()),
             #[cfg(feature = "caching")]
             cache_invalidator_slot: Arc::new(std::sync::OnceLock::new()),
