@@ -324,6 +324,7 @@ async fn token_revocation_in_a_project_config_refuses_a_token_without_jti_and_a_
 }
 
 /// A provider whose discovery document names the endpoints a PKCE client resolves at boot.
+#[cfg(feature = "auth")]
 async fn oauth_provider() -> wiremock::MockServer {
     use wiremock::{
         Mock, ResponseTemplate,
@@ -350,6 +351,7 @@ async fn oauth_provider() -> wiremock::MockServer {
 }
 
 /// `GET /auth/start` on a server compiled from `security`: the status and the `Location`.
+#[cfg(feature = "auth")]
 async fn auth_start(security: &str) -> (u16, String) {
     let (_project, schema) = compile(security).await;
     let config = ServerConfig {
@@ -412,6 +414,7 @@ async fn pkce_in_a_project_config_mounts_auth_start_with_an_s256_challenge() {
 }
 
 /// A valid 32-byte hex key.
+#[cfg(feature = "auth")]
 const STATE_KEY: &str = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
 
 #[cfg(feature = "auth")]

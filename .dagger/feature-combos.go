@@ -65,6 +65,14 @@ type featureCombo struct {
 	// symbols with no gate on the feature providing them — and no combo built that
 	// shape. The narrow server combos were `cargo check` (lib only) and the combos
 	// that did build tests all kept the crate defaults, which include `auth`.
+	//
+	// #2096: test targets bring the crate's dev-dependencies into the build, and cargo
+	// turns on every feature of this crate they ask for. A dev-dependency that depends
+	// on the crate with its defaults puts them back in a `noDefaultFeatures` combo, and
+	// its name stops describing its build: five did, until the `fraiseql-cli`
+	// dev-dependency stopped asking for `run-server`. tools/check-feature-combo-features.py
+	// compares what each combo names with what cargo enables, and runs first in
+	// FeatureMatrix.
 	allTargets bool
 }
 
@@ -114,8 +122,8 @@ var featureCombos = []featureCombo{
 	// #2092: `mcp` without the crate defaults. The MCP session state is
 	// `fraiseql_auth`'s, and `auth` is a default, so every other combo hid that
 	// `mcp` did not enable it. Library and binaries only: with test targets, the
-	// dev-dependencies (`fraiseql-auth`, and `fraiseql-cli`, which builds this crate
-	// with its defaults) supply the missing crate and the check passes regardless.
+	// `fraiseql-auth` dev-dependency supplies the missing crate and the check passes
+	// regardless.
 	{name: "server-mcp-no-default", crate: "fraiseql-server", noDefaultFeatures: true, features: []string{"mcp"}},
 	{name: "server-observers-enterprise-redis", crate: "fraiseql-server", features: []string{"observers-enterprise", "redis-apq", "redis-pkce"}},
 	{name: "server-federation", crate: "fraiseql-server", features: []string{"federation"}},
@@ -162,11 +170,11 @@ var featureCombos = []featureCombo{
 	// combo per writer, so a cross-module import in EITHER direction reddens here.
 	// (There is no `export-parquet` combo because the feature no longer exists: it gated
 	// nothing and was deleted in 2.15.0 (#1012). Parquet is `fraiseql-arrow`'s, over Flight.)
-	// `allTargets` since #1277: these two are the only combos that build
-	// fraiseql-server WITHOUT its default features, so they are the only place the
-	// `auth`-off arm of its lib test binary can be compiled. `rest` alone
-	// reproduces that failure identically — the export features change nothing in
-	// `routes/tests.rs` — so gating the arm here covers it without a third build.
+	// `allTargets` since #1277, so the `auth`-off arm of the server's test targets is
+	// compiled here as well as in the no-auth and no-cli combos above. Until #2096 none of
+	// them was: a dev-dependency turned the defaults back on in every test build, so
+	// these two compiled `auth` all along. `rest` alone reproduces the #1277 failure
+	// identically — the export features change nothing in `routes/tests.rs`.
 	{name: "server-rest-export-xlsx", crate: "fraiseql-server", noDefaultFeatures: true, allTargets: true, features: []string{"rest", "export-xlsx"}},
 	{name: "server-rest-export-csv", crate: "fraiseql-server", noDefaultFeatures: true, allTargets: true, features: []string{"rest", "export-csv"}},
 	// #1291: `rest` with NEITHER export feature, and the only combo of the three that
@@ -416,6 +424,29 @@ exit 0`, c.name, cmd, setup, comboResultMarker(c.name, "OK"), comboResultMarker(
 		Stdout(ctx)
 }
 
+// comboFeaturesMarker is the line comboFeatures prints when every combo builds exactly the
+// features it names.
+const comboFeaturesMarker = "=== COMBO-FEATURES: OK ==="
+
+// comboFeatures runs tools/check-feature-combo-features.py: for every combo, the features
+// cargo enables on its crate must be the ones the combo names and those they imply (#2096).
+// A combo that builds its test targets also gets the features its dev-dependencies ask
+// for, and five combos named "no auth" were compiled with `auth` that way; their compile
+// passing said nothing about the build their name described. It needs only `cargo
+// metadata` and `cargo tree`, so it runs once, before the combos compile, on the same
+// base. `--root .`: the source is mounted without `.git`. Like runCombo, the script exits
+// 0 and the Go layer reads the marker.
+func (m *FraiseqlCi) comboFeatures(ctx context.Context, source *dagger.Directory) (string, error) {
+	script := `set +e
+out=$(python3 tools/check-feature-combo-features.py --root . 2>&1); rc=$?
+printf '%s\n' "$out"
+if [ "$rc" = "0" ]; then echo '` + comboFeaturesMarker + `'; fi
+exit 0`
+	return m.featureBase(source, featureTargetVol).
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
 // featureMatrixLanes bounds how many combos compile concurrently in FeatureMatrix.
 // Sized for the self-hosted box (i7-13700K, 24 threads, 31 GiB): `cargo check` is light
 // (no final-binary codegen) and sccache (a shared volume) serves cross-lane object
@@ -444,6 +475,11 @@ func (m *FraiseqlCi) FeatureMatrix(
 		out  string
 		err  error
 	}
+
+	// Before any combo compiles: each one must build the features it names, or its
+	// result below is about another build.
+	featuresOut, featuresErr := m.comboFeatures(ctx, source)
+	featuresOK := featuresErr == nil && strings.Contains(featuresOut, comboFeaturesMarker)
 
 	jobs := make(chan featureCombo)
 	results := make(chan comboResult)
@@ -495,6 +531,12 @@ func (m *FraiseqlCi) FeatureMatrix(
 	// Emit in declaration order (stable, matches the combo table) regardless of the
 	// order lanes finished in.
 	var report strings.Builder
+	if featuresOK {
+		report.WriteString("===== combo-features (ok) =====\n")
+	} else {
+		failed = append(failed, "combo-features")
+		fmt.Fprintf(&report, "\n===== combo-features (FAILED) =====\n%s\n%v\n", featuresOut, featuresErr)
+	}
 	for _, c := range featureCombos {
 		report.WriteString(reports[c.name])
 	}

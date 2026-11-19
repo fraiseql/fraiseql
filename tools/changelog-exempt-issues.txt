@@ -70,3 +70,4 @@
 #2073  test rig only: the standby wait compares the standby with the primary's write position, and a test keeps the standby from receiving to prove it; no shipped behaviour changes
 #2079  CI: the Java SDK pom pins maven-resources-plugin, so the Maven cache key moves with every plugin the conformance leg runs; no shipped artifact changes
 #2089  docs and CI: fraiseql-server doc links into another optional subsystem become code spans, and rustdoc runs once per module-gating feature; no shipped behaviour changes
+#2096  tests and CI: fraiseql-server's test targets build without the crate defaults, and each feature-matrix combo is checked to build the features it names; no shipped artifact changes

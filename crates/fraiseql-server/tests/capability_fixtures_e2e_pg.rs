@@ -35,14 +35,17 @@
 //!   It is ready when it answers `initialize` on stdout; every line it writes there must be a
 //!   JSON-RPC message; an `mcp` stimulus is a `tools/call` on its stdin. It carries no HTTP and no
 //!   bearer.
-//! - `listener` and `run`: this test binary, re-executed to run one ignored test,
+//! - `listener`: this test binary, re-executed to run one ignored test,
 //!   [`serve_a_fixture_through_an_in_process_entry_point`], with the fixture's environment. It
-//!   serves as an embedder does (`build_postgres_server`, then `serve_on_listener`), or as
-//!   `fraiseql run` does.
+//!   serves as an embedder does (`build_postgres_server`, then `serve_on_listener`).
+//! - `run`: `fraiseql run`, from the `fraiseql-cli` binary built with `run-server` that [`RUN_BIN`]
+//!   names. That binary is not built here: `run-server` builds this crate with its default
+//!   features, which would then be on in every test build of it.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL`, `NATS_URL`
 //! for a fixture that names NATS, `KAFKA_BOOTSTRAP` for one that names Kafka,
-//! `GREENMAIL_{HOST,IMAPS_PORT,SMTP_PORT,CA}` for one that names the mail server · **Leg:**
+//! `GREENMAIL_{HOST,IMAPS_PORT,SMTP_PORT,CA}` for one that names the mail server,
+//! `FRAISEQL_CAPABILITY_RUN_BIN` for one driven through `run` · **Leg:**
 //! `integration (observers)`, which binds them · **Parallelism:** one scratch database per fixture,
 //! fixtures run in turn.
 #![cfg(feature = "cli")]
@@ -895,12 +898,12 @@ fn free_ports() -> (u16, u16) {
 /// The environment variable naming the entry point a re-executed child serves through.
 const CHILD_ENTRY: &str = "CAPABILITY_FIXTURE_CHILD_ENTRY";
 
-/// The environment variable naming the authoring input a re-executed child gives
-/// `fraiseql run`.
-const CHILD_RUN_INPUT: &str = "CAPABILITY_FIXTURE_CHILD_RUN_INPUT";
+/// The environment variable naming the `fraiseql-cli` binary, built with `run-server`, that the
+/// `run` entry point serves through. Unset, a fixture driven through `run` fails, naming it.
+const RUN_BIN: &str = "FRAISEQL_CAPABILITY_RUN_BIN";
 
-/// The process that serves through `entry`.
-fn server_command(entry: Entry, scratch: &Path) -> Result<Command, String> {
+/// The process that serves through `entry`, on `bind`.
+fn server_command(entry: Entry, scratch: &Path, bind: &str) -> Result<Command, String> {
     match entry {
         Entry::Binary => Ok(Command::new(env!("CARGO_BIN_EXE_fraiseql-server"))),
         Entry::McpStdio => {
@@ -908,7 +911,7 @@ fn server_command(entry: Entry, scratch: &Path) -> Result<Command, String> {
             command.env("FRAISEQL_MCP_STDIO", "1");
             Ok(command)
         },
-        Entry::Listener | Entry::Run => {
+        Entry::Listener => {
             let mut command = Command::new(
                 std::env::current_exe().map_err(|e| format!("this test binary's path: {e}"))?,
             );
@@ -921,17 +924,28 @@ fn server_command(entry: Entry, scratch: &Path) -> Result<Command, String> {
                     "--test-threads=1",
                 ])
                 .env(CHILD_ENTRY, entry.name());
-            if entry == Entry::Run {
-                // What `fraiseql run` is pointed at: the authoring input, with the
-                // `fraiseql.toml` `compile` wrote beside it.
-                let schema = scratch.join("schema.json");
-                let input = if schema.is_file() {
-                    schema
-                } else {
-                    scratch.join("fraiseql.toml")
-                };
-                command.env(CHILD_RUN_INPUT, input);
-            }
+            Ok(command)
+        },
+        Entry::Run => {
+            let binary = std::env::var_os(RUN_BIN).ok_or_else(|| {
+                format!(
+                    "{RUN_BIN} is not set: it names the `fraiseql-cli` binary built with \
+                     `run-server` (`cargo build -p fraiseql-cli --features run-server`) that the \
+                     `run` entry point serves through"
+                )
+            })?;
+            // What `fraiseql run` is pointed at: the authoring input, with the
+            // `fraiseql.toml` `compile` wrote beside it.
+            let schema = scratch.join("schema.json");
+            let input = if schema.is_file() {
+                schema
+            } else {
+                scratch.join("fraiseql.toml")
+            };
+            let (host, port) =
+                bind.rsplit_once(':').ok_or_else(|| format!("bind address {bind}"))?;
+            let mut command = Command::new(binary);
+            command.arg("run").arg(input).args(["--port", port, "--bind", host]);
             Ok(command)
         },
     }
@@ -954,7 +968,8 @@ async fn serve(
     let stderr = scratch.join("server.stderr");
     let cwd = scratch.join("cwd");
     std::fs::create_dir_all(&cwd).unwrap();
-    let mut command = server_command(entry, scratch)?;
+    let bind = format!("127.0.0.1:{port}");
+    let mut command = server_command(entry, scratch, &bind)?;
     command
         .current_dir(&cwd)
         .env(
@@ -963,7 +978,7 @@ async fn serve(
         )
         .env("FRAISEQL_SCHEMA_PATH", schema)
         .env("DATABASE_URL", database_url)
-        .env("FRAISEQL_BIND_ADDR", format!("127.0.0.1:{port}"))
+        .env("FRAISEQL_BIND_ADDR", &bind)
         // Flight binds a port of its own, by default the one every fixture's server would
         // share, so a server already on it fails a fixture about something else.
         .env("FRAISEQL_FLIGHT_BIND_ADDR", format!("127.0.0.1:{flight_port}"))
@@ -1700,7 +1715,7 @@ async fn every_capability_fixture_reaches_its_effect() {
     assert!(failures.is_empty(), "{}", failures.join("\n\n"));
 }
 
-/// The `listener` and `run` entry points, for one fixture: the fixture runner re-executes
+/// The `listener` entry point, for one fixture: the fixture runner re-executes
 /// this test binary to run this test alone, with the fixture's environment set on the
 /// process, as a deployment sets it. Run any other way, it does nothing.
 #[tokio::test(flavor = "multi_thread")]
@@ -1718,7 +1733,6 @@ async fn serve_a_fixture_through_an_in_process_entry_point() {
         .try_init();
     let served = match entry.as_str() {
         "listener" => Box::pin(serve_on_a_listener()).await,
-        "run" => Box::pin(serve_through_run()).await,
         other => Err(anyhow::anyhow!("{CHILD_ENTRY} names no in-process entry point: {other}")),
     };
     if let Err(e) = served {
@@ -1750,20 +1764,4 @@ async fn serve_on_a_listener() -> anyhow::Result<()> {
     .await?;
     Box::pin(server.serve_on_listener(listener, std::future::pending::<()>())).await?;
     Ok(())
-}
-
-/// Serve as `fraiseql run` serves, pointed at the fixture's authoring input.
-async fn serve_through_run() -> anyhow::Result<()> {
-    let input = std::env::var(CHILD_RUN_INPUT)?;
-    let bind: std::net::SocketAddr = std::env::var("FRAISEQL_BIND_ADDR")?.parse()?;
-    Box::pin(fraiseql_cli::commands::run::run(
-        Some(&input),
-        None,
-        Some(bind.port()),
-        Some(bind.ip().to_string()),
-        false,
-        false,
-        None,
-    ))
-    .await
 }

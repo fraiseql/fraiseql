@@ -35,6 +35,7 @@ fn without_a_first_party_issuer_the_configured_value_is_used_as_is() {
     assert_eq!(resolve(None, None).unwrap(), DAY);
 }
 
+#[cfg(feature = "auth")]
 #[test]
 fn unset_it_follows_the_sessions_this_server_signs_and_never_drops_below_a_day() {
     assert_eq!(resolve(None, Some(961)).unwrap(), DAY);
@@ -139,6 +140,7 @@ fn a_session_longer_than_a_week_widens_the_span_past_anonymous_sign_in() {
     );
 }
 
+#[cfg(feature = "auth")]
 #[test]
 fn without_a_first_party_issuer_nothing_is_checked() {
     assert_eq!(for_server(None, &schema(true, Some(60), Some(900), false)).unwrap(), 60);

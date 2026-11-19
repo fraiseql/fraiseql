@@ -69,6 +69,10 @@ const (
 	// function. It only registers the Deno runtime, which starts no V8 isolate until
 	// a Deno function runs, so a suite that declares none behaves as without it.
 	serverIntegrationExtraFeatures = "admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email"
+	// capabilityFixtureExtraFeatures: what the capability fixtures need on top of
+	// serverTestFeatures, every Stable capability. The observers leg builds the
+	// `fraiseql-cli` binary their `run` entry point serves through with the same set.
+	capabilityFixtureExtraFeatures = "export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli"
 	// testWorkspaceSkip: the skip patterns the `Test` shard's workspace sweep
 	// carries — the testcontainers lib tests (storage + functions); wire's
 	// container tests live in tests/*, so only its lib unit tests run.
@@ -646,6 +650,9 @@ func (m *FraiseqlCi) ShellGates(
 		// one property that makes the local gate worth trusting — it cannot silently
 		// cover fewer combos than .dagger/feature-combos.go declares.
 		"make test-feature-matrix-gate",
+		// The pin for tools/check-feature-combo-features.py (#2096), over a stubbed
+		// `cargo`. The check itself needs cargo, so it runs in the feature-matrix leg.
+		"make test-feature-combo-features-gate",
 		"bash tools/check-internal-flag-sites.sh",
 		"bash tools/check-value-json-seam.sh",
 		"bash tools/check-graphql-parse-sites.sh",
@@ -3226,6 +3233,13 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 	redisURL := fmt.Sprintf("redis://%s:6379", redisBindHost)
 	natsURL := fmt.Sprintf("nats://%s:4222", natsBindHost)
 
+	// The capability fixtures' server features, on fraiseql-server for the `fraiseql-cli`
+	// binary their `run` entry point serves through.
+	capabilityRunServerFeatures := "run-server"
+	for _, f := range strings.Split(serverTestFeatures+","+capabilityFixtureExtraFeatures, ",") {
+		capabilityRunServerFeatures += ",fraiseql-server/" + f
+	}
+
 	script := strings.Join([]string{
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
@@ -3327,7 +3341,15 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// 04c: every capability fixture boots the `fraiseql-server` binary (`cli`) on a database
 		// of its own and must reach its effect. It runs here because this leg binds every
 		// service a fixture names (NATS for CDC). The feature set is every Stable capability.
-		"cargo test -p fraiseql-server --features '" + serverTestFeatures + ",export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli' --test capability_fixtures_e2e_pg -- --test-threads=1",
+		//
+		// The `run` entry point is `fraiseql run` from the `fraiseql-cli` binary, built here
+		// with `run-server` and the same server features, into this leg's target directory.
+		// The suite cannot build it: `run-server` depends on fraiseql-server with its default
+		// features, and as its dev-dependency that turned them on in every test build of the
+		// crate (#2096). Unset, every fixture driven through `run` fails, naming the variable.
+		"cargo build -p fraiseql-cli --features '" + capabilityRunServerFeatures + "'",
+		"export FRAISEQL_CAPABILITY_RUN_BIN=\"${CARGO_TARGET_DIR:-$PWD/target}/debug/fraiseql-cli\"",
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "," + capabilityFixtureExtraFeatures + "' --test capability_fixtures_e2e_pg -- --test-threads=1",
 		// #715/#717 arrow executed-SQL suite: the generated INSERT (every Arrow
 		// type, specials, pre-epoch timestamps, NULLs) EXECUTED vs the bound
 		// Postgres, and the batched-queries schema-mismatch guard. This is the

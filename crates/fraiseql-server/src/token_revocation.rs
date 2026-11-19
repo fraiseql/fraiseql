@@ -541,7 +541,7 @@ impl TokenRevocationManager {
     }
 
     /// How long a `revoke-all` is kept, in seconds.
-    #[cfg(test)]
+    #[cfg(all(test, feature = "auth"))]
     #[must_use]
     pub(crate) const fn revoke_all_ttl_secs(&self) -> u64 {
         self.revoke_all_ttl_secs

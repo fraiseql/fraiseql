@@ -219,8 +219,11 @@ iai-callgrind = "=0.16.1"
 # gate e2e (#453). chrono is already a normal dependency; pinned by the workspace.
 chrono = { workspace = true }
 fraiseql-auth = { workspace = true }
-# `run-server`: the capability fixtures drive `fraiseql run` as one of the entry points.
-fraiseql-cli = { workspace = true, features = ["run-server"] }
+# Without `run-server`: that feature depends on this crate with its default features, and
+# a dev-dependency's features apply to every test build, so a `--no-default-features`
+# check of the test targets would build `auth` and `cli` anyway. The capability fixtures
+# drive `fraiseql run` through the binary instead (`FRAISEQL_CAPABILITY_RUN_BIN`).
+fraiseql-cli = { workspace = true }
 fraiseql-federation = { workspace = true, features = ["test-utils"] }
 fraiseql-test-utils = { path = "../fraiseql-test-utils" }
 fraiseql-test-support = { path = "../fraiseql-test-support", features = [
@@ -508,6 +511,25 @@ required-features = ["auth"]
 [[test]]
 name = "security"
 required-features = ["auth"]
+
+# Each reaches an `auth`-only item: `fraiseql_server::first_party` through
+# `common::first_party` (the SCIM suites and the service-account suite), or
+# `ServerConfig::identity` (the enrichment suite, which also needs its REST door).
+[[test]]
+name = "scim_conformance_e2e_pg"
+required-features = ["auth"]
+
+[[test]]
+name = "scim_provisioning_e2e_pg"
+required-features = ["auth"]
+
+[[test]]
+name = "service_account_auth_layers_e2e_pg"
+required-features = ["auth"]
+
+[[test]]
+name = "enrichment_roles_e2e_pg"
+required-features = ["rest", "auth"]
 
 # docs.rs builds a crate with its DEFAULT features unless told otherwise, so the published
 # page showed none of the feature-gated API — and this workspace's documentation links
