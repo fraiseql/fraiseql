@@ -121,19 +121,23 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 // of these files claims to compile, and `cargo test --doc` holds it to that. A block
 // that only illustrates is fenced ```rust,ignore or ```text. `tools/check-docs-rust-
 // examples.py` fails when a file with a ```rust block is missing from this list.
+//
+// A doc whose examples use an optional part of the crate (`fraiseql::server`,
+// `fraiseql::wire`) is included only when that feature is on, so `cargo test --doc` with
+// the default features compiles only examples it can build.
 #[cfg(doctest)]
 mod docs_examples {
     #[doc = include_str!("../../../docs/architecture/functions.md")]
     struct ArchitectureFunctions;
     #[doc = include_str!("../../../docs/architecture/mutation-response.md")]
     struct ArchitectureMutationResponse;
-    #[doc = include_str!("../../../docs/architecture/overview.md")]
+    #[cfg_attr(feature = "server", doc = include_str!("../../../docs/architecture/overview.md"))]
     struct ArchitectureOverview;
-    #[doc = include_str!("../../../docs/architecture/wire-protocol.md")]
+    #[cfg_attr(feature = "wire", doc = include_str!("../../../docs/architecture/wire-protocol.md"))]
     struct ArchitectureWireProtocol;
-    #[doc = include_str!("../../../docs/auth/identity-store.md")]
+    #[cfg_attr(feature = "server", doc = include_str!("../../../docs/auth/identity-store.md"))]
     struct AuthIdentityStore;
-    #[doc = include_str!("../../../docs/auth/local-password.md")]
+    #[cfg_attr(feature = "server", doc = include_str!("../../../docs/auth/local-password.md"))]
     struct AuthLocalPassword;
     #[doc = include_str!("../../../docs/auth/saml-sso.md")]
     struct AuthSamlSso;

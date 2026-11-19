@@ -215,38 +215,40 @@ pub struct Executor {
 /// Compile-time enforcement lives here, on the **constructor**.
 ///
 /// The bound on this block is what keeps a read-only adapter from ever being handed a
-/// write handle. Its witness is `FraiseWireAdapter`, which implements `DatabaseAdapter`
-/// and deliberately not `Writer`.
+/// write handle: [`Executor::new`] takes only a [`Writer`], and a `DatabaseAdapter` that
+/// is not one gets [`Executor::read_only`].
 ///
 /// ⚠ **The two blocks below are a pair, and only the pair is the assertion.** A
 /// `compile_fail` block is satisfied by *any* compile error, including one with nothing
-/// to do with the rule — the previous version of this pair named `SqliteAdapter`, and
-/// when #374 deleted that adapter the block passed for a full release while proving
-/// nothing. The two differ by exactly the constructor called. If the witness ever stops
-/// resolving, the *first* block goes red rather than the second going quietly green.
+/// to do with the rule — an earlier version of this pair named a concrete adapter, and
+/// when that adapter was deleted, or built without the feature that provides it, the
+/// block passed while proving nothing. So the witness is any adapter: a type parameter
+/// bounded on `DatabaseAdapter` alone, which exists in every build. The two blocks
+/// differ by exactly the constructor called, so the second can only fail on the missing
+/// `Writer` bound (E0277).
 ///
-/// `FraiseWireAdapter` needs `--all-features`; every `--doc` invocation in this
-/// repository passes it (`Makefile`, `.dagger/main.go`).
-///
-/// The witness resolves, and the read-only constructor accepts it:
+/// The read-only constructor accepts any adapter:
 ///
 /// ```
-/// use fraiseql_core::{db::FraiseWireAdapter, runtime::Executor, schema::CompiledSchema};
+/// use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor, schema::CompiledSchema};
 /// use std::sync::Arc;
-/// fn _read_only_is_available(schema: CompiledSchema, adapter: Arc<FraiseWireAdapter>) {
+/// fn _read_only_is_available<A: DatabaseAdapter>(schema: CompiledSchema, adapter: Arc<A>) {
 ///     let _ = Executor::read_only(schema, adapter);
 /// }
 /// ```
 ///
-/// …and the write-capable constructor does not compile for it:
+/// …and the write-capable constructor does not compile for one that is not a `Writer`:
 ///
 /// ```compile_fail
-/// use fraiseql_core::{db::FraiseWireAdapter, runtime::Executor, schema::CompiledSchema};
+/// use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor, schema::CompiledSchema};
 /// use std::sync::Arc;
-/// fn _wont_compile(schema: CompiledSchema, adapter: Arc<FraiseWireAdapter>) {
+/// fn _wont_compile<A: DatabaseAdapter>(schema: CompiledSchema, adapter: Arc<A>) {
 ///     let _ = Executor::new(schema, adapter);
 /// }
 /// ```
+///
+/// That a given adapter is not a `Writer` is pinned on the adapter: `FraiseWireAdapter`
+/// carries its own pair in `fraiseql-db`.
 impl Executor {
     /// Create a new write-capable executor.
     ///

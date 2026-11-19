@@ -466,6 +466,12 @@ func (m *FraiseqlCi) Rustdoc(
 // that gates one of its modules. Neither workspace pass sees a link from one optional
 // subsystem to another: `--all-features` resolves it and the default build compiles
 // neither end (#2089: `--features functions-runtime` alone failed on three links).
+//
+// Last, `tools/check-doctest-feature-sets.sh` runs each library's doctests on its own
+// with its default features, and the umbrella's once per feature its docs are gated
+// on. The Test leg's `cargo test --doc --all-features` compiles an example that needs a
+// feature, and a `--workspace` doctest run unifies features across members, so neither
+// sees an example that fails for a crate built with its defaults (#2015, #1898).
 func (m *FraiseqlCi) RustdocDefault(
 	ctx context.Context,
 	// +ignore=["target", "**/target", ".git"]
@@ -473,7 +479,7 @@ func (m *FraiseqlCi) RustdocDefault(
 ) (string, error) {
 	return m.rustSrc(source).
 		WithEnvVariable("RUSTDOCFLAGS", "-D warnings").
-		WithExec([]string{"bash", "-c", "cargo doc --workspace --no-deps --keep-going && bash tools/check-rustdoc-feature-sets.sh"}).
+		WithExec([]string{"bash", "-c", "cargo doc --workspace --no-deps --keep-going && bash tools/check-rustdoc-feature-sets.sh && bash tools/check-doctest-feature-sets.sh"}).
 		Stdout(ctx)
 }
 

@@ -88,41 +88,41 @@ test: test-unit test-integration
 # Requires full infrastructure: Docker with PostgreSQL, Redis, NATS, Vault
 # Reports a single pass/fail at the end.
 test-full: db-up
-	@echo "=== Running full test suite (8 steps) ==="
+	@echo "=== Running full test suite (9 steps) ==="
 	@echo ""
-	@echo "[1/8] Unit tests..."
+	@echo "[1/9] Unit tests..."
 	@cargo test --lib --all-features
 	@echo ""
-	@echo "[2/8] SQL snapshot tests..."
+	@echo "[2/9] SQL snapshot tests..."
 	@cargo nextest run --test sql_snapshots 2>/dev/null || cargo test --test sql_snapshots
 	@echo ""
-	@echo "[3/8] Database integration tests (PostgreSQL)..."
+	@echo "[3/9] Database integration tests (PostgreSQL)..."
 # Was the same `-p fraiseql-core … -- --ignored` line as test-integration's, with
 # the same result: 1 test of 2828, under a banner claiming the database
 # integration tests had run (#1169). A second corrected copy would drift from the
 # first, so both call the one mirror target.
 	@$(MAKE) --no-print-directory test-integration-postgres
 	@echo ""
-	@echo "[4/8] (retired — cross-database parity removed with the non-PostgreSQL backends, G2/#374)"
+	@echo "[4/9] (retired — cross-database parity removed with the non-PostgreSQL backends, G2/#374)"
 	@echo ""
-	@echo "[5/8] Redis tests (APQ + observer cache/lease)..."
+	@echo "[5/9] Redis tests (APQ + observer cache/lease)..."
 	REDIS_URL="redis://localhost:6379" \
 		cargo test -p fraiseql-core --features "redis-apq" --lib redis -- --ignored --test-threads=1
 	REDIS_URL="redis://localhost:6379" \
 		cargo test -p fraiseql-observers --features "caching,redis-lease" --lib -- --ignored --test-threads=1
 	@echo ""
-	@echo "[6/8] NATS + observer PostgreSQL tests..."
+	@echo "[6/9] NATS + observer PostgreSQL tests..."
 	cargo test -p fraiseql-observers --features "nats" --test nats_integration -- --ignored --test-threads=1
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 	TEST_DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 		cargo test -p fraiseql-observers --features redis-lease --lib -- --ignored --test-threads=1
 	@echo ""
-	@echo "[7/8] Vault secrets manager tests..."
+	@echo "[7/9] Vault secrets manager tests..."
 	VAULT_ADDR="http://localhost:8200" \
 	VAULT_TOKEN="fraiseql-test-token" \
 		cargo test -p fraiseql-server --test secrets_manager_integration_test -- --ignored --test-threads=1
 	@echo ""
-	@echo "[8/8] Server integration tests (database queries + observers)..."
+	@echo "[8/9] Server integration tests (database queries + observers)..."
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 		cargo test -p fraiseql-server --test database_query_test -- --test-threads=1
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
@@ -131,7 +131,19 @@ test-full: db-up
 	REDIS_URL="redis://localhost:6379" \
 		cargo test --features "caching,testing" -p fraiseql-observers --test integration_test
 	@echo ""
-	@echo "=== Full test suite complete (all 8 steps passed) ==="
+	@echo "[9/9] Doctests per feature set..."
+	@$(MAKE) --no-print-directory test-doc-feature-sets
+	@echo ""
+	@echo "=== Full test suite complete (all 9 steps passed) ==="
+
+# Run each workspace library's doctests on its own with its default features, and the
+# umbrella crate's once per feature its documentation is gated on. The `--all-features`
+# doctest pass compiles an example that needs a feature, and `--workspace` unifies
+# features across members, so neither sees an example that fails for a crate built
+# with its defaults. CI runs it in the Rustdoc leg.
+.PHONY: test-doc-feature-sets
+test-doc-feature-sets:
+	bash tools/check-doctest-feature-sets.sh
 
 # Run unit tests only (no database required)
 #
