@@ -1704,6 +1704,11 @@ async fn bs_fixture(tag: &str) -> tokio_postgres::Client {
         .simple_query("SELECT pg_wal_replay_resume()")
         .await
         .expect("resume replay");
+    // Likewise a run that panicked while the standby was kept from receiving: allowing a
+    // login that is already allowed changes nothing.
+    bs_set_replication_login(&primary, &bs_replication_role(&standby).await, true)
+        .await
+        .expect("allow the replication login");
 
     primary
         .batch_execute(&format!(
@@ -1724,7 +1729,7 @@ async fn bs_fixture(tag: &str) -> tokio_postgres::Client {
         .await
         .expect("primary fixture DDL");
 
-    bs_wait_caught_up(&standby).await;
+    bs_wait_replayed(&primary, &standby).await;
     standby
 }
 
@@ -1743,14 +1748,22 @@ async fn bs_cleanup(tag: &str, standby: &tokio_postgres::Client) {
         .expect("fixture cleanup");
 }
 
-/// Block until the standby has replayed everything it has received.
-async fn bs_wait_caught_up(standby: &tokio_postgres::Client) {
+/// Block until the standby has replayed everything the primary has written so far.
+///
+/// The target is the primary's own position, read here, after the caller's writes. The
+/// standby's receive position cannot stand in for it: a standby that has replayed all it
+/// received, and has not yet received the caller's writes, reads as caught up.
+async fn bs_wait_replayed(primary: &tokio_postgres::Client, standby: &tokio_postgres::Client) {
+    let written: String = primary
+        .query_one("SELECT pg_current_wal_lsn()::text", &[])
+        .await
+        .expect("primary lsn read")
+        .get(0);
     for _ in 0..200 {
         let row = standby
             .query_one(
-                "SELECT pg_last_wal_replay_lsn() IS NOT NULL \
-                   AND pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn()",
-                &[],
+                "SELECT coalesce(pg_last_wal_replay_lsn() >= $1::text::pg_lsn, false)",
+                &[&written],
             )
             .await
             .expect("standby lsn read");
@@ -1759,7 +1772,119 @@ async fn bs_wait_caught_up(standby: &tokio_postgres::Client) {
         }
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
-    panic!("standby never caught up with the primary");
+    panic!("the standby never replayed the primary's writes up to {written}");
+}
+
+/// The role the standby connects to its primary as, read from the standby's own
+/// `primary_conninfo`, so the rig's scripts stay the one place that names it.
+async fn bs_replication_role(standby: &tokio_postgres::Client) -> String {
+    let conninfo: String = standby
+        .query_one("SELECT current_setting('primary_conninfo')", &[])
+        .await
+        .expect("standby primary_conninfo read")
+        .get(0);
+    conninfo
+        .split_whitespace()
+        .find_map(|setting| setting.strip_prefix("user="))
+        .map(|role| role.trim_matches('\'').to_string())
+        .expect("the standby's primary_conninfo names the role it connects as")
+}
+
+/// Allow or refuse new connections by the replication role. A connection already
+/// streaming is not affected.
+async fn bs_set_replication_login(
+    primary: &tokio_postgres::Client,
+    role: &str,
+    allowed: bool,
+) -> Result<(), tokio_postgres::Error> {
+    let login = if allowed { "LOGIN" } else { "NOLOGIN" };
+    primary
+        .batch_execute(&format!("ALTER ROLE \"{}\" {login}", role.replace('"', "\"\"")))
+        .await
+}
+
+/// Keep the standby from receiving WAL: refuse its role a new connection, end the one it
+/// streams through, and return once the primary reports its slot idle. Replay is not
+/// paused; the standby simply has nothing new to replay.
+async fn bs_stop_wal_receipt(
+    primary: &tokio_postgres::Client,
+    standby: &tokio_postgres::Client,
+    role: &str,
+) -> Result<(), tokio_postgres::Error> {
+    let slot: String = standby
+        .query_one("SELECT current_setting('primary_slot_name')", &[])
+        .await?
+        .get(0);
+    bs_set_replication_login(primary, role, false).await?;
+    primary
+        .execute(
+            "SELECT pg_terminate_backend(active_pid) FROM pg_replication_slots \
+             WHERE slot_name = $1 AND active",
+            &[&slot],
+        )
+        .await?;
+    for _ in 0..200 {
+        let streaming: bool = primary
+            .query_one(
+                "SELECT coalesce(bool_or(active), false) FROM pg_replication_slots \
+                 WHERE slot_name = $1",
+                &[&slot],
+            )
+            .await?
+            .get(0);
+        if !streaming {
+            return Ok(());
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+    panic!("the primary still streams to the slot {slot} after its sender was ended");
+}
+
+/// The fixture's wait must cover writes the standby has not received yet. Here the standby
+/// is kept from receiving, the primary writes, and the wait has to hold: replay is not
+/// paused and the standby has replayed all it received, which is the state a wait that
+/// looks only at the standby takes for caught up.
+#[tokio::test]
+async fn the_replay_wait_holds_until_the_standby_has_received_the_primarys_writes() {
+    let tag = "replay_wait";
+    let standby = bs_fixture(tag).await;
+    let primary = rr_admin_connect(&test_db_url()).await;
+    let role = bs_replication_role(&standby).await;
+    let rows_on_the_standby = || async {
+        standby
+            .query_one(&format!("SELECT count(*) FROM tb_rr957_{tag}"), &[])
+            .await
+            .map(|row| row.get::<_, i64>(0))
+    };
+
+    // Everything that can fail while the login is refused reports here, so the login is
+    // allowed again before any assertion.
+    let while_cut: Result<(bool, i64), tokio_postgres::Error> = async {
+        bs_stop_wal_receipt(&primary, &standby, &role).await?;
+        primary
+            .batch_execute(&format!("INSERT INTO tb_rr957_{tag} VALUES (2, 'unreceived');"))
+            .await?;
+        let held = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            bs_wait_replayed(&primary, &standby),
+        )
+        .await
+        .is_err();
+        Ok((held, rows_on_the_standby().await?))
+    }
+    .await;
+    bs_set_replication_login(&primary, &role, true)
+        .await
+        .expect("allow the replication login");
+    let (held, rows_while_cut) = while_cut.expect("write while the standby receives nothing");
+
+    bs_wait_replayed(&primary, &standby).await;
+    let rows_after = rows_on_the_standby().await.expect("standby row count");
+    bs_cleanup(tag, &standby).await;
+
+    assert_eq!(rows_while_cut, 1, "the standby must not have the row written while it was cut");
+    assert!(held, "the wait returned while the standby had not received the primary's write");
+    assert_eq!(rows_after, 2, "once the wait returns, the standby holds the primary's write");
 }
 
 /// Adapter over primary + the real standby, with the given staleness budget.
@@ -2024,7 +2149,7 @@ async fn a_relay_page_routed_to_the_primary_never_reads_a_replica() {
         ))
         .await
         .expect("relay page view");
-    bs_wait_caught_up(&standby).await;
+    bs_wait_replayed(&primary, &standby).await;
     let adapter = bs_adapter(None, std::time::Duration::from_millis(100)).await;
 
     let origin = |routing| {
@@ -2287,7 +2412,7 @@ async fn a_replica_promoted_by_a_failover_stops_serving_reads() {
         .expect("primary fixture DDL");
 
     let standby = rr_admin_connect(&failover_url).await;
-    bs_wait_caught_up(&standby).await;
+    bs_wait_replayed(&primary, &standby).await;
 
     // No staleness budget: the point is that a promoted replica stops serving
     // whether or not one is configured. With `max_lag` set, "no measurable lag"
