@@ -29,7 +29,7 @@ impl Capability for CdcOutbound {
     #[cfg(feature = "cdc-outbound")]
     fn provision(&self, cx: &BootCx<'_>) -> Vec<ProvisionStep> {
         let server = cx.server;
-        match server.db_pool.as_ref() {
+        match server.application_pool() {
             Some(pool) if server.config.cdc_outbound.is_some() => vec![ProvisionStep::new(
                 "cdc outbound",
                 pool,

@@ -345,11 +345,11 @@ pub fn session_lifetime(
 ///
 /// # Errors
 ///
-/// [`ServerError::ConfigError`] when refresh is asked for without `[auth_issuer]` or a
-/// database pool, or with no sign-in method that mints a refreshable session.
+/// [`ServerError::ConfigError`] when refresh is asked for without `[auth_issuer]` or
+/// `[auth.database]`, or with no sign-in method that mints a refreshable session.
 pub fn session_routes_store(
     issuer: Option<&crate::first_party::FirstPartyIssuer>,
-    db_pool: Option<&sqlx::PgPool>,
+    auth_pool: Option<&sqlx::PgPool>,
     tenant_claim: &str,
     lifetime: fraiseql_auth::SessionLifetime,
     mints_refreshable_sessions: bool,
@@ -372,10 +372,10 @@ pub fn session_routes_store(
                 .to_string(),
         )
     })?;
-    let pool = db_pool.ok_or_else(|| {
+    let pool = auth_pool.ok_or_else(|| {
         ServerError::ConfigError(
-            "[auth.session] absolute_ttl_secs requires a database pool: refresh tokens are \
-             rows in auth.sessions."
+            "[auth.session] absolute_ttl_secs requires [auth.database]: refresh tokens are \
+             rows in auth.sessions, which first-party auth reaches through its own pool."
                 .to_string(),
         )
     })?;
@@ -469,14 +469,14 @@ pub fn session_cookies(
 /// # Errors
 ///
 /// Returns [`ServerError::ConfigError`] when a method is enabled without what it
-/// needs: no database pool, no `[auth_issuer]`, a missing or send-less mailbox, or
+/// needs: no `[auth.database]` pool, no `[auth_issuer]`, a missing or send-less mailbox, or
 /// a build lacking `inbound-email`.
 pub async fn build_local_auth_states(
     local: &LocalAuthConfig,
     // Reason: only the inbound-email-gated mail sender reads the server config.
     #[cfg_attr(not(feature = "inbound-email"), allow(unused_variables))] config: &ServerConfig,
     issuer: Option<&crate::first_party::FirstPartyIssuer>,
-    db_pool: Option<sqlx::PgPool>,
+    auth_pool: Option<sqlx::PgPool>,
     tenant_claim: &str,
     lifetime: fraiseql_auth::SessionLifetime,
     session_cookies: Option<fraiseql_auth::SessionCookies>,
@@ -492,11 +492,12 @@ pub async fn build_local_auth_states(
                 .to_string(),
         )
     })?;
-    let pool = db_pool.ok_or_else(|| {
+    let pool = auth_pool.ok_or_else(|| {
         ServerError::ConfigError(
-            "[auth.local] requires a database pool: credentials, MFA enrollments, OTP budgets \
-             and sessions are all durable state. The binary provides one when database_url is \
-             set; library embedders must pass a PgPool to Server::new."
+            "[auth.local] requires [auth.database]: credentials, MFA enrollments, OTP budgets \
+             and sessions are durable state in schema `auth`, which first-party auth reaches \
+             through its own pool. Add [auth.database] with url_env naming that role's \
+             connection URL."
                 .to_string(),
         )
     })?;

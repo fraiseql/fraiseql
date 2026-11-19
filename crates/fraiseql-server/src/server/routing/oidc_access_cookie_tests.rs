@@ -66,7 +66,7 @@ async fn app(idp: &TestIdp) -> Router {
         Some(&pool),
     )
     .unwrap();
-    server.db_pool = Some(pool);
+    server.pools = Some(pool).into();
     // Boot refuses the playground outside development mode; the mount is what is tested.
     server.config.playground_enabled = true;
     server.config.playground_require_auth = Some(true);

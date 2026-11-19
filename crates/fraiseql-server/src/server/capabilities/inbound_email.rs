@@ -20,7 +20,7 @@ pub struct InboundEmail;
 impl Capability for InboundEmail {
     #[cfg(feature = "inbound-email")]
     fn configured(&self, cx: &ServeCx<'_>) -> bool {
-        cx.server.db_pool.is_some()
+        cx.server.application_pool().is_some()
             && cx.server.config.mailbox.values().any(|mailbox| mailbox.imap.is_some())
     }
 
@@ -30,7 +30,7 @@ impl Capability for InboundEmail {
     fn provision(&self, cx: &BootCx<'_>) -> Vec<ProvisionStep> {
         let server = cx.server;
         let polled = server.config.mailbox.values().any(|mailbox| mailbox.imap.is_some());
-        match server.db_pool.as_ref() {
+        match server.application_pool() {
             Some(pool) if polled => vec![ProvisionStep::new(
                 "inbound email",
                 pool,
@@ -54,7 +54,7 @@ impl Capability for InboundEmail {
 
         let app_state = cx.app;
         let server = &mut *cx.server;
-        let Some(db_pool) = server.db_pool.as_ref() else {
+        let Some(db_pool) = server.application_pool() else {
             return Ok(Started::Running);
         };
 
@@ -122,7 +122,7 @@ impl Capability for InboundEmail {
     fn routes(&self, cx: &ServeCx<'_>) -> Option<axum::Router> {
         let server = cx.server;
         let (Some(pool), Some(token), Some(key)) = (
-            server.db_pool.as_ref(),
+            server.application_pool(),
             server.config.admin_token.as_ref(),
             server.build_address_hash_key(),
         ) else {

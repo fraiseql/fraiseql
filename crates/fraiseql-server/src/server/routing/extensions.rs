@@ -202,7 +202,7 @@ impl Server {
     /// `after:ingest` functions.
     #[cfg(feature = "inbound")]
     pub(in crate::server) fn add_inbound_routes(&self, app: Router, state: &AppState) -> Router {
-        let Some(ref db_pool) = self.db_pool else {
+        let Some(db_pool) = self.application_pool() else {
             if !self.webhook_routes.is_empty() {
                 tracing::error!(
                     "Inbound webhook routes NOT mounted — a database pool is required but none is configured"

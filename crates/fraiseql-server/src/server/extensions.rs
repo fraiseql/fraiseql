@@ -35,7 +35,7 @@ impl Server {
     /// * `config` - Server configuration
     /// * `schema` - Compiled GraphQL schema
     /// * `adapter` - Database adapter (must implement `RelayDatabaseAdapter`)
-    /// * `db_pool` - Database connection pool (optional, required for observers)
+    /// * `pools` - The PostgreSQL pools; see [`Server::new`]
     ///
     /// # Errors
     ///
@@ -55,7 +55,7 @@ impl Server {
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
-        db_pool: Option<sqlx::PgPool>,
+        pools: impl Into<super::pools::ServerPools>,
     ) -> Result<Self> {
         // Boxed: `new_inner` nests the whole subsystem-construction future, which puts
         // it past clippy's 16-KiB `large_futures` threshold.
@@ -63,7 +63,7 @@ impl Server {
             config,
             schema,
             adapter,
-            db_pool,
+            pools.into(),
             Deployment::current(),
             Executor::with_config_and_relay,
             #[cfg(feature = "arrow")]
@@ -94,7 +94,7 @@ impl Server {
     /// * `config` - Server configuration
     /// * `schema` - Compiled GraphQL schema
     /// * `adapter` - Database adapter
-    /// * `db_pool` - Database connection pool (optional, required for observers)
+    /// * `pools` - The PostgreSQL pools; see [`Server::new`]
     /// * `flight_service` - Pre-configured Flight service (only available with arrow feature)
     ///
     /// # Errors
@@ -112,7 +112,7 @@ impl Server {
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
-        db_pool: Option<sqlx::PgPool>,
+        pools: impl Into<super::pools::ServerPools>,
         flight_service: Option<FraiseQLFlightService>,
     ) -> Result<Self> {
         // The one combination the cache cannot be made honest for. Everything else on
@@ -150,7 +150,7 @@ impl Server {
             config,
             schema,
             adapter,
-            db_pool,
+            pools.into(),
             Deployment::current(),
             Executor::with_config_and_relay,
             flight_service,
@@ -176,7 +176,7 @@ impl Server {
     pub(super) async fn init_observer_runtime(
         config: &ServerConfig,
         compiled: Option<&fraiseql_core::schema::ObserversConfig>,
-        pool: Option<&sqlx::PgPool>,
+        pool: Option<&super::pools::ObserverPool>,
         deployment: Deployment,
         documents: fraiseql_observers::listener::DocumentDecoder,
     ) -> crate::Result<Option<Arc<RwLock<ObserverRuntime>>>> {
@@ -200,7 +200,7 @@ impl Server {
         info!("Initializing observer runtime");
 
         let runtime_config =
-            Self::observer_runtime_config(observer_config, compiled, pool, deployment)?
+            Self::observer_runtime_config(observer_config, compiled, pool.pool(), deployment)?
                 .with_documents(documents);
         let runtime = ObserverRuntime::new(runtime_config);
         Ok(Some(Arc::new(RwLock::new(runtime))))

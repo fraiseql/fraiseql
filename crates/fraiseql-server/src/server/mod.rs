@@ -41,6 +41,7 @@ mod functions_setup;
 pub(crate) mod initialization;
 mod lifecycle;
 mod notify_session;
+pub mod pools;
 pub(crate) mod provision;
 mod routing;
 mod start;
@@ -58,6 +59,8 @@ mod parity_tests;
 mod provision_tests;
 #[cfg(test)]
 mod rbac_mount_tests;
+#[cfg(test)]
+mod scim_mount_tests;
 #[cfg(test)]
 mod service_sdl_wiring_tests;
 #[cfg(test)]
@@ -101,20 +104,16 @@ pub(super) type RestRouterBuilder = Arc<
 /// server and its nine state types carry around. What the server holds afterwards is
 /// an `Executor`, whose surface is the only way to the database.
 ///
-/// # Feature: `observers`
+/// # Database pools
 ///
-/// When compiled with the `observers` Cargo feature, the server mounts observer
-/// management and runtime-health API endpoints under `/api/observers`. These
-/// endpoints require a live **PostgreSQL** connection pool (`sqlx::PgPool`).
-///
-/// Pass `Some(pg_pool)` as the `db_pool` argument to [`Server::new`] when the
-/// `observers` feature is enabled. Passing `None` causes the observer routes to
-/// be skipped at startup (an error is logged) rather than panicking, but the
-/// rest of the server continues to function normally.
-///
-/// The PostgreSQL pool is distinct from the `DatabaseAdapter` given to the executor:
-/// the adapter handles application queries, while the pool is used exclusively by
-/// the observer subsystem to store and retrieve reactive rule metadata.
+/// Besides the `DatabaseAdapter` the executor runs application queries on, a server
+/// takes PostgreSQL pools ([`ServerPools`](pools::ServerPools)): the
+/// **application pool**, which the RBAC API, SCIM, tenant admin tokens, API keys, async
+/// operations, the `postgres` session-state backend, sources, inbound and the observer
+/// management API run on, and, with the `observers` feature, the **observer pool** the
+/// observer runtime runs on. Passing `Some(pg_pool)` to [`Server::new`] puts one pool in
+/// both roles; passing `None` leaves every pool-backed capability off (a section that
+/// needs one refuses the boot, naming it).
 pub struct Server {
     pub(super) config: ServerConfig,
     pub(super) executor: Arc<Executor>,
@@ -235,9 +234,9 @@ pub struct Server {
     pub(super) stream_replay:
         Option<std::sync::Arc<fraiseql_observers::listener::ChangeLogReplayReader>>,
 
-    /// The database pool the server was constructed with: what every pool-backed
-    /// capability provisions its tables in and runs against.
-    pub(super) db_pool: Option<sqlx::PgPool>,
+    /// The pools the server was constructed with. Read through
+    /// [`Self::application_pool`] and [`Self::observer_pool`], never the field.
+    pub(super) pools: pools::ServerPools,
 
     /// Tenant admin credentials (#1089): `Some` when `admin_token` is set and the server has a
     /// database pool.

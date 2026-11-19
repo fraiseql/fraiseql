@@ -32,7 +32,7 @@ impl Capability for Observers {
     #[cfg(feature = "observers")]
     fn provision(&self, cx: &BootCx<'_>) -> Vec<ProvisionStep> {
         let server = cx.server;
-        match server.db_pool.as_ref() {
+        match server.observer_pool() {
             Some(pool) if server.observer_runtime.is_some() => vec![ProvisionStep::new(
                 "observers",
                 pool,
@@ -61,7 +61,7 @@ impl Capability for Observers {
         // The runtime reads the application's change log, which this server does not own
         // and so does not create. Without it the runtime would fail to read and the server
         // would serve on with no observer firing.
-        if let Some(pool) = server.db_pool.as_ref() {
+        if let Some(pool) = server.observer_pool() {
             let exists: bool =
                 sqlx::query_scalar("SELECT to_regclass('core.tb_entity_change_log') IS NOT NULL")
                     .fetch_one(pool)
@@ -76,7 +76,7 @@ impl Capability for Observers {
                 ));
             }
         }
-        if let Some(pool) = server.db_pool.as_ref() {
+        if let Some(pool) = server.observer_pool() {
             let executor = app_state.executor();
             let schema = executor.schema();
             let owner = crate::observers::declared_owner(schema)?;

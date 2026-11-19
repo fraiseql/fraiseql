@@ -24,7 +24,7 @@ impl Capability for SessionState {
         let server = cx.server;
         let postgres =
             server.config.session_state.as_ref().is_some_and(|c| c.backend == "postgres");
-        match server.db_pool.as_ref() {
+        match server.application_pool() {
             Some(pool) if postgres => vec![ProvisionStep::new(
                 "session state",
                 pool,

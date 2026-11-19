@@ -116,6 +116,11 @@ const MANIFEST: &[(&str, &str)] = &[
     ("pool_max_size", "DB pool max size"),
     ("pool_timeout_secs", "DB pool acquire timeout"),
     (
+        "application_pool*",
+        "boot::build_postgres_server → open_application_pool (#2098): the pool every \
+         pool-backed capability except the observer runtime runs against",
+    ),
+    (
         "transaction_retry",
         "main.rs / fraiseql-cli run → boot::build_postgres_server → build_postgres_adapter → \
          PostgresAdapter::with_transaction_retry: run_functions_in_txn runs a mutation's \

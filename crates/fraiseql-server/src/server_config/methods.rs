@@ -695,6 +695,8 @@ impl ServerConfig {
             }
         }
 
+        self.application_pool.validate()?;
+
         if let Some(ref scim) = self.scim {
             scim.validate()?;
             if scim.enabled && self.admin_token.is_none() {

@@ -143,7 +143,9 @@ impl Server {
     /// * `config` - Server configuration
     /// * `schema` - Compiled GraphQL schema
     /// * `adapter` - Database adapter
-    /// * `db_pool` — forwarded to the observer runtime; `None` when observers are disabled.
+    /// * `pools` - The PostgreSQL pools: a [`ServerPools`](super::pools::ServerPools), or an
+    ///   `Option<sqlx::PgPool>` that serves as both the application pool and the observer
+    ///   runtime's. `None` leaves every pool-backed capability off.
     ///
     /// # Errors
     ///
@@ -171,7 +173,7 @@ impl Server {
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
-        db_pool: Option<sqlx::PgPool>,
+        pools: impl Into<super::pools::ServerPools>,
     ) -> Result<Self> {
         // The write-capable arm: `Executor::with_config` is bounded on `Writer`, and
         // naming it here is what requires this impl block's bound. `new_read_only` names the other
@@ -183,7 +185,7 @@ impl Server {
             config,
             schema,
             adapter,
-            db_pool,
+            pools.into(),
             Deployment::current(),
             Executor::with_config,
             #[cfg(feature = "arrow")]
@@ -208,7 +210,7 @@ impl Server {
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
-        db_pool: Option<sqlx::PgPool>,
+        pools: impl Into<super::pools::ServerPools>,
     ) -> Result<Self> {
         // Boxed here rather than at every call site: `new_inner` nests the whole
         // subsystem-construction future inside this one, which puts it past clippy's
@@ -217,7 +219,7 @@ impl Server {
             config,
             schema,
             adapter,
-            db_pool,
+            pools.into(),
             Deployment::current(),
             Executor::read_only_with_config,
             #[cfg(feature = "arrow")]
@@ -235,7 +237,7 @@ impl Server {
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
-        db_pool: Option<sqlx::PgPool>,
+        pools: super::pools::ServerPools,
         deployment: Deployment,
         make_executor: fn(
             CompiledSchema,
@@ -321,7 +323,7 @@ impl Server {
             executor,
             subscription_manager,
             subsystems,
-            db_pool,
+            pools,
             #[cfg(feature = "arrow")]
             flight_service,
         ))
@@ -507,12 +509,9 @@ impl Server {
         executor: Arc<Executor>,
         subscription_manager: Arc<SubscriptionManager>,
         subsystems: SchemaSubsystems,
-        // `db_pool` is forwarded to the observer runtime and/or auth enrichment.
-        #[cfg_attr(
-            not(any(feature = "observers", feature = "auth")),
-            allow(unused_variables)
-        )]
-        db_pool: Option<sqlx::PgPool>,
+        // The application pool every pool-backed capability runs against, and the
+        // observer runtime's own.
+        pools: super::pools::ServerPools,
         #[cfg(feature = "arrow")] flight_service: Option<FraiseQLFlightService>,
     ) -> Result<Self> {
         // #874: every entry point — the binary, `fraiseql run`, and the
@@ -522,6 +521,13 @@ impl Server {
         // library path used to lack, which let a public playground or a zero pool
         // timeout boot without complaint.
         config.validate().map_err(ServerError::ConfigError)?;
+        // Every capability below except the observer runtime reads this pool.
+        let db_pool = pools.application().map(|pool| pool.pool().clone());
+        crate::server::initialization::refuse_scim_it_cannot_mount(
+            &config,
+            cfg!(feature = "auth"),
+            db_pool.is_some(),
+        )?;
 
         let SchemaSubsystems {
             deployment,
@@ -546,7 +552,7 @@ impl Server {
             mut tasks,
         } = subsystems;
 
-        // Build the API-key authenticator here, where `db_pool` is in scope.
+        // Build the API-key authenticator here, where the application pool is in scope.
         // `storage = "postgres"` without a pool must refuse to boot — the
         // alternative is #627's original defect: an authenticator with zero
         // keys that authenticates nothing, silently.
@@ -708,7 +714,7 @@ impl Server {
         let observer_runtime = Self::init_observer_runtime(
             &config,
             executor.schema().observers_config.as_ref(),
-            db_pool.as_ref(),
+            pools.observer(),
             deployment,
             crate::observers::runtime::decimal_documents(Arc::clone(&executor)),
         )
@@ -1095,8 +1101,8 @@ impl Server {
         // sweep absent from exactly the builds that can still fill a bucket map.
         Self::spawn_rate_limit_cleanup(rate_limiter.as_ref(), &mut tasks);
 
-        // Tenant admin credentials (#1089): read by the admin gate on every feature set, so held
-        // in their own field rather than behind the observers-only `db_pool`.
+        // Tenant admin credentials (#1089): read by the admin gate on every feature set, built
+        // on the application pool the binary opens on every build.
         let admin_tokens = config
             .admin_token
             .as_ref()
@@ -1194,10 +1200,10 @@ impl Server {
             admin_failure_limiter,
             rbac,
             #[cfg(feature = "auth")]
-            enrichment_pool: db_pool.clone(),
+            enrichment_pool: db_pool,
             #[cfg(feature = "auth")]
             auth_pool,
-            db_pool,
+            pools,
             storage_state: None,
             #[cfg(feature = "functions-runtime")]
             functions_hooks: None,
@@ -1497,7 +1503,8 @@ impl Server {
         &mut self,
         state: &crate::routes::graphql::AppState,
     ) {
-        let (Some(pool), Some(hooks)) = (self.db_pool.clone(), state.before_mutation_hooks.clone())
+        let (Some(pool), Some(hooks)) =
+            (self.application_pool().cloned(), state.before_mutation_hooks.clone())
         else {
             return;
         };
@@ -1887,10 +1894,10 @@ impl Server {
 
         let pool = db_pool.ok_or_else(|| {
             ServerError::ConfigError(
-                "[auth.social] requires a database pool: the callback mints Postgres-backed \
-                 sessions and resolves accounts through the account store. The binary provides \
-                 one when database_url is set; library embedders must pass a PgPool to \
-                 Server::new."
+                "[auth.social] requires [auth.database]: the callback mints Postgres-backed \
+                 sessions and resolves accounts through the account store, both in schema \
+                 `auth`, which first-party auth reaches through its own pool. Add \
+                 [auth.database] with url_env naming that role's connection URL."
                     .to_string(),
             )
         })?;

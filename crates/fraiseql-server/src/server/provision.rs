@@ -145,7 +145,7 @@ impl Server {
         self.push_auth_steps(&mut steps);
 
         // Durable async operations (#391): the table submissions are written to.
-        if let (Some(_), Some(pool)) = (self.async_operations.as_ref(), self.db_pool.as_ref()) {
+        if let (Some(_), Some(pool)) = (self.async_operations.as_ref(), self.application_pool()) {
             steps.push(ProvisionStep::new(
                 "async operations",
                 pool,

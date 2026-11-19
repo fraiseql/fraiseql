@@ -12,9 +12,11 @@ pub struct ScimServerConfig {
     /// Mount the SCIM surface. Off by default: it is a privileged provisioning API, and a
     /// deployment that does not federate provisioning should not expose one.
     ///
-    /// Requires a database pool (SCIM provisions into `auth.tb_user`) and an `admin_token`
-    /// (without one, provisioning credentials could never be minted, so the surface would
-    /// exist with no way to authenticate to it).
+    /// Requires `[auth.database]` (SCIM provisions into `auth.tb_user`), a database pool
+    /// (group sync writes role assignments through the RBAC backend, built on it) and an
+    /// `admin_token` (without one, provisioning credentials could never be minted, so the
+    /// surface would exist with no way to authenticate to it). The server refuses to boot
+    /// without any of the three.
     #[serde(default)]
     pub enabled: bool,
 

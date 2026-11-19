@@ -156,6 +156,10 @@ lettre = { version = "0.11", default-features = false, features = [
 sqlx = { version = "0.8", features = [
   "postgres",
   "runtime-tokio",
+  # TLS for every sqlx pool on the server's database (the application, observer and
+  # `[auth.database]` pools), which `[database_tls]` configures. Named here rather than
+  # left to another crate's features.
+  "tls-rustls-ring",
   "uuid",
   "chrono",
   "json",
@@ -513,10 +517,15 @@ name = "security"
 required-features = ["auth"]
 
 # Each reaches an `auth`-only item: `fraiseql_server::first_party` through
-# `common::first_party` (the SCIM suites and the service-account suite), or
-# `ServerConfig::identity` (the enrichment suite, which also needs its REST door).
+# `common::first_party` (the SCIM suites, the service-account suite and the default-build
+# pools suite), or `ServerConfig::identity` (the enrichment suite, which also needs its REST
+# door).
 [[test]]
 name = "scim_conformance_e2e_pg"
+required-features = ["auth"]
+
+[[test]]
+name = "default_build_pools_e2e_pg"
 required-features = ["auth"]
 
 [[test]]

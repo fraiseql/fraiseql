@@ -117,6 +117,19 @@ Two consequences worth recognising during an incident:
   exported view waits for the export. See "long-running queries" below; it is the same
   rule.
 
+**The other pools on `database_url`.** The query pool above is one of up to three the
+server opens on that database. All of them count against PostgreSQL's `max_connections`:
+
+| pool | used by | sizing | idle connections |
+|---|---|---|---|
+| query pool | GraphQL, REST and gRPC reads and writes | `pool_min_size`, `pool_max_size`, `pool_timeout_secs` | `pool_min_size` |
+| application pool | RBAC API, SCIM, tenant admin tokens, API keys, async operations, `[session_state] backend = "postgres"`, sources, inbound, observer management API | `[application_pool]` `max_connections` (default 5), `acquire_timeout_secs` (default 10) | none: it opens connections on demand |
+| observer pool (`observers` builds) | the observer runtime and its listener | `[observers.runtime.pool]` (default 2 to 5) | `min_connections` (default 2) |
+
+`[auth.database]` is a fourth pool, on its own role and URL. A request that waits on
+`/api/roles` or `/scim/v2` while GraphQL is fast points at the application pool, not the
+query pool.
+
 ### 4. Request Queue Depth
 
 ```bash

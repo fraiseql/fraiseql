@@ -450,3 +450,79 @@ async fn without_an_after_write_function_or_a_database_nothing_is_recorded() {
     .with_functions_config(Some(functions("after:mutation:Order")));
     assert!(!without_database.records_function_dispatches());
 }
+
+/// A pool on `database` that never connects: told apart from another by the database it
+/// names.
+#[cfg(feature = "observers")]
+fn pool_on(database: &str) -> sqlx::PgPool {
+    PgPoolOptions::new()
+        .connect_lazy(&format!("postgres://fraiseql@127.0.0.1:1/{database}"))
+        .unwrap()
+}
+
+/// The pool each step runs on, by step name.
+#[cfg(feature = "observers")]
+fn step_databases(server: &Server) -> std::collections::HashMap<&'static str, String> {
+    server
+        .provision_steps()
+        .into_iter()
+        .map(|step| {
+            let database = step.pool.connect_options().get_database().unwrap_or("").to_string();
+            (step.name, database)
+        })
+        .collect()
+}
+
+/// The observer runtime's tables go to the observer pool, and everything else to
+/// the application pool. Swapping the two at any read site moves a step to the other
+/// database.
+#[cfg(feature = "observers")]
+#[tokio::test]
+async fn each_pool_backs_the_steps_of_its_own_role() {
+    let mut schema = CompiledSchema::new();
+    schema.observers_config = Some(fraiseql_core::schema::ObserversConfig {
+        enabled: true,
+        ..fraiseql_core::schema::ObserversConfig::default()
+    });
+    let config = ServerConfig {
+        admin_token: Some("a".repeat(32)),
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    let server = Box::pin(Server::new(
+        config,
+        schema,
+        Arc::new(FailingAdapter::new()),
+        crate::ServerPools::new(
+            Some(crate::ApplicationPool::new(pool_on("application_db"))),
+            Some(crate::ObserverPool::new(pool_on("observer_db"))),
+        ),
+    ))
+    .await
+    .unwrap();
+
+    let databases = step_databases(&server);
+    assert_eq!(
+        databases.get("observers").map(String::as_str),
+        Some("observer_db"),
+        "{databases:?}"
+    );
+    let application_steps: Vec<_> =
+        databases.iter().filter(|(name, _)| **name != "observers").collect();
+    assert!(!application_steps.is_empty(), "{databases:?}");
+    for (name, database) in application_steps {
+        assert_eq!(database, "application_db", "step {name} runs on the application pool");
+    }
+}
+
+/// One `Option<PgPool>` serves both roles, as every constructor took it before the
+/// split.
+#[cfg(feature = "observers")]
+#[tokio::test]
+async fn one_pool_given_to_a_constructor_serves_both_roles() {
+    let pools = crate::ServerPools::from(Some(pool_on("shared_db")));
+    let database = |pool: &sqlx::PgPool| pool.connect_options().get_database().map(str::to_string);
+    assert_eq!(database(pools.application().unwrap().pool()).as_deref(), Some("shared_db"));
+    assert_eq!(database(pools.observer().unwrap().pool()).as_deref(), Some("shared_db"));
+    assert!(crate::ServerPools::from(None).application().is_none());
+}

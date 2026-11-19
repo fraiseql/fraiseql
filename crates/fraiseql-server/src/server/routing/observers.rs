@@ -11,9 +11,9 @@ impl Server {
     ///
     /// # PostgreSQL requirement
     ///
-    /// The `observers` feature requires a PostgreSQL connection pool (`db_pool`).
-    /// When this feature is enabled, `Server::new()` must receive a `Some(PgPool)` as the
-    /// `db_pool` argument. If no pool is provided, observer management routes are skipped
+    /// The observer management API runs on the application pool, which the binary
+    /// opens on every build and a library embedder passes to `Server::new()`. If no pool is
+    /// provided, observer management routes are skipped
     /// and an error is logged rather than panicking, so the server can still serve other
     /// requests. Callers should treat a missing pool as a configuration error.
     ///
@@ -41,10 +41,10 @@ impl Server {
             observer_runtime_routes,
         };
 
-        let Some(db_pool) = self.db_pool.clone() else {
+        let Some(db_pool) = self.application_pool().cloned() else {
             tracing::error!(
                 "Observer management routes not mounted: \
-                 the `observers` feature requires a PostgreSQL pool (`db_pool`). \
+                 they run on the application pool, and this server was built without one. \
                  Pass `Some(sqlx::PgPool)` to Server::new() to enable observer endpoints."
             );
             return app;

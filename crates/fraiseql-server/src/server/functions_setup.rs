@@ -29,7 +29,7 @@ impl Server {
     /// the dispatch ledger (#1628): it has a database, and a function with such a trigger.
     /// Answers the same before and after the functions section is taken.
     pub(crate) const fn records_function_dispatches(&self) -> bool {
-        self.db_pool.is_some() && self.dispatches_after_writes
+        self.application_pool().is_some() && self.dispatches_after_writes
     }
 
     /// Prepare functions-runtime dispatch from the functions section this server
@@ -243,7 +243,7 @@ impl Server {
         if kind != DlqStoreKind::Postgres {
             return Ok(hooks);
         }
-        let Some(pool) = self.db_pool.as_ref() else {
+        let Some(pool) = self.application_pool() else {
             tracing::warn!(
                 "[functions] dlq_store = \"postgres\" but no database pool is available — \
                  dead-lettered dispatches use the in-memory store and will not survive a restart"
@@ -313,7 +313,7 @@ impl Server {
             // The delivery-feedback store (suppression + send-status + exactly-once)
             // needs a database pool; without one the transport still sends, just
             // without tracking.
-            let tracker = match self.db_pool.as_ref() {
+            let tracker = match self.application_pool() {
                 Some(pool) => {
                     let tracker = crate::inbound::email::PgSendTracker::new(pool.clone());
                     tracker.init().await.map_err(|error| {

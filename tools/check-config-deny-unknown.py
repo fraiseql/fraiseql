@@ -81,7 +81,8 @@ HAND_WRITTEN = pathlib.Path(
 
 # The discovered-struct count, asserted so the walk cannot quietly measure less.
 # Bump it deliberately, with the section that was added.
-EXPECTED_REACHABLE = int(os.environ.get("CONFIG_DENY_UNKNOWN_EXPECTED", "53"))
+EXPECTED_REACHABLE = int(os.environ.get("CONFIG_DENY_UNKNOWN_EXPECTED", "54"))
+# +1: [application_pool] (#2098) sizes the application database pool.
 # +1: [function_dispatch] (#1628) leases and sweeps the function dispatch ledger.
 # +1 (#2033): `[rate_limiting]` is `ServerRateLimitingConfig` over the compiled
 # `RateLimitingSecurityConfig`, replacing `RateLimitConfig`. Its `Deserialize` is written by

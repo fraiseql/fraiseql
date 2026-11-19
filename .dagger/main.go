@@ -2068,7 +2068,7 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 	// dependency tree the list changes, and those builds run one after another: at
 	// 16 sets they took ~16 min of a warm 25-min run; the tests took seconds. A
 	// suite that needs a feature OFF gets its own line, with a comment saying which
-	// feature and why; no suite here does today (none carries a `not(feature)` gate).
+	// feature and why: default_build_pools_e2e_pg (#2098) needs `observers` off.
 	serverLegFeatures := "--features '" + serverTestFeatures + "," + serverIntegrationExtraFeatures + "'"
 
 	script := strings.Join([]string{
@@ -2436,6 +2436,15 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// schema `auth` FraiseQL did not create.
 		"echo '### cargo test -p fraiseql-server --test auth_database_e2e_pg (#1965 auth role and pool)'",
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test auth_database_e2e_pg -- --test-threads=1",
+		// #2098 — the application pool on a DEFAULT-features build, the shape the default
+		// image ships: SCIM, the RBAC API and tenant admin tokens mounted through the
+		// binary's own boot path. Its own line, with no `--features`, on purpose:
+		// serverLegFeatures includes `observers`, under which the binary always had a
+		// pool, so every suite above passed while the default build served none of these.
+		"echo '### cargo test -p fraiseql-server --test default_build_pools_e2e_pg (#2098 default build, application pool)'",
+		"cargo test -p fraiseql-server --test default_build_pools_e2e_pg -- --test-threads=1",
+		// The same suite's one `observers` test: the binary opens two distinct pools.
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test default_build_pools_e2e_pg -- --test-threads=1 two_distinct_pools",
 		// #1964 — [auth_issuer]: the server signs its sessions with ES256 keys of its own,
 		// publishes them, rotates them, and admits an external provider's tokens on
 		// /graphql but not on the routes acting on the caller's own account.

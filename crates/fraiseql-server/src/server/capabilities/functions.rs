@@ -34,7 +34,7 @@ impl Capability for Functions {
     #[cfg(feature = "functions-runtime")]
     fn provision(&self, cx: &BootCx<'_>) -> Vec<ProvisionStep> {
         let server = cx.server;
-        let Some(pool) = server.db_pool.as_ref() else {
+        let Some(pool) = server.application_pool() else {
             return Vec::new();
         };
         let mut steps = Vec::new();
@@ -69,7 +69,7 @@ impl Capability for Functions {
         let app_state = cx.app;
         let server = &mut *cx.server;
         let (Some(db_pool), Some(hooks)) =
-            (server.db_pool.as_ref(), app_state.before_mutation_hooks.as_ref())
+            (server.application_pool(), app_state.before_mutation_hooks.as_ref())
         else {
             return Ok(Started::Running);
         };

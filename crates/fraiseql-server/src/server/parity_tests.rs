@@ -1335,7 +1335,7 @@ async fn build_for(
         config,
         schema,
         Arc::new(NoopRelayAdapter::default()),
-        None,
+        crate::server::pools::ServerPools::default(),
         deployment,
         fraiseql_core::runtime::Executor::with_config,
         #[cfg(feature = "arrow")]

@@ -17,9 +17,9 @@ use crate::{Server, ServerConfig, capability::REGISTRY, schema::loader::Function
 ///
 /// # Errors
 ///
-/// Returns an error when a configured subsystem cannot be built: the observer pool
-/// cannot connect, object storage or token revocation cannot be set up, or the server
-/// constructor refuses the configuration.
+/// Returns an error when a configured subsystem cannot be built: `[application_pool]` or
+/// `[database_tls]` is invalid, the observer pool cannot connect, object storage or token
+/// revocation cannot be set up, or the server constructor refuses the configuration.
 #[allow(clippy::cognitive_complexity)] // Reason: one guarded step per optional subsystem, in boot order
 pub async fn build_postgres_server(
     config: ServerConfig,
@@ -49,7 +49,15 @@ pub async fn build_postgres_server(
         );
     }
 
-    let db_pool = build_observer_pool(&config).await?;
+    // Two pools on `database_url`: the application pool every pool-backed
+    // capability runs against, opened on every build and connecting on first use, and the
+    // observer runtime's own, whose listener must not take a request's connection.
+    let application_pool = crate::server_config::application_pool::open_application_pool(&config)
+        .map_err(|e| anyhow::anyhow!(e))?;
+    let pools = crate::ServerPools::new(
+        Some(crate::ApplicationPool::new(application_pool)),
+        build_observer_pool(&config).await?,
+    );
 
     // Wire `[storage.<name>]` into a mounted /storage/v1/* route group. Built
     // before the server is constructed (which moves `config`); a None result
@@ -112,7 +120,7 @@ pub async fn build_postgres_server(
             );
         }
         let server =
-            Server::with_flight_service(config, schema, adapter, db_pool, Some(flight_service))
+            Server::with_flight_service(config, schema, adapter, pools, Some(flight_service))
                 .await?;
         // #896: the functions section comes from the artifact we loaded, not from a
         // second read of `schema_path` inside the serve path.
@@ -159,9 +167,9 @@ pub async fn build_postgres_server(
     {
         let has_relay_queries = schema.queries.iter().any(|q| q.relay);
         let server = if has_relay_queries {
-            Server::with_relay_pagination(config, schema, adapter, db_pool).await?
+            Server::with_relay_pagination(config, schema, adapter, pools).await?
         } else {
-            Server::new(config, schema, adapter, db_pool).await?
+            Server::new(config, schema, adapter, pools).await?
         };
         // #896: the functions section comes from the artifact we loaded, not from a
         // second read of `schema_path` inside the serve path.
@@ -263,10 +271,10 @@ pub async fn postgres_revocation_manager(
 /// connections (request connections need to be available for concurrent queries).
 ///
 /// The observer pool is configured independently via `[observers.runtime.pool]`
-/// in `fraiseql.toml`. When absent, observer-specific defaults are used (smaller
-/// than the application pool — observers need far fewer connections).
+/// in the server config. When absent, observer-specific defaults are used.
+/// `[database_tls]` applies to it as to every pool on `database_url`.
 #[cfg(feature = "observers")]
-async fn build_observer_pool(config: &ServerConfig) -> anyhow::Result<Option<sqlx::PgPool>> {
+async fn build_observer_pool(config: &ServerConfig) -> anyhow::Result<Option<crate::ObserverPool>> {
     use std::time::Duration;
 
     use sqlx::postgres::PgPoolOptions;
@@ -284,16 +292,21 @@ async fn build_observer_pool(config: &ServerConfig) -> anyhow::Result<Option<sql
         .min_connections(pool_cfg.min_connections)
         .max_connections(pool_cfg.max_connections)
         .acquire_timeout(Duration::from_secs(pool_cfg.acquire_timeout_secs))
-        .connect(&config.database_url)
+        .connect_with(
+            crate::server_config::application_pool::connect_options(config)
+                .map_err(|e| anyhow::anyhow!(e))?,
+        )
         .await?;
 
-    Ok(Some(pool))
+    Ok(Some(crate::ObserverPool::new(pool)))
 }
 
 /// No observer runtime without the `observers` feature, so no pool.
 #[cfg(not(feature = "observers"))]
 #[allow(clippy::unused_async)] // Reason: the same signature as the observers build, so the call site has no cfg
-async fn build_observer_pool(_config: &ServerConfig) -> anyhow::Result<Option<sqlx::PgPool>> {
+async fn build_observer_pool(
+    _config: &ServerConfig,
+) -> anyhow::Result<Option<crate::ObserverPool>> {
     Ok(None)
 }
 

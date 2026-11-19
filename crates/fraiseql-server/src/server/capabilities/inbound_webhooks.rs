@@ -14,7 +14,7 @@ pub struct InboundWebhooks;
 impl Capability for InboundWebhooks {
     #[cfg(feature = "inbound")]
     fn configured(&self, cx: &ServeCx<'_>) -> bool {
-        cx.server.db_pool.is_some() && !cx.server.webhook_routes.is_empty()
+        cx.server.application_pool().is_some() && !cx.server.webhook_routes.is_empty()
     }
 
     /// The spine that holds normalized messages, and the idempotency ledger behind the
@@ -22,7 +22,7 @@ impl Capability for InboundWebhooks {
     #[cfg(feature = "inbound")]
     fn provision(&self, cx: &BootCx<'_>) -> Vec<ProvisionStep> {
         let server = cx.server;
-        match server.db_pool.as_ref() {
+        match server.application_pool() {
             Some(pool) if !server.config.webhooks.is_empty() => vec![ProvisionStep::new(
                 "inbound webhook",
                 pool,

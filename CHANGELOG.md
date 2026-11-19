@@ -492,6 +492,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **The observer pool honours `[database_tls]` (#2098).** It read only `?sslmode=` in
+  `database_url`, so `postgres_ssl_mode` and `ca_bundle_path` in `[database_tls]` applied
+  to the query pool and not to it. It now connects as the query pool does. A deployment
+  with `observers` whose `[database_tls]` asks for more than its URL did (for example
+  `postgres_ssl_mode = "verify-full"` against a database whose certificate does not
+  verify) may now be refused at boot, where the observer pool connects.
 - **The `fraiseql.toml` JSON Schema refuses the keys a section's own check refuses (#2050).**
   `[rest] max_embedded_reads`, `[caching] redis_url`, `[observers] redis_url`, and `text`
   and `html` in `[auth.local.email.otp]`, `.reset` and `.verification` are refused by the
@@ -566,6 +572,31 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The default `fraiseql-server` build serves SCIM, the RBAC API and tenant admin
+  tokens (#2098, #1978).** The binary opened its PostgreSQL pool for those capabilities
+  only in builds with the `observers` feature. The default build and image (`auth`,
+  `cli`) therefore accepted `[scim] enabled = true` and created SCIM's tables but mounted
+  no SCIM route, mounted no RBAC API, built no tenant admin token store, and refused
+  `[async_operations]` and `[session_state] backend = "postgres"`, saying the binary
+  provides a pool when `database_url` is set. The binary now opens an **application
+  pool** on every build, which every pool-backed capability except the observer runtime
+  runs on. The observer runtime keeps a pool of its own, as before.
+  - **Connections.** The application pool keeps no idle connection and opens up to
+    `[application_pool] max_connections` (default 5) on demand; `acquire_timeout_secs`
+    defaults to 10. A build without `observers` holds no more idle connections than
+    before, and up to 5 more under load. A build with `observers` used one pool (2 idle,
+    up to 5) for the runtime and every other capability; the runtime keeps that pool and
+    the other capabilities now take up to 5 connections from the application pool.
+  - **Boot.** The application pool connects on first use, so an unreachable database
+    fails the boot where it did before: when the query pool opens.
+  - **TLS.** `[database_tls]` applies to the application pool as to the query pool.
+  - **Embedding.** `Server::new` and its siblings take `impl Into<ServerPools>`. An
+    `Option<PgPool>` still compiles, and serves as both pools, as before;
+    `ServerPools::new` gives each role its own.
+  - A server built with `[scim] enabled = true` and no application pool, or on a build
+    without `auth`, now refuses to boot, naming what it lacks. The `[auth.local]`,
+    `[auth.social]` and session-refresh refusals name `[auth.database]`, the pool they
+    run on, instead of saying the binary provides one when `database_url` is set.
 - **`fraiseql-server` builds with `mcp` and without the default features (#2092).**
   `cargo check -p fraiseql-server --no-default-features --features mcp` failed: the MCP
   session state is `fraiseql-auth`'s store, and `mcp` did not enable `auth`, which only the

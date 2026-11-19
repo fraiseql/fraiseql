@@ -23,7 +23,7 @@ pub struct Sources;
 impl Capability for Sources {
     #[cfg(feature = "sources")]
     fn configured(&self, cx: &ServeCx<'_>) -> bool {
-        cx.server.db_pool.is_some()
+        cx.server.application_pool().is_some()
             && cx.app.executor().schema().sources.iter().any(|source| source.enabled)
     }
 
@@ -32,7 +32,7 @@ impl Capability for Sources {
     fn provision(&self, cx: &BootCx<'_>) -> Vec<ProvisionStep> {
         let server = cx.server;
         let any_enabled = server.executor.schema().sources.iter().any(|source| source.enabled);
-        match server.db_pool.as_ref() {
+        match server.application_pool() {
             Some(pool) if any_enabled => vec![ProvisionStep::new(
                 "source cursor",
                 pool,
@@ -50,7 +50,7 @@ impl Capability for Sources {
     async fn start(&self, cx: &mut RunCx<'_>) -> crate::Result<Started> {
         let app_state = cx.app;
         let server = &mut *cx.server;
-        let Some(db_pool) = server.db_pool.as_ref() else {
+        let Some(db_pool) = server.application_pool() else {
             return Ok(Started::Running);
         };
         let sources = app_state.executor().schema().sources.clone();

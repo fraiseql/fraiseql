@@ -668,3 +668,49 @@ mod enrichment_consumer {
             .expect_err("a service account's static_enriched does not stand in for a resolver");
     }
 }
+
+fn config_with_scim(enabled: bool) -> crate::ServerConfig {
+    crate::ServerConfig {
+        scim: Some(crate::server_config::scim::ScimServerConfig {
+            enabled,
+            ..crate::server_config::scim::ScimServerConfig::default()
+        }),
+        ..crate::ServerConfig::default()
+    }
+}
+
+#[test]
+fn scim_enabled_on_a_build_without_auth_is_refused_naming_the_feature() {
+    for has_db_pool in [true, false] {
+        let err = super::refuse_scim_it_cannot_mount(&config_with_scim(true), false, has_db_pool)
+            .expect_err("a build without `auth` serves no SCIM route");
+        let message = err.to_string();
+        assert!(message.contains("[scim]") && message.contains("`auth` feature"), "{message}");
+    }
+}
+
+#[test]
+fn scim_enabled_without_a_database_pool_is_refused_naming_the_pool() {
+    let err = super::refuse_scim_it_cannot_mount(&config_with_scim(true), true, false)
+        .expect_err("SCIM is not mounted without the pool its RBAC backend is built on");
+    let message = err.to_string();
+    assert!(message.contains("[scim]") && message.contains("database pool"), "{message}");
+}
+
+#[test]
+fn scim_left_off_boots_whatever_the_build_lacks() {
+    for config in [config_with_scim(false), crate::ServerConfig::default()] {
+        for (auth_built, has_db_pool) in [(false, false), (true, false), (false, true)] {
+            assert!(
+                super::refuse_scim_it_cannot_mount(&config, auth_built, has_db_pool).is_ok(),
+                "scim {:?}, auth {auth_built}, pool {has_db_pool}",
+                config.scim.as_ref().map(|scim| scim.enabled),
+            );
+        }
+    }
+}
+
+#[test]
+fn scim_enabled_with_auth_and_a_database_pool_boots() {
+    assert!(super::refuse_scim_it_cannot_mount(&config_with_scim(true), true, true).is_ok());
+}

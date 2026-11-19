@@ -8,6 +8,7 @@
 //! see `docs/architecture/config-vs-settings.md`.
 
 pub mod admin_sql;
+pub mod application_pool;
 pub mod async_operations;
 pub mod auth_issuer;
 mod cache;
@@ -132,6 +133,7 @@ mod tests;
 use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 
 pub use admin_sql::AdminSqlConfig;
+pub use application_pool::ApplicationPoolConfig;
 pub use async_operations::AsyncOperationsConfig;
 pub use auth_issuer::IssuerConfig;
 pub use cache::CacheCrossInstance;
@@ -568,6 +570,13 @@ pub struct ServerConfig {
     /// Database connection pool timeout in seconds.
     #[serde(default = "defaults::default_pool_timeout")]
     pub pool_timeout_secs: u64,
+
+    /// `[application_pool]`: the second pool the binary opens on `database_url`,
+    /// which the RBAC backend, SCIM, tenant admin tokens, API keys, async operations, the
+    /// `postgres` session-state backend, sources and inbound run against. It keeps no
+    /// connection idle and opens up to `max_connections` (default 5) on demand.
+    #[serde(default)]
+    pub application_pool: ApplicationPoolConfig,
 
     /// How many pool connections streaming reads may hold at once (#958).
     ///
@@ -1601,7 +1610,8 @@ impl Default for ServerConfig {
             auth_issuer: None,
             #[cfg(feature = "auth-saml")]
             saml: None, // SAML sign-in is opt-in
-            scim: None,            // Provisioning is opt-in
+            scim: None, // Provisioning is opt-in
+            application_pool: ApplicationPoolConfig::default(),
             admin_sql: None,       // The SQL console is opt-in (#962)
             hmac_secret_env: None, // No HMAC secret → unsigned idempotency token
             tls: None,             // TLS disabled by default

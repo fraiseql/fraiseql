@@ -1691,6 +1691,42 @@ pub(super) fn warn_when_no_caller_can_read_the_service_sdl(
     );
 }
 
+/// Refuse `[scim] enabled = true` on a server that cannot mount SCIM.
+///
+/// SCIM group sync writes role assignments through the RBAC backend, which is built on
+/// the server's database pool, and the routes exist only in builds with the `auth`
+/// feature. Without either, the boot used to succeed, create SCIM's tables and serve no
+/// SCIM route.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` naming what the server lacks when `[scim]` is
+/// enabled on a build without `auth` or a server without a database pool.
+pub(super) fn refuse_scim_it_cannot_mount(
+    config: &crate::ServerConfig,
+    auth_built: bool,
+    has_db_pool: bool,
+) -> crate::Result<()> {
+    if !config.scim.as_ref().is_some_and(|scim| scim.enabled) {
+        return Ok(());
+    }
+    if !auth_built {
+        return Err(ServerError::ConfigError(
+            "[scim] enabled = true needs a build with the `auth` feature".to_string(),
+        ));
+    }
+    if !has_db_pool {
+        return Err(ServerError::ConfigError(
+            "[scim] enabled = true requires a database pool: SCIM group sync writes role \
+             assignments through the RBAC backend, which is built on it. The fraiseql-server \
+             binary opens one only in builds with the `observers` feature; library embedders \
+             must pass a PgPool to Server::new."
+                .to_string(),
+        ));
+    }
+    Ok(())
+}
+
 /// Refuse a federated server whose trusted documents are strict.
 ///
 /// A strict store refuses every request without a registered `documentId`, and a gateway
