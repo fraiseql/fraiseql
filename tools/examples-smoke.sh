@@ -290,7 +290,7 @@ PY
                 # not an answer. #1071's container was healthy and answered
                 # "Federation is not enabled in this build" to the one query that
                 # mattered.
-                if printf '%s' "$response" | grep -q '"errors"'; then
+                if printf '%s' "$response" | grep -c '"errors"' >/dev/null; then
                     bad "the server answered { $root } with errors: $response"
                 else
                     note "ok   { $root { __typename } } answered: $(printf '%s' "$response" | head -c 120)"

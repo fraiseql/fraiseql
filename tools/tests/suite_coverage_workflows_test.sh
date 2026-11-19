@@ -92,7 +92,7 @@ expect() {
         return
     fi
     # `--` before the pattern: a needle like `--bench` is a pattern, not an option.
-    if [ -n "$needle" ] && ! printf '%s' "$out" | grep -qF -- "$needle"; then
+    if [ -n "$needle" ] && ! printf '%s' "$out" | grep -cF -- "$needle" >/dev/null; then
         echo "FAIL  $label: output did not mention '$needle'"
         echo "$out" | sed 's/^/        /'
         TESTS_FAILED=$((TESTS_FAILED + 1))

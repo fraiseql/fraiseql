@@ -103,7 +103,7 @@ assert_gate() {
     # `-e` is load-bearing: half of what this gate reports starts with `--`, and
     # grep would read the expectation as its own option and exit 2 — a harness
     # bug that reads as the gate failing to report.
-    if ! printf '%s' "$out" | grep -qF -e "$want_text"; then
+    if ! printf '%s' "$out" | grep -cF -e "$want_text" >/dev/null; then
         echo "  FAIL: $name — output did not contain: $want_text"
         echo "$out" | sed 's/^/        /'
         TESTS_FAILED=$((TESTS_FAILED + 1))

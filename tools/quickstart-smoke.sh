@@ -133,8 +133,8 @@ echo "## step 6 — query"
 RESPONSE="$(bash "$BLOCKS/08.bash")"
 echo "$RESPONSE"
 assert_block_contains 09.json '"name":"Ada"'
-echo "$RESPONSE" | grep -qF '"name":"Ada"' || fail "response does not match the doc's expected output: $RESPONSE"
-echo "$RESPONSE" | grep -qF '"email":"ada@example.com"' || fail "response does not match the doc's expected output: $RESPONSE"
+echo "$RESPONSE" | grep -cF '"name":"Ada"' >/dev/null || fail "response does not match the doc's expected output: $RESPONSE"
+echo "$RESPONSE" | grep -cF '"email":"ada@example.com"' >/dev/null || fail "response does not match the doc's expected output: $RESPONSE"
 
 kill "$SERVER_PID" 2>/dev/null || true
 SERVER_PID=""

@@ -148,7 +148,7 @@ for file in $producer_files; do
   if [ "${hits:-0}" -eq 0 ]; then
     continue
   fi
-  if echo "$file" | grep -qE "^($DEFERRED|$KNOWN)$"; then
+  if echo "$file" | grep -cE "^($DEFERRED|$KNOWN)$" >/dev/null; then
     continue
   fi
   if grep -qE "$RESOLVER" "$file"; then
@@ -229,12 +229,12 @@ admission='crates/fraiseql-server/src/admission/mod.rs'
 body_of() {
   awk -v name="$1" '$0 ~ ("fn " name "\\(") { inside = 1 } inside { print } inside && /^}/ { exit }' "$2"
 }
-if ! body_of identify "$admission" | grep -qE "enrich_identity\s*\("; then
+if ! body_of identify "$admission" | grep -cE "enrich_identity\s*\(" >/dev/null; then
   echo "ERROR: admission::identify in $admission no longer calls enrich_identity."
   echo "RESOLVER accepts admission::identify only because it runs the enrichment seam."
   exit 1
 fi
-if ! body_of enrich_identity "$admission" | grep -qE "resolve_request_identity\s*\("; then
+if ! body_of enrich_identity "$admission" | grep -cE "resolve_request_identity\s*\(" >/dev/null; then
   echo "ERROR: enrich_identity in $admission no longer calls resolve_request_identity."
   echo "A second implementation of the rule is what #1336 was."
   exit 1
@@ -242,7 +242,7 @@ fi
 
 # `stages::admit` is accepted on the same condition: its body must still enter admission.
 stage='crates/fraiseql-server/src/routes/graphql/handler/stages.rs'
-if ! body_of admit "$stage" | grep -qE "admission::identify\s*\("; then
+if ! body_of admit "$stage" | grep -cE "admission::identify\s*\(" >/dev/null; then
   echo "ERROR: stages::admit in $stage no longer calls admission::identify."
   echo "RESOLVER accepts stages::admit only because admission resolves the identity."
   exit 1

@@ -63,7 +63,7 @@ test_only_rsa_signers="crates/fraiseql-server/src/testing/idp.rs"
 for signer in $test_only_rsa_signers; do
   module="$(basename "$signer" .rs)"
   parent="$(dirname "$signer")/mod.rs"
-  if ! grep -B1 -E "^pub(\(crate\))? mod ${module};" "$parent" 2>/dev/null | head -1 | grep -qxF '#[cfg(test)]'; then
+  if ! grep -B1 -E "^pub(\(crate\))? mod ${module};" "$parent" 2>/dev/null | head -1 | grep -cxF '#[cfg(test)]' >/dev/null; then
     echo "FAIL (#1110): ${signer} is exempt as a test-only RSA signer, but ${parent} does not"
     echo "    declare \`mod ${module}\` directly under #[cfg(test)]."
     rc=1

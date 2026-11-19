@@ -88,7 +88,7 @@ assert_gate() {
         TESTS_FAILED=$((TESTS_FAILED + 1))
         return
     fi
-    if ! printf '%s' "$out" | grep -qF "$want_text"; then
+    if ! printf '%s' "$out" | grep -cF "$want_text" >/dev/null; then
         echo "  FAIL: $name — output did not contain: $want_text"
         echo "$out" | sed 's/^/        /'
         TESTS_FAILED=$((TESTS_FAILED + 1))

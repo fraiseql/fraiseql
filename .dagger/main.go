@@ -709,6 +709,11 @@ func (m *FraiseqlCi) ShellGates(
 		// workflows and the Makefile; the pin runs it over a fixture crate.
 		"python3 tools/check-ignored-lines.py",
 		"make test-ignored-lines-gate",
+		// No pipe into `grep -q` where `pipefail` is on: grep exits at its first
+		// match, the writer takes SIGPIPE, and the pipeline reads the match as a miss
+		// (#1870, #1961).
+		"python3 tools/check-grep-q-pipefail.py",
+		"make test-grep-q-pipefail-gate",
 		// …and the red-capability pin for its GitHub Actions side (#1120): a
 		// workflow can look like coverage and provide none.
 		"make test-suite-coverage-workflows",

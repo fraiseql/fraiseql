@@ -476,7 +476,7 @@ while IFS= read -r f; do
   if [ -n "${CI_DRIVEN[$f]:-}" ]; then
     classified=$((classified + 1)); echo "  CI-driven:     $f  (${CI_DRIVEN[$f]})"; continue
   fi
-  if head -25 "$f" | grep -qF "$UNVERIFIED_MARKER"; then
+  if head -25 "$f" | grep -cF "$UNVERIFIED_MARKER" >/dev/null; then
     classified=$((classified + 1)); echo "  unverified:    $f"; continue
   fi
   fail "$f is neither the canonical stack nor a CI-driven rig, and its header does not say \"$UNVERIFIED_MARKER\".
@@ -504,7 +504,7 @@ for f in tools/compose-stack-test.sh Makefile .github/workflows/dagger-image.yml
     *.yml)     block="$(sed -n '/compose-stack-test\.sh/,/^$/p' "$f")" ;;
     *)         block="$(grep -nE 'docker compose' "$f" || true)" ;;
   esac
-  if printf '%s' "$block" | grep -qE '\|\|[[:space:]]*(true|:)[[:space:]]*$'; then
+  if printf '%s' "$block" | grep -cE '\|\|[[:space:]]*(true|:)[[:space:]]*$' >/dev/null; then
     fail "$f swallows a failure in the compose-stack path:"
     printf '%s\n' "$block" | grep -nE '\|\|[[:space:]]*(true|:)[[:space:]]*$' | sed 's/^/       /' >&2
     swallow=$((swallow + 1))

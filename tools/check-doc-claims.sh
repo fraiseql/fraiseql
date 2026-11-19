@@ -92,7 +92,7 @@ else
   fi
   for n in $names; do
     b=${n%.rs}
-    if ! find crates -not -path '*/target/*' \( -name "$n" -o -type d -name "$b" \) -print -quit 2>/dev/null | grep -q .; then
+    if ! find crates -not -path '*/target/*' \( -name "$n" -o -type d -name "$b" \) -print -quit 2>/dev/null | grep -c . >/dev/null; then
       fail "rule 2: architecture.md names $n, which exists nowhere under crates/ as a file or a directory"
     fi
   done

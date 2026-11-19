@@ -67,7 +67,7 @@ for file in $candidates; do
   # `var(` after `use std::env::var` — and not TLS_/TEST_/STANDBY_DATABASE_URL, whose
   # names end in the same token.
   if grep -nE '(^|[^_[:alnum:]])var\("DATABASE_URL"\)' "$file" >/dev/null 2>&1; then
-    if ! printf '%s\n' "$allowed" | grep -qxF "$file"; then
+    if ! printf '%s\n' "$allowed" | grep -cxF "$file" >/dev/null; then
       violations="${violations}${file}"$'\n'
     fi
   fi

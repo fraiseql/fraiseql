@@ -41,7 +41,7 @@ doc_tokens=$(
 orphans=""
 for token in $doc_tokens; do
   # Allowlisted (first whitespace-separated field of a non-comment line)?
-  if [ -f "$allowlist" ] && grep -vE '^\s*(#|$)' "$allowlist" | awk '{print $1}' | grep -qxF "$token"; then
+  if [ -f "$allowlist" ] && grep -vE '^\s*(#|$)' "$allowlist" | awk '{print $1}' | grep -cxF "$token" >/dev/null; then
     continue
   fi
   # A reader anywhere in Rust source?
@@ -55,8 +55,8 @@ for token in $doc_tokens; do
   files=$(grep -rlF "$token" docs/ README.md examples/ 2>/dev/null | grep -v "$allowlist" | sort -u | tr '\n' ' ')
   # Quoted only by dated audit records, and recorded as removed in the changelog?
   if [ -n "$files" ] \
-     && ! printf '%s\n' "$files" | tr ' ' '\n' | grep -v '^$' | grep -qvE '^docs/security/audits/' \
-     && grep -F "$token" CHANGELOG.md 2>/dev/null | grep -qiE '\bremoved\b'; then
+     && ! printf '%s\n' "$files" | tr ' ' '\n' | grep -v '^$' | grep -cvE '^docs/security/audits/' >/dev/null \
+     && grep -F "$token" CHANGELOG.md 2>/dev/null | grep -ciE '\bremoved\b' >/dev/null; then
     continue
   fi
   orphans="${orphans}  ${token}  →  ${files}\n"

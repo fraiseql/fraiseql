@@ -142,7 +142,7 @@ for entry in "${REMOVED[@]}"; do
         revived=$((revived + 1))
         continue
     fi
-    if declared_features "$toml" | grep -qx -- "$feature"; then
+    if declared_features "$toml" | grep -cx -- "$feature" >/dev/null; then
         echo "REVIVED: $crate declares '$feature', which was removed (see REMOVED in this script)"
         revived=$((revived + 1))
     fi

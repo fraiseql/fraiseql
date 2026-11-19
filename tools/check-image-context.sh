@@ -96,14 +96,14 @@ for entry in "${ignore_lines[@]}"; do
     for src in "${copy_sources[@]}"; do
         if [ "$has_catchall" -eq 1 ]; then
             # Must be re-included explicitly: "!src" or "!src/..." .
-            if ! printf '%s' "$list" | grep -qE "\"!${src}(/[^\"]*)?\""; then
+            if ! printf '%s' "$list" | grep -cE "\"!${src}(/[^\"]*)?\"" >/dev/null; then
                 echo "✗ $IMAGE_GO:$lineno drops \`$src\`, which a Dockerfile COPYs"
                 echo "    The filter has a catch-all, so \`$src\` needs \"!${src}/**\" (or \"!${src}\")."
                 rc=1
             fi
         else
             # No catch-all: fail if something excludes the path outright.
-            if printf '%s' "$list" | grep -qE "\"${src}(/[^\"]*)?\""; then
+            if printf '%s' "$list" | grep -cE "\"${src}(/[^\"]*)?\"" >/dev/null; then
                 echo "✗ $IMAGE_GO:$lineno excludes \`$src\`, which a Dockerfile COPYs"
                 rc=1
             fi

@@ -156,7 +156,7 @@ for file in $(production_files_matching "$RAW_DISPATCH"); do
     continue
   fi
   raw_seen="${raw_seen}${file} "
-  if echo "$file" | grep -qE "^($KNOWN_RAW)$"; then
+  if echo "$file" | grep -cE "^($KNOWN_RAW)$" >/dev/null; then
     continue
   fi
   raw_violations="${raw_violations}${file}"$'\n'
@@ -234,7 +234,7 @@ for known in $(echo "${KNOWN_RAW:-}" | tr '|' ' '); do
     echo "ERROR: KNOWN_RAW entry $known does not exist — remove it from this gate."
     exit 1
   fi
-  if ! echo "$raw_seen" | grep -qF "$known "; then
+  if ! echo "$raw_seen" | grep -cF "$known " >/dev/null; then
     echo "ERROR: KNOWN_RAW entry $known no longer builds and dispatches write SQL."
     echo "The bypass it tracks is fixed: remove it so the file is gated again."
     exit 1

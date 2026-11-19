@@ -575,7 +575,7 @@ docker run -d --name "$K3S_NAME" --privileged \
 
 node_ready=0
 for _ in $(seq 1 120); do
-  if docker exec "$K3S_NAME" kubectl get nodes 2>/dev/null | grep -q ' Ready '; then node_ready=1; break; fi
+  if docker exec "$K3S_NAME" kubectl get nodes 2>/dev/null | grep -c ' Ready ' >/dev/null; then node_ready=1; break; fi
   if [ "$(docker inspect -f '{{.State.Running}}' "$K3S_NAME" 2>/dev/null)" != "true" ]; then
     echo "--- k3s container exited ---"; docker logs "$K3S_NAME" 2>&1 | tail -40
     die "the k3s container exited before the node was Ready"

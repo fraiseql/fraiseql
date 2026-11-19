@@ -50,7 +50,7 @@ print(json.dumps({"query": sys.argv[1],
 
 note "1. Read side: Query.flight is federated to flight-service"
 out=$(gql '{"query":"query($id:ID!){ flight(id:$id){ id departure arrival } }","variables":{"id":"FL-9"}}')
-if printf '%s' "$out" | grep -q '"departure"'; then ok "flight resolved"; else bad "flight did not resolve: $out"; fi
+if printf '%s' "$out" | grep -c '"departure"' >/dev/null; then ok "flight resolved"; else bad "flight did not resolve: $out"; fi
 
 note "2. Happy path: every step succeeds, nothing is compensated"
 out=$(gql "$(request u-42)")

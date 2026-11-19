@@ -104,7 +104,7 @@ index_url_for() {
 # Usage: index_body_has_version "<body>" <version>
 index_body_has_version() {
     local body="$1" version="$2"
-    printf '%s' "$body" | grep -qF "\"vers\":\"$version\""
+    printf '%s' "$body" | grep -cF "\"vers\":\"$version\"" >/dev/null
 }
 
 # Bump the version in a Python SDK: the [project].version in pyproject.toml and

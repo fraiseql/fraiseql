@@ -115,7 +115,7 @@ done
 # A stale allow-list is a silent hole: the entry stops describing anything and
 # the next real failure of that name is waved through.
 for allowed in "${ALLOWED_NAMES[@]}"; do
-  if ! printf '%s\n' "${FAILED[@]}" | grep -qF "$allowed"; then
+  if ! printf '%s\n' "${FAILED[@]}" | grep -cF "$allowed" >/dev/null; then
     if grep -qF "$allowed" "$OUT"; then
       echo "ERROR: '$allowed' is allow-listed but did not fail — drop it from ALLOWED_NAMES."
       exit 1

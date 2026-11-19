@@ -197,7 +197,7 @@ fi
 # The count is asserted, not assumed: a driver that silently checked fewer rows
 # would report a clean sweep over nothing.
 want_assertions=$(( $(grep -c '^    ("' "$WORK/table.py") * 8 ))
-if printf '%s' "$out" | grep -qx "CHECKED $want_assertions"; then
+if printf '%s' "$out" | grep -cx "CHECKED $want_assertions" >/dev/null; then
     pass "the driver made all $want_assertions assertions"
 else
     fail "assertion COUNT is not $want_assertions" "$out"
@@ -297,7 +297,7 @@ sdk_expect() {
     if [ "$rc" -ne "$want" ]; then
         fail "$label: exit $rc, wanted $want" "$out"; return
     fi
-    if [ -n "$needle" ] && ! printf '%s' "$out" | grep -qF -- "$needle"; then
+    if [ -n "$needle" ] && ! printf '%s' "$out" | grep -cF -- "$needle" >/dev/null; then
         fail "$label: output did not mention '$needle'" "$out"; return
     fi
     pass "$label"

@@ -450,7 +450,7 @@ jobs:
           for b in fraiseql fraiseql-server; do
             out=$(file "target/aarch64-unknown-linux-gnu/release/$b")
             echo "$out"
-            echo "$out" | grep -q 'ARM aarch64' \
+            echo "$out" | grep -c 'ARM aarch64' >/dev/null \
               || { echo "::error::$b is not an aarch64 binary"; exit 1; }
           done
 

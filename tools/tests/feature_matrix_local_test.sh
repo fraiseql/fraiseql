@@ -145,8 +145,8 @@ dir="$WORK/A1"; make_fixture "$dir"
 ( cd "$dir" && sub_line '{name: "server-gcs", crate: "fraiseql-server", features: []string{"gcs"}},' \
     '{name: "server-gcs", crate: "fraiseql-server", features: []string{"gcs"}},
 	{name: "brand-new-combo", crate: "fraiseql-core", noDefaultFeatures: true, clippy: true, features: []string{"postgres", "x"}},' )
-if ( cd "$dir" && python3 tools/feature-combos.py 2>&1 | grep -qxF \
-        'brand-new-combo	cargo clippy -p fraiseql-core --no-default-features --features postgres,x --all-targets -- -D warnings' ); then
+if ( cd "$dir" && python3 tools/feature-combos.py 2>&1 | grep -cxF \
+        'brand-new-combo	cargo clippy -p fraiseql-core --no-default-features --features postgres,x --all-targets -- -D warnings' >/dev/null ); then
     printf '  ✅ %-4s a new combo appears with the leg'"'"'s exact argv\n' A1
 else
     printf '  ❌ %-4s a new combo appears with the leg'"'"'s exact argv\n' A1
