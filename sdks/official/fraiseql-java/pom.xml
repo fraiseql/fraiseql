@@ -99,6 +99,24 @@
     </dependencies>
 
     <build>
+        <!--
+          Every plugin the `test` phase runs has a version written in this file:
+          resources here, compiler and surefire below. A plugin left unpinned takes the
+          version the running Maven defaults to, and the CI cache of ~/.m2 is keyed on
+          this file's hash, so a runner image whose Maven moves to a new default kept
+          restoring a cache without that plugin. Every run then fetched it from Maven
+          Central, and failed when Central answered 429 (#2079). Pinned, a new version
+          is a change to this file, which changes the cache key.
+        -->
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <version>3.5.0</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

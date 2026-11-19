@@ -68,3 +68,4 @@
 #2052  test-only: every fraiseql.toml in the repository validates against the committed JSON Schema, through a jsonschema dev-dependency; no shipped artifact changes
 #2054  test isolation only: the observers config defaults tests read the environment under the `temp_env` lock; no shipped behaviour changes
 #2073  test rig only: the standby wait compares the standby with the primary's write position, and a test keeps the standby from receiving to prove it; no shipped behaviour changes
+#2079  CI: the Java SDK pom pins maven-resources-plugin, so the Maven cache key moves with every plugin the conformance leg runs; no shipped artifact changes
