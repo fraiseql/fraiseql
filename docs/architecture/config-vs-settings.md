@@ -143,13 +143,14 @@ refusal it is and find the key without reading the message:
 {"error": {"message": "Failed to parse fraiseql.toml; …", "code": 2,
            "diagnostic": {"code": "E-CONFIG-RETIRED", "file": "fraiseql.toml",
                           "table": "schema", "key": null, "replacement": "`[project]`",
-                          "belongs_in": null}}}
+                          "belongs_in": null, "also_in": null}}}
 ```
 
 `table` is dotted (`security.rate_limiting`) and empty for a top-level key; `key` is `null`
 when the whole table is refused; `replacement` is what to write instead, when there is
 something; `belongs_in` names the file a misplaced setting belongs in, when it is another
-file. `fraiseql doctor --json` puts the same diagnostic on its config check, and `fraiseql
+file; `also_in` is `{"file": …, "key": …}` for a setting made twice, the other file and the
+key as that file spells it, and `null` otherwise. `fraiseql doctor --json` puts the same diagnostic on its config check, and `fraiseql
 run` gives it for the server's configuration file too. The standalone `fraiseql-server`
 keeps its own exit status.
 
@@ -163,6 +164,7 @@ keeps its own exit status.
 | `E-CONFIG-MISPLACED` | A setting written in the wrong file or table |
 | `E-CONFIG-DISAGREES` | A setting `fraiseql.toml` and the schema document both declare, differently |
 | `E-CONFIG-UNKNOWN-KEY` | A key the table it is written in does not take; the replacement names the nearest accepted spelling, if one is near |
+| `E-CONFIG-SET-TWICE` | A setting `fraiseql run` reads from `fraiseql.toml` and from the server's configuration file, made in both, whether or not the two values agree; `also_in` names the server file and its key |
 
 ### Exit Codes
 

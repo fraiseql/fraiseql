@@ -81,3 +81,8 @@ crates/fraiseql-cli/src/schema/merger.rs | [[caching.rules]] for query '{}' name
 crates/fraiseql-cli/src/schema/merger.rs | mutation '{trigger}' has a non-array invalidates_views; cann | invalidates_views (schema document) | the schema document's shape, not a fraiseql.toml key
 crates/fraiseql-cli/src/schema/merger.rs | Expected a JSON object at the top level of the schema input, | (schema input) | the merged schema input's shape, not a fraiseql.toml key
 crates/fraiseql-cli/src/schema/merger.rs | {e} | (authoring keys) | the authoring IR's drifted-key check, whose keys are the schema document's, not fraiseql.toml's
+crates/fraiseql-cli/src/commands/run.rs | No database URL provided. Use --database, set DATABASE_URL e | [database] url | no source names a database URL: nothing written is refused
+crates/fraiseql-cli/src/commands/run.rs | invalid server environment variable: {e} | (FRAISEQL_* environment) | an environment variable's value, not a key of either file
+crates/fraiseql-cli/src/commands/run.rs | Input path is not valid UTF-8 | (command line) | the input path's encoding, not a configuration key
+crates/fraiseql-cli/src/commands/run.rs | Input file not found: {path} | (command line) | the named input does not exist
+crates/fraiseql-cli/src/commands/run.rs | No input file found. Create a fraiseql.toml (or schema.json) | (command line) | no input was named and none is in the directory

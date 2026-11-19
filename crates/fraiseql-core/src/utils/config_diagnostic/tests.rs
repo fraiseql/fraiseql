@@ -28,8 +28,32 @@ fn a_diagnostic_serializes_without_its_message_and_with_a_null_key_for_a_table()
             "table": "schema",
             "key": null,
             "replacement": "`[project]`",
-            "belongs_in": null
+            "belongs_in": null,
+            "also_in": null
         })
     );
     assert_eq!(diagnostic.to_string(), "`[schema]` is no longer accepted");
+}
+
+#[test]
+fn a_setting_made_twice_serializes_the_other_file_and_its_key() {
+    let diagnostic = ConfigDiagnostic::new(
+        DiagnosticCode::SetTwice,
+        "server",
+        "port",
+        "made in both".to_owned(),
+    )
+    .with_also_in("server.toml", "bind_addr");
+    assert_eq!(
+        serde_json::to_value(&diagnostic).unwrap(),
+        serde_json::json!({
+            "code": "E-CONFIG-SET-TWICE",
+            "file": null,
+            "table": "server",
+            "key": "port",
+            "replacement": null,
+            "belongs_in": null,
+            "also_in": {"file": "server.toml", "key": "bind_addr"}
+        })
+    );
 }

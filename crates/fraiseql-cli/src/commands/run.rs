@@ -27,7 +27,10 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use fraiseql_core::schema::CompiledSchema;
+use fraiseql_core::{
+    schema::CompiledSchema,
+    utils::config_diagnostic::{ConfigDiagnostic, DiagnosticCode},
+};
 use fraiseql_server::{
     Server, ServerConfig,
     schema::loader::FunctionsConfig,
@@ -366,7 +369,7 @@ pub(crate) fn resolve_runtime_config(
 /// apply only when no config applies; one that fails to parse is an error.
 fn load_runtime_config_from_toml(
     input_path: &Path,
-) -> Result<(ServerRuntimeConfig, DatabaseRuntimeConfig, BTreeSet<String>)> {
+) -> Result<(ServerRuntimeConfig, DatabaseRuntimeConfig, ProjectSettings)> {
     let ext = input_path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
     if ext == "toml" {
@@ -376,7 +379,7 @@ fn load_runtime_config_from_toml(
                 format!("Failed to load runtime config from {}", input_path.display())
             })?;
         info!("Loaded [server] and [database] config from {}", input_path.display());
-        return Ok((schema.server, schema.database, settings_made(input_path)?));
+        return Ok((schema.server, schema.database, ProjectSettings::read(input_path)?));
     }
 
     // Workflow B: input is schema.json — the config the compile step reads too.
@@ -386,13 +389,30 @@ fn load_runtime_config_from_toml(
         return Ok((
             ServerRuntimeConfig::default(),
             DatabaseRuntimeConfig::default(),
-            BTreeSet::new(),
+            ProjectSettings::default(),
         ));
     };
     let cfg = TomlSchema::from_project_file(toml_path.to_str().unwrap_or_default())
         .with_context(|| format!("Failed to load runtime config from {}", toml_path.display()))?;
     info!("Loaded [server] and [database] config from {}", toml_path.display());
-    Ok((cfg.server, cfg.database, settings_made(toml_path)?))
+    Ok((cfg.server, cfg.database, ProjectSettings::read(toml_path)?))
+}
+
+/// The project file `fraiseql run` read its `[server]` and `[database]` settings from, and
+/// the settings it makes. Empty when no project file applies.
+#[derive(Debug, Default)]
+pub(crate) struct ProjectSettings {
+    file: String,
+    made: BTreeSet<String>,
+}
+
+impl ProjectSettings {
+    fn read(toml_path: &Path) -> Result<Self> {
+        Ok(Self {
+            file: toml_path.display().to_string(),
+            made: settings_made(toml_path)?,
+        })
+    }
 }
 
 /// The `[server]` and `[database]` settings the project file makes, as `section.key`, and
@@ -473,20 +493,27 @@ impl ServerFile {
         self.keys.contains(key)
     }
 
-    /// Refuse a setting the project file (`project`, from [`settings_made`]) and this file
-    /// both make.
-    fn refuse_settings_made_twice(&self, project: &BTreeSet<String>) -> Result<()> {
+    /// Refuse a setting the project file and this file both make, as `E-CONFIG-SET-TWICE`:
+    /// the diagnostic names the project file, its table and key, and this file and its key.
+    fn refuse_settings_made_twice(&self, project: &ProjectSettings) -> Result<()> {
         for (setting, key) in SETTINGS_IN_BOTH {
             let made = project
+                .made
                 .iter()
                 .any(|made| made == setting || made.starts_with(&format!("{setting}.")));
             if made && self.sets(key) {
                 let (section, name) = setting.split_once('.').unwrap_or(("", setting));
-                anyhow::bail!(
+                let (table, leaf) = setting.rsplit_once('.').unwrap_or(("", setting));
+                let message = format!(
                     "`[{section}] {name}` in fraiseql.toml and `{key}` in {} (FRAISEQL_CONFIG) \
                      both set the same thing: set it in one of them",
                     self.path
                 );
+                let mut diagnostic =
+                    ConfigDiagnostic::new(DiagnosticCode::SetTwice, table, leaf, message)
+                        .with_also_in(&self.path, key);
+                diagnostic.file = Some(project.file.clone());
+                return Err(diagnostic.into());
             }
         }
         Ok(())

@@ -10,6 +10,10 @@ plain `bail!`s inside section checks (`[rest] max_embedded_reads`, `[observers] 
 `[inject_defaults]` against the schema document), so a key refused there exited 1 with prose
 while its siblings exited 2 with a code. Nothing could tell the two apart.
 
+`fraiseql run` had one more, outside the path first walked: a setting made in both
+`fraiseql.toml` and the server's configuration file (#2055). `commands/run.rs` is in scope so
+the next refusal written there as prose fails by name.
+
 A `bail!` / `anyhow!` on that path is either a value check (a port of 0, an empty name, a rule
 naming a query that does not exist), which keeps its prose by design, or a key refusal that
 must be `refusal(...)`. This gate makes each site say which: every one is listed in
@@ -34,8 +38,13 @@ ALLOWLIST = pathlib.Path(
 )
 
 # The `fraiseql.toml` load path: the configuration module, and the merger, where its
-# settings meet the schema document.
-SCOPE = ("crates/fraiseql-cli/src/config", "crates/fraiseql-cli/src/schema/merger.rs")
+# settings meet the schema document. And `fraiseql run`, where its settings meet the
+# server's configuration file: a setting made in both was refused there with prose only.
+SCOPE = (
+    "crates/fraiseql-cli/src/config",
+    "crates/fraiseql-cli/src/schema/merger.rs",
+    "crates/fraiseql-cli/src/commands/run.rs",
+)
 
 MACRO_RE = re.compile(r"\b(?:anyhow::)?(?:bail|anyhow)!\(")
 PREFIX_LEN = 60

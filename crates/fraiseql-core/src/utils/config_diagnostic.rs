@@ -31,17 +31,22 @@ pub enum DiagnosticCode {
     /// nearest to it, when one is near.
     #[serde(rename = "E-CONFIG-UNKNOWN-KEY")]
     UnknownKey,
+    /// One setting made in two files that are read together, whether or not the two values
+    /// agree: neither could win without a rule nobody wrote down. `also_in` names the other.
+    #[serde(rename = "E-CONFIG-SET-TWICE")]
+    SetTwice,
 }
 
 impl DiagnosticCode {
     /// Every code, in the order the documentation lists them.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Retired,
         Self::Unread,
         Self::Unapplied,
         Self::Misplaced,
         Self::Disagrees,
         Self::UnknownKey,
+        Self::SetTwice,
     ];
 
     /// The code as tools see it, such as `E-CONFIG-RETIRED`.
@@ -54,6 +59,7 @@ impl DiagnosticCode {
             Self::Misplaced => "E-CONFIG-MISPLACED",
             Self::Disagrees => "E-CONFIG-DISAGREES",
             Self::UnknownKey => "E-CONFIG-UNKNOWN-KEY",
+            Self::SetTwice => "E-CONFIG-SET-TWICE",
         }
     }
 }
@@ -62,6 +68,15 @@ impl fmt::Display for DiagnosticCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }
+}
+
+/// The other place a setting is made: the file, and the key as that file spells it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AlsoIn {
+    /// The other file.
+    pub file: String,
+    /// The key there, dotted when it sits in a table.
+    pub key:  String,
 }
 
 /// A configuration refusal. Displays as its message, so the prose is unchanged.
@@ -79,6 +94,8 @@ pub struct ConfigDiagnostic {
     pub replacement: Option<String>,
     /// For a misplaced setting, the file it belongs in, when that is another file.
     pub belongs_in:  Option<String>,
+    /// For a setting made twice, the other file and its key.
+    pub also_in:     Option<AlsoIn>,
     /// The refusal as a person reads it.
     #[serde(skip)]
     pub message:     String,
@@ -95,6 +112,7 @@ impl ConfigDiagnostic {
             key: (!key.is_empty()).then(|| key.to_owned()),
             replacement: None,
             belongs_in: None,
+            also_in: None,
             message,
         }
     }
@@ -110,6 +128,18 @@ impl ConfigDiagnostic {
     #[must_use]
     pub fn with_belongs_in(mut self, file: &str) -> Self {
         self.belongs_in = Some(file.to_owned());
+        self
+    }
+}
+
+impl ConfigDiagnostic {
+    /// The same refusal, naming the other file the setting is made in, and its key there.
+    #[must_use]
+    pub fn with_also_in(mut self, file: &str, key: &str) -> Self {
+        self.also_in = Some(AlsoIn {
+            file: file.to_owned(),
+            key:  key.to_owned(),
+        });
         self
     }
 }
