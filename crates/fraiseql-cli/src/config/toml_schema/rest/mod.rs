@@ -69,6 +69,14 @@ pub struct RestTomlConfig {
     pub max_embedded_reads:      Option<serde::de::IgnoredAny>,
 }
 
+/// The refusal of `[rest] max_embedded_reads`, whatever its value.
+pub const MAX_EMBEDDED_READS_REFUSED: &str = "[rest] max_embedded_reads was removed: a \
+     `?select=` embed is no longer a sub-read per parent row but one composed statement, and \
+     there are no sub-reads left to count. It is bounded by the request's cost ceiling — set \
+     [security.cost_budget] per_request_max (and [validation] max_response_bytes for its \
+     bytes) — and each embedded level's page by [rest] default_embed_page_size. Remove the \
+     key.";
+
 impl RestTomlConfig {
     /// Refuse a `[rest]` key that was removed, naming what replaced it.
     ///
@@ -81,13 +89,7 @@ impl RestTomlConfig {
                 DiagnosticCode::Retired,
                 "rest",
                 "max_embedded_reads",
-                "[rest] max_embedded_reads was removed: a `?select=` embed is no longer a \
-                 sub-read per parent row but one composed statement, and there are no sub-reads \
-                 left to count. It is bounded by the request's cost ceiling — set \
-                 [security.cost_budget] per_request_max (and [validation] max_response_bytes \
-                 for its bytes) — and each embedded level's page by [rest] \
-                 default_embed_page_size. Remove the key."
-                    .to_owned(),
+                MAX_EMBEDDED_READS_REFUSED.to_owned(),
             )
             .with_replacement("`[security.cost_budget] per_request_max`")
             .into());

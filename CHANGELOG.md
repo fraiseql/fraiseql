@@ -466,6 +466,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **The `fraiseql.toml` JSON Schema refuses the keys a section's own check refuses (#2050).**
+  `[rest] max_embedded_reads`, `[caching] redis_url`, `[observers] redis_url`, and `text`
+  and `html` in `[auth.local.email.otp]`, `.reset` and `.verification` are refused by the
+  compiler whatever their value. An editor accepted them; it now marks them deprecated
+  and refused, described by the compiler's refusal. The refusal of an inline `text` or
+  `html` now reads "[auth.local.email] text is the compiled body of a mail template",
+  without the template's kind; the diagnostic's table still names it.
 - **A setting written with the other configuration file's spelling is refused naming the
   right one (#2033).** `fraiseql.toml` and the server's configuration file (the file
   `FRAISEQL_CONFIG` names) spell some settings differently. In `fraiseql.toml`,

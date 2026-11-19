@@ -403,9 +403,30 @@ pub(crate) struct RefusedKey {
     pub(crate) message: String,
 }
 
-/// Every row of [`RETIRED_SPELLINGS`], [`SERVER_FILE_SPELLINGS`] and [`UNAPPLIED_KEYS`], with
-/// the message its refusal gives for the canonical spelling. The tables that author a schema
-/// are not among them: a TOML schema takes them.
+/// Keys a section's own check refuses after the file is parsed, whatever their value: the
+/// section, the key, and the refusal that check gives.
+///
+/// The three kinds of mail template share one schema node, so their row is written at one
+/// kind and its refusal names none.
+const SECTION_REFUSALS: &[(&str, &str, fn() -> String)] = &[
+    ("rest", "max_embedded_reads", || {
+        toml_schema::rest::MAX_EMBEDDED_READS_REFUSED.to_owned()
+    }),
+    ("caching", "redis_url", || toml_schema::caching::REDIS_URL_REFUSED.to_owned()),
+    ("observers", "redis_url", || {
+        toml_schema::observers::REDIS_URL_REFUSED.to_owned()
+    }),
+    ("auth.local.email.otp", "text", || {
+        toml_schema::security::inline_body_refused("text", "text_template")
+    }),
+    ("auth.local.email.otp", "html", || {
+        toml_schema::security::inline_body_refused("html", "html_template")
+    }),
+];
+
+/// Every row of [`RETIRED_SPELLINGS`], [`SERVER_FILE_SPELLINGS`], [`UNAPPLIED_KEYS`] and
+/// [`SECTION_REFUSALS`], with the message its refusal gives for the canonical spelling. The
+/// tables that author a schema are not among them: a TOML schema takes them.
 pub(crate) fn refused_keys() -> Vec<RefusedKey> {
     let canonical = |section: &str, key: &str| match (section, key) {
         (section, "") => format!("[{section}]"),
@@ -427,7 +448,12 @@ pub(crate) fn refused_keys() -> Vec<RefusedKey> {
         key,
         message: unapplied_message(section, key, instead),
     });
-    retired.chain(server_file).chain(unapplied).collect()
+    let section = SECTION_REFUSALS.iter().map(|(section, key, message)| RefusedKey {
+        section,
+        key,
+        message: message(),
+    });
+    retired.chain(server_file).chain(unapplied).chain(section).collect()
 }
 
 /// Refuse the first key of [`UNAPPLIED_KEYS`] that `table` sets.

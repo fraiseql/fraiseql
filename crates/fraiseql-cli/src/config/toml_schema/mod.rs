@@ -499,10 +499,7 @@ impl TomlSchema {
                 DiagnosticCode::Unread,
                 "caching",
                 "redis_url",
-                "[caching] redis_url is set, but there is no Redis-backed result cache to \
-                 connect it to. Remove the key. (Redis features elsewhere — APQ, rate \
-                 limiting, PKCE — are separate subsystems with their own configuration.)"
-                    .to_owned(),
+                caching::REDIS_URL_REFUSED.to_owned(),
             ));
         }
         if !self.caching.enabled && !self.caching.rules.is_empty() {

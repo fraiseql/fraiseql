@@ -2,6 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 
+/// The refusal of `[caching] redis_url`, whatever its value.
+pub const REDIS_URL_REFUSED: &str = "[caching] redis_url is set, but there is no Redis-backed \
+     result cache to connect it to. Remove the key. (Redis features elsewhere — APQ, rate \
+     limiting, PKCE — are separate subsystems with their own configuration.)";
+
 /// Declarative result-cache rules (#623).
 ///
 /// Rules are **lowered at compile time** onto the two compiled fields the

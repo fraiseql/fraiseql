@@ -222,6 +222,24 @@ fn accepted_by(node: &serde_json::Value) -> impl Iterator<Item = &String> {
         .map(|(key, _)| key)
 }
 
+/// The keys `node` refuses with a refusal of [`crate::config::SECTION_REFUSALS`]: serde reads
+/// them, for the section's check to refuse.
+fn read_to_be_refused(node: &serde_json::Value) -> impl Iterator<Item = &String> {
+    let messages: Vec<String> = crate::config::SECTION_REFUSALS
+        .iter()
+        .map(|(_, _, message)| message())
+        .collect();
+    node["properties"]
+        .as_object()
+        .into_iter()
+        .flat_map(|properties| properties.iter())
+        .filter(move |(_, schema)| {
+            is_refused(schema)
+                && schema["description"].as_str().is_some_and(|d| messages.iter().any(|m| m == d))
+        })
+        .map(|(key, _)| key)
+}
+
 /// What serde says of `file`, read as `fraiseql.toml` is, without the walker.
 fn serde_reads(file: &toml::Table) -> Result<(), String> {
     let text = toml::to_string(file).unwrap();
@@ -297,8 +315,13 @@ fn every_closed_table_is_closed_alike_for_the_walker_and_serde() {
             // internally tagged enum's arm names its fields, and is compared below.
             continue;
         }
-        let listed: std::collections::BTreeSet<String> =
-            accepted_by(node).filter(|key| !tags.contains_key(*key)).cloned().collect();
+        // A key a section's check refuses is refused by the schema, yet serde reads it: the
+        // check needs its value to refuse it.
+        let listed: std::collections::BTreeSet<String> = accepted_by(node)
+            .chain(read_to_be_refused(node))
+            .filter(|key| !tags.contains_key(*key))
+            .cloned()
+            .collect();
         match serde_expects(&error, UNKNOWN) {
             Some(expected) => {
                 let expected: std::collections::BTreeSet<String> = expected.into_iter().collect();
@@ -319,12 +342,14 @@ fn every_closed_table_is_closed_alike_for_the_walker_and_serde() {
 
 // ── the keys the compiler refuses by name ────────────────────────────────────────
 
-/// A file writing `refused`: its section as tables, and its key (or the section itself).
+/// A file writing `refused`: its section as tables, and its key (or the section itself). The
+/// value is a string, which every refused key's own type takes (a mail body is one), so the
+/// refusal met is the key's and not a type error.
 fn file_writing(refused: &crate::config::RefusedKey) -> String {
     match (refused.section, refused.key) {
-        ("", key) => format!("{key} = 0\n"),
+        ("", key) => format!("{key} = \"x\"\n"),
         (section, "") => format!("[{section}]\n"),
-        (section, key) => format!("[{section}]\n{key} = 0\n"),
+        (section, key) => format!("[{section}]\n{key} = \"x\"\n"),
     }
 }
 
@@ -351,17 +376,54 @@ fn every_refused_key_is_refused_by_the_schema_with_the_compilers_words() {
         refused_keys.len(),
         crate::config::RETIRED_SPELLINGS.len()
             + crate::config::SERVER_FILE_SPELLINGS.len()
-            + crate::config::UNAPPLIED_KEYS.len(),
-        "every row of the three refusal tables"
+            + crate::config::UNAPPLIED_KEYS.len()
+            + crate::config::SECTION_REFUSALS.len(),
+        "every row of the four refusal tables"
     );
     for refused in &refused_keys {
         let file = file_writing(refused);
-        let error = super::super::TomlSchema::parse_toml(&file).unwrap_err();
+        let error = super::super::TomlSchema::parse_toml(&file)
+            .and_then(|schema| schema.validate())
+            .unwrap_err();
         let diagnostic = error
             .downcast_ref::<fraiseql_core::utils::config_diagnostic::ConfigDiagnostic>()
             .unwrap_or_else(|| panic!("{file:?} is refused with a diagnostic: {error:#}"));
 
         let node = described_at(&schema, refused);
+        assert_eq!(node["not"], serde_json::json!({}), "{file:?}: {node}");
+        assert_eq!(node["deprecated"], true, "{file:?}: {node}");
+        assert_eq!(node["description"], diagnostic.message, "{file:?}");
+    }
+}
+
+/// A key a section's own check refuses whenever it is written is refused by the schema too,
+/// with that check's words. Each file goes through the compiler's path, parsed then
+/// validated, and the node is looked up where the refusal says the key is. The three kinds
+/// of mail template share one node, so a mail template's refusal names no kind.
+#[test]
+fn every_key_a_section_check_refuses_is_refused_by_the_schema_with_its_words() {
+    let schema = toml_json_schema();
+    let mut files = vec![
+        "[rest]\nmax_embedded_reads = 5\n".to_owned(),
+        "[caching]\nredis_url = \"redis://cache:6379\"\n".to_owned(),
+        "[observers]\nredis_url = \"redis://cache:6379\"\n".to_owned(),
+    ];
+    for kind in ["otp", "reset", "verification"] {
+        for key in ["text", "html"] {
+            files.push(format!("[auth.local.email.{kind}]\n{key} = \"Your code\"\n"));
+        }
+    }
+    for file in &files {
+        let error = super::super::TomlSchema::parse_toml(file)
+            .and_then(|schema| schema.validate())
+            .unwrap_err();
+        let diagnostic = error
+            .downcast_ref::<fraiseql_core::utils::config_diagnostic::ConfigDiagnostic>()
+            .unwrap_or_else(|| panic!("{file:?} is refused with a diagnostic: {error:#}"));
+        let tables: Vec<&str> = diagnostic.table.split('.').collect();
+        let key = diagnostic.key.as_deref().unwrap_or_else(|| panic!("{file:?} names a key"));
+
+        let node = &table(&schema, &tables)["properties"][key];
         assert_eq!(node["not"], serde_json::json!({}), "{file:?}: {node}");
         assert_eq!(node["deprecated"], true, "{file:?}: {node}");
         assert_eq!(node["description"], diagnostic.message, "{file:?}");

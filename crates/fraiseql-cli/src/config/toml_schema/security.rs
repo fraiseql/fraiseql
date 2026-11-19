@@ -727,6 +727,16 @@ impl OidcClientConfig {
     }
 }
 
+/// The refusal of a mail template's body written inline: `inline` (`text` or `html`) with no
+/// file to come from, `key` the key that names the file. It names no kind of template: the
+/// three kinds share one schema node, and the diagnostic names the table written.
+pub(crate) fn inline_body_refused(inline: &str, key: &str) -> String {
+    format!(
+        "[auth.local.email] {inline} is the compiled body of a mail template. In \
+         fraiseql.toml, write it in a file and name the file with {key}."
+    )
+}
+
 /// Read each `[auth.local.email]` template file, relative to `project`, into the body the
 /// compiled schema carries, and drop its path: the server may run where the files are not.
 ///
@@ -758,10 +768,7 @@ pub(crate) fn embed_email_templates(
                     fraiseql_core::utils::config_diagnostic::DiagnosticCode::Misplaced,
                     &format!("auth.local.email.{kind}"),
                     inline,
-                    format!(
-                        "[auth.local.email.{kind}] {inline} is the compiled body. In \
-                         fraiseql.toml, write it in a file and name the file with {key}."
-                    ),
+                    inline_body_refused(inline, key),
                 )
                 .with_replacement(&format!("`{key}`"))
                 .into());

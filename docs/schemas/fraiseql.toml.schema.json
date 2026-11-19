@@ -2382,8 +2382,9 @@
           "default": "postgres"
         },
         "redis_url": {
-          "description": "Refused: the runtime has no Redis transport. Captured only so the refusal can\nsay so, instead of an unknown-field error.",
-          "writeOnly": true
+          "not": {},
+          "deprecated": true,
+          "description": "observers `redis_url` configures nothing: the observer runtime has no Redis transport. Remove it, and select the transport in fraiseql.toml [observers] with backend = \"postgres\" (the default) or backend = \"nats\" and nats_url"
         },
         "nats_url": {
           "description": "NATS connection URL (required when backend = \"nats\")\n\nExample: `nats://localhost:4222`\nCan be overridden at runtime via the `FRAISEQL_NATS_URL` environment variable.",
@@ -2514,12 +2515,9 @@
           "default": "memory"
         },
         "redis_url": {
-          "description": "Refused at compile time: there is no Redis-backed result cache.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
+          "not": {},
+          "deprecated": true,
+          "description": "[caching] redis_url is set, but there is no Redis-backed result cache to connect it to. Remove the key. (Redis features elsewhere — APQ, rate limiting, PKCE — are separate subsystems with their own configuration.)"
         },
         "rules": {
           "description": "Per-query cache rules.",
@@ -3394,18 +3392,14 @@
           ]
         },
         "text": {
-          "description": "The plain-text body, as the compiler read it from `text_template`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "not": {},
+          "deprecated": true,
+          "description": "[auth.local.email] text is the compiled body of a mail template. In fraiseql.toml, write it in a file and name the file with text_template."
         },
         "html": {
-          "description": "The `HTML` body, as the compiler read it from `html_template`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "not": {},
+          "deprecated": true,
+          "description": "[auth.local.email] html is the compiled body of a mail template. In fraiseql.toml, write it in a file and name the file with html_template."
         }
       },
       "additionalProperties": false
@@ -3863,8 +3857,9 @@
           "default": 300
         },
         "max_embedded_reads": {
-          "description": "Declarable **only to be refused**, with its replacement named.\n\nThe key bounded `?select=`'s fan-out of sub-reads, and there are no sub-reads left:\nan embed is one composed statement, bounded by the request's cost ceiling. Denied as\nan unknown field it would read `unknown field max_embedded_reads`, which tells an\noperator what is wrong but not what to write instead.",
-          "writeOnly": true
+          "not": {},
+          "deprecated": true,
+          "description": "[rest] max_embedded_reads was removed: a `?select=` embed is no longer a sub-read per parent row but one composed statement, and there are no sub-reads left to count. It is bounded by the request's cost ceiling — set [security.cost_budget] per_request_max (and [validation] max_response_bytes for its bytes) — and each embedded level's page by [rest] default_embed_page_size. Remove the key."
         }
       },
       "additionalProperties": false
