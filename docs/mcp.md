@@ -8,6 +8,7 @@ MCP support is compiled behind the `mcp` Cargo feature flag of `fraiseql-server`
 not in the crate's default feature set. The `fraiseql-server` binary in the `-full` release
 archive and the `server-platform` Docker image are built with it; the lean release binary
 and the `server` image are not.
+`mcp` enables `auth`, because the session state below is `fraiseql-auth`'s store.
 
 ### 1. Build with the `mcp` feature
 

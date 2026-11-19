@@ -111,6 +111,12 @@ var featureCombos = []featureCombo{
 	// auth-only identity layer was ungated.
 	{name: "server-grpc-no-auth", crate: "fraiseql-server", clippy: true, noDefaultFeatures: true, features: []string{"grpc"}},
 	{name: "server-mcp-auth", crate: "fraiseql-server", features: []string{"mcp", "auth"}},
+	// #2092: `mcp` without the crate defaults. The MCP session state is
+	// `fraiseql_auth`'s, and `auth` is a default, so every other combo hid that
+	// `mcp` did not enable it. Library and binaries only: with test targets, the
+	// dev-dependencies (`fraiseql-auth`, and `fraiseql-cli`, which builds this crate
+	// with its defaults) supply the missing crate and the check passes regardless.
+	{name: "server-mcp-no-default", crate: "fraiseql-server", noDefaultFeatures: true, features: []string{"mcp"}},
 	{name: "server-observers-enterprise-redis", crate: "fraiseql-server", features: []string{"observers-enterprise", "redis-apq", "redis-pkce"}},
 	{name: "server-federation", crate: "fraiseql-server", features: []string{"federation"}},
 	{name: "server-secrets", crate: "fraiseql-server", features: []string{"secrets"}},

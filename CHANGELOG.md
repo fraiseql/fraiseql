@@ -559,6 +559,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`fraiseql-server` builds with `mcp` and without the default features (#2092).**
+  `cargo check -p fraiseql-server --no-default-features --features mcp` failed: the MCP
+  session state is `fraiseql-auth`'s store, and `mcp` did not enable `auth`, which only the
+  default features did. `mcp` now enables `auth`. Builds that keep the default features are
+  unchanged, since `auth` is one of them. The feature matrix checks `mcp` without the
+  defaults (`server-mcp-no-default`).
 - **An observer row inserted without a retry policy runs the policy it stores (#2087).**
   `core.tb_observer.retry_config` defaulted to
   `{"max_attempts": 3, "backoff": "exponential", "initial_delay_ms": 1000}`, a document the

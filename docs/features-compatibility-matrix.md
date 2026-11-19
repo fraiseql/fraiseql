@@ -135,7 +135,7 @@ Defaults: `auth`, `cli`. `fraiseql-core` is always built with `postgres` and `sc
 | `export` | no | Both export formats | `export-csv`, `export-xlsx` |
 | `grpc` | no | gRPC transport | `dep:tonic`, `dep:prost`, `dep:prost-reflect`, `dep:http-body`, `dep:http-body-util` |
 | `arrow` | no | Arrow Flight server | `dep:fraiseql-arrow`, `dep:tonic` |
-| `mcp` | no | Model Context Protocol server | `dep:rmcp` |
+| `mcp` | no | Model Context Protocol server | `dep:rmcp`, `auth` |
 | `federation` | no | Apollo Federation subgraph | `fraiseql-core/federation` |
 | `metrics` | no | Prometheus exporter | `dep:metrics-exporter-prometheus` |
 | `tracing-opentelemetry` | no | OpenTelemetry tracing | `dep:opentelemetry`, `dep:opentelemetry_sdk`, `dep:opentelemetry-otlp`, `dep:tracing-opentelemetry` |

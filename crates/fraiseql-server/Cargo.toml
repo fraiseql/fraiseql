@@ -366,8 +366,10 @@ sources = ["functions-runtime-deno", "observers"]
 # auth is included by default because auth middleware is wired into the core request pipeline.
 # secrets and webhooks are opt-in: add them to your dependency features when needed.
 default = ["auth", "cli"]
-# MCP (Model Context Protocol) server
-mcp = ["dep:rmcp"]
+# MCP (Model Context Protocol) server. `auth` because the MCP session state
+# (`[mcp] session_state`) is `fraiseql_auth`'s store, keyed on the authenticated
+# principal.
+mcp = ["dep:rmcp", "auth"]
 metrics = ["dep:metrics-exporter-prometheus"]
 # Multi-database runtime support (#327).
 # Each flag enables the matching adapter in fraiseql-core / fraiseql-db so that
