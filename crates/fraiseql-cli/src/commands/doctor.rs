@@ -294,6 +294,11 @@ pub(crate) fn refusal_hint(diagnostic: &ConfigDiagnostic) -> String {
         (DiagnosticCode::UnknownKey, None) => {
             format!("fraiseql.toml takes no {spelling}; remove it")
         },
+        // `fraiseql run` raises this one, reading the server's file; doctor reads
+        // fraiseql.toml alone and does not reach it.
+        (DiagnosticCode::SetTwice, _) => {
+            format!("{spelling} is set in a second file too; keep one of the two")
+        },
     }
 }
 

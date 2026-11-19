@@ -18,6 +18,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql run` refuses a setting made in both files with a diagnostic, and exits 2
+  (#2055).** A setting `fraiseql.toml` and the server's configuration file (the file
+  `FRAISEQL_CONFIG` names) both make, such as `[server] port` and `bind_addr`, was refused
+  with a message only and exit status 1. It is now refused with exit status 2 and a new
+  code, `E-CONFIG-SET-TWICE`: the diagnostic names `fraiseql.toml`, its table and key, and
+  in a new field `also_in` the server file and its key. The message is unchanged. Every
+  configuration diagnostic's JSON gains the `also_in` key, `null` except for this code; a
+  consumer that rejects unknown keys must accept it. A script that expected exit 1 for
+  this refusal must accept 2.
 - **`fraiseql federation graph` and `fraiseql dependency-graph` exit 2 on a schema they
   refuse (#2047).** Both printed a `validation-failed` result (a schema with no federation
   block or `service_name`; a circular type dependency) and exited 0, so a CI step running

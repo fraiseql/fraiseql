@@ -778,3 +778,161 @@ fn an_unknown_key_with_no_near_spelling_names_no_replacement() {
     assert_eq!(diagnostic["key"], "completely_unrelated", "{error}");
     assert_eq!(diagnostic["replacement"], Value::Null, "{error}");
 }
+
+/// `fraiseql [--json] run schema.json` in a project whose `fraiseql.toml` is `project_toml`,
+/// with `FRAISEQL_CONFIG` naming a server file holding `server_toml`. Returns the outcome
+/// and the two paths.
+#[cfg(feature = "run-server")]
+fn run_with_a_server_file(project_toml: &str, server_toml: &str, json: bool) -> (Refused, TempDir) {
+    let dir = TempDir::new().unwrap();
+    fs::create_dir(dir.path().join(".git")).unwrap();
+    fs::write(dir.path().join("schema.json"), document().to_string()).unwrap();
+    fs::write(dir.path().join("fraiseql.toml"), project_toml).unwrap();
+    fs::write(dir.path().join("server.toml"), server_toml).unwrap();
+    let mut command = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"));
+    if json {
+        command.arg("--json");
+    }
+    let out = command
+        .args([
+            "run",
+            "schema.json",
+            "--database",
+            "postgresql://nobody@127.0.0.1:1/none",
+        ])
+        .env("FRAISEQL_CONFIG", dir.path().join("server.toml"))
+        .env_remove("DATABASE_URL")
+        .env_remove("FRAISEQL_HOST")
+        .env_remove("FRAISEQL_PORT")
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    let refused = Refused {
+        code:   out.status.code(),
+        stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+    };
+    (refused, dir)
+}
+
+/// Each setting `fraiseql run` reads from both files: what `fraiseql.toml` writes, what the
+/// server file writes, and the diagnostic's table, key and server-file key. The unit test
+/// `a_setting_made_in_both_files_is_refused` pins the same ten rows to `SETTINGS_IN_BOTH`.
+#[cfg(feature = "run-server")]
+const SET_TWICE: [(&str, &str, &str, &str, &str); 10] = [
+    (
+        "[server]\nhost = \"127.0.0.1\"\n",
+        "bind_addr = \"127.0.0.1:9001\"\n",
+        "server",
+        "host",
+        "bind_addr",
+    ),
+    (
+        "[server]\nport = 9000\n",
+        "bind_addr = \"127.0.0.1:9001\"\n",
+        "server",
+        "port",
+        "bind_addr",
+    ),
+    (
+        "[server.cors]\norigins = [\"https://a.example\"]\n",
+        "cors_origins = [\"https://b.example\"]\n",
+        "server.cors",
+        "origins",
+        "cors_origins",
+    ),
+    (
+        "[server.tls]\nenabled = false\n",
+        "[tls]\nenabled = false\ncert_path = \"c\"\nkey_path = \"k\"\n",
+        "server",
+        "tls",
+        "tls",
+    ),
+    (
+        "[database]\nurl = \"postgresql://a/db\"\n",
+        "database_url = \"postgresql://b/db\"\n",
+        "database",
+        "url",
+        "database_url",
+    ),
+    (
+        "[database]\npool_min = 1\n",
+        "pool_min_size = 3\n",
+        "database",
+        "pool_min",
+        "pool_min_size",
+    ),
+    (
+        "[database]\npool_max = 5\n",
+        "pool_max_size = 7\n",
+        "database",
+        "pool_max",
+        "pool_max_size",
+    ),
+    (
+        "[database]\nconnect_timeout_ms = 1000\n",
+        "pool_timeout_secs = 3\n",
+        "database",
+        "connect_timeout_ms",
+        "pool_timeout_secs",
+    ),
+    (
+        "[database]\nssl_mode = \"disable\"\n",
+        "[database_tls]\npostgres_ssl_mode = \"require\"\n",
+        "database",
+        "ssl_mode",
+        "database_tls",
+    ),
+    (
+        "[database.transaction_retry]\nmax_attempts = 2\n",
+        "[transaction_retry]\nmax_attempts = 3\n",
+        "database",
+        "transaction_retry",
+        "transaction_retry",
+    ),
+];
+
+#[cfg(feature = "run-server")]
+#[test]
+fn a_setting_made_in_both_files_exits_2_and_names_both_files_and_keys_under_json() {
+    for (project_toml, server_toml, table, key, server_key) in SET_TWICE {
+        let (refused, dir) = run_with_a_server_file(project_toml, server_toml, true);
+        assert_eq!(refused.code, Some(2), "[{table}] {key}: {}", refused.stderr);
+        let error = refused.error();
+        assert_eq!(error["code"], 2, "{error}");
+        let diagnostic = &error["diagnostic"];
+        assert_eq!(diagnostic["code"], "E-CONFIG-SET-TWICE", "[{table}] {key}: {error}");
+        assert_eq!(diagnostic["table"], table, "{error}");
+        assert_eq!(diagnostic["key"], key, "{error}");
+        assert!(
+            diagnostic["file"].as_str().is_some_and(|f| f.ends_with("fraiseql.toml")),
+            "[{table}] {key}: {error}"
+        );
+        assert_eq!(
+            diagnostic["also_in"],
+            json!({"file": dir.path().join("server.toml"), "key": server_key}),
+            "[{table}] {key}: {error}"
+        );
+        assert_eq!(diagnostic["replacement"], Value::Null, "{error}");
+        assert_eq!(diagnostic["belongs_in"], Value::Null, "{error}");
+    }
+}
+
+#[cfg(feature = "run-server")]
+#[test]
+fn a_setting_made_in_both_files_names_its_code_in_text() {
+    let (project_toml, server_toml, ..) = SET_TWICE[1];
+    let (refused, _dir) = run_with_a_server_file(project_toml, server_toml, false);
+    assert_eq!(refused.code, Some(2), "{}", refused.stderr);
+    assert!(
+        refused.stderr.contains("`[server] port` in fraiseql.toml"),
+        "{}",
+        refused.stderr
+    );
+    assert!(refused.stderr.contains("diagnostic: E-CONFIG-SET-TWICE"), "{}", refused.stderr);
+}
+
+#[test]
+fn a_diagnostic_of_another_kind_carries_a_null_also_in() {
+    let refused = compile_beside_a_document("[schema]\nname = \"app\"\n", true);
+    assert_eq!(refused.error()["diagnostic"]["also_in"], Value::Null, "{}", refused.stderr);
+}

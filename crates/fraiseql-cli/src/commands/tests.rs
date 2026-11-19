@@ -1214,6 +1214,11 @@ mod doctor_tests {
                 "`[locale]` is declared in both fraiseql.toml and the schema document, \
                  differently; declare it once, in fraiseql.toml",
             ),
+            (
+                refused(DiagnosticCode::SetTwice, "server", "port")
+                    .with_also_in("server.toml", "bind_addr"),
+                "`[server] port` is set in a second file too; keep one of the two",
+            ),
         ];
         for (diagnostic, hint) in cases {
             assert_eq!(refusal_hint(&diagnostic), hint, "{diagnostic:?}");
@@ -2996,49 +3001,89 @@ mod run_tests {
     }
 
     /// A setting made in both `fraiseql.toml` and the server file is refused, naming both,
-    /// for every pair `fraiseql run` maps: neither may win silently.
+    /// for every pair `fraiseql run` maps: neither may win silently. The refusal is an
+    /// `E-CONFIG-SET-TWICE` diagnostic naming the project file, its table and key, and the
+    /// server file and its key.
     #[test]
     fn a_setting_made_in_both_files_is_refused() {
-        for (project_toml, file_toml, setting) in [
-            ("[server]\nport = 9000\n", "bind_addr = \"127.0.0.1:9001\"\n", "[server] port"),
+        // (the SETTINGS_IN_BOTH row, fraiseql.toml, the server file, the setting as the
+        // message spells it, the diagnostic's table and key)
+        let cases = [
             (
+                ("server.host", "bind_addr"),
                 "[server]\nhost = \"127.0.0.1\"\n",
                 "bind_addr = \"127.0.0.1:9001\"\n",
                 "[server] host",
+                ("server", "host"),
             ),
             (
+                ("server.port", "bind_addr"),
+                "[server]\nport = 9000\n",
+                "bind_addr = \"127.0.0.1:9001\"\n",
+                "[server] port",
+                ("server", "port"),
+            ),
+            (
+                ("server.cors.origins", "cors_origins"),
                 "[server.cors]\norigins = [\"https://a.example\"]\n",
                 "cors_origins = [\"https://b.example\"]\n",
                 "[server] cors.origins",
+                ("server.cors", "origins"),
             ),
             (
+                ("server.tls", "tls"),
                 "[server.tls]\nenabled = false\n",
                 "[tls]\nenabled = false\ncert_path = \"c\"\nkey_path = \"k\"\n",
                 "[server] tls",
+                ("server", "tls"),
             ),
             (
+                ("database.url", "database_url"),
                 "[database]\nurl = \"postgresql://a/db\"\n",
                 "database_url = \"postgresql://b/db\"\n",
                 "[database] url",
+                ("database", "url"),
             ),
-            ("[database]\npool_min = 1\n", "pool_min_size = 3\n", "[database] pool_min"),
-            ("[database]\npool_max = 5\n", "pool_max_size = 7\n", "[database] pool_max"),
             (
+                ("database.pool_min", "pool_min_size"),
+                "[database]\npool_min = 1\n",
+                "pool_min_size = 3\n",
+                "[database] pool_min",
+                ("database", "pool_min"),
+            ),
+            (
+                ("database.pool_max", "pool_max_size"),
+                "[database]\npool_max = 5\n",
+                "pool_max_size = 7\n",
+                "[database] pool_max",
+                ("database", "pool_max"),
+            ),
+            (
+                ("database.connect_timeout_ms", "pool_timeout_secs"),
                 "[database]\nconnect_timeout_ms = 1000\n",
                 "pool_timeout_secs = 3\n",
                 "[database] connect_timeout_ms",
+                ("database", "connect_timeout_ms"),
             ),
             (
+                ("database.ssl_mode", "database_tls"),
                 "[database]\nssl_mode = \"disable\"\n",
                 "[database_tls]\npostgres_ssl_mode = \"require\"\n",
                 "[database] ssl_mode",
+                ("database", "ssl_mode"),
             ),
             (
+                ("database.transaction_retry", "transaction_retry"),
                 "[database.transaction_retry]\nmax_attempts = 2\n",
                 "[transaction_retry]\nmax_attempts = 3\n",
                 "[database] transaction_retry",
+                ("database", "transaction_retry"),
             ),
-        ] {
+        ];
+        let rows: Vec<(&str, &str)> = cases.iter().map(|case| case.0).collect();
+        assert_eq!(rows, SETTINGS_IN_BOTH, "one case per SETTINGS_IN_BOTH row, in its order");
+
+        for ((_, server_key), project_toml, file_toml, setting, (table, key)) in cases {
             let (dir, schema) = project(project_toml);
             let file = server_file(&dir, file_toml);
             let err = temp_env::with_vars_unset(["DATABASE_URL"], || {
@@ -3050,9 +3095,55 @@ mod run_tests {
                     Some(&file),
                 )
                 .expect_err(setting)
-                .to_string()
             });
-            assert!(err.contains(setting) && err.contains("FRAISEQL_CONFIG"), "{setting}: {err}");
+            let text = err.to_string();
+            assert!(
+                text.contains(setting) && text.contains("FRAISEQL_CONFIG"),
+                "{setting}: {text}"
+            );
+            let diagnostic = err
+                .downcast_ref::<fraiseql_core::utils::config_diagnostic::ConfigDiagnostic>()
+                .unwrap_or_else(|| panic!("{setting}: the refusal carries no diagnostic: {text}"));
+            assert_eq!(diagnostic.code.as_str(), "E-CONFIG-SET-TWICE", "{setting}");
+            assert_eq!(
+                diagnostic.file.as_deref(),
+                Some(dir.path().join("fraiseql.toml").to_str().unwrap()),
+                "{setting}: the project file"
+            );
+            assert_eq!(
+                (diagnostic.table.as_str(), diagnostic.key.as_deref()),
+                (table, Some(key)),
+                "{setting}"
+            );
+            let also_in = diagnostic.also_in.as_ref().expect(setting);
+            assert_eq!(
+                (also_in.file.as_str(), also_in.key.as_str()),
+                (dir.path().join("server.toml").to_str().unwrap(), server_key),
+                "{setting}: the server file and its key"
+            );
+        }
+    }
+
+    /// A setting made in one of the two files is not a setting made twice.
+    #[test]
+    fn a_setting_made_in_one_file_only_is_not_refused_as_made_twice() {
+        for (project_toml, file_toml) in [
+            ("[server]\nport = 9000\n", "pool_max_size = 7\n"),
+            ("[project]\nname = \"p\"\n", "bind_addr = \"127.0.0.1:9001\"\n"),
+            ("[database]\npool_max = 5\n", "bind_addr = \"127.0.0.1:9001\"\n"),
+        ] {
+            let (dir, schema) = project(project_toml);
+            let file = server_file(&dir, file_toml);
+            temp_env::with_vars_unset(["DATABASE_URL", "FRAISEQL_HOST", "FRAISEQL_PORT"], || {
+                resolve_runtime_config(
+                    &schema,
+                    Some("postgresql://cli/db".into()),
+                    None,
+                    None,
+                    Some(&file),
+                )
+                .unwrap_or_else(|e| panic!("{project_toml:?} / {file_toml:?}: {e:#}"));
+            });
         }
     }
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # config_refusals_test.sh — the red capability of tools/check-config-refusals.py.
 #
-# Every case is a tree holding one file on the fraiseql.toml load path. A `bail!` there is a
+# Every case is a tree holding one file on the fraiseql.toml load path (and, from case 10,
+# `commands/run.rs`, where that file meets the server's). A `bail!` there is a
 # refused key that carries no diagnostic unless the allow-list names it as a value check; each
 # way that can go wrong must fail, by name.
 set -uo pipefail
@@ -123,6 +124,28 @@ new_case 9 "$PORT" "$PORT_ENTRY"
 mk "${root}/crates/fraiseql-cli/src/config/tests.rs" 'fn t() { anyhow::bail!("in a test") }'
 run_gate
 expect_green "a bail! in tests.rs is not a site"
+
+# ── 10. `fraiseql run` is on the path: its server-file refusals are sites too ───────
+RUN=crates/fraiseql-cli/src/commands/run.rs
+TWICE='fn refuse(made: bool) -> anyhow::Result<()> {
+    if made {
+        anyhow::bail!("`[server] port` in fraiseql.toml and `bind_addr` both set the same thing");
+    }
+    Ok(())
+}'
+new_case 10 "$PORT" "$PORT_ENTRY"
+mk "${root}/${RUN}" "$TWICE"
+run_gate
+expect_red "${RUN}:3  \`[server] port\` in fraiseql.toml and \`bind_addr\` both set" "an unlisted bail! in commands/run.rs is named"
+new_case 10b "$PORT" "$PORT_ENTRY"
+mk "${root}/${RUN}" 'fn refuse(d: ConfigDiagnostic) -> anyhow::Result<()> { Err(d.into()) }'
+run_gate
+expect_green "a diagnostic raised in commands/run.rs needs no entry"
+new_case 10c "$PORT" "$PORT_ENTRY
+$RUN | Input file not found: {path} | (command line) | the named input does not exist"
+mk "${root}/${RUN}" 'fn f() {}'
+run_gate
+expect_red "Input file not found" "a stale commands/run.rs entry is named"
 
 echo
 if [ "$failures" -ne 0 ]; then
