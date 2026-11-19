@@ -152,6 +152,35 @@ jobs:
         with:
           toolchain: ${{ matrix.version }}
           components: rustfmt, clippy
+      # The action only runs `rustup default`, and the repository's rust-toolchain.toml
+      # takes precedence over the default in every directory below it, the SDK's
+      # included. So both rows built on the pinned toolchain whatever they were named.
+      # RUSTUP_TOOLCHAIN takes precedence over the file.
+      - if: ${{ matrix.sdk == 'rust' }}
+        env:
+          ROW: ${{ matrix.version }}
+        run: echo "RUSTUP_TOOLCHAIN=$ROW" >> "$GITHUB_ENV"
+      # Fails the row unless the toolchain in use in the SDK's directory is the one the
+      # row names, so an override that comes back cannot pass as a different compiler.
+      - name: The toolchain in use is the row's
+        if: ${{ matrix.sdk == 'rust' }}
+        working-directory: sdks/official/fraiseql-rust
+        env:
+          ROW: ${{ matrix.version }}
+        run: |
+          set -euo pipefail
+          if ! command -v rustc >/dev/null || ! command -v rustup >/dev/null; then
+            echo "::error::rustc or rustup is not on PATH"
+            exit 1
+          fi
+          in_use=$(rustc -V)
+          named=$(rustc "+$ROW" -V)
+          echo "row $ROW: $in_use; $(cargo -V)"
+          if [ "$in_use" != "$named" ]; then
+            echo "::error::row $ROW builds with '$in_use', not '$named'"
+            rustup show active-toolchain || true
+            exit 1
+          fi
 
       # ── The suite ────────────────────────────────────────────────────────────
       - name: tools/sdk-suite.sh ${{ matrix.sdk }}

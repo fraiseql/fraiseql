@@ -76,3 +76,4 @@
 #1922  tests and CI: fraiseql-db's test targets build without the crate defaults, and a feature-matrix combo builds them that way; no shipped artifact changes
 #2015  docs and CI: fraiseql-core's `Executor` doctests compile with the crate defaults and the `compile_fail` one fails on the bound it documents, and a gate runs each library's doctests with its defaults; no shipped artifact changes
 #1898  docs and CI: the umbrella crate's documentation examples that need `server` or `wire` compile only with that feature, so its doctests pass with the defaults; no shipped artifact changes
+#1957  CI: the Rust SDK suite rows build on the toolchain they name (the SDK's rust-version and stable) instead of the repository's pin; no shipped artifact changes
