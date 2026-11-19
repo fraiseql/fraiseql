@@ -466,6 +466,9 @@ func (m *FraiseqlCi) Rustdoc(
 // that gates one of its modules. Neither workspace pass sees a link from one optional
 // subsystem to another: `--all-features` resolves it and the default build compiles
 // neither end (#2089: `--features functions-runtime` alone failed on three links).
+//
+// The doctests per feature set are not here: they build every dependency graph again
+// with codegen, which took 26 minutes cold, and run in `Doctests`, a leg of their own.
 func (m *FraiseqlCi) RustdocDefault(
 	ctx context.Context,
 	// +ignore=["target", "**/target", ".git"]
@@ -474,6 +477,28 @@ func (m *FraiseqlCi) RustdocDefault(
 	return m.rustSrc(source).
 		WithEnvVariable("RUSTDOCFLAGS", "-D warnings").
 		WithExec([]string{"bash", "-c", "cargo doc --workspace --no-deps --keep-going && bash tools/check-rustdoc-feature-sets.sh"}).
+		Stdout(ctx)
+}
+
+// Doctests runs `tools/check-doctest-feature-sets.sh`: each library's doctests on its
+// own with its default features, and the umbrella's once per feature its docs are
+// gated on. The Test leg's `cargo test --doc --all-features` compiles an example that
+// needs a feature, and a `--workspace` doctest run unifies features across members,
+// so neither sees an example that fails for a crate built with its defaults (#2015,
+// #1898).
+//
+// A leg of its own, not a Preflight sibling. Each set compiles its crate's dependency
+// graph with codegen under that crate's features, a build no other leg shares: inside
+// Preflight it took 26 minutes on a cold runner and pushed the leg past its timeout.
+// Its own target volume keeps those artifacts from evicting Preflight's check ones,
+// and keeps the two legs from waiting on each other for one PRIVATE volume.
+func (m *FraiseqlCi) Doctests(
+	ctx context.Context,
+	// +ignore=["target", "**/target", ".git"]
+	source *dagger.Directory,
+) (string, error) {
+	return rustSource(m.rustBase(), source, "fraiseql-rust-target-doctests").
+		WithExec([]string{"bash", "-c", "bash tools/check-doctest-feature-sets.sh"}).
 		Stdout(ctx)
 }
 
@@ -714,6 +739,10 @@ func (m *FraiseqlCi) ShellGates(
 		// (#1870, #1961).
 		"python3 tools/check-grep-q-pipefail.py",
 		"make test-grep-q-pipefail-gate",
+		// The crates the Doctests leg skips hold no doctest: a skip list refused when a
+		// skipped crate's source holds anything rustdoc could compile.
+		"python3 tools/check-doctest-skip.py",
+		"make test-doctest-skip-gate",
 		// …and the red-capability pin for its GitHub Actions side (#1120): a
 		// workflow can look like coverage and provide none.
 		"make test-suite-coverage-workflows",

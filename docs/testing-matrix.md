@@ -144,6 +144,7 @@ The comprehensive test target runs 8 steps in sequence, reporting a single pass/
 | Workflow / leg | What it tests |
 |-----|---------------|
 | `dagger-preflight.yml` | fmt (nightly rustfmt), ShellGates (incl. the no-orphan-suites and snapshot-pairing gates), rustdoc, clippy — on every push to every in-repo branch (required check) |
+| `dagger-doctests.yml` | Each library's doctests with its own default features, and the umbrella crate's per documented feature; libraries with no doctest are skipped, and `tools/check-doctest-skip.py` proves they have none (required check) |
 | `dagger-security.yml` | cargo-deny (licenses + advisories + bans + sources) + compliance gates (required check) |
 | `dagger-test.yml` | Workspace test suite, stable + MSRV toolchains — on every push to every in-repo branch (both arms are required checks, #1257); mirrored locally by `make test-leg` |
 | `dagger-integration.yml` | The integration shard matrix: postgres, server, redis, nats, observers, vault, tls, wire, storage, server-storage, federation, federation-compose, saml, quickstart, http-e2e |

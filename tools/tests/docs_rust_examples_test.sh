@@ -38,6 +38,12 @@ echo "check-docs-rust-examples.py:"
 new_case clean
 expect 0 "docs rust examples: ok (1 documents" "a listed doc and labeled fences pass"
 
+new_case gated
+mkdir -p "${root}/docs/sub"; printf '```rust,no_run\nuse fraiseql::server;\n```\n' > "${root}/docs/sub/server.md"
+printf '    #[cfg_attr(feature = "server", doc = include_str!("../../../docs/sub/server.md"))]\n' \
+  >> "${root}/crates/fraiseql/src/lib.rs"
+expect 0 "docs rust examples: ok (2 documents" "a doc included under cfg_attr(feature = …) counts as listed"
+
 new_case unlisted
 mkdir -p "${root}/docs/sub"; printf '```rust,no_run\nfn f() {}\n```\n' > "${root}/docs/sub/new.md"
 expect 1 "docs/sub/new.md: has a \`\`\`rust block but is not included" "an unlisted doc with a rust block is red, whatever its attributes"

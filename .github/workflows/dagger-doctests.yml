@@ -1,0 +1,56 @@
+name: Dagger — doctests
+
+# Each library's doctests with its own default features, and the umbrella crate's once
+# per feature its documentation is gated on (`dagger call doctests`, which runs
+# tools/check-doctest-feature-sets.sh). The Test leg's doctest pass is
+# `--all-features`, so it compiles an example that only works with a feature on.
+#
+# A workflow of its own so it runs beside preflight and test rather than inside
+# either: each set compiles its crate's dependency graph with codegen under that
+# crate's features, which took 26 minutes on a cold runner as a preflight step and
+# pushed preflight past its 60-minute timeout (run 44633450777).
+#
+# push-only for the same reason as dagger-preflight.yml: a push is always same-repo,
+# so the self-hosted runner never sees fork code.
+on:
+  push:
+    branches-ignore: ['dependabot/**', 'gh-readonly-queue/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+  actions: read
+
+concurrency:
+  group: dagger-doctests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  already-passed:
+    name: already passed
+    uses: ./.github/workflows/already-passed.yml
+    with:
+      workflow: dagger-doctests.yml
+
+  doctests:
+    needs: already-passed
+    if: ${{ !cancelled() && needs.already-passed.outputs.passed != 'true' }}
+    name: doctests
+    # Any 8-core runner, as security and integration: it competes with no single leg.
+    runs-on: [self-hosted, fraiseql-8core]
+    # The one measurement is 26 minutes for the sets alone, cold, inside preflight.
+    # 45 leaves room for a cold run on a shared runner; re-derive it from this
+    # leg's own completions.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Log in to ghcr.io (private base-image mirror)
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: dagger call doctests
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          dagger version
+          dagger call doctests --source=.

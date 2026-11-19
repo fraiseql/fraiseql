@@ -60,7 +60,8 @@ rather than living on a branch that drifts from the trunk.
 ## Keeping the trunk green
 
 The Dagger legs that gate a merge — `preflight` (shell gates · fmt · clippy ·
-rustdoc), `security` (`cargo deny`), `test` (the workspace suite, on both the MSRV
+rustdoc), `doctests` (each library's doctests with its own defaults), `security`
+(`cargo deny`), `test` (the workspace suite, on both the MSRV
 and stable toolchains) and `integration` (the sixteen service-bound suites) — run on
 **push to every in-repo branch**
 (`branches-ignore: [dependabot/**, …]`) on the self-hosted runner, with a warm sccache

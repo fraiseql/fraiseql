@@ -73,6 +73,11 @@ required = [
   # dagger-preflight.yml:preflight — fmt, clippy, rustdoc, ~12 shell gates. Compiles
   # the tests; runs none of them.
   "preflight",
+  # dagger-doctests.yml:doctests — each library's doctests with its own default
+  # features, and the umbrella's per documented feature (#2015, #1898). A leg of its
+  # own: as a preflight step it took 26 minutes cold and pushed preflight past its
+  # timeout.
+  "doctests",
   # dagger-security.yml:security — cargo-deny, audit lockstep, secret scanning.
   "security",
   # dagger-test.yml:test — the workspace test suite on stable. Binds no service, so

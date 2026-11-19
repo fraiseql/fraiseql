@@ -98,6 +98,26 @@ fn order_by_columns(order_by: Option<&[OrderByClause]>) -> Result<Option<String>
 /// # Ok(())
 /// # }
 /// ```
+///
+/// # Read-only
+///
+/// The adapter streams reads and has no write path: it implements [`DatabaseAdapter`]
+/// and deliberately not [`Writer`](crate::Writer), so the runtime can build only a read-only
+/// executor over it. The two blocks below are a pair: a `compile_fail` block passes on any
+/// error, and they differ by exactly the trait bound, so the second can only fail on
+/// the missing `Writer` implementation (E0277).
+///
+/// ```
+/// use fraiseql_db::{DatabaseAdapter, FraiseWireAdapter, Writer};
+/// fn requires_adapter<A: DatabaseAdapter>() {}
+/// requires_adapter::<FraiseWireAdapter>();
+/// ```
+///
+/// ```compile_fail
+/// use fraiseql_db::{DatabaseAdapter, FraiseWireAdapter, Writer};
+/// fn requires_writer<A: Writer>() {}
+/// requires_writer::<FraiseWireAdapter>();
+/// ```
 #[derive(Debug, Clone)]
 pub struct FraiseWireAdapter {
     factory:    WireClientFactory,

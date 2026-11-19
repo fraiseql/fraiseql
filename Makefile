@@ -88,41 +88,41 @@ test: test-unit test-integration
 # Requires full infrastructure: Docker with PostgreSQL, Redis, NATS, Vault
 # Reports a single pass/fail at the end.
 test-full: db-up
-	@echo "=== Running full test suite (8 steps) ==="
+	@echo "=== Running full test suite (9 steps) ==="
 	@echo ""
-	@echo "[1/8] Unit tests..."
+	@echo "[1/9] Unit tests..."
 	@cargo test --lib --all-features
 	@echo ""
-	@echo "[2/8] SQL snapshot tests..."
+	@echo "[2/9] SQL snapshot tests..."
 	@cargo nextest run --test sql_snapshots 2>/dev/null || cargo test --test sql_snapshots
 	@echo ""
-	@echo "[3/8] Database integration tests (PostgreSQL)..."
+	@echo "[3/9] Database integration tests (PostgreSQL)..."
 # Was the same `-p fraiseql-core … -- --ignored` line as test-integration's, with
 # the same result: 1 test of 2828, under a banner claiming the database
 # integration tests had run (#1169). A second corrected copy would drift from the
 # first, so both call the one mirror target.
 	@$(MAKE) --no-print-directory test-integration-postgres
 	@echo ""
-	@echo "[4/8] (retired — cross-database parity removed with the non-PostgreSQL backends, G2/#374)"
+	@echo "[4/9] (retired — cross-database parity removed with the non-PostgreSQL backends, G2/#374)"
 	@echo ""
-	@echo "[5/8] Redis tests (APQ + observer cache/lease)..."
+	@echo "[5/9] Redis tests (APQ + observer cache/lease)..."
 	REDIS_URL="redis://localhost:6379" \
 		cargo test -p fraiseql-core --features "redis-apq" --lib redis -- --ignored --test-threads=1
 	REDIS_URL="redis://localhost:6379" \
 		cargo test -p fraiseql-observers --features "caching,redis-lease" --lib -- --ignored --test-threads=1
 	@echo ""
-	@echo "[6/8] NATS + observer PostgreSQL tests..."
+	@echo "[6/9] NATS + observer PostgreSQL tests..."
 	cargo test -p fraiseql-observers --features "nats" --test nats_integration -- --ignored --test-threads=1
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 	TEST_DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 		cargo test -p fraiseql-observers --features redis-lease --lib -- --ignored --test-threads=1
 	@echo ""
-	@echo "[7/8] Vault secrets manager tests..."
+	@echo "[7/9] Vault secrets manager tests..."
 	VAULT_ADDR="http://localhost:8200" \
 	VAULT_TOKEN="fraiseql-test-token" \
 		cargo test -p fraiseql-server --test secrets_manager_integration_test -- --ignored --test-threads=1
 	@echo ""
-	@echo "[8/8] Server integration tests (database queries + observers)..."
+	@echo "[8/9] Server integration tests (database queries + observers)..."
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
 		cargo test -p fraiseql-server --test database_query_test -- --test-threads=1
 	DATABASE_URL="postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql" \
@@ -131,7 +131,20 @@ test-full: db-up
 	REDIS_URL="redis://localhost:6379" \
 		cargo test --features "caching,testing" -p fraiseql-observers --test integration_test
 	@echo ""
-	@echo "=== Full test suite complete (all 8 steps passed) ==="
+	@echo "[9/9] Doctests per feature set..."
+	@$(MAKE) --no-print-directory test-doc-feature-sets
+	@echo ""
+	@echo "=== Full test suite complete (all 9 steps passed) ==="
+
+# Run each workspace library's doctests on its own with its default features, and the
+# umbrella crate's once per feature its documentation is gated on. The `--all-features`
+# doctest pass compiles an example that needs a feature, and `--workspace` unifies
+# features across members, so neither sees an example that fails for a crate built
+# with its defaults. CI runs it in the Doctests leg (dagger-doctests.yml). Libraries
+# with no doctest are skipped; tools/check-doctest-skip.py holds that list.
+.PHONY: test-doc-feature-sets
+test-doc-feature-sets:
+	bash tools/check-doctest-feature-sets.sh
 
 # Run unit tests only (no database required)
 #
@@ -833,6 +846,18 @@ lint-grep-q-pipefail:
 .PHONY: test-grep-q-pipefail-gate
 test-grep-q-pipefail-gate:
 	@bash tools/tests/grep_q_pipefail_test.sh
+
+# Gate: every crate the doctest leg skips holds no doctest. The list is a claim about
+# the source; the check refuses it when a skipped crate's docs hold anything rustdoc
+# could compile.
+.PHONY: lint-doctest-skip
+lint-doctest-skip:
+	@python3 tools/check-doctest-skip.py >/dev/null
+
+# Red-capability pin for the check above, over fixture trees.
+.PHONY: test-doctest-skip-gate
+test-doctest-skip-gate:
+	@bash tools/tests/doctest_skip_test.sh
 
 # Gate: snapshot pairing, both directions — every .snap registered in
 # tests/snapshot-pairs.md, and no registry row naming a deleted snapshot (#986).
@@ -1831,7 +1856,7 @@ lint-required-checks:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: lint-fmt-toolchain fmt-check lint-not-implemented test-not-implemented-gate lint-sdk-dead-surface test-e2e-documents-gate lint-e2e-documents test-e2e-documents lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-audit-ledger lint-doc-claims lint-release-validation lint-rustc-wrapper lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets lint-compose-references lint-no-first-party-hs256 lint-dagger-apt lint-pg-tviews-pin lint-doc-image-refs lint-ci-install-pins lint-phases-citations lint-image-context lint-publish-secrets lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-mutation-dispatch lint-write-selections lint-auth-schema lint-principal-producers lint-rls-policy-construction lint-config-deny-unknown test-config-deny-unknown-gate lint-config-refusals test-config-refusals-gate lint-docs-env-vars lint-docs-version test-docs-version-gate lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-ignored-lines test-ignored-lines-gate lint-grep-q-pipefail test-grep-q-pipefail-gate lint-snapshot-pairing lint-empty-tests lint-test-subject lint-module-reachability lint-pub-mod-callers lint-prose-ratchet lint-docs-rust-examples lint-query-variables lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-already-passed-guard lint-image-mirror lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-artifact-features lint-delivery-coverage lint-sdk-lockfile-freshness lint-cargo-lock-path-versions test-release-tooling test-changelog-gate test-deadline-gate test-audit-ledger-gate test-docs-env-vars-gate test-doc-claims-gate test-release-validation-gate test-rustc-wrapper-gate test-write-selections-gate test-auth-schema-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-already-passed-guard-gate test-image-mirror-gate test-sdk-workflows-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-artifact-features-gate test-publish-secrets-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-cargo-lock-path-versions-gate test-feature-matrix-gate lint-feature-combo-features test-feature-combo-features-gate test-test-subject-gate test-module-reachability-gate test-pub-mod-callers-gate test-prose-ratchet-gate test-perf-instructions-gate test-docs-rust-examples-gate test-query-variables-gate test-crate-sizes-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-no-first-party-hs256-gate test-dagger-apt-gate test-pg-tviews-pin-gate test-bench-quiet-window-gate test-detect-regression-host-gate test-bench-require-measured-gate test-doc-image-refs-gate test-ci-install-pins-gate test-ci-stale-artifacts-gate lint-ci-source-stamp test-ci-source-stamp-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
+preflight: lint-fmt-toolchain fmt-check lint-not-implemented test-not-implemented-gate lint-sdk-dead-surface test-e2e-documents-gate lint-e2e-documents test-e2e-documents lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-audit-ledger lint-doc-claims lint-release-validation lint-rustc-wrapper lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets lint-compose-references lint-no-first-party-hs256 lint-dagger-apt lint-pg-tviews-pin lint-doc-image-refs lint-ci-install-pins lint-phases-citations lint-image-context lint-publish-secrets lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-mutation-dispatch lint-write-selections lint-auth-schema lint-principal-producers lint-rls-policy-construction lint-config-deny-unknown test-config-deny-unknown-gate lint-config-refusals test-config-refusals-gate lint-docs-env-vars lint-docs-version test-docs-version-gate lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-ignored-lines test-ignored-lines-gate lint-grep-q-pipefail test-grep-q-pipefail-gate lint-doctest-skip test-doctest-skip-gate lint-snapshot-pairing lint-empty-tests lint-test-subject lint-module-reachability lint-pub-mod-callers lint-prose-ratchet lint-docs-rust-examples lint-query-variables lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-already-passed-guard lint-image-mirror lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-artifact-features lint-delivery-coverage lint-sdk-lockfile-freshness lint-cargo-lock-path-versions test-release-tooling test-changelog-gate test-deadline-gate test-audit-ledger-gate test-docs-env-vars-gate test-doc-claims-gate test-release-validation-gate test-rustc-wrapper-gate test-write-selections-gate test-auth-schema-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-already-passed-guard-gate test-image-mirror-gate test-sdk-workflows-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-artifact-features-gate test-publish-secrets-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-cargo-lock-path-versions-gate test-feature-matrix-gate lint-feature-combo-features test-feature-combo-features-gate test-test-subject-gate test-module-reachability-gate test-pub-mod-callers-gate test-prose-ratchet-gate test-perf-instructions-gate test-docs-rust-examples-gate test-query-variables-gate test-crate-sizes-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-no-first-party-hs256-gate test-dagger-apt-gate test-pg-tviews-pin-gate test-bench-quiet-window-gate test-detect-regression-host-gate test-bench-require-measured-gate test-doc-image-refs-gate test-ci-install-pins-gate test-ci-stale-artifacts-gate lint-ci-source-stamp test-ci-source-stamp-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

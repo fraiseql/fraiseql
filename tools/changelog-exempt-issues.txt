@@ -81,3 +81,5 @@
 #2128  docs: `ObjectInfo::etag` states which entity tag each source lists and that a backend listing's is not the served one; no behaviour changes
 #2107  tests: the SDK conformance corpus declares observers, one per action kind, and every SDK is compared against them; no shipped artifact changes
 #1969  tests: eight server e2e suites provision the change-log table they write to, so each passes alone on a fresh database; no shipped artifact changes
+#2015  docs and CI: fraiseql-core's `Executor` doctests compile with the crate defaults and the `compile_fail` one fails on the bound it documents, and a gate runs each library's doctests with its defaults; no shipped artifact changes
+#1898  docs and CI: the umbrella crate's documentation examples that need `server` or `wire` compile only with that feature, so its doctests pass with the defaults; no shipped artifact changes
