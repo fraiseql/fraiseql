@@ -6,6 +6,9 @@
 //! the runtime's parser and refuses it with 400, writing nothing. The expected reason is
 //! taken from that parser here, so the tests follow whatever it refuses.
 //!
+//! An update clears a condition with `"condition_expression": null`; leaving the field out
+//! leaves the condition as it is.
+//!
 //! The admin bearer gate is not mounted here: these tests inject the operator principal it
 //! would have admitted.
 //!
@@ -32,7 +35,9 @@ use axum::{
 };
 use chrono::{DateTime, Duration, Utc};
 use fraiseql_core::{
-    db::postgres::PostgresAdapter, runtime::Executor, schema::CompiledSchema,
+    db::postgres::PostgresAdapter,
+    runtime::Executor,
+    schema::{CompiledSchema, ObserverDefinition},
     security::AuthenticatedUser,
 };
 use fraiseql_observers::ConditionParser;
@@ -127,12 +132,27 @@ impl Rig {
     }
 
     async fn update(&self, id: &str, condition: &str) -> (StatusCode, Value) {
-        self.call(
-            Method::PATCH,
-            &format!("/api/observers/{id}"),
-            json!({ "condition_expression": condition }),
-        )
-        .await
+        self.patch(id, json!({ "condition_expression": condition })).await
+    }
+
+    async fn patch(&self, id: &str, body: Value) -> (StatusCode, Value) {
+        self.call(Method::PATCH, &format!("/api/observers/{id}"), body).await
+    }
+
+    /// Store an observer the compiled schema declares, with `condition`, as the server does
+    /// at boot, and return its id.
+    async fn declared_with(&self, condition: &str) -> String {
+        let observer = ObserverDefinition::new("order_created", "Order", "INSERT")
+            .with_condition(condition)
+            .with_action(json!({ "type": "webhook", "url": "https://hooks.example/x" }));
+        ObserverRepository::new(self.pool.clone())
+            .reconcile_declared("schema", &[observer])
+            .await
+            .unwrap();
+        sqlx::query_scalar("SELECT id::text FROM core.tb_observer WHERE name = 'order_created'")
+            .fetch_one(&self.pool)
+            .await
+            .unwrap()
     }
 
     /// The stored condition and when the row was last written.
@@ -246,4 +266,46 @@ async fn update_refuses_the_condition_whatever_the_id_names() {
     let rig = rig().await;
     let (status, body) = rig.update("00000000-0000-0000-0000-000000000000", BROKEN).await;
     assert_refused(BROKEN, status, &body);
+}
+
+#[tokio::test]
+async fn update_with_a_null_condition_clears_it() {
+    let rig = rig().await;
+    let id = rig.create_with(VALID).await;
+
+    let (status, body) = rig.patch(&id, json!({ "condition_expression": null })).await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["condition_expression"], Value::Null, "{body}");
+    assert_eq!(rig.stored(&id).await.0, None, "the stored condition is cleared");
+}
+
+#[tokio::test]
+async fn update_without_the_condition_leaves_it() {
+    let rig = rig().await;
+    let id = rig.create_with(VALID).await;
+
+    let (status, body) = rig.patch(&id, json!({ "priority": 7 })).await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["priority"], json!(7), "the update was written: {body}");
+    assert_eq!(rig.stored(&id).await.0.as_deref(), Some(VALID));
+}
+
+/// Clearing a condition changes the observer, so it is refused on one the schema declares,
+/// as any change but `enabled` is, and the declared condition stays.
+#[tokio::test]
+async fn update_with_a_null_condition_is_refused_on_a_declared_observer() {
+    let rig = rig().await;
+    let id = rig.declared_with(VALID).await;
+    let before = rig.stored(&id).await;
+
+    for body in [
+        json!({ "condition_expression": null }),
+        json!({ "condition_expression": null, "enabled": false }),
+    ] {
+        let (status, answer) = rig.patch(&id, body.clone()).await;
+        assert_eq!(status, StatusCode::CONFLICT, "{body}: {answer}");
+    }
+    assert_eq!(rig.stored(&id).await, before, "the declared observer is unchanged");
 }

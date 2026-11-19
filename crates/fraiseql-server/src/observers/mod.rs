@@ -253,6 +253,17 @@ where
     .map_err(|e: serde_json::Error| serde::de::Error::custom(e.to_string()))
 }
 
+/// A field an update can clear: a key left out is `None` (no change, through
+/// `#[serde(default)]`), a key sent as `null` is `Some(None)`, and a value is `Some(Some(_))`.
+#[allow(clippy::option_option)] // Reason: the three states are the field's, which serde fills
+fn null_if_sent<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
+}
+
 /// Request to create a new observer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateObserverRequest {
@@ -315,9 +326,14 @@ pub struct UpdateObserverRequest {
     #[serde(default)]
     pub event_type: Option<String>,
 
-    /// Condition expression
-    #[serde(default)]
-    pub condition_expression: Option<String>,
+    /// Condition expression: `None` leaves it unchanged (the key is left out), `Some(None)`
+    /// clears it (the key is sent as `null`), `Some(Some(_))` replaces it.
+    #[serde(
+        default,
+        deserialize_with = "null_if_sent",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub condition_expression: Option<Option<String>>,
 
     /// Actions to execute
     #[serde(default, deserialize_with = "authored_actions_if_sent")]

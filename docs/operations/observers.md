@@ -273,6 +273,10 @@ action is `{"type": "email", "to": …, "subject": …, "body_template": …}`: 
 and the subject are sent as written, and `cc`, `to_template`, `subject_template` and
 `reply_to` are refused.
 
+A key left out of `PATCH /api/observers/{id}` leaves that setting as it is.
+`"condition_expression": null` clears the condition, so the observer fires on every
+matching event; an empty condition is refused with `400`, as one that does not parse.
+
 ### Runtime and Dead Letter Queue
 
 Mounted only when the observer runtime is running (`[observers] enabled = true`).

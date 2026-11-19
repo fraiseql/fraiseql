@@ -768,3 +768,50 @@ mod declared_owner {
         assert!(matches!(owner.as_deref(), Ok(MANAGED_BY_SCHEMA)), "{owner:?}");
     }
 }
+
+mod update_request_wire {
+    use serde_json::json;
+
+    use super::super::UpdateObserverRequest;
+
+    fn read(body: serde_json::Value) -> UpdateObserverRequest {
+        serde_json::from_value(body).expect("an update request")
+    }
+
+    #[test]
+    fn a_condition_left_out_is_no_change() {
+        assert_eq!(read(json!({})).condition_expression, None);
+    }
+
+    #[test]
+    fn a_condition_sent_as_null_clears_it() {
+        assert_eq!(read(json!({ "condition_expression": null })).condition_expression, Some(None));
+    }
+
+    #[test]
+    fn a_condition_sent_as_text_replaces_it() {
+        let request = read(json!({ "condition_expression": "total > 1" }));
+        assert_eq!(request.condition_expression, Some(Some("total > 1".to_owned())));
+    }
+
+    /// Serialized and read back, each of the three keeps its meaning.
+    #[test]
+    fn each_shape_survives_a_round_trip() {
+        for body in [
+            json!({}),
+            json!({ "condition_expression": null }),
+            json!({ "condition_expression": "total > 1" }),
+        ] {
+            let written = serde_json::to_value(read(body.clone())).expect("serializes");
+            assert_eq!(written.get("condition_expression"), body.get("condition_expression"));
+        }
+    }
+
+    /// Clearing the condition is a change, so it is refused on a declared observer.
+    #[test]
+    fn clearing_the_condition_is_more_than_enabled() {
+        let request = read(json!({ "condition_expression": null, "enabled": false }));
+        assert!(!request.changes_only_enabled());
+        assert!(read(json!({ "enabled": false })).changes_only_enabled());
+    }
+}

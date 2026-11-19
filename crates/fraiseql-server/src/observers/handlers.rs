@@ -178,8 +178,8 @@ fn reject_unknown_event_type(event_type: Option<&String>) -> Option<Response> {
 /// parse was stored and then failed on every event: the observer never ran. It is parsed
 /// here with the runtime's own parser, as the compiler parses a condition declared in the
 /// schema, and refused with `400` naming the field and the parser's reason. An empty
-/// condition does not parse either: to store an observer with no condition, leave the
-/// field out.
+/// condition does not parse either: to create an observer with no condition, leave the
+/// field out; to clear one, send it as `null`.
 fn reject_unparsable_condition(condition: Option<&str>) -> Option<Response> {
     let reason = fraiseql_observers::ConditionParser::new().parse(condition?).err()?;
     Some(
@@ -298,7 +298,9 @@ pub async fn update_observer(
 ) -> Response {
     // Before the stored observer is read: a condition that does not parse is refused
     // whatever the id names.
-    if let Some(resp) = reject_unparsable_condition(request.condition_expression.as_deref()) {
+    if let Some(resp) = reject_unparsable_condition(
+        request.condition_expression.as_ref().and_then(Option::as_deref),
+    ) {
         return resp;
     }
     if let Some(resp) = reject_unknown_event_type(request.event_type.as_ref()) {

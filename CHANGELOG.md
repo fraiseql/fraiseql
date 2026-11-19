@@ -18,6 +18,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`PATCH /api/observers/{id}` clears a condition sent as `null` (#2069).** A
+  `"condition_expression": null` was read as leaving the condition unchanged, and an empty
+  condition is refused since #2061, so a condition once set could not be removed. `null`
+  now clears it: the observer fires on every matching event. Leaving the key out still
+  leaves the condition as it is. On an observer the schema declares, `null` is a change
+  and is refused with `409`, as any change but `enabled` is. A client that sent `null` to
+  mean "no change" must leave the key out. In Rust,
+  `fraiseql_server::observers::UpdateObserverRequest::condition_expression` is an
+  `Option<Option<String>>`: `None` leaves it, `Some(None)` clears it.
 - **`fraiseql run` refuses a setting made in both files with a diagnostic, and exits 2
   (#2055).** A setting `fraiseql.toml` and the server's configuration file (the file
   `FRAISEQL_CONFIG` names) both make, such as `[server] port` and `bind_addr`, was refused

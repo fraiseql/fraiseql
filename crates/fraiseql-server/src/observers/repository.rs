@@ -219,6 +219,7 @@ impl ObserverRepository {
         if let Some(ref event_type) = request.event_type {
             qb.push(", event_type = ").push_bind(event_type);
         }
+        // A condition sent as `null` binds `NULL`: the observer fires on every matching event.
         if let Some(ref condition_expression) = request.condition_expression {
             qb.push(", condition_expression = ").push_bind(condition_expression);
         }
