@@ -9,7 +9,9 @@
 
 use anyhow::{Context, Result, bail};
 use fraiseql_core::schema::{CompiledSchema, ObserverDefinition, RetryConfig};
-use fraiseql_observers::{ActionConfig, ConditionParser, body_template_placeholders};
+use fraiseql_observers::{
+    ActionConfig, ConditionParser, body_template_placeholders, is_secret_header_name,
+};
 
 use crate::schema::intermediate::IntermediateObserver;
 
@@ -85,6 +87,17 @@ fn check_action(action: &serde_json::Value, entity: &str, schema: &CompiledSchem
         bail!(
             "`signing_secret` writes the signing key into the compiled schema, a build \
              artifact. Name the environment variable that holds it with `signing_secret_env`"
+        );
+    }
+    // The same for a header whose name says it carries a credential.
+    if let Some(name) = authored
+        .get("headers")
+        .and_then(serde_json::Value::as_object)
+        .and_then(|headers| headers.keys().find(|name| is_secret_header_name(name)))
+    {
+        bail!(
+            "header `{name}` under `headers` writes its value into the compiled schema, a build \
+             artifact. Name the environment variable that holds it under `headers_env`"
         );
     }
     let read = ActionConfig::from_authored(action).map_err(|e| anyhow::anyhow!("{e}"))?;

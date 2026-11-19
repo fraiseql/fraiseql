@@ -89,6 +89,13 @@ interface WebhookOptions {
    * The key itself is never authored: a compiled schema is a build artifact.
    */
   signing_secret_env?: string;
+  /**
+   * Headers whose value the server reads from the environment at delivery: header name
+   * to environment variable name. Use it for a credential (`Authorization`, an API key):
+   * the compiler refuses a credential header written under `headers`, since a compiled
+   * schema is a build artifact.
+   */
+  headers_env?: Record<string, string>;
 }
 
 /**
@@ -96,7 +103,7 @@ interface WebhookOptions {
  *
  * @param url - Static URL (or use `url_env`)
  * @param options - Additional options: url_env, method, headers, body_template,
- *   signing_secret_env
+ *   signing_secret_env, headers_env
  * @returns Webhook action definition
  * @throws If neither url nor url_env is provided
  */
@@ -111,6 +118,7 @@ export function webhook(url?: string, options?: WebhookOptions): ObserverAction 
     method?: string;
     body_template?: string;
     signing_secret_env?: string;
+    headers_env?: Record<string, string>;
   } = {
     type: "webhook",
     headers: { "Content-Type": "application/json", ...(options?.headers ?? {}) },
@@ -129,6 +137,9 @@ export function webhook(url?: string, options?: WebhookOptions): ObserverAction 
   }
   if (options?.signing_secret_env !== undefined) {
     action.signing_secret_env = options.signing_secret_env;
+  }
+  if (options?.headers_env !== undefined) {
+    action.headers_env = { ...options.headers_env };
   }
   return action;
 }

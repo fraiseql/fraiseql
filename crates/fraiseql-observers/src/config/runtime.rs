@@ -237,6 +237,52 @@ where
     Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
 }
 
+/// The first header named in both `headers` and `headers_env`, compared as HTTP compares
+/// header names: case-insensitively.
+pub(crate) fn header_in_both<'a>(
+    headers: &HashMap<String, String>,
+    headers_env: &'a HashMap<String, String>,
+) -> Option<&'a str> {
+    headers_env
+        .keys()
+        .find(|name| headers.keys().any(|literal| literal.eq_ignore_ascii_case(name)))
+        .map(String::as_str)
+}
+
+/// Whether `name` is an HTTP header name: one or more token characters (RFC 9110 §5.6.2).
+fn is_header_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&b))
+}
+
+/// Refuse a `headers_env` the dispatcher could not send as written.
+fn validate_headers_env(
+    headers: &HashMap<String, String>,
+    headers_env: &HashMap<String, String>,
+) -> Result<()> {
+    let invalid = |reason: String| ObserverError::InvalidActionConfig { reason };
+    for (name, variable) in headers_env {
+        if !is_header_name(name) {
+            return Err(invalid(format!(
+                "Webhook headers_env names `{name}`, which is not an HTTP header name"
+            )));
+        }
+        if variable.trim().is_empty() {
+            return Err(invalid(format!(
+                "Webhook headers_env header `{name}` names no environment variable"
+            )));
+        }
+    }
+    if let Some(name) = header_in_both(headers, headers_env) {
+        return Err(invalid(format!(
+            "Webhook header `{name}` is set in both `headers` and `headers_env`; set it in one"
+        )));
+    }
+    Ok(())
+}
+
 /// Action configuration (tagged union)
 ///
 /// Marked `#[non_exhaustive]` so that new action types (e.g., `Kafka`, `Pubsub`)
@@ -275,6 +321,23 @@ pub enum ActionConfig {
         /// a map` (#466 round-trip).
         #[serde(default, deserialize_with = "null_as_default")]
         headers:            HashMap<String, String>,
+        /// Headers whose value is read from the environment: header name to the *name* of
+        /// the environment variable holding its value.
+        ///
+        /// Each variable is read when the webhook is delivered, so the value is stored
+        /// neither in the compiled schema nor in `core.tb_observer`. A variable that is not
+        /// set, or is empty, fails the delivery: the event is dead-lettered and nothing is
+        /// sent, as with `signing_secret_env`. A header may be named here or in `headers`,
+        /// not both (names compare case-insensitively, as HTTP's do).
+        ///
+        /// Not serialized when empty: an action's canonical JSON is its persisted
+        /// result-cache key, and a webhook without `headers_env` keeps the key it had.
+        #[serde(
+            default,
+            deserialize_with = "null_as_default",
+            skip_serializing_if = "HashMap::is_empty"
+        )]
+        headers_env:        HashMap<String, String>,
         /// Template for request body
         #[serde(default)]
         body_template:      Option<String>,
@@ -400,6 +463,8 @@ impl ActionConfig {
             Self::Webhook {
                 url,
                 url_env,
+                headers,
+                headers_env,
                 body_template,
                 signing_secret,
                 signing_secret_env,
@@ -410,6 +475,7 @@ impl ActionConfig {
                         reason: "Webhook action requires 'url' or 'url_env'".to_string(),
                     });
                 }
+                validate_headers_env(headers, headers_env)?;
                 if body_template.as_ref().is_some_and(std::string::String::is_empty) {
                     return Err(ObserverError::InvalidActionConfig {
                         reason: "Webhook body_template cannot be empty".to_string(),

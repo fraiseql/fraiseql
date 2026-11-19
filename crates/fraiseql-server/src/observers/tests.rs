@@ -1,4 +1,6 @@
 mod redaction_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
     use super::super::redact_action_secrets;
 
     #[test]
@@ -39,6 +41,30 @@ mod redaction_tests {
         assert_eq!(actions[0]["signing_secret"], "[REDACTED]");
         assert_eq!(actions[0]["signing_secret_env"], "MY_WEBHOOK_SECRET");
         assert_eq!(actions[0]["url"], "https://hook.example/path");
+    }
+
+    #[test]
+    fn webhook_headers_env_names_are_kept_by_the_stored_type_and_shown() {
+        // The admin API stores an action through this crate's own `ActionConfig`: a key
+        // it did not carry would pass the runtime's check and be dropped on store.
+        let written = serde_json::json!({
+            "type": "webhook",
+            "url": "https://hook.example/path",
+            "headers_env": { "Authorization": "HOOK_TOKEN" }
+        });
+        let stored: super::super::ActionConfig = serde_json::from_value(written.clone()).unwrap();
+        let mut actions = serde_json::json!([serde_json::to_value(&stored).unwrap()]);
+        assert_eq!(actions[0]["headers_env"], written["headers_env"], "kept on store");
+
+        redact_action_secrets(&mut actions);
+        assert_eq!(actions[0]["headers_env"]["Authorization"], "HOOK_TOKEN", "a name is shown");
+
+        let without: super::super::ActionConfig = serde_json::from_value(
+            serde_json::json!({ "type": "webhook", "url": "https://hook.example/path" }),
+        )
+        .unwrap();
+        let without = serde_json::to_value(&without).unwrap();
+        assert!(without.get("headers_env").is_none(), "absent stays absent: {without}");
     }
 
     #[test]

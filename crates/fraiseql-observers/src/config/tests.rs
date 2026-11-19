@@ -153,6 +153,7 @@ fn test_action_type_names() {
             body_template:      None,
             signing_secret:     None,
             signing_secret_env: None,
+            headers_env:        std::collections::HashMap::new(),
         }
         .action_type(),
         "webhook"
@@ -182,6 +183,7 @@ fn test_webhook_action_validation() {
         body_template:      None,
         signing_secret:     None,
         signing_secret_env: None,
+        headers_env:        std::collections::HashMap::new(),
     };
 
     let result = invalid.validate();
@@ -198,6 +200,7 @@ fn test_webhook_action_validation() {
         body_template:      Some("{}".to_string()),
         signing_secret:     None,
         signing_secret_env: None,
+        headers_env:        std::collections::HashMap::new(),
     };
 
     valid
@@ -249,6 +252,7 @@ fn test_webhook_empty_signing_secret_env_is_rejected() {
         body_template:      None,
         signing_secret:     None,
         signing_secret_env: Some(String::new()),
+        headers_env:        std::collections::HashMap::new(),
     };
     assert!(
         matches!(action.validate(), Err(ObserverError::InvalidActionConfig { .. })),
@@ -284,6 +288,7 @@ fn test_webhook_empty_signing_secret_literal_is_rejected() {
         body_template:      None,
         signing_secret:     Some(String::new()),
         signing_secret_env: None,
+        headers_env:        std::collections::HashMap::new(),
     };
     assert!(
         matches!(action.validate(), Err(ObserverError::InvalidActionConfig { .. })),
@@ -302,6 +307,7 @@ fn test_webhook_both_signing_secret_sources_rejected() {
         body_template:      None,
         signing_secret:     Some("whsec_literal".to_string()),
         signing_secret_env: Some("MY_WEBHOOK_SECRET".to_string()),
+        headers_env:        std::collections::HashMap::new(),
     };
     assert!(
         matches!(action.validate(), Err(ObserverError::InvalidActionConfig { .. })),

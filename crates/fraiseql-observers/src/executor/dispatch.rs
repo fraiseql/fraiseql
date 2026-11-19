@@ -172,6 +172,39 @@ pub(super) fn resolve_signing_secret(
     }
 }
 
+/// The headers a webhook is sent with: `headers` as written, and each `headers_env` header
+/// with the value of the environment variable it names, read now.
+///
+/// A variable that is not set, or is empty, is an error and nothing is sent: a receiver
+/// that expects the header must never get the request without it. The error names the
+/// header and the variable, never a value. A header named in both maps is refused here
+/// too, although `validate` refuses it where an action is written.
+pub(super) fn resolve_headers(
+    headers: &std::collections::HashMap<String, String>,
+    headers_env: &std::collections::HashMap<String, String>,
+) -> Result<std::collections::HashMap<String, String>> {
+    if let Some(name) = crate::config::runtime::header_in_both(headers, headers_env) {
+        return Err(ObserverError::InvalidActionConfig {
+            reason: format!(
+                "Webhook header `{name}` is set in both `headers` and `headers_env`; set it in one"
+            ),
+        });
+    }
+    let mut resolved = headers.clone();
+    for (name, variable) in headers_env {
+        let value = std::env::var(variable).map_err(|_| ObserverError::InvalidActionConfig {
+            reason: format!("Webhook header `{name}`: env var {variable} not found"),
+        })?;
+        if value.is_empty() {
+            return Err(ObserverError::InvalidActionConfig {
+                reason: format!("Webhook header `{name}`: env var {variable} is empty"),
+            });
+        }
+        resolved.insert(name.clone(), value);
+    }
+    Ok(resolved)
+}
+
 impl ActionDispatcher for DefaultActionDispatcher {
     fn dispatch<'a>(
         &'a self,
@@ -188,6 +221,7 @@ impl ActionDispatcher for DefaultActionDispatcher {
                     url_env,
                     method,
                     headers,
+                    headers_env,
                     body_template,
                     signing_secret,
                     signing_secret_env,
@@ -201,13 +235,14 @@ impl ActionDispatcher for DefaultActionDispatcher {
                         signing_secret_env.as_deref(),
                         signing_secret.as_deref(),
                     )?;
+                    let headers = resolve_headers(headers, headers_env)?;
 
                     match self
                         .webhook_action
                         .execute(
                             &webhook_url,
                             method.as_deref(),
-                            headers,
+                            &headers,
                             body_template.as_deref(),
                             resolved_secret.as_deref(),
                             event,

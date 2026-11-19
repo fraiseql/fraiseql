@@ -74,6 +74,20 @@ func TestWebhookEmitsTheKeysTheRuntimeReads(t *testing.T) {
 	}
 }
 
+func TestWebhookCarriesAHeaderValueFromTheEnvironmentByName(t *testing.T) {
+	got := exportedAction(t, Webhook("https://example.com/hook", map[string]interface{}{
+		"headers_env": map[string]string{"Authorization": "ORDER_HOOK_TOKEN"},
+	}))
+	want := map[string]interface{}{
+		"type":        "webhook",
+		"url":         "https://example.com/hook",
+		"headers_env": map[string]interface{}{"Authorization": "ORDER_HOOK_TOKEN"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
 func TestRegisteredObserverIsExportedWithItsRetryPolicy(t *testing.T) {
 	Reset()
 	defer Reset()

@@ -528,6 +528,11 @@ required-features = ["auth"]
 name = "default_build_pools_e2e_pg"
 required-features = ["auth"]
 
+# The observer runtime and admin API, and the operator principal the admin gate admits.
+[[test]]
+name = "observer_headers_env_e2e_pg"
+required-features = ["observers", "auth"]
+
 [[test]]
 name = "scim_provisioning_e2e_pg"
 required-features = ["auth"]

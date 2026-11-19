@@ -74,6 +74,7 @@ fn create_http_action(url: &str) -> ActionConfig {
         ),
         signing_secret:     None,
         signing_secret_env: None,
+        headers_env:        std::collections::HashMap::new(),
     }
 }
 

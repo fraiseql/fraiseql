@@ -87,6 +87,12 @@ when the runtime could not run it as written:
   [Observer Management](#observer-management-changelog-and-checkpoints)).
 - A webhook carries a `signing_secret` literal. The compiled schema is a build artifact;
   name the environment variable that holds the key with `signing_secret_env`.
+- A webhook `headers` entry whose name says it carries a credential: the name contains
+  `authorization`, `api-key`, `cookie`, `password`, `secret` or `token`, whatever its case
+  (`Authorization`, `X-API-Key`, `X-CSRF-Token`). Name the environment variable that holds
+  its value under `headers_env` instead.
+- A `headers_env` entry that is not an HTTP header name or names no variable, or a header
+  named in both `headers` and `headers_env` (header names compare case-insensitively).
 - A webhook `body_template` names a field the entity does not hold. A placeholder names a
   field by the key the stored document holds it under: `{{ review_status }}` for a field
   published as `reviewStatus`.
@@ -94,8 +100,24 @@ when the runtime could not run it as written:
 - `fraiseql.toml` writes no `[project] name`. The name is the owner the observers are
   stored under (see below), so a schema that declares one needs it.
 
-Header values are stored as written, in the compiled schema and in `core.tb_observer`.
-Do not put a credential in a declared header.
+**Header values from the environment.** `headers` values are stored as written, in the
+compiled schema and in `core.tb_observer`. `headers_env` maps a header name to the name of
+an environment variable, which the server reads each time the webhook is delivered, so
+only the variable's name is stored:
+
+```json
+{
+  "type": "webhook",
+  "url_env": "ORDER_HOOK_URL",
+  "headers": {"X-Tenant-Id": "acme"},
+  "headers_env": {"Authorization": "ORDER_HOOK_TOKEN"}
+}
+```
+
+A variable that is not set, or is empty, when a webhook is delivered fails that delivery:
+nothing is sent, and the event is dead-lettered, as for `signing_secret_env`. The admin
+API accepts `headers_env` too, and shows the variable names in its responses; it still
+accepts a literal value under `headers`, which its responses mask.
 
 **What the boot writes.** A declared observer is a global row (`fk_customer_org` null)
 whose `managed_by` is `schema:<[project] name>`, for example `schema:billing`:

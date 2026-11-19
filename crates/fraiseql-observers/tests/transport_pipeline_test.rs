@@ -41,6 +41,7 @@ fn make_observer(event_type: &str, entity: &str, condition: Option<&str>) -> Obs
             body_template:      Some("{}".to_string()),
             signing_secret:     None,
             signing_secret_env: None,
+            headers_env:        std::collections::HashMap::new(),
         }],
         retry:      RetryConfig::default(),
         on_failure: FailurePolicy::Log,

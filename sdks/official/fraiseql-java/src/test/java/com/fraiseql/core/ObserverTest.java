@@ -192,6 +192,21 @@ public class ObserverTest {
     }
 
     @Test
+    @Order(11)
+    @DisplayName("Webhook header value from an environment variable")
+    void testWebhookHeaderFromEnv() {
+        var action = Webhook.headerFromEnv(
+            Webhook.headerFromEnv(Webhook.create("https://example.com/hook"),
+                "Authorization", "ORDER_HOOK_TOKEN"),
+            "X-Api-Key", "ORDER_HOOK_KEY");
+
+        assertEquals(
+            Map.of("Authorization", "ORDER_HOOK_TOKEN", "X-Api-Key", "ORDER_HOOK_KEY"),
+            action.get("headers_env"));
+        assertEquals(Map.of(), action.get("headers"), "no value is written under headers");
+    }
+
+    @Test
     @Order(12)
     @DisplayName("Schema export includes observers")
     void testSchemaExportWithObservers() {

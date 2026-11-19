@@ -140,13 +140,29 @@ pub(crate) fn validate_outbound_url(url: &str) -> Result<()> {
     Ok(())
 }
 
-/// Names whose values are likely to carry secrets and so must be masked
-/// before any debug-level logging.  Case-insensitive substring match —
-/// catches `Authorization`, `X-API-Key`, `x-api-key`, `Cookie`,
-/// `X-Auth-Secret`, etc.  Intentionally broad: false-positives (masking a
-/// non-sensitive header) are acceptable; false-negatives (printing a real
-/// bearer token) are not (#346).
-const SECRET_HEADER_NEEDLES: &[&str] = &["authorization", "api-key", "cookie", "secret", "token"];
+/// Header-name fragments that mark a header as likely to carry a secret.
+///
+/// Such a header's value is masked before any debug-level logging, and refused as a
+/// literal where a webhook is declared in the schema. Case-insensitive substring match:
+/// catches `Authorization`, `X-API-Key`, `x-api-key`, `Cookie`, `X-Auth-Secret`, etc.
+/// Intentionally broad: false-positives (masking a non-sensitive header) are acceptable;
+/// false-negatives (printing a real bearer token) are not (#346).
+pub const SECRET_HEADER_NEEDLES: &[&str] = &[
+    "authorization",
+    "api-key",
+    "cookie",
+    "password",
+    "secret",
+    "token",
+];
+
+/// Whether a header named `name` is likely to carry a secret: its name contains one of
+/// [`SECRET_HEADER_NEEDLES`], whatever its case.
+#[must_use]
+pub fn is_secret_header_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    SECRET_HEADER_NEEDLES.iter().any(|needle| lower.contains(needle))
+}
 
 /// Returns a copy of `headers` with the values of any name matching
 /// [`SECRET_HEADER_NEEDLES`] (case-insensitive substring) replaced with
@@ -156,9 +172,7 @@ pub(crate) fn redact_secret_headers(headers: &HashMap<String, String>) -> HashMa
     headers
         .iter()
         .map(|(name, value)| {
-            let lower = name.to_ascii_lowercase();
-            let masked = SECRET_HEADER_NEEDLES.iter().any(|needle| lower.contains(needle));
-            let safe_value = if masked {
+            let safe_value = if is_secret_header_name(name) {
                 "<redacted>".to_owned()
             } else {
                 value.clone()

@@ -18,6 +18,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A declared webhook takes a credential header's value from the environment (#2040).**
+  The compiler refuses a declared webhook whose `headers` writes the value of a header
+  whose name contains `authorization`, `api-key`, `cookie`, `password`, `secret` or
+  `token` (any case: `Authorization`, `X-API-Key`, `X-CSRF-Token`, `X-Password`). The
+  compiled schema is a build artifact, as for `signing_secret`. Move the value to an
+  environment variable and name it under `headers_env` (below). Observers created
+  through the admin API are not affected.
 - **`fraiseql-observers` has no `postgres` or `all-db` feature (#2100).** PostgreSQL is
   the only backend, so the crate's PostgreSQL paths are always built: the change-log
   listener and replay, the advisory lease, the source cursor, PostgreSQL event storage and
@@ -379,6 +386,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **A webhook header value can come from the environment: `headers_env` (#2040).** A
+  webhook action's `headers_env` maps a header name to the name of an environment
+  variable, read each time the webhook is delivered, so only the variable's name is
+  stored in the compiled schema and in `core.tb_observer`. A variable that is not set, or
+  is empty, fails that delivery: nothing is sent and the event is dead-lettered, as for
+  `signing_secret_env`. A header is named in `headers` or in `headers_env`, not both
+  (compared case-insensitively). The observer admin API accepts and shows it. The
+  TypeScript `webhook()` options, the Go `Webhook` options and Java's
+  `Webhook.headerFromEnv` write it.
 - **A refused configuration names its code, file, table and key (#2034).** Under `--json`
   the error carries `diagnostic`: `code` (`E-CONFIG-RETIRED`, `E-CONFIG-UNREAD`,
   `E-CONFIG-UNAPPLIED`, `E-CONFIG-MISPLACED`, `E-CONFIG-DISAGREES`), `file`, `table`,

@@ -32,6 +32,7 @@ fn webhook_with_trace(trace: &str) -> ActionConfig {
         body_template: None,
         signing_secret: None,
         signing_secret_env: None,
+        headers_env: std::collections::HashMap::new(),
     }
 }
 

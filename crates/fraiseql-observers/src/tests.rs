@@ -556,6 +556,18 @@ mod actions_tests {
     }
 
     #[test]
+    fn a_password_header_is_secret_and_masked_a_signature_header_is_not() {
+        // A password is a reusable credential; a per-delivery signature is not.
+        for name in ["X-Password", "x-db-password", "PASSWORD"] {
+            assert!(crate::actions::is_secret_header_name(name), "{name} is a secret name");
+        }
+        assert!(!crate::actions::is_secret_header_name("X-Hub-Signature"));
+        let headers = HashMap::from([("X-Password".to_owned(), "hunter2".to_owned())]);
+        let redacted = redact_secret_headers(&headers);
+        assert_eq!(redacted.get("X-Password").map(String::as_str), Some("<redacted>"));
+    }
+
+    #[test]
     fn redact_secret_headers_masks_substring_matches() {
         // Names containing one of the needles anywhere in the (lowercased) name
         // are redacted — false-positives (over-masking) are acceptable per the
@@ -870,6 +882,7 @@ mod matcher_tests {
                 body_template:      Some("{}".to_string()),
                 signing_secret:     None,
                 signing_secret_env: None,
+                headers_env:        std::collections::HashMap::new(),
             }],
             retry:      RetryConfig::default(),
             on_failure: FailurePolicy::Log,

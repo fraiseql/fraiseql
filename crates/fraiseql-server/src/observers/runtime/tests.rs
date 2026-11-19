@@ -30,6 +30,7 @@ fn test_action() -> ActionConfig {
         body_template:      None,
         signing_secret:     None,
         signing_secret_env: None,
+        headers_env:        std::collections::HashMap::new(),
     }
 }
 

@@ -253,3 +253,67 @@ fn a_webhook_template_reading_stored_keys_and_nested_fields_compiles() {
 
     compile(schema_declaring(&observing_with(&action))).unwrap();
 }
+
+#[test]
+fn a_header_value_taken_from_the_environment_compiles_as_the_variables_name() {
+    let action = json!({"type": "webhook", "url": "https://example.test/hook",
+                        "headers": {"X-Tenant-Id": "acme"},
+                        "headers_env": {"Authorization": "ORDER_HOOK_TOKEN"}});
+
+    let compiled = compile(schema_declaring(&observing_with(&action))).unwrap();
+
+    let observer = compiled.find_observer("order_created").expect("the observer is compiled");
+    assert_eq!(observer.actions, vec![action]);
+}
+
+/// A header whose name says it carries a credential is refused when its value is written
+/// into the schema, whatever the case of its name, and the value is not repeated.
+#[test]
+fn a_credential_header_written_into_the_schema_is_refused_naming_headers_env() {
+    for name in [
+        "Authorization",
+        "proxy-authorization",
+        "Cookie",
+        "X-API-Key",
+        "X-CSRF-Token",
+        "X-Webhook-Secret",
+        "X-Password",
+    ] {
+        let refusal = refusal_for(&json!({"type": "webhook", "url": "https://example.test/hook",
+                                           "headers": {name: "hunter2-value"}}));
+
+        assert!(refusal.contains("`order_created`"), "{name}: names the observer: {refusal}");
+        assert!(refusal.contains(name), "{name}: names the header: {refusal}");
+        assert!(refusal.contains("headers_env"), "{name}: names the way out: {refusal}");
+        assert!(!refusal.contains("hunter2-value"), "{name}: value not repeated: {refusal}");
+    }
+}
+
+#[test]
+fn a_header_named_in_both_headers_and_headers_env_is_refused_whatever_its_case() {
+    let refusal = refusal_for(&json!({"type": "webhook", "url": "https://example.test/hook",
+                                       "headers": {"x-trace": "a"},
+                                       "headers_env": {"X-Trace": "TRACE_VALUE"}}));
+
+    assert!(refusal.contains("`order_created`"), "names the observer: {refusal}");
+    assert!(refusal.to_ascii_lowercase().contains("x-trace"), "names the header: {refusal}");
+    assert!(refusal.contains("headers_env"), "names both keys: {refusal}");
+}
+
+#[test]
+fn a_headers_env_entry_naming_no_variable_is_refused() {
+    let refusal = refusal_for(&json!({"type": "webhook", "url": "https://example.test/hook",
+                                       "headers_env": {"Authorization": ""}}));
+
+    assert!(refusal.contains("Authorization"), "names the header: {refusal}");
+    assert!(refusal.contains("headers_env"), "names the key: {refusal}");
+}
+
+#[test]
+fn a_headers_env_entry_that_is_not_a_header_name_is_refused() {
+    let refusal = refusal_for(&json!({"type": "webhook", "url": "https://example.test/hook",
+                                       "headers_env": {"Bad Header:": "HOOK_TOKEN"}}));
+
+    assert!(refusal.contains("Bad Header:"), "names the header: {refusal}");
+    assert!(refusal.contains("headers_env"), "names the key: {refusal}");
+}

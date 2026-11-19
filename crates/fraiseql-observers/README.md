@@ -65,11 +65,10 @@ use std::collections::HashMap;
 let webhook_action = ActionConfig::Webhook {
     url: Some("https://example.com/webhook".to_string()),
     url_env: None,
-    headers: {
-        let mut m = HashMap::new();
-        m.insert("Authorization".to_string(), "Bearer token".to_string());
-        m
-    },
+    headers: HashMap::new(),
+    // A header whose value is read from the environment at delivery: only the
+    // variable's name is stored. An unset variable fails the delivery.
+    headers_env: HashMap::from([("Authorization".to_string(), "ORDER_HOOK_TOKEN".to_string())]),
     // Placeholders `{{ path }}` read the changed row (`event.data`), with dotted paths.
     // A string that is exactly one placeholder takes the value's JSON type ("{{ total }}"
     // -> 150); placeholders embedded in a string interpolate their text. A placeholder the
@@ -140,8 +139,8 @@ println!("Executed {} actions, {} succeeded, {} failed",
 {
   "type": "webhook",
   "url": "https://example.com/webhook",
-  "headers": {
-    "Authorization": "Bearer token"
+  "headers_env": {
+    "Authorization": "ORDER_HOOK_TOKEN"
   },
   "body_template": "{\"status\": \"{{ status }}\"}"
 }

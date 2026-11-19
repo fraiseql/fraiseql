@@ -154,7 +154,9 @@ func (b *ObserverBuilder) Register() error {
 
 // Webhook creates a webhook observer action.
 // The first argument is the URL. An optional second argument provides extra
-// configuration: method, headers, body_template, signing_secret_env.
+// configuration: method, headers, body_template, signing_secret_env, and headers_env
+// (header name to the environment variable holding its value, read by the server at
+// delivery; use it for a credential header, which the compiler refuses under headers).
 func Webhook(url string, opts ...map[string]interface{}) ObserverAction {
 	cfg := map[string]interface{}{
 		"url": url,

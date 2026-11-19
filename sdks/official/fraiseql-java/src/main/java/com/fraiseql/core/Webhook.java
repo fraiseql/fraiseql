@@ -74,4 +74,23 @@ public final class Webhook {
         action.put("signing_secret_env", envVar);
         return action;
     }
+
+    /**
+     * Send a header whose value the server reads from an environment variable at delivery.
+     * Use it for a credential ({@code Authorization}, an API key): the compiler refuses a
+     * credential header whose value is written into the schema, a build artifact.
+     *
+     * @param action action map produced by {@link #create} or {@link #withEnv}
+     * @param header the header name
+     * @param envVar environment variable holding the header's value
+     * @return the same action map
+     */
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> headerFromEnv(
+            Map<String, Object> action, String header, String envVar) {
+        ((Map<String, String>) action.computeIfAbsent(
+                "headers_env", key -> new LinkedHashMap<String, String>()))
+                .put(header, envVar);
+        return action;
+    }
 }

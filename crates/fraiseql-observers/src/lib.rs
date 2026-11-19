@@ -78,6 +78,7 @@ mod tests;
 // Re-export common types at crate level
 pub use actions::{
     ActionExecutionResult, EmailAction, SlackAction, WebhookAction, body_template_placeholders,
+    is_secret_header_name,
 };
 #[cfg(feature = "caching")]
 pub use cache::redis::{RedisCacheBackend, RedisCacheInvalidator};
@@ -187,6 +188,7 @@ mod integration_tests {
             body_template:      None,
             signing_secret:     None,
             signing_secret_env: None,
+            headers_env:        std::collections::HashMap::new(),
         };
 
         assert!(
@@ -203,6 +205,7 @@ mod integration_tests {
             body_template:      Some("{}".to_string()),
             signing_secret:     None,
             signing_secret_env: None,
+            headers_env:        std::collections::HashMap::new(),
         };
 
         valid

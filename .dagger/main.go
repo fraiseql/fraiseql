@@ -3284,6 +3284,11 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// send. Repaired in P17 (each test drives a real ObserverRuntime); gated
 		// here so it can never silently die again.
 		"cargo test -p fraiseql-server --features observers --test observer_e2e_test -- --ignored --test-threads=1",
+		// #2040: a webhook header value read from the environment at delivery, end to end
+		// through the compiler, the admin API and a real runtime. It needs this leg's
+		// private-webhook allowance (FRAISEQL_ALLOW_PRIVATE_WEBHOOKS) for the loopback
+		// receiver; `auth` for the admin principal.
+		"cargo test -p fraiseql-server --features observers,auth --test observer_headers_env_e2e_pg -- --test-threads=1",
 		// #1309: the REST /{resource}/stream fan-out, and the one assertion the issue
 		// made mandatory — open a stream AND assert the observer still fires for the
 		// same event. It lives in THIS leg rather than `integration (server)` because

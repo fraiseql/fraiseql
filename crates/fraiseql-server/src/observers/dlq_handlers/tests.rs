@@ -99,6 +99,7 @@ async fn concurrent_retry_dispatches_at_most_once() {
         body_template:      None,
         signing_secret:     None,
         signing_secret_env: None,
+        headers_env:        std::collections::HashMap::new(),
     };
     let id = runtime.dlq().push(event, action, "boom".to_string()).await.expect("push");
 
@@ -160,6 +161,7 @@ mod dlq_endpoints {
             body_template:      None,
             signing_secret:     None,
             signing_secret_env: None,
+            headers_env:        std::collections::HashMap::new(),
         }
     }
 

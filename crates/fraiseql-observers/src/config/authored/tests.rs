@@ -77,3 +77,31 @@ fn a_type_the_runtime_does_not_dispatch_is_refused_naming_it() {
 fn a_value_that_is_not_an_object_is_refused() {
     assert!(refusal(&json!("webhook")).contains("an object"));
 }
+
+#[test]
+fn a_webhook_header_value_from_the_environment_is_read() {
+    for headers_env in [
+        json!({"Authorization": "HOOK_TOKEN"}),
+        json!({}),
+        json!(null),
+    ] {
+        let action = json!({"type": "webhook", "url": "https://example.test/hook",
+                            "headers_env": headers_env});
+        let read = ActionConfig::from_authored(&action);
+        assert!(read.is_ok(), "{action} is refused: {read:?}");
+    }
+}
+
+#[test]
+fn a_webhook_headers_env_the_dispatcher_could_not_send_is_refused_naming_the_header() {
+    for (headers, headers_env, named) in [
+        (json!({}), json!({"Authorization": " "}), "Authorization"),
+        (json!({}), json!({"Bad Header:": "HOOK_TOKEN"}), "Bad Header:"),
+        (json!({"x-trace": "a"}), json!({"X-Trace": "TRACE"}), "X-Trace"),
+    ] {
+        let refusal = refusal(&json!({"type": "webhook", "url": "https://example.test/hook",
+                                      "headers": headers, "headers_env": headers_env}));
+        assert!(refusal.contains(named), "names `{named}`: {refusal}");
+        assert!(refusal.contains("headers_env"), "names the key: {refusal}");
+    }
+}

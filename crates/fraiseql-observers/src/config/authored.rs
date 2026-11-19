@@ -17,6 +17,12 @@ use crate::error::{ObserverError, Result};
 const UNDISPATCHED_KEYS: &[(&str, &[&str])] =
     &[("email", &["to_template", "subject_template", "reply_to"])];
 
+/// Keys an action type holds and does not serialize when empty, by action type.
+///
+/// The keys an action holds are read from its serialization, and an empty one of these is
+/// not there: written as an empty map, it is still a key the action holds.
+const OMITTED_WHEN_EMPTY: &[(&str, &[&str])] = &[("webhook", &["headers_env"])];
+
 impl ActionConfig {
     /// Read an action as written, refusing one the runtime would not run as written.
     ///
@@ -38,10 +44,17 @@ impl ActionConfig {
 
         let held = serde_json::to_value(&read)
             .map_err(|e| invalid(format!("the action does not serialize: {e}")))?;
-        let held: Vec<&str> = held
+        let mut held: Vec<&str> = held
             .as_object()
             .map(|keys| keys.keys().map(String::as_str).collect())
             .unwrap_or_default();
+        let omitted: Vec<&str> = OMITTED_WHEN_EMPTY
+            .iter()
+            .filter(|(action_type, _)| *action_type == read.action_type())
+            .flat_map(|(_, keys)| keys.iter().copied())
+            .filter(|key| !held.contains(key))
+            .collect();
+        held.extend(omitted);
         if let Some(unread) = authored.keys().find(|key| !held.contains(&key.as_str())) {
             return Err(invalid(format!(
                 "`{unread}` is not a key of a `{}` action, and the runtime would ignore it. \

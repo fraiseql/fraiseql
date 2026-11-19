@@ -175,7 +175,8 @@ const REDACTED_PLACEHOLDER: &str = "[REDACTED]";
 ///
 /// - every webhook `headers` **value** (e.g. `Authorization: Bearer …`), keeping the header names;
 /// - the per-subscription webhook `signing_secret` **literal** (#467), a secret stored at rest.
-///   (`signing_secret_env` is only an env-var *name*, not a secret, and is left visible.)
+///   (`signing_secret_env` and `headers_env` hold env-var *names*, not secrets, and are left
+///   visible.)
 ///
 /// Non-array `actions` and non-object entries are left untouched.
 fn redact_action_secrets(actions: &mut serde_json::Value) {
@@ -425,6 +426,12 @@ pub enum ActionConfig {
         /// (#466 round-trip).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         headers:            Option<std::collections::HashMap<String, String>>,
+        /// Headers whose value the runtime reads from the environment at delivery: header
+        /// name to environment variable *name*. Only the names are stored, and they are
+        /// shown in admin-API responses: a name is not a secret. Consumed by the runtime's
+        /// `fraiseql_observers::ActionConfig::Webhook`, which this type must carry it to.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        headers_env:        Option<std::collections::HashMap<String, String>>,
         /// Optional Handlebars body template.
         #[serde(default)]
         body_template:      Option<String>,

@@ -191,6 +191,19 @@ describe("webhook action", () => {
     expect(action.signing_secret_env).toBe("ORDER_HOOK_SECRET");
   });
 
+  it("should take a header value from an environment variable, by name", () => {
+    const action = webhook("https://example.com", {
+      headers_env: { Authorization: "ORDER_HOOK_TOKEN" },
+    });
+
+    expect(action.headers_env).toEqual({ Authorization: "ORDER_HOOK_TOKEN" });
+    expect(action.headers).toEqual({ "Content-Type": "application/json" });
+  });
+
+  it("should emit no headers_env when none is given", () => {
+    expect("headers_env" in webhook("https://example.com")).toBe(false);
+  });
+
   it("should emit only keys the observer runtime reads", () => {
     const action = webhook("https://example.com", {
       url_env: "ORDER_WEBHOOK_URL",
@@ -198,11 +211,13 @@ describe("webhook action", () => {
       headers: { "X-Source": "fraiseql" },
       body_template: '{"order_id": "{{ id }}"}',
       signing_secret_env: "ORDER_HOOK_SECRET",
+      headers_env: { Authorization: "ORDER_HOOK_TOKEN" },
     });
 
     expect(Object.keys(action).sort()).toEqual([
       "body_template",
       "headers",
+      "headers_env",
       "method",
       "signing_secret_env",
       "type",

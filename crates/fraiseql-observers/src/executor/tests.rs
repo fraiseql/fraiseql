@@ -346,6 +346,7 @@ fn webhook_action() -> ActionConfig {
         body_template:      None,
         signing_secret:     None,
         signing_secret_env: None,
+        headers_env:        std::collections::HashMap::new(),
     }
 }
 
@@ -775,6 +776,7 @@ async fn test_dispatch_webhook_missing_url_returns_invalid_config() {
         body_template:      None,
         signing_secret:     None,
         signing_secret_env: None,
+        headers_env:        std::collections::HashMap::new(),
     };
     let event = test_event();
 
@@ -797,6 +799,7 @@ async fn test_dispatch_webhook_url_env_var_missing_returns_error_with_var_name()
         body_template:      None,
         signing_secret:     None,
         signing_secret_env: None,
+        headers_env:        std::collections::HashMap::new(),
     };
     let event = test_event();
 
@@ -1536,8 +1539,57 @@ async fn test_action_timeout_fires_when_dispatcher_is_slow() {
 mod dispatch_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code — panics are intentional
 
-    use super::dispatch::{resolve_signing_secret, resolve_url};
+    use std::collections::HashMap;
+
+    use super::dispatch::{resolve_headers, resolve_signing_secret, resolve_url};
     use crate::error::ObserverError;
+
+    fn map(entries: &[(&str, &str)]) -> HashMap<String, String> {
+        entries.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect()
+    }
+
+    #[test]
+    fn a_header_value_is_read_from_its_variable_beside_the_literal_headers() {
+        temp_env::with_var("FRAISEQL_TEST_HOOK_TOKEN", Some("Bearer t0k"), || {
+            let sent = resolve_headers(
+                &map(&[("X-Tenant-Id", "acme")]),
+                &map(&[("Authorization", "FRAISEQL_TEST_HOOK_TOKEN")]),
+            )
+            .unwrap();
+            assert_eq!(sent, map(&[("X-Tenant-Id", "acme"), ("Authorization", "Bearer t0k")]));
+        });
+    }
+
+    #[test]
+    fn a_header_whose_variable_is_unset_or_empty_fails_naming_the_header_not_a_value() {
+        for value in [None, Some("")] {
+            temp_env::with_var("FRAISEQL_TEST_HOOK_TOKEN_UNSET", value, || {
+                let refused = resolve_headers(
+                    &HashMap::new(),
+                    &map(&[("Authorization", "FRAISEQL_TEST_HOOK_TOKEN_UNSET")]),
+                );
+                let Err(ObserverError::InvalidActionConfig { reason }) = refused else {
+                    panic!("{value:?}: must fail closed, got {refused:?}");
+                };
+                assert!(reason.contains("`Authorization`"), "{reason}");
+                assert!(reason.contains("FRAISEQL_TEST_HOOK_TOKEN_UNSET"), "{reason}");
+            });
+        }
+    }
+
+    #[test]
+    fn a_header_named_in_both_maps_is_refused_at_dispatch_too() {
+        temp_env::with_var("FRAISEQL_TEST_TRACE", Some("t"), || {
+            let refused = resolve_headers(
+                &map(&[("x-trace", "a")]),
+                &map(&[("X-Trace", "FRAISEQL_TEST_TRACE")]),
+            );
+            assert!(
+                matches!(refused, Err(ObserverError::InvalidActionConfig { .. })),
+                "{refused:?}"
+            );
+        });
+    }
 
     #[test]
     fn signing_secret_none_when_unconfigured() {
