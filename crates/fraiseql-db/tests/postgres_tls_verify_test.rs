@@ -1,4 +1,3 @@
-#![cfg(feature = "postgres")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::missing_const_for_fn)] // Reason: test code.
 
 //! The verifying half of the database-TLS contract, against a **real** TLS

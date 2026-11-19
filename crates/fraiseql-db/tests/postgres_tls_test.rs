@@ -1,4 +1,3 @@
-#![cfg(feature = "postgres")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::missing_const_for_fn)] // Reason: test code.
 
 //! Transport security for the PostgreSQL pool is a *property of the connection*,

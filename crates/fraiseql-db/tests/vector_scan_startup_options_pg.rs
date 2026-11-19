@@ -1,4 +1,3 @@
-#![cfg(feature = "postgres")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code, panics are acceptable
 
 //! #1116: the pgvector scan settings reach the server, on every connection a pool

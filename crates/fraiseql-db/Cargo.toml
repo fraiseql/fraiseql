@@ -87,3 +87,68 @@ version.workspace = true
 # page the whole crate.
 [package.metadata.docs.rs]
 all-features = true
+
+# Suites that need the `postgres` feature: they import `fraiseql_db::postgres` or
+# `tokio_postgres`, or test what only it builds. `postgres` is a default feature, so
+# every default and CI build compiles and runs them as before. Without it, cargo now
+# skips them instead of failing to compile them, and the `db-no-default`
+# feature-matrix combo builds every test target that way.
+#
+# `required-features` rather than a file-level `#![cfg]`: it is the form
+# tools/check-suite-coverage.py can see, and a `#![cfg]` placed before the crate's
+# `//!` doc left an empty crate that failed `missing_docs`.
+[[test]]
+name = "adapter_parity_test"
+required-features = ["postgres"]
+
+[[test]]
+name = "changelog_diagnostics_test"
+required-features = ["postgres"]
+
+[[test]]
+name = "changelog_duration_test"
+required-features = ["postgres"]
+
+[[test]]
+name = "changelog_outbox_test"
+required-features = ["postgres"]
+
+[[test]]
+name = "commit_gate_rollback_test"
+required-features = ["postgres"]
+
+[[test]]
+name = "dialect_properties"
+required-features = ["postgres"]
+
+[[test]]
+name = "dialect_snapshots"
+required-features = ["postgres"]
+
+[[test]]
+name = "dry_run_rollback_test"
+required-features = ["postgres"]
+
+[[test]]
+name = "postgres_column_decode_test"
+required-features = ["postgres"]
+
+[[test]]
+name = "postgres_tls_test"
+required-features = ["postgres"]
+
+[[test]]
+name = "postgres_tls_verify_test"
+required-features = ["postgres"]
+
+[[test]]
+name = "prepare_error_diagnostic"
+required-features = ["postgres"]
+
+[[test]]
+name = "seed_fixture_integrity"
+required-features = ["postgres"]
+
+[[test]]
+name = "vector_scan_startup_options_pg"
+required-features = ["postgres"]

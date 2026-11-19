@@ -1,4 +1,3 @@
-#![cfg(feature = "postgres")]
 #![allow(clippy::unwrap_used, clippy::print_stderr, clippy::panic)] // Reason: test code, panics are acceptable
 
 //! Regression proof for #451: a statement-prepare failure must surface the real

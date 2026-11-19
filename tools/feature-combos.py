@@ -39,7 +39,7 @@ from pathlib import Path
 # The normalised `cargoArgs()` body this parser mirrors. Recompute with
 # `tools/feature-combos.py --print-cargo-args-hash` after an intentional change,
 # and check that the reproduction below still matches.
-CARGO_ARGS_HASH = "77af505746dd26fbb6ce0207192fb8bf2fc1a8c0c3d462c89a1147e1b909c624"
+CARGO_ARGS_HASH = "556e247df66280f5637df457b286d66ccf3a589685c4877f28e76deae8d9e2bb"
 
 GO_SOURCE = Path(".dagger/feature-combos.go")
 
@@ -54,14 +54,14 @@ CARGO_ARGS_RE = re.compile(
 LITERAL_RE = re.compile(r"^\s*\{name:.*\},\s*$")
 
 STRING_FIELD_RE = re.compile(r'\b(name|crate): "([^"]*)"')
-BOOL_FIELD_RE = re.compile(r"\b(noDefaultFeatures|clippy|allTargets): (true|false)")
+BOOL_FIELD_RE = re.compile(r"\b(noDefaultFeatures|clippy|allTargets|keepGoing): (true|false)")
 LIST_FIELD_RE = re.compile(r"\b(features): \[\]string\{([^}]*)\}")
 ELEMENT_RE = re.compile(r'"([^"]*)"')
 # Every `key:` in the literal, so a field this parser does not model is reported
 # instead of dropped.
 ANY_FIELD_RE = re.compile(r"\b([a-zA-Z][a-zA-Z0-9_]*): ")
 
-KNOWN_FIELDS = {"name", "crate", "features", "noDefaultFeatures", "clippy", "allTargets"}
+KNOWN_FIELDS = {"name", "crate", "features", "noDefaultFeatures", "clippy", "allTargets", "keepGoing"}
 
 
 class ParseError(Exception):
@@ -117,6 +117,7 @@ def parse_literal(line: str, lineno: int) -> dict:
         "noDefaultFeatures": False,
         "clippy": False,
         "allTargets": False,
+        "keepGoing": False,
     }
     for key, value in STRING_FIELD_RE.findall(line):
         combo[key] = value
@@ -142,6 +143,8 @@ def cargo_args(combo: dict) -> list[str]:
         args.append("--no-default-features")
     if combo["features"]:
         args += ["--features", ",".join(combo["features"])]
+    if combo["keepGoing"]:
+        args.append("--keep-going")
     if combo["allTargets"] and not combo["clippy"]:
         args.append("--all-targets")
     if combo["clippy"]:

@@ -1,4 +1,3 @@
-#![cfg(feature = "postgres")]
 #![allow(clippy::unwrap_used, clippy::print_stderr, clippy::panic)] // Reason: test code, panics are acceptable
 
 //! Behavioural proof of the canonical `duration_ms` computation

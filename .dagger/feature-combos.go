@@ -74,6 +74,10 @@ type featureCombo struct {
 	// compares what each combo names with what cargo enables, and runs first in
 	// FeatureMatrix.
 	allTargets bool
+	// keepGoing adds `--keep-going`, so a combo that fails reports every target that
+	// does not compile rather than the first. For a combo whose failures come one per
+	// test target, the first error alone hides how many there are.
+	keepGoing bool
 }
 
 // featureCombos is the whole matrix, ported verbatim from feature-flags.yml:
@@ -201,6 +205,11 @@ var featureCombos = []featureCombo{
 	// in every build of the test targets; no dev-dependency turns on `postgres`, here or
 	// in fraiseql-db, so the suites that need it are the ones this build leaves out.
 	{name: "core-no-default", crate: "fraiseql-core", noDefaultFeatures: true, allTargets: true, features: []string{"test-utils"}},
+	// The same for fraiseql-db: its test targets without the defaults. Fourteen of them
+	// needed `postgres` without declaring it, ten behind a `#![cfg]` placed before the
+	// crate's `//!` doc, which left an empty crate that failed `missing_docs`. No
+	// dev-dependency turns on a fraiseql-db feature, so the build has none.
+	{name: "db-no-default", crate: "fraiseql-db", noDefaultFeatures: true, allTargets: true, keepGoing: true},
 
 	// ── storage: storage-matrix (cargo check -p fraiseql-storage --no-default-features) ──
 	{name: "storage-transforms", crate: "fraiseql-storage", noDefaultFeatures: true, features: []string{"transforms"}},
@@ -300,6 +309,9 @@ func (c featureCombo) cargoArgs() []string {
 	}
 	if len(c.features) > 0 {
 		args = append(args, "--features", strings.Join(c.features, ","))
+	}
+	if c.keepGoing {
+		args = append(args, "--keep-going")
 	}
 	if c.allTargets && !c.clippy {
 		args = append(args, "--all-targets")

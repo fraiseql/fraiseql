@@ -73,3 +73,4 @@
 #2096  tests and CI: fraiseql-server's test targets build without the crate defaults, and each feature-matrix combo is checked to build the features it names; no shipped artifact changes
 #1966  tests and CI: fraiseql-core's test targets build without the crate defaults, and a feature-matrix combo builds them that way; no shipped artifact changes
 #2103  tests and CI: Makefile lines that ran `--ignored` on targets with no ignored test run their suites or are removed, and a gate refuses such a line; no shipped artifact changes
+#1922  tests and CI: fraiseql-db's test targets build without the crate defaults, and a feature-matrix combo builds them that way; no shipped artifact changes
