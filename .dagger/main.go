@@ -704,6 +704,11 @@ func (m *FraiseqlCi) ShellGates(
 		// leg that executes it (it parses THIS file, so legs and gate cannot
 		// drift). Retrospective rule 1 of the 2026-07-27 program.
 		"python3 tools/check-suite-coverage.py",
+		// Every `-- --ignored` line names a target with an `#[ignore]` test; on one
+		// with none it runs 0 tests and exits 0 (#2103). Reads this file, the
+		// workflows and the Makefile; the pin runs it over a fixture crate.
+		"python3 tools/check-ignored-lines.py",
+		"make test-ignored-lines-gate",
 		// …and the red-capability pin for its GitHub Actions side (#1120): a
 		// workflow can look like coverage and provide none.
 		"make test-suite-coverage-workflows",
@@ -3257,13 +3262,13 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// (no --ignored) so the NOTIFY transport tests exercise the bound Postgres.
 		"bash tools/ci-target-canary.sh -- test -p fraiseql-observers --lib postgres_notify", // #880 canary
 		"cargo test -p fraiseql-observers --lib postgres_notify -- --test-threads=1",
-		// Lease/storage: kept as the legacy `--lib --ignored` no-op. Those tests are
-		// skip-on-None (not #[ignore]d) so this runs 0; running them unfiltered pulls in
-		// the SSRF-guard unit tests, which assert the guard is ON and so fail under this
-		// suite's FRAISEQL_OBSERVERS_ALLOW_INSECURE=true. Lease coverage gap == legacy.
+		// The crate's `#[ignore]`d lib tests, 14 against the bound Postgres:
+		// `listener::replay`'s and the `database` action's. Not a plain `--lib` run:
+		// that pulls in the SSRF-guard unit tests, which assert the guard is ON and so
+		// fail under this suite's FRAISEQL_OBSERVERS_ALLOW_INSECURE=true.
 		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --lib -- --ignored --test-threads=1",
-		// #1297 closes the gap the comment above records. The four advisory-lease
-		// tests are skip-on-None, so the `--ignored` line runs none of them; a
+		// #1297: the four advisory-lease tests are skip-on-None, not `#[ignore]`d, so
+		// the `--ignored` line above runs none of them; a
 		// NAME-FILTERED plain run reaches them without pulling in the SSRF-guard
 		// unit tests that fail under this suite's FRAISEQL_OBSERVERS_ALLOW_INSECURE.
 		// This leg binds both Postgres and Redis, so both halves execute here.
