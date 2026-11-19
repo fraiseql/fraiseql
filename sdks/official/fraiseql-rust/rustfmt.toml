@@ -1,7 +1,7 @@
 # Stable-only rustfmt config for the fraiseql-rust SDK.
 # This file takes precedence over the root .rustfmt.toml, which contains
-# nightly-only options. The SDK CI runs cargo fmt --check on stable and beta,
-# so only stable-compatible options are used here to avoid format drift.
+# nightly-only options. The SDK CI runs cargo fmt --check on the SDK's rust-version and
+# stable, so only stable-compatible options are used here to avoid format drift.
 
 chain_width = 80
 edition = "2021"

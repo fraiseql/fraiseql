@@ -28,8 +28,23 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
+from pathlib import Path
+
+
+def rust_sdk_msrv() -> str:
+    """The Rust SDK's `rust-version`, read from its manifest, so a bump moves the row."""
+    manifest = (
+        Path(__file__).absolute().parent.parent
+        / "sdks/official/fraiseql-rust/fraiseql-client/Cargo.toml"
+    )
+    m = re.search(r'^rust-version\s*=\s*"([^"]+)"', manifest.read_text(), re.MULTILINE)
+    if not m:
+        raise SystemExit(f"{manifest}: no `rust-version`; the rust matrix row reads it")
+    return m.group(1)
+
 
 # key → toolchain versions. The key is the SDK's directory without `fraiseql-`, and
 # the argument `tools/sdk-suite.sh` takes. Both ends of each supported range, as the
@@ -45,7 +60,9 @@ VERSIONS: dict[str, list[str]] = {
     "php": ["8.2", "8.3"],
     "python": ["3.10", "3.11", "3.12", "3.13"],
     "ruby": ["3.2", "3.3"],
-    "rust": ["stable", "beta"],
+    # The SDK's `rust-version` and stable. Each row sets RUSTUP_TOOLCHAIN, since the
+    # repository's rust-toolchain.toml would otherwise decide the compiler.
+    "rust": [rust_sdk_msrv(), "stable"],
     "typescript": ["20", "22"],
 }
 
