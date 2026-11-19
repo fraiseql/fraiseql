@@ -80,7 +80,7 @@ type featureCombo struct {
 //   - server: the `feature-matrix` job — `cargo check -p fraiseql-server`, crate
 //     defaults ON, except the explicit `--no-default-features` case: the entries of
 //     feature-flags.yml, plus the combos added since, each with its reason.
-//   - core    (7):  the `database-matrix` job — `cargo check -p fraiseql-core
+//   - core    (5):  the `database-matrix` job — `cargo check -p fraiseql-core
 //     --no-default-features --features …`.
 //   - storage (3):  the `storage-matrix` job — `cargo check -p fraiseql-storage
 //     --no-default-features --features …`.
@@ -193,6 +193,14 @@ var featureCombos = []featureCombo{
 	{name: "core-postgres-audit-syslog", crate: "fraiseql-core", noDefaultFeatures: true, features: []string{"postgres", "audit-syslog"}},
 	{name: "core-postgres-audit-webhook", crate: "fraiseql-core", noDefaultFeatures: true, features: []string{"postgres", "audit-webhook"}},
 	{name: "core-postgres-jwt-replay", crate: "fraiseql-core", noDefaultFeatures: true, features: []string{"postgres", "jwt-replay"}},
+	// The crate's test targets without the defaults. The combos above build the
+	// lib only, so a suite importing `fraiseql_core::db::postgres` without
+	// `required-features = ["postgres"]` broke `--no-default-features` builds of the test
+	// targets and nothing noticed: 39 suites had, after an earlier round fixed 11.
+	// `test-utils` is named because the `fraiseql-test-utils` dev-dependency turns it on
+	// in every build of the test targets; no dev-dependency turns on `postgres`, here or
+	// in fraiseql-db, so the suites that need it are the ones this build leaves out.
+	{name: "core-no-default", crate: "fraiseql-core", noDefaultFeatures: true, allTargets: true, features: []string{"test-utils"}},
 
 	// ── storage: storage-matrix (cargo check -p fraiseql-storage --no-default-features) ──
 	{name: "storage-transforms", crate: "fraiseql-storage", noDefaultFeatures: true, features: []string{"transforms"}},

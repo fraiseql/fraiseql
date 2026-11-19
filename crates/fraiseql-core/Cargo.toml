@@ -212,12 +212,63 @@ required-features = ["federation"]
 # `--no-default-features` did not merely skip them, it failed to compile the
 # crate's test targets at all: 11 binaries, 219 errors, 11 of them
 # `E0432: unresolved import` and the remaining 208 `E0282` fallout from the
-# failed imports (#1083).
+# failed imports (#1083). Nothing built that shape afterwards, and 39 more
+# suites went in without the declaration. The `core-no-default` feature-matrix
+# combo now builds every test target without the defaults, so a suite added
+# here without it fails there.
 #
 # `required-features` rather than a file-level `#![cfg]`: it is the form
 # `tools/check-suite-coverage.py` can see, and the one #1082 settled on. Same
 # declaration the `adapter_comparison` and `full_pipeline_comparison` benches
 # above already carry for the same reason.
+[[test]]
+name = "aggregate_decimal_digits_pg"
+required-features = ["postgres"]
+
+[[test]]
+name = "aggregate_dimension_paths"
+required-features = ["postgres"]
+
+[[test]]
+name = "aggregate_hierarchy_filters"
+required-features = ["postgres"]
+
+[[test]]
+name = "aggregate_inline_arguments_pg"
+required-features = ["postgres"]
+
+[[test]]
+name = "aggregate_native_dimension_mapping"
+required-features = ["postgres"]
+
+[[test]]
+name = "aggregate_numeric_parameters_pg"
+required-features = ["postgres"]
+
+[[test]]
+name = "aggregate_output_alias_casing"
+required-features = ["postgres"]
+
+[[test]]
+name = "aggregate_page_bounds"
+required-features = ["postgres"]
+
+[[test]]
+name = "aggregate_temporal_bucket_pg"
+required-features = ["postgres"]
+
+[[test]]
+name = "aggregate_tree_grouping"
+required-features = ["postgres"]
+
+[[test]]
+name = "argument_value_types_postgres"
+required-features = ["postgres"]
+
+[[test]]
+name = "atomic_batch_pg"
+required-features = ["postgres"]
+
 [[test]]
 name = "cache_rls_isolation_test"
 required-features = ["postgres"]
@@ -255,11 +306,79 @@ name = "error_real_database"
 required-features = ["postgres"]
 
 [[test]]
+name = "function_backed_nested_selection_pg"
+required-features = ["postgres"]
+
+[[test]]
+name = "function_root_pg"
+required-features = ["postgres"]
+
+[[test]]
+name = "locale_collation"
+required-features = ["postgres"]
+
+[[test]]
+name = "locale_localized_aggregate"
+required-features = ["postgres"]
+
+[[test]]
+name = "locale_localized_filter_sort"
+required-features = ["postgres"]
+
+[[test]]
+name = "locale_localized_index"
+required-features = ["postgres"]
+
+[[test]]
+name = "locale_localized_read"
+required-features = ["postgres"]
+
+[[test]]
+name = "locale_localized_write"
+required-features = ["postgres"]
+
+[[test]]
+name = "locale_translations_gate"
+required-features = ["postgres"]
+
+[[test]]
+name = "mutation_decimal_digits_pg"
+required-features = ["postgres"]
+
+[[test]]
+name = "mutation_error_shape_check"
+required-features = ["postgres"]
+
+[[test]]
 name = "mutation_projection_parity"
 required-features = ["postgres"]
 
 [[test]]
+name = "nearest_short_result_pg"
+required-features = ["postgres"]
+
+[[test]]
 name = "nested_list_query_integration"
+required-features = ["postgres"]
+
+[[test]]
+name = "non_null_completion"
+required-features = ["postgres"]
+
+[[test]]
+name = "null_arguments_pg"
+required-features = ["postgres"]
+
+[[test]]
+name = "offset_ceiling_aggregate"
+required-features = ["postgres"]
+
+[[test]]
+name = "order_by_field_enum"
+required-features = ["postgres"]
+
+[[test]]
+name = "order_by_literal_order_pg"
 required-features = ["postgres"]
 
 [[test]]
@@ -271,7 +390,35 @@ name = "query_alias_projection_parity"
 required-features = ["postgres"]
 
 [[test]]
+name = "query_hierarchy_operators"
+required-features = ["postgres"]
+
+[[test]]
+name = "query_node_bare_uuid"
+required-features = ["postgres"]
+
+[[test]]
+name = "query_null_nested_object"
+required-features = ["postgres"]
+
+[[test]]
+name = "relay_keyset_seek"
+required-features = ["postgres"]
+
+[[test]]
+name = "relay_keyset_walk"
+required-features = ["postgres"]
+
+[[test]]
+name = "row_query_decimal_pg"
+required-features = ["postgres"]
+
+[[test]]
 name = "selection_conformance_postgres"
+required-features = ["postgres"]
+
+[[test]]
+name = "semi_additive_aggregate_pg"
 required-features = ["postgres"]
 
 [[test]]
@@ -284,6 +431,18 @@ required-features = ["postgres"]
 
 [[test]]
 name = "sql_snapshots"
+required-features = ["postgres"]
+
+[[test]]
+name = "standby_unreadable_sources"
+required-features = ["postgres"]
+
+[[test]]
+name = "string_field_fidelity_postgres"
+required-features = ["postgres"]
+
+[[test]]
+name = "where_native_column_pg"
 required-features = ["postgres"]
 
 [[test]]
