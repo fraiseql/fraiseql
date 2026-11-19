@@ -65,3 +65,4 @@
 #1913  test-only: a server-level SAML ACS e2e with a SHA-256 signing fixture; no shipped behaviour changes
 #1914  CI: Rust legs start the sccache server before cargo does and compile uncached, with a warning, when none answers; CI only, no shipped artifact changes
 #2045  CI: the unknown-key lint names the test that pins each hand-written `Deserialize` it reaches; CI only, no shipped artifact changes
+#2052  test-only: every fraiseql.toml in the repository validates against the committed JSON Schema, through a jsonschema dev-dependency; no shipped artifact changes

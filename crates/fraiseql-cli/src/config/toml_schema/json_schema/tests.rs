@@ -435,3 +435,249 @@ fn the_schema_is_identified_by_this_releases_url() {
         )
     );
 }
+
+// ── every fraiseql.toml in the repository ────────────────────────────────────────
+
+/// A `fraiseql.toml` the repository keeps invalid on purpose, by its path from the repository
+/// root, with the reason. An entry whose file validates, or is gone, is reported, so the list
+/// cannot outlive the files it excuses.
+const INVALID_ON_PURPOSE: &[(&str, &str)] = &[];
+
+/// Directories the walk does not enter: version control, build output and installed packages,
+/// none of which the repository authors.
+const NOT_AUTHORED: &[&str] = &[".git", "target", "node_modules"];
+
+/// Every file named `fraiseql.toml` under `root`, by its path from it, sorted. The walk reads
+/// the tree rather than git's index, which CI's source does not carry.
+fn toml_files_under(root: &std::path::Path) -> Vec<String> {
+    let mut found: Vec<String> = walkdir::WalkDir::new(root)
+        .into_iter()
+        .filter_entry(|entry| {
+            entry.depth() == 0
+                || !entry.file_type().is_dir()
+                || !NOT_AUTHORED.iter().any(|name| entry.file_name() == *name)
+        })
+        .map(Result::unwrap)
+        .filter(|entry| entry.file_type().is_file() && entry.file_name() == "fraiseql.toml")
+        .map(|entry| entry.path().strip_prefix(root).unwrap().to_string_lossy().replace('\\', "/"))
+        .collect();
+    found.sort();
+    found
+}
+
+/// A TOML value as an editor validates it: a date or time is its text. A float JSON cannot
+/// hold (`nan`, `inf`) is `null`.
+fn as_json(value: &toml::Value) -> serde_json::Value {
+    match value {
+        toml::Value::String(text) => text.clone().into(),
+        toml::Value::Integer(integer) => (*integer).into(),
+        toml::Value::Float(float) => serde_json::Number::from_f64(*float)
+            .map_or(serde_json::Value::Null, serde_json::Value::Number),
+        toml::Value::Boolean(boolean) => (*boolean).into(),
+        toml::Value::Datetime(datetime) => datetime.to_string().into(),
+        toml::Value::Array(items) => items.iter().map(as_json).collect(),
+        toml::Value::Table(table) => {
+            table.iter().map(|(key, value)| (key.clone(), as_json(value))).collect()
+        },
+    }
+}
+
+/// What is wrong with the `fraiseql.toml` files under `root`, judged by `schema`: a file it
+/// refuses (where in the file, and why), a file that is not TOML, an entry of
+/// `invalid_on_purpose` that is stale or gives no reason, or no file at all. Empty when every
+/// file is as listed.
+///
+/// A file is judged as written: a `${VAR}` placeholder is not expanded, as the compiler leaves
+/// one it cannot expand, so the verdict never depends on the environment it runs in.
+fn findings(
+    root: &std::path::Path,
+    schema: &serde_json::Value,
+    invalid_on_purpose: &[(&str, &str)],
+) -> Vec<String> {
+    let validator = jsonschema::draft202012::new(schema).unwrap();
+    let files = toml_files_under(root);
+    let mut findings = Vec::new();
+    if files.is_empty() {
+        findings.push(format!("no fraiseql.toml found under {}", root.display()));
+    }
+    for file in &files {
+        let text = std::fs::read_to_string(root.join(file)).unwrap();
+        let refusals: Vec<String> = match toml::from_str::<toml::Table>(&text) {
+            Err(error) => vec![format!("{file}: not TOML: {error}")],
+            Ok(table) => {
+                let instance = as_json(&toml::Value::Table(table));
+                validator
+                    .iter_errors(&instance)
+                    .map(|error| {
+                        let at = error.instance_path().as_str();
+                        format!("{file} at `{}`: {error}", if at.is_empty() { "/" } else { at })
+                    })
+                    .collect()
+            },
+        };
+        let listed = invalid_on_purpose.iter().any(|(path, _)| path == file);
+        match (listed, refusals.is_empty()) {
+            (false, false) => findings.extend(refusals),
+            (true, true) => findings.push(format!(
+                "{file} is listed as invalid on purpose but validates: remove its entry"
+            )),
+            _ => {},
+        }
+    }
+    for (path, reason) in invalid_on_purpose {
+        if !files.iter().any(|file| file == path) {
+            findings.push(format!(
+                "{path} is listed as invalid on purpose but is not a fraiseql.toml under the \
+                 repository: remove its entry"
+            ));
+        }
+        if reason.trim().is_empty() {
+            findings.push(format!("{path} is listed as invalid on purpose with no reason"));
+        }
+    }
+    findings
+}
+
+/// Every `fraiseql.toml` the repository holds validates against the committed schema, so an
+/// editor never flags a file the compiler takes. The schema is checked against the parser key
+/// by key; this checks it value by value, on the files the repository ships as examples.
+#[test]
+fn every_fraiseql_toml_in_the_repository_validates_against_the_committed_schema() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let committed: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(root.join(TOML_JSON_SCHEMA_PATH)).unwrap())
+            .unwrap();
+    let findings = findings(&root.canonicalize().unwrap(), &committed, INVALID_ON_PURPOSE);
+    assert!(
+        findings.is_empty(),
+        "fraiseql.toml files the committed schema refuses. Fix the schema's type (a \
+         `Deserialize` taking a shape its `JsonSchema` does not describe), or list a file kept \
+         invalid on purpose in INVALID_ON_PURPOSE with its reason. A file git does not track \
+         is judged too: delete it.\n{}",
+        findings.join("\n")
+    );
+}
+
+/// A tree of `(path, contents)` files in a fresh directory.
+fn tree(files: &[(&str, &str)]) -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    for (path, contents) in files {
+        let path = dir.path().join(path);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, contents).unwrap();
+    }
+    dir
+}
+
+const VALID: &str = "[project]\nname = \"shop\"\n";
+const MISSPELT: &str = "[project]\nnmae = \"shop\"\n";
+
+fn judged(files: &[(&str, &str)], invalid_on_purpose: &[(&str, &str)]) -> Vec<String> {
+    let dir = tree(files);
+    findings(dir.path(), &toml_json_schema(), invalid_on_purpose)
+}
+
+#[test]
+fn a_valid_file_has_no_finding() {
+    assert_eq!(judged(&[("a/fraiseql.toml", VALID)], &[]), Vec::<String>::new());
+}
+
+#[test]
+fn a_refused_file_is_named_with_where_and_why() {
+    let findings = judged(&[("a/fraiseql.toml", VALID), ("b/fraiseql.toml", MISSPELT)], &[]);
+    assert_eq!(findings.len(), 1, "{findings:?}");
+    assert!(
+        findings[0].strip_prefix("b/fraiseql.toml at `/project`: ").is_some(),
+        "{findings:?}"
+    );
+    assert!(findings[0].contains("nmae"), "{findings:?}");
+}
+
+#[test]
+fn a_file_that_is_not_toml_is_a_finding() {
+    let findings = judged(&[("fraiseql.toml", "[project\n")], &[]);
+    assert_eq!(findings.len(), 1, "{findings:?}");
+    assert!(findings[0].strip_prefix("fraiseql.toml: not TOML: ").is_some(), "{findings:?}");
+}
+
+#[test]
+fn a_placeholder_is_judged_as_written() {
+    let file = "[database]\nurl = \"${FRAISEQL_UNSET_PLACEHOLDER}\"\n";
+    assert_eq!(judged(&[("fraiseql.toml", file)], &[]), Vec::<String>::new());
+}
+
+#[test]
+fn a_file_listed_as_invalid_on_purpose_is_not_reported() {
+    let listed = [("b/fraiseql.toml", "a refusal fixture")];
+    assert_eq!(judged(&[("b/fraiseql.toml", MISSPELT)], &listed), Vec::<String>::new());
+}
+
+/// The list is by path: an entry excuses its own file and no other.
+#[test]
+fn a_listing_excuses_only_its_own_file() {
+    let listed = [("b/fraiseql.toml", "a refusal fixture")];
+    let findings = judged(&[("b/fraiseql.toml", MISSPELT), ("c/fraiseql.toml", MISSPELT)], &listed);
+    assert_eq!(findings.len(), 1, "{findings:?}");
+    assert!(
+        findings[0].strip_prefix("c/fraiseql.toml at `/project`: ").is_some(),
+        "{findings:?}"
+    );
+}
+
+#[test]
+fn a_listed_file_that_validates_is_stale() {
+    let listed = [("a/fraiseql.toml", "a refusal fixture")];
+    let findings = judged(&[("a/fraiseql.toml", VALID)], &listed);
+    assert_eq!(
+        findings,
+        ["a/fraiseql.toml is listed as invalid on purpose but validates: remove its entry"]
+    );
+}
+
+#[test]
+fn a_listed_file_that_is_gone_is_stale() {
+    let listed = [("gone/fraiseql.toml", "a refusal fixture")];
+    let findings = judged(&[("a/fraiseql.toml", VALID)], &listed);
+    assert_eq!(findings.len(), 1, "{findings:?}");
+    assert!(
+        findings[0].strip_prefix("gone/fraiseql.toml is listed").is_some(),
+        "{findings:?}"
+    );
+}
+
+#[test]
+fn a_listed_file_needs_a_reason() {
+    let findings = judged(&[("b/fraiseql.toml", MISSPELT)], &[("b/fraiseql.toml", " ")]);
+    assert_eq!(findings, ["b/fraiseql.toml is listed as invalid on purpose with no reason"]);
+}
+
+#[test]
+fn no_file_found_is_a_finding() {
+    let findings = judged(&[("a/other.toml", MISSPELT)], &[]);
+    assert_eq!(findings.len(), 1, "{findings:?}");
+    assert!(
+        findings[0].strip_prefix("no fraiseql.toml found under ").is_some(),
+        "{findings:?}"
+    );
+}
+
+#[test]
+fn the_walk_skips_what_the_repository_does_not_author() {
+    let dir = tree(&[
+        ("fraiseql.toml", VALID),
+        ("examples/shop/fraiseql.toml", VALID),
+        (".git/fraiseql.toml", MISSPELT),
+        ("crates/x/target/fraiseql.toml", MISSPELT),
+        ("sdk/node_modules/pkg/fraiseql.toml", MISSPELT),
+        ("targets/fraiseql.toml", VALID),
+    ]);
+    assert_eq!(
+        toml_files_under(dir.path()),
+        [
+            "examples/shop/fraiseql.toml",
+            "fraiseql.toml",
+            "targets/fraiseql.toml"
+        ]
+    );
+    assert_eq!(findings(dir.path(), &toml_json_schema(), &[]), Vec::<String>::new());
+}
