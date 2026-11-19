@@ -6,7 +6,7 @@
 //! function on the I/O-capable host (`fraiseql_query` under the function's `run_as`
 //! ceiling), firing once across replicas under an advisory lease.
 //!
-//! A cron function is a scheduled [`Source`](crate::sources) without a cursor: both run
+//! A cron function is a scheduled `Source` (`crate::sources`) without a cursor: both run
 //! on [`ScheduledPoller`](crate::cron::ScheduledPoller), and a cron firing is recorded in
 //! `_fraiseql_cron_state` instead (observability, and the cross-restart "already fired
 //! this window" guard).

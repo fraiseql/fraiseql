@@ -1809,6 +1809,8 @@ preflight: lint-fmt-toolchain fmt-check lint-not-implemented test-not-implemente
 	RUSTDOCFLAGS='-D warnings' cargo doc --workspace --all-features --no-deps
 	@echo "=== preflight: rustdoc (default features — the links --all-features resolves) ==="
 	RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --keep-going
+	@echo "=== preflight: rustdoc (fraiseql-server, one module-gating feature at a time) ==="
+	bash tools/check-rustdoc-feature-sets.sh
 	@echo "=== preflight: clippy (--all-targets --all-features -D warnings) ==="
 	@$(MAKE) --no-print-directory clippy
 	@echo "=== preflight: check-default (default features — the feature-OFF arms) ==="

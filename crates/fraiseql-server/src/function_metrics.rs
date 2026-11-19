@@ -1,6 +1,6 @@
 //! Prometheus metrics for function-trigger dispatch (#598).
 //!
-//! The function-dispatch sibling of [`sources::metrics`](crate::sources) — sources
+//! The function-dispatch sibling of `sources::metrics` — sources
 //! got a full metric set (`fraiseql_source_*`); function dispatch (after:mutation,
 //! after:ingest, after:capture, cron) had none, so nothing about a fired / failed /
 //! dead-lettered function reached `/metrics`. This module closes that gap with the
@@ -99,7 +99,7 @@ pub const fn trigger_kind(source: fraiseql_observers::DispatchSource) -> &'stati
 /// One call covers both the dispatch counter and the run-duration histogram — the
 /// two only ever move together (a dispatch has an outcome and a duration), so
 /// pairing them keeps a caller from recording one without the other. Mirrors
-/// [`sources::metrics::record_fire`](crate::sources).
+/// `sources::metrics::record_fire`.
 pub fn record_dispatch(function: &str, trigger_kind: &str, result: &str, duration_seconds: f64) {
     counter!(
         DISPATCHES_TOTAL,

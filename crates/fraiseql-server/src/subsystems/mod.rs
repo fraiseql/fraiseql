@@ -204,7 +204,7 @@ impl BeforeMutationHooks {
     /// fail-loud-until-wired stance). The resolver is the #539 seam —
     /// `LoginEmailSender` (from = login email) by default, a DB-backed resolver
     /// where the sending mailbox differs; the transport is the per-connected-account
-    /// SMTP relay ([`SmtpMailboxTransport`](crate::inbound::email::SmtpMailboxTransport)).
+    /// SMTP relay (`inbound::email::SmtpMailboxTransport`).
     #[cfg(feature = "functions-runtime")]
     #[must_use]
     pub fn with_email(

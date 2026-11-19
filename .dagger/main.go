@@ -457,6 +457,11 @@ func (m *FraiseqlCi) Rustdoc(
 // `--keep-going`: without it cargo stops scheduling after the first crate that fails to
 // document, so a workspace with several broken crates reports one per run. #1199 was
 // filed naming two crates; the whole set was seven.
+//
+// Then `tools/check-rustdoc-feature-sets.sh` documents fraiseql-server once per feature
+// that gates one of its modules. Neither workspace pass sees a link from one optional
+// subsystem to another: `--all-features` resolves it and the default build compiles
+// neither end (#2089: `--features functions-runtime` alone failed on three links).
 func (m *FraiseqlCi) RustdocDefault(
 	ctx context.Context,
 	// +ignore=["target", "**/target", ".git"]
@@ -464,7 +469,7 @@ func (m *FraiseqlCi) RustdocDefault(
 ) (string, error) {
 	return m.rustSrc(source).
 		WithEnvVariable("RUSTDOCFLAGS", "-D warnings").
-		WithExec([]string{"bash", "-c", "cargo doc --workspace --no-deps --keep-going"}).
+		WithExec([]string{"bash", "-c", "cargo doc --workspace --no-deps --keep-going && bash tools/check-rustdoc-feature-sets.sh"}).
 		Stdout(ctx)
 }
 
