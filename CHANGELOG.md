@@ -634,6 +634,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **wasmtime and wasmtime-wasi 48.0.9 (RUSTSEC-2026-0566 through -0573) (#2086).** The
+  lock moves wasmtime, wasmtime-wasi and their internal crates (pulley, wiggle) from 48.0.8
+  to 48.0.9, and cranelift from 0.135.8 to 0.135.9. Nothing else in the lock moves and the
+  minimum Rust version stays 1.95.0. wasmtime is built only with the `runtime-wasm` feature
+  of `fraiseql-functions`, which `fraiseql-server` enables through `functions-runtime`.
+
 - **Build and test against pg_tviews v0.1.0-beta.40, which carries upstream fixes listed in
   #2025.**
 
