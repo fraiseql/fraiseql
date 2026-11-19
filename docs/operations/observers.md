@@ -276,6 +276,10 @@ and the subject are sent as written, and `cc`, `to_template`, `subject_template`
 A key left out of `PATCH /api/observers/{id}` leaves that setting as it is.
 `"condition_expression": null` clears the condition, so the observer fires on every
 matching event; an empty condition is refused with `400`, as one that does not parse.
+`"description": null` clears the description. `"retry_config": null` and
+`"timeout_ms": null` reset the setting to what a create without it stores: three attempts
+with exponential backoff from 1000 ms up to 60000 ms, and a 30000 ms timeout. On an
+observer the schema declares, `null` is refused with `409`, as any change but `enabled` is.
 
 ### Runtime and Dead Letter Queue
 

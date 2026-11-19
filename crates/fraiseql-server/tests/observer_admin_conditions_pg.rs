@@ -7,7 +7,8 @@
 //! taken from that parser here, so the tests follow whatever it refuses.
 //!
 //! An update clears a condition with `"condition_expression": null`; leaving the field out
-//! leaves the condition as it is.
+//! leaves the condition as it is. The same holds for `description`. `retry_config` and
+//! `timeout_ms` cannot be empty, so `null` resets each to what a create without it stores.
 //!
 //! The admin bearer gate is not mounted here: these tests inject the operator principal it
 //! would have admitted.
@@ -166,6 +167,32 @@ impl Rig {
         .unwrap()
     }
 
+    /// `POST` an observer named `name` with `settings` added to it, and return its id.
+    async fn create_set(&self, name: &str, settings: Value) -> String {
+        let mut observer = json!({
+            "name": name,
+            "actions": [{ "type": "webhook", "url": "https://hooks.example/x" }],
+        });
+        for (key, value) in settings.as_object().unwrap() {
+            observer[key] = value.clone();
+        }
+        let (status, body) = self.call(Method::POST, "/api/observers", observer).await;
+        assert_eq!(status, StatusCode::CREATED, "{body}");
+        body["id"].as_str().unwrap().to_owned()
+    }
+
+    /// The stored description, retry config and timeout, and when the row was last written.
+    async fn settings(&self, id: &str) -> (Option<String>, Value, i32, DateTime<Utc>) {
+        sqlx::query_as(
+            "SELECT description, retry_config, timeout_ms, updated_at FROM core.tb_observer \
+             WHERE id = $1::uuid",
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
     async fn count(&self) -> i64 {
         let (n,): (i64,) = sqlx::query_as("SELECT count(*) FROM core.tb_observer")
             .fetch_one(&self.pool)
@@ -308,4 +335,115 @@ async fn update_with_a_null_condition_is_refused_on_a_declared_observer() {
         assert_eq!(status, StatusCode::CONFLICT, "{body}: {answer}");
     }
     assert_eq!(rig.stored(&id).await, before, "the declared observer is unchanged");
+}
+
+/// Values none of which a create without them stores.
+fn configured() -> Value {
+    json!({
+        "description": "pages the on-call",
+        "retry_config": {
+            "max_attempts": 9,
+            "backoff_strategy": "linear",
+            "initial_delay_ms": 5,
+            "max_delay_ms": 50,
+        },
+        "timeout_ms": 1234,
+    })
+}
+
+#[tokio::test]
+async fn update_with_a_null_description_clears_it() {
+    let rig = rig().await;
+    let id = rig.create_set("configured", configured()).await;
+
+    let (status, body) = rig.patch(&id, json!({ "description": null })).await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["description"], Value::Null, "{body}");
+    assert_eq!(rig.settings(&id).await.0, None, "the stored description is cleared");
+}
+
+/// The stored `field`: `retry_config` or `timeout_ms`.
+async fn stored_setting(rig: &Rig, id: &str, field: &str) -> Value {
+    let (_, retry, timeout, _) = rig.settings(id).await;
+    if field == "timeout_ms" {
+        json!(timeout)
+    } else {
+        retry
+    }
+}
+
+/// A `null` `field` stores what a create without the field stores.
+async fn assert_null_resets(field: &str) {
+    let rig = rig().await;
+    let unset = rig.create_set("unset", json!({})).await;
+    let expected = stored_setting(&rig, &unset, field).await;
+    let id = rig.create_set("configured", configured()).await;
+    assert_ne!(
+        stored_setting(&rig, &id, field).await,
+        expected,
+        "precondition: {field} is not the default"
+    );
+
+    let (status, body) = rig.patch(&id, json!({ field: null })).await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body[field], expected, "{body}");
+    assert_eq!(stored_setting(&rig, &id, field).await, expected, "the stored {field} is reset");
+}
+
+#[tokio::test]
+async fn update_with_a_null_retry_config_resets_it() {
+    assert_null_resets("retry_config").await;
+}
+
+#[tokio::test]
+async fn update_with_a_null_timeout_resets_it() {
+    assert_null_resets("timeout_ms").await;
+}
+
+#[tokio::test]
+async fn update_without_a_setting_leaves_it() {
+    let rig = rig().await;
+    let id = rig.create_set("configured", configured()).await;
+    let before = rig.settings(&id).await;
+
+    let (status, body) = rig.patch(&id, json!({ "priority": 7 })).await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["priority"], json!(7), "the update was written: {body}");
+    let after = rig.settings(&id).await;
+    assert_eq!((after.0, after.1, after.2), (before.0, before.1, before.2));
+}
+
+/// Clearing or resetting `field` changes the observer, so it is refused on one the schema
+/// declares, alone and beside `enabled`, and the declared observer stays as it is.
+async fn assert_null_refused_on_declared(field: &str) {
+    let rig = rig().await;
+    let id = rig.declared_with(VALID).await;
+    let before = rig.settings(&id).await;
+
+    for body in [
+        json!({ field: null }),
+        json!({ field: null, "enabled": false }),
+    ] {
+        let (status, answer) = rig.patch(&id, body.clone()).await;
+        assert_eq!(status, StatusCode::CONFLICT, "{body}: {answer}");
+    }
+    assert_eq!(rig.settings(&id).await, before, "the declared observer is unchanged");
+}
+
+#[tokio::test]
+async fn update_with_a_null_description_is_refused_on_a_declared_observer() {
+    assert_null_refused_on_declared("description").await;
+}
+
+#[tokio::test]
+async fn update_with_a_null_retry_config_is_refused_on_a_declared_observer() {
+    assert_null_refused_on_declared("retry_config").await;
+}
+
+#[tokio::test]
+async fn update_with_a_null_timeout_is_refused_on_a_declared_observer() {
+    assert_null_refused_on_declared("timeout_ms").await;
 }

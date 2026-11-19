@@ -6,6 +6,7 @@ use uuid::Uuid;
 use super::{
     CreateObserverRequest, ListObserverLogsQuery, ListObserversQuery, MANAGED_BY_PROJECT_PREFIX,
     MANAGED_BY_SCHEMA, Observer, ObserverLog, ObserverScope, ObserverStats, UpdateObserverRequest,
+    default_timeout,
 };
 use crate::ServerError;
 
@@ -210,6 +211,7 @@ impl ObserverRepository {
         if let Some(ref name) = request.name {
             qb.push(", name = ").push_bind(name);
         }
+        // A description sent as `null` binds `NULL`.
         if let Some(ref description) = request.description {
             qb.push(", description = ").push_bind(description);
         }
@@ -234,13 +236,14 @@ impl ObserverRepository {
         if let Some(priority) = request.priority {
             qb.push(", priority = ").push_bind(priority);
         }
+        // A retry config or timeout sent as `null` stores what a create without it stores.
         if let Some(ref retry_config) = request.retry_config {
-            let retry_config_json = serde_json::to_value(retry_config)
+            let retry_config_json = serde_json::to_value(retry_config.clone().unwrap_or_default())
                 .map_err(|e| ServerError::Validation(format!("Invalid retry config: {}", e)))?;
             qb.push(", retry_config = ").push_bind(retry_config_json);
         }
         if let Some(timeout_ms) = request.timeout_ms {
-            qb.push(", timeout_ms = ").push_bind(timeout_ms);
+            qb.push(", timeout_ms = ").push_bind(timeout_ms.unwrap_or_else(default_timeout));
         }
 
         qb.push(" WHERE id = ").push_bind(id).push(" AND deleted_at IS NULL");

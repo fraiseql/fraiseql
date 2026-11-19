@@ -27,6 +27,16 @@ disagreed, and the promise was the part that was wrong.
   mean "no change" must leave the key out. In Rust,
   `fraiseql_server::observers::UpdateObserverRequest::condition_expression` is an
   `Option<Option<String>>`: `None` leaves it, `Some(None)` clears it.
+- **`PATCH /api/observers/{id}` clears a `description`, `retry_config` or `timeout_ms`
+  sent as `null` (#2071).** Each `null` was read as leaving the setting unchanged, so once
+  set it could not be taken back. `"description": null` now clears the description.
+  `retry_config` and `timeout_ms` always hold a value, so `null` resets each to what a
+  create without it stores: three attempts with exponential backoff from 1000 ms up to
+  60000 ms, and 30000 ms. Leaving a key out still leaves the setting as it is. On an
+  observer the schema declares, `null` is a change and is refused with `409`. A client that
+  sent `null` to mean "no change" must leave the key out. In Rust, the three fields of
+  `fraiseql_server::observers::UpdateObserverRequest` are `Option<Option<_>>`, as
+  `condition_expression` is.
 - **`fraiseql run` refuses a setting made in both files with a diagnostic, and exits 2
   (#2055).** A setting `fraiseql.toml` and the server's configuration file (the file
   `FRAISEQL_CONFIG` names) both make, such as `[server] port` and `bind_addr`, was refused

@@ -814,4 +814,78 @@ mod update_request_wire {
         assert!(!request.changes_only_enabled());
         assert!(read(json!({ "enabled": false })).changes_only_enabled());
     }
+
+    const SETTINGS: [&str; 3] = ["description", "retry_config", "timeout_ms"];
+
+    fn set(field: &str) -> serde_json::Value {
+        match field {
+            "description" => json!("pages the on-call"),
+            "retry_config" => json!({
+                "max_attempts": 9,
+                "backoff_strategy": "linear",
+                "initial_delay_ms": 5,
+                "max_delay_ms": 50,
+            }),
+            _ => json!(1234),
+        }
+    }
+
+    /// For each setting: whether it is left out, sent as `null`, or sent with a value.
+    fn shapes(request: &UpdateObserverRequest) -> [(bool, bool); 3] {
+        [
+            (request.description.is_none(), request.description == Some(None)),
+            (request.retry_config.is_none(), matches!(request.retry_config, Some(None))),
+            (request.timeout_ms.is_none(), request.timeout_ms == Some(None)),
+        ]
+    }
+
+    #[test]
+    fn a_setting_left_out_is_no_change() {
+        assert_eq!(shapes(&read(json!({}))), [(true, false); 3]);
+    }
+
+    #[test]
+    fn a_setting_sent_as_null_clears_it() {
+        for (i, field) in SETTINGS.into_iter().enumerate() {
+            let shape = shapes(&read(json!({ field: null })))[i];
+            assert_eq!(shape, (false, true), "{field}");
+        }
+    }
+
+    #[test]
+    fn a_setting_sent_with_a_value_replaces_it() {
+        let request = read(json!({
+            "description": set("description"),
+            "retry_config": set("retry_config"),
+            "timeout_ms": set("timeout_ms"),
+        }));
+        assert_eq!(request.description, Some(Some("pages the on-call".to_owned())));
+        let retry = request.retry_config.flatten().expect("a retry config");
+        assert_eq!((retry.max_attempts, retry.max_delay_ms), (9, 50));
+        assert_eq!(request.timeout_ms, Some(Some(1234)));
+    }
+
+    /// Serialized and read back, each setting keeps its meaning in each of the three shapes.
+    #[test]
+    fn each_setting_shape_survives_a_round_trip() {
+        for field in SETTINGS {
+            for body in [
+                json!({}),
+                json!({ field: null }),
+                json!({ field: set(field) }),
+            ] {
+                let written = serde_json::to_value(read(body.clone())).expect("serializes");
+                assert_eq!(written.get(field), body.get(field), "{body}");
+            }
+        }
+    }
+
+    /// Clearing a setting is a change, so it is refused on a declared observer.
+    #[test]
+    fn clearing_a_setting_is_more_than_enabled() {
+        for field in SETTINGS {
+            let request = read(json!({ field: null, "enabled": false }));
+            assert!(!request.changes_only_enabled(), "{field}");
+        }
+    }
 }

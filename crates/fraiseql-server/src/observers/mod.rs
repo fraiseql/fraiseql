@@ -314,9 +314,14 @@ pub struct UpdateObserverRequest {
     #[serde(default)]
     pub name: Option<String>,
 
-    /// Description
-    #[serde(default)]
-    pub description: Option<String>,
+    /// Description: `None` leaves it unchanged, `Some(None)` clears it, `Some(Some(_))`
+    /// replaces it.
+    #[serde(
+        default,
+        deserialize_with = "null_if_sent",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub description: Option<Option<String>>,
 
     /// Entity type to observe
     #[serde(default)]
@@ -347,13 +352,24 @@ pub struct UpdateObserverRequest {
     #[serde(default)]
     pub priority: Option<i32>,
 
-    /// Retry configuration
-    #[serde(default)]
-    pub retry_config: Option<RetryConfig>,
+    /// Retry configuration: `None` leaves it unchanged, `Some(None)` resets it to
+    /// [`RetryConfig::default`], what a create without it stores, and `Some(Some(_))`
+    /// replaces it.
+    #[serde(
+        default,
+        deserialize_with = "null_if_sent",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub retry_config: Option<Option<RetryConfig>>,
 
-    /// Timeout in milliseconds
-    #[serde(default)]
-    pub timeout_ms: Option<i32>,
+    /// Timeout in milliseconds: `None` leaves it unchanged, `Some(None)` resets it to 30000,
+    /// what a create without it stores, and `Some(Some(_))` replaces it.
+    #[serde(
+        default,
+        deserialize_with = "null_if_sent",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub timeout_ms: Option<Option<i32>>,
 }
 
 impl UpdateObserverRequest {
