@@ -1199,3 +1199,121 @@ async fn a_named_owner_never_takes_over_another_named_owners_row() {
     assert!(other.removed.is_empty() && other.removed_unnamed.is_empty(), "{other:?}");
     assert_eq!(live_observers(&pool).await.len(), 1);
 }
+
+// ---------------------------------------------------------------------------
+// The retry policy a row takes when none is given
+// ---------------------------------------------------------------------------
+
+/// The policy the admin API and a declared observer store when none is given.
+fn stored_policy() -> serde_json::Value {
+    serde_json::to_value(fraiseql_server::observers::RetryConfig::default()).unwrap()
+}
+
+/// The default an earlier release gave the column: a document the runtime refuses.
+const UNREADABLE_DEFAULT: &str =
+    r#"{"max_attempts": 3, "backoff": "exponential", "initial_delay_ms": 1000}"#;
+
+async fn retry_config_column_default(pool: &PgPool) -> serde_json::Value {
+    let (expression,): (String,) = sqlx::query_as(
+        "SELECT column_default::text FROM information_schema.columns \
+         WHERE table_schema = 'core' AND table_name = 'tb_observer' \
+           AND column_name = 'retry_config'",
+    )
+    .fetch_one(pool)
+    .await
+    .expect("retry_config has a default");
+    assert!(
+        expression.starts_with('\'') && expression.ends_with("'::jsonb"),
+        "the default is one jsonb literal: {expression}"
+    );
+    let document = &expression[1..expression.len() - "'::jsonb".len()];
+    serde_json::from_str(document).unwrap()
+}
+
+async fn retry_configs_by_name(pool: &PgPool) -> Vec<(String, serde_json::Value)> {
+    sqlx::query_as("SELECT name::text, retry_config FROM core.tb_observer ORDER BY name")
+        .fetch_all(pool)
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn the_retry_config_column_default_is_the_policy_the_server_stores() {
+    let (pool, _svc) = setup_pg().await;
+
+    let column_default = retry_config_column_default(&pool).await;
+
+    assert_eq!(column_default, stored_policy());
+    let read = serde_json::from_value::<fraiseql_observers::RetryConfig>(column_default)
+        .expect("the runtime reads the column default");
+    assert_eq!(
+        (
+            read.max_attempts,
+            read.initial_delay_ms,
+            read.max_delay_ms,
+            read.backoff_strategy
+        ),
+        (3, 1000, 60000, fraiseql_observers::BackoffStrategy::Exponential),
+        "the runtime runs the policy the document states, not its own fallback"
+    );
+}
+
+#[tokio::test]
+async fn a_row_inserted_without_a_retry_policy_holds_one_the_runtime_reads() {
+    let (pool, _svc) = setup_pg().await;
+    sqlx::query(
+        r#"INSERT INTO core.tb_observer (name, entity_type, event_type, actions)
+           VALUES ('by_sql', 'Order', 'INSERT',
+                   '[{"type": "webhook", "url": "https://hooks.test/order"}]')"#,
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let stored = retry_configs_by_name(&pool).await;
+
+    assert_eq!(stored, [("by_sql".to_owned(), stored_policy())]);
+    serde_json::from_value::<fraiseql_observers::RetryConfig>(stored[0].1.clone())
+        .expect("the runtime reads the row's retry policy");
+    assert_eq!(start_runtime_and_count(&pool).await.unwrap(), 1);
+}
+
+#[tokio::test]
+async fn a_table_an_earlier_release_created_takes_the_policy_and_so_do_the_rows_no_one_wrote() {
+    let (pool, _svc) = setup_pg().await;
+    // The shape the earlier release left: its default, a row that took it, and two rows
+    // someone wrote, one of them as unreadable as the default.
+    sqlx::raw_sql(&format!(
+        r#"ALTER TABLE core.tb_observer ALTER COLUMN retry_config SET DEFAULT '{UNREADABLE_DEFAULT}'::jsonb;
+           INSERT INTO core.tb_observer (name, actions) VALUES ('took_the_default', '[]');
+           INSERT INTO core.tb_observer (name, actions, retry_config) VALUES
+             ('wrote_backoff', '[]', '{{"max_attempts": 9, "backoff": "exponential", "initial_delay_ms": 1000}}'),
+             ('wrote_a_policy', '[]', '{{"max_attempts": 5, "backoff_strategy": "fixed", "initial_delay_ms": 250, "max_delay_ms": 250}}');"#
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+    let unreadable: serde_json::Value = serde_json::from_str(UNREADABLE_DEFAULT).unwrap();
+    assert_eq!(retry_config_column_default(&pool).await, unreadable);
+    let before = retry_configs_by_name(&pool).await;
+    assert_eq!(before[0], ("took_the_default".to_owned(), unreadable));
+
+    apply_boot_ddl(&pool).await;
+    let after_one_boot = retry_configs_by_name(&pool).await;
+    apply_boot_ddl(&pool).await;
+
+    assert_eq!(retry_config_column_default(&pool).await, stored_policy());
+    assert_eq!(
+        after_one_boot,
+        [
+            ("took_the_default".to_owned(), stored_policy()),
+            before[1].clone(),
+            before[2].clone(),
+        ]
+    );
+    assert_eq!(
+        retry_configs_by_name(&pool).await,
+        after_one_boot,
+        "a second boot changes nothing"
+    );
+}

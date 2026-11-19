@@ -559,6 +559,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **An observer row inserted without a retry policy runs the policy it stores (#2087).**
+  `core.tb_observer.retry_config` defaulted to
+  `{"max_attempts": 3, "backoff": "exponential", "initial_delay_ms": 1000}`, a document the
+  observer runtime refuses, so a row inserted by SQL without `retry_config` ran on the
+  runtime's fallback (first retry after 100 ms, capped at 30 s) and logged a warning at
+  every reload. The default is now the policy the admin API and a declared observer
+  store: three attempts, exponential, first retry after 1 s, capped at 60 s. The server
+  sets it at boot on a table an earlier release created, and gives the same policy to
+  every row holding exactly the old default, so those rows now retry from 1 s capped at
+  60 s. A row whose `retry_config` someone wrote is left as it is.
+
 - **Two projects on one database each keep the observers they declare (#2043).** Every
   schema's declared observers were stored under one owner, so a second schema booted
   against the same database removed the first one's. They are now stored under the

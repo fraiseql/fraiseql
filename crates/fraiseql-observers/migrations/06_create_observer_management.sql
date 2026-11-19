@@ -49,9 +49,10 @@ CREATE TABLE IF NOT EXISTS core.tb_observer (
     -- Priority for ordering (lower = higher priority)
     priority INTEGER NOT NULL DEFAULT 100,
 
-    -- Retry configuration as JSON
-    -- Example: {"max_attempts": 3, "backoff": "exponential", "initial_delay_ms": 1000}
-    retry_config JSONB NOT NULL DEFAULT '{"max_attempts": 3, "backoff": "exponential", "initial_delay_ms": 1000}'::jsonb,
+    -- Retry policy as JSON. Its default is set after the table, so a table an earlier
+    -- release created takes it too.
+    -- Example: {"max_attempts": 5, "backoff_strategy": "linear", "initial_delay_ms": 500, "max_delay_ms": 30000}
+    retry_config JSONB NOT NULL,
 
     -- Timeout for action execution (milliseconds)
     timeout_ms INTEGER NOT NULL DEFAULT 30000,
@@ -100,6 +101,37 @@ BEGIN
     LOOP
         EXECUTE format('ALTER TABLE core.tb_observer ALTER COLUMN %I TYPE TEXT', narrow);
     END LOOP;
+END $$;
+
+-- The retry policy a row takes when none is given: the one the admin API and a declared
+-- observer store. An earlier release's default spelt the strategy `backoff` and held no
+-- `max_delay_ms`, a document the runtime refuses, so a row that took it ran on the
+-- runtime's own fallback with a warning at every reload. No one chose that document, so a
+-- row holding exactly it is given the policy too. Both happen once: a later boot finds
+-- the default set and does not alter the table, and finds no row to rewrite.
+DO $$
+DECLARE
+    policy CONSTANT JSONB :=
+        '{"max_attempts": 3, "backoff_strategy": "exponential", "initial_delay_ms": 1000, "max_delay_ms": 60000}';
+    unreadable CONSTANT JSONB :=
+        '{"max_attempts": 3, "backoff": "exponential", "initial_delay_ms": 1000}';
+    default_expression TEXT;
+    current_default JSONB;
+BEGIN
+    SELECT pg_get_expr(d.adbin, d.adrelid) INTO default_expression
+    FROM pg_attrdef d
+    JOIN pg_attribute a ON a.attrelid = d.adrelid AND a.attnum = d.adnum
+    WHERE a.attrelid = 'core.tb_observer'::regclass AND a.attname = 'retry_config';
+    IF default_expression IS NOT NULL THEN
+        EXECUTE format('SELECT (%s)::jsonb', default_expression) INTO current_default;
+    END IF;
+    IF current_default IS DISTINCT FROM policy THEN
+        EXECUTE format(
+            'ALTER TABLE core.tb_observer ALTER COLUMN retry_config SET DEFAULT %L::jsonb',
+            policy::text
+        );
+    END IF;
+    UPDATE core.tb_observer SET retry_config = policy WHERE retry_config = unreadable;
 END $$;
 
 -- Comments for documentation

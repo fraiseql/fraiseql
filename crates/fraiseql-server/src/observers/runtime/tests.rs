@@ -506,3 +506,68 @@ fn observer_log_statuses_are_accepted_by_the_shipped_check() {
         );
     }
 }
+
+// ── the retry policy a stored row gives the runtime ─────────────────────────
+
+fn stored_observer(retry_config: serde_json::Value) -> super::Observer {
+    super::Observer {
+        pk_observer: 1,
+        id: Uuid::new_v4(),
+        name: "order_created".to_string(),
+        description: None,
+        entity_type: Some("Order".to_string()),
+        event_type: Some("INSERT".to_string()),
+        condition_expression: None,
+        actions: serde_json::json!([{ "type": "webhook", "url": "https://hooks.test/order" }]),
+        enabled: true,
+        priority: 100,
+        retry_config,
+        timeout_ms: 30_000,
+        fk_customer_org: None,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+        created_by: None,
+        updated_by: None,
+        deleted_at: None,
+        managed_by: None,
+    }
+}
+
+fn retry_of(retry_config: serde_json::Value) -> fraiseql_observers::RetryConfig {
+    super::ObserverRuntime::convert_observer(&stored_observer(retry_config))
+        .expect("the stored observer converts")
+        .retry
+}
+
+/// The policy the server stores when none is given, which is the column's default, is
+/// the policy the runtime runs: its values differ from the runtime's own fallback, so a
+/// document the runtime refused would show here as 100 ms and 30 s.
+///
+/// The two sets of defaults differing is what tells the two apart here. If they are made
+/// one (#2090), this test needs another way to see a refused document, not removal.
+#[test]
+fn the_policy_the_server_stores_by_default_is_the_one_the_runtime_runs() {
+    let stored = serde_json::to_value(crate::observers::RetryConfig::default()).unwrap();
+
+    let retry = retry_of(stored);
+
+    assert_eq!(
+        retry,
+        fraiseql_observers::RetryConfig {
+            max_attempts:     3,
+            initial_delay_ms: 1000,
+            max_delay_ms:     60_000,
+            backoff_strategy: fraiseql_observers::BackoffStrategy::Exponential,
+        }
+    );
+    assert_ne!(retry, fraiseql_observers::RetryConfig::default());
+}
+
+#[test]
+fn a_retry_document_the_runtime_refuses_runs_on_the_runtimes_fallback() {
+    let retry = retry_of(serde_json::json!({
+        "max_attempts": 3, "backoff": "exponential", "initial_delay_ms": 1000
+    }));
+
+    assert_eq!(retry, fraiseql_observers::RetryConfig::default());
+}
