@@ -1072,3 +1072,28 @@ async fn a_binary_threshold_filter_reads_the_native_bit_column_not_the_payload()
         "the bit predicate reads the `fingerprint` column, not data->>'fingerprint': {resp}"
     );
 }
+
+// ── what a client receives ───────────────────────────────────────────────────
+
+/// The response a client reading embeddings receives, committed in the Rust client's tests:
+/// a list root whose rows each carry their vector as a JSON number array, though the view
+/// stores it as text in `data`. Pinned here so the client's fixture is one this server sends.
+#[tokio::test]
+async fn a_selected_vector_is_served_as_the_clients_fixture_records() {
+    if skip("vector_fixture") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    // Ordered by the search, whose row order the cosine test above proves: distinct
+    // distances, so the rows come back in one order.
+    let query = r"{ docs(nearest: {vector: [1, 0, 0], k: 4}) { id embedding } }";
+    let (status, resp) = post_graphql(router, &json!({"query": query})).await;
+    assert_eq!(status, 200, "{resp}");
+    assert!(resp.get("errors").is_none(), "{resp}");
+
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../sdks/official/fraiseql-rust/fraiseql-client/tests/fixtures/vector_docs_response.json");
+    let recorded: Value =
+        serde_json::from_str(&std::fs::read_to_string(&fixture).unwrap()).unwrap();
+    assert_eq!(resp, recorded, "{} no longer records what the server sends", fixture.display());
+}

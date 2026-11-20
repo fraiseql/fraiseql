@@ -59,6 +59,14 @@ disagreed, and the promise was the part that was wrong.
   A role that reads the cursors without owning the table needs `USAGE` on `core`.
 - **`fraiseql_observers::EventStorage` and `PostgresEventStorage` are removed (#1895).**
   Nothing constructed them and nothing created the `fraiseql_events` table they read.
+- **`fraiseql-client`: `fetch_embeddings` takes the path to the embeddings in `data`
+  (#1960).** It read the whole `data` value as the embedding array, but a response's
+  `data` is an object keyed by the selected fields, so every real response failed with
+  `FraiseQLError::Serialization`. It now takes `path: &[&str]` before `dims`:
+  `&["document", "embedding"]` reads one vector, and a segment that meets a list reads
+  each item's vector in order (`&["documents", "embedding"]` with `dims = [n, d]`). A
+  missing field, a null or a non-number names the position in `data`, and a count `dims`
+  does not hold is refused before any tensor is built.
 - **`fraiseql compile` refuses a default on an input field an update receives (#1915).**
   An update leaves a field the request omits unchanged; now that defaults apply, a default
   would overwrite the stored value on every update that omits the field. The compile error
