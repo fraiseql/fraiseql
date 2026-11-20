@@ -284,6 +284,7 @@ impl Server {
             .with_transport(transport)
             .with_email(observer_config.runtime.email.clone())
             .with_log_payloads(observer_config.runtime.log_payloads)
+            .with_deployment(deployment)
             // #985: the Redis backend that makes a `type = "cache"` action work.
             .with_redis(observer_redis(observer_config.runtime.redis.as_ref())?);
 

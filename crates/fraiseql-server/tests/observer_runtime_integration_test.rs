@@ -2468,3 +2468,97 @@ async fn the_largest_batch_size_checkpoints_a_full_batch() {
     assert_eq!(id, last, "the cursor reached the last row");
     assert_eq!(batch_size, 10_000, "in one full batch");
 }
+
+/// `order_seen_<test_id>` on `entity_type`, posting to `url` and retried every 1.5 s, up
+/// to four attempts.
+fn retried_declaration(
+    test_id: &str,
+    entity_type: &str,
+    url: &str,
+) -> fraiseql_core::schema::ObserverDefinition {
+    fraiseql_core::schema::ObserverDefinition::new(
+        format!("order_seen_{test_id}"),
+        entity_type,
+        "INSERT",
+    )
+    .with_action(serde_json::json!({ "type": "webhook", "url": url }))
+    .with_retry(fraiseql_core::schema::RetryConfig {
+        max_attempts:     4,
+        backoff_strategy: "fixed".to_string(),
+        initial_delay_ms: 1500,
+        max_delay_ms:     1500,
+    })
+}
+
+/// A schema reload that edits a declared observer while an event it matched is between two
+/// attempts: the event is delivered by the declaration it matched, which its retries carry,
+/// and the next event by the edited one.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn test_an_event_in_retry_is_delivered_by_the_declaration_it_matched() {
+    init_test_tracing();
+
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("Failed to setup schema");
+    for table in [
+        "core.tb_observer_log",
+        "core.tb_observer",
+        "core.tb_entity_change_log",
+    ] {
+        sqlx::query(&format!("DELETE FROM {table}")).execute(&pool).await.unwrap();
+    }
+    let entity_type = format!("Order_{test_id}");
+    let old_target = MockWebhookServer::start().await;
+    // Two failures: the first attempt and the first retry, so the event is mid-retry.
+    old_target.mock_transient_failure(2).await;
+    let new_target = MockWebhookServer::start().await;
+    new_target.mock_success().await;
+
+    let owner = format!("schema:inflight-{test_id}");
+    fraiseql_server::observers::ObserverRepository::new(pool.clone())
+        .reconcile_declared(
+            &owner,
+            &[retried_declaration(
+                &test_id,
+                &entity_type,
+                &old_target.webhook_url(),
+            )],
+        )
+        .await
+        .unwrap();
+    let mut runtime =
+        ObserverRuntime::new(ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(50));
+    runtime.start().await.expect("Failed to start runtime");
+
+    let in_retry = insert_order(&pool, &entity_type).await;
+    // The first attempt has failed and the next is 1.5 s away.
+    tokio::time::sleep(Duration::from_millis(700)).await;
+    let (_, prepared) = runtime
+        .reconcile_and_prepare(
+            &owner,
+            &[retried_declaration(
+                &test_id,
+                &entity_type,
+                &new_target.webhook_url(),
+            )],
+        )
+        .await
+        .expect("the edited declaration is reconciled");
+    prepared.install().await;
+
+    wait_for_webhook(&old_target, 1, Duration::from_secs(15)).await;
+    let after_retry = new_target.request_count().await;
+
+    let next = insert_order(&pool, &entity_type).await;
+    wait_for_webhook(&new_target, 1, Duration::from_secs(15)).await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let (old_count, new_count) =
+        (old_target.request_count().await, new_target.request_count().await);
+    runtime.stop().await.expect("Failed to stop runtime");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
+
+    assert_eq!(after_retry, 0, "the event in retry ({in_retry}) reached the edited target");
+    assert_eq!(old_count, 1, "the event in retry is delivered once, to the target it matched");
+    assert_eq!(new_count, 1, "the next event ({next}) is delivered by the edited declaration");
+}

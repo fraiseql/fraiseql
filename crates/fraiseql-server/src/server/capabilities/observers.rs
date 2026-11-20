@@ -193,43 +193,6 @@ async fn store_declared_observers(
     let outcome = crate::observers::ObserverRepository::new(pool.clone())
         .reconcile_declared(owner, declared)
         .await?;
-    if !(outcome.created.is_empty() && outcome.updated.is_empty()) {
-        info!(
-            owner,
-            created = ?outcome.created,
-            updated = ?outcome.updated,
-            "Stored the observers the schema declares"
-        );
-    }
-    // Two schemas compiled under one project name are one owner, and each boot removes
-    // what the other declares: the log is where an operator sees that happen.
-    for (name, held_by) in outcome.removed_with_owner(owner) {
-        warn!(
-            observer = name,
-            owner = held_by,
-            "Observer removed because the current schema no longer declares it"
-        );
-    }
-    for name in &outcome.taken_over {
-        warn!(
-            observer = %name,
-            owner,
-            "Observer stored before owners carried a project name is now this project's"
-        );
-    }
-    for name in &outcome.adopted {
-        warn!(
-            observer = %name,
-            "Observer adopted from admin API: the schema declares an observer of this name, \
-             and its declaration replaced the stored one"
-        );
-    }
-    for name in &outcome.disabled {
-        warn!(
-            observer = %name,
-            "A declared observer is disabled and does not fire; enable it with \
-             POST /api/observers/{{id}}/enable"
-        );
-    }
+    crate::observers::log_reconciled(owner, &outcome);
     Ok(())
 }

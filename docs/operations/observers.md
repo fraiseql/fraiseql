@@ -189,15 +189,39 @@ declares, in place (same id, same execution log, enabled or disabled as they wer
 soft-deletes the ones it does not, each with a `WARN`. Where two projects share such a
 database, the first one to boot decides.
 
-**Changing a declared observer.** Change the declaration and redeploy. The admin API
+**Changing a declared observer.** Change the declaration and redeploy, or reload the
+schema (below). The admin API
 refuses to update or delete a declared observer's row with `409`, because the next boot would undo
 it. The one exception is the switch: `POST /api/observers/{id}/disable` and `/enable`
 (or a `PATCH` of `enabled` alone) work on a declared observer, so an operator can stop a
 misbehaving webhook without a deploy. A disabled declared observer stays disabled across
 deploys, and every boot logs a `WARN` naming it until it is enabled again.
 
-A schema reload that changes the declared observers is refused like any other change to
-what boot starts: restart the server to apply it.
+**A schema reload applies the declared observers.** A reload (`SIGUSR1`, or the admin
+reload endpoint) whose schema declares other observers writes them as boot does, with the
+same table above, the same `WARN` lines and the same refusals, then rebuilds the running
+observers from the stored rows. The next event is matched by the new declarations, with no
+restart. Each replica does this when it reloads: the write is idempotent, and the advisory
+lock makes a second replica find the rows already written rather than race to insert them.
+
+- **All or nothing.** The rows are written, read back and built into the running observers
+  in one transaction, committed after every other check of the reload has passed. A reload
+  refused for any reason (a name another project holds, a variable a declared observer
+  reads that is unset in production, or another section that needs a restart) leaves the
+  rows and the running observers as they were. One case cannot be told apart: when the
+  connection drops during the commit itself, the reload is refused while the rows may have
+  been written. Reloading again, or the runtime's next `auto_reload`, makes them agree.
+- **An event already matched** is delivered by the declaration it matched, retries
+  included; only the events matched after the reload see the new one. The same holds for
+  `POST /api/observers/runtime/reload`.
+- **A dropped declaration** soft-deletes its row, as at boot, and a disabled declared
+  observer stays disabled.
+- **Mixed versions.** A replica that boots or reloads with an earlier schema writes the
+  earlier declarations back, as at boot: the rows follow the last write. Replicas that have
+  not reloaded yet pick up the rows on their next `auto_reload`.
+
+`[observers]` itself (its runtime settings) and `[project] name` (the owner the rows are
+stored under) are still read only at boot: a reload that changes them is refused.
 
 ### Where the tables live
 

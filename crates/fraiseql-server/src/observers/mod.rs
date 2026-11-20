@@ -54,7 +54,7 @@ pub use repository::{ObserverRepository, Reconciled};
 pub use routes::{
     observer_changelog_routes, observer_dlq_routes, observer_routes, observer_runtime_routes,
 };
-pub use runtime::{ObserverRuntime, ObserverRuntimeConfig, RuntimeHealth};
+pub use runtime::{ObserverRuntime, ObserverRuntimeConfig, PreparedObservers, RuntimeHealth};
 pub use scope::{ObserverScope, OperatorOnly, ScopeRefusal};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -162,6 +162,49 @@ pub fn declared_owner(
              again",
             observer.name
         ))),
+    }
+}
+
+/// Log what a reconcile of `owner`'s declared observers changed: at boot, and on a
+/// schema reload that changes them.
+pub(crate) fn log_reconciled(owner: &str, outcome: &Reconciled) {
+    if !(outcome.created.is_empty() && outcome.updated.is_empty()) {
+        tracing::info!(
+            owner,
+            created = ?outcome.created,
+            updated = ?outcome.updated,
+            "Stored the observers the schema declares"
+        );
+    }
+    // Two schemas compiled under one project name are one owner, and each boot removes
+    // what the other declares: the log is where an operator sees that happen.
+    for (name, held_by) in outcome.removed_with_owner(owner) {
+        tracing::warn!(
+            observer = name,
+            owner = held_by,
+            "Observer removed because the current schema no longer declares it"
+        );
+    }
+    for name in &outcome.taken_over {
+        tracing::warn!(
+            observer = %name,
+            owner,
+            "Observer stored before owners carried a project name is now this project's"
+        );
+    }
+    for name in &outcome.adopted {
+        tracing::warn!(
+            observer = %name,
+            "Observer adopted from admin API: the schema declares an observer of this name, \
+             and its declaration replaced the stored one"
+        );
+    }
+    for name in &outcome.disabled {
+        tracing::warn!(
+            observer = %name,
+            "A declared observer is disabled and does not fire; enable it with \
+             POST /api/observers/{{id}}/enable"
+        );
     }
 }
 

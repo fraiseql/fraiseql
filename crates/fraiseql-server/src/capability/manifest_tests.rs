@@ -375,10 +375,15 @@ fn active_declaration(activity: fraiseql_core::capability::SectionActivity) -> s
 
 /// A capability's compiled section is read once, by the subsystem it starts at boot, so
 /// a hot reload changing it must be refused rather than half-applied. Every registered
-/// section that is a `CompiledSchema` field is classified boot-frozen by the reload gate.
+/// section that is a `CompiledSchema` field is classified boot-frozen by the reload gate,
+/// unless the reload re-applies it ([`RELOAD_REAPPLIED`]), and then it is not refused.
+///
+/// [`RELOAD_REAPPLIED`]: crate::routes::graphql::reload_gate::RELOAD_REAPPLIED
 #[test]
 fn every_registered_compiled_section_is_boot_frozen() {
     use fraiseql_core::schema::CompiledSchema;
+
+    use crate::routes::graphql::reload_gate::RELOAD_REAPPLIED;
     let empty = serde_json::to_value(CompiledSchema::default()).expect("serialize");
     for r in REGISTRY {
         for section in r.meta.compiled_sections {
@@ -393,6 +398,15 @@ fn every_registered_compiled_section_is_boot_frozen() {
                 &CompiledSchema::default(),
                 &next,
             );
+            if RELOAD_REAPPLIED.contains(&section.key) {
+                assert!(
+                    !drift.contains(&section.key),
+                    "`{}` ({}) is re-applied by the reload, and the gate refuses it",
+                    section.key,
+                    r.meta.name
+                );
+                continue;
+            }
             assert!(
                 drift.contains(&section.key),
                 "`{}` ({}) changed across a reload, but the reload gate let it through: \

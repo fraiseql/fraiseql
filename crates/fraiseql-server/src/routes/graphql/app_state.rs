@@ -622,6 +622,14 @@ impl AppState {
             .with_compiled_schema(&schema)
             .map_err(|msg| format!("Incompatible compiled schema: {msg}"))?;
 
+        // A changed `observers` section is applied as boot applies it: reconciled into
+        // `core.tb_observer`, and the runtime's observers built from the rows, in one
+        // transaction committed only once they are built. They are installed after the
+        // executor swap, which cannot fail, so a reload refused here leaves the rows and
+        // the running observers as they were.
+        #[cfg(feature = "observers")]
+        let observers = self.prepare_observers(current.schema(), &schema).await?;
+
         // Notify the backend of the schema change (clears the query result cache if
         // applicable) before the swap, while the stale derivations are still reachable.
         current.on_schema_reload();
@@ -632,6 +640,10 @@ impl AppState {
 
         // Atomic swap
         self.store_executor(new_executor);
+        #[cfg(feature = "observers")]
+        if let Some(prepared) = observers {
+            prepared.install().await;
+        }
 
         // Clear query plan caches (reference old schema)
         #[cfg(feature = "arrow")]
@@ -649,6 +661,42 @@ impl AppState {
         info!("Schema executor swapped successfully");
 
         Ok(())
+    }
+
+    /// Reconcile and build the observers `next` declares when they differ from `current`'s,
+    /// as boot does; `None` when they do not, or when no observer runtime runs here (boot
+    /// then stores nothing either).
+    #[cfg(feature = "observers")]
+    async fn prepare_observers(
+        &self,
+        current: &CompiledSchema,
+        next: &CompiledSchema,
+    ) -> Result<Option<crate::observers::PreparedObservers>, String> {
+        if !super::reload_gate::differs(&current.observers, &next.observers) {
+            return Ok(None);
+        }
+        let Some(runtime) = &self.observer_runtime else {
+            if !next.observers.is_empty() {
+                warn!(
+                    declared = next.observers.len(),
+                    "The schema declares observers and no observer runtime runs on this \
+                     server: none of them will fire"
+                );
+            }
+            return Ok(None);
+        };
+        let refused = |e: crate::ServerError| {
+            format!("Schema reload refused: the declared observers could not be applied: {e}")
+        };
+        let owner = crate::observers::declared_owner(next).map_err(refused)?;
+        let (outcome, prepared) = runtime
+            .read()
+            .await
+            .reconcile_and_prepare(&owner, &next.observers)
+            .await
+            .map_err(refused)?;
+        crate::observers::log_reconciled(&owner, &outcome);
+        Ok(Some(prepared))
     }
 
     /// Create new application state with custom metrics collector.

@@ -1439,3 +1439,161 @@ async fn a_default_checkpoint_state_saves() {
     let loaded = store.load("default").await.unwrap().expect("saved");
     assert_eq!((loaded.last_processed_id, loaded.batch_size), (0, 100));
 }
+
+/// A runtime over `pool` that is never started: what a reload reconciles through.
+fn reloading_runtime(pool: &PgPool) -> fraiseql_server::observers::ObserverRuntime {
+    fraiseql_server::observers::ObserverRuntime::new(
+        fraiseql_server::observers::ObserverRuntimeConfig::new(pool.clone())
+            .with_deployment(fraiseql_guard::deployment::Deployment::Development),
+    )
+}
+
+/// Replicas reload one edited schema at their own moments, each on its own connections: the
+/// reconcile serializes them, so each round rewrites each row once, stores each added
+/// observer once (a name with no row yet has nothing for `FOR UPDATE` to lock: the
+/// advisory lock is what holds the second replica back), and the rows end as the schema
+/// declares them, whichever replica ran first.
+#[tokio::test]
+async fn two_replicas_reloading_an_edited_schema_rewrite_each_row_once() {
+    let (pool, svc) = setup_pg().await;
+    let replicas = [
+        PgPool::connect(svc.url()).await.unwrap(),
+        PgPool::connect(svc.url()).await.unwrap(),
+    ];
+    let names: Vec<String> = (0..40).map(|n| format!("observer_{n}")).collect();
+    // Each round adds twenty observers and edits every other one. The added ones come
+    // first: a row that exists is locked by `FOR UPDATE`, and the first one would hold the
+    // second replica back on its own.
+    let version = |round: usize| -> Vec<ObserverDefinition> {
+        (0..round * 20)
+            .map(|added| format!("added_{added}"))
+            .chain(names.iter().cloned())
+            .map(|name| declared(&name, &format!("https://v{round}.test")))
+            .collect()
+    };
+    ObserverRepository::new(pool.clone())
+        .reconcile_declared("schema:app", &version(0))
+        .await
+        .unwrap();
+
+    for round in 1..=15 {
+        let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(2));
+        let reloads: Vec<_> = replicas
+            .iter()
+            .map(|replica| {
+                let runtime = reloading_runtime(replica);
+                let declared = version(round);
+                let barrier = std::sync::Arc::clone(&barrier);
+                tokio::spawn(async move {
+                    barrier.wait().await;
+                    runtime.reconcile_and_prepare("schema:app", &declared).await
+                })
+            })
+            .collect();
+        let (mut created, mut updated) = (0, 0);
+        for reload in reloads {
+            let (outcome, _prepared) = reload.await.unwrap().expect("no replica's reload fails");
+            assert!(outcome.removed.is_empty(), "{outcome:?}");
+            created += outcome.created.len();
+            updated += outcome.updated.len();
+        }
+        assert_eq!(created, 20, "round {round}: each added observer is stored by one replica");
+        assert_eq!(
+            updated,
+            40 + (round - 1) * 20,
+            "round {round}: each row is rewritten by exactly one replica"
+        );
+        let urls: Vec<Option<String>> =
+            live_observers(&pool).await.into_iter().map(|row| row.4).collect();
+        assert_eq!(
+            urls,
+            vec![Some(format!("https://v{round}.test")); 40 + round * 20],
+            "round {round}"
+        );
+    }
+}
+
+/// A reload that drops a declared observer soft-deletes its row, as boot does, and builds
+/// the runtime without it; one an operator disabled stays disabled across the edit.
+#[tokio::test]
+async fn a_reload_that_drops_a_declared_observer_soft_deletes_its_row() {
+    let (pool, _svc) = setup_pg().await;
+    let runtime = reloading_runtime(&pool);
+    let repo = ObserverRepository::new(pool.clone());
+    repo.reconcile_declared(
+        "schema:app",
+        &[
+            declared("kept", "https://a.test"),
+            declared("paused", "https://a.test"),
+            declared("dropped", "https://a.test"),
+        ],
+    )
+    .await
+    .unwrap();
+    sqlx::query("UPDATE core.tb_observer SET enabled = false WHERE name = 'paused'")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let (outcome, _prepared) = runtime
+        .reconcile_and_prepare(
+            "schema:app",
+            &[
+                declared("kept", "https://b.test"),
+                declared("paused", "https://b.test"),
+            ],
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(outcome.removed, ["dropped"]);
+    assert_eq!(outcome.disabled, ["paused"]);
+    let live: Vec<(String, bool, Option<String>)> = live_observers(&pool)
+        .await
+        .into_iter()
+        .map(|row| (row.0, row.3, row.4))
+        .collect();
+    assert_eq!(
+        live,
+        [
+            ("kept".to_owned(), true, Some("https://b.test".to_owned())),
+            ("paused".to_owned(), false, Some("https://b.test".to_owned())),
+        ]
+    );
+    let (deleted,): (i64,) = sqlx::query_as(
+        "SELECT count(*) FROM core.tb_observer WHERE name = 'dropped' AND deleted_at IS NOT NULL",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(deleted, 1, "the dropped observer's row is kept, soft-deleted");
+}
+
+/// In production, a reload declaring an observer that reads an unset variable is refused
+/// before anything is written, as the boot is.
+#[tokio::test]
+async fn a_production_reload_declaring_an_unset_variable_writes_nothing() {
+    let (pool, _svc) = setup_pg().await;
+    ObserverRepository::new(pool.clone())
+        .reconcile_declared("schema:app", &[declared("order_created", "https://a.test")])
+        .await
+        .unwrap();
+    let runtime = fraiseql_server::observers::ObserverRuntime::new(
+        fraiseql_server::observers::ObserverRuntimeConfig::new(pool.clone())
+            .with_deployment(fraiseql_guard::deployment::Deployment::Production),
+    );
+    let reading_unset = ObserverDefinition::new("order_created", "Order", "INSERT").with_action(
+        serde_json::json!({"type": "webhook", "url_env": "FRAISEQL_TEST_UNSET_HOOK_URL_2037"}),
+    );
+
+    let refused = runtime.reconcile_and_prepare("schema:app", &[reading_unset]).await;
+
+    let message = match refused {
+        Err(ServerError::ConfigError(message)) => message,
+        other => format!("not a configuration error: {:?}", other.map(|(outcome, _)| outcome)),
+    };
+    assert!(message.contains("FRAISEQL_TEST_UNSET_HOOK_URL_2037"), "{message}");
+    let urls: Vec<Option<String>> =
+        live_observers(&pool).await.into_iter().map(|row| row.4).collect();
+    assert_eq!(urls, [Some("https://a.test".to_owned())], "the stored row is as it was");
+}

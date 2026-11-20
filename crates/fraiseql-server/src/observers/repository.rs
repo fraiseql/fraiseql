@@ -23,6 +23,12 @@ impl ObserverRepository {
         Self { pool }
     }
 
+    /// The pool the repository reads and writes through.
+    #[must_use]
+    pub const fn pool(&self) -> &PgPool {
+        &self.pool
+    }
+
     /// List the observers `scope` can see, with optional filters.
     ///
     /// # Errors
@@ -30,6 +36,22 @@ impl ObserverRepository {
     /// Returns `ServerError::Database` on query failure.
     pub async fn list(
         &self,
+        query: &ListObserversQuery,
+        scope: ObserverScope,
+    ) -> Result<(Vec<Observer>, i64), ServerError> {
+        let mut conn =
+            self.pool.acquire().await.map_err(|e| ServerError::Database(e.to_string()))?;
+        Self::list_on(&mut conn, query, scope).await
+    }
+
+    /// [`list`](Self::list) on `conn`: inside a transaction, it reads what the transaction
+    /// has written.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServerError::Database` on query failure.
+    pub async fn list_on(
+        conn: &mut sqlx::PgConnection,
         query: &ListObserversQuery,
         scope: ObserverScope,
     ) -> Result<(Vec<Observer>, i64), ServerError> {
@@ -55,7 +77,7 @@ impl ObserverRepository {
 
         let total_count: (i64,) = count_qb
             .build_query_as()
-            .fetch_one(&self.pool)
+            .fetch_one(&mut *conn)
             .await
             .map_err(|e| ServerError::Database(e.to_string()))?;
 
@@ -91,7 +113,7 @@ impl ObserverRepository {
 
         let observers: Vec<Observer> = select_qb
             .build_query_as()
-            .fetch_all(&self.pool)
+            .fetch_all(&mut *conn)
             .await
             .map_err(|e| ServerError::Database(e.to_string()))?;
 
@@ -351,9 +373,26 @@ impl ObserverRepository {
         owner: &str,
         declared: &[fraiseql_core::schema::ObserverDefinition],
     ) -> Result<Reconciled, ServerError> {
+        let mut tx = self.pool.begin().await.map_err(|e| ServerError::Database(e.to_string()))?;
+        let outcome = Self::reconcile_declared_in(&mut tx, owner, declared).await?;
+        tx.commit().await.map_err(|e| ServerError::Database(e.to_string()))?;
+        Ok(outcome)
+    }
+
+    /// [`reconcile_declared`](Self::reconcile_declared) inside the caller's transaction,
+    /// which holds the advisory lock until it ends: a schema reload builds the runtime's
+    /// observers from the rows before it commits, so a reload that fails writes nothing.
+    ///
+    /// # Errors
+    ///
+    /// As [`reconcile_declared`](Self::reconcile_declared); the caller rolls back.
+    pub async fn reconcile_declared_in(
+        tx: &mut sqlx::PgConnection,
+        owner: &str,
+        declared: &[fraiseql_core::schema::ObserverDefinition],
+    ) -> Result<Reconciled, ServerError> {
         let db = |e: sqlx::Error| ServerError::Database(e.to_string());
         let json = |e: serde_json::Error| ServerError::Validation(e.to_string());
-        let mut tx = self.pool.begin().await.map_err(db)?;
         sqlx::query("SELECT pg_advisory_xact_lock($1)")
             .bind(RECONCILE_LOCK_KEY)
             .execute(&mut *tx)
@@ -474,7 +513,6 @@ impl ObserverRepository {
             }
         }
 
-        tx.commit().await.map_err(db)?;
         Ok(outcome)
     }
 

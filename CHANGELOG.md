@@ -699,6 +699,14 @@ disagreed, and the promise was the part that was wrong.
   for `max_delay_ms`. The compile refused an observer without `retry`; the compiled schema
   still carries the whole policy. The checks on a written policy see the fields filled in,
   so a `max_delay_ms` below the default `initial_delay_ms` is refused.
+- **A schema reload applies the declared observers (#2037).** A reload whose schema
+  declares other observers was refused until a restart. It now writes them to
+  `core.tb_observer` as boot does (same rows, warnings and refusals) and rebuilds the
+  running observers, so the next event is delivered by the new declarations. The write,
+  the read-back and the build share one transaction committed after every other check of
+  the reload, so a refused reload leaves rows and running observers as they were. An event
+  already matched is delivered by the declaration it matched, retries included. A changed
+  `[observers]` section or `[project] name` still needs a restart.
 - **A saga time past year 9999 is unreadable (#2026).** A saga's times hold years -9999 to
   9999, where PostgreSQL's `timestamptz` reaches further. A load of a saga or step whose
   stored time lies past that range returns `SagaStoreError::CorruptStoredValue`; it was

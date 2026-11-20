@@ -1899,3 +1899,297 @@ async fn a_stdio_server_reloads_its_schema_on_sigusr1() {
 async fn the_binary_reloads_its_schema_on_sigusr1() {
     reload_on_sigusr1(Entry::Binary).await;
 }
+
+/// Write `observers` into the compiled schema at `schema`, replacing the file in one rename.
+fn declare_observers(schema: &Path, observers: Value) {
+    let mut document: Value =
+        serde_json::from_str(&std::fs::read_to_string(schema).unwrap()).unwrap();
+    document["observers"] = observers;
+    let staged = schema.with_extension("staged");
+    std::fs::write(&staged, document.to_string()).unwrap();
+    std::fs::rename(&staged, schema).unwrap();
+}
+
+/// `order_seen`, declared to post each new `Order` to `url`.
+fn order_seen(url: &str) -> Value {
+    serde_json::json!([{
+        "name": "order_seen",
+        "entity": "Order",
+        "event": "INSERT",
+        "actions": [{ "type": "webhook", "url": url }],
+        "retry": {
+            "max_attempts": 1,
+            "backoff_strategy": "fixed",
+            "initial_delay_ms": 100,
+            "max_delay_ms": 100
+        }
+    }])
+}
+
+async fn insert_order_change(database_url: &str) -> Result<(), String> {
+    let pool = PgPool::connect(database_url).await.map_err(|e| format!("connect: {e}"))?;
+    sqlx::query(
+        "INSERT INTO core.tb_entity_change_log (object_type, modification_type, object_id, \
+         tenant_id, object_data) VALUES ('Order', 'INSERT', gen_random_uuid(), \
+         gen_random_uuid(), '{\"id\": 1}')",
+    )
+    .execute(&pool)
+    .await
+    .map_err(|e| format!("insert a change: {e}"))?;
+    pool.close().await;
+    Ok(())
+}
+
+/// Wait until the receiver has seen `path` `count` times.
+async fn received(served: &mut Served, path: &str, count: usize) -> Result<(), String> {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        served.still_running()?;
+        let seen = served.receiver.paths.lock().unwrap().iter().filter(|p| *p == path).count();
+        if seen >= count {
+            return Ok(());
+        }
+        if Instant::now() > deadline {
+            let paths = served.receiver.paths.lock().unwrap().clone();
+            return Err(format!("{path} was received {seen} of {count} times in 20s: {paths:?}"));
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+}
+
+/// Serve the `observers` fixture with a declared observer, edit the declaration in the
+/// compiled schema, signal `SIGUSR1`: the reload rewrites its row in `core.tb_observer`, and
+/// the next change is delivered by the edited declaration, with no restart.
+#[cfg(unix)]
+async fn reload_edits_a_declared_observer(entry: Entry) {
+    let Some(admin_url) = try_database_url() else {
+        eprintln!("SKIP observer reload on {}: DATABASE_URL not set", entry.name());
+        return;
+    };
+    let dir = fixtures_dir().join("observers");
+    let fixture = read_fixture(&dir).unwrap();
+    let compiled = tempfile::tempdir().unwrap();
+    let schema = compiled.path().join("schema.compiled.json");
+    compile(&dir, &schema).await.unwrap();
+    let db = format!("cap_observer_reload_{}", entry.name());
+    let setup_sql = std::fs::read_to_string(dir.join("setup.sql")).unwrap();
+    let database_url = prepare_database(&admin_url, &db, &setup_sql, fixture.fraiseql_setup)
+        .await
+        .unwrap();
+    let scratch = tempfile::tempdir().unwrap();
+    let receiver = Receiver::start().await;
+    let at = |path: &str| format!("{}{path}", receiver.url);
+    let (booted, reloaded) = (at("/as-booted"), at("/as-reloaded"));
+    declare_observers(&schema, order_seen(&booted));
+
+    let outcome = async {
+        let mut served =
+            serve(entry, &dir, &fixture, &schema, &database_url, scratch.path(), receiver).await?;
+        insert_order_change(&database_url).await?;
+        received(&mut served, "/as-booted", 1).await?;
+
+        declare_observers(&schema, order_seen(&reloaded));
+        let signalled = Command::new("kill")
+            .args(["-USR1", &served.child.id().to_string()])
+            .status()
+            .map_err(|e| format!("kill -USR1: {e}"))?;
+        if !signalled.success() {
+            return Err(format!("kill -USR1 exited {signalled}"));
+        }
+
+        let pool = PgPool::connect(&database_url).await.map_err(|e| format!("connect: {e}"))?;
+        let deadline = Instant::now() + Duration::from_secs(20);
+        loop {
+            served.still_running()?;
+            let stored: Option<String> = sqlx::query_scalar(
+                "SELECT actions -> 0 ->> 'url' FROM core.tb_observer \
+                 WHERE name = 'order_seen' AND deleted_at IS NULL",
+            )
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| format!("read the row: {e}"))?;
+            if stored.as_deref() == Some(reloaded.as_str()) {
+                break;
+            }
+            if Instant::now() > deadline {
+                let stderr = std::fs::read_to_string(&served.stderr).unwrap_or_default();
+                let reload: Vec<&str> =
+                    stderr.lines().filter(|line| line.to_lowercase().contains("reload")).collect();
+                return Err(format!(
+                    "the row still holds {stored:?} 20s after SIGUSR1\n\
+                     --- what the server logged about the reload ---\n{}",
+                    reload.join("\n")
+                ));
+            }
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
+        pool.close().await;
+
+        insert_order_change(&database_url).await?;
+        received(&mut served, "/as-reloaded", 1).await?;
+        let booted_count = served
+            .receiver
+            .paths
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|p| *p == "/as-booted")
+            .count();
+        if booted_count != 1 {
+            return Err(format!("the booted declaration delivered {booted_count} times"));
+        }
+        Ok(())
+    }
+    .await;
+    drop_database(&admin_url, &db).await;
+    if let Err(failure) = outcome {
+        panic!("observer reload on {}: {failure}", entry.name());
+    }
+}
+
+/// The binary reloads an edited declared observer on `SIGUSR1`.
+#[cfg(unix)]
+#[tokio::test]
+async fn the_binary_reloads_an_edited_declared_observer() {
+    reload_edits_a_declared_observer(Entry::Binary).await;
+}
+
+/// A server serving MCP over stdio reloads an edited declared observer on `SIGUSR1`, as the
+/// binary does: its `AppState` carries the observer runtime the reload rebuilds.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_stdio_server_reloads_an_edited_declared_observer() {
+    reload_edits_a_declared_observer(Entry::McpStdio).await;
+}
+
+/// Every row of `core.tb_observer`, whole, in order.
+async fn observer_rows(pool: &PgPool) -> Result<Vec<String>, String> {
+    sqlx::query_scalar("SELECT row_to_json(o)::text FROM core.tb_observer o ORDER BY pk_observer")
+        .fetch_all(pool)
+        .await
+        .map_err(|e| format!("read core.tb_observer: {e}"))
+}
+
+/// Wait until the server has logged `count` refused reloads.
+async fn refused_reloads(served: &mut Served, count: usize) -> Result<(), String> {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        served.still_running()?;
+        let stderr = std::fs::read_to_string(&served.stderr).unwrap_or_default();
+        let log = std::fs::read_to_string(&served.log).unwrap_or_default();
+        let refused = format!("{stderr}{log}")
+            .lines()
+            .filter(|line| line.contains("Schema reload failed via SIGUSR1"))
+            .count();
+        if refused >= count {
+            return Ok(());
+        }
+        if Instant::now() > deadline {
+            return Err(format!("{refused} of {count} reloads were refused in 20s"));
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+}
+
+/// A reload that changes a declared observer and is refused, for another section that
+/// needs a restart or for an observer name another project holds, changes nothing: the
+/// rows of `core.tb_observer` are as they were, byte for byte, and the next change is
+/// delivered by the booted declaration.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_refused_reload_leaves_the_declared_observers_as_they_were() {
+    let Some(admin_url) = try_database_url() else {
+        eprintln!("SKIP refused observer reload: DATABASE_URL not set");
+        return;
+    };
+    let dir = fixtures_dir().join("observers");
+    let fixture = read_fixture(&dir).unwrap();
+    let compiled = tempfile::tempdir().unwrap();
+    let schema = compiled.path().join("schema.compiled.json");
+    compile(&dir, &schema).await.unwrap();
+    let db = "cap_observer_reload_refused";
+    let setup_sql = std::fs::read_to_string(dir.join("setup.sql")).unwrap();
+    let database_url = prepare_database(&admin_url, db, &setup_sql, fixture.fraiseql_setup)
+        .await
+        .unwrap();
+    let scratch = tempfile::tempdir().unwrap();
+    let receiver = Receiver::start().await;
+    let at = |path: &str| format!("{}{path}", receiver.url);
+    let (booted, reloaded) = (at("/as-booted"), at("/as-reloaded"));
+    declare_observers(&schema, order_seen(&booted));
+
+    let outcome = async {
+        let mut served =
+            serve(Entry::Binary, &dir, &fixture, &schema, &database_url, scratch.path(), receiver)
+                .await?;
+        let pool = PgPool::connect(&database_url).await.map_err(|e| format!("connect: {e}"))?;
+        sqlx::query(
+            "INSERT INTO core.tb_observer (name, entity_type, event_type, actions, managed_by) \
+             VALUES ('order_held', 'Order', 'DELETE', '[]', 'schema:another-project')",
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| format!("seed another project's observer: {e}"))?;
+        let before = observer_rows(&pool).await?;
+        let signal = |served: &Served| {
+            let signalled = Command::new("kill")
+                .args(["-USR1", &served.child.id().to_string()])
+                .status()
+                .map_err(|e| format!("kill -USR1: {e}"))?;
+            if signalled.success() {
+                Ok(())
+            } else {
+                Err(format!("kill -USR1 exited {signalled}"))
+            }
+        };
+
+        // The edited observer, and a section only a restart applies.
+        let mut document: Value =
+            serde_json::from_str(&std::fs::read_to_string(&schema).unwrap()).unwrap();
+        document["observers"] = order_seen(&reloaded);
+        document["naming_acronyms"] = serde_json::json!(["db2"]);
+        let staged = schema.with_extension("staged");
+        std::fs::write(&staged, document.to_string()).unwrap();
+        std::fs::rename(&staged, &schema).unwrap();
+        signal(&served)?;
+        refused_reloads(&mut served, 1).await?;
+        if observer_rows(&pool).await? != before {
+            return Err("a reload refused for `naming_acronyms` rewrote core.tb_observer".into());
+        }
+
+        // The edited observer first, then a name another project holds.
+        let mut both = order_seen(&reloaded);
+        let mut held = order_seen(&reloaded)[0].clone();
+        held["name"] = Value::from("order_held");
+        both.as_array_mut().unwrap().push(held);
+        declare_observers(&schema, both);
+        signal(&served)?;
+        refused_reloads(&mut served, 2).await?;
+        if observer_rows(&pool).await? != before {
+            return Err("a reload refused for a name another project holds rewrote \
+                        core.tb_observer"
+                .into());
+        }
+        pool.close().await;
+
+        insert_order_change(&database_url).await?;
+        received(&mut served, "/as-booted", 1).await?;
+        let reloaded_count = served
+            .receiver
+            .paths
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|p| *p == "/as-reloaded")
+            .count();
+        if reloaded_count != 0 {
+            return Err(format!("a refused declaration delivered {reloaded_count} times"));
+        }
+        Ok(())
+    }
+    .await;
+    drop_database(&admin_url, db).await;
+    if let Err(failure) = outcome {
+        panic!("refused observer reload: {failure}");
+    }
+}

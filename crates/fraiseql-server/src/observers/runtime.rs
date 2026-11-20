@@ -17,6 +17,7 @@ use std::{
 
 use arc_swap::ArcSwap;
 use fraiseql_core::runtime::subscription::{ChangeSpineEnvelope, SubscriptionOperation};
+use fraiseql_guard::deployment::Deployment;
 use fraiseql_observers::{
     ActionConfig as ObserverActionConfig, ActionExecutionDetail, ChangeLogListener,
     ChangeLogListenerConfig, CheckpointLease, EntityEvent as ObserverEntityEvent, EventMatcher,
@@ -211,6 +212,10 @@ pub struct ObserverRuntimeConfig {
     /// listener, the subscription tail and the REST stream's replay. The server's keeps each
     /// `Decimal`'s stored digits ([`decimal_documents`]).
     pub documents: DocumentDecoder,
+
+    /// The deployment a schema reload checks the declared observers' variables under,
+    /// as boot does. Production unless set: a missing variable then refuses the reload.
+    pub deployment: Deployment,
 }
 
 /// The change log's documents parsed as `executor`'s schema types them: each `Decimal` kept
@@ -241,7 +246,15 @@ impl ObserverRuntimeConfig {
             listener_id: "change_log".to_string(),
             redis: None,
             documents: DocumentDecoder::plain(),
+            deployment: Deployment::Production,
         }
+    }
+
+    /// Set the deployment a schema reload checks declared observers' variables under.
+    #[must_use]
+    pub const fn with_deployment(mut self, deployment: Deployment) -> Self {
+        self.deployment = deployment;
+        self
     }
 
     /// Set how the change log's documents are parsed.
@@ -458,6 +471,22 @@ impl ObserverRuntime {
         (HashMap<String, ObserverDefinition>, HashMap<(String, String), Vec<i64>>),
         ServerError,
     > {
+        let mut conn = repository
+            .pool()
+            .acquire()
+            .await
+            .map_err(|e| ServerError::Database(e.to_string()))?;
+        Self::load_observers_on(&mut conn).await
+    }
+
+    /// [`load_observers`](Self::load_observers) on `conn`: inside a transaction, the rows
+    /// it has written.
+    async fn load_observers_on(
+        conn: &mut sqlx::PgConnection,
+    ) -> Result<
+        (HashMap<String, ObserverDefinition>, HashMap<(String, String), Vec<i64>>),
+        ServerError,
+    > {
         // Load all enabled observers
         let query = crate::observers::ListObserversQuery {
             page:            1,
@@ -468,7 +497,8 @@ impl ObserverRuntime {
             include_deleted: false,
         };
 
-        let (observers, _total) = repository.list(&query, super::ObserverScope::Operator).await?;
+        let (observers, _total) =
+            ObserverRepository::list_on(conn, &query, super::ObserverScope::Operator).await?;
 
         let mut definitions = HashMap::new();
         let mut entity_type_index: HashMap<(String, String), Vec<i64>> = HashMap::new();
@@ -1389,6 +1419,29 @@ impl ObserverRuntime {
         Ok(count)
     }
 
+    /// Write the observers `owner`'s schema declares into `tb_observer`, as boot does, and
+    /// build the runtime's observers from the result, in one transaction: committed only
+    /// once they are built. The caller installs them after its own last fallible step.
+    ///
+    /// # Errors
+    ///
+    /// A variable a declared observer reads is missing in production, a name another owner
+    /// holds, a row that does not build, or a database failure: nothing is written.
+    pub async fn reconcile_and_prepare(
+        &self,
+        owner: &str,
+        declared: &[fraiseql_core::schema::ObserverDefinition],
+    ) -> Result<(super::Reconciled, PreparedObservers), ServerError> {
+        super::declared_env::check_declared_variables(declared, self.config.deployment)?;
+        let db = |e: sqlx::Error| ServerError::Database(e.to_string());
+        let mut tx = self.config.pool.begin().await.map_err(db)?;
+        let outcome = ObserverRepository::reconcile_declared_in(&mut tx, owner, declared).await?;
+        let (observers, index) = Self::load_observers_on(&mut tx).await?;
+        let prepared = self.reloader().prepare(observers, index)?;
+        tx.commit().await.map_err(db)?;
+        Ok((outcome, prepared))
+    }
+
     /// The state a reload reads and swaps, cloned so a task can reload without the runtime.
     fn reloader(&self) -> ObserverReloader {
         ObserverReloader {
@@ -1429,6 +1482,18 @@ impl ObserverReloader {
         // Load observers from database
         let (observers, new_entity_type_index) =
             ObserverRuntime::load_observers(&self.repository).await?;
+        let prepared = self.prepare(observers, new_entity_type_index)?;
+        let count = prepared.count;
+        prepared.install().await;
+        Ok(count)
+    }
+
+    /// Build the matcher and executor for `observers`, without making them live.
+    fn prepare(
+        &self,
+        observers: HashMap<String, ObserverDefinition>,
+        new_entity_type_index: HashMap<(String, String), Vec<i64>>,
+    ) -> Result<PreparedObservers, ServerError> {
         let count = observers.len();
 
         // Build new matcher
@@ -1455,28 +1520,58 @@ impl ObserverReloader {
         };
         let new_executor = Arc::new(rebuilt);
 
+        Ok(PreparedObservers {
+            matcher: new_matcher,
+            executor: new_executor,
+            entity_type_index: new_entity_type_index,
+            count,
+            matcher_slot: self.matcher.clone(),
+            executor_slot: self.executor.clone(),
+            index_slot: self.entity_type_index.clone(),
+            count_slot: self.observer_count.clone(),
+        })
+    }
+}
+
+/// A matcher, executor and index built from `tb_observer`, not yet live. Installing it
+/// cannot fail, so a schema reload builds it before it commits the rows it was built
+/// from and installs it after.
+pub struct PreparedObservers {
+    matcher:           EventMatcher,
+    executor:          Arc<ObserverExecutor>,
+    entity_type_index: HashMap<(String, String), Vec<i64>>,
+    count:             usize,
+    matcher_slot:      Arc<RwLock<Option<EventMatcher>>>,
+    executor_slot:     Arc<RwLock<Option<Arc<ObserverExecutor>>>>,
+    index_slot:        Arc<ArcSwap<HashMap<(String, String), Vec<i64>>>>,
+    count_slot:        Arc<std::sync::atomic::AtomicUsize>,
+}
+
+impl PreparedObservers {
+    /// Make these observers the ones the next batch matches: an event already matched
+    /// is delivered by the observers it matched.
+    pub async fn install(self) {
         // Atomic swap - write locks block readers briefly
         debug!("Swapping matcher, executor, and entity_type_index atomically");
 
         {
-            let mut m = self.matcher.write().await;
-            *m = Some(new_matcher);
+            let mut m = self.matcher_slot.write().await;
+            *m = Some(self.matcher);
         }
 
         {
-            let mut ex = self.executor.write().await;
-            *ex = Some(new_executor);
+            let mut ex = self.executor_slot.write().await;
+            *ex = Some(self.executor);
         }
 
         // Republish the new index with a single atomic pointer swap.  See
         // the field doc on `entity_type_index`: readers always observe a
         // fully-populated generation (pre-reload or post-reload), never a
         // partial index.
-        self.entity_type_index.store(Arc::new(new_entity_type_index));
+        self.index_slot.store(Arc::new(self.entity_type_index));
 
         // Update count
-        self.observer_count.store(count, Ordering::SeqCst);
-        Ok(count)
+        self.count_slot.store(self.count, Ordering::SeqCst);
     }
 }
 

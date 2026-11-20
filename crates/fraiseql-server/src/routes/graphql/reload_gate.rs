@@ -26,7 +26,7 @@ use fraiseql_core::schema::CompiledSchema;
 /// compiled-schema field has — no `PartialEq` bound to keep in sync. A
 /// serialization failure counts as "differs": a section this gate cannot read is
 /// not a section it may wave through.
-fn differs<T: serde::Serialize>(current: &T, next: &T) -> bool {
+pub(super) fn differs<T: serde::Serialize>(current: &T, next: &T) -> bool {
     match (serde_json::to_value(current), serde_json::to_value(next)) {
         (Ok(a), Ok(b)) => a != b,
         _ => true,
@@ -48,6 +48,12 @@ fn cache_ttl_projection(schema: &CompiledSchema) -> Vec<(&str, Option<u64>)> {
     projection.sort_unstable();
     projection
 }
+
+/// Capability sections a reload re-applies itself rather than refusing.
+///
+/// `observers`: `swap_in_schema` reconciles its rows and rebuilds the runtime's matcher, as
+/// boot does.
+pub const RELOAD_REAPPLIED: &[&str] = &["observers"];
 
 /// Names of the boot-frozen sections that differ between the running schema and
 /// a candidate replacement. Empty means the candidate is fully reloadable.
@@ -85,6 +91,9 @@ pub fn boot_frozen_drift(current: &CompiledSchema, next: &CompiledSchema) -> Vec
         // Compile-time only: its effect is already baked into `queries`, which is
         // hot, so a change on its own is inert rather than half-applied.
         hierarchies_config: _,
+        // Re-applied by the reload itself: `swap_in_schema` runs boot's reconcile of
+        // `core.tb_observer` and rebuilds the running observers before it swaps.
+        observers: _,
 
         // ── Boot-frozen: read once during startup by a subsystem that is
         //    immutable afterwards. Changing one requires a restart.
@@ -93,7 +102,6 @@ pub fn boot_frozen_drift(current: &CompiledSchema, next: &CompiledSchema) -> Vec
         // boot in `oidc_server_client_from_schema` (#621).
         auth: current_auth,
         validation_config: current_validation,
-        observers: current_observers,
         observers_config: current_observers_config,
         sources: current_sources,
         subscriptions_config: current_subscriptions_config,
@@ -134,10 +142,7 @@ pub fn boot_frozen_drift(current: &CompiledSchema, next: &CompiledSchema) -> Vec
     if differs(current_validation, &next.validation_config) {
         drifted.push("validation_config");
     }
-    // Observer runtime and its pollers are started during boot.
-    if differs(current_observers, &next.observers) {
-        drifted.push("observers");
-    }
+    // The observer runtime's transport, poll interval and pool are set at boot.
     if differs(current_observers_config, &next.observers_config) {
         drifted.push("observers_config");
     }
@@ -215,4 +220,33 @@ pub fn check_reloadable(current: &CompiledSchema, next: &CompiledSchema) -> Resu
             "those sections are"
         },
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use fraiseql_core::schema::{CompiledSchema, ObserverDefinition, ObserversConfig};
+
+    use super::{RELOAD_REAPPLIED, boot_frozen_drift};
+
+    #[test]
+    fn a_changed_observer_declaration_is_reapplied_not_refused() {
+        let next = CompiledSchema {
+            observers: vec![ObserverDefinition::new("order_created", "Order", "INSERT")],
+            ..CompiledSchema::default()
+        };
+
+        assert!(boot_frozen_drift(&CompiledSchema::default(), &next).is_empty());
+        assert!(RELOAD_REAPPLIED.contains(&"observers"));
+    }
+
+    /// The runtime's own configuration is read at boot: only the declarations are re-applied.
+    #[test]
+    fn a_changed_observer_runtime_configuration_still_needs_a_restart() {
+        let next = CompiledSchema {
+            observers_config: Some(ObserversConfig::default()),
+            ..CompiledSchema::default()
+        };
+
+        assert_eq!(boot_frozen_drift(&CompiledSchema::default(), &next), ["observers_config"]);
+    }
 }
