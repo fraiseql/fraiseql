@@ -1416,7 +1416,7 @@ mod row_projection {
                 assert!(
                     message.contains("SalesAggregateRow.count")
                         && message.contains("32-bit")
-                        && message.contains(&count.to_string()),
+                        && !message.contains(&count.to_string()),
                     "{message}"
                 );
             }

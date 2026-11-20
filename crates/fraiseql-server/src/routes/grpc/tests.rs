@@ -1183,9 +1183,7 @@ fn a_stored_enum_value_is_served_as_its_member_name_over_grpc() {
     let mut row = vec![ColumnValue::Text("7".into()), ColumnValue::Text("x".into())];
     let refusal = serve_enum_members(&mut row, &enums, &columns, "Order").unwrap_err();
     assert!(
-        refusal.contains("\"7\"")
-            && refusal.contains("Order.status")
-            && refusal.contains("LOW = 1"),
+        !refusal.contains('7') && refusal.contains("Order.status") && refusal.contains("LOW = 1"),
         "{refusal}"
     );
 }

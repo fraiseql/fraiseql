@@ -34,7 +34,7 @@ pub use mutations::{
     CHANGED_ROWS_KEY, ChangedCollections, ChangedRows, DERIVED_CASCADE_KEY, DerivedCascade,
     WriteMode, WriteRequest, Writer,
 };
-pub use raw_rows::{Compacted, JsonTally, RawRow, RawRows, compact_json};
+pub use raw_rows::{Compacted, JsonTally, RawRow, RawRows, ScalarKind, compact_json};
 pub use relay::RelayDatabaseAdapter;
 
 /// A violated constraint as the catalog describes it (#1531): see

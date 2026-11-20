@@ -118,11 +118,9 @@ fn schema() -> CompiledSchema {
 
 /// `Some(non_null)` when `selections` on `User` are admitted.
 fn admitted(selections: &[FieldSelection]) -> Option<bool> {
-    let mut shape = RawShape {
-        non_null: false,
-        ints:     false,
-    };
-    shape.admits(selections, &schema(), "User").then_some(shape.non_null)
+    let schema = schema();
+    let mut shape = RawShape::new();
+    shape.admits(selections, &schema, "User").then_some(shape.non_null)
 }
 
 #[test]
@@ -144,10 +142,7 @@ fn a_typename_below_an_abstract_position_is_refused() {
     user.fields.push(field("pet", FieldType::Union("Pet".to_string())));
     schema.build_indexes();
     for position in ["partner", "pet"] {
-        let mut shape = RawShape {
-            non_null: false,
-            ints:     false,
-        };
+        let mut shape = RawShape::new();
         let selections = [select(position, vec![leaf("__typename")])];
         assert!(!shape.admits(&selections, &schema, "User"), "{position}");
     }
@@ -368,7 +363,7 @@ fn a_null_needs_completion_under_a_non_null_key_or_none() {
     let needs = |non_null: bool, texts: &[&str]| {
         RawShape {
             non_null,
-            ints: false,
+            ..RawShape::new()
         }
         .may_hold_null_at_non_null(&rows(texts), &selections, &schema, "User")
     };
@@ -381,45 +376,111 @@ fn a_null_needs_completion_under_a_non_null_key_or_none() {
     assert!(!needs(false, &[r#"{"handle":null}"#]), "no non-null field is selected");
 }
 
-/// A number no `Int` holds as written (§ 3.5.1) under an `Int` field's key, or under no
-/// key, may need completion; one under a `Float`'s or a `Decimal`'s key does not, nor any
-/// number of a read that selects no `Int`. Rows copied knowing the `Int` keys and rows an
-/// adapter copied without them answer alike.
+/// A value its scalar does not hold as served (§ 3.5), under the response key of a selected
+/// `Int`, `Float`, `String` or `Boolean` field, may need completion: a number no `Int` holds
+/// as written, a string under an `Int`, a number under a `String`, an object under any of
+/// them. One under a `Decimal`'s key does not, nor any value of a read selecting none of
+/// the four. Rows copied knowing the keys and rows an adapter copied without them answer
+/// alike.
 #[test]
-fn a_number_no_int_holds_needs_completion_under_an_int_key_or_none() {
+fn a_value_of_another_kind_needs_completion_under_a_scalar_key() {
     let schema = schema();
     let years = FieldSelection {
         alias: Some("years".to_string()),
         ..leaf("age")
     };
-    let selections = [years, leaf("score"), leaf("price")];
-    let needs = |ints: bool, texts: &[&str]| {
-        let shape = RawShape {
-            non_null: false,
-            ints,
+    let selections = [
+        years,
+        leaf("score"),
+        leaf("price"),
+        leaf("name"),
+        leaf("active"),
+    ];
+    let needs = |scalars: bool, texts: &[&str]| {
+        let selected = if scalars {
+            &selections[..]
+        } else {
+            &selections[2..3]
         };
-        let keys = shape.int_keys(&selections, &schema, "User");
-        let mut keyed = RawRows::with_int_keys(&keys);
-        for text in texts {
-            keyed.push(text.as_bytes());
-        }
-        let told = shape.may_hold_non_int_at_int(&keyed, &keys);
-        let untold = shape.may_hold_non_int_at_int(&rows(texts), &keys);
-        assert_eq!(told, untold, "{texts:?}: copied knowing the keys, and not");
-        told
+        wrong_kind(&schema, selected, texts)
     };
-    assert!(
-        !needs(true, &[r#"{"years":7,"score":1.5,"price":3000000000}"#]),
-        "Float, Decimal"
-    );
+    let clean = r#"{"years":7,"score":1.5,"price":3000000000,"name":"x","active":true}"#;
+    assert!(!needs(true, &[clean]), "every value of its own kind; a Decimal as read");
     assert!(!needs(true, &[r#"{"years":2147483647}"#]), "the top of the range");
     assert!(needs(true, &[r#"{"years":2147483648}"#]), "past it");
     assert!(needs(true, &[r#"{"years":3.0}"#]), "a whole decimal, coerced by completion");
     assert!(needs(true, &[r#"{"years":1}"#, r#"{"years":-2147483649}"#]), "a later row");
+    assert!(needs(true, &[r#"{"years":"42"}"#]), "a numeric string, coerced by completion");
+    assert!(needs(true, &[r#"{"score":"1.5"}"#]), "a string under a Float");
+    assert!(needs(true, &[r#"{"name":7}"#]), "a number under a String");
+    assert!(needs(true, &[r#"{"name":{"s":1}}"#]), "an object under a String");
+    assert!(needs(true, &[r#"{"active":"true"}"#]), "a string under a Boolean");
+    assert!(!needs(true, &[r#"{"price":"1.50"}"#]), "a Decimal is not adjudicated");
     assert!(
         !needs(true, &[r#"{"age":3000000000}"#]),
         "the field's name is not its response key"
     );
-    assert!(needs(true, &["2.5"]), "a number no key names");
-    assert!(!needs(false, &[r#"{"years":3000000000}"#]), "no Int field is selected");
+    assert!(!needs(false, &[r#"{"years":"x"}"#]), "no scalar field is selected");
+}
+
+/// Whether a read of `selections` on `User` over rows `texts` needs completion for a value
+/// of another kind, asked as the read asks it, of rows copied knowing the keys or not as the
+/// read tells them; both must answer as rows copied knowing them and rows copied without.
+fn wrong_kind(schema: &CompiledSchema, selections: &[FieldSelection], texts: &[&str]) -> bool {
+    let mut shape = RawShape::new();
+    assert!(shape.admits(selections, schema, "User"));
+    let keys = scalar_keys(selections, schema, "User");
+    let mut told = RawRows::with_scalar_keys(&keys);
+    for text in texts {
+        told.push(text.as_bytes());
+    }
+    let answer = told.has_wrong_kind_under(&keys);
+    let untold = rows(texts);
+    assert_eq!(
+        answer,
+        untold.has_wrong_kind_under(&keys),
+        "{texts:?}: copied knowing the keys, and not"
+    );
+    let (read, told_keys) = if shape.told() {
+        (&told, &keys[..])
+    } else {
+        (&untold, &[][..])
+    };
+    let asked = shape.may_hold_wrong_kind(read, told_keys, selections, schema, "User");
+    assert_eq!(answer, asked, "{texts:?}: as the read asks");
+    answer
+}
+
+/// A read tells the adapter its scalar keys unless it selects no object field and no scalar
+/// but `String`s. Such a read is answered from the rows' tallies, and walks for its keys
+/// only when a row holds a value no `String` holds.
+#[test]
+fn a_flat_read_selecting_only_strings_tells_no_keys() {
+    let schema = schema();
+    let told = |selections: &[FieldSelection]| {
+        let mut shape = RawShape::new();
+        assert!(shape.admits(selections, &schema, "User"));
+        shape.told()
+    };
+    assert!(!told(&[leaf("name"), leaf("price")]), "a String and a Decimal");
+    assert!(!told(&[leaf("price")]), "no scalar the rule adjudicates");
+    assert!(told(&[leaf("name"), leaf("age")]), "an Int beside it");
+    assert!(told(&[leaf("active")]), "a Boolean");
+    assert!(
+        told(&[leaf("name"), select("profile", vec![leaf("tier")])]),
+        "an object field: a container below a row is then no sign of a wrong kind"
+    );
+
+    let name = [leaf("name"), leaf("price")];
+    for (text, answer) in [
+        (r#"{"name":"x","price":"1.50"}"#, false),
+        (r#"{"name":"x","price":1.5}"#, false),
+        (r#"{"name":7,"price":"1"}"#, true),
+        (r#"{"name":true}"#, true),
+        (r#"{"name":{"s":"x"}}"#, true),
+        (r#"{"name":["x"]}"#, true),
+        (r#"{"name":null}"#, false),
+    ] {
+        assert_eq!(wrong_kind(&schema, &name, &[text]), answer, "{text}");
+    }
 }

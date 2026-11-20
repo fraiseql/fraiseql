@@ -111,12 +111,29 @@ disagreed, and the promise was the part that was wrong.
   64-bit integers can be declared `Float`, exact up to 2^53, or `String`, with the view
   writing the column as text (`id::text`), which keeps every digit. Neither keeps an
   integer type on the wire.
-- **`ProjectionRequest.int_keys`, a public field on a struct a caller can build, in
+- **A GraphQL `Int`, `Float`, `String` or `Boolean` holding a value of another kind is
+  coerced only when nothing is lost, and is otherwise `null` with a field error (#2159).**
+  Such a field served whatever its row held: a string under an `Int`, an object under a
+  `String`. Following GraphQL § 3.5, a numeric string written as the integer it is
+  (`"42"`, not `"042"` or `"42.0"`) is served as that `Int`; a numeric string in JSON
+  number syntax as that `Float`; an integer as its text under a `String`, and `true` or
+  `false` as `"true"` or `"false"`; the strings `"true"` and `"false"` as that `Boolean`.
+  Anything else (a fraction under a `String`, a number under a `Boolean`, an object or a
+  list under any of the four) is `null` at that path with an error, and a non-null
+  position nulls its nearest nullable parent. A `String` field is read as stored: an
+  object a view nests under it was served as its JSON text and is now refused; write the
+  value as text in the view (`col::text`) to keep serving it. A refusal names the field
+  and the kind of the stored value, never the value; this applies to the `Int` refusal
+  above and to an enum's. REST has no field error to give: it serves a `String` field
+  holding another kind as its JSON text, where a fraction is written as read
+  (`1.50` → `"1.5"`) and an object without the database's spacing, and serves `Int`,
+  `Float` and `Boolean` fields as stored.
+- **`ProjectionRequest.scalar_keys`, a public field on a struct a caller can build, in
   `fraiseql-db` (#2174).** A struct literal that lists every field must add it; `None`
   changes nothing. An adapter answering `execute_with_projection_raw_with_session` starts
-  its rows from `request.raw_rows()` to answer the `Int` question as it copies them; one
-  that keeps `RawRows::new()` answers alike and reads its rows again for a read selecting
-  an `Int`.
+  its rows from `request.raw_rows()` to answer, as it copies them, whether a selected
+  `Int`, `Float`, `String` or `Boolean` holds a value of another kind; one that keeps
+  `RawRows::new()` answers alike and reads its rows again.
 - **A discovery document that names another issuer refuses the boot (#2135).** The
   `[auth]` PKCE client and the social and generic OIDC providers fetch
   `{discovery_url}/.well-known/openid-configuration`; the `issuer` the document names must
@@ -744,11 +761,11 @@ disagreed, and the promise was the part that was wrong.
   the reload, so a refused reload leaves rows and running observers as they were. An event
   already matched is delivered by the declaration it matched, retries included. A changed
   `[observers]` section or `[project] name` still needs a restart.
-- **A read answered as the database's text that selects an `Int` copies its rows once
-  (#2174).** Whether an `Int` position holds a number no `Int` holds was answered by reading
-  the rows a second time whenever any of them held a fraction, as every `Float` or
-  `Decimal` beside the `Int` does. The read now names its `Int` keys to the adapter, and
-  the question is answered as the rows are copied.
+- **A read answered as the database's text copies its rows once (#2174).** Whether an
+  `Int` position holds a number no `Int` holds was answered by reading the rows a second
+  time whenever any of them held a fraction, as every `Float` or `Decimal` beside the
+  `Int` does. The read now names its scalar keys and their kinds to the adapter, and the
+  question is answered as the rows are copied.
 - **An aggregate `Int` holding a whole decimal such as `3.0` is served as `3` (#1928); it was
   a field error.** Aggregate rows follow the same `Int` rule as every other read.
 - **A saga time past year 9999 is unreadable (#2026).** A saga's times hold years -9999 to

@@ -103,30 +103,109 @@ fn a_violation_inside_a_matching_inline_fragment_is_reported() {
 
 /// § 3.5.1 at its bounds: an integer in the signed 32-bit range is served, one past it is
 /// refused; a whole number written with a fraction or an exponent is that integer; a
-/// fractional one is refused; a value that is not a number is not this rule's to judge.
+/// fractional one is refused; a numeric string is that integer only in its canonical form.
 #[test]
 fn an_int_position_serves_a_32_bit_integer_coerces_a_whole_decimal_and_refuses_the_rest() {
+    let whole = |n: i32| Coercion::Rewrite(json!(n));
     let cases = [
-        (json!(0), IntCoercion::Served),
-        (json!(2_147_483_647), IntCoercion::Served),
-        (json!(-2_147_483_648), IntCoercion::Served),
-        (json!(2_147_483_648_i64), IntCoercion::Refused),
-        (json!(-2_147_483_649_i64), IntCoercion::Refused),
-        (json!(u64::MAX), IntCoercion::Refused),
-        (json!(3.0), IntCoercion::Whole(3)),
-        (json!(-0.0), IntCoercion::Whole(0)),
-        (serde_json::from_str::<Value>("1e3").unwrap(), IntCoercion::Whole(1000)),
-        (json!(2_147_483_647.0), IntCoercion::Whole(2_147_483_647)),
-        (json!(-2_147_483_648.0), IntCoercion::Whole(-2_147_483_648)),
-        (json!(2_147_483_648.0), IntCoercion::Refused),
-        (json!(-2_147_483_649.0), IntCoercion::Refused),
-        (json!(2.5), IntCoercion::Refused),
-        (json!(1.5e300), IntCoercion::Refused),
-        (json!("3000000000"), IntCoercion::Served),
-        (json!(true), IntCoercion::Served),
+        (json!(0), Coercion::Served),
+        (json!(2_147_483_647), Coercion::Served),
+        (json!(-2_147_483_648), Coercion::Served),
+        (json!(2_147_483_648_i64), Coercion::Refused),
+        (json!(-2_147_483_649_i64), Coercion::Refused),
+        (json!(u64::MAX), Coercion::Refused),
+        (json!(3.0), whole(3)),
+        (json!(-0.0), whole(0)),
+        (serde_json::from_str::<Value>("1e3").unwrap(), whole(1000)),
+        (json!(2_147_483_647.0), whole(2_147_483_647)),
+        (json!(-2_147_483_648.0), whole(-2_147_483_648)),
+        (json!(2_147_483_648.0), Coercion::Refused),
+        (json!(-2_147_483_649.0), Coercion::Refused),
+        (json!(2.5), Coercion::Refused),
+        (json!(1.5e300), Coercion::Refused),
+        (json!("2147483647"), whole(2_147_483_647)),
+        (json!("-2147483648"), whole(-2_147_483_648)),
+        (json!("2147483648"), Coercion::Refused),
+        (json!("3000000000"), Coercion::Refused),
+        (json!("-0"), Coercion::Refused),
+        (json!("00"), Coercion::Refused),
+        (json!("-"), Coercion::Refused),
+        (json!(""), Coercion::Refused),
+        (json!("４２"), Coercion::Refused),
+        (json!(true), Coercion::Refused),
+        (json!([1]), Coercion::Refused),
+        (json!({"n": 1}), Coercion::Refused),
+        (json!(null), Coercion::Served),
     ];
     for (value, expected) in cases {
-        assert_eq!(coerce_int(&value), expected, "{value}");
+        assert_eq!(coerce_scalar("Int", &value), Some(expected), "{value}");
+    }
+}
+
+/// The scalars § 3.5's rule leaves alone: `ID` (an integer or a string), the extended
+/// built-ins and a project's own.
+#[test]
+fn a_scalar_outside_the_four_is_not_adjudicated() {
+    for scalar in [
+        "ID",
+        "UUID",
+        "Decimal",
+        "DateTime",
+        "LocalDateTime",
+        "Email",
+    ] {
+        assert_eq!(coerce_scalar(scalar, &json!(true)), None, "{scalar}");
+    }
+}
+
+/// A numeric string at a `Float` is the number its JSON syntax writes, with nothing around
+/// it and only when a `Float` can hold it.
+#[test]
+fn a_float_position_reads_a_numeric_string_in_json_syntax_only() {
+    for (text, served) in [
+        ("1.5", "1.5"),
+        ("42", "42"),
+        ("-0", "-0.0"),
+        ("4.2e1", "42.0"),
+    ] {
+        let rewritten = match coerce_scalar("Float", &json!(text)) {
+            Some(Coercion::Rewrite(value)) => value.to_string(),
+            other => format!("{other:?}"),
+        };
+        assert_eq!(rewritten, served, "{text}");
+    }
+    for text in [
+        "", " 1", "1 ", "+1", "01", ".5", "1.", "NaN", "Infinity", "1e400", "0x10",
+    ] {
+        assert_eq!(coerce_scalar("Float", &json!(text)), Some(Coercion::Refused), "{text}");
+    }
+}
+
+/// A refusal's message names the field, the scalar and the stored value's kind, never the
+/// value.
+#[test]
+fn a_refusal_names_the_kind_of_the_stored_value_and_never_the_value() {
+    let message = |scalar: &str, stored: Value| {
+        not_a_scalar(&"Kind.at", scalar, &stored, &[json!("at")])["message"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    };
+    assert_eq!(
+        message("Int", json!("s3cr3t")),
+        "`Kind.at` is an `Int`, a signed 32-bit integer, and the stored value is a String that \
+         is not one"
+    );
+    assert_eq!(
+        message("Boolean", json!(3_000_000_000_u64)),
+        "`Kind.at` is a `Boolean`, and the stored value is a number that is not one"
+    );
+    for (stored, kind) in [
+        (json!(true), "a Boolean"),
+        (json!([1]), "a list"),
+        (json!({"s": 1}), "an object"),
+    ] {
+        assert!(message("String", stored).contains(kind), "{kind}");
     }
 }
 

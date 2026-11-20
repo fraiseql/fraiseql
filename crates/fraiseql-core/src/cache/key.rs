@@ -254,7 +254,7 @@ pub fn generate_projection_query_key(
         matched_up_to,
         decimals,
         // Changes no row: it names the keys a read answered as text is copied knowing.
-        int_keys: _,
+        scalar_keys: _,
     } = *request;
     let mut h = new_hasher();
     h.write(b"p:");

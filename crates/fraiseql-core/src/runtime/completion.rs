@@ -39,6 +39,7 @@ use ahash::AHashMap;
 use serde_json::{Map, Value};
 
 use crate::{
+    backend::ScalarKind,
     graphql::{DirectiveEvaluator, FieldSelection},
     schema::{CompiledSchema, IntrospectionBuilder, IntrospectionType, TypeKind},
 };
@@ -55,6 +56,9 @@ enum TypeRef {
     List(Box<TypeRef>),
     /// An enum: its value is checked against the members (§ 3.9 result coercion).
     Enum(String),
+    /// `Int`, `Float`, `String` or `Boolean`: its value is held to it (§ 3.5).
+    Scalar(ScalarKind),
+    /// An object, interface or union, or a scalar its value is served as read at.
     Named(String),
 }
 
@@ -68,6 +72,9 @@ impl TypeRef {
                 Some(Self::List(Box::new(Self::from_introspection(t.of_type.as_deref()?)?)))
             },
             TypeKind::Enum => t.name.clone().map(Self::Enum),
+            TypeKind::Scalar => t.name.as_deref().map(|name| {
+                built_in_scalar(name).map_or_else(|| Self::Named(name.to_string()), Self::Scalar)
+            }),
             _ => t.name.clone().map(Self::Named),
         }
     }
@@ -207,20 +214,22 @@ impl OutputTypes {
         Self::complete_with(&Walk::new(self, variables), response, root_type, selections);
     }
 
-    /// [`complete`](Self::complete), for a transport that publishes an `Int` field as an
-    /// integer of any size: a number at an `Int` position is served as it was read.
+    /// [`complete`](Self::complete), for a transport that does not publish GraphQL's
+    /// scalars: a value at an `Int`, `Float` or `Boolean` position is served as it was
+    /// read, and a value of another kind at a `String` position as its JSON text.
     ///
-    /// REST describes such a field to its clients as an OpenAPI `integer` with no `int32`
+    /// REST describes an `Int` field to its clients as an OpenAPI `integer` with no `int32`
     /// format, so a `bigint` value is one its contract allows, and refusing it would turn
     /// a correct answer into a failed read. GraphQL publishes the same field as `Int`, a
-    /// signed 32-bit integer (§ 3.5.1), and [`complete`](Self::complete) holds it to that.
+    /// signed 32-bit integer (§ 3.5.1), and [`complete`](Self::complete) holds it to that
+    /// and every built-in scalar to its own result coercion (§ 3.5).
     pub fn complete_published_as_integer(
         &self,
         response: &mut Value,
         root_type: &str,
         selections: &[FieldSelection],
     ) {
-        let walk = Walk::new(self, None).serving_ints_as_read();
+        let walk = Walk::new(self, None).serving_scalars_as_read();
         Self::complete_with(&walk, response, root_type, selections);
     }
 
@@ -348,68 +357,201 @@ fn violation(label: Label<'_>, path: &[Step<'_>]) -> Value {
 }
 
 /// The field error for a stored value of an enum position that is no member's stored value.
-fn not_a_member(
-    label: Label<'_>,
-    path: &[Step<'_>],
-    stored: &Value,
-    members: &EnumMembers,
-) -> Value {
+fn not_a_member(label: Label<'_>, path: &[Step<'_>], members: &EnumMembers) -> Value {
     serde_json::json!({
-        "message": members.definition.not_a_member_message(stored, &label),
+        "message": members.definition.not_a_member_message(&label),
         "path": response_path(path),
     })
 }
 
-/// The field error for a stored value of an `Int` position that no `Int` holds.
-fn not_an_int(label: Label<'_>, path: &[Step<'_>], stored: &Value) -> Value {
+/// The field error for a stored value a built-in scalar position cannot serve without loss.
+///
+/// It says what kind of value is stored, never the value.
+fn not_a_scalar(
+    label: &dyn std::fmt::Display,
+    scalar: &str,
+    stored: &Value,
+    path: &[Value],
+) -> Value {
+    let (article, gloss) = match scalar {
+        "Int" => ("an", ", a signed 32-bit integer"),
+        _ => ("a", ""),
+    };
     serde_json::json!({
         "message": format!(
-            "`{label}` is an `Int`, a signed 32-bit integer, and the stored value {stored} is \
-             not one"
+            "`{label}` is {article} `{scalar}`{gloss}, and the stored value is {} that is not \
+             one",
+            kind_of(stored)
         ),
-        "path": response_path(path),
+        "path": path,
     })
 }
 
-/// How § 3.5.1 serves a value at an `Int` position.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum IntCoercion {
-    /// As it is: a signed 32-bit integer, or not a number, which this rule does not
-    /// adjudicate.
+/// The JSON kind of `value`, with its article, for a message that must not quote it.
+const fn kind_of(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "a Boolean",
+        Value::Number(_) => "a number",
+        Value::String(_) => "a String",
+        Value::Array(_) => "a list",
+        Value::Object(_) => "an object",
+    }
+}
+
+/// How § 3.5 result coercion serves a stored value at a built-in scalar position.
+#[derive(Debug, Clone, PartialEq)]
+enum Coercion {
+    /// As it is.
     Served,
-    /// As this integer: a number written with a fraction or an exponent (`3.0`, `-0`,
-    /// `3e2`) whose value is a whole number in range. Coercing it loses nothing.
-    Whole(i32),
-    /// Refused: a number outside the range, or one with a fractional part.
+    /// As this value, which holds exactly the stored information in the scalar's form: a
+    /// whole number written with a fraction at an `Int` (`3.0`), a numeric string in its
+    /// canonical form at an `Int` or a `Float`, an integer's or a Boolean's text at a
+    /// `String`, the text `true` or `false` at a `Boolean`.
+    Rewrite(Value),
+    /// Refused: a field error. Serving it would lose information or guess.
     Refused,
 }
 
-/// How § 3.5.1 serves `value` at an `Int` position. Every completion of an `Int` asks this,
-/// the aggregate rows' included, so one rule decides what an `Int` may hold.
-fn coerce_int(value: &Value) -> IntCoercion {
-    let Value::Number(number) = value else {
-        return IntCoercion::Served;
-    };
+/// How § 3.5 serves `value` at a position of the scalar named `scalar`, or `None` for a
+/// scalar this rule does not adjudicate (`ID`, a custom scalar).
+#[cfg(test)]
+fn coerce_scalar(scalar: &str, value: &Value) -> Option<Coercion> {
+    built_in_scalar(scalar).map(|scalar| coerce_built_in(scalar, value))
+}
+
+/// How § 3.5 serves `value` at a position of the built-in `scalar`. Every completion asks
+/// this, the aggregate rows' included, so one rule decides what each scalar may hold; the
+/// walk resolves a field's scalar once, as [`TypeRef::Scalar`].
+#[inline]
+fn coerce_built_in(scalar: ScalarKind, value: &Value) -> Coercion {
+    if served_as_is(scalar, value) {
+        Coercion::Served
+    } else {
+        coerce_other(scalar, value)
+    }
+}
+
+/// The name of the built-in `scalar`.
+const fn scalar_name(scalar: ScalarKind) -> &'static str {
+    match scalar {
+        ScalarKind::Int => "Int",
+        ScalarKind::Float => "Float",
+        ScalarKind::String => "String",
+        ScalarKind::Boolean => "Boolean",
+    }
+}
+
+/// Whether `value` is one the built-in `scalar` holds as served: `null`, or a value of its
+/// kind, an `Int`'s a signed 32-bit integer. Every value a scalar position usually holds,
+/// decided in the walk without a call.
+#[inline]
+fn served_as_is(scalar: ScalarKind, value: &Value) -> bool {
+    match (scalar, value) {
+        (_, Value::Null)
+        | (ScalarKind::Float, Value::Number(_))
+        | (ScalarKind::String, Value::String(_))
+        | (ScalarKind::Boolean, Value::Bool(_)) => true,
+        (ScalarKind::Int, Value::Number(number)) => {
+            number.as_i64().is_some_and(|n| i32::try_from(n).is_ok())
+        },
+        _ => false,
+    }
+}
+
+/// [`coerce_built_in`] for a value [`served_as_is`] does not serve: never `null`, nor a
+/// value of the scalar's own kind but an `Int`'s number outside the range.
+fn coerce_other(scalar: ScalarKind, value: &Value) -> Coercion {
+    use ScalarKind::{Boolean, Float, Int, String};
+    match (scalar, value) {
+        (Int, Value::Number(number)) => coerce_int(number),
+        (Int, Value::String(text)) => {
+            canonical_int(text).map_or(Coercion::Refused, |n| Coercion::Rewrite(Value::from(n)))
+        },
+        (Float, Value::String(text)) => {
+            number_text(text).map_or(Coercion::Refused, |n| Coercion::Rewrite(Value::Number(n)))
+        },
+        // An integer's text is exact on every path; a fraction's is not: the `Value` path
+        // holds `1.50` as the `f64` 1.5, so its text would not be the stored one.
+        (String, Value::Number(number)) if !number.is_f64() => {
+            Coercion::Rewrite(Value::String(number.to_string()))
+        },
+        (String, Value::Bool(b)) => Coercion::Rewrite(Value::String(b.to_string())),
+        (Boolean, Value::String(text)) => match text.as_str() {
+            "true" => Coercion::Rewrite(Value::Bool(true)),
+            "false" => Coercion::Rewrite(Value::Bool(false)),
+            _ => Coercion::Refused,
+        },
+        _ => Coercion::Refused,
+    }
+}
+
+/// The built-in scalar § 3.5 adjudicates that `name` names: one test of its length, the
+/// four names' lengths differing, then one comparison.
+fn built_in_scalar(name: &str) -> Option<ScalarKind> {
+    match name.len() {
+        3 if name == "Int" => Some(ScalarKind::Int),
+        5 if name == "Float" => Some(ScalarKind::Float),
+        6 if name == "String" => Some(ScalarKind::String),
+        7 if name == "Boolean" => Some(ScalarKind::Boolean),
+        _ => None,
+    }
+}
+
+/// § 3.5.1 for a number at an `Int` position: a signed 32-bit integer is served, a whole
+/// number written with a fraction or an exponent (`3.0`, `-0`, `3e2`) is that integer, and
+/// any other number is refused.
+fn coerce_int(number: &serde_json::Number) -> Coercion {
     if let Some(n) = number.as_i64() {
         return if i32::try_from(n).is_ok() {
-            IntCoercion::Served
+            Coercion::Served
         } else {
-            IntCoercion::Refused
+            Coercion::Refused
         };
     }
     // An integer past `i64` is a `u64`, and outside the range whatever its value.
-    if !number.is_f64() {
-        return IntCoercion::Refused;
-    }
-    let Some(float) = number.as_f64() else {
-        return IntCoercion::Refused;
+    let Some(float) = number.as_f64().filter(|_| number.is_f64()) else {
+        return Coercion::Refused;
     };
     if float.fract() != 0.0 || !(f64::from(i32::MIN)..=f64::from(i32::MAX)).contains(&float) {
-        return IntCoercion::Refused;
+        return Coercion::Refused;
     }
     #[allow(clippy::cast_possible_truncation)]
     // Reason: a whole number checked to lie within `i32` just above
-    IntCoercion::Whole(float as i32)
+    Coercion::Rewrite(Value::from(float as i32))
+}
+
+/// What a transport that does not publish GraphQL's scalars serves at a `String` position:
+/// a value of any other kind as its JSON text, never refused. Such a transport (REST) has
+/// no response document to carry a field error in, and a String field read its stored
+/// value as text before the projection read it as stored. A fraction is written as the
+/// `f64` it was read as (`1.50` → `"1.5"`), and an object without the spacing the database
+/// wrote it with.
+fn stringify_at_string(scalar: ScalarKind, value: &Value) -> Coercion {
+    if scalar == ScalarKind::String && !matches!(value, Value::Null | Value::String(_)) {
+        Coercion::Rewrite(Value::String(value.to_string()))
+    } else {
+        Coercion::Served
+    }
+}
+
+/// The integer `text` writes in its canonical form (`42`, `-7`, `0`: no sign but a leading
+/// `-`, no leading zero, no `-0`), if it lies within the signed 32-bit range. Any other
+/// text would be served as a value its client never wrote.
+fn canonical_int(text: &str) -> Option<i32> {
+    let digits = text.strip_prefix('-').unwrap_or(text);
+    let canonical = !digits.is_empty()
+        && digits.bytes().all(|b| b.is_ascii_digit())
+        && (digits == "0" || !digits.starts_with('0'))
+        && text != "-0";
+    canonical.then(|| text.parse().ok()).flatten()
+}
+
+/// The number `text` is, written in JSON's number syntax and nothing around it, if one can
+/// hold it: `1e400` cannot.
+fn number_text(text: &str) -> Option<serde_json::Number> {
+    let bare = !text.is_empty() && text.trim() == text;
+    bare.then(|| serde_json::from_str(text).ok()).flatten()
 }
 
 fn response_path(path: &[Step<'_>]) -> Vec<Value> {
@@ -431,8 +573,9 @@ struct Walk<'a> {
     types:               &'a OutputTypes,
     variables:           Option<&'a Value>,
     directive_variables: OnceCell<HashMap<String, Value>>,
-    /// Whether an `Int` position is held to a signed 32-bit integer (§ 3.5.1).
-    coerces_ints:        bool,
+    /// Whether a built-in scalar position is held to its scalar (§ 3.5): see
+    /// [`coerce_scalar`].
+    coerces_scalars:     bool,
 }
 
 impl<'a> Walk<'a> {
@@ -441,14 +584,14 @@ impl<'a> Walk<'a> {
             types,
             variables,
             directive_variables: OnceCell::new(),
-            coerces_ints: true,
+            coerces_scalars: true,
         }
     }
 
-    /// The same walk, serving an `Int` position's number as it is: see
+    /// The same walk, serving a built-in scalar position's value as it is: see
     /// [`OutputTypes::complete_published_as_integer`].
-    const fn serving_ints_as_read(mut self) -> Self {
-        self.coerces_ints = false;
+    const fn serving_scalars_as_read(mut self) -> Self {
+        self.coerces_scalars = false;
         self
     }
 
@@ -566,7 +709,7 @@ impl<'a> Walk<'a> {
                     return Ok(());
                 };
                 let Some(member) = members.member_of(value) else {
-                    errors.push(not_a_member(label, path, value, members));
+                    errors.push(not_a_member(label, path, members));
                     return Err(Propagate);
                 };
                 if value.as_str() != Some(member.as_str()) {
@@ -590,19 +733,27 @@ impl<'a> Walk<'a> {
                 }
                 if propagated { Err(Propagate) } else { Ok(()) }
             },
-            TypeRef::Named(name) => match value {
-                Value::Object(map) => self.object(map, name, sel, path, errors, depth),
-                Value::Number(_) if self.coerces_ints && name == "Int" => match coerce_int(value) {
-                    IntCoercion::Served => Ok(()),
-                    IntCoercion::Whole(n) => {
-                        *value = Value::from(n);
+            TypeRef::Scalar(scalar) => {
+                let coercion = if self.coerces_scalars {
+                    coerce_built_in(*scalar, value)
+                } else {
+                    stringify_at_string(*scalar, value)
+                };
+                match coercion {
+                    Coercion::Served => Ok(()),
+                    Coercion::Rewrite(coerced) => {
+                        *value = coerced;
                         Ok(())
                     },
-                    IntCoercion::Refused => {
-                        errors.push(not_an_int(label, path, value));
+                    Coercion::Refused => {
+                        let name = scalar_name(*scalar);
+                        errors.push(not_a_scalar(&label, name, value, &response_path(path)));
                         Err(Propagate)
                     },
-                },
+                }
+            },
+            TypeRef::Named(name) => match value {
+                Value::Object(map) => self.object(map, name, sel, path, errors, depth),
                 _ => Ok(()),
             },
         }

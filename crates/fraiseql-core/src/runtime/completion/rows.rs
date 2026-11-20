@@ -10,12 +10,15 @@
 //! An `Int` is a signed 32-bit integer (§ 3.5.1), and a count or an `int8` group key is
 //! wider: a value outside that range is a field error, its field `null`, never a number the
 //! type says cannot occur. A whole number written with a fraction (`3.0`, a `numeric`
-//! average) is served as the integer it is. The rule is the one every `Int` position is
-//! completed by.
+//! average) is served as the integer it is. The rule is the one every built-in scalar
+//! position is completed by (§ 3.5).
 
 use serde_json::{Map, Value};
 
-use super::{IntCoercion, OutputTypes, Step, TypeRef, Walk, coerce_int, response_path};
+use super::{
+    Coercion, OutputTypes, Step, TypeRef, Walk, coerce_built_in, not_a_scalar, response_path,
+    scalar_name,
+};
 use crate::graphql::FieldSelection;
 
 impl OutputTypes {
@@ -97,29 +100,24 @@ impl OutputTypes {
                         } else {
                             // Read, not taken: two aliases may select the same field.
                             let value = computed.get(&field.name).cloned().unwrap_or(Value::Null);
-                            let is_int = matches!(
-                                fields.and_then(|f| f.get(&field.name)),
-                                Some(TypeRef::Named(name)) if name == "Int"
-                            );
-                            let coerced = if is_int {
-                                coerce_int(&value)
-                            } else {
-                                IntCoercion::Served
+                            let scalar = match fields.and_then(|f| f.get(&field.name)) {
+                                Some(TypeRef::Scalar(scalar)) => Some(*scalar),
+                                _ => None,
                             };
-                            if let IntCoercion::Whole(n) = coerced {
-                                Value::from(n)
-                            } else if coerced == IntCoercion::Refused {
-                                let path =
-                                    [Step::Key(root_key), Step::Index(index), Step::Key(key)];
-                                errors.push(int_out_of_range(
-                                    type_name,
-                                    &field.name,
-                                    &value,
-                                    &path,
-                                ));
-                                Value::Null
-                            } else {
-                                value
+                            match scalar.map(|scalar| coerce_built_in(scalar, &value)) {
+                                Some(Coercion::Rewrite(coerced)) => coerced,
+                                Some(Coercion::Refused) => {
+                                    let path =
+                                        [Step::Key(root_key), Step::Index(index), Step::Key(key)];
+                                    errors.push(not_a_scalar(
+                                        &format!("{type_name}.{}", field.name),
+                                        scalar.map(scalar_name).unwrap_or_default(),
+                                        &value,
+                                        &response_path(&path),
+                                    ));
+                                    Value::Null
+                                },
+                                Some(Coercion::Served) | None => value,
                             }
                         };
                         out.insert(key.to_string(), value);
@@ -158,15 +156,4 @@ impl Walk<'_> {
         }
         visit(sel);
     }
-}
-
-/// The field error for a computed value no `Int` holds: outside its range, or fractional.
-fn int_out_of_range(type_name: &str, field: &str, value: &Value, path: &[Step<'_>]) -> Value {
-    serde_json::json!({
-        "message": format!(
-            "`{type_name}.{field}` is an `Int`, a signed 32-bit integer, and the computed \
-             value {value} is not one"
-        ),
-        "path": response_path(path),
-    })
 }

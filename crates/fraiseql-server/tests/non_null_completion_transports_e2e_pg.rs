@@ -56,7 +56,8 @@ async fn provision(adapter: &PostgresAdapter) {
         format!("CREATE SCHEMA {SCHEMA}"),
         format!(
             "CREATE VIEW {SCHEMA}.v_note AS SELECT * FROM (VALUES \
-             ('n1', jsonb_build_object('id', 'n1', 'title', 'First', 'views', 3000000000)), \
+             ('n1', jsonb_build_object('id', 'n1', 'title', 'First', 'views', 3000000000, \
+             'label', 1.50, 'meta', jsonb_build_object('a', 1))), \
              ('n2', jsonb_build_object('id', 'n2'))) AS t(id, data)"
         ),
         format!(
@@ -86,7 +87,9 @@ fn schema() -> CompiledSchema {
                 "fields": [
                     {"name": "id", "field_type": "ID", "nullable": false},
                     {"name": "title", "field_type": "String", "nullable": false},
-                    {"name": "views", "field_type": "Int", "nullable": true}
+                    {"name": "views", "field_type": "Int", "nullable": true},
+                    {"name": "label", "field_type": "String", "nullable": true},
+                    {"name": "meta", "field_type": "String", "nullable": true}
                 ]
             }],
             "queries": [
@@ -248,6 +251,36 @@ async fn a_wide_int_is_served_by_rest_and_refused_by_graphql() {
     let body = graphql(&server, r#"{ note(id: "n1") { id views } }"#, &json!({})).await;
     assert_eq!(body["data"]["note"], json!({"id": "n1", "views": null}), "{body}");
     assert_eq!(paths(&body), vec![json!(["note", "views"])], "{body}");
+}
+
+/// A `String` field holding a number or an object: REST, which has no field error to give,
+/// serves its JSON text, the number as the `f64` it was read as (`1.50` → `"1.5"`) and the
+/// object without the database's spacing. GraphQL refuses both (§ 3.5): neither is served
+/// without loss.
+#[tokio::test]
+async fn a_string_field_holding_another_kind_is_text_on_rest_and_refused_by_graphql() {
+    let Some(url) = try_database_url() else {
+        return;
+    };
+    let server = serve(&url).await;
+    let response = reqwest::Client::new()
+        .get(format!("{}/rest/v1/notes/n1", server.base))
+        .send()
+        .await
+        .unwrap();
+    let status = response.status();
+    let text = response.text().await.unwrap();
+    assert!(status.is_success(), "{status}: {text}");
+    let body: Value = serde_json::from_str(&text).unwrap();
+    let note = body.get("data").unwrap_or(&body);
+    assert_eq!(note["label"], json!("1.5"), "the trailing zero is not kept: {text}");
+    assert_eq!(note["meta"], json!(r#"{"a":1}"#), "nor the spacing: {text}");
+
+    let body = graphql(&server, r#"{ note(id: "n1") { id label meta } }"#, &json!({})).await;
+    assert_eq!(body["data"]["note"], json!({"id": "n1", "label": null, "meta": null}), "{body}");
+    let mut paths = paths(&body);
+    paths.sort_by_key(Value::to_string);
+    assert_eq!(paths, vec![json!(["note", "label"]), json!(["note", "meta"])], "{body}");
 }
 
 /// An MCP tool call's result is the GraphQL response: the error is in it, and the result

@@ -839,9 +839,9 @@ mod raw_body {
             );
             assert_eq!(adapter.text_reads(), 1, "{method}: the read was answered as text");
             assert_eq!(
-                adapter.text_read_int_keys(),
-                Some(vec![b"id".to_vec()]),
-                "{method}: the read named the `Int` it selects, so its rows are read once"
+                adapter.text_read_scalar_keys(),
+                Some(vec![(b"id".to_vec(), fraiseql_core::db::traits::ScalarKind::Int)]),
+                "{method}: the read named the scalar it selects, so its rows are read once"
             );
         }
     }

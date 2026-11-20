@@ -711,7 +711,7 @@ async fn a_stored_value_that_is_no_members_is_a_field_error() {
     let error = &response["errors"][0];
     let message = error["message"].as_str().unwrap_or_default();
     assert!(
-        message.contains('7') && message.contains("Priority") && message.contains("LOW = 1"),
+        !message.contains('7') && message.contains("Priority") && message.contains("LOW = 1"),
         "{response}"
     );
     assert_eq!(error["path"][2], json!("priority"), "{response}");

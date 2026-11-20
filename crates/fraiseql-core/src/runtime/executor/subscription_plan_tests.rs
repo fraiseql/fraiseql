@@ -1029,7 +1029,12 @@ fn an_event_int_past_the_range_is_a_field_error_and_a_whole_decimal_its_integer(
     assert_eq!(served.data, json!({"id": "o1", "quantity": null}));
     assert_eq!(served.errors.len(), 1, "{:?}", served.errors);
     assert_eq!(served.errors[0]["path"], json!(["orderChanged", "quantity"]));
-    assert!(messages(&served)[0].contains("3000000000"), "{:?}", served.errors);
+    assert!(messages(&served)[0].contains("Order.quantity"), "{:?}", served.errors);
+    assert!(
+        !messages(&served)[0].contains("3000000000"),
+        "never the value: {:?}",
+        served.errors
+    );
 
     let served = planned.deliver(&json!({"id": "o1", "quantity": 2.0}), false).unwrap();
     assert_eq!(served.errors, Vec::<serde_json::Value>::new());

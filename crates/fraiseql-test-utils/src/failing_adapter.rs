@@ -123,8 +123,8 @@ pub struct FailingAdapter {
     /// Projection reads answered as text, counted; `None` when the adapter answers only
     /// with `Value`s.
     text_reads:         Option<Arc<AtomicU64>>,
-    /// The `Int` keys the last projection read answered as text was handed.
-    text_int_keys:      Arc<Mutex<Option<Vec<Vec<u8>>>>>,
+    /// The scalar keys the last projection read answered as text was handed.
+    text_scalar_keys:   Arc<Mutex<Option<Vec<(Vec<u8>, fraiseql_core::db::traits::ScalarKind)>>>>,
 }
 
 impl FailingAdapter {
@@ -141,7 +141,7 @@ impl FailingAdapter {
             where_clause_log:   Arc::new(Mutex::new(Vec::new())),
             stream_failure:     Arc::new(Mutex::new(None)),
             text_reads:         None,
-            text_int_keys:      Arc::new(Mutex::new(None)),
+            text_scalar_keys:   Arc::new(Mutex::new(None)),
         }
     }
 
@@ -284,12 +284,14 @@ impl FailingAdapter {
         self.text_reads.as_ref().map_or(0, |n| n.load(Ordering::SeqCst))
     }
 
-    /// The `Int` keys the last projection read answered as text was handed
-    /// ([`ProjectionRequest::int_keys`](fraiseql_core::db::traits::ProjectionRequest::int_keys)),
+    /// The scalar keys the last projection read answered as text was handed
+    /// ([`ProjectionRequest::scalar_keys`](fraiseql_core::db::traits::ProjectionRequest::scalar_keys)),
     /// `None` when it named none.
     #[must_use]
-    pub fn text_read_int_keys(&self) -> Option<Vec<Vec<u8>>> {
-        self.text_int_keys
+    pub fn text_read_scalar_keys(
+        &self,
+    ) -> Option<Vec<(Vec<u8>, fraiseql_core::db::traits::ScalarKind)>> {
+        self.text_scalar_keys
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
@@ -435,8 +437,9 @@ impl DatabaseAdapter for FailingAdapter {
         };
         self.check_failure(request.view)?;
         reads.fetch_add(1, Ordering::SeqCst);
-        *self.text_int_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner) =
-            request.int_keys.map(|keys| keys.iter().map(|key| key.to_vec()).collect());
+        *self.text_scalar_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = request
+            .scalar_keys
+            .map(|keys| keys.iter().map(|&(key, scalar)| (key.to_vec(), scalar)).collect());
         let mut rows = request.raw_rows();
         for row in self.get_response(request.view) {
             rows.push(&serde_json::to_vec(row.as_value()).unwrap_or_default());

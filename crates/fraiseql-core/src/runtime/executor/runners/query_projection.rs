@@ -77,14 +77,14 @@ pub fn build_typed_projection_fields(
                 type_def.and_then(|td| td.fields.iter().find(|f| f.name == sel.name.as_str()));
 
             let is_composite = field_def.is_some_and(|fd| !fd.field_type.is_scalar());
-            // A `Decimal` is read as text too: `->>` prints the digits jsonb stored, which
-            // a decoded number would round.
+            // An `ID` and a `Decimal` are read as text: `->>` prints the digits jsonb stored,
+            // which a decoded number would round. A `String` is read as stored, like every
+            // other scalar: `->>` would print a number, a Boolean or an object as text, and
+            // serve as a `String` what completion must judge by its kind (§ 3.5).
             let is_text = field_def.is_some_and(|fd| {
                 matches!(
                     fd.field_type,
-                    crate::schema::FieldType::String
-                        | crate::schema::FieldType::Id
-                        | crate::schema::FieldType::Decimal
+                    crate::schema::FieldType::Id | crate::schema::FieldType::Decimal
                 )
             });
 

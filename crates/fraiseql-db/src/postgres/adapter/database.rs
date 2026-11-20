@@ -1850,7 +1850,7 @@ impl DatabaseAdapter for PostgresAdapter {
             offset,
             matched_up_to: None,
             decimals: None,
-            int_keys: None,
+            scalar_keys: None,
         };
         self.where_documents(&request, session_vars, routing).await
     }

@@ -458,15 +458,13 @@ impl EnumDefinition {
 
     /// The refusal of a stored value that is no member's (GraphQL § 3.9 result coercion),
     /// for the field `field` (`Task.priority`): every transport words it so.
+    ///
+    /// It names the field, never the stored value, which may be any text a row holds.
     #[must_use]
-    pub fn not_a_member_message(
-        &self,
-        stored: &dyn std::fmt::Display,
-        field: &dyn std::fmt::Display,
-    ) -> String {
+    pub fn not_a_member_message(&self, field: &dyn std::fmt::Display) -> String {
         format!(
-            "Enum {} cannot represent the stored value {stored} of field {field}: its members \
-             are stored as {}.",
+            "Enum {} cannot represent the stored value of field {field}: its members are \
+             stored as {}.",
             self.name,
             self.stored_listing()
         )

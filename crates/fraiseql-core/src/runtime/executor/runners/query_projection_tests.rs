@@ -59,7 +59,7 @@ fn aliased_scalar_field_projects_source_column() {
     assert!(sql.contains("'myName' VALUE "), "output key must be the alias `myName`: {sql}");
     // …but the JSONB column read is the SOURCE field, snake_cased.
     assert!(
-        sql.contains("->>'full_name'"),
+        sql.contains("->'full_name'"),
         "aliased field must read source column `full_name`: {sql}"
     );
     // It must NOT read a column derived from the alias.
@@ -96,7 +96,7 @@ fn aliased_nested_subfield_projects_source_column() {
 
     assert!(sql.contains("'myName' VALUE "), "nested output key must be the alias: {sql}");
     assert!(
-        sql.contains("->>'full_name'"),
+        sql.contains("->'full_name'"),
         "nested aliased field must read source column `full_name`: {sql}"
     );
     assert!(
@@ -117,7 +117,7 @@ fn non_aliased_field_projects_its_own_column() {
     let sql = projection_sql(&[field("fullName", None, vec![])], &schema, "User");
 
     assert!(sql.contains("'fullName' VALUE "), "output key is the field name: {sql}");
-    assert!(sql.contains("->>'full_name'"), "reads its own snake_case column: {sql}");
+    assert!(sql.contains("->'full_name'"), "reads its own snake_case column: {sql}");
 }
 
 // ── #1117: the WHERE cast hint for pgvector fields ───────────────────────────
@@ -292,7 +292,7 @@ fn a_typename_of_an_object_type_is_projected_as_its_name_where_it_was_selected()
     let sql = projection_sql(&selections, &typename_schema(), "User");
 
     assert!(
-        sql.contains("'name' VALUE \"data\"->>'name', 'kind' VALUE ('User'::text), "),
+        sql.contains("'name' VALUE \"data\"->'name', 'kind' VALUE ('User'::text), "),
         "the root's, under its alias, after `name`: {sql}"
     );
     assert!(

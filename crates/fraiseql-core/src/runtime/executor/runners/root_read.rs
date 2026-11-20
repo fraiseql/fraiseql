@@ -483,7 +483,7 @@ impl RootRead {
             offset:        self.offset,
             matched_up_to: self.nearest_count,
             decimals:      self.decimals.as_deref(),
-            int_keys:      None,
+            scalar_keys:   None,
         }
     }
 

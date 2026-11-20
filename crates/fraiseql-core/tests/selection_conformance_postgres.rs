@@ -146,6 +146,51 @@ CREATE OR REPLACE FUNCTION fn_selection_conformance_holding() RETURNS SETOF v_se
 /// `Int` fields (§ 3.5.1): `n` holds integers in range, `wide` one past it, `whole` a whole
 /// decimal, `frac` a fractional one; `inner.m`, a non-null `Int`, one past the range in the
 /// first row; `big` is a `Float` holding the same digits as `wide`.
+/// § 3.5 result coercion of a stored value of each JSON kind, at each of the four built-in
+/// scalars the raw path splices. Each case is one row whose `data` holds the stored value
+/// under all four keys; beside it, what each scalar serves, or `None` for a field error. A
+/// coercion is made only when it serves exactly the stored information: a numeric string
+/// in its canonical form, an integer's or a boolean's text, the text `true` or `false`.
+/// A stored text that must never reach an error is `s3cr3t`.
+const KIND_VIEW: &str = "v_selection_conformance_kind";
+type KindCase = (&'static str, [Option<&'static str>; 4]);
+const KIND_CASES: &[KindCase] = &[
+    // stored                 Int            Float             String               Boolean
+    (r#""42""#, [Some("42"), Some("42"), Some(r#""42""#), None]),
+    (r#""-7""#, [Some("-7"), Some("-7"), Some(r#""-7""#), None]),
+    (r#""0""#, [Some("0"), Some("0"), Some(r#""0""#), None]),
+    (r#""-0""#, [None, Some("-0.0"), Some(r#""-0""#), None]),
+    (r#""042""#, [None, None, Some(r#""042""#), None]),
+    (r#""+42""#, [None, None, Some(r#""+42""#), None]),
+    (r#"" 42""#, [None, None, Some(r#"" 42""#), None]),
+    (r#""4.2e1""#, [None, Some("42.0"), Some(r#""4.2e1""#), None]),
+    (r#""42.0""#, [None, Some("42.0"), Some(r#""42.0""#), None]),
+    (r#""3000000000""#, [None, Some("3000000000"), Some(r#""3000000000""#), None]),
+    (r#""1.5""#, [None, Some("1.5"), Some(r#""1.5""#), None]),
+    (r#""1e400""#, [None, None, Some(r#""1e400""#), None]),
+    (r#""NaN""#, [None, None, Some(r#""NaN""#), None]),
+    (r#""s3cr3t""#, [None, None, Some(r#""s3cr3t""#), None]),
+    (r#""""#, [None, None, Some(r#""""#), None]),
+    (r#""true""#, [None, None, Some(r#""true""#), Some("true")]),
+    (r#""false""#, [None, None, Some(r#""false""#), Some("false")]),
+    (r#""TRUE""#, [None, None, Some(r#""TRUE""#), None]),
+    ("42", [Some("42"), Some("42"), Some(r#""42""#), None]),
+    ("0", [Some("0"), Some("0"), Some(r#""0""#), None]),
+    ("1", [Some("1"), Some("1"), Some(r#""1""#), None]),
+    ("3000000000", [None, Some("3000000000"), Some(r#""3000000000""#), None]),
+    ("1.5", [None, Some("1.5"), None, None]),
+    ("1.50", [None, Some("1.5"), None, None]),
+    ("3.0", [Some("3"), Some("3.0"), None, None]),
+    ("true", [None, None, Some(r#""true""#), Some("true")]),
+    ("false", [None, None, Some(r#""false""#), Some("false")]),
+    (r#"{"s3cr3t": 1}"#, [None, None, None, None]),
+    (r#"["s3cr3t"]"#, [None, None, None, None]),
+    ("null", [Some("null"), Some("null"), Some("null"), Some("null")]),
+];
+const KIND_FIELDS: [&str; 4] = ["int", "float", "string", "boolean"];
+/// The same four fields, each holding its own kind: read raw, as stored.
+const KIND_CLEAN_VIEW: &str = "v_selection_conformance_kind_clean";
+
 const COUNTER_VIEW: &str = "v_selection_conformance_counter";
 const COUNTER_FIXTURE: &str = r#"
 DROP TABLE IF EXISTS v_selection_conformance_counter;
@@ -378,6 +423,24 @@ fn schema() -> CompiledSchema {
         .with_sql_source(LEDGER_FUNCTION)
         .build();
     ledger_rows_query.sql_source_kind = SourceKind::Function;
+    let kind_type = |name: &str, view: &str| {
+        TestTypeBuilder::new(name, view)
+            .with_nullable_field("int", FieldType::Int)
+            .with_nullable_field("float", FieldType::Float)
+            .with_nullable_field("string", FieldType::String)
+            .with_nullable_field("boolean", FieldType::Boolean)
+            .build()
+    };
+    let kinds_query = TestQueryBuilder::new("kinds", "Kind")
+        .returns_list(true)
+        .with_sql_source(KIND_VIEW)
+        .build();
+    let mut clean_kinds_query = TestQueryBuilder::new("cleanKinds", "CleanKind")
+        .returns_list(true)
+        .with_sql_source(KIND_CLEAN_VIEW)
+        .build();
+    clean_kinds_query.auto_params.has_where = true;
+    clean_kinds_query.auto_params.has_order_by = true;
     let counters_query = TestQueryBuilder::new("counters", "Counter")
         .returns_list(true)
         .with_sql_source(COUNTER_VIEW)
@@ -447,6 +510,10 @@ fn schema() -> CompiledSchema {
         .with_query(user_query)
         .with_query(measures_query)
         .with_query(counters_query)
+        .with_type(kind_type("Kind", KIND_VIEW))
+        .with_type(kind_type("CleanKind", KIND_CLEAN_VIEW))
+        .with_query(kinds_query)
+        .with_query(clean_kinds_query)
         .with_query(wides_query)
         .with_query(connection_query)
         .build();
@@ -482,6 +549,34 @@ async fn executor_for(schema: CompiledSchema) -> Option<Executor> {
             .execute_raw_query(stmt)
             .await
             .expect("provision the conformance fixture");
+    }
+    let kind_rows = KIND_CASES
+        .iter()
+        .enumerate()
+        .map(|(i, (stored, _))| {
+            let value = stored.replace('\'', "''");
+            let document = KIND_FIELDS
+                .iter()
+                .map(|f| format!(r#""{f}": {value}"#))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("({i}, '{{{document}}}'::jsonb)")
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    for stmt in [
+        format!("DROP TABLE IF EXISTS {KIND_VIEW}"),
+        format!("CREATE TABLE {KIND_VIEW} (pk_kind bigint, data jsonb)"),
+        format!("INSERT INTO {KIND_VIEW} (pk_kind, data) VALUES {kind_rows}"),
+        format!("DROP TABLE IF EXISTS {KIND_CLEAN_VIEW}"),
+        format!("CREATE TABLE {KIND_CLEAN_VIEW} (pk_kind bigint, data jsonb)"),
+        format!(
+            r#"INSERT INTO {KIND_CLEAN_VIEW} (pk_kind, data) VALUES
+               (1, '{{"int": 7, "float": 1.50, "string": "x", "boolean": true}}'::jsonb),
+               (2, '{{"int": -2147483648, "float": 2, "string": "", "boolean": false}}'::jsonb)"#
+        ),
+    ] {
+        adapter.execute_raw_query(&stmt).await.expect("provision the kind fixture");
     }
     let wide_document = (0..WIDE_FIELDS)
         .map(|i| format!("'{}', {i}", wide_field(i)))
@@ -1156,7 +1251,7 @@ async fn an_int_outside_the_32_bit_range_is_a_field_error_on_the_raw_eligible_re
     assert_eq!(rows[0], json!({"n": 7, "wide": null}), "{response}");
     assert_eq!(rows[1], json!({"n": -2_147_483_648, "wide": 2_147_483_647}), "{response}");
     assert_eq!(
-        error_paths(&response, "3000000000"),
+        error_paths(&response, "a signed 32-bit integer, and the stored value is a number"),
         vec![(json!(["counters", 0, "wide"]), true)],
         "{response}"
     );
@@ -1177,7 +1272,7 @@ async fn an_int_holding_a_whole_decimal_is_served_as_the_integer_and_a_fraction_
     assert_eq!(rows[1], json!({"whole": -4, "frac": 1}), "{response}");
     assert!(rows[0]["whole"].is_i64() && rows[1]["whole"].is_i64(), "{response}");
     assert_eq!(
-        error_paths(&response, "2.5"),
+        error_paths(&response, "a signed 32-bit integer, and the stored value is a number"),
         vec![(json!(["counters", 0, "frac"]), true)],
         "{response}"
     );
@@ -1200,7 +1295,7 @@ async fn a_non_null_int_outside_the_range_nulls_its_nullable_parent() {
         "{response}"
     );
     assert_eq!(
-        error_paths(&response, "4294967296"),
+        error_paths(&response, "a signed 32-bit integer, and the stored value is a number"),
         vec![(json!(["counters", 0, "inner", "m"]), true)],
         "{response}"
     );
@@ -1218,7 +1313,7 @@ async fn an_int_outside_the_range_is_a_field_error_on_the_value_path_too() {
     assert!(!raw, "two root fields are read as `Value`s");
     assert_eq!(response["data"]["counters"][0], json!({"wide": null}), "{response}");
     assert_eq!(
-        error_paths(&response, "3000000000"),
+        error_paths(&response, "a signed 32-bit integer, and the stored value is a number"),
         vec![(json!(["counters", 0, "wide"]), true)],
         "{response}"
     );
@@ -2092,4 +2187,142 @@ async fn a_direct_read_answers_what_the_graphql_read_answers() {
         Err(e) => differ.push(format!("leaf homeAddress\n    direct: {e}")),
     }
     assert!(differ.is_empty(), "the two reads differ:\n  {}", differ.join("\n  "));
+}
+
+/// Every case of [`KIND_CASES`], at each of the four scalars, read two ways: as the raw path's
+/// flat list and through the `Value` path (a second root field). Both serve the table's
+/// value, or `null` with a field error at the position, and the two answers are identical.
+#[tokio::test]
+async fn a_stored_value_of_another_kind_is_coerced_only_when_nothing_is_lost() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+
+    let (flat, _) = answer(&exec, "{ kinds { int float string boolean } }").await;
+    let (through_values, raw) =
+        answer(&exec, "{ kinds { int float string boolean } measures { price } }").await;
+    assert!(!raw, "two root fields are read as `Value`s");
+
+    let mut refused = Vec::new();
+    for (i, (stored, served)) in KIND_CASES.iter().enumerate() {
+        for (field, served) in KIND_FIELDS.iter().zip(served) {
+            if served.is_none() {
+                refused.push(json!(["kinds", i, field]));
+            }
+            let expected: Value =
+                served.map_or(Value::Null, |text| serde_json::from_str(text).unwrap());
+            for response in [&flat, &through_values] {
+                let got = &response["data"]["kinds"][i][field];
+                assert_eq!(got, &expected, "{stored} at `{field}`: {response}");
+                // `json!(42) != json!(42.0)`: the served number's form is pinned too.
+                assert_eq!(got.to_string(), expected.to_string(), "{stored} at `{field}`");
+            }
+        }
+    }
+    for response in [&flat, &through_values] {
+        let mut paths: Vec<Value> =
+            error_paths(response, "").into_iter().map(|(path, _)| path).collect();
+        paths.sort_by_key(Value::to_string);
+        let mut expected = refused.clone();
+        expected.sort_by_key(Value::to_string);
+        assert_eq!(paths, expected, "{response}");
+    }
+    assert_eq!(flat["errors"], through_values["errors"], "the two paths disagree");
+}
+
+/// A refusal names the kind of the stored value, never the value itself.
+#[tokio::test]
+async fn no_refusal_quotes_the_stored_value() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+
+    for query in [
+        "{ kinds { int float string boolean } }",
+        "{ counters { n wide whole frac inner { m } } }",
+    ] {
+        let (response, _) = answer(&exec, query).await;
+        let errors = response["errors"].to_string();
+        assert!(response["errors"].as_array().is_some_and(|e| !e.is_empty()), "{response}");
+        for stored in [
+            "s3cr3t",
+            "3000000000",
+            "4294967296",
+            "2.5",
+            "1.5",
+            "NaN",
+            "1e400",
+        ] {
+            assert!(!errors.contains(stored), "`{stored}` reached an error: {errors}");
+        }
+    }
+}
+
+/// A read whose four scalars each hold their own kind is spliced as the database wrote it.
+#[tokio::test]
+async fn a_read_whose_values_are_each_of_their_own_kind_stays_raw() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+
+    let (response, raw) = answer(&exec, "{ cleanKinds { int float string boolean } }").await;
+    assert!(raw, "{response}");
+    assert_eq!(
+        response["data"]["cleanKinds"],
+        json!([
+            {"int": 7, "float": 1.50, "string": "x", "boolean": true},
+            {"int": -2_147_483_648, "float": 2, "string": "", "boolean": false},
+        ]),
+        "{response}"
+    );
+    assert!(response.get("errors").is_none(), "{response}");
+}
+
+/// The projection read a `String` field with `->>`, which prints any stored JSON as text, so
+/// an object a view nested under a `String` reached the client as its JSON text. Read as
+/// stored, it is a field error (§ 3.5), the field `null`, on the projected read.
+#[tokio::test]
+async fn an_object_stored_under_a_string_is_a_field_error_on_the_projected_read() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+
+    let row = KIND_CASES.iter().position(|(stored, _)| stored.starts_with('{')).unwrap();
+    let (response, _) = answer(&exec, "{ kinds { string } }").await;
+    assert_eq!(response["data"]["kinds"][row], json!({"string": null}), "{response}");
+    assert!(
+        error_paths(&response, "a `String`, and the stored value is an object")
+            .contains(&(json!(["kinds", row, "string"]), true)),
+        "{response}"
+    );
+}
+
+/// A `where` and an `orderBy` on a `String` field read the stored value themselves, not the
+/// projection, so reading the projected `String` as stored changes neither.
+#[tokio::test]
+async fn a_string_field_filters_and_sorts_as_text() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+
+    let (filtered, _) =
+        answer(&exec, r#"{ cleanKinds(where: { string: { eq: "x" } }) { int string } }"#).await;
+    assert_eq!(filtered["data"]["cleanKinds"], json!([{"int": 7, "string": "x"}]), "{filtered}");
+    let (sorted, _) = answer(&exec, "{ cleanKinds(orderBy: { string: ASC }) { string } }").await;
+    assert_eq!(
+        sorted["data"]["cleanKinds"],
+        json!([{"string": ""}, {"string": "x"}]),
+        "{sorted}"
+    );
+    let (sorted, _) = answer(&exec, "{ cleanKinds(orderBy: { string: DESC }) { string } }").await;
+    assert_eq!(
+        sorted["data"]["cleanKinds"],
+        json!([{"string": "x"}, {"string": ""}]),
+        "{sorted}"
+    );
 }

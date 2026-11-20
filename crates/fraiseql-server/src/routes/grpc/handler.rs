@@ -192,7 +192,7 @@ pub fn serve_enum_members(
         if let (ColumnValue::Text(stored), Some(def)) = (&mut *value, def) {
             let Some(member) = def.member_stored_as_text(stored) else {
                 let field = format!("{type_name}.{}", column.name);
-                return Err(def.not_a_member_message(&format!("{stored:?}"), &field));
+                return Err(def.not_a_member_message(&field));
             };
             *stored = member.to_string();
         }

@@ -162,13 +162,13 @@ async fn a_masked_field_is_written_as_null_where_it_was_selected_under_its_alias
     ] {
         assert!(sql.contains(written), "{written} missing from {sql}");
     }
-    for stored in ["'salary'", "'email' VALUE \"data\"", "->>'zip'"] {
+    for stored in ["'salary'", "'email' VALUE \"data\"", "->'zip'"] {
         assert!(!sql.contains(stored), "a masked field's stored key read ({stored}): {sql}");
     }
 
     let allowed = fresh_projection_for(document, &caller(&ROLES, 0)).await;
     assert!(!allowed.contains("NULL::json"), "a caller holding every role: {allowed}");
-    assert!(allowed.contains("->>'salary'"), "{allowed}");
+    assert!(allowed.contains("->'salary'"), "{allowed}");
 }
 
 /// The RED for a key without the caller's masks, in both orders: a masked caller first

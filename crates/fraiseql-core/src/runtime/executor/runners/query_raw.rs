@@ -7,9 +7,10 @@
 //! and no row becomes a [`serde_json::Value`]. Only their numbers are written again, as
 //! `serde_json` writes them.
 //!
-//! A number no `Int` holds as written, under a key an `Int` field is selected under, sends
-//! the rows to the `Value` path too: completion coerces it or makes it a field error
-//! (§ 3.5.1).
+//! A value its scalar does not hold as served, under a key an `Int`, `Float`, `String` or
+//! `Boolean` field is selected under, sends the rows to the `Value` path too: a number no
+//! `Int` holds as written, a string under an `Int`, a number under a `String`, an object
+//! under any of them. Completion coerces it or makes it a field error (§ 3.5).
 //!
 //! Anything Rust would still reshape keeps the read on the `Value` path: a localized,
 //! encrypted or computed field, an enum, a list of anything but objects, a JSON scalar, an
@@ -22,7 +23,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use super::{query::QueryRunner, root_read::RootRead};
 use crate::{
-    backend::{ProjectionRequest, RawRows, types::JsonbValue},
+    backend::{ProjectionRequest, RawRows, ScalarKind, types::JsonbValue},
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
     runtime::QueryMatch,
@@ -63,15 +64,19 @@ impl QueryRunner {
             .map_or(&[][..], |root| root.nested_fields.as_slice());
         let schema = &self.ctx.schema;
         let return_type = &query_def.return_type;
-        // A read selecting an `Int` tells the adapter its keys, so whether a number no `Int`
-        // holds sits under one is answered as the rows are copied.
-        let int_keys = shape.int_keys(selections, schema, return_type);
+        // A read told its scalar keys answers whether a value of another kind sits under one
+        // as the rows are copied ([`RawShape::told`]).
+        let told_keys = if shape.told() {
+            scalar_keys(selections, schema, return_type)
+        } else {
+            Vec::new()
+        };
         let Some(rows) = self
             .ctx
             .adapter
             .execute_with_projection_raw_with_session(
                 &ProjectionRequest {
-                    int_keys: shape.ints.then_some(&int_keys[..]),
+                    scalar_keys: shape.told().then_some(&told_keys[..]),
                     ..read.projection_request()
                 },
                 session_pairs,
@@ -83,11 +88,11 @@ impl QueryRunner {
         };
 
         // § 6.4.4 completion leaves the response as it is unless a non-null position holds
-        // `null` (a selected non-null field, or a non-null single root with no row), or an
-        // `Int` position holds a number no `Int` holds as written (§ 3.5.1).
+        // `null` (a selected non-null field, or a non-null single root with no row), or a
+        // built-in scalar position holds a value of another kind (§ 3.5).
         let completes_unchanged =
             !shape.may_hold_null_at_non_null(&rows, selections, schema, return_type)
-                && !shape.may_hold_non_int_at_int(&rows, &int_keys)
+                && !shape.may_hold_wrong_kind(&rows, &told_keys, selections, schema, return_type)
                 && (query_def.returns_list || query_def.nullable || !rows.rows().is_empty());
         if !rows.exact() || !completes_unchanged {
             let parsed = rows.parse().map_err(|e| FraiseQLError::Internal {
@@ -128,11 +133,14 @@ fn envelope(rows: &RawRows, response_key: &str, is_list: bool) -> Vec<u8> {
     body
 }
 
-/// A read whose rows need no shaping in Rust, and whether its selection holds a non-null
-/// field and an `Int` field.
+/// A read whose rows need no shaping in Rust, and what its selection holds, at any depth: a
+/// non-null field, an object field, an `Int`, `Float`, `String` or `Boolean` field, and one
+/// of those other than a `String`.
 struct RawShape {
-    non_null: bool,
-    ints:     bool,
+    non_null:    bool,
+    objects:     bool,
+    scalars:     bool,
+    non_strings: bool,
 }
 
 impl RawShape {
@@ -155,28 +163,45 @@ impl RawShape {
             })
     }
 
-    /// Whether `rows` may hold a number no `Int` holds as written under one of `int_keys`
-    /// ([`int_keys`](Self::int_keys)), or under no key.
-    fn may_hold_non_int_at_int(&self, rows: &RawRows, int_keys: &[&[u8]]) -> bool {
-        self.ints && rows.has_non_int_under(int_keys)
+    /// Whether the adapter is told the read's scalar keys ([`scalar_keys`]), so whether a
+    /// value of another kind sits under one is answered as the rows are copied. A read of
+    /// no object field selecting no scalar but `String`s is told none: a value of another
+    /// kind below a row is then a member of the row, under some key, and the rows' tallies
+    /// answer whether one is there at all before any key is looked at.
+    const fn told(&self) -> bool {
+        self.scalars && (self.objects || self.non_strings)
     }
 
-    /// The response keys under which `rows`, read through `selections` of a `type_name`,
-    /// may hold a number no `Int` holds as written at an `Int` field: each key an `Int`
-    /// field is selected under, at any depth. Under any other key such a number is a
-    /// `Float`'s or a `Decimal`'s, and is served as read; one where no key names it is
-    /// looked at too ([`RawRows::has_non_int_under`]). None when the read selects no `Int`.
-    fn int_keys<'s>(
+    /// Whether `rows`, read through `selections` of a `type_name`, may hold a value of
+    /// another kind under the key of a selected `Int`, `Float`, `String` or `Boolean`:
+    /// asked of `told_keys` when the rows were [`told`](Self::told) them; otherwise of the
+    /// keys, walked for only when the rows hold a value no `String` holds.
+    fn may_hold_wrong_kind(
         &self,
-        selections: &'s [FieldSelection],
+        rows: &RawRows,
+        told_keys: &[(&[u8], ScalarKind)],
+        selections: &[FieldSelection],
         schema: &CompiledSchema,
         type_name: &str,
-    ) -> Vec<&'s [u8]> {
-        let mut keys = Vec::new();
-        if self.ints {
-            int_keys(selections, schema, type_name, &mut keys);
+    ) -> bool {
+        if !self.scalars {
+            return false;
         }
-        keys
+        if self.told() {
+            return rows.has_wrong_kind_under(told_keys);
+        }
+        rows.may_hold_refused_by(&[ScalarKind::String])
+            && rows.has_wrong_kind_under(&scalar_keys(selections, schema, type_name))
+    }
+
+    /// A shape before any selection is admitted.
+    const fn new() -> Self {
+        Self {
+            non_null:    false,
+            objects:     false,
+            scalars:     false,
+            non_strings: false,
+        }
     }
 
     fn of(read: &RootRead, query_match: &QueryMatch, schema: &CompiledSchema) -> Option<Self> {
@@ -184,10 +209,7 @@ impl RawShape {
             return None;
         }
         let root = query_match.selections.first()?;
-        let mut shape = Self {
-            non_null: false,
-            ints:     false,
-        };
+        let mut shape = Self::new();
         shape
             .admits(&root.nested_fields, schema, &query_match.query_def.return_type)
             .then_some(shape)
@@ -250,7 +272,10 @@ impl RawShape {
                 return false;
             }
             self.non_null |= !field.nullable;
-            self.ints |= matches!(field.field_type, FieldType::Int);
+            if let Some(kind) = scalar_kind(&field.field_type) {
+                self.scalars = true;
+                self.non_strings |= kind != ScalarKind::String;
+            }
             match &field.field_type {
                 FieldType::String
                 | FieldType::Id
@@ -260,6 +285,7 @@ impl RawShape {
                 | FieldType::Decimal
                 | FieldType::Boolean => sel.nested_fields.is_empty(),
                 ty => object_type(ty).is_some_and(|child| {
+                    self.objects = true;
                     !sel.nested_fields.is_empty() && self.admits(&sel.nested_fields, schema, child)
                 }),
             }
@@ -288,14 +314,39 @@ fn selects_non_null_under(
     })
 }
 
-/// Push to `keys` the response key of every `Int` field `selections` of a `type_name`
-/// select, at any depth. A read reaches here only through [`RawShape::admits`], which
-/// refuses a type the schema does not declare, so every level is found.
-fn int_keys<'s>(
+/// The kind a built-in scalar field's value holds as served, for those § 3.5 adjudicates.
+const fn scalar_kind(field_type: &FieldType) -> Option<ScalarKind> {
+    match field_type {
+        FieldType::Int => Some(ScalarKind::Int),
+        FieldType::Float => Some(ScalarKind::Float),
+        FieldType::String => Some(ScalarKind::String),
+        FieldType::Boolean => Some(ScalarKind::Boolean),
+        _ => None,
+    }
+}
+
+/// The response key and kind of every `Int`, `Float`, `String` and `Boolean` field
+/// `selections` of a `type_name` select, at any depth: the keys under which a value of
+/// another kind may sit. Under any other key a value is served as read.
+fn scalar_keys<'s>(
     selections: &'s [FieldSelection],
     schema: &CompiledSchema,
     type_name: &str,
-    keys: &mut Vec<&'s [u8]>,
+) -> Vec<(&'s [u8], ScalarKind)> {
+    let mut keys = Vec::new();
+    push_scalar_keys(selections, schema, type_name, &mut keys);
+    keys
+}
+
+/// Push to `keys` the response key and kind of every `Int`, `Float`, `String` and `Boolean`
+/// field `selections` of a `type_name` select, at any depth. A read reaches here only
+/// through [`RawShape::admits`], which refuses a type the schema does not declare, so every
+/// level is found.
+fn push_scalar_keys<'s>(
+    selections: &'s [FieldSelection],
+    schema: &CompiledSchema,
+    type_name: &str,
+    keys: &mut Vec<(&'s [u8], ScalarKind)>,
 ) {
     let Some(type_def) = schema.find_type(type_name) else {
         return;
@@ -304,10 +355,10 @@ fn int_keys<'s>(
         let Some(field) = type_def.fields.iter().find(|f| f.name == sel.name.as_str()) else {
             continue;
         };
-        if matches!(field.field_type, FieldType::Int) {
-            keys.push(sel.response_key().as_bytes());
+        if let Some(kind) = scalar_kind(&field.field_type) {
+            keys.push((sel.response_key().as_bytes(), kind));
         } else if let Some(child) = object_type(&field.field_type) {
-            int_keys(&sel.nested_fields, schema, child, keys);
+            push_scalar_keys(&sel.nested_fields, schema, child, keys);
         }
     }
 }
