@@ -778,6 +778,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **A query with several roots answers the roots it can (#1925).** One root failing failed
+  the whole document, and the errors a root's runner reported inside its answer were
+  dropped. Every root is now planned first: a root that does not match, takes an argument it
+  does not accept, or selects a field the caller may not read still refuses the document,
+  before anything is read (a sibling root used to be read first). A root whose read then
+  fails is a field error at its `path`: `null` there with the other roots served, or `data:
+  null` when the root is non-null (a list query), with that one error. Its error is rendered
+  like a failed request's, sanitized the same way. A function reading through
+  `fraiseql_query` receives such a response with its `errors` instead of a failed call. A
+  document with one root is unchanged.
 - **An authored observer may leave out `retry`, or any of its fields (#2145).** A field
   left out takes the policy an observer created through the admin API gets: 3 for
   `max_attempts`, `exponential` for `backoff_strategy`, 1000 for `initial_delay_ms`, 60000

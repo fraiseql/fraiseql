@@ -456,6 +456,8 @@ pub struct MockAdapter {
     /// handed over. A test compares it with the response's to tell a value moved into the
     /// response from one cloned into it (#1556).
     pub served_name_buffers: std::sync::Mutex<Vec<usize>>,
+    /// Views whose read fails with a database error carrying the given text.
+    pub failing_views:       std::collections::HashMap<String, String>,
 }
 
 impl MockAdapter {
@@ -466,7 +468,14 @@ impl MockAdapter {
             view_responses: std::collections::HashMap::new(),
             captured_raw_sql: std::sync::Mutex::new(Vec::new()),
             served_name_buffers: std::sync::Mutex::new(Vec::new()),
+            failing_views: std::collections::HashMap::new(),
         }
+    }
+
+    /// A read of `view` fails with a database error whose text is `message`.
+    pub fn with_failing_view(mut self, view: &str, message: &str) -> Self {
+        self.failing_views.insert(view.to_string(), message.to_string());
+        self
     }
 
     /// The statements `execute_raw_query` saw, in order.
@@ -512,6 +521,9 @@ impl DatabaseAdapter for MockAdapter {
         _offset: Option<u32>,
         _order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
+        if let Some(message) = self.failing_views.get(view) {
+            return Err(crate::error::FraiseQLError::database(message.clone()));
+        }
         // Return per-view override if registered, otherwise fall back to uniform results.
         let rows = self.view_responses.get(view).unwrap_or(&self.mock_results).clone();
         if let Some(name) = rows.first().and_then(|row| row.as_value()["name"].as_str()) {

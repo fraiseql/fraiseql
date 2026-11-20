@@ -1,8 +1,9 @@
 //! Multi-root query pipelining — parallel execution of independent query roots.
 //!
-//! Dispatches multi-root GraphQL queries concurrently using
-//! [`futures::future::try_join_all`], then merges the results into a single
-//! `{ "data": { ... } }` envelope.
+//! Plans every root of a multi-root GraphQL query, then reads them concurrently and
+//! merges the results into one `{ "data": { ... } }` envelope. A root refused while
+//! planned refuses the document; a root that fails while read is a field error at its
+//! path (GraphQL § 6.4.4).
 //!
 //! # Example
 //!
@@ -44,10 +45,16 @@ pub struct RootFieldResult {
 /// Aggregated result from a multi-root parallel execution.
 #[derive(Debug)]
 pub struct PipelineResult {
-    /// Results for each root field, in the order they were requested.
-    pub fields:   Vec<RootFieldResult>,
+    /// Results for each root field, in the order they were requested. A root that failed
+    /// is `null` here.
+    pub fields:      Vec<RootFieldResult>,
     /// `true` when results were produced by the parallel path.
-    pub parallel: bool,
+    pub parallel:    bool,
+    /// The field errors of the roots that failed while read, and those their runners
+    /// reported, each at its path.
+    pub errors:      Vec<serde_json::Value>,
+    /// A root published as non-null failed, so `data` is `null` (§ 6.4.4).
+    pub data_nulled: bool,
 }
 
 impl PipelineResult {
@@ -57,6 +64,23 @@ impl PipelineResult {
     #[must_use]
     pub fn merge_into_data_map(&self) -> serde_json::Map<String, serde_json::Value> {
         self.fields.iter().map(|f| (f.field_name.clone(), f.data.clone())).collect()
+    }
+
+    /// The response: `data` (or `null` when a non-null root failed), and `errors` when any
+    /// root reported one.
+    #[must_use]
+    pub fn into_response(self) -> serde_json::Value {
+        let data = if self.data_nulled {
+            serde_json::Value::Null
+        } else {
+            serde_json::Value::Object(self.merge_into_data_map())
+        };
+        let mut response = serde_json::Map::with_capacity(2);
+        response.insert("data".to_string(), data);
+        if !self.errors.is_empty() {
+            response.insert("errors".to_string(), serde_json::Value::Array(self.errors));
+        }
+        serde_json::Value::Object(response)
     }
 }
 
@@ -163,15 +187,21 @@ fn arg_value_to_graphql(arg: &GraphQLArgument) -> String {
 // ── Parallel execution ────────────────────────────────────────────────────────
 
 impl Executor {
-    /// Execute all root fields of a multi-root query concurrently.
+    /// Execute all root fields of a multi-root query: plan every root, then read them
+    /// concurrently.
     ///
-    /// Each root field is dispatched as an independent single-root query.
-    /// Results are awaited with [`futures::future::try_join_all`] and merged
-    /// into a `PipelineResult`.
+    /// Each root is planned as the single-root document it would be alone: matched, its
+    /// operation, field and scope gates checked, its arguments and row scope resolved. Any
+    /// root refused there refuses the document before anything is read, as GraphQL
+    /// validation does. The planned roots are then read concurrently, and a root whose read
+    /// fails is `null` with a field error at its path while the others are served; when
+    /// that root is published non-null, `data` is `null` (§ 6.4.4). Its error is rendered
+    /// by the embedder's [`root_error_renderer`](crate::runtime::RuntimeConfig), as a
+    /// failed multi-root mutation's is.
     ///
     /// # Errors
     ///
-    /// Returns the first error encountered across all concurrent sub-queries.
+    /// The first root refused while planned.
     pub async fn execute_parallel(
         &self,
         parsed: &ParsedQuery,
@@ -181,9 +211,8 @@ impl Executor {
         MULTI_ROOT_QUERIES_TOTAL.fetch_add(1, Ordering::Relaxed);
 
         // Reduce the document to the fields the client asked for *before* fanning
-        // out. This path dispatches each root as its own synthetic query string,
-        // and that string carries neither the document's fragment definitions nor
-        // — until now — its directives:
+        // out. Each root is matched as its own synthetic query string, and that string
+        // carries neither the document's fragment definitions nor its directives:
         //
         //   * `{ users { ...F } posts { id } } fragment F on User { … }` reached the sub-parse with
         //     `F` undefined and failed the whole request with "Fragment not found".
@@ -201,58 +230,67 @@ impl Executor {
 
         // Root `__typename` resolves to the operation's root type name with no DB
         // round-trip (GraphQL spec §"Type Name Introspection"). It is a meta-field
-        // available at every selection set, including the root; dispatching it as a
-        // regular sub-query would fail `find_query`. We resolve it locally and only
-        // dispatch the genuine data-bearing roots.
+        // available at every selection set, including the root; it is answered below,
+        // and only the data-bearing roots are planned and read.
         let root_type = root_type_name(&parsed.operation_type);
+        let runner = self.query_runner();
 
-        // Synthetic single-root query strings for every data-bearing selection,
-        // tagged with their original index so results can be reassembled in request
-        // order. `__typename` roots are skipped here and resolved below. (Owned —
-        // avoids borrow lifetime entanglement between iterations and the final zip.)
-        let dispatched: Vec<(usize, String, String)> = resolved
-            .iter()
-            .enumerate()
-            .filter(|(_, f)| f.name != "__typename")
-            .map(|(i, f)| (i, f.response_key().to_string(), field_selection_to_query(f)))
-            .collect();
+        // 1. Plan every data-bearing root, in request order. `None` as the operation name,
+        //    deliberately: `field_selection_to_query` re-serialises each root into a *synthetic*
+        //    single-root anonymous document, which the request's `operationName` does not name.
+        //    Operation selection already happened upstream, in classification.
+        let mut planned = Vec::with_capacity(resolved.len());
+        for (index, field) in resolved.iter().enumerate() {
+            if field.name == "__typename" {
+                continue;
+            }
+            let query = field_selection_to_query(field);
+            let query_match =
+                self.ctx.matcher.match_query_for(&query, variables, None, security_context)?;
+            let plan = runner.plan_regular_match(query_match, variables, security_context)?;
+            planned.push((index, field, plan));
+        }
 
-        // Pre-create one QueryRunner per sub-query (each is a cheap Arc::clone).
-        // Storing them in a Vec ensures they live long enough for the futures to borrow from.
-        let runners: Vec<_> = dispatched.iter().map(|_| self.query_runner()).collect();
+        // 2. Read the planned roots concurrently.
+        let reads = planned.into_iter().map(|(index, field, plan)| {
+            let runner = &runner;
+            async move {
+                let outcome = runner
+                    .execute_planned_regular(plan, variables, security_context, false)
+                    .await
+                    .and_then(crate::runtime::ResponseBody::into_value);
+                (index, field, outcome)
+            }
+        });
+        let outcomes = futures::future::join_all(reads).await;
 
-        // Build futures — each borrows from its corresponding runner in `runners`.
-        // Both `runners` and `futs` are owned by this function scope, so the borrows are valid.
-        let futs: Vec<_> = runners
-            .iter()
-            .zip(dispatched.iter())
-            .map(|(runner, (_, _, query))| {
-                // `None`, deliberately: `field_selection_to_query` re-serialises
-                // each root into a *synthetic* single-root anonymous document.
-                // The request's `operationName` names an operation in the
-                // client's document, which this string is not — passing it here
-                // would look for that name in a document that has no named
-                // operation at all and fail every multi-root request. Operation
-                // selection already happened upstream, in classification.
-                runner.execute_regular_query(query.as_str(), variables, security_context, None)
-            })
-            .collect();
+        // 3. Each root's value under its response key, its runner's errors kept, a failed root
+        //    `null` with its error.
+        let mut values: std::collections::HashMap<usize, serde_json::Value> =
+            std::collections::HashMap::with_capacity(outcomes.len());
+        let mut errors = Vec::new();
+        let mut data_nulled = false;
+        for (index, field, outcome) in outcomes {
+            let key = field.response_key();
+            match outcome {
+                Ok(mut response) => {
+                    if let Some(serde_json::Value::Array(reported)) =
+                        response.get_mut("errors").map(serde_json::Value::take)
+                    {
+                        errors.extend(reported);
+                    }
+                    values.insert(index, response["data"][key].take());
+                },
+                Err(error) => {
+                    errors.push(self.root_error_entry(&error, key));
+                    data_nulled |= self.ctx.output_types.is_non_null(root_type, &field.name);
+                    values.insert(index, serde_json::Value::Null);
+                },
+            }
+        }
 
-        // Drive all futures concurrently (single-threaded cooperative multitasking).
-        let results = futures::future::try_join_all(futs).await?;
-
-        // Extract the per-field `data` from each `{"data":{"field":[...]}}` response,
-        // keyed by the original selection index.
-        let mut dispatched_data: std::collections::HashMap<usize, serde_json::Value> = results
-            .into_iter()
-            .zip(dispatched.iter())
-            .map(|(response, (index, key, _))| (*index, response["data"][key.as_str()].clone()))
-            .collect();
-
-        // Reassemble in request order: `__typename` roots resolve locally; every
-        // other root pulls its dispatched data by index. A root that `@skip`
-        // removed is absent from `resolved` and therefore has no key in `data`,
-        // which is what the spec asks for.
+        // Reassemble in request order. A root that `@skip` removed is absent from
+        // `resolved` and therefore has no key in `data`, which is what the spec asks for.
         let fields = resolved
             .iter()
             .enumerate()
@@ -261,7 +299,7 @@ impl Executor {
                 let data = if f.name == "__typename" {
                     serde_json::Value::String(root_type.to_string())
                 } else {
-                    dispatched_data.remove(&index).unwrap_or(serde_json::Value::Null)
+                    values.remove(&index).unwrap_or(serde_json::Value::Null)
                 };
                 RootFieldResult { field_name, data }
             })
@@ -270,6 +308,8 @@ impl Executor {
         Ok(PipelineResult {
             fields,
             parallel: true,
+            errors,
+            data_nulled,
         })
     }
 }

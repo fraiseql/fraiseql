@@ -228,6 +228,16 @@ impl OutputTypes {
             .insert("_Entity".to_string(), metadata.types.iter().map(|t| t.name.clone()).collect());
     }
 
+    /// Whether `type_name` publishes `field` as non-null: a field error there nulls the
+    /// nearest nullable ancestor rather than the field (§ 6.4.4). A field the type does not
+    /// publish is not.
+    #[must_use]
+    pub fn is_non_null(&self, type_name: &str, field: &str) -> bool {
+        self.type_fields(type_name)
+            .and_then(|(_, fields)| fields.get(field))
+            .is_some_and(|field_ref| matches!(field_ref, TypeRef::NonNull(_)))
+    }
+
     /// The published fields of `type_name`, and the name as the schema spells it.
     fn type_fields(&self, type_name: &str) -> Option<(&str, &AHashMap<String, TypeRef>)> {
         self.fields

@@ -126,6 +126,12 @@ pub struct StreamedRowRead {
     pub stream:  fraiseql_db::ColumnRowStream,
 }
 
+/// A document root resolved to the read it will run, every gate passed, nothing read yet.
+pub(in super::super) struct PlannedRegular {
+    query_match: crate::runtime::QueryMatch,
+    route:       RootRoute,
+}
+
 impl QueryRunner {
     /// Resolve configured session variables for `security_context` into owned
     /// `(name, value)` pairs.
@@ -377,14 +383,47 @@ impl QueryRunner {
         security_context: Option<&SecurityContext>,
         raw: bool,
     ) -> Result<crate::runtime::ResponseBody> {
+        let planned = self.plan_regular_match(query_match, variables, security_context)?;
+        self.execute_planned_regular(planned, variables, security_context, raw).await
+    }
+
+    /// The half of [`execute_regular_match_body`](Self::execute_regular_match_body) that
+    /// reads nothing: the root's operation gate, its field gates and scope checks, its
+    /// arguments and its row scope, resolved to the read it will run. A multi-root document
+    /// plans every root before any of them reads, so a root refused here refuses the
+    /// document, as it does alone.
+    ///
+    /// # Errors
+    ///
+    /// As [`resolve_root_read`](Self::resolve_root_read).
+    pub(in super::super) fn plan_regular_match(
+        &self,
+        query_match: crate::runtime::QueryMatch,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<PlannedRegular> {
+        let route =
+            self.resolve_root_read(&query_match, variables, security_context, Door::Document)?;
+        Ok(PlannedRegular { query_match, route })
+    }
+
+    /// Run a root [`plan_regular_match`](Self::plan_regular_match) planned.
+    ///
+    /// # Errors
+    ///
+    /// A database error, the response ceiling's refusal, the dynamic field authorizer's
+    /// refusal, and the Relay, count and function runners' errors for those roots.
+    pub(in super::super) async fn execute_planned_regular(
+        &self,
+        planned: PlannedRegular,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+        raw: bool,
+    ) -> Result<crate::runtime::ResponseBody> {
         use crate::runtime::ResponseBody;
 
-        let mut read = match self.resolve_root_read(
-            &query_match,
-            variables,
-            security_context,
-            Door::Document,
-        )? {
+        let PlannedRegular { query_match, route } = planned;
+        let mut read = match route {
             RootRoute::Function => {
                 return self
                     .execute_function_backed_query(&query_match, variables, security_context)

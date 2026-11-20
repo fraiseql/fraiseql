@@ -46,6 +46,33 @@ have nullable items; the compiler refuses `[[Float]]`.
 A field gated with `on_deny = "mask"` is published nullable: a caller the gate refuses reads
 it as `null`, which is a value it may take, not an error.
 
+## A root that fails in a document of several
+
+A query with several roots plans all of them before it reads any: each root is matched, its
+arguments read, and its operation, field and scope gates checked, as when it is sent alone.
+A root refused there refuses the whole document, with no `data`, and nothing is read.
+
+The roots are then read together. A root whose read fails (the database refused the
+statement, a timeout, a field authorizer refusing a row) is a field error at its own `path`,
+and the roots beside it are still served. Where the failed root is `null` follows the table
+above:
+
+```graphql
+{ orders { id } account(id: "7") { name } }   # account: Account (nullable); its read fails
+```
+
+```json
+{
+  "data": { "orders": [{ "id": "1" }], "account": null },
+  "errors": [{ "message": "…", "path": ["account"] }]
+}
+```
+
+A failed root published non-null (a list query, `[T!]!`) nulls `data`, and its error is the
+only one reported for it. The error is rendered the way a failed request is: with error
+sanitization on, it carries the same code and withholds the same database text. A document
+with one root still fails as a whole when that root does.
+
 ## Other transports
 
 - **REST.** A representation has no partial form, so a read with an incomplete row, at

@@ -2257,7 +2257,7 @@ mod observer_transport_tests {
 // that entry carried the error's raw text: the database's message, constraint name and
 // all, past a sanitizer configured to withhold it.
 
-mod multi_root_mutation_error_tests {
+mod multi_root_error_tests {
     use std::sync::Arc;
 
     use fraiseql_core::{
@@ -2282,6 +2282,8 @@ mod multi_root_mutation_error_tests {
             )
             .with_simple_mutation("createUser", "User")
             .with_simple_mutation("renameUser", "User")
+            .with_simple_query("users", "User", true)
+            .with_simple_query("admins", "User", true)
             .with_security(SecurityConfig {
                 error_sanitization: Some(ErrorSanitizationConfig {
                     enabled: true,
@@ -2322,6 +2324,29 @@ mod multi_root_mutation_error_tests {
             assert_eq!(
                 message, "The request conflicts with the current state of the data",
                 "the replacement a one-root failure gets: {error}"
+            );
+            assert_eq!(error["code"], "CONSTRAINT_VIOLATION", "{error}");
+        }
+        assert_eq!(errors[0]["path"][0], "a");
+        assert_eq!(errors[1]["path"][0], "b");
+    }
+
+    /// A multi-root query's failing roots are answered inside the response too, each
+    /// rendered by the same sanitizer as a failed request.
+    #[tokio::test]
+    async fn a_failing_root_of_a_multi_root_query_is_sanitized() {
+        let response = executor()
+            .execute("{ a: users { id } b: admins { id } }", None)
+            .await
+            .expect("a multi-root query reports each root's outcome");
+
+        let errors = response["errors"].as_array().expect("both roots failed");
+        assert_eq!(errors.len(), 2, "{response}");
+        for error in errors {
+            let message = error["message"].as_str().unwrap_or_default();
+            assert!(
+                !message.contains(CONSTRAINT),
+                "the database's text reached the client: {error}"
             );
             assert_eq!(error["code"], "CONSTRAINT_VIOLATION", "{error}");
         }

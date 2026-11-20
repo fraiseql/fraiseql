@@ -650,8 +650,7 @@ impl Executor {
                         variables,
                     )?;
                     let pr = self.execute_parallel(parsed, variables, security_context).await?;
-                    let data = pr.merge_into_data_map();
-                    Ok(serde_json::json!({ "data": data }))
+                    Ok(pr.into_response())
                 } else if let Some(completion) = completion {
                     // The document was parsed and its spreads expanded when it was
                     // classified, with this operation selected and to this executor's
@@ -919,17 +918,7 @@ impl Executor {
                 },
                 Err(e) => {
                     data.insert(root.response_key.clone(), serde_json::Value::Null);
-                    let mut entry = self.ctx.config.root_error_renderer.as_ref().map_or_else(
-                        || serde_json::json!({ "message": e.to_string() }),
-                        |render| render(&e),
-                    );
-                    if let Some(entry) = entry.as_object_mut() {
-                        entry.insert(
-                            "path".to_string(),
-                            serde_json::json!([root.response_key.as_str()]),
-                        );
-                    }
-                    errors.push(entry);
+                    errors.push(self.root_error_entry(&e, &root.response_key));
                 },
             }
         }
@@ -940,6 +929,26 @@ impl Executor {
             response.insert("errors".to_string(), serde_json::Value::Array(errors));
         }
         Ok(serde_json::Value::Object(response))
+    }
+}
+
+impl Executor {
+    /// The `errors` entry of a root that failed inside a response that is still answered:
+    /// rendered by [`RuntimeConfig::root_error_renderer`](crate::runtime::RuntimeConfig)
+    /// (the embedder's sanitizer) when one is installed, with the root's `path`.
+    pub(super) fn root_error_entry(
+        &self,
+        error: &FraiseQLError,
+        response_key: &str,
+    ) -> serde_json::Value {
+        let mut entry = self.ctx.config.root_error_renderer.as_ref().map_or_else(
+            || serde_json::json!({ "message": error.to_string() }),
+            |render| render(error),
+        );
+        if let Some(entry) = entry.as_object_mut() {
+            entry.insert("path".to_string(), serde_json::json!([response_key]));
+        }
+        entry
     }
 }
 
