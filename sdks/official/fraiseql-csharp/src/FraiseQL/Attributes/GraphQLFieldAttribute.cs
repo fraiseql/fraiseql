@@ -62,7 +62,10 @@ public sealed class GraphQLFieldAttribute : Attribute
     /// <summary>Gets or sets a single required OAuth scope for field access.</summary>
     public string? Scope { get; set; }
 
-    /// <summary>Gets or sets multiple required OAuth scopes (any one suffices) for field access.</summary>
+    /// <summary>
+    /// Gets or sets the required OAuth scope as a one-item list, the same as <see cref="Scope"/>.
+    /// A longer list is refused at export: the compiled schema holds one required scope per field.
+    /// </summary>
     public string[]? Scopes { get; set; }
 
     /// <summary>

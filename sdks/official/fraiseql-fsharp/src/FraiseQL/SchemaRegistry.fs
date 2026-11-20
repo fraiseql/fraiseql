@@ -80,8 +80,25 @@ module SchemaRegistry =
                 // every SDK applies in its own language.
                 let resolvedNullable = autoNullable || fieldAttr.Nullable
 
+                // A one-item Scopes list is the same requirement as Scope. The compiled
+                // schema holds one `requires_scope` per field, so a longer list, or both
+                // forms at once, is refused: dropping it would serve the field unscoped.
                 let scope =
-                    if fieldAttr.Scope <> "" then Some fieldAttr.Scope else None
+                    match fieldAttr.Scope, fieldAttr.Scopes with
+                    | "", ([||] | null) -> None
+                    | single, ([||] | null) -> Some single
+                    | "", [| single |] -> Some single
+                    | "", many ->
+                        invalidArg
+                            "Scopes"
+                            (sprintf
+                                "Field '%s' requires %d scopes; multiple required scopes are not supported, use a single Scope value"
+                                fieldName
+                                many.Length)
+                    | _ ->
+                        invalidArg
+                            "Scopes"
+                            (sprintf "Field '%s' sets both Scope and Scopes; use one" fieldName)
 
                 // A field is either an embedding or the Float reporting how far a
                 // search's result was from the query vector, and a column has at least
