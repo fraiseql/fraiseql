@@ -25,6 +25,12 @@ disagreed, and the promise was the part that was wrong.
   a map does not compile: write each entry as its option, so
   `map[string]interface{}{"signing_secret_env": "HOOK_KEY"}` becomes
   `fraiseql.WebhookSigningSecretEnv("HOOK_KEY")`. The authored schema is unchanged.
+- **The Go SDK's `Slack` takes typed options (#2156).** Its destination was a
+  `map[string]interface{}`; it is now `...SlackOption`: `SlackWebhookURL(url)` or
+  `SlackWebhookURLEnv(envVar)`, the last one applying when several are given. With none,
+  the URL is still read from `SLACK_WEBHOOK_URL`. A call passing a map does not compile:
+  `map[string]interface{}{"webhook_url_env": "ORDERS_SLACK"}` becomes
+  `fraiseql.SlackWebhookURLEnv("ORDERS_SLACK")`.
 - **A discovery document that names another issuer refuses the boot (#2135).** The
   `[auth]` PKCE client and the social and generic OIDC providers fetch
   `{discovery_url}/.well-known/openid-configuration`; the `issuer` the document names must

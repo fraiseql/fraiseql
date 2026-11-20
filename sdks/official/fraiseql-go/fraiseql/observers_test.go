@@ -34,14 +34,46 @@ func TestSlackEmitsTheKeysTheRuntimeReads(t *testing.T) {
 }
 
 func TestSlackWithAnExplicitURLNamesNoDefaultVariable(t *testing.T) {
-	got := exportedAction(t, Slack("#orders", "Hi", map[string]interface{}{
-		"webhook_url": "https://hooks.slack.com/services/XXX",
-	}))
+	got := exportedAction(t, Slack("#orders", "Hi",
+		SlackWebhookURL("https://hooks.slack.com/services/XXX"),
+	))
 	if got["webhook_url"] != "https://hooks.slack.com/services/XXX" {
 		t.Errorf("webhook_url = %v", got["webhook_url"])
 	}
 	if _, ok := got["webhook_url_env"]; ok {
 		t.Errorf("webhook_url_env should be absent, got %v", got["webhook_url_env"])
+	}
+}
+
+func TestSlackWebhookURLEnvReplacesTheDefaultVariable(t *testing.T) {
+	got := exportedAction(t, Slack("#orders", "Hi", SlackWebhookURLEnv("ORDERS_SLACK_URL")))
+	want := map[string]interface{}{
+		"type":             "slack",
+		"channel":          "#orders",
+		"message_template": "Hi",
+		"webhook_url_env":  "ORDERS_SLACK_URL",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+// The URL and its variable name one destination, so the later option replaces the
+// earlier one: an action naming both would leave the server to pick.
+func TestSlackKeepsOnlyTheLastDestination(t *testing.T) {
+	got := exportedAction(t, Slack("#orders", "Hi",
+		SlackWebhookURLEnv("ORDERS_SLACK_URL"),
+		SlackWebhookURL("https://hooks.slack.com/services/XXX"),
+	))
+	if _, ok := got["webhook_url_env"]; ok {
+		t.Errorf("webhook_url_env kept beside webhook_url: %v", got)
+	}
+	got = exportedAction(t, Slack("#orders", "Hi",
+		SlackWebhookURL("https://hooks.slack.com/services/XXX"),
+		SlackWebhookURLEnv("ORDERS_SLACK_URL"),
+	))
+	if _, ok := got["webhook_url"]; ok {
+		t.Errorf("webhook_url kept beside webhook_url_env: %v", got)
 	}
 }
 

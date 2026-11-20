@@ -217,25 +217,43 @@ func webhook(cfg map[string]interface{}, opts []WebhookOption) ObserverAction {
 
 const DefaultSlackWebhookEnv = "SLACK_WEBHOOK_URL"
 
+// SlackOption sets where a Slack action posts. With none, [Slack] reads the URL from
+// [DefaultSlackWebhookEnv]; with several, the last one applies.
+type SlackOption func(cfg map[string]interface{})
+
+// SlackWebhookURL posts to the incoming-webhook url, written into the schema. It
+// replaces a destination an earlier option set, [SlackWebhookURLEnv] included: an
+// action has one destination.
+func SlackWebhookURL(url string) SlackOption {
+	return func(cfg map[string]interface{}) {
+		delete(cfg, "webhook_url_env")
+		cfg["webhook_url"] = url
+	}
+}
+
+// SlackWebhookURLEnv posts to the incoming-webhook URL the server reads from the
+// environment variable envVar at delivery. It replaces a destination an earlier option
+// set, [SlackWebhookURL] included: an action has one destination.
+func SlackWebhookURLEnv(envVar string) SlackOption {
+	return func(cfg map[string]interface{}) {
+		delete(cfg, "webhook_url")
+		cfg["webhook_url_env"] = envVar
+	}
+}
+
 // Slack creates a Slack notification observer action.
 //
 // The message is a template with `{{ field }}` placeholders, emitted as
-// `message_template`. The incoming-webhook URL is read from DefaultSlackWebhookEnv
-// unless an optional third argument sets webhook_url or webhook_url_env.
-func Slack(channel, message string, opts ...map[string]interface{}) ObserverAction {
+// `message_template`. The incoming-webhook URL is read from [DefaultSlackWebhookEnv]
+// unless an option names another destination; when several do, the last one applies.
+func Slack(channel, message string, opts ...SlackOption) ObserverAction {
 	cfg := map[string]interface{}{
 		"channel":          channel,
 		"message_template": message,
+		"webhook_url_env":  DefaultSlackWebhookEnv,
 	}
-	if len(opts) > 0 {
-		for k, v := range opts[0] {
-			cfg[k] = v
-		}
-	}
-	_, hasURL := cfg["webhook_url"]
-	_, hasEnv := cfg["webhook_url_env"]
-	if !hasURL && !hasEnv {
-		cfg["webhook_url_env"] = DefaultSlackWebhookEnv
+	for _, opt := range opts {
+		opt(cfg)
 	}
 	return ObserverAction{Type: "slack", Config: cfg}
 }

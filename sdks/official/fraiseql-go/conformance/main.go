@@ -339,9 +339,9 @@ func authorObservers() error {
 		Entity("Order").
 		Event("UPDATE").
 		Condition("status == 'shipped'").
-		Action(fraiseql.Slack("#orders", "Order {{ id }} shipped", map[string]interface{}{
-			"webhook_url_env": "CONFORMANCE_SLACK_URL",
-		})).
+		Action(fraiseql.Slack("#orders", "Order {{ id }} shipped",
+			fraiseql.SlackWebhookURLEnv("CONFORMANCE_SLACK_URL"),
+		)).
 		Retry(fraiseql.RetryConfig{
 			MaxAttempts: 4, BackoffStrategy: "exponential", InitialDelayMs: 250, MaxDelayMs: 8000,
 		}).
