@@ -470,6 +470,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **The Java SDK's `Webhook` sets a webhook's method and a plain header (#2150).**
+  `Webhook.method(action, "PUT")` sets the HTTP method, which was always the server's
+  default `POST`, and `Webhook.header(action, name, value)` sends a header written into the
+  schema, beside `headerFromEnv` for one read from the environment. A credential header
+  still goes through `headerFromEnv`: the compiler refuses one written into the schema.
 - **`fraiseql-time` is published (#2026).** It holds `Timestamp`, the instant type the
   crates above now share: chrono's text forms byte for byte, a microsecond `timestamptz`
   with the `sqlx` or `postgres` feature, and conversions to and from chrono with the

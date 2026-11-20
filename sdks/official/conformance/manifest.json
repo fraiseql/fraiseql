@@ -102,9 +102,7 @@
       "unsupported": {
         "fact_tables": "the SDK authors no fact table: `@GraphQLFactTable` registers the annotated class as an ordinary type and emits no `fact_tables` entry, so there is no table to link to its type (AF 1). Fact-table authoring is a feature, not a key rename.",
         "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)",
-        "field_scoped_like_parent": "the SDK has no `scoped_like_parent` authoring surface (#1737 added it to Python and TypeScript), so it cannot author a type that embeds a scoped one",
-        "observer_webhook": "`Webhook` has no setter for `method`: its factories are `create`, `withEnv`, `bodyTemplate`, `signedWith` and `headerFromEnv`, so a webhook it authors is always sent with the server's default method. Writing the key into the returned map would hand-assemble the action rather than author it (#2150).",
-        "observer_webhook_headers": "`Webhook` has no setter for a plain `headers` entry, only `headerFromEnv` for one read from the environment, so a non-secret header cannot be authored (#2150)."
+        "field_scoped_like_parent": "the SDK has no `scoped_like_parent` authoring surface (#1737 added it to Python and TypeScript), so it cannot author a type that embeds a scoped one"
       },
       "container": "maven:3.9-eclipse-temurin-21",
       "container_env": [

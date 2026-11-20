@@ -214,8 +214,10 @@ public class ConformanceExport {
      */
     private static void authorObservers() {
         Map<String, Object> hook = Webhook.withEnv("CONFORMANCE_HOOK_URL");
+        Webhook.method(hook, "PUT");
         Webhook.bodyTemplate(hook, "{\"total\": {{ total }}}");
         Webhook.signedWith(hook, "CONFORMANCE_HOOK_KEY");
+        Webhook.header(hook, "X-Source", "conformance");
         Webhook.headerFromEnv(hook, "Authorization", "CONFORMANCE_HOOK_TOKEN");
         new ObserverBuilder("orderPlacedWebhook")
             .entity("Order")

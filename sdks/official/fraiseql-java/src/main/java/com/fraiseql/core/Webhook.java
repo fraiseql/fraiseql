@@ -63,6 +63,38 @@ public final class Webhook {
     }
 
     /**
+     * Set the HTTP method of a webhook action. The server sends {@code POST} when it is
+     * not set.
+     *
+     * @param action action map produced by {@link #create} or {@link #withEnv}
+     * @param method the HTTP method, such as {@code PUT}
+     * @return the same action map
+     */
+    public static Map<String, Object> method(Map<String, Object> action, String method) {
+        action.put("method", method);
+        return action;
+    }
+
+    /**
+     * Send a header whose value is written into the schema. Use it for a value that is not
+     * a secret: the compiler refuses a credential header written here, since an exported
+     * schema is a build artifact. A credential goes through {@link #headerFromEnv}.
+     *
+     * @param action action map produced by {@link #create} or {@link #withEnv}
+     * @param header the header name
+     * @param value  the header value
+     * @return the same action map
+     */
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> header(
+            Map<String, Object> action, String header, String value) {
+        ((Map<String, String>) action.computeIfAbsent(
+                "headers", key -> new LinkedHashMap<String, String>()))
+                .put(header, value);
+        return action;
+    }
+
+    /**
      * Sign each request of a webhook action with the HMAC key held in an environment
      * variable. The key itself is never authored: an exported schema is a build artifact.
      *

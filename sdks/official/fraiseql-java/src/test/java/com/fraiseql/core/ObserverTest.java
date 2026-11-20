@@ -207,6 +207,20 @@ public class ObserverTest {
     }
 
     @Test
+    @Order(11)
+    @DisplayName("Webhook method and plain headers")
+    void testWebhookMethodAndHeaders() {
+        var action = Webhook.header(
+            Webhook.header(Webhook.method(Webhook.create("https://example.com/hook"), "PUT"),
+                "X-Source", "orders"),
+            "X-Tenant", "acme");
+
+        assertEquals("PUT", action.get("method"));
+        assertEquals(Map.of("X-Source", "orders", "X-Tenant", "acme"), action.get("headers"));
+        assertFalse(action.containsKey("headers_env"), "a plain header is not read from the environment");
+    }
+
+    @Test
     @Order(12)
     @DisplayName("Schema export includes observers")
     void testSchemaExportWithObservers() {
