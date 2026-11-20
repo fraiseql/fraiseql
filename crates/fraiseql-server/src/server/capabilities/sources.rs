@@ -33,11 +33,20 @@ impl Capability for Sources {
         let server = cx.server;
         let any_enabled = server.executor.schema().sources.iter().any(|source| source.enabled);
         match server.application_pool() {
-            Some(pool) if any_enabled => vec![ProvisionStep::new(
-                "source cursor",
-                pool,
-                &[fraiseql_observers::migrations::source_cursor_sql()],
-            )],
+            // The window record: each source's last firing, read and written under its
+            // lease, so a window fires once across processes.
+            Some(pool) if any_enabled => vec![
+                ProvisionStep::new(
+                    "source cursor",
+                    pool,
+                    &[fraiseql_observers::migrations::source_cursor_sql()],
+                ),
+                ProvisionStep::new(
+                    "source window state",
+                    pool,
+                    &[fraiseql_functions::migrations::cron_migration_sql()],
+                ),
+            ],
             _ => Vec::new(),
         }
     }

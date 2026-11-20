@@ -18,9 +18,7 @@ use fraiseql_functions::{
     runtime::deno::{DenoConfig, DenoRuntime},
     triggers::Schedule,
 };
-use fraiseql_observers::{
-    LeaseGuardedRunner, PostgresSourceCursorStore, RunOutcome, SourceCursorStore,
-};
+use fraiseql_observers::{LeaseGuardedRunner, PostgresSourceCursorStore, SourceCursorStore};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 
@@ -268,7 +266,7 @@ async fn fires_a_model_b_connector_end_to_end() {
 
     let outcome = poller.fire_once(fraiseql_time::Timestamp::now()).await;
     assert!(
-        matches!(outcome, RunOutcome::Ran(Ok(_))),
+        outcome == crate::cron::Tick::Ran { succeeded: true },
         "the connector fired and ran to completion under the lease"
     );
 
@@ -525,7 +523,41 @@ async fn a_firing_is_skipped_while_another_replica_holds_the_lease() {
     leader.await.expect("the leader joined").expect("the leader's lease attempt");
 
     assert!(
-        matches!(outcome, RunOutcome::SkippedNotLeader),
+        outcome == crate::cron::Tick::SkippedNotLeader,
         "a firing while another replica leads must be skipped, not run"
     );
+}
+
+/// Two replicas of one source, ticking in one window one after the other: the source fires
+/// once. The second replica's lease is free by then, so only the window record, read under
+/// the lease, can tell it the window already fired.
+#[tokio::test]
+async fn two_replicas_ticking_one_after_the_other_fire_a_source_window_once() {
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!(
+            "SKIP two_replicas_ticking_one_after_the_other_fire_a_source_window_once: no postgres"
+        );
+        return;
+    };
+    crate::cron::PgCronState::new(pool.clone()).init().await.unwrap();
+    let source = format!("test-poller-window-{}", uuid::Uuid::new_v4().simple());
+    let replica = || {
+        let mut poller = poller(&pool, &source, StubExecutor::new(json!(null)));
+        poller.runner = LeaseGuardedRunner::postgres(pool.clone(), source.clone());
+        poller.schedule = Schedule::parse("* * * * *", None).unwrap();
+        poller
+    };
+    let (mut a, mut b) = (replica(), replica());
+
+    let at = fraiseql_time::Timestamp::now();
+    assert!(matches!(a.tick(at).await, crate::cron::Tick::Ran { .. }));
+    assert_eq!(
+        b.tick(at).await,
+        crate::cron::Tick::AlreadyFired,
+        "the source window fires once across both replicas"
+    );
+    let _ = sqlx::query("DELETE FROM _fraiseql_cron_state WHERE function_name = $1")
+        .bind(format!("source:{source}"))
+        .execute(&pool)
+        .await;
 }

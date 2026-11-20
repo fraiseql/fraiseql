@@ -829,6 +829,18 @@ disagreed, and the promise was the part that was wrong.
   failing the batch. A restart once failed this way in CI and has not been reproduced:
   these remove one place a stop could interrupt a transaction, and make the next
   occurrence name the backend.
+- **A cron function or a source fires once per window across replicas (#2162).**
+  Each replica ticks once a minute from its own start, so two replicas reach one window
+  at different seconds. The advisory lease only kept their firings from overlapping: the
+  second replica found it free and fired the window again. A replica now reads the
+  window record on the session that holds the lease, skips a window another replica
+  already fired, and records its own on that session before releasing the lease. A
+  source records its window in `_fraiseql_cron_state` under `source:<name>`; a server
+  with an enabled source creates that table at boot. A firing now spends its window
+  whether the module succeeds or fails, as on one replica. The payload carries the
+  start of the window's minute rather than the tick's second, so a window fired again
+  (a replica died after running it and before recording it) has the same idempotency
+  token. Closes #2162.
 - **The TypeScript SDK's `webhook()` writes only the headers it is given (#2146).** It
   added `Content-Type: application/json` to every webhook's `headers`, a header the author
   did not write; the other SDKs add none. The server sets that content type on every

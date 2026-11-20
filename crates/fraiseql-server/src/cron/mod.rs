@@ -28,8 +28,51 @@ use fraiseql_functions::{
 use fraiseql_observers::LeaseGuardedRunner;
 use tracing::warn;
 
+#[cfg(test)]
+pub(crate) use self::scheduled::Tick;
 pub use self::scheduled::{ScheduledKind, ScheduledPoller};
 use crate::{query_bridge::RunAsQueryExecutor, subsystems::BeforeMutationHooks};
+
+/// The last recorded firing of `(function_name, cron_expr)`, read on `conn`.
+pub(crate) async fn load_last_fired_on(
+    conn: &mut sqlx::PgConnection,
+    function_name: &str,
+    cron_expr: &str,
+) -> Result<Option<DateTime<Utc>>, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT last_fired_at FROM _fraiseql_cron_state \
+         WHERE function_name = $1 AND cron_expr = $2",
+    )
+    .bind(function_name)
+    .bind(cron_expr)
+    .fetch_optional(conn)
+    .await
+}
+
+/// Record one firing of `(function_name, cron_expr)` on `conn`: upsert `last_fired_at` and
+/// bump `fire_count`.
+pub(crate) async fn record_fire_on(
+    conn: &mut sqlx::PgConnection,
+    function_name: &str,
+    cron_expr: &str,
+    fired_at: DateTime<Utc>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(RECORD_FIRE_SQL)
+        .bind(function_name)
+        .bind(cron_expr)
+        .bind(fired_at)
+        .execute(conn)
+        .await
+        .map(|_| ())
+}
+
+const RECORD_FIRE_SQL: &str = "INSERT INTO _fraiseql_cron_state \
+         (function_name, cron_expr, last_fired_at, fire_count) \
+     VALUES ($1, $2, $3, 1) \
+     ON CONFLICT (function_name, cron_expr) DO UPDATE SET \
+         last_fired_at = EXCLUDED.last_fired_at, \
+         fire_count = _fraiseql_cron_state.fire_count + 1, \
+         updated_at = now()";
 
 /// A minimal Postgres store for `_fraiseql_cron_state` (#595): the durable record of
 /// when each cron function last fired and how many times.
@@ -112,21 +155,13 @@ impl PgCronState {
         cron_expr: &str,
         fired_at: DateTime<Utc>,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            "INSERT INTO _fraiseql_cron_state \
-                 (function_name, cron_expr, last_fired_at, fire_count) \
-             VALUES ($1, $2, $3, 1) \
-             ON CONFLICT (function_name, cron_expr) DO UPDATE SET \
-                 last_fired_at = EXCLUDED.last_fired_at, \
-                 fire_count = _fraiseql_cron_state.fire_count + 1, \
-                 updated_at = now()",
-        )
-        .bind(function_name)
-        .bind(cron_expr)
-        .bind(fired_at)
-        .execute(&self.pool)
-        .await
-        .map(|_| ())
+        sqlx::query(RECORD_FIRE_SQL)
+            .bind(function_name)
+            .bind(cron_expr)
+            .bind(fired_at)
+            .execute(&self.pool)
+            .await
+            .map(|_| ())
     }
 }
 

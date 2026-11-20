@@ -268,9 +268,19 @@ source runs on the same poller, which owns the tick, the lease and the invocatio
   A job with a wildcard minute or hour runs on the wall clock as it is.
 - **Single-firing across replicas** via a PostgreSQL advisory lease
   (`LeaseGuardedRunner`, keyed `cron:<function>`; a source's is keyed on its name, which
-  may not contain `:`). N replicas give exactly one firing per scheduled window.
-- **State persisted** to `_fraiseql_cron_state` (`last_fired_at`, `fire_count`): a
-  durable fire record, and a cross-restart "already fired this window" guard.
+  may not contain `:`). The lease alone only keeps two firings from overlapping: each
+  replica ticks once a minute from its own start, so two replicas reach one window at
+  different seconds. What makes it one firing per window is the window record, read and
+  written on the session that holds the lease, before it is released.
+- **State persisted** to `_fraiseql_cron_state` (`last_fired_at`, `fire_count`), keyed by
+  function name, or `source:<name>` for a source: the record a replica reads under the
+  lease to skip a window another replica already fired, and that a restart reads back.
+  A firing spends its window whether the module succeeds or fails; a failure is retried
+  by the next window.
+- **Delivery: at least once.** A replica that dies after the module ran and before the
+  record is written leaves the window unrecorded, and another replica ticking later in
+  that window fires it again, with the same idempotency token (derived from the
+  scheduled instant), so a module that keys its writes on the token applies them once.
 - **Authority:** the function runs on the I/O host, so `fraiseql_query` works under the
   function's `run_as` ceiling (fail-closed when absent). A purge or report job can query
   and mutate.

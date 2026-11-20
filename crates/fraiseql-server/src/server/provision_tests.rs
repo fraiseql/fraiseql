@@ -346,7 +346,13 @@ async fn each_configured_capability_plans_its_own_tables() {
         ];
         assert_eq!(
             planned(&server_over(schema).await),
-            vec![("source cursor", vec![fraiseql_observers::migrations::source_cursor_sql()])]
+            vec![
+                ("source cursor", vec![fraiseql_observers::migrations::source_cursor_sql()]),
+                (
+                    "source window state",
+                    vec![fraiseql_functions::migrations::cron_migration_sql()]
+                ),
+            ]
         );
     }
 
