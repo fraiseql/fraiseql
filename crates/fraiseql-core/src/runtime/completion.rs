@@ -39,7 +39,6 @@ use ahash::AHashMap;
 use serde_json::{Map, Value};
 
 use crate::{
-    backend::ScalarKind,
     graphql::{DirectiveEvaluator, FieldSelection},
     schema::{CompiledSchema, IntrospectionBuilder, IntrospectionType, TypeKind},
 };
@@ -56,8 +55,8 @@ enum TypeRef {
     List(Box<TypeRef>),
     /// An enum: its value is checked against the members (§ 3.9 result coercion).
     Enum(String),
-    /// `Int`, `Float`, `String` or `Boolean`: its value is held to it (§ 3.5).
-    Scalar(ScalarKind),
+    /// A built-in scalar: its value is held to it (§ 3.5).
+    Scalar(BuiltIn),
     /// An object, interface or union, or a scalar its value is served as read at.
     Named(String),
 }
@@ -375,6 +374,7 @@ fn not_a_scalar(
 ) -> Value {
     let (article, gloss) = match scalar {
         "Int" => ("an", ", a signed 32-bit integer"),
+        "ID" => ("an", ""),
         _ => ("a", ""),
     };
     serde_json::json!({
@@ -414,7 +414,7 @@ enum Coercion {
 }
 
 /// How § 3.5 serves `value` at a position of the scalar named `scalar`, or `None` for a
-/// scalar this rule does not adjudicate (`ID`, a custom scalar).
+/// scalar this rule does not adjudicate (a custom scalar).
 #[cfg(test)]
 fn coerce_scalar(scalar: &str, value: &Value) -> Option<Coercion> {
     built_in_scalar(scalar).map(|scalar| coerce_built_in(scalar, value))
@@ -424,7 +424,7 @@ fn coerce_scalar(scalar: &str, value: &Value) -> Option<Coercion> {
 /// this, the aggregate rows' included, so one rule decides what each scalar may hold; the
 /// walk resolves a field's scalar once, as [`TypeRef::Scalar`].
 #[inline]
-fn coerce_built_in(scalar: ScalarKind, value: &Value) -> Coercion {
+fn coerce_built_in(scalar: BuiltIn, value: &Value) -> Coercion {
     if served_as_is(scalar, value) {
         Coercion::Served
     } else {
@@ -433,26 +433,38 @@ fn coerce_built_in(scalar: ScalarKind, value: &Value) -> Coercion {
 }
 
 /// The name of the built-in `scalar`.
-const fn scalar_name(scalar: ScalarKind) -> &'static str {
+const fn scalar_name(scalar: BuiltIn) -> &'static str {
     match scalar {
-        ScalarKind::Int => "Int",
-        ScalarKind::Float => "Float",
-        ScalarKind::String => "String",
-        ScalarKind::Boolean => "Boolean",
+        BuiltIn::Int => "Int",
+        BuiltIn::Float => "Float",
+        BuiltIn::String => "String",
+        BuiltIn::Boolean => "Boolean",
+        BuiltIn::Id => "ID",
     }
+}
+
+/// A built-in scalar whose value § 3.5 holds to it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BuiltIn {
+    Int,
+    Float,
+    String,
+    Boolean,
+    /// Served as a string (§ 3.5.5): an integer is the one other kind it names.
+    Id,
 }
 
 /// Whether `value` is one the built-in `scalar` holds as served: `null`, or a value of its
 /// kind, an `Int`'s a signed 32-bit integer. Every value a scalar position usually holds,
 /// decided in the walk without a call.
 #[inline]
-fn served_as_is(scalar: ScalarKind, value: &Value) -> bool {
+fn served_as_is(scalar: BuiltIn, value: &Value) -> bool {
     match (scalar, value) {
         (_, Value::Null)
-        | (ScalarKind::Float, Value::Number(_))
-        | (ScalarKind::String, Value::String(_))
-        | (ScalarKind::Boolean, Value::Bool(_)) => true,
-        (ScalarKind::Int, Value::Number(number)) => {
+        | (BuiltIn::Float, Value::Number(_))
+        | (BuiltIn::String | BuiltIn::Id, Value::String(_))
+        | (BuiltIn::Boolean, Value::Bool(_)) => true,
+        (BuiltIn::Int, Value::Number(number)) => {
             number.as_i64().is_some_and(|n| i32::try_from(n).is_ok())
         },
         _ => false,
@@ -461,8 +473,8 @@ fn served_as_is(scalar: ScalarKind, value: &Value) -> bool {
 
 /// [`coerce_built_in`] for a value [`served_as_is`] does not serve: never `null`, nor a
 /// value of the scalar's own kind but an `Int`'s number outside the range.
-fn coerce_other(scalar: ScalarKind, value: &Value) -> Coercion {
-    use ScalarKind::{Boolean, Float, Int, String};
+fn coerce_other(scalar: BuiltIn, value: &Value) -> Coercion {
+    use BuiltIn::{Boolean, Float, Id, Int, String};
     match (scalar, value) {
         (Int, Value::Number(number)) => coerce_int(number),
         (Int, Value::String(text)) => {
@@ -472,8 +484,9 @@ fn coerce_other(scalar: ScalarKind, value: &Value) -> Coercion {
             number_text(text).map_or(Coercion::Refused, |n| Coercion::Rewrite(Value::Number(n)))
         },
         // An integer's text is exact on every path; a fraction's is not: the `Value` path
-        // holds `1.50` as the `f64` 1.5, so its text would not be the stored one.
-        (String, Value::Number(number)) if !number.is_f64() => {
+        // holds `1.50` as the `f64` 1.5, so its text would not be the stored one. An `ID`
+        // is a string (§ 3.5.5), and an integer the one other kind it names.
+        (String | Id, Value::Number(number)) if !number.is_f64() => {
             Coercion::Rewrite(Value::String(number.to_string()))
         },
         (String, Value::Bool(b)) => Coercion::Rewrite(Value::String(b.to_string())),
@@ -487,13 +500,14 @@ fn coerce_other(scalar: ScalarKind, value: &Value) -> Coercion {
 }
 
 /// The built-in scalar § 3.5 adjudicates that `name` names: one test of its length, the
-/// four names' lengths differing, then one comparison.
-fn built_in_scalar(name: &str) -> Option<ScalarKind> {
+/// five names' lengths differing, then one comparison.
+fn built_in_scalar(name: &str) -> Option<BuiltIn> {
     match name.len() {
-        3 if name == "Int" => Some(ScalarKind::Int),
-        5 if name == "Float" => Some(ScalarKind::Float),
-        6 if name == "String" => Some(ScalarKind::String),
-        7 if name == "Boolean" => Some(ScalarKind::Boolean),
+        2 if name == "ID" => Some(BuiltIn::Id),
+        3 if name == "Int" => Some(BuiltIn::Int),
+        5 if name == "Float" => Some(BuiltIn::Float),
+        6 if name == "String" => Some(BuiltIn::String),
+        7 if name == "Boolean" => Some(BuiltIn::Boolean),
         _ => None,
     }
 }
@@ -521,14 +535,16 @@ fn coerce_int(number: &serde_json::Number) -> Coercion {
     Coercion::Rewrite(Value::from(float as i32))
 }
 
-/// What a transport that does not publish GraphQL's scalars serves at a `String` position:
+/// What a transport that does not publish GraphQL's scalars serves at a `String` or `ID`
+/// position:
 /// a value of any other kind as its JSON text, never refused. Such a transport (REST) has
 /// no response document to carry a field error in, and a String field read its stored
 /// value as text before the projection read it as stored. A fraction is written as the
 /// `f64` it was read as (`1.50` → `"1.5"`), and an object without the spacing the database
 /// wrote it with.
-fn stringify_at_string(scalar: ScalarKind, value: &Value) -> Coercion {
-    if scalar == ScalarKind::String && !matches!(value, Value::Null | Value::String(_)) {
+fn stringify_at_string(scalar: BuiltIn, value: &Value) -> Coercion {
+    let stringified = matches!(scalar, BuiltIn::String | BuiltIn::Id);
+    if stringified && !matches!(value, Value::Null | Value::String(_)) {
         Coercion::Rewrite(Value::String(value.to_string()))
     } else {
         Coercion::Served

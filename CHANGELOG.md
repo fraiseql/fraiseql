@@ -128,6 +128,17 @@ disagreed, and the promise was the part that was wrong.
   holding another kind as its JSON text, where a fraction is written as read
   (`1.50` → `"1.5"`) and an object without the database's spacing, and serves `Int`,
   `Float` and `Boolean` fields as stored.
+- **A GraphQL `ID` is always served as a string, and one holding a value other than a
+  string or an integer is `null` with a field error (#2182).** Following GraphQL § 3.5.5,
+  a string is served as stored and an integer as its decimal text, exact past 64 bits. A
+  read that takes the stored document served an integer `id` as a JSON number: a Relay
+  connection's nodes, `_entities` and a subscription event among them. It is now the
+  string, as a projected read already served it, so `node(id:)` and federation keys
+  receive the id a read served.
+  A projected read served any stored kind under an `ID` as text (`true` as `"true"`, an
+  object as its JSON text); a fraction, a Boolean, an object or a list is now refused,
+  and a non-null position nulls its nearest nullable parent. REST serves an integer `id`
+  as its text as before, and another kind as its JSON text (`1.50` → `"1.5"`).
 - **`ProjectionRequest.scalar_keys`, a public field on a struct a caller can build, in
   `fraiseql-db` (#2174).** A struct literal that lists every field must add it; `None`
   changes nothing. An adapter answering `execute_with_projection_raw_with_session` starts

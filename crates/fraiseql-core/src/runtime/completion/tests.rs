@@ -142,19 +142,33 @@ fn an_int_position_serves_a_32_bit_integer_coerces_a_whole_decimal_and_refuses_t
     }
 }
 
-/// The scalars § 3.5's rule leaves alone: `ID` (an integer or a string), the extended
-/// built-ins and a project's own.
+/// The scalars § 3.5's rule leaves alone: the extended built-ins and a project's own.
 #[test]
-fn a_scalar_outside_the_four_is_not_adjudicated() {
-    for scalar in [
-        "ID",
-        "UUID",
-        "Decimal",
-        "DateTime",
-        "LocalDateTime",
-        "Email",
-    ] {
+fn a_scalar_outside_the_five_is_not_adjudicated() {
+    for scalar in ["UUID", "Decimal", "DateTime", "LocalDateTime", "Email"] {
         assert_eq!(coerce_scalar(scalar, &json!(true)), None, "{scalar}");
+    }
+}
+
+/// An `ID` is served as a string (§ 3.5.5): a string as stored, an integer as its decimal
+/// text, exact past `i64`; a fraction, a Boolean, an object or a list is refused.
+#[test]
+fn an_id_is_a_string_and_an_integer_its_decimal_text() {
+    let rewritten = |text: &str| Some(Coercion::Rewrite(json!(text)));
+    for (stored, served) in [
+        (json!("u1"), Some(Coercion::Served)),
+        (json!(""), Some(Coercion::Served)),
+        (json!(null), Some(Coercion::Served)),
+        (json!(7), rewritten("7")),
+        (json!(-7), rewritten("-7")),
+        (json!(12_345_678_901_234_567_890_u64), rewritten("12345678901234567890")),
+        (json!(1.5), Some(Coercion::Refused)),
+        (json!(3.0), Some(Coercion::Refused)),
+        (json!(true), Some(Coercion::Refused)),
+        (json!({"id": 7}), Some(Coercion::Refused)),
+        (json!(["7"]), Some(Coercion::Refused)),
+    ] {
+        assert_eq!(coerce_scalar("ID", &stored), served, "{stored}");
     }
 }
 
@@ -245,4 +259,16 @@ fn an_aggregate_row_projects_an_int_by_the_same_rule() {
     assert!(rows[0]["n"].is_i64(), "{rows}");
     let paths: Vec<&Value> = errors.iter().map(|e| &e["path"]).collect();
     assert_eq!(paths, vec![&json!(["c", 1, "n"]), &json!(["c", 2, "n"])], "{errors:?}");
+}
+
+/// An `ID` refusal reads as English and names the stored kind, never the value.
+#[test]
+fn an_id_refusal_names_the_scalar_and_the_stored_kind() {
+    let error = not_a_scalar(&"Note.id", "ID", &json!({"id": 7}), &[]);
+    let message = error["message"].as_str().unwrap();
+    assert!(
+        message.starts_with("`Note.id` is an `ID`, and the stored value is an object"),
+        "{message}"
+    );
+    assert!(!message.contains('7'), "{message}");
 }

@@ -146,48 +146,139 @@ CREATE OR REPLACE FUNCTION fn_selection_conformance_holding() RETURNS SETOF v_se
 /// `Int` fields (§ 3.5.1): `n` holds integers in range, `wide` one past it, `whole` a whole
 /// decimal, `frac` a fractional one; `inner.m`, a non-null `Int`, one past the range in the
 /// first row; `big` is a `Float` holding the same digits as `wide`.
-/// § 3.5 result coercion of a stored value of each JSON kind, at each of the four built-in
+/// § 3.5 result coercion of a stored value of each JSON kind, at each of the five built-in
 /// scalars the raw path splices. Each case is one row whose `data` holds the stored value
-/// under all four keys; beside it, what each scalar serves, or `None` for a field error. A
+/// under all five keys; beside it, what each scalar serves, or `None` for a field error. A
 /// coercion is made only when it serves exactly the stored information: a numeric string
-/// in its canonical form, an integer's or a boolean's text, the text `true` or `false`.
+/// in its canonical form, an integer's or a boolean's text, the text `true` or `false`. An
+/// `ID` is a string (§ 3.5.5): a string as stored, an integer as its decimal text.
 /// A stored text that must never reach an error is `s3cr3t`.
 const KIND_VIEW: &str = "v_selection_conformance_kind";
-type KindCase = (&'static str, [Option<&'static str>; 4]);
+type KindCase = (&'static str, [Option<&'static str>; 5]);
 const KIND_CASES: &[KindCase] = &[
-    // stored                 Int            Float             String               Boolean
-    (r#""42""#, [Some("42"), Some("42"), Some(r#""42""#), None]),
-    (r#""-7""#, [Some("-7"), Some("-7"), Some(r#""-7""#), None]),
-    (r#""0""#, [Some("0"), Some("0"), Some(r#""0""#), None]),
-    (r#""-0""#, [None, Some("-0.0"), Some(r#""-0""#), None]),
-    (r#""042""#, [None, None, Some(r#""042""#), None]),
-    (r#""+42""#, [None, None, Some(r#""+42""#), None]),
-    (r#"" 42""#, [None, None, Some(r#"" 42""#), None]),
-    (r#""4.2e1""#, [None, Some("42.0"), Some(r#""4.2e1""#), None]),
-    (r#""42.0""#, [None, Some("42.0"), Some(r#""42.0""#), None]),
-    (r#""3000000000""#, [None, Some("3000000000"), Some(r#""3000000000""#), None]),
-    (r#""1.5""#, [None, Some("1.5"), Some(r#""1.5""#), None]),
-    (r#""1e400""#, [None, None, Some(r#""1e400""#), None]),
-    (r#""NaN""#, [None, None, Some(r#""NaN""#), None]),
-    (r#""s3cr3t""#, [None, None, Some(r#""s3cr3t""#), None]),
-    (r#""""#, [None, None, Some(r#""""#), None]),
-    (r#""true""#, [None, None, Some(r#""true""#), Some("true")]),
-    (r#""false""#, [None, None, Some(r#""false""#), Some("false")]),
-    (r#""TRUE""#, [None, None, Some(r#""TRUE""#), None]),
-    ("42", [Some("42"), Some("42"), Some(r#""42""#), None]),
-    ("0", [Some("0"), Some("0"), Some(r#""0""#), None]),
-    ("1", [Some("1"), Some("1"), Some(r#""1""#), None]),
-    ("3000000000", [None, Some("3000000000"), Some(r#""3000000000""#), None]),
-    ("1.5", [None, Some("1.5"), None, None]),
-    ("1.50", [None, Some("1.5"), None, None]),
-    ("3.0", [Some("3"), Some("3.0"), None, None]),
-    ("true", [None, None, Some(r#""true""#), Some("true")]),
-    ("false", [None, None, Some(r#""false""#), Some("false")]),
-    (r#"{"s3cr3t": 1}"#, [None, None, None, None]),
-    (r#"["s3cr3t"]"#, [None, None, None, None]),
-    ("null", [Some("null"), Some("null"), Some("null"), Some("null")]),
+    // stored                 Int            Float             String               Boolean   ID
+    (
+        r#""42""#,
+        [
+            Some("42"),
+            Some("42"),
+            Some(r#""42""#),
+            None,
+            Some(r#""42""#),
+        ],
+    ),
+    (
+        r#""-7""#,
+        [
+            Some("-7"),
+            Some("-7"),
+            Some(r#""-7""#),
+            None,
+            Some(r#""-7""#),
+        ],
+    ),
+    (r#""0""#, [Some("0"), Some("0"), Some(r#""0""#), None, Some(r#""0""#)]),
+    (r#""-0""#, [None, Some("-0.0"), Some(r#""-0""#), None, Some(r#""-0""#)]),
+    (r#""042""#, [None, None, Some(r#""042""#), None, Some(r#""042""#)]),
+    (r#""+42""#, [None, None, Some(r#""+42""#), None, Some(r#""+42""#)]),
+    (r#"" 42""#, [None, None, Some(r#"" 42""#), None, Some(r#"" 42""#)]),
+    (
+        r#""4.2e1""#,
+        [
+            None,
+            Some("42.0"),
+            Some(r#""4.2e1""#),
+            None,
+            Some(r#""4.2e1""#),
+        ],
+    ),
+    (
+        r#""42.0""#,
+        [
+            None,
+            Some("42.0"),
+            Some(r#""42.0""#),
+            None,
+            Some(r#""42.0""#),
+        ],
+    ),
+    (
+        r#""3000000000""#,
+        [
+            None,
+            Some("3000000000"),
+            Some(r#""3000000000""#),
+            None,
+            Some(r#""3000000000""#),
+        ],
+    ),
+    (r#""1.5""#, [None, Some("1.5"), Some(r#""1.5""#), None, Some(r#""1.5""#)]),
+    (r#""1e400""#, [None, None, Some(r#""1e400""#), None, Some(r#""1e400""#)]),
+    (r#""NaN""#, [None, None, Some(r#""NaN""#), None, Some(r#""NaN""#)]),
+    (r#""s3cr3t""#, [None, None, Some(r#""s3cr3t""#), None, Some(r#""s3cr3t""#)]),
+    (r#""""#, [None, None, Some(r#""""#), None, Some(r#""""#)]),
+    (
+        r#""true""#,
+        [
+            None,
+            None,
+            Some(r#""true""#),
+            Some("true"),
+            Some(r#""true""#),
+        ],
+    ),
+    (
+        r#""false""#,
+        [
+            None,
+            None,
+            Some(r#""false""#),
+            Some("false"),
+            Some(r#""false""#),
+        ],
+    ),
+    (r#""TRUE""#, [None, None, Some(r#""TRUE""#), None, Some(r#""TRUE""#)]),
+    (
+        "42",
+        [
+            Some("42"),
+            Some("42"),
+            Some(r#""42""#),
+            None,
+            Some(r#""42""#),
+        ],
+    ),
+    ("0", [Some("0"), Some("0"), Some(r#""0""#), None, Some(r#""0""#)]),
+    ("1", [Some("1"), Some("1"), Some(r#""1""#), None, Some(r#""1""#)]),
+    (
+        "3000000000",
+        [
+            None,
+            Some("3000000000"),
+            Some(r#""3000000000""#),
+            None,
+            Some(r#""3000000000""#),
+        ],
+    ),
+    ("1.5", [None, Some("1.5"), None, None, None]),
+    ("1.50", [None, Some("1.5"), None, None, None]),
+    ("3.0", [Some("3"), Some("3.0"), None, None, None]),
+    ("true", [None, None, Some(r#""true""#), Some("true"), None]),
+    ("false", [None, None, Some(r#""false""#), Some("false"), None]),
+    (r#"{"s3cr3t": 1}"#, [None, None, None, None, None]),
+    (r#"["s3cr3t"]"#, [None, None, None, None, None]),
+    (
+        "null",
+        [
+            Some("null"),
+            Some("null"),
+            Some("null"),
+            Some("null"),
+            Some("null"),
+        ],
+    ),
 ];
-const KIND_FIELDS: [&str; 4] = ["int", "float", "string", "boolean"];
+const KIND_FIELDS: [&str; 5] = ["int", "float", "string", "boolean", "id"];
 /// The same four fields, each holding its own kind: read raw, as stored.
 const KIND_CLEAN_VIEW: &str = "v_selection_conformance_kind_clean";
 
@@ -442,6 +533,12 @@ fn schema() -> CompiledSchema {
         .build();
     clean_kinds_query.auto_params.has_where = true;
     clean_kinds_query.auto_params.has_order_by = true;
+    // The same rows behind a Relay connection, whose page reads the stored document.
+    let kinds_connection_query = TestQueryBuilder::new("kindsConnection", "Kind")
+        .returns_list(true)
+        .with_sql_source(KIND_VIEW)
+        .relay_cursor_column("pk_kind")
+        .build();
     let counters_query = TestQueryBuilder::new("counters", "Counter")
         .returns_list(true)
         .with_sql_source(COUNTER_VIEW)
@@ -515,6 +612,7 @@ fn schema() -> CompiledSchema {
         .with_type(kind_type("CleanKind", KIND_CLEAN_VIEW))
         .with_query(kinds_query)
         .with_query(clean_kinds_query)
+        .with_query(kinds_connection_query)
         .with_query(wides_query)
         .with_query(connection_query)
         .build();
@@ -524,6 +622,28 @@ fn schema() -> CompiledSchema {
     let mut party = UnionDefinition::new("Party");
     party.member_types = vec!["Org".to_string(), "Person".to_string()];
     schema.unions.push(party);
+    // The relay types `fraiseql compile` injects for `Kind` (`converter/relay.rs`), so its
+    // connection's nodes are completed as a compiled schema's are.
+    schema.types.extend([
+        TestTypeBuilder::new("KindEdge", "")
+            .with_field(FieldDefinition::new("cursor", FieldType::String))
+            .with_field(FieldDefinition::nullable("node", FieldType::Object("Kind".into())))
+            .build(),
+        TestTypeBuilder::new("KindConnection", "")
+            .with_field(FieldDefinition::new(
+                "edges",
+                FieldType::list(FieldType::Object("KindEdge".into())),
+            ))
+            .with_field(FieldDefinition::new("pageInfo", FieldType::Object("PageInfo".into())))
+            .build(),
+        TestTypeBuilder::new("PageInfo", "")
+            .with_field(FieldDefinition::new("hasNextPage", FieldType::Boolean))
+            .with_field(FieldDefinition::new("hasPreviousPage", FieldType::Boolean))
+            .with_field(FieldDefinition::nullable("startCursor", FieldType::String))
+            .with_field(FieldDefinition::nullable("endCursor", FieldType::String))
+            .build(),
+    ]);
+    schema.build_indexes();
     schema
 }
 
@@ -561,7 +681,7 @@ async fn executor_for(schema: CompiledSchema) -> Option<Executor> {
                 .map(|f| format!(r#""{f}": {value}"#))
                 .collect::<Vec<_>>()
                 .join(", ");
-            format!("({i}, '{{{document}}}'::jsonb)")
+            format!(r#"({i}, '{{"pk_kind": {i}, {document}}}'::jsonb)"#)
         })
         .collect::<Vec<_>>()
         .join(", ");
@@ -2200,10 +2320,15 @@ async fn a_stored_value_of_another_kind_is_coerced_only_when_nothing_is_lost() {
         return;
     };
 
-    let (flat, _) = answer(&exec, "{ kinds { int float string boolean } }").await;
+    let (flat, _) = answer(&exec, "{ kinds { int float string boolean id } }").await;
     let (through_values, raw) =
-        answer(&exec, "{ kinds { int float string boolean } measures { price } }").await;
+        answer(&exec, "{ kinds { int float string boolean id } measures { price } }").await;
     assert!(!raw, "two root fields are read as `Value`s");
+    let (connection, _) = answer(
+        &exec,
+        "{ kindsConnection(first: 100) { edges { node { int float string boolean id } } } }",
+    )
+    .await;
 
     let mut refused = Vec::new();
     for (i, (stored, served)) in KIND_CASES.iter().enumerate() {
@@ -2213,9 +2338,13 @@ async fn a_stored_value_of_another_kind_is_coerced_only_when_nothing_is_lost() {
             }
             let expected: Value =
                 served.map_or(Value::Null, |text| serde_json::from_str(text).unwrap());
-            for response in [&flat, &through_values] {
-                let got = &response["data"]["kinds"][i][field];
-                assert_eq!(got, &expected, "{stored} at `{field}`: {response}");
+            let nodes = &connection["data"]["kindsConnection"]["edges"];
+            for got in [
+                &flat["data"]["kinds"][i][field],
+                &through_values["data"]["kinds"][i][field],
+                &nodes[i]["node"][field],
+            ] {
+                assert_eq!(got, &expected, "{stored} at `{field}`");
                 // `json!(42) != json!(42.0)`: the served number's form is pinned too.
                 assert_eq!(got.to_string(), expected.to_string(), "{stored} at `{field}`");
             }
@@ -2230,6 +2359,16 @@ async fn a_stored_value_of_another_kind_is_coerced_only_when_nothing_is_lost() {
         assert_eq!(paths, expected, "{response}");
     }
     assert_eq!(flat["errors"], through_values["errors"], "the two paths disagree");
+    let mut connection_paths: Vec<Value> = error_paths(&connection, "")
+        .into_iter()
+        .map(|(path, _)| match path.as_array().map(Vec::as_slice) {
+            Some([_, _, i, _, field]) => json!(["kinds", i, field]),
+            _ => path,
+        })
+        .collect();
+    connection_paths.sort_by_key(Value::to_string);
+    refused.sort_by_key(Value::to_string);
+    assert_eq!(connection_paths, refused, "{connection}");
 }
 
 /// A refusal names the kind of the stored value, never the value itself.
@@ -2241,7 +2380,7 @@ async fn no_refusal_quotes_the_stored_value() {
     };
 
     for query in [
-        "{ kinds { int float string boolean } }",
+        "{ kinds { int float string boolean id } }",
         "{ counters { n wide whole frac inner { m } } }",
     ] {
         let (response, _) = answer(&exec, query).await;
@@ -2357,4 +2496,24 @@ async fn a_cached_read_of_a_row_whose_id_is_an_integer_is_evicted_by_that_id() {
         let evicted = cached.invalidate_by_entity(&entity, "1").unwrap();
         assert_eq!(evicted, 1, "direct: {direct}: {response}");
     }
+}
+
+/// An object whose stored `id` is an integer is refetched through `node` by the id a read
+/// served it with, and `node` serves it with that same id: its decimal text.
+#[tokio::test]
+async fn an_integer_id_round_trips_through_node() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let (listed, _) = answer(&exec, "{ cleanKinds(orderBy: { int: DESC }) { id int } }").await;
+    let first = &listed["data"]["cleanKinds"][0];
+    assert_eq!(first, &json!({"id": "1", "int": 7}), "{listed}");
+    let node_id = encode_node_id("CleanKind", first["id"].as_str().unwrap());
+    let (refetched, _) = answer(
+        &exec,
+        &format!(r#"{{ node(id: "{node_id}") {{ id ... on CleanKind {{ int }} }} }}"#),
+    )
+    .await;
+    assert_eq!(refetched["data"]["node"], *first, "{refetched}");
 }

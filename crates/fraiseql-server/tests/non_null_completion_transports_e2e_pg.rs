@@ -58,7 +58,8 @@ async fn provision(adapter: &PostgresAdapter) {
             "CREATE VIEW {SCHEMA}.v_note AS SELECT * FROM (VALUES \
              ('n1', jsonb_build_object('id', 'n1', 'title', 'First', 'views', 3000000000, \
              'label', 1.50, 'meta', jsonb_build_object('a', 1))), \
-             ('n2', jsonb_build_object('id', 'n2'))) AS t(id, data)"
+             ('n2', jsonb_build_object('id', 'n2')), \
+             ('7', jsonb_build_object('id', 7, 'title', 'Seventh'))) AS t(id, data)"
         ),
         format!(
             "CREATE FUNCTION {SCHEMA}.fn_create_note(p_title text) \
@@ -281,6 +282,40 @@ async fn a_string_field_holding_another_kind_is_text_on_rest_and_refused_by_grap
     let mut paths = paths(&body);
     paths.sort_by_key(Value::to_string);
     assert_eq!(paths, vec![json!(["note", "label"]), json!(["note", "meta"])], "{body}");
+}
+
+/// A note whose stored `id` is the integer 7: every transport serves it as the string
+/// `"7"` (§ 3.5.5). A read by id, the REST representation and a federation `_entities`
+/// lookup each find it by `"7"`, and its `id` is the same text in each.
+#[tokio::test]
+async fn an_integer_id_is_served_as_its_decimal_text_on_every_transport() {
+    let Some(url) = try_database_url() else {
+        return;
+    };
+    let server = serve(&url).await;
+
+    let body = graphql(&server, r#"{ note(id: "7") { id title } }"#, &json!({})).await;
+    assert_eq!(body["data"]["note"], json!({"id": "7", "title": "Seventh"}), "{body}");
+
+    let response = reqwest::Client::new()
+        .get(format!("{}/rest/v1/notes/7", server.base))
+        .send()
+        .await
+        .unwrap();
+    let status = response.status();
+    let text = response.text().await.unwrap();
+    assert!(status.is_success(), "{status}: {text}");
+    let rest: Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(rest.get("data").unwrap_or(&rest)["id"], json!("7"), "REST: {text}");
+
+    let body = graphql(
+        &server,
+        "query($representations: [_Any!]!) { _entities(representations: $representations) {          ... on Note { id title } } }",
+        &json!({"representations": [{"__typename": "Note", "id": "7"}]}),
+    )
+    .await;
+    assert_eq!(body["data"]["_entities"][0]["id"], json!("7"), "{body}");
+    assert_eq!(body["data"]["_entities"][0]["title"], json!("Seventh"), "{body}");
 }
 
 /// An MCP tool call's result is the GraphQL response: the error is in it, and the result

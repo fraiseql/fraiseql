@@ -319,7 +319,8 @@ const fn scalar_kind(field_type: &FieldType) -> Option<ScalarKind> {
     match field_type {
         FieldType::Int => Some(ScalarKind::Int),
         FieldType::Float => Some(ScalarKind::Float),
-        FieldType::String => Some(ScalarKind::String),
+        // An `ID` holds a string as served (§ 3.5.5): an integer is rewritten by completion.
+        FieldType::String | FieldType::Id => Some(ScalarKind::String),
         FieldType::Boolean => Some(ScalarKind::Boolean),
         _ => None,
     }

@@ -1071,3 +1071,27 @@ fn an_aliased_field_a_captured_row_lacks_is_reported_at_its_response_key() {
     assert_eq!(served.data, json!({"id": "o1", "buyer": null}));
     assert_eq!(served.errors[0]["path"], json!(["orderChanged", "buyer"]));
 }
+
+/// An event's `ID` is completed as a query's is (§ 3.5.5): a string as stored, an integer
+/// as its decimal text, anything else a field error at its path.
+#[test]
+fn an_event_id_is_served_as_a_string() {
+    let planned = captured_plan(false, "id quantity");
+    for (id, served) in [
+        (json!("o1"), Some(json!("o1"))),
+        (json!(5), Some(json!("5"))),
+        (json!(12_345_678_901_234_567_890_u64), Some(json!("12345678901234567890"))),
+        (json!(1.5), None),
+        (json!(true), None),
+        (json!({"a": 1}), None),
+    ] {
+        let delivered = planned.deliver(&json!({"id": id, "quantity": 1}), false).unwrap();
+        if let Some(served) = served {
+            assert_eq!(delivered.data["id"], served, "{id}");
+            assert_eq!(delivered.errors, Vec::<serde_json::Value>::new(), "{id}");
+        } else {
+            assert_eq!(delivered.errors.len(), 1, "{id}: {:?}", delivered.errors);
+            assert_eq!(delivered.errors[0]["path"], json!(["orderChanged", "id"]), "{id}");
+        }
+    }
+}
