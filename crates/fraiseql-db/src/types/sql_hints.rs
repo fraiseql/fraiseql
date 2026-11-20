@@ -35,6 +35,9 @@ pub enum ScalarFieldType {
     Boolean,
     /// Instant (`::timestamptz` / `CAST(… AS DATETIME2)`).
     DateTime,
+    /// A date and a time of day in no zone — a `timestamp` cast. Not [`Self::DateTime`]:
+    /// cast as an instant, the value would be read in the session's time zone.
+    LocalDateTime,
     /// Calendar date (`::date`).
     Date,
     /// Wall-clock time (`::time`).

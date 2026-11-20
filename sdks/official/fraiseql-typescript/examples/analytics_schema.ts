@@ -62,7 +62,7 @@ SchemaRegistry.registerFactTable(
   // Denormalized filters: real columns, so WHERE does not have to open the JSONB.
   [
     { name: "customer_id", sql_type: "Text", indexed: true },
-    { name: "occurred_at", sql_type: "Timestamp", indexed: true },
+    { name: "occurred_at", sql_type: "TIMESTAMPTZ", indexed: true },
   ]
 );
 

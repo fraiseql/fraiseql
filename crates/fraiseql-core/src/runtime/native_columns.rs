@@ -46,7 +46,9 @@ pub const fn sql_type_to_pg_cast(sql_type: &SqlType) -> &'static str {
         SqlType::Decimal => "numeric",
         SqlType::Float => "float8",
         SqlType::Boolean => "bool",
-        SqlType::Timestamp => "timestamptz",
+        SqlType::TimestampTz => "timestamptz",
+        // In no zone: cast as an instant, a value would be read in the session's zone.
+        SqlType::LocalTimestamp => "timestamp",
         SqlType::Date => "date",
         SqlType::Ltree => "ltree",
         // text, varchar, jsonb, json, other — no cast needed.

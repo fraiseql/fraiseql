@@ -297,6 +297,7 @@ fn orders_meaningfully(schema: &CompiledSchema, field_type: &FieldType) -> bool 
         | FieldType::Boolean
         | FieldType::Id
         | FieldType::DateTime
+        | FieldType::LocalDateTime
         | FieldType::Date
         | FieldType::Time
         | FieldType::Uuid
@@ -699,6 +700,7 @@ fn classify(schema: &CompiledSchema, field_type: &FieldType) -> Slot {
         FieldType::Id => leaf("ID", "ID", Ops::none()),
         FieldType::Uuid => leaf("UUID", "UUID", Ops::none()),
         FieldType::DateTime => leaf("DateTime", "DateTime", Ops::none()),
+        FieldType::LocalDateTime => leaf("LocalDateTime", "LocalDateTime", Ops::none()),
         FieldType::Date => leaf("Date", "Date", Ops::none()),
         FieldType::Time => leaf("Time", "Time", Ops::none()),
         FieldType::Json => leaf("JSON", "JSON", Ops::json()),

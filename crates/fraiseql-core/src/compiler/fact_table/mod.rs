@@ -120,7 +120,12 @@ impl FactTableMetadata {
                 None => violations.push(format!(
                     "{prefix}: `over` names `{over}`, which is not a denormalized column"
                 )),
-                Some(f) if !matches!(f.sql_type, SqlType::Date | SqlType::Timestamp) => {
+                Some(f)
+                    if !matches!(
+                        f.sql_type,
+                        SqlType::Date | SqlType::TimestampTz | SqlType::LocalTimestamp
+                    ) =>
+                {
                     violations.push(format!(
                         "{prefix}: `over` names `{over}`, which is not a time column (date or \
                          timestamp)"
@@ -266,8 +271,14 @@ pub enum SqlType {
     Text,
     /// UUID
     Uuid,
-    /// TIMESTAMP, TIMESTAMPTZ
-    Timestamp,
+    /// TIMESTAMPTZ (`timestamp with time zone`): an instant.
+    TimestampTz,
+    /// TIMESTAMP (`timestamp without time zone`): a date and a time of day in no zone.
+    ///
+    /// Its own variant, not one with [`Self::TimestampTz`]: it is published as a
+    /// `LocalDateTime`, read without an offset, and compared without the session's zone
+    /// (#1929). An artifact naming the old variant that covered both does not load.
+    LocalTimestamp,
     /// DATE
     Date,
     /// BOOLEAN
@@ -564,10 +575,8 @@ impl SqlType {
             "json" => Self::Json,
             "text" | "varchar" | "character varying" | "char" | "character" => Self::Text,
             "uuid" => Self::Uuid,
-            "timestamp"
-            | "timestamptz"
-            | "timestamp with time zone"
-            | "timestamp without time zone" => Self::Timestamp,
+            "timestamptz" | "timestamp with time zone" => Self::TimestampTz,
+            "timestamp" | "timestamp without time zone" => Self::LocalTimestamp,
             "date" => Self::Date,
             "boolean" | "bool" => Self::Boolean,
             "ltree" => Self::Ltree,
@@ -585,7 +594,9 @@ impl SqlType {
             "float" | "double" | "real" => Self::Float,
             "json" => Self::Json,
             "text" | "varchar" | "char" | "tinytext" | "mediumtext" | "longtext" => Self::Text,
-            "timestamp" | "datetime" => Self::Timestamp,
+            // MySQL converts a TIMESTAMP to and from UTC; a DATETIME is stored as written.
+            "timestamp" => Self::TimestampTz,
+            "datetime" => Self::LocalTimestamp,
             "date" => Self::Date,
             "boolean" | "bool" | "tinyint(1)" => Self::Boolean,
             other => Self::Other(other.to_string()),
@@ -615,7 +626,8 @@ impl SqlType {
             "float" | "real" => Self::Float,
             "nvarchar" | "varchar" | "char" | "nchar" | "text" | "ntext" => Self::Text,
             "uniqueidentifier" => Self::Uuid,
-            "datetime" | "datetime2" | "smalldatetime" | "datetimeoffset" => Self::Timestamp,
+            "datetimeoffset" => Self::TimestampTz,
+            "datetime" | "datetime2" | "smalldatetime" => Self::LocalTimestamp,
             "date" => Self::Date,
             "bit" => Self::Boolean,
             other => Self::Other(other.to_string()),

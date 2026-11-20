@@ -712,3 +712,39 @@ fn a_float_declared_variable_is_refused_at_a_decimal_argument() {
     ));
     assert!(msg.contains("$min") && msg.contains("Float"), "{msg}");
 }
+
+/// #1929: a `LocalDateTime` argument is a string, as a `DateTime` one is.
+#[test]
+fn a_local_date_time_argument_takes_a_string_and_refuses_a_number() {
+    let at = vec![ArgumentDefinition::optional("at", FieldType::LocalDateTime)];
+    let accepted = [literal("at", "string", "\"2026-07-01T12:00:00\"")];
+    assert!(validate_argument_values("Query.things", &at, &accepted, &[]).is_ok());
+    let refused = [literal("at", "int", "20260701")];
+    let msg = message(validate_argument_values("Query.things", &at, &refused, &[]));
+    assert!(msg.contains("LocalDateTime"), "message was: {msg}");
+}
+
+/// A `LocalDateTime` has no offset: one sent would be dropped by the `::timestamp` cast, so
+/// the value is refused, naming the argument, on the literal path and the variable path.
+#[test]
+fn a_local_date_time_argument_refuses_an_offset_and_a_non_matching_string() {
+    let at = vec![ArgumentDefinition::optional("at", FieldType::LocalDateTime)];
+    for written in [
+        "\"2026-07-01T12:00:00+02:00\"",
+        "\"2026-07-01T12:00:00Z\"",
+        "\"2026-07-01 12:00:00\"",
+        "\"2026-13-01T12:00:00\"",
+        "\"2026-07-01T12:00:60\"",
+    ] {
+        let args = [literal("at", "string", written)];
+        let msg = message(validate_argument_values("Query.things", &at, &args, &[]));
+        assert!(msg.contains("at") && msg.contains("LocalDateTime"), "{written}: {msg}");
+    }
+    let args = [literal("at", "string", "\"2026-07-01T12:00:00.5\"")];
+    assert!(validate_argument_values("Query.things", &at, &args, &[]).is_ok());
+
+    let vars = [var("when", "LocalDateTime", true)];
+    let values = json!({"when": "2026-07-01T12:00:00+02:00"});
+    let msg = message(validate_variable_values(Some("Q"), &vars, Some(&values)));
+    assert!(msg.contains("$when") && msg.contains("LocalDateTime"), "{msg}");
+}

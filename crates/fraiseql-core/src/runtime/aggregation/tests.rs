@@ -56,7 +56,7 @@ fn create_test_plan() -> AggregationPlan {
         },
         denormalized_filters:     vec![FilterColumn {
             name:      "occurred_at".to_string(),
-            sql_type:  SqlType::Timestamp,
+            sql_type:  SqlType::TimestampTz,
             indexed:   true,
             hierarchy: None,
         }],
@@ -675,7 +675,7 @@ fn make_string_where_plan(_db: DatabaseType) -> AggregationPlan {
         },
         denormalized_filters:     vec![FilterColumn {
             name:      "status".to_string(),
-            sql_type:  SqlType::Timestamp,
+            sql_type:  SqlType::TimestampTz,
             indexed:   true,
             hierarchy: None,
         }],
@@ -748,13 +748,13 @@ fn test_parameterized_postgres_placeholder_numbering() {
         denormalized_filters:     vec![
             FilterColumn {
                 name:      "occurred_at".to_string(),
-                sql_type:  SqlType::Timestamp,
+                sql_type:  SqlType::TimestampTz,
                 indexed:   true,
                 hierarchy: None,
             },
             FilterColumn {
                 name:      "channel".to_string(),
-                sql_type:  SqlType::Timestamp,
+                sql_type:  SqlType::TimestampTz,
                 indexed:   true,
                 hierarchy: None,
             },
@@ -826,7 +826,7 @@ fn test_parameterized_in_array_expands_to_multiple_placeholders() {
         },
         denormalized_filters:     vec![FilterColumn {
             name:      "status".to_string(),
-            sql_type:  SqlType::Timestamp,
+            sql_type:  SqlType::TimestampTz,
             indexed:   true,
             hierarchy: None,
         }],

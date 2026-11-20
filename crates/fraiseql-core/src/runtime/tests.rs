@@ -58,7 +58,7 @@ mod aggregate_parser_tests {
             },
             denormalized_filters:     vec![FilterColumn {
                 name:      "occurred_at".to_string(),
-                sql_type:  SqlType::Timestamp,
+                sql_type:  SqlType::TimestampTz,
                 indexed:   true,
                 hierarchy: None,
             }],
@@ -551,7 +551,7 @@ mod aggregate_projector_tests {
             },
             denormalized_filters:     vec![FilterColumn {
                 name:      "occurred_at".to_string(),
-                sql_type:  SqlType::Timestamp,
+                sql_type:  SqlType::TimestampTz,
                 indexed:   true,
                 hierarchy: None,
             }],
@@ -4906,7 +4906,7 @@ mod window_parser_tests {
                 },
                 FilterColumn {
                     name:      "occurred_at".to_string(),
-                    sql_type:  SqlType::Timestamp,
+                    sql_type:  SqlType::TimestampTz,
                     indexed:   true,
                     hierarchy: None,
                 },
@@ -5578,7 +5578,7 @@ mod aggregate_argument_forms {
                 }],
             },
             denormalized_filters:     vec![
-                filter("occurred_at", SqlType::Timestamp),
+                filter("occurred_at", SqlType::TimestampTz),
                 filter("org_path", SqlType::Ltree),
             ],
             calendar_dimensions:      vec![],

@@ -436,6 +436,7 @@ impl CompiledSchema {
                 | FieldType::Boolean
                 | FieldType::Id
                 | FieldType::DateTime
+                | FieldType::LocalDateTime
                 | FieldType::Date
                 | FieldType::Time
                 | FieldType::Json

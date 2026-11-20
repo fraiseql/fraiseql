@@ -5,7 +5,7 @@ use fraiseql_error::{FraiseQLError, Result};
 use super::counter::ParamCounter;
 use crate::{
     dialect::SqlDialect,
-    types::sql_hints::ScalarFieldType,
+    types::{local_date_time::check_local_date_time_operand, sql_hints::ScalarFieldType},
     where_clause::{FieldTypeMap, WhereClause, WhereOperator, field_types::operand_type},
 };
 
@@ -38,6 +38,23 @@ fn uuid_case_variants(value: &serde_json::Value) -> Option<(String, String)> {
 /// same rows on a column of the field's own type. A `uuid` field also needs every
 /// operand to be a UUID: the document path compares text, where a malformed literal
 /// matches nothing, and casting it to the column's `uuid` would raise instead.
+/// Refuse a compared operand of a `LocalDateTime` field that is not one: its `::timestamp`
+/// cast would drop an offset and compare a different time than the one sent. A null test's
+/// operand is a flag, not a value of the field.
+fn check_local_operand(
+    ty: ScalarFieldType,
+    path: &[String],
+    operator: &WhereOperator,
+    value: &serde_json::Value,
+) -> Result<()> {
+    if matches!(ty, ScalarFieldType::LocalDateTime)
+        && !matches!(operator, WhereOperator::IsNull | WhereOperator::IsNotNull)
+    {
+        check_local_date_time_operand(&path.join("."), value)?;
+    }
+    Ok(())
+}
+
 fn native_comparison_column<'t>(
     types: Option<&'t FieldTypeMap>,
     path: &[String],
@@ -517,6 +534,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         types: Option<&FieldTypeMap>,
     ) -> Result<String> {
         let ty = operand_type(types, path, value);
+        check_local_operand(ty, path, operator, value)?;
         let column = self.dialect.quote_identifier(column);
         let lhs = if matches!(ty, ScalarFieldType::Text) {
             format!("{column} COLLATE \"default\"")
@@ -837,6 +855,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                     _ => "<=",
                 };
                 let ty = operand_type(types, path, value);
+                check_local_operand(ty, path, operator, value)?;
                 let lhs = self.dialect.cast_expr_as(&field_expr, ty);
 
                 // Identity equality is case-insensitive over the two renderings
@@ -882,6 +901,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                     });
                 }
                 let ty = operand_type(types, path, value);
+                check_local_operand(ty, path, operator, value)?;
                 let lhs = self.dialect.cast_expr_as(&field_expr, ty);
                 let placeholders: Vec<_> = arr
                     .iter()

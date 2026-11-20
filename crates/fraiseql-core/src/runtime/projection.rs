@@ -305,6 +305,7 @@ const fn excludes_json_composites(field_type: &FieldType) -> bool {
             | FieldType::Boolean
             | FieldType::Id
             | FieldType::DateTime
+            | FieldType::LocalDateTime
             | FieldType::Date
             | FieldType::Time
             | FieldType::Uuid

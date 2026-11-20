@@ -850,3 +850,69 @@ fn a_path_outside_the_guarded_relation_is_unchanged() {
         .unwrap();
     assert_eq!(guarded, unguarded);
 }
+
+// ── A local date-time operand carries no offset ───────────────────────────────
+
+/// A `LocalDateTime` field: its operand is cast `::timestamp`, which drops an offset or a
+/// `Z` without a word, so a filter would compare a different time than the one sent.
+fn local_typed(clause: WhereClause) -> WhereClause {
+    use std::sync::Arc;
+
+    use crate::{types::sql_hints::ScalarFieldType, where_clause::FieldTypeMap};
+    clause.typed(Arc::new(FieldTypeMap::from_pairs([(
+        "loggedAt",
+        ScalarFieldType::LocalDateTime,
+    )])))
+}
+
+#[test]
+fn a_local_date_time_operand_with_an_offset_is_refused() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    for (operator, value) in [
+        (WhereOperator::Lt, json!("2026-03-08T03:15:00+05:00")),
+        (WhereOperator::Eq, json!("2026-03-08T03:15:00Z")),
+        (WhereOperator::In, json!(["2026-03-08T03:15:00", "2026-03-08T04:00:00-08:00"])),
+        (WhereOperator::Gte, json!("2026-03-08 03:15:00")),
+        (WhereOperator::Gte, json!("tomorrow")),
+    ] {
+        let clause = local_typed(field("loggedAt", operator.clone(), value.clone()));
+        let err = gen.generate(&clause).expect_err(&format!("{operator:?} {value}"));
+        assert!(err.to_string().contains("loggedAt"), "{err}");
+    }
+}
+
+#[test]
+fn a_local_date_time_operand_is_cast_as_one() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    for value in [
+        json!("2026-03-08T03:15:00"),
+        json!("2026-03-08t03:15:00.123456789"),
+    ] {
+        let clause = local_typed(field("loggedAt", WhereOperator::Lt, value));
+        let (sql, _) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, "(data->>'loggedAt')::timestamp < ($1::text)::timestamp");
+    }
+}
+
+#[test]
+fn a_null_test_on_a_local_date_time_field_is_not_a_comparison() {
+    use std::sync::Arc;
+
+    use crate::{types::sql_hints::ScalarFieldType, where_clause::FieldTypeMap};
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let on_column = FieldTypeMap::from_pairs([("loggedAt", ScalarFieldType::LocalDateTime)])
+        .with_columns([("loggedAt".to_string(), "logged_at".to_string())]);
+    for types in [
+        local_typed(field("loggedAt", WhereOperator::IsNull, json!(true))),
+        field("loggedAt", WhereOperator::IsNull, json!(true)).typed(Arc::new(on_column.clone())),
+    ] {
+        assert!(gen.generate(&types).is_ok());
+    }
+    let local = field("loggedAt", WhereOperator::Lt, json!("2026-03-08T03:15:00"))
+        .typed(Arc::new(on_column.clone()));
+    let (sql, _) = gen.generate(&local).unwrap();
+    assert!(sql.starts_with("\"logged_at\""), "the native column path: {sql}");
+    let compared = field("loggedAt", WhereOperator::Lt, json!("2026-03-08T03:15:00Z"))
+        .typed(Arc::new(on_column));
+    assert!(gen.generate(&compared).expect_err("refused").to_string().contains("offset"));
+}

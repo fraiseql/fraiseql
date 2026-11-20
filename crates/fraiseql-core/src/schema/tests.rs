@@ -1067,7 +1067,7 @@ fn test_unknown_types_not_recognized() {
 #[test]
 fn test_builtin_scalar_count() {
     // Verify we have the expected number of builtin scalars
-    assert_eq!(BUILTIN_SCALARS.len(), 15);
+    assert_eq!(BUILTIN_SCALARS.len(), 16);
 }
 
 #[test]

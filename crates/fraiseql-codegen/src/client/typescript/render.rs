@@ -33,6 +33,7 @@ pub(super) fn field_type_ts(ft: &FieldType) -> String {
         | FieldType::Uuid
         | FieldType::Decimal
         | FieldType::DateTime
+        | FieldType::LocalDateTime
         | FieldType::Date
         | FieldType::Time
         | FieldType::Scalar(_)

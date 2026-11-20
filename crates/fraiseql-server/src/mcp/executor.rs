@@ -225,6 +225,7 @@ fn graphql_type_name(field_type: &FieldType) -> String {
         FieldType::Boolean => "Boolean".to_string(),
         FieldType::Id => "ID".to_string(),
         FieldType::DateTime => "DateTime".to_string(),
+        FieldType::LocalDateTime => "LocalDateTime".to_string(),
         FieldType::Date => "Date".to_string(),
         FieldType::Time => "Time".to_string(),
         FieldType::Uuid => "UUID".to_string(),
@@ -336,6 +337,7 @@ pub(crate) fn is_scalar_field_type(field_type: &FieldType) -> bool {
         | FieldType::Boolean
         | FieldType::Id
         | FieldType::DateTime
+        | FieldType::LocalDateTime
         | FieldType::Date
         | FieldType::Time
         | FieldType::Json

@@ -35,6 +35,12 @@
       },
       {
         "kind": "SCALAR",
+        "name": "LocalDateTime",
+        "description": "A date and a time of day in no time zone (\"2026-07-01T12:00:00\"): a `T`, optional fractional seconds, never an offset. What a `timestamp` column without a time zone holds; not an instant.",
+        "specifiedByURL": "https://scalars.graphql.org/chillicream/local-date-time"
+      },
+      {
+        "kind": "SCALAR",
         "name": "Date",
         "description": "ISO-8601 date string",
         "specifiedByURL": "https://scalars.graphql.org/andimarek/local-date"

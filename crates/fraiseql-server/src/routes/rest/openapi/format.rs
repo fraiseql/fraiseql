@@ -26,6 +26,11 @@ pub(super) fn field_type_to_json_schema(ft: &FieldType) -> Value {
         FieldType::Boolean => json!({ "type": "boolean" }),
         FieldType::Id | FieldType::Uuid => json!({ "type": "string", "format": "uuid" }),
         FieldType::DateTime => json!({ "type": "string", "format": "date-time" }),
+        // JSON Schema's `date-time` requires an offset; a local date-time never has one.
+        FieldType::LocalDateTime => json!({
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,9})?$"
+        }),
         FieldType::Date => json!({ "type": "string", "format": "date" }),
         FieldType::Time => json!({ "type": "string", "format": "time" }),
         FieldType::Json => json!({ "type": "object" }),

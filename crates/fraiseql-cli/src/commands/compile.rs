@@ -1280,6 +1280,7 @@ pub(crate) fn field_type_to_pg(ft: &FieldType) -> String {
         FieldType::Boolean => "BOOLEAN".to_string(),
         FieldType::Id | FieldType::Uuid => "UUID".to_string(),
         FieldType::DateTime => "TIMESTAMPTZ".to_string(),
+        FieldType::LocalDateTime => "TIMESTAMP".to_string(),
         FieldType::Date => "DATE".to_string(),
         FieldType::Time => "TIME".to_string(),
         FieldType::Json | FieldType::List { item: _, .. } | FieldType::Object(_) => {

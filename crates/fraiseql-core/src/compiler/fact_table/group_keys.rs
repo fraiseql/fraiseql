@@ -92,7 +92,7 @@ impl FactTableMetadata {
         let mut generated = Vec::new();
         for filter in &self.denormalized_filters {
             match filter.sql_type {
-                SqlType::Date | SqlType::Timestamp => {
+                SqlType::Date | SqlType::TimestampTz | SqlType::LocalTimestamp => {
                     for bucket in TemporalBucket::all() {
                         generated.push(bucket_key(&filter.name, *bucket));
                     }

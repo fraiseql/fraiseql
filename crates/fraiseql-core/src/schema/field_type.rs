@@ -986,6 +986,10 @@ pub enum FieldType {
     /// ISO 8601 `DateTime` (e.g., "2025-01-10T12:00:00Z").
     DateTime,
 
+    /// A date and a time of day in no time zone (e.g., "2025-01-10T12:00:00"): what a
+    /// `timestamp` column without a time zone holds. Never written with an offset.
+    LocalDateTime,
+
     /// ISO 8601 `Date` (e.g., "2025-01-10").
     Date,
 
@@ -1127,6 +1131,7 @@ builtin_scalars! {
     Boolean => "Boolean",
     Id => "ID",
     DateTime => "DateTime",
+    LocalDateTime => "LocalDateTime",
     Date => "Date",
     Time => "Time",
     Json => "Json",
@@ -1160,6 +1165,7 @@ impl FieldType {
                 | Self::Boolean
                 | Self::Id
                 | Self::DateTime
+                | Self::LocalDateTime
                 | Self::Date
                 | Self::Time
                 | Self::Json
@@ -1271,6 +1277,7 @@ impl FieldType {
             Self::Boolean => "Boolean".to_string(),
             Self::Id => "ID".to_string(),
             Self::DateTime => "DateTime".to_string(),
+            Self::LocalDateTime => "LocalDateTime".to_string(),
             Self::Date => "Date".to_string(),
             Self::Time => "Time".to_string(),
             Self::Json => "JSON".to_string(),
@@ -1305,6 +1312,7 @@ impl FieldType {
             Self::Float => "DOUBLE PRECISION".to_string(),
             Self::Boolean => "BOOLEAN".to_string(),
             Self::DateTime => "TIMESTAMPTZ".to_string(),
+            Self::LocalDateTime => "TIMESTAMP".to_string(),
             Self::Date => "DATE".to_string(),
             Self::Time => "TIME".to_string(),
             Self::Uuid => "UUID".to_string(),
@@ -1413,6 +1421,7 @@ impl FieldType {
             "boolean" | "bool" => Self::Boolean,
             "id" => Self::Id,
             "datetime" | "timestamp" => Self::DateTime,
+            "localdatetime" => Self::LocalDateTime,
             "date" => Self::Date,
             "time" => Self::Time,
             "json" | "jsonb" => Self::Json,

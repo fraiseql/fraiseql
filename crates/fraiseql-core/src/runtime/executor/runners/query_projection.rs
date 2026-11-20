@@ -330,6 +330,9 @@ fn where_native_column(
         FT::Decimal => matches!(pg_type.as_str(), "numeric" | "decimal"),
         FT::Boolean => matches!(pg_type.as_str(), "boolean" | "bool"),
         FT::DateTime => matches!(pg_type.as_str(), "timestamptz" | "timestamp with time zone"),
+        FT::LocalDateTime => {
+            matches!(pg_type.as_str(), "timestamp" | "timestamp without time zone")
+        },
         FT::Date => pg_type == "date",
         FT::Time => matches!(pg_type.as_str(), "time" | "time without time zone"),
         FT::Id | FT::Uuid => pg_type == "uuid",
@@ -405,6 +408,7 @@ const fn scalar_cast_hint(ft: &crate::schema::FieldType) -> ScalarFieldType {
         FT::Float | FT::Decimal => ScalarFieldType::Numeric,
         FT::Boolean => ScalarFieldType::Boolean,
         FT::DateTime => ScalarFieldType::DateTime,
+        FT::LocalDateTime => ScalarFieldType::LocalDateTime,
         FT::Date => ScalarFieldType::Date,
         FT::Time => ScalarFieldType::Time,
         // String, ID, UUID, Json, Enum, Scalar, and container types sort as text.
@@ -742,6 +746,8 @@ mod cast_hint_characterisation {
         assert_eq!(field_type_to_order_by_type(&FT::Int), ScalarFieldType::Integer);
         assert_eq!(field_type_to_order_by_type(&FT::Decimal), ScalarFieldType::Numeric);
         assert_eq!(field_type_to_order_by_type(&FT::DateTime), ScalarFieldType::DateTime);
+        assert_eq!(field_type_to_where_type(&FT::LocalDateTime), ScalarFieldType::LocalDateTime);
+        assert_eq!(field_type_to_order_by_type(&FT::LocalDateTime), ScalarFieldType::LocalDateTime);
     }
 }
 

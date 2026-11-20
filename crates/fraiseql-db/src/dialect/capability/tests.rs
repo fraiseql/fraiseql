@@ -80,6 +80,7 @@ fn order_by_and_where_render_the_same_cast() {
         ScalarFieldType::Numeric,
         ScalarFieldType::Boolean,
         ScalarFieldType::DateTime,
+        ScalarFieldType::LocalDateTime,
         ScalarFieldType::Date,
         ScalarFieldType::Time,
     ] {
@@ -91,4 +92,20 @@ fn order_by_and_where_render_the_same_cast() {
             "{db:?} renders {ty:?} differently for ORDER BY and WHERE"
         );
     }
+}
+
+/// #1929: a date-time in no zone is cast as one, and an instant as one: cast as an instant,
+/// a zoneless value would be read in the session's `TimeZone`.
+#[test]
+fn a_local_date_time_is_cast_as_a_timestamp_and_an_instant_as_a_timestamptz() {
+    let db = DatabaseType::PostgreSQL;
+    let base = db.json_field_expr("at");
+    assert_eq!(
+        db.dialect().cast_expr_as(&base, ScalarFieldType::LocalDateTime),
+        format!("({base})::timestamp")
+    );
+    assert_eq!(
+        db.dialect().cast_expr_as(&base, ScalarFieldType::DateTime),
+        format!("({base})::timestamptz")
+    );
 }

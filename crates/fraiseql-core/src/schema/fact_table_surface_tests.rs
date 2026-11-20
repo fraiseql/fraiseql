@@ -26,7 +26,7 @@ fn fixture() -> Value {
                 {"name": "category", "json_path": "data->>'category'", "data_type": "text"}
             ]},
             "denormalized_filters": [
-                {"name": "occurred_at", "sql_type": "Timestamp", "indexed": true},
+                {"name": "occurred_at", "sql_type": "TimestampTz", "indexed": true},
                 {"name": "day", "sql_type": "Date", "indexed": true},
                 {"name": "org_path", "sql_type": "Ltree", "indexed": true},
                 {"name": "region", "sql_type": "Text", "indexed": true},
@@ -415,4 +415,35 @@ fn a_variable_typed_with_a_published_input_is_accepted() {
          { sales_aggregate(groupBy: $g, where: $w) { region count } }",
     )
     .expect("the published input types are defined");
+}
+
+/// #1929: a `timestamp` column without a time zone is published as `LocalDateTime` (its key,
+/// its buckets, its `where` operands), a `timestamptz` one as `DateTime`, and the scalar is
+/// declared with the specification it follows.
+#[test]
+fn a_timestamp_column_is_a_local_date_time_and_a_timestamptz_one_a_date_time() {
+    let mut doc = fixture();
+    doc["fact_tables"]["tf_sales"]["denormalized_filters"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"name": "logged_at", "sql_type": "LocalTimestamp", "indexed": true}));
+    let schema = load(&doc);
+    let row = introspected(&schema, "SalesAggregateRow");
+    for (field, expected) in [
+        ("logged_at", "LocalDateTime"),
+        ("logged_at_day", "LocalDateTime"),
+        ("logged_at_month", "LocalDateTime"),
+        ("occurred_at", "DateTime"),
+        ("occurred_at_day", "DateTime"),
+    ] {
+        assert_eq!(field_type(&row, field).as_deref(), Some(expected), "`{field}`");
+    }
+    let filter = introspected(&schema, "SalesAggregateWhere");
+    assert_eq!(field_type(&filter, "logged_at_gte").as_deref(), Some("LocalDateTime"));
+    assert_eq!(field_type(&filter, "occurred_at_gte").as_deref(), Some("DateTime"));
+    let scalar = introspected(&schema, "LocalDateTime");
+    assert_eq!(
+        scalar.specified_by_u_r_l.as_deref(),
+        Some("https://scalars.graphql.org/chillicream/local-date-time")
+    );
 }

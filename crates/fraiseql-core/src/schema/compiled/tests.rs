@@ -3081,7 +3081,7 @@ fn group_key_fixture(extra_filters: &[(&str, &str)], dimensions: &[&str]) -> ser
     let mut doc = fact_root_fixture();
     let table = &mut doc["fact_tables"]["tf_sales"];
     let mut filters = vec![
-        serde_json::json!({"name": "occurred_at", "sql_type": "Timestamp", "indexed": true}),
+        serde_json::json!({"name": "occurred_at", "sql_type": "TimestampTz", "indexed": true}),
         serde_json::json!({"name": "org_path", "sql_type": "Ltree", "indexed": true}),
     ];
     filters.extend(extra_filters.iter().map(|(name, sql_type)| {

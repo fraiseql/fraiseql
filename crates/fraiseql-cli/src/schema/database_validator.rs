@@ -1191,7 +1191,12 @@ fn temporal_keys_in_document(
     };
     ty.fields
         .iter()
-        .filter(|f| matches!(f.field_type, FieldType::DateTime | FieldType::Date | FieldType::Time))
+        .filter(|f| {
+            matches!(
+                f.field_type,
+                FieldType::DateTime | FieldType::LocalDateTime | FieldType::Date | FieldType::Time
+            )
+        })
         .filter(|f| !query_native.contains_key(f.name.as_str()))
         .map(|f| {
             let column = fraiseql_core::utils::to_snake_case(f.name.as_str());

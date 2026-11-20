@@ -1162,8 +1162,10 @@ pub(super) fn decode_cell(row: &Row, idx: usize) -> serde_json::Value {
         // `timestamptz` → RFC 3339 / ISO 8601 text (H35).
         serde_json::json!(v.to_rfc3339())
     } else if let Ok(v) = row.try_get::<_, chrono::NaiveDateTime>(idx) {
-        // `timestamp` (no tz) → ISO 8601 text (H35).
-        serde_json::json!(v.to_string())
+        // `timestamp` (no tz) → a local date-time: `T`, no offset, the fraction in
+        // 3, 6 or 9 digits as `to_rfc3339` writes the `timestamptz` one. `to_string`
+        // wrote a space, which no date-time reader accepts.
+        serde_json::json!(v.format("%Y-%m-%dT%H:%M:%S%.f").to_string())
     } else if let Ok(v) = row.try_get::<_, chrono::NaiveDate>(idx) {
         // `date` → ISO 8601 date text (H35).
         serde_json::json!(v.to_string())

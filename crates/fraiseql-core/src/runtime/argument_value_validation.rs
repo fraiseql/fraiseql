@@ -83,6 +83,7 @@
 //! declarations (§ 6.1.2), including the case where a non-null variable is not
 //! supplied at all: that also dropped its argument and widened the result.
 
+use fraiseql_db::types::local_date_time::local_date_time_refusal;
 use serde_json::Value;
 
 use crate::{
@@ -109,6 +110,7 @@ enum Scalar {
     Id,
     Uuid,
     DateTime,
+    LocalDateTime,
     Date,
     Time,
     Decimal,
@@ -126,6 +128,7 @@ impl Scalar {
             FieldType::Id => Some(Self::Id),
             FieldType::Uuid => Some(Self::Uuid),
             FieldType::DateTime => Some(Self::DateTime),
+            FieldType::LocalDateTime => Some(Self::LocalDateTime),
             FieldType::Date => Some(Self::Date),
             FieldType::Time => Some(Self::Time),
             FieldType::Decimal => Some(Self::Decimal),
@@ -146,6 +149,7 @@ impl Scalar {
             "ID" => Some(Self::Id),
             "UUID" => Some(Self::Uuid),
             "DateTime" => Some(Self::DateTime),
+            "LocalDateTime" => Some(Self::LocalDateTime),
             "Date" => Some(Self::Date),
             "Time" => Some(Self::Time),
             "Decimal" => Some(Self::Decimal),
@@ -163,6 +167,7 @@ impl Scalar {
             Self::Id => "ID",
             Self::Uuid => "UUID",
             Self::DateTime => "DateTime",
+            Self::LocalDateTime => "LocalDateTime",
             Self::Date => "Date",
             Self::Time => "Time",
             Self::Decimal => "Decimal",
@@ -184,6 +189,10 @@ impl Scalar {
         }
         if self == Self::Uuid && value.is_string() {
             return Some("a String that is not a UUID".to_string());
+        }
+        if let (Self::LocalDateTime, Some(text)) = (self, value.as_str()) {
+            let why = local_date_time_refusal(text).unwrap_or("is not one");
+            return Some(format!("a String that {why}"));
         }
         if self == Self::Decimal && value.is_number() {
             return Some(
@@ -214,6 +223,11 @@ impl Scalar {
             Self::Int => value.as_i64().is_some_and(|v| i32::try_from(v).is_ok()),
             Self::Float => value.is_number(),
             Self::String | Self::DateTime | Self::Date | Self::Time => value.is_string(),
+            // Its value space is fully specified, like a UUID's. An offset matters most: the
+            // `::timestamp` cast drops one, so the value would compare as another time.
+            Self::LocalDateTime => {
+                value.as_str().is_some_and(|s| local_date_time_refusal(s).is_none())
+            },
             // A UUID's value space is fully specified, like an enum's (#1362): a string that
             // does not parse as one is contradicted by the type, not a project's choice. It
             // reached PostgreSQL as a cast error that quotes the value (#1528).
@@ -249,13 +263,17 @@ impl Scalar {
                     Self::Id
                         | Self::Uuid
                         | Self::DateTime
+                        | Self::LocalDateTime
                         | Self::Date
                         | Self::Time
                         | Self::Decimal
                 )
                 | (Self::Id, Self::String | Self::Uuid)
                 | (Self::Uuid, Self::String | Self::Id)
-                | (Self::DateTime | Self::Date | Self::Time | Self::Decimal, Self::String)
+                | (
+                    Self::DateTime | Self::LocalDateTime | Self::Date | Self::Time | Self::Decimal,
+                    Self::String
+                )
         )
     }
 }

@@ -454,6 +454,7 @@ fn group_key_type(table: &FactTableMetadata, source: &GroupKeySource) -> FieldTy
             } else {
                 match table.denormalized_filters.iter().find(|f| f.name == *column) {
                     Some(f) if f.sql_type == SqlType::Date => FieldType::Date,
+                    Some(f) if f.sql_type == SqlType::LocalTimestamp => FieldType::LocalDateTime,
                     _ => FieldType::DateTime,
                 }
             }
@@ -478,7 +479,8 @@ const fn scalar_of(sql_type: &SqlType) -> FieldType {
         // A `numeric` group key is not one of the exact-string aliases: it is read as a number.
         SqlType::Decimal | SqlType::Float => FieldType::Float,
         SqlType::Uuid => FieldType::Uuid,
-        SqlType::Timestamp => FieldType::DateTime,
+        SqlType::TimestampTz => FieldType::DateTime,
+        SqlType::LocalTimestamp => FieldType::LocalDateTime,
         SqlType::Date => FieldType::Date,
         SqlType::Boolean => FieldType::Boolean,
         SqlType::Jsonb | SqlType::Json | SqlType::Other(_) => FieldType::Json,
