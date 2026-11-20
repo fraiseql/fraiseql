@@ -705,7 +705,6 @@ mod error_tests {
             status:           Some(400),
             request_id:       Some("req-123".to_string()),
             retry_after_secs: None,
-            detail:           None,
         };
 
         let error = GraphQLError::validation("Invalid").with_extensions(extensions);

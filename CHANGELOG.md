@@ -18,6 +18,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`[security.error_sanitization] hide_implementation_details` is removed (#2023).** It
+  cleared a field no error carried, so it changed no response. It is refused as an unknown
+  key in both `fraiseql.toml` and the project config: remove it from both.
+  `sanitize_database_errors` decides whether database text is served.
+- **`fraiseql_server::error::ErrorExtensions` has no `detail` field (#2023).** Nothing set
+  it. Code that builds an `ErrorExtensions` drops the `detail` field from the initializer.
 - **`RateLimiter::retry_after_for_path` is removed (#1911).** Nothing in the server
   called it: the `Retry-After` a rejected request carries comes from the rate-limit check
   itself. Its Redis implementation also matched a path to its rule differently from the

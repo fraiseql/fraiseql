@@ -414,10 +414,9 @@ async fn database_errors_are_sanitized_before_reaching_the_mcp_client() {
     let schema = Arc::new(schema);
     let cfg = config(&[], &[], false);
     let sanitizer = ErrorSanitizer::new(fraiseql_server::config::ErrorSanitizationConfig {
-        enabled:                     true,
-        hide_implementation_details: true,
-        sanitize_database_errors:    true,
-        custom_error_message:        None,
+        enabled:                  true,
+        sanitize_database_errors: true,
+        custom_error_message:     None,
     });
 
     let result = call_tool(

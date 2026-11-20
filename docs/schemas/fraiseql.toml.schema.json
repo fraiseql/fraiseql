@@ -1652,11 +1652,6 @@
           "type": "boolean",
           "default": true
         },
-        "hide_implementation_details": {
-          "description": "Strip stack traces, SQL fragments, file paths (default: true).",
-          "type": "boolean",
-          "default": true
-        },
         "sanitize_database_errors": {
           "description": "Replace raw database error messages with a generic message (default: true).",
           "type": "boolean",

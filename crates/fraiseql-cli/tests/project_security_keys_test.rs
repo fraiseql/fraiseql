@@ -99,8 +99,8 @@ const KEYS: &[Key] = &[
     Key {
         name:      "error_sanitization",
         table:     true,
-        written:   "enabled = true\nhide_implementation_details = false\n\
-                    sanitize_database_errors = false\ncustom_error_message = \"Try again\"\n",
+        written:   "enabled = true\nsanitize_database_errors = false\n\
+                    custom_error_message = \"Try again\"\n",
         defaults:  "",
         differing: || json!({"enabled": true, "custom_error_message": "Other"}),
     },
@@ -338,6 +338,11 @@ const REFUSED: &[(&str, &str, &str)] = &[
         "takes no `[security.error_sanitization] bogus`",
     ),
     ("error_sanitization", "custom_error_message = 7\n", "invalid type"),
+    (
+        "error_sanitization",
+        "hide_implementation_details = false\n",
+        "takes no `[security.error_sanitization] hide_implementation_details`",
+    ),
     ("rate_limiting", "bogus = 1\n", "takes no `[security.rate_limiting] bogus`"),
     ("rate_limiting", "requests_per_second_per_user = \"many\"\n", "invalid type"),
     (

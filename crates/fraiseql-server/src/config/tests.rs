@@ -5,14 +5,13 @@
 
 mod error_sanitization_tests {
     use super::super::error_sanitization::*;
-    use crate::error::{ErrorCode, ErrorExtensions, GraphQLError};
+    use crate::error::{ErrorCode, GraphQLError};
 
     fn enabled_sanitizer() -> ErrorSanitizer {
         ErrorSanitizer::new(ErrorSanitizationConfig {
-            enabled:                     true,
-            hide_implementation_details: true,
-            sanitize_database_errors:    true,
-            custom_error_message:        None,
+            enabled:                  true,
+            sanitize_database_errors: true,
+            custom_error_message:     None,
         })
     }
 
@@ -106,10 +105,9 @@ mod error_sanitization_tests {
     #[test]
     fn a_custom_message_covers_the_client_fault_classes_too() {
         let s = ErrorSanitizer::new(ErrorSanitizationConfig {
-            enabled: true,
+            enabled:                  true,
             sanitize_database_errors: true,
-            custom_error_message: Some("Contact support".to_string()),
-            ..Default::default()
+            custom_error_message:     Some("Contact support".to_string()),
         });
         for code in [
             ErrorCode::BadUserInput,
@@ -165,24 +163,6 @@ mod error_sanitization_tests {
         });
         let err = GraphQLError::database("pg error detail");
         assert_eq!(s.sanitize(err).message, "Contact support");
-    }
-
-    #[test]
-    fn test_sanitizer_strips_extensions_detail_when_hide_impl() {
-        let s = enabled_sanitizer();
-        let mut err = GraphQLError::internal("internal");
-        err.extensions = Some(ErrorExtensions {
-            category:         None,
-            status:           None,
-            request_id:       None,
-            retry_after_secs: None,
-            detail:           Some("panic at line 42".to_string()),
-        });
-        let out = s.sanitize(err);
-        assert!(
-            out.extensions.as_ref().and_then(|e| e.detail.as_ref()).is_none(),
-            "detail should be stripped when hide_implementation_details = true"
-        );
     }
 
     #[test]

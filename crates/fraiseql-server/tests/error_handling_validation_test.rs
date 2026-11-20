@@ -51,7 +51,6 @@ fn test_database_connection_failure_response() {
             status:           Some(500),
             request_id:       Some("req-12345".to_string()),
             retry_after_secs: None,
-            detail:           None,
         });
 
     assert_eq!(error.message, "Failed to connect to database: Connection refused");
@@ -314,7 +313,6 @@ fn test_error_response_has_request_id() {
         status:           None,
         request_id:       Some("req-unique-12368".to_string()),
         retry_after_secs: None,
-        detail:           None,
     };
 
     let error = GraphQLError::validation("Something went wrong").with_extensions(extensions);
@@ -346,7 +344,6 @@ fn test_error_response_with_extensions() {
         status:           Some(400),
         request_id:       Some("req-12371".to_string()),
         retry_after_secs: None,
-        detail:           None,
     };
 
     let error = GraphQLError::validation("Error occurred").with_extensions(extensions);
@@ -481,7 +478,6 @@ fn test_error_with_all_metadata() {
             status:           Some(503),
             request_id:       Some("req-db-001".to_string()),
             retry_after_secs: None,
-            detail:           None,
         });
 
     // Verify all components are present

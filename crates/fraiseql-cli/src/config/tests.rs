@@ -503,13 +503,15 @@ mod security_tests {
     }
 
     /// #983: the four `[security.error_sanitization]` keys that reached no runtime shape are
-    /// gone, so `deny_unknown_fields` refuses them by name.
+    /// gone, so `deny_unknown_fields` refuses them by name. #2023 adds a fifth, which reached
+    /// the sanitizer but cleared a field no error carried.
     #[test]
     fn error_sanitization_refuses_the_keys_that_never_had_a_consumer() {
         for key in [
             "generic_messages = true",
             "internal_logging = true",
             "leak_sensitive_details = true",
+            "hide_implementation_details = false",
             "user_facing_format = \"detailed\"",
         ] {
             let toml = format!("[error_sanitization]\nenabled = true\n{key}\n");

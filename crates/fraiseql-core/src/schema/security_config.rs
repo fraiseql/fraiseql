@@ -354,22 +354,19 @@ pub struct ErrorSanitizationConfig {
     /// A table written to tune the sanitizer keeps it on: with a default of `false`, a
     /// section that set only `custom_error_message` switched sanitization off. A section
     /// left out is not this default; the server decides it at boot.
-    pub enabled:                     bool,
-    /// Strip stack traces, SQL fragments, file paths (default: true).
-    pub hide_implementation_details: bool,
+    pub enabled:                  bool,
     /// Replace raw database error messages with a generic message (default: true).
-    pub sanitize_database_errors:    bool,
+    pub sanitize_database_errors: bool,
     /// Replacement message shown to clients when an internal error is sanitized.
-    pub custom_error_message:        Option<String>,
+    pub custom_error_message:     Option<String>,
 }
 
 impl Default for ErrorSanitizationConfig {
     fn default() -> Self {
         Self {
-            enabled:                     true,
-            hide_implementation_details: true,
-            sanitize_database_errors:    true,
-            custom_error_message:        None,
+            enabled:                  true,
+            sanitize_database_errors: true,
+            custom_error_message:     None,
         }
     }
 }

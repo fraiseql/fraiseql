@@ -51,12 +51,6 @@ impl ErrorSanitizer {
             error.message = self.replacement_message(error.code);
         }
 
-        if self.config.hide_implementation_details {
-            if let Some(ext) = error.extensions.as_mut() {
-                ext.detail = None;
-            }
-        }
-
         error
     }
 

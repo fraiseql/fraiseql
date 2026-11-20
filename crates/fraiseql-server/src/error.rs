@@ -246,12 +246,6 @@ pub struct ErrorExtensions {
     /// Seconds until the client may retry (set for `CircuitBreakerOpen` errors).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry_after_secs: Option<u64>,
-
-    /// Internal error detail (SQL fragment, stack trace, etc.).
-    ///
-    /// Stripped from responses when error sanitization is enabled.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub detail: Option<String>,
 }
 
 /// GraphQL response with errors.
@@ -303,7 +297,6 @@ impl GraphQLError {
             status:           None,
             request_id:       None,
             retry_after_secs: None,
-            detail:           None,
         });
 
         self.extensions = Some(ErrorExtensions {
@@ -412,7 +405,6 @@ impl GraphQLError {
             status:           Some(429),
             request_id:       None,
             retry_after_secs: Some(retry_after_secs),
-            detail:           None,
         })
     }
 
@@ -526,7 +518,6 @@ impl GraphQLError {
             status:           Some(503),
             request_id:       None,
             retry_after_secs: Some(retry_after_secs),
-            detail:           None,
         })
     }
 
@@ -541,7 +532,6 @@ impl GraphQLError {
             status: Some(503),
             request_id: None,
             retry_after_secs,
-            detail: None,
         })
     }
 }

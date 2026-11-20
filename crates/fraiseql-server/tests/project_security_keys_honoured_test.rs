@@ -477,6 +477,9 @@ async fn state_encryption_key_env_in_a_project_config_names_the_variable_read() 
 const DATABASE_TEXT: &str = "relation \"v_order\" has column secret_x";
 
 /// The first error's message for [`QUERY`] on an adapter that fails with [`DATABASE_TEXT`].
+///
+/// Whatever the section says, the error carries no `extensions.detail`: no key decides
+/// whether one is served, so none may be (#2023).
 async fn database_error_message(security: &str) -> String {
     let adapter = FailingAdapter::new().fail_with_error(FailError::Database {
         message:   DATABASE_TEXT.to_owned(),
@@ -484,7 +487,12 @@ async fn database_error_message(security: &str) -> String {
     });
     let answer = graphql_on(adapter, security, json!({"query": QUERY}), &[]).await;
     assert!(answer.reached, "the query never reached the failing adapter: {}", answer.body);
-    answer.body["errors"][0]["message"].as_str().unwrap_or_default().to_owned()
+    let error = &answer.body["errors"][0];
+    assert!(
+        error.get("extensions").and_then(|e| e.get("detail")).is_none(),
+        "{security:?} served an error detail: {error}"
+    );
+    error["message"].as_str().unwrap_or_default().to_owned()
 }
 
 #[tokio::test]

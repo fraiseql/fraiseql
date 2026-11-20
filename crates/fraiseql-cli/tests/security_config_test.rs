@@ -22,15 +22,14 @@ fn test_error_sanitization_config_parses() {
         url = "postgresql://localhost/test"
 
         [security.error_sanitization]
-        enabled                     = true
-        hide_implementation_details = true
-        sanitize_database_errors    = true
-        custom_error_message        = "An error occurred"
+        enabled                  = true
+        sanitize_database_errors = false
+        custom_error_message     = "An error occurred"
     "#;
     let schema: TomlSchema = toml::from_str(toml).unwrap();
     let cfg = schema.security.error_sanitization.unwrap();
     assert!(cfg.enabled);
-    assert!(cfg.hide_implementation_details);
+    assert!(!cfg.sanitize_database_errors);
     assert_eq!(cfg.custom_error_message.as_deref(), Some("An error occurred"));
 }
 
@@ -40,7 +39,6 @@ fn test_error_sanitization_defaults_are_safe() {
     // a section that set only `custom_error_message` switched sanitization off (#2019).
     let cfg = ErrorSanitizationTomlConfig::default();
     assert!(cfg.enabled);
-    assert!(cfg.hide_implementation_details);
     assert!(cfg.sanitize_database_errors);
 }
 

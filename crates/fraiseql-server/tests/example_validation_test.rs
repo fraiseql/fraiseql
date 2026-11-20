@@ -192,7 +192,6 @@ fn test_example_error_with_extensions() {
         status:           Some(500),
         request_id:       Some("req-db-001".to_string()),
         retry_after_secs: None,
-        detail:           None,
     };
 
     let error = GraphQLError::database("Connection pool exhausted").with_extensions(extensions);
@@ -533,14 +532,12 @@ fn test_example_batch_query_error_handling() {
         status:           None,
         request_id:       Some("req-batch-001".to_string()),
         retry_after_secs: None,
-        detail:           None,
     });
     let ext3 = query3_error.extensions.unwrap_or(ErrorExtensions {
         category:         None,
         status:           None,
         request_id:       Some("req-batch-001".to_string()),
         retry_after_secs: None,
-        detail:           None,
     });
 
     // Both reference same request ID
@@ -588,7 +585,6 @@ fn test_example_complete_error_context() {
             status:           Some(503),
             request_id:       Some("req-abc-xyz-123".to_string()),
             retry_after_secs: None,
-            detail:           None,
         });
 
     // All context present for debugging

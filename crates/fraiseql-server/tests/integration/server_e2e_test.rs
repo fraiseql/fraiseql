@@ -246,7 +246,6 @@ fn test_error_extensions() {
         status:           Some(400),
         request_id:       Some("req-12345".to_string()),
         retry_after_secs: None,
-        detail:           None,
     };
 
     let error = GraphQLError::validation("Invalid input").with_extensions(extensions);
