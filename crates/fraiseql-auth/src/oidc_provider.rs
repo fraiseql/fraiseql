@@ -194,13 +194,7 @@ pub(crate) fn validate_oidc_issuer_url(issuer_url: &str) -> Result<()> {
 pub(crate) async fn fetch_oidc_discovery(discovery_base: &str) -> Result<OidcDiscovery> {
     validate_oidc_issuer_url(discovery_base)?;
 
-    let client = reqwest::Client::builder()
-        .timeout(OIDC_REQUEST_TIMEOUT)
-        .redirect(ssrf_checked_redirect_policy(oidc_ssrf_guards_disabled()))
-        .build()
-        .map_err(|e| AuthError::OidcMetadataError {
-            message: format!("Failed to create HTTP client: {e}"),
-        })?;
+    let client = oidc_http_client()?;
 
     let discovery_url =
         format!("{}/.well-known/openid-configuration", discovery_base.trim_end_matches('/'));
@@ -228,6 +222,23 @@ pub(crate) async fn fetch_oidc_discovery(discovery_base: &str) -> Result<OidcDis
     serde_json::from_slice(&discovery_bytes).map_err(|e| AuthError::OidcMetadataError {
         message: format!("Failed to parse OIDC metadata: {e}"),
     })
+}
+
+/// The HTTP client every OIDC request goes through: bounded by
+/// [`OIDC_REQUEST_TIMEOUT`], and re-checking every redirect hop against the SSRF gate
+/// (#776).
+///
+/// # Errors
+///
+/// Returns [`AuthError::OidcMetadataError`] if the client cannot be built.
+pub(crate) fn oidc_http_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .timeout(OIDC_REQUEST_TIMEOUT)
+        .redirect(ssrf_checked_redirect_policy(oidc_ssrf_guards_disabled()))
+        .build()
+        .map_err(|e| AuthError::OidcMetadataError {
+            message: format!("Failed to create HTTP client: {e}"),
+        })
 }
 
 /// Validate a configurable non-OIDC OAuth endpoint base URL with the same
@@ -307,48 +318,28 @@ impl OidcProvider {
         client_secret: &str,
         redirect_uri: &str,
     ) -> Result<Self> {
-        // SECURITY: Validate issuer URL before making any HTTP request to prevent SSRF.
-        // Requires https:// scheme and rejects private/loopback destinations.
-        validate_oidc_issuer_url(issuer_url)?;
+        // SECURITY: the shared fetch validates the issuer URL before any request,
+        // re-checks every redirect hop and bounds the response.
+        let discovery = fetch_oidc_discovery(issuer_url).await?;
+        Self::from_discovery(name, issuer_url, client_id, client_secret, redirect_uri, discovery)
+    }
 
-        // SECURITY (#776): re-check every redirect hop. Validating only the issuer URL
-        // let a 3xx bounce the discovery/token/userinfo fetch to an internal target.
-        let client = reqwest::Client::builder()
-            .timeout(OIDC_REQUEST_TIMEOUT)
-            .redirect(ssrf_checked_redirect_policy(oidc_ssrf_guards_disabled()))
-            .build()
-            .map_err(|e| AuthError::OidcMetadataError {
-                message: format!("Failed to create HTTP client: {}", e),
-            })?;
-
-        // Fetch OIDC discovery document
-        let discovery_url =
-            format!("{}/.well-known/openid-configuration", issuer_url.trim_end_matches('/'));
-
-        let discovery_bytes = client
-            .get(&discovery_url)
-            .send()
-            .await
-            .map_err(|e| AuthError::OidcMetadataError {
-                message: format!("Failed to fetch OIDC metadata from {}: {}", discovery_url, e),
-            })?
-            .bytes()
-            .await
-            .map_err(|e| AuthError::OidcMetadataError {
-                message: format!("Failed to read OIDC metadata: {}", e),
-            })?;
-        if discovery_bytes.len() > MAX_OIDC_DISCOVERY_BYTES {
-            return Err(AuthError::OidcMetadataError {
-                message: format!(
-                    "OIDC discovery response too large ({} bytes, max {MAX_OIDC_DISCOVERY_BYTES})",
-                    discovery_bytes.len()
-                ),
-            });
-        }
-        let discovery: OidcDiscovery =
-            serde_json::from_slice(&discovery_bytes).map_err(|e| AuthError::OidcMetadataError {
-                message: format!("Failed to parse OIDC metadata: {}", e),
-            })?;
+    /// A provider over an already fetched discovery document: the half of [`Self::new`]
+    /// that makes no request. The token and userinfo requests go through a client with
+    /// the same guards as the discovery fetch.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError::OidcMetadataError`] if the HTTP client cannot be built.
+    pub(crate) fn from_discovery(
+        name: &str,
+        issuer_url: &str,
+        client_id: &str,
+        client_secret: &str,
+        redirect_uri: &str,
+        discovery: OidcDiscovery,
+    ) -> Result<Self> {
+        let client = oidc_http_client()?;
 
         Ok(Self {
             name: name.to_string(),

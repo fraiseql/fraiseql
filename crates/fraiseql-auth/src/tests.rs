@@ -4300,6 +4300,160 @@ mod oidc_provider_tests {
         };
         let _: &zeroize::Zeroizing<String> = &provider.client_secret;
     }
+
+    /// The development window the insecure-development allowance
+    /// (`OIDC_ALLOW_INSECURE`) needs to reach a loopback mock.
+    const DEV_INSECURE: [(&str, Option<&str>); 4] = [
+        ("FRAISEQL_OIDC_ALLOW_INSECURE", Some("1")),
+        ("FRAISEQL_ENV", Some("development")),
+        ("FRAISEQL_PROFILE", None),
+        ("KUBERNETES_SERVICE_HOST", None),
+    ];
+
+    /// The guards on: the allowance not requested.
+    const GUARDED: [(&str, Option<&str>); 1] = [("FRAISEQL_OIDC_ALLOW_INSECURE", None)];
+
+    /// What each discovery caller reports for `base`: the social provider constructor and
+    /// the shared fetch the PKCE client uses.
+    async fn both_callers(base: &str) -> (String, String) {
+        let provider =
+            OidcProvider::new("test", base, "client_id", "client_secret", "https://a.test/cb")
+                .await
+                .map(drop)
+                .map_err(|e| e.to_string());
+        let shared = fetch_oidc_discovery(base).await.map(drop).map_err(|e| e.to_string());
+        (
+            provider.expect_err("the provider accepted it"),
+            shared.expect_err("the shared fetch accepted it"),
+        )
+    }
+
+    /// One fetch serves both callers, so an address the SSRF gate refuses is refused by
+    /// both, with the same error.
+    #[tokio::test]
+    async fn both_discovery_callers_refuse_a_loopback_issuer_alike() {
+        let (provider, shared) =
+            temp_env::async_with_vars(GUARDED, both_callers("https://127.0.0.1/realm")).await;
+        assert!(provider.contains("SSRF"), "{provider}");
+        assert_eq!(provider, shared);
+    }
+
+    /// The same size cap bounds both callers' discovery response.
+    #[tokio::test]
+    async fn both_discovery_callers_cap_the_response_alike() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/.well-known/openid-configuration"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(vec![
+                b' ';
+                MAX_OIDC_DISCOVERY_BYTES
+                    + 1
+            ]))
+            .mount(&mock_server)
+            .await;
+        let (provider, shared) =
+            temp_env::async_with_vars(DEV_INSECURE, both_callers(&mock_server.uri())).await;
+        assert!(provider.contains("too large"), "{provider}");
+        assert_eq!(provider, shared);
+    }
+
+    /// The client every OIDC request goes through refuses a redirect to a plain-http
+    /// hop while the guards are on, and follows it under the insecure-development
+    /// allowance (`OIDC_ALLOW_INSECURE`): the
+    /// refusal is the redirect policy's, not the mock's.
+    #[tokio::test]
+    async fn the_oidc_client_refuses_a_redirect_the_ssrf_gate_refuses() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/start"))
+            .respond_with(
+                ResponseTemplate::new(302)
+                    .insert_header("location", format!("{}/next", mock_server.uri()).as_str()),
+            )
+            .mount(&mock_server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/next"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock_server)
+            .await;
+        let start = format!("{}/start", mock_server.uri());
+        let fetch = |start: String| async move {
+            oidc_http_client().unwrap().get(start).send().await.map(|r| r.status().as_u16())
+        };
+
+        let guarded = temp_env::async_with_vars(GUARDED, fetch(start.clone())).await;
+        let error = guarded.expect_err("followed a redirect to a plain-http hop");
+        assert!(format!("{error:?}").contains("SSRF"), "{error:?}");
+
+        let allowed = temp_env::async_with_vars(DEV_INSECURE, fetch(start)).await;
+        assert_eq!(allowed.unwrap(), 200, "the allowance follows the same redirect");
+    }
+
+    /// A provider's userinfo request goes through the guarded client: built with the
+    /// guards on, it refuses a userinfo endpoint that redirects to a plain-http hop;
+    /// built under the allowance, the same provider follows it to the user. The
+    /// provider is built from a discovery document, so no fetch has to reach the mock.
+    #[tokio::test]
+    async fn a_providers_userinfo_request_refuses_a_redirect_the_ssrf_gate_refuses() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let mock_server = MockServer::start().await;
+        let base = mock_server.uri();
+        Mock::given(method("GET"))
+            .and(path("/userinfo"))
+            .respond_with(
+                ResponseTemplate::new(302).insert_header("location", format!("{base}/me").as_str()),
+            )
+            .mount(&mock_server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/me"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"sub": "u1"})),
+            )
+            .mount(&mock_server)
+            .await;
+        let discovery = || OidcDiscovery {
+            issuer:                 "https://idp.example".to_string(),
+            authorization_endpoint: "https://idp.example/authorize".to_string(),
+            token_endpoint:         "https://idp.example/token".to_string(),
+            userinfo_endpoint:      format!("{base}/userinfo"),
+            jwks_uri:               None,
+            revocation_endpoint:    None,
+        };
+        let user = |discovery: OidcDiscovery| async move {
+            let provider = OidcProvider::from_discovery(
+                "test",
+                "https://idp.example",
+                "client_id",
+                "client_secret",
+                "https://a.test/cb",
+                discovery,
+            )
+            .unwrap();
+            provider.user_info("token").await.map(|info| info.id).map_err(|e| e.to_string())
+        };
+
+        // The provider reports the request error by its `Display`, which stops at
+        // reqwest's own text; the allowance below shows the redirect itself is followable.
+        let guarded = temp_env::async_with_vars(GUARDED, user(discovery())).await;
+        let error = guarded.expect_err("followed a redirect to a plain-http hop");
+        assert!(error.contains("error following redirect"), "{error}");
+
+        let allowed = temp_env::async_with_vars(DEV_INSECURE, user(discovery())).await;
+        assert_eq!(allowed.unwrap(), "u1", "the allowance follows the same redirect");
+    }
 }
 
 // ── oidc_server_client_tests ──────────────────────────────────────────────────
