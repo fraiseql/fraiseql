@@ -198,7 +198,14 @@ pub struct SubscriptionEvent {
     /// type, and these say why. Empty for a complete event, and never set on a published
     /// (unserved) one.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub errors: Vec<serde_json::Value>,
+    pub errors:   Vec<serde_json::Value>,
+    /// Whether the change was written outside a mutation and captured by the trigger
+    /// (`extra_metadata.cdc_source`, #366). Its image is then what the trigger stored: for
+    /// a table with no `[subscriptions.capture]` entry, the table's row, which holds no
+    /// field the type embeds. A selected field such an image lacks is reported on the
+    /// served event (#2123).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub captured: bool,
 }
 
 /// One subscription event as an outbound transport (webhook, Kafka) delivers it.
@@ -272,6 +279,7 @@ impl SubscriptionEvent {
             tenant_id: None,
             change_spine: None,
             errors: Vec::new(),
+            captured: false,
         }
     }
 
@@ -300,6 +308,14 @@ impl SubscriptionEvent {
     #[must_use]
     pub fn with_change_spine(mut self, envelope: ChangeSpineEnvelope) -> Self {
         self.change_spine = Some(envelope);
+        self
+    }
+
+    /// Mark the change as written outside a mutation and captured (see
+    /// [`captured`](Self::captured)).
+    #[must_use]
+    pub const fn with_captured(mut self, captured: bool) -> Self {
+        self.captured = captured;
         self
     }
 }
@@ -348,7 +364,10 @@ pub struct ActiveSubscription {
 
     /// Events delivered to this subscription so far (ruling AA 5): the next delivery's
     /// position is one more. Shared by clones, so it counts each delivery once.
-    pub delivered: Arc<std::sync::atomic::AtomicU64>,
+    pub delivered:           Arc<std::sync::atomic::AtomicU64>,
+    /// The projected fields a captured image lacked, each warned of once (#2123). Shared
+    /// by clones.
+    pub(crate) lacks_warned: Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
 }
 
 impl ActiveSubscription {
@@ -384,6 +403,7 @@ impl ActiveSubscription {
             tenant_id,
             plan: None,
             delivered: Arc::default(),
+            lacks_warned: Arc::default(),
         }
     }
 

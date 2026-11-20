@@ -550,6 +550,11 @@ impl SchemaConverter {
         }
 
         compiled.observers = observers::compile(&declared_observers, &compiled)?;
+        for subscription in &compiled.subscriptions {
+            for message in compiled.subscription_fields(subscription).map_err(anyhow::Error::msg)? {
+                warn!("{message}");
+            }
+        }
 
         // Changelog exposure requires the observer system: the views it exposes read
         // from tables (`tb_entity_change_log`, `tb_transport_checkpoint`) that the

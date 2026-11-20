@@ -1643,7 +1643,10 @@ pub(crate) fn bridge_event_for(event: &ObserverEntityEvent) -> Option<BridgeEnti
         event.entity_id.to_string(),
         operation,
         event.data.clone(),
-    );
+    )
+    // #2123: a captured write's image is what the trigger stored, which a subscriber's
+    // plan checks its selection against. Live and replayed events both come through here.
+    .with_captured(event.is_captured_write());
 
     // Propagate tenant_id for multi-tenant filtering.
     if let Some(ref tid) = event.tenant_id {

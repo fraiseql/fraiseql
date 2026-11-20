@@ -98,7 +98,7 @@ pub use dispatch::{
     derive_idempotency_subkey, derive_idempotency_token, hash_address, run_with_retry,
 };
 pub use error::{ObserverError, ObserverErrorCode, Result};
-pub use event::{EntityEvent, EventKind, FieldChanges};
+pub use event::{CAPTURED_WRITE_MARKER, EntityEvent, EventKind, FieldChanges};
 pub use executor::{ActionExecutionDetail, ExecutionSummary, ObserverExecutor};
 /// The `futures` this crate's public API is built against (#1198).
 pub use futures;

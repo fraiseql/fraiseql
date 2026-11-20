@@ -117,13 +117,18 @@ impl SubscriptionPlan {
     /// Serve one event's after-image to this subscriber, or `None` when the plan suppresses
     /// it. The served value is completed against the published type (§ 6.4.4, #1522): one
     /// that cannot be is `null`, with the errors that say why.
+    ///
+    /// `captured` says the change was written outside a mutation and its image is what the
+    /// capture trigger stored (#2123): a selected field that image lacks, which completion
+    /// serves as `null` (or, non-null, as the event's `null`), carries a field error naming
+    /// the table. A mutation's image is served as it is.
     #[must_use]
-    pub fn deliver(&self, after_image: &serde_json::Value) -> Option<Served> {
+    pub fn deliver(&self, after_image: &serde_json::Value, captured: bool) -> Option<Served> {
         if self.root_rows.as_ref().is_some_and(|rows| !rows.admits(after_image)) {
             SUPPRESSED.fetch_add(1, Ordering::Relaxed);
             return None;
         }
-        if let Ok(served) = crate::runtime::with_request_locale_sync(self.locale.clone(), || {
+        let Ok(served) = crate::runtime::with_request_locale_sync(self.locale.clone(), || {
             self.plan.serve(
                 &self.ctx,
                 self.principal.as_ref(),
@@ -132,18 +137,46 @@ impl SubscriptionPlan {
                 after_image,
                 &self.variables,
             )
-        }) {
-            let (data, errors) = self.ctx.output_types.complete_value(
-                served,
-                &self.type_name,
-                &self.selections,
-                &self.subscription,
-            );
-            Some(Served { data, errors })
-        } else {
+        }) else {
             SUPPRESSED.fetch_add(1, Ordering::Relaxed);
-            None
+            return None;
+        };
+        let (data, mut errors) = self.ctx.output_types.complete_value(
+            served,
+            &self.type_name,
+            &self.selections,
+            &self.subscription,
+        );
+        if captured {
+            for (key, message) in self.lacking(after_image) {
+                let path = serde_json::json!([self.subscription, key]);
+                // A non-null field's violation says only "Cannot return null"; this says why.
+                errors.retain(|error| error.get("path") != Some(&path));
+                errors.push(serde_json::json!({ "message": message, "path": path }));
+            }
         }
+        Some(Served { data, errors })
+    }
+
+    /// Each top-level selected field `image` holds under none of its stored keys: its
+    /// response key, and what the subscriber is told of it.
+    fn lacking<'s>(&'s self, image: &serde_json::Value) -> Vec<(&'s str, String)> {
+        let schema = &self.ctx.schema;
+        let Some(entity) = schema.find_type(&self.type_name) else {
+            return Vec::new();
+        };
+        self.selections
+            .iter()
+            .filter_map(|selection| {
+                let field = entity.find_field(&selection.name)?;
+                let (stored, published) =
+                    crate::runtime::stored_key_candidates(field.name.as_str());
+                let held = image.get(&stored).is_some()
+                    || published.is_some_and(|key| image.get(&key).is_some());
+                (!held)
+                    .then(|| (selection.response_key(), schema.captured_event_lacks(entity, field)))
+            })
+            .collect()
     }
 }
 

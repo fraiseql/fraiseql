@@ -113,7 +113,18 @@ pub struct EntityEvent {
     pub cdc_source:     Option<String>,
 }
 
+/// The `cdc_source` the shipped capture trigger stamps on a write made outside a mutation
+/// (#366).
+pub const CAPTURED_WRITE_MARKER: &str = "fallback_trigger";
+
 impl EntityEvent {
+    /// Whether the row was written outside a mutation and captured by the shipped trigger
+    /// ([`CAPTURED_WRITE_MARKER`]).
+    #[must_use]
+    pub fn is_captured_write(&self) -> bool {
+        self.cdc_source.as_deref() == Some(CAPTURED_WRITE_MARKER)
+    }
+
     /// Create a new entity event
     #[must_use]
     pub fn new(

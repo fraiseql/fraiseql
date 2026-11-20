@@ -25,6 +25,17 @@ disagreed, and the promise was the part that was wrong.
   another issuer (a wrong tenant or realm, or a proxy or redirect serving another issuer's
   metadata) is refused, naming the configured issuer and the document's, where it was
   used before. Set `discovery_url` to the issuer the provider publishes.
+- **A REST stream sends a captured write that lacks a field the type selects as an `error`
+  frame (#2123).** On a type with a table captured as its row, a write made outside a
+  mutation is stored as the table's row, which holds no field the type embeds. The stream
+  sent the entity without that field, as if it had none. It now sends an `error` frame
+  naming the field and the table, as for any event it cannot complete; a mutation's event
+  is sent as before.
+- **A subscription's `fields` naming no field of its return type is refused at compile
+  (#2123).** No event delivered such a name. A field's stored key (`review_status`) is
+  refused too, naming the published name to list (`reviewStatus`).
+- **`SubscriptionPlan::deliver` takes whether the event is a captured write (#2123),** and
+  `SubscriptionEvent` and the server's bridge `EntityEvent` carry it as `captured`.
 - **An observer `condition` that reads a key no event of its entity can hold is refused
   (#2122).** `fraiseql compile` refuses a declared observer, and the observer admin API
   refuses a create or update with `422`, when its condition reads a key that names no field
@@ -702,6 +713,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A subscription event reports a selected field a captured write lacks (#2123).** On a
+  type with a table captured as its row, a GraphQL subscriber selecting a field the type
+  embeds received `null` for it on a write made outside a mutation, indistinguishable from
+  a real `null`. The event now carries a field error at that path, naming the table, and
+  a non-null field's error says why instead of "Cannot return null". `fraiseql compile`
+  warns of a subscription that delivers such a field.
+- **A subscription served without a plan delivers a field published under another name
+  (#2123).** It read each of its `fields` by the published name (`reviewStatus`), and the
+  stored image holds the stored key (`review_status`), so the field was in no event. A
+  captured write lacking a listed field is now logged at `warn`, once per subscription and
+  field.
 - **One saga the store cannot read no longer stops saga recovery (#2134).**
   `PostgresSagaStore::load_sagas_by_state`, `find_pending_sagas` and `claim_stuck_sagas`
   failed with `SagaStoreError::CorruptStoredValue` when any saga they read held a value the

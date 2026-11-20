@@ -119,7 +119,7 @@ fn replay_failed_payload(reason: &str) -> serde_json::Value {
 /// resume point only this stream can open, never a server-wide position.
 fn frame_for(event: &BridgeEvent, plan: &SubscriptionPlan, stream: &str) -> Option<SseEvent> {
     let wire = StreamEvent::from_bridge_event(event);
-    let served = plan.deliver(wire.data)?;
+    let served = plan.deliver(wire.data, event.captured)?;
     // § 6.4.4 (#1522): a REST frame is the entity itself, with no place for a partial one,
     // so an event that cannot be completed is an `error` frame naming why.
     let mut frame = if served.errors.is_empty() {

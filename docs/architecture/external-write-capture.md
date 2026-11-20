@@ -189,6 +189,16 @@ Two limits:
   condition on a column is how an observer tells an outside write from a mutation: it
   holds for the captured row and not for a mutation's event. On a type with no such
   table, the document is the only image, and the key is refused.
+
+  A subscription that selects a field such a row lacks is served the captured write
+  with that field reported, not left out. Over GraphQL the field is `null` and the event
+  carries a field error at its path, naming the table: outside writes to `tb_order` carry
+  no `customer`. A non-null field nulls the event, with the same error. A REST
+  `/{resource}/stream` sends the entity or nothing, so the captured write is an `error`
+  frame with that message. A mutation's event is served as before. A subscription's
+  `fields` that reach a field the type embeds (all of its fields, when it lists none)
+  compile with a warning naming the table; a listed name that is no field of the type is
+  refused.
 - **Arrow Flight Upload is not an event of a type.** It records the inserted row under
   the *table's* name as `object_type`, so it matches no observer or subscription of a
   GraphQL type, and it is not changed by this declaration.

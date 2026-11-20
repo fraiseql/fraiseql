@@ -800,3 +800,144 @@ async fn an_unresumable_id_is_refused_rather_than_answered() {
     rig.stop().await;
     cleanup_test_data(&pool, &test_id).await.ok();
 }
+
+// ---------------------------------------------------------------------------
+// A selected field the event's image lacks (#2123).
+
+/// [`Rig::start`] for a type that embeds a `customer`, with `table` captured as its row:
+/// a write to it made outside a mutation stores the row, which holds no `customer`.
+async fn start_embedding(pool: &sqlx::PgPool, entity_type: &str, table: &str) -> Rig {
+    let entity = entity_type.to_string();
+    let table = table.to_string();
+    Rig::start_with(pool, entity_type, move |schema| {
+        let customer_type = format!("{entity}Customer");
+        schema.types.push(
+            TestTypeBuilder::new(&customer_type, "v_rest_stream_customer")
+                .with_field(
+                    TestFieldBuilder::nullable("name", fraiseql_core::schema::FieldType::String)
+                        .build(),
+                )
+                .build(),
+        );
+        let order = schema.types.iter_mut().find(|t| t.name == entity).expect("the type");
+        order.fields.push(
+            TestFieldBuilder::nullable(
+                "customer",
+                fraiseql_core::schema::FieldType::Object(customer_type),
+            )
+            .build(),
+        );
+        schema.subscribable.push(fraiseql_core::schema::SubscribableEntity {
+            entity_type: entity,
+            tables:      vec![table],
+            pre_image:   false,
+        });
+        schema.build_indexes();
+    })
+    .await
+}
+
+/// A change-log row as the capture trigger writes it: marked as a captured write.
+async fn insert_captured_row(pool: &sqlx::PgPool, entity_type: &str, id: &str) {
+    sqlx::query(
+        "INSERT INTO core.tb_entity_change_log
+             (object_type, object_id, modification_type, object_data, extra_metadata)
+         VALUES ($1, $2::uuid, 'UPDATE', $3, '{\"cdc_source\": \"fallback_trigger\"}')",
+    )
+    .bind(entity_type)
+    .bind(id)
+    .bind(serde_json::json!({"id": id, "status": "captured", "fk_customer": 7}))
+    .execute(pool)
+    .await
+    .expect("insert the captured row");
+}
+
+/// The frame that carries `needle`, from its `event:` line on.
+fn frame_carrying<'a>(frames: &'a str, needle: &str) -> &'a str {
+    let (before, after) = frames.split_once(needle).expect("a frame carries it");
+    let start = before.rfind("event:").expect("the frame names its event");
+    let end = after.find("\n\n").map_or(frames.len(), |n| before.len() + needle.len() + n);
+    &frames[start..end]
+}
+
+/// A mutation's document lacking the nullable `customer` is served as before, `null`. A
+/// captured row lacking it is an `error` frame, which names the table and what outside
+/// writes to it carry.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_captured_row_lacking_an_embedded_field_is_an_error_frame_naming_its_table() {
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("schema setup");
+    let entity_type = format!("Order_{test_id}");
+    let table = format!("tb_order_{test_id}");
+    let rig = start_embedding(&pool, &entity_type, &table).await;
+    let mut stream = rig.open_stream().await;
+
+    let mutated = Uuid::new_v4().to_string();
+    insert_change_log_entry(
+        &pool,
+        "UPDATE",
+        &entity_type,
+        &mutated,
+        serde_json::json!({"id": mutated, "status": "mutated"}),
+        None,
+    )
+    .await
+    .expect("insert the mutation's row");
+    let captured = Uuid::new_v4().to_string();
+    insert_captured_row(&pool, &entity_type, &captured).await;
+    let frames = stream.read_until(&table, FRAME_TIMEOUT).await;
+
+    let mutation_frame = frame_carrying(&frames, &mutated);
+    assert!(
+        mutation_frame.starts_with("event: update") && mutation_frame.contains("\"customer\":null"),
+        "a mutation's event is served as before: {mutation_frame}"
+    );
+    let error_frame = frame_carrying(&frames, &table);
+    assert!(error_frame.starts_with("event: error"), "{error_frame}");
+    assert!(error_frame.contains("carry no `customer`"), "{error_frame}");
+
+    rig.stop().await;
+    cleanup_test_data(&pool, &test_id).await.ok();
+}
+
+/// A resume replays the captured row as the live stream sends it: the replayed event is
+/// projected by the same function, so it is a captured write too.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_replayed_captured_row_is_the_same_error_frame() {
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("schema setup");
+    let entity_type = format!("Order_{test_id}");
+    let table = format!("tb_order_{test_id}");
+    let rig = start_embedding(&pool, &entity_type, &table).await;
+
+    let mut first = rig.open_stream().await;
+    let seen = Uuid::new_v4().to_string();
+    insert_change_log_entry(
+        &pool,
+        "UPDATE",
+        &entity_type,
+        &seen,
+        serde_json::json!({"id": seen, "status": "seen"}),
+        None,
+    )
+    .await
+    .expect("insert the event the client receives");
+    let last_event_id = wire_id_of(&first.read_until(&seen, FRAME_TIMEOUT).await, &seen);
+    drop(first);
+
+    let captured = Uuid::new_v4().to_string();
+    insert_captured_row(&pool, &entity_type, &captured).await;
+    let mut resumed = rig.resume_stream(&last_event_id).await;
+    let frames = resumed.read_until(&table, FRAME_TIMEOUT).await;
+
+    let error_frame = frame_carrying(&frames, &table);
+    assert!(error_frame.starts_with("event: error"), "{error_frame}");
+    assert!(error_frame.contains("carry no `customer`"), "{error_frame}");
+
+    rig.stop().await;
+    cleanup_test_data(&pool, &test_id).await.ok();
+}

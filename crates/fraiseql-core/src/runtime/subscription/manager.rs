@@ -534,7 +534,7 @@ impl SubscriptionManager {
                 // A planned subscription is served through its plan; an event the plan
                 // suppresses is not delivered, and counts as no match.
                 let (data, errors) = match &subscription.plan {
-                    Some(plan) => match plan.deliver(&event.data) {
+                    Some(plan) => match plan.deliver(&event.data, event.captured) {
                         Some(served) => (served.data, served.errors),
                         None => continue,
                     },
@@ -744,7 +744,12 @@ impl SubscriptionManager {
         Some(std::borrow::Cow::Owned(crate::runtime::localize(value, &chain)))
     }
 
-    /// Project event data to subscription's field selection.
+    /// Project event data to the subscription's compile-time `fields`.
+    ///
+    /// A field the return type declares is read from the key the stored image holds it
+    /// under (`review_status` for `reviewStatus`) and delivered under its name. A field a
+    /// captured image lacks is warned of, once per subscription and field (#2123): this
+    /// path has no error channel.
     fn project_event_data(
         &self,
         event: &SubscriptionEvent,
@@ -754,26 +759,59 @@ impl SubscriptionManager {
         if subscription.definition.fields.is_empty() {
             return event.data.clone();
         }
+        let entity = self.schema.find_type(&subscription.definition.return_type);
 
-        // Project only requested fields
         let mut projected = serde_json::Map::new();
-
         for field in &subscription.definition.fields {
-            // Support both simple field names and JSON pointer paths
+            // A JSON pointer reads the image as written.
             let value = if field.starts_with('/') {
-                get_json_pointer_value(&event.data, field).cloned()
+                get_json_pointer_value(&event.data, field)
             } else {
-                event.data.get(field).cloned()
+                match entity.and_then(|e| e.find_field(field)) {
+                    Some(declared) => {
+                        let (stored, published) =
+                            crate::runtime::stored_key_candidates(declared.name.as_str());
+                        event
+                            .data
+                            .get(&stored)
+                            .or_else(|| published.and_then(|key| event.data.get(&key)))
+                    },
+                    None => event.data.get(field),
+                }
             };
-
-            if let Some(v) = value {
-                // Use the field name (without leading slash) as the key
-                let key = field.trim_start_matches('/').to_string();
-                projected.insert(key, v);
+            match value {
+                Some(v) => {
+                    projected.insert(field.trim_start_matches('/').to_string(), v.clone());
+                },
+                None if event.captured => self.warn_captured_lack(subscription, field),
+                None => {},
             }
         }
-
         serde_json::Value::Object(projected)
+    }
+
+    /// Warn, once per subscription and field, that a captured image lacked `field`.
+    fn warn_captured_lack(&self, subscription: &ActiveSubscription, field: &str) {
+        let first = subscription
+            .lacks_warned
+            .lock()
+            .is_ok_and(|mut warned| warned.insert(field.to_string()));
+        if !first {
+            return;
+        }
+        let entity = self.schema.find_type(&subscription.definition.return_type);
+        let message = match entity.and_then(|e| e.find_field(field).map(|f| (e, f))) {
+            Some((entity, declared)) => self.schema.captured_event_lacks(entity, declared),
+            None => format!(
+                "`{field}` is not in this event. It reports a write made outside a mutation, \
+                 and the captured image holds no `{field}`."
+            ),
+        };
+        tracing::warn!(
+            subscription_id = %subscription.id,
+            subscription = %subscription.subscription_name,
+            "{message}"
+        );
     }
 }
 

@@ -827,7 +827,7 @@ async fn a_captured_document_is_served_to_its_rows_tenant_only() {
             .expect("the subscription is planned");
         images
             .iter()
-            .filter_map(|image| plan.deliver(image))
+            .filter_map(|image| plan.deliver(image, false))
             .map(|served| served.data)
             .collect()
     };
@@ -840,4 +840,78 @@ async fn a_captured_document_is_served_to_its_rows_tenant_only() {
             json!({"id": claims_a.to_string(), "status": "open"}),
         ]
     );
+}
+
+/// #2123: a subscriber selecting a field its type embeds, on a type whose table is captured
+/// as its row. The mutation's event is served as before, `customer: null` and no error; the
+/// captured row's event carries a field error naming the table, where it was served the
+/// same `null` with nothing said.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_captured_row_lacking_a_selected_field_reports_it_on_the_event() {
+    use fraiseql_core::schema::{FieldDefinition, FieldType, SubscribableEntity, TypeDefinition};
+
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("schema setup");
+    let entity_type = format!("Order_{test_id}");
+    let table = format!("tb_order_{test_id}");
+
+    let mut schema = CompiledSchema::new();
+    let mut order = TypeDefinition::new(entity_type.as_str(), "v_order");
+    order.fields = vec![
+        FieldDefinition::new("id", FieldType::Id),
+        FieldDefinition::nullable("customer", FieldType::Object("Customer".to_string())),
+    ];
+    let mut customer = TypeDefinition::new("Customer", "v_customer");
+    customer.fields = vec![FieldDefinition::nullable("name", FieldType::String)];
+    schema.types = vec![order, customer];
+    schema
+        .subscriptions
+        .push(SubscriptionDefinition::new("orderChanged", &entity_type));
+    schema.subscribable.push(SubscribableEntity {
+        entity_type: entity_type.clone(),
+        tables:      vec![table.clone()],
+        pre_image:   false,
+    });
+    let pipeline = Pipeline::start_on(&pool, schema, true).await;
+    let (_sink, mut stream) =
+        subscribe(&pipeline, "subscription { orderChanged { id customer { name } } }").await;
+
+    let mutated = Uuid::new_v4().to_string();
+    insert_change_log_entry(&pool, "UPDATE", &entity_type, &mutated, json!({"id": mutated}), None)
+        .await
+        .expect("insert the mutation's row");
+    let captured = Uuid::new_v4().to_string();
+    sqlx::query(
+        "INSERT INTO core.tb_entity_change_log
+             (object_type, object_id, modification_type, object_data, extra_metadata)
+         VALUES ($1, $2::uuid, 'UPDATE', $3, '{\"cdc_source\": \"fallback_trigger\"}')",
+    )
+    .bind(&entity_type)
+    .bind(&captured)
+    .bind(json!({"id": captured, "fk_customer": 7}))
+    .execute(&pool)
+    .await
+    .expect("insert the captured row");
+
+    let timeout = std::time::Duration::from_secs(10);
+    let from_mutation = recv_next(&mut stream, timeout).await;
+    let from_capture = recv_next(&mut stream, timeout).await;
+    pipeline.stop().await;
+    cleanup_test_data(&pool, &test_id).await.ok();
+
+    assert_eq!(
+        from_mutation["payload"],
+        json!({"data": {"orderChanged": {"id": mutated, "customer": null}}}),
+        "a mutation's event is served as before"
+    );
+    let payload = &from_capture["payload"];
+    assert_eq!(payload["data"]["orderChanged"], json!({"id": captured, "customer": null}));
+    let message = payload["errors"][0]["message"].as_str().unwrap_or_default();
+    assert!(
+        message.contains(&format!("`{table}`")) && message.contains("carry no `customer`"),
+        "the field error names the table: {payload}"
+    );
+    assert_eq!(payload["errors"][0]["path"], json!(["orderChanged", "customer"]));
 }

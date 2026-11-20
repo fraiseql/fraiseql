@@ -7,7 +7,7 @@
 //! cannot disagree on what a template may name.
 
 use super::CompiledSchema;
-use crate::schema::{FieldDefinition, FieldType, TypeDefinition};
+use crate::schema::{FieldDefinition, FieldType, SubscriptionDefinition, TypeDefinition};
 
 /// A dotted path no document of the entity can fill.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -91,6 +91,92 @@ impl CompiledSchema {
 }
 
 impl CompiledSchema {
+    /// Check a subscription's compile-time `fields` against its return type: the warnings
+    /// to print, one per field a captured row of the type lacks.
+    ///
+    /// A listed field is delivered under its published name, read from the key the stored
+    /// image holds it under. A name no field has is in no event. A field the type embeds is
+    /// in a mutation's event and not in a captured row of a table with no
+    /// `[subscriptions.capture]` entry, so it is warned of; with no `fields`, the
+    /// subscription delivers every field, and each embedded one is. A JSON pointer reads the
+    /// image as written and is not checked.
+    ///
+    /// # Errors
+    ///
+    /// Returns the refusal of the first listed name that is no field of the type, naming
+    /// the field's published name when the name is its stored key.
+    pub fn subscription_fields(
+        &self,
+        subscription: &SubscriptionDefinition,
+    ) -> Result<Vec<String>, String> {
+        let Some(entity) = self.find_type(&subscription.return_type) else {
+            return Ok(Vec::new());
+        };
+        let mut delivered: Vec<&FieldDefinition> = Vec::new();
+        for name in subscription.fields.iter().filter(|f| !f.starts_with('/')) {
+            let Some(field) = entity.find_field(name) else {
+                let named = entity
+                    .fields
+                    .iter()
+                    .find(|f| f.stored_key() == *name)
+                    .map(|f| {
+                        format!(
+                            " A subscription lists a field by its published name: `{}`.",
+                            f.name
+                        )
+                    })
+                    .unwrap_or_default();
+                return Err(format!(
+                    "subscription `{}`: `fields` lists `{name}`, which is no field of `{}`, \
+                     so no event delivers it.{named}",
+                    subscription.name, entity.name
+                ));
+            };
+            delivered.push(field);
+        }
+        if subscription.fields.is_empty() {
+            delivered = entity.fields.iter().collect();
+        }
+        Ok(delivered
+            .into_iter()
+            .filter_map(|field| {
+                let table = self.row_captured_embedded(entity, &field.stored_key())?;
+                Some(format!(
+                    "subscription `{}` delivers `{}`, which `{}` embeds. The table `{table}` \
+                     has no `[subscriptions.capture.{table}]` entry, so a write to it made \
+                     outside a mutation is captured as the table's row, which holds no \
+                     embedded field: that event reports `{}` to the subscriber as an error. \
+                     A mutation's event holds it.",
+                    subscription.name, field.name, entity.name, field.name
+                ))
+            })
+            .collect())
+    }
+
+    /// What a subscriber is told of `field`, a field of `entity` it selected, when the
+    /// image of a change written outside a mutation does not hold it.
+    ///
+    /// For a table of the type with no `[subscriptions.capture]` entry, the trigger stores
+    /// the table's row, so the message names the table; otherwise it says only that the
+    /// captured image lacks the field.
+    #[must_use]
+    pub fn captured_event_lacks(&self, entity: &TypeDefinition, field: &FieldDefinition) -> String {
+        let key = field.stored_key();
+        let type_name = &entity.name;
+        let name = &field.name;
+        match self.row_captured_table(entity.name.as_str()) {
+            Some(table) => format!(
+                "`{type_name}.{name}` is not in this event. It reports a write to `{table}` \
+                 made outside a mutation, which is captured as the table's row, and outside \
+                 writes to `{table}` carry no `{key}`. A mutation's event holds it."
+            ),
+            None => format!(
+                "`{type_name}.{name}` is not in this event. It reports a write made outside a \
+                 mutation, and the captured image holds no `{key}`."
+            ),
+        }
+    }
+
     /// The table a captured row of `entity` comes from, when `key` is a field the type
     /// embeds and such a row cannot hold.
     fn row_captured_embedded(&self, entity: &TypeDefinition, key: &str) -> Option<&str> {

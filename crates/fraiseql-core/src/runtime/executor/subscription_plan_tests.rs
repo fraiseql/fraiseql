@@ -125,12 +125,12 @@ fn a_masked_field_is_null_in_every_event_and_served_to_its_scopes_holder() {
     let query = "subscription { orderCreated { id note } }";
     let anonymous = plan(&exec, query, &json!({}), None).unwrap();
     assert_eq!(
-        anonymous.deliver(&event()).map(|s| s.data),
+        anonymous.deliver(&event(), false).map(|s| s.data),
         Some(json!({"id": "o1", "note": null}))
     );
     let analyst = plan(&exec, query, &json!({}), Some(&principal(&["analyst"]))).unwrap();
     assert_eq!(
-        analyst.deliver(&event()).map(|s| s.data),
+        analyst.deliver(&event(), false).map(|s| s.data),
         Some(json!({"id": "o1", "note": "n"}))
     );
 }
@@ -221,7 +221,7 @@ fn an_event_the_field_authorizer_rejects_is_suppressed() {
     .unwrap();
     let before = suppressed_subscription_events();
     assert_eq!(
-        planned.deliver(&event()).map(|s| s.data),
+        planned.deliver(&event(), false).map(|s| s.data),
         None,
         "a rejected event is not delivered"
     );
@@ -304,9 +304,13 @@ fn a_root_row_the_subscribers_policy_excludes_is_suppressed() {
     )
     .unwrap();
     let others = json!({"id": "o2", "tenant_id": "t1", "author_id": "someone-else"});
-    assert_eq!(planned.deliver(&others), None, "another owner's order is not the subscriber's");
+    assert_eq!(
+        planned.deliver(&others, false),
+        None,
+        "another owner's order is not the subscriber's"
+    );
     let own = json!({"id": "o1", "tenant_id": "t1", "author_id": "user-1"});
-    assert_eq!(planned.deliver(&own).map(|s| s.data), Some(json!({"id": "o1"})));
+    assert_eq!(planned.deliver(&own, false).map(|s| s.data), Some(json!({"id": "o1"})));
 }
 
 // No principal, no policy to evaluate (#784): refused as a query is.
@@ -538,7 +542,7 @@ fn a_type_stream_reads_every_declared_field_masking_what_the_reader_may_not_read
     let exec = executor(schema, RuntimeConfig::default());
     let planned = exec.plan_type_stream("Order", Some(&principal(&[]))).unwrap();
     assert_eq!(
-        planned.deliver(&event()).map(|s| s.data),
+        planned.deliver(&event(), false).map(|s| s.data),
         Some(json!({"id": "o1", "note": null}))
     );
 }
@@ -819,12 +823,12 @@ fn an_event_that_cannot_be_completed_is_null_with_an_error() {
     let planned =
         plan(&exec, "subscription { orderCreated { id note } }", &json!({}), None).unwrap();
 
-    let served = planned.deliver(&json!({"note": "n"})).unwrap();
+    let served = planned.deliver(&json!({"note": "n"}), false).unwrap();
     assert_eq!(served.data, serde_json::Value::Null, "{served:?}");
     assert_eq!(served.errors.len(), 1, "{served:?}");
     assert_eq!(served.errors[0]["path"], json!(["orderCreated", "id"]), "{served:?}");
 
-    let complete = planned.deliver(&event()).unwrap();
+    let complete = planned.deliver(&event(), false).unwrap();
     assert!(complete.errors.is_empty(), "{complete:?}");
 }
 
@@ -853,10 +857,10 @@ fn a_masked_localized_fields_translations_are_empty_without_its_scope() {
     let event = json!({"id": "o1", "motto": {"en-US": "Hi", "fr-FR": "Salut"}});
 
     let anonymous = plan(&exec, query, &json!({}), None).unwrap();
-    assert_eq!(anonymous.deliver(&event).unwrap().data["mottoTranslations"], json!([]));
+    assert_eq!(anonymous.deliver(&event, false).unwrap().data["mottoTranslations"], json!([]));
     let analyst = plan(&exec, query, &json!({}), Some(&principal(&["analyst"]))).unwrap();
     assert_eq!(
-        analyst.deliver(&event).unwrap().data["mottoTranslations"],
+        analyst.deliver(&event, false).unwrap().data["mottoTranslations"],
         json!([{"value": "Hi"}, {"value": "Salut"}])
     );
 }
@@ -896,9 +900,9 @@ fn a_native_scope_the_type_publishes_is_read_off_the_after_image() {
         Some(&tenant_principal()),
     )
     .unwrap();
-    assert_eq!(planned.deliver(&json!({"id": "o2", "tenant_id": "t2"})), None);
+    assert_eq!(planned.deliver(&json!({"id": "o2", "tenant_id": "t2"}), false), None);
     let own = json!({"id": "o1", "tenant_id": "t1"});
-    assert_eq!(planned.deliver(&own).map(|s| s.data), Some(json!({"id": "o1"})));
+    assert_eq!(planned.deliver(&own, false).map(|s| s.data), Some(json!({"id": "o1"})));
 }
 
 // A column the type does not publish is in no after-image: refused (fail closed).
@@ -912,4 +916,132 @@ fn a_native_scope_the_type_does_not_publish_refuses_the_plan() {
         Some(&tenant_principal()),
     );
     assert!(matches!(planned, Err(FraiseQLError::Authorization { .. })), "{planned:?}");
+}
+
+// A selected field the event's image lacks (#2123).
+
+/// `Order { id, status, customer: Customer, owner: Customer! }` and `orderChanged: Order`,
+/// captured from `tb_order` as its row, or, with `document`, as the document in `data`.
+fn captured_schema(document: bool) -> CompiledSchema {
+    let mut schema = CompiledSchema::new();
+    let mut order = TypeDefinition::new("Order", "v_order");
+    order.fields = vec![
+        FieldDefinition::new("id", FieldType::Id),
+        FieldDefinition::nullable("status", FieldType::String),
+        FieldDefinition::nullable("customer", FieldType::Object("Customer".to_string())),
+        FieldDefinition::new("owner", FieldType::Object("Customer".to_string())),
+    ];
+    let mut customer = TypeDefinition::new("Customer", "v_customer");
+    customer.fields = vec![FieldDefinition::nullable("name", FieldType::String)];
+    schema.types = vec![order, customer];
+    schema.subscriptions.push(SubscriptionDefinition::new("orderChanged", "Order"));
+    schema.subscribable.push(crate::schema::SubscribableEntity {
+        entity_type: "Order".to_string(),
+        tables:      vec!["tb_order".to_string()],
+        pre_image:   false,
+    });
+    let mut subscriptions = crate::schema::SubscriptionsConfig::default();
+    if document {
+        subscriptions.capture.insert(
+            "tb_order".to_string(),
+            crate::schema::CaptureTableConfig {
+                document_column: "data".to_string(),
+            },
+        );
+    }
+    schema.subscriptions_config = Some(subscriptions);
+    schema.build_indexes();
+    schema
+}
+
+fn captured_plan(document: bool, selection: &str) -> super::SubscriptionPlan {
+    let exec = executor(captured_schema(document), RuntimeConfig::default());
+    plan(
+        &exec,
+        &format!("subscription {{ orderChanged {{ {selection} }} }}"),
+        &json!({}),
+        None,
+    )
+    .unwrap()
+}
+
+/// A write to `tb_order` made outside a mutation: its row, with a column for the customer.
+fn captured_row() -> serde_json::Value {
+    json!({"id": "o1", "status": "open", "fk_customer": 7})
+}
+
+fn messages(served: &super::Served) -> Vec<&str> {
+    served.errors.iter().filter_map(|e| e["message"].as_str()).collect()
+}
+
+/// The pin #2123 must not move: a mutation's event that lacks a nullable field is served
+/// as before, the field `null` and no error.
+#[test]
+fn a_mutation_event_lacking_a_nullable_selected_field_raises_no_error() {
+    let planned = captured_plan(false, "id customer { name }");
+    let served = planned.deliver(&captured_row(), false).unwrap();
+    assert_eq!(served.errors, Vec::<serde_json::Value>::new());
+    assert_eq!(served.data, json!({"id": "o1", "customer": null}));
+}
+
+#[test]
+fn a_captured_row_lacking_a_selected_embedded_field_reports_it_on_the_event() {
+    let planned = captured_plan(false, "id customer { name }");
+    let served = planned.deliver(&captured_row(), true).unwrap();
+
+    assert_eq!(
+        served.data,
+        json!({"id": "o1", "customer": null}),
+        "the field is null, not absent"
+    );
+    assert_eq!(served.errors.len(), 1, "one error: {:?}", served.errors);
+    let error = &served.errors[0];
+    assert_eq!(error["path"], json!(["orderChanged", "customer"]));
+    let message = error["message"].as_str().unwrap();
+    for part in ["`Order.customer`", "`tb_order`", "carry no `customer`"] {
+        assert!(message.contains(part), "names {part}: {message}");
+    }
+}
+
+/// A non-null field the row lacks nulls the event, as any non-null violation does, and the
+/// error says why instead of "Cannot return null".
+#[test]
+fn a_captured_row_lacking_a_non_null_selected_field_says_why_the_event_is_null() {
+    let planned = captured_plan(false, "id owner { name }");
+    let served = planned.deliver(&captured_row(), true).unwrap();
+
+    assert_eq!(served.data, serde_json::Value::Null);
+    let said = messages(&served);
+    assert_eq!(said.len(), 1, "{said:?}");
+    assert!(said[0].contains("`Order.owner`") && said[0].contains("`tb_order`"), "{said:?}");
+}
+
+#[test]
+fn a_captured_row_holding_every_selected_field_raises_no_error() {
+    let planned = captured_plan(false, "id status");
+    let served = planned.deliver(&captured_row(), true).unwrap();
+    assert_eq!(served.errors, Vec::<serde_json::Value>::new());
+    assert_eq!(served.data, json!({"id": "o1", "status": "open"}));
+}
+
+/// A table that keeps its document is captured as the document: what it lacks is reported
+/// without blaming a row.
+#[test]
+fn a_captured_document_lacking_a_selected_field_reports_it_without_a_table() {
+    let planned = captured_plan(true, "id customer { name }");
+    let served = planned.deliver(&json!({"id": "o1"}), true).unwrap();
+    let said = messages(&served);
+    assert_eq!(said.len(), 1, "{said:?}");
+    assert!(
+        said[0].contains("`Order.customer`") && !said[0].contains("tb_order"),
+        "{said:?}"
+    );
+}
+
+#[test]
+fn an_aliased_field_a_captured_row_lacks_is_reported_at_its_response_key() {
+    let planned = captured_plan(false, "id buyer: customer { name }");
+    let served = planned.deliver(&captured_row(), true).unwrap();
+    assert_eq!(served.data, json!({"id": "o1", "buyer": null}));
+    assert_eq!(served.errors[0]["path"], json!(["orderChanged", "buyer"]));
 }

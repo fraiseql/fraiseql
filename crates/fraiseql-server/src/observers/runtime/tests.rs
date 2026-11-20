@@ -613,3 +613,28 @@ fn the_compiled_schemas_default_policy_is_the_runtimes() {
 
     assert_eq!(read, fraiseql_observers::RetryConfig::default());
 }
+
+/// #2123: the bridge event says whether the change was a captured write, from the marker
+/// the capture trigger stamps. A live event and a replayed one both become bridge events
+/// here, so the subscriber's plan is told the same of each.
+#[test]
+fn a_bridge_event_is_captured_exactly_when_the_trigger_marked_the_row() {
+    let mut event = test_event();
+    assert!(!super::bridge_event_for(&event).unwrap().captured, "an executor-written row");
+
+    event.cdc_source = Some(fraiseql_observers::CAPTURED_WRITE_MARKER.to_string());
+    assert!(super::bridge_event_for(&event).unwrap().captured, "the trigger's marker");
+
+    event.cdc_source = Some("debezium".to_string());
+    assert!(!super::bridge_event_for(&event).unwrap().captured, "another source's marker");
+}
+
+/// The `after:capture` dispatch keys on the marker the server spells out for builds with no
+/// observer runtime; it is the one the observer events are read against.
+#[test]
+fn the_capture_dispatch_reads_the_same_marker_as_the_observer_events() {
+    assert_eq!(
+        crate::routes::after_mutation::CAPTURED_WRITE_MARKER,
+        fraiseql_observers::CAPTURED_WRITE_MARKER
+    );
+}

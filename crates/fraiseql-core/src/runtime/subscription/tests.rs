@@ -269,6 +269,7 @@ fn every_outbound_payload_spells_operation_as_the_enum_serializes() {
             tenant_id: None,
             change_spine: None,
             errors: Vec::new(),
+            captured: false,
         };
         let expected = serde_json::to_value(operation).unwrap();
         assert_eq!(expected, serde_json::json!(operation.to_string()), "fixture: serde = Display");
@@ -292,6 +293,7 @@ fn delivered_event_carries_the_event_and_its_subscription() {
         tenant_id:       None,
         change_spine:    None,
         errors:          Vec::new(),
+        captured:        false,
     };
 
     let payload = DeliveredEvent::from_event(&event, "order_created");
@@ -369,6 +371,7 @@ fn delivered_event_carries_the_previous_row_of_an_update() {
         tenant_id:       None,
         change_spine:    None,
         errors:          Vec::new(),
+        captured:        false,
     };
 
     let message = DeliveredEvent::from_event(&event, "user_updated");
@@ -1686,5 +1689,125 @@ mod stored_time_format {
         let read: SubscriptionEvent =
             serde_json::from_value(doc.clone()).expect("the stored document reads");
         assert_eq!(serde_json::to_value(&read).expect("it writes"), doc);
+    }
+}
+
+// A subscription registered without a plan projects its compile-time `fields` (#2123).
+
+mod unplanned_projection {
+    use std::sync::{Arc, Mutex};
+
+    use tracing::{Event, Subscriber, field::Visit};
+    use tracing_subscriber::{Layer, layer::Context, prelude::*};
+
+    use super::*;
+    use crate::schema::{FieldDefinition, FieldType, SubscribableEntity, TypeDefinition};
+
+    /// `Order { id, reviewStatus, customer: Customer }`, captured from `tb_order` as its
+    /// row, and `orderChanged` projecting `fields`.
+    fn manager(fields: &[&str]) -> SubscriptionManager {
+        let mut order = TypeDefinition::new("Order", "v_order");
+        order.fields = vec![
+            FieldDefinition::new("id", FieldType::Id),
+            FieldDefinition::nullable("reviewStatus", FieldType::String),
+            FieldDefinition::nullable("customer", FieldType::Object("Customer".to_string())),
+        ];
+        let mut schema = CompiledSchema {
+            types: vec![order, TypeDefinition::new("Customer", "v_customer")],
+            subscriptions: vec![
+                SubscriptionDefinition::new("orderChanged", "Order")
+                    .with_fields(fields.iter().map(ToString::to_string).collect()),
+            ],
+            subscribable: vec![SubscribableEntity {
+                entity_type: "Order".to_string(),
+                tables:      vec!["tb_order".to_string()],
+                pre_image:   false,
+            }],
+            ..Default::default()
+        };
+        schema.build_indexes();
+        let manager = SubscriptionManager::new(Arc::new(schema));
+        manager
+            .subscribe("orderChanged", serde_json::json!({}), serde_json::json!({}), "conn_1")
+            .unwrap();
+        manager
+    }
+
+    fn row(captured: bool) -> SubscriptionEvent {
+        SubscriptionEvent::new(
+            "Order",
+            "o1",
+            SubscriptionOperation::Update,
+            serde_json::json!({"id": "o1", "review_status": "approved", "fk_customer": 7}),
+        )
+        .with_captured(captured)
+    }
+
+    /// The defect beside #2123: the projection read each field by its published name, and
+    /// the stored image holds `review_status`, so the field was in no event at all.
+    #[test]
+    fn a_field_is_read_from_the_key_the_image_holds_it_under() {
+        let manager = manager(&["id", "reviewStatus"]);
+        let mut receiver = manager.receiver();
+        manager.publish_event(row(false));
+        let payload = receiver.try_recv().expect("delivered");
+        assert_eq!(payload.data, serde_json::json!({"id": "o1", "reviewStatus": "approved"}));
+    }
+
+    #[derive(Clone, Default)]
+    struct Warnings(Arc<Mutex<Vec<String>>>);
+
+    struct Message(String);
+
+    impl Visit for Message {
+        fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+            if field.name() == "message" {
+                self.0 = format!("{value:?}");
+            }
+        }
+    }
+
+    impl<S: Subscriber> Layer<S> for Warnings {
+        fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
+            if *event.metadata().level() == tracing::Level::WARN {
+                let mut message = Message(String::new());
+                event.record(&mut message);
+                self.0.lock().unwrap().push(message.0);
+            }
+        }
+    }
+
+    fn warned_while(publish: impl FnOnce()) -> Vec<String> {
+        let warnings = Warnings::default();
+        let subscriber = tracing_subscriber::registry().with(warnings.clone());
+        fraiseql_test_support::tracing_capture::with_default(subscriber, publish);
+        let said = warnings.0.lock().unwrap().clone();
+        said
+    }
+
+    /// A captured row lacks the embedded customer: the unplanned path has no error channel,
+    /// so it warns, once per subscription and field however many events lack it.
+    #[test]
+    fn a_field_a_captured_row_lacks_is_warned_of_once() {
+        let manager = manager(&["id", "customer"]);
+        let said = warned_while(|| {
+            manager.publish_event(row(true));
+            manager.publish_event(row(true));
+        });
+        assert_eq!(said.len(), 1, "{said:?}");
+        for part in ["`Order.customer`", "`tb_order`", "carry no `customer`"] {
+            assert!(said[0].contains(part), "names {part}: {said:?}");
+        }
+    }
+
+    #[test]
+    fn a_field_a_mutation_event_lacks_is_not_warned_of() {
+        let manager = manager(&["id", "customer"]);
+        assert_eq!(
+            warned_while(|| {
+                manager.publish_event(row(false));
+            }),
+            Vec::<String>::new()
+        );
     }
 }

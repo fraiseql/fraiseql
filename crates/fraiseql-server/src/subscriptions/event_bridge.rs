@@ -88,6 +88,10 @@ pub struct EntityEvent {
     /// through to the `SubscriptionEvent` and emitted in the `next` payload's
     /// `extensions.changeSpine`; not used for filtering.
     pub change_spine: Option<ChangeSpineEnvelope>,
+
+    /// Whether the change was written outside a mutation and captured by the trigger: its
+    /// image is what the trigger stored (see `SubscriptionEvent::captured`, #2123).
+    pub captured: bool,
 }
 
 impl EntityEvent {
@@ -107,6 +111,7 @@ impl EntityEvent {
             old_data: None,
             tenant_id: None,
             change_spine: None,
+            captured: false,
         }
     }
 
@@ -121,6 +126,13 @@ impl EntityEvent {
     #[must_use]
     pub fn with_tenant_id(mut self, tenant_id: impl Into<String>) -> Self {
         self.tenant_id = Some(tenant_id.into());
+        self
+    }
+
+    /// Mark the change as captured from a write made outside a mutation.
+    #[must_use]
+    pub const fn with_captured(mut self, captured: bool) -> Self {
+        self.captured = captured;
         self
     }
 
@@ -263,7 +275,8 @@ impl EventBridge {
             entity_event.entity_id,
             entity_event.operation,
             entity_event.data,
-        );
+        )
+        .with_captured(entity_event.captured);
 
         // Add old data if present
         if let Some(old_data) = entity_event.old_data {
