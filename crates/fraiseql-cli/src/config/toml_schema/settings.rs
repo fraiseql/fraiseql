@@ -130,6 +130,31 @@ impl TomlSchema {
             .naming
             .convention_over(document_declares_naming.then_some(schema.naming_convention));
 
-        Ok(())
+        check_pkce_client(schema)
     }
+}
+
+/// `[security.pkce]` mounts `/auth/start` and `/auth/callback`, which need the `[auth]`
+/// PKCE client. Read from the merged sections, so either file may write either one; the
+/// server refuses the same schema at boot.
+fn check_pkce_client(schema: &IntermediateSchema) -> Result<()> {
+    let enabled = schema
+        .security
+        .as_ref()
+        .and_then(|security| security.pointer("/pkce/enabled"))
+        .and_then(serde_json::Value::as_bool)
+        == Some(true);
+    let client = schema
+        .auth
+        .as_ref()
+        .and_then(|auth| auth.get("pkce"))
+        .is_some_and(|client| !client.is_null());
+    if enabled && !client {
+        anyhow::bail!(
+            "[security.pkce] enabled = true, but [auth] declares no PKCE client: \
+             /auth/start and /auth/callback need one. Add discovery_url, client_id, \
+             client_secret_env and server_redirect_uri to [auth], or disable [security.pkce]"
+        );
+    }
+    Ok(())
 }

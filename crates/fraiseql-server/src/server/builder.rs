@@ -370,7 +370,8 @@ impl Server {
         )
         .await?;
         #[cfg(feature = "auth")]
-        let oidc_server_client = Self::oidc_server_client_from_schema(schema).await;
+        let oidc_server_client =
+            Self::oidc_server_client_from_schema(schema, pkce_store.is_some()).await?;
         // Both configuration sources resolved together, so the boot guards run on
         // whatever actually takes effect (#837) and CLI/env overrides win (#774).
         let rate_limiter =
@@ -775,18 +776,6 @@ impl Server {
             }
             Some(service)
         };
-
-        // Warn if PKCE is configured but no OidcServerClient could be built.
-        #[cfg(feature = "auth")]
-        if pkce_store.is_some() && oidc_server_client.is_none() {
-            tracing::error!(
-                "pkce.enabled = true but no OIDC client is available. Auth routes \
-                 (/auth/start, /auth/callback) will NOT be mounted. Building an \
-                 OidcServerClient from the compiled schema's [auth] block is not yet \
-                 functional (the compiled schema carries no auth/auth_endpoints) — \
-                 tracked in #621."
-            );
-        }
 
         // Social-login state (#368): built here, where the pool is in scope.
         // The compiled `[auth.social]` block declares the providers; every
@@ -1764,14 +1753,18 @@ impl Server {
             )
         })?;
 
-        let read_secret = |provider: &str, env_name: &str| {
-            std::env::var(env_name).map_err(|_| {
-                ServerError::ConfigError(format!(
-                    "[auth.social.{provider}] client_secret_env {env_name} is not set. The \
-                     provider cannot exchange authorization codes without it — refusing to \
-                     mount a login flow that can never complete."
-                ))
-            })
+        let read_secret = |provider: &str, env_name: &str| match std::env::var(env_name) {
+            Ok(secret) if !secret.is_empty() => Ok(secret),
+            found => Err(ServerError::ConfigError(format!(
+                "[auth.social.{provider}] client_secret_env {env_name} is {}. The provider \
+                 cannot exchange authorization codes without it — refusing to mount a login \
+                 flow that can never complete.",
+                if found.is_ok() {
+                    "set but empty"
+                } else {
+                    "not set"
+                }
+            ))),
         };
 
         let mut providers: Vec<(&'static str, Arc<dyn OAuthProvider>)> = Vec::new();

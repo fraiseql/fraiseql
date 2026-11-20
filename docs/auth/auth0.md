@@ -3,16 +3,6 @@
 Auth0 is an OIDC-compliant provider that works with FraiseQL's PKCE
 authentication flow. This guide covers configuration.
 
-> **⚠️ Status (#621):** The compiled-path PKCE `[auth]` **server-login** flow shown
-> below (`discovery_url` / `client_id` / `client_secret_env` / `server_redirect_uri`)
-> is **not yet functional** — the compiled schema does not carry the `[auth]` block or
-> the cached OIDC endpoints the server needs to build an `OidcServerClient`, so
-> `fraiseql compile` currently **rejects** a complete `[auth]` client group. Wiring it
-> end-to-end is tracked in
-> [#621](https://github.com/fraiseql/fraiseql/issues/621). **JWT validation** via
-> `[auth] issuer = "…"` (validating Auth0-issued bearer tokens) is unaffected and works
-> today.
-
 ## Prerequisites
 
 1. An Auth0 tenant (e.g. `your-tenant.auth0.com`)
@@ -50,6 +40,22 @@ AUTH0_CLIENT_SECRET=your-client-secret
 # Generate: openssl rand -hex 32
 STATE_ENCRYPTION_KEY=<64-hex-chars>
 ```
+
+## At boot
+
+With `[security.pkce] enabled = true` the server fetches
+`<discovery_url>/.well-known/openid-configuration` when it starts, and builds the login
+client from it. It refuses to start, in production and in development, when:
+
+- `[auth]` declares no client (`discovery_url`, `client_id`, `client_secret_env`,
+  `server_redirect_uri`): `fraiseql compile` refuses this too;
+- the variable `client_secret_env` names is not set, or is empty;
+- the discovery document cannot be fetched, answers an error status, or does not parse.
+
+The refusal names the step and the variable or URL, never the secret. Without these the
+server used to start with no `/auth/start` or `/auth/callback`, and every login answered
+404. With `[security.pkce]` disabled, a declared `[auth]` client is reported in the log
+and the provider is not contacted.
 
 ## Auth0 dashboard configuration
 

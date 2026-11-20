@@ -417,27 +417,40 @@ async fn pkce_in_a_project_config_mounts_auth_start_with_an_s256_challenge() {
 #[cfg(feature = "auth")]
 const STATE_KEY: &str = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
 
+/// With state encryption on, production gets past the state guard to the login
+/// client, whose discovery URL here is one the SSRF gate refuses offline: the refusal
+/// that follows is the client's, not the state guard's.
 #[cfg(feature = "auth")]
 #[tokio::test]
 async fn pkce_in_a_project_config_requires_state_encryption_in_production() {
+    let client = "[auth]\ndiscovery_url = \"https://127.0.0.1:1\"\nclient_id = \"p2011\"\n\
+                  client_secret_env = \"P2011_CLIENT_SECRET\"\n\
+                  server_redirect_uri = \"https://api.example/auth/callback\"\n";
+    let state_refusal = "[security.state_encryption] is\n  missing or disabled";
     let production = || {
         vec![
             ("FRAISEQL_ENV", None),
             ("STATE_ENCRYPTION_KEY", Some(STATE_KEY)),
+            ("P2011_CLIENT_SECRET", Some("p2011-secret")),
+            ("FRAISEQL_OIDC_ALLOW_INSECURE", None),
         ]
     };
-    let refused = boots("[security.pkce]\nenabled = true\n", production())
+    let refused = boots(&format!("{client}[security.pkce]\nenabled = true\n"), production())
         .await
         .expect_err("PKCE without state encryption booted in production");
-    assert!(refused.contains("[security.pkce] enabled = true"), "{refused}");
+    assert!(refused.contains(state_refusal), "{refused}");
 
-    boots(
-        "[security.pkce]\nenabled = true\n[security.state_encryption]\n\
-         enabled = true\n",
+    let refused = boots(
+        &format!(
+            "{client}[security.pkce]\nenabled = true\n[security.state_encryption]\n\
+             enabled = true\n"
+        ),
         production(),
     )
     .await
-    .unwrap_or_else(|e| panic!("PKCE with state encryption: {e}"));
+    .expect_err("booted with a discovery URL the SSRF gate refuses");
+    assert!(!refused.contains(state_refusal), "the state key was not honoured: {refused}");
+    assert!(refused.contains("SSRF"), "the client's discovery refused it: {refused}");
 }
 
 #[cfg(feature = "auth")]

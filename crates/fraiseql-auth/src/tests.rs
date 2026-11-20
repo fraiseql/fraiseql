@@ -4303,7 +4303,7 @@ mod oidc_provider_tests {
 
     /// The development window the insecure-development allowance
     /// (`OIDC_ALLOW_INSECURE`) needs to reach a loopback mock.
-    const DEV_INSECURE: [(&str, Option<&str>); 4] = [
+    pub(super) const DEV_INSECURE: [(&str, Option<&str>); 4] = [
         ("FRAISEQL_OIDC_ALLOW_INSECURE", Some("1")),
         ("FRAISEQL_ENV", Some("development")),
         ("FRAISEQL_PROFILE", None),
@@ -4311,7 +4311,7 @@ mod oidc_provider_tests {
     ];
 
     /// The guards on: the allowance not requested.
-    const GUARDED: [(&str, Option<&str>); 1] = [("FRAISEQL_OIDC_ALLOW_INSECURE", None)];
+    pub(super) const GUARDED: [(&str, Option<&str>); 1] = [("FRAISEQL_OIDC_ALLOW_INSECURE", None)];
 
     /// What each discovery caller reports for `base`: the social provider constructor and
     /// the shared fetch the PKCE client uses.
@@ -4575,44 +4575,180 @@ mod oidc_server_client_tests {
     #[tokio::test]
     async fn test_from_compiled_schema_absent_auth_returns_none() {
         let json = serde_json::json!({});
-        assert!(OidcServerClient::from_compiled_schema(&json).await.is_none());
+        assert!(OidcServerClient::from_compiled_schema(&json).await.unwrap().is_none());
+    }
+
+    /// The secret every test that sets one sets; no error may quote it.
+    const SECRET: &str = "pkce-secret-value-2133";
+
+    /// A compiled schema whose `[auth.pkce]` discovers from `discovery_url` and reads its
+    /// secret from `secret_env`.
+    fn pkce_schema(discovery_url: &str, secret_env: &str) -> serde_json::Value {
+        serde_json::json!({
+            "auth": { "pkce": {
+                "discovery_url":       discovery_url,
+                "client_id":           "x",
+                "client_secret_env":   secret_env,
+                "server_redirect_uri": "https://api.example.com/auth/callback"
+            } }
+        })
+    }
+
+    /// Build the client from `json` with `vars` (and the guard window `window`) set,
+    /// returning the error text.
+    // Reason: `temp_env`'s lock guard is not `Send`; a `#[tokio::test]` runs on one thread.
+    #[allow(clippy::future_not_send)]
+    async fn refusal(
+        json: serde_json::Value,
+        window: &[(&'static str, Option<&'static str>)],
+        vars: &[(&'static str, Option<&'static str>)],
+    ) -> String {
+        let all: Vec<_> = window.iter().chain(vars).copied().collect();
+        let built = temp_env::async_with_vars(all, async {
+            OidcServerClient::from_compiled_schema(&json).await.map(|c| c.is_some())
+        })
+        .await;
+        let error = built.expect_err("the client was built, or skipped").to_string();
+        assert!(!error.contains(SECRET), "the error quotes the secret: {error}");
+        error
+    }
+
+    /// A discovery mock answering `/.well-known/openid-configuration` with `response`.
+    async fn discovery_mock(response: wiremock::ResponseTemplate) -> wiremock::MockServer {
+        discovery_mock_at(|_| response).await
+    }
+
+    /// A discovery mock answering with what `response` makes of the mock's own base URL.
+    async fn discovery_mock_at(
+        response: impl FnOnce(&str) -> wiremock::ResponseTemplate,
+    ) -> wiremock::MockServer {
+        use wiremock::{
+            Mock, MockServer,
+            matchers::{method, path},
+        };
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/.well-known/openid-configuration"))
+            .respond_with(response(&server.uri()))
+            .mount(&server)
+            .await;
+        server
+    }
+
+    /// A complete discovery document for `base`.
+    fn discovery_document(base: &str) -> serde_json::Value {
+        serde_json::json!({
+            "issuer":                 base,
+            "authorization_endpoint": format!("{base}/authorize"),
+            "token_endpoint":         format!("{base}/token"),
+            "userinfo_endpoint":      format!("{base}/userinfo"),
+        })
+    }
+
+    use super::oidc_provider_tests::{DEV_INSECURE, GUARDED};
+
+    #[tokio::test]
+    async fn a_malformed_auth_pkce_section_is_an_error() {
+        let json = serde_json::json!({ "auth": { "pkce": { "discovery_url": "https://e.test" } } });
+        let error = refusal(json, &GUARDED, &[]).await;
+        assert!(error.contains("[auth]"), "{error}");
+        assert!(error.contains("client_id"), "names the missing field: {error}");
     }
 
     #[tokio::test]
-    async fn test_from_compiled_schema_missing_env_var_returns_none() {
-        // The client secret env var is unset, so construction must fail before any
-        // discovery fetch is attempted (#621).
-        let json = serde_json::json!({
-            "auth": { "pkce": {
-                "discovery_url":       "https://example.com",
-                "client_id":           "x",
-                "client_secret_env":   "__FRAISEQL_TEST_DEFINITELY_UNSET_42XYZ__",
-                "server_redirect_uri": "https://api.example.com/auth/callback"
-            } }
-        });
-        assert!(
-            OidcServerClient::from_compiled_schema(&json).await.is_none(),
-            "an unset client_secret_env must return None"
-        );
+    async fn an_unset_client_secret_env_is_an_error() {
+        let json = pkce_schema("https://example.com", "P2133_UNSET_SECRET");
+        let error = refusal(json, &GUARDED, &[("P2133_UNSET_SECRET", None)]).await;
+        assert!(error.contains("client_secret_env"), "{error}");
+        assert!(error.contains("P2133_UNSET_SECRET"), "{error}");
     }
 
     #[tokio::test]
-    async fn test_from_compiled_schema_unresolvable_discovery_returns_none() {
-        // Secret present, but the discovery_url is a private/loopback address that
-        // the SSRF guard rejects, so boot-time discovery fails and construction
-        // returns None (#621). Uses PATH (always set) as the secret env.
-        let json = serde_json::json!({
-            "auth": { "pkce": {
-                "discovery_url":       "http://127.0.0.1:1/blocked",
-                "client_id":           "x",
-                "client_secret_env":   "PATH",
-                "server_redirect_uri": "https://api.example.com/auth/callback"
-            } }
-        });
-        assert!(
-            OidcServerClient::from_compiled_schema(&json).await.is_none(),
-            "a discovery_url the SSRF guard blocks must return None"
-        );
+    async fn an_empty_client_secret_env_is_an_error() {
+        let json = pkce_schema("https://example.com", "P2133_EMPTY_SECRET");
+        let error = refusal(json, &GUARDED, &[("P2133_EMPTY_SECRET", Some(""))]).await;
+        assert!(error.contains("P2133_EMPTY_SECRET"), "{error}");
+        assert!(error.contains("empty"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn a_discovery_url_the_ssrf_gate_refuses_is_an_error() {
+        let json = pkce_schema("http://127.0.0.1:1/blocked", "P2133_SECRET");
+        let error = refusal(json, &GUARDED, &[("P2133_SECRET", Some(SECRET))]).await;
+        assert!(error.contains("[auth]"), "{error}");
+        assert!(error.contains("http://127.0.0.1:1/blocked"), "names the URL: {error}");
+    }
+
+    #[tokio::test]
+    async fn an_unreachable_discovery_is_an_error() {
+        let json = pkce_schema("http://127.0.0.1:1", "P2133_SECRET");
+        let error = refusal(json, &DEV_INSECURE, &[("P2133_SECRET", Some(SECRET))]).await;
+        assert!(error.contains("Failed to fetch"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn a_discovery_error_status_is_an_error_naming_the_status() {
+        let server = discovery_mock(
+            wiremock::ResponseTemplate::new(404).set_body_string("<html>not here</html>"),
+        )
+        .await;
+        let json = pkce_schema(&server.uri(), "P2133_SECRET");
+        let error = refusal(json, &DEV_INSECURE, &[("P2133_SECRET", Some(SECRET))]).await;
+        assert!(error.contains("404"), "names the status: {error}");
+    }
+
+    #[tokio::test]
+    async fn a_discovery_document_that_is_not_json_is_an_error() {
+        let server =
+            discovery_mock(wiremock::ResponseTemplate::new(200).set_body_string("<html/>")).await;
+        let json = pkce_schema(&server.uri(), "P2133_SECRET");
+        let error = refusal(json, &DEV_INSECURE, &[("P2133_SECRET", Some(SECRET))]).await;
+        assert!(error.contains("parse"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn a_discovery_document_without_a_token_endpoint_is_an_error() {
+        let server = discovery_mock_at(|base| {
+            let mut document = discovery_document(base);
+            document.as_object_mut().unwrap().remove("token_endpoint");
+            wiremock::ResponseTemplate::new(200).set_body_json(document)
+        })
+        .await;
+        let json = pkce_schema(&server.uri(), "P2133_SECRET");
+        let error = refusal(json, &DEV_INSECURE, &[("P2133_SECRET", Some(SECRET))]).await;
+        assert!(error.contains("token_endpoint"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn an_oversized_discovery_document_is_an_error() {
+        let server = discovery_mock(wiremock::ResponseTemplate::new(200).set_body_bytes(vec![
+                b' ';
+                super::super::oidc_provider::MAX_OIDC_DISCOVERY_BYTES
+                    + 1
+            ]))
+        .await;
+        let json = pkce_schema(&server.uri(), "P2133_SECRET");
+        let error = refusal(json, &DEV_INSECURE, &[("P2133_SECRET", Some(SECRET))]).await;
+        assert!(error.contains("too large"), "{error}");
+    }
+
+    /// Every step succeeds: the client is built from the discovered endpoints.
+    #[tokio::test]
+    async fn a_complete_configuration_builds_the_client_from_discovery() {
+        let server = discovery_mock_at(|base| {
+            wiremock::ResponseTemplate::new(200).set_body_json(discovery_document(base))
+        })
+        .await;
+        let base = server.uri();
+        let json = pkce_schema(&base, "P2133_SECRET");
+        let vars: Vec<_> =
+            DEV_INSECURE.iter().copied().chain([("P2133_SECRET", Some(SECRET))]).collect();
+        let client = temp_env::async_with_vars(vars, OidcServerClient::from_compiled_schema(&json))
+            .await
+            .expect("built")
+            .expect("configured");
+        let url = client.authorization_url("s", "c", "S256");
+        assert!(url.starts_with(&format!("{base}/authorize?")), "{url}");
     }
 
     #[test]

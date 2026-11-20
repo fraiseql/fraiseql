@@ -71,6 +71,7 @@ crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth.local] {field} mu
 crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth] is empty. Configure JWT validation with issuer (or jw | [auth] | value check: a section configuring no validation
 crates/fraiseql-cli/src/config/toml_schema/server_settings.rs | [validation] max_offset = 0 would refuse every offset page. | [validation] max_offset | value check: zero
 crates/fraiseql-cli/src/config/toml_schema/server_settings.rs | [validation] max_semi_additive_cells = 0 would refuse every | [validation] max_semi_additive_cells | value check: zero
+crates/fraiseql-cli/src/config/toml_schema/settings.rs | [security.pkce] enabled = true, but [auth] declares no PKCE | [auth] discovery_url | a client one setting requires (security.pkce.enabled), not a refused key
 crates/fraiseql-cli/src/schema/merger.rs | Mutation '{mutation_name}' has no `sql_source` and no `[crud | [crud] / [mutations.*] sql_source | a mutation with no sql_source the naming config can name, not a refused key
 crates/fraiseql-cli/src/schema/merger.rs | [[analytics.queries]] name '{}' collides with an existing qu | [[analytics.queries]] name | value check: a name another query takes
 crates/fraiseql-cli/src/schema/merger.rs | [[analytics.queries]] name '{}' ends in a reserved suffix: t | [[analytics.queries]] name | value check: a reserved suffix

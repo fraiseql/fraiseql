@@ -199,18 +199,25 @@ pub(crate) async fn fetch_oidc_discovery(discovery_base: &str) -> Result<OidcDis
     let discovery_url =
         format!("{}/.well-known/openid-configuration", discovery_base.trim_end_matches('/'));
 
-    let discovery_bytes = client
-        .get(&discovery_url)
-        .send()
-        .await
-        .map_err(|e| AuthError::OidcMetadataError {
-            message: format!("Failed to fetch OIDC metadata from {discovery_url}: {e}"),
-        })?
-        .bytes()
-        .await
-        .map_err(|e| AuthError::OidcMetadataError {
-            message: format!("Failed to read OIDC metadata: {e}"),
-        })?;
+    let response =
+        client
+            .get(&discovery_url)
+            .send()
+            .await
+            .map_err(|e| AuthError::OidcMetadataError {
+                message: format!("Failed to fetch OIDC metadata from {discovery_url}: {e}"),
+            })?;
+    // A provider error page would otherwise be read as the document and fail to parse,
+    // hiding the status that says what went wrong.
+    let status = response.status();
+    if !status.is_success() {
+        return Err(AuthError::OidcMetadataError {
+            message: format!("OIDC metadata request to {discovery_url} answered {status}"),
+        });
+    }
+    let discovery_bytes = response.bytes().await.map_err(|e| AuthError::OidcMetadataError {
+        message: format!("Failed to read OIDC metadata: {e}"),
+    })?;
     if discovery_bytes.len() > MAX_OIDC_DISCOVERY_BYTES {
         return Err(AuthError::OidcMetadataError {
             message: format!(

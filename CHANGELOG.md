@@ -71,6 +71,15 @@ disagreed, and the promise was the part that was wrong.
   action, key and variable. Set the variables before starting the server. Development
   starts and logs a `WARN` for each one, and observers created through the admin API are
   not checked at boot.
+- **A server with `[security.pkce] enabled` refuses to start when its login client cannot
+  be built (#2133).** It used to log an error and serve with no `/auth/start` or
+  `/auth/callback`. It now refuses, in production and in development, when `[auth]`
+  declares no PKCE client, its `client_secret_env` is unset or empty, or the provider's
+  discovery document cannot be fetched, answers an error status, or does not parse.
+  `fraiseql compile` refuses `[security.pkce] enabled = true` without the `[auth]` client.
+  With `[security.pkce]` disabled the provider is no longer contacted at boot.
+- **A social login provider whose `client_secret_env` is set but empty refuses the boot
+  (#2133)**, as an unset one already did.
 - **`RateLimiter::retry_after_for_path` is removed (#1911).** Nothing in the server
   called it: the `Retry-After` a rejected request carries comes from the rate-limit check
   itself. Its Redis implementation also matched a path to its rule differently from the

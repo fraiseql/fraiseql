@@ -291,7 +291,10 @@ fn a_settings_section_is_taken_in_both_roles_in_one_spelling() {
     let toml = "[project]\nname = \"app\"\n[tenancy]\nmode = \"schema\"\n\
                 [session_variables]\nvariables = [{name = \"app.region\", source = \"literal\", \
                 value = \"eu\"}]\n[security.pkce]\nenabled = true\n\
-                [security.state_encryption]\nenabled = true\nkey_env = \"STATE_KEY\"\n";
+                [security.state_encryption]\nenabled = true\nkey_env = \"STATE_KEY\"\n\
+                [auth]\ndiscovery_url = \"https://idp.example\"\nclient_id = \"app\"\n\
+                client_secret_env = \"PKCE_CLIENT_SECRET\"\n\
+                server_redirect_uri = \"https://api.example/auth/callback\"\n";
     let [(_, beside), (_, as_input)] = in_both_roles(toml);
     assert!(beside.ok, "beside a document: {}", beside.log);
     assert!(as_input.ok, "as the input: {}", as_input.log);

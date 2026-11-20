@@ -2,7 +2,7 @@
 # Maintained by tools/check-prose-ratchet.py (make lint-prose-ratchet); regenerate a line with --print.
 fraiseql 0
 fraiseql-arrow 28
-fraiseql-auth 28
+fraiseql-auth 27
 fraiseql-cdc-sinks 1
 fraiseql-cli 214
 fraiseql-codegen 17
@@ -17,7 +17,7 @@ fraiseql-kafka 0
 fraiseql-observers 32
 fraiseql-saga 20
 fraiseql-secrets 4
-fraiseql-server 575
+fraiseql-server 574
 fraiseql-storage 47
 fraiseql-test-support 1
 fraiseql-test-utils 1

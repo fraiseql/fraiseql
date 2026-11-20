@@ -11,6 +11,8 @@ use std::{fmt, sync::Arc};
 use serde::Deserialize;
 use zeroize::Zeroizing;
 
+use crate::error::AuthError;
+
 // ---------------------------------------------------------------------------
 // Token response from the provider
 // ---------------------------------------------------------------------------
@@ -110,14 +112,21 @@ impl OidcServerClient {
     /// shared SSRF guards. This keeps the compiler hermetic (no network at compile
     /// time) and the endpoints always fresh (no cached discovery going stale).
     ///
-    /// Returns `None` if:
-    /// - `schema_json["auth"]["pkce"]` is absent or malformed, or
-    /// - the env var named by `client_secret_env` is not set, or
-    /// - the discovery document cannot be fetched or parsed.
+    /// Returns `Ok(None)` when the compiled schema declares no PKCE client (the `[auth]`
+    /// group `discovery_url`, `client_id`, `client_secret_env`, `server_redirect_uri`,
+    /// compiled as `auth.pkce`).
     ///
-    /// In all failure cases an explanatory `tracing::error!` is emitted so
-    /// operators can diagnose startup issues without reading source code.
-    pub async fn from_compiled_schema(schema_json: &serde_json::Value) -> Option<Arc<Self>> {
+    /// # Errors
+    ///
+    /// Returns [`AuthError::ConfigError`] when the declared client cannot be built:
+    /// `auth.pkce` does not deserialize, the variable `client_secret_env` names is
+    /// unset or empty, or the discovery document cannot be fetched, is refused by the
+    /// SSRF gate, answers with an error status, or does not parse. A server with PKCE
+    /// enabled refuses to start on any of these: serving on would mount no login.
+    /// No error quotes the secret.
+    pub async fn from_compiled_schema(
+        schema_json: &serde_json::Value,
+    ) -> Result<Option<Arc<Self>>, AuthError> {
         // ── Load the [auth] PKCE group (compiled `auth.pkce`, #621/#368) ──
         #[derive(Deserialize)]
         struct AuthCfg {
@@ -127,42 +136,55 @@ impl OidcServerClient {
             server_redirect_uri: String,
         }
 
-        let auth_cfg: AuthCfg = schema_json
-            .get("auth")
-            .and_then(|v| v.get("pkce"))
-            .and_then(|v| serde_json::from_value(v.clone()).ok())?;
+        let Some(section) = schema_json.get("auth").and_then(|v| v.get("pkce")) else {
+            return Ok(None);
+        };
+        let auth_cfg: AuthCfg =
+            serde_json::from_value(section.clone()).map_err(|e| AuthError::ConfigError {
+                message: format!("[auth] is not a valid PKCE client: {e}"),
+            })?;
 
         // ── Read client secret from env ───────────────────────────────────
-        let Ok(client_secret) = std::env::var(&auth_cfg.client_secret_env) else {
-            tracing::error!(
-                env_var = %auth_cfg.client_secret_env,
-                "PKCE init failed: env var for OIDC client secret is not set"
-            );
-            return None;
+        let client_secret = match std::env::var(&auth_cfg.client_secret_env) {
+            Ok(secret) if !secret.is_empty() => secret,
+            Ok(_) => {
+                return Err(AuthError::ConfigError {
+                    message: format!(
+                        "[auth] client_secret_env {} is set but empty: the token \
+                         exchange cannot authenticate the client without it",
+                        auth_cfg.client_secret_env
+                    ),
+                });
+            },
+            Err(_) => {
+                return Err(AuthError::ConfigError {
+                    message: format!(
+                        "[auth] client_secret_env {} is not set: the token exchange \
+                         cannot authenticate the client without it",
+                        auth_cfg.client_secret_env
+                    ),
+                });
+            },
         };
 
         // ── Resolve endpoints via boot-time discovery (#621) ──────────────
-        let discovery =
-            match crate::oidc_provider::fetch_oidc_discovery(&auth_cfg.discovery_url).await {
-                Ok(discovery) => discovery,
-                Err(e) => {
-                    tracing::error!(
-                        error = %e,
-                        discovery_url = %auth_cfg.discovery_url,
-                        "PKCE init failed: could not resolve the OIDC discovery document at boot. \
-                         Check [auth] discovery_url and network reachability of the provider."
-                    );
-                    return None;
-                },
-            };
+        let discovery = crate::oidc_provider::fetch_oidc_discovery(&auth_cfg.discovery_url)
+            .await
+            .map_err(|e| AuthError::ConfigError {
+            message: format!(
+                "[auth] discovery against {} failed: {e}. Check discovery_url and \
+                     that the provider is reachable",
+                auth_cfg.discovery_url
+            ),
+        })?;
 
-        Some(Arc::new(Self {
+        Ok(Some(Arc::new(Self {
             client_id:              auth_cfg.client_id,
             client_secret:          Zeroizing::new(client_secret),
             server_redirect_uri:    auth_cfg.server_redirect_uri,
             authorization_endpoint: discovery.authorization_endpoint,
             token_endpoint:         discovery.token_endpoint,
-        }))
+        })))
     }
 
     /// Build the OIDC `/authorize` redirect URL with all required PKCE params.

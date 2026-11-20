@@ -920,6 +920,31 @@ async fn social_login_with_unset_secret_env_refuses_to_boot() {
     );
 }
 
+/// A provider whose `client_secret_env` is set but empty refuses as an unset one does:
+/// every token exchange would fail at the provider.
+#[cfg(feature = "auth")]
+#[tokio::test]
+#[allow(clippy::future_not_send)] // Reason: `temp_env`'s lock guard is not `Send`.
+async fn social_login_with_an_empty_secret_env_refuses_to_boot() {
+    let schema = schema_with_github_social("FRAISEQL_TEST_2133_EMPTY_SOCIAL_SECRET");
+    let result = temp_env::async_with_vars(
+        [("FRAISEQL_TEST_2133_EMPTY_SOCIAL_SECRET", Some(""))],
+        Box::pin(Server::new(
+            first_party_server_config(),
+            schema,
+            Arc::new(NoopRelayAdapter::default()),
+            None,
+        )),
+    )
+    .await;
+    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(
+        msg.contains("FRAISEQL_TEST_2133_EMPTY_SOCIAL_SECRET"),
+        "names the variable: {msg}"
+    );
+    assert!(msg.contains("empty"), "says it is empty: {msg}");
+}
+
 /// #368: `[auth.social]` without `[auth.database]` must refuse to boot —
 /// sessions and account linking live in schema `auth`, reached through auth's own pool.
 #[cfg(feature = "auth")]
@@ -1469,12 +1494,6 @@ async fn every_boot_guard_judges_the_deployment_the_server_was_built_for() {
             }),
         ),
     )];
-    #[cfg(feature = "auth")]
-    cases.push((
-        "PKCE without state encryption",
-        fully_configured_server_config(),
-        schema_with_security("pkce", serde_json::json!({ "enabled": true })),
-    ));
     #[cfg(feature = "redis-rate-limiting")]
     cases.push((
         "token revocation on a malformed Redis URL",
@@ -1523,6 +1542,32 @@ async fn every_boot_guard_judges_the_deployment_the_server_was_built_for() {
                 if refused { "refuse to " } else { "" },
             );
         }
+    }
+
+    // PKCE without state encryption: production is refused by the state guard;
+    // development passes it, and is then refused for the login client the fixture does
+    // not declare. A state guard judging another deployment refuses development too.
+    #[cfg(feature = "auth")]
+    {
+        let state_refusal = "[security.state_encryption] is\n  missing or disabled";
+        let schema = schema_with_security("pkce", serde_json::json!({ "enabled": true }));
+        let refusal = |deployment| {
+            let schema = schema.clone();
+            async move {
+                Box::pin(build_for(fully_configured_server_config(), schema, deployment))
+                    .await
+                    .err()
+                    .map_or_else(
+                        || panic!("PKCE with no client booted for {deployment:?}"),
+                        |error| error.to_string(),
+                    )
+            }
+        };
+        let production = refusal(Deployment::Production).await;
+        assert!(production.contains(state_refusal), "production: {production}");
+        let development = refusal(Deployment::Development).await;
+        assert!(!development.contains(state_refusal), "development: {development}");
+        assert!(development.contains("no [auth] PKCE client"), "development: {development}");
     }
 
     // The error sanitizer refuses nothing: its default is what the deployment decides.
@@ -1577,4 +1622,158 @@ async fn enrichment_enabled_reaches_the_reload_check_without_a_resolver() {
     .await
     .expect("Server::new");
     assert!(!disabled.build_app_state().identity.resolves_enrichment());
+}
+
+/// A schema with `[security.pkce]` (`enabled` as given), state encryption keyed by
+/// `P2133_STATE_KEY`, and, when `discovery_url` is given, the `[auth]` PKCE client
+/// reading its secret from `secret_env`.
+#[cfg(feature = "auth")]
+fn schema_with_pkce(enabled: bool, client: Option<(&str, &str)>) -> CompiledSchema {
+    let mut schema = schema_with_security("pkce", serde_json::json!({ "enabled": enabled }));
+    let mut security =
+        serde_json::to_value(schema.security.take().expect("the fixture has a [security]"))
+            .expect("security serialises");
+    security["state_encryption"] =
+        serde_json::json!({ "enabled": true, "key_env": "P2133_STATE_KEY" });
+    schema.security = Some(serde_json::from_value(security).expect("valid security section"));
+    schema.auth =
+        client.map(|(discovery_url, secret_env)| fraiseql_core::schema::AuthClientConfig {
+            pkce:     Some(fraiseql_core::schema::PkceClientConfig {
+                discovery_url:       discovery_url.to_string(),
+                client_id:           "p2133".to_string(),
+                client_secret_env:   secret_env.to_string(),
+                server_redirect_uri: "https://api.example.com/auth/callback".to_string(),
+            }),
+            social:   None,
+            local:    None,
+            session:  None,
+            database: None,
+        });
+    schema
+}
+
+/// Build for `deployment` with `vars` set, returning the refusal if any.
+#[cfg(feature = "auth")]
+#[allow(clippy::future_not_send)] // Reason: `temp_env`'s lock guard is not `Send`.
+async fn pkce_boot(
+    schema: CompiledSchema,
+    deployment: fraiseql_guard::deployment::Deployment,
+    vars: Vec<(&'static str, Option<&'static str>)>,
+) -> Option<String> {
+    let mut window = vec![(
+        "P2133_STATE_KEY",
+        Some("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"),
+    )];
+    window.extend(vars);
+    Box::pin(temp_env::async_with_vars(window, async {
+        Box::pin(build_for(fully_configured_server_config(), schema, deployment))
+            .await
+            .err()
+            .map(|error| error.to_string())
+    }))
+    .await
+}
+
+/// `[security.pkce]` mounts a login that needs the `[auth]` client: without one the
+/// server refuses to start, in production and in development.
+#[cfg(feature = "auth")]
+#[tokio::test]
+#[allow(clippy::future_not_send)] // Reason: see `pkce_boot`
+async fn pkce_without_a_client_refuses_to_boot_in_both_deployments() {
+    use fraiseql_guard::deployment::Deployment;
+    for deployment in [Deployment::Production, Deployment::Development] {
+        let refused = pkce_boot(schema_with_pkce(true, None), deployment, vec![])
+            .await
+            .unwrap_or_else(|| panic!("booted for {deployment:?} with no PKCE client"));
+        assert!(refused.contains("no [auth] PKCE client"), "{deployment:?}: {refused}");
+    }
+}
+
+/// A client whose secret is unset refuses to start in both deployments, before the
+/// provider is contacted.
+#[cfg(feature = "auth")]
+#[tokio::test]
+#[allow(clippy::future_not_send)] // Reason: see `pkce_boot`
+async fn a_pkce_client_with_an_unset_secret_refuses_to_boot_in_both_deployments() {
+    use fraiseql_guard::deployment::Deployment;
+    for deployment in [Deployment::Production, Deployment::Development] {
+        let schema = schema_with_pkce(true, Some(("https://idp.example", "P2133_UNSET")));
+        let refused = pkce_boot(schema, deployment, vec![("P2133_UNSET", None)])
+            .await
+            .unwrap_or_else(|| panic!("booted for {deployment:?} with the secret unset"));
+        assert!(refused.contains("P2133_UNSET"), "{deployment:?}: {refused}");
+    }
+}
+
+/// A provider whose discovery answers an error status refuses the boot, naming it.
+#[cfg(feature = "auth")]
+#[tokio::test]
+#[allow(clippy::future_not_send)] // Reason: see `pkce_boot`
+async fn a_pkce_discovery_error_status_refuses_to_boot() {
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+    let provider = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/.well-known/openid-configuration"))
+        .respond_with(ResponseTemplate::new(503))
+        .mount(&provider)
+        .await;
+    let schema = schema_with_pkce(true, Some((&provider.uri(), "P2133_SECRET")));
+    let refused = pkce_boot(
+        schema,
+        fraiseql_guard::deployment::Deployment::Development,
+        vec![
+            ("P2133_SECRET", Some("p2133-secret")),
+            ("FRAISEQL_ENV", Some("development")),
+            ("FRAISEQL_PROFILE", None),
+            ("KUBERNETES_SERVICE_HOST", None),
+            ("FRAISEQL_OIDC_ALLOW_INSECURE", Some("1")),
+        ],
+    )
+    .await
+    .expect("booted with the provider answering 503");
+    assert!(refused.contains("503"), "names the status: {refused}");
+    assert!(!refused.contains("p2133-secret"), "quotes the secret: {refused}");
+}
+
+/// With PKCE disabled the declared client is not built: the boot never contacts the
+/// provider, though the provider is reachable and the secret set.
+#[cfg(feature = "auth")]
+#[tokio::test]
+#[allow(clippy::future_not_send)] // Reason: see `pkce_boot`
+async fn a_declared_client_with_pkce_disabled_is_not_contacted() {
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+    let provider = MockServer::start().await;
+    let base = provider.uri();
+    Mock::given(method("GET"))
+        .and(path("/.well-known/openid-configuration"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "issuer": base,
+            "authorization_endpoint": format!("{base}/authorize"),
+            "token_endpoint": format!("{base}/token"),
+            "userinfo_endpoint": format!("{base}/userinfo"),
+        })))
+        .mount(&provider)
+        .await;
+    let schema = schema_with_pkce(false, Some((&base, "P2133_SECRET")));
+    let refused = pkce_boot(
+        schema,
+        fraiseql_guard::deployment::Deployment::Development,
+        vec![
+            ("P2133_SECRET", Some("p2133-secret")),
+            ("FRAISEQL_ENV", Some("development")),
+            ("FRAISEQL_PROFILE", None),
+            ("KUBERNETES_SERVICE_HOST", None),
+            ("FRAISEQL_OIDC_ALLOW_INSECURE", Some("1")),
+        ],
+    )
+    .await;
+    assert_eq!(refused, None, "refused with PKCE disabled");
+    let requests = provider.received_requests().await.unwrap_or_default();
+    assert!(requests.is_empty(), "contacted the provider {} times", requests.len());
 }

@@ -45,8 +45,12 @@ const KEYS: &[Key] = &[
     Key {
         name:      "pkce",
         table:     true,
+        // PKCE needs the `[auth]` client the login exchanges codes with.
         written:   "enabled = true\ncode_challenge_method = \"plain\"\nstate_ttl_secs = 300\n\
-                    redis_url = \"redis://cache:6379\"\n",
+                    redis_url = \"redis://cache:6379\"\n[auth]\n\
+                    discovery_url = \"https://idp.example\"\nclient_id = \"app\"\n\
+                    client_secret_env = \"PKCE_CLIENT_SECRET\"\n\
+                    server_redirect_uri = \"https://api.example/auth/callback\"\n",
         defaults:  "",
         differing: || json!({"enabled": true, "state_ttl_secs": 900}),
     },
@@ -422,24 +426,59 @@ fn a_key_is_refused_in_a_project_config_for_what_a_toml_schema_refuses() {
     }
 }
 
+/// The `[auth]` client PKCE needs, which compiles without contacting the provider.
+const PKCE_CLIENT: &str = "[auth]\ndiscovery_url = \"https://idp.example\"\n\
+                           client_id = \"app\"\nclient_secret_env = \"PKCE_CLIENT_SECRET\"\n\
+                           server_redirect_uri = \"https://api.example/auth/callback\"\n";
+
 #[test]
 fn pkce_without_state_encryption_is_warned_alike_in_both_files() {
     let key = KEYS.iter().find(|key| key.name == "pkce").unwrap();
     let warning = "pkce.enabled = true but state_encryption.enabled = false";
-    let reference = as_a_toml_schema(&key.spelled(SECURITY, "enabled = true\n"));
-    let project = beside_a_document(&key.spelled(SECURITY, "enabled = true\n"), None);
+    let enabled = format!("enabled = true\n{PKCE_CLIENT}");
+    let reference = as_a_toml_schema(&key.spelled(SECURITY, &enabled));
+    let project = beside_a_document(&key.spelled(SECURITY, &enabled), None);
+    assert!(reference.ok && project.ok, "{}\n{}", reference.log, project.log);
     assert!(reference.log.contains(warning), "TOML schema: {}", reference.log);
     assert!(project.log.contains(warning), "project config: {}", project.log);
 
     // Not with state encryption on.
     let both = |table: &str| {
-        format!(
-            "{}\n[{table}.state_encryption]\nenabled = true\n",
-            key.spelled(table, "enabled = true\n")
-        )
+        format!("{}\n[{table}.state_encryption]\nenabled = true\n", key.spelled(table, &enabled))
     };
-    assert!(!as_a_toml_schema(&both(SECURITY)).log.contains(warning));
-    assert!(!beside_a_document(&both(SECURITY), None).log.contains(warning));
+    let reference = as_a_toml_schema(&both(SECURITY));
+    let project = beside_a_document(&both(SECURITY), None);
+    assert!(reference.ok && project.ok, "{}\n{}", reference.log, project.log);
+    assert!(!reference.log.contains(warning));
+    assert!(!project.log.contains(warning));
+}
+
+/// `[security.pkce]` mounts a login that needs the `[auth]` client: without one the
+/// compile is refused in both files, naming both tables.
+#[test]
+fn pkce_without_an_auth_client_is_refused_in_both_files() {
+    let key = KEYS.iter().find(|key| key.name == "pkce").unwrap();
+    let alone = key.spelled(SECURITY, "enabled = true\n");
+    for (role, compiled) in [
+        ("TOML schema", as_a_toml_schema(&alone)),
+        ("project config", beside_a_document(&alone, None)),
+    ] {
+        assert!(!compiled.ok, "{role}: compiled without a client");
+        assert!(
+            compiled.log.contains("[security.pkce] enabled = true"),
+            "{role}: {}",
+            compiled.log
+        );
+        assert!(
+            compiled.log.contains("[auth] declares no PKCE client"),
+            "{role}: {}",
+            compiled.log
+        );
+    }
+    // A disabled section needs no client.
+    let disabled = key.spelled(SECURITY, "enabled = false\n");
+    assert!(as_a_toml_schema(&disabled).ok);
+    assert!(beside_a_document(&disabled, None).ok);
 }
 
 // ── reconciled with the schema document's copy ───────────────────────────────
@@ -494,7 +533,9 @@ fn a_document_copy_alone_still_applies() {
     for key in KEYS {
         let reference = as_a_toml_schema(&key.spelled(SECURITY, key.written));
         let copy = json!({ key.name: reference.security(key.name).clone() });
-        let kept = beside_a_document("", Some(copy));
+        // The file writes no `[security]`; PKCE still needs the `[auth]` client.
+        let file = if key.name == "pkce" { PKCE_CLIENT } else { "" };
+        let kept = beside_a_document(file, Some(copy));
         assert!(kept.ok, "`{}` from the document alone: {}", key.name, kept.log);
         assert_eq!(kept.security(key.name), reference.security(key.name), "`{}`", key.name);
     }

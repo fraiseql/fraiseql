@@ -232,20 +232,53 @@ impl Server {
         )))
     }
 
-    /// Build an `OidcServerClient` from the compiled schema JSON, if `[auth]` is present.
+    /// Build the PKCE login's OIDC client from the compiled `auth.pkce` (the `[auth]`
+    /// client group), when
+    /// `[security.pkce]` is enabled.
+    ///
+    /// The client resolves the provider's discovery document here, at boot (#621). With
+    /// PKCE disabled the provider is not contacted, and a declared client is reported as
+    /// unused.
+    ///
+    /// # Errors
+    ///
+    /// With PKCE enabled, a `ConfigError` when the schema declares no client, or
+    /// when the client cannot be built (see `OidcServerClient::from_compiled_schema`).
+    /// Serving on would mount no `/auth/start` or `/auth/callback`.
     #[cfg(feature = "auth")]
     pub(super) async fn oidc_server_client_from_schema(
         schema: &CompiledSchema,
-    ) -> Option<Arc<crate::auth::OidcServerClient>> {
-        // The full schema JSON lives in the executor's compiled schema.
-        // Access it via the security Value (which contains the embedded JSON blob).
-        // We expose the root schema JSON here.
-        let schema_json = serde_json::to_value(schema)
-            .inspect_err(|e| warn!(error = %e, "Failed to serialize compiled schema for OIDC client construction"))
-            .ok()?;
-        // #621: resolves the OIDC discovery document at boot (network I/O), so this
-        // is async.
-        crate::auth::OidcServerClient::from_compiled_schema(&schema_json).await
+        pkce_enabled: bool,
+    ) -> crate::Result<Option<Arc<crate::auth::OidcServerClient>>> {
+        let declared = schema.auth.as_ref().is_some_and(|auth| auth.pkce.is_some());
+        if !pkce_enabled {
+            if declared {
+                warn!(
+                    "[auth] declares a PKCE client, but [security.pkce] is not enabled: no \
+                     PKCE login is mounted, and the provider is not contacted"
+                );
+            }
+            return Ok(None);
+        }
+        let schema_json = serde_json::to_value(schema).map_err(|e| {
+            ServerError::ConfigError(format!(
+                "[security.pkce] is enabled, but the compiled schema could not be read for \
+                 its [auth] PKCE client: {e}"
+            ))
+        })?;
+        match crate::auth::OidcServerClient::from_compiled_schema(&schema_json).await {
+            Ok(Some(client)) => Ok(Some(client)),
+            Ok(None) => Err(ServerError::ConfigError(
+                "[security.pkce] enabled = true, but the schema declares no [auth] PKCE \
+                 client: /auth/start and /auth/callback need one. Add discovery_url, \
+                 client_id, client_secret_env and server_redirect_uri to [auth], or disable \
+                 [security.pkce]"
+                    .to_string(),
+            )),
+            Err(e) => Err(ServerError::ConfigError(format!(
+                "[security.pkce] is enabled, but its login cannot start: {e}"
+            ))),
+        }
     }
 
     /// Build an `ErrorSanitizer` from the `security.error_sanitization` key in the
