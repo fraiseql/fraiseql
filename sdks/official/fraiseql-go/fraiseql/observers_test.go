@@ -157,47 +157,59 @@ func TestWebhookWithoutOptionsAuthorsOnlyItsURL(t *testing.T) {
 	}
 }
 
-func TestRegisteredObserverIsExportedWithItsRetryPolicy(t *testing.T) {
+// exportedRetry registers one observer, built by build, and returns the `retry` it is
+// exported with, and whether the key is present at all.
+func exportedRetry(t *testing.T, build func(*ObserverBuilder) *ObserverBuilder) (map[string]interface{}, bool) {
+	t.Helper()
 	Reset()
-	defer Reset()
+	t.Cleanup(Reset)
 
-	err := NewObserver("order_created").
+	observer := NewObserver("order_created").
 		Entity("Order").
 		Event("INSERT").
-		Actions(
-			Webhook("https://example.com/orders"),
-			Slack("#orders", "New order {{ id }}"),
-			EmailAction("ops@example.com", "New order", "Order {{ id }}"),
-		).
-		Register()
-	if err != nil {
+		Action(EmailAction("ops@example.com", "New order", "Order {{ id }}"))
+	if err := build(observer).Register(); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
-
 	raw, err := ExportSchemaRaw(false)
 	if err != nil {
 		t.Fatalf("export: %v", err)
 	}
 	var schema struct {
-		Observers []struct {
-			Name    string                   `json:"name"`
-			Actions []map[string]interface{} `json:"actions"`
-			Retry   map[string]interface{}   `json:"retry"`
-		} `json:"observers"`
+		Observers []map[string]interface{} `json:"observers"`
 	}
 	if err := json.Unmarshal(raw, &schema); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if len(schema.Observers) != 1 || len(schema.Observers[0].Actions) != 3 {
+	if len(schema.Observers) != 1 {
 		t.Fatalf("observers = %+v", schema.Observers)
 	}
-	wantRetry := map[string]interface{}{
-		"max_attempts":     float64(3),
-		"backoff_strategy": "exponential",
-		"initial_delay_ms": float64(1000),
-		"max_delay_ms":     float64(30000),
+	retry, present := schema.Observers[0]["retry"]
+	if !present {
+		return nil, false
 	}
-	if !reflect.DeepEqual(schema.Observers[0].Retry, wantRetry) {
-		t.Errorf("retry = %v, want %v", schema.Observers[0].Retry, wantRetry)
+	return retry.(map[string]interface{}), true
+}
+
+// An observer with no Retry() authors no retry: the compiler gives it the server's own
+// policy, which a default written here could only disagree with.
+func TestObserverWithoutRetryAuthorsNoRetry(t *testing.T) {
+	if retry, present := exportedRetry(t, func(b *ObserverBuilder) *ObserverBuilder { return b }); present {
+		t.Errorf("retry = %v, want the key left out", retry)
+	}
+}
+
+func TestObserverRetryIsExportedAsGiven(t *testing.T) {
+	retry, present := exportedRetry(t, func(b *ObserverBuilder) *ObserverBuilder {
+		return b.Retry(RetryConfig{MaxAttempts: 5, BackoffStrategy: "linear", InitialDelayMs: 200, MaxDelayMs: 4000})
+	})
+	want := map[string]interface{}{
+		"max_attempts":     float64(5),
+		"backoff_strategy": "linear",
+		"initial_delay_ms": float64(200),
+		"max_delay_ms":     float64(4000),
+	}
+	if !present || !reflect.DeepEqual(retry, want) {
+		t.Errorf("retry = %v (present %v), want %v", retry, present, want)
 	}
 }

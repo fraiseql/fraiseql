@@ -419,7 +419,11 @@ export interface ObserverDefinition {
   event: string;
   actions: ObserverAction[];
   condition?: string;
-  retry: ObserverRetryConfig;
+  /**
+   * Left out when the author sets none: the compiler then gives the observer the policy
+   * the server's observer runtime runs when it is given none.
+   */
+  retry?: ObserverRetryConfig;
 }
 
 /**
@@ -1359,7 +1363,7 @@ export class SchemaRegistry {
    * @param event - Event type (INSERT, UPDATE, or DELETE)
    * @param actions - List of action configurations
    * @param condition - Optional condition expression
-   * @param retry - Retry configuration
+   * @param retry - Retry configuration; left out, the server's own policy applies
    */
   static registerObserver(
     name: string,
@@ -1375,12 +1379,7 @@ export class SchemaRegistry {
       event: event.toUpperCase(),
       actions,
       condition,
-      retry: retry || {
-        max_attempts: 3,
-        backoff_strategy: "exponential",
-        initial_delay_ms: 100,
-        max_delay_ms: 60000,
-      },
+      ...(retry !== undefined ? { retry } : {}),
     });
   }
 

@@ -31,6 +31,16 @@ disagreed, and the promise was the part that was wrong.
   the URL is still read from `SLACK_WEBHOOK_URL`. A call passing a map does not compile:
   `map[string]interface{}{"webhook_url_env": "ORDERS_SLACK"}` becomes
   `fraiseql.SlackWebhookURLEnv("ORDERS_SLACK")`.
+- **An observer authored without a retry runs on the server's policy (#2145).** The
+  TypeScript, Go and Java SDKs wrote a retry of their own for such an observer, and no two
+  agreed: TypeScript and Java started at 100 ms, Go capped at 30000 ms. They now write
+  none, and the compiler gives the observer the policy the runtime runs when it is given
+  none: 3 attempts, exponential, from 1000 ms up to 60000 ms. Rebuild the schema to apply
+  it; an observer that calls the SDK's retry setter keeps what it sets. The constants that
+  stated the old defaults are removed: `DEFAULT_RETRY_CONFIG` (TypeScript),
+  `DefaultRetryConfig()` (Go) and `RetryConfig.defaults()` (Java). Go's
+  `ObserverDefinition.Retry` is a `*RetryConfig`, nil when none is set, and Java's
+  `ObserverInfo.retry` is null then.
 - **A discovery document that names another issuer refuses the boot (#2135).** The
   `[auth]` PKCE client and the social and generic OIDC providers fetch
   `{discovery_url}/.well-known/openid-configuration`; the `issuer` the document names must
@@ -625,6 +635,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **An authored observer may leave out `retry`, or any of its fields (#2145).** A field
+  left out takes the policy an observer created through the admin API gets: 3 for
+  `max_attempts`, `exponential` for `backoff_strategy`, 1000 for `initial_delay_ms`, 60000
+  for `max_delay_ms`. The compile refused an observer without `retry`; the compiled schema
+  still carries the whole policy. The checks on a written policy see the fields filled in,
+  so a `max_delay_ms` below the default `initial_delay_ms` is refused.
 - **A saga time past year 9999 is unreadable (#2026).** A saga's times hold years -9999 to
   9999, where PostgreSQL's `timestamptz` reaches further. A load of a saga or step whose
   stored time lies past that range returns `SagaStoreError::CorruptStoredValue`; it was

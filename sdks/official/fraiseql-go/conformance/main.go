@@ -348,6 +348,14 @@ func authorObservers() error {
 		Register(); err != nil {
 		return err
 	}
+	// No Retry(): the observer runs on the server's own policy.
+	if err := fraiseql.NewObserver("orderCreatedDefaultRetry").
+		Entity("Order").
+		Event("INSERT").
+		Action(fraiseql.EmailAction("ops@example.com", "Order created", "Order {{ id }} was created")).
+		Register(); err != nil {
+		return err
+	}
 	return fraiseql.NewObserver("orderDeletedEmail").
 		Entity("Order").
 		Event("DELETE").

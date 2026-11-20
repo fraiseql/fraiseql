@@ -524,8 +524,8 @@ describe("TypeScript ↔ Python Feature Parity", () => {
 
       const schema = SchemaRegistry.getSchema();
       const observer = schema.observers![0];
-      expect(observer.retry.max_attempts).toBe(5);
-      expect(observer.retry.backoff_strategy).toBe("exponential");
+      expect(observer.retry?.max_attempts).toBe(5);
+      expect(observer.retry?.backoff_strategy).toBe("exponential");
     });
   });
 

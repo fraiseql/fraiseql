@@ -420,13 +420,15 @@ impl SchemaValidator {
                 // Each action is checked where the observer is compiled, against the type
                 // the runtime reads it through (`converter::observers`).
 
-                // Validate retry config
+                // Validate the retry policy the runtime will run: a field left out is the
+                // runtime's default, which an authored field is checked against too.
+                let retry = observer.retry.resolved();
                 let valid_backoff_strategies = ["exponential", "linear", "fixed"];
-                if !valid_backoff_strategies.contains(&observer.retry.backoff_strategy.as_str()) {
+                if !valid_backoff_strategies.contains(&retry.backoff_strategy.as_str()) {
                     report.errors.push(ValidationError {
                         message:    format!(
                             "Observer '{}' has invalid backoff_strategy '{}'",
-                            observer.name, observer.retry.backoff_strategy
+                            observer.name, retry.backoff_strategy
                         ),
                         path:       format!("observers[{idx}].retry.backoff_strategy"),
                         severity:   ErrorSeverity::Error,
@@ -436,7 +438,7 @@ impl SchemaValidator {
                     });
                 }
 
-                if observer.retry.max_attempts == 0 {
+                if retry.max_attempts == 0 {
                     report.errors.push(ValidationError {
                         message:    format!(
                             "Observer '{}' has max_attempts=0, actions will never execute",
@@ -448,7 +450,7 @@ impl SchemaValidator {
                     });
                 }
 
-                if observer.retry.initial_delay_ms == 0 {
+                if retry.initial_delay_ms == 0 {
                     report.errors.push(ValidationError {
                         message:    format!(
                             "Observer '{}' has initial_delay_ms=0, retries will be immediate",
@@ -460,7 +462,7 @@ impl SchemaValidator {
                     });
                 }
 
-                if observer.retry.max_delay_ms < observer.retry.initial_delay_ms {
+                if retry.max_delay_ms < retry.initial_delay_ms {
                     report.errors.push(ValidationError {
                         message:    format!(
                             "Observer '{}' has max_delay_ms < initial_delay_ms",

@@ -175,10 +175,13 @@ AUTHORED_FUNCTIONS = ("notify_approved",)
 FUNCTION_BACKED_QUERY = "quotePreview"
 
 # The observers the canonical fixture declares, one per action kind, each on `Order`
-# with an explicit `retry`. The retry an SDK writes when the author sets none differs
-# between SDKs (#2145), so no observer here leaves it unset: a default would make every
-# action construct fail for a reason that is not the action's.
+# with an explicit `retry`, so an action construct fails only for its action.
 AUTHORED_OBSERVERS = ("orderPlacedWebhook", "orderShippedSlack", "orderDeletedEmail")
+
+# The one observer the fixture authors with no `retry`. The compiler gives it the policy
+# the observer runtime runs when it is given none; an SDK that writes a default of its own
+# instead compiles to that, and `observer_retry_default` sees the difference (#2145).
+DEFAULT_RETRY_OBSERVER = "orderCreatedDefaultRetry"
 
 # The webhook keys `observer_webhook_headers` observes, and `observer_webhook` does not:
 # split so an SDK that adds or drops a header fails the header construct alone, not the
@@ -241,6 +244,7 @@ CONSTRUCTS = (
     "observer_slack",
     "observer_email",
     "observer_condition",
+    "observer_retry_default",
 )
 
 
@@ -899,6 +903,11 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         for name in AUTHORED_OBSERVERS
         if name in observers and observers[name].get("condition")
     }
+
+    default_retry = observers.get(DEFAULT_RETRY_OBSERVER)
+    observations["observer_retry_default"] = (
+        {DEFAULT_RETRY_OBSERVER: default_retry.get("retry")} if default_retry else {}
+    )
 
     missing = set(CONSTRUCTS) - set(observations)
     if missing:

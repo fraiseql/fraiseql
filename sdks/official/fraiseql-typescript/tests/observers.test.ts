@@ -3,14 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import {
-  Observer,
-  webhook,
-  slack,
-  email,
-  DEFAULT_RETRY_CONFIG,
-  SchemaRegistry,
-} from "../src/index";
+import { Observer, webhook, slack, email, SchemaRegistry } from "../src/index";
 import type { RetryConfig } from "../src/index";
 
 beforeEach(() => {
@@ -82,13 +75,15 @@ describe("Observer decorator", () => {
     const schema = SchemaRegistry.getSchema();
     const observer = schema.observers![0];
 
-    expect(observer.retry.max_attempts).toBe(5);
-    expect(observer.retry.backoff_strategy).toBe("linear");
-    expect(observer.retry.initial_delay_ms).toBe(200);
-    expect(observer.retry.max_delay_ms).toBe(30000);
+    expect(observer.retry?.max_attempts).toBe(5);
+    expect(observer.retry?.backoff_strategy).toBe("linear");
+    expect(observer.retry?.initial_delay_ms).toBe(200);
+    expect(observer.retry?.max_delay_ms).toBe(30000);
   });
 
-  it("should use default retry config when not provided", () => {
+  // No retry is authored: the compiler gives the observer the server's own policy, so a
+  // default written here could only disagree with it.
+  it("should author no retry when none is given", () => {
     class Observers {
       @Observer({
         entity: "Order",
@@ -102,8 +97,7 @@ describe("Observer decorator", () => {
     const schema = SchemaRegistry.getSchema();
     const observer = schema.observers![0];
 
-    expect(observer.retry.max_attempts).toBe(DEFAULT_RETRY_CONFIG.max_attempts);
-    expect(observer.retry.backoff_strategy).toBe(DEFAULT_RETRY_CONFIG.backoff_strategy);
+    expect("retry" in observer).toBe(false);
   });
 
   it("should normalize event type to uppercase", () => {

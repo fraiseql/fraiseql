@@ -116,12 +116,15 @@ public class SchemaFormatter {
                 actions.add(mapper.valueToTree(action));
             }
             node.set("actions", actions);
-            ObjectNode retry = mapper.createObjectNode();
-            retry.put("max_attempts", observer.retry.getMaxAttempts());
-            retry.put("backoff_strategy", observer.retry.getBackoffStrategy());
-            retry.put("initial_delay_ms", observer.retry.getInitialDelayMs());
-            retry.put("max_delay_ms", observer.retry.getMaxDelayMs());
-            node.set("retry", retry);
+            // No retry authored: the compiler applies the server's own policy.
+            if (observer.retry != null) {
+                ObjectNode retry = mapper.createObjectNode();
+                retry.put("max_attempts", observer.retry.getMaxAttempts());
+                retry.put("backoff_strategy", observer.retry.getBackoffStrategy());
+                retry.put("initial_delay_ms", observer.retry.getInitialDelayMs());
+                retry.put("max_delay_ms", observer.retry.getMaxDelayMs());
+                node.set("retry", retry);
+            }
             array.add(node);
         }
         return array;

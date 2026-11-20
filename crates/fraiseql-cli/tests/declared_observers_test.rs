@@ -211,6 +211,87 @@ fn a_retry_key_the_runtime_does_not_read_is_refused_naming_it() {
     assert!(refusal.contains("quadratic"), "names the value: {refusal}");
 }
 
+/// The compiled retry of `order_created` declared with `retry` (`None`: no `retry` key).
+fn compiled_retry(retry: Option<Value>) -> (u32, String, u32, u32) {
+    let mut observers = observing_with(&json!({"type": "webhook", "url": "https://example.test"}));
+    match retry {
+        Some(retry) => observers[0]["retry"] = retry,
+        None => {
+            observers[0].as_object_mut().unwrap().remove("retry");
+        },
+    }
+    let compiled = compile(schema_declaring(&observers)).unwrap();
+    let retry = &compiled.find_observer("order_created").unwrap().retry;
+    (
+        retry.max_attempts,
+        retry.backoff_strategy.clone(),
+        retry.initial_delay_ms,
+        retry.max_delay_ms,
+    )
+}
+
+/// The policy the observer runtime runs when it is given none, read from its own crate.
+fn runtime_policy() -> (u32, String, u32, u32) {
+    (
+        u32::from(fraiseql_observers::config::DEFAULT_RETRY_MAX_ATTEMPTS),
+        fraiseql_observers::BackoffStrategy::default().as_str().to_string(),
+        fraiseql_observers::config::DEFAULT_RETRY_INITIAL_DELAY_MS,
+        fraiseql_observers::config::DEFAULT_RETRY_MAX_DELAY_MS,
+    )
+}
+
+/// An observer authored without `retry` compiles to the policy the runtime runs when it
+/// is given none, the one an observer created through the admin API without one gets.
+#[test]
+fn an_observer_without_retry_compiles_to_the_runtime_policy() {
+    assert_eq!(compiled_retry(None), runtime_policy());
+}
+
+/// The same policy as literals, so a change to the runtime's defaults shows in review
+/// here, not only as a moved constant.
+#[test]
+fn the_runtime_policy_is_three_exponential_attempts_from_one_second_to_one_minute() {
+    assert_eq!(compiled_retry(None), (3, "exponential".to_string(), 1000, 60000));
+}
+
+/// A field left out of `retry` takes the runtime's value; the fields written are kept.
+#[test]
+fn a_retry_that_leaves_fields_out_takes_them_from_the_runtime_policy() {
+    let (_, backoff, initial, max) = runtime_policy();
+    assert_eq!(
+        compiled_retry(Some(json!({"max_attempts": 7, "backoff_strategy": "linear"}))),
+        (7, "linear".to_string(), initial, max)
+    );
+    assert_eq!(compiled_retry(Some(json!({"initial_delay_ms": 250}))), (3, backoff, 250, max));
+}
+
+/// The compiled schema always carries the whole policy: the runtime never reads a block
+/// with a field missing, whatever the author left out.
+#[test]
+fn the_compiled_retry_carries_every_field() {
+    let mut observers = observing_with(&json!({"type": "webhook", "url": "https://example.test"}));
+    observers[0].as_object_mut().unwrap().remove("retry");
+    let compiled = compile(schema_declaring(&observers)).unwrap();
+
+    let document = serde_json::to_value(&compiled).unwrap();
+    let observer = document["observers"]
+        .as_array()
+        .and_then(|observers| observers.iter().find(|o| o["name"] == "order_created"))
+        .expect("the observer is in the compiled document");
+    let mut keys: Vec<&str> =
+        observer["retry"].as_object().unwrap().keys().map(String::as_str).collect();
+    keys.sort_unstable();
+    assert_eq!(
+        keys,
+        [
+            "backoff_strategy",
+            "initial_delay_ms",
+            "max_attempts",
+            "max_delay_ms"
+        ]
+    );
+}
+
 #[test]
 fn observers_declared_while_the_runtime_is_not_enabled_are_refused() {
     let mut schema = schema_declaring(&observing_with(

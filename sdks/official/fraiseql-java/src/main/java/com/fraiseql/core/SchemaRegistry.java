@@ -1273,6 +1273,7 @@ public class SchemaRegistry {
         public final String entity;
         public final String event;
         public final String condition;
+        /** The authored retry, or null when the author set none. */
         public final RetryConfig retry;
         public final List<Map<String, Object>> actions;
 

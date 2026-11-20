@@ -28,16 +28,6 @@ import { SchemaRegistry, ObserverAction, ObserverRetryConfig } from "./registry"
 export type RetryConfig = ObserverRetryConfig;
 
 /**
- * Default retry configuration used when no retry is specified.
- */
-export const DEFAULT_RETRY_CONFIG: RetryConfig = {
-  max_attempts: 3,
-  backoff_strategy: "exponential",
-  initial_delay_ms: 100,
-  max_delay_ms: 60000,
-};
-
-/**
  * Configuration for the @Observer decorator.
  */
 interface ObserverConfig {

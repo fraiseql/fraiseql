@@ -24,7 +24,8 @@ public final class ObserverBuilder {
     private String event;
     private String condition;
     private final List<Map<String, Object>> actions = new ArrayList<>();
-    private RetryConfig retry = RetryConfig.defaults();
+    /** Null until {@link #retry} is called: the observer then authors no retry. */
+    private RetryConfig retry;
 
     private static final SchemaRegistry registry = SchemaRegistry.getInstance();
 
@@ -83,7 +84,8 @@ public final class ObserverBuilder {
     }
 
     /**
-     * Override the default retry configuration.
+     * Set the retry configuration. Without it the observer authors no retry, and the
+     * compiler gives it the policy the server's observer runtime runs when it is given none.
      *
      * @param retry retry configuration
      * @return this builder

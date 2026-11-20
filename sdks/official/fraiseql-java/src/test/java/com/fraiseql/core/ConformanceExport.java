@@ -242,6 +242,14 @@ public class ConformanceExport {
                 "ops@example.com", "Order deleted", "Order {{ id }} was deleted"))
             .retry(RetryConfig.fixed(2, 500))
             .register();
+
+        // No retry: the observer runs on the server's own policy.
+        new ObserverBuilder("orderCreatedDefaultRetry")
+            .entity("Order")
+            .event("INSERT")
+            .addAction(EmailAction.create(
+                "ops@example.com", "Order created", "Order {{ id }} was created"))
+            .register();
     }
 
     private static Map<String, String> enumValues() {

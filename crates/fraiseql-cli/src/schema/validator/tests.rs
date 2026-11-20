@@ -231,10 +231,10 @@ fn test_valid_observer() {
             })],
             condition: None,
             retry:     IntermediateRetryConfig {
-                max_attempts:     3,
-                backoff_strategy: "exponential".to_string(),
-                initial_delay_ms: 100,
-                max_delay_ms:     60000,
+                max_attempts:     Some(3),
+                backoff_strategy: Some("exponential".to_string()),
+                initial_delay_ms: Some(100),
+                max_delay_ms:     Some(60000),
             },
         }]),
         ..Default::default()
@@ -259,10 +259,10 @@ fn test_observer_with_unknown_entity() {
             actions:   vec![json!({"type": "webhook", "url": "https://example.com"})],
             condition: None,
             retry:     IntermediateRetryConfig {
-                max_attempts:     3,
-                backoff_strategy: "exponential".to_string(),
-                initial_delay_ms: 100,
-                max_delay_ms:     60000,
+                max_attempts:     Some(3),
+                backoff_strategy: Some("exponential".to_string()),
+                initial_delay_ms: Some(100),
+                max_delay_ms:     Some(60000),
             },
         }]),
         ..Default::default()
@@ -304,10 +304,10 @@ fn test_observer_with_invalid_event() {
             actions:   vec![json!({"type": "webhook", "url": "https://example.com"})],
             condition: None,
             retry:     IntermediateRetryConfig {
-                max_attempts:     3,
-                backoff_strategy: "exponential".to_string(),
-                initial_delay_ms: 100,
-                max_delay_ms:     60000,
+                max_attempts:     Some(3),
+                backoff_strategy: Some("exponential".to_string()),
+                initial_delay_ms: Some(100),
+                max_delay_ms:     Some(60000),
             },
         }]),
         ..Default::default()
@@ -349,10 +349,10 @@ fn test_observer_with_invalid_retry_config() {
             actions:   vec![json!({"type": "webhook", "url": "https://example.com"})],
             condition: None,
             retry:     IntermediateRetryConfig {
-                max_attempts:     3,
-                backoff_strategy: "invalid_strategy".to_string(),
-                initial_delay_ms: 100,
-                max_delay_ms:     60000,
+                max_attempts:     Some(3),
+                backoff_strategy: Some("invalid_strategy".to_string()),
+                initial_delay_ms: Some(100),
+                max_delay_ms:     Some(60000),
             },
         }]),
         ..Default::default()
@@ -361,6 +361,75 @@ fn test_observer_with_invalid_retry_config() {
     let report = SchemaValidator::validate(&schema).unwrap();
     assert!(!report.is_valid());
     assert!(report.errors.iter().any(|e| e.message.contains("invalid backoff_strategy")));
+}
+
+/// An `Order` schema declaring one observer with `retry`.
+fn schema_with_observer_retry(
+    retry: crate::schema::intermediate::IntermediateRetryConfig,
+) -> IntermediateSchema {
+    use crate::schema::intermediate::IntermediateObserver;
+
+    IntermediateSchema {
+        types: vec![IntermediateType {
+            subscription_policy:    None,
+            name:                   "Order".to_string(),
+            sql_source:             None,
+            fields:                 vec![],
+            description:            None,
+            implements:             vec![],
+            requires_role:          None,
+            is_error:               false,
+            is_input:               false,
+            relay:                  false,
+            embedded:               false,
+            subscribable_tables:    None,
+            subscribable_pre_image: false,
+            inject_params:          indexmap::IndexMap::new(),
+            relationships:          Vec::new(),
+        }],
+        observers: Some(vec![IntermediateObserver {
+            name: "onOrderCreated".to_string(),
+            entity: "Order".to_string(),
+            event: "INSERT".to_string(),
+            actions: vec![serde_json::json!({"type": "webhook", "url": "https://example.com"})],
+            condition: None,
+            retry,
+        }]),
+        ..Default::default()
+    }
+}
+
+/// A retry left out entirely is the runtime's policy, which the validator accepts.
+#[test]
+fn test_observer_without_retry_is_valid() {
+    use crate::schema::intermediate::IntermediateRetryConfig;
+
+    let report =
+        SchemaValidator::validate(&schema_with_observer_retry(IntermediateRetryConfig::default()))
+            .unwrap();
+    assert!(report.is_valid(), "{:?}", report.errors);
+}
+
+/// The validator checks the policy the runtime will run: a `max_delay_ms` written below the
+/// default `initial_delay_ms` the author left out is refused, as it would be written out.
+#[test]
+fn test_observer_retry_is_checked_with_the_fields_left_out_filled_in() {
+    use crate::schema::intermediate::IntermediateRetryConfig;
+
+    let retry = IntermediateRetryConfig {
+        max_delay_ms: Some(500),
+        ..Default::default()
+    };
+    let report = SchemaValidator::validate(&schema_with_observer_retry(retry)).unwrap();
+    assert!(!report.is_valid());
+    assert!(
+        report
+            .errors
+            .iter()
+            .any(|e| e.message.contains("max_delay_ms < initial_delay_ms")),
+        "{:?}",
+        report.errors
+    );
 }
 
 #[test]

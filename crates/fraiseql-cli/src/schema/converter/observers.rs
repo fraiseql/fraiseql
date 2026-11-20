@@ -8,7 +8,7 @@
 //! sent.
 
 use anyhow::{Context, Result, bail};
-use fraiseql_core::schema::{CompiledSchema, ConditionRead, ObserverDefinition, RetryConfig};
+use fraiseql_core::schema::{CompiledSchema, ConditionRead, ObserverDefinition};
 use fraiseql_observers::{
     ActionConfig, ConditionParser, FieldRead, body_template_placeholders, is_secret_header_name,
 };
@@ -57,24 +57,20 @@ fn compile_one(
     for message in condition_warnings.iter().chain(&captured_row_warnings(observer, schema)) {
         warn!(observer = name, "{message}");
     }
-    let retry = serde_json::to_value(&observer.retry)
+    let retry = observer.retry.resolved();
+    let document = serde_json::to_value(&retry)
         .with_context(|| format!("observer `{name}`: `retry` does not serialize"))?;
-    serde_json::from_value::<fraiseql_observers::RetryConfig>(retry).map_err(|e| {
+    serde_json::from_value::<fraiseql_observers::RetryConfig>(document).map_err(|e| {
         anyhow::anyhow!("observer `{name}`: `retry` is not a policy the runtime reads: {e}")
     })?;
 
     Ok(ObserverDefinition {
-        name:      observer.name.clone(),
-        entity:    observer.entity.clone(),
-        event:     observer.event.clone(),
+        name: observer.name.clone(),
+        entity: observer.entity.clone(),
+        event: observer.event.clone(),
         condition: observer.condition.clone(),
-        actions:   observer.actions.clone(),
-        retry:     RetryConfig {
-            max_attempts:     observer.retry.max_attempts,
-            backoff_strategy: observer.retry.backoff_strategy.clone(),
-            initial_delay_ms: observer.retry.initial_delay_ms,
-            max_delay_ms:     observer.retry.max_delay_ms,
-        },
+        actions: observer.actions.clone(),
+        retry,
     })
 }
 

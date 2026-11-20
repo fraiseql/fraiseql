@@ -42,32 +42,18 @@ type RetryConfig struct {
 	MaxDelayMs      int    `json:"max_delay_ms"`
 }
 
-// DefaultRetryConfig is what an observer that does not call Retry() is compiled with.
-//
-// `IntermediateObserver.retry` is a required field with no serde default, so omitting the
-// block failed the compile with `missing field `retry“ — and the builder omitted it
-// whenever the author had not set one, which is the common case. Every shipped Go
-// observer example was uncompilable for this reason alone.
-func DefaultRetryConfig() RetryConfig {
-	return RetryConfig{
-		MaxAttempts:     3,
-		BackoffStrategy: "exponential",
-		InitialDelayMs:  1000,
-		MaxDelayMs:      30000,
-	}
-}
-
 // ObserverDefinition represents a database event observer.
 //
-// Retry is a value, not a pointer, and carries no `omitempty`: the compiler requires the
-// block, so an absent one is a compile error rather than a default.
+// Retry is nil when the author calls no Retry(): the block is then left out, and the
+// compiler gives the observer the policy the server's observer runtime runs when it is
+// given none.
 type ObserverDefinition struct {
 	Name      string           `json:"name"`
 	Entity    string           `json:"entity"`
 	Event     string           `json:"event"`
 	Condition string           `json:"condition,omitempty"`
 	Actions   []ObserverAction `json:"actions"`
-	Retry     RetryConfig      `json:"retry"`
+	Retry     *RetryConfig     `json:"retry,omitempty"`
 }
 
 // ObserverBuilder provides a fluent interface for building observer definitions.
@@ -137,17 +123,13 @@ func (b *ObserverBuilder) Register() error {
 	if _, exists := reg.observers[b.name]; exists {
 		return fmt.Errorf("observer %q is already registered; each name must be unique within a schema", b.name)
 	}
-	retry := DefaultRetryConfig()
-	if b.retry != nil {
-		retry = *b.retry
-	}
 	reg.observers[b.name] = ObserverDefinition{
 		Name:      b.name,
 		Entity:    b.entity,
 		Event:     b.event,
 		Condition: b.condition,
 		Actions:   b.actions,
-		Retry:     retry,
+		Retry:     b.retry,
 	}
 	return nil
 }

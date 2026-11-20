@@ -24,6 +24,7 @@
   "mutations": {},
   "observer_condition": {},
   "observer_email": {},
+  "observer_retry_default": {},
   "observer_slack": {},
   "observer_webhook": {},
   "observer_webhook_headers": {},

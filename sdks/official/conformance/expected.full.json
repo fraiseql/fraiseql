@@ -364,6 +364,14 @@
       }
     }
   },
+  "observer_retry_default": {
+    "orderCreatedDefaultRetry": {
+      "backoff_strategy": "exponential",
+      "initial_delay_ms": 1000,
+      "max_attempts": 3,
+      "max_delay_ms": 60000
+    }
+  },
   "observer_slack": {
     "orderShippedSlack": {
       "actions": [

@@ -2,6 +2,7 @@
 //! `IntermediateSubscriptionFilter`, `IntermediateFilterCondition`,
 //! `IntermediateObserver`, `IntermediateRetryConfig`.
 
+use fraiseql_core::schema::RetryConfig;
 use serde::{Deserialize, Serialize};
 
 use super::{operations::IntermediateArgument, types::IntermediateDeprecation};
@@ -144,7 +145,10 @@ pub struct IntermediateObserver {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub condition: Option<String>,
 
-    /// Retry configuration for action execution
+    /// Retry configuration for action execution. Left out, or with fields left out, it
+    /// takes each missing field from the policy the observer runtime runs when it is given
+    /// none ([`IntermediateRetryConfig::resolved`]).
+    #[serde(default)]
     pub retry: IntermediateRetryConfig,
 }
 
@@ -166,18 +170,47 @@ pub type IntermediateObserverAction = serde_json::Value;
 ///   "max_delay_ms": 60000
 /// }
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct IntermediateRetryConfig {
     /// Maximum number of retry attempts
-    pub max_attempts: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_attempts: Option<u32>,
 
     /// Backoff strategy: exponential, linear, or fixed
-    pub backoff_strategy: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backoff_strategy: Option<String>,
 
     /// Initial delay in milliseconds
-    pub initial_delay_ms: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub initial_delay_ms: Option<u32>,
 
     /// Maximum delay in milliseconds
-    pub max_delay_ms: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_delay_ms: Option<u32>,
+}
+
+impl IntermediateRetryConfig {
+    /// The policy the runtime runs: each field as written, and each field left out as the
+    /// observer runtime's own default ([`fraiseql_observers::config::DEFAULT_RETRY_MAX_ATTEMPTS`]
+    /// and its siblings), the rule an observer created through the admin API follows. The
+    /// compiled schema carries the result, so the runtime never reads a field missing.
+    #[must_use]
+    pub fn resolved(&self) -> RetryConfig {
+        use fraiseql_observers::config::{
+            BackoffStrategy, DEFAULT_RETRY_INITIAL_DELAY_MS, DEFAULT_RETRY_MAX_ATTEMPTS,
+            DEFAULT_RETRY_MAX_DELAY_MS,
+        };
+        RetryConfig {
+            max_attempts:     self
+                .max_attempts
+                .unwrap_or_else(|| u32::from(DEFAULT_RETRY_MAX_ATTEMPTS)),
+            backoff_strategy: self
+                .backoff_strategy
+                .clone()
+                .unwrap_or_else(|| BackoffStrategy::default().as_str().to_string()),
+            initial_delay_ms: self.initial_delay_ms.unwrap_or(DEFAULT_RETRY_INITIAL_DELAY_MS),
+            max_delay_ms:     self.max_delay_ms.unwrap_or(DEFAULT_RETRY_MAX_DELAY_MS),
+        }
+    }
 }

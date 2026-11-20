@@ -73,6 +73,14 @@ installs its observers.
 }
 ```
 
+**Retry.** `retry` may be left out, and so may any of its fields. A field left out takes
+the policy the runtime runs when it is given none: 3 for `max_attempts`, `exponential` for
+`backoff_strategy`, 1000 for `initial_delay_ms`, 60000 for `max_delay_ms`. It is the rule
+an observer created through the admin API follows (see
+[Observer Management](#observer-management-changelog-and-checkpoints)). The compiler fills
+the fields in, so `schema.compiled.json` carries the whole policy. An SDK writes `retry`
+only when the author sets one.
+
 **What the compile checks.** A declaration is refused, naming the observer and the key,
 when the runtime could not run it as written:
 
@@ -99,7 +107,9 @@ when the runtime could not run it as written:
   (`{{ customer.name }}`) compiles with a warning when a table of the type is captured
   as its row: see
   [External-write capture](../architecture/external-write-capture.md#a-table-that-keeps-its-entity-document).
-- The `condition` does not parse, or `retry` is not a policy the runtime reads.
+- The `condition` does not parse, or `retry` is not a policy the runtime reads. The
+  policy is checked with the fields left out filled in, so a `max_delay_ms` below the
+  default `initial_delay_ms` is refused as it would be written out.
 - The `condition` reads a key no event of the entity holds. A condition reads one
   top-level key of the event, by the key the stored document holds it under:
   `review_status == 'approved'` for a field published as `reviewStatus`. A dotted key in

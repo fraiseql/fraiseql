@@ -770,6 +770,19 @@
         "initial_delay_ms": 500,
         "max_delay_ms": 500
       }
+    },
+    {
+      "name": "orderCreatedDefaultRetry",
+      "entity": "Order",
+      "event": "INSERT",
+      "actions": [
+        {
+          "type": "email",
+          "to": "ops@example.com",
+          "subject": "Order created",
+          "body_template": "Order {{ id }} was created"
+        }
+      ]
     }
   ]
 }

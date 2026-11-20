@@ -464,6 +464,14 @@ function authorFull(): void {
       },
     })
     orderDeletedEmail(): void {}
+
+    // No retry: the observer runs on the server's own policy.
+    @Observer({
+      entity: "Order",
+      event: "INSERT",
+      actions: [email("ops@example.com", "Order created", "Order {{ id }} was created")],
+    })
+    orderCreatedDefaultRetry(): void {}
   }
   void ConformanceObservers;
 }

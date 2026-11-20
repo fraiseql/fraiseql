@@ -203,7 +203,7 @@ export type {
 export { validateCustomScalar, getAllCustomScalars, ScalarValidationError } from "./validators";
 
 // Export observer authoring API
-export { Observer, webhook, slack, email, DEFAULT_RETRY_CONFIG } from "./observers";
+export { Observer, webhook, slack, email } from "./observers";
 export type { RetryConfig } from "./observers";
 export { FraiseFunction } from "./functions";
 export { Source } from "./sources";

@@ -77,8 +77,8 @@ public class ObserverTest {
 
     @Test
     @Order(4)
-    @DisplayName("Observer with default retry")
-    void testObserverWithDefaultRetry() {
+    @DisplayName("Observer without retry authors none")
+    void testObserverWithoutRetryAuthorsNone() {
         new ObserverBuilder("onOrder")
             .entity("Order")
             .event("INSERT")
@@ -87,10 +87,7 @@ public class ObserverTest {
 
         var observer = registry.getAllObservers().get("onOrder");
         assertNotNull(observer);
-        assertEquals(3, observer.retry.getMaxAttempts());
-        assertEquals("exponential", observer.retry.getBackoffStrategy());
-        assertEquals(100, observer.retry.getInitialDelayMs());
-        assertEquals(60000, observer.retry.getMaxDelayMs());
+        assertNull(observer.retry);
     }
 
     @Test
@@ -234,6 +231,7 @@ public class ObserverTest {
             .entity("Order")
             .event("UPDATE")
             .addAction(SlackAction.create("#orders", "Updated"))
+            .retry(RetryConfig.linear(4, 250, 10_000))
             .register();
 
         var observers = registry.getAllObservers();
@@ -251,14 +249,16 @@ public class ObserverTest {
         assertEquals("INSERT", first.get("event").asText());
         assertFalse(first.has("condition"));
         assertEquals("https://example.com", first.get("actions").get(0).get("url").asText());
-        var retry = first.get("retry");
+        // No retry authored: the compiler gives it the server's own policy.
+        assertFalse(first.has("retry"));
+        var retry = exported.get(1).get("retry");
         assertEquals(
             Set.of("max_attempts", "backoff_strategy", "initial_delay_ms", "max_delay_ms"),
             Set.copyOf(iterable(retry.fieldNames())));
-        assertEquals(3, retry.get("max_attempts").asInt());
-        assertEquals("exponential", retry.get("backoff_strategy").asText());
-        assertEquals(100, retry.get("initial_delay_ms").asInt());
-        assertEquals(60000, retry.get("max_delay_ms").asInt());
+        assertEquals(4, retry.get("max_attempts").asInt());
+        assertEquals("linear", retry.get("backoff_strategy").asText());
+        assertEquals(250, retry.get("initial_delay_ms").asInt());
+        assertEquals(10_000, retry.get("max_delay_ms").asInt());
 
         var slack = exported.get(1).get("actions").get(0);
         assertEquals("Updated", slack.get("message_template").asText());

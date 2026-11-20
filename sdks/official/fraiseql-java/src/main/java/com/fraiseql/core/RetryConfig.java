@@ -18,13 +18,6 @@ public final class RetryConfig {
     }
 
     /**
-     * Default retry config: 3 attempts, exponential back-off starting at 100 ms, capped at 60 s.
-     */
-    public static RetryConfig defaults() {
-        return new RetryConfig(3, "exponential", 100, 60_000);
-    }
-
-    /**
      * Exponential back-off retry configuration.
      *
      * @param maxAttempts    maximum number of delivery attempts
