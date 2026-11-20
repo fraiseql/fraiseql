@@ -185,6 +185,11 @@ async fn setup() -> Option<(PostgresAdapter, AppState)> {
         .batch_execute(include_str!("../../fraiseql-cli/sql/helpers/mutation_response.sql"))
         .await
         .unwrap();
+    // Every mutation writes its change-log row there.
+    client
+        .batch_execute(&fraiseql_test_support::changelog::entity_change_log_provision_sql())
+        .await
+        .unwrap();
     exec(&admin, &format!("DROP SCHEMA IF EXISTS tenant_{TENANT} CASCADE")).await;
     exec(&admin, "DROP VIEW IF EXISTS public.v_p1550_probe").await;
     exec(&admin, "DROP TABLE IF EXISTS public.tb_p1550_probe").await;

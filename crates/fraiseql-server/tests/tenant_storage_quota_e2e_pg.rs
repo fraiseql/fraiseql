@@ -179,6 +179,11 @@ async fn setup() -> Option<(String, PostgresAdapter, AppState)> {
         .batch_execute(include_str!("../../fraiseql-cli/sql/helpers/mutation_response.sql"))
         .await
         .unwrap();
+    // Every mutation writes its change-log row there.
+    client
+        .batch_execute(&fraiseql_test_support::changelog::entity_change_log_provision_sql())
+        .await
+        .unwrap();
 
     let default_executor = Arc::new(Executor::new(schema("schema"), Arc::new(admin.clone())));
     let registry = Arc::new(TenantExecutorRegistry::new(Arc::new(arc_swap::ArcSwap::from(

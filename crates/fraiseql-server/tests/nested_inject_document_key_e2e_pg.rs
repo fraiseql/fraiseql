@@ -111,7 +111,11 @@ async fn provision(adapter: &PostgresAdapter) {
              = p_id); RETURN v; END $$"
         ),
     ];
-    for stmt in stmts {
+    // Every mutation writes its change-log row there.
+    for stmt in stmts
+        .into_iter()
+        .chain(fraiseql_test_support::changelog::entity_change_log_provision_statements())
+    {
         adapter.execute_raw_query(&stmt).await.unwrap_or_else(|e| panic!("{stmt}: {e}"));
     }
 }

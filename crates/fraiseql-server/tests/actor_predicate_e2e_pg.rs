@@ -77,7 +77,7 @@ fn database_url_or_skip(test: &str) -> Option<String> {
 // ── Fixture ──────────────────────────────────────────────────────────────────
 
 async fn provision(adapter: &PostgresAdapter) {
-    let stmts = vec![
+    let mut stmts = vec![
         "CREATE SCHEMA IF NOT EXISTS app".to_string(),
         "DO $$ BEGIN CREATE TYPE app.mutation_error_class AS ENUM ('validation','conflict',\
          'not_found','unauthorized','forbidden','internal','transaction_failed','timeout',\
@@ -116,6 +116,8 @@ async fn provision(adapter: &PostgresAdapter) {
              RETURN v; END; $$"
         ),
     ];
+    // Every allowed mutation writes its change-log row there.
+    stmts.extend(fraiseql_test_support::changelog::entity_change_log_provision_statements());
     for stmt in stmts {
         let _: Vec<std::collections::HashMap<String, Value>> =
             adapter.execute_raw_query(&stmt).await.expect("fixture setup");

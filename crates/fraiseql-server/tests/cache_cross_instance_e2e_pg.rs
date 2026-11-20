@@ -54,6 +54,11 @@ async fn provision(url: &str) {
         .batch_execute(include_str!("../../fraiseql-cli/sql/helpers/mutation_response.sql"))
         .await
         .unwrap();
+    // Every mutation writes its change-log row there.
+    client
+        .batch_execute(&fraiseql_test_support::changelog::entity_change_log_provision_sql())
+        .await
+        .unwrap();
     client
         .batch_execute(&format!(
             "DROP SCHEMA IF EXISTS {SCHEMA} CASCADE;
