@@ -193,12 +193,21 @@ async fn rls_denies_reads_to_a_role_without_the_tenant_guc() {
     .await
     .unwrap();
 
-    let store = PostgresSourceCursorStore::new(admin.clone());
-    store.init().await.unwrap();
-    sqlx::query(&format!("GRANT SELECT ON _fraiseql_source_cursor TO {RLS_ROLE}"))
+    // The table this init creates, not one an earlier run left: row-level security and
+    // its policies must be what the migration sets on it, whatever else the database holds.
+    sqlx::raw_sql("DROP TABLE IF EXISTS core._fraiseql_source_cursor")
         .execute(&admin)
         .await
         .unwrap();
+    let store = PostgresSourceCursorStore::new(admin.clone());
+    store.init().await.unwrap();
+    sqlx::raw_sql(&format!(
+        "GRANT USAGE ON SCHEMA core TO {RLS_ROLE}; \
+         GRANT SELECT ON core._fraiseql_source_cursor TO {RLS_ROLE}"
+    ))
+    .execute(&admin)
+    .await
+    .unwrap();
 
     // Seed a (global, tenant_id NULL) cursor as the superuser.
     let source = unique_source();
@@ -208,7 +217,7 @@ async fn rls_denies_reads_to_a_role_without_the_tenant_guc() {
     // The NOBYPASSRLS reader, with no tenant GUC, sees zero rows (deny-by-default).
     let reader = role_pool(svc.url(), RLS_ROLE).await;
     let (denied,): (i64,) =
-        sqlx::query_as("SELECT count(*) FROM _fraiseql_source_cursor WHERE source_name = $1")
+        sqlx::query_as("SELECT count(*) FROM core._fraiseql_source_cursor WHERE source_name = $1")
             .bind(&source)
             .fetch_one(&reader)
             .await
@@ -218,7 +227,7 @@ async fn rls_denies_reads_to_a_role_without_the_tenant_guc() {
     // The superuser (bypasses RLS) still sees the row — proving the deny is RLS,
     // not a missing row.
     let (seen,): (i64,) =
-        sqlx::query_as("SELECT count(*) FROM _fraiseql_source_cursor WHERE source_name = $1")
+        sqlx::query_as("SELECT count(*) FROM core._fraiseql_source_cursor WHERE source_name = $1")
             .bind(&source)
             .fetch_one(&admin)
             .await
@@ -263,4 +272,69 @@ async fn two_runners_on_one_source_fire_once() {
     release_tx.send(()).unwrap();
     let a_outcome = a.await.unwrap().unwrap();
     assert_eq!(a_outcome, RunOutcome::Ran("a-ran"));
+}
+
+/// A schema that leads the search path ahead of `core`, created empty per test.
+const APP_FIRST: &str = "app_first_cursor_home";
+
+/// A pool on the same database whose every connection resolves names through
+/// `search_path`.
+async fn pool_with_search_path(url: &str, search_path: &str) -> PgPool {
+    let options = PgConnectOptions::from_str(url).unwrap().options([("search_path", search_path)]);
+    PgPoolOptions::new().max_connections(2).connect_with(options).await.unwrap()
+}
+
+/// A cursor the store advanced is the one it resumes from when the pool's search path
+/// starts with another schema and leaves `core` off: provisioning there must not create a
+/// second, empty table, and the store's reads and writes must reach `core`'s.
+#[tokio::test]
+async fn a_stored_cursor_is_resumed_when_the_search_path_starts_elsewhere() {
+    let Some((pool, svc)) = connect_pool().await else {
+        eprintln!(
+            "SKIP a_stored_cursor_is_resumed_when_the_search_path_starts_elsewhere: no postgres"
+        );
+        return;
+    };
+    sqlx::raw_sql(&format!(
+        "CREATE SCHEMA IF NOT EXISTS core; DROP SCHEMA IF EXISTS {APP_FIRST} CASCADE"
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+    let (resumed_source, new_source) = (unique_source(), unique_source());
+    let core_first = pool_with_search_path(svc.url(), "core").await;
+    let first_boot = PostgresSourceCursorStore::new(core_first.clone());
+    first_boot.init().await.unwrap();
+    let empty = first_boot.load(&resumed_source).await.unwrap();
+    assert!(first_boot.advance(&resumed_source, &empty, json!({"page": 7})).await.unwrap());
+
+    sqlx::raw_sql(&format!("CREATE SCHEMA {APP_FIRST}"))
+        .execute(&pool)
+        .await
+        .unwrap();
+    let app_first = pool_with_search_path(svc.url(), &format!("{APP_FIRST},public")).await;
+    let next_boot = PostgresSourceCursorStore::new(app_first);
+    next_boot.init().await.unwrap();
+    let resumed = next_boot.load(&resumed_source).await.unwrap();
+    let updated = next_boot.advance(&resumed_source, &resumed, json!({"page": 8})).await;
+    let inserted = next_boot
+        .advance(&new_source, &CursorSnapshot::empty(), json!({"page": 1}))
+        .await;
+    let (shadow,): (Option<String>,) =
+        sqlx::query_as(&format!("SELECT to_regclass('{APP_FIRST}._fraiseql_source_cursor')::text"))
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    sqlx::raw_sql(&format!("DROP SCHEMA IF EXISTS {APP_FIRST} CASCADE"))
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    assert_eq!(resumed.value, Some(json!({"page": 7})), "the stored cursor is resumed");
+    assert_eq!(shadow, None, "provisioning created a cursor table in {APP_FIRST}");
+    assert!(updated.unwrap(), "the resumed cursor advances");
+    assert!(inserted.unwrap(), "a new source's first cursor is written");
+    let in_core = PostgresSourceCursorStore::new(core_first);
+    assert_eq!(in_core.load(&resumed_source).await.unwrap().value, Some(json!({"page": 8})));
+    assert_eq!(in_core.load(&new_source).await.unwrap().value, Some(json!({"page": 1})));
 }

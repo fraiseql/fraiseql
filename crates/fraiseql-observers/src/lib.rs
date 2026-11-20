@@ -63,7 +63,6 @@ pub mod migrations;
 pub mod resilience;
 pub mod source;
 pub(crate) mod ssrf;
-pub mod storage;
 pub mod traits;
 pub mod transport;
 
@@ -132,7 +131,6 @@ pub use source::{
 };
 /// The `sqlx` this crate's public API is built against (#1198).
 pub use sqlx;
-pub use storage::{EventStorage, postgres::PostgresEventStorage};
 pub use traits::{
     ActionExecutor, ActionResult, ConditionEvaluator, DeadLetterQueue, DlqItem, EventSource,
     TemplateRenderer,

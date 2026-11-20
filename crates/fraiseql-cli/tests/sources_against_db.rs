@@ -18,7 +18,9 @@
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
 use fraiseql_cli::commands::sources::reader::{CursorRow, SourceCursorReader};
-use fraiseql_observers::migrations::source_cursor_sql;
+use fraiseql_observers::{
+    PostgresSourceCursorStore, SourceCursorStore, migrations::source_cursor_sql,
+};
 
 /// A source name unique to this test so leftover rows in the shared throwaway DB
 /// (e.g. from the server poller tests) never collide with the assertions.
@@ -43,7 +45,7 @@ async fn provision(url: &str) -> Option<tokio_postgres::Client> {
     client.batch_execute(source_cursor_sql()).await.unwrap();
     client
         .batch_execute(&format!(
-            "INSERT INTO _fraiseql_source_cursor (source_name, cursor_value, version, updated_at) \
+            "INSERT INTO core._fraiseql_source_cursor (source_name, cursor_value, version, updated_at) \
              VALUES ('{SEEDED}', '{{\"page\": 4}}'::jsonb, 4, now() - interval '30 seconds'), \
                     ('{SEEDED_NULL}', NULL, 2, now()) \
              ON CONFLICT (source_name) DO UPDATE \
@@ -103,4 +105,57 @@ async fn non_postgres_url_is_rejected() {
         .is_err(),
         "non-postgres URL rejected"
     );
+}
+
+/// The reader sees the rows the server wrote when the two connect with different search
+/// paths: the reader is connected through its own pool construction, with a URL whose
+/// `options` put another schema first.
+#[tokio::test]
+async fn the_reader_sees_the_servers_cursor_whatever_its_search_path() {
+    const READER_FIRST: &str = "reader_first_cursor_home";
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        return;
+    };
+    let Some(client) = provision(&url).await else {
+        return;
+    };
+    // A name of this run's own, so no row an earlier run left can stand in for it.
+    let source = format!(
+        "against-db-other-path-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    );
+    client
+        .batch_execute(&format!(
+            "DROP SCHEMA IF EXISTS {READER_FIRST} CASCADE; CREATE SCHEMA {READER_FIRST};"
+        ))
+        .await
+        .unwrap();
+    // Written as the server writes it: its store, on a pool with the database's default
+    // search path.
+    let server = PostgresSourceCursorStore::new(sqlx::PgPool::connect(&url).await.unwrap());
+    server.init().await.unwrap();
+    let empty = server.load(&source).await.unwrap();
+    assert!(server.advance(&source, &empty, serde_json::json!({"page": 9})).await.unwrap());
+    let separator = if url.contains('?') { '&' } else { '?' };
+    let reader_url = format!("{url}{separator}options=-c%20search_path%3D{READER_FIRST}");
+
+    let read = async {
+        let reader = SourceCursorReader::connect(
+            &reader_url,
+            &fraiseql_db::postgres::PostgresTlsConfig::default(),
+        )
+        .await?;
+        reader.load_cursors().await
+    }
+    .await;
+    client
+        .batch_execute(&format!("DROP SCHEMA IF EXISTS {READER_FIRST} CASCADE;"))
+        .await
+        .unwrap();
+
+    let rows = read.expect("the reader reads the cursor table");
+    assert_eq!(find(&rows, &source).value, Some(serde_json::json!({"page": 9})));
 }

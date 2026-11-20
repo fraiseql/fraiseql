@@ -1,0 +1,13 @@
+# A mailbox cursor an earlier release stored outside `core`, with `core`'s table empty: the
+# boot is refused, naming the statement that moves it, instead of polling every mailbox
+# from no cursor.
+capability = "inbound_email"
+
+[env]
+SUPPORT_IMAP_PASSWORD = "fixture"
+
+[[stimulus]]
+wait = { secs = 0 }
+
+[effect]
+refused = { message = "ALTER TABLE public._fraiseql_source_cursor SET SCHEMA core" }

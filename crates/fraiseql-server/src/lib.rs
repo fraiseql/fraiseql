@@ -296,6 +296,10 @@ pub mod identity;
 #[cfg(feature = "observers")]
 pub mod observers;
 
+// Tables an earlier release created outside `core`.
+#[cfg(any(feature = "observers", feature = "sources", feature = "inbound-email"))]
+pub(crate) mod stranded_tables;
+
 // Arrow Flight integration - optional
 #[cfg(feature = "arrow")]
 pub mod arrow;

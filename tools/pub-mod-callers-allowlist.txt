@@ -84,7 +84,6 @@ fraiseql_core::tenancy pending no plan names it; triage #1681
 fraiseql_core::validation::id_policy pending ID-format validation only the input processor called; triage #1681
 fraiseql_core::graphql::directive_evaluator::custom pending a pluggable directive registry nothing registers into; triage #1681
 fraiseql_error::config pending ConfigError, raised nowhere; triage #1681
-fraiseql_observers::storage pending historical event storage no reader queries; triage #1681
 fraiseql_server::logging pending no plan names it; triage #1681
 fraiseql_server::observers::config pending no plan names it; triage #1681
 fraiseql_observers::logging pending no plan names it; triage #1681

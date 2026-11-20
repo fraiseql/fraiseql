@@ -602,27 +602,7 @@ impl ObserverRepository {
     /// Returns `ServerError::ConfigError` naming the statements that move the stranded
     /// tables into `core`, or `ServerError::Database` if the catalog cannot be read.
     pub async fn refuse_stranded_legacy_tables(&self) -> Result<(), ServerError> {
-        let mut moves = Vec::new();
-        for (table, companion) in STRANDABLE_TABLES {
-            if self.has_rows("core", table).await? == Some(true) {
-                continue;
-            }
-            let schemas: Vec<(String,)> = sqlx::query_as(
-                "SELECT n.nspname::text FROM pg_class c \
-                 JOIN pg_namespace n ON n.oid = c.relnamespace \
-                 WHERE c.relname = $1 AND c.relkind IN ('r', 'p') AND n.nspname <> 'core' \
-                 ORDER BY 1",
-            )
-            .bind(table)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| ServerError::Database(e.to_string()))?;
-            for (schema,) in schemas {
-                if self.has_rows(&schema, table).await? == Some(true) {
-                    moves.push(move_into_core(&schema, table, companion));
-                }
-            }
-        }
+        let moves = crate::stranded_tables::stranded_moves(&self.pool, &STRANDABLE_TABLES).await?;
         if moves.is_empty() {
             return Ok(());
         }
@@ -633,33 +613,6 @@ impl ObserverRepository {
              then restart:\n{}",
             moves.join("\n")
         )))
-    }
-
-    /// Whether `schema.table` holds a row: `None` when it is absent or unreadable.
-    async fn has_rows(&self, schema: &str, table: &str) -> Result<Option<bool>, ServerError> {
-        let qualified = format!("{}.{}", quote_ident(schema), quote_ident(table));
-        let exists: (Option<String>,) = sqlx::query_as("SELECT to_regclass($1)::text")
-            .bind(&qualified)
-            .fetch_one(&self.pool)
-            .await
-            .map_err(|e| ServerError::Database(e.to_string()))?;
-        if exists.0.is_none() {
-            return Ok(None);
-        }
-        match sqlx::query_as::<_, (bool,)>(&format!("SELECT EXISTS (SELECT 1 FROM {qualified})"))
-            .fetch_one(&self.pool)
-            .await
-        {
-            Ok((populated,)) => Ok(Some(populated)),
-            Err(e) => {
-                tracing::warn!(
-                    table = %qualified,
-                    error = %e,
-                    "Cannot read a possible legacy observer table; not checking it"
-                );
-                Ok(None)
-            },
-        }
     }
 }
 
@@ -708,31 +661,13 @@ impl Reconciled {
 
 /// The observer tables an earlier release may have left outside `core`, each with
 /// the table that moves with it.
-const STRANDABLE_TABLES: [(&str, &str); 2] = [
-    ("tb_observer", "tb_observer_log"),
-    ("observer_checkpoints", "observer_checkpoints_history"),
+const STRANDABLE_TABLES: [crate::stranded_tables::Strandable; 2] = [
+    crate::stranded_tables::Strandable {
+        table:     "tb_observer",
+        companion: Some("tb_observer_log"),
+    },
+    crate::stranded_tables::Strandable {
+        table:     "observer_checkpoints",
+        companion: Some("observer_checkpoints_history"),
+    },
 ];
-
-/// The statements that replace the empty `core` tables boot created with the
-/// populated ones in `schema`.
-fn move_into_core(schema: &str, table: &str, companion: &str) -> String {
-    let schema = quote_ident(schema);
-    format!(
-        "  BEGIN;\n  \
-         DROP TABLE IF EXISTS core.{companion}, core.{table} CASCADE;\n  \
-         ALTER TABLE {schema}.{table} SET SCHEMA core;\n  \
-         ALTER TABLE IF EXISTS {schema}.{companion} SET SCHEMA core;\n  \
-         COMMIT;"
-    )
-}
-
-/// `ident` as a PostgreSQL identifier, quoted only when it has to be.
-fn quote_ident(ident: &str) -> String {
-    let plain = ident.starts_with(|c: char| c.is_ascii_lowercase() || c == '_')
-        && ident.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
-    if plain {
-        ident.to_owned()
-    } else {
-        format!("\"{}\"", ident.replace('"', "\"\""))
-    }
-}

@@ -1,0 +1,33 @@
+{
+  "types": [
+    {
+      "name": "Pulled", "sql_source": "app.v_pulled", "is_input": false,
+      "fields": [
+        { "name": "id", "type": "ID", "nullable": false },
+        { "name": "page", "type": "Int", "nullable": false }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "pulled", "return_type": "Pulled", "returns_list": true, "nullable": false,
+      "sql_source": "app.v_pulled", "arguments": []
+    }
+  ],
+  "mutations": [
+    {
+      "name": "recordPage", "return_type": "Pulled", "operation": "insert",
+      "sql_source": "app.fn_record_page",
+      "arguments": [{ "name": "page", "type": "Int", "nullable": false }]
+    }
+  ],
+  "sources": [
+    {
+      "name": "orders_feed",
+      "schedule": "* * * * *",
+      "timezone": "Europe/Paris",
+      "function": "pull_orders",
+      "run_as": { "roles": ["ingest"] }
+    }
+  ]
+}

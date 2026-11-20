@@ -57,6 +57,11 @@ impl Capability for InboundEmail {
         let Some(db_pool) = server.application_pool() else {
             return Ok(Started::Running);
         };
+        // A polled mailbox resumes from `core._fraiseql_source_cursor`; one an earlier
+        // release left elsewhere would leave it empty.
+        if server.config.mailbox.values().any(|mailbox| mailbox.imap.is_some()) {
+            crate::stranded_tables::refuse_stranded_source_cursor(db_pool).await?;
+        }
 
         // The correlator transitions send-status and suppression from inbound signals.
         let tracker = std::sync::Arc::new(email::PgSendTracker::new(db_pool.clone()));

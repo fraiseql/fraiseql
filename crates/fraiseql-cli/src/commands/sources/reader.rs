@@ -1,6 +1,6 @@
 //! The thin PostgreSQL projection behind `fraiseql sources` (#573).
 //!
-//! Reads the durable `_fraiseql_source_cursor` watermark table — the same table the
+//! Reads the durable `core._fraiseql_source_cursor` watermark table — the same table the
 //! runtime poller advances — so an operator can see, per source, where its cursor
 //! stands and how stale it is. Deliberately dependency-light (deadpool +
 //! tokio-postgres, mirroring the `perf` reader): all merge/format logic lives in
@@ -60,12 +60,12 @@ impl SourceCursorReader {
             .query(
                 "SELECT source_name, cursor_value, version, updated_at::text AS updated_at_text, \
                  EXTRACT(EPOCH FROM (now() - updated_at))::float8 AS age_seconds \
-                 FROM _fraiseql_source_cursor",
+                 FROM core._fraiseql_source_cursor",
                 &[],
             )
             .await
             .context(
-                "failed to read _fraiseql_source_cursor (is the source subsystem initialized?)",
+                "failed to read core._fraiseql_source_cursor (is the source subsystem initialized?)",
             )?;
         Ok(rows
             .iter()

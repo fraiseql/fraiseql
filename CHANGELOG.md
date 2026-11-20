@@ -41,6 +41,24 @@ disagreed, and the promise was the part that was wrong.
   `DefaultRetryConfig()` (Go) and `RetryConfig.defaults()` (Java). Go's
   `ObserverDefinition.Retry` is a `*RetryConfig`, nil when none is set, and Java's
   `ObserverInfo.retry` is null then.
+- **The source cursor table lives in `core` (#1895).** `_fraiseql_source_cursor`, which
+  holds every source's and polled mailbox's watermark, was created and read unqualified, so
+  in whichever schema led the connection's `search_path`. A server whose path started with
+  another schema created a second, empty table there and polled every source from no
+  cursor. It is now `core._fraiseql_source_cursor`, for the server and for `fraiseql
+  sources`. A server that finds a populated copy outside `core` while the `core` table is
+  empty refuses to start and prints the statements that move it; for a table in `public`:
+
+  ```sql
+  BEGIN;
+  DROP TABLE IF EXISTS core._fraiseql_source_cursor CASCADE;
+  ALTER TABLE public._fraiseql_source_cursor SET SCHEMA core;
+  COMMIT;
+  ```
+
+  A role that reads the cursors without owning the table needs `USAGE` on `core`.
+- **`fraiseql_observers::EventStorage` and `PostgresEventStorage` are removed (#1895).**
+  Nothing constructed them and nothing created the `fraiseql_events` table they read.
 - **A discovery document that names another issuer refuses the boot (#2135).** The
   `[auth]` PKCE client and the social and generic OIDC providers fetch
   `{discovery_url}/.well-known/openid-configuration`; the `issuer` the document names must
@@ -94,8 +112,8 @@ disagreed, and the promise was the part that was wrong.
 - **Observers, CDC sinks, storage and SCIM carry instants as `fraiseql_time::Timestamp`
   (#2026).** The fields and arguments that were `chrono::DateTime<Utc>` are now
   `fraiseql_time::Timestamp`: in `fraiseql-observers`, `EntityEvent::timestamp`,
-  `CheckpointState::last_processed_at`, `ResumePosition::dispatched_at` and the date range
-  of `EventStorage`; in `fraiseql-cdc-sinks`, `ChangeEvent::commit_time`; in
+  `CheckpointState::last_processed_at` and `ResumePosition::dispatched_at`; in
+  `fraiseql-cdc-sinks`, `ChangeEvent::commit_time`; in
   `fraiseql-storage`, the object-metadata, upload-session and policy times,
   `PresignedUrl::expires_at` and the `now` a `StorageCaller` is evaluated at
   (`ObjectInfo::last_modified` stays a chrono instant for now); in `fraiseql-auth`, the SCIM user, group

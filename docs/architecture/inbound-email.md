@@ -131,7 +131,7 @@ that could form a mail loop.
 The only state kept between polls is, per mailbox, the IMAP `UIDVALIDITY` last
 seen and the highest `UID` already ingested. Since the email adapter was reshaped as
 the reference Model A `PullSource`, that `{uid_validity, last_uid}` state is serialized
-as the opaque JSONB cursor value in the generic `_fraiseql_source_cursor` table (keyed
+as the opaque JSONB cursor value in the generic `core._fraiseql_source_cursor` table (keyed
 on the mailbox name), so the framework treats it as opaque and the email adapter no
 longer keeps a bespoke cursor table.
 

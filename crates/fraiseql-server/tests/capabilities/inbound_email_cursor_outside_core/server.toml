@@ -1,0 +1,9 @@
+cors_enabled = false
+
+# The boot is refused before any mailbox is polled, so the host is never contacted.
+[mailbox.support.imap]
+host = "imap.example.invalid"
+port = 993
+username = "fixture"
+password_env = "SUPPORT_IMAP_PASSWORD"
+poll_interval_secs = 1

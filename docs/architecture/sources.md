@@ -66,6 +66,13 @@ Both share the **same** scheduling / lease / cursor / observability envelope.
   `ON CONFLICT`. This is the one contract most connectors get wrong, so it bears
   repeating: a source *will* occasionally re-deliver a batch (retry, failover,
   `UIDVALIDITY` reset), and only idempotent writes make that harmless.
+- **The cursor lives in `core._fraiseql_source_cursor`, whatever the search path.** The
+  server creates the table at boot when a source or a polled mailbox is enabled. A
+  deployment that an earlier release created it for has it in whichever schema led that
+  deployment's `search_path`; while that copy holds rows and the `core` one is empty, the
+  server refuses to start and prints the statements that move it into `core`. A role that
+  reads the cursors without owning the table (`fraiseql sources`, run as another role)
+  needs `USAGE` on the `core` schema.
 
 ---
 

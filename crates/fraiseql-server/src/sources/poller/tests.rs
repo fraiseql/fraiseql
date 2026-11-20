@@ -161,7 +161,7 @@ async fn build_host_binds_both_the_cursor_and_the_executor() {
     let source = "test-poller-build-host";
     // Fresh cursor row so re-runs are independent.
     PostgresSourceCursorStore::new(pool.clone()).init().await.unwrap();
-    sqlx::query("DELETE FROM _fraiseql_source_cursor WHERE source_name = $1")
+    sqlx::query("DELETE FROM core._fraiseql_source_cursor WHERE source_name = $1")
         .bind(source)
         .execute(&pool)
         .await
@@ -229,7 +229,7 @@ async fn fires_a_model_b_connector_end_to_end() {
     };
     let source = "test-poller-e2e";
     PostgresSourceCursorStore::new(pool.clone()).init().await.unwrap();
-    sqlx::query("DELETE FROM _fraiseql_source_cursor WHERE source_name = $1")
+    sqlx::query("DELETE FROM core._fraiseql_source_cursor WHERE source_name = $1")
         .bind(source)
         .execute(&pool)
         .await
@@ -341,7 +341,7 @@ async fn ingests_across_schedule_windows_and_a_restart() {
     };
     let source = "test-poller-multi-window";
     PostgresSourceCursorStore::new(pool.clone()).init().await.unwrap();
-    sqlx::query("DELETE FROM _fraiseql_source_cursor WHERE source_name = $1")
+    sqlx::query("DELETE FROM core._fraiseql_source_cursor WHERE source_name = $1")
         .bind(source)
         .execute(&pool)
         .await
@@ -445,7 +445,7 @@ async fn the_poller_advances_the_declared_cursor_not_the_source_name() {
     let store = PostgresSourceCursorStore::new(pool.clone());
     store.init().await.unwrap();
     for key in [source_name, declared_cursor] {
-        sqlx::query("DELETE FROM _fraiseql_source_cursor WHERE source_name = $1")
+        sqlx::query("DELETE FROM core._fraiseql_source_cursor WHERE source_name = $1")
             .bind(key)
             .execute(&pool)
             .await

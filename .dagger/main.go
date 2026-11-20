@@ -1769,8 +1769,10 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// The fires_a_model_b_connector_end_to_end name-skip is lifted (#971):
 		// the "V8 SIGSEGVs in the exec sandbox" diagnosis was #969's
 		// second-isolate-per-process crash, fixed there — this run is the
-		// sandbox re-test the issue asked for.
-		"cargo test -p fraiseql-server --features sources --lib -- sources:: server_config::egress:: server::provision_tests::each_configured_capability_plans_its_own_tables --test-threads=1",
+		// sandbox re-test the issue asked for. `inbound-email` compiles
+		// stranded_tables:: as both of its callers do; the suite-coverage gate
+		// reads its any(observers, sources, inbound-email) gate as all three.
+		"cargo test -p fraiseql-server --features sources,inbound-email --lib -- sources:: stranded_tables:: server_config::egress:: server::provision_tests::each_configured_capability_plans_its_own_tables --test-threads=1",
 		// P16 functions-runtime gate (#796/#803/#840/#841/#842): the cron
 		// fire-window + cross-restart guard vs real PG (`cron::tests` reads
 		// back `_fraiseql_cron_state`), and the dispatched host's identity /

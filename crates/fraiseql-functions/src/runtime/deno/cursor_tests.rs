@@ -50,7 +50,7 @@ async fn connect_pool() -> Option<(PgPool, fraiseql_test_support::Service)> {
 /// a fixed-name test are independent).
 async fn reset(pool: &PgPool, source: &str) {
     PostgresSourceCursorStore::new(pool.clone()).init().await.unwrap();
-    sqlx::query("DELETE FROM _fraiseql_source_cursor WHERE source_name = $1")
+    sqlx::query("DELETE FROM core._fraiseql_source_cursor WHERE source_name = $1")
         .bind(source)
         .execute(pool)
         .await

@@ -112,7 +112,7 @@ impl PostgresSourceCursorStore {
         }
     }
 
-    /// Create the `_fraiseql_source_cursor` table and its RLS policies
+    /// Create the `core._fraiseql_source_cursor` table and its RLS policies
     /// (idempotent). Call once on startup.
     ///
     /// # Errors
@@ -152,7 +152,7 @@ impl SourceCursorStore for PostgresSourceCursorStore {
         // Read the value as text (`::text`) and parse it, so this needs only sqlx's
         // text codec — not the optional `json` feature — mirroring the spine.
         let row: Option<(Option<String>, i64)> =
-            sqlx::query_as("SELECT cursor_value::text, version FROM _fraiseql_source_cursor WHERE source_name = $1")
+            sqlx::query_as("SELECT cursor_value::text, version FROM core._fraiseql_source_cursor WHERE source_name = $1")
                 .bind(source)
                 .fetch_optional(&self.pool)
                 .await
@@ -204,7 +204,7 @@ async fn cas_advance(
 
     let affected = if from_version == 0 {
         sqlx::query(
-            "INSERT INTO _fraiseql_source_cursor (source_name, cursor_value, version, tenant_id, updated_at) \
+            "INSERT INTO core._fraiseql_source_cursor (source_name, cursor_value, version, tenant_id, updated_at) \
              VALUES ($1, $2::jsonb, 1, $3, NOW()) \
              ON CONFLICT (source_name) DO NOTHING",
         )
@@ -217,7 +217,7 @@ async fn cas_advance(
         .rows_affected()
     } else {
         sqlx::query(
-            "UPDATE _fraiseql_source_cursor \
+            "UPDATE core._fraiseql_source_cursor \
              SET cursor_value = $2::jsonb, version = version + 1, updated_at = NOW() \
              WHERE source_name = $1 AND version = $3",
         )

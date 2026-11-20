@@ -10,7 +10,7 @@ FRAISEQL_FUNCTIONS_MODULE_DIR = "$FIXTURE/modules"
 wait = { secs = 0 }
 
 [effect]
-row = { query = "SELECT p.page::text, c.cursor_value->>'page' FROM app.tb_pulled p JOIN _fraiseql_source_cursor c ON c.source_name = 'orders_feed' WHERE p.page = 1", expect = [
+row = { query = "SELECT p.page::text, c.cursor_value->>'page' FROM app.tb_pulled p JOIN core._fraiseql_source_cursor c ON c.source_name = 'orders_feed' WHERE p.page = 1", expect = [
   [
     "1",
     "1",

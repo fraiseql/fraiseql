@@ -62,6 +62,11 @@ impl Capability for Sources {
             );
             return Ok(Started::Degraded);
         }
+        // Every poller resumes from `core._fraiseql_source_cursor`; one an earlier release
+        // left elsewhere would leave it empty.
+        if sources.iter().any(|source| source.enabled) {
+            crate::stranded_tables::refuse_stranded_source_cursor(db_pool).await?;
+        }
         let Some(hooks) = app_state.before_mutation_hooks.as_ref() else {
             // Provisioning refuses this case first (#1399); a backstop, so an enabled
             // source can never be left silently unscheduled.

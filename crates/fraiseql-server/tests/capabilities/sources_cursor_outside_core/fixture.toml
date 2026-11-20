@@ -1,0 +1,14 @@
+# A cursor an earlier release stored outside `core`, with `core`'s table empty: the boot is
+# refused, naming the statement that moves it, instead of polling every source from no
+# cursor.
+capability = "sources"
+deadline_secs = 150
+
+[env]
+FRAISEQL_FUNCTIONS_MODULE_DIR = "$FIXTURE/modules"
+
+[[stimulus]]
+wait = { secs = 0 }
+
+[effect]
+refused = { message = "ALTER TABLE public._fraiseql_source_cursor SET SCHEMA core" }

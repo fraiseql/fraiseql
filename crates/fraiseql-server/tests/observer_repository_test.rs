@@ -585,6 +585,58 @@ async fn a_populated_legacy_checkpoint_table_beside_an_empty_core_one_refuses_to
     );
 }
 
+/// The refusal's whole text, with both observer tables stranded: the operator copies
+/// these statements, so a change to a byte of them is a change to the migration.
+#[tokio::test]
+async fn the_stranded_observer_table_refusal_reads_exactly() {
+    let (pool, svc) = setup_pg().await;
+    let core_first = observer_tables_in_core(&svc).await;
+    sqlx::raw_sql(
+        "CREATE TABLE IF NOT EXISTS public.tb_observer (LIKE core.tb_observer INCLUDING ALL);
+         INSERT INTO public.tb_observer (name, entity_type, event_type, actions)
+             VALUES ('left-behind', 'Order', 'INSERT', '[]');
+         CREATE TABLE IF NOT EXISTS public.observer_checkpoints
+             (LIKE core.observer_checkpoints INCLUDING ALL);
+         INSERT INTO public.observer_checkpoints (listener_id, last_processed_id)
+             VALUES ('change_log', 42);",
+    )
+    .execute(&core_first)
+    .await
+    .unwrap();
+
+    let outcome = ObserverRepository::new(pool.clone()).refuse_stranded_legacy_tables().await;
+    sqlx::raw_sql(
+        "DROP TABLE IF EXISTS public.tb_observer CASCADE;
+         DROP TABLE IF EXISTS public.observer_checkpoints CASCADE;",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let message = match outcome {
+        Err(fraiseql_server::ServerError::ConfigError(message)) => message,
+        other => format!("expected the refusal, got {other:?}"),
+    };
+    assert_eq!(
+        message,
+        "observer tables from an earlier release hold rows outside `core`, and their `core` \
+         tables are empty. FraiseQL keeps its observer tables in `core` whatever the \
+         search_path (#1893); starting now would run with none of them. Move them, then \
+         restart:\n  \
+         BEGIN;\n  \
+         DROP TABLE IF EXISTS core.tb_observer_log, core.tb_observer CASCADE;\n  \
+         ALTER TABLE public.tb_observer SET SCHEMA core;\n  \
+         ALTER TABLE IF EXISTS public.tb_observer_log SET SCHEMA core;\n  \
+         COMMIT;\n  \
+         BEGIN;\n  \
+         DROP TABLE IF EXISTS core.observer_checkpoints_history, core.observer_checkpoints \
+         CASCADE;\n  \
+         ALTER TABLE public.observer_checkpoints SET SCHEMA core;\n  \
+         ALTER TABLE IF EXISTS public.observer_checkpoints_history SET SCHEMA core;\n  \
+         COMMIT;"
+    );
+}
+
 /// The earlier boot created its tables in whatever schema came first on that
 /// deployment's `search_path`, which need not be on today's: the check must find
 /// them anywhere outside `core`.

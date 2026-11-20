@@ -73,7 +73,10 @@ async fn setup() -> Option<PgPool> {
         .unwrap();
     // Distinct source_name per mailbox in each test, but clear cursors so a prior
     // run's watermark cannot reject a first-write (version 0) advance.
-    sqlx::query("TRUNCATE _fraiseql_source_cursor").execute(&pool).await.unwrap();
+    sqlx::query("TRUNCATE core._fraiseql_source_cursor")
+        .execute(&pool)
+        .await
+        .unwrap();
     Some(pool)
 }
 
