@@ -315,6 +315,50 @@ func authorFull() error {
 		Register()
 }
 
+// authorObservers declares one observer per action kind through the observer builder
+// and the action constructors. Every observer sets its retry: the default differs
+// between SDKs. The webhook's optional keys go through the options map, the only way
+// this SDK sets them.
+func authorObservers() error {
+	if err := fraiseql.NewObserver("orderPlacedWebhook").
+		Entity("Order").
+		Event("INSERT").
+		Action(fraiseql.WebhookWithEnv("CONFORMANCE_HOOK_URL", map[string]interface{}{
+			"method":             "PUT",
+			"body_template":      `{"total": {{ total }}}`,
+			"signing_secret_env": "CONFORMANCE_HOOK_KEY",
+			"headers":            map[string]string{"X-Source": "conformance"},
+			"headers_env":        map[string]string{"Authorization": "CONFORMANCE_HOOK_TOKEN"},
+		})).
+		Retry(fraiseql.RetryConfig{
+			MaxAttempts: 5, BackoffStrategy: "linear", InitialDelayMs: 200, MaxDelayMs: 5000,
+		}).
+		Register(); err != nil {
+		return err
+	}
+	if err := fraiseql.NewObserver("orderShippedSlack").
+		Entity("Order").
+		Event("UPDATE").
+		Condition("status == 'shipped'").
+		Action(fraiseql.Slack("#orders", "Order {{ id }} shipped", map[string]interface{}{
+			"webhook_url_env": "CONFORMANCE_SLACK_URL",
+		})).
+		Retry(fraiseql.RetryConfig{
+			MaxAttempts: 4, BackoffStrategy: "exponential", InitialDelayMs: 250, MaxDelayMs: 8000,
+		}).
+		Register(); err != nil {
+		return err
+	}
+	return fraiseql.NewObserver("orderDeletedEmail").
+		Entity("Order").
+		Event("DELETE").
+		Action(fraiseql.EmailAction("ops@example.com", "Order deleted", "Order {{ id }} was deleted")).
+		Retry(fraiseql.RetryConfig{
+			MaxAttempts: 2, BackoffStrategy: "fixed", InitialDelayMs: 500, MaxDelayMs: 500,
+		}).
+		Register()
+}
+
 func author(fixture string) error {
 	switch fixture {
 	case "minimal":
@@ -323,7 +367,10 @@ func author(fixture string) error {
 		}
 		return authorMinimalQueries()
 	case "full":
-		return authorFull()
+		if err := authorFull(); err != nil {
+			return err
+		}
+		return authorObservers()
 	default:
 		return fmt.Errorf("unknown fixture %q", fixture)
 	}

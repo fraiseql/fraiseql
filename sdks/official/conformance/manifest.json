@@ -27,7 +27,13 @@
         "python",
         "conformance/export.py"
       ],
-      "unsupported": {}
+      "unsupported": {
+        "observer_webhook": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_webhook_headers": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_slack": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_email": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_condition": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147)."
+      }
     },
     "typescript": {
       "dir": "fraiseql-typescript",
@@ -37,7 +43,9 @@
         "-c",
         "{ [ -d node_modules ] || npm ci --no-audit --no-fund --loglevel=error >/dev/null; } && npx --yes tsx conformance/export.ts"
       ],
-      "unsupported": {},
+      "unsupported": {
+        "observer_webhook_headers": "`webhook()` adds `Content-Type: application/json` to every webhook's `headers`, which the author did not write; the server already sends JSON. The construct passes once the factory writes only the headers it is given (#2146)."
+      },
       "container": "node:22",
       "container_env": [
         "HOME=/conformance-cache/node",
@@ -69,7 +77,12 @@
       "unsupported": {
         "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
         "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)",
-        "field_scoped_like_parent": "the SDK has no `scoped_like_parent` authoring surface (#1737 added it to Python and TypeScript), so it cannot author a type that embeds a scoped one"
+        "field_scoped_like_parent": "the SDK has no `scoped_like_parent` authoring surface (#1737 added it to Python and TypeScript), so it cannot author a type that embeds a scoped one",
+        "observer_webhook": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_webhook_headers": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_slack": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_email": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_condition": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147)."
       },
       "container": "composer:2",
       "container_env": [
@@ -91,7 +104,9 @@
       "unsupported": {
         "fact_tables": "the SDK authors no fact table: `@GraphQLFactTable` registers the annotated class as an ordinary type and emits no `fact_tables` entry, so there is no table to link to its type (AF 1). Fact-table authoring is a feature, not a key rename.",
         "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)",
-        "field_scoped_like_parent": "the SDK has no `scoped_like_parent` authoring surface (#1737 added it to Python and TypeScript), so it cannot author a type that embeds a scoped one"
+        "field_scoped_like_parent": "the SDK has no `scoped_like_parent` authoring surface (#1737 added it to Python and TypeScript), so it cannot author a type that embeds a scoped one",
+        "observer_webhook": "`Webhook` has no setter for `method`: its factories are `create`, `withEnv`, `bodyTemplate`, `signedWith` and `headerFromEnv`, so a webhook it authors is always sent with the server's default method. Writing the key into the returned map would hand-assemble the action rather than author it (#2150).",
+        "observer_webhook_headers": "`Webhook` has no setter for a plain `headers` entry, only `headerFromEnv` for one read from the environment, so a non-secret header cannot be authored (#2150)."
       },
       "container": "maven:3.9-eclipse-temurin-21",
       "container_env": [
@@ -114,7 +129,12 @@
         "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
         "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
         "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)",
-        "field_scoped_like_parent": "the SDK has no `scoped_like_parent` authoring surface (#1737 added it to Python and TypeScript), so it cannot author a type that embeds a scoped one"
+        "field_scoped_like_parent": "the SDK has no `scoped_like_parent` authoring surface (#1737 added it to Python and TypeScript), so it cannot author a type that embeds a scoped one",
+        "observer_webhook": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_webhook_headers": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_slack": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_email": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_condition": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147)."
       },
       "container": "mcr.microsoft.com/dotnet/sdk:9.0",
       "container_env": [
@@ -141,7 +161,12 @@
         "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
         "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
         "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)",
-        "field_scoped_like_parent": "the SDK has no `scoped_like_parent` authoring surface (#1737 added it to Python and TypeScript), so it cannot author a type that embeds a scoped one"
+        "field_scoped_like_parent": "the SDK has no `scoped_like_parent` authoring surface (#1737 added it to Python and TypeScript), so it cannot author a type that embeds a scoped one",
+        "observer_webhook": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_webhook_headers": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_slack": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_email": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_condition": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147)."
       },
       "container": "mcr.microsoft.com/dotnet/sdk:9.0",
       "container_env": [
@@ -164,7 +189,12 @@
         "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
         "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
         "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)",
-        "field_scoped_like_parent": "the SDK has no `scoped_like_parent` authoring surface (#1737 added it to Python and TypeScript), so it cannot author a type that embeds a scoped one"
+        "field_scoped_like_parent": "the SDK has no `scoped_like_parent` authoring surface (#1737 added it to Python and TypeScript), so it cannot author a type that embeds a scoped one",
+        "observer_webhook": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_webhook_headers": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_slack": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_email": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_condition": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147)."
       },
       "container": "elixir:1.17",
       "container_env": [
@@ -184,7 +214,12 @@
         "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
         "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
         "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)",
-        "field_scoped_like_parent": "the SDK has no `scoped_like_parent` authoring surface (#1737 added it to Python and TypeScript), so it cannot author a type that embeds a scoped one"
+        "field_scoped_like_parent": "the SDK has no `scoped_like_parent` authoring surface (#1737 added it to Python and TypeScript), so it cannot author a type that embeds a scoped one",
+        "observer_webhook": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_webhook_headers": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_slack": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_email": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_condition": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147)."
       },
       "container": "ruby:3.3"
     },
@@ -201,7 +236,12 @@
         "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
         "enum_values": "a Dart enum member carries no stored value its serializers write (`enumType` takes the member names), so every member is stored as its name",
         "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)",
-        "field_scoped_like_parent": "the SDK has no `scoped_like_parent` authoring surface (#1737 added it to Python and TypeScript), so it cannot author a type that embeds a scoped one"
+        "field_scoped_like_parent": "the SDK has no `scoped_like_parent` authoring surface (#1737 added it to Python and TypeScript), so it cannot author a type that embeds a scoped one",
+        "observer_webhook": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_webhook_headers": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_slack": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_email": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_condition": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147)."
       },
       "container": "dart:stable",
       "container_env": [
@@ -247,7 +287,12 @@
         "list_arguments": "the SDK registers types only and ships no query builder, so it has no argument to declare a list on; `list_fields` holds it to the same rule for a type's fields",
         "enum_values": "the Rust SDK is field-level-RBAC focused and ships no enum builder",
         "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)",
-        "field_scoped_like_parent": "the SDK has no `scoped_like_parent` authoring surface (#1737 added it to Python and TypeScript), so it cannot author a type that embeds a scoped one"
+        "field_scoped_like_parent": "the SDK has no `scoped_like_parent` authoring surface (#1737 added it to Python and TypeScript), so it cannot author a type that embeds a scoped one",
+        "observer_webhook": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_webhook_headers": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_slack": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_email": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "observer_condition": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147)."
       }
     }
   }

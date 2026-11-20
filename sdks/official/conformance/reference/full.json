@@ -704,5 +704,72 @@
         }
       ]
     }
+  ],
+  "observers": [
+    {
+      "name": "orderPlacedWebhook",
+      "entity": "Order",
+      "event": "INSERT",
+      "actions": [
+        {
+          "type": "webhook",
+          "url_env": "CONFORMANCE_HOOK_URL",
+          "method": "PUT",
+          "body_template": "{\"total\": {{ total }}}",
+          "signing_secret_env": "CONFORMANCE_HOOK_KEY",
+          "headers": {
+            "X-Source": "conformance"
+          },
+          "headers_env": {
+            "Authorization": "CONFORMANCE_HOOK_TOKEN"
+          }
+        }
+      ],
+      "retry": {
+        "max_attempts": 5,
+        "backoff_strategy": "linear",
+        "initial_delay_ms": 200,
+        "max_delay_ms": 5000
+      }
+    },
+    {
+      "name": "orderShippedSlack",
+      "entity": "Order",
+      "event": "UPDATE",
+      "condition": "status == 'shipped'",
+      "actions": [
+        {
+          "type": "slack",
+          "channel": "#orders",
+          "message_template": "Order {{ id }} shipped",
+          "webhook_url_env": "CONFORMANCE_SLACK_URL"
+        }
+      ],
+      "retry": {
+        "max_attempts": 4,
+        "backoff_strategy": "exponential",
+        "initial_delay_ms": 250,
+        "max_delay_ms": 8000
+      }
+    },
+    {
+      "name": "orderDeletedEmail",
+      "entity": "Order",
+      "event": "DELETE",
+      "actions": [
+        {
+          "type": "email",
+          "to": "ops@example.com",
+          "subject": "Order deleted",
+          "body_template": "Order {{ id }} was deleted"
+        }
+      ],
+      "retry": {
+        "max_attempts": 2,
+        "backoff_strategy": "fixed",
+        "initial_delay_ms": 500,
+        "max_delay_ms": 500
+      }
+    }
   ]
 }

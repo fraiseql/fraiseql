@@ -38,7 +38,10 @@ public class ConformanceExport {
         FraiseQL.clear();
         switch (fixture) {
             case "minimal" -> authorMinimal();
-            case "full" -> authorFull();
+            case "full" -> {
+                authorFull();
+                authorObservers();
+            }
             default -> throw new IllegalArgumentException("unknown fixture " + fixture);
         }
         FraiseQL.exportSchema(out);
@@ -202,6 +205,40 @@ public class ConformanceExport {
         // binding lives on the query, so there is one copy of it.
         FraiseQL.function("preview_quote")
             .trigger("request:query")
+            .register();
+    }
+
+    /**
+     * One observer per action kind, through {@link ObserverBuilder} and the action
+     * factories. Every observer sets its retry: the default differs between SDKs.
+     */
+    private static void authorObservers() {
+        Map<String, Object> hook = Webhook.withEnv("CONFORMANCE_HOOK_URL");
+        Webhook.bodyTemplate(hook, "{\"total\": {{ total }}}");
+        Webhook.signedWith(hook, "CONFORMANCE_HOOK_KEY");
+        Webhook.headerFromEnv(hook, "Authorization", "CONFORMANCE_HOOK_TOKEN");
+        new ObserverBuilder("orderPlacedWebhook")
+            .entity("Order")
+            .event("INSERT")
+            .addAction(hook)
+            .retry(RetryConfig.linear(5, 200, 5000))
+            .register();
+
+        new ObserverBuilder("orderShippedSlack")
+            .entity("Order")
+            .event("UPDATE")
+            .condition("status == 'shipped'")
+            .addAction(SlackAction.withWebhookEnv(
+                "#orders", "Order {{ id }} shipped", "CONFORMANCE_SLACK_URL"))
+            .retry(RetryConfig.exponential(4, 250, 8000))
+            .register();
+
+        new ObserverBuilder("orderDeletedEmail")
+            .entity("Order")
+            .event("DELETE")
+            .addAction(EmailAction.create(
+                "ops@example.com", "Order deleted", "Order {{ id }} was deleted"))
+            .retry(RetryConfig.fixed(2, 500))
             .register();
     }
 

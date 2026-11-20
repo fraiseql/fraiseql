@@ -14,6 +14,7 @@
 
 import {
   FraiseFunction,
+  Observer,
   SchemaRegistry,
   registerTypeFields,
   registerQuery,
@@ -22,6 +23,9 @@ import {
   enum_,
   input,
   exportSchema,
+  webhook,
+  slack,
+  email,
 } from "../src/index";
 
 function authorMinimal(): void {
@@ -405,6 +409,63 @@ function authorFull(): void {
   }
   // Reference the class so the decorator is not elided as dead code.
   void ConformanceFunctions;
+
+  // Observers, one per action kind, through the `@Observer` decorator and the action
+  // factories. Declared inside this function for the reason `ConformanceFunctions` is.
+  // Every observer sets its retry: the default differs between SDKs.
+  class ConformanceObservers {
+    @Observer({
+      entity: "Order",
+      event: "INSERT",
+      actions: [
+        webhook(undefined, {
+          url_env: "CONFORMANCE_HOOK_URL",
+          method: "PUT",
+          body_template: '{"total": {{ total }}}',
+          signing_secret_env: "CONFORMANCE_HOOK_KEY",
+          headers: { "X-Source": "conformance" },
+          headers_env: { Authorization: "CONFORMANCE_HOOK_TOKEN" },
+        }),
+      ],
+      retry: {
+        max_attempts: 5,
+        backoff_strategy: "linear",
+        initial_delay_ms: 200,
+        max_delay_ms: 5000,
+      },
+    })
+    orderPlacedWebhook(): void {}
+
+    @Observer({
+      entity: "Order",
+      event: "UPDATE",
+      condition: "status == 'shipped'",
+      actions: [
+        slack("#orders", "Order {{ id }} shipped", { webhook_url_env: "CONFORMANCE_SLACK_URL" }),
+      ],
+      retry: {
+        max_attempts: 4,
+        backoff_strategy: "exponential",
+        initial_delay_ms: 250,
+        max_delay_ms: 8000,
+      },
+    })
+    orderShippedSlack(): void {}
+
+    @Observer({
+      entity: "Order",
+      event: "DELETE",
+      actions: [email("ops@example.com", "Order deleted", "Order {{ id }} was deleted")],
+      retry: {
+        max_attempts: 2,
+        backoff_strategy: "fixed",
+        initial_delay_ms: 500,
+        max_delay_ms: 500,
+      },
+    })
+    orderDeletedEmail(): void {}
+  }
+  void ConformanceObservers;
 }
 
 const fixture = process.env.FRAISEQL_CONFORMANCE_FIXTURE;

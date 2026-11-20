@@ -137,6 +137,66 @@ class AStaleGapIsReported(unittest.TestCase):
         self.assertTrue(run.exercised({"connection": "UserConnection", "edge": None}))
 
 
+class ObserverProjectionsSeeWhatAnSdkChanges(unittest.TestCase):
+    """The observer constructs see a key dropped or added, and only an empty map ignored.
+
+    The compiler already refuses an action key the runtime does not read, so what these
+    constructs exist to catch is the silent difference: a key an SDK drops, or one it
+    adds that the author did not write. Each is pinned on the construct meant to see it.
+    """
+
+    WEBHOOK = {
+        "type": "webhook",
+        "url_env": "HOOK_URL",
+        "signing_secret_env": "HOOK_KEY",
+        "headers": {"X-Source": "conformance"},
+        "headers_env": {"Authorization": "HOOK_TOKEN"},
+    }
+
+    @staticmethod
+    def compiled(action: dict) -> dict:
+        return {
+            "observers": [
+                {
+                    "name": "orderPlacedWebhook",
+                    "entity": "Order",
+                    "event": "INSERT",
+                    "actions": [action],
+                    "retry": {"max_attempts": 5},
+                }
+            ]
+        }
+
+    def observe(self, action: dict, construct: str) -> object:
+        return project.project(self.compiled(action))[construct]
+
+    def test_a_dropped_signing_secret_is_seen_by_the_webhook_construct(self) -> None:
+        dropped = {k: v for k, v in self.WEBHOOK.items() if k != "signing_secret_env"}
+        self.assertNotEqual(
+            self.observe(dropped, "observer_webhook"),
+            self.observe(self.WEBHOOK, "observer_webhook"),
+        )
+
+    def test_an_injected_header_is_seen_by_the_header_construct_alone(self) -> None:
+        injected = {**self.WEBHOOK, "headers": {**self.WEBHOOK["headers"], "Content-Type": "x"}}
+        self.assertNotEqual(
+            self.observe(injected, "observer_webhook_headers"),
+            self.observe(self.WEBHOOK, "observer_webhook_headers"),
+        )
+        self.assertEqual(
+            self.observe(injected, "observer_webhook"),
+            self.observe(self.WEBHOOK, "observer_webhook"),
+            "a header difference also failed the webhook construct",
+        )
+
+    def test_an_empty_map_reads_as_absent(self) -> None:
+        bare = {k: v for k, v in self.WEBHOOK.items() if k != "headers"}
+        self.assertEqual(
+            self.observe({**bare, "headers": {}}, "observer_webhook_headers"),
+            self.observe(bare, "observer_webhook_headers"),
+        )
+
+
 class ACasingNearMissIsNamed(unittest.TestCase):
     """An operation published under another convention is reported as that, not as absent.
 

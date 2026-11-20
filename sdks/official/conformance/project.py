@@ -173,6 +173,17 @@ AUTHORED_FUNCTIONS = ("notify_approved",)
 # is really this construct's absence) is the kind of misdirection this file exists
 # to prevent.
 FUNCTION_BACKED_QUERY = "quotePreview"
+
+# The observers the canonical fixture declares, one per action kind, each on `Order`
+# with an explicit `retry`. The retry an SDK writes when the author sets none differs
+# between SDKs (#2145), so no observer here leaves it unset: a default would make every
+# action construct fail for a reason that is not the action's.
+AUTHORED_OBSERVERS = ("orderPlacedWebhook", "orderShippedSlack", "orderDeletedEmail")
+
+# The webhook keys `observer_webhook_headers` observes, and `observer_webhook` does not:
+# split so an SDK that adds or drops a header fails the header construct alone, not the
+# whole webhook (#2146).
+WEBHOOK_HEADER_KEYS = ("headers", "headers_env")
 FUNCTION_BACKED_FUNCTION = "preview_quote"
 
 # Every construct the canonical fixture exercises. An SDK must satisfy each one or
@@ -225,6 +236,11 @@ CONSTRUCTS = (
     "list_arguments",
     "function_definition",
     "function_backed_query",
+    "observer_webhook",
+    "observer_webhook_headers",
+    "observer_slack",
+    "observer_email",
+    "observer_condition",
 )
 
 
@@ -282,6 +298,40 @@ def _operation_kind(mutation: dict[str, Any]) -> str | None:
     if isinstance(operation, str):
         return operation
     return None
+
+
+def _observer_actions(
+    observers: dict[str, dict[str, Any]], kind: str, keep: Any
+) -> dict[str, Any]:
+    """Each authored observer's actions of `kind`, with its entity, event and retry.
+
+    `keep(key)` selects the action keys observed. An empty map is left out: the runtime
+    reads an absent `headers` or `headers_env` as an empty one, and the compiler's own
+    key check treats an empty `headers_env` as absent, so an SDK that writes `{}` and one
+    that writes nothing author the same action.
+    """
+    projected: dict[str, Any] = {}
+    for name in AUTHORED_OBSERVERS:
+        observer = observers.get(name)
+        if observer is None:
+            continue
+        actions = [
+            {
+                key: value
+                for key, value in action.items()
+                if key != "type" and keep(key) and value != {}
+            }
+            for action in observer.get("actions") or []
+            if isinstance(action, dict) and action.get("type") == kind
+        ]
+        if actions:
+            projected[name] = {
+                "entity": observer.get("entity"),
+                "event": observer.get("event"),
+                "retry": observer.get("retry"),
+                "actions": actions,
+            }
+    return projected
 
 
 def project(compiled: dict[str, Any]) -> dict[str, Any]:
@@ -830,6 +880,24 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         name: _fact_table(table)
         for name, table in sorted(fact_tables.items())
         if isinstance(table, dict)
+    }
+
+    observers = _by_name(compiled.get("observers"))
+    observations["observer_webhook"] = _observer_actions(
+        observers, "webhook", lambda key: key not in WEBHOOK_HEADER_KEYS
+    )
+    observations["observer_webhook_headers"] = {
+        name: entry["actions"]
+        for name, entry in _observer_actions(
+            observers, "webhook", lambda key: key in WEBHOOK_HEADER_KEYS
+        ).items()
+    }
+    observations["observer_slack"] = _observer_actions(observers, "slack", lambda _key: True)
+    observations["observer_email"] = _observer_actions(observers, "email", lambda _key: True)
+    observations["observer_condition"] = {
+        name: observers[name]["condition"]
+        for name in AUTHORED_OBSERVERS
+        if name in observers and observers[name].get("condition")
     }
 
     missing = set(CONSTRUCTS) - set(observations)
