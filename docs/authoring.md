@@ -668,12 +668,26 @@ embeds no scoped type is refused too, so it cannot outlive the scope it was writ
 What this does not change:
 
 - The rows are still filtered when they are read, on the key the embedded documents carry,
-  as described above. The declaration states that the schema is scoped consistently; it
-  does not check the data. Build the key into the embedded documents from the same column.
+  as described above. The declaration states that the schema is scoped consistently; the
+  data is checked by `compile --database` (below). Build the key into the embedded
+  documents from the same column.
 - A mutation's result type is not a served document: its SQL function builds it for the
   caller, and it may carry a scoped entity undeclared.
 - Only `inject` is visible to the compiler. A type scoped solely by a row-security policy
   installed on the server is not covered by this check.
+
+`compile --database` checks the data too. For each declared field, it samples up to 1000
+rows of every view a query reads the holding document from, finds the embedded documents
+at each place the document holds the field, and refuses the compile when one of them lacks
+the scope key (or holds it as `null`), or holds another value than its row: the nested level
+would be refused or empty, or the documents filtered out of their own parent. The row's
+value is its native column when the view has one, its own document's key otherwise; a row
+with no value is served to nobody and is skipped. The values are compared as JSON, exactly as
+the server filters the nested level, so a key stored as `"5"` under a row whose column holds
+`5` fails here because it fails when it is read. Findings name the type, the field, the key,
+the row's column and counts, never a sampled value. An empty view is a warning. A document that holds
+declared fields at more than 64 places is checked at the first 64, and the rest are counted
+in a warning. A type no query returns has no view to sample and is not checked.
 
 > **RLS + views: make `sql_source` views `security_invoker`.** If you enforce
 > tenant isolation with PostgreSQL Row-Level Security, every `sql_source` view MUST

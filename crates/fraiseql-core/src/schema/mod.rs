@@ -73,10 +73,10 @@ pub use compiled::{
     EmailTemplate, FacebookSocialConfig, FactInjectOrigin, FactInjectScope, FederationKeyProblem,
     GitHubSocialConfig, GoogleSocialConfig, InputStyle, LocalAuthConfig, LocalEmailConfig,
     LocalizedIndexAdvice, MutationDefinition, MutationOperation, NativeColumn, PaginationOrder,
-    PkceClientConfig, ProducerVersion, QueryDefinition, SessionConfig, SessionTransport,
-    SocialAuthConfig, SubscribableEntity, UnfillablePath, canonicalize_json, check_email_header,
-    content_hash_of, is_fact_table_root, is_safe_sql_identifier, otp_allowed_statement,
-    render_email_template, render_link_template,
+    PkceClientConfig, ProducerVersion, QueryDefinition, SCOPED_ROUTE_CAP, ScopedEmbeddingRoot,
+    ScopedEmbeddingRoute, SessionConfig, SessionTransport, SocialAuthConfig, SubscribableEntity,
+    UnfillablePath, canonicalize_json, check_email_header, content_hash_of, is_fact_table_root,
+    is_safe_sql_identifier, otp_allowed_statement, render_email_template, render_link_template,
 };
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, CaptureTableConfig, Cardinality, ChangelogConfig,

@@ -149,6 +149,27 @@ pub trait DatabaseIntrospector: Send + Sync {
         Ok(None)
     }
 
+    /// At most `limit` rows of `relation`: each row's `json_column` document, and
+    /// `to_jsonb` of each of `columns` (JSON `null` for SQL `NULL`), in order.
+    ///
+    /// Read to check that documents a served document embeds carry the scope key, and the
+    /// holding row's value of it. The caller reports counts, never these values.
+    ///
+    /// `None` ⇒ this connector cannot sample.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the query fails.
+    async fn sample_documents(
+        &self,
+        _relation: &str,
+        _json_column: &str,
+        _columns: &[&str],
+        _limit: usize,
+    ) -> Result<Option<Vec<(serde_json::Value, Vec<serde_json::Value>)>>> {
+        Ok(None)
+    }
+
     /// The SQL body of `relation`, when it is a view (#1303).
     ///
     /// Read to answer one question the catalog cannot: does this view already

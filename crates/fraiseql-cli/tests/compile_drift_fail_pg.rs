@@ -797,3 +797,196 @@ async fn a_native_inject_column_must_agree_with_the_key_it_publishes() {
         "the root read keeps the native column: {query}"
     );
 }
+
+/// `Order` embeds its scoped `OrderLine`s under `lines`, declared
+/// `scoped_like_parent`. The nested level is filtered on each embedded line's `tenant_id`
+/// key, so `compile --database` samples the embedded documents: a line without the key,
+/// or with another value than its order's, fails the compile; one built from the row passes.
+fn scoped_embedding_schema(order_view: &str, line_fields: usize) -> NamedTempFile {
+    let mut order_fields = vec![
+        json!({"name": "id", "type": "Int", "nullable": false}),
+        json!({"name": "tenant_id", "type": "String", "nullable": false}),
+    ];
+    let lines = |name: String| json!({"name": name, "type": "[OrderLine!]", "nullable": true, "scoped_like_parent": true});
+    if line_fields == 1 {
+        order_fields.push(lines("lines".to_string()));
+    } else {
+        order_fields.extend((0..line_fields).map(|n| lines(format!("lines{n}"))));
+    }
+    write_json(&json!({
+        "types": [
+            {"name": "Order", "sql_source": order_view, "fields": order_fields},
+            {
+                "name": "OrderLine",
+                "sql_source": "v_cdf2006_line",
+                "fields": [
+                    {"name": "id", "type": "Int", "nullable": false},
+                    {"name": "tenant_id", "type": "String", "nullable": false}
+                ]
+            }
+        ],
+        "queries": [
+            {
+                "name": "orders",
+                "return_type": "Order",
+                "returns_list": true,
+                "sql_source": order_view,
+                "inject_params": {"tenant_id": "jwt:tenant_id"}
+            },
+            {
+                "name": "orderLines",
+                "return_type": "OrderLine",
+                "returns_list": true,
+                "sql_source": "v_cdf2006_line",
+                "inject_params": {"tenant_id": "jwt:tenant_id"}
+            }
+        ]
+    }))
+}
+
+/// An order view over one row of tenant `tenant-row-q7z`, embedding `lines`.
+async fn create_order_view(client: &tokio_postgres::Client, view: &str, lines: &str) {
+    client
+        .batch_execute(&format!(
+            "DROP VIEW IF EXISTS {view};
+             CREATE VIEW {view} AS SELECT t.id, t.tenant_id, jsonb_build_object('id', t.id, \
+             'tenant_id', t.tenant_id, 'lines', '{lines}'::jsonb) AS data FROM (VALUES (1, \
+             'tenant-row-q7z')) t(id, tenant_id);"
+        ))
+        .await
+        .unwrap();
+}
+
+async fn create_line_view(client: &tokio_postgres::Client) {
+    client
+        .batch_execute(
+            "DROP VIEW IF EXISTS v_cdf2006_line;
+             CREATE VIEW v_cdf2006_line AS SELECT 1 AS id, 'tenant-row-q7z' AS tenant_id, \
+             jsonb_build_object('id', 1, 'tenant_id', 'tenant-row-q7z') AS data;",
+        )
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn an_embedded_document_without_the_scope_key_fails_the_compile() {
+    let Some(client) = client().await else { return };
+    let url = fraiseql_test_support::try_database_url().unwrap();
+    create_line_view(&client).await;
+    create_order_view(&client, "v_cdf2006_missing", r#"[{"id": 1}, {"id": 2}]"#).await;
+
+    let out_dir = TempDir::new().unwrap();
+    let out = out_dir.path().join("schema.compiled.json");
+    let schema = scoped_embedding_schema("v_cdf2006_missing", 1);
+    let (ok, log) = run_compile(schema.path(), &url, &out, &[]);
+
+    assert!(!ok, "an embedded document without the key must fail the compile:\n{log}");
+    assert!(
+        log.contains(
+            "`Order.lines` declares `scoped_like_parent`, and 2 of 2 `OrderLine` documents"
+        ) && log.contains("do not carry the key `tenant_id`"),
+        "the failure names the type, the field and the key:\n{log}"
+    );
+    assert!(!out.exists(), "a failed compile must not write the artifact");
+}
+
+#[tokio::test]
+async fn an_embedded_scope_key_other_than_its_rows_fails_the_compile() {
+    let Some(client) = client().await else { return };
+    let url = fraiseql_test_support::try_database_url().unwrap();
+    create_line_view(&client).await;
+    create_order_view(
+        &client,
+        "v_cdf2006_differ",
+        r#"[{"id": 1, "tenant_id": "tenant-embedded-k4x"}, {"id": 2, "tenant_id": "tenant-row-q7z"}]"#,
+    )
+    .await;
+
+    let out_dir = TempDir::new().unwrap();
+    let out = out_dir.path().join("schema.compiled.json");
+    let schema = scoped_embedding_schema("v_cdf2006_differ", 1);
+    let (ok, log) = run_compile(schema.path(), &url, &out, &[]);
+
+    assert!(!ok, "an embedded key other than its row's must fail the compile:\n{log}");
+    assert!(
+        log.contains("1 of 2 `OrderLine` documents embedded at `lines`")
+            && log.contains("hold another `tenant_id` than their row's column `tenant_id`"),
+        "the failure names the holding column and the embedded key:\n{log}"
+    );
+    // The log reaches CI: it names columns and counts, never a sampled value.
+    for value in ["tenant-embedded-k4x", "tenant-row-q7z"] {
+        assert!(!log.contains(value), "the log carries the sampled value `{value}`:\n{log}");
+    }
+
+    // Without `--database`, nothing is sampled: the same schema compiles.
+    let output = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+        .args([
+            "compile",
+            schema.path().to_str().unwrap(),
+            "--skip-hash",
+            "-o",
+        ])
+        .arg(&out)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "without --database the schema compiles: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[tokio::test]
+async fn embedded_documents_built_from_their_row_compile() {
+    let Some(client) = client().await else { return };
+    let url = fraiseql_test_support::try_database_url().unwrap();
+    create_line_view(&client).await;
+    create_order_view(
+        &client,
+        "v_cdf2006_ok",
+        r#"[{"id": 1, "tenant_id": "tenant-row-q7z"}, {"id": 2, "tenant_id": "tenant-row-q7z"}]"#,
+    )
+    .await;
+
+    let out_dir = TempDir::new().unwrap();
+    let out = out_dir.path().join("schema.compiled.json");
+    let schema = scoped_embedding_schema("v_cdf2006_ok", 1);
+    let (ok, log) = run_compile(schema.path(), &url, &out, &[]);
+    assert!(ok, "embedded documents built from their row compile:\n{log}");
+    assert!(!log.contains("scoped_like_parent"), "a correct view draws no finding:\n{log}");
+}
+
+/// An empty view proves nothing either way, and routes past the cap are named, not
+/// silently skipped: both warn, neither fails.
+#[tokio::test]
+async fn an_empty_view_and_routes_past_the_cap_warn() {
+    let Some(client) = client().await else { return };
+    let url = fraiseql_test_support::try_database_url().unwrap();
+    create_line_view(&client).await;
+    client
+        .batch_execute(
+            "DROP VIEW IF EXISTS v_cdf2006_empty;
+             CREATE VIEW v_cdf2006_empty AS SELECT 1 AS id, 't' AS tenant_id, '{}'::jsonb AS \
+             data WHERE false;",
+        )
+        .await
+        .unwrap();
+
+    let out_dir = TempDir::new().unwrap();
+    let out = out_dir.path().join("schema.compiled.json");
+    let schema = scoped_embedding_schema("v_cdf2006_empty", 70);
+    let (ok, log) = run_compile(schema.path(), &url, &out, &[]);
+
+    assert!(ok, "warnings do not fail the compile:\n{log}");
+    assert!(
+        log.contains("`v_cdf2006_empty` holds no rows, so the scope keys of the documents `Order`"),
+        "the empty view is named:\n{log}"
+    );
+    assert!(
+        log.contains(
+            "`Order` reaches fields declaring `scoped_like_parent` by more routes than \
+                      are sampled: 64 checked, 6 not checked"
+        ),
+        "the unchecked routes are counted:\n{log}"
+    );
+}
