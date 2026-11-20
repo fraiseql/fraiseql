@@ -108,9 +108,25 @@ async fn health_lists_every_registered_capability_and_whether_it_is_compiled_in(
     }
 }
 
+/// Booting reads the observer runtime's environment overrides, and a sibling test sets
+/// the transport variables boot refuses inside a `temp_env` window. The boot runs holding
+/// that lock with those variables unset, so neither the sibling nor the caller's own
+/// environment can refuse it.
 #[cfg(feature = "observers")]
 #[tokio::test]
+// Reason: `temp_env`'s lock guard is not `Send`; a `#[tokio::test]` runs on one thread.
+#[allow(clippy::future_not_send)]
 async fn health_reports_a_started_observer_runtime() {
+    let unset = super::extensions::UNRUN_TRANSPORT_VARS.map(|var| (var, None::<&str>));
+    Box::pin(temp_env::async_with_vars(
+        unset,
+        health_reports_a_started_observer_runtime_body(),
+    ))
+    .await;
+}
+
+#[cfg(feature = "observers")]
+async fn health_reports_a_started_observer_runtime_body() {
     let Some(svc) = fraiseql_test_support::postgres().await else {
         eprintln!("SKIP health_reports_a_started_observer_runtime: no postgres");
         return;

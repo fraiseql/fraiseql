@@ -290,7 +290,7 @@ impl Server {
 /// bridge-only node. Nothing reads them, so setting one is refused rather than
 /// ignored (#1496).
 #[cfg(feature = "observers")]
-const UNRUN_TRANSPORT_VARS: [&str; 6] = [
+pub(super) const UNRUN_TRANSPORT_VARS: [&str; 6] = [
     "FRAISEQL_NATS_RUN_EXECUTORS",
     "FRAISEQL_NATS_ENABLE_BRIDGE",
     "FRAISEQL_BRIDGE_TRANSPORT_NAME",

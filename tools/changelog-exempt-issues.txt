@@ -77,3 +77,4 @@
 #1957  CI: the Rust SDK suite rows build on the toolchain they name (the SDK's rust-version and stable) instead of the repository's pin; no shipped artifact changes
 #1870  tools and CI: scripts under `pipefail` stop piping into `grep -q`, which could read a match as a miss, and a gate refuses the shape; no shipped artifact changes
 #1961  tools and CI: the same fix as #1870, which it duplicates; no shipped artifact changes
+#2114  tests: the observer health test boots holding temp_env's lock with the refused transport variables unset; no shipped artifact changes
