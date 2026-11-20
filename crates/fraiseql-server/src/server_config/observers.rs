@@ -120,7 +120,8 @@ pub struct ObserverRuntimeSettings {
     #[serde(default = "default_poll_interval_ms")]
     pub poll_interval_ms: u64,
 
-    /// Batch size for fetching change log entries (default: 100).
+    /// Batch size for fetching change log entries (default: 100): 1 to 10 000, the most
+    /// an observer checkpoint records. A value outside that range refuses boot.
     #[serde(default = "default_batch_size")]
     pub batch_size: usize,
 

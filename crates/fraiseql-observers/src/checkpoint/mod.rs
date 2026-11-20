@@ -139,6 +139,10 @@ pub struct CheckpointState {
 /// default, which its CHECK accepts (1 to 10 000).
 pub const DEFAULT_BATCH_SIZE: usize = 100;
 
+/// The largest batch size a checkpoint records: the `observer_checkpoints` CHECK
+/// `valid_batch` refuses a `batch_size` above it.
+pub const MAX_BATCH_SIZE: usize = 10_000;
+
 impl Default for CheckpointState {
     fn default() -> Self {
         Self {

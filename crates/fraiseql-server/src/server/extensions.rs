@@ -261,6 +261,11 @@ impl Server {
         })?;
 
         let runtime = &observer_config.runtime;
+        // Refused here, not only at start: a runtime that fails to start on the
+        // PostgreSQL transport is logged and the server boots without observers.
+        crate::observers::runtime::check_batch_size(runtime.batch_size).map_err(|reason| {
+            crate::ServerError::ConfigError(format!("[observers.runtime] {reason}"))
+        })?;
         if runtime.auto_reload && runtime.reload_interval_secs == 0 {
             return Err(crate::ServerError::ConfigError(
                 "[observers.runtime] reload_interval_secs = 0 with auto_reload = true would \

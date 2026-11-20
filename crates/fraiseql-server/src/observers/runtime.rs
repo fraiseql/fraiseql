@@ -138,7 +138,9 @@ pub struct ObserverRuntimeConfig {
     /// How often to poll for new change log entries (milliseconds)
     pub poll_interval_ms: u64,
 
-    /// Maximum events to fetch per batch
+    /// Maximum events to fetch per batch: 1 to
+    /// [`MAX_BATCH_SIZE`](fraiseql_observers::checkpoint::MAX_BATCH_SIZE), which
+    /// [`ObserverRuntime::start`] checks.
     pub batch_size: usize,
 
     /// Channel capacity for event backpressure
@@ -550,6 +552,7 @@ impl ObserverRuntime {
     /// fails, or the configured transport cannot connect (e.g. an unreachable
     /// NATS broker) — the latter is the #350 dead-broker boot-failure contract.
     pub async fn start(&mut self) -> Result<(), ServerError> {
+        check_batch_size(self.config.batch_size).map_err(ServerError::ConfigError)?;
         Box::pin(self.start_event_source()).await?;
         self.spawn_reload_ticker();
         Ok(())
@@ -1688,6 +1691,25 @@ pub(crate) fn bridge_event_for(event: &ObserverEntityEvent) -> Option<BridgeEnti
 /// change-log row through a per-process [`ChangeLogTail`] and forward it to the
 /// `EventBridge`. Independent of dispatch, so a standby's subscribers see every
 /// change, and an observer action that fails does not hide the change from them.
+/// Whether `size` is a batch size the runtime can run: 0 reads no change-log row, so no
+/// observer would ever fire, and a checkpoint cannot record a batch above
+/// [`MAX_BATCH_SIZE`](fraiseql_observers::checkpoint::MAX_BATCH_SIZE).
+///
+/// # Errors
+///
+/// Says why `size` is refused.
+pub(crate) fn check_batch_size(size: usize) -> Result<(), String> {
+    use fraiseql_observers::checkpoint::MAX_BATCH_SIZE;
+    if (1..=MAX_BATCH_SIZE).contains(&size) {
+        return Ok(());
+    }
+    Err(format!(
+        "batch_size = {size} is outside 1 to {MAX_BATCH_SIZE}: 0 reads no change-log row, so \
+         no observer fires, and an observer checkpoint records at most {MAX_BATCH_SIZE} rows \
+         per batch"
+    ))
+}
+
 async fn run_change_log_fanout(
     mut tail: ChangeLogTail,
     sender: mpsc::Sender<BridgeEntityEvent>,

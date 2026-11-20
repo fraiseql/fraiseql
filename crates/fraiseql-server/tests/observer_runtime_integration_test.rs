@@ -2320,3 +2320,66 @@ async fn a_change_whose_dispatches_could_not_be_recorded_is_read_again() {
     assert!(cursor >= change, "the cursor moved past it once recorded: {cursor} < {change}");
     cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
+
+/// The largest batch size the runtime accepts is one its checkpoint records: a full batch
+/// of 10 000 rows moves the stored cursor to the last of them.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn the_largest_batch_size_checkpoints_a_full_batch() {
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("Failed to setup schema");
+    let listener_id = format!("batch_bound_{}", Uuid::new_v4().simple());
+    let entity_type = format!("Bulk_{}", Uuid::new_v4().simple());
+    // A new listener reads from the start of the log: these rows must be all of it.
+    sqlx::query("DELETE FROM core.tb_entity_change_log")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let last: i64 = sqlx::query_scalar(
+        "WITH written AS ( \
+           INSERT INTO core.tb_entity_change_log \
+             (object_type, modification_type, object_id, object_data) \
+           SELECT $1, 'INSERT', gen_random_uuid(), jsonb_build_object('n', n) \
+           FROM generate_series(1, 10000) AS n \
+           RETURNING pk_entity_change_log) \
+         SELECT max(pk_entity_change_log) FROM written",
+    )
+    .bind(&entity_type)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let config = ObserverRuntimeConfig::new(pool.clone())
+        .with_listener_id(listener_id.clone())
+        .with_batch_size(10_000)
+        .with_poll_interval(50);
+    let mut runtime = ObserverRuntime::new(config);
+    runtime.start().await.expect("10 000 is accepted");
+
+    let mut stored = None;
+    for _ in 0..300 {
+        stored = sqlx::query_as::<_, (i64, i32)>(
+            "SELECT last_processed_id, batch_size FROM core.observer_checkpoints \
+             WHERE listener_id = $1",
+        )
+        .bind(&listener_id)
+        .fetch_optional(&pool)
+        .await
+        .unwrap();
+        if stored.is_some_and(|(id, _)| id >= last) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    runtime.stop().await.expect("stop");
+    sqlx::query("DELETE FROM core.tb_entity_change_log WHERE object_type = $1")
+        .bind(&entity_type)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let (id, batch_size) = stored.expect("a checkpoint was stored");
+    assert_eq!(id, last, "the cursor reached the last row");
+    assert_eq!(batch_size, 10_000, "in one full batch");
+}

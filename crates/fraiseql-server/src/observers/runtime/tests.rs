@@ -638,3 +638,25 @@ fn the_capture_dispatch_reads_the_same_marker_as_the_observer_events() {
         fraiseql_observers::CAPTURED_WRITE_MARKER
     );
 }
+
+mod batch_size_bound {
+    use super::super::{ObserverRuntime, ObserverRuntimeConfig};
+
+    /// A runtime built outside the server's config loader is held to the same range.
+    #[tokio::test]
+    async fn a_batch_size_a_checkpoint_cannot_record_is_refused_at_start() {
+        for size in [0, 10_001] {
+            // A lazy pool never connects: the refusal comes before any database work.
+            let pool = sqlx::PgPool::connect_lazy("postgres://u:u@127.0.0.1:1/db")
+                .expect("lazy pool construction does not connect");
+            let mut runtime =
+                ObserverRuntime::new(ObserverRuntimeConfig::new(pool).with_batch_size(size));
+
+            let err = runtime.start().await.expect_err("out of range");
+
+            assert!(err.to_string().contains("batch_size"), "{size}: {err}");
+            assert!(err.to_string().contains(&size.to_string()), "{size}: {err}");
+            assert!(!runtime.is_running());
+        }
+    }
+}

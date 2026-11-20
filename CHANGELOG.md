@@ -59,6 +59,14 @@ disagreed, and the promise was the part that was wrong.
   A role that reads the cursors without owning the table needs `USAGE` on `core`.
 - **`fraiseql_observers::EventStorage` and `PostgresEventStorage` are removed (#1895).**
   Nothing constructed them and nothing created the `fraiseql_events` table they read.
+- **`[observers.runtime] batch_size` must be between 1 and 10000 (#2157).** A value
+  above 10000 booted, then every full batch's checkpoint save was refused by the
+  `observer_checkpoints` CHECK and logged at ERROR, so the observer's position stopped
+  being durable and a restart replayed from the last checkpoint that fit. A value of 0
+  booted with a change-log read of no rows, so no observer ever fired, and nothing was
+  said. Both now refuse boot, naming the key, the value and the range.
+  `ObserverRuntime::start` refuses the same range for a runtime built in code, and
+  `fraiseql_observers::checkpoint::MAX_BATCH_SIZE` names the bound.
 - **A discovery document that names another issuer refuses the boot (#2135).** The
   `[auth]` PKCE client and the social and generic OIDC providers fetch
   `{discovery_url}/.well-known/openid-configuration`; the `issuer` the document names must

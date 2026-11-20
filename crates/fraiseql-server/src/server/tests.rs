@@ -2012,6 +2012,25 @@ mod observer_redis_env_tests {
         assert!(err.to_string().contains("reload_interval_secs"), "got: {err}");
     }
 
+    /// 0 reads nothing, and a checkpoint cannot record a batch above 10 000.
+    #[tokio::test]
+    async fn a_batch_size_outside_what_a_checkpoint_records_refuses_boot() {
+        for size in [0, 10_001] {
+            let err =
+                resolve(&format!("[runtime]\nbatch_size = {size}"), &[]).expect_err("out of range");
+            let said = err.to_string();
+            for part in ["[observers.runtime] batch_size", &size.to_string(), "10000"] {
+                assert!(said.contains(part), "names {part}: {said}");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn the_largest_batch_size_reaches_the_runtime() {
+        let cfg = resolve("[runtime]\nbatch_size = 10000", &[]).expect("in range");
+        assert_eq!(cfg.batch_size, 10_000);
+    }
+
     #[tokio::test]
     async fn an_unparseable_redis_override_refuses_boot() {
         let err = resolve(WITH_SECTION, &[("FRAISEQL_REDIS_CONNECT_TIMEOUT_SECS", "5s")])
