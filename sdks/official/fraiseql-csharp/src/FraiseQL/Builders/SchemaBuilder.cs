@@ -94,7 +94,7 @@ public sealed class SchemaBuilder
         // Start with registry types not overridden by fluent types
         var registryTypes = SchemaRegistry.Instance.GetAllTypes()
             .Where(t => !fluentTypeNames.Contains(t.Name))
-            .Select(TypeDefinitionToIntermediate)
+            .Select(SchemaExporter.TypeDefinitionToIntermediate)
             .ToList();
 
         var registryQueries = SchemaRegistry.Instance.GetAllQueries()
@@ -168,24 +168,6 @@ public sealed class SchemaBuilder
             Directory.CreateDirectory(dir);
 
         File.WriteAllText(path, Export(pretty));
-    }
-
-    private static IntermediateType TypeDefinitionToIntermediate(
-        FraiseQL.Models.TypeDefinition td)
-    {
-        var fields = td.Fields
-            .Select(f => new IntermediateField(
-                Name: f.Name,
-                Type: f.Type,
-                Nullable: f.Nullable,
-                Description: f.Description,
-                Scope: f.Scope,
-                Scopes: f.Scopes,
-                ScopedLikeParent: f.ScopedLikeParent ? true : null))
-            .ToList()
-            .AsReadOnly();
-
-        return new IntermediateType(td.Name, td.SqlSource, td.Description, fields);
     }
 }
 

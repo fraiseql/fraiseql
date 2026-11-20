@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json.Serialization;
 using FraiseQL.Attributes;
+using FraiseQL.Export;
 using FraiseQL.Models;
 
 namespace FraiseQL.Registry;
@@ -84,12 +85,13 @@ public sealed class SchemaRegistry
         if (typeAttr.Crud)
         {
             var intermediateFields = fields
-                .Select(f => new IntermediateField(f.Name, f.Type, f.Nullable, f.Description,
+                .Select(f => SchemaExporter.FieldDefinitionToIntermediate(f) with
+                {
                     // Normalise a singleton Scopes list onto Scope; anything longer is
                     // unrepresentable downstream and is refused rather than dropped (#807).
-                    NormaliseScope(f.Scope, f.Scopes, f.Name), null, f.Computed ? true : null,
-                    f.Vector, f.VectorDistance, f.Deprecated, f.Localized ? true : null,
-                    f.ScopedLikeParent ? true : null))
+                    Scope = NormaliseScope(f.Scope, f.Scopes, f.Name),
+                    Scopes = null,
+                })
                 .ToList()
                 .AsReadOnly();
 

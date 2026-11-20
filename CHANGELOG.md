@@ -1220,6 +1220,14 @@ disagreed, and the promise was the part that was wrong.
   from the row, so a subscription scopes a captured change by the column a query compares.
   Not changed: a table of plain columns is still captured as its row, and Arrow Flight
   Upload still records the inserted row under the table's name.
+- **The C# SDK's `SchemaBuilder` exports a registered type's field and type options
+  (#2207).** A type registered through the registry and exported through `SchemaBuilder`
+  lost its fields' `Computed`, `Vector`, `VectorDistance`, `Deprecated` and `Localized`
+  and its own `Relay`, `IsError` and `Relationships`, with no error: the builder converted
+  registered types with a copy of the exporter's conversion that had fallen behind it.
+  `SchemaExporter`, `SchemaBuilder` and the registry's CRUD generation now use one
+  conversion. A schema exported through `SchemaBuilder` gains those keys where the types
+  declared them.
 
 ### Security
 

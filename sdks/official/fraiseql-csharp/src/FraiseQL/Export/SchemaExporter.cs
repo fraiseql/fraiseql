@@ -133,23 +133,38 @@ public static class SchemaExporter
         };
     }
 
+    /// <summary>
+    /// Converts a registered <see cref="FieldDefinition"/> to its intermediate form.
+    /// </summary>
+    /// <remarks>
+    /// The one conversion every path out of the registry uses — this exporter,
+    /// <see cref="FraiseQL.Builders.SchemaBuilder"/> and the registry's CRUD generation —
+    /// so a field option is carried by all of them or by none.
+    /// </remarks>
+    internal static IntermediateField FieldDefinitionToIntermediate(FieldDefinition f) =>
+        new(
+            Name: f.Name,
+            Type: f.Type,
+            Nullable: f.Nullable,
+            Description: f.Description,
+            Scope: f.Scope,
+            Scopes: f.Scopes,
+            Computed: f.Computed ? true : null,
+            Vector: f.Vector,
+            VectorDistance: f.VectorDistance,
+            Deprecated: f.Deprecated,
+            Localized: f.Localized ? true : null,
+            ScopedLikeParent: f.ScopedLikeParent ? true : null);
+
     /// <summary>Converts a <see cref="TypeDefinition"/> to its serializable intermediate form.</summary>
-    private static IntermediateType TypeDefinitionToIntermediate(TypeDefinition td)
+    /// <remarks>
+    /// Shared with <see cref="FraiseQL.Builders.SchemaBuilder"/>, which merges registered
+    /// types into its own export.
+    /// </remarks>
+    internal static IntermediateType TypeDefinitionToIntermediate(TypeDefinition td)
     {
         var fields = td.Fields
-            .Select(f => new IntermediateField(
-                Name: f.Name,
-                Type: f.Type,
-                Nullable: f.Nullable,
-                Description: f.Description,
-                Scope: f.Scope,
-                Scopes: f.Scopes,
-                Computed: f.Computed ? true : null,
-                Vector: f.Vector,
-                VectorDistance: f.VectorDistance,
-                Deprecated: f.Deprecated,
-                Localized: f.Localized ? true : null,
-                ScopedLikeParent: f.ScopedLikeParent ? true : null))
+            .Select(FieldDefinitionToIntermediate)
             .ToList()
             .AsReadOnly();
 
