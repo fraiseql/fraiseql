@@ -134,6 +134,7 @@ impl Server {
         self.install_function_seams(Arc::clone(&hooks));
         self.functions_hooks = Some(hooks);
         tracing::info!(functions = function_count, "functions-runtime dispatch enabled");
+        fraiseql_guard::net::proxy::warn_if_proxy_configured();
         Ok(())
     }
 
