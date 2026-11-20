@@ -337,7 +337,9 @@ impl SagaRecoveryManager {
     ///
     /// Returns [`SagaStoreError`] only if the initial store scans
     /// (`claim_stuck_sagas` / `find_pending_sagas`) fail; per-saga replay and
-    /// cleanup failures are counted in `stats` rather than propagated.
+    /// cleanup failures are counted in `stats` rather than propagated. A saga
+    /// the store cannot read does not fail a scan: the store reports it and
+    /// passes over it (`PostgresSagaStore::unreadable_reports`).
     ///
     /// # Panics
     ///

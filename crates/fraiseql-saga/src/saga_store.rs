@@ -38,7 +38,10 @@
 //! store.save_saga(&saga).await?;
 //! ```
 
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
 
 use deadpool_postgres::Pool;
 use fraiseql_time::Timestamp;
@@ -435,7 +438,8 @@ pub struct SagaRecovery {
 /// Manages persistent storage of sagas and their execution state using PostgreSQL.
 /// Provides crash recovery and distributed coordination across federation instances.
 pub struct PostgresSagaStore {
-    pool: Arc<Pool>,
+    pool:               Arc<Pool>,
+    unreadable_reports: AtomicU64,
 }
 
 impl PostgresSagaStore {
@@ -481,7 +485,8 @@ impl PostgresSagaStore {
         let _conn = pool.get().await?;
 
         Ok(Self {
-            pool: Arc::new(pool),
+            pool:               Arc::new(pool),
+            unreadable_reports: AtomicU64::new(0),
         })
     }
 
@@ -700,6 +705,46 @@ impl PostgresSagaStore {
         })
     }
 
+    /// Map the rows a list load returned, reporting each saga it cannot read and passing
+    /// over it, so one corrupt saga does not keep the others from being loaded.
+    ///
+    /// A row is reported at `error` with the saga's id, the column and the value, never
+    /// its metadata or steps, and counted in [`Self::unreadable_reports`].
+    ///
+    /// # Errors
+    ///
+    /// Returns any error other than [`SagaStoreError::CorruptStoredValue`].
+    fn map_saga_rows(&self, rows: &[tokio_postgres::Row]) -> Result<Vec<Saga>> {
+        let mut sagas = Vec::with_capacity(rows.len());
+        for row in rows {
+            match Self::map_saga_row(row) {
+                Ok(saga) => sagas.push(saga),
+                Err(SagaStoreError::CorruptStoredValue { column, value }) => {
+                    let saga_id: Option<Uuid> = row.try_get(0).ok();
+                    tracing::error!(
+                        saga_id = ?saga_id,
+                        column = %column,
+                        value = %value,
+                        "a stored saga cannot be read; it is passed over until corrected"
+                    );
+                    self.unreadable_reports.fetch_add(1, Ordering::Relaxed);
+                },
+                Err(other) => return Err(other),
+            }
+        }
+        Ok(sagas)
+    }
+
+    /// How many times a list load has reported a saga it could not read.
+    ///
+    /// `load_sagas_by_state` and `find_pending_sagas` report such a saga on every call
+    /// that reads it. `claim_stuck_sagas` leases it with the sagas it claims, so it is
+    /// reported once per lease, and claimed again when the lease runs out.
+    #[must_use]
+    pub fn unreadable_reports(&self) -> u64 {
+        self.unreadable_reports.load(Ordering::Relaxed)
+    }
+
     /// Map a database row to a [`SagaStep`] struct.
     ///
     /// # Errors
@@ -824,6 +869,10 @@ impl PostgresSagaStore {
 
     /// Load sagas filtered by state
     ///
+    /// A saga the store cannot read (a [`SagaStoreError::CorruptStoredValue`]) is
+    /// reported and passed over, and the others are returned (see
+    /// [`Self::unreadable_reports`]).
+    ///
     /// # Errors
     ///
     /// Returns `SagaStoreError::Database` if the query fails.
@@ -838,7 +887,7 @@ impl PostgresSagaStore {
             )
             .await?;
 
-        rows.iter().map(Self::map_saga_row).collect()
+        self.map_saga_rows(&rows)
     }
 
     /// Update saga state and automatically set completion time for terminal states
@@ -1167,6 +1216,10 @@ impl PostgresSagaStore {
     /// its creator. Only a saga that has sat `Pending` past the threshold is
     /// genuinely orphaned.
     ///
+    /// A saga the store cannot read (a [`SagaStoreError::CorruptStoredValue`]) is
+    /// reported and passed over, and the others are returned (see
+    /// [`Self::unreadable_reports`]).
+    ///
     /// # Errors
     ///
     /// Returns `SagaStoreError::Database` if the query fails.
@@ -1184,7 +1237,7 @@ impl PostgresSagaStore {
             )
             .await?;
 
-        rows.iter().map(Self::map_saga_row).collect()
+        self.map_saga_rows(&rows)
     }
 
     /// Clear recovery record for a saga
@@ -1415,6 +1468,12 @@ impl PostgresSagaStore {
     /// returned (marked with `worker_id` + a fresh lease) for this worker to
     /// re-drive.
     ///
+    /// A claimed saga the store cannot read is reported and left out of the returned
+    /// sagas, and the recoverable sagas claimed with it are returned. It keeps its
+    /// lease, so the passes until the lease runs out neither claim nor report it
+    /// again, and it holds none of their `limit`; it is claimed again after that, and
+    /// returned once corrected (see [`Self::unreadable_reports`]).
+    ///
     /// # Errors
     ///
     /// Returns `SagaStoreError::Database` if the query fails.
@@ -1456,7 +1515,7 @@ impl PostgresSagaStore {
             )
             .await?;
 
-        rows.iter().map(Self::map_saga_row).collect()
+        self.map_saga_rows(&rows)
     }
 
     /// Heartbeat a saga row: bump `updated_at` to now.

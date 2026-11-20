@@ -322,6 +322,160 @@ mod stored_times {
         assert_corrupt(loaded, "started_at", named);
     }
 
+    /// Three sagas in `state`, created on 1990-01-01, -02 and -03, so they sort before any
+    /// other suite's sagas, last written a day ago and leased to no one. The second one's
+    /// `column` is set to `stored`, which the store cannot read.
+    async fn good_bad_good(
+        url: &str,
+        state: SagaState,
+        column: &str,
+        stored: &str,
+    ) -> (PostgresSagaStore, [Uuid; 3]) {
+        let store = opened(url).await;
+        let ids = [Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4()];
+        for (day, id) in ids.iter().enumerate() {
+            let mut s = saga(*id, at(&format!("1990-01-0{}T00:00:00Z", day + 1)), None);
+            s.state = state.clone();
+            store.save_saga(&s).await.expect("the saga saves");
+        }
+        let client = raw(url).await;
+        client
+            .execute(
+                "UPDATE tb_federation_sagas SET updated_at = now() - interval '1 day', \
+                 recovery_worker_id = NULL, recovery_lease_expires_at = NULL \
+                 WHERE id = ANY($1)",
+                &[&ids.to_vec()],
+            )
+            .await
+            .expect("the sagas are stale");
+        client
+            .execute(
+                &format!(
+                    "UPDATE tb_federation_sagas SET {column} = $2::text::timestamptz WHERE id = $1"
+                ),
+                &[&ids[1], &stored],
+            )
+            .await
+            .expect("the time is set");
+        (store, ids)
+    }
+
+    async fn remove_all(url: &str, ids: &[Uuid]) {
+        for id in ids {
+            remove(url, *id).await;
+        }
+    }
+
+    fn ids_of(sagas: &[Saga]) -> Vec<Uuid> {
+        sagas.iter().map(|s| s.id).collect()
+    }
+
+    /// The recoverable sagas on each side of an unreadable one are loaded, and the
+    /// unreadable one is left out.
+    fn assert_loaded_around(loaded: &Result<Vec<Saga>>, ids: &[Uuid; 3]) {
+        let loaded = loaded.as_ref().map(|sagas| ids_of(sagas));
+        let loaded = loaded.as_ref().expect("one unreadable saga does not fail the load");
+        assert!(
+            loaded.contains(&ids[0]) && loaded.contains(&ids[2]),
+            "both recoverable sagas: {loaded:?}"
+        );
+        assert!(!loaded.contains(&ids[1]), "not the unreadable one: {loaded:?}");
+    }
+
+    #[tokio::test]
+    async fn sagas_loaded_by_state_skip_one_that_cannot_be_read() {
+        let Some(url) = database_url() else {
+            return;
+        };
+        let (store, ids) =
+            good_bad_good(&url, SagaState::Compensating, "completed_at", "infinity").await;
+        let loaded = store.load_sagas_by_state(&SagaState::Compensating).await;
+        remove_all(&url, &ids).await;
+        assert_loaded_around(&loaded, &ids);
+        assert_eq!(store.unreadable_reports(), 1, "the unreadable saga is reported");
+    }
+
+    #[tokio::test]
+    async fn pending_sagas_found_skip_one_that_cannot_be_read() {
+        let Some(url) = database_url() else {
+            return;
+        };
+        let (store, ids) =
+            good_bad_good(&url, SagaState::Pending, "completed_at", "infinity").await;
+        let loaded = store.find_pending_sagas(60).await;
+        remove_all(&url, &ids).await;
+        assert_loaded_around(&loaded, &ids);
+        assert_eq!(store.unreadable_reports(), 1, "the unreadable saga is reported");
+    }
+
+    /// All three are claimed in one pass. The recoverable two are returned, where one
+    /// unreadable saga used to leave them leased and unreturned until the lease ran out;
+    /// the unreadable one keeps its lease, so the next passes do not claim it again.
+    #[tokio::test]
+    async fn stuck_sagas_claimed_with_one_that_cannot_be_read_are_returned() {
+        let Some(url) = database_url() else {
+            return;
+        };
+        let (store, ids) =
+            good_bad_good(&url, SagaState::Executing, "completed_at", "infinity").await;
+        let claimed = store.claim_stuck_sagas(Uuid::new_v4(), 300, 3, 60).await;
+        let (leased,): (bool,) = {
+            let row = raw(&url)
+                .await
+                .query_one(
+                    "SELECT coalesce(recovery_lease_expires_at > now(), false) FROM tb_federation_sagas \
+                     WHERE id = $1",
+                    &[&ids[1]],
+                )
+                .await
+                .expect("the saga is stored");
+            (row.get(0),)
+        };
+        remove_all(&url, &ids).await;
+        assert_loaded_around(&claimed, &ids);
+        assert!(leased, "the unreadable saga keeps its lease");
+        assert_eq!(store.unreadable_reports(), 1, "the unreadable saga is reported");
+    }
+
+    /// One saga per pass, the unreadable one first: it is claimed and left out, and its
+    /// lease keeps it out of the passes after, which reach the recoverable sagas. Each
+    /// pass is run with every saga stale again, so the lease alone keeps it out.
+    #[tokio::test]
+    async fn an_unreadable_saga_sorted_first_does_not_starve_the_sagas_behind_it() {
+        let Some(url) = database_url() else {
+            return;
+        };
+        let (store, ids) =
+            good_bad_good(&url, SagaState::Executing, "created_at", "-infinity").await;
+        let worker = Uuid::new_v4();
+        let mut passes = Vec::new();
+        let client = raw(&url).await;
+        for _ in 0..3 {
+            passes.push(store.claim_stuck_sagas(worker, 300, 1, 60).await.map(|s| ids_of(&s)));
+            // Staleness passes before the lease does: only the lease keeps a claimed saga
+            // out of the next pass.
+            client
+                .execute(
+                    "UPDATE tb_federation_sagas SET updated_at = now() - interval '1 day' \
+                     WHERE id = ANY($1)",
+                    &[&ids.to_vec()],
+                )
+                .await
+                .expect("the sagas are stale again");
+        }
+        remove_all(&url, &ids).await;
+        let passes: Vec<Vec<Uuid>> = passes
+            .into_iter()
+            .map(|p| p.expect("a pass does not fail on the saga"))
+            .collect();
+        assert_eq!(
+            passes,
+            [vec![], vec![ids[0]], vec![ids[2]]],
+            "the first pass claims the unreadable saga"
+        );
+        assert_eq!(store.unreadable_reports(), 1, "reported once, while its lease holds");
+    }
+
     #[tokio::test]
     async fn an_infinite_stored_time_is_a_corrupt_value() {
         an_unreadable_time_is_a_corrupt_value("infinity", "infinity").await;

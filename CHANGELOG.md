@@ -686,6 +686,19 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **One saga the store cannot read no longer stops saga recovery (#2134).**
+  `PostgresSagaStore::load_sagas_by_state`, `find_pending_sagas` and `claim_stuck_sagas`
+  failed with `SagaStoreError::CorruptStoredValue` when any saga they read held a value the
+  store cannot read, so a recovery pass recovered nothing. They now report such a saga at
+  `error`, with its id, the column and the value, pass over it and return the others;
+  `PostgresSagaStore::unreadable_reports()` counts the reports. A claim keeps the
+  unreadable saga leased, so it is reported once per lease and takes none of the next
+  passes' `limit`; it is claimed again when the lease runs out, and recovered once
+  corrected.
+- **The recoverable sagas claimed in the same pass as an unreadable one are returned
+  (#2134).** `claim_stuck_sagas` leases every saga it claims before reading them, so one it
+  could not read left the recoverable sagas claimed with it leased and unreturned until
+  their lease ran out.
 - **A saga or step whose stored time the store cannot read is reported as a corrupt value
   (#2026).** The load returns `SagaStoreError::CorruptStoredValue` naming the column and
   the value, as it does for a state it does not know. It did not return an error before.
