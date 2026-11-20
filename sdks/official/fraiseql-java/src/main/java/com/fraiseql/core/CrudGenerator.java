@@ -151,7 +151,8 @@ public final class CrudGenerator {
         Map<String, TypeConverter.GraphQLFieldInfo> createInputFields = new LinkedHashMap<>();
         for (Map.Entry<String, TypeConverter.GraphQLFieldInfo> entry : fieldList) {
             if (!entry.getValue().computed) {
-                createInputFields.put(entry.getKey(), asInputField(entry.getValue()));
+                createInputFields.put(entry.getKey(),
+                    asInputField(entry.getValue(), entry.getValue().nullable));
             }
         }
         registry.registerInputType(createInputName, createInputFields,
@@ -166,15 +167,11 @@ public final class CrudGenerator {
         // Update mutation: register input type (PK required, others nullable), then use single "input" argument
         String updateInputName = "Update" + typeName + "Input";
         Map<String, TypeConverter.GraphQLFieldInfo> updateInputFields = new LinkedHashMap<>();
-        updateInputFields.put(pkName, asInputField(pkEntry.getValue()));
+        updateInputFields.put(pkName, asInputField(pkEntry.getValue(), pkEntry.getValue().nullable));
         for (int i = 1; i < fieldList.size(); i++) {
             Map.Entry<String, TypeConverter.GraphQLFieldInfo> entry = fieldList.get(i);
             if (!entry.getValue().computed) {
-                TypeConverter.GraphQLFieldInfo original = entry.getValue();
-                TypeConverter.GraphQLFieldInfo nullableField = new TypeConverter.GraphQLFieldInfo(
-                    original.name, original.type, true, original.description,
-                    original.requiresScope, original.requiresScopes, original.computed);
-                updateInputFields.put(entry.getKey(), nullableField);
+                updateInputFields.put(entry.getKey(), asInputField(entry.getValue(), true));
             }
         }
         registry.registerInputType(updateInputName, updateInputFields,
@@ -195,21 +192,24 @@ public final class CrudGenerator {
     }
 
     /**
-     * The field as a generated input type carries it: the same field, without the
-     * {@code scopedLikeParent} declaration, which an input field cannot make.
+     * The field as a generated input type carries it: its name, type, description,
+     * deprecation and {@code localized}, with the nullability given, and none of the
+     * options that configure an output field. A required scope, a computed flag, a
+     * vector config, a vector distance and {@code scopedLikeParent} are legitimate on the
+     * type's field and are refused on an input field, so they are left off here rather
+     * than carried into {@link SchemaRegistry#registerInputType(String, Map, String)}.
+     *
+     * @param field    the type's own field
+     * @param nullable whether the input field can be left out
+     * @return a copy declaring only what an input field may
      */
-    private static TypeConverter.GraphQLFieldInfo asInputField(TypeConverter.GraphQLFieldInfo field) {
-        if (!field.scopedLikeParent) {
-            return field;
-        }
+    private static TypeConverter.GraphQLFieldInfo asInputField(TypeConverter.GraphQLFieldInfo field,
+                                                               boolean nullable) {
         TypeConverter.GraphQLFieldInfo copy = new TypeConverter.GraphQLFieldInfo(
-            field.name, field.type, field.nullable, field.description,
-            field.requiresScope, field.requiresScopes, field.computed);
+            field.name, field.type, nullable, field.description);
         copy.isDeprecated = field.isDeprecated;
-        copy.isList = field.isList;
-        copy.vectorConfig = field.vectorConfig;
-        copy.vectorDistance = field.vectorDistance;
         copy.deprecationReason = field.deprecationReason;
+        copy.isList = field.isList;
         copy.localized = field.localized;
         return copy;
     }

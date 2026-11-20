@@ -128,7 +128,12 @@ This produces `schema.compiled.json` which you load into the FraiseQL Rust serve
 | `requires_scope:` | string | nil | Single OAuth scope required |
 | `requires_scopes:` | list | nil | List of OAuth scopes (any one satisfies) |
 | `localized:` | boolean | false | A String stored as a locale map (`[locale]` in `fraiseql.toml`); any other type fails to compile |
-| `scoped_like_parent:` | boolean | false | On a field embedding a type whose own query is scoped by `inject_params`: the embedded rows are scoped as the parent's are. Refused on an `is_input` type's field |
+| `scoped_like_parent:` | boolean | false | On a field embedding a type whose own query is scoped by `inject_params`: the embedded rows are scoped as the parent's are |
+
+A field of an `is_input` type takes `nullable:`, `description:`, `deprecated:` and
+`localized:`. `requires_scope:`, `requires_scopes:`, `computed:`, `vector_config:`,
+`vector_distance:` and `scoped_like_parent:` configure an output field and raise an
+`ArgumentError` there, naming the type, the field and each option.
 
 ### `argument` options
 

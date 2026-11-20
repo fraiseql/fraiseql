@@ -88,7 +88,10 @@ defmodule FraiseQL.FieldDefinition do
     * `:localized` — `true` on a String stored as a locale map (#1527)
     * `:scoped_like_parent` — `true` on a field that embeds a type whose own query is
       scoped by `inject_params`: the embedded rows are scoped as the parent's are.
-      Refused on an input type's field.
+
+  On a field of an `is_input` type, `:requires_scope`, `:requires_scopes`, `:computed`,
+  `:vector_config`, `:vector_distance` and `:scoped_like_parent` are refused: they
+  configure an output field.
   """
 
   @enforce_keys [:name, :type]

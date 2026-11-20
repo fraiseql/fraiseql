@@ -415,19 +415,14 @@ public class SchemaRegistry {
      * @param inputName the input type name
      * @param fields the input fields
      * @param description optional description
-     * @throws IllegalArgumentException if a field declares {@code scopedLikeParent}
+     * @throws IllegalArgumentException if a field declares an option that configures an
+     *     output field: a required scope, {@code computed}, a vector config, a vector
+     *     distance or {@code scopedLikeParent}
      */
     public void registerInputType(String inputName, Map<String, TypeConverter.GraphQLFieldInfo> fields,
                                   String description) {
-        // The declaration is about the document a type's field embeds; an input field
-        // embeds none, and the compiler has no such key on an input field.
-        for (TypeConverter.GraphQLFieldInfo field : fields.values()) {
-            if (field.scopedLikeParent) {
-                throw new IllegalArgumentException(String.format(
-                    "Input type %s: field %s declares scopedLikeParent, which only a "
-                        + "field of an object type can declare",
-                    inputName, field.name));
-            }
+        for (Map.Entry<String, TypeConverter.GraphQLFieldInfo> entry : fields.entrySet()) {
+            refuseOutputOnlyOptions(inputName, entry.getKey(), entry.getValue());
         }
         InputTypeInfo inputInfo = new InputTypeInfo(inputName, fields, description);
         inputTypes.put(inputName, inputInfo);
@@ -443,6 +438,50 @@ public class SchemaRegistry {
      */
     public void registerInputType(String inputName, Class<?> inputClass, String description) {
         registerInputType(inputName, TypeConverter.extractFields(inputClass), description);
+    }
+
+    /**
+     * Refuse an input field declaring an option that configures an output field.
+     *
+     * <p>A required scope filters what a reader is shown, {@code computed} marks a value
+     * the server writes, a vector config and a vector distance describe a stored column
+     * and a search result, and {@code scopedLikeParent} is about the document a type's
+     * field embeds. None of them means anything on a value a client sends, so the field
+     * is refused rather than exported with a key the compiler does not read there. Every
+     * such option on the field is named, by the name it has in the exported document.
+     *
+     * @param inputName the input type being registered
+     * @param fieldName the name the field is registered under
+     * @param field     the field
+     * @throws IllegalArgumentException if the field declares any output-only option
+     */
+    private static void refuseOutputOnlyOptions(String inputName, String fieldName,
+                                                TypeConverter.GraphQLFieldInfo field) {
+        List<String> declared = new ArrayList<>();
+        if (field.computed) {
+            declared.add("computed");
+        }
+        if (field.requiresScope != null) {
+            declared.add("requires_scope");
+        }
+        if (field.requiresScopes != null) {
+            declared.add("requires_scopes");
+        }
+        if (field.scopedLikeParent) {
+            declared.add("scoped_like_parent");
+        }
+        if (field.vectorConfig != null) {
+            declared.add("vector_config");
+        }
+        if (field.vectorDistance != null) {
+            declared.add("vector_distance");
+        }
+        if (!declared.isEmpty()) {
+            Collections.sort(declared);
+            throw new IllegalArgumentException(String.format(
+                "%s.%s: %s applies to output fields only; an input field cannot declare it",
+                inputName, fieldName, String.join(", ", declared)));
+        }
     }
 
     /**

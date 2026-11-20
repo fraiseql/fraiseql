@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -764,19 +765,44 @@ func storedEnumValue(value any) (any, error) {
 	}
 }
 
+// refuseOutputOnlyOptions refuses an input field that declares an option configuring an
+// output field. An input field takes a description, a deprecation and a locale map; every
+// other option would be exported onto a field the compiler does not apply it to. The
+// error names every such option on the field, by wire name, in sorted order.
+func refuseOutputOnlyOptions(typeName string, fields []FieldInfo) error {
+	for _, f := range fields {
+		var declared []string
+		if f.Scope != "" {
+			declared = append(declared, "requires_scope")
+		}
+		if f.ScopedLikeParent {
+			declared = append(declared, "scoped_like_parent")
+		}
+		if f.Vector != nil {
+			declared = append(declared, "vector_config")
+		}
+		if f.VectorDistance != "" {
+			declared = append(declared, "vector_distance")
+		}
+		if len(declared) > 0 {
+			sort.Strings(declared)
+			return fmt.Errorf(
+				"input type %q field %q: %s applies to output fields only; "+
+					"an input field cannot declare it",
+				typeName, f.Name, strings.Join(declared, ", "))
+		}
+	}
+	return nil
+}
+
 // RegisterInputType registers a GraphQL input object type with the schema registry.
 // Returns an error if a name is registered twice.
 func RegisterInputType(name string, fields []FieldInfo, description string) error {
-	if err := validateFieldDeclarations(name, fields); err != nil {
+	if err := refuseOutputOnlyOptions(name, fields); err != nil {
 		return err
 	}
-	for _, f := range fields {
-		if f.ScopedLikeParent {
-			return fmt.Errorf(
-				"field %q of input type %q declares scoped_like_parent, which applies to output "+
-					"fields only: it describes a type a field embeds, and an input field embeds none",
-				f.Name, name)
-		}
+	if err := validateFieldDeclarations(name, fields); err != nil {
+		return err
 	}
 	reg := getInstance()
 	reg.mu.Lock()

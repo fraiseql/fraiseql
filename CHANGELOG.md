@@ -1228,6 +1228,18 @@ disagreed, and the promise was the part that was wrong.
   `SchemaExporter`, `SchemaBuilder` and the registry's CRUD generation now use one
   conversion. A schema exported through `SchemaBuilder` gains those keys where the types
   declared them.
+- **The Go, Java and Elixir SDKs refuse an output-only field option on an input field
+  (#2205).** A required scope, `computed`, a vector config or distance, or
+  `scoped_like_parent` on an input field was accepted and exported, where the Python SDK
+  refuses it. Go's `RegisterInputType`, Java's `registerInputType` and an Elixir
+  `is_input: true` type (or a hand-built input type, at export) now refuse it, naming the
+  field and every such option on it: `OrderInput.note: requires_scope, vector_config
+  applies to output fields only; an input field cannot declare it`. Description,
+  deprecation and `localized` are still accepted. Java's generated `Create<T>Input` and
+  `Update<T>Input` are built without those options, so a `crud = true` type's scoped or
+  computed field no longer carries its scope onto them; its `Update<T>Input` fields now
+  keep their deprecation and `localized`, which they lost. A schema that declared such an
+  option on an input field is refused at registration and must drop it.
 
 ### Security
 

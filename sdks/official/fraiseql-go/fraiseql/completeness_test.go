@@ -617,19 +617,104 @@ func TestScopedLikeParentIsExportedOnlyOnTheFieldThatDeclaresIt(t *testing.T) {
 	}
 }
 
-func TestScopedLikeParentIsRefusedOnAnInputField(t *testing.T) {
+// The options an input field refuses, by wire name, each on a field that declares it alone.
+var refusedOnAnInputField = map[string]FieldInfo{
+	"requires_scope":     {Name: "note", Type: "String", Scope: "read:Order.note"},
+	"vector_config":      {Name: "note", Type: "Vector", Vector: &VectorConfig{Dimensions: 3}},
+	"vector_distance":    {Name: "note", Type: "Float", VectorDistance: "embedding"},
+	"scoped_like_parent": {Name: "note", Type: "ID", ScopedLikeParent: true},
+}
+
+// The members of FieldInfo an input field carries, by wire name.
+var allowedOnAnInputField = map[string]bool{
+	"name":        true,
+	"type":        true,
+	"nullable":    true,
+	"description": true,
+	"deprecated":  true,
+	"localized":   true,
+}
+
+// Every member of FieldInfo is either refused on an input field or allowed on one. A new
+// member is in neither set until its author decides which.
+func TestEveryFieldInfoMemberIsClassifiedForAnInputField(t *testing.T) {
+	fieldInfo := reflect.TypeOf(FieldInfo{})
+	for i := 0; i < fieldInfo.NumField(); i++ {
+		member := fieldInfo.Field(i)
+		wire, _, _ := strings.Cut(member.Tag.Get("json"), ",")
+		_, refused := refusedOnAnInputField[wire]
+		allowed := allowedOnAnInputField[wire]
+		switch {
+		case refused && allowed:
+			t.Errorf("FieldInfo.%s (%q) is both refused and allowed on an input field", member.Name, wire)
+		case !refused && !allowed:
+			t.Errorf("FieldInfo.%s (%q) is not classified: decide whether an input field may "+
+				"declare it, then add it to allowedOnAnInputField, or to refusedOnAnInputField "+
+				"and to the check in RegisterInputType", member.Name, wire)
+		}
+	}
+}
+
+// An input type refuses every option that configures an output field, one named subtest
+// per option, and a refused input type is not registered.
+func TestAnOutputOnlyOptionIsRefusedOnAnInputField(t *testing.T) {
+	for option, field := range refusedOnAnInputField {
+		t.Run(option, func(t *testing.T) {
+			Reset()
+			defer Reset()
+
+			err := RegisterInputType("OrderInput", []FieldInfo{{Name: "id", Type: "ID"}, field}, "")
+			want := `input type "OrderInput" field "note": ` + option +
+				" applies to output fields only; an input field cannot declare it"
+			if err == nil || err.Error() != want {
+				t.Errorf("RegisterInputType:\n got %v\nwant %s", err, want)
+			}
+			if inputs, _ := exportedSchema(t)["input_types"].([]any); len(inputs) != 0 {
+				t.Errorf("a refused input type is not registered: %v", inputs)
+			}
+		})
+	}
+}
+
+// Every offending option on a field is named in one error, sorted by wire name.
+func TestEveryOutputOnlyOptionOnAnInputFieldIsNamedAtOnce(t *testing.T) {
 	Reset()
 	defer Reset()
 
-	err := RegisterInputType("OrderShipmentInput", []FieldInfo{
-		{Name: "orderId", Type: "ID", ScopedLikeParent: true},
+	err := RegisterInputType("OrderInput", []FieldInfo{
+		{Name: "note", Type: "Vector", Vector: &VectorConfig{Dimensions: 3}, Scope: "read:Order.note"},
 	}, "")
-	if err == nil || !strings.Contains(err.Error(), `"orderId"`) ||
-		!strings.Contains(err.Error(), "scoped_like_parent") {
-		t.Errorf("RegisterInputType: %v", err)
+	want := `input type "OrderInput" field "note": requires_scope, vector_config applies to ` +
+		"output fields only; an input field cannot declare it"
+	if err == nil || err.Error() != want {
+		t.Errorf("RegisterInputType:\n got %v\nwant %s", err, want)
 	}
 	if inputs, _ := exportedSchema(t)["input_types"].([]any); len(inputs) != 0 {
 		t.Errorf("a refused input type is not registered: %v", inputs)
+	}
+}
+
+// A description, a deprecation and a locale map are input-field options too.
+func TestAnInputFieldKeepsItsDescriptionDeprecationAndLocaleMap(t *testing.T) {
+	Reset()
+	defer Reset()
+
+	if err := RegisterInputType("OrderInput", []FieldInfo{{
+		Name:        "note",
+		Type:        "String",
+		Description: "A note for the courier.",
+		Deprecated:  &DeprecationInfo{Reason: "use comment"},
+		Localized:   true,
+	}}, ""); err != nil {
+		t.Fatalf("RegisterInputType: %v", err)
+	}
+
+	note := entry(t, exportedSchema(t), "input_types", "OrderInput", "fields")["note"]
+	if note["description"] != "A note for the courier." || note["localized"] != true {
+		t.Errorf("OrderInput.note: %v", note)
+	}
+	if deprecated, _ := note["deprecated"].(map[string]any); deprecated["reason"] != "use comment" {
+		t.Errorf("OrderInput.note deprecated: %v", note["deprecated"])
 	}
 }
 

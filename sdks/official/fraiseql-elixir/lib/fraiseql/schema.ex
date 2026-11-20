@@ -415,11 +415,13 @@ defmodule FraiseQL.Schema do
       distance this field carries
     * `:deprecated` — `true`, or the deprecation reason as a string
     * `:scoped_like_parent` — `true` on a field that embeds a type whose own query is
-      scoped by `inject_params`, declaring the embedded rows scoped as the parent's are.
-      Refused on a field of an `is_input` type
+      scoped by `inject_params`, declaring the embedded rows scoped as the parent's are
     * `:computed` — the field is server-assigned (a slug, a view aggregation), so it is
       omitted from the input objects `crud:` generates. Authoring-time only: it is never
       emitted into `schema.json`
+
+  A field of an `is_input` type takes `:nullable`, `:description`, `:deprecated` and
+  `:localized`. The others configure an output field and are refused there.
 
   ## Example
 
@@ -597,22 +599,37 @@ defmodule FraiseQL.Schema do
           "#{name}: scoped_like_parent: must be true or false (got #{inspect(value)})"
   end
 
-  # An input object is an argument shape: it embeds no scoped rows, and the compiler
-  # reads the flag on an object type's field only.
+  # The `FieldDefinition` options that configure an output field: who may read it, how it
+  # is searched, whether the server assigns it, how its embedded rows are scoped.
+  @output_only_field_options [
+    :computed,
+    :requires_scope,
+    :requires_scopes,
+    :scoped_like_parent,
+    :vector_config,
+    :vector_distance
+  ]
+
+  # An input object is an argument shape: none of those options means anything on its
+  # fields, and one exported there is a declaration the compiled schema does not honour.
+  # Every offending option on the first offending field is named at once.
   @doc false
   @spec __validate_input_fields__!(String.t(), boolean(), [FraiseQL.FieldDefinition.t()]) :: :ok
   def __validate_input_fields__!(_name, false, _fields), do: :ok
 
   def __validate_input_fields__!(name, true, fields) do
-    case Enum.find(fields, & &1.scoped_like_parent) do
-      nil ->
-        :ok
+    Enum.each(fields, fn field ->
+      case Enum.filter(@output_only_field_options, &(Map.fetch!(field, &1) not in [nil, false])) do
+        [] ->
+          :ok
 
-      field ->
-        raise ArgumentError,
-              "fraiseql_type #{inspect(name)}: input field #{inspect(field.name)} declares " <>
-                "scoped_like_parent, which applies to an object type's field only"
-    end
+        options ->
+          raise ArgumentError,
+                "fraiseql_type #{inspect(name)}: input field #{inspect(field.name)}: " <>
+                  "#{Enum.join(options, ", ")} applies to output fields only; an input " <>
+                  "field cannot declare it"
+      end
+    end)
   end
 
   @doc false

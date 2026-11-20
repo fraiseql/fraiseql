@@ -177,6 +177,10 @@ defmodule FraiseQL.SchemaExporter do
   end
 
   defp type_to_map(%FraiseQL.TypeDefinition{} = t) do
+    # A type built as a struct never passed through `fraiseql_type`, so the refusal of an
+    # output-only option on an input field is repeated where the field would be written.
+    FraiseQL.Schema.__validate_input_fields__!(t.name, t.is_input, t.fields)
+
     base = %{
       "name" => t.name,
       "fields" => Enum.map(t.fields, &field_to_map/1)

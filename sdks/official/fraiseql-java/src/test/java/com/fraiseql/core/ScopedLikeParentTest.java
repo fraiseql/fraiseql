@@ -54,7 +54,7 @@ public class ScopedLikeParentTest {
     void anInputFieldCannotDeclareIt() {
         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
             () -> FraiseQL.getRegistry().registerInputType("OrderInput", OrderInput.class, ""));
-        assertTrue(refused.getMessage().contains("scopedLikeParent"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("scoped_like_parent"), refused.getMessage());
         assertTrue(refused.getMessage().contains("line"), refused.getMessage());
         assertTrue(FraiseQL.getRegistry().getInputType("OrderInput").isEmpty());
     }
