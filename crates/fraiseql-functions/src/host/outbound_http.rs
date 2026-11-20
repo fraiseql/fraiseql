@@ -2,9 +2,10 @@
 //!
 //! Extracted from `LiveHostContext` when the request-serving host gained the same
 //! op (#1329). It is one *implementation*, not one rule stated twice: the SSRF
-//! allowlist, the literal-IP and DNS-rebinding checks, the disabled redirect policy
-//! (so a 3xx cannot bounce a validated request at an unvalidated internal target)
-//! and the response-size ceiling all apply identically wherever a guest can make an
+//! allowlist, the literal-IP and DNS-rebinding checks, a client that connects only to
+//! the addresses its own lookup checked, the disabled redirect policy (so a 3xx cannot
+//! bounce a validated request at an unvalidated internal target) and the response-size
+//! ceiling all apply identically wherever a guest can make an
 //! outbound call, because there is only one place they are written.
 //!
 //! #1329 states the constraint as "the SSRF allowlist, unchanged". A second copy of
@@ -13,17 +14,40 @@
 use std::sync::Arc;
 
 use fraiseql_error::Result;
+use fraiseql_guard::net::pinned::PinnedResolver;
 
 use crate::host::{
     HttpResponse,
     live::{HostContextConfig, http_validator},
 };
 
+/// The client a guest's request is sent with, built from `config`'s timeouts.
+///
+/// The URL check sees the URL the guest named, so the client goes there and nowhere
+/// else: a 3xx is returned to the guest, not followed; every lookup the client makes is
+/// `resolver`'s, which checks the addresses it answers, so it connects only to one that
+/// passed; and no proxy is used, through which the lookup would name the proxy instead.
+pub(crate) fn outbound_client(
+    config: &HostContextConfig,
+    resolver: PinnedResolver,
+) -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .dns_resolver(Arc::new(resolver))
+        .no_proxy()
+        .connect_timeout(std::time::Duration::from_millis(config.http_connect_timeout_ms))
+        .timeout(std::time::Duration::from_millis(config.http_read_timeout_ms))
+        .build()
+        .map_err(|e| fraiseql_error::FraiseQLError::Internal {
+            message: format!("failed to create HTTP client: {e}"),
+            source:  None,
+        })
+}
+
 /// Make one SSRF-validated outbound HTTP request.
 ///
-/// `client` is the host's shared client when it has one; otherwise a client is
-/// built per call from the same timeouts, which is what the pre-extraction code
-/// did.
+/// `client` is the host's shared client when it has one, used as given; otherwise
+/// `outbound_client` builds one per call from `config`'s timeouts.
 ///
 /// # Errors
 ///
@@ -56,20 +80,7 @@ pub async fn perform(
     let client = if let Some(client) = client {
         Arc::clone(client)
     } else {
-        // Create a new client with configured timeouts.
-        // Redirects are disabled (`Policy::none()`) so a 3xx response cannot
-        // bounce the request to an un-validated internal target, bypassing
-        // the SSRF guard that was applied only to the initial URL.
-        let client = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .connect_timeout(std::time::Duration::from_millis(config.http_connect_timeout_ms))
-            .timeout(std::time::Duration::from_millis(config.http_read_timeout_ms))
-            .build()
-            .map_err(|e| fraiseql_error::FraiseQLError::Internal {
-                message: format!("failed to create HTTP client: {}", e),
-                source:  None,
-            })?;
-        Arc::new(client)
+        Arc::new(outbound_client(config, PinnedResolver::new())?)
     };
 
     // Build request
@@ -137,3 +148,6 @@ pub async fn perform(
         body: body_bytes.to_vec(),
     })
 }
+
+#[cfg(test)]
+mod tests;

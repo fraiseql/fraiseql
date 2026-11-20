@@ -1326,6 +1326,7 @@ dependencies = [
 name = "fraiseql-guard"
 version = "2.19.1"
 dependencies = [
+ "reqwest",
  "tokio",
  "tracing",
 ]

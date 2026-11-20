@@ -12,6 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use fraiseql_guard::net::pinned::PinnedResolver;
 use lettre::{
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor, message::Mailbox,
     transport::smtp::authentication::Credentials,
@@ -26,6 +27,8 @@ use crate::{
     event::EntityEvent,
 };
 
+#[cfg(test)]
+mod delivery_tests;
 #[cfg(test)]
 mod tests;
 
@@ -277,6 +280,36 @@ pub(crate) fn classify_http_status(
     }
 }
 
+/// The client an action delivers with.
+///
+/// The URL checks in `execute` see the URL a delivery names, so the client goes there and
+/// nowhere else: it follows no redirect (a 3xx is the receiver's answer, classified like
+/// any other status), connects only to addresses [`PinnedResolver`] checked on its own
+/// lookup, and uses no proxy, through which that lookup would name the proxy instead.
+fn delivery_client(timeout: Duration, action: &str) -> Client {
+    delivery_client_with(timeout, PinnedResolver::new(), action)
+}
+
+/// [`delivery_client`], resolving with `resolver`.
+fn delivery_client_with(timeout: Duration, resolver: PinnedResolver, action: &str) -> Client {
+    let resolver = resolver.unchecked_when(crate::insecure_guard::is_outbound_insecure_allowed);
+    Client::builder()
+        .timeout(timeout)
+        .redirect(reqwest::redirect::Policy::none())
+        .dns_resolver(std::sync::Arc::new(resolver))
+        .no_proxy()
+        .build()
+        // Building fails only when the TLS backend cannot initialise, where
+        // `Client::default()` panics too; a client built any other way would follow
+        // redirects or resolve unchecked.
+        .unwrap_or_else(|e| unbuildable(action, &e))
+}
+
+#[allow(clippy::panic)] // Reason: no client can deliver; `Client::default()` panics here too
+fn unbuildable(action: &str, error: &reqwest::Error) -> Client {
+    panic!("the {action} HTTP client cannot be built: {error}")
+}
+
 /// Webhook action executor
 pub struct WebhookAction {
     /// HTTP client for making requests
@@ -285,29 +318,30 @@ pub struct WebhookAction {
 
 impl WebhookAction {
     /// Create a new webhook action executor with the default 30-second timeout.
+    ///
+    /// # Panics
+    ///
+    /// When the TLS backend cannot be initialised.
     #[must_use]
     pub fn new() -> Self {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(DEFAULT_WEBHOOK_TIMEOUT_SECS))
-            .build()
-            .unwrap_or_else(|e| {
-                tracing::error!(error = %e, "Failed to build HTTP client for WebhookAction; falling back to no-timeout client");
-                Client::default()
-            });
-        Self { client }
+        Self {
+            client: delivery_client(
+                Duration::from_secs(DEFAULT_WEBHOOK_TIMEOUT_SECS),
+                "WebhookAction",
+            ),
+        }
     }
 
     /// Create a webhook action executor with a custom request timeout.
+    ///
+    /// # Panics
+    ///
+    /// When the TLS backend cannot be initialised.
     #[must_use]
     pub fn with_timeout(timeout: Duration) -> Self {
-        let client = Client::builder()
-            .timeout(timeout)
-            .build()
-            .unwrap_or_else(|e| {
-                tracing::error!(error = %e, "Failed to build HTTP client for WebhookAction; falling back to no-timeout client");
-                Client::default()
-            });
-        Self { client }
+        Self {
+            client: delivery_client(timeout, "WebhookAction"),
+        }
     }
 
     /// Execute webhook action
@@ -624,16 +658,18 @@ pub struct SlackAction {
 
 impl SlackAction {
     /// Create a new Slack action executor
+    ///
+    /// # Panics
+    ///
+    /// When the TLS backend cannot be initialised.
     #[must_use]
     pub fn new() -> Self {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(DEFAULT_WEBHOOK_TIMEOUT_SECS))
-            .build()
-            .unwrap_or_else(|e| {
-                tracing::error!(error = %e, "Failed to build HTTP client for SlackAction; falling back to no-timeout client");
-                Client::default()
-            });
-        Self { client }
+        Self {
+            client: delivery_client(
+                Duration::from_secs(DEFAULT_WEBHOOK_TIMEOUT_SECS),
+                "SlackAction",
+            ),
+        }
     }
 
     /// Execute Slack action

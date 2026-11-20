@@ -55,6 +55,24 @@ impl std::error::Error for Refusal {}
 /// The [`Refusal`] naming why: a refused host, a failed or empty lookup, or the first
 /// blocked address.
 pub async fn resolve_and_check(host: &str, port: u16) -> Result<Vec<SocketAddr>, Refusal> {
+    resolve_and_check_with(host, port, system_lookup).await
+}
+
+/// The system resolver.
+pub(crate) async fn system_lookup(host: String, port: u16) -> std::io::Result<Vec<SocketAddr>> {
+    Ok(tokio::net::lookup_host((host.as_str(), port)).await?.collect())
+}
+
+/// [`resolve_and_check`], looking the host up with `lookup`.
+pub(crate) async fn resolve_and_check_with<F, Fut>(
+    host: &str,
+    port: u16,
+    lookup: F,
+) -> Result<Vec<SocketAddr>, Refusal>
+where
+    F: FnOnce(String, u16) -> Fut,
+    Fut: std::future::Future<Output = std::io::Result<Vec<SocketAddr>>>,
+{
     if let Some(reason) = blocked_host_reason(host) {
         return Err(Refusal::Host(reason));
     }
@@ -64,10 +82,9 @@ pub async fn resolve_and_check(host: &str, port: u16) -> Result<Vec<SocketAddr>,
         // and a literal cannot be rebound.
         return Ok(vec![SocketAddr::new(ip, port)]);
     }
-    let addrs: Vec<SocketAddr> = tokio::net::lookup_host((bare, port))
+    let addrs = lookup(bare.to_owned(), port)
         .await
-        .map_err(|e| Refusal::ResolutionFailed(e.to_string()))?
-        .collect();
+        .map_err(|e| Refusal::ResolutionFailed(e.to_string()))?;
     check_resolved(addrs)
 }
 

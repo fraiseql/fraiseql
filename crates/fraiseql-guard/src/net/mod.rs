@@ -33,11 +33,15 @@
 //! A hostname that resolves to a blocked address is only caught once it is resolved:
 //! [`resolve::resolve_and_check`] does that, for every caller. It returns the addresses
 //! that passed, and a caller must **pin** its connection to them, since validating and
-//! then letting the HTTP client re-resolve leaves a rebinding window open.
+//! then letting the HTTP client re-resolve leaves a rebinding window open. With the
+//! `reqwest` feature, `pinned::PinnedResolver` is that pin for a `reqwest` client: the
+//! client's own lookups run the check, so it connects only to addresses that passed.
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 pub mod allowlist;
+#[cfg(feature = "reqwest")]
+pub mod pinned;
 pub mod resolve;
 pub mod vectors;
 

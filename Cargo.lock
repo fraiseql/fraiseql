@@ -4020,6 +4020,7 @@ dependencies = [
  "sha2 0.11.0",
  "sqlparser",
  "sqlx",
+ "temp-env",
  "tempfile",
  "tokio",
  "tracing",
@@ -4034,6 +4035,7 @@ name = "fraiseql-guard"
 version = "2.19.1"
 dependencies = [
  "fraiseql-test-support",
+ "reqwest 0.12.28",
  "temp-env",
  "tokio",
  "tracing",
