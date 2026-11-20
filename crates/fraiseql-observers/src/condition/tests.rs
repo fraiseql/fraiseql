@@ -989,3 +989,32 @@ fn the_forms_a_condition_is_written_in_still_parse_and_evaluate() {
     // A call with no argument reaches the arity check, which names the function.
     assert!(refusal("has_field()").contains("has_field expects 1 argument, got 0"));
 }
+
+/// Every key a condition reads, through every combinator, with how it reads it.
+#[test]
+fn field_references_name_every_key_and_how_it_is_read() {
+    let ast = ConditionParser::new()
+        .parse(
+            "total > 1 && (has_field('a') || !field_changed('b')) \
+             && !(field_changed_to('c', 'x') || field_changed_from('d', 'y'))",
+        )
+        .unwrap();
+
+    assert_eq!(
+        ast.field_references(),
+        [
+            ("total", FieldRead::Value),
+            ("a", FieldRead::Presence),
+            ("b", FieldRead::Change),
+            ("c", FieldRead::Change),
+            ("d", FieldRead::Change),
+        ]
+    );
+}
+
+/// A call's key is read as written, a dot included.
+#[test]
+fn a_call_keeps_a_dotted_key_as_written() {
+    let ast = ConditionParser::new().parse("has_field('customer.email')").unwrap();
+    assert_eq!(ast.field_references(), [("customer.email", FieldRead::Presence)]);
+}

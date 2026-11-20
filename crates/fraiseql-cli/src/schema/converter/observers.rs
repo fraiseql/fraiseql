@@ -8,9 +8,9 @@
 //! sent.
 
 use anyhow::{Context, Result, bail};
-use fraiseql_core::schema::{CompiledSchema, ObserverDefinition, RetryConfig};
+use fraiseql_core::schema::{CompiledSchema, ConditionRead, ObserverDefinition, RetryConfig};
 use fraiseql_observers::{
-    ActionConfig, ConditionParser, body_template_placeholders, is_secret_header_name,
+    ActionConfig, ConditionParser, FieldRead, body_template_placeholders, is_secret_header_name,
 };
 use tracing::warn;
 
@@ -48,16 +48,13 @@ fn compile_one(
     schema: &CompiledSchema,
 ) -> Result<ObserverDefinition> {
     let name = observer.name.as_str();
-    if let Some(condition) = observer.condition.as_deref() {
-        ConditionParser::new().parse(condition).map_err(|e| {
-            anyhow::anyhow!("observer `{name}`: `condition` {condition:?} does not parse: {e}")
-        })?;
-    }
+    let condition_warnings = check_condition(observer, schema)
+        .map_err(|refusal| anyhow::anyhow!("observer `{name}`: {refusal}"))?;
     for (index, action) in observer.actions.iter().enumerate() {
         check_action(action, &observer.entity, schema)
             .with_context(|| format!("observer `{name}`, action {index}"))?;
     }
-    for message in captured_row_warnings(observer, schema) {
+    for message in condition_warnings.iter().chain(&captured_row_warnings(observer, schema)) {
         warn!(observer = name, "{message}");
     }
     let retry = serde_json::to_value(&observer.retry)
@@ -79,6 +76,48 @@ fn compile_one(
             max_delay_ms:     observer.retry.max_delay_ms,
         },
     })
+}
+
+/// Parse the observer's condition, and check each key it reads against the entity
+/// ([`CompiledSchema::condition_key`]): the warnings to print once the observer is
+/// accepted, one per message.
+///
+/// # Errors
+///
+/// Returns why the condition does not parse, or the refusal of the first key no event of
+/// the entity can hold.
+fn check_condition(
+    observer: &IntermediateObserver,
+    schema: &CompiledSchema,
+) -> std::result::Result<Vec<String>, String> {
+    let Some(condition) = observer.condition.as_deref() else {
+        return Ok(Vec::new());
+    };
+    let ast = ConditionParser::new()
+        .parse(condition)
+        .map_err(|e| format!("`condition` {condition:?} does not parse: {e}"))?;
+    // An entity the schema does not declare is refused by the validator before this runs.
+    let Some(entity) = schema.find_type(&observer.entity) else {
+        return Ok(Vec::new());
+    };
+    let mut warnings: Vec<String> = Vec::new();
+    for (key, read) in ast.field_references() {
+        if let Some(warning) = schema.condition_key(entity, key, condition_read(read))? {
+            if !warnings.contains(&warning) {
+                warnings.push(warning);
+            }
+        }
+    }
+    Ok(warnings)
+}
+
+/// The schema's name for how a condition reads a key.
+const fn condition_read(read: FieldRead) -> ConditionRead {
+    match read {
+        FieldRead::Value => ConditionRead::Value,
+        FieldRead::Presence => ConditionRead::Presence,
+        FieldRead::Change => ConditionRead::Change,
+    }
 }
 
 /// What the compile says of a declared observer it accepts: each webhook `body_template`

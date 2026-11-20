@@ -411,3 +411,168 @@ async fn a_refused_update_logs_no_captured_row_warning() {
     assert_refused_naming(status, &body, "nope");
     assert_eq!(logged.warnings_of("customer.email"), 0, "{}", logged.text());
 }
+
+// #2122: a condition reads top-level keys of the event. Each key it names is checked
+// against the observed type, as a template's placeholders are.
+
+/// A template with no placeholder, so only the condition is checked.
+const PLAIN: &str = r#"{"ok": true}"#;
+
+impl Rig {
+    async fn create_when(&self, entity_type: &str, condition: &str) -> (StatusCode, Value) {
+        self.call(
+            Method::POST,
+            "/api/observers",
+            json!({
+                "name": format!("conditioned-{entity_type}"),
+                "entity_type": entity_type,
+                "event_type": "INSERT",
+                "condition_expression": condition,
+                "actions": [webhook(PLAIN)],
+            }),
+        )
+        .await
+    }
+
+    async fn stored_condition(&self, id: &str) -> Option<String> {
+        let (condition,): (Option<String>,) =
+            sqlx::query_as("SELECT condition_expression FROM core.tb_observer WHERE id = $1::uuid")
+                .bind(id)
+                .fetch_one(&self.pool)
+                .await
+                .unwrap();
+        condition
+    }
+}
+
+impl Logged {
+    /// How many warnings of a condition key a captured row bears on were logged for `key`.
+    fn condition_warnings_of(&self, key: &str) -> usize {
+        let says = format!("`condition` reads `{key}`");
+        self.text()
+            .lines()
+            .filter(|line| line.contains("WARN") && line.contains(&says))
+            .filter(|line| line.contains("`tb_order`"))
+            .count()
+    }
+}
+
+fn assert_condition_refused_naming(status: StatusCode, body: &Value, key: &str) {
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    let error = body["error"].as_str().unwrap_or_default();
+    assert!(error.contains(&format!("`condition` reads `{key}`")), "names `{key}`: {body}");
+}
+
+#[tokio::test]
+async fn create_refuses_a_condition_key_no_field_holds() {
+    let rig = rig().await;
+    let (status, body) = rig.create_when("Order", "totl > 100").await;
+    assert_condition_refused_naming(status, &body, "totl");
+    assert_eq!(rig.count().await, 0, "nothing is stored");
+}
+
+#[tokio::test]
+async fn create_refuses_a_published_name_in_a_condition_naming_the_stored_key() {
+    let rig = rig().await;
+    let (status, body) = rig.create_when("Order", "reviewStatus == 'approved'").await;
+    assert_condition_refused_naming(status, &body, "reviewStatus");
+    assert!(body["error"].as_str().unwrap().contains("`review_status`"), "{body}");
+}
+
+/// The schema holds no table's columns. Where the type's table is captured as its row, a
+/// key no field holds may be a column: stored, and logged. Where the document is the
+/// only image, refused.
+#[tokio::test]
+async fn the_same_unknown_condition_key_is_refused_or_stored_and_logged_by_the_types_tables() {
+    let rig = rig().await;
+    let (status, body) = rig.create_when("Order", "fk_customer == 7").await;
+    assert_condition_refused_naming(status, &body, "fk_customer");
+
+    let rig = rig_over(row_captured()).await;
+    let (logged, _guard) = Logged::start();
+    let (status, body) = rig.create_when("Order", "fk_customer == 7").await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    assert_eq!(logged.condition_warnings_of("fk_customer"), 1, "{}", logged.text());
+}
+
+#[tokio::test]
+async fn create_refuses_a_dotted_key_in_a_condition_call_whatever_the_tables() {
+    for rig in [rig().await, rig_over(row_captured()).await] {
+        let (status, body) = rig.create_when("Order", "has_field('customer.email')").await;
+        assert_condition_refused_naming(status, &body, "customer.email");
+    }
+}
+
+#[tokio::test]
+async fn create_stores_and_logs_a_condition_on_an_embedded_field_a_captured_row_lacks() {
+    let rig = rig_over(row_captured()).await;
+    let (logged, _guard) = Logged::start();
+
+    let (status, body) = rig.create_when("Order", "has_field('customer') && total > 1").await;
+
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    assert_eq!(logged.condition_warnings_of("customer"), 1, "{}", logged.text());
+    assert_eq!(logged.condition_warnings_of("total"), 0, "a column carries a scalar");
+}
+
+#[tokio::test]
+async fn update_refuses_a_new_condition_against_the_stored_entity_type() {
+    let rig = rig().await;
+    let (_, created) = rig.create_when("Order", "total > 1").await;
+    let id = created["id"].as_str().unwrap();
+
+    let (status, body) = rig
+        .call(
+            Method::PATCH,
+            &format!("/api/observers/{id}"),
+            json!({ "condition_expression": "totl > 1" }),
+        )
+        .await;
+
+    assert_condition_refused_naming(status, &body, "totl");
+    assert_eq!(rig.stored_condition(id).await.as_deref(), Some("total > 1"));
+}
+
+#[tokio::test]
+async fn update_refuses_a_new_entity_type_the_stored_condition_cannot_read() {
+    let rig = rig().await;
+    let (_, created) = rig.create_when("Order", "total > 1").await;
+    let id = created["id"].as_str().unwrap();
+
+    let (status, body) = rig
+        .call(
+            Method::PATCH,
+            &format!("/api/observers/{id}"),
+            json!({ "entity_type": "Customer" }),
+        )
+        .await;
+
+    assert_condition_refused_naming(status, &body, "total");
+    assert_eq!(rig.stored_entity_type(id).await, "Order");
+}
+
+/// An update that sends only actions leaves the stored condition as it was written, and
+/// does not answer for it: a stored condition was checked on its own write.
+#[tokio::test]
+async fn an_update_of_the_actions_alone_does_not_recheck_the_stored_condition() {
+    let rig = rig().await;
+    let (_, created) = rig.create_when("Order", "total > 1").await;
+    let id = created["id"].as_str().unwrap();
+    sqlx::query(
+        "UPDATE core.tb_observer SET condition_expression = 'totl > 1' WHERE id = $1::uuid",
+    )
+    .bind(id)
+    .execute(&rig.pool)
+    .await
+    .unwrap();
+
+    let (status, body) = rig
+        .call(
+            Method::PATCH,
+            &format!("/api/observers/{id}"),
+            json!({ "actions": [webhook(VALID)] }),
+        )
+        .await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+}

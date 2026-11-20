@@ -88,7 +88,7 @@ pub use checkpoint::{
     CheckpointMode, CheckpointState, CheckpointStore, InMemoryCheckpointStore,
     PostgresCheckpointStore, check_checkpoint_requirement,
 };
-pub use condition::{ConditionAst, ConditionParser};
+pub use condition::{ConditionAst, ConditionParser, FieldRead};
 pub use config::{
     ActionConfig, BackoffStrategy, EmailSmtpConfig, FailurePolicy, ObserverDefinition, RedisConfig,
     RetryConfig, SmtpTlsMode,

@@ -6,7 +6,10 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use fraiseql_core::{runtime::Executor, schema::CompiledSchema};
+use fraiseql_core::{
+    runtime::Executor,
+    schema::{CompiledSchema, ConditionRead},
+};
 use uuid::Uuid;
 
 use super::{
@@ -109,6 +112,57 @@ pub(super) fn captured_row_warnings(
         .flat_map(fraiseql_observers::body_template_placeholders)
         .filter_map(|path| schema.captured_row_warning(entity, &path))
         .collect()
+}
+
+/// Check each key a condition reads against the observed entity
+/// ([`CompiledSchema::condition_key`], the rule the compiler applies to a declared
+/// observer): the warnings to log once the observer is stored, one per message.
+///
+/// An entity type the schema does not declare, and a condition that does not parse
+/// (refused before this runs), are left alone.
+///
+/// # Errors
+///
+/// Returns the refusal of the first key no event of the entity can hold, which
+/// [`condition_refused`] answers with `422`.
+pub(super) fn check_condition_keys(
+    schema: &CompiledSchema,
+    entity_type: Option<&str>,
+    condition: Option<&str>,
+) -> Result<Vec<String>, String> {
+    let (Some(entity), Some(condition)) =
+        (entity_type.and_then(|n| schema.find_type(n)), condition)
+    else {
+        return Ok(Vec::new());
+    };
+    let Ok(ast) = fraiseql_observers::ConditionParser::new().parse(condition) else {
+        return Ok(Vec::new());
+    };
+    let mut warnings: Vec<String> = Vec::new();
+    for (key, read) in ast.field_references() {
+        if let Some(warning) = schema.condition_key(entity, key, condition_read(read))? {
+            if !warnings.contains(&warning) {
+                warnings.push(warning);
+            }
+        }
+    }
+    Ok(warnings)
+}
+
+/// `422` for a condition [`check_condition_keys`] refuses.
+fn condition_refused(refusal: &str) -> Response {
+    (StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({ "error": refusal })))
+        .into_response()
+}
+
+/// The schema's name for how a condition reads a key.
+const fn condition_read(read: fraiseql_observers::FieldRead) -> ConditionRead {
+    use fraiseql_observers::FieldRead;
+    match read {
+        FieldRead::Value => ConditionRead::Value,
+        FieldRead::Presence => ConditionRead::Presence,
+        FieldRead::Change => ConditionRead::Change,
+    }
 }
 
 /// Log [`captured_row_warnings`] for an observer about to be stored.
@@ -301,18 +355,31 @@ pub async fn create_observer(
     if let Some(resp) = reject_unparsable_condition(request.condition_expression.as_deref()) {
         return resp;
     }
+    let executor = state.executor.load();
+    let condition_warnings = match check_condition_keys(
+        executor.schema(),
+        request.entity_type.as_deref(),
+        request.condition_expression.as_deref(),
+    ) {
+        Ok(warnings) => warnings,
+        Err(refusal) => return condition_refused(&refusal),
+    };
     if let Some(resp) = reject_unfillable_templates(
-        state.executor.load().schema(),
+        executor.schema(),
         request.entity_type.as_deref(),
         &request.actions,
     ) {
         return resp;
     }
+    for message in condition_warnings {
+        tracing::warn!(entity_type = request.entity_type.as_deref(), "{message}");
+    }
     warn_captured_row_templates(
-        state.executor.load().schema(),
+        executor.schema(),
         request.entity_type.as_deref(),
         &request.actions,
     );
+    drop(executor);
 
     let created_by = security_context.as_ref().map(|ctx| ctx.user_id.as_str());
 
@@ -349,7 +416,7 @@ pub async fn update_observer(
     if let Some(resp) = request.actions.as_deref().and_then(reject_undispatchable_actions) {
         return resp;
     }
-    if let Some(resp) = check_updated_templates(&state, id, &request, scope).await {
+    if let Some(resp) = check_updated_observer(&state, id, &request, scope).await {
         return resp;
     }
 
@@ -357,30 +424,42 @@ pub async fn update_observer(
     write_observer(&state, id, &request, scope, updated_by, "update observer").await
 }
 
-/// `reject_unfillable_templates` over the observer an update leaves: its new entity type
-/// or actions, the stored ones for whichever the request does not change.
-async fn check_updated_templates(
+/// The observer an update leaves, checked as a create is: its webhook templates
+/// (`reject_unfillable_templates`) when the entity type or the actions change, and its
+/// condition (`check_condition_keys`) when the entity type or the condition changes. The
+/// unchanged parts are read from the stored observer. An update that sends only actions
+/// does not answer for the stored condition, which was checked on its own write.
+async fn check_updated_observer(
     state: &ObserverState,
     id: Uuid,
     request: &UpdateObserverRequest,
     scope: ObserverScope,
 ) -> Option<Response> {
-    if request.entity_type.is_none() && request.actions.is_none() {
+    let check_templates = request.entity_type.is_some() || request.actions.is_some();
+    let check_condition = request.entity_type.is_some() || request.condition_expression.is_some();
+    if !check_templates && !check_condition {
         return None;
     }
-    let stored = if request.entity_type.is_none() || request.actions.is_none() {
+    let complete = request.entity_type.is_some()
+        && request.actions.is_some()
+        && request.condition_expression.is_some();
+    let stored = if complete {
+        None
+    } else {
         match state.repository.get_by_id(id, scope).await {
             Ok(Some(observer)) => Some(observer),
             Ok(None) => return Some(observer_not_found()),
             Err(e) => return Some(repository_error("update observer", &e)),
         }
-    } else {
-        None
     };
     let entity_type = request
         .entity_type
         .clone()
         .or_else(|| stored.as_ref().and_then(|o| o.entity_type.clone()));
+    let condition = match &request.condition_expression {
+        Some(condition) => condition.clone(),
+        None => stored.as_ref().and_then(|o| o.condition_expression.clone()),
+    };
     let actions = match &request.actions {
         Some(actions) => actions.clone(),
         // Stored actions were validated on their own write; ones that no longer parse as
@@ -390,11 +469,28 @@ async fn check_updated_templates(
             .unwrap_or_default(),
     };
     let executor = state.executor.load();
-    let refused = reject_unfillable_templates(executor.schema(), entity_type.as_deref(), &actions);
-    if refused.is_none() {
-        warn_captured_row_templates(executor.schema(), entity_type.as_deref(), &actions);
+    let schema = executor.schema();
+    let condition_warnings = if check_condition {
+        match check_condition_keys(schema, entity_type.as_deref(), condition.as_deref()) {
+            Ok(warnings) => warnings,
+            Err(refusal) => return Some(condition_refused(&refusal)),
+        }
+    } else {
+        Vec::new()
+    };
+    if check_templates {
+        if let Some(refused) = reject_unfillable_templates(schema, entity_type.as_deref(), &actions)
+        {
+            return Some(refused);
+        }
     }
-    refused
+    for message in condition_warnings {
+        tracing::warn!(entity_type = entity_type.as_deref(), "{message}");
+    }
+    if check_templates {
+        warn_captured_row_templates(schema, entity_type.as_deref(), &actions);
+    }
+    None
 }
 
 /// Delete an observer the caller owns (soft delete).

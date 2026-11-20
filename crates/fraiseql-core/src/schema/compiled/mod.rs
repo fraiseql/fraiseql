@@ -51,7 +51,7 @@ pub use auth_email::{
     render_link_template,
 };
 pub use directive::{DirectiveDefinition, DirectiveLocationKind};
-pub use document_path::UnfillablePath;
+pub use document_path::{ConditionRead, UnfillablePath};
 pub use fact_table_links::fact_field;
 pub use fact_table_roots::is_fact_table_root;
 pub use fact_table_scope::{FactInjectOrigin, FactInjectScope};

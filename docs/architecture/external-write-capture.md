@@ -178,6 +178,17 @@ Two limits:
   scalar field: the compiled schema does not hold the table's columns. A template that
   names an internal column (`{{ fk_customer }}`) is refused, as before: no mutation's
   event would fill it.
+
+  An observer's `condition` reads one top-level key of the event, and is checked the same
+  way, with one difference. A key the type embeds (`customer != null`) is accepted with
+  the same warning: for a captured row the comparison fails to evaluate, so the observer
+  does not run for it, and `has_field` or `field_changed*` is false. A key that names no
+  field of the type (`fk_customer == 7`) is also accepted with a warning on a type whose
+  table is captured as its row, where a template naming it is refused. The schema holds
+  no table's columns, so it cannot tell such a key from a column the row supplies, and a
+  condition on a column is how an observer tells an outside write from a mutation: it
+  holds for the captured row and not for a mutation's event. On a type with no such
+  table, the document is the only image, and the key is refused.
 - **Arrow Flight Upload is not an event of a type.** It records the inserted row under
   the *table's* name as `object_type`, so it matches no observer or subscription of a
   GraphQL type, and it is not changed by this declaration.

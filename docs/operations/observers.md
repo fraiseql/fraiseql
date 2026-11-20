@@ -100,6 +100,15 @@ when the runtime could not run it as written:
   as its row: see
   [External-write capture](../architecture/external-write-capture.md#a-table-that-keeps-its-entity-document).
 - The `condition` does not parse, or `retry` is not a policy the runtime reads.
+- The `condition` reads a key no event of the entity holds. A condition reads one
+  top-level key of the event, by the key the stored document holds it under:
+  `review_status == 'approved'` for a field published as `reviewStatus`. A dotted key in
+  a call (`has_field('customer.email')`) is refused, since no event holds one. A key that
+  names no field of the type is refused unless a table of the type is captured as its
+  row, where it may be a column: it then compiles with a warning, as a key the type
+  embeds does. See
+  [External-write capture](../architecture/external-write-capture.md#a-table-that-keeps-its-entity-document)
+  for why conditions are more permissive there than templates.
 - `fraiseql.toml` writes no `[project] name`. The name is the owner the observers are
   stored under (see below), so a schema that declares one needs it.
 
@@ -293,7 +302,11 @@ goes to the server log only.
 
 An action sent to `POST /api/observers` or `PATCH /api/observers/{id}` is read by the
 check the compiler applies to a declared observer. A key the runtime would ignore is
-refused with `422`, naming the key, instead of being stored and doing nothing. An email
+refused with `422`, naming the key, instead of being stored and doing nothing. A
+`condition_expression` is checked against the entity type as a declared `condition` is:
+a key no event can hold is refused with `422`, and a warning is logged, not returned, for
+one only some events hold. An update checks the condition when it changes the condition
+or the entity type; an update of the actions alone does not re-check a stored condition. An email
 action is `{"type": "email", "to": …, "subject": …, "body_template": …}`: the recipient
 and the subject are sent as written, and `cc`, `to_template`, `subject_template` and
 `reply_to` are refused.

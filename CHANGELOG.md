@@ -18,6 +18,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **An observer `condition` that reads a key no event of its entity can hold is refused
+  (#2122).** `fraiseql compile` refuses a declared observer, and the observer admin API
+  refuses a create or update with `422`, when its condition reads a key that names no field
+  of the type, or a dotted key in `has_field` or `field_changed*`. A condition reads one
+  top-level key of the event, by the key the stored document holds it under:
+  `review_status`, not `reviewStatus`, which the refusal names. Such a condition failed to
+  evaluate on every event, so the observer never ran, or it was constant. On a type with a
+  table captured as its row, a key that names no field may be a column and is accepted with
+  a warning, as a key the type embeds is. A schema that compiled can now fail to compile:
+  write the stored key, or remove the condition. Observers already stored are checked when
+  an update changes their condition or entity type.
 - **Sagas and function events carry instants as `fraiseql_time::Timestamp` (#2026).** In
   `fraiseql-saga`, the times of `Saga`, `SagaStep` and `SagaRecovery`; in
   `fraiseql-functions`, `EventPayload::timestamp`, `LogEntry::timestamp`,

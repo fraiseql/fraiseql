@@ -719,6 +719,15 @@ async fn deliver_ticket(
     ticket: Ticket,
     template: &str,
 ) -> (Vec<serde_json::Value>, Vec<(String, Option<String>)>, Option<String>) {
+    deliver_ticket_when(ticket, template, None).await
+}
+
+/// [`deliver_ticket`] to an observer that runs under `condition`.
+async fn deliver_ticket_when(
+    ticket: Ticket,
+    template: &str,
+    condition: Option<&str>,
+) -> (Vec<serde_json::Value>, Vec<(String, Option<String>)>, Option<String>) {
     let test_id = Uuid::new_v4().simple().to_string();
     let pool = create_test_pool().await;
     setup_observer_schema(&pool).await.expect("Failed to setup schema");
@@ -755,8 +764,9 @@ async fn deliver_ticket(
     let receiver = MockWebhookServer::start().await;
     receiver.mock_success().await;
     sqlx::query(
-        "INSERT INTO core.tb_observer (name, entity_type, event_type, actions, retry_config, enabled)
-         VALUES ($1, $2, 'INSERT', $3, $4, true)",
+        "INSERT INTO core.tb_observer
+             (name, entity_type, event_type, actions, retry_config, enabled, condition_expression)
+         VALUES ($1, $2, 'INSERT', $3, $4, true, $5)",
     )
     .bind(format!("test-template-{test_id}"))
     .bind(&entity_type)
@@ -766,6 +776,7 @@ async fn deliver_ticket(
     .bind(serde_json::json!({
         "max_attempts": 1, "backoff": "fixed", "initial_delay_ms": 10, "max_delay_ms": 10
     }))
+    .bind(condition)
     .execute(&pool)
     .await
     .expect("the observer is stored");
@@ -1125,4 +1136,42 @@ async fn a_declared_observer_fires_with_no_seeded_row_and_follows_its_declaratio
     assert_eq!(stored_after_removal, 0);
 
     cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
+}
+
+/// How many times an observer under `condition` delivered for `ticket`. The runtime logs a
+/// matched observer whether or not its condition held, so the wait ends either way.
+async fn deliveries_when(ticket: Ticket, condition: &str) -> usize {
+    deliver_ticket_when(ticket, r#"{"ok": true}"#, Some(condition)).await.0.len()
+}
+
+/// #2122: a condition reads a top-level key of the event, and the two images of a change
+/// to a plain-column table hold different keys. A comparison on the embedded customer
+/// holds for a mutation's event and fails to evaluate for a captured row: the compiler
+/// and the admin API warn of it.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_condition_on_an_embedded_field_holds_for_a_mutation_and_not_for_a_captured_row() {
+    let condition = "customer != null";
+    assert_eq!(deliveries_when(Ticket::MutatedCustomerColumns, condition).await, 1);
+    assert_eq!(deliveries_when(Ticket::CapturedCustomerColumns, condition).await, 0);
+}
+
+/// The converse: a column is in the captured row and in no entity a mutation returns. On
+/// a type whose table is captured as its row, the compiler and the admin API warn of it.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_condition_on_a_column_holds_for_a_captured_row_and_not_for_a_mutation() {
+    let condition = "fk_customer == 7";
+    assert_eq!(deliveries_when(Ticket::CapturedCustomerColumns, condition).await, 1);
+    assert_eq!(deliveries_when(Ticket::MutatedCustomerColumns, condition).await, 0);
+}
+
+/// A key neither image holds: the observer runs for no event. Where the document is the
+/// type's only image, the compiler and the admin API refuse such a condition.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_condition_on_a_key_neither_image_holds_runs_for_no_event() {
+    let condition = "fk_custmer == 7";
+    assert_eq!(deliveries_when(Ticket::CapturedCustomerColumns, condition).await, 0);
+    assert_eq!(deliveries_when(Ticket::MutatedCustomerColumns, condition).await, 0);
 }

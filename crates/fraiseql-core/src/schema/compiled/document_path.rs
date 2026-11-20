@@ -78,11 +78,7 @@ impl CompiledSchema {
     #[must_use]
     pub fn captured_row_warning(&self, entity: &TypeDefinition, path: &str) -> Option<String> {
         let first = path.split('.').next()?;
-        let field = entity.fields.iter().find(|f| f.stored_key() == first)?;
-        if !embeds(&field.field_type) {
-            return None;
-        }
-        let table = self.row_captured_table(entity.name.as_str())?;
+        let table = self.row_captured_embedded(entity, first)?;
         Some(format!(
             "`body_template` placeholder `{{{{ {path} }}}}` reads `{first}`, which `{}` \
              embeds. The table `{table}` has no `[subscriptions.capture.{table}]` entry, so \
@@ -91,6 +87,103 @@ impl CompiledSchema {
              event fills the placeholder.",
             entity.name
         ))
+    }
+}
+
+impl CompiledSchema {
+    /// The table a captured row of `entity` comes from, when `key` is a field the type
+    /// embeds and such a row cannot hold.
+    fn row_captured_embedded(&self, entity: &TypeDefinition, key: &str) -> Option<&str> {
+        let field = entity.fields.iter().find(|f| f.stored_key() == key)?;
+        if !embeds(&field.field_type) {
+            return None;
+        }
+        self.row_captured_table(entity.name.as_str())
+    }
+
+    /// Whether an observer's condition on `entity` can read `key` from the events it is
+    /// evaluated against.
+    ///
+    /// A condition reads one top-level key of the event, literally. A mutation's event is
+    /// the entity document, its fields under their stored keys. For a table of the type
+    /// with no `[subscriptions.capture]` entry, a write made outside a mutation is stored
+    /// as the table's row, whose keys are its columns: the schema does not hold them.
+    ///
+    /// Returns `Ok(None)` for a key every event holds, and `Ok(Some(warning))` for one
+    /// only some events hold: a field the type embeds, which a captured row lacks, or, on
+    /// a type with a row-captured table, a key no field holds, which only such a row can
+    /// supply as a column.
+    ///
+    /// # Errors
+    ///
+    /// Returns the refusal for a key no event can hold: one with a dot in it, or one no
+    /// field holds on a type whose document is its only image. The refusal names the
+    /// field's stored key when `key` is its published name.
+    pub fn condition_key(
+        &self,
+        entity: &TypeDefinition,
+        key: &str,
+        read: ConditionRead,
+    ) -> Result<Option<String>, String> {
+        let on_absent = read.on_absent();
+        let type_name = &entity.name;
+        if key.contains('.') {
+            return Err(format!(
+                "`condition` reads `{key}`: a condition reads one top-level key of the \
+                 event, and no event of `{type_name}` holds a key with a dot in it, so \
+                 {on_absent} for every event. A condition cannot read a nested field."
+            ));
+        }
+        let table = self.row_captured_table(type_name.as_str());
+        if let Err(unknown) = self.document_path(entity, key) {
+            let held = unknown.held.map_or_else(String::new, |stored| {
+                format!(" The document holds that field as `{stored}`.")
+            });
+            return match table {
+                None => Err(format!(
+                    "`condition` reads `{key}`, which names no field of `{type_name}`: \
+                     {on_absent} for every event.{held}"
+                )),
+                Some(table) => Ok(Some(format!(
+                    "`condition` reads `{key}`, which is not a field of `{type_name}`. Only \
+                     a captured row of the table `{table}` can supply it, as a column: for \
+                     a mutation's event, {on_absent}.{held}"
+                ))),
+            };
+        }
+        Ok(self.row_captured_embedded(entity, key).map(|table| {
+            format!(
+                "`condition` reads `{key}`, which `{type_name}` embeds. The table `{table}` \
+                 has no `[subscriptions.capture.{table}]` entry, so a write to it made \
+                 outside a mutation is stored as the table's row, which holds no embedded \
+                 field: for that event, {on_absent}. A mutation's event holds it."
+            )
+        }))
+    }
+}
+
+/// How an observer's condition reads a key of the event: a comparison reads its value,
+/// `has_field` its presence, `field_changed*` its change.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConditionRead {
+    /// A comparison, which fails to evaluate on an event without the key.
+    Value,
+    /// `has_field`, false on an event without the key.
+    Presence,
+    /// `field_changed`, `field_changed_to` or `field_changed_from`, which see no change of
+    /// a key the event lacks.
+    Change,
+}
+
+impl ConditionRead {
+    /// What the read comes to on an event without the key.
+    const fn on_absent(self) -> &'static str {
+        match self {
+            Self::Value => "the condition fails to evaluate and the observer's actions do not run",
+            Self::Presence => "`has_field` is false",
+            Self::Change => "no change of the key is seen",
+        }
     }
 }
 

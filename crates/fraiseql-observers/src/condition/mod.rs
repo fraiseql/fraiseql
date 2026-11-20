@@ -151,6 +151,48 @@ impl fmt::Display for ConditionAst {
     }
 }
 
+/// How a condition reads a key of the event's data.
+///
+/// Exhaustive on purpose: a caller that maps it onto another vocabulary matches every
+/// variant, so a new way of reading a key cannot fall into an existing arm.
+#[allow(clippy::exhaustive_enums)] // Reason: see above; a new variant must break every match.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldRead {
+    /// A comparison reads the key's value, and fails to evaluate where the key is absent.
+    Value,
+    /// `has_field` asks whether the key is present.
+    Presence,
+    /// `field_changed*` asks whether the key's value changed.
+    Change,
+}
+
+impl ConditionAst {
+    /// Every key of the event this condition reads, with how it reads it, in the order
+    /// written. A key reads the top level of the event's data, literally: a call naming
+    /// `customer.email` reads a key with a dot in it.
+    #[must_use]
+    pub fn field_references(&self) -> Vec<(&str, FieldRead)> {
+        let mut found = Vec::new();
+        self.collect_field_references(&mut found);
+        found
+    }
+
+    fn collect_field_references<'a>(&'a self, found: &mut Vec<(&'a str, FieldRead)>) {
+        match self {
+            Self::Comparison { field, .. } => found.push((field, FieldRead::Value)),
+            Self::HasField { field } => found.push((field, FieldRead::Presence)),
+            Self::FieldChanged { field }
+            | Self::FieldChangedTo { field, .. }
+            | Self::FieldChangedFrom { field, .. } => found.push((field, FieldRead::Change)),
+            Self::And { left, right } | Self::Or { left, right } => {
+                left.collect_field_references(found);
+                right.collect_field_references(found);
+            },
+            Self::Not { expr } => expr.collect_field_references(found),
+        }
+    }
+}
+
 /// Condition parser and evaluator
 pub struct ConditionParser {}
 

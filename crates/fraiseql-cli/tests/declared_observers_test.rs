@@ -392,3 +392,100 @@ fn a_column_only_the_captured_row_holds_is_still_refused_at_compile() {
     assert!(!compiled, "{printed}");
     assert!(printed.contains("{{ fk_customer }}"), "{printed}");
 }
+
+/// `Order` observed under `condition` by a webhook with no template; `row_captured` puts
+/// `tb_order`, a table of plain columns, among its captured tables.
+fn order_observed_when(condition: &str, row_captured: bool) -> Value {
+    let action = json!({"type": "webhook", "url": "https://example.test/hook"});
+    let mut schema = schema_declaring(&observing_with(&action));
+    schema["observers"][0]["condition"] = json!(condition);
+    if row_captured {
+        schema["types"][1]["subscribable_tables"] = json!(["tb_order"]);
+    }
+    schema
+}
+
+/// Every condition message starts the same way, so a test can say none was printed.
+const CONDITION_SAYS: &str = "`condition` reads `";
+
+/// Only the document reaches an observer of a type with no table captured as its row, so
+/// a key no field holds fails every event.
+#[test]
+fn a_condition_naming_no_field_of_a_document_only_type_is_refused() {
+    let (compiled, printed) = compile_output(&order_observed_when("totl > 100", false), "");
+
+    assert!(!compiled, "{printed}");
+    for part in ["order_created", "`totl`", "`Order`"] {
+        assert!(printed.contains(part), "the refusal names {part}: {printed}");
+    }
+}
+
+#[test]
+fn a_condition_naming_a_field_by_its_published_name_is_refused_with_the_stored_key() {
+    let (compiled, printed) =
+        compile_output(&order_observed_when("reviewStatus == 'approved'", false), "");
+
+    assert!(!compiled, "{printed}");
+    assert!(printed.contains("`review_status`"), "{printed}");
+}
+
+/// A condition reads one top-level key of the event, and none has a dot in it, so a call
+/// naming a path never matches: refused whatever the type's tables.
+#[test]
+fn a_dotted_key_in_a_condition_call_is_refused() {
+    for row_captured in [false, true] {
+        let (compiled, printed) =
+            compile_output(&order_observed_when("has_field('customer.email')", row_captured), "");
+
+        assert!(!compiled, "row captured: {row_captured}: {printed}");
+        assert!(printed.contains("`customer.email`"), "{printed}");
+    }
+}
+
+/// The schema holds no table's columns: on a type whose table is captured as its row, a
+/// key no field holds may be a column, which only that row supplies. Refused where the
+/// document is the only image, warned of where the row is the other.
+#[test]
+fn the_same_unknown_key_is_refused_on_a_document_only_type_and_warned_of_on_a_row_captured_one() {
+    let (compiled, printed) = compile_output(&order_observed_when("fk_customer == 3", false), "");
+    assert!(!compiled, "document only: {printed}");
+    assert!(printed.contains("`fk_customer`"), "{printed}");
+
+    let (compiled, printed) = compile_output(&order_observed_when("fk_customer == 3", true), "");
+    assert!(compiled, "row captured: {printed}");
+    for part in ["order_created", "`fk_customer`", "`Order`", "`tb_order`"] {
+        assert!(printed.contains(part), "the warning names {part}: {printed}");
+    }
+}
+
+/// An embedded field is in the document and not in a captured row: the condition
+/// compiles, and the compile says what a captured event will not hold. Declared to keep
+/// its document, the table is captured as a mutation stores it, and nothing is said.
+#[test]
+fn a_condition_on_an_embedded_field_of_a_row_captured_type_compiles_with_a_warning() {
+    let schema = order_observed_when("has_field('customer')", true);
+
+    let (compiled, printed) = compile_output(&schema, "");
+    assert!(compiled, "{printed}");
+    for part in ["order_created", "`customer`", "`Order`", "`tb_order`"] {
+        assert!(printed.contains(part), "the warning names {part}: {printed}");
+    }
+
+    let (compiled, printed) =
+        compile_output(&schema, "[subscriptions.capture.tb_order]\ndocument_column = \"data\"\n");
+    assert!(compiled, "{printed}");
+    assert!(!printed.contains(CONDITION_SAYS), "{printed}");
+}
+
+/// Stored keys of scalar fields, in every form a condition reads, compile in silence.
+#[test]
+fn a_condition_on_stored_scalar_keys_compiles_without_a_word() {
+    let condition = "total > 100 && !has_field('review_status') \
+                     || field_changed_to('review_status', 'approved')";
+    for row_captured in [false, true] {
+        let (compiled, printed) = compile_output(&order_observed_when(condition, row_captured), "");
+
+        assert!(compiled, "row captured: {row_captured}: {printed}");
+        assert!(!printed.contains(CONDITION_SAYS), "{printed}");
+    }
+}
