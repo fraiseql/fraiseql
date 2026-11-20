@@ -55,7 +55,8 @@ public record IntermediateField(
     // Multiple required scopes have no representation in the compiled schema or the
     // runtime field filter, which check exactly one `requires_scope`. The property is
     // retained for source compatibility but is never serialised: emitting it produced a
-    // key nothing reads. A singleton list is normalised onto Scope by SchemaRegistry.
+    // key nothing reads. Every export path normalises a singleton list onto Scope and
+    // refuses a longer one (SchemaRegistry.NormaliseScope).
     [property: JsonIgnore]                      IReadOnlyList<string>? Scopes = null,
     [property: JsonIgnore]                      bool? Computed = null,
     [property: JsonPropertyName("vector_config")]   VectorConfig? Vector = null,

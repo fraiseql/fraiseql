@@ -86,13 +86,7 @@ public sealed class SchemaRegistry
         if (typeAttr.Crud)
         {
             var intermediateFields = fields
-                .Select(f => SchemaExporter.FieldDefinitionToIntermediate(f) with
-                {
-                    // Normalise a singleton Scopes list onto Scope; anything longer is
-                    // unrepresentable downstream and is refused rather than dropped (#807).
-                    Scope = NormaliseScope(f.Scope, f.Scopes, f.Name),
-                    Scopes = null,
-                })
+                .Select(SchemaExporter.FieldDefinitionToIntermediate)
                 .ToList()
                 .AsReadOnly();
 
@@ -535,7 +529,7 @@ public sealed class SchemaRegistry
     /// <exception cref="InvalidOperationException">
     /// Thrown when both forms are set, or when more than one scope is required.
     /// </exception>
-    private static string? NormaliseScope(string? scope, IReadOnlyList<string>? scopes, string fieldName)
+    internal static string? NormaliseScope(string? scope, IReadOnlyList<string>? scopes, string fieldName)
     {
         if (scopes is null || scopes.Count == 0)
             return scope;

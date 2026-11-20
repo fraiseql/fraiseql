@@ -18,6 +18,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **C# and F# SDKs: a field's one-item `Scopes` list is exported as its required scope.**
+  `[GraphQLField(Scopes = new[] { "s" })]` (F#: `Scopes = [| "s" |]`) on a type without
+  CRUD generation was exported with no `requires_scope`; it is now exported as
+  `Scope = "s"` is. A longer list, or `Scope` and `Scopes` together, has no
+  representation in the compiled schema and is refused by every export path (C#
+  `SchemaExporter` and `SchemaBuilder`, F# type registration) instead of being dropped.
+
 - **A subscriber is served its own read of a changed row.** A subscription over `/ws`, a
   resumable REST stream or the Kafka mirror was served the change-log document: the
   entity as the writing session read it, so a view or row policy that reads the session

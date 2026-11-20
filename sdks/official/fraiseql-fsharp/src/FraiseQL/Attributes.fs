@@ -122,7 +122,8 @@ type GraphQLFieldAttribute() =
     /// Single scope/permission required to read this field.
     member val Scope: string = "" with get, set
 
-    /// Multiple scopes/permissions (any one is sufficient) required to read this field.
+    /// The required scope as a one-item list, the same as <c>Scope</c>. A longer list is
+    /// refused at registration: the compiled schema holds one required scope per field.
     member val Scopes: string[] = [||] with get, set
 
     /// When true, marks the field as deprecated in GraphQL introspection.
