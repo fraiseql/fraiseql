@@ -91,6 +91,23 @@ impl LeaseGuardedRunner {
         &self.source_name
     }
 
+    /// Run `work` on the PostgreSQL session holding this runner's lease, from inside a
+    /// [`run`](Self::run) closure, so a durable record read and written there is guarded by
+    /// the lease: `None` for an in-process runner, or outside a run.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError`](crate::error::ObserverError) when `work` fails.
+    pub async fn on_held_session<T>(
+        &self,
+        work: impl for<'c> FnOnce(
+            &'c mut sqlx::PgConnection,
+        )
+            -> futures::future::BoxFuture<'c, std::result::Result<T, sqlx::Error>>,
+    ) -> Result<Option<T>> {
+        self.lease.on_held_session(work).await
+    }
+
     /// How many times this runner skipped because another replica held the lease.
     #[must_use]
     pub fn skips_not_leader(&self) -> u64 {

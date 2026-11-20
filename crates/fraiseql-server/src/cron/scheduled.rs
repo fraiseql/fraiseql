@@ -92,8 +92,14 @@ impl ScheduledPoller {
         }
     }
 
-    /// The trigger payload of the firing at `now`.
+    /// The trigger payload of the firing the tick at `now` opens.
     pub(crate) fn payload(&self, now: fraiseql_time::Timestamp) -> EventPayload {
+        // The scheduled instant: the start of the minute the tick fell in, which is the
+        // window it fires. Replicas tick at different seconds, so a window fired twice
+        // (a replica died before recording it) carries the same instant, and so the
+        // same idempotency token, both times.
+        let now = fraiseql_time::Timestamp::from_second(now.as_second().div_euclid(60) * 60)
+            .unwrap_or(now);
         match &self.kind {
             ScheduledKind::Cron { .. } => CronTrigger {
                 function_name: self.name.clone(),
@@ -151,13 +157,78 @@ impl ScheduledPoller {
         )
     }
 
-    /// Fire once, under the lease: skipped (another replica leads, or the lease could
-    /// not be acquired), or ran with the guest's result. Every outcome is metered and
+    /// The key of this poller's window record in `_fraiseql_cron_state`: a cron function's
+    /// name, or `source:` and a source's name, which no function name can be.
+    fn window_key(&self) -> String {
+        match self.kind {
+            ScheduledKind::Cron { .. } => self.name.clone(),
+            #[cfg(feature = "sources")]
+            ScheduledKind::Source { .. } => format!("source:{}", self.name),
+        }
+    }
+
+    /// Under the lease, on the session holding it: whether another process already fired
+    /// the window `now` falls in. `Ok(false)` without a PostgreSQL lease (one process).
+    async fn window_fired_elsewhere(&self, key: &str, now: DateTime<Utc>) -> Result<bool, String> {
+        let expression = self.schedule.expr.expression.clone();
+        let key = key.to_string();
+        let last = self
+            .runner
+            .on_held_session(move |conn| {
+                Box::pin(async move { super::load_last_fired_on(conn, &key, &expression).await })
+            })
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(last.flatten().is_some_and(|last| {
+            matches!(
+                self.schedule.decide(&CronExecutionState::resuming_from(last), &now),
+                CronDecision::AlreadyFired { .. }
+            )
+        }))
+    }
+
+    /// Record, on the session holding the lease, that the window `now` falls in fired: what
+    /// tells another process ticking later in the window not to fire it again. A cron
+    /// function without a PostgreSQL lease records through its pool, for its restarts.
+    async fn record_window(&self, key: &str, now: DateTime<Utc>) {
+        let expression = self.schedule.expr.expression.clone();
+        let owned_key = key.to_string();
+        let recorded = self
+            .runner
+            .on_held_session(move |conn| {
+                Box::pin(
+                    async move { super::record_fire_on(conn, &owned_key, &expression, now).await },
+                )
+            })
+            .await;
+        let result = match (recorded, &self.kind) {
+            (Ok(Some(())), _) => Ok(()),
+            (Ok(None), ScheduledKind::Cron { cron_state }) => cron_state
+                .record_fire(key, &self.schedule.expr.expression, now)
+                .await
+                .map_err(|e| e.to_string()),
+            #[cfg(feature = "sources")]
+            (Ok(None), ScheduledKind::Source { .. }) => Ok(()),
+            (Err(error), _) => Err(error.to_string()),
+        };
+        if let Err(error) = result {
+            // Best effort: the module already ran, and a failed record must not stop the
+            // scheduler. Another process ticking later in this window may fire it again.
+            warn!(
+                kind = self.kind_label(),
+                name = %self.name,
+                %error,
+                "window record failed: the module ran but its window was not persisted"
+            );
+        }
+    }
+
+    /// Fire once, under the lease: skipped (another replica leads, the lease could not be
+    /// acquired, or another process already fired this window), or ran with the guest's
+    /// result. A run spends its window whatever the result, as on one process, and the
+    /// window is recorded before the lease is released. Every outcome is metered and
     /// logged here, with the firing's idempotency token.
-    pub(crate) async fn fire_once(
-        &self,
-        at: fraiseql_time::Timestamp,
-    ) -> RunOutcome<fraiseql_error::Result<FunctionResult>> {
+    pub(crate) async fn fire_once(&self, at: fraiseql_time::Timestamp) -> Tick {
         let payload = self.payload(at);
         let now = DateTime::<Utc>::from(at);
         let token = self.idempotency_token(&payload);
@@ -174,20 +245,52 @@ impl ScheduledPoller {
             );
         }
         let started = Instant::now();
+        let key = self.window_key();
         let attempt = self
             .runner
             .run(|| async {
+                match self.window_fired_elsewhere(&key, now).await {
+                    Ok(false) => {},
+                    Ok(true) => return Window::FiredElsewhere,
+                    Err(error) => return Window::Unread(error),
+                }
                 let host = self.build_host(payload.clone(), &token);
-                self.observer
+                let result = self
+                    .observer
                     .invoke_with_context(&self.module, payload.clone(), host, self.limits.clone())
-                    .await
+                    .await;
+                self.record_window(&key, now).await;
+                Window::Ran(result)
             })
             .await;
         let elapsed = started.elapsed().as_secs_f64();
         match attempt {
-            Ok(RunOutcome::Ran(result)) => {
-                self.report_ran(&result, &token, elapsed, now).await;
-                RunOutcome::Ran(result)
+            Ok(RunOutcome::Ran(Window::Ran(result))) => {
+                self.report_ran(&result, &token, elapsed);
+                Tick::Ran {
+                    succeeded: result.is_ok(),
+                }
+            },
+            Ok(RunOutcome::Ran(Window::FiredElsewhere)) => {
+                debug!(
+                    kind = self.kind_label(),
+                    name = %self.name,
+                    idempotency_token = %token,
+                    "scheduled firing skipped: another process fired this window"
+                );
+                Tick::AlreadyFired
+            },
+            Ok(RunOutcome::Ran(Window::Unread(error))) => {
+                // Without the record the lease cannot say whether this window fired, and a
+                // session that cannot be read may no longer hold the lease: nothing runs.
+                warn!(
+                    kind = self.kind_label(),
+                    name = %self.name,
+                    idempotency_token = %token,
+                    %error,
+                    "scheduled firing skipped: the window record could not be read under the lease"
+                );
+                Tick::WindowUnread
             },
             Ok(RunOutcome::SkippedNotLeader) => {
                 #[cfg(feature = "sources")]
@@ -200,7 +303,7 @@ impl ScheduledPoller {
                     idempotency_token = %token,
                     "scheduled firing skipped: another replica leads"
                 );
-                RunOutcome::SkippedNotLeader
+                Tick::SkippedNotLeader
             },
             Err(error) => {
                 // An acquire error is a database fault, not another replica leading, so
@@ -212,21 +315,20 @@ impl ScheduledPoller {
                     %error,
                     "scheduled firing skipped: the lease could not be acquired"
                 );
-                RunOutcome::SkippedNotLeader
+                Tick::SkippedNotLeader
             },
         }
     }
 
-    /// Meter and log a run, and for a cron function record it durably.
-    async fn report_ran(
+    /// Meter and log a run.
+    fn report_ran(
         &self,
         result: &fraiseql_error::Result<FunctionResult>,
         token: &str,
         elapsed: f64,
-        now: DateTime<Utc>,
     ) {
         match &self.kind {
-            ScheduledKind::Cron { cron_state } => {
+            ScheduledKind::Cron { .. } => {
                 let metric_result = match result {
                     Ok(_) => crate::function_metrics::RESULT_OK,
                     // A failed cron firing is retried by the next window, like a source,
@@ -247,18 +349,6 @@ impl ScheduledPoller {
                             duration_ms = elapsed * 1000.0,
                             "cron function fired"
                         );
-                        // Best effort: the function already ran, and a failed record
-                        // must not stop the scheduler.
-                        if let Err(error) = cron_state
-                            .record_fire(&self.name, &self.schedule.expr.expression, now)
-                            .await
-                        {
-                            warn!(
-                                function = %self.name,
-                                %error,
-                                "cron state record failed: the function ran but the fire was not persisted"
-                            );
-                        }
                     },
                     Err(error) => warn!(
                         function = %self.name,
@@ -310,32 +400,64 @@ impl ScheduledPoller {
         );
         loop {
             ticker.tick().await;
-            let at = fraiseql_time::Timestamp::now();
-            // The schedule's calendar is chrono's.
-            let now = DateTime::<Utc>::from(at);
-            match self.schedule.decide(&self.state, &now) {
-                CronDecision::Fire => {},
-                // The normal idle tick.
-                CronDecision::NotDue => continue,
-                // Never silent: the window guard suppressing a due tick is expected at
-                // most once per window, after a restart mid-window.
-                CronDecision::AlreadyFired {
-                    window_start,
-                    last_executed,
-                } => {
-                    warn!(
-                        kind = self.kind_label(),
-                        name = %self.name,
-                        schedule = %self.schedule.expr.expression,
-                        %window_start,
-                        %last_executed,
-                        "scheduled tick skipped: this window already fired"
-                    );
-                    continue;
-                },
-            }
-            self.state.record_execution(now);
-            let _ = self.fire_once(at).await;
+            self.tick(fraiseql_time::Timestamp::now()).await;
         }
     }
+
+    /// One tick at `at`: fire when the schedule opens a window that has not fired.
+    pub(crate) async fn tick(&mut self, at: fraiseql_time::Timestamp) -> Tick {
+        // The schedule's calendar is chrono's.
+        let now = DateTime::<Utc>::from(at);
+        match self.schedule.decide(&self.state, &now) {
+            CronDecision::Fire => {},
+            // The normal idle tick.
+            CronDecision::NotDue => return Tick::NotDue,
+            // Never silent: the window guard suppressing a due tick is expected at
+            // most once per window, after a restart mid-window.
+            CronDecision::AlreadyFired {
+                window_start,
+                last_executed,
+            } => {
+                warn!(
+                    kind = self.kind_label(),
+                    name = %self.name,
+                    schedule = %self.schedule.expr.expression,
+                    %window_start,
+                    %last_executed,
+                    "scheduled tick skipped: this window already fired"
+                );
+                return Tick::AlreadyFired;
+            },
+        }
+        self.state.record_execution(now);
+        self.fire_once(at).await
+    }
+}
+
+/// What one [`ScheduledPoller::tick`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Tick {
+    /// The schedule does not open a window at this tick.
+    NotDue,
+    /// The window this tick falls in already fired.
+    AlreadyFired,
+    /// Another process held the lease; the module did not run.
+    SkippedNotLeader,
+    /// The module ran (its result is metered and logged by the poller).
+    Ran {
+        /// Whether the module returned without error.
+        succeeded: bool,
+    },
+    /// The window record could not be read under the lease; the module did not run.
+    WindowUnread,
+}
+
+/// What a firing did under the lease.
+enum Window {
+    /// Another process already fired this window.
+    FiredElsewhere,
+    /// The window record could not be read on the lease's session.
+    Unread(String),
+    /// The module ran, with its result.
+    Ran(fraiseql_error::Result<FunctionResult>),
 }

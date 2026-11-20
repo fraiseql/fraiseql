@@ -238,3 +238,68 @@ async fn every_holder_query_sees_that_its_session_died() {
         assert!(!still_held, "{query} must not report a lock whose session ended");
     }
 }
+
+/// The backend pid holding the advisory lock on `key`, if one does.
+async fn lock_holder_pid(pool: &PgPool, key: i64) -> Option<i32> {
+    #[allow(clippy::cast_sign_loss)] // Reason: reinterpreting the key's bit pattern
+    let bits = key as u64;
+    let classid = i64::from(u32::try_from(bits >> 32).unwrap());
+    let objid = i64::from(u32::try_from(bits & 0xffff_ffff).unwrap());
+    sqlx::query_scalar(
+        "SELECT pid FROM pg_locks \
+         WHERE locktype = 'advisory' AND granted AND objsubid = 1 \
+           AND classid::bigint = $1 AND objid::bigint = $2",
+    )
+    .bind(classid)
+    .bind(objid)
+    .fetch_optional(pool)
+    .await
+    .unwrap()
+}
+
+/// The pid of the backend serving `conn`.
+fn backend_pid(
+    conn: &mut sqlx::PgConnection,
+) -> futures::future::BoxFuture<'_, Result<i32, sqlx::Error>> {
+    Box::pin(sqlx::query_scalar("SELECT pg_backend_pid()").fetch_one(conn))
+}
+
+/// Work run on the held session runs on the very backend holding the lock, so what it reads
+/// and writes is guarded by the lock: once that session ends the work fails, where a read on
+/// another pooled connection would still answer for a holder that is no longer one.
+#[tokio::test]
+async fn work_on_the_held_session_runs_on_the_lock_holder_and_fails_once_it_died() {
+    let Some((admin_pool, svc)) = connect_pool().await else {
+        eprintln!(
+            "SKIP work_on_the_held_session_runs_on_the_lock_holder_and_fails_once_it_died: no postgres (set DATABASE_URL or enable fraiseql-test-support/local-testcontainers)"
+        );
+        return;
+    };
+    let key = random_lock_key();
+    let holder =
+        CheckpointLease::postgres(PgPool::connect(svc.url()).await.unwrap(), "holder".into(), key);
+
+    assert_eq!(
+        holder.on_held_session(backend_pid).await.unwrap(),
+        None,
+        "no session before the lock is held"
+    );
+    assert!(holder.acquire().await.unwrap(), "holder acquires the lock");
+    let ran_on = holder.on_held_session(backend_pid).await.unwrap();
+    assert_eq!(
+        ran_on,
+        lock_holder_pid(&admin_pool, key).await,
+        "the work ran on the lock holder"
+    );
+    assert!(ran_on.is_some());
+
+    assert_eq!(
+        terminate_lock_holder(&admin_pool, key).await,
+        1,
+        "the holder's session is ended"
+    );
+    assert!(
+        holder.on_held_session(backend_pid).await.is_err(),
+        "work on a session that ended fails rather than answering for the lock"
+    );
+}

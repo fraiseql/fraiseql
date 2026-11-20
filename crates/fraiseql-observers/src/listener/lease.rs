@@ -249,6 +249,32 @@ impl PostgresAdvisoryLease {
         }
     }
 
+    /// Run `work` on the session that holds the lock, while it holds it: `None` when this
+    /// lease holds none.
+    ///
+    /// What `work` reads and writes is guarded by the lock. A session that ended took the
+    /// lock with it, and `work` then fails on the dead connection rather than acting for
+    /// a holder that is no longer one; a read on another pooled connection could not tell.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::DatabaseError`] when `work` fails.
+    pub async fn on_held_session<T>(
+        &self,
+        work: impl for<'c> FnOnce(
+            &'c mut sqlx::PgConnection,
+        )
+            -> futures::future::BoxFuture<'c, std::result::Result<T, sqlx::Error>>,
+    ) -> Result<Option<T>> {
+        let mut conn_guard = self.conn.lock().await;
+        let Some(conn) = conn_guard.as_mut() else {
+            return Ok(None);
+        };
+        work(conn).await.map(Some).map_err(|e| ObserverError::DatabaseError {
+            reason: format!("on the session holding the advisory lock: {e}"),
+        })
+    }
+
     /// PostgreSQL session advisory locks have no TTL, so there is nothing to
     /// extend.
     ///
@@ -548,6 +574,28 @@ impl CheckpointLease {
             LeaseKind::Postgres(l) => l.release().await,
             #[cfg(feature = "redis-lease")]
             LeaseKind::Redis(l) => l.release().await,
+        }
+    }
+
+    /// Run `work` on the PostgreSQL session holding this lease, while it holds it, so
+    /// what `work` reads and writes is guarded by the lock. `None` for a lease held in
+    /// process or in Redis, which has no such session, or when no lock is held.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ObserverError::DatabaseError`] when `work` fails.
+    pub async fn on_held_session<T>(
+        &self,
+        work: impl for<'c> FnOnce(
+            &'c mut sqlx::PgConnection,
+        )
+            -> futures::future::BoxFuture<'c, std::result::Result<T, sqlx::Error>>,
+    ) -> Result<Option<T>> {
+        match &self.0 {
+            LeaseKind::Postgres(l) => l.on_held_session(work).await,
+            LeaseKind::InProcess(_) => Ok(None),
+            #[cfg(feature = "redis-lease")]
+            LeaseKind::Redis(_) => Ok(None),
         }
     }
 
