@@ -80,12 +80,16 @@ async fn server_configuring_every_in_process_capability(
     modules: &std::path::Path,
     flight_addr: std::net::SocketAddr,
 ) -> Server {
-    let config: ServerConfig = serde_json::from_value(serde_json::json!({
-        "bind_addr": "127.0.0.1:0",
-        "flight_bind_addr": flight_addr,
-        "cors_enabled": false,
-    }))
-    .unwrap();
+    let config = ServerConfig {
+        bind_addr: "127.0.0.1:0".parse().unwrap(),
+        cors_enabled: false,
+        // The field exists on an `arrow` build only.
+        #[cfg(feature = "arrow")]
+        flight_bind_addr: flight_addr,
+        ..ServerConfig::default()
+    };
+    #[cfg(not(feature = "arrow"))]
+    let _ = flight_addr;
     // `enabled` is the compiled schema's (`fraiseql.toml [observers]`), not the server's.
     let mut schema = CompiledSchema::new();
     schema.observers_config = Some(fraiseql_core::schema::ObserversConfig {
