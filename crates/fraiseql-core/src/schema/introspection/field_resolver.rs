@@ -198,6 +198,7 @@ pub(super) fn field_type_to_introspection(
         FieldType::Boolean => type_ref("Boolean"),
         FieldType::Id => type_ref("ID"),
         FieldType::DateTime => type_ref("DateTime"),
+        FieldType::LocalDateTime => type_ref("LocalDateTime"),
         FieldType::Date => type_ref("Date"),
         FieldType::Time => type_ref("Time"),
         FieldType::Uuid => type_ref("UUID"),

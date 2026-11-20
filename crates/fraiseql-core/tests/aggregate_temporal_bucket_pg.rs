@@ -7,6 +7,10 @@
 //!
 //! Each test pins the session zone on its own pool (`options=-c TimeZone=…`) and asserts it
 //! took before reading a bucket: a zone that silently stayed UTC would hide the defect.
+//!
+//! #1929: a `timestamp` column (no time zone) is a local date-time, published as
+//! `LocalDateTime`: its keys read `2026-07-01T00:00:00`, and a `where` on it compares local
+//! date-times, never instants in the session zone.
 //! `Asia/Tokyo` (UTC+9) is the zone that shows it; `America/Los_Angeles` is the control, where the
 //! old key already had the right date part. `timestamp` and `timestamptz` columns are pinned
 //! as they are.
@@ -77,8 +81,8 @@ fn fact_table() -> FactTableMetadata {
         denormalized_filters:     vec![
             filter("account_id", SqlType::BigInt),
             filter("day", SqlType::Date),
-            filter("at_ts", SqlType::Timestamp),
-            filter("at_tz", SqlType::Timestamp),
+            filter("at_ts", SqlType::LocalTimestamp),
+            filter("at_tz", SqlType::TimestampTz),
         ],
         calendar_dimensions:      vec![],
         native_measures:          HashMap::new(),
@@ -119,6 +123,35 @@ async fn executor_in(zone: &str) -> Option<Executor> {
     let mut schema = CompiledSchema::new();
     schema.add_fact_table(TABLE.to_string(), fact_table());
     Some(Executor::new(schema, Arc::new(adapter)))
+}
+
+/// Add rows to the fixture, `values` written as an `INSERT`'s `VALUES` list.
+async fn insert(values: &str) {
+    let url = fraiseql_test_support::try_database_url().unwrap();
+    let adapter = PostgresAdapter::new(&url).await.unwrap();
+    let _: Vec<HashMap<String, Value>> = adapter
+        .execute_raw_query(&format!("INSERT INTO {TABLE} VALUES {values}"))
+        .await
+        .unwrap();
+}
+
+/// The distinct values of `column`, in order: `groupBy: {column: true}`.
+async fn column_keys(executor: &Executor, column: &str) -> Vec<Value> {
+    let request = json!({
+        "groupBy": { column: true },
+        "aggregates": [{ "amount_sum": true }],
+        "orderBy": { column: "ASC" },
+    });
+    let response = executor
+        .execute(&format!("{{ {ROOT} {{ {column} }} }}"), Some(&request))
+        .await
+        .unwrap_or_else(|e| panic!("by {column}: {e}"));
+    response["data"][ROOT]
+        .as_array()
+        .unwrap_or_else(|| panic!("by {column}: {response}"))
+        .iter()
+        .map(|row| row[column].clone())
+        .collect()
 }
 
 /// The bucket keys of `{column}` by `grain`, in order: `groupBy: {column_grain: true}`, keyed
@@ -209,9 +242,10 @@ async fn a_carried_forward_date_bucket_is_its_date_east_of_utc() {
     assert_eq!(keys(&executor, "day", "month", "balance_sum").await, months);
 }
 
-/// A `timestamp` column buckets as it did: a timestamp, in no zone.
+/// A `timestamp` column buckets in no zone, and its key is a local date-time: a `T`
+/// between date and time, and no offset.
 #[tokio::test]
-async fn a_timestamp_bucket_is_unchanged() {
+async fn a_timestamp_bucket_is_a_local_date_time() {
     for zone in [EAST, WEST] {
         let Some(executor) = executor_in(zone).await else {
             eprintln!("skipping: DATABASE_URL not set");
@@ -219,9 +253,104 @@ async fn a_timestamp_bucket_is_unchanged() {
         };
         assert_eq!(
             keys(&executor, "at_ts", "month", "amount_sum").await,
-            vec![json!("2026-07-01 00:00:00"), json!("2026-12-01 00:00:00")],
+            vec![json!("2026-07-01T00:00:00"), json!("2026-12-01T00:00:00")],
             "{zone}"
         );
+    }
+}
+
+/// The values of a `timestamp` column, grouped by the column itself: local date-times,
+/// a fraction written in 3, 6 or 9 digits as a `timestamptz` one is.
+#[tokio::test]
+async fn a_timestamp_group_key_is_a_local_date_time() {
+    let Some(executor) = executor_in(EAST).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    insert(
+        "(2, '2026-07-03', '2026-07-03 08:30:00.12', '2026-07-03 08:30:00.12+00', 8, 80, '{}'), \
+         (2, '2026-07-04', '2026-07-04 08:30:00.123456', '2026-07-04 08:30:00.123456+00', 16, \
+         160, '{}')",
+    )
+    .await;
+    assert_eq!(
+        column_keys(&executor, "at_ts").await,
+        [
+            "2026-07-01T12:00:00",
+            "2026-07-02T12:00:00",
+            "2026-07-03T08:30:00.120",
+            "2026-07-04T08:30:00.123456",
+            "2026-12-31T12:00:00",
+        ]
+        .map(|k| json!(k))
+        .to_vec()
+    );
+    // The `timestamptz` column alongside, pinned: an instant in UTC with its offset.
+    assert_eq!(
+        column_keys(&executor, "at_tz").await,
+        [
+            "2026-07-01T12:00:00+00:00",
+            "2026-07-02T12:00:00+00:00",
+            "2026-07-03T08:30:00.120+00:00",
+            "2026-07-04T08:30:00.123456+00:00",
+            "2026-12-31T12:00:00+00:00",
+        ]
+        .map(|k| json!(k))
+        .to_vec()
+    );
+}
+
+/// A `where` on a `timestamp` column compares local date-times, whatever the session zone.
+/// Read as instants in `America/Los_Angeles`, 02:30 on 2026-03-08 (inside the hour the
+/// clocks skip) became 03:30, and the row fell outside `< 03:15`.
+#[tokio::test]
+async fn a_timestamp_filter_compares_local_date_times_in_any_session_zone() {
+    let Some(executor) = executor_in(WEST).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    insert("(3, '2026-03-08', '2026-03-08 02:30', '2026-03-08 10:30+00', 32, 320, '{}')").await;
+    let request = json!({
+        "where": { "at_ts_gte": "2026-03-08T00:00:00", "at_ts_lt": "2026-03-08T03:15:00" },
+        "aggregates": [{ "amount_sum": true }],
+    });
+    let response = executor
+        .execute(&format!("{{ {ROOT} {{ amount_sum }} }}"), Some(&request))
+        .await
+        .unwrap();
+    assert_eq!(response["data"][ROOT][0]["amount_sum"], json!(32), "{response}");
+}
+
+/// An operand on a `timestamp` column is a local date-time. `::timestamp` drops an offset or a
+/// `Z` without a word, so `03:15+05:00` would compare as `03:15`: refused, naming the key, as
+/// is a string that is no local date-time at all.
+#[tokio::test]
+async fn a_local_date_time_operand_with_an_offset_is_refused() {
+    let Some(executor) = executor_in(WEST).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    for (operand, says) in [
+        ("2026-03-08T03:15:00+05:00", "offset"),
+        ("2026-03-08T03:15:00Z", "offset"),
+        ("2026-03-08 03:15:00", "LocalDateTime"),
+    ] {
+        let request = json!({
+            "where": { "at_ts_lt": operand },
+            "aggregates": [{ "amount_sum": true }],
+        });
+        let outcome = executor
+            .execute(&format!("{{ {ROOT} {{ amount_sum }} }}"), Some(&request))
+            .await;
+        let text = match &outcome {
+            Ok(response) => response.to_string(),
+            Err(e) => e.to_string(),
+        };
+        assert!(
+            outcome.is_err() || outcome.as_ref().is_ok_and(|r| r.get("errors").is_some()),
+            "{operand}: {text}"
+        );
+        assert!(text.contains("at_ts_lt") && text.contains(says), "{operand}: {text}");
     }
 }
 

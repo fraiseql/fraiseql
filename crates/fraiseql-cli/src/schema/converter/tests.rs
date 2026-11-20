@@ -4684,6 +4684,33 @@ fn a_fact_table_filter_carries_its_ltree_type_and_hierarchy_into_the_compiled_sc
     assert_eq!(filter.hierarchy.as_deref(), Some("org"));
 }
 
+// ── #1929: a timestamp with and without a time zone are two filter types ───────
+
+#[test]
+fn a_fact_table_timestamp_filter_keeps_whether_it_has_a_time_zone() {
+    use fraiseql_core::compiler::fact_table::SqlType;
+
+    for (spelling, expected) in [
+        ("TIMESTAMPTZ", SqlType::TimestampTz),
+        ("timestamp with time zone", SqlType::TimestampTz),
+        ("TIMESTAMP", SqlType::LocalTimestamp),
+        ("timestamp without time zone", SqlType::LocalTimestamp),
+        ("DATETIME", SqlType::LocalTimestamp),
+    ] {
+        let intermediate: IntermediateSchema = serde_json::from_value(serde_json::json!({
+            "fact_tables": [{"table_name": "tf_t", "measures": [],
+                "dimensions": {"name": "data", "paths": []},
+                "denormalized_filters": [{"name": "at", "sql_type": spelling, "indexed": true}]}]
+        }))
+        .unwrap();
+        let compiled = SchemaConverter::convert(intermediate).unwrap();
+        assert_eq!(
+            compiled.fact_tables["tf_t"].denormalized_filters[0].sql_type, expected,
+            "{spelling}"
+        );
+    }
+}
+
 // #1586: each list level records whether its items may be `null`, at any depth; the
 // outermost `!` is the field's own nullability.
 #[test]

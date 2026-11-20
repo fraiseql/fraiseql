@@ -625,7 +625,7 @@ SchemaRegistry.registerFactTable(
     name: "data",
     paths: [{ name: "category", json_path: "data->>'category'", data_type: "text" }],
   },
-  [{ name: "occurred_at", sql_type: "Timestamp", indexed: true }]
+  [{ name: "occurred_at", sql_type: "TIMESTAMPTZ", indexed: true }]
 );
 ```
 

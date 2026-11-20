@@ -328,6 +328,7 @@ fn success_field_value_ok(
             FieldType::String
             | FieldType::Id
             | FieldType::DateTime
+            | FieldType::LocalDateTime
             | FieldType::Date
             | FieldType::Time
             | FieldType::Uuid
@@ -356,6 +357,7 @@ fn success_field_value_ok(
             | FieldType::Boolean
             | FieldType::Id
             | FieldType::DateTime
+            | FieldType::LocalDateTime
             | FieldType::Date
             | FieldType::Time
             | FieldType::Uuid

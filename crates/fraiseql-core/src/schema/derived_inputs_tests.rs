@@ -498,3 +498,19 @@ fn the_relation_field_maps_cover_every_type_that_declares_fields() {
         "the map must carry the target type, or a nested level cannot be resolved"
     );
 }
+
+/// #1929: a `LocalDateTime` field filters on its own scalar, not `DateTime`'s: the operand
+/// is a date-time in no zone.
+#[test]
+fn a_local_date_time_field_filters_on_local_date_times() {
+    let mut schema = schema();
+    schema.types[0]
+        .fields
+        .push(FieldDefinition::new("loggedAt", FieldType::LocalDateTime));
+    let d = derived(&schema);
+    assert_eq!(
+        field(input(&d, "OrderWhereInput"), "loggedAt").field_type,
+        "LocalDateTimeFilter"
+    );
+    assert_eq!(field(input(&d, "LocalDateTimeFilter"), "eq").field_type, "LocalDateTime");
+}

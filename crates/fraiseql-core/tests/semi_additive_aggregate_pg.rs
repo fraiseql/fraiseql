@@ -349,7 +349,7 @@ async fn a_timestamp_column_steps_by_second_minute_and_hour() {
         },
         FilterColumn {
             name:      "at".to_string(),
-            sql_type:  SqlType::Timestamp,
+            sql_type:  SqlType::TimestampTz,
             indexed:   true,
             hierarchy: None,
         },

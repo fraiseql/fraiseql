@@ -311,6 +311,7 @@ pub(crate) fn field_type_to_json_schema(field_type: &FieldType) -> serde_json::V
         | FieldType::Uuid
         | FieldType::Decimal
         | FieldType::DateTime
+        | FieldType::LocalDateTime
         | FieldType::Date
         | FieldType::Time
         | FieldType::Scalar(_)

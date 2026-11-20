@@ -56,6 +56,13 @@ pub(super) fn builtin_scalars() -> Vec<IntrospectionType> {
             Some("https://scalars.graphql.org/andimarek/date-time"),
         ),
         scalar_type_with_url(
+            "LocalDateTime",
+            "A date and a time of day in no time zone (\"2026-07-01T12:00:00\"): a `T`, \
+             optional fractional seconds, never an offset. What a `timestamp` column without a \
+             time zone holds; not an instant.",
+            Some("https://scalars.graphql.org/chillicream/local-date-time"),
+        ),
+        scalar_type_with_url(
             "Date",
             "ISO-8601 date string",
             Some("https://scalars.graphql.org/andimarek/local-date"),

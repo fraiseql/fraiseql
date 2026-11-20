@@ -214,16 +214,30 @@ denormalized time column: `second`, `minute`, `hour`, `day`, `week` (starting Mo
 | Column | Bucket key | Example (`month`) |
 |--------|-----------|-------------------|
 | `date` | the date the bucket starts on, in no time zone | `"2026-07-01"` |
-| `timestamp` (without time zone) | the timestamp the bucket starts at | `"2026-07-01 00:00:00"` |
+| `timestamp` (without time zone) | the date and time of day the bucket starts at, in no time zone | `"2026-07-01T00:00:00"` |
 | `timestamptz` | the instant the bucket starts at, in the session's `TimeZone`, rendered in UTC | `"2026-06-30T15:00:00+00:00"` under `Asia/Tokyo` |
 
 A `date` bucket does not depend on the session time zone. A sub-day grain (`hour`, `minute`,
 `second`) of a `date` column is the date itself.
 
-A bucket key is published as `Date` for a `date` column and as `DateTime` otherwise, and
-answers with the string above. A `timestamp` column without a time zone answers
-`YYYY-MM-DD HH:MM:SS`, with a space and no offset, so a client parsing `DateTime` strictly
-as RFC 3339 must accept that shape too (#1929).
+A bucket key is published as `Date` for a `date` column, as `LocalDateTime` for a
+`timestamp` column without a time zone, and as `DateTime` for a `timestamptz` column, and
+answers with the string above. The same holds for the column itself as a group key or a
+`where` operand.
+
+`DateTime` is an instant and always carries an offset. `LocalDateTime` is a date and a time
+of day in no zone (`YYYY-MM-DDTHH:MM:SS`, optional fractional seconds, never an offset), as
+the [`LocalDateTime` scalar](https://scalars.graphql.org/chillicream/local-date-time)
+specifies. A `where` on a `timestamp` column compares local date-times, whatever the
+session's `TimeZone`. Its operand is refused, naming the key, when it carries an offset or a
+`Z`, which the `::timestamp` cast would drop, or is not a local date-time at all; so is a
+`LocalDateTime` argument or variable, and a view field's `LocalDateTime` operand. Declare the column's real type: `TIMESTAMPTZ` (or
+`timestamp with time zone`) for an instant, `TIMESTAMP` (or `timestamp without time zone`)
+for a local date-time; a `timestamptz` column declared `TIMESTAMP` is read as local.
+
+A view that serves a `DateTime` field writes it from a `timestamptz` column:
+`to_jsonb(timestamp)` writes no offset, which `DateTime` does not allow, and the engine
+cannot see the column's type to tell.
 
 ---
 
@@ -434,7 +448,7 @@ A row field's type follows what the database returns:
 | `sum`, `min`, `max` of an `int` measure; `min`, `max` of a `bigint` measure; a `bigint` key | `Int` |
 | any reduction of a `numeric` measure | `Decimal`, exact |
 | any other reduction of a measure | `Float`, approximate (a double) |
-| a `date` bucket / a calendar bucket / any other bucket | `Date` / `String` / `DateTime` |
+| a `date` bucket / a calendar bucket / a `timestamp` bucket / a `timestamptz` bucket | `Date` / `String` / `LocalDateTime` / `DateTime` |
 | a dimension, a tree level, `<filter>_string_agg` | `String` |
 | `<filter>_bool_and`, `<filter>_bool_or` | `Boolean` |
 | `<filter>_array_agg` of a text filter | `[String]` |

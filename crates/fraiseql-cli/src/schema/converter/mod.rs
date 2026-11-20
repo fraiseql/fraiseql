@@ -984,9 +984,8 @@ impl SchemaConverter {
             "JSON" => SqlType::Json,
             "TEXT" | "VARCHAR" | "STRING" | "CHAR" | "CHARACTER VARYING" => SqlType::Text,
             "UUID" => SqlType::Uuid,
-            "TIMESTAMP" | "TIMESTAMPTZ" | "TIMESTAMP WITH TIME ZONE" | "DATETIME" => {
-                SqlType::Timestamp
-            },
+            "TIMESTAMPTZ" | "TIMESTAMP WITH TIME ZONE" => SqlType::TimestampTz,
+            "TIMESTAMP" | "TIMESTAMP WITHOUT TIME ZONE" | "DATETIME" => SqlType::LocalTimestamp,
             "DATE" => SqlType::Date,
             "BOOLEAN" | "BOOL" => SqlType::Boolean,
             "LTREE" => SqlType::Ltree,

@@ -100,7 +100,7 @@ fn test_from_columns() {
         ("quantity", SqlType::Int, false),
         ("dimensions", SqlType::Jsonb, false),
         ("customer_id", SqlType::Uuid, false),
-        ("occurred_at", SqlType::Timestamp, false),
+        ("occurred_at", SqlType::TimestampTz, false),
     ];
 
     let metadata = FactTableDetector::from_columns("tf_sales".to_string(), columns).unwrap();
@@ -123,7 +123,29 @@ fn test_sql_type_from_str_postgres() {
     assert_eq!(SqlType::from_str_postgres("jsonb"), SqlType::Jsonb);
     assert_eq!(SqlType::from_str_postgres("text"), SqlType::Text);
     assert_eq!(SqlType::from_str_postgres("uuid"), SqlType::Uuid);
-    assert_eq!(SqlType::from_str_postgres("timestamptz"), SqlType::Timestamp);
+    assert_eq!(SqlType::from_str_postgres("timestamptz"), SqlType::TimestampTz);
+}
+
+/// #1929: a `timestamp` and a `timestamptz` are two types, in every spelling.
+#[test]
+fn a_timestamp_and_a_timestamptz_are_two_types() {
+    for naive in ["timestamp", "TIMESTAMP", "timestamp without time zone"] {
+        for zoned in ["timestamptz", "timestamp with time zone", "TIMESTAMPTZ"] {
+            assert_ne!(
+                SqlType::from_str_postgres(naive),
+                SqlType::from_str_postgres(zoned),
+                "{naive} / {zoned}"
+            );
+        }
+    }
+}
+
+/// #1929: an artifact naming the type that covered both does not load: it would load as
+/// one of the two whichever the column was.
+#[test]
+fn an_artifact_naming_the_one_timestamp_type_does_not_load() {
+    let loaded = serde_json::from_str::<SqlType>("\"Timestamp\"");
+    assert!(loaded.is_err(), "{loaded:?}");
 }
 
 #[test]

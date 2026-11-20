@@ -116,7 +116,8 @@ pub const fn field_type_to_column_type(ft: &FieldType) -> Option<RowViewColumnTy
         FieldType::Json => Some(RowViewColumnType::Json),
         // Types with no columnar representation: List, Object, Interface,
         // Union, Vector, BitVector — the vector kinds are searched, not
-        // projected into the columnar view.
+        // projected into the columnar view. LocalDateTime has no column type
+        // either: read as an instant it would take the session's zone.
         _ => None,
     }
 }

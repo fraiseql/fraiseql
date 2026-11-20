@@ -208,7 +208,7 @@ pub fn create_sales_metadata() -> FactTableMetadata {
             },
             FilterColumn {
                 name:      "occurred_at".to_string(),
-                sql_type:  SqlType::Timestamp,
+                sql_type:  SqlType::TimestampTz,
                 indexed:   true,
                 hierarchy: None,
             },

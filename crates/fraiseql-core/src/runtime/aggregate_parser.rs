@@ -799,17 +799,33 @@ pub(super) fn where_condition(
     native_columns: &std::collections::HashMap<String, String>,
 ) -> Result<WhereClause> {
     let (field, operator) = split_where_key(key, metadata, native_columns)?;
-    Ok(if let Some(column) = mapped_column(metadata, field) {
-        WhereClause::NativeField {
-            column: column.clone(),
-            pg_cast: native_columns.get(column.as_str()).cloned().unwrap_or_default(),
-            operator,
-            value: value.clone(),
+    let native = mapped_column(metadata, field).map_or_else(
+        || native_columns.get(field).map(|cast| (field.to_string(), cast.clone())),
+        |column| {
+            Some((column.clone(), native_columns.get(column.as_str()).cloned().unwrap_or_default()))
+        },
+    );
+    Ok(if let Some((column, pg_cast)) = native {
+        // A `timestamp` column holds local date-times, and its `::timestamp` cast drops an
+        // offset: an operand carrying one would compare as another time.
+        if pg_cast == "timestamp"
+            && matches!(
+                operator,
+                WhereOperator::Eq
+                    | WhereOperator::Neq
+                    | WhereOperator::Gt
+                    | WhereOperator::Gte
+                    | WhereOperator::Lt
+                    | WhereOperator::Lte
+                    | WhereOperator::In
+                    | WhereOperator::Nin
+            )
+        {
+            fraiseql_db::types::local_date_time::check_local_date_time_operand(key, value)?;
         }
-    } else if let Some(pg_cast) = native_columns.get(field) {
         WhereClause::NativeField {
-            column: field.to_string(),
-            pg_cast: pg_cast.clone(),
+            column,
+            pg_cast,
             operator,
             value: value.clone(),
         }

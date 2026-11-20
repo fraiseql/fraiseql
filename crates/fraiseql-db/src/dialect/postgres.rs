@@ -50,6 +50,7 @@ impl SqlDialect for PostgresDialect {
             ScalarFieldType::Numeric => Some("numeric"),
             ScalarFieldType::Boolean => Some("boolean"),
             ScalarFieldType::DateTime => Some("timestamptz"),
+            ScalarFieldType::LocalDateTime => Some("timestamp"),
             ScalarFieldType::Date => Some("date"),
             ScalarFieldType::Time => Some("time"),
             // Deliberately uncast — see `ScalarFieldType::Uuid`. A `::uuid` cast

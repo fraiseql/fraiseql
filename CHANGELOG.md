@@ -96,6 +96,21 @@ disagreed, and the promise was the part that was wrong.
   64-bit integers can be declared `Float`, exact up to 2^53, or `String`, with the view
   writing the column as text (`id::text`), which keeps every digit. Neither keeps an
   integer type on the wire.
+- **A fact-table `timestamp` column without a time zone is a `LocalDateTime` (#1929).** Its
+  group keys, temporal buckets and `where` operands were published as `DateTime`, an
+  instant with an offset, and its values read `2026-07-01 00:00:00`, with a space and no
+  offset. They are published as `LocalDateTime`, a new scalar
+  (scalars.graphql.org/chillicream/local-date-time), and read `2026-07-01T00:00:00`,
+  fractional seconds in 3, 6 or 9 digits. A `where` on such a column compares local
+  date-times: it cast the operand to `timestamptz`, so the comparison ran in the session's
+  `TimeZone`, and in a zone with daylight saving a row inside the skipped hour fell on the
+  wrong side of a bound. A `LocalDateTime` operand, argument or variable carrying an offset
+  or a `Z`, or not shaped as one, is refused naming the key; PostgreSQL's cast would drop
+  the offset and compare another time. `timestamptz` columns are unchanged. `SqlType::Timestamp` is
+  replaced by `TimestampTz` and `LocalTimestamp`: recompile `schema.compiled.json`, as one
+  naming `Timestamp` no longer loads. Declare a fact table's column by its real type,
+  `TIMESTAMPTZ` for an instant and `TIMESTAMP` for a local date-time; a `timestamptz`
+  column declared `TIMESTAMP` or `DATETIME` is now read as local.
 - **A discovery document that names another issuer refuses the boot (#2135).** The
   `[auth]` PKCE client and the social and generic OIDC providers fetch
   `{discovery_url}/.well-known/openid-configuration`; the `issuer` the document names must

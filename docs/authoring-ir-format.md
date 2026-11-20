@@ -29,6 +29,7 @@ Your code  →  SDK  →  schema.json  →  fraiseql-cli compile  →  schema.co
 | `"Boolean"`  | `Boolean`      |                                |
 | `"ID"`       | `ID`           | An argument value may be a string or an integer |
 | `"DateTime"` | `DateTime`     | ISO 8601                       |
+| `"LocalDateTime"` | `LocalDateTime` | A date and time of day in no zone: `T`, no offset (a `timestamp` column) |
 | `"Date"`     | `Date`         | ISO 8601 date-only             |
 | `"Time"`     | `Time`         | ISO 8601 time-only             |
 | `"Json"`     | `JSON`         |                                |

@@ -108,7 +108,7 @@ mod window_allowlist_tests {
             },
             denormalized_filters:     vec![FilterColumn {
                 name:      "occurred_at".to_string(),
-                sql_type:  SqlType::Timestamp,
+                sql_type:  SqlType::TimestampTz,
                 indexed:   true,
                 hierarchy: None,
             }],
@@ -244,7 +244,7 @@ mod aggregation_tests {
                 },
                 FilterColumn {
                     name:      "occurred_at".to_string(),
-                    sql_type:  SqlType::Timestamp,
+                    sql_type:  SqlType::TimestampTz,
                     indexed:   true,
                     hierarchy: None,
                 },
@@ -642,7 +642,7 @@ mod window_order_by_allowlist_tests {
             },
             denormalized_filters:     vec![FilterColumn {
                 name:      "occurred_at".to_string(),
-                sql_type:  SqlType::Timestamp,
+                sql_type:  SqlType::TimestampTz,
                 indexed:   true,
                 hierarchy: None,
             }],
