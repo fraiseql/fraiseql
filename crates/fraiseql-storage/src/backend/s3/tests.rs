@@ -479,3 +479,76 @@ fn test_s3_presign_respects_expiry() {
         assert_ne!(short_url, long_url, "URLs with different TTLs should be different");
     });
 }
+
+// ── last_modified (#2112) ─────────────────────────────────────────────────────
+
+/// S3 reports the time it stored: the listing gives it as an instant, the one type every
+/// backend uses, not the SDK's own rendering.
+#[test]
+#[ignore = "requires MinIO to be running"]
+fn test_s3_list_reports_the_stored_time() {
+    let Some(()) = skip_if_no_s3() else {
+        return;
+    };
+    let backend = create_test_backend();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        // S3 keeps whole milliseconds; allow for that and a little clock skew.
+        let before = chrono::Utc::now() - chrono::Duration::seconds(5);
+        backend.upload("lm/a.txt", b"x", "text/plain").await.expect("upload");
+        let after = chrono::Utc::now() + chrono::Duration::seconds(5);
+        let listed = backend.list("lm/", None, 10).await.expect("list");
+        let reported = listed.objects[0].last_modified.expect("S3 reported a time");
+        assert!(before <= reported && reported <= after, "{reported} outside the upload");
+    });
+}
+
+/// A backend on a scripted S3 endpoint: static credentials, path-style addressing.
+fn scripted_backend(endpoint: &str) -> S3Backend {
+    let config = aws_sdk_s3::config::Builder::new()
+        .behavior_version_latest()
+        .region(aws_sdk_s3::config::Region::new("us-east-1"))
+        .credentials_provider(aws_sdk_s3::config::Credentials::new(
+            "scripted", "scripted", None, None, "scripted",
+        ))
+        .endpoint_url(endpoint)
+        .force_path_style(true)
+        .build();
+    S3Backend {
+        client: aws_sdk_s3::Client::from_conf(config),
+        bucket: "scripted".to_owned(),
+    }
+}
+
+/// An entry S3 lists without `LastModified` reports no time: the listing does not
+/// stand one in, so two listings of the same response agree.
+#[tokio::test]
+async fn test_s3_list_entry_without_last_modified_reports_no_time() {
+    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
+
+    let server = MockServer::start().await;
+    let body = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Name>scripted</Name><Prefix>lm/</Prefix><KeyCount>1</KeyCount><MaxKeys>10</MaxKeys>
+  <IsTruncated>false</IsTruncated>
+  <Contents><Key>lm/a.txt</Key><ETag>"e"</ETag><Size>1</Size></Contents>
+</ListBucketResult>"#;
+    Mock::given(method("GET"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "application/xml")
+                .set_body_string(body),
+        )
+        .mount(&server)
+        .await;
+    let backend = scripted_backend(&server.uri());
+
+    let first = backend.list("lm/", None, 10).await.expect("first listing");
+    let second = backend.list("lm/", None, 10).await.expect("second listing");
+    assert_eq!(first.objects.len(), 1, "the scripted entry must be listed");
+    assert_eq!(first.objects[0].last_modified, None, "a time was made up");
+    assert_eq!(
+        first.objects[0].last_modified, second.objects[0].last_modified,
+        "an absent LastModified was replaced by a time that moves between listings"
+    );
+}

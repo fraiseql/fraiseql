@@ -460,21 +460,11 @@ impl LocalBackend {
             })?;
 
             let size = metadata.len();
-            let last_modified = metadata
-                .modified()
-                .ok()
-                .and_then(|t| {
-                    let duration = t.duration_since(std::time::UNIX_EPOCH).ok()?;
-                    // Reason: u64→i64 cast for chrono timestamp; only wraps after year
-                    // 292277026596.
-                    #[allow(clippy::cast_possible_wrap)]
-                    let secs = duration.as_secs() as i64;
-                    chrono::DateTime::from_timestamp(secs, duration.subsec_nanos())
-                })
-                .map_or_else(|| chrono::Utc::now().to_rfc3339(), |dt| dt.to_rfc3339());
+            let last_modified = mtime_instant(metadata.modified());
 
-            // Generate simple etag from size and mtime
-            let etag = format!("{:x}", fnv1a_hash(&format!("{size}-{last_modified}")));
+            // Generate simple etag from size and mtime (none when the platform reports none)
+            let mtime_text = last_modified.map(|t| t.to_rfc3339()).unwrap_or_default();
+            let etag = format!("{:x}", fnv1a_hash(&format!("{size}-{mtime_text}")));
 
             objects.push((
                 key.clone(),
@@ -522,6 +512,18 @@ impl LocalBackend {
             next_cursor,
         })
     }
+}
+
+/// A file's modification time as an instant: `None` when the platform reports none or
+/// it lies before the Unix epoch. Never the current time.
+pub(super) fn mtime_instant(
+    modified: std::io::Result<std::time::SystemTime>,
+) -> Option<chrono::DateTime<chrono::Utc>> {
+    let duration = modified.ok()?.duration_since(std::time::UNIX_EPOCH).ok()?;
+    // Reason: u64→i64 cast for chrono timestamp; only wraps after year 292277026596.
+    #[allow(clippy::cast_possible_wrap)]
+    let secs = duration.as_secs() as i64;
+    chrono::DateTime::from_timestamp(secs, duration.subsec_nanos())
 }
 
 /// Simple FNV-1a hash function

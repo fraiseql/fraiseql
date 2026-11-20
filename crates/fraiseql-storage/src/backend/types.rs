@@ -2,7 +2,6 @@
 
 use std::collections::HashMap;
 
-use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
 /// Result of a successful PUT operation.
@@ -12,21 +11,6 @@ pub struct PutResult {
     pub etag: String,
     /// Size of the uploaded object in bytes.
     pub size: u64,
-}
-
-/// An object retrieved from storage.
-#[derive(Debug, Clone)]
-pub struct StorageObject {
-    /// Raw file contents.
-    pub body:          Bytes,
-    /// MIME type of the object.
-    pub content_type:  String,
-    /// Size in bytes.
-    pub size:          u64,
-    /// Entity tag for integrity verification.
-    pub etag:          String,
-    /// Last modification time as ISO 8601 string.
-    pub last_modified: String,
 }
 
 /// Result of a LIST operation.
@@ -49,8 +33,10 @@ pub struct ObjectInfo {
     pub content_type:  String,
     /// Entity tag for integrity.
     pub etag:          String,
-    /// Last modification time as ISO 8601.
-    pub last_modified: String,
+    /// When the object was last modified, as the backend reports it; `None` when it
+    /// reports no time. Never a time the listing made up.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_modified: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// Metadata associated with a stored object.

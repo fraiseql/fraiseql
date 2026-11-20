@@ -50,7 +50,7 @@ pub use backend::PresignCapable;
 pub use backend::S3Backend;
 pub use backend::{
     LocalBackend, PresignedUrl, StorageBackend, create_backend,
-    types::{ListResult, ObjectInfo, ObjectMetadata, PutResult, StorageObject},
+    types::{ListResult, ObjectInfo, ObjectMetadata, PutResult},
     validate_key,
 };
 /// The `bytes` this crate's public API is built against (#1198).

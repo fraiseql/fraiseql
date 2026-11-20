@@ -18,6 +18,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql_storage::ObjectInfo::last_modified` is `Option<chrono::DateTime<Utc>>` (#2112).**
+  It was a `String` in a different format per backend. A listing that reports no time now
+  gives `None`; serialized, the key is left out. Code that read the text uses the instant,
+  or formats it where it is served.
+- **`fraiseql_storage::StorageObject` is removed (#2112).** No backend returned one.
 - **`[security.error_sanitization] hide_implementation_details` is removed (#2023).** It
   cleared a field no error carried, so it changed no response. It is refused as an unknown
   key in both `fraiseql.toml` and the project config: remove it from both.
@@ -624,6 +629,9 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A storage listing no longer reports the current time for an object it has no time
+  for (#2112).** The S3-compatible and local backends substituted the listing's own clock;
+  the value changed on every listing, and the local backend's listing etag with it.
 - **A change-log row the observers cannot read no longer blocks the rows after it
   (#2118).** A row whose document the decoder refused failed the whole batch. The
   poller failed every poll on it, and the executor's loop stopped after ten. The

@@ -79,6 +79,9 @@ tower = { version = "0.5", features = ["util"] }
 # local-testcontainers spawn). Dagger provides Postgres + the Azurite/fake-gcs emulators.
 fraiseql-test-support = { path = "../fraiseql-test-support" }
 criterion = { version = "0.5", features = ["async_tokio"] }
+# A scripted S3 endpoint, for listing shapes MinIO never sends (an entry without
+# `LastModified`).
+wiremock = "0.6"
 
 [[bench]]
 name = "storage_bench"

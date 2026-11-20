@@ -381,9 +381,10 @@ impl S3Backend {
             #[allow(clippy::cast_sign_loss)]
             let size = obj.size().unwrap_or(0) as u64;
             let etag = obj.e_tag().unwrap_or("").to_string();
+            // An entry without a time, or one chrono cannot hold, reports none.
             let last_modified = obj
                 .last_modified()
-                .map_or_else(|| chrono::Utc::now().to_rfc3339(), |dt| dt.to_string());
+                .and_then(|dt| chrono::DateTime::from_timestamp(dt.secs(), dt.subsec_nanos()));
 
             objects.push(super::types::ObjectInfo {
                 key,

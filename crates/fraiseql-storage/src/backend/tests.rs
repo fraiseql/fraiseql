@@ -116,7 +116,57 @@ mod backend_tests {
         // content-type
         assert_eq!(obj.content_type, "application/octet-stream");
         assert!(!obj.etag.is_empty(), "etag should be populated");
-        assert!(!obj.last_modified.is_empty(), "last_modified should be populated");
+        assert!(obj.last_modified.is_some(), "last_modified should be populated");
+    }
+
+    /// The local listing reports the file's modification time, to the nanosecond (#2112).
+    #[tokio::test]
+    async fn test_list_reports_the_files_mtime() {
+        let (backend, tmpdir) = temp_backend();
+        backend.upload("lm.txt", b"x", "text/plain").await.expect("upload");
+        let mtime: chrono::DateTime<chrono::Utc> = std::fs::metadata(tmpdir.path().join("lm.txt"))
+            .and_then(|m| m.modified())
+            .expect("mtime")
+            .into();
+        let listed = backend.list("", None, 10).await.expect("list");
+        assert_eq!(listed.objects[0].last_modified, Some(mtime));
+    }
+
+    /// A modification time the platform does not report, or one before the epoch, is no
+    /// time: never the current one (#2112).
+    #[test]
+    fn mtime_instant_reports_none_for_an_unknown_time() {
+        use std::time::{Duration, UNIX_EPOCH};
+
+        use crate::backend::local::mtime_instant;
+
+        let unsupported = std::io::Error::new(std::io::ErrorKind::Unsupported, "no mtime");
+        assert_eq!(mtime_instant(Err(unsupported)), None);
+        assert_eq!(mtime_instant(Ok(UNIX_EPOCH - Duration::from_secs(1))), None);
+        assert_eq!(
+            mtime_instant(Ok(UNIX_EPOCH + Duration::new(1_763_640_000, 120_000_000))),
+            chrono::DateTime::from_timestamp(1_763_640_000, 120_000_000)
+        );
+    }
+
+    /// A listed object's etag is the FNV-1a hash of `"{size}-{mtime}"`, the mtime as
+    /// chrono's `to_rfc3339` writes it. A client that cached one keeps matching it (#2112).
+    #[tokio::test]
+    async fn test_list_etag_hashes_size_and_rfc3339_mtime() {
+        let (backend, tmpdir) = temp_backend();
+        backend.upload("etag.txt", b"hello", "text/plain").await.expect("upload");
+        let mtime: chrono::DateTime<chrono::Utc> =
+            std::fs::metadata(tmpdir.path().join("etag.txt"))
+                .and_then(|m| m.modified())
+                .expect("mtime")
+                .into();
+        let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+        for byte in format!("5-{}", mtime.to_rfc3339()).bytes() {
+            hash ^= u64::from(byte);
+            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        let listed = backend.list("", None, 10).await.expect("list");
+        assert_eq!(listed.objects[0].etag, format!("{hash:x}"));
     }
 }
 
@@ -420,7 +470,23 @@ mod local_list_containment {
 /// `.120` / `.500`, none at a whole second, and a `Z` suffix. A document read and written
 /// again keeps those bytes; webhooks, idempotency keys and JSONB comparisons depend on them.
 mod stored_time_format {
-    use crate::backend::PresignedUrl;
+    use crate::backend::{PresignedUrl, types::ObjectInfo};
+
+    /// A listed object's time writes as every other stored instant; an object listed
+    /// without one carries no `last_modified` key (#2112).
+    #[test]
+    fn an_object_info_keeps_its_stored_time() {
+        let doc = serde_json::json!({"key":"a","size":1,"content_type":"text/plain","etag":"e","last_modified":"2025-11-20T12:00:00.120Z"});
+        let read: ObjectInfo =
+            serde_json::from_value(doc.clone()).expect("the stored document reads");
+        assert_eq!(serde_json::to_value(&read).expect("it writes"), doc);
+
+        let untimed =
+            serde_json::json!({"key":"a","size":1,"content_type":"text/plain","etag":"e"});
+        let read: ObjectInfo = serde_json::from_value(untimed.clone()).expect("reads without");
+        assert_eq!(read.last_modified, None);
+        assert_eq!(serde_json::to_value(&read).expect("it writes"), untimed);
+    }
 
     #[test]
     fn a_presigned_url_keeps_its_stored_expiry() {
