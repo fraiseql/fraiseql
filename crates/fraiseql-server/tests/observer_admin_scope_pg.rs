@@ -503,6 +503,63 @@ mod the_operator {
         assert_eq!(status, StatusCode::OK, "{body}");
         assert_eq!(body["last_cursor"], 9, "{body}");
     }
+
+    /// A checkpoint the API saves is the one it reads, with the table's defaults for
+    /// what no consumer reports.
+    #[tokio::test]
+    async fn saves_a_new_checkpoint() {
+        let (pool, _svc) = setup_pg().await;
+
+        let (status, body) = call(
+            &pool,
+            Caller::Operator,
+            Method::PUT,
+            "/api/observers/checkpoint/consumer",
+            Some(json!({ "last_cursor": 7 })),
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::OK, "{body}");
+        let row: (i64, i32, i32) = sqlx::query_as(
+            "SELECT last_processed_id, batch_size, event_count FROM core.observer_checkpoints \
+             WHERE listener_id = 'consumer'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(row, (7, 100, 0));
+    }
+
+    #[tokio::test]
+    async fn moves_an_existing_checkpoint() {
+        let (pool, _svc) = setup_pg().await;
+        sqlx::query(
+            "INSERT INTO core.observer_checkpoints \
+             (listener_id, last_processed_id, batch_size, event_count) VALUES ('consumer', 9, 50, 400)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let (status, body) = call(
+            &pool,
+            Caller::Operator,
+            Method::PUT,
+            "/api/observers/checkpoint/consumer",
+            Some(json!({ "last_cursor": 12 })),
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::OK, "{body}");
+        let row: (i64, i32, i32) = sqlx::query_as(
+            "SELECT last_processed_id, batch_size, event_count FROM core.observer_checkpoints \
+             WHERE listener_id = 'consumer'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(row, (12, 50, 400), "the cursor moves and the rest of the row stays");
+    }
 }
 
 mod an_organisation {

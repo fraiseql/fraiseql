@@ -1369,3 +1369,73 @@ async fn a_table_an_earlier_release_created_takes_the_policy_and_so_do_the_rows_
         "a second boot changes nothing"
     );
 }
+
+// ---------------------------------------------------------------------------
+// The checkpoint store's compare-and-swap
+// ---------------------------------------------------------------------------
+
+/// A listener's first compare-and-swap, from no row, stores the cursor.
+#[tokio::test]
+async fn first_compare_and_swap_creates_the_checkpoint() {
+    use fraiseql_observers::checkpoint::{CheckpointStore as _, PostgresCheckpointStore};
+
+    let (pool, _svc) = setup_pg().await;
+    let store = PostgresCheckpointStore::new(pool.clone());
+
+    assert!(store.compare_and_swap("new", 0, 5).await.expect("the insert is accepted"));
+
+    let row: (i64, i32, i32) = sqlx::query_as(
+        "SELECT last_processed_id, batch_size, event_count FROM core.observer_checkpoints \
+         WHERE listener_id = 'new'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(row, (5, 100, 0));
+    assert!(store.compare_and_swap("new", 5, 6).await.unwrap(), "and the next one moves it");
+}
+
+/// Two first compare-and-swaps race: exactly one creates the row.
+#[tokio::test]
+async fn of_two_first_compare_and_swaps_one_wins() {
+    use fraiseql_observers::checkpoint::{CheckpointStore as _, PostgresCheckpointStore};
+
+    let (pool, _svc) = setup_pg().await;
+    let store = PostgresCheckpointStore::new(pool.clone());
+
+    let (a, b) =
+        tokio::join!(store.compare_and_swap("race", 0, 3), store.compare_and_swap("race", 0, 4));
+    let (a, b) = (a.expect("accepted"), b.expect("accepted"));
+
+    assert!(a ^ b, "exactly one wins: {a} {b}");
+    let stored: i64 = sqlx::query_scalar(
+        "SELECT last_processed_id FROM core.observer_checkpoints WHERE listener_id = 'race'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(stored, if a { 3 } else { 4 });
+}
+
+/// The default state is one the table accepts.
+#[tokio::test]
+async fn a_default_checkpoint_state_saves() {
+    use fraiseql_observers::checkpoint::{
+        CheckpointState, CheckpointStore as _, PostgresCheckpointStore,
+    };
+
+    let (pool, _svc) = setup_pg().await;
+    let store = PostgresCheckpointStore::new(pool.clone());
+    let state = CheckpointState {
+        listener_id: "default".to_string(),
+        ..CheckpointState::default()
+    };
+
+    store
+        .save("default", &state)
+        .await
+        .expect("the table accepts the default state");
+
+    let loaded = store.load("default").await.unwrap().expect("saved");
+    assert_eq!((loaded.last_processed_id, loaded.batch_size), (0, 100));
+}

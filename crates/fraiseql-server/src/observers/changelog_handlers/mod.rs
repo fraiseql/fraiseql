@@ -294,8 +294,8 @@ pub async fn checkpoint_save_handler(
     let result = sqlx::query(
         r"
         INSERT INTO core.observer_checkpoints
-            (listener_id, last_processed_id, last_processed_at, batch_size, event_count, updated_at)
-        VALUES ($1, $2, NOW(), 0, 0, NOW())
+            (listener_id, last_processed_id, last_processed_at, updated_at)
+        VALUES ($1, $2, NOW(), NOW())
         ON CONFLICT (listener_id) DO UPDATE SET
             last_processed_id = $2,
             last_processed_at = NOW(),

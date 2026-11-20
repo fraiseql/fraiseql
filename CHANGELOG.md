@@ -765,6 +765,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The checkpoint PUT endpoint and a listener's first checkpoint compare-and-swap are
+  accepted (#1900).** Both inserted `batch_size = 0`, which the `observer_checkpoints`
+  CHECK refuses, so `PUT /api/observers/checkpoint/{listener_id}` answered 500 on every
+  call and `PostgresCheckpointStore::compare_and_swap(id, 0, n)` failed for a listener
+  with no row. Both now leave `batch_size` and `event_count` to the column defaults (100
+  and 0); an existing row keeps its own. `CheckpointState::default()` had the same
+  `batch_size` of 0, which `save()` was refused; it is now 100,
+  `checkpoint::DEFAULT_BATCH_SIZE`.
 - **Stopping the observer runtime lets the subscription fan-out finish its batch (#1972).**
   The stop aborted the change-log fan-out wherever it was, including inside the
   transaction it reads each batch in. It now asks the fan-out to stop between batches and

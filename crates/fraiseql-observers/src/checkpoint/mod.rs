@@ -135,13 +135,17 @@ pub struct CheckpointState {
     pub event_count:       usize,
 }
 
+/// The batch size of a state that reports none: the `observer_checkpoints` column's
+/// default, which its CHECK accepts (1 to 10 000).
+pub const DEFAULT_BATCH_SIZE: usize = 100;
+
 impl Default for CheckpointState {
     fn default() -> Self {
         Self {
             listener_id:       String::new(),
             last_processed_id: 0,
             last_processed_at: Timestamp::now(),
-            batch_size:        0,
+            batch_size:        DEFAULT_BATCH_SIZE,
             event_count:       0,
         }
     }
