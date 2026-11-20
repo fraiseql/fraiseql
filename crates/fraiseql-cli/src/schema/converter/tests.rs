@@ -2438,6 +2438,38 @@ mod tenancy_tests {
         assert!(on.changelog_pre_image);
     }
 
+    // ── retry_on_abort threading (default: follow the server) ─────────────
+
+    /// An absent `retry_on_abort` converts to `true`, following the server's policy;
+    /// an opt-out threads through to the compiled mutation.
+    #[test]
+    fn convert_mutation_threads_retry_on_abort() {
+        use crate::schema::SchemaConverter;
+        let declared = crate::schema::converter::DeclaredTypeNames::default();
+        let follows =
+            SchemaConverter::convert_mutation(make_mutation("charge", "Charge"), &declared)
+                .unwrap();
+        assert!(follows.retry_on_abort);
+        let im = IntermediateMutation {
+            retry_on_abort: false,
+            ..make_mutation("charge", "Charge")
+        };
+        let opted_out = SchemaConverter::convert_mutation(im, &declared).unwrap();
+        assert!(!opted_out.retry_on_abort);
+    }
+
+    /// The authoring JSON: an absent key follows the server; `false` opts out.
+    #[test]
+    fn intermediate_mutation_retry_on_abort_json_keys() {
+        let absent: IntermediateMutation =
+            serde_json::from_str(r#"{ "name": "m", "return_type": "R" }"#).unwrap();
+        assert!(absent.retry_on_abort);
+        let opted_out: IntermediateMutation =
+            serde_json::from_str(r#"{ "name": "m", "return_type": "R", "retry_on_abort": false }"#)
+                .unwrap();
+        assert!(!opted_out.retry_on_abort);
+    }
+
     // ── cascade threading (default off / explicit on, gate decision 3) ────
 
     /// An absent / unset `cascade` converts to `false` (no typed cascade

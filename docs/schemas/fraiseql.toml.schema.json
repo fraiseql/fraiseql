@@ -1059,6 +1059,11 @@
           "type": "boolean",
           "default": false
         },
+        "retry_on_abort": {
+          "description": "Whether the server's transaction retry policy may run this mutation's transaction\nagain when PostgreSQL aborts it. Set `false` for a function with an effect outside\nits transaction, which each attempt would repeat. Defaults to `true`: the mutation\nfollows the server.",
+          "type": "boolean",
+          "default": true
+        },
         "description": {
           "description": "Mutation description",
           "type": [

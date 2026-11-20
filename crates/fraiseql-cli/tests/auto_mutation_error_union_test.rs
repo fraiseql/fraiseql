@@ -46,6 +46,7 @@ fn object_mutation(name: &str, return_type: &str) -> IntermediateMutation {
         input_style:             InputStyle::Flatten,
         changelog_pre_image:     false,
         cascade:                 false,
+        retry_on_abort:          true,
         success_fields:          Vec::new(),
         cascade_source:          fraiseql_core::schema::CascadeSource::Function,
         rest:                    None,

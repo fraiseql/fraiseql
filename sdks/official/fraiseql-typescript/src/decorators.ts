@@ -225,6 +225,17 @@ export interface MutationConfig extends OperationConfig {
    */
   changelogPreImage?: boolean;
   /**
+   * Whether the server's transaction retry policy may run this mutation's transaction
+   * again when PostgreSQL aborts it with `40P01` or `40001`.
+   *
+   * Defaults to `true`: the mutation follows the server. Set `retryOnAbort: false` for a
+   * function with an effect outside its transaction (a `dblink` or `pg_background` call,
+   * a `nextval`, a call to another system), which each attempt would repeat: the server
+   * then runs the mutation once, and runs any batch holding it once. Omitting it leaves
+   * the key out of the JSON.
+   */
+  retryOnAbort?: boolean;
+  /**
    * How the GraphQL `input` argument is passed to the SQL function:
    * `"flatten"` (positional columns, the default) or `"jsonb"` (the whole input
    * as one `jsonb` argument).

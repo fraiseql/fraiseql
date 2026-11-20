@@ -113,6 +113,7 @@ impl SchemaConverter {
             input_style: intermediate.input_style,
             changelog_pre_image: intermediate.changelog_pre_image,
             cascade: intermediate.cascade,
+            retry_on_abort: intermediate.retry_on_abort,
             success_fields,
             cascade_source: intermediate.cascade_source,
         })

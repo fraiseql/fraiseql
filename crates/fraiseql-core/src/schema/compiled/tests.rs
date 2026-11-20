@@ -256,6 +256,25 @@ fn mutation_cascade_round_trips_when_on() {
     assert!(back.contains("\"cascade\":true"), "on cascade serializes: {back}");
 }
 
+/// An absent `retry_on_abort` follows the server and is not written back, so a schema with
+/// no opt-out keeps its bytes; an opt-out round-trips.
+#[test]
+fn mutation_retry_on_abort_is_written_only_when_a_mutation_opts_out() {
+    let follows: MutationDefinition =
+        serde_json::from_str(r#"{ "name": "charge", "return_type": "Charge" }"#).unwrap();
+    assert!(follows.retry_on_abort, "absent follows the server");
+    let json = serde_json::to_string(&follows).unwrap();
+    assert!(!json.contains("retry_on_abort"), "the default is omitted: {json}");
+
+    let opted_out: MutationDefinition = serde_json::from_str(
+        r#"{ "name": "charge", "return_type": "Charge", "retry_on_abort": false }"#,
+    )
+    .unwrap();
+    assert!(!opted_out.retry_on_abort);
+    let back = serde_json::to_string(&opted_out).unwrap();
+    assert!(back.contains(r#""retry_on_abort":false"#), "an opt-out is written: {back}");
+}
+
 #[test]
 fn subscribable_participates_in_content_hash() {
     let plain = CompiledSchema::default();

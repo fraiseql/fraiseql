@@ -1180,6 +1180,9 @@ mod mutation {
         /// (the type recorded when the function stamps none), or `None` if no change-log row
         /// was written.
         captured_object_type:       std::sync::Mutex<Option<String>>,
+        /// Whether the last write let the adapter's retry policy run it again
+        /// (`WriteRequest::retry_on_abort`), or `None` before any write.
+        captured_retry_on_abort:    std::sync::Mutex<Option<bool>>,
     }
 
     impl CapturingFunctionCallAdapter {
@@ -1190,7 +1193,13 @@ mod mutation {
                 captured_modification_type: std::sync::Mutex::new(None),
                 captured_pre_image:         std::sync::Mutex::new(None),
                 captured_object_type:       std::sync::Mutex::new(None),
+                captured_retry_on_abort:    std::sync::Mutex::new(None),
             }
+        }
+
+        /// Whether the last write let the adapter's retry policy run it again.
+        fn retry_on_abort(&self) -> Option<bool> {
+            *self.captured_retry_on_abort.lock().unwrap()
         }
 
         /// Set the `updated_fields` column the success row reports (#433).
@@ -1345,6 +1354,7 @@ mod mutation {
             Vec<std::collections::HashMap<String, serde_json::Value>>,
             crate::error::FraiseQLError,
         > {
+            *self.captured_retry_on_abort.lock().unwrap() = Some(request.retry_on_abort);
             self.execute_function_call_gated(
                 request.function,
                 request.args,
@@ -2416,6 +2426,35 @@ mod mutation {
             "verbatim camelCase key must not survive: {:?}",
             captured[0]
         );
+    }
+
+    // ── retry_on_abort threading ──────────────────────────────────────────
+
+    /// A mutation that opts out of retry hands the adapter a write its policy must not
+    /// run again; one that does not follows the policy.
+    #[tokio::test]
+    async fn retry_on_abort_reaches_the_write_request() {
+        use crate::schema::{InputStyle, MutationOperation};
+        for retry_on_abort in [false, true] {
+            let mut schema = schema_input_style_mutation(
+                MutationOperation::Update {
+                    table: "save_user".to_string(),
+                },
+                InputStyle::Flatten,
+            );
+            schema.mutations[0].retry_on_abort = retry_on_abort;
+            let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+            let adapter_ref = Arc::clone(&adapter);
+            let executor = Executor::new(schema, adapter);
+
+            let vars = serde_json::json!({ "input": { "id": "u1", "fullName": "Alice" } });
+            executor
+                .execute_mutation("save_user", Some(&vars), any_write_selections())
+                .await
+                .unwrap();
+
+            assert_eq!(adapter_ref.retry_on_abort(), Some(retry_on_abort));
+        }
     }
 
     // ── changelog_pre_image threading (opt-in pre-image) ──────────────────

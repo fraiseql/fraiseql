@@ -209,6 +209,21 @@ pub struct MutationDefinition {
     #[serde(default, skip_serializing_if = "core::ops::Not::not")]
     pub cascade: bool,
 
+    /// Whether the server's transaction retry policy may run this mutation's transaction
+    /// again when PostgreSQL aborts it with `40P01` or `40001`. Default `true`: the mutation
+    /// follows the server, whose policy is itself off unless configured.
+    ///
+    /// Set `false` for a function with an effect outside its transaction (a `dblink` or
+    /// `pg_background` call, a `nextval`, a call to another system), which every attempt
+    /// would repeat: the mutation then runs once, whatever the policy says. A batch commits
+    /// all of its calls or none, so a batch holding such a mutation runs once as a whole.
+    ///
+    /// Set via the authoring SDK's `@fraiseql.mutation(retry_on_abort=False)`. Absent means
+    /// `true` and is not written, so a schema that declares no opt-out compiles to the same
+    /// bytes as before this field existed.
+    #[serde(default = "default_retry_on_abort", skip_serializing_if = "is_true")]
+    pub retry_on_abort: bool,
+
     /// Typed facts about the operation itself, served on the cascade payload next to
     /// `entity`, `cascade` and `updatedFields` (#1397): `createOrder`'s
     /// `recoveredItems`. The function returns them in its row's `result jsonb` column, keyed
@@ -247,6 +262,18 @@ impl CascadeSource {
 /// Serde default for [`MutationDefinition::changelog`]: log by default (opt-out).
 const fn default_changelog() -> bool {
     true
+}
+
+/// Serde default for [`MutationDefinition::retry_on_abort`]: follow the server's policy.
+const fn default_retry_on_abort() -> bool {
+    true
+}
+
+/// Whether `value` is `true`: [`MutationDefinition::retry_on_abort`] is written only when
+/// a mutation opts out.
+#[allow(clippy::trivially_copy_pass_by_ref)] // Reason: serde's skip_serializing_if passes a reference
+const fn is_true(value: &bool) -> bool {
+    *value
 }
 
 /// How a mutation's GraphQL `input` argument is forwarded to its SQL function.
@@ -322,6 +349,7 @@ impl MutationDefinition {
             input_style:             InputStyle::Flatten,
             changelog_pre_image:     false,
             cascade:                 false,
+            retry_on_abort:          true,
             success_fields:          Vec::new(),
             cascade_source:          CascadeSource::Function,
         }

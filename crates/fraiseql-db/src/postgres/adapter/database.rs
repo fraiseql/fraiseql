@@ -295,7 +295,10 @@ async fn run_functions_in_txn(
     // failure runs again, as the adapter's policy says: on this connection, with the
     // statements already prepared, from `BEGIN`. Each attempt re-sends its whole flight, so
     // it runs against the data as it is then. Nothing is retried once `COMMIT` succeeds.
+    // A batch commits all of its calls or none, so one call that opts out of retry (its
+    // function has an effect outside the transaction) makes the whole batch run once.
     let policy = adapter.transaction_retry();
+    let opted_out = requests.iter().any(|request| !request.retry_on_abort);
     let mut attempt: u32 = 1;
     loop {
         let txn = client.build_transaction().start().await.map_err(|e| {
@@ -425,7 +428,7 @@ async fn run_functions_in_txn(
                 return Err(refusal);
             },
             Err(Ended::Failed(index, error)) => {
-                if !retries(policy, attempt, &error, calls[index].function_name) {
+                if !retries(policy, opted_out, attempt, &error, calls[index].function_name) {
                     return Err(error);
                 }
                 // Ruling (a): end the failed transaction explicitly, on this connection,
@@ -460,7 +463,7 @@ async fn run_functions_in_txn(
                         &e,
                     );
                     // A `COMMIT` names no call: the first one stands for the batch.
-                    if !retries(policy, attempt, &error, calls[0].function_name) {
+                    if !retries(policy, opted_out, attempt, &error, calls[0].function_name) {
                         return Err(error);
                     }
                     // The failed `COMMIT` ended the transaction; the explicit `ROLLBACK`
@@ -509,12 +512,29 @@ fn retryable_sql_state(error: &FraiseQLError) -> Option<&str> {
     }
 }
 
-/// Whether `attempt`, which failed with `error`, runs again under `policy`. An attempt that
-/// would have been retried but was the last is reported as an exhaustion.
-fn retries(policy: &TransactionRetry, attempt: u32, error: &FraiseQLError, function: &str) -> bool {
+/// Whether `attempt`, which failed with `error`, runs again under `policy`: never when a call
+/// of the transaction opts out. An attempt that would have been retried but was the last is
+/// reported as an exhaustion.
+fn retries(
+    policy: &TransactionRetry,
+    opted_out: bool,
+    attempt: u32,
+    error: &FraiseQLError,
+    function: &str,
+) -> bool {
     let Some(sql_state) = retryable_sql_state(error) else {
         return false;
     };
+    if opted_out {
+        if policy.max_attempts() > 1 {
+            tracing::debug!(
+                function,
+                sql_state,
+                "mutation transaction not retried: a call of it opts out of retry"
+            );
+        }
+        return false;
+    }
     if policy.allows_after(attempt) {
         return true;
     }

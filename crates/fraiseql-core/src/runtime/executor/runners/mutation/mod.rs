@@ -2156,6 +2156,7 @@ impl WriteParts<'_> {
             .with_derived_cascade(self.derived.as_ref())
             .with_changes_reported(self.report_changes)
             .with_decimals(self.decimals.as_ref())
+            .with_retry_on_abort(prepared.mutation_def.retry_on_abort)
     }
 }
 

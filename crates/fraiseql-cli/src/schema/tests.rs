@@ -1582,6 +1582,40 @@ operation = "CREATE"
         assert_eq!(mutation.sql_source.as_deref(), Some("app.create_user"));
     }
 
+    /// A TOML mutation's `retry_on_abort = false` reaches the merged mutation; one that
+    /// leaves it out follows the server.
+    #[test]
+    fn a_toml_mutation_can_opt_out_of_retry() {
+        let toml = r#"
+[project]
+name = "test"
+version = "1.0.0"
+
+[types.Charge]
+sql_source = "v_charge"
+
+[types.Charge.fields.id]
+type = "ID"
+
+[mutations.charge_card]
+return_type = "Charge"
+sql_source = "fn_charge_card"
+operation = "CREATE"
+retry_on_abort = false
+
+[mutations.refund]
+return_type = "Charge"
+sql_source = "fn_refund"
+operation = "CREATE"
+"#;
+        let tmp = write_temp_toml(toml);
+        let schema = SchemaMerger::merge_toml_only(tmp.path().to_str().unwrap()).unwrap();
+        let retries =
+            |name: &str| schema.mutations.iter().find(|m| m.name == name).unwrap().retry_on_abort;
+        assert!(!retries("charge_card"));
+        assert!(retries("refund"));
+    }
+
     #[test]
     fn crud_trinity_resolves_pascal_return_type() {
         let toml = r#"

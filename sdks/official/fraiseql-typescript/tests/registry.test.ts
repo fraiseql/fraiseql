@@ -522,4 +522,35 @@ describe("SchemaRegistry", () => {
       }).toThrow("changelogPreImage must be a boolean");
     });
   });
+
+  describe("retryOnAbort flag", () => {
+    it("should write retryOnAbort: false as retry_on_abort", () => {
+      SchemaRegistry.registerMutation("chargeCard", "Charge", false, false, [], undefined, {
+        sqlSource: "fn_charge_card",
+        retryOnAbort: false,
+      });
+      const schema = SchemaRegistry.getSchema();
+      const mutation = schema.mutations[0] as Record<string, unknown>;
+      expect(mutation["retry_on_abort"]).toBe(false);
+      expect(mutation["retryOnAbort"]).toBeUndefined();
+    });
+
+    it("should leave retry_on_abort out of mutation output when omitted", () => {
+      SchemaRegistry.registerMutation("refund", "Refund", false, false, [], undefined, {
+        sqlSource: "fn_refund",
+      });
+      const schema = SchemaRegistry.getSchema();
+      const mutation = schema.mutations[0] as Record<string, unknown>;
+      expect("retry_on_abort" in mutation).toBe(false);
+    });
+
+    it("should reject a non-boolean retryOnAbort value", () => {
+      expect(() => {
+        SchemaRegistry.registerMutation("payout", "Payout", false, false, [], undefined, {
+          sqlSource: "fn_payout",
+          retryOnAbort: "no",
+        });
+      }).toThrow("retryOnAbort must be a boolean");
+    });
+  });
 });
