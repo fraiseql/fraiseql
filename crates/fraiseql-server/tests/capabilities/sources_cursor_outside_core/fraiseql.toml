@@ -1,2 +1,6 @@
 [project]
 name = "capability-sources-cursor"
+
+# Served over MCP stdio too, so that entry point reaches the refusal.
+[mcp]
+enabled = true

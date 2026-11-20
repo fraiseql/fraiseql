@@ -1,6 +1,10 @@
 [project]
 name = "capability-inbound-email-cursor"
 
+# Served over MCP stdio too, so that entry point reaches the refusal.
+[mcp]
+enabled = true
+
 [types.Note]
 sql_source = "app.v_note"
 fields.id = { type = "ID" }
