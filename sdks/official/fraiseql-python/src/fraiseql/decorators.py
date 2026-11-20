@@ -283,6 +283,29 @@ def _validate_changelog(cfg: dict[str, Any], context: str) -> None:
         raise TypeError(msg)
 
 
+def _validate_retry_on_abort(cfg: dict[str, Any], context: str) -> None:
+    """Validate the ``retry_on_abort`` opt-out flag in *cfg* if present.
+
+    ``False`` makes the server run the mutation once even when its transaction retry
+    policy would run an aborted transaction again: for a function with an effect outside
+    its transaction. It must be a real ``bool`` so the compiler's typed field
+    deserialises. Absent is fine: the mutation follows the server.
+
+    Args:
+        cfg: Config dict that may contain ``retry_on_abort``.
+        context: Human-readable decorator description for error messages.
+
+    Raises:
+        TypeError: If ``retry_on_abort`` is present but not a ``bool``.
+    """
+    if "retry_on_abort" in cfg and not isinstance(cfg["retry_on_abort"], bool):
+        msg = (
+            f"{context}: retry_on_abort= must be a bool "
+            f"(got {cfg['retry_on_abort'].__class__.__name__!r})."
+        )
+        raise TypeError(msg)
+
+
 def _validate_changelog_pre_image(cfg: dict[str, Any], context: str) -> None:
     """Validate the ``changelog_pre_image`` opt-in flag in *cfg* if present.
 
@@ -1274,6 +1297,12 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
           sourced from an optional ``entity_before`` on the mutation's
           ``app.mutation_response``. For audit-sensitive mutations that need an inline
           Debezium-style ``{before, after}``; off by default (after-image only).
+        - retry_on_abort: bool (default true: follow the server). Set
+          ``retry_on_abort=False`` for a function with an effect outside its transaction
+          (a ``dblink`` or ``pg_background`` call, a ``nextval``, a call to another
+          system): the server then runs the mutation once even when its
+          ``[transaction_retry]`` policy would run an aborted transaction again, and so
+          runs any batch holding it once. Omitting it leaves the key out of the JSON.
         - input_style: "flatten" (default) or "jsonb". Orthogonal to ``operation``:
           set ``input_style="jsonb"`` so a backend using the single-``jsonb``-wrapper
           convention (``fn(input_payload jsonb, …)``) can register the real DML verb
@@ -1366,6 +1395,9 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
 
         # input_style= validation — fail fast at authoring time
         _validate_input_style(cfg, f"@fraiseql.mutation on {f.__name__!r}")
+
+        # retry_on_abort= validation — fail fast at authoring time
+        _validate_retry_on_abort(cfg, f"@fraiseql.mutation on {f.__name__!r}")
 
         # cascade_source= validation — fail fast at authoring time (#1391)
         _validate_cascade_source(cfg, f"@fraiseql.mutation on {f.__name__!r}")

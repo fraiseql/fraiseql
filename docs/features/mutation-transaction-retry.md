@@ -9,7 +9,8 @@ from `BEGIN`, a few times before returning the error.
 inside the transaction is rolled back between attempts, but an effect outside it is not: a
 `dblink` or `pg_background` call, a `nextval` (sequences are not transactional), a call
 out to another system. Such an effect can happen once per attempt. The server cannot see
-whether a function has one, so you opt in.
+whether a function has one, so you opt in, and a mutation whose function has one can opt
+out (below).
 
 ## What is retried
 
@@ -37,6 +38,7 @@ wait.
   timeout: running it again would fail the same way.
 - **A refusal** by the mutation's row gate. It is a decision, not a failure.
 - **Anything after a successful `COMMIT`.**
+- **A mutation that opts out**, and any batch that holds one (below).
 
 When the attempts run out, the last attempt's error is returned, exactly as it would be
 without retry: the same SQLSTATE and message, and in a batch the same call number.
@@ -70,6 +72,34 @@ no more than `max_ms`, `max_ms` no more than 5000. A misspelt key is refused.
 
 Tenant pools follow the server's `[transaction_retry]`. A tenant registration cannot set its
 own.
+
+## Opting a mutation out
+
+A mutation whose function has an effect outside its transaction can say so in the schema. It
+then runs once, whatever `[transaction_retry]` says, and returns the abort's error as it would
+without retry:
+
+```python
+@fraiseql.mutation(sql_source="fn_charge_card", retry_on_abort=False)
+def charge_card(input: ChargeInput) -> Charge: ...
+```
+
+```toml
+# fraiseql.toml
+[mutations.charge_card]
+sql_source = "fn_charge_card"
+return_type = "Charge"
+retry_on_abort = false
+```
+
+The default, `retry_on_abort = true`, follows the server: with no `[transaction_retry]`, a
+mutation runs once either way.
+
+**A batch holding a mutation that opts out runs once as a whole.** A batch commits all of its
+calls or none, so retrying it would run the opted-out call again too.
+
+The compiled schema carries the flag only on a mutation that opts out. A mutation not retried
+because of it is logged at `debug`; it is not counted as a retry or an exhaustion.
 
 ## Observability
 

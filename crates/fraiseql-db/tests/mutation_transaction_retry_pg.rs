@@ -252,6 +252,59 @@ async fn a_batch_runs_again_from_its_first_call() {
 
 // --- What never is --------------------------------------------------------------------
 
+/// A call that opts out of retry runs once under a policy that would retry it: its
+/// function's effect outside the transaction (here the sequence) happens once.
+#[tokio::test]
+async fn a_call_that_opts_out_runs_once_under_a_retrying_policy() {
+    let client = setup().await;
+    let err = retrying(3)
+        .await
+        .execute_write(
+            &WriteRequest::new(&call("fn_deadlocked_once"), &[]).with_retry_on_abort(false),
+            &|_| Ok(()),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(sql_state(&err), Some("40P01"), "{err:?}");
+    assert_eq!(attempts(&client).await, 1);
+    assert!(written(&client).await.is_empty());
+}
+
+/// The opt-out holds when the abort arrives at `COMMIT` too.
+#[tokio::test]
+async fn a_call_that_opts_out_is_not_run_again_after_a_refused_commit() {
+    let client = setup().await;
+    let err = retrying(3)
+        .await
+        .execute_write(
+            &WriteRequest::new(&call("fn_refused_at_commit_once"), &[]).with_retry_on_abort(false),
+            &|_| Ok(()),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(sql_state(&err), Some("40001"), "{err:?}");
+    assert_eq!(attempts(&client).await, 1);
+    assert!(written(&client).await.is_empty());
+}
+
+/// A batch commits all of its calls or none, so one call that opts out makes the whole
+/// batch run once: here the last call, after the one that aborts.
+#[tokio::test]
+async fn a_batch_holding_a_call_that_opts_out_runs_once() {
+    let client = setup().await;
+    let functions = ["fn_item_1", "fn_item_2", "fn_item_3"].map(call);
+    let requests = [
+        WriteRequest::new(&functions[0], &[]),
+        WriteRequest::new(&functions[1], &[]),
+        WriteRequest::new(&functions[2], &[]).with_retry_on_abort(false),
+    ];
+    let err = retrying(3).await.execute_writes(&requests, &|_, _| Ok(())).await.unwrap_err();
+    assert_eq!(sql_state(&err), Some("40P01"), "{err:?}");
+    // item 1 and item 2 on the one attempt.
+    assert_eq!(attempts(&client).await, 2);
+    assert!(written(&client).await.is_empty());
+}
+
 /// Without a policy, a deadlock victim's error is returned after one attempt, as before.
 #[tokio::test]
 async fn without_a_policy_a_deadlock_victim_runs_once() {

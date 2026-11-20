@@ -637,6 +637,16 @@ pub struct IntermediateMutation {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub cascade: bool,
 
+    /// Whether the server's transaction retry policy may run this mutation's transaction
+    /// again when PostgreSQL aborts it with `40P01` or `40001`.
+    ///
+    /// Set `false` (via the authoring SDK's `@fraiseql.mutation(retry_on_abort=False)` or
+    /// TOML `retry_on_abort = false`) for a function with an effect outside its
+    /// transaction, which each attempt would repeat. Defaults to `true`: the mutation
+    /// follows the server.
+    #[serde(default = "default_retry_on_abort", skip_serializing_if = "is_true")]
+    pub retry_on_abort: bool,
+
     /// Typed facts about the operation, served on the cascade payload (#1397): the
     /// function returns them in its response row's `result jsonb` column. Only on a `cascade`
     /// mutation, only leaf types (a scalar or an enum).
@@ -682,6 +692,7 @@ impl Default for IntermediateMutation {
             input_style:             InputStyle::Flatten,
             changelog_pre_image:     false,
             cascade:                 false,
+            retry_on_abort:          default_retry_on_abort(),
             success_fields:          Vec::new(),
             cascade_source:          fraiseql_core::schema::CascadeSource::Function,
             rest:                    None,
@@ -692,6 +703,18 @@ impl Default for IntermediateMutation {
 /// Serde default for [`IntermediateMutation::changelog`]: log by default (opt-out).
 const fn default_changelog() -> bool {
     true
+}
+
+/// Serde default for [`IntermediateMutation::retry_on_abort`]: follow the server's policy.
+const fn default_retry_on_abort() -> bool {
+    true
+}
+
+/// Whether `value` is `true`: [`IntermediateMutation::retry_on_abort`] is written only when
+/// a mutation opts out.
+#[allow(clippy::trivially_copy_pass_by_ref)] // Reason: serde's skip_serializing_if passes a reference
+const fn is_true(value: &bool) -> bool {
+    *value
 }
 
 /// Auto-params configuration in intermediate format.

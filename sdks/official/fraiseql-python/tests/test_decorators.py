@@ -1242,6 +1242,55 @@ def test_mutation_changelog_pre_image_non_bool_raises() -> None:
             pass
 
 
+# ── @fraiseql.mutation retry_on_abort tests ──────────────────────────────────
+
+
+def test_mutation_retry_on_abort_false_passes_through() -> None:
+    """retry_on_abort=False is emitted, so the server runs the mutation once."""
+
+    @fraiseql.type
+    class Charge:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_charge_card", retry_on_abort=False)
+    def charge_card(amount: int) -> Charge:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    mut = next(m for m in schema["mutations"] if m["name"] == "chargeCard")
+    assert mut["retry_on_abort"] is False
+
+
+def test_mutation_retry_on_abort_omitted_absent_from_json() -> None:
+    """Omitting retry_on_abort leaves the key out: the mutation follows the server."""
+
+    @fraiseql.type
+    class Refund:
+        id: int
+
+    @fraiseql.mutation(sql_source="fn_refund")
+    def refund(amount: int) -> Refund:
+        pass
+
+    schema = SchemaRegistry.get_schema()
+    mut = next(m for m in schema["mutations"] if m["name"] == "refund")
+    assert "retry_on_abort" not in mut
+
+
+def test_mutation_retry_on_abort_non_bool_raises() -> None:
+    """A non-boolean retry_on_abort is refused at authoring time."""
+
+    @fraiseql.type
+    class Payout:
+        id: int
+
+    with pytest.raises(TypeError, match="retry_on_abort= must be a bool"):
+
+        @fraiseql.mutation(sql_source="fn_payout", retry_on_abort="no")
+        def payout(amount: int) -> Payout:
+            pass
+
+
 # ============================================================================
 # sql_source identifier validation
 # ============================================================================

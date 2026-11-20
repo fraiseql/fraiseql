@@ -563,6 +563,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **A mutation can opt out of transaction retry (#1936).** `retry_on_abort = false` on a
+  mutation (`@fraiseql.mutation(retry_on_abort=False)` in Python, `retryOnAbort: false` in
+  TypeScript, or `retry_on_abort = false` in a `fraiseql.toml` `[mutations.*]` table) makes
+  the server run it once even when `[transaction_retry]` would run an aborted transaction
+  again: for a function with an effect outside its transaction, such as a `dblink` call or a
+  `nextval`, which each attempt would repeat. A batch holding such a mutation runs once as a
+  whole. The default follows the server, and the compiled schema carries the flag only on a
+  mutation that opts out.
 - **The Java SDK's `Webhook` sets a webhook's method and a plain header (#2150).**
   `Webhook.method(action, "PUT")` sets the HTTP method, which was always the server's
   default `POST`, and `Webhook.header(action, name, value)` sends a header written into the

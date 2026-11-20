@@ -677,6 +677,7 @@ impl SchemaMerger {
                 "input_style": toml_mutation.input_style,
                 "changelog_pre_image": toml_mutation.changelog_pre_image,
                 "cascade": toml_mutation.cascade,
+                "retry_on_abort": toml_mutation.retry_on_abort,
                 "description": toml_mutation.description,
                 "arguments": lower_toml_args(&toml_mutation.args)?,
             }));

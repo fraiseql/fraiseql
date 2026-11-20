@@ -235,6 +235,11 @@ pub struct WriteRequest<'a> {
     /// The function dispatches the commit gate stages for this call, recorded in the same
     /// transaction once the gate passes (#1628). `None`: the write records none.
     pub dispatch_ledger: Option<&'a DispatchLedgerSink>,
+    /// Whether the adapter's [`TransactionRetry`](crate::TransactionRetry) policy may run
+    /// this call's transaction again when PostgreSQL aborts it. `false` for a function with
+    /// an effect outside its transaction, which each attempt would repeat: the call runs
+    /// once, and so does every batch that holds it.
+    pub retry_on_abort:  bool,
 }
 
 impl<'a> WriteRequest<'a> {
@@ -251,7 +256,16 @@ impl<'a> WriteRequest<'a> {
             report_changes: None,
             decimals: None,
             dispatch_ledger: None,
+            retry_on_abort: true,
         }
+    }
+
+    /// Whether the adapter's retry policy may run this call's transaction again: see
+    /// [`retry_on_abort`](Self::retry_on_abort).
+    #[must_use]
+    pub const fn with_retry_on_abort(mut self, retry_on_abort: bool) -> Self {
+        self.retry_on_abort = retry_on_abort;
+        self
     }
 
     /// Recording the dispatches `sink` holds once the gate passes, in this call's transaction

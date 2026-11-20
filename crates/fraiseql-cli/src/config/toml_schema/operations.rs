@@ -179,6 +179,12 @@ pub struct MutationDefinition {
     /// `false`, byte-identical to a schema authored before this field existed.
     #[serde(default)]
     pub cascade:             bool,
+    /// Whether the server's transaction retry policy may run this mutation's transaction
+    /// again when PostgreSQL aborts it. Set `false` for a function with an effect outside
+    /// its transaction, which each attempt would repeat. Defaults to `true`: the mutation
+    /// follows the server.
+    #[serde(default = "default_retry_on_abort")]
+    pub retry_on_abort:      bool,
     /// Mutation description
     pub description:         Option<String>,
     /// Mutation arguments
@@ -194,6 +200,7 @@ impl Default for MutationDefinition {
             input_style:         default_input_style(),
             changelog_pre_image: false,
             cascade:             false,
+            retry_on_abort:      true,
             description:         None,
             args:                vec![],
         }
@@ -203,6 +210,11 @@ impl Default for MutationDefinition {
 /// Serde default for [`MutationDefinition::input_style`]: positional flatten.
 fn default_input_style() -> String {
     "flatten".to_string()
+}
+
+/// Serde default for [`MutationDefinition::retry_on_abort`]: follow the server's policy.
+const fn default_retry_on_abort() -> bool {
+    true
 }
 
 /// `[naming]`: the GraphQL surface's casing.

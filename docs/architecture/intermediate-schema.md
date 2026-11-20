@@ -304,6 +304,7 @@ Similar to `IntermediateQuery` with additional fields:
 | `changelog_pre_image` | `bool` | Whether to record the entity's before-state |
 | `input_style` | `string` | `"flatten"` (default) or `"jsonb"` |
 | `cascade` | `bool` | Whether the success payload exposes the typed `cascade` field |
+| `retry_on_abort` | `bool` | Whether the server's transaction retry policy may run the mutation again; defaults to `true`, `false` runs it once |
 
 There is **no** `input_type`. A mutation names its input object in an argument's `type`.
 

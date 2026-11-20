@@ -629,6 +629,7 @@ function normaliseConfig(
     excludeInjectDefaults: "exclude_inject_defaults",
     inputStyle: "input_style",
     changelogPreImage: "changelog_pre_image",
+    retryOnAbort: "retry_on_abort",
     successFields: "success_fields",
     cascadeSource: "cascade_source",
   };
@@ -660,6 +661,12 @@ function normaliseConfig(
   // compiler default it to false (after-image only).
   if ("changelogPreImage" in config && typeof config.changelogPreImage !== "boolean") {
     throw new Error(`changelogPreImage must be a boolean (got ${typeof config.changelogPreImage})`);
+  }
+
+  // retry_on_abort opt-out flag must be a real boolean; omitting it lets the
+  // mutation follow the server's transaction retry policy.
+  if ("retryOnAbort" in config && typeof config.retryOnAbort !== "boolean") {
+    throw new Error(`retryOnAbort must be a boolean (got ${typeof config.retryOnAbort})`);
   }
 
   // input_style controls how the `input` arg reaches the SQL function: "flatten"
