@@ -1512,3 +1512,36 @@ mod usage_tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 }
+
+/// Timestamps are written as clients read them today: the fraction padded to `.120`, and
+/// a `Z` suffix.
+mod stored_time_format {
+    use chrono::{DateTime, Utc};
+    use fraiseql_storage::PolicySource;
+
+    use super::super::storage_policies::BucketPolicyResponse;
+
+    #[test]
+    fn a_bucket_policy_writes_its_update_time_in_the_stored_form() {
+        let response = BucketPolicyResponse {
+            bucket:     "b".to_owned(),
+            source:     PolicySource::Store,
+            access:     "private",
+            rules:      None,
+            updated_at: Some(
+                DateTime::parse_from_rfc3339("2025-11-20T12:00:00.12Z")
+                    .expect("a valid instant")
+                    .with_timezone(&Utc),
+            ),
+        };
+        assert_eq!(
+            serde_json::to_value(&response).expect("it writes"),
+            serde_json::json!({
+                "bucket": "b",
+                "source": "store",
+                "access": "private",
+                "updated_at": "2025-11-20T12:00:00.120Z"
+            })
+        );
+    }
+}

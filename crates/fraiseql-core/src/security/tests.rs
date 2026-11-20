@@ -205,6 +205,96 @@ mod audit_tests {
     }
 }
 
+/// An audit chain stored before today must still verify after any change to how
+/// timestamps are written: each entry's hash covers its timestamp's text, so a change of
+/// even one character (`.120` to `.12`, `+00:00` to `Z`) breaks every stored chain.
+mod audit_chain_stored_bytes {
+    use chrono::{DateTime, TimeZone as _, Utc};
+
+    use crate::security::audit::{AuditEntry, AuditLevel};
+
+    /// Three entries as stored, with a fraction of `.120`, one of `.5` and none.
+    ///
+    /// Each hash is SHA-256 over `user_id`, the timestamp as `2025-11-20T12:00:00.120+00:00`,
+    /// `operation`, `query`, `level` and the previous hash, concatenated; derived outside
+    /// this code, not taken from it.
+    const STORED: &str = r#"[{"id":1,"timestamp":"2025-11-20T12:00:00.120Z","level":"INFO","user_id":7,"tenant_id":9,"operation":"query","query":"{ users { id } }","variables":{},"ip_address":"10.0.0.1","user_agent":"agent","error":null,"duration_ms":4,"previous_hash":null,"integrity_hash":"472d94fb36630f61bbf2977dfa336f0759886e8890f2f3fd178bd5939962a35d"},{"id":2,"timestamp":"2025-11-20T12:00:01.500Z","level":"WARN","user_id":7,"tenant_id":9,"operation":"mutation","query":"mutation { a }","variables":{},"ip_address":"10.0.0.1","user_agent":"agent","error":null,"duration_ms":5,"previous_hash":"472d94fb36630f61bbf2977dfa336f0759886e8890f2f3fd178bd5939962a35d","integrity_hash":"a3e4f6dff0d3c485a2a315ba3afe39638bb3dbf66f1ec304b8d4f6179c71518c"},{"id":3,"timestamp":"2025-11-20T12:00:02Z","level":"ERROR","user_id":7,"tenant_id":9,"operation":"query","query":"{ b }","variables":{},"ip_address":"10.0.0.1","user_agent":"agent","error":"denied","duration_ms":6,"previous_hash":"a3e4f6dff0d3c485a2a315ba3afe39638bb3dbf66f1ec304b8d4f6179c71518c","integrity_hash":"0e294f0e11746871c921589b4e87e6b1e9ab10b13e94546a0ac427bcfc3080d8"}]"#;
+
+    fn at(nanos: u32, second: u32) -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(2025, 11, 20, 12, 0, second)
+            .single()
+            .expect("a valid instant")
+            + chrono::Duration::nanoseconds(i64::from(nanos))
+    }
+
+    fn entry(
+        id: i64,
+        timestamp: DateTime<Utc>,
+        (level, operation, query, error, duration_ms): (AuditLevel, &str, &str, Option<&str>, i32),
+        previous_hash: Option<String>,
+    ) -> AuditEntry {
+        let mut entry = AuditEntry {
+            id: Some(id),
+            timestamp,
+            level,
+            user_id: 7,
+            tenant_id: 9,
+            operation: operation.to_owned(),
+            query: query.to_owned(),
+            variables: serde_json::json!({}),
+            ip_address: "10.0.0.1".to_owned(),
+            user_agent: "agent".to_owned(),
+            error: error.map(str::to_owned),
+            duration_ms: Some(duration_ms),
+            previous_hash,
+            integrity_hash: None,
+        };
+        entry.integrity_hash = Some(entry.calculate_hash());
+        entry
+    }
+
+    /// The chain written today, entry by entry.
+    fn chain() -> Vec<AuditEntry> {
+        let first = entry(
+            1,
+            at(120_000_000, 0),
+            (AuditLevel::INFO, "query", "{ users { id } }", None, 4),
+            None,
+        );
+        let second = entry(
+            2,
+            at(500_000_000, 1),
+            (AuditLevel::WARN, "mutation", "mutation { a }", None, 5),
+            first.integrity_hash.clone(),
+        );
+        let third = entry(
+            3,
+            at(0, 2),
+            (AuditLevel::ERROR, "query", "{ b }", Some("denied"), 6),
+            second.integrity_hash.clone(),
+        );
+        vec![first, second, third]
+    }
+
+    #[test]
+    fn a_stored_chain_verifies_entry_by_entry_and_link_by_link() {
+        let stored: Vec<AuditEntry> = serde_json::from_str(STORED).expect("the stored chain reads");
+        assert_eq!(stored.len(), 3);
+        for (n, entry) in stored.iter().enumerate() {
+            assert!(entry.verify_integrity(), "entry {} no longer verifies", n + 1);
+        }
+        for pair in stored.windows(2) {
+            assert_eq!(pair[1].previous_hash, pair[0].integrity_hash, "the chain is broken");
+        }
+    }
+
+    #[test]
+    fn a_chain_written_today_has_the_stored_bytes() {
+        let written = serde_json::to_string(&chain()).expect("the chain serializes");
+        assert_eq!(written, STORED);
+    }
+}
+
 #[cfg(feature = "audit-syslog")]
 mod audit_export_syslog_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
@@ -3117,5 +3207,20 @@ mod scope_grant_tests {
                 "`{wildcard}` must not satisfy the exact admin check"
             );
         }
+    }
+}
+
+/// Timestamps are written as stored documents hold them today: the fraction padded to
+/// `.120` / `.500`, none at a whole second, and a `Z` suffix. A document read and written
+/// again keeps those bytes; webhooks, idempotency keys and JSONB comparisons depend on them.
+mod stored_time_format {
+    use crate::security::SecurityContext;
+
+    #[test]
+    fn a_security_context_keeps_its_stored_times() {
+        let doc = serde_json::json!({"user_id":"u1","roles":[],"tenant_id":null,"scopes":[],"attributes":{},"request_id":"r1","ip_address":null,"authenticated_at":"2025-11-20T12:00:00.120Z","expires_at":"2025-11-20T12:00:02Z","issuer":null,"audience":null,"email":null,"display_name":null});
+        let read: SecurityContext =
+            serde_json::from_value(doc.clone()).expect("the stored document reads");
+        assert_eq!(serde_json::to_value(&read).expect("it writes"), doc);
     }
 }

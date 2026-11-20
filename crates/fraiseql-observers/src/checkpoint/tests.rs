@@ -188,3 +188,18 @@ mod postgres_tests {
         assert_clone::<PostgresCheckpointStore>();
     }
 }
+
+/// Timestamps are written as stored documents hold them today: the fraction padded to
+/// `.120` / `.500`, none at a whole second, and a `Z` suffix. A document read and written
+/// again keeps those bytes; webhooks, idempotency keys and JSONB comparisons depend on them.
+mod stored_time_format {
+    use crate::checkpoint::CheckpointState;
+
+    #[test]
+    fn a_checkpoint_keeps_its_stored_time() {
+        let doc = serde_json::json!({"listener_id":"l1","last_processed_id":1,"last_processed_at":"2025-11-20T12:00:00.120Z","batch_size":10,"event_count":2});
+        let read: CheckpointState =
+            serde_json::from_value(doc.clone()).expect("the stored document reads");
+        assert_eq!(serde_json::to_value(&read).expect("it writes"), doc);
+    }
+}

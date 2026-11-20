@@ -66,3 +66,18 @@ fn round_trips_actor_envelope_over_the_wire() {
     assert_eq!(decoded.acting_for.as_deref(), Some("44444444-4444-4444-4444-444444444444"));
     assert_eq!(decoded.schema_version.as_deref(), Some("v2.7.0"));
 }
+
+/// Timestamps are written as stored documents hold them today: the fraction padded to
+/// `.120` / `.500`, none at a whole second, and a `Z` suffix. A document read and written
+/// again keeps those bytes; webhooks, idempotency keys and JSONB comparisons depend on them.
+mod stored_time_format {
+    use crate::event::EntityEvent;
+
+    #[test]
+    fn an_entity_event_keeps_its_stored_timestamp() {
+        let doc = serde_json::json!({"id":"00000000-0000-0000-0000-000000000001","event_type":"INSERT","entity_type":"Order","entity_id":"00000000-0000-0000-0000-000000000001","data":{},"changes":null,"user_id":null,"tenant_id":null,"timestamp":"2025-11-20T12:00:00.120Z","duration_ms":null,"seq":null,"actor_type":null,"acting_for":null,"schema_version":null,"cdc_source":null});
+        let read: EntityEvent =
+            serde_json::from_value(doc.clone()).expect("the stored document reads");
+        assert_eq!(serde_json::to_value(&read).expect("it writes"), doc);
+    }
+}

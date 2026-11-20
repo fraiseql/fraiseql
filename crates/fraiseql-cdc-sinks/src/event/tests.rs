@@ -42,3 +42,18 @@ fn builder_sets_optional_fields() {
     assert!(ev.before.is_none());
     assert!(ev.object_id.is_none());
 }
+
+/// Timestamps are written as stored documents hold them today: the fraction padded to
+/// `.120` / `.500`, none at a whole second, and a `Z` suffix. A document read and written
+/// again keeps those bytes; webhooks, idempotency keys and JSONB comparisons depend on them.
+mod stored_time_format {
+    use crate::event::ChangeEvent;
+
+    #[test]
+    fn a_change_event_keeps_its_stored_commit_time() {
+        let doc = serde_json::json!({"seq":1,"object_type":"Order","op":"insert","tenant_id":null,"object_id":null,"after":null,"before":null,"commit_time":"2025-11-20T12:00:00.120Z"});
+        let read: ChangeEvent =
+            serde_json::from_value(doc.clone()).expect("the stored document reads");
+        assert_eq!(serde_json::to_value(&read).expect("it writes"), doc);
+    }
+}

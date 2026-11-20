@@ -1,0 +1,52 @@
+[package]
+description = "The instant type FraiseQL crates share: chrono-compatible text and a microsecond PostgreSQL timestamptz"
+name = "fraiseql-time"
+readme = "README.md"
+authors.workspace = true
+categories.workspace = true
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+# Published once a published crate depends on it.
+publish = false
+version.workspace = true
+
+[dependencies]
+bytes = { workspace = true, optional = true }
+jiff = { workspace = true }
+postgres-types = { version = "0.2", optional = true }
+serde = { workspace = true }
+sqlx = { version = "0.8", default-features = false, features = [
+  "postgres",
+], optional = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+# The text forms are compared against chrono itself while workspace crates still use it.
+chrono = { workspace = true }
+fraiseql-test-support = { path = "../fraiseql-test-support" }
+serde_json = { workspace = true }
+sqlx = { version = "0.8", default-features = false, features = [
+  "postgres",
+  "runtime-tokio",
+  "chrono",
+] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio-postgres = { workspace = true }
+
+[features]
+# `Type`/`Encode`/`Decode` for sqlx's PostgreSQL driver.
+sqlx = ["dep:sqlx"]
+# `ToSql`/`FromSql` for tokio-postgres (through postgres-types).
+postgres = ["dep:postgres-types", "dep:bytes"]
+
+[[test]]
+name = "timestamptz_pg"
+required-features = ["sqlx", "postgres"]
+
+[lints]
+workspace = true

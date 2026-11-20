@@ -27,3 +27,18 @@ mod router_construction {
         });
     }
 }
+
+/// Timestamps are written as stored documents hold them today: the fraction padded to
+/// `.120` / `.500`, none at a whole second, and a `Z` suffix. A document read and written
+/// again keeps those bytes; webhooks, idempotency keys and JSONB comparisons depend on them.
+mod stored_time_format {
+    use crate::api::saml_idp_management::SamlIdpDto;
+
+    #[test]
+    fn a_saml_idp_keeps_its_stored_times() {
+        let doc = serde_json::json!({"id":"00000000-0000-0000-0000-000000000001","idp_name":"n","tenant_id":null,"sp_entity_id":"sp","acs_url":"https://example.test/acs","metadata_xml":"<x/>","idp_entity_id":"idp","trust_asserted_email":false,"certificate_expires_at":"2025-11-20T12:00:01.500Z","created_at":"2025-11-20T12:00:00.120Z","updated_at":"2025-11-20T12:00:02Z"});
+        let read: SamlIdpDto =
+            serde_json::from_value(doc.clone()).expect("the stored document reads");
+        assert_eq!(serde_json::to_value(&read).expect("it writes"), doc);
+    }
+}

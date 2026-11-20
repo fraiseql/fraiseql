@@ -265,3 +265,18 @@ fn static_enriched_round_trips_and_is_omitted_when_empty() {
     let bare = serde_json::to_value(RunAs::default()).expect("run_as serializes");
     assert!(bare.get("static_enriched").is_none(), "{bare}");
 }
+
+/// Timestamps are written as stored documents hold them today: the fraction padded to
+/// `.120` / `.500`, none at a whole second, and a `Z` suffix. A document read and written
+/// again keeps those bytes; webhooks, idempotency keys and JSONB comparisons depend on them.
+mod stored_time_format {
+    use crate::types::{EventPayload, LogEntry};
+
+    #[test]
+    fn an_event_payload_and_its_logs_keep_their_stored_timestamps() {
+        let doc = serde_json::json!([{"trigger_type":"after:mutation","entity":"Order","event_kind":"insert","data":{},"timestamp":"2025-11-20T12:00:00.120Z"},[{"level":"Info","message":"m","timestamp":"2025-11-20T12:00:01.500Z"},{"level":"Warn","message":"m","timestamp":"2025-11-20T12:00:02Z"}]]);
+        let read: (EventPayload, Vec<LogEntry>) =
+            serde_json::from_value(doc.clone()).expect("the stored document reads");
+        assert_eq!(serde_json::to_value(&read).expect("it writes"), doc);
+    }
+}

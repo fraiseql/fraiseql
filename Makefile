@@ -214,6 +214,9 @@ test-integration-postgres: db-up db-failover-reset
 	@cargo test -p fraiseql-core --features 'audit-syslog,audit-webhook,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend,test-postgres' --test '*' -- --test-threads=1
 	@cargo test -p fraiseql-db --features 'postgres,wire-backend,test-postgres' --test '*' -- --test-threads=1
 	@echo ""
+	@echo "### fraiseql-time: the instant type as a timestamptz"
+	@cargo test -p fraiseql-time --all-features --test timestamptz_pg -- --ignored --test-threads=1
+	@echo ""
 	@echo "### live-PostgreSQL lib tests"
 	@cargo test -p fraiseql-functions --lib migrations::tests -- --test-threads=1
 	@echo ""

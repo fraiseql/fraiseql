@@ -317,3 +317,6 @@ fn generate_key_material() -> (String, String, String) {
 fn assemble_full_key(selector: &str, verifier: &str) -> String {
     format!("{KEY_PREFIX}_{selector}_{verifier}")
 }
+
+#[cfg(test)]
+mod tests;

@@ -251,3 +251,18 @@ fn no_matching_address_yields_empty_routing() {
 
     assert_eq!(resolve_routing(&message, &rules), super::InboundRouting::default());
 }
+
+/// Timestamps are written as stored documents hold them today: the fraction padded to
+/// `.120` / `.500`, none at a whole second, and a `Z` suffix. A document read and written
+/// again keeps those bytes; webhooks, idempotency keys and JSONB comparisons depend on them.
+mod stored_time_format {
+    use crate::triggers::ingest::InboundMessage;
+
+    #[test]
+    fn an_inbound_message_keeps_its_stored_receipt_time() {
+        let doc = serde_json::json!({"source":{"Webhook":{"provider":"p"}},"idempotency_key":"k","thread_key":null,"from":null,"to":[],"cc":[],"subject":null,"body_text":null,"body_html":null,"payload":null,"attachments":[],"headers":{},"received_at":"2025-11-20T12:00:00.120Z","raw_ref":null,"routing":{"entity_type":null,"entity_id":null},"classification":null});
+        let read: InboundMessage =
+            serde_json::from_value(doc.clone()).expect("the stored document reads");
+        assert_eq!(serde_json::to_value(&read).expect("it writes"), doc);
+    }
+}

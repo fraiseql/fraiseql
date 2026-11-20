@@ -1681,6 +1681,9 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"bash tools/ci-target-canary.sh -- test -p fraiseql-core --features '" + coreTestFeatures + ",test-postgres' --test '*'", // #880 canary
 		"cargo test -p fraiseql-core --features '" + coreTestFeatures + ",test-postgres' --test '*' -- --test-threads=1",
 		"cargo test -p fraiseql-db --features '" + dbTestFeatures + ",test-postgres' --test '*' -- --test-threads=1",
+		// The shared instant type as a timestamptz, through sqlx and tokio-postgres, beside
+		// chrono over the same values.
+		"cargo test -p fraiseql-time --all-features --test timestamptz_pg -- --ignored --test-threads=1",
 		// fraiseql-db keeps every database-backed test in tests/ (#1370): the line above
 		// runs them, and `--lib` can never reach one, whatever features it enables.
 		// Tier-C migrated: fraiseql-functions cron-state migration (lib tests; harness postgres()).

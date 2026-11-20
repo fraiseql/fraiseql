@@ -1673,3 +1673,18 @@ fn a_null_item_at_a_non_null_list_argument_is_refused_at_subscribe() {
     refused(&variable, "ids[0]");
     assert_eq!(loose.unwrap(), serde_json::json!({ "tags": [null] }));
 }
+
+/// Timestamps are written as stored documents hold them today: the fraction padded to
+/// `.120` / `.500`, none at a whole second, and a `Z` suffix. A document read and written
+/// again keeps those bytes; webhooks, idempotency keys and JSONB comparisons depend on them.
+mod stored_time_format {
+    use crate::runtime::subscription::types::SubscriptionEvent;
+
+    #[test]
+    fn a_subscription_event_keeps_its_stored_timestamp() {
+        let doc = serde_json::json!({"event_id":"e1","entity_type":"Order","entity_id":"1","operation":"CREATE","timestamp":"2025-11-20T12:00:00.120Z","sequence_number":1,"data":{}});
+        let read: SubscriptionEvent =
+            serde_json::from_value(doc.clone()).expect("the stored document reads");
+        assert_eq!(serde_json::to_value(&read).expect("it writes"), doc);
+    }
+}

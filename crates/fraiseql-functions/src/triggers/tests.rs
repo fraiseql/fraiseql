@@ -1842,10 +1842,127 @@ mod cron_in_a_timezone {
         );
     }
 
+    fn new_york(expression: &str) -> Schedule {
+        Schedule::parse(expression, Some("America/New_York")).expect("the schedule parses")
+    }
+
+    /// 2026-03-08: New York goes from 02:00 EST (07:00 UTC) to 03:00 EDT.
+    #[test]
+    fn new_york_a_fixed_time_skipped_by_the_clock_change_fires_right_after_it() {
+        let fired = fires(&new_york("30 2 * * *"), utc(2026, 3, 8, 4, 0), utc(2026, 3, 8, 10, 0));
+        assert_eq!(fired, vec![utc(2026, 3, 8, 7, 0)], "03:00 EDT, the first minute after");
+    }
+
+    #[test]
+    fn new_york_a_wildcard_hour_does_not_replay_the_skipped_hour() {
+        let fired = fires(&new_york("30 * * * *"), utc(2026, 3, 8, 5, 0), utc(2026, 3, 8, 9, 0));
+        assert_eq!(
+            fired,
+            vec![
+                utc(2026, 3, 8, 5, 30),
+                utc(2026, 3, 8, 6, 30),
+                utc(2026, 3, 8, 7, 30),
+                utc(2026, 3, 8, 8, 30)
+            ],
+            "00:30, 01:30 EST, then 03:30 and 04:30 EDT"
+        );
+    }
+
+    /// 2026-11-01: New York goes from 02:00 EDT (06:00 UTC) back to 01:00 EST.
+    #[test]
+    fn new_york_a_fixed_time_in_the_repeated_hour_fires_once() {
+        let fired = fires(&new_york("30 1 * * *"), utc(2026, 11, 1, 3, 0), utc(2026, 11, 1, 8, 0));
+        assert_eq!(fired, vec![utc(2026, 11, 1, 5, 30)], "the first 01:30, EDT");
+    }
+
+    #[test]
+    fn new_york_a_wildcard_hour_keeps_firing_through_the_repeated_hour() {
+        let fired = fires(&new_york("15 * * * *"), utc(2026, 11, 1, 4, 0), utc(2026, 11, 1, 7, 0));
+        assert_eq!(
+            fired,
+            vec![
+                utc(2026, 11, 1, 4, 15),
+                utc(2026, 11, 1, 5, 15),
+                utc(2026, 11, 1, 6, 15)
+            ],
+            "00:15 EDT, 01:15 EDT, 01:15 EST"
+        );
+    }
+
+    /// Lord Howe Island shifts by 30 minutes: LHST is UTC+10:30, LHDT UTC+11.
+    fn lord_howe(expression: &str) -> Schedule {
+        Schedule::parse(expression, Some("Australia/Lord_Howe")).expect("the schedule parses")
+    }
+
+    /// 2026-10-04: 02:00 LHST (Oct 3, 15:30 UTC) becomes 02:30 LHDT; 02:00-02:29 never
+    /// happens.
+    #[test]
+    fn lord_howe_a_fixed_time_in_the_half_hour_gap_fires_right_after_it() {
+        let fired =
+            fires(&lord_howe("15 2 * * *"), utc(2026, 10, 3, 13, 0), utc(2026, 10, 3, 18, 0));
+        assert_eq!(fired, vec![utc(2026, 10, 3, 15, 30)], "02:30 LHDT, the first minute after");
+    }
+
+    #[test]
+    fn lord_howe_a_wildcard_hour_does_not_replay_the_half_hour_gap() {
+        let fired =
+            fires(&lord_howe("15 * * * *"), utc(2026, 10, 3, 13, 0), utc(2026, 10, 3, 17, 0));
+        assert_eq!(
+            fired,
+            vec![
+                utc(2026, 10, 3, 13, 45),
+                utc(2026, 10, 3, 14, 45),
+                utc(2026, 10, 3, 16, 15)
+            ],
+            "00:15, 01:15 LHST, then 03:15 LHDT; 02:15 never happens"
+        );
+    }
+
+    /// 2026-04-05: 02:00 LHDT (Apr 4, 15:00 UTC) becomes 01:30 LHST; 01:30-01:59 happens
+    /// twice.
+    #[test]
+    fn lord_howe_a_fixed_time_in_the_repeated_half_hour_fires_once() {
+        let fired = fires(&lord_howe("45 1 * * *"), utc(2026, 4, 4, 13, 0), utc(2026, 4, 4, 17, 0));
+        assert_eq!(fired, vec![utc(2026, 4, 4, 14, 45)], "the first 01:45, LHDT");
+    }
+
+    #[test]
+    fn lord_howe_a_wildcard_hour_keeps_firing_through_the_repeated_half_hour() {
+        let fired = fires(&lord_howe("45 * * * *"), utc(2026, 4, 4, 13, 0), utc(2026, 4, 4, 16, 0));
+        assert_eq!(
+            fired,
+            vec![
+                utc(2026, 4, 4, 13, 45),
+                utc(2026, 4, 4, 14, 45),
+                utc(2026, 4, 4, 15, 15)
+            ],
+            "00:45 LHDT, 01:45 LHDT, 01:45 LHST"
+        );
+    }
+
     #[test]
     fn an_unknown_timezone_is_refused_by_name() {
         let error = Schedule::parse("30 9 * * *", Some("Europe/Pariss"))
             .expect_err("the timezone is refused");
         assert!(error.contains("Europe/Pariss"), "{error}");
+    }
+}
+
+/// The persisted cron state keeps its stored form: the fraction padded to `.120`, and a
+/// `Z` suffix.
+mod stored_time_format {
+    use crate::triggers::cron::CronExecutionState;
+
+    #[test]
+    fn a_cron_state_keeps_its_stored_last_execution() {
+        for doc in [
+            serde_json::json!({"last_executed": "2025-11-20T12:00:00.120Z"}),
+            serde_json::json!({"last_executed": "2025-11-20T12:00:02Z"}),
+            serde_json::json!({"last_executed": null}),
+        ] {
+            let read: CronExecutionState =
+                serde_json::from_value(doc.clone()).expect("the stored state reads");
+            assert_eq!(serde_json::to_value(&read).expect("it writes"), doc);
+        }
     }
 }

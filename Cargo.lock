@@ -4359,6 +4359,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "fraiseql-time"
+version = "2.19.1"
+dependencies = [
+ "bytes",
+ "chrono",
+ "fraiseql-test-support",
+ "jiff",
+ "postgres-types",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-postgres",
+]
+
+[[package]]
 name = "fraiseql-webhooks"
 version = "2.19.1"
 dependencies = [
@@ -5535,6 +5552,7 @@ dependencies = [
  "defmt",
  "jiff-core",
  "jiff-static",
+ "jiff-tzdb",
  "jiff-tzdb-platform",
  "log",
  "portable-atomic",

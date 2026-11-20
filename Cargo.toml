@@ -50,6 +50,7 @@ members = [
   "crates/fraiseql-saga",         # Distributed saga orchestration, above the engine (#1354)
   "crates/fraiseql-functions",    # Serverless functions runtime
   "crates/fraiseql-storage",      # Object storage backends
+  "crates/fraiseql-time",         # The shared instant type: chrono-compatible text, µs timestamptz
   "crates/fraiseql-wire",         # Streaming JSON query engine for Postgres
   # Runnable examples. They are workspace members so `cargo check --workspace
   # --all-targets` and `cargo clippy --workspace` compile and lint them on every
@@ -79,6 +80,11 @@ bytes = "1.0"
 # Time
 chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
+# Time zone data is compiled in, so a binary reads the same zones on every host.
+jiff = { version = "0.2.37", default-features = false, features = [
+  "std",
+  "tzdb-bundle-always",
+] }
 dashmap = "6.1"
 # Connection pooling
 deadpool = "0.12"
@@ -103,6 +109,7 @@ fraiseql-jwks = { path = "crates/fraiseql-jwks", version = "2.19.1" }
 fraiseql-kafka = { path = "crates/fraiseql-kafka", version = "2.19.1" }
 fraiseql-functions = { path = "crates/fraiseql-functions", version = "2.19.1" }
 fraiseql-storage = { path = "crates/fraiseql-storage", version = "2.19.1" }
+fraiseql-time = { path = "crates/fraiseql-time", version = "2.19.1" }
 fraiseql-observers = { path = "crates/fraiseql-observers", version = "2.19.1" }
 fraiseql-secrets = { path = "crates/fraiseql-secrets", version = "2.19.1" }
 fraiseql-server = { path = "crates/fraiseql-server", version = "2.19.1" }
@@ -432,6 +439,7 @@ fraiseql-saga = 3_500
 fraiseql-secrets = 3_000
 fraiseql-server = 61_500
 fraiseql-storage = 8_500
+fraiseql-time = 500
 fraiseql-test-support = 1_000
 fraiseql-test-utils = 1_500
 fraiseql-webhooks = 3_000
