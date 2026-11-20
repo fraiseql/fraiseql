@@ -1240,6 +1240,12 @@ disagreed, and the promise was the part that was wrong.
   computed field no longer carries its scope onto them; its `Update<T>Input` fields now
   keep their deprecation and `localized`, which they lost. A schema that declared such an
   option on an input field is refused at registration and must drop it.
+- **The Java SDK's `registerInputType(name, Class, …)` refuses a class it can read no
+  field from (#2206).** A class without `@GraphQLType` registered an input type with no
+  fields and no error, since the field reader returns nothing for it; so did an annotated
+  class with no `@GraphQLField`. Both are now refused, naming the class and what is
+  missing. A class carrying only `@GraphQLInput`, which nothing reads, is refused the same
+  way where it registered empty. `registerType` already refused an unannotated class.
 
 ### Security
 

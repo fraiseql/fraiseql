@@ -435,9 +435,29 @@ public class SchemaRegistry {
      * @param inputName the input type name
      * @param inputClass a class whose fields carry {@code @GraphQLField}
      * @param description optional description
+     * @throws IllegalArgumentException if the class is not annotated with
+     *     {@code @GraphQLType}, so that none of its fields would be read, or declares no
+     *     {@code @GraphQLField} field; either would register an input type with no fields
      */
     public void registerInputType(String inputName, Class<?> inputClass, String description) {
-        registerInputType(inputName, TypeConverter.extractFields(inputClass), description);
+        // Field extraction reads an annotated class and answers an unannotated one with
+        // no fields at all, which would register an input type the compiler cannot use
+        // and say nothing. `@GraphQLFactTable` is the other annotation it reads.
+        if (!inputClass.isAnnotationPresent(GraphQLType.class)
+                && !inputClass.isAnnotationPresent(GraphQLFactTable.class)) {
+            throw new IllegalArgumentException(String.format(
+                "Input type %s: class %s is not annotated with @GraphQLType, so its fields "
+                    + "cannot be read; annotate it with @GraphQLType",
+                inputName, inputClass.getName()));
+        }
+        Map<String, TypeConverter.GraphQLFieldInfo> fields = TypeConverter.extractFields(inputClass);
+        if (fields.isEmpty()) {
+            throw new IllegalArgumentException(String.format(
+                "Input type %s: class %s declares no @GraphQLField field; an input type "
+                    + "needs at least one field",
+                inputName, inputClass.getName()));
+        }
+        registerInputType(inputName, fields, description);
     }
 
     /**
