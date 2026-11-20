@@ -102,18 +102,14 @@ pub(super) fn by_id_tag(
     if column != "id" {
         return None;
     }
-    Some((type_name.clone(), id_text(pg_cast, value)?))
+    Some((type_name.clone(), canonical_id_text(pg_cast, value)?))
 }
 
 /// An id as `pg_tviews` reports it: a uuid in its canonical form (PostgreSQL reads
 /// `…157A` and `{…}` as the same value), an integer's decimal digits, other text as given.
 /// `None` for a value the column could not hold, which reads nothing to tag.
-fn id_text(pg_cast: &str, value: &serde_json::Value) -> Option<String> {
-    let text = match value {
-        serde_json::Value::String(text) => text.clone(),
-        serde_json::Value::Number(number) => number.to_string(),
-        _ => return None,
-    };
+fn canonical_id_text(pg_cast: &str, value: &serde_json::Value) -> Option<String> {
+    let text = super::entity_key::id_text(value)?;
     match pg_cast {
         "uuid" => uuid::Uuid::parse_str(&text).ok().map(|id| id.hyphenated().to_string()),
         "int2" | "int4" | "int8" => text.trim().parse::<i64>().ok().map(|id| id.to_string()),

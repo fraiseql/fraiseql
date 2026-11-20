@@ -125,19 +125,9 @@ pub fn decode(payload: &str) -> TviewsMessage {
     TviewsMessage::Change(change)
 }
 
-/// The ids `values` hold, each as text, or `None` when one is neither text nor a number.
+/// The ids `values` hold, each as text, or `None` when one names no entity.
 fn ids_of(values: &[Value]) -> Option<Vec<String>> {
-    values.iter().map(id_text).collect()
-}
-
-/// A public id as the feed and the cache's tags spell it: a uuid's (or any string's) text, an
-/// integer's decimal digits; `None` for anything else.
-pub(super) fn id_text(value: &Value) -> Option<String> {
-    match value {
-        Value::String(id) => Some(id.clone()),
-        Value::Number(id) => Some(id.to_string()),
-        _ => None,
-    }
+    values.iter().map(super::entity_key::id_text).collect()
 }
 
 /// `Comment.fk_post` as its child type and column: the type is a GraphQL name, which holds

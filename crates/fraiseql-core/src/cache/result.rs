@@ -649,11 +649,8 @@ impl QueryResultCache {
             result
                 .iter()
                 .filter_map(|row| {
-                    row.as_value()
-                        .as_object()?
-                        .get("id")?
-                        .as_str()
-                        .map(|id| (et.to_string(), id.to_string()))
+                    let id = row.as_value().as_object()?.get("id")?;
+                    super::entity_key::id_text(id).map(|id| (et.to_string(), id))
                 })
                 .chain(tags.entities.iter().cloned())
                 .collect::<Vec<_>>()

@@ -164,3 +164,33 @@ fn a_fill_whose_row_is_evicted_while_it_inserts_is_never_served() {
         assert!(!served_mid_fill(), "{row}: the fill was left in the store");
     }
 }
+
+/// A list's rows are held by the text of their `id`: a string as it is, an integer as its
+/// decimal text, the text an eviction names a row by. A row whose `id` is a number was not
+/// held at all, so a write to it left the list in the cache. Any other `id` holds nothing.
+#[test]
+fn a_row_whose_id_is_an_integer_is_held_by_its_decimal_text() {
+    let fill_with = |cache: &QueryResultCache, id: serde_json::Value| {
+        let rows = Arc::new(vec![JsonbValue::new(json!({"id": id}))]);
+        cache
+            .put_arc(1, rows, vec!["tv_user".to_string()], None, Some("User"), None)
+            .unwrap();
+    };
+    for (id, evicted_by) in [
+        (json!(5), Some("5")),
+        (json!(-7), Some("-7")),
+        (json!(12_345_678_901_234_567_890_u64), Some("12345678901234567890")),
+        (json!("u5"), Some("u5")),
+        (json!(1.5), None),
+        (json!(true), None),
+        (json!({"id": 5}), None),
+    ] {
+        let cache = cache();
+        fill_with(&cache, id.clone());
+        cache.store.run_pending_tasks();
+        assert_eq!(cache.row_key_count(), usize::from(evicted_by.is_some()), "{id}");
+        if let Some(text) = evicted_by {
+            assert_eq!(cache.invalidate_by_entity("User", text).unwrap(), 1, "{id}");
+        }
+    }
+}

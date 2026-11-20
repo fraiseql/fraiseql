@@ -79,7 +79,6 @@ fraiseql_core::runtime::query_tracing pending no plan names it; triage #1681
 fraiseql_core::runtime::sql_logger pending no plan names it; triage #1681
 fraiseql_core::runtime::tenant_enforcer pending no plan names it; triage #1681
 fraiseql_core::cache::cascade_metadata pending no plan names it; triage #1681
-fraiseql_core::cache::entity_key pending no plan names it; triage #1681
 fraiseql_core::tenancy pending no plan names it; triage #1681
 fraiseql_core::validation::id_policy pending ID-format validation only the input processor called; triage #1681
 fraiseql_core::graphql::directive_evaluator::custom pending a pluggable directive registry nothing registers into; triage #1681

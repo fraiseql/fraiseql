@@ -199,9 +199,9 @@ impl<F: Fn(&str) -> Vec<String>> Walk<'_, F> {
 }
 
 /// The public id of a composed row's document, as the change feed writes it
-/// ([`super::tviews_feed::id_text`]).
+/// ([`super::entity_key::id_text`]).
 fn row_id(row: &Value) -> Option<String> {
-    super::tviews_feed::id_text(row.get(COMPOSED_DOCUMENT_KEY)?.get("id")?)
+    super::entity_key::id_text(row.get(COMPOSED_DOCUMENT_KEY)?.get("id")?)
 }
 
 /// Drop repeated names, keeping the first of each.

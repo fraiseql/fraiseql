@@ -429,6 +429,7 @@ fn schema() -> CompiledSchema {
             .with_nullable_field("float", FieldType::Float)
             .with_nullable_field("string", FieldType::String)
             .with_nullable_field("boolean", FieldType::Boolean)
+            .with_nullable_field("id", FieldType::Id)
             .build()
     };
     let kinds_query = TestQueryBuilder::new("kinds", "Kind")
@@ -572,8 +573,8 @@ async fn executor_for(schema: CompiledSchema) -> Option<Executor> {
         format!("CREATE TABLE {KIND_CLEAN_VIEW} (pk_kind bigint, data jsonb)"),
         format!(
             r#"INSERT INTO {KIND_CLEAN_VIEW} (pk_kind, data) VALUES
-               (1, '{{"int": 7, "float": 1.50, "string": "x", "boolean": true}}'::jsonb),
-               (2, '{{"int": -2147483648, "float": 2, "string": "", "boolean": false}}'::jsonb)"#
+               (1, '{{"id": 1, "int": 7, "float": 1.50, "string": "x", "boolean": true}}'::jsonb),
+               (2, '{{"id": 2, "int": -2147483648, "float": 2, "string": "", "boolean": false}}'::jsonb)"#
         ),
     ] {
         adapter.execute_raw_query(&stmt).await.expect("provision the kind fixture");
@@ -2325,4 +2326,35 @@ async fn a_string_field_filters_and_sorts_as_text() {
         json!([{"string": "x"}, {"string": ""}]),
         "{sorted}"
     );
+}
+
+/// A cached read holds each of its rows by the text of its `id`, an integer's decimal text
+/// included, so a write evicting the entity reaches the read. A direct read (REST, gRPC, an
+/// export) takes the stored rows whole; a GraphQL read takes `id` from the projection.
+#[tokio::test]
+async fn a_cached_read_of_a_row_whose_id_is_an_integer_is_evicted_by_that_id() {
+    if executor().await.is_none() {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    }
+    let entity = fraiseql_core::cache::view_name_to_entity_type(KIND_CLEAN_VIEW).unwrap();
+    for direct in [true, false] {
+        let pg = fraiseql_test_support::postgres().await.unwrap();
+        let adapter = PostgresAdapter::new(pg.url()).await.unwrap();
+        let cache = QueryResultCache::new(CacheConfig::enabled());
+        let cached = Arc::new(CachedDatabaseAdapter::new(adapter, cache, "id-v1".to_string()));
+        let exec = Executor::new_with_relay(schema(), Arc::clone(&cached));
+        let document = "{ cleanKinds { id } }";
+        let response = if direct {
+            let matcher = fraiseql_core::runtime::QueryMatcher::new(exec.schema().clone());
+            let query_match = matcher.match_query(document, None).unwrap();
+            exec.execute_query_direct(&query_match, None, None, None).await.unwrap()
+        } else {
+            exec.execute(document, None).await.unwrap()
+        };
+        assert!(response["data"]["cleanKinds"].is_array(), "{response}");
+        cached.cache().run_pending_tasks();
+        let evicted = cached.invalidate_by_entity(&entity, "1").unwrap();
+        assert_eq!(evicted, 1, "direct: {direct}: {response}");
+    }
 }

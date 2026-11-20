@@ -173,3 +173,15 @@ impl Hash for EntityKey {
         self.entity_id.hash(state);
     }
 }
+
+/// An entity's id as the cache names it, in a tag and in an eviction alike: a uuid's (or
+/// any string's) text, an integer's decimal digits. `None` for anything else (a fraction, a
+/// Boolean, an object), which names no entity. A fill, the `pg_tviews` feed and a read by id
+/// all spell an id through this, so a row is held by the text an eviction names it by.
+pub(crate) fn id_text(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::String(id) => Some(id.clone()),
+        serde_json::Value::Number(id) if !id.is_f64() => Some(id.to_string()),
+        _ => None,
+    }
+}

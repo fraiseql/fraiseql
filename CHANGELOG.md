@@ -926,6 +926,15 @@ disagreed, and the promise was the part that was wrong.
   start of the window's minute rather than the tick's second, so a window fired again
   (a replica died after running it and before recording it) has the same idempotency
   token. Closes #2162.
+- **The result cache holds a row whose `id` is an integer by its decimal text.** A list
+  read held each of its rows by its `id` only when the `id` was a string, so a row whose
+  stored `id` was an integer was held by nothing, and a write that evicted that entity
+  left the list cached. A direct read (REST, gRPC, an export) takes the stored rows whole,
+  so its rows were held by no key: after a write evicting such an entity, the read was
+  served from the cache until its entry expired. The cache, the `pg_tviews` feed and reads by id now spell an id by one
+  rule: a string's text or an integer's decimal digits. A fractional, Boolean or object
+  `id` names no entity: a `pg_tviews` change naming such an id now evicts every cached
+  read of its type, as it does for any id it cannot name.
 - **The TypeScript SDK's `webhook()` writes only the headers it is given (#2146).** It
   added `Content-Type: application/json` to every webhook's `headers`, a header the author
   did not write; the other SDKs add none. The server sets that content type on every
