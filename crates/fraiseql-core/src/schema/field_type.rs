@@ -1154,6 +1154,19 @@ impl FieldType {
         BUILTIN_SCALARS.iter().find(|(n, _)| *n == name).map(|(_, ty)| ty.clone())
     }
 
+    /// The temporal scalar whose format a value of this type is held to, if it is one.
+    #[must_use]
+    pub const fn temporal(&self) -> Option<fraiseql_db::types::temporal::Temporal> {
+        use fraiseql_db::types::temporal::Temporal;
+        match self {
+            Self::DateTime => Some(Temporal::DateTime),
+            Self::LocalDateTime => Some(Temporal::LocalDateTime),
+            Self::Date => Some(Temporal::Date),
+            Self::Time => Some(Temporal::Time),
+            _ => None,
+        }
+    }
+
     /// Check if this is a scalar type (including rich/custom scalars).
     #[must_use]
     pub const fn is_scalar(&self) -> bool {

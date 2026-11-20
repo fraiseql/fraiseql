@@ -5,16 +5,26 @@ use fraiseql_error::FraiseQLError;
 
 use crate::routes::rest::params::helpers::validation_error;
 
-/// Coerce a raw string value to a JSON value based on a `FieldType`.
+/// Coerce the raw string written for `name` to a JSON value of its `FieldType`.
+///
+/// A temporal value is held to its scalar's format here, as an argument is on `/graphql`:
+/// a REST path parameter is never validated as a GraphQL argument, and a filter operand
+/// is refused at the edge, naming the field, before the `where` generator sees it.
 ///
 /// # Errors
 ///
 /// Returns `FraiseQLError::Validation` if the value cannot be parsed as the
 /// expected type.
 pub fn coerce_to_type(
+    name: &str,
     raw: &str,
     field_type: &FieldType,
 ) -> Result<serde_json::Value, FraiseQLError> {
+    if let Some(temporal) = field_type.temporal() {
+        let value = serde_json::Value::String(raw.to_string());
+        temporal.check_operand(name, &value)?;
+        return Ok(value);
+    }
     match field_type {
         FieldType::Int => {
             let v: i64 = raw
@@ -59,7 +69,7 @@ pub fn coerce_to_type(
                 .collect();
             Ok(serde_json::Value::Array(items))
         },
-        // Id, Uuid, String, DateTime, Date, Time, Scalar, Enum, Object, etc. — pass through as
+        // Id, Uuid, String, Scalar, Enum, Object, etc. — pass through as
         // string.
         _ => Ok(serde_json::Value::String(raw.to_string())),
     }

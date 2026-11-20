@@ -600,7 +600,7 @@ impl<'a> RestParamExtractor<'a> {
         for &(name, raw) in pairs {
             let arg = self.query_def.arguments.iter().find(|a| a.name == name);
             let value = match arg {
-                Some(a) => coerce_to_type(raw, &a.arg_type)?,
+                Some(a) => coerce_to_type(name, raw, &a.arg_type)?,
                 None => serde_json::Value::String(raw.to_string()),
             };
             out.push((name.to_string(), value));
@@ -1278,7 +1278,7 @@ impl<'a> RestParamExtractor<'a> {
     ) -> Result<serde_json::Value, FraiseQLError> {
         if let Some(td) = self.type_def {
             if let Some(fd) = td.find_field_by_output_name(field_name) {
-                return coerce_to_type(raw, &fd.field_type);
+                return coerce_to_type(field_name, raw, &fd.field_type);
             }
         }
         // No type info — return as string.

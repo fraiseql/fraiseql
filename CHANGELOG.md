@@ -24,8 +24,9 @@ disagreed, and the promise was the part that was wrong.
   `DateTime` was read in the session's time zone, a date alone as midnight there, a `Time`'s
   offset was dropped, and `now` or `today` compared against the clock. Each is now a
   validation error naming the argument or field, at a root argument, a variable, a mutation
-  input field, a `where` operand (GraphQL and REST) and a fact table's `where` operand on a
-  `timestamptz`, `date` or `time` column, as a `LocalDateTime` already was. Formats, from
+  input field, a `where` operand, a REST path parameter or filter value, and a fact table's
+  `where` operand on a `timestamptz`, `date` or `time` column. A `LocalDateTime` already
+  was, except as a REST path parameter, which no check reached: it is now held too. Formats, from
   the scalars' `specifiedByURL`s:
   - `DateTime`: `YYYY-MM-DDTHH:MM:SS`, optional 1-9 fraction digits, then `Z` or `±HH:MM`
     (required, never `-00:00`);

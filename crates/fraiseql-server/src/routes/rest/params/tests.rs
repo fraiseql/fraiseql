@@ -643,56 +643,65 @@ fn unknown_param_rejected() {
 
 #[test]
 fn coerce_int() {
-    let result = coerce_to_type("42", &FieldType::Int).unwrap();
+    let result = coerce_to_type("v", "42", &FieldType::Int).unwrap();
     assert_eq!(result, serde_json::json!(42));
 }
 
 #[test]
 fn coerce_float() {
-    let result = coerce_to_type("2.78", &FieldType::Float).unwrap();
+    let result = coerce_to_type("v", "2.78", &FieldType::Float).unwrap();
     assert_eq!(result, serde_json::json!(2.78));
 }
 
 #[test]
 fn coerce_boolean_true() {
-    assert_eq!(coerce_to_type("true", &FieldType::Boolean).unwrap(), serde_json::json!(true));
-    assert_eq!(coerce_to_type("1", &FieldType::Boolean).unwrap(), serde_json::json!(true));
-    assert_eq!(coerce_to_type("yes", &FieldType::Boolean).unwrap(), serde_json::json!(true));
+    assert_eq!(
+        coerce_to_type("v", "true", &FieldType::Boolean).unwrap(),
+        serde_json::json!(true)
+    );
+    assert_eq!(coerce_to_type("v", "1", &FieldType::Boolean).unwrap(), serde_json::json!(true));
+    assert_eq!(
+        coerce_to_type("v", "yes", &FieldType::Boolean).unwrap(),
+        serde_json::json!(true)
+    );
 }
 
 #[test]
 fn coerce_boolean_false() {
-    assert_eq!(coerce_to_type("false", &FieldType::Boolean).unwrap(), serde_json::json!(false));
-    assert_eq!(coerce_to_type("0", &FieldType::Boolean).unwrap(), serde_json::json!(false));
+    assert_eq!(
+        coerce_to_type("v", "false", &FieldType::Boolean).unwrap(),
+        serde_json::json!(false)
+    );
+    assert_eq!(coerce_to_type("v", "0", &FieldType::Boolean).unwrap(), serde_json::json!(false));
 }
 
 #[test]
 fn coerce_boolean_invalid() {
-    let err = coerce_to_type("maybe", &FieldType::Boolean).unwrap_err();
+    let err = coerce_to_type("v", "maybe", &FieldType::Boolean).unwrap_err();
     assert!(err.to_string().contains("Expected boolean"), "{err}");
 }
 
 #[test]
 fn coerce_string_passthrough() {
-    let result = coerce_to_type("hello", &FieldType::String).unwrap();
+    let result = coerce_to_type("v", "hello", &FieldType::String).unwrap();
     assert_eq!(result, serde_json::json!("hello"));
 }
 
 #[test]
 fn coerce_json_value() {
-    let result = coerce_to_type(r#"{"key":"val"}"#, &FieldType::Json).unwrap();
+    let result = coerce_to_type("v", r#"{"key":"val"}"#, &FieldType::Json).unwrap();
     assert_eq!(result, serde_json::json!({"key": "val"}));
 }
 
 #[test]
 fn coerce_list_csv() {
-    let result = coerce_to_type("a,b,c", &FieldType::list(FieldType::String)).unwrap();
+    let result = coerce_to_type("v", "a,b,c", &FieldType::list(FieldType::String)).unwrap();
     assert_eq!(result, serde_json::json!(["a", "b", "c"]));
 }
 
 #[test]
 fn coerce_list_json_array() {
-    let result = coerce_to_type(r#"["a","b"]"#, &FieldType::list(FieldType::String)).unwrap();
+    let result = coerce_to_type("v", r#"["a","b"]"#, &FieldType::list(FieldType::String)).unwrap();
     assert_eq!(result, serde_json::json!(["a", "b"]));
 }
 
@@ -1657,5 +1666,76 @@ fn the_bracket_form_still_filters_a_field_named_limit() {
     assert_eq!(
         params.embedding_filters.get("posts"),
         Some(&serde_json::json!({"limit": {"eq": "5"}}))
+    );
+}
+
+// -----------------------------------------------------------------------
+// Temporal values
+// -----------------------------------------------------------------------
+
+fn slot_type_def() -> TypeDefinition {
+    TypeDefinition::new("Slot", "v_slot")
+        .with_field(FieldDefinition::new("id", FieldType::Int))
+        .with_field(FieldDefinition::new("at", FieldType::DateTime))
+        .with_field(FieldDefinition::new("day", FieldType::Date))
+        .with_field(FieldDefinition::new("opens", FieldType::Time))
+        .with_field(FieldDefinition::new("logged", FieldType::LocalDateTime))
+}
+
+/// A path parameter declared as a temporal scalar holds its format, as the same argument
+/// does on `/graphql`: a REST path is not validated as a GraphQL argument, so its value
+/// otherwise reached the cast as written.
+#[test]
+fn a_temporal_path_param_outside_its_format_is_refused() {
+    let config = test_config();
+    let td = slot_type_def();
+    for (field_type, says, accepted, refused) in [
+        (FieldType::DateTime, "DateTime", "2026-07-01T12:00:00Z", "2026-07-01T12:00:00"),
+        (
+            FieldType::LocalDateTime,
+            "LocalDateTime",
+            "2026-07-01T12:00:00",
+            "2026-07-01T12:00:00Z",
+        ),
+        (FieldType::Date, "Date", "2026-07-01", "today"),
+        (FieldType::Time, "Time", "09:00:00", "09:00:00+02:00"),
+    ] {
+        let qd = QueryDefinition {
+            arguments: vec![ArgumentDefinition::new("at", field_type)],
+            ..single_query_def()
+        };
+        let ext = RestParamExtractor::new(&config, &qd, Some(&td));
+        let ok = ext.extract(&[("at", accepted)], &[]).unwrap();
+        assert_eq!(ok.path_params, vec![("at".to_string(), serde_json::json!(accepted))]);
+        let err = ext.extract(&[("at", refused)], &[]).expect_err(refused).to_string();
+        assert!(err.contains("`at`") && err.contains(says), "{refused}: {err}");
+        assert!(!err.contains(refused), "the value is described, never quoted: {err}");
+    }
+}
+
+/// A filter on a temporal field holds its format at the edge, naming the field, simple
+/// equality, bracket operators and list operands alike.
+#[test]
+fn a_temporal_filter_outside_its_format_is_refused() {
+    let config = test_config();
+    let qd = list_query_def();
+    let td = slot_type_def();
+    let ext = extractor_list(&config, &qd, &td);
+    for (key, value) in [
+        ("at", "2026-07-01T12:00:00"),
+        ("at[lt]", "now"),
+        ("at[in]", "2026-07-01T12:00:00Z,2026-07-01T13:00:00"),
+        ("day[gte]", "2026-07-01T00:00:00Z"),
+        ("opens[eq]", "09:00"),
+        ("logged[lt]", "2026-07-01T12:00:00+02:00"),
+    ] {
+        let field = key.split('[').next().unwrap();
+        let err = ext.extract(&[], &[(key, value)]).expect_err(key).to_string();
+        assert!(err.contains(&format!("`{field}`")), "{key}={value}: {err}");
+    }
+    let ok = ext.extract(&[], &[("at[lt]", "2026-07-01T12:00:00+02:00")]).unwrap();
+    assert_eq!(
+        ok.where_clause,
+        Some(serde_json::json!({ "at": { "lt": "2026-07-01T12:00:00+02:00" } }))
     );
 }

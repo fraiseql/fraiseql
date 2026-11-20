@@ -19,9 +19,11 @@ second `60`. `-00:00` is RFC 3339's "offset unknown", which a `DateTime` does no
 Every value that reaches a temporal cast is checked first, on every transport:
 
 - a root argument, written inline or as a variable;
+- a REST path parameter, and a REST filter value, which are not validated as GraphQL
+  arguments;
 - a field of a mutation's input object, at any depth;
 - a `where` operand on a temporal field, nested or not, `in` and `nin` items included,
-  from GraphQL or REST;
+  from GraphQL;
 - a fact table's `where` operand on a `timestamptz`, `timestamp`, `date` or `time` column.
 
 A value outside its format is a validation error that names the argument or the field and
