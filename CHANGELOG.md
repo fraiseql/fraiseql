@@ -629,6 +629,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A stored object's `ETag` names its content (#2130).** An object written with
+  `PUT /storage/v1/object/{bucket}/{key}` was given its storage key as its etag, on
+  every backend: the same value after an overwrite, unquoted, and served on the
+  upload, the download and the listing. The etag is now the quoted content hash a
+  presigned upload already got on its first read, so it changes with the content.
+  A resumable upload to S3 keeps the etag S3 reports for it. **Operators:** the
+  storage migration clears the etags stored that way, and each object's next
+  download records its hash; until then that object is served without an `ETag`.
 - **A storage listing no longer reports the current time for an object it has no time
   for (#2112).** The S3-compatible and local backends substituted the listing's own clock;
   the value changed on every listing, and the local backend's listing etag with it.

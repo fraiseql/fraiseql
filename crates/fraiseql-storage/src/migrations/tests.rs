@@ -188,3 +188,64 @@ async fn concurrent_migrations_against_a_cold_database_all_succeed() {
         failures.len()
     );
 }
+
+/// #2130: the migration clears an etag that is the object's key (`bucket/key`, or `key`
+/// from before v2.6.0) and leaves every other etag alone. A second run changes no row.
+#[tokio::test]
+async fn the_migration_clears_key_shaped_etags_once_and_only_those() {
+    let (pool, _svc) = connect_pool().await;
+    super::run_storage_migration(&pool).await.unwrap();
+    sqlx::query("DELETE FROM _fraiseql_storage_objects WHERE bucket = 'm2130'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    for (key, etag) in [
+        ("scoped.txt", Some("m2130/scoped.txt")),
+        ("bare.txt", Some("bare.txt")),
+        ("hashed.txt", Some("\"0123456789abcdef0123456789abcdef\"")),
+        ("other.txt", Some("m2130/not-this-key.txt")),
+        ("none.txt", None),
+    ] {
+        sqlx::query(
+            "INSERT INTO _fraiseql_storage_objects (bucket, key, content_type, size_bytes, etag) \
+             VALUES ('m2130', $1, 'text/plain', 1, $2)",
+        )
+        .bind(key)
+        .bind(etag)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    let rows = || async {
+        sqlx::query_as::<_, (String, Option<String>, String)>(
+            "SELECT key, etag, xmin::text FROM _fraiseql_storage_objects \
+             WHERE bucket = 'm2130' ORDER BY key",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap()
+    };
+
+    super::run_storage_migration(&pool).await.unwrap();
+    let first = rows().await;
+    let etags: Vec<(&str, Option<&str>)> =
+        first.iter().map(|(k, e, _)| (k.as_str(), e.as_deref())).collect();
+    assert_eq!(
+        etags,
+        vec![
+            ("bare.txt", None),
+            ("hashed.txt", Some("\"0123456789abcdef0123456789abcdef\"")),
+            ("none.txt", None),
+            ("other.txt", Some("m2130/not-this-key.txt")),
+            ("scoped.txt", None),
+        ]
+    );
+
+    super::run_storage_migration(&pool).await.unwrap();
+    assert_eq!(rows().await, first, "a second run rewrote a row");
+
+    sqlx::query("DELETE FROM _fraiseql_storage_objects WHERE bucket = 'm2130'")
+        .execute(&pool)
+        .await
+        .unwrap();
+}

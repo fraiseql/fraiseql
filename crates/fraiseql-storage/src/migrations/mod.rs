@@ -147,6 +147,14 @@ ALTER TABLE _fraiseql_storage_objects
 ALTER TABLE _fraiseql_storage_objects
     ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
 
+-- #2130: a PUT stored the object's key as its etag, as bucket/key since
+-- v2.6.0 and as the bare key before. Such an etag names no content, so it is
+-- cleared, and the next read records the content hash. A content hash is a
+-- quoted string and never matches. Run again, the statement matches no row.
+UPDATE _fraiseql_storage_objects
+    SET etag = NULL
+    WHERE etag = bucket || '/' || key OR etag = key;
+
 CREATE TABLE IF NOT EXISTS _fraiseql_storage_uploads (
     upload_id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     bucket              TEXT        NOT NULL,

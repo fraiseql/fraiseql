@@ -644,10 +644,12 @@ async fn put_handler(
     // Upload to backend. #336: scope the backend key by bucket so two buckets
     // cannot collide on the same object key.
     let object_key = backend_object_key(&bucket_name, &key);
-    let etag = match state.backend.upload(&object_key, &body, content_type).await {
-        Ok(etag) => etag,
-        Err(e) => return storage_error_response(&e),
-    };
+    if let Err(e) = state.backend.upload(&object_key, &body, content_type).await {
+        return storage_error_response(&e);
+    }
+    // The etag names the content, whatever the backend: the same hash a read computes
+    // for an object that reached the backend without passing through here.
+    let etag = object_etag(&body);
 
     // Record metadata
     let new_obj = NewStorageObject {
@@ -739,8 +741,16 @@ async fn get_handler(
                     return storage_error_response(&e);
                 }
                 Some(etag)
+            } else if let Some(etag) = row.etag.clone() {
+                Some(etag)
             } else {
-                row.etag.clone()
+                // The migration clears a stored etag that was the object's key; this
+                // read has the bytes, so it records their hash.
+                let etag = object_etag(&data);
+                if let Err(e) = state.metadata.settle_etag(row.pk_storage_object, &etag).await {
+                    return storage_error_response(&e);
+                }
+                Some(etag)
             };
 
             let mut headers = HeaderMap::new();
@@ -1464,11 +1474,11 @@ fn backend_object_key(bucket: &str, key: &str) -> String {
     format!("{bucket}/{key}")
 }
 
-/// Content hash used as the etag when reconciling a presign-uploaded object.
+/// The etag of an object: a hash of its content, quoted as an entity-tag.
 ///
-/// The bytes never passed through the server at upload time, so there is no
-/// backend-reported etag to record; this is computed from the object the read
-/// actually served, which is the thing the etag has to identify.
+/// A PUT computes it from the bytes it stores (#2130). A presign-uploaded object's
+/// bytes never passed through the server, so its first read computes it from the
+/// object it served, which is the thing the etag has to identify.
 fn object_etag(data: &[u8]) -> String {
     use sha2::{Digest, Sha256};
     let digest = Sha256::digest(data);

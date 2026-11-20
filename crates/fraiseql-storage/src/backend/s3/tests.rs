@@ -552,3 +552,37 @@ async fn test_s3_list_entry_without_last_modified_reports_no_time() {
         "an absent LastModified was replaced by a time that moves between listings"
     );
 }
+
+/// #2130: a resumable upload to S3 records the etag S3 itself reports for the object,
+/// unchanged: a quoted entity-tag that changes with the content, though not the
+/// content hash a PUT records (the server never holds the whole body at once).
+#[test]
+#[ignore = "requires MinIO to be running"]
+fn test_s3_resumable_upload_returns_the_etag_s3_reports() {
+    let Some(()) = skip_if_no_s3() else {
+        return;
+    };
+    let backend = create_test_backend();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let mut tags = Vec::new();
+        for body in [&b"first resumable body"[..], &b"second"[..]] {
+            let state =
+                backend.multipart_begin("rs/a.bin", "application/octet-stream").await.unwrap();
+            let state = backend.multipart_append("rs/a.bin", state, body).await.unwrap();
+            let returned = backend.multipart_complete("rs/a.bin", &state).await.unwrap();
+            let head = backend
+                .client
+                .head_object()
+                .bucket(&backend.bucket)
+                .key("rs/a.bin")
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(Some(returned.as_str()), head.e_tag(), "not S3's own etag");
+            assert!(returned.starts_with('"') && returned.ends_with('"'), "unquoted: {returned}");
+            tags.push(returned);
+        }
+        assert_ne!(tags[0], tags[1], "the etag did not change with the content");
+    });
+}

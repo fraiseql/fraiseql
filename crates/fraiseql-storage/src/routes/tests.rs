@@ -3345,3 +3345,98 @@ mod object_metadata {
         );
     }
 }
+
+// ── #2130: the stored and served etag identifies the content ─────────────────
+
+fn served_etag(resp: &axum::response::Response) -> String {
+    resp.headers()
+        .get(header::ETAG)
+        .expect("an ETag header")
+        .to_str()
+        .unwrap()
+        .to_owned()
+}
+
+/// Overwriting an object changes its etag, and the etag is the content hash of what
+/// was written, on the PUT and on the read after it.
+#[tokio::test]
+async fn put_etag_is_the_content_hash_and_changes_with_the_content() {
+    let (state, _keep) = test_state("docs", BucketAccess::PublicRead).await;
+    let mut seen = Vec::new();
+    for body in [&b"first"[..], &b"second body"[..]] {
+        let put = authenticated_router(state.clone())
+            .oneshot(put_req("docs", "a.txt", body))
+            .await
+            .unwrap();
+        assert_eq!(put.status(), StatusCode::OK);
+        let written = served_etag(&put);
+        assert_eq!(written, super::object_etag(body), "PUT served another tag");
+        let get = authenticated_router(state.clone())
+            .oneshot(get_req("docs", "a.txt"))
+            .await
+            .unwrap();
+        assert_eq!(served_etag(&get), written, "the read served another tag");
+        seen.push(written);
+    }
+    assert_ne!(seen[0], seen[1], "an overwrite kept the etag");
+}
+
+/// The etag is a valid entity-tag: a quoted string (RFC 9110 §8.8.3).
+#[tokio::test]
+async fn put_etag_is_a_quoted_entity_tag() {
+    let (state, _keep) = test_state("docs", BucketAccess::PublicRead).await;
+    let put = authenticated_router(state)
+        .oneshot(put_req("docs", "q.txt", b"x"))
+        .await
+        .unwrap();
+    let tag = served_etag(&put);
+    assert!(tag.len() > 2 && tag.starts_with('"') && tag.ends_with('"'), "unquoted: {tag}");
+}
+
+/// A row stored before the fix carries the object's key as its etag: `bucket/key`
+/// since v2.6.0, `key` before. The migration clears both, and the next read settles
+/// the row to the content hash.
+#[tokio::test]
+async fn a_key_shaped_stored_etag_settles_to_the_content_hash_on_read() {
+    let (state, _keep) = test_state("docs", BucketAccess::PublicRead).await;
+    let svc = fraiseql_test_support::postgres().await.unwrap();
+    let pool = sqlx::PgPool::connect(svc.url()).await.unwrap();
+
+    for (key, legacy) in [
+        ("dir/scoped.txt", "docs/dir/scoped.txt"),
+        ("bare.txt", "bare.txt"),
+    ] {
+        let put = authenticated_router(state.clone())
+            .oneshot(put_req("docs", key, b"body"))
+            .await
+            .unwrap();
+        assert_eq!(put.status(), StatusCode::OK);
+        sqlx::query(
+            "UPDATE _fraiseql_storage_objects SET etag = $1 WHERE bucket = 'docs' AND key = $2",
+        )
+        .bind(legacy)
+        .bind(key)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    crate::migrations::run_storage_migration(&pool).await.unwrap();
+
+    for key in ["dir/scoped.txt", "bare.txt"] {
+        let get = authenticated_router(state.clone()).oneshot(get_req("docs", key)).await.unwrap();
+        assert_eq!(get.status(), StatusCode::OK);
+        assert_eq!(
+            served_etag(&get),
+            super::object_etag(b"body"),
+            "{key}: the read served the old tag"
+        );
+        let stored: Option<String> = sqlx::query_scalar(
+            "SELECT etag FROM _fraiseql_storage_objects WHERE bucket = 'docs' AND key = $1",
+        )
+        .bind(key)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(stored, Some(super::object_etag(b"body")), "{key}: the row was not settled");
+    }
+}

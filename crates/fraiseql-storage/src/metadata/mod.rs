@@ -450,6 +450,33 @@ impl StorageMetadataRepo {
         Ok(result.rows_affected() > 0)
     }
 
+    /// Record the content hash of a settled row that has no etag (#2130).
+    ///
+    /// Only a row with no etag and no upload in flight is written, so a concurrent
+    /// PUT's own etag is never replaced by the hash of the bytes a slower read saw.
+    /// `updated_at` is left alone: the object did not change.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::File` if the database query fails.
+    pub async fn settle_etag(&self, pk: i64, etag: &str) -> Result<(), FraiseQLError> {
+        sqlx::query(
+            "UPDATE _fraiseql_storage_objects SET etag = $2 \
+             WHERE pk_storage_object = $1 AND etag IS NULL AND NOT pending",
+        )
+        .bind(pk)
+        .bind(etag)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            FraiseQLError::File(FileError::Backend {
+                message: e.to_string(),
+                source:  Some(Box::new(e)),
+            })
+        })?;
+        Ok(())
+    }
+
     /// Reconcile a claimed row against the object that actually landed.
     ///
     /// A reservation records ownership but cannot record size or etag, because
