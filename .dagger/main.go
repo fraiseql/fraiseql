@@ -3325,6 +3325,10 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// produce the divergence — and its own binary, since it owns
 		// core.tb_entity_change_log and the dispatch ledger.
 		"cargo test -p fraiseql-observers --test change_log_commit_order_pg -- --ignored --test-threads=1",
+		// A change-log row a reader cannot read is reported and passed over, and the
+		// rows after it are delivered: by the poller (whose loop gave up after ten
+		// failed polls), the per-process tail and a resume. Owns the change log too.
+		"cargo test -p fraiseql-observers --test change_log_unreadable_row_pg -- --ignored --test-threads=1",
 		// #573 source coordination primitives: the advisory-lease mutual-exclusion
 		// + crash-safety boundary (Phase 00), and the source cursor store (CAS
 		// advance, in-tx rollback, deny-by-default RLS) + single-firing runner

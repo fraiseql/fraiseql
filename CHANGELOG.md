@@ -607,6 +607,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A change-log row the observers cannot read no longer blocks the rows after it
+  (#2118).** A row whose document the decoder refused failed the whole batch. The
+  poller failed every poll on it, and the executor's loop stopped after ten. The
+  subscription tail lost the readable rows read with it, and a resume across it failed
+  every time. Each reader now logs the row at `error` (its pk, event id and column,
+  never the document) and delivers the rows after it. The poller keeps the row out of
+  the dispatch ledger and reports it once per commit-lag window until it is corrected,
+  then delivers it. A resume also passes over a row that makes no event, as the live
+  loop does. `ChangeLogListener::unreadable_reports()` and
+  `ChangeLogTail::unreadable_reports()` count the reports.
 - **The two rate-limit backends match a path to its rule in one place (#1911).** Redis's
   `retry_after_for_path` matched by plain prefix, so `/auth/startover` was given
   `/auth/start`'s interval; that method is removed (above). Both backends' per-path checks

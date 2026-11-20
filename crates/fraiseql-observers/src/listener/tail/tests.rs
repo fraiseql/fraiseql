@@ -18,6 +18,7 @@ fn tail(floor: i64, delivered: &[i64]) -> ChangeLogTail {
         pending: std::collections::VecDeque::new(),
         warned: false,
         documents: super::DocumentDecoder::plain(),
+        unreadable_reports: 0,
     }
 }
 

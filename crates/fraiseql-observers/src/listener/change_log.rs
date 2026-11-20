@@ -151,14 +151,41 @@ impl DocumentDecoder {
         Self::new(|_, text| serde_json::from_str(text))
     }
 
-    fn decode(&self, object_type: &str, text: Option<String>) -> Result<Option<Value>> {
-        text.map(|text| {
-            (self.0)(object_type, &text).map_err(|e| ObserverError::DeserializationError {
-                raw:    text.into_bytes(),
-                reason: format!("change-log document of {object_type}: {e}"),
-            })
-        })
-        .transpose()
+    fn decode(&self, object_type: &str, text: Option<&str>) -> serde_json::Result<Option<Value>> {
+        text.map(|text| (self.0)(object_type, text)).transpose()
+    }
+}
+
+/// A change-log row a reader could not turn into an entry or an event.
+///
+/// Every reader reports it and passes over it, so the rows after it are not held back.
+/// It names the row and the column, never a document's contents: a document is
+/// whatever an application stored.
+#[derive(Debug)]
+pub(crate) struct UnreadableRow {
+    /// `pk_entity_change_log`.
+    pub(crate) pk:     i64,
+    /// The event id, `id`.
+    pub(crate) id:     Uuid,
+    /// The column that could not be read, or `event` when the row read but no event
+    /// could be built from it.
+    pub(crate) column: &'static str,
+    /// What went wrong, without the value: a document's contents never reach a log.
+    pub(crate) kind:   String,
+}
+
+impl UnreadableRow {
+    /// Log the row at `error`, naming the reader that met it.
+    pub(crate) fn report(&self, reader: &'static str) {
+        error!(
+            reader,
+            pk = self.pk,
+            id = %self.id,
+            column = self.column,
+            kind = %self.kind,
+            "a change-log row cannot be read and is passed over; the rows after it are \
+             delivered. Correct the row to have it delivered."
+        );
     }
 }
 
@@ -185,8 +212,11 @@ impl ChangeLogRow {
     ///
     /// # Errors
     ///
-    /// Returns [`ObserverError::DeserializationError`] when a document does not parse.
-    pub(crate) fn into_entry(self, documents: &DocumentDecoder) -> Result<ChangeLogEntry> {
+    /// Returns an [`UnreadableRow`] naming the column when a document does not parse.
+    pub(crate) fn into_entry(
+        self,
+        documents: &DocumentDecoder,
+    ) -> std::result::Result<ChangeLogEntry, UnreadableRow> {
         let Self {
             pk_entity_change_log,
             id,
@@ -208,8 +238,18 @@ impl ChangeLogRow {
             schema_version,
         } = self;
 
-        let object_data = documents.decode(&object_type, object_data)?;
-        let object_data_before = documents.decode(&object_type, object_data_before)?;
+        let unreadable = |column: &'static str, e: &serde_json::Error| UnreadableRow {
+            pk: pk_entity_change_log,
+            id,
+            column,
+            kind: format!("document does not parse ({:?})", e.classify()),
+        };
+        let object_data = documents
+            .decode(&object_type, object_data.as_deref())
+            .map_err(|e| unreadable("object_data", &e))?;
+        let object_data_before = documents
+            .decode(&object_type, object_data_before.as_deref())
+            .map_err(|e| unreadable("object_data_before", &e))?;
         Ok(ChangeLogEntry {
             id: pk_entity_change_log,
             pk_entity_change_log: id.to_string(),
@@ -669,21 +709,23 @@ impl ChangeLogEntry {
 /// row (in-process state suppresses re-delivery for the window); it will
 /// re-deliver duplicates after a restart or a sweep.
 pub struct ChangeLogListener {
-    config:            ChangeLogListenerConfig,
-    last_processed_id: i64,
+    config:             ChangeLogListenerConfig,
+    last_processed_id:  i64,
     /// The checkpoint this listener resumed from: rows at or below it were
     /// dispatched by a previous incarnation. Fixed for the listener's life — it
     /// is the floor a full sweep drops back to, never further.
-    resume_floor:      i64,
+    resume_floor:       i64,
     /// Rows handed out by `next_batch` but not yet recorded dispatched, with the
     /// instant they were handed out. Suppresses in-process re-delivery across
     /// the window the scan reaches back over; pruned at the window bound so it
     /// stays bounded by (window x throughput).
-    in_flight:         VecDeque<(Instant, i64)>,
+    in_flight:          VecDeque<(Instant, i64)>,
     /// Polls completed, driving the periodic full sweep (poll 0 always sweeps).
-    polls:             u64,
+    polls:              u64,
     /// Whether the dispatch ledger DDL has been applied in this process.
-    ledger_ready:      bool,
+    ledger_ready:       bool,
+    /// Times a row this listener could not read was reported.
+    unreadable_reports: u64,
 }
 
 impl ChangeLogListener {
@@ -699,6 +741,7 @@ impl ChangeLogListener {
             in_flight: VecDeque::new(),
             polls: 0,
             ledger_ready: false,
+            unreadable_reports: 0,
         }
     }
 
@@ -903,10 +946,22 @@ impl ChangeLogListener {
                 late_recovered += 1;
             }
 
-            entries.push(row.into_entry(&self.config.documents)?);
+            // A row that cannot be read is reported and passed over, so it does not
+            // fail the batch and stall every poll after it. It stays out of the
+            // ledger: once its in-flight window lapses a later poll reaches it
+            // again and reports it again, until it is corrected and delivered.
+            match row.into_entry(&self.config.documents) {
+                Ok(entry) => entries.push(entry),
+                Err(unreadable) => {
+                    unreadable.report("poller");
+                    self.unreadable_reports += 1;
+                },
+            }
 
             // Advance the scan bound and suppress in-process re-delivery until
-            // the driver records the dispatch (or the window lapses).
+            // the driver records the dispatch (or the window lapses). A row
+            // passed over is suppressed the same way, which is what limits its
+            // report to one per window.
             self.last_processed_id = self.last_processed_id.max(pk);
             self.in_flight.push_back((Instant::now(), pk));
         }
@@ -925,6 +980,16 @@ impl ChangeLogListener {
         debug!("Fetched {} entries from change log", entries.len());
 
         Ok(entries)
+    }
+
+    /// How many times this listener has reported a row it could not read.
+    ///
+    /// A row is reported when a poll first reaches it, and again each time a poll
+    /// reaches it after its commit-lag window lapsed, until it is corrected. It is
+    /// never recorded dispatched, so it is never lost.
+    #[must_use]
+    pub const fn unreadable_reports(&self) -> u64 {
+        self.unreadable_reports
     }
 
     /// Get the current checkpoint (last processed ID)

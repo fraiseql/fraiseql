@@ -79,14 +79,16 @@ struct Horizon {
 /// Per-process reader of `core.tb_entity_change_log` that hands out each committed
 /// row once, independently of the dispatch ledger. See the module docs.
 pub struct ChangeLogTail {
-    pool:       PgPool,
-    batch_size: i64,
-    settle:     Duration,
-    floor:      i64,
-    delivered:  BTreeSet<i64>,
-    pending:    VecDeque<FloorCandidate>,
-    warned:     bool,
-    documents:  DocumentDecoder,
+    pool:               PgPool,
+    batch_size:         i64,
+    settle:             Duration,
+    floor:              i64,
+    delivered:          BTreeSet<i64>,
+    pending:            VecDeque<FloorCandidate>,
+    warned:             bool,
+    documents:          DocumentDecoder,
+    /// Rows this tail could not read, each reported once.
+    unreadable_reports: u64,
 }
 
 impl ChangeLogTail {
@@ -140,6 +142,7 @@ impl ChangeLogTail {
             pending: VecDeque::new(),
             warned: false,
             documents: DocumentDecoder::plain(),
+            unreadable_reports: 0,
         })
     }
 
@@ -148,6 +151,13 @@ impl ChangeLogTail {
     pub fn with_documents(mut self, documents: DocumentDecoder) -> Self {
         self.documents = documents;
         self
+    }
+
+    /// How many rows this tail could not read. Each is reported once and passed over:
+    /// the tail hands every row out once per process, the unreadable ones included.
+    #[must_use]
+    pub const fn unreadable_reports(&self) -> u64 {
+        self.unreadable_reports
     }
 
     /// The committed rows this process has not handed out yet, in pk order, at most
@@ -188,13 +198,20 @@ impl ChangeLogTail {
             xmax: parse_xid(&xmax)?,
             max_pk,
         };
-        let entries = rows
-            .into_iter()
-            .map(|row| {
-                self.delivered.insert(row.pk_entity_change_log);
-                row.into_entry(&self.documents)
-            })
-            .collect::<Result<Vec<_>>>()?;
+        // Every row is marked delivered as it is handed out. One that cannot be read
+        // is reported and passed over: failing the batch here would drop the rows
+        // already marked before it, and the rows after it would wait on it.
+        let mut entries = Vec::with_capacity(rows.len());
+        for row in rows {
+            self.delivered.insert(row.pk_entity_change_log);
+            match row.into_entry(&self.documents) {
+                Ok(entry) => entries.push(entry),
+                Err(unreadable) => {
+                    unreadable.report("tail");
+                    self.unreadable_reports += 1;
+                },
+            }
+        }
         self.advance(&horizon, Instant::now());
         Ok(entries)
     }

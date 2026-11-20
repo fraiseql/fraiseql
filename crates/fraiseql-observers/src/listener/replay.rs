@@ -49,7 +49,7 @@
 use chrono::{DateTime, Utc};
 use sqlx::postgres::PgPool;
 
-use super::change_log::{CHANGE_LOG_PROJECTION, ChangeLogRow, DocumentDecoder};
+use super::change_log::{CHANGE_LOG_PROJECTION, ChangeLogRow, DocumentDecoder, UnreadableRow};
 use crate::{
     error::{ObserverError, Result},
     event::EntityEvent,
@@ -335,8 +335,8 @@ impl ChangeLogReplayReader {
     ///
     /// # Errors
     ///
-    /// Returns [`ObserverError::DatabaseError`] if the query fails, or
-    /// [`ObserverError::TemplateRenderingFailed`] if a row cannot be decoded.
+    /// Returns [`ObserverError::DatabaseError`] if the query fails. A row that cannot
+    /// be read or made into an event is reported and left out of the page.
     pub async fn page_in_flight(
         &self,
         scope: &ReplayScope,
@@ -369,18 +369,7 @@ impl ChangeLogReplayReader {
             reason: format!("Failed to read the in-flight tail: {e}"),
         })?;
 
-        rows.into_iter()
-            .map(|row| {
-                let pk = row.pk_entity_change_log;
-                Ok(ReplayedEvent {
-                    position: ResumePosition {
-                        dispatched_at: None,
-                        pk,
-                    },
-                    event:    row.into_entry(&self.documents)?.to_entity_event()?,
-                })
-            })
-            .collect()
+        Ok(rows.into_iter().filter_map(|row| self.replayed(row, None)).collect())
     }
 
     /// The next page of events after `from`, in the order they were delivered.
@@ -390,16 +379,43 @@ impl ChangeLogReplayReader {
     ///
     /// # Errors
     ///
-    /// Returns [`ObserverError::DatabaseError`] if the query fails, or
-    /// [`ObserverError::TemplateRenderingFailed`] if a row cannot be decoded into an
-    /// event — the same decode the poller performs, so a row that fails here would have
-    /// failed the live path too.
+    /// Returns [`ObserverError::DatabaseError`] if the query fails. A row that cannot
+    /// be read or made into an event is reported and left out of the page, as the live
+    /// path passes over it: the same decode the poller performs.
     pub async fn page(
         &self,
         scope: &ReplayScope,
         from: &ResumePosition,
         batch_size: u32,
     ) -> Result<Vec<ReplayedEvent>> {
+        let mut from = *from;
+        loop {
+            let rows = self.page_rows(scope, &from, batch_size).await?;
+            let full = rows.len() >= usize::try_from(batch_size).unwrap_or(usize::MAX);
+            let last = rows.last().map(|(row, dispatched_at)| ResumePosition {
+                dispatched_at: *dispatched_at,
+                pk:            row.pk_entity_change_log,
+            });
+            let events: Vec<ReplayedEvent> = rows
+                .into_iter()
+                .filter_map(|(row, dispatched_at)| self.replayed(row, dispatched_at))
+                .collect();
+            // An empty page means the replay reached the head, so a full page whose
+            // every row was passed over is not returned: the read continues after it.
+            match last {
+                Some(last) if events.is_empty() && full => from = last,
+                _ => return Ok(events),
+            }
+        }
+    }
+
+    /// The rows of one page after `from`, each with the dispatch it was recorded in.
+    async fn page_rows(
+        &self,
+        scope: &ReplayScope,
+        from: &ResumePosition,
+        batch_size: u32,
+    ) -> Result<Vec<(ChangeLogRow, Option<DateTime<Utc>>)>> {
         let limit = i64::from(batch_size);
 
         if let Some(dispatched_at) = from.dispatched_at {
@@ -434,18 +450,10 @@ impl ChangeLogReplayReader {
                 reason: format!("Failed to read the resume page: {e}"),
             })?;
 
-            rows.into_iter()
-                .map(|DispatchedRow { row, dispatched_at }| {
-                    let pk = row.pk_entity_change_log;
-                    Ok(ReplayedEvent {
-                        position: ResumePosition {
-                            dispatched_at: Some(dispatched_at),
-                            pk,
-                        },
-                        event:    row.into_entry(&self.documents)?.to_entity_event()?,
-                    })
-                })
-                .collect()
+            Ok(rows
+                .into_iter()
+                .map(|DispatchedRow { row, dispatched_at }| (row, Some(dispatched_at)))
+                .collect())
         } else {
             // The anchor's batch was not recorded yet, so there is no delivery order to
             // read — only insertion order, which for everything after the anchor is the
@@ -472,18 +480,36 @@ impl ChangeLogReplayReader {
                 reason: format!("Failed to read the resume page: {e}"),
             })?;
 
-            rows.into_iter()
-                .map(|row| {
-                    let pk = row.pk_entity_change_log;
-                    Ok(ReplayedEvent {
-                        position: ResumePosition {
-                            dispatched_at: None,
-                            pk,
-                        },
-                        event:    row.into_entry(&self.documents)?.to_entity_event()?,
-                    })
-                })
-                .collect()
+            Ok(rows.into_iter().map(|row| (row, None)).collect())
+        }
+    }
+
+    /// The event a row replays as, or `None` for a row that cannot be read or made
+    /// into an event: it is reported and passed over, as the live path passes over it,
+    /// so a resume across it continues with the row after it.
+    fn replayed(
+        &self,
+        row: ChangeLogRow,
+        dispatched_at: Option<DateTime<Utc>>,
+    ) -> Option<ReplayedEvent> {
+        let (pk, id) = (row.pk_entity_change_log, row.id);
+        let event = row.into_entry(&self.documents).and_then(|entry| {
+            entry.to_entity_event().map_err(|e| UnreadableRow {
+                pk,
+                id,
+                column: "event",
+                kind: format!("{:?}", e.code()),
+            })
+        });
+        match event {
+            Ok(event) => Some(ReplayedEvent {
+                position: ResumePosition { dispatched_at, pk },
+                event,
+            }),
+            Err(unreadable) => {
+                unreadable.report("replay");
+                None
+            },
         }
     }
 }
