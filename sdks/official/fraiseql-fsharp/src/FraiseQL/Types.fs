@@ -285,6 +285,10 @@ type MutationDefinition =
         /// Fact tables whose cached aggregates must be invalidated after this mutation.
         /// Unlike views there is no inference fallback.
         invalidates_fact_tables: string list option
+        /// `Some false` runs the mutation once even when the server's transaction retry
+        /// policy would run an aborted transaction again (#1936). `None`: the key is left
+        /// out and the mutation follows the server.
+        retry_on_abort: bool option
     }
 
 /// Represents a GraphQL input object type used as a mutation argument.

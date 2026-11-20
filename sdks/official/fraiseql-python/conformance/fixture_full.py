@@ -304,6 +304,7 @@ def create_user(email: str, name: str | None, display_name: fraiseql.Localized[s
     inject={"user_id": "jwt:sub"},
     invalidates_views=["v_order_summary"],
     invalidates_fact_tables=["tf_sale"],
+    retry_on_abort=False,
 )
 def place_order() -> Order:
     pass

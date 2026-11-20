@@ -241,7 +241,8 @@ defmodule Conformance.FullSchema do
     operation: "insert",
     inject_params: %{"user_id" => "jwt:sub"},
     invalidates_views: ["v_order_summary"],
-    invalidates_fact_tables: ["tf_sale"]
+    invalidates_fact_tables: ["tf_sale"],
+    retry_on_abort: false
   )
 
   # #1329: a function-backed root query field. The query and the function it names are one

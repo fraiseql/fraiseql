@@ -340,6 +340,7 @@ type MutationBuilder struct {
 	// in Go, and the actor gate joined it (#1123, #1253).
 	requiresRole  string
 	requiresActor []string
+	retryOnAbort  *bool
 	deprecation   *DeprecationInfo
 }
 
@@ -365,6 +366,18 @@ func (mb *MutationBuilder) RequiresRole(role string) *MutationBuilder {
 // Enforced in the same executor gate as RequiresRole, on every transport.
 func (mb *MutationBuilder) RequiresActor(actors ...string) *MutationBuilder {
 	mb.requiresActor = actors
+	return mb
+}
+
+// RetryOnAbort sets whether the server's transaction retry policy may run this
+// mutation's transaction again when PostgreSQL aborts it with 40P01 or 40001 (#1936).
+//
+// Pass false for a function with an effect outside its transaction (a dblink or
+// pg_background call, a nextval, a call to another system), which each attempt would
+// repeat: the server then runs the mutation once, and runs any batch holding it once.
+// Not called, the mutation follows the server.
+func (mb *MutationBuilder) RetryOnAbort(retry bool) *MutationBuilder {
+	mb.retryOnAbort = &retry
 	return mb
 }
 
@@ -487,6 +500,7 @@ func (mb *MutationBuilder) Register() error {
 		InvalidatesFactTables: mb.invalidatesFactTables,
 		RequiresRole:          mb.requiresRole,
 		RequiresActor:         mb.requiresActor,
+		RetryOnAbort:          mb.retryOnAbort,
 		Deprecation:           mb.deprecation,
 	}
 

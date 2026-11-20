@@ -27,6 +27,7 @@ module MutationBuilder =
             requiresActor: string list option
             invalidatesViews: string list
             invalidatesFactTables: string list
+            retryOnAbort: bool option
         }
 
     /// Creates a new <see cref="MutationState"/> for the given mutation name.
@@ -44,6 +45,7 @@ module MutationBuilder =
             requiresActor = None
             invalidatesViews = []
             invalidatesFactTables = []
+            retryOnAbort = None
         }
 
     /// Sets the GraphQL return type for this mutation.
@@ -100,6 +102,16 @@ module MutationBuilder =
     let invalidatesFactTables (tables: string list) (s: MutationState) : MutationState =
         { s with invalidatesFactTables = s.invalidatesFactTables @ tables }
 
+    /// Sets whether the server's transaction retry policy may run this mutation's
+    /// transaction again when PostgreSQL aborts it with `40P01` or `40001` (#1936).
+    ///
+    /// Pass `false` for a function with an effect outside its transaction (a `dblink` or
+    /// `pg_background` call, a `nextval`, a call to another system), which each attempt
+    /// would repeat: the server then runs the mutation once, and runs any batch holding it
+    /// once. Not called, the mutation follows the server.
+    let retryOnAbort (retry: bool) (s: MutationState) : MutationState =
+        { s with retryOnAbort = Some retry }
+
     /// Converts the accumulated state into a <see cref="MutationDefinition"/>.
     /// Raises <see cref="System.InvalidOperationException"/> when required fields are missing.
     let toDefinition (s: MutationState) : MutationDefinition =
@@ -129,6 +141,7 @@ module MutationBuilder =
                 (if List.isEmpty s.invalidatesViews then None else Some s.invalidatesViews)
             invalidates_fact_tables =
                 (if List.isEmpty s.invalidatesFactTables then None else Some s.invalidatesFactTables)
+            retry_on_abort = s.retryOnAbort
         }
 
     /// Converts the state to a <see cref="MutationDefinition"/> and registers it in <see cref="SchemaRegistry"/>.

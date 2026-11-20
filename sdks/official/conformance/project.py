@@ -233,6 +233,7 @@ CONSTRUCTS = (
     "fact_tables",
     "mutation_requires_role",
     "mutation_requires_actor",
+    "mutation_retry_on_abort",
     "subscriptions",
     "vector_fields",
     "list_fields",
@@ -673,6 +674,16 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         for name in AUTHORED_MUTATIONS
         if mutations.get(name, {}).get("requires_actor")
     }
+
+    # A mutation that opts out of transaction retry (#1936). The compiled schema writes the
+    # flag only when it is `false`, so an SDK that drops the keyword compiles cleanly to a
+    # mutation the server retries: the very repeat the author opted out of.
+    # Observed as the names that opt out: a map to `false` would read as unexercised.
+    observations["mutation_retry_on_abort"] = sorted(
+        name
+        for name in AUTHORED_MUTATIONS
+        if mutations.get(name, {}).get("retry_on_abort") is False
+    )
 
     # A subscription is asserted whole rather than by presence. Every SDK that shipped one
     # emitted `entity_type`/`nullable`/`operation` against an `IntermediateSubscription`

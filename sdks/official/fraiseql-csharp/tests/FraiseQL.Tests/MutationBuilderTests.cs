@@ -188,4 +188,28 @@ public sealed class MutationBuilderTests : IDisposable
                 .Build());
         Assert.Contains("Operation", ex.Message);
     }
+
+    [Fact]
+    public void TestMutationBuilderRetryOnAbortIsExportedOnlyWhenSet()
+    {
+        MutationBuilder.Mutation("chargeCard")
+            .ReturnType("Charge")
+            .SqlSource("fn_charge_card")
+            .Operation("insert")
+            .RetryOnAbort(false)
+            .Register();
+        MutationBuilder.Mutation("refund")
+            .ReturnType("Charge")
+            .SqlSource("fn_refund")
+            .Operation("insert")
+            .Register();
+
+        var mutations = JsonDocument.Parse(SchemaExporter.Export(pretty: false))
+            .RootElement.GetProperty("mutations");
+        JsonElement Named(string name) =>
+            mutations.EnumerateArray().Single(m => m.GetProperty("name").GetString() == name);
+
+        Assert.Equal(JsonValueKind.False, Named("chargeCard").GetProperty("retry_on_abort").ValueKind);
+        Assert.False(Named("refund").TryGetProperty("retry_on_abort", out _));
+    }
 }

@@ -191,6 +191,7 @@ module CrudGenerator =
                     requires_actor = None
                     invalidates_views = None
                     invalidates_fact_tables = None
+                    retry_on_abort = None
                 }
                 // Update mutation — single input object argument
                 {
@@ -215,6 +216,7 @@ module CrudGenerator =
                     requires_actor = None
                     invalidates_views = None
                     invalidates_fact_tables = None
+                    retry_on_abort = None
                 }
                 // Delete mutation — PK only (unchanged)
                 {
@@ -239,6 +241,7 @@ module CrudGenerator =
                     requires_actor = None
                     invalidates_views = None
                     invalidates_fact_tables = None
+                    retry_on_abort = None
                 }
             ]
 

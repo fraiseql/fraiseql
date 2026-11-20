@@ -537,7 +537,8 @@
       ],
       "invalidates_fact_tables": [
         "tf_sale"
-      ]
+      ],
+      "retry_on_abort": false
     },
     {
       "name": "createSupportTicket",

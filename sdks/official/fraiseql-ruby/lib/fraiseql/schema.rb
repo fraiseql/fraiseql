@@ -341,9 +341,16 @@ module FraiseQL
     # `invalidates_views` and `invalidates_fact_tables` are what connect a write to the
     # cached reads of what it wrote; without them a new row stays invisible for the whole
     # of a reader's TTL.
+    #
+    # `retry_on_abort: false` runs the mutation once even when the server's transaction
+    # retry policy would run an aborted transaction again (#1936): for a function with an
+    # effect outside its transaction (a `dblink` or `pg_background` call, a `nextval`, a
+    # call to another system), which each attempt would repeat. A batch holding it runs
+    # once too. Left out, the mutation follows the server.
     def mutation(name, return_type:, sql_source: nil, operation: nil, returns_list: false,
                  nullable: false, description: nil, requires_role: nil, requires_actor: nil,
-                 inject: nil, invalidates_views: nil, invalidates_fact_tables: nil)
+                 inject: nil, invalidates_views: nil, invalidates_fact_tables: nil,
+                 retry_on_abort: nil)
       builder = ArgumentListBuilder.new
       yield builder if block_given?
 
@@ -363,6 +370,14 @@ module FraiseQL
       definition["inject_params"] = self.class.inject_params(inject) if inject && !inject.empty?
       definition["invalidates_views"] = invalidates_views if invalidates_views
       definition["invalidates_fact_tables"] = invalidates_fact_tables if invalidates_fact_tables
+      unless retry_on_abort.nil?
+        unless [true, false].include?(retry_on_abort)
+          raise ArgumentError,
+                "mutation #{name}: retry_on_abort: must be true or false " \
+                "(got #{retry_on_abort.inspect})"
+        end
+        definition["retry_on_abort"] = retry_on_abort
+      end
 
       @mutations << definition
       definition

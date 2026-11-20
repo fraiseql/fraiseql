@@ -343,6 +343,10 @@ defmodule FraiseQL.MutationDefinition do
     * `:arguments` — list of `FraiseQL.ArgumentDefinition` structs
     * `:description` — optional human-readable description
     * `:cascade` — whether this mutation uses GraphQL cascade; defaults to `false`
+    * `:retry_on_abort` — `false` runs the mutation once even when the server's
+      transaction retry policy would run an aborted transaction again (#1936), for a
+      function with an effect outside its transaction; `nil` (the default) follows the
+      server
   """
 
   @enforce_keys [:name, :return_type, :sql_source, :operation]
@@ -360,7 +364,8 @@ defmodule FraiseQL.MutationDefinition do
     requires_role: nil,
     requires_actor: [],
     invalidates_views: nil,
-    invalidates_fact_tables: nil
+    invalidates_fact_tables: nil,
+    retry_on_abort: nil
   ]
 
   @type t :: %__MODULE__{
@@ -377,7 +382,8 @@ defmodule FraiseQL.MutationDefinition do
           requires_role: String.t() | nil,
           requires_actor: [String.t()],
           invalidates_views: [String.t()] | nil,
-          invalidates_fact_tables: [String.t()] | nil
+          invalidates_fact_tables: [String.t()] | nil,
+          retry_on_abort: boolean() | nil
         }
 end
 

@@ -188,6 +188,7 @@ public class ConformanceExportTest
             .Inject("user_id", "jwt:sub")
             .InvalidatesViews("v_order_summary")
             .InvalidatesFactTables("tf_sale")
+            .RetryOnAbort(false)
             .Register();
 
         // #1329: a function-backed root query field. The query and the function it names

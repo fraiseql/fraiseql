@@ -334,6 +334,7 @@ function authorFull(): void
         ->inject(['user_id' => 'jwt:sub'])
         ->invalidatesViews(['v_order_summary'])
         ->invalidatesFactTables(['tf_sale'])
+        ->retryOnAbort(false)
         ->register();
 
     StaticAPI::subscription('orderUpdated')

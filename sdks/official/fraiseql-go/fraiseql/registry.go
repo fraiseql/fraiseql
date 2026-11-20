@@ -136,8 +136,11 @@ type MutationDefinition struct {
 	Cascade               bool                   `json:"cascade,omitempty"`
 	RequiresRole          string                 `json:"requires_role,omitempty"`
 	RequiresActor         []string               `json:"requires_actor,omitempty"`
-	Deprecation           *DeprecationInfo       `json:"deprecation,omitempty"`
-	Rest                  *RestAnnotation        `json:"rest,omitempty"`
+	// RetryOnAbort is nil unless the author set it: absent, the mutation follows the
+	// server's transaction retry policy.
+	RetryOnAbort *bool            `json:"retry_on_abort,omitempty"`
+	Deprecation  *DeprecationInfo `json:"deprecation,omitempty"`
+	Rest         *RestAnnotation  `json:"rest,omitempty"`
 	// See QueryDefinition.Config — an SDK-internal bag, never serialized.
 	Config map[string]interface{} `json:"-"`
 }

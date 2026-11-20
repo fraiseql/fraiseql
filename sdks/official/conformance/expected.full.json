@@ -330,6 +330,9 @@
   "mutation_requires_role": {
     "createUser": "admin"
   },
+  "mutation_retry_on_abort": [
+    "placeOrder"
+  ],
   "mutations": {
     "createUser": {
       "operation": "Insert",

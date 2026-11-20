@@ -97,6 +97,25 @@ class SchemaTest < Minitest::Test
     assert_match(/input type must not declare sql_source/, error.message)
   end
 
+  def test_retry_on_abort_is_emitted_only_when_given
+    schema = FraiseQL::Schema.new
+    schema.mutation :charge_card, return_type: "Charge", sql_source: "fn_charge_card",
+                                  retry_on_abort: false
+    schema.mutation :refund, return_type: "Charge", sql_source: "fn_refund"
+
+    charge, refund = schema.to_h["mutations"]
+
+    assert_equal false, charge["retry_on_abort"]
+    refute refund.key?("retry_on_abort"), "left out, the mutation follows the server"
+  end
+
+  def test_a_non_boolean_retry_on_abort_is_refused
+    error = assert_raises(ArgumentError) do
+      FraiseQL::Schema.new.mutation :payout, return_type: "Payout", retry_on_abort: "no"
+    end
+    assert_match(/retry_on_abort: must be true or false/, error.message)
+  end
+
   def test_empty_sections_are_omitted_not_null
     schema = FraiseQL::Schema.new
     schema.type("User", sql_source: "v_user") { |t| t.field :id, :id, nullable: false }

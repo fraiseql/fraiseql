@@ -337,6 +337,7 @@ function authorFull(): void {
     inject_params: { user_id: "jwt:sub" },
     invalidates_views: ["v_order_summary"],
     invalidates_fact_tables: ["tf_sale"],
+    retryOnAbort: false,
   });
 
   registerSubscription(

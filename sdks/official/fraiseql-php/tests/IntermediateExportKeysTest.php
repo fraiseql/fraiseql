@@ -385,4 +385,32 @@ final class IntermediateExportKeysTest extends TestCase
 
         self::assertSame('admin', $schema['mutations'][0]['requires_role']);
     }
+
+    public function testMutationRetryOnAbortReachesTheCompilerOnlyWhenSet(): void
+    {
+        StaticAPI::mutation('chargeCard')
+            ->returnType('Charge')
+            ->sqlSource('fn_charge_card')
+            ->operation('insert')
+            ->retryOnAbort(false)
+            ->register();
+        StaticAPI::mutation('refund')
+            ->returnType('Charge')
+            ->sqlSource('fn_refund')
+            ->operation('insert')
+            ->register();
+
+        $mutations = array_column(
+            json_decode(SchemaExporter::export(), true)['mutations'],
+            null,
+            'name',
+        );
+
+        self::assertFalse($mutations['chargeCard']['retry_on_abort']);
+        self::assertArrayNotHasKey(
+            'retry_on_abort',
+            $mutations['refund'],
+            'an unset flag is left out, so the mutation follows the server',
+        );
+    }
 }

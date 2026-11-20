@@ -186,7 +186,8 @@ def author_full
                                 operation: "insert",
                                 inject: { "user_id" => "jwt:sub" },
                                 invalidates_views: %w[v_order_summary],
-                                invalidates_fact_tables: %w[tf_sale]
+                                invalidates_fact_tables: %w[tf_sale],
+                                retry_on_abort: false
 
   # #1329: a function-backed root query field. The query and the function it names are one
   # declaration in two sections — the compiler refuses either alone — so the
