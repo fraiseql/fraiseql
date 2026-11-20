@@ -1644,7 +1644,7 @@ pub(crate) fn bridge_event_for(event: &ObserverEntityEvent) -> Option<BridgeEnti
         operation,
         event.data.clone(),
     )
-    // #2123: a captured write's image is what the trigger stored, which a subscriber's
+    // A captured write's image is what the trigger stored, which a subscriber's
     // plan checks its selection against. Live and replayed events both come through here.
     .with_captured(event.is_captured_write());
 

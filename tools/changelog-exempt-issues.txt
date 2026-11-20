@@ -79,3 +79,4 @@
 #1961  tools and CI: the same fix as #1870, which it duplicates; no shipped artifact changes
 #2114  tests: the observer health test boots holding temp_env's lock with the refused transport variables unset; no shipped artifact changes
 #2128  docs: `ObjectInfo::etag` states which entity tag each source lists and that a backend listing's is not the served one; no behaviour changes
+#2107  tests: the SDK conformance corpus declares observers, one per action kind, and every SDK is compared against them; no shipped artifact changes
