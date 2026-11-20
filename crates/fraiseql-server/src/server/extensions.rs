@@ -198,6 +198,7 @@ impl Server {
         };
 
         info!("Initializing observer runtime");
+        fraiseql_guard::net::proxy::warn_if_proxy_configured();
 
         let runtime_config =
             Self::observer_runtime_config(observer_config, compiled, pool.pool(), deployment)?

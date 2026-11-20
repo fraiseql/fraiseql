@@ -8,8 +8,12 @@ use fraiseql_guard::net::pinned::{Lookup, PinnedResolver};
 use uuid::Uuid;
 use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
 
-use super::{SlackAction, WEBHOOK_SIGNATURE_HEADER, WebhookAction, delivery_client_with};
+use super::{
+    SlackAction, WEBHOOK_SIGNATURE_HEADER, WebhookAction, classify_http_status,
+    delivery_client_with,
+};
 use crate::{
+    error::ObserverError,
     event::{EntityEvent, EventKind},
     insecure_guard::test_override,
 };
@@ -63,7 +67,12 @@ async fn a_webhook_delivery_does_not_follow_a_redirect() {
         )
         .await;
 
-    assert!(delivered.is_err(), "{delivered:?}");
+    assert!(
+        matches!(&delivered, Err(ObserverError::ActionPermanentlyFailed { reason })
+            if reason.contains("307") && reason.contains("do not follow redirects")
+                && !reason.contains("/internal")),
+        "{delivered:?}"
+    );
     assert_eq!(receiver.received_requests().await.unwrap().len(), 1);
     let sent = &receiver.received_requests().await.unwrap()[0];
     assert!(
@@ -87,7 +96,12 @@ async fn a_webhook_delivery_with_a_timeout_does_not_follow_a_redirect() {
         .execute(&format!("{}/hook", receiver.uri()), None, &HashMap::new(), None, None, &event())
         .await;
 
-    assert!(delivered.is_err(), "{delivered:?}");
+    assert!(
+        matches!(&delivered, Err(ObserverError::ActionPermanentlyFailed { reason })
+            if reason.contains("307") && reason.contains("do not follow redirects")
+                && !reason.contains("/internal")),
+        "{delivered:?}"
+    );
     assert!(
         target.received_requests().await.unwrap().is_empty(),
         "the redirect was followed"
@@ -105,7 +119,11 @@ async fn a_slack_delivery_does_not_follow_a_redirect() {
         .execute(&format!("{}/hook", receiver.uri()), Some("#c"), Some("hi"), &event())
         .await;
 
-    assert!(delivered.is_err(), "{delivered:?}");
+    assert!(
+        matches!(&delivered, Err(ObserverError::ActionPermanentlyFailed { reason })
+            if reason.contains("307") && reason.contains("do not follow redirects")),
+        "{delivered:?}"
+    );
     assert_eq!(receiver.received_requests().await.unwrap().len(), 1);
     assert!(
         target.received_requests().await.unwrap().is_empty(),
@@ -187,4 +205,21 @@ async fn a_delivery_does_not_go_through_an_environment_proxy() {
 
     assert_eq!(receiver.received_requests().await.unwrap().len(), 1);
     assert!(proxy.received_requests().await.unwrap().is_empty(), "the proxy was used");
+}
+
+/// Every redirection status is a permanent failure: the receiver answers each retry with
+/// the same redirect, which a delivery does not follow.
+#[test]
+fn a_redirection_status_is_a_permanent_failure() {
+    for code in [300, 301, 302, 303, 307, 308] {
+        let status = reqwest::StatusCode::from_u16(code).unwrap();
+
+        let classified = classify_http_status(status, 1.0);
+
+        assert!(
+            matches!(&classified, Err(ObserverError::ActionPermanentlyFailed { reason })
+                if reason.contains(&code.to_string()) && reason.contains("final URL")),
+            "{code}: {classified:?}"
+        );
+    }
 }

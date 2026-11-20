@@ -2371,14 +2371,15 @@ disagreed, and the promise was the part that was wrong.
   a field error.** Aggregate rows follow the same `Int` rule as every other read.
 
 - **Observer webhook and Slack deliveries, and a function's outbound request, go only to
-  the URL they name.** They follow no redirect: a 3xx is the receiver's answer, so a
-  delivery answered with one fails and is retried like a 5xx, and a function receives
-  the 3xx itself. They connect only to an address the destination check approved on the
-  client's own lookup; before, the check and the connection each looked the name up.
-  They use no proxy from `HTTP_PROXY`, `HTTPS_PROXY` or `ALL_PROXY`: through a proxy the
-  destination is resolved by the proxy. A receiver that moved must be configured at its
-  new URL; a deployment that reaches receivers only through a proxy has no setting for
-  one.
+  the URL they name.** They follow no redirect: a delivery answered with a 3xx fails for
+  good, not retried, with an error naming the status and saying to point the observer at
+  the final URL; a function receives the 3xx itself. They connect only to an address the
+  destination check approved on the client's own lookup; before, the check and the
+  connection each looked the name up. They use no proxy from `HTTP_PROXY`, `HTTPS_PROXY`
+  or `ALL_PROXY` (either case): through a proxy the destination is resolved by the proxy.
+  When one of those is set, the server warns once at boot, as the observer or functions
+  runtime starts, that these deliveries connect directly. A deployment that reaches
+  receivers only through a proxy has no setting for one.
 - **A saga time past year 9999 is unreadable (#2026).** A saga's times hold years -9999 to
   9999, where PostgreSQL's `timestamptz` reaches further. A load of a saga or step whose
   stored time lies past that range returns `SagaStoreError::CorruptStoredValue`; it was

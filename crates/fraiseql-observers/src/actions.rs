@@ -267,6 +267,11 @@ pub(crate) fn classify_http_status(
             success: true,
             duration_ms,
         })
+    } else if status.is_redirection() {
+        // The receiver answers every retry with the same redirect, and it is not followed.
+        Err(ObserverError::ActionPermanentlyFailed {
+            reason: not_following(status, ""),
+        })
     } else if status.is_client_error() && status != reqwest::StatusCode::TOO_MANY_REQUESTS {
         // 4xx (except 429): permanent failure — retrying will not help; route directly to DLQ.
         Err(ObserverError::ActionPermanentlyFailed {
@@ -277,6 +282,26 @@ pub(crate) fn classify_http_status(
         Err(ObserverError::ActionExecutionFailed {
             reason: format!("HTTP {status} response"),
         })
+    }
+}
+
+/// Why a delivery answered with the redirection `status` failed for good.
+fn not_following(status: reqwest::StatusCode, action: &str) -> String {
+    format!(
+        "{action}HTTP {status}: deliveries do not follow redirects; point the observer at the \
+         final URL"
+    )
+}
+
+/// Log, at DEBUG only, where a redirection `response` points: the URL may carry
+/// credentials, so it stays out of WARN and the error.
+fn debug_redirect_target(response: &reqwest::Response, host: &str) {
+    if response.status().is_redirection() {
+        debug!(
+            host,
+            location = ?response.headers().get(reqwest::header::LOCATION),
+            "the receiver answered with a redirect, which deliveries do not follow"
+        );
     }
 }
 
@@ -479,6 +504,7 @@ impl WebhookAction {
             duration_ms = duration_ms,
             "Webhook dispatch complete"
         );
+        debug_redirect_target(&response, &host);
 
         classify_http_status(status, duration_ms)
     }
@@ -729,6 +755,11 @@ impl SlackAction {
                 status_code: status.as_u16(),
                 success: true,
                 duration_ms,
+            })
+        } else if status.is_redirection() {
+            debug_redirect_target(&response, &url_host_only(webhook_url));
+            Err(ObserverError::ActionPermanentlyFailed {
+                reason: not_following(status, "Slack "),
             })
         } else if status.is_client_error() {
             Err(ObserverError::ActionPermanentlyFailed {

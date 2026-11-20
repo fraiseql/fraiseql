@@ -42,6 +42,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 pub mod allowlist;
 #[cfg(feature = "reqwest")]
 pub mod pinned;
+pub mod proxy;
 pub mod resolve;
 pub mod vectors;
 
