@@ -42,6 +42,17 @@ pub(super) fn path_matches_rule(path: &str, prefix: &str) -> bool {
     rest.starts_with('/') || rest.starts_with('?')
 }
 
+/// The first of `rules` that governs `path` under [`path_matches_rule`].
+///
+/// The one lookup both backends enforce with, so they cannot disagree about which rule
+/// covers a path.
+pub(super) fn rule_for_path<'a>(
+    rules: &'a [PathRateLimit],
+    path: &str,
+) -> Option<&'a PathRateLimit> {
+    rules.iter().find(|r| path_matches_rule(path, &r.path_prefix))
+}
+
 /// A per-path rate limit rule, derived from `[security.rate_limiting]` auth endpoint fields.
 #[derive(Debug, Clone)]
 pub(super) struct PathRateLimit {

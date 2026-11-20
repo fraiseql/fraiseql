@@ -6,7 +6,7 @@ use tracing::{debug, warn};
 #[cfg(feature = "redis-rate-limiting")]
 use super::config::{CheckResult, RateLimitConfig, RateLimitingSecurityConfig};
 #[cfg(feature = "redis-rate-limiting")]
-use super::key::{PathRateLimit, path_matches_rule};
+use super::key::{PathRateLimit, rule_for_path};
 
 /// Convert a Redis Lua `retry_after_ms` value to a `Retry-After` header value
 /// in whole seconds.
@@ -141,20 +141,6 @@ impl RedisRateLimiter {
     /// Number of per-path rate limit rules registered.
     pub(super) const fn path_rule_count(&self) -> usize {
         self.path_rules.len()
-    }
-
-    /// Seconds a client should wait before retrying after a per-path rate limit rejection.
-    pub(super) fn retry_after_for_path(&self, path: &str) -> u32 {
-        if let Some(rule) =
-            self.path_rules.iter().find(|r| path.starts_with(r.path_prefix.as_str()))
-        {
-            if rule.tokens_per_sec > 0.0 {
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                // Reason: ceil(1/tokens_per_sec) is always a small positive integer
-                return ((1.0_f64 / rule.tokens_per_sec).ceil() as u32).max(1);
-            }
-        }
-        1
     }
 
     /// Load the Lua script into Redis and cache its SHA for subsequent calls.
@@ -294,7 +280,7 @@ impl RedisRateLimiter {
         // Not gated on `config.enabled`: that switch is the global per-IP and
         // per-user limit. The path rules are the auth endpoints' own, and an empty rule
         // table is how they are switched off.
-        let rule = self.path_rules.iter().find(|r| path_matches_rule(path, &r.path_prefix));
+        let rule = rule_for_path(&self.path_rules, path);
         let Some(rule) = rule else {
             return CheckResult::allow(f64::from(self.config.burst_size));
         };

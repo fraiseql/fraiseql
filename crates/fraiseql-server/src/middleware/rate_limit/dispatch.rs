@@ -87,19 +87,6 @@ impl RateLimiter {
         }
     }
 
-    /// Seconds a client should wait before retrying after a per-path rate limit rejection.
-    ///
-    /// Returns the window duration for the matching path rule (e.g. 60s for an
-    /// auth/start rule with 5 req/60s), not the IP token-bucket interval.
-    #[must_use]
-    pub fn retry_after_for_path(&self, path: &str) -> u32 {
-        match self {
-            Self::InMemory(rl) => rl.retry_after_for_path(path),
-            #[cfg(feature = "redis-rate-limiting")]
-            Self::Redis(rl) => rl.retry_after_for_path(path),
-        }
-    }
-
     /// Check whether a request from `ip` is within the global IP rate limit.
     ///
     /// The `tenant_id` parameter was removed in #1143. It was taken raw from an

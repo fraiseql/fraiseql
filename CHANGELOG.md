@@ -18,6 +18,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`RateLimiter::retry_after_for_path` is removed (#1911).** Nothing in the server
+  called it: the `Retry-After` a rejected request carries comes from the rate-limit check
+  itself. Its Redis implementation also matched a path to its rule differently from the
+  check (below). A caller that used it takes the interval from `check_path_limit`'s result.
 - **A declared webhook takes a credential header's value from the environment (#2040).**
   The compiler refuses a declared webhook whose `headers` writes the value of a header
   whose name contains `authorization`, `api-key`, `cookie`, `password`, `secret` or
@@ -603,6 +607,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The two rate-limit backends match a path to its rule in one place (#1911).** Redis's
+  `retry_after_for_path` matched by plain prefix, so `/auth/startover` was given
+  `/auth/start`'s interval; that method is removed (above). Both backends' per-path checks
+  now find the rule through one function: the prefix itself, or the prefix followed by `/`
+  or `?`. Which requests are limited was already the same on both, and a Redis test now
+  pins that `/auth/startover` does not share `/auth/start`'s bucket.
 - **The default `fraiseql-server` build serves SCIM, the RBAC API and tenant admin
   tokens (#2098, #1978).** The binary opened its PostgreSQL pool for those capabilities
   only in builds with the `observers` feature. The default build and image (`auth`,

@@ -7,7 +7,7 @@ use tracing::debug;
 
 use super::{
     config::{CheckResult, RateLimitConfig, RateLimitingSecurityConfig},
-    key::{PathRateLimit, path_matches_rule},
+    key::{PathRateLimit, rule_for_path},
     token_bucket::TokenBucket,
 };
 
@@ -128,7 +128,7 @@ impl InMemoryRateLimiter {
         // per-user limit. The path rules are the auth endpoints' own, and an empty rule
         // table is how they are switched off.
 
-        let rule = self.path_rules.iter().find(|r| path_matches_rule(path, &r.path_prefix));
+        let rule = rule_for_path(&self.path_rules, path);
         let Some(rule) = rule else {
             return CheckResult::allow(f64::from(self.config.burst_size));
         };
@@ -403,22 +403,5 @@ impl InMemoryRateLimiter {
     /// Number of per-path rate limit rules registered.
     pub(super) const fn path_rule_count(&self) -> usize {
         self.path_rules.len()
-    }
-
-    /// Seconds a client should wait before retrying after a per-path rate limit rejection.
-    ///
-    /// Returns `ceil(1 / tokens_per_sec)` for the rule matching `path`, or 1 if no rule
-    /// matches (which shouldn't happen in practice — callers only invoke this after a
-    /// rejection).
-    pub(super) fn retry_after_for_path(&self, path: &str) -> u32 {
-        if let Some(rule) = self.path_rules.iter().find(|r| path_matches_rule(path, &r.path_prefix))
-        {
-            if rule.tokens_per_sec > 0.0 {
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                // Reason: ceil(1/tokens_per_sec) is always a small positive integer
-                return ((1.0_f64 / rule.tokens_per_sec).ceil() as u32).max(1);
-            }
-        }
-        1
     }
 }

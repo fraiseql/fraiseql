@@ -819,33 +819,24 @@ fn test_rate_limit_exceeded_response_uses_config_retry_after() {
 }
 
 #[test]
-fn test_retry_after_for_path_uses_path_window() {
+fn test_rule_for_path_governs_the_prefix_and_its_subpaths_only() {
+    use super::key::{PathRateLimit, rule_for_path};
     let sec = RateLimitingSecurityConfig {
-        enabled: true,
-        requests_per_second: 100,
-        burst_size: 200,
         auth_start_max_requests: 5,
         auth_start_window_secs: 60,
         ..Default::default()
     };
-    let config = RateLimitConfig::from_security_config(&sec);
-    let limiter = RateLimiter::new(config).with_path_rules_from_security(&sec);
-    assert_eq!(limiter.retry_after_for_path("/auth/start"), 12);
-}
-
-#[test]
-fn test_retry_after_for_path_unknown_path_returns_one() {
-    let sec = RateLimitingSecurityConfig {
-        enabled: true,
-        requests_per_second: 100,
-        burst_size: 200,
-        auth_start_max_requests: 5,
-        auth_start_window_secs: 60,
-        ..Default::default()
-    };
-    let config = RateLimitConfig::from_security_config(&sec);
-    let limiter = RateLimiter::new(config).with_path_rules_from_security(&sec);
-    assert_eq!(limiter.retry_after_for_path("/graphql"), 1);
+    let rules = PathRateLimit::rules_from_security(&sec);
+    for path in ["/auth/start", "/auth/start/x", "/auth/start?a=1"] {
+        assert_eq!(
+            rule_for_path(&rules, path).map(|r| r.path_prefix.as_str()),
+            Some("/auth/start"),
+            "{path}"
+        );
+    }
+    for path in ["/auth/startover", "/auth/start-session", "/graphql"] {
+        assert!(rule_for_path(&rules, path).is_none(), "{path} is governed by no rule");
+    }
 }
 
 #[test]
@@ -1042,6 +1033,38 @@ async fn cleanup_evicts_a_stale_tenant_bucket() {
         tenant_bucket_count(&limiter),
         0,
         "cleanup must evict a stale tenant bucket, not only IP and user buckets"
+    );
+}
+
+/// On the Redis backend: a path that only begins with a rule's prefix does not share that
+/// rule's bucket, as on the in-memory backend.
+#[cfg(feature = "redis-rate-limiting")]
+#[tokio::test]
+#[ignore = "requires Redis — set REDIS_URL=redis://localhost:6379"]
+async fn test_redis_path_rule_does_not_govern_a_longer_sibling_path() {
+    let url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
+    let sec = RateLimitingSecurityConfig {
+        auth_start_max_requests: 1,
+        auth_start_window_secs: 60,
+        ..RateLimitingSecurityConfig::default()
+    };
+    let rl = RateLimiter::new_redis(&url, RateLimitConfig::from_security_config(&sec))
+        .await
+        .expect("Redis connection failed")
+        .with_path_rules_from_security(&sec);
+    let ip = format!("test_sibling_path:{}", uuid::Uuid::new_v4());
+    assert!(rl.check_path_limit("/auth/start", &ip).await.allowed);
+    assert!(
+        !rl.check_path_limit("/auth/start", &ip).await.allowed,
+        "past the /auth/start budget"
+    );
+    assert!(
+        rl.check_path_limit("/auth/startover", &ip).await.allowed,
+        "/auth/startover must not share the /auth/start bucket"
+    );
+    assert!(
+        !rl.check_path_limit("/auth/start/extra", &ip).await.allowed,
+        "/auth/start/extra is under the /auth/start rule"
     );
 }
 
