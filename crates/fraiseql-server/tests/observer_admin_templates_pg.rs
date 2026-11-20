@@ -70,6 +70,22 @@ struct Rig {
 }
 
 async fn rig() -> Rig {
+    rig_over(schema()).await
+}
+
+/// `schema()` with `Order` captured from `tb_order`, a table of plain columns: a captured
+/// change is stored as the table's row, which holds no embedded `customer`.
+fn row_captured() -> CompiledSchema {
+    let mut schema = schema();
+    schema.subscribable.push(fraiseql_core::schema::SubscribableEntity {
+        entity_type: "Order".to_string(),
+        tables:      vec!["tb_order".to_string()],
+        pre_image:   false,
+    });
+    schema
+}
+
+async fn rig_over(schema: CompiledSchema) -> Rig {
     let svc = fraiseql_test_support::postgres()
         .await
         .expect("DATABASE_URL must be set (or enable fraiseql-test-support/local-testcontainers)");
@@ -81,7 +97,7 @@ async fn rig() -> Rig {
         .unwrap();
 
     let adapter = Arc::new(PostgresAdapter::new(svc.url()).await.unwrap());
-    let executor = Arc::new(ArcSwap::from_pointee(Executor::read_only(schema(), adapter)));
+    let executor = Arc::new(ArcSwap::from_pointee(Executor::read_only(schema, adapter)));
     let operator = AuthUser(AuthenticatedUser {
         user_id:      fraiseql_core::types::UserId::new("admin-user"),
         scopes:       vec!["fraiseql:admin".to_owned()],
@@ -269,4 +285,129 @@ async fn update_accepts_a_template_whose_paths_exist() {
         .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(rig.stored_template(id).await, ORDER_ONLY);
+}
+
+/// What the server logged while a test ran, as text.
+#[derive(Clone, Default)]
+struct Logged(Arc<std::sync::Mutex<Vec<u8>>>);
+
+impl std::io::Write for Logged {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Logged {
+    type Writer = Self;
+
+    fn make_writer(&'a self) -> Self {
+        self.clone()
+    }
+}
+
+impl Logged {
+    /// Capture this thread's log from here until the guard is dropped.
+    fn start() -> (Self, tracing::subscriber::DefaultGuard) {
+        let logged = Self::default();
+        let subscriber = tracing_subscriber::fmt()
+            .with_writer(logged.clone())
+            .with_ansi(false)
+            .with_max_level(tracing::Level::WARN)
+            .finish();
+        (logged, fraiseql_test_support::tracing_capture::set_default(subscriber))
+    }
+
+    fn text(&self) -> String {
+        String::from_utf8_lossy(&self.0.lock().unwrap()).into_owned()
+    }
+
+    /// How many warnings of a template a captured row cannot fill were logged for `path`.
+    fn warnings_of(&self, path: &str) -> usize {
+        let placeholder = format!("`{{{{ {path} }}}}`");
+        self.text()
+            .lines()
+            .filter(|line| line.contains("WARN") && line.contains(&placeholder))
+            .filter(|line| line.contains("`tb_order`"))
+            .count()
+    }
+}
+
+/// #2031: a table of plain columns is captured as its row. A template reading the embedded
+/// customer is stored, since a mutation's event fills it, and the server logs what a
+/// captured event will not. The response is the observer, as for any create.
+#[tokio::test]
+async fn create_stores_and_logs_a_template_a_captured_row_cannot_fill() {
+    let rig = rig_over(row_captured()).await;
+    let (logged, _guard) = Logged::start();
+
+    let (status, body) = rig.create("Order", VALID).await;
+
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    assert_eq!(logged.warnings_of("customer.email"), 1, "{}", logged.text());
+    assert_eq!(logged.warnings_of("id"), 0, "a column carries a scalar: {}", logged.text());
+}
+
+#[tokio::test]
+async fn create_logs_nothing_where_no_table_is_captured_as_its_row() {
+    let rig = rig().await;
+    let (logged, _guard) = Logged::start();
+
+    let (status, body) = rig.create("Order", VALID).await;
+
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    assert_eq!(logged.warnings_of("customer.email"), 0, "{}", logged.text());
+}
+
+/// A column the captured row holds and the document does not is refused as before.
+#[tokio::test]
+async fn create_still_refuses_a_column_only_the_captured_row_holds() {
+    let rig = rig_over(row_captured()).await;
+    let (status, body) = rig.create("Order", r#"{"c": "{{ fk_customer }}"}"#).await;
+    assert_refused_naming(status, &body, "fk_customer");
+}
+
+/// An update is read as the observer it leaves, as it is checked.
+#[tokio::test]
+async fn update_logs_a_template_a_captured_row_cannot_fill() {
+    let rig = rig_over(row_captured()).await;
+    let (_, created) = rig.create("Order", ORDER_ONLY).await;
+    let id = created["id"].as_str().unwrap();
+    let (logged, _guard) = Logged::start();
+
+    let (status, body) = rig
+        .call(
+            Method::PATCH,
+            &format!("/api/observers/{id}"),
+            json!({ "actions": [webhook(VALID)] }),
+        )
+        .await;
+
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(logged.warnings_of("customer.email"), 1, "{}", logged.text());
+}
+
+/// A refused update logs no such warning: nothing was stored.
+#[tokio::test]
+async fn a_refused_update_logs_no_captured_row_warning() {
+    let rig = rig_over(row_captured()).await;
+    let (_, created) = rig.create("Order", ORDER_ONLY).await;
+    let id = created["id"].as_str().unwrap();
+    let (logged, _guard) = Logged::start();
+
+    let template = r#"{"to": "{{ customer.email }}", "x": "{{ nope }}"}"#;
+    let (status, body) = rig
+        .call(
+            Method::PATCH,
+            &format!("/api/observers/{id}"),
+            json!({ "actions": [webhook(template)] }),
+        )
+        .await;
+
+    assert_refused_naming(status, &body, "nope");
+    assert_eq!(logged.warnings_of("customer.email"), 0, "{}", logged.text());
 }

@@ -12,6 +12,7 @@ use fraiseql_core::schema::{CompiledSchema, ObserverDefinition, RetryConfig};
 use fraiseql_observers::{
     ActionConfig, ConditionParser, body_template_placeholders, is_secret_header_name,
 };
+use tracing::warn;
 
 use crate::schema::intermediate::IntermediateObserver;
 
@@ -56,6 +57,9 @@ fn compile_one(
         check_action(action, &observer.entity, schema)
             .with_context(|| format!("observer `{name}`, action {index}"))?;
     }
+    for message in captured_row_warnings(observer, schema) {
+        warn!(observer = name, "{message}");
+    }
     let retry = serde_json::to_value(&observer.retry)
         .with_context(|| format!("observer `{name}`: `retry` does not serialize"))?;
     serde_json::from_value::<fraiseql_observers::RetryConfig>(retry).map_err(|e| {
@@ -75,6 +79,31 @@ fn compile_one(
             max_delay_ms:     observer.retry.max_delay_ms,
         },
     })
+}
+
+/// What the compile says of a declared observer it accepts: each webhook `body_template`
+/// placeholder a captured row of the entity cannot fill
+/// ([`CompiledSchema::captured_row_warning`]).
+///
+/// Values, apart from their emission, so the rule can be asserted.
+pub(super) fn captured_row_warnings(
+    observer: &IntermediateObserver,
+    schema: &CompiledSchema,
+) -> Vec<String> {
+    let Some(entity) = schema.find_type(&observer.entity) else {
+        return Vec::new();
+    };
+    observer
+        .actions
+        .iter()
+        .filter_map(|action| ActionConfig::from_authored(action).ok())
+        .filter_map(|action| match action {
+            ActionConfig::Webhook { body_template, .. } => body_template,
+            _ => None,
+        })
+        .flat_map(|template| body_template_placeholders(&template))
+        .filter_map(|path| schema.captured_row_warning(entity, &path))
+        .collect()
 }
 
 /// Refuse an action the runtime would not run as written.

@@ -399,6 +399,17 @@ disagreed, and the promise was the part that was wrong.
   (compared case-insensitively). The observer admin API accepts and shows it. The
   TypeScript `webhook()` options, the Go `Webhook` options and Java's
   `Webhook.headerFromEnv` write it.
+- **A webhook template a captured row cannot fill is warned of (#2031).** A type whose
+  table is captured as its row (in `subscribable_tables`, with no
+  `[subscriptions.capture.<table>]` entry) stores two images: the entity a mutation
+  returns, and the table's row for a write made outside a mutation. A `body_template`
+  placeholder that reads a field the type embeds, such as `{{ customer.name }}`, is
+  filled from the first and dead-lettered for the second. `fraiseql compile` now prints
+  a warning naming the observer, the placeholder, the type and the table for a declared
+  observer, and the server logs the same warning when the observer admin API stores one.
+  The template is accepted as before, and the admin API's response does not carry the
+  warning. Nothing is said of a scalar field: the compiled schema does not hold a
+  table's columns.
 - **A refused configuration names its code, file, table and key (#2034).** Under `--json`
   the error carries `diagnostic`: `code` (`E-CONFIG-RETIRED`, `E-CONFIG-UNREAD`,
   `E-CONFIG-UNAPPLIED`, `E-CONFIG-MISPLACED`, `E-CONFIG-DISAGREES`), `file`, `table`,

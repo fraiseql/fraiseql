@@ -88,6 +88,40 @@ pub(super) fn reject_unfillable_templates(
     })
 }
 
+/// What to log of an observer the admin API accepts: each webhook `body_template`
+/// placeholder a captured row of the entity cannot fill
+/// ([`CompiledSchema::captured_row_warning`], the text the compiler prints for a declared
+/// observer). The response does not carry it.
+pub(super) fn captured_row_warnings(
+    schema: &CompiledSchema,
+    entity_type: Option<&str>,
+    actions: &[ActionConfig],
+) -> Vec<String> {
+    let Some(entity) = entity_type.and_then(|name| schema.find_type(name)) else {
+        return Vec::new();
+    };
+    actions
+        .iter()
+        .filter_map(|action| match action {
+            ActionConfig::Webhook { body_template, .. } => body_template.as_deref(),
+            _ => None,
+        })
+        .flat_map(fraiseql_observers::body_template_placeholders)
+        .filter_map(|path| schema.captured_row_warning(entity, &path))
+        .collect()
+}
+
+/// Log [`captured_row_warnings`] for an observer about to be stored.
+fn warn_captured_row_templates(
+    schema: &CompiledSchema,
+    entity_type: Option<&str>,
+    actions: &[ActionConfig],
+) {
+    for message in captured_row_warnings(schema, entity_type, actions) {
+        tracing::warn!(entity_type, "{message}");
+    }
+}
+
 /// Application state for observer handlers.
 #[derive(Clone)]
 pub struct ObserverState {
@@ -274,6 +308,11 @@ pub async fn create_observer(
     ) {
         return resp;
     }
+    warn_captured_row_templates(
+        state.executor.load().schema(),
+        request.entity_type.as_deref(),
+        &request.actions,
+    );
 
     let created_by = security_context.as_ref().map(|ctx| ctx.user_id.as_str());
 
@@ -350,7 +389,12 @@ async fn check_updated_templates(
             .and_then(|o| serde_json::from_value::<Vec<ActionConfig>>(o.actions).ok())
             .unwrap_or_default(),
     };
-    reject_unfillable_templates(state.executor.load().schema(), entity_type.as_deref(), &actions)
+    let executor = state.executor.load();
+    let refused = reject_unfillable_templates(executor.schema(), entity_type.as_deref(), &actions);
+    if refused.is_none() {
+        warn_captured_row_templates(executor.schema(), entity_type.as_deref(), &actions);
+    }
+    refused
 }
 
 /// Delete an observer the caller owns (soft delete).

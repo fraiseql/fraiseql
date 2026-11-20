@@ -612,7 +612,10 @@ mod template_paths {
     use axum::http::StatusCode;
     use fraiseql_core::schema::{CompiledSchema, FieldDefinition, FieldType, TypeDefinition};
 
-    use super::super::{ActionConfig, handlers::reject_unfillable_templates};
+    use super::super::{
+        ActionConfig,
+        handlers::{captured_row_warnings, reject_unfillable_templates},
+    };
 
     /// `Order { id, total, reviewStatus, tags: [String], meta: JSON, customer: Customer }`,
     /// `Customer { email, billingEmail, address: Address }`, `Address { city }`.
@@ -746,6 +749,62 @@ mod template_paths {
             webhook(r#"{"x": "{{ nope }}"}"#),
         ];
         assert!(reject_unfillable_templates(&schema(), Some("Order"), &actions).is_some());
+    }
+
+    /// `schema()` with `Order` captured from `tb_order`, a table of plain columns.
+    fn row_captured() -> CompiledSchema {
+        let mut schema = schema();
+        schema.subscribable.push(fraiseql_core::schema::SubscribableEntity {
+            entity_type: "Order".to_string(),
+            tables:      vec!["tb_order".to_string()],
+            pre_image:   false,
+        });
+        schema
+    }
+
+    /// A captured row of a plain-column table holds no embedded field. The template is
+    /// stored, since a mutation's event fills it, and the log says what a captured one
+    /// will not.
+    #[test]
+    fn a_template_a_captured_row_cannot_fill_is_accepted_and_warned_of() {
+        let actions = [webhook(
+            r#"{"e": "{{ customer.email }}", "id": "{{ id }}"}"#,
+        )];
+
+        assert!(reject_unfillable_templates(&row_captured(), Some("Order"), &actions).is_none());
+        let said = captured_row_warnings(&row_captured(), Some("Order"), &actions);
+
+        assert_eq!(said.len(), 1, "one placeholder reads an embedded field: {said:?}");
+        assert!(said[0].contains("`{{ customer.email }}`"), "{said:?}");
+        assert!(said[0].contains("`tb_order`"), "names the table: {said:?}");
+    }
+
+    /// A column the row holds and the document does not is still refused: no mutation's
+    /// event would fill it.
+    #[test]
+    fn a_column_only_the_captured_row_holds_is_still_refused() {
+        let actions = [webhook(r#"{"c": "{{ fk_customer }}"}"#)];
+
+        assert!(reject_unfillable_templates(&row_captured(), Some("Order"), &actions).is_some());
+    }
+
+    #[test]
+    fn nothing_is_said_where_no_table_is_captured_as_its_row() {
+        let actions = [webhook(r#"{"e": "{{ customer.email }}"}"#)];
+
+        assert_eq!(captured_row_warnings(&schema(), Some("Order"), &actions), Vec::<String>::new());
+        assert_eq!(captured_row_warnings(&row_captured(), None, &actions), Vec::<String>::new());
+    }
+
+    /// Every webhook of the observer is read, not only the first.
+    #[test]
+    fn a_later_webhook_is_warned_of() {
+        let actions = [
+            webhook(r#"{"id": "{{ id }}"}"#),
+            webhook(r#"{"e": "{{ customer.address.city }}"}"#),
+        ];
+
+        assert_eq!(captured_row_warnings(&row_captured(), Some("Order"), &actions).len(), 1);
     }
 }
 

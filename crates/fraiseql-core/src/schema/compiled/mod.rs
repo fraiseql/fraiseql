@@ -29,6 +29,8 @@ pub mod validation;
 #[cfg(test)]
 mod default_literal_tests;
 #[cfg(test)]
+mod document_path_tests;
+#[cfg(test)]
 mod embedded_scope_tests;
 #[cfg(test)]
 mod enriched_fields_read_tests;

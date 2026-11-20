@@ -170,7 +170,14 @@ Two limits:
 - **A table of plain columns is captured as its row.** Fields the type's view computes or
   embeds (a nested object, a renamed column) are not in it, and internal columns
   (`pk_*`, `fk_*`) are. A template or condition written for a mutation's document can
-  name a key such a captured row does not hold.
+  name a key such a captured row does not hold. For a webhook `body_template` that reads
+  a field the type embeds (`{{ customer.name }}`), `fraiseql compile` prints a warning
+  for a declared observer, and the server logs the same warning when the observer admin
+  API stores one; the template is accepted either way, since a mutation's event fills
+  it, and the admin API's response does not carry the warning. Nothing is said of a
+  scalar field: the compiled schema does not hold the table's columns. A template that
+  names an internal column (`{{ fk_customer }}`) is refused, as before: no mutation's
+  event would fill it.
 - **Arrow Flight Upload is not an event of a type.** It records the inserted row under
   the *table's* name as `object_type`, so it matches no observer or subscription of a
   GraphQL type, and it is not changed by this declaration.

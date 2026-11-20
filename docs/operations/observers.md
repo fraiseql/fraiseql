@@ -95,7 +95,10 @@ when the runtime could not run it as written:
   named in both `headers` and `headers_env` (header names compare case-insensitively).
 - A webhook `body_template` names a field the entity does not hold. A placeholder names a
   field by the key the stored document holds it under: `{{ review_status }}` for a field
-  published as `reviewStatus`.
+  published as `reviewStatus`. A placeholder that reads a field the type embeds
+  (`{{ customer.name }}`) compiles with a warning when a table of the type is captured
+  as its row: see
+  [External-write capture](../architecture/external-write-capture.md#a-table-that-keeps-its-entity-document).
 - The `condition` does not parse, or `retry` is not a policy the runtime reads.
 - `fraiseql.toml` writes no `[project] name`. The name is the owner the observers are
   stored under (see below), so a schema that declares one needs it.

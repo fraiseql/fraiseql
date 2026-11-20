@@ -63,4 +63,43 @@ impl CompiledSchema {
         }
         Ok(())
     }
+
+    /// What to tell the author of a `body_template` whose `path` a captured row of
+    /// `entity` cannot fill, though its document can.
+    ///
+    /// A type's change is stored as its document by a mutation and, for a table with no
+    /// `[subscriptions.capture]` entry, as the table's row by the capture trigger. The row
+    /// holds columns: a field the type embeds (an object, an interface, a union, or a list
+    /// of one) is in the document and not in the row. `None` when the path starts at no
+    /// such field, or when no table of the type is captured as its row.
+    ///
+    /// The schema does not hold a table's columns, so this says nothing of a scalar field:
+    /// a column usually carries its stored key.
+    #[must_use]
+    pub fn captured_row_warning(&self, entity: &TypeDefinition, path: &str) -> Option<String> {
+        let first = path.split('.').next()?;
+        let field = entity.fields.iter().find(|f| f.stored_key() == first)?;
+        if !embeds(&field.field_type) {
+            return None;
+        }
+        let table = self.row_captured_table(entity.name.as_str())?;
+        Some(format!(
+            "`body_template` placeholder `{{{{ {path} }}}}` reads `{first}`, which `{}` \
+             embeds. The table `{table}` has no `[subscriptions.capture.{table}]` entry, so \
+             a write to it made outside a mutation is stored as the table's row, which holds \
+             no embedded field: that event would be dead-lettered at delivery. A mutation's \
+             event fills the placeholder.",
+            entity.name
+        ))
+    }
+}
+
+/// Whether a field of this type is built by the type's read from another relation, and so
+/// is no column of the type's table.
+fn embeds(field_type: &FieldType) -> bool {
+    match field_type {
+        FieldType::Object(_) | FieldType::Interface(_) | FieldType::Union(_) => true,
+        FieldType::List { item, .. } => embeds(item),
+        _ => false,
+    }
 }

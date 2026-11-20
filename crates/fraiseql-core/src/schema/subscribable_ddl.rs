@@ -134,6 +134,17 @@ impl CompiledSchema {
         violations
     }
 
+    /// A table of `entity_type` the capture trigger stores as its row: one the type
+    /// declares in `subscribable_tables` with no `[subscriptions.capture.<table>]` entry.
+    pub(crate) fn row_captured_table(&self, entity_type: &str) -> Option<&str> {
+        self.subscribable
+            .iter()
+            .filter(|entity| entity.entity_type == entity_type)
+            .flat_map(|entity| entity.tables.iter())
+            .find(|table| self.capture_entries().all(|(declared, _)| declared != *table))
+            .map(String::as_str)
+    }
+
     /// The declared capture entries, by table.
     fn capture_entries(&self) -> impl Iterator<Item = (&String, &CaptureTableConfig)> {
         self.subscriptions_config.iter().flat_map(|config| config.capture.iter())

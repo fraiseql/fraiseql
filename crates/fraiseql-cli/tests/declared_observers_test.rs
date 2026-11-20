@@ -317,3 +317,78 @@ fn a_headers_env_entry_that_is_not_a_header_name_is_refused() {
     assert!(refusal.contains("Bad Header:"), "names the header: {refusal}");
     assert!(refusal.contains("headers_env"), "names the key: {refusal}");
 }
+
+/// What `fraiseql compile` printed for `schema` beside `toml`, and whether it compiled.
+fn compile_output(schema: &Value, toml: &str) -> (bool, String) {
+    let dir = tempfile::TempDir::new().unwrap();
+    std::fs::write(dir.path().join("schema.json"), schema.to_string()).unwrap();
+    std::fs::write(
+        dir.path().join("fraiseql.toml"),
+        format!("{toml}\n[project]\nname = \"app\"\n"),
+    )
+    .unwrap();
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+        .args(["compile", "schema.json", "--output", "schema.compiled.json"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    let printed = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    (out.status.success(), printed)
+}
+
+/// `Order` captured from `tb_order`, observed by a webhook whose body reads the embedded
+/// customer.
+fn captured_order_reading_the_customer() -> Value {
+    let action = json!({"type": "webhook", "url": "https://example.test/hook",
+        "body_template": "{\"s\": {{ review_status }}, \"e\": {{ customer.email }}}"});
+    let mut schema = schema_declaring(&observing_with(&action));
+    schema["types"][1]["subscribable_tables"] = json!(["tb_order"]);
+    schema
+}
+
+/// A table of plain columns is captured as its row, which holds no embedded field. The
+/// template compiles, since a mutation's event fills it, and the compile says what a
+/// captured event will not.
+#[test]
+fn a_template_a_captured_row_cannot_fill_compiles_with_a_warning() {
+    let (compiled, printed) = compile_output(&captured_order_reading_the_customer(), "");
+
+    assert!(compiled, "{printed}");
+    for part in [
+        "order_created",
+        "{{ customer.email }}",
+        "`Order`",
+        "`tb_order`",
+    ] {
+        assert!(printed.contains(part), "the warning names {part}: {printed}");
+    }
+    assert!(!printed.contains("{{ review_status }}"), "a column carries a scalar: {printed}");
+}
+
+/// Declared to keep its document, the table is captured as a mutation stores it.
+#[test]
+fn a_table_declared_to_keep_its_document_compiles_without_the_warning() {
+    let (compiled, printed) = compile_output(
+        &captured_order_reading_the_customer(),
+        "[subscriptions.capture.tb_order]\ndocument_column = \"data\"\n",
+    );
+
+    assert!(compiled, "{printed}");
+    assert!(!printed.contains("{{ customer.email }}"), "{printed}");
+}
+
+/// A column the row holds and the document does not is still refused.
+#[test]
+fn a_column_only_the_captured_row_holds_is_still_refused_at_compile() {
+    let mut schema = captured_order_reading_the_customer();
+    schema["observers"][0]["actions"][0]["body_template"] = json!("{\"c\": {{ fk_customer }}}");
+
+    let (compiled, printed) = compile_output(&schema, "");
+
+    assert!(!compiled, "{printed}");
+    assert!(printed.contains("{{ fk_customer }}"), "{printed}");
+}

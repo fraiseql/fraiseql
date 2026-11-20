@@ -701,6 +701,12 @@ enum Ticket {
     /// The same table and trigger, written by a mutation through the executor, whose
     /// outbox stores the entity the function returns.
     Mutated,
+    /// A table of plain columns whose type embeds a customer: `review_status` and the
+    /// internal `fk_customer`, written from outside and captured as its row.
+    CapturedCustomerColumns,
+    /// The same table and trigger, written by a mutation whose function returns the
+    /// entity as the type's read builds it, the customer embedded.
+    MutatedCustomerColumns,
 }
 
 /// One ticket whose `review_status` is `in_review`, written as `ticket` says and observed
@@ -729,6 +735,9 @@ async fn deliver_ticket(
     let table = format!("public.tb_ticket_{test_id}");
     let (columns, trigger_args) = match ticket {
         Ticket::CapturedColumns => ("review_status TEXT NOT NULL", "'id', ''"),
+        Ticket::CapturedCustomerColumns | Ticket::MutatedCustomerColumns => {
+            ("review_status TEXT NOT NULL, fk_customer BIGINT NOT NULL", "'id', ''")
+        },
         Ticket::CapturedDocument | Ticket::Mutated => {
             ("data JSONB NOT NULL", "'id', '', 'false', 'data'")
         },
@@ -770,7 +779,13 @@ async fn deliver_ticket(
             let row = format!("{table} (data) VALUES ('{{\"review_status\": \"in_review\"}}')");
             insert_ticket(&pool, &row).await
         },
-        Ticket::Mutated => create_ticket_by_mutation(&pool, &entity_type, &table, &test_id).await,
+        Ticket::CapturedCustomerColumns => {
+            let row = format!("{table} (review_status, fk_customer) VALUES ('in_review', 7)");
+            insert_ticket(&pool, &row).await
+        },
+        Ticket::Mutated | Ticket::MutatedCustomerColumns => {
+            create_ticket_by_mutation(&pool, ticket, &entity_type, &table, &test_id).await
+        },
     };
 
     // The log row is written after the dispatch returns, whichever way it went.
@@ -816,15 +831,30 @@ async fn insert_ticket(pool: &sqlx::PgPool, row: &str) -> String {
 }
 
 /// Write one ticket through a mutation of `entity_type`, executed by the engine: its
-/// function stores the document in `table` and returns it as the entity.
+/// function stores the document in `table` and returns it as the entity. For a table of
+/// plain columns it stores the columns and returns the entity with its customer embedded.
 async fn create_ticket_by_mutation(
     pool: &sqlx::PgPool,
+    ticket: Ticket,
     entity_type: &str,
     table: &str,
     test_id: &str,
 ) -> String {
     use fraiseql_core::{db::postgres::PostgresAdapter, runtime::Executor};
 
+    let (stored, entity) = match ticket {
+        Ticket::MutatedCustomerColumns => (
+            "(id, review_status, fk_customer) VALUES (v_id, p_status, 7)".to_string(),
+            "jsonb_build_object('id', v_id, 'review_status', p_status, \
+             'customer', jsonb_build_object('name', 'Ada'))"
+                .to_string(),
+        ),
+        _ => (
+            "(id, data) VALUES (v_id, jsonb_build_object('id', v_id, 'review_status', p_status))"
+                .to_string(),
+            format!("(SELECT data FROM {table} WHERE id = v_id)"),
+        ),
+    };
     sqlx::raw_sql(&format!(
         "CREATE SCHEMA IF NOT EXISTS app;
          DO $$ BEGIN CREATE TYPE app.mutation_error_class AS ENUM ('validation','conflict',
@@ -840,11 +870,10 @@ async fn create_ticket_by_mutation(
          RETURNS app.mutation_response LANGUAGE plpgsql AS $$
          DECLARE v_id uuid := gen_random_uuid(); v_response app.mutation_response;
          BEGIN
-             INSERT INTO {table} (id, data)
-             VALUES (v_id, jsonb_build_object('id', v_id, 'review_status', p_status));
+             INSERT INTO {table} {stored};
              v_response.succeeded := true; v_response.state_changed := true;
              v_response.entity_type := '{entity_type}'; v_response.entity_id := v_id;
-             v_response.entity := (SELECT data FROM {table} WHERE id = v_id);
+             v_response.entity := {entity};
              RETURN v_response;
          END; $$"
     ))
@@ -950,6 +979,55 @@ async fn a_webhook_template_reaching_into_the_document_column_is_not_delivered()
     let error = attempts[0].1.as_deref().unwrap_or_default();
     assert_eq!(attempts[0].0, "failed");
     assert!(error.contains("`{{ data.review_status }}`"), "names the placeholder: {error}");
+}
+
+/// What one delivery came to: the bodies received, or the error of its one failed attempt.
+fn outcome(
+    (delivered, attempts, _): (
+        Vec<serde_json::Value>,
+        Vec<(String, Option<String>)>,
+        Option<String>,
+    ),
+) -> Result<Vec<serde_json::Value>, String> {
+    if delivered.is_empty() {
+        assert_eq!(attempts.len(), 1, "one attempt: {attempts:?}");
+        assert_eq!(attempts[0].0, "failed", "{attempts:?}");
+        Err(attempts[0].1.clone().unwrap_or_default())
+    } else {
+        Ok(delivered)
+    }
+}
+
+/// #2031: a table of plain columns is written by a mutation and from outside, and the two
+/// changes are stored as different images: the entity, its customer embedded, and the
+/// table's row. A template reading the embedded customer is filled from the first and not
+/// from the second. The compiler and the admin API accept it and warn of the second.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn an_embedded_field_is_filled_from_a_mutation_and_not_from_a_captured_row() {
+    let template = r#"{"customer": "{{ customer.name }}"}"#;
+
+    let mutated = outcome(deliver_ticket(Ticket::MutatedCustomerColumns, template).await);
+    assert_eq!(mutated, Ok(vec![serde_json::json!({ "customer": "Ada" })]));
+
+    let captured = outcome(deliver_ticket(Ticket::CapturedCustomerColumns, template).await);
+    let error = captured.expect_err("a captured row holds no customer");
+    assert!(error.contains("`{{ customer.name }}`"), "names the placeholder: {error}");
+}
+
+/// The converse: an internal column is in the captured row and in no entity a mutation
+/// returns. This is the template the compiler and the admin API refuse.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn an_internal_column_is_filled_from_a_captured_row_and_not_from_a_mutation() {
+    let template = r#"{"customer": {{ fk_customer }}}"#;
+
+    let captured = outcome(deliver_ticket(Ticket::CapturedCustomerColumns, template).await);
+    assert_eq!(captured, Ok(vec![serde_json::json!({ "customer": 7 })]));
+
+    let mutated = outcome(deliver_ticket(Ticket::MutatedCustomerColumns, template).await);
+    let error = mutated.expect_err("the entity a mutation returns holds no fk_customer");
+    assert!(error.contains("`{{ fk_customer }}`"), "names the placeholder: {error}");
 }
 
 // ---------------------------------------------------------------------------
