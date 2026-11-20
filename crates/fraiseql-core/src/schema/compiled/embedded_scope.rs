@@ -40,6 +40,38 @@ use indexmap::IndexMap;
 use super::{CompiledSchema, QueryDefinition, type_inject::describe_source};
 use crate::schema::{FieldDefinition, FieldType, InjectedParamSource, TypeDefinition};
 
+/// The most routes recorded from one served document; `compile --database` samples each.
+pub const SCOPED_ROUTE_CAP: usize = 64;
+
+/// One route from a served document down to a field that declares `scoped_like_parent`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScopedEmbeddingRoute<'a> {
+    /// The type that holds the field.
+    pub owner:    &'a str,
+    /// The declaring field.
+    pub field:    &'a str,
+    /// The scoped type it holds.
+    pub embedded: &'a str,
+    /// Field names from the served document down to `field`, which is last.
+    pub path:     Vec<&'a str>,
+    /// The scope columns of the embedded type's read, each read off the embedded documents
+    /// as its `snake_case` key.
+    pub columns:  Vec<&'a str>,
+}
+
+/// Every route from one served document to a field that declares `scoped_like_parent`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScopedEmbeddingRoot<'a> {
+    /// The served type.
+    pub root:      &'a str,
+    /// The queries that read its documents from a relation; their rows hold the routes.
+    pub reads:     Vec<&'a QueryDefinition>,
+    /// The routes, at most [`SCOPED_ROUTE_CAP`].
+    pub routes:    Vec<ScopedEmbeddingRoute<'a>>,
+    /// Routes beyond the cap, not recorded.
+    pub unchecked: usize,
+}
+
 /// One field holding one scoped type, and the served documents that reach it.
 struct Embedding<'a> {
     field:    &'a FieldDefinition,
@@ -112,6 +144,71 @@ impl CompiledSchema {
             }
         }
         violations
+    }
+
+    /// Every route from a served document to a field that declares `scoped_like_parent`,
+    /// per served document: what `compile --database` samples to check that the embedded
+    /// documents carry the scope key, and carry the holding row's value of it.
+    ///
+    /// Unlike [`embedded_scope_violations`](Self::embedded_scope_violations), which needs
+    /// each field once, a type reached by two routes is walked along both: its documents sit
+    /// at two places in the served one. A type is not entered twice on one route, and past
+    /// [`SCOPED_ROUTE_CAP`] routes from one document the rest are counted, not recorded.
+    #[must_use]
+    pub fn scoped_embedding_routes(&self) -> Vec<ScopedEmbeddingRoot<'_>> {
+        self.types
+            .iter()
+            .filter(|t| self.is_served(t.name.as_str()))
+            .filter_map(|root| {
+                let mut found = ScopedEmbeddingRoot {
+                    root:      root.name.as_str(),
+                    reads:     self.reads_of(root.name.as_str()),
+                    routes:    Vec::new(),
+                    unchecked: 0,
+                };
+                let mut on_route = vec![root.name.as_str()];
+                self.walk_routes(root, &mut on_route, &mut Vec::new(), &mut found);
+                (!found.routes.is_empty() || found.unchecked > 0).then_some(found)
+            })
+            .collect()
+    }
+
+    fn walk_routes<'a>(
+        &'a self,
+        holder: &'a TypeDefinition,
+        on_route: &mut Vec<&'a str>,
+        path: &mut Vec<&'a str>,
+        found: &mut ScopedEmbeddingRoot<'a>,
+    ) {
+        for field in &holder.fields {
+            path.push(field.name.as_str());
+            if field.scoped_like_parent {
+                for (embedded, read) in self.scoped_targets(&field.field_type) {
+                    if found.routes.len() < SCOPED_ROUTE_CAP {
+                        found.routes.push(ScopedEmbeddingRoute {
+                            owner: holder.name.as_str(),
+                            field: field.name.as_str(),
+                            embedded,
+                            path: path.clone(),
+                            columns: read.inject_params.keys().map(String::as_str).collect(),
+                        });
+                    } else {
+                        found.unchecked += 1;
+                    }
+                }
+            }
+            for name in self.object_types_of(&field.field_type) {
+                if on_route.contains(&name) {
+                    continue;
+                }
+                if let Some(beneath) = self.find_type(name) {
+                    on_route.push(beneath.name.as_str());
+                    self.walk_routes(beneath, on_route, path, found);
+                    on_route.pop();
+                }
+            }
+            path.pop();
+        }
     }
 
     /// Whether the server reads `type_name` directly, as a document of its own.

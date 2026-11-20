@@ -52,6 +52,7 @@ pub use auth_email::{
 };
 pub use directive::{DirectiveDefinition, DirectiveLocationKind};
 pub use document_path::{ConditionRead, UnfillablePath};
+pub use embedded_scope::{SCOPED_ROUTE_CAP, ScopedEmbeddingRoot, ScopedEmbeddingRoute};
 pub use fact_table_links::fact_field;
 pub use fact_table_roots::is_fact_table_root;
 pub use fact_table_scope::{FactInjectOrigin, FactInjectScope};

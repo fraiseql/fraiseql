@@ -368,6 +368,51 @@ impl DatabaseIntrospector for PostgresIntrospector {
         Ok(Some((count(0), count(1))))
     }
 
+    async fn sample_documents(
+        &self,
+        relation: &str,
+        json_column: &str,
+        columns: &[&str],
+        limit: usize,
+    ) -> Result<Option<Vec<(serde_json::Value, Vec<serde_json::Value>)>>> {
+        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+        let quote = |ident: &str| format!("\"{}\"", ident.replace('"', "\"\""));
+        let table = relation.split('.').map(quote).collect::<Vec<_>>().join(".");
+        let values = std::iter::once(format!("{}::jsonb", quote(json_column)))
+            .chain(columns.iter().map(|c| format!("to_jsonb({})", quote(c))))
+            .collect::<Vec<_>>()
+            .join(", ");
+        // One JSON array per row, read as text: the document first, then each column.
+        let query = format!("SELECT jsonb_build_array({values})::text FROM {table} LIMIT {limit}");
+        let rows = client.query(&query, &[]).await.map_err(|e| {
+            crate::postgres::database_error(
+                format!("Failed to sample documents: {}", pg_detail(&e)),
+                &e,
+            )
+        })?;
+        let mut sampled = Vec::with_capacity(rows.len());
+        for row in rows {
+            let text: String = row.get(0);
+            let serde_json::Value::Array(mut values) =
+                serde_json::from_str(&text).map_err(|e| FraiseQLError::Internal {
+                    message: format!("Failed to read a sampled row: {e}"),
+                    source:  None,
+                })?
+            else {
+                continue;
+            };
+            let document = if values.is_empty() {
+                serde_json::Value::Null
+            } else {
+                values.remove(0)
+            };
+            sampled.push((document, values));
+        }
+        Ok(Some(sampled))
+    }
+
     async fn function_exists(&self, schema: Option<&str>, name: &str) -> Result<Option<bool>> {
         let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
             message: format!("Failed to acquire connection: {e}"),

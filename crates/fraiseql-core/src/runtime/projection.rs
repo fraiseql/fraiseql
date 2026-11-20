@@ -70,7 +70,7 @@ pub struct FieldMapping {
 ///
 /// **The single definition of the rule**, shared by the two Rust projectors:
 /// [`FieldMapping`]'s constructors resolve it once per query, and
-/// [`lookup_source`] resolves it per lookup for the selection-driven
+/// `lookup_source` resolves it per lookup for the selection-driven
 /// [`project_entity`]. Before #1271 they were two implementations and only one
 /// of them was right — the mapper read the declared name verbatim, so a
 /// `camelCase` field over a `snake_case` view was silently absent from a 200.
@@ -80,6 +80,7 @@ pub struct FieldMapping {
 /// the `camelCase` spelling second, for stored rows built with the surface
 /// casing. A single-word name yields the same string twice, so it has no
 /// fallback.
+#[must_use]
 pub fn stored_key_candidates(field_name: &str) -> (String, Option<String>) {
     let snake = to_snake_case(field_name);
     let camel = to_camel_case(field_name);

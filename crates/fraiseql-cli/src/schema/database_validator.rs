@@ -282,6 +282,77 @@ pub enum DatabaseWarning {
         /// Rows whose column and key differ.
         disagreeing: u64,
     },
+    /// A field declares `scoped_like_parent`, and documents embedded at it in sampled rows
+    /// of a served document's view lack the scope key, or hold it as `null`. The
+    /// nested level is filtered on that key, so it is refused or empty on every request.
+    EmbeddedScopeKeyMissing {
+        /// The read whose view was sampled.
+        query_name: String,
+        /// Its `sql_source` relation.
+        sql_source: String,
+        /// The type holding the declaring field, and the field.
+        owner:      String,
+        /// The declaring field.
+        field:      String,
+        /// The scoped type it holds.
+        embedded:   String,
+        /// Field names from the served document down to the field, joined by `.`.
+        route:      String,
+        /// The document key the nested level is filtered on.
+        key:        String,
+        /// Embedded documents found at the route in the sampled rows.
+        documents:  u64,
+        /// Those without the key.
+        missing:    u64,
+    },
+    /// A field declares `scoped_like_parent`, and documents embedded at it in sampled rows
+    /// hold another scope key than their holding row. The row is filtered on its own
+    /// value at the root and each embedded document on its key, so they fall out of their
+    /// own parent.
+    EmbeddedScopeKeyDisagreement {
+        /// The read whose view was sampled.
+        query_name:     String,
+        /// Its `sql_source` relation.
+        sql_source:     String,
+        /// The type holding the declaring field.
+        owner:          String,
+        /// The declaring field.
+        field:          String,
+        /// The scoped type it holds.
+        embedded:       String,
+        /// Field names from the served document down to the field, joined by `.`.
+        route:          String,
+        /// The embedded documents' key.
+        key:            String,
+        /// Where the holding row's value is read: a native column of the view.
+        holding_native: bool,
+        /// The holding row's column, or its document key of the same name.
+        holding_column: String,
+        /// Embedded documents found at the route in rows that hold a value.
+        documents:      u64,
+        /// Those whose key differs from the holding row's value.
+        disagreeing:    u64,
+    },
+    /// The view of a served document that embeds a `scoped_like_parent` field holds no rows,
+    /// so its embedded scope keys were not checked.
+    EmbeddedScopeEmptyRelation {
+        /// The read whose view was sampled.
+        query_name: String,
+        /// Its `sql_source` relation.
+        sql_source: String,
+        /// The served type.
+        root:       String,
+    },
+    /// A served document reaches fields declaring `scoped_like_parent` by more routes than
+    /// are sampled.
+    EmbeddedScopeRoutesUnchecked {
+        /// The served type.
+        root:      String,
+        /// Routes sampled.
+        checked:   usize,
+        /// Routes not sampled.
+        unchecked: usize,
+    },
 }
 
 /// What would let an index serve a temporal field read out of a document
@@ -379,7 +450,9 @@ impl DatabaseWarning {
             | Self::MissingPaginationColumn { .. }
             | Self::MissingIdentityColumn { .. }
             | Self::TypeConvertibility { .. }
-            | Self::NativeKeyDisagreement { .. } => Severity::Error,
+            | Self::NativeKeyDisagreement { .. }
+            | Self::EmbeddedScopeKeyMissing { .. }
+            | Self::EmbeddedScopeKeyDisagreement { .. } => Severity::Error,
             // Evidence of absence fails the compile; an empty relation proves nothing.
             Self::UnresolvableFilter { reason, .. } => match reason {
                 InjectMiss::NoJsonColumn | InjectMiss::NotInSampledRows { .. } => Severity::Error,
@@ -396,7 +469,9 @@ impl DatabaseWarning {
             | Self::NativeColumnFallback { .. }
             | Self::SelfOrderingView { .. }
             | Self::TemporalKeyInDocument { .. }
-            | Self::TviewIndexMissing { .. } => Severity::Warn,
+            | Self::TviewIndexMissing { .. }
+            | Self::EmbeddedScopeEmptyRelation { .. }
+            | Self::EmbeddedScopeRoutesUnchecked { .. } => Severity::Warn,
         }
     }
 }
@@ -646,6 +721,77 @@ impl fmt::Display for DatabaseWarning {
                      column (`jsonb_build_object('{column}', {column}, …)`)."
                 )
             },
+            Self::EmbeddedScopeKeyMissing {
+                query_name,
+                sql_source,
+                owner,
+                field,
+                embedded,
+                route,
+                key,
+                documents,
+                missing,
+            } => {
+                write!(
+                    f,
+                    "query `{query_name}`: `{owner}.{field}` declares `scoped_like_parent`, and \
+                     {missing} of {documents} `{embedded}` documents embedded at `{route}` in \
+                     sampled `{sql_source}` rows do not carry the key `{key}` the nested level \
+                     is filtered on, so that level is refused or empty on every request. Build \
+                     the embedded object with `{key}`."
+                )
+            },
+            Self::EmbeddedScopeKeyDisagreement {
+                query_name,
+                sql_source,
+                owner,
+                field,
+                embedded,
+                route,
+                key,
+                holding_native,
+                holding_column,
+                documents,
+                disagreeing,
+            } => {
+                let holding = if *holding_native {
+                    format!("column `{holding_column}`")
+                } else {
+                    format!("document key `{holding_column}`")
+                };
+                write!(
+                    f,
+                    "query `{query_name}`: `{owner}.{field}` declares `scoped_like_parent`, and \
+                     {disagreeing} of {documents} `{embedded}` documents embedded at `{route}` \
+                     in sampled `{sql_source}` rows hold another `{key}` than their row's \
+                     {holding}. The row is filtered on its {holding} and each embedded document \
+                     on its key `{key}`, compared as JSON (`\"5\"` is not `5`), so those \
+                     documents are filtered out of their own parent. Build the embedded key \
+                     from the row's {holding}."
+                )
+            },
+            Self::EmbeddedScopeEmptyRelation {
+                query_name,
+                sql_source,
+                root,
+            } => {
+                write!(
+                    f,
+                    "query `{query_name}`: `{sql_source}` holds no rows, so the scope keys of the \
+                     documents `{root}` embeds under `scoped_like_parent` fields were not checked"
+                )
+            },
+            Self::EmbeddedScopeRoutesUnchecked {
+                root,
+                checked,
+                unchecked,
+            } => {
+                write!(
+                    f,
+                    "`{root}` reaches fields declaring `scoped_like_parent` by more routes than \
+                     are sampled: {checked} checked, {unchecked} not checked"
+                )
+            },
             Self::TviewIndexMissing {
                 query_name,
                 tview,
@@ -829,6 +975,18 @@ pub async fn validate_schema_against_database(
     let mut pagination_orders: HashMap<String, PaginationOrder> = HashMap::new();
     let db_type = introspector.database_type();
 
+    // Each served document that embeds a `scoped_like_parent` field is sampled once
+    // per view, through the first read of it below.
+    let scoped_roots = schema.scoped_embedding_routes();
+    for root in scoped_roots.iter().filter(|r| r.unchecked > 0) {
+        warnings.push(DatabaseWarning::EmbeddedScopeRoutesUnchecked {
+            root:      root.root.to_string(),
+            checked:   root.routes.len(),
+            unchecked: root.unchecked,
+        });
+    }
+    let mut sampled_roots: HashSet<(&str, String)> = HashSet::new();
+
     // L1: Build relation lookup maps
     let relations = introspector.list_relations().await?;
     let (schema_qualified, unqualified) = build_relation_maps(&relations);
@@ -992,6 +1150,21 @@ pub async fn validate_schema_against_database(
                     &mut warnings,
                 )
                 .await?;
+                for root in &scoped_roots {
+                    if root.reads.iter().any(|read| read.name == query.name)
+                        && sampled_roots.insert((root.root, source.clone()))
+                    {
+                        check_embedded_scope_keys(
+                            root,
+                            query,
+                            source,
+                            &column_map,
+                            introspector,
+                            &mut warnings,
+                        )
+                        .await?;
+                    }
+                }
             }
 
             // An inject key or argument with no column falls back to `data->>'key'` at
@@ -1549,6 +1722,18 @@ impl DatabaseIntrospector for AnyIntrospector {
         }
     }
 
+    async fn sample_documents(
+        &self,
+        relation: &str,
+        json_column: &str,
+        columns: &[&str],
+        limit: usize,
+    ) -> fraiseql_core::Result<Option<Vec<(serde_json::Value, Vec<serde_json::Value>)>>> {
+        match self {
+            Self::Postgres(i) => i.sample_documents(relation, json_column, columns, limit).await,
+        }
+    }
+
     async fn function_exists(
         &self,
         schema: Option<&str>,
@@ -1753,6 +1938,162 @@ async fn check_native_keys_agree(
         }
     }
     Ok(())
+}
+
+/// Sample `source`, a view of `root`'s documents, and report each `scoped_like_parent` route
+/// whose embedded documents lack the scope key or hold another value than their row.
+///
+/// The nested level is filtered as the runtime filters it: on the key `to_snake_case(column)`
+/// of each embedded document, compared as JSON with the caller's value. The holding row is
+/// filtered at the root on its native column when the view has one, otherwise on its own
+/// document's key; a row with no value there is served to nobody and is skipped.
+async fn check_embedded_scope_keys(
+    root: &fraiseql_core::schema::ScopedEmbeddingRoot<'_>,
+    query: &fraiseql_core::schema::QueryDefinition,
+    source: &str,
+    column_map: &HashMap<String, String>,
+    introspector: &impl DatabaseIntrospector,
+    warnings: &mut Vec<DatabaseWarning>,
+) -> fraiseql_core::Result<()> {
+    let mut native: Vec<&str> = Vec::new();
+    for route in &root.routes {
+        for column in &route.columns {
+            if column_map.contains_key(*column) && !native.contains(column) {
+                native.push(column);
+            }
+        }
+    }
+    let Some(rows) = introspector
+        .sample_documents(source, &query.jsonb_column, &native, AGREEMENT_SAMPLE_ROWS)
+        .await?
+    else {
+        return Ok(());
+    };
+    if rows.is_empty() {
+        warnings.push(DatabaseWarning::EmbeddedScopeEmptyRelation {
+            query_name: query.name.clone(),
+            sql_source: source.to_string(),
+            root:       root.root.to_string(),
+        });
+        return Ok(());
+    }
+
+    for route in &root.routes {
+        for column in &route.columns {
+            let key = fraiseql_core::utils::to_snake_case(column);
+            let position = native.iter().position(|n| n == column);
+            let tally =
+                tally_embedded_keys(
+                    &rows,
+                    &route.path,
+                    &key,
+                    |(document, values)| match position {
+                        Some(at) => values.get(at),
+                        None => document.get(&key),
+                    },
+                );
+            let route_name = route.path.join(".");
+            if tally.missing > 0 {
+                warnings.push(DatabaseWarning::EmbeddedScopeKeyMissing {
+                    query_name: query.name.clone(),
+                    sql_source: source.to_string(),
+                    owner:      route.owner.to_string(),
+                    field:      route.field.to_string(),
+                    embedded:   route.embedded.to_string(),
+                    route:      route_name.clone(),
+                    key:        key.clone(),
+                    documents:  tally.documents,
+                    missing:    tally.missing,
+                });
+            }
+            if tally.disagreeing > 0 {
+                warnings.push(DatabaseWarning::EmbeddedScopeKeyDisagreement {
+                    query_name:     query.name.clone(),
+                    sql_source:     source.to_string(),
+                    owner:          route.owner.to_string(),
+                    field:          route.field.to_string(),
+                    embedded:       route.embedded.to_string(),
+                    route:          route_name,
+                    key:            key.clone(),
+                    holding_native: position.is_some(),
+                    holding_column: if position.is_some() {
+                        (*column).to_string()
+                    } else {
+                        key.clone()
+                    },
+                    documents:      tally.documents,
+                    disagreeing:    tally.disagreeing,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+/// What the documents embedded at one route hold against their rows.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct EmbeddedKeyTally {
+    /// Embedded documents found in rows that hold a value.
+    documents:   u64,
+    /// Those without `key`, or with `key` `null`: `null` meets nothing at run time.
+    missing:     u64,
+    /// Those whose `key` is another JSON value than the row's.
+    disagreeing: u64,
+}
+
+/// Count, over `rows`, the documents embedded at `path` whose `key` is missing or differs
+/// from the holding row's value, which `holding` reads off a row. A row without a value is
+/// served to nobody and is skipped.
+fn tally_embedded_keys<'r>(
+    rows: &'r [(serde_json::Value, Vec<serde_json::Value>)],
+    path: &[&str],
+    key: &str,
+    holding: impl Fn(&'r (serde_json::Value, Vec<serde_json::Value>)) -> Option<&'r serde_json::Value>,
+) -> EmbeddedKeyTally {
+    let mut tally = EmbeddedKeyTally::default();
+    for row in rows {
+        let Some(expected) = holding(row).filter(|v| !v.is_null()) else {
+            continue;
+        };
+        for embedded in embedded_documents(&row.0, path) {
+            tally.documents += 1;
+            match embedded.get(key) {
+                None | Some(serde_json::Value::Null) => tally.missing += 1,
+                Some(actual) if actual != expected => tally.disagreeing += 1,
+                Some(_) => {},
+            }
+        }
+    }
+    tally
+}
+
+/// The objects at `path` in `document`: each step read under the field's stored key
+/// (`snake_case`, then `camelCase`) as the runtime reads an embedded level, through a list
+/// at any step.
+fn embedded_documents<'d>(
+    document: &'d serde_json::Value,
+    path: &[&str],
+) -> Vec<&'d serde_json::Value> {
+    let mut level = vec![document];
+    for step in path {
+        let (stored, fallback) = fraiseql_core::runtime::stored_key_candidates(step);
+        level = level
+            .into_iter()
+            .flat_map(|at| match at {
+                serde_json::Value::Array(items) => items.iter().collect(),
+                other => vec![other],
+            })
+            .filter_map(|at| at.get(&stored).or_else(|| fallback.as_ref().and_then(|f| at.get(f))))
+            .collect();
+    }
+    level
+        .into_iter()
+        .flat_map(|at| match at {
+            serde_json::Value::Array(items) => items.iter().collect(),
+            other => vec![other],
+        })
+        .filter(|at| at.is_object())
+        .collect()
 }
 
 /// Rows sampled to check a native column against its document key (#1579).

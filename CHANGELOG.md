@@ -551,6 +551,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`compile --database` checks the documents a `scoped_like_parent` field embeds (#2006).**
+  The declaration was checked against the schema only. Now each view a query reads the
+  holding document from is sampled, and the compile fails when a document embedded at the
+  field lacks the scope key, holds it as `null`, or holds another value than its row's
+  column (compared as JSON, as the nested level is filtered when it is read). Each place the
+  document holds the field is checked, up to 64 per document; the rest, and an empty view,
+  are warnings. Findings name the type, field, key, column and counts, never a sampled
+  value.
 - **A mutation can opt out of transaction retry (#1936).** `retry_on_abort = false` on a
   mutation (`@fraiseql.mutation(retry_on_abort=False)` in Python, `retryOnAbort: false` in
   TypeScript, or `retry_on_abort = false` in a `fraiseql.toml` `[mutations.*]` table) makes

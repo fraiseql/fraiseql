@@ -319,3 +319,150 @@ mod tview_index_advice_tests {
         assert_eq!(options(3), json!({ "fillfactor": 70, "indexes": [["region"], ["name"]] }));
     }
 }
+
+/// The documents a `scoped_like_parent` route embeds, read as the runtime reads them.
+mod embedded_scope_key_tests {
+    use serde_json::{Value, json};
+
+    use super::super::{
+        DatabaseWarning, EmbeddedKeyTally, embedded_documents, tally_embedded_keys,
+    };
+
+    type Row = (Value, Vec<Value>);
+
+    /// Rows whose holding value is their document's `tenant_id`.
+    fn tally(rows: &[Row], path: &[&str]) -> EmbeddedKeyTally {
+        tally_embedded_keys(rows, path, "tenant_id", |(document, _)| document.get("tenant_id"))
+    }
+
+    fn row(document: Value) -> Row {
+        (document, Vec::new())
+    }
+
+    #[test]
+    fn a_route_is_followed_through_an_object_and_a_list() {
+        let document = json!({
+            "billing": { "lines": [{ "id": 1 }, { "id": 2 }] },
+            "shipping": { "lines": [] },
+        });
+        assert_eq!(embedded_documents(&document, &["billing", "lines"]).len(), 2);
+        assert!(embedded_documents(&document, &["shipping", "lines"]).is_empty());
+    }
+
+    #[test]
+    fn a_list_in_the_middle_of_a_route_is_walked_item_by_item() {
+        let document = json!({
+            "parcels": [
+                { "line": { "id": 1 } },
+                { "line": { "id": 2 } },
+                { "line": null },
+            ],
+        });
+        assert_eq!(embedded_documents(&document, &["parcels", "line"]).len(), 2);
+    }
+
+    /// The level is read under the snake_case key first, the camelCase one second.
+    #[test]
+    fn a_step_falls_back_to_the_camel_case_key() {
+        let camel = json!({ "orderLines": [{ "id": 1 }] });
+        let both =
+            json!({ "order_lines": [{ "id": 1 }], "orderLines": [{ "id": 2 }, { "id": 3 }] });
+        assert_eq!(embedded_documents(&camel, &["orderLines"]).len(), 1);
+        assert_eq!(embedded_documents(&both, &["orderLines"]).len(), 1);
+    }
+
+    #[test]
+    fn a_missing_or_null_key_is_missing() {
+        let rows = [row(json!({
+            "tenant_id": "t1",
+            "lines": [{ "id": 1 }, { "id": 2, "tenant_id": null }, { "id": 3, "tenant_id": "t1" }],
+        }))];
+        assert_eq!(
+            tally(&rows, &["lines"]),
+            EmbeddedKeyTally {
+                documents:   3,
+                missing:     2,
+                disagreeing: 0,
+            }
+        );
+    }
+
+    /// The runtime compares JSON values: a string never meets a number.
+    #[test]
+    fn a_key_of_another_json_type_disagrees() {
+        let rows = [row(json!({
+            "tenant_id": 5,
+            "lines": [{ "tenant_id": "5" }, { "tenant_id": 6 }, { "tenant_id": 5 }],
+        }))];
+        assert_eq!(
+            tally(&rows, &["lines"]),
+            EmbeddedKeyTally {
+                documents:   3,
+                missing:     0,
+                disagreeing: 2,
+            }
+        );
+    }
+
+    /// A row with no scope value is served to nobody: what it embeds is not counted.
+    #[test]
+    fn a_row_without_a_value_is_skipped() {
+        let rows = [row(json!({ "lines": [{ "id": 1 }] }))];
+        assert_eq!(tally(&rows, &["lines"]), EmbeddedKeyTally::default());
+    }
+
+    /// A native column holding SQL `NULL` arrives as JSON `null`: that row too is served
+    /// to nobody.
+    #[test]
+    fn a_row_whose_native_column_is_null_is_skipped() {
+        let rows = [(json!({ "lines": [{ "id": 1 }] }), vec![Value::Null])];
+        let tally =
+            tally_embedded_keys(&rows, &["lines"], "tenant_id", |(_, values)| values.first());
+        assert_eq!(tally, EmbeddedKeyTally::default());
+    }
+
+    /// The holding value is read where the caller says: here a native column.
+    #[test]
+    fn the_holding_value_is_read_from_the_native_column() {
+        let rows = [(json!({ "lines": [{ "tenant_id": "t1" }] }), vec![json!("t2")])];
+        let tally =
+            tally_embedded_keys(&rows, &["lines"], "tenant_id", |(_, values)| values.first());
+        assert_eq!(
+            tally,
+            EmbeddedKeyTally {
+                documents:   1,
+                missing:     0,
+                disagreeing: 1,
+            }
+        );
+    }
+
+    /// `compile --database` output lands in CI logs: it names columns and counts, never a
+    /// sampled value.
+    #[test]
+    fn a_finding_names_columns_and_counts_not_values() {
+        let disagreement = DatabaseWarning::EmbeddedScopeKeyDisagreement {
+            query_name:     "orders".into(),
+            sql_source:     "v_order".into(),
+            owner:          "Order".into(),
+            field:          "lines".into(),
+            embedded:       "OrderLine".into(),
+            route:          "lines".into(),
+            key:            "tenant_id".into(),
+            holding_native: true,
+            holding_column: "tenant_id".into(),
+            documents:      3,
+            disagreeing:    2,
+        }
+        .to_string();
+        for needle in [
+            "Order.lines",
+            "OrderLine",
+            "`tenant_id`",
+            "column `tenant_id`",
+            "2 of 3",
+        ] {
+            assert!(disagreement.contains(needle), "names {needle}: {disagreement}");
+        }
+    }
+}

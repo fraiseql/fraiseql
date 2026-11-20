@@ -396,3 +396,98 @@ fn a_type_a_subscription_streams_is_a_document_too() {
 
     assert!(message.contains("Order.lines"), "{message}");
 }
+
+// ── the routes `compile --database` samples ──────────────────────────────────
+
+fn loaded(schema: &Value) -> CompiledSchema {
+    CompiledSchema::from_json(&schema.to_string(), false).unwrap()
+}
+
+/// `Order` reaches `Address` by two fields, and `Address` declares its scoped `lines`:
+/// one type, two places in every `Order` document.
+fn two_routes_to_one_type(lines_field: Value) -> Value {
+    let (line, lines) = scoped_line();
+    let address = value_object("Address", vec![lines_field]);
+    let order = stored(
+        "Order",
+        vec![
+            field("billing", object("Address")),
+            field("shipping", object("Address")),
+        ],
+    );
+    schema(vec![order, address, line], vec![list_query("orders", "Order", tenant()), lines])
+}
+
+#[test]
+fn a_type_reached_by_two_routes_is_sampled_along_both() {
+    let schema = loaded(&two_routes_to_one_type(declared("lines", list_of(object("OrderLine")))));
+    let roots = schema.scoped_embedding_routes();
+
+    let [order] = roots.as_slice() else {
+        panic!("one served document: {roots:#?}")
+    };
+    assert_eq!(order.root, "Order");
+    assert_eq!(order.reads.iter().map(|q| q.name.as_str()).collect::<Vec<_>>(), ["orders"]);
+    let paths: Vec<_> = order.routes.iter().map(|r| r.path.clone()).collect();
+    assert_eq!(paths, [vec!["billing", "lines"], vec!["shipping", "lines"]]);
+    for route in &order.routes {
+        assert_eq!((route.owner, route.field, route.embedded), ("Address", "lines", "OrderLine"));
+        assert_eq!(route.columns, ["tenant_id"]);
+    }
+    assert_eq!(order.unchecked, 0);
+}
+
+/// Walking every route is for the data check only: the rule refused at load names the
+/// field once, as it did when one route was walked.
+#[test]
+fn the_load_time_rule_names_a_field_reached_by_two_routes_once() {
+    let message = refusal(&two_routes_to_one_type(field("lines", list_of(object("OrderLine")))));
+
+    assert_eq!(
+        message,
+        "Validation error: a scoped type is embedded in a served document:\n  - \
+         `Address.lines` embeds `OrderLine`, whose read `orderLines` \
+         is scoped by `tenant_id`: every reader of the document that holds it would be served \
+         those rows. Read them through a query of their own, or declare `scoped_like_parent` \
+         on the field when the document is scoped by the same key"
+    );
+}
+
+/// A type that holds its holder back is walked once per route, not around the loop: the
+/// route records the field that closes the loop, and stops there.
+#[test]
+fn a_route_does_not_enter_a_type_twice() {
+    let (_, lines) = scoped_line();
+    let line = stored("OrderLine", vec![declared("order", object("Order"))]);
+    let order = stored("Order", vec![declared("lines", list_of(object("OrderLine")))]);
+    let schema =
+        loaded(&schema(vec![order, line], vec![list_query("orders", "Order", tenant()), lines]));
+
+    let order = schema
+        .scoped_embedding_routes()
+        .into_iter()
+        .find(|r| r.root == "Order")
+        .unwrap();
+    let paths: Vec<_> = order.routes.iter().map(|r| r.path.clone()).collect();
+    assert_eq!(paths, [vec!["lines"], vec!["lines", "order"]]);
+}
+
+#[test]
+fn routes_past_the_cap_are_counted_not_recorded() {
+    let (line, lines) = scoped_line();
+    let extra = 6;
+    let fields = (0..super::embedded_scope::SCOPED_ROUTE_CAP + extra)
+        .map(|n| declared(&format!("lines{n}"), list_of(object("OrderLine"))))
+        .collect();
+    let order = stored("Order", fields);
+    let schema =
+        loaded(&schema(vec![order, line], vec![list_query("orders", "Order", tenant()), lines]));
+
+    let order = schema
+        .scoped_embedding_routes()
+        .into_iter()
+        .find(|r| r.root == "Order")
+        .unwrap();
+    assert_eq!(order.routes.len(), super::embedded_scope::SCOPED_ROUTE_CAP);
+    assert_eq!(order.unchecked, extra);
+}
