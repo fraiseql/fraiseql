@@ -126,8 +126,8 @@ disagreed, and the promise was the part that was wrong.
   and the kind of the stored value, never the value; this applies to the `Int` refusal
   above and to an enum's. REST has no field error to give: it serves a `String` field
   holding another kind as its JSON text, where a fraction is written as read
-  (`1.50` → `"1.5"`) and an object without the database's spacing, and serves `Int`,
-  `Float` and `Boolean` fields as stored.
+  (`1.50` → `"1.5"`) and an object without the database's spacing, and holds `Int`,
+  `Float` and `Boolean` fields to their OpenAPI types (#2181).
 - **A GraphQL `ID` is always served as a string, and one holding a value other than a
   string or an integer is `null` with a field error (#2182).** Following GraphQL § 3.5.5,
   a string is served as stored and an integer as its decimal text, exact past 64 bits. A
@@ -139,6 +139,26 @@ disagreed, and the promise was the part that was wrong.
   object as its JSON text); a fraction, a Boolean, an object or a list is now refused,
   and a non-null position nulls its nearest nullable parent. REST serves an integer `id`
   as its text as before, and another kind as its JSON text (`1.50` → `"1.5"`).
+- **A REST read serves each stored value as the OpenAPI type it publishes the field as,
+  and refuses one that type cannot hold (#2181).** An `integer`, `number` or `boolean`
+  field served whatever its row held. A whole number written with a fraction (`3.0`) or a
+  canonical numeric string (`"7"`) is now served as that `integer`, of any size; a numeric
+  string as that `number`; `"true"` and `"false"` as that `boolean`. A `Decimal` stored as
+  a number is served as its digits (`12.50` → `"12.50"`), and a `DateTime`,
+  `LocalDateTime`, `Date`, `Time` or `UUID` holding a non-string is refused. A `String` or an `ID` still serves another
+  kind as its JSON text, never refused; a JSON field and a project's own scalar are served
+  as read. A value that cannot be served refuses the read with `500`, naming the field,
+  its published type and the stored value's kind, never the value: an object under an
+  `integer` was served as stored.
+- **A REST read completes every level a `select=` embeds (#2181).** A related row was
+  served as stored. It is now held to its type as a root row is: a stored value of
+  another kind follows the rule above, and a row missing a non-null field refuses the
+  read with `500`, naming the field and its path, where it was served with the field
+  `null`.
+- **The OpenAPI document publishes an `ID` field as a plain `string` (#2181).** It carried
+  `format: uuid`, which an id that is not a UUID, such as a stored integer served as
+  `"7"`, broke. A `UUID` field keeps the format. A client generated from the document
+  types such a field as a string rather than a UUID.
 - **`ProjectionRequest.scalar_keys`, a public field on a struct a caller can build, in
   `fraiseql-db` (#2174).** A struct literal that lists every field must add it; `None`
   changes nothing. An adapter answering `execute_with_projection_raw_with_session` starts

@@ -90,6 +90,26 @@ RESPONSE_TOO_LARGE`, `422 UNPROCESSABLE_ENTITY`, `429 RATE_LIMITED`, `503
 SERVICE_UNAVAILABLE`, `500 INTERNAL_SERVER_ERROR`. Database text never reaches the
 client.
 
+### Stored values and their published types
+
+Each field is served as the OpenAPI type the document publishes it as, at the root of a
+read and at every level a `select=` embeds:
+
+| Field | Published as | A stored value of another kind |
+|---|---|---|
+| `Int` | `integer` (any size) | A whole number written with a fraction (`3.0`) or a canonical numeric string (`"7"`, not `"07"`) is that integer |
+| `Float` | `number` | A numeric string in JSON's syntax (`"2.5"`) is that number |
+| `Boolean` | `boolean` | `"true"` and `"false"` are that Boolean |
+| `String`, `ID` | `string` | Served as its JSON text, never refused (`7` → `"7"`, `1.50` → `"1.5"`) |
+| `Decimal` | `string` | Its digits as stored (`12.50` → `"12.50"`) |
+| `DateTime`, `LocalDateTime`, `Date`, `Time`, `UUID` | `string` | Refused; a string's format is not checked here |
+| `JSON`, a project's own scalar | as declared | Served as read |
+
+A value the table refuses, an object under an `integer` for instance, refuses the read
+with `500`: a representation has no partial form, and the stored value is a defect of the
+data, not of the request. The error names the field, its published type and the stored
+value's kind, never the value. A row missing a non-null field is refused the same way.
+
 ### Streams and exports
 
 - `Accept: application/x-ndjson` streams a collection as one JSON object per line, with

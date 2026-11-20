@@ -62,6 +62,13 @@ async fn provision(adapter: &PostgresAdapter) {
              ('7', jsonb_build_object('id', 7, 'title', 'Seventh'))) AS t(id, data)"
         ),
         format!(
+            "CREATE VIEW {SCHEMA}.v_gauge AS SELECT * FROM (VALUES \
+             ('g1', jsonb_build_object('id', 'g1', 'count', '7', 'on', 'true', \
+             'price', 12.50)), \
+             ('g2', jsonb_build_object('id', 'g2', 'count', \
+             jsonb_build_object('s3cr3t', 'v4lue')))) AS t(id, data)"
+        ),
+        format!(
             "CREATE FUNCTION {SCHEMA}.fn_create_note(p_title text) \
              RETURNS app.mutation_response LANGUAGE plpgsql AS $$ \
              DECLARE v app.mutation_response; n uuid := gen_random_uuid(); BEGIN \
@@ -92,12 +99,26 @@ fn schema() -> CompiledSchema {
                     {"name": "label", "field_type": "String", "nullable": true},
                     {"name": "meta", "field_type": "String", "nullable": true}
                 ]
+            }, {
+                "name": "Gauge",
+                "sql_source": format!("{SCHEMA}.v_gauge"),
+                "fields": [
+                    {"name": "id", "field_type": "ID", "nullable": false},
+                    {"name": "count", "field_type": "Int", "nullable": true},
+                    {"name": "on", "field_type": "Boolean", "nullable": true},
+                    {"name": "price", "field_type": "Decimal", "nullable": true}
+                ]
             }],
             "queries": [
                 {"name": "notes", "return_type": "Note", "returns_list": true, "nullable": false,
                  "sql_source": format!("{SCHEMA}.v_note"), "jsonb_column": "data", "arguments": []},
                 {"name": "note", "return_type": "Note", "returns_list": false, "nullable": true,
                  "sql_source": format!("{SCHEMA}.v_note"), "jsonb_column": "data",
+                 "arguments": [{"name": "id", "arg_type": "ID", "nullable": false}]},
+                {"name": "gauges", "return_type": "Gauge", "returns_list": true, "nullable": false,
+                 "sql_source": format!("{SCHEMA}.v_gauge"), "jsonb_column": "data", "arguments": []},
+                {"name": "gauge", "return_type": "Gauge", "returns_list": false, "nullable": true,
+                 "sql_source": format!("{SCHEMA}.v_gauge"), "jsonb_column": "data",
                  "arguments": [{"name": "id", "arg_type": "ID", "nullable": false}]}
             ],
             "mutations": [{
@@ -357,4 +378,51 @@ async fn an_mcp_read_of_an_incomplete_row_reports_the_error() {
 #[test]
 fn the_document_loads_without_a_database() {
     assert!(schema().federation.is_some(), "the transports suite's schema loads");
+}
+
+/// REST serves a stored value of another kind as the OpenAPI type it publishes the field
+/// as: `"7"` under an `integer` is `7`, `"true"` under a `boolean` is `true`, and a
+/// `Decimal` stored as the number `12.50` is its digits, the trailing zero kept.
+#[tokio::test]
+async fn rest_serves_a_stored_value_as_the_type_it_publishes() {
+    let Some(url) = try_database_url() else {
+        return;
+    };
+    let server = serve(&url).await;
+    let response = reqwest::Client::new()
+        .get(format!("{}/rest/v1/gauges/g1", server.base))
+        .send()
+        .await
+        .unwrap();
+    let status = response.status();
+    let text = response.text().await.unwrap();
+    assert!(status.is_success(), "{status}: {text}");
+    let body: Value = serde_json::from_str(&text).unwrap();
+    let gauge = body.get("data").unwrap_or(&body);
+    assert_eq!(gauge["count"], json!(7), "{text}");
+    assert_eq!(gauge["on"], json!(true), "{text}");
+    assert_eq!(gauge["price"], json!("12.50"), "{text}");
+}
+
+/// A stored value its published type cannot hold refuses the read (`500`): REST has no
+/// partial representation. The body names neither the value nor any of its text.
+#[tokio::test]
+async fn rest_refuses_a_value_its_published_type_cannot_hold_without_quoting_it() {
+    let Some(url) = try_database_url() else {
+        return;
+    };
+    let server = serve(&url).await;
+    for path in ["gauges/g2", "gauges"] {
+        let response = reqwest::Client::new()
+            .get(format!("{}/rest/v1/{path}", server.base))
+            .send()
+            .await
+            .unwrap();
+        let status = response.status();
+        let text = response.text().await.unwrap();
+        assert_eq!(status.as_u16(), 500, "{path}: {text}");
+        for secret in ["s3cr3t", "v4lue"] {
+            assert!(!text.contains(secret), "{path}: the stored value is not quoted: {text}");
+        }
+    }
 }

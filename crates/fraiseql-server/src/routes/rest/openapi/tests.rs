@@ -1077,3 +1077,21 @@ fn the_tenant_refusal_is_documented_even_with_auth_disabled() {
         stream_operation(&spec)["responses"]
     );
 }
+
+/// An `ID` is published as a plain `string`: it names a row by any text, and a stored
+/// integer id is served as its decimal text. Only a `UUID` field carries `format: uuid`.
+#[test]
+fn an_id_is_a_plain_string_and_only_a_uuid_carries_the_uuid_format() {
+    let mut schema = rest_schema();
+    let user = schema.types.iter_mut().find(|t| t.name == "User").unwrap();
+    user.fields.push(TestFieldBuilder::new("handle", FieldType::Id).build());
+    user.fields.push(TestFieldBuilder::new("token", FieldType::Uuid).build());
+    let spec = generate(&schema);
+    let properties = &spec["components"]["schemas"]["User"]["properties"];
+    assert_eq!(properties["handle"], serde_json::json!({"type": "string"}), "{properties}");
+    assert_eq!(
+        properties["token"],
+        serde_json::json!({"type": "string", "format": "uuid"}),
+        "{properties}"
+    );
+}

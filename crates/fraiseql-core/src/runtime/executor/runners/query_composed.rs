@@ -684,3 +684,6 @@ fn level_query_match(
 #[cfg(test)]
 #[path = "query_composed_tests.rs"]
 mod query_composed_tests;
+#[cfg(test)]
+#[path = "query_published_tests.rs"]
+mod query_published_tests;

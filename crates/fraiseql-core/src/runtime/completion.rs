@@ -40,7 +40,10 @@ use serde_json::{Map, Value};
 
 use crate::{
     graphql::{DirectiveEvaluator, FieldSelection},
-    schema::{CompiledSchema, IntrospectionBuilder, IntrospectionType, TypeKind},
+    schema::{
+        BUILTIN_SCALARS, CompiledSchema, FieldType, IntrospectionBuilder, IntrospectionType,
+        TypeKind,
+    },
 };
 
 /// How deep the walk follows a response before passing the rest through. A response is
@@ -55,8 +58,8 @@ enum TypeRef {
     List(Box<TypeRef>),
     /// An enum: its value is checked against the members (§ 3.9 result coercion).
     Enum(String),
-    /// A built-in scalar: its value is held to it (§ 3.5).
-    Scalar(BuiltIn),
+    /// A built-in scalar: its value is held to the form the transport publishes it in.
+    Scalar(Scalar),
     /// An object, interface or union, or a scalar its value is served as read at.
     Named(String),
 }
@@ -72,7 +75,7 @@ impl TypeRef {
             },
             TypeKind::Enum => t.name.clone().map(Self::Enum),
             TypeKind::Scalar => t.name.as_deref().map(|name| {
-                built_in_scalar(name).map_or_else(|| Self::Named(name.to_string()), Self::Scalar)
+                scalar_named(name).map_or_else(|| Self::Named(name.to_string()), Self::Scalar)
             }),
             _ => t.name.clone().map(Self::Named),
         }
@@ -94,6 +97,42 @@ pub struct OutputTypes {
     /// Enum type name → its members by stored value (#1580): a stored value is served as
     /// its member's name, and one that is no member's is a field error.
     enums:    AHashMap<String, EnumMembers>,
+}
+
+/// A level a composed read embeds into each row of the level above it: the related rows
+/// of `type_name` written under `output_key` (an object, a list of them, or `null`), each
+/// holding the selected fields and its own embedded levels.
+#[derive(Debug, Clone)]
+pub struct EmbeddedLevel {
+    output_key: String,
+    type_name:  String,
+    /// The level as a field selecting its rows' fields, as the walk takes an object.
+    selection:  FieldSelection,
+    embedded:   Vec<EmbeddedLevel>,
+}
+
+impl EmbeddedLevel {
+    /// The level written under `output_key`, of related rows of `type_name` holding
+    /// `fields` and the levels `embedded` into each.
+    #[must_use]
+    pub fn new(output_key: &str, type_name: &str, fields: &[String], embedded: Vec<Self>) -> Self {
+        let field = |name: &str| FieldSelection {
+            name:          name.to_string(),
+            alias:         None,
+            arguments:     Vec::new(),
+            nested_fields: Vec::new(),
+            directives:    Vec::new(),
+        };
+        Self {
+            output_key: output_key.to_string(),
+            type_name: type_name.to_string(),
+            selection: FieldSelection {
+                nested_fields: fields.iter().map(|name| field(name)).collect(),
+                ..field(output_key)
+            },
+            embedded,
+        }
+    }
 }
 
 /// An enum's members by the value each is stored as: a string (its name, or a string
@@ -213,23 +252,47 @@ impl OutputTypes {
         Self::complete_with(&Walk::new(self, variables), response, root_type, selections);
     }
 
-    /// [`complete`](Self::complete), for a transport that does not publish GraphQL's
-    /// scalars: a value at an `Int`, `Float` or `Boolean` position is served as it was
-    /// read, and a value of another kind at a `String` position as its JSON text.
+    /// [`complete`](Self::complete), for REST, which publishes its fields as OpenAPI
+    /// types: each built-in scalar position is held to the type it is published as.
     ///
-    /// REST describes an `Int` field to its clients as an OpenAPI `integer` with no `int32`
-    /// format, so a `bigint` value is one its contract allows, and refusing it would turn
-    /// a correct answer into a failed read. GraphQL publishes the same field as `Int`, a
-    /// signed 32-bit integer (§ 3.5.1), and [`complete`](Self::complete) holds it to that
-    /// and every built-in scalar to its own result coercion (§ 3.5).
-    pub fn complete_published_as_integer(
+    /// - An `Int` is an `integer` of any size (no `int32` format), so a `bigint` is served; a whole
+    ///   number written with a fraction, or a numeric string in its canonical form, is that
+    ///   integer.
+    /// - A `Float` is a `number` (a numeric string in JSON's syntax is it), a `Boolean` a `boolean`
+    ///   (the text `true` or `false` is it).
+    /// - A `String` or an `ID` serves a value of any other kind as its JSON text and never refuses:
+    ///   a REST client has no errors document to read a refusal from.
+    /// - A `Decimal` is a `string` of its digits: an integer is its exact text.
+    /// - A date, a time, a date-time and a UUID are a `string`: any other kind is refused, their
+    ///   format not checked here.
+    /// - A JSON value and a project's own scalar are served as read.
+    ///
+    /// Any other value is refused with an entry in `response["errors"]` naming the field,
+    /// its published type and the stored value's kind, never the value. GraphQL publishes
+    /// the same fields as § 3.5's scalars, and [`complete`](Self::complete) holds each to
+    /// its own result coercion.
+    ///
+    /// `embedded` are the levels a composed read embeds into each row of the root field
+    /// `root_key`: each related row is completed against its own type, as a root row is.
+    pub fn complete_as_published(
         &self,
         response: &mut Value,
         root_type: &str,
         selections: &[FieldSelection],
+        root_key: &str,
+        embedded: &[EmbeddedLevel],
     ) {
-        let walk = Walk::new(self, None).serving_scalars_as_read();
+        let walk = Walk::new(self, None).holding_published_types();
         Self::complete_with(&walk, response, root_type, selections);
+        if embedded.is_empty() {
+            return;
+        }
+        let mut errors = Vec::new();
+        if let Some(rows) = response.get_mut("data").and_then(|data| data.get_mut(root_key)) {
+            let mut path = vec![Step::Key(root_key)];
+            walk.embedded(rows, embedded, &mut path, &mut errors);
+        }
+        Self::add_errors(response, errors);
     }
 
     fn complete_with(
@@ -264,6 +327,11 @@ impl OutputTypes {
         if null_data {
             response["data"] = Value::Null;
         }
+        Self::add_errors(response, errors);
+    }
+
+    /// Append `errors` to `response["errors"]`, creating it.
+    fn add_errors(response: &mut Value, errors: Vec<Value>) {
         if errors.is_empty() {
             return;
         }
@@ -387,6 +455,27 @@ fn not_a_scalar(
     })
 }
 
+/// The error for a stored value REST cannot serve as the OpenAPI type `scalar` is
+/// published as. It names the stored value's kind (also under `"stored"`, which tells the
+/// read's refusal from a missing value), never the value.
+fn not_published(
+    label: &dyn std::fmt::Display,
+    scalar: Scalar,
+    stored: &Value,
+    path: &[Value],
+) -> Value {
+    serde_json::json!({
+        "message": format!(
+            "`{label}` is published as an OpenAPI `{}`, and the stored value is {} that is \
+             not one",
+            scalar.openapi_type(),
+            kind_of(stored)
+        ),
+        "path": path,
+        "stored": kind_of(stored),
+    })
+}
+
 /// The JSON kind of `value`, with its article, for a message that must not quote it.
 const fn kind_of(value: &Value) -> &'static str {
     match value {
@@ -414,79 +503,160 @@ enum Coercion {
 }
 
 /// How § 3.5 serves `value` at a position of the scalar named `scalar`, or `None` for a
-/// scalar this rule does not adjudicate (a custom scalar).
+/// scalar this rule does not adjudicate (a custom scalar, or one GraphQL serves as read).
 #[cfg(test)]
 fn coerce_scalar(scalar: &str, value: &Value) -> Option<Coercion> {
-    built_in_scalar(scalar).map(|scalar| coerce_built_in(scalar, value))
+    scalar_named(scalar)
+        .filter(|scalar| !matches!(scalar, Scalar::Decimal | Scalar::Temporal | Scalar::Uuid))
+        .map(|scalar| coerce_built_in::<false>(scalar, value))
 }
 
-/// How § 3.5 serves `value` at a position of the built-in `scalar`. Every completion asks
-/// this, the aggregate rows' included, so one rule decides what each scalar may hold; the
+/// How `value` is served at a position of the built-in `scalar`: by § 3.5 (`OPEN_API`
+/// false), or as the OpenAPI type REST publishes it as (`OPEN_API` true; see
+/// [`OutputTypes::complete_as_published`]). Every completion asks this, the aggregate
+/// rows' included, so one table decides what each scalar may hold on each transport; the
 /// walk resolves a field's scalar once, as [`TypeRef::Scalar`].
 #[inline]
-fn coerce_built_in(scalar: BuiltIn, value: &Value) -> Coercion {
-    if served_as_is(scalar, value) {
+fn coerce_built_in<const OPEN_API: bool>(scalar: Scalar, value: &Value) -> Coercion {
+    if served_as_is::<OPEN_API>(scalar, value) {
         Coercion::Served
     } else {
-        coerce_other(scalar, value)
+        coerce_other::<OPEN_API>(scalar, value)
     }
 }
 
-/// The name of the built-in `scalar`.
-const fn scalar_name(scalar: BuiltIn) -> &'static str {
+/// The name GraphQL publishes `scalar` by, where § 3.5 can refuse a value of it.
+const fn scalar_name(scalar: Scalar) -> &'static str {
     match scalar {
-        BuiltIn::Int => "Int",
-        BuiltIn::Float => "Float",
-        BuiltIn::String => "String",
-        BuiltIn::Boolean => "Boolean",
-        BuiltIn::Id => "ID",
+        Scalar::Int => "Int",
+        Scalar::Float => "Float",
+        Scalar::String => "String",
+        Scalar::Boolean => "Boolean",
+        Scalar::Id => "ID",
+        // Served as read by GraphQL, so never named in its refusal.
+        Scalar::Decimal | Scalar::Temporal | Scalar::Uuid => "",
     }
 }
 
-/// A built-in scalar whose value § 3.5 holds to it.
+/// A built-in scalar whose stored value completion holds to the form a transport
+/// publishes it in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum BuiltIn {
+enum Scalar {
     Int,
     Float,
     String,
     Boolean,
     /// Served as a string (§ 3.5.5): an integer is the one other kind it names.
     Id,
+    /// Its digits, as a string. GraphQL serves it as read.
+    Decimal,
+    /// A date, a time or a date-time: a string in its own format. GraphQL serves it as
+    /// read.
+    Temporal,
+    /// A UUID: a string. GraphQL serves it as read.
+    Uuid,
 }
 
-/// Whether `value` is one the built-in `scalar` holds as served: `null`, or a value of its
-/// kind, an `Int`'s a signed 32-bit integer. Every value a scalar position usually holds,
-/// decided in the walk without a call.
+impl Scalar {
+    /// The scalar a field of `field_type` is, by its kind.
+    ///
+    /// Exhaustive, so a new [`FieldType`] stops the crate compiling until it says which
+    /// rule its stored values are held to on each transport.
+    const fn of(field_type: &FieldType) -> Option<Self> {
+        match field_type {
+            FieldType::Int => Some(Self::Int),
+            FieldType::Float => Some(Self::Float),
+            // A bit vector's and a sparse vector's value is their text.
+            FieldType::String | FieldType::BitVector | FieldType::SparseVector => {
+                Some(Self::String)
+            },
+            FieldType::Boolean => Some(Self::Boolean),
+            FieldType::Id => Some(Self::Id),
+            FieldType::Decimal => Some(Self::Decimal),
+            FieldType::DateTime | FieldType::LocalDateTime | FieldType::Date | FieldType::Time => {
+                Some(Self::Temporal)
+            },
+            FieldType::Uuid => Some(Self::Uuid),
+            // Any JSON, the dense vectors published as JSON, a project's own scalar, and
+            // what is no scalar.
+            FieldType::Json
+            | FieldType::Vector
+            | FieldType::HalfVector
+            | FieldType::Scalar(_)
+            | FieldType::List { .. }
+            | FieldType::Object(_)
+            | FieldType::Enum(_)
+            | FieldType::Input(_)
+            | FieldType::Interface(_)
+            | FieldType::Union(_) => None,
+        }
+    }
+
+    /// The OpenAPI type REST publishes the scalar as.
+    const fn openapi_type(self) -> &'static str {
+        match self {
+            Self::Int => "integer",
+            Self::Float => "number",
+            Self::Boolean => "boolean",
+            Self::String | Self::Id | Self::Decimal | Self::Temporal | Self::Uuid => "string",
+        }
+    }
+}
+
+/// The built-in scalar introspection publishes as `name`, resolved once per field when
+/// the output types are built.
+fn scalar_named(name: &str) -> Option<Scalar> {
+    BUILTIN_SCALARS
+        .iter()
+        .filter(|(_, field_type)| field_type.to_graphql_string() == name)
+        .find_map(|(_, field_type)| Scalar::of(field_type))
+}
+
+/// Whether `value` is one `scalar` holds as served: `null`, or a value of its kind (a
+/// GraphQL `Int`'s a signed 32-bit integer, an OpenAPI `integer` any integer). Every value
+/// a scalar position usually holds, decided in the walk without a call.
 #[inline]
-fn served_as_is(scalar: BuiltIn, value: &Value) -> bool {
+fn served_as_is<const OPEN_API: bool>(scalar: Scalar, value: &Value) -> bool {
     match (scalar, value) {
         (_, Value::Null)
-        | (BuiltIn::Float, Value::Number(_))
-        | (BuiltIn::String | BuiltIn::Id, Value::String(_))
-        | (BuiltIn::Boolean, Value::Bool(_)) => true,
-        (BuiltIn::Int, Value::Number(number)) => {
-            number.as_i64().is_some_and(|n| i32::try_from(n).is_ok())
+        | (Scalar::Float, Value::Number(_))
+        | (Scalar::String | Scalar::Id | Scalar::Decimal | Scalar::Uuid, Value::String(_))
+        | (Scalar::Boolean, Value::Bool(_)) => true,
+        // A temporal string is decided by its own arm in `coerce_other`.
+        (Scalar::Decimal | Scalar::Temporal | Scalar::Uuid, _) => !OPEN_API,
+        (Scalar::Int, Value::Number(number)) => {
+            if OPEN_API {
+                !number.is_f64()
+            } else {
+                number.as_i64().is_some_and(|n| i32::try_from(n).is_ok())
+            }
         },
         _ => false,
     }
 }
 
 /// [`coerce_built_in`] for a value [`served_as_is`] does not serve: never `null`, nor a
-/// value of the scalar's own kind but an `Int`'s number outside the range.
-fn coerce_other(scalar: BuiltIn, value: &Value) -> Coercion {
-    use BuiltIn::{Boolean, Float, Id, Int, String};
+/// value of the scalar's own kind but an `Int`'s number outside its range.
+fn coerce_other<const OPEN_API: bool>(scalar: Scalar, value: &Value) -> Coercion {
+    use Scalar::{Boolean, Decimal, Float, Id, Int, String, Temporal};
     match (scalar, value) {
-        (Int, Value::Number(number)) => coerce_int(number),
+        // REST publishes a `String` or an `ID` as a `string`, and its client has no errors
+        // document to read a refusal from: a value of any other kind is its JSON text. A
+        // fraction is written as the `f64` it was read as (`1.50` → `"1.5"`), and an
+        // object without the spacing the database wrote it with.
+        (String | Id, _) if OPEN_API => Coercion::Rewrite(Value::String(value.to_string())),
+        (Int, Value::Number(number)) => coerce_int::<OPEN_API>(number),
         (Int, Value::String(text)) => {
-            canonical_int(text).map_or(Coercion::Refused, |n| Coercion::Rewrite(Value::from(n)))
+            canonical_int::<OPEN_API>(text).map_or(Coercion::Refused, Coercion::Rewrite)
         },
         (Float, Value::String(text)) => {
             number_text(text).map_or(Coercion::Refused, |n| Coercion::Rewrite(Value::Number(n)))
         },
         // An integer's text is exact on every path; a fraction's is not: the `Value` path
         // holds `1.50` as the `f64` 1.5, so its text would not be the stored one. An `ID`
-        // is a string (§ 3.5.5), and an integer the one other kind it names.
-        (String | Id, Value::Number(number)) if !number.is_f64() => {
+        // is a string (§ 3.5.5), and an integer the one other kind it names; a `Decimal`'s
+        // digits reach here only as an integer's (a read takes them as text).
+        (String | Id | Decimal, Value::Number(number)) if !number.is_f64() => {
             Coercion::Rewrite(Value::String(number.to_string()))
         },
         (String, Value::Bool(b)) => Coercion::Rewrite(Value::String(b.to_string())),
@@ -495,39 +665,43 @@ fn coerce_other(scalar: BuiltIn, value: &Value) -> Coercion {
             "false" => Coercion::Rewrite(Value::Bool(false)),
             _ => Coercion::Refused,
         },
+        // A date, a time or a date-time: any string, and nothing else.
+        (Temporal, Value::String(_)) => Coercion::Served,
         _ => Coercion::Refused,
     }
 }
 
-/// The built-in scalar § 3.5 adjudicates that `name` names: one test of its length, the
-/// five names' lengths differing, then one comparison.
-fn built_in_scalar(name: &str) -> Option<BuiltIn> {
-    match name.len() {
-        2 if name == "ID" => Some(BuiltIn::Id),
-        3 if name == "Int" => Some(BuiltIn::Int),
-        5 if name == "Float" => Some(BuiltIn::Float),
-        6 if name == "String" => Some(BuiltIn::String),
-        7 if name == "Boolean" => Some(BuiltIn::Boolean),
-        _ => None,
-    }
-}
-
-/// § 3.5.1 for a number at an `Int` position: a signed 32-bit integer is served, a whole
+/// A number at an `Int` position. § 3.5.1: a signed 32-bit integer is served, a whole
 /// number written with a fraction or an exponent (`3.0`, `-0`, `3e2`) is that integer, and
-/// any other number is refused.
-fn coerce_int(number: &serde_json::Number) -> Coercion {
-    if let Some(n) = number.as_i64() {
-        return if i32::try_from(n).is_ok() {
+/// any other number is refused. An OpenAPI `integer` has no range: any integer is served,
+/// and a whole number written with a fraction is that integer.
+fn coerce_int<const OPEN_API: bool>(number: &serde_json::Number) -> Coercion {
+    if !number.is_f64() {
+        // An integer past `i64` is a `u64`, outside § 3.5.1's range whatever its value.
+        let in_range = number.as_i64().is_some_and(|n| i32::try_from(n).is_ok());
+        return if OPEN_API || in_range {
             Coercion::Served
         } else {
             Coercion::Refused
         };
     }
-    // An integer past `i64` is a `u64`, and outside the range whatever its value.
-    let Some(float) = number.as_f64().filter(|_| number.is_f64()) else {
+    let Some(float) = number.as_f64().filter(|float| float.fract() == 0.0) else {
         return Coercion::Refused;
     };
-    if float.fract() != 0.0 || !(f64::from(i32::MIN)..=f64::from(i32::MAX)).contains(&float) {
+    if OPEN_API {
+        // `2^63` is the first whole `f64` an `i64` cannot hold; past it the number is
+        // served as read, a whole number all the same.
+        let two_63 = 2.0_f64.powi(63);
+        let in_i64 = (-two_63..two_63).contains(&float);
+        #[allow(clippy::cast_possible_truncation)]
+        // Reason: a whole number checked to lie within `i64` just above
+        return if in_i64 {
+            Coercion::Rewrite(Value::from(float as i64))
+        } else {
+            Coercion::Served
+        };
+    }
+    if !(f64::from(i32::MIN)..=f64::from(i32::MAX)).contains(&float) {
         return Coercion::Refused;
     }
     #[allow(clippy::cast_possible_truncation)]
@@ -535,32 +709,27 @@ fn coerce_int(number: &serde_json::Number) -> Coercion {
     Coercion::Rewrite(Value::from(float as i32))
 }
 
-/// What a transport that does not publish GraphQL's scalars serves at a `String` or `ID`
-/// position:
-/// a value of any other kind as its JSON text, never refused. Such a transport (REST) has
-/// no response document to carry a field error in, and a String field read its stored
-/// value as text before the projection read it as stored. A fraction is written as the
-/// `f64` it was read as (`1.50` → `"1.5"`), and an object without the spacing the database
-/// wrote it with.
-fn stringify_at_string(scalar: BuiltIn, value: &Value) -> Coercion {
-    let stringified = matches!(scalar, BuiltIn::String | BuiltIn::Id);
-    if stringified && !matches!(value, Value::Null | Value::String(_)) {
-        Coercion::Rewrite(Value::String(value.to_string()))
-    } else {
-        Coercion::Served
-    }
-}
-
 /// The integer `text` writes in its canonical form (`42`, `-7`, `0`: no sign but a leading
-/// `-`, no leading zero, no `-0`), if it lies within the signed 32-bit range. Any other
-/// text would be served as a value its client never wrote.
-fn canonical_int(text: &str) -> Option<i32> {
+/// `-`, no leading zero, no `-0`), if its position can hold it: a signed 32-bit integer
+/// under § 3.5.1, any integer JSON's numbers hold exactly under OpenAPI. Any other text
+/// would be served as a value its client never wrote.
+fn canonical_int<const OPEN_API: bool>(text: &str) -> Option<Value> {
     let digits = text.strip_prefix('-').unwrap_or(text);
     let canonical = !digits.is_empty()
         && digits.bytes().all(|b| b.is_ascii_digit())
         && (digits == "0" || !digits.starts_with('0'))
         && text != "-0";
-    canonical.then(|| text.parse().ok()).flatten()
+    if !canonical {
+        return None;
+    }
+    if OPEN_API {
+        text.parse::<i64>()
+            .map(Value::from)
+            .or_else(|_| text.parse::<u64>().map(Value::from))
+            .ok()
+    } else {
+        text.parse::<i32>().ok().map(Value::from)
+    }
 }
 
 /// The number `text` is, written in JSON's number syntax and nothing around it, if one can
@@ -589,9 +758,9 @@ struct Walk<'a> {
     types:               &'a OutputTypes,
     variables:           Option<&'a Value>,
     directive_variables: OnceCell<HashMap<String, Value>>,
-    /// Whether a built-in scalar position is held to its scalar (§ 3.5): see
-    /// [`coerce_scalar`].
-    coerces_scalars:     bool,
+    /// Whether a built-in scalar position is held to the OpenAPI type REST publishes it as
+    /// rather than to § 3.5: see [`OutputTypes::complete_as_published`].
+    open_api:            bool,
 }
 
 impl<'a> Walk<'a> {
@@ -600,14 +769,14 @@ impl<'a> Walk<'a> {
             types,
             variables,
             directive_variables: OnceCell::new(),
-            coerces_scalars: true,
+            open_api: false,
         }
     }
 
-    /// The same walk, serving a built-in scalar position's value as it is: see
-    /// [`OutputTypes::complete_published_as_integer`].
-    const fn serving_scalars_as_read(mut self) -> Self {
-        self.coerces_scalars = false;
+    /// The same walk, holding each built-in scalar position to the OpenAPI type REST
+    /// publishes it as: see [`OutputTypes::complete_as_published`].
+    const fn holding_published_types(mut self) -> Self {
+        self.open_api = true;
         self
     }
 
@@ -750,10 +919,10 @@ impl<'a> Walk<'a> {
                 if propagated { Err(Propagate) } else { Ok(()) }
             },
             TypeRef::Scalar(scalar) => {
-                let coercion = if self.coerces_scalars {
-                    coerce_built_in(*scalar, value)
+                let coercion = if self.open_api {
+                    coerce_built_in::<true>(*scalar, value)
                 } else {
-                    stringify_at_string(*scalar, value)
+                    coerce_built_in::<false>(*scalar, value)
                 };
                 match coercion {
                     Coercion::Served => Ok(()),
@@ -762,8 +931,12 @@ impl<'a> Walk<'a> {
                         Ok(())
                     },
                     Coercion::Refused => {
-                        let name = scalar_name(*scalar);
-                        errors.push(not_a_scalar(&label, name, value, &response_path(path)));
+                        let path = response_path(path);
+                        errors.push(if self.open_api {
+                            not_published(&label, *scalar, value, &path)
+                        } else {
+                            not_a_scalar(&label, scalar_name(*scalar), value, &path)
+                        });
                         Err(Propagate)
                     },
                 }
@@ -835,6 +1008,69 @@ impl<'a> Walk<'a> {
             }
         });
         if propagated { Err(Propagate) } else { Ok(()) }
+    }
+
+    /// Complete the levels `embedded` into each row of `rows` (a row, or a list of them).
+    /// Each related row is completed against its type; a violation's error is recorded, and
+    /// the read it belongs to is refused, so nothing is nulled.
+    fn embedded<'s>(
+        &self,
+        rows: &mut Value,
+        embedded: &'s [EmbeddedLevel],
+        path: &mut Vec<Step<'s>>,
+        errors: &mut Vec<Value>,
+    ) where
+        'a: 's,
+    {
+        match rows {
+            Value::Array(rows) => {
+                for (index, row) in rows.iter_mut().enumerate() {
+                    path.push(Step::Index(index));
+                    self.embedded_into(row, embedded, path, errors);
+                    path.pop();
+                }
+            },
+            row => self.embedded_into(row, embedded, path, errors),
+        }
+    }
+
+    /// [`embedded`](Self::embedded) for one row.
+    fn embedded_into<'s>(
+        &self,
+        row: &mut Value,
+        embedded: &'s [EmbeddedLevel],
+        path: &mut Vec<Step<'s>>,
+        errors: &mut Vec<Value>,
+    ) where
+        'a: 's,
+    {
+        let Value::Object(row) = row else {
+            return;
+        };
+        for level in embedded {
+            let Some(related) = row.get_mut(&level.output_key) else {
+                continue;
+            };
+            path.push(Step::Key(&level.output_key));
+            let mut complete = |related: &mut Value, path: &mut Vec<Step<'s>>| {
+                if let Value::Object(map) = related {
+                    // A violation is in `errors`, which refuses the read.
+                    let _ = self.object(map, &level.type_name, &level.selection, path, errors, 1);
+                }
+                self.embedded_into(related, &level.embedded, path, errors);
+            };
+            match related {
+                Value::Array(items) => {
+                    for (index, item) in items.iter_mut().enumerate() {
+                        path.push(Step::Index(index));
+                        complete(item, path);
+                        path.pop();
+                    }
+                },
+                related => complete(related, path),
+            }
+            path.pop();
+        }
     }
 }
 

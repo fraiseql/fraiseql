@@ -104,7 +104,7 @@ impl OutputTypes {
                                 Some(TypeRef::Scalar(scalar)) => Some(*scalar),
                                 _ => None,
                             };
-                            match scalar.map(|scalar| coerce_built_in(scalar, &value)) {
+                            match scalar.map(|scalar| coerce_built_in::<false>(scalar, &value)) {
                                 Some(Coercion::Rewrite(coerced)) => coerced,
                                 Some(Coercion::Refused) => {
                                     let path =

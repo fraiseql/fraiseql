@@ -894,7 +894,7 @@ impl Executor {
             .query_runner()
             .execute_query_direct(query_match, variables, security_context, request_budget, None)
             .await?;
-        self.complete_direct(response, query_match)
+        self.complete_direct(response, query_match, &[])
     }
 
     /// The rows the server is about to write: the same read as
@@ -929,7 +929,7 @@ impl Executor {
             .query_runner()
             .execute_query_direct(query_match, None, security_context, None, Some(row_bound))
             .await?;
-        self.complete_direct(response, query_match)
+        self.complete_direct(response, query_match, &[])
     }
 
     /// § 6.4.4 for a read with no response document of its own to carry errors (REST, its
@@ -939,27 +939,67 @@ impl Executor {
         &self,
         mut response: serde_json::Value,
         query_match: &QueryMatch,
+        embeds: &[crate::runtime::EmbedSelection],
     ) -> Result<serde_json::Value> {
         // A single resource with no row is "not found", which the transport answers in its
         // own way; only a row that exists is completed against its type.
         if response["data"][query_match.response_key()].is_null() {
             return Ok(response);
         }
-        // REST publishes an `Int` field as an `integer` of any size: see
-        // `OutputTypes::complete_published_as_integer`.
-        self.ctx.output_types.complete_published_as_integer(
+        // REST holds each scalar to the OpenAPI type it publishes it as: see
+        // `OutputTypes::complete_as_published`.
+        let embedded = self.embedded_levels(&query_match.query_def.return_type, embeds);
+        self.ctx.output_types.complete_as_published(
             &mut response,
             "Query",
             &query_match.selections,
+            query_match.response_key(),
+            &embedded,
         );
         let Some(error) = response.get("errors").and_then(|e| e.get(0)) else {
             return Ok(response);
         };
         let message = error["message"].as_str().unwrap_or("Cannot return null");
+        let path = &error["path"];
+        // A value of a kind its published type cannot hold, or a missing one.
+        let message = if error.get("stored").is_some() {
+            format!("{message}. At {path}.")
+        } else {
+            format!("{message} At {path}: the stored value is missing.")
+        };
         Err(crate::error::FraiseQLError::Internal {
-            message: format!("{message} At {}: the stored value is missing.", error["path"]),
-            source:  None,
+            message,
+            source: None,
         })
+    }
+
+    /// The levels `embeds` writes into each row of a `parent_type` read, each with the type
+    /// its relationship targets. A relationship the parent does not declare was refused
+    /// before the read.
+    fn embedded_levels(
+        &self,
+        parent_type: &str,
+        embeds: &[crate::runtime::EmbedSelection],
+    ) -> Vec<crate::runtime::completion::EmbeddedLevel> {
+        let Some(parent) = self.ctx.schema.find_type(parent_type) else {
+            return Vec::new();
+        };
+        embeds
+            .iter()
+            .filter_map(|embed| {
+                let target = &parent
+                    .relationships
+                    .iter()
+                    .find(|r| r.name == embed.relationship)?
+                    .target_type;
+                Some(crate::runtime::completion::EmbeddedLevel::new(
+                    &embed.output_key,
+                    target,
+                    &embed.fields,
+                    self.embedded_levels(target, &embed.embeds),
+                ))
+            })
+            .collect()
     }
 
     /// Whether this executor's database adapter can compose related resources into a read
@@ -1038,7 +1078,7 @@ impl Executor {
                 request_budget,
             )
             .await?;
-        self.complete_direct(response, query_match)
+        self.complete_direct(response, query_match, embeds)
     }
 
     /// The allowances **one request** holds, to be shared by every read that request

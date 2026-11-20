@@ -24,7 +24,11 @@ pub(super) fn field_type_to_json_schema(ft: &FieldType) -> Value {
         FieldType::Int => json!({ "type": "integer" }),
         FieldType::Float => json!({ "type": "number" }),
         FieldType::Boolean => json!({ "type": "boolean" }),
-        FieldType::Id | FieldType::Uuid => json!({ "type": "string", "format": "uuid" }),
+        // An `ID` names a row by any text, a stored integer's included: no format.
+        #[allow(clippy::match_same_arms)]
+        // Reason: an `ID` is a plain string by decision, not by falling to the default
+        FieldType::Id => json!({ "type": "string" }),
+        FieldType::Uuid => json!({ "type": "string", "format": "uuid" }),
         FieldType::DateTime => json!({ "type": "string", "format": "date-time" }),
         // JSON Schema's `date-time` requires an offset; a local date-time never has one.
         FieldType::LocalDateTime => json!({

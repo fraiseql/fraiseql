@@ -48,8 +48,10 @@ it as `null`, which is a value it may take, not an error.
 
 ## Other transports
 
-- **REST.** A representation has no partial form, so a read with an incomplete row is
-  refused with `500`, naming the field and where it was.
+- **REST.** A representation has no partial form, so a read with an incomplete row, at
+  its root or at any level a `select=` embeds, is refused with `500`, naming the field and
+  where it was. A stored value of another kind is held to the field's published OpenAPI
+  type ([REST](../architecture/rest.md#stored-values-and-their-published-types)).
 - **MCP.** The tool result is the GraphQL response, `errors` included, and is marked as an
   error result.
 - **gRPC.** Protobuf 3 has no `null`, so an unset field would read as `""` or `0`. A row

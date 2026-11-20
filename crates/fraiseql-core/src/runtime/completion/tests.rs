@@ -272,3 +272,209 @@ fn an_id_refusal_names_the_scalar_and_the_stored_kind() {
     );
     assert!(!message.contains('7'), "{message}");
 }
+
+/// `Reading`, one nullable field of every kind REST publishes a scalar as, read by
+/// `readings`.
+fn published_schema() -> CompiledSchema {
+    let mut schema = CompiledSchema::new();
+    let mut reading = TypeDefinition::new("Reading", "v_reading");
+    reading.fields = [
+        ("count", FieldType::Int),
+        ("ratio", FieldType::Float),
+        ("on", FieldType::Boolean),
+        ("label", FieldType::String),
+        ("key", FieldType::Id),
+        ("price", FieldType::Decimal),
+        ("at", FieldType::DateTime),
+        ("local", FieldType::LocalDateTime),
+        ("day", FieldType::Date),
+        ("clock", FieldType::Time),
+        ("uid", FieldType::Uuid),
+        ("doc", FieldType::Json),
+        ("mail", FieldType::Scalar("Email".to_string())),
+        ("bits", FieldType::BitVector),
+    ]
+    .into_iter()
+    .map(|(name, field_type)| FieldDefinition::nullable(name, field_type))
+    .collect();
+    schema.types.push(reading);
+    schema
+        .queries
+        .push(QueryDefinition::new("readings", "Reading").returning_list());
+    schema.build_indexes();
+    schema
+}
+
+/// What REST serves for `stored` under `field` of a `Reading`, or the message refusing it.
+fn served_by_rest(field: &str, stored: &Value) -> std::result::Result<Value, String> {
+    let types = OutputTypes::from_schema(&published_schema());
+    let mut response = json!({"data": {"readings": [{field: stored}]}});
+    let selections = [sel("readings", vec![sel(field, vec![])])];
+    types.complete_as_published(&mut response, "Query", &selections, "readings", &[]);
+    match response.get("errors") {
+        Some(errors) => Err(errors[0]["message"].as_str().unwrap().to_string()),
+        None => Ok(response["data"]["readings"][0][field].clone()),
+    }
+}
+
+/// REST holds a stored value to the OpenAPI type it publishes the field as: an `integer`
+/// of any size, a `number`, a `boolean`, by the lossless rewrites GraphQL makes; anything
+/// else is refused. A `null` is served at every kind.
+#[test]
+fn rest_serves_an_integer_number_or_boolean_as_its_published_type_or_refuses_it() {
+    let u64_max = json!(u64::MAX);
+    let cases: [(&str, Value, Option<Value>); 32] = [
+        ("count", json!(7), Some(json!(7))),
+        ("count", json!(3_000_000_000_i64), Some(json!(3_000_000_000_i64))),
+        ("count", u64_max.clone(), Some(u64_max)),
+        ("count", json!("7"), Some(json!(7))),
+        ("count", json!("-7"), Some(json!(-7))),
+        ("count", json!("3000000000"), Some(json!(3_000_000_000_i64))),
+        ("count", json!("18446744073709551615"), Some(json!(u64::MAX))),
+        ("count", json!(3.0), Some(json!(3))),
+        ("count", serde_json::from_str("1e3").unwrap(), Some(json!(1000))),
+        ("count", json!(2.5), None),
+        ("count", json!("18446744073709551616"), None),
+        ("count", json!("07"), None),
+        ("count", json!("7.0"), None),
+        ("count", json!("+7"), None),
+        ("count", json!(true), None),
+        ("count", json!({"n": 7}), None),
+        ("count", json!([7]), None),
+        ("count", json!(null), Some(json!(null))),
+        ("ratio", json!(2.5), Some(json!(2.5))),
+        ("ratio", json!(7), Some(json!(7))),
+        ("ratio", json!("2.5"), Some(json!(2.5))),
+        ("ratio", json!("1e400"), None),
+        ("ratio", json!("x"), None),
+        ("ratio", json!(false), None),
+        ("ratio", json!({"r": 1}), None),
+        ("on", json!(true), Some(json!(true))),
+        ("on", json!("true"), Some(json!(true))),
+        ("on", json!("false"), Some(json!(false))),
+        ("on", json!("TRUE"), None),
+        ("on", json!(1), None),
+        ("on", json!({"on": true}), None),
+        ("on", json!(null), Some(json!(null))),
+    ];
+    for (field, stored, served) in cases {
+        let got = served_by_rest(field, &stored).ok();
+        assert_eq!(got, served, "{field} storing {stored}");
+    }
+    let past_i64 = json!(1e20);
+    assert_eq!(served_by_rest("count", &past_i64), Ok(past_i64), "a whole number past `i64`");
+    assert!(served_by_rest("count", &json!("3000000000")).unwrap().is_i64());
+    assert!(served_by_rest("count", &json!("18446744073709551615")).unwrap().is_u64());
+    assert!(served_by_rest("count", &json!(3.0)).unwrap().is_i64());
+}
+
+/// A `String` or an `ID` serves any other kind as its JSON text and never refuses (a
+/// REST client has no errors document to read a refusal from). A field GraphQL publishes
+/// as a `String` (a bit vector's text) is held alike.
+#[test]
+fn rest_serves_a_string_or_id_holding_another_kind_as_its_json_text() {
+    for field in ["label", "key", "bits"] {
+        for (stored, served) in [
+            (json!("x"), json!("x")),
+            (json!(7), json!("7")),
+            (json!(1.5), json!("1.5")),
+            (json!(true), json!("true")),
+            (json!({"a": 1}), json!(r#"{"a":1}"#)),
+            (json!([1]), json!("[1]")),
+            (json!(null), json!(null)),
+        ] {
+            assert_eq!(served_by_rest(field, &stored), Ok(served), "{field} storing {stored}");
+        }
+    }
+}
+
+/// A `Decimal` is published as a `string` of its digits: a string is served as stored, an
+/// integer as its exact text; a fraction that reached completion as a binary float is
+/// refused, its digits being lost; any other kind is refused.
+#[test]
+fn rest_serves_a_decimal_as_its_exact_text_or_refuses_it() {
+    for (stored, served) in [
+        (json!("12.50"), Some(json!("12.50"))),
+        (json!(7), Some(json!("7"))),
+        (json!(-7), Some(json!("-7"))),
+        (json!(u64::MAX), Some(json!("18446744073709551615"))),
+        (json!(null), Some(json!(null))),
+        (json!(12.5), None),
+        (json!(true), None),
+        (json!({"d": "1"}), None),
+        (json!(["1"]), None),
+    ] {
+        assert_eq!(served_by_rest("price", &stored).ok(), served, "{stored}");
+    }
+}
+
+/// A date, a time, a date-time with or without an offset and a UUID are published as a
+/// `string`: a string is served (its format is not checked here) and any other kind is
+/// refused. A JSON field
+/// and a custom scalar are served as read.
+#[test]
+fn rest_refuses_a_non_string_at_a_temporal_or_uuid_field_and_serves_json_as_read() {
+    for field in ["at", "local", "day", "clock", "uid"] {
+        assert_eq!(served_by_rest(field, &json!("anything")), Ok(json!("anything")), "{field}");
+        assert_eq!(served_by_rest(field, &json!(null)), Ok(json!(null)), "{field}");
+        for stored in [json!(7), json!(true), json!({"t": 1}), json!(["t"])] {
+            assert!(served_by_rest(field, &stored).is_err(), "{field} storing {stored}");
+        }
+    }
+    for field in ["doc", "mail"] {
+        for stored in [json!(7), json!(true), json!({"t": 1}), json!("t")] {
+            assert_eq!(served_by_rest(field, &stored), Ok(stored.clone()), "{field}");
+        }
+    }
+}
+
+/// A REST refusal names the field, the OpenAPI type it is published as and the stored
+/// value's kind, never the value.
+#[test]
+fn a_rest_refusal_names_the_published_type_and_never_the_value() {
+    let refusal = |field: &str, stored: Value| served_by_rest(field, &stored).unwrap_err();
+    assert_eq!(
+        refusal("count", json!({"s3cr3t": "v4lue"})),
+        "`Reading.count` is published as an OpenAPI `integer`, and the stored value is an \
+         object that is not one"
+    );
+    assert_eq!(
+        refusal("ratio", json!("s3cr3t")),
+        "`Reading.ratio` is published as an OpenAPI `number`, and the stored value is a String \
+         that is not one"
+    );
+    assert_eq!(
+        refusal("on", json!(7)),
+        "`Reading.on` is published as an OpenAPI `boolean`, and the stored value is a number \
+         that is not one"
+    );
+    assert_eq!(
+        refusal("price", json!(true)),
+        "`Reading.price` is published as an OpenAPI `string`, and the stored value is a \
+         Boolean that is not one"
+    );
+}
+
+/// GraphQL completion is unchanged by REST's table: a scalar outside the five built-ins
+/// is served as read there, whatever it holds.
+#[test]
+fn graphql_serves_a_decimal_or_date_holding_another_kind_as_read() {
+    let types = OutputTypes::from_schema(&published_schema());
+    let mut response =
+        json!({"data": {"readings": [{"price": 12.5, "at": 7, "local": 7, "uid": true}]}});
+    let selections = [sel(
+        "readings",
+        vec![
+            sel("price", vec![]),
+            sel("at", vec![]),
+            sel("local", vec![]),
+            sel("uid", vec![]),
+        ],
+    )];
+    types.complete(&mut response, "Query", &selections, None);
+    assert_eq!(response.get("errors"), None, "{response}");
+    assert_eq!(
+        response["data"]["readings"][0],
+        json!({"price": 12.5, "at": 7, "local": 7, "uid": true})
+    );
+}
