@@ -383,7 +383,8 @@ fn a_null_needs_completion_under_a_non_null_key_or_none() {
 
 /// A number no `Int` holds as written (§ 3.5.1) under an `Int` field's key, or under no
 /// key, may need completion; one under a `Float`'s or a `Decimal`'s key does not, nor any
-/// number of a read that selects no `Int`.
+/// number of a read that selects no `Int`. Rows copied knowing the `Int` keys and rows an
+/// adapter copied without them answer alike.
 #[test]
 fn a_number_no_int_holds_needs_completion_under_an_int_key_or_none() {
     let schema = schema();
@@ -393,11 +394,19 @@ fn a_number_no_int_holds_needs_completion_under_an_int_key_or_none() {
     };
     let selections = [years, leaf("score"), leaf("price")];
     let needs = |ints: bool, texts: &[&str]| {
-        RawShape {
+        let shape = RawShape {
             non_null: false,
             ints,
+        };
+        let keys = shape.int_keys(&selections, &schema, "User");
+        let mut keyed = RawRows::with_int_keys(&keys);
+        for text in texts {
+            keyed.push(text.as_bytes());
         }
-        .may_hold_non_int_at_int(&rows(texts), &selections, &schema, "User")
+        let told = shape.may_hold_non_int_at_int(&keyed, &keys);
+        let untold = shape.may_hold_non_int_at_int(&rows(texts), &keys);
+        assert_eq!(told, untold, "{texts:?}: copied knowing the keys, and not");
+        told
     };
     assert!(
         !needs(true, &[r#"{"years":7,"score":1.5,"price":3000000000}"#]),

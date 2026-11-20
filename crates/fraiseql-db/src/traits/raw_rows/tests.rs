@@ -197,14 +197,21 @@ fn a_null_is_reported_under_the_key_it_is_the_value_of() {
 /// found whatever keys are asked.
 #[test]
 fn a_number_no_int_holds_as_written_is_found_under_its_key() {
+    // Each question is asked of rows copied without keys, and of rows copied knowing the
+    // keys asked, which must answer alike.
     let non_ints = |text: &str| {
         let mut rows = RawRows::new();
         rows.push(text.as_bytes());
-        let keys: Vec<&str> = ["a", "b", "c"]
-            .into_iter()
-            .filter(|key| rows.has_non_int_under(&[key.as_bytes()]))
-            .collect();
-        (keys, rows.has_non_int_under(&[]))
+        let under = |keys: &[&[u8]]| {
+            let mut told = RawRows::with_int_keys(keys);
+            told.push(text.as_bytes());
+            let answer = rows.has_non_int_under(keys);
+            assert_eq!(told.has_non_int_under(keys), answer, "{text} under {keys:?}");
+            answer
+        };
+        let keys: Vec<&str> =
+            ["a", "b", "c"].into_iter().filter(|key| under(&[key.as_bytes()])).collect();
+        (keys, under(&[]))
     };
 
     for int in [
@@ -245,4 +252,45 @@ fn a_number_no_int_holds_as_written_is_found_under_its_key() {
         "a key with an escape"
     );
     assert_eq!(non_ints(r#"{"b" : "x\"y", "a" : 1.5}"#), (vec!["a"], false), "an escaped value");
+}
+
+/// Rows copied knowing some `Int` keys answer for those keys as they were copied; asked of
+/// other keys, they are read, and answer as rows copied without keys do.
+#[test]
+fn rows_copied_for_some_int_keys_answer_others_by_reading() {
+    let text = br#"{"a" : 1.5, "b" : 1, "c" : {"d" : 3000000000}}"#;
+    let mut told = RawRows::with_int_keys(&[b"b"]);
+    told.push(text);
+    assert!(!told.has_non_int_under(&[b"b"]));
+    assert!(told.has_non_int_under(&[b"a"]));
+    assert!(told.has_non_int_under(&[b"d"]));
+    assert!(told.has_non_int_under(&[b"b", b"a"]), "the keys copied for, and one more");
+    assert!(!told.has_non_int_under(&[b"c"]), "an object is no number");
+
+    // A key sharing an `Int` key's first byte is not that key.
+    let mut told = RawRows::with_int_keys(&[b"a"]);
+    told.push(br#"{"ab" : 1.5, "a" : 2}"#);
+    assert!(!told.has_non_int_under(&[b"a"]));
+}
+
+/// Asked of keys other than the ones they were copied for (a subset, a superset, the same
+/// keys in another order, none), rows answer by reading, as rows copied without keys do.
+#[test]
+fn rows_asked_of_other_int_keys_answer_by_reading() {
+    let text = br#"{"a" : 1.5, "b" : 1, "c" : 3000000000}"#;
+    let mut untold = RawRows::new();
+    untold.push(text);
+    for (copied_for, asked, answer) in [
+        (&[&b"a"[..], b"b"][..], &[&b"b"[..]][..], false),
+        (&[b"a", b"b"], &[], false),
+        (&[b"a", b"b"], &[b"b", b"a"], true),
+        (&[b"a", b"b"], &[b"a", b"b", b"c"], true),
+        (&[b"b"], &[b"b", b"c"], true),
+        (&[b"b", b"c"], &[b"c", b"b"], true),
+    ] {
+        let mut told = RawRows::with_int_keys(copied_for);
+        told.push(text);
+        assert_eq!(told.has_non_int_under(asked), answer, "{copied_for:?}, asked {asked:?}");
+        assert_eq!(untold.has_non_int_under(asked), answer, "untold, asked {asked:?}");
+    }
 }

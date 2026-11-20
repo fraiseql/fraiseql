@@ -166,6 +166,11 @@ pub struct ProjectionRequest<'a> {
     /// as a string, which a decoded number would round. `None` when the type reaches
     /// none.
     pub decimals:      Option<&'a super::DecimalShape>,
+    /// For a read answered as text ([`RawRows`](super::RawRows)), the response keys of the
+    /// `Int` fields it selects, at any depth: the rows are then copied knowing where a
+    /// number no `Int` holds would need completion. `None` says nothing, and changes no
+    /// row.
+    pub int_keys:      Option<&'a [&'a [u8]]>,
 }
 
 /// The key a [`ProjectionRequest::matched_up_to`] page carries its match count under.
@@ -198,6 +203,14 @@ pub fn take_matched(rows: &[JsonbValue]) -> (Vec<JsonbValue>, Option<u64>) {
 }
 
 impl<'a> ProjectionRequest<'a> {
+    /// The rows a read answered as text starts from: made
+    /// [`with_int_keys`](super::RawRows::with_int_keys) of [`int_keys`](Self::int_keys) when
+    /// the request names them.
+    #[must_use]
+    pub fn raw_rows(&self) -> super::RawRows {
+        self.int_keys.map_or_else(super::RawRows::new, super::RawRows::with_int_keys)
+    }
+
     /// Construct a `ProjectionRequest` from a view name with no filters,
     /// pagination or projection. Useful for tests and simple table scans.
     #[must_use]
@@ -212,6 +225,7 @@ impl<'a> ProjectionRequest<'a> {
             offset: None,
             matched_up_to: None,
             decimals: None,
+            int_keys: None,
         }
     }
 }

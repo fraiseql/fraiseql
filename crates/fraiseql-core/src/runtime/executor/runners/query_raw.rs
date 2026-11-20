@@ -22,7 +22,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use super::{query::QueryRunner, root_read::RootRead};
 use crate::{
-    backend::{RawRows, types::JsonbValue},
+    backend::{ProjectionRequest, RawRows, types::JsonbValue},
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
     runtime::QueryMatch,
@@ -57,11 +57,23 @@ impl QueryRunner {
             return Ok(None);
         };
         let query_def = &query_match.query_def;
+        let selections = query_match
+            .selections
+            .first()
+            .map_or(&[][..], |root| root.nested_fields.as_slice());
+        let schema = &self.ctx.schema;
+        let return_type = &query_def.return_type;
+        // A read selecting an `Int` tells the adapter its keys, so whether a number no `Int`
+        // holds sits under one is answered as the rows are copied.
+        let int_keys = shape.int_keys(selections, schema, return_type);
         let Some(rows) = self
             .ctx
             .adapter
             .execute_with_projection_raw_with_session(
-                &read.projection_request(),
+                &ProjectionRequest {
+                    int_keys: shape.ints.then_some(&int_keys[..]),
+                    ..read.projection_request()
+                },
                 session_pairs,
                 query_def.read_routing,
             )
@@ -73,15 +85,9 @@ impl QueryRunner {
         // § 6.4.4 completion leaves the response as it is unless a non-null position holds
         // `null` (a selected non-null field, or a non-null single root with no row), or an
         // `Int` position holds a number no `Int` holds as written (§ 3.5.1).
-        let selections = query_match
-            .selections
-            .first()
-            .map_or(&[][..], |root| root.nested_fields.as_slice());
-        let schema = &self.ctx.schema;
-        let return_type = &query_def.return_type;
         let completes_unchanged =
             !shape.may_hold_null_at_non_null(&rows, selections, schema, return_type)
-                && !shape.may_hold_non_int_at_int(&rows, selections, schema, return_type)
+                && !shape.may_hold_non_int_at_int(&rows, &int_keys)
                 && (query_def.returns_list || query_def.nullable || !rows.rows().is_empty());
         if !rows.exact() || !completes_unchanged {
             let parsed = rows.parse().map_err(|e| FraiseQLError::Internal {
@@ -149,23 +155,28 @@ impl RawShape {
             })
     }
 
-    /// Whether `rows`, read through `selections` of a `type_name`, may hold a number no
-    /// `Int` holds as written at an `Int` field: under a key an `Int` field is selected
-    /// under, at any depth, or where no key names it. Under any other key such a number is
-    /// a `Float`'s or a `Decimal`'s, and is served as read; the rows are not read there.
-    fn may_hold_non_int_at_int(
+    /// Whether `rows` may hold a number no `Int` holds as written under one of `int_keys`
+    /// ([`int_keys`](Self::int_keys)), or under no key.
+    fn may_hold_non_int_at_int(&self, rows: &RawRows, int_keys: &[&[u8]]) -> bool {
+        self.ints && rows.has_non_int_under(int_keys)
+    }
+
+    /// The response keys under which `rows`, read through `selections` of a `type_name`,
+    /// may hold a number no `Int` holds as written at an `Int` field: each key an `Int`
+    /// field is selected under, at any depth. Under any other key such a number is a
+    /// `Float`'s or a `Decimal`'s, and is served as read; one where no key names it is
+    /// looked at too ([`RawRows::has_non_int_under`]). None when the read selects no `Int`.
+    fn int_keys<'s>(
         &self,
-        rows: &RawRows,
-        selections: &[FieldSelection],
+        selections: &'s [FieldSelection],
         schema: &CompiledSchema,
         type_name: &str,
-    ) -> bool {
-        if !self.ints {
-            return false;
-        }
+    ) -> Vec<&'s [u8]> {
         let mut keys = Vec::new();
-        int_keys(selections, schema, type_name, &mut keys);
-        rows.has_non_int_under(&keys)
+        if self.ints {
+            int_keys(selections, schema, type_name, &mut keys);
+        }
+        keys
     }
 
     fn of(read: &RootRead, query_match: &QueryMatch, schema: &CompiledSchema) -> Option<Self> {

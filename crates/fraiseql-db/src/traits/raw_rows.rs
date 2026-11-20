@@ -66,14 +66,39 @@ struct Keys {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct Marks {
     /// Where each `null` sits.
-    nulls:   Keys,
-    /// Whether a number that is not a signed 32-bit integer, written as one, sits anywhere.
-    ///
-    /// Where is found only when asked ([`RawRows::has_non_int_under`]): such numbers are
-    /// every `Float` and `Decimal` with a fraction, and placing each under its key as it is
-    /// copied cost a row of forty numbers 43% more to compact, a cost every read paid for
-    /// a question only a read selecting an `Int` asks.
-    non_int: bool,
+    nulls:          Keys,
+    /// Whether a number that is not a signed 32-bit integer, written as one, sits under
+    /// one of [`int_keys`](Self::int_keys) or under no key; anywhere, without them.
+    non_int:        bool,
+    /// The response keys of the `Int` fields the read selects, when the reader said which
+    /// ([`RawRows::with_int_keys`]): a number is then looked at under those keys only, and
+    /// the question is answered as the rows are copied. Every `Float` and `Decimal` with a
+    /// fraction is a number no `Int` holds, so without them the question is answered by
+    /// reading the rows again.
+    int_keys:       Option<Vec<Vec<u8>>>,
+    /// The first byte of each of [`int_keys`](Self::int_keys), one bit per byte value: a
+    /// key whose first byte has no bit is none of them, unread further.
+    int_key_starts: [u64; 4],
+}
+
+impl Marks {
+    /// Whether a number copied to `out` from `at` is one [`non_int`](Self::non_int) counts
+    /// when no `Int` holds it: in an object, the member it is the value of is under one of
+    /// [`int_keys`](Self::int_keys); anywhere, when the reader named none or no key names
+    /// it (an array element, the text itself, a key holding an escaped quote).
+    fn counts_number_at(&self, open: &[bool], out: &[u8], at: usize) -> bool {
+        let Some(int_keys) = &self.int_keys else {
+            return true;
+        };
+        let Some(key) = (open.last() == Some(&true)).then(|| member_key(&out[..at])).flatten()
+        else {
+            return true;
+        };
+        let key = &out[key];
+        let first = key.first().copied().unwrap_or_default();
+        self.int_key_starts[usize::from(first >> 6)] & (1 << (first & 63)) != 0
+            && int_keys.iter().any(|int_key| **int_key == *key)
+    }
 }
 
 impl Keys {
@@ -118,7 +143,8 @@ fn compact(src: &[u8], out: &mut Vec<u8>, mut marks: Option<&mut Marks>) -> Comp
             }
             // Once one number is no `Int`'s, whether another is changes nothing.
             if let Some(marks) = marks.as_deref_mut().filter(|marks| !marks.non_int) {
-                marks.non_int = !holds_an_int(&src[start..i]);
+                marks.non_int =
+                    !holds_an_int(&src[start..i]) && marks.counts_number_at(&open, out, out_start);
             }
             found.exact &= write_number(&src[start..i], out, out_start);
             number_start = None;
@@ -186,7 +212,8 @@ fn compact(src: &[u8], out: &mut Vec<u8>, mut marks: Option<&mut Marks>) -> Comp
     }
     if let Some((start, out_start)) = number_start {
         if let Some(marks) = marks.filter(|marks| !marks.non_int) {
-            marks.non_int = !holds_an_int(&src[start..]);
+            marks.non_int =
+                !holds_an_int(&src[start..]) && marks.counts_number_at(&open, out, out_start);
         }
         found.exact &= write_number(&src[start..], out, out_start);
     }
@@ -379,13 +406,29 @@ impl RawRows {
             rows:  Vec::new(),
             exact: true,
             marks: Marks {
-                nulls:   Keys {
+                nulls:          Keys {
                     keyed:   Vec::new(),
                     unkeyed: false,
                 },
-                non_int: false,
+                non_int:        false,
+                int_keys:       None,
+                int_key_starts: [0; 4],
             },
         }
+    }
+
+    /// No rows, to be read through a selection whose `Int` fields are `int_keys`, by
+    /// response key at any depth: [`has_non_int_under`](Self::has_non_int_under) asked of
+    /// the same keys is then answered as the rows are copied, and the rows are not read
+    /// again.
+    #[must_use]
+    pub fn with_int_keys(int_keys: &[&[u8]]) -> Self {
+        let mut rows = Self::new();
+        for first in int_keys.iter().filter_map(|key| key.first()) {
+            rows.marks.int_key_starts[usize::from(first >> 6)] |= 1 << (first & 63);
+        }
+        rows.marks.int_keys = Some(int_keys.iter().map(|key| key.to_vec()).collect());
+        rows
     }
 
     /// Append one row, `src` a valid JSON text.
@@ -450,11 +493,19 @@ impl RawRows {
     /// it. A key holding an escape names nothing, as for
     /// [`has_null_where`](Self::has_null_where).
     ///
-    /// The rows are read only when one holds such a number at all, and only a number under
-    /// one of `keys`, or under none, is looked at.
+    /// Rows made [`with_int_keys`](Self::with_int_keys) of these `keys` answer as they were
+    /// copied. Otherwise the rows are read, only when one holds such a number at all, and
+    /// only a number under one of `keys`, or under none, is looked at.
     #[must_use]
     pub fn has_non_int_under(&self, keys: &[&[u8]]) -> bool {
-        self.marks.non_int && non_int_under(&self.bytes, keys)
+        match &self.marks.int_keys {
+            None => self.marks.non_int && non_int_under(&self.bytes, keys),
+            Some(int_keys) if int_keys.iter().map(Vec::as_slice).eq(keys.iter().copied()) => {
+                self.marks.non_int
+            },
+            // Copied for other keys: what was noted says nothing of these.
+            Some(_) => non_int_under(&self.bytes, keys),
+        }
     }
 
     /// The rows, parsed.

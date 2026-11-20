@@ -101,7 +101,7 @@ impl DatabaseAdapter for FixedRows {
         let Some(texts) = &self.1 else {
             return Ok(None);
         };
-        let mut rows = RawRows::new();
+        let mut rows = request.raw_rows();
         for text in &texts[..self.count(request.where_clause, request.limit)] {
             rows.push(text);
         }

@@ -838,6 +838,11 @@ mod raw_body {
                 "{method}"
             );
             assert_eq!(adapter.text_reads(), 1, "{method}: the read was answered as text");
+            assert_eq!(
+                adapter.text_read_int_keys(),
+                Some(vec![b"id".to_vec()]),
+                "{method}: the read named the `Int` it selects, so its rows are read once"
+            );
         }
     }
 

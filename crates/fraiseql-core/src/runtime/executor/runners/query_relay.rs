@@ -689,6 +689,7 @@ impl QueryRunner {
                         offset:        None,
                         matched_up_to: None,
                         decimals:      self.ctx.decimals.shape(&type_name).map(|shape| &**shape),
+                        int_keys:      None,
                     },
                     &session_pairs,
                     node_qdef.read_routing,

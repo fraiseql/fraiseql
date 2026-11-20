@@ -1611,7 +1611,7 @@ impl PostgresAdapter {
     }
 
     /// [`execute_raw_with_session`](Self::execute_raw_with_session)'s read, each row kept as
-    /// the text the server sent.
+    /// the text the server sent, appended to `raw`.
     ///
     /// # Errors
     ///
@@ -1622,9 +1622,9 @@ impl PostgresAdapter {
         params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
         session_vars: &[(&str, &str)],
         routing: ReadRouting,
+        mut raw: RawRows,
     ) -> Result<RawRows> {
         let rows = self.read_rows(sql, params, session_vars, routing).await?;
-        let mut raw = RawRows::new();
         for row in &rows {
             raw_json_cell(row, sql, &mut raw)?;
         }

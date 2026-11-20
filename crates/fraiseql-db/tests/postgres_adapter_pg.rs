@@ -3397,6 +3397,7 @@ async fn a_counted_page_keeps_its_documents_key_order() {
                 matched_up_to: Some(100),
                 source_args:   None,
                 decimals:      None,
+                int_keys:      None,
             },
             &[],
             ReadRouting::Any,
@@ -3407,4 +3408,46 @@ async fn a_counted_page_keeps_its_documents_key_order() {
     assert_eq!(first.keys().collect::<Vec<_>>(), ["zz", "a", MATCHED_KEY]);
     assert_eq!(first["a"].as_object().unwrap().keys().collect::<Vec<_>>(), ["yy", "b"]);
     assert_eq!(first[MATCHED_KEY], json!(30));
+}
+
+/// A projected page read as text is copied knowing the `Int` keys the request names: what it
+/// noted is what rows built for those keys note of the same text, and it answers for them.
+#[tokio::test]
+async fn a_page_read_as_text_is_copied_for_the_int_keys_it_names() {
+    use fraiseql_db::{RawRows, traits::ProjectionRequest};
+    let adapter = page_first_fixture().await;
+    let hint = fraiseql_db::types::SqlProjectionHint::new(
+        DatabaseType::PostgreSQL,
+        "JSON_OBJECT('n' VALUE 1.5, 'm' VALUE 7 RETURNING json)".to_string(),
+        0,
+    );
+    let int_keys: [&[u8]; 1] = [b"m"];
+    let rows = adapter
+        .execute_with_projection_raw_with_session(
+            &ProjectionRequest {
+                view:          "pf_doc",
+                projection:    Some(&hint),
+                where_clause:  None,
+                order_by:      None,
+                limit:         Some(2),
+                offset:        None,
+                matched_up_to: None,
+                source_args:   None,
+                decimals:      None,
+                int_keys:      Some(&int_keys),
+            },
+            &[],
+            ReadRouting::Any,
+        )
+        .await
+        .unwrap()
+        .expect("a projected page is answered as text");
+    let mut expected = RawRows::with_int_keys(&int_keys);
+    for i in 0..rows.rows().len() {
+        expected.push(rows.row(i).unwrap());
+    }
+    assert_eq!(rows.rows().len(), 2);
+    assert_eq!(rows, expected);
+    assert!(!rows.has_non_int_under(&int_keys));
+    assert!(rows.has_non_int_under(&[b"n"]));
 }
