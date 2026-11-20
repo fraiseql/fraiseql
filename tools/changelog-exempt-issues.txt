@@ -78,3 +78,4 @@
 #1870  tools and CI: scripts under `pipefail` stop piping into `grep -q`, which could read a match as a miss, and a gate refuses the shape; no shipped artifact changes
 #1961  tools and CI: the same fix as #1870, which it duplicates; no shipped artifact changes
 #2114  tests: the observer health test boots holding temp_env's lock with the refused transport variables unset; no shipped artifact changes
+#2128  docs: `ObjectInfo::etag` states which entity tag each source lists and that a backend listing's is not the served one; no behaviour changes

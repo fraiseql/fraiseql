@@ -31,7 +31,17 @@ pub struct ObjectInfo {
     pub size:          u64,
     /// MIME type.
     pub content_type:  String,
-    /// Entity tag for integrity.
+    /// The entity tag of the source this listing read, comparable only with another
+    /// listing of that source (#2128):
+    ///
+    /// - an S3-compatible backend: the `ETag` S3 reports;
+    /// - the local backend: a hex fingerprint of the file's size and modification time, which
+    ///   changes when either does and is not a content hash;
+    /// - a metadata row (`From<&StorageMetadataRow>`): the etag stored for the object, the one the
+    ///   storage routes serve.
+    ///
+    /// A backend listing's etag is not the `ETag` a download serves; that one is the
+    /// metadata row's.
     pub etag:          String,
     /// When the object was last modified, as the backend reports it; `None` when it
     /// reports no time. Never a time the listing made up.
