@@ -1474,57 +1474,55 @@ fn schema_with_security(key: &str, section: serde_json::Value) -> CompiledSchema
 async fn every_boot_guard_judges_the_deployment_the_server_was_built_for() {
     use fraiseql_guard::deployment::Deployment;
 
-    // Each case: the guard, then the configuration that trips it.
-    // Reason: with none of the features below on, nothing is pushed after the first case.
-    #[cfg_attr(
-        not(any(feature = "auth", feature = "redis-rate-limiting", feature = "inbound")),
-        allow(unused_mut)
-    )]
-    let mut cases: Vec<(&str, ServerConfig, CompiledSchema)> = vec![(
-        "rate limiting: proxy headers trusted with no trusted proxy",
-        fully_configured_server_config(),
-        schema_with_security(
-            "rate_limiting",
-            serde_json::json!({
-                "enabled": true,
-                "requests_per_second": 100,
-                "burst_size": 50,
-                "trust_proxy_headers": true,
-                "trusted_proxy_cidrs": [],
-            }),
+    // Each case: the guard, then the configuration that trips it. A case whose guard
+    // is feature-gated is compiled in with its feature.
+    let cases: Vec<(&str, ServerConfig, CompiledSchema)> = vec![
+        (
+            "rate limiting: proxy headers trusted with no trusted proxy",
+            fully_configured_server_config(),
+            schema_with_security(
+                "rate_limiting",
+                serde_json::json!({
+                    "enabled": true,
+                    "requests_per_second": 100,
+                    "burst_size": 50,
+                    "trust_proxy_headers": true,
+                    "trusted_proxy_cidrs": [],
+                }),
+            ),
         ),
-    )];
-    #[cfg(feature = "redis-rate-limiting")]
-    cases.push((
-        "token revocation on a malformed Redis URL",
-        fully_configured_server_config(),
-        schema_with_security(
-            "token_revocation",
-            serde_json::json!({
-                "enabled": true,
-                "backend": "redis",
-                "redis_url": "rediss//cache:6379",
-                "fail_open": false,
-            }),
+        #[cfg(feature = "redis-rate-limiting")]
+        (
+            "token revocation on a malformed Redis URL",
+            fully_configured_server_config(),
+            schema_with_security(
+                "token_revocation",
+                serde_json::json!({
+                    "enabled": true,
+                    "backend": "redis",
+                    "redis_url": "rediss//cache:6379",
+                    "fail_open": false,
+                }),
+            ),
         ),
-    ));
-    #[cfg(feature = "inbound")]
-    cases.push((
-        "an inbound webhook route whose secret is unset",
-        ServerConfig {
-            webhooks: [(
-                "slack".to_string(),
-                crate::config::WebhookRouteConfig {
-                    provider: "slack".to_string(),
-                    secret_env: Some("__FRAISEQL_TEST_DEPLOYMENT_UNSET_SECRET__".to_string()),
-                    ..Default::default()
-                },
-            )]
-            .into(),
-            ..fully_configured_server_config()
-        },
-        fully_configured_schema(),
-    ));
+        #[cfg(feature = "inbound")]
+        (
+            "an inbound webhook route whose secret is unset",
+            ServerConfig {
+                webhooks: [(
+                    "slack".to_string(),
+                    crate::config::WebhookRouteConfig {
+                        provider: "slack".to_string(),
+                        secret_env: Some("__FRAISEQL_TEST_DEPLOYMENT_UNSET_SECRET__".to_string()),
+                        ..Default::default()
+                    },
+                )]
+                .into(),
+                ..fully_configured_server_config()
+            },
+            fully_configured_schema(),
+        ),
+    ];
 
     for (guard, config, schema) in cases {
         for (deployment, refused) in [

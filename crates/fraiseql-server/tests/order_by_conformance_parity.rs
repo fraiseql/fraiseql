@@ -61,20 +61,68 @@ fn verdict<T>(
 
 /// The fixture compiled as the conformance harness compiles it: with the project config
 /// `project_toml.py` derives for it (its `[locale]` and the role granting its scope).
+/// Every value of `key` anywhere in `node`.
+fn values_of<'a>(node: &'a serde_json::Value, key: &str, found: &mut Vec<&'a serde_json::Value>) {
+    match node {
+        serde_json::Value::Object(map) => {
+            found.extend(map.get(key));
+            for value in map.values() {
+                values_of(value, key, found);
+            }
+        },
+        serde_json::Value::Array(items) => {
+            for item in items {
+                values_of(item, key, found);
+            }
+        },
+        _ => {},
+    }
+}
+
+/// The `fraiseql.toml` the conformance harness compiles `fixture` with, by the rule
+/// `sdks/official/conformance/project_toml.py` states: a `[locale]` when a field is
+/// `localized`, a `[project] name` with `[observers] enabled` when observers are declared,
+/// and a role granting every `requires_scope`. Derived from the fixture, not written for
+/// it, so a fixture that gains a construct needing a section compiles here as it does
+/// there.
+fn project_toml(fixture: &serde_json::Value) -> String {
+    let mut toml = String::new();
+    let mut localized = Vec::new();
+    values_of(fixture, "localized", &mut localized);
+    if localized.iter().any(|value| value.as_bool() == Some(true)) {
+        toml.push_str("[locale]\ndefault = \"en-US\"\nallowed = [\"en-US\", \"fr-FR\"]\n");
+    }
+    if fixture["observers"].as_array().is_some_and(|observers| !observers.is_empty()) {
+        toml.push_str("[project]\nname = \"conformance\"\n\n[observers]\nenabled = true\n");
+    }
+    let mut scopes = Vec::new();
+    values_of(fixture, "requires_scope", &mut scopes);
+    let mut scopes: Vec<&str> = scopes
+        .iter()
+        .filter_map(|scope| scope.as_str())
+        .filter(|s| !s.is_empty())
+        .collect();
+    scopes.sort_unstable();
+    scopes.dedup();
+    if !scopes.is_empty() {
+        let listed: Vec<String> = scopes.iter().map(|scope| format!("{scope:?}")).collect();
+        toml.push_str("[[security.role_definitions]]\nname = \"conformance\"\nscopes = [");
+        toml.push_str(&listed.join(", "));
+        toml.push_str("]\n");
+    }
+    toml
+}
+
 async fn compiled_fixture() -> CompiledSchema {
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../sdks/official/conformance/reference/full.json"
     );
+    let fixture: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
     let project = tempfile::TempDir::new().unwrap();
     let config = project.path().join("fraiseql.toml");
-    std::fs::write(
-        &config,
-        "[locale]\ndefault = \"en-US\"\nallowed = [\"en-US\", \"fr-FR\"]\n\
-         [[security.role_definitions]]\nname = \"conformance\"\n\
-         scopes = [\"read:User.salary\"]\n",
-    )
-    .unwrap();
+    std::fs::write(&config, project_toml(&fixture)).unwrap();
     let (compiled, _) = compile_to_schema(CompileOptions {
         skip_hash: true,
         config: Some(fraiseql_cli::config::ConfigSource::Explicit(config)),
