@@ -50,7 +50,10 @@ client from it. It refuses to start, in production and in development, when:
 - `[auth]` declares no client (`discovery_url`, `client_id`, `client_secret_env`,
   `server_redirect_uri`): `fraiseql compile` refuses this too;
 - the variable `client_secret_env` names is not set, or is empty;
-- the discovery document cannot be fetched, answers an error status, or does not parse.
+- the discovery document cannot be fetched, answers an error status, or does not parse;
+- the document names an issuer other than `discovery_url`. A trailing slash on either side
+  does not count: Auth0 publishes `https://your-tenant.auth0.com/`, and
+  `https://your-tenant.auth0.com` names the same tenant.
 
 The refusal names the step and the variable or URL, never the secret. Without these the
 server used to start with no `/auth/start` or `/auth/callback`, and every login answered

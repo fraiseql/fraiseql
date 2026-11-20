@@ -4338,6 +4338,77 @@ mod oidc_provider_tests {
         assert_eq!(provider, shared);
     }
 
+    /// A mock serving a discovery document that names `issuer(base)`, `base` being the
+    /// mock's own URL, and lists endpoints under the mock.
+    async fn discovery_naming(issuer: impl FnOnce(&str) -> String) -> wiremock::MockServer {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let mock_server = MockServer::start().await;
+        let base = mock_server.uri();
+        Mock::given(method("GET"))
+            .and(path("/.well-known/openid-configuration"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "issuer":                 issuer(&base),
+                "authorization_endpoint": format!("{base}/authorize"),
+                "token_endpoint":         format!("{base}/token"),
+                "userinfo_endpoint":      format!("{base}/userinfo"),
+            })))
+            .mount(&mock_server)
+            .await;
+        mock_server
+    }
+
+    /// What each discovery caller reports for `base`, accepted or not.
+    async fn both_outcomes(base: &str) -> (Result<(), String>, Result<(), String>) {
+        let provider =
+            OidcProvider::new("test", base, "client_id", "client_secret", "https://a.test/cb")
+                .await
+                .map(drop)
+                .map_err(|e| e.to_string());
+        let shared = fetch_oidc_discovery(base).await.map(drop).map_err(|e| e.to_string());
+        (provider, shared)
+    }
+
+    /// A document naming another issuer is refused by both callers, with the same error
+    /// naming both issuers.
+    #[tokio::test]
+    async fn both_discovery_callers_refuse_a_document_naming_another_issuer() {
+        let mock_server = discovery_naming(|_| "https://other.example".to_string()).await;
+        let base = mock_server.uri();
+        let (provider, shared) = temp_env::async_with_vars(DEV_INSECURE, both_callers(&base)).await;
+        assert!(provider.contains("\"https://other.example\""), "{provider}");
+        assert!(provider.contains(&format!("{base:?}")), "{provider}");
+        assert_eq!(provider, shared);
+    }
+
+    /// The configured value is a base URL the discovery path is appended to, so a
+    /// trailing slash on either side names the same document: both callers accept it.
+    #[tokio::test]
+    async fn both_discovery_callers_accept_a_trailing_slash_difference() {
+        let mock_server = discovery_naming(str::to_string).await;
+        let configured = format!("{}/", mock_server.uri());
+        let outcomes = temp_env::async_with_vars(DEV_INSECURE, both_outcomes(&configured)).await;
+        assert_eq!(outcomes, (Ok(()), Ok(())), "configured with a slash, document without");
+
+        let mock_server = discovery_naming(|base| format!("{base}/")).await;
+        let configured = mock_server.uri();
+        let outcomes = temp_env::async_with_vars(DEV_INSECURE, both_outcomes(&configured)).await;
+        assert_eq!(outcomes, (Ok(()), Ok(())), "document with a slash, configured without");
+    }
+
+    /// Any other difference is refused: the same host under another path is another
+    /// issuer (a Keycloak realm, say).
+    #[tokio::test]
+    async fn both_discovery_callers_refuse_another_path_on_the_same_host() {
+        let mock_server = discovery_naming(|base| format!("{base}/realms/other")).await;
+        let base = mock_server.uri();
+        let (provider, shared) = temp_env::async_with_vars(DEV_INSECURE, both_callers(&base)).await;
+        assert!(provider.contains("/realms/other"), "{provider}");
+        assert_eq!(provider, shared);
+    }
+
     /// The same size cap bounds both callers' discovery response.
     #[tokio::test]
     async fn both_discovery_callers_cap_the_response_alike() {

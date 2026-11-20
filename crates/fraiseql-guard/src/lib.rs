@@ -30,6 +30,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod oidc;
+
 pub mod deployment;
 pub mod kafka;
 pub mod net;

@@ -1738,6 +1738,47 @@ async fn a_pkce_discovery_error_status_refuses_to_boot() {
     assert!(!refused.contains("p2133-secret"), "quotes the secret: {refused}");
 }
 
+/// A provider whose discovery document names another issuer refuses the boot, naming
+/// the configured issuer and the document's.
+#[cfg(feature = "auth")]
+#[tokio::test]
+#[allow(clippy::future_not_send)] // Reason: see `pkce_boot`
+async fn a_pkce_discovery_naming_another_issuer_refuses_to_boot() {
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+    let provider = MockServer::start().await;
+    let base = provider.uri();
+    Mock::given(method("GET"))
+        .and(path("/.well-known/openid-configuration"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "issuer":                 "https://other.example",
+            "authorization_endpoint": format!("{base}/authorize"),
+            "token_endpoint":         format!("{base}/token"),
+            "userinfo_endpoint":      format!("{base}/userinfo"),
+        })))
+        .mount(&provider)
+        .await;
+    let schema = schema_with_pkce(true, Some((&base, "P2135_SECRET")));
+    let refused = pkce_boot(
+        schema,
+        fraiseql_guard::deployment::Deployment::Development,
+        vec![
+            ("P2135_SECRET", Some("p2135-secret")),
+            ("FRAISEQL_ENV", Some("development")),
+            ("FRAISEQL_PROFILE", None),
+            ("KUBERNETES_SERVICE_HOST", None),
+            ("FRAISEQL_OIDC_ALLOW_INSECURE", Some("1")),
+        ],
+    )
+    .await
+    .expect("booted with a discovery document naming another issuer");
+    assert!(refused.contains("\"https://other.example\""), "names the document's: {refused}");
+    assert!(refused.contains(&format!("{base:?}")), "names the configured: {refused}");
+    assert!(!refused.contains("p2135-secret"), "quotes the secret: {refused}");
+}
+
 /// With PKCE disabled the declared client is not built: the boot never contacts the
 /// provider, though the provider is reachable and the secret set.
 #[cfg(feature = "auth")]

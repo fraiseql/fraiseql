@@ -190,7 +190,9 @@ pub(crate) fn validate_oidc_issuer_url(issuer_url: &str) -> Result<()> {
 /// # Errors
 ///
 /// Returns [`AuthError::OidcMetadataError`] if the base URL fails SSRF validation,
-/// the document cannot be fetched/parsed, or it exceeds [`MAX_OIDC_DISCOVERY_BYTES`].
+/// the document cannot be fetched/parsed, it exceeds [`MAX_OIDC_DISCOVERY_BYTES`], or
+/// it names an issuer other than `discovery_base`
+/// ([`fraiseql_guard::oidc::check_discovered_issuer`], ignoring one trailing slash).
 pub(crate) async fn fetch_oidc_discovery(discovery_base: &str) -> Result<OidcDiscovery> {
     validate_oidc_issuer_url(discovery_base)?;
 
@@ -226,9 +228,20 @@ pub(crate) async fn fetch_oidc_discovery(discovery_base: &str) -> Result<OidcDis
             ),
         });
     }
-    serde_json::from_slice(&discovery_bytes).map_err(|e| AuthError::OidcMetadataError {
-        message: format!("Failed to parse OIDC metadata: {e}"),
-    })
+    let discovery: OidcDiscovery =
+        serde_json::from_slice(&discovery_bytes).map_err(|e| AuthError::OidcMetadataError {
+            message: format!("Failed to parse OIDC metadata: {e}"),
+        })?;
+    // The configured value is a base URL the discovery path is appended to, and no token
+    // is compared with it here, so a trailing slash on either side names the same issuer.
+    fraiseql_guard::oidc::check_discovered_issuer(
+        &discovery_url,
+        discovery_base,
+        &discovery.issuer,
+        fraiseql_guard::oidc::IssuerMatch::IgnoringTrailingSlash,
+    )
+    .map_err(|message| AuthError::OidcMetadataError { message })?;
+    Ok(discovery)
 }
 
 /// The HTTP client every OIDC request goes through: bounded by

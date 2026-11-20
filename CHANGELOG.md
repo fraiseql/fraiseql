@@ -18,6 +18,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A discovery document that names another issuer refuses the boot (#2135).** The
+  `[auth]` PKCE client and the social and generic OIDC providers fetch
+  `{discovery_url}/.well-known/openid-configuration`; the `issuer` the document names must
+  now be `discovery_url`, ignoring one trailing slash on either side. A document naming
+  another issuer (a wrong tenant or realm, or a proxy or redirect serving another issuer's
+  metadata) is refused, naming the configured issuer and the document's, where it was
+  used before. Set `discovery_url` to the issuer the provider publishes.
 - **An observer `condition` that reads a key no event of its entity can hold is refused
   (#2122).** `fraiseql compile` refuses a declared observer, and the observer admin API
   refuses a create or update with `422`, when its condition reads a key that names no field

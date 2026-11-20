@@ -50,6 +50,13 @@ async fn new_provider_insecure(
 // HELPER FUNCTIONS
 // ============================================================================
 
+/// `doc` as served from `issuer`: a discovery document names the issuer it is fetched
+/// from, and the provider refuses one that names another.
+fn issued_by(mut doc: serde_json::Value, issuer: &str) -> serde_json::Value {
+    doc["issuer"] = json!(issuer);
+    doc
+}
+
 /// Create a standard OIDC discovery document
 fn standard_discovery_doc() -> serde_json::Value {
     json!({
@@ -148,7 +155,10 @@ async fn test_oidc_provider_discovery() {
     // Mock the OIDC discovery endpoint
     Mock::given(method("GET"))
         .and(path("/.well-known/openid-configuration"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(standard_discovery_doc()))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(issued_by(standard_discovery_doc(), &server.uri())),
+        )
         .mount(&server)
         .await;
 
@@ -172,7 +182,7 @@ async fn test_oidc_discovery_document_structure() {
     allow_insecure_for_test();
     let server = MockServer::start().await;
 
-    let discovery = standard_discovery_doc();
+    let discovery = issued_by(standard_discovery_doc(), &server.uri());
     Mock::given(method("GET"))
         .and(path("/.well-known/openid-configuration"))
         .respond_with(ResponseTemplate::new(200).set_body_json(&discovery))
@@ -293,7 +303,10 @@ async fn test_jwks_retrieval() {
     // Mock OIDC discovery
     Mock::given(method("GET"))
         .and(path("/.well-known/openid-configuration"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(standard_discovery_doc()))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(issued_by(standard_discovery_doc(), &server.uri())),
+        )
         .mount(&server)
         .await;
 
@@ -390,7 +403,11 @@ async fn test_auth0_provider_discovery() {
     let tenant = "test-tenant";
     Mock::given(method("GET"))
         .and(path("/.well-known/openid-configuration"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(auth0_discovery_doc(tenant)))
+        .respond_with(ResponseTemplate::new(200).set_body_json(issued_by(
+            auth0_discovery_doc(tenant),
+            // Auth0 publishes its issuer with a trailing slash.
+            &format!("{}/", server.uri()),
+        )))
         .mount(&server)
         .await;
 
@@ -425,7 +442,10 @@ async fn test_google_provider_discovery() {
 
     Mock::given(method("GET"))
         .and(path("/.well-known/openid-configuration"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(google_discovery_doc()))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(issued_by(google_discovery_doc(), &server.uri())),
+        )
         .mount(&server)
         .await;
 
@@ -460,7 +480,10 @@ async fn test_microsoft_provider_discovery() {
 
     Mock::given(method("GET"))
         .and(path("/.well-known/openid-configuration"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(microsoft_discovery_doc()))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(issued_by(microsoft_discovery_doc(), &server.uri())),
+        )
         .mount(&server)
         .await;
 
@@ -494,7 +517,10 @@ async fn test_okta_provider_discovery() {
 
     Mock::given(method("GET"))
         .and(path("/.well-known/openid-configuration"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(okta_discovery_doc("dev-12345")))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(issued_by(okta_discovery_doc("dev-12345"), &server.uri())),
+        )
         .mount(&server)
         .await;
 
@@ -529,7 +555,10 @@ async fn test_provider_name_preserved() {
 
     Mock::given(method("GET"))
         .and(path("/.well-known/openid-configuration"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(standard_discovery_doc()))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(issued_by(standard_discovery_doc(), &server.uri())),
+        )
         .mount(&server)
         .await;
 
@@ -553,7 +582,10 @@ async fn test_authorization_url_generation() {
 
     Mock::given(method("GET"))
         .and(path("/.well-known/openid-configuration"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(standard_discovery_doc()))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(issued_by(standard_discovery_doc(), &server.uri())),
+        )
         .mount(&server)
         .await;
 
@@ -585,7 +617,10 @@ async fn test_multiple_provider_instances() {
 
     Mock::given(method("GET"))
         .and(path("/.well-known/openid-configuration"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(standard_discovery_doc()))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(issued_by(standard_discovery_doc(), &server.uri())),
+        )
         .mount(&server)
         .await;
 
