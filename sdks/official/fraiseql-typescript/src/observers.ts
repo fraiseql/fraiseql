@@ -81,6 +81,10 @@ interface WebhookOptions {
   url_env?: string;
   /** HTTP method; the server sends `POST` when unset. */
   method?: string;
+  /**
+   * Headers sent as written. Only these are authored: the server sends the payload as
+   * JSON and sets its content type itself.
+   */
   headers?: Record<string, string>;
   /** Request body with `{{ field }}` placeholders naming fields of the observed entity. */
   body_template?: string;
@@ -112,7 +116,7 @@ export function webhook(url?: string, options?: WebhookOptions): ObserverAction 
     throw new Error("Either url or url_env must be provided");
   }
   const action: ObserverAction & {
-    headers: Record<string, string>;
+    headers?: Record<string, string>;
     url?: string;
     url_env?: string;
     method?: string;
@@ -121,8 +125,12 @@ export function webhook(url?: string, options?: WebhookOptions): ObserverAction 
     headers_env?: Record<string, string>;
   } = {
     type: "webhook",
-    headers: { "Content-Type": "application/json", ...(options?.headers ?? {}) },
   };
+  // Only the headers the author wrote: the server sends the payload as JSON and sets its
+  // content type itself.
+  if (options?.headers !== undefined) {
+    action.headers = { ...options.headers };
+  }
   if (url !== undefined) {
     action.url = url;
   }

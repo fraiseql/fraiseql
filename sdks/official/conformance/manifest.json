@@ -43,9 +43,7 @@
         "-c",
         "{ [ -d node_modules ] || npm ci --no-audit --no-fund --loglevel=error >/dev/null; } && npx --yes tsx conformance/export.ts"
       ],
-      "unsupported": {
-        "observer_webhook_headers": "`webhook()` adds `Content-Type: application/json` to every webhook's `headers`, which the author did not write; the server already sends JSON. The construct passes once the factory writes only the headers it is given (#2146)."
-      },
+      "unsupported": {},
       "container": "node:22",
       "container_env": [
         "HOME=/conformance-cache/node",

@@ -154,7 +154,6 @@ describe("webhook action", () => {
 
     expect(action.type).toBe("webhook");
     expect(action.url).toBe("https://example.com/orders");
-    expect(action.headers).toEqual({ "Content-Type": "application/json" });
   });
 
   it("should create webhook with environment variable", () => {
@@ -170,7 +169,7 @@ describe("webhook action", () => {
       headers: { Authorization: "Bearer token123" },
     });
 
-    expect(action.headers.Authorization).toBe("Bearer token123");
+    expect(action.headers).toEqual({ Authorization: "Bearer token123" });
   });
 
   it("should support body template", () => {
@@ -197,11 +196,17 @@ describe("webhook action", () => {
     });
 
     expect(action.headers_env).toEqual({ Authorization: "ORDER_HOOK_TOKEN" });
-    expect(action.headers).toEqual({ "Content-Type": "application/json" });
+    expect("headers" in action).toBe(false);
   });
 
   it("should emit no headers_env when none is given", () => {
     expect("headers_env" in webhook("https://example.com")).toBe(false);
+  });
+
+  // The server sends the payload as JSON and sets its content type itself, so a header
+  // the author did not write is not one the factory adds.
+  it("should emit no headers when none is given", () => {
+    expect("headers" in webhook("https://example.com")).toBe(false);
   });
 
   it("should emit only keys the observer runtime reads", () => {

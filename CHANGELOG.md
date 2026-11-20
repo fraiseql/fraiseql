@@ -713,6 +713,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The TypeScript SDK's `webhook()` writes only the headers it is given (#2146).** It
+  added `Content-Type: application/json` to every webhook's `headers`, a header the author
+  did not write; the other SDKs add none. The server sets that content type on every
+  webhook request whose headers name none, so what is sent is unchanged. A `webhook()`
+  given no `headers` now authors no `headers` key.
 - **A subscription event reports a selected field a captured write lacks (#2123).** On a
   type with a table captured as its row, a GraphQL subscriber selecting a field the type
   embeds received `null` for it on a write made outside a mutation, indistinguishable from
