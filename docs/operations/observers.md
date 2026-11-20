@@ -126,8 +126,18 @@ only the variable's name is stored:
 }
 ```
 
-A variable that is not set, or is empty, when a webhook is delivered fails that delivery:
-nothing is sent, and the event is dead-lettered, as for `signing_secret_env`. The admin
+**The variables a declared observer names are checked at boot.** A server's environment
+does not change once it is running, so a variable that is not set, or is empty, at boot
+would fail every delivery that reads it. In production the server refuses to start when a
+declared observer's `url_env`, `signing_secret_env`, `headers_env` or Slack
+`webhook_url_env` names such a variable. The refusal lists each one by observer, action,
+key and variable name, never a value. A `url_env` beside a literal `url` is not read, so
+it is not checked. In development the server starts and logs a `WARN` for each one.
+A changed value takes effect when the server restarts.
+
+An observer created through the admin API is not checked at boot: a stored row never
+stops the server. A variable it names that is not set, or is empty, when a webhook is
+delivered fails that delivery: nothing is sent, and the event is dead-lettered. The admin
 API accepts `headers_env` too, and shows the variable names in its responses; it still
 accepts a literal value under `headers`, which its responses mask.
 

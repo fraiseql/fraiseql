@@ -27,6 +27,7 @@
 
 pub mod changelog_handlers;
 pub mod config;
+pub mod declared_env;
 pub mod dlq_handlers;
 pub mod handlers;
 /// Postgres-backed durable function-dispatch dead-letter store (#598).

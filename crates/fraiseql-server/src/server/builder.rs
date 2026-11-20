@@ -719,6 +719,15 @@ impl Server {
             crate::observers::runtime::decimal_documents(Arc::clone(&executor)),
         )
         .await?;
+        // A declared observer's variables are checked before its row is written at start:
+        // a refused boot stores nothing.
+        #[cfg(feature = "observers")]
+        if observer_runtime.is_some() {
+            crate::observers::declared_env::check_declared_variables(
+                &executor.schema().observers,
+                deployment,
+            )?;
+        }
         #[cfg(feature = "observers")]
         if observer_runtime.is_none() && !executor.schema().observers.is_empty() {
             tracing::warn!(

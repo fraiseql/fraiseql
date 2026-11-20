@@ -50,6 +50,8 @@ pub(crate) mod tviews_feed;
 #[cfg(all(test, feature = "functions-runtime"))]
 mod after_mutation_wiring_tests;
 #[cfg(all(test, feature = "observers"))]
+mod declared_observer_env_tests;
+#[cfg(all(test, feature = "observers"))]
 mod entry_point_parity_tests;
 #[cfg(test)]
 mod health_capabilities_tests;

@@ -64,6 +64,13 @@ disagreed, and the promise was the part that was wrong.
 - **`fraiseql_observers::chrono` and `fraiseql_federation::chrono` are removed (#2026).**
   Neither crate's public API names a chrono type any more. A caller that reached chrono
   through them depends on `chrono` directly.
+- **A production server refuses to start when a declared observer names an unset variable (#2106).**
+  A declared webhook's `url_env`, `signing_secret_env` and `headers_env`, and a Slack
+  action's `webhook_url_env`, are checked at boot. The environment does not change after
+  boot, so such an observer could only dead-letter. The refusal names each observer,
+  action, key and variable. Set the variables before starting the server. Development
+  starts and logs a `WARN` for each one, and observers created through the admin API are
+  not checked at boot.
 - **`RateLimiter::retry_after_for_path` is removed (#1911).** Nothing in the server
   called it: the `Retry-After` a rejected request carries comes from the rate-limit check
   itself. Its Redis implementation also matched a path to its rule differently from the
