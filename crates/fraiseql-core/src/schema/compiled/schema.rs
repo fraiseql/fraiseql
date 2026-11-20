@@ -428,6 +428,10 @@ pub struct DerivedState {
     /// Whether the schema reads the enriched identity, filled by the first
     /// [`declares_enrichment_consumer`](CompiledSchema::declares_enrichment_consumer).
     pub enrichment_consumer: LazyFlag,
+
+    /// Whether an input type declares a field default, filled by the first
+    /// [`declares_input_defaults`](CompiledSchema::declares_input_defaults).
+    pub input_defaults: LazyFlag,
 }
 
 /// A `bool` computed on first read and kept: unfilled until then, never defaulted.

@@ -46,7 +46,7 @@ fn declared() -> Vec<ArgumentDefinition> {
 fn applied(input: Value) -> Result<Value, String> {
     apply_input_defaults_to_object(
         &schema(),
-        "Mutation.createOrder",
+        || "Mutation.createOrder".to_owned(),
         &declared(),
         Some(&Value::Object(std::iter::once(("input".to_string(), input)).collect())),
     )
@@ -94,7 +94,7 @@ fn a_field_sent_under_its_stored_key_is_not_defaulted_again() {
     schema.build_indexes();
     let out = apply_input_defaults_to_object(
         &schema,
-        "Mutation.createOrder",
+        || "Mutation.createOrder".to_owned(),
         &declared(),
         Some(&json!({ "input": { "buyer": "c", "currency_code": "USD" } })),
     )
@@ -118,7 +118,7 @@ fn an_object_with_a_key_its_type_does_not_declare_is_left_as_sent() {
 fn an_absent_argument_is_left_to_the_arguments_own_default() {
     let out = apply_input_defaults_to_object(
         &schema(),
-        "Mutation.createOrder",
+        || "Mutation.createOrder".to_owned(),
         &declared(),
         Some(&json!({})),
     )
@@ -139,7 +139,7 @@ fn a_schema_without_field_defaults_is_left_alone() {
     assert_eq!(
         apply_input_defaults_to_object(
             &schema,
-            "Mutation.createOrder",
+            || "Mutation.createOrder".to_owned(),
             &declared(),
             Some(&arguments)
         )
@@ -172,4 +172,67 @@ fn a_transport_read_takes_the_defaults_with_its_client_arguments() {
         .unwrap();
 
     assert_eq!(read.arguments["input"], json!({ "buyer": "c", "currency": "EUR", "rate": 0.2 }));
+}
+
+/// `quote(input: OrderInput)` and `quotes(limit: Int)`, both returning `Quote { id }`.
+fn read_schema() -> CompiledSchema {
+    let mut schema = schema();
+    let mut quote_type = crate::schema::TypeDefinition::new("Quote", "v_quote");
+    quote_type.fields = vec![crate::schema::FieldDefinition::new("id", FieldType::Id)];
+    schema.types = vec![quote_type];
+    let mut quote = crate::schema::QueryDefinition::new("quote", "Quote")
+        .returning_list()
+        .with_sql_source("v_quote");
+    quote.arguments = declared();
+    let mut quotes = crate::schema::QueryDefinition::new("quotes", "Quote")
+        .returning_list()
+        .with_sql_source("v_quote");
+    quotes.arguments = vec![ArgumentDefinition::new("limit", FieldType::Int)];
+    schema.queries = vec![quote, quotes];
+    schema.build_indexes();
+    schema
+}
+
+#[test]
+fn a_graphql_read_takes_the_defaults_in_its_matched_arguments() {
+    let matcher = crate::runtime::QueryMatcher::new(read_schema());
+
+    let read = matcher.match_query(r#"{ quote(input: { buyer: "c" }) { id } }"#, None).unwrap();
+
+    assert_eq!(read.arguments["input"], json!({ "buyer": "c", "currency": "EUR", "rate": 0.2 }));
+}
+
+#[test]
+fn only_an_argument_that_takes_an_input_object_can_take_a_default() {
+    let schema = read_schema();
+    let takes = |name: &str| {
+        super::takes_input_objects(&schema.find_query(name).unwrap().graphql_arguments(&schema))
+    };
+
+    assert!(takes("quote"));
+    assert!(!takes("quotes"), "a query of scalar arguments has no input object to walk");
+    assert!(super::takes_input_objects(&[ArgumentDefinition::new(
+        "lines",
+        FieldType::List {
+            item:           Box::new(FieldType::Object("LineInput".to_string())),
+            nullable_items: true,
+        },
+    )]));
+}
+
+/// The schema-wide flag is kept, and a schema changed after it was read answers for its new
+/// declarations: `build_indexes` clears it, and a clone starts unfilled.
+#[test]
+fn a_schema_given_a_default_after_it_was_asked_answers_anew() {
+    let mut schema = schema();
+    let declared_defaults = std::mem::take(&mut schema.input_types);
+    schema.build_indexes();
+    assert!(!schema.declares_input_defaults());
+
+    schema.input_types = declared_defaults;
+    schema.build_indexes();
+    assert!(schema.declares_input_defaults(), "build_indexes clears the kept answer");
+    let mut clone = schema.clone();
+    clone.input_types.clear();
+    assert!(!clone.declares_input_defaults(), "a clone answers for its own declarations");
 }

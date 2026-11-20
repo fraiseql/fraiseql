@@ -21,8 +21,26 @@ use crate::{
 /// How deep the walk follows a value; a request is depth-limited upstream.
 const MAX_DEPTH: usize = 64;
 
+/// Whether an argument of `declared` can carry an input object, whose omitted fields could
+/// take a default: one typed as an input object, directly or as the item of a list. Known per
+/// operation once its arguments are, so a read asks it once, not per request.
+#[must_use]
+pub fn takes_input_objects(declared: &[ArgumentDefinition]) -> bool {
+    fn input_object(declared: &FieldType) -> bool {
+        match declared {
+            FieldType::List { item, .. } => input_object(item),
+            // An input-type reference compiles as `Object`.
+            FieldType::Object(_) | FieldType::Input(_) => true,
+            _ => false,
+        }
+    }
+    declared.iter().any(|arg| input_object(&arg.arg_type))
+}
+
 /// Apply input field defaults to a mutation's argument object: the coerced copy, or `None`
-/// when no input type of `schema` declares a default (the caller keeps its own).
+/// when no input type of `schema` declares a default or no argument takes an input object
+/// (the caller keeps its own). `operation` names it in a refusal, built only when the
+/// arguments are walked.
 ///
 /// # Errors
 ///
@@ -30,16 +48,18 @@ const MAX_DEPTH: usize = 64;
 /// default, or a default that is not JSON.
 pub fn apply_input_defaults_to_object(
     schema: &CompiledSchema,
-    operation: &str,
+    operation: impl FnOnce() -> String,
     declared: &[ArgumentDefinition],
     arguments: Option<&Value>,
 ) -> Result<Option<Value>> {
-    if !declares_defaults(schema) {
+    if !schema.declares_input_defaults() || !takes_input_objects(declared) {
         return Ok(None);
     }
     let Some(mut arguments) = arguments.filter(|a| a.is_object()).cloned() else {
         return Ok(None);
     };
+    let operation = operation();
+    let operation = operation.as_str();
     if let Some(map) = arguments.as_object_mut() {
         for arg in declared {
             if let Some(value) = map.get_mut(&arg.name) {
@@ -50,7 +70,9 @@ pub fn apply_input_defaults_to_object(
     Ok(Some(arguments))
 }
 
-/// Apply input field defaults to a read's merged `arguments`, in place.
+/// Apply input field defaults to a read's merged `arguments`, in place. The caller has
+/// established that the schema declares a default and that `declared` takes an input
+/// object ([`takes_input_objects`]), once per query rather than per request.
 ///
 /// # Errors
 ///
@@ -61,23 +83,12 @@ pub fn apply_input_defaults(
     declared: &[ArgumentDefinition],
     arguments: &mut HashMap<String, Value>,
 ) -> Result<()> {
-    if !declares_defaults(schema) {
-        return Ok(());
-    }
     for arg in declared {
         if let Some(value) = arguments.get_mut(&arg.name) {
             walk_field_type(schema, operation, &arg.name, &arg.arg_type, value, 0)?;
         }
     }
     Ok(())
-}
-
-/// Whether any input type of `schema` declares a field default.
-fn declares_defaults(schema: &CompiledSchema) -> bool {
-    schema
-        .input_types
-        .iter()
-        .any(|t| t.fields.iter().any(|f| f.default_value.is_some()))
 }
 
 /// Walk `value` at a position of compiled type `declared`, reached at `path`.

@@ -194,12 +194,14 @@ impl QueryMatch {
             &published,
             |name| self.arguments.get(name),
         )?;
-        crate::runtime::apply_input_defaults(
-            schema,
-            &format!("Query.{}", schema.display_name(&self.query_def.name)),
-            &published,
-            &mut self.arguments,
-        )?;
+        if schema.declares_input_defaults() && crate::runtime::takes_input_objects(&published) {
+            crate::runtime::apply_input_defaults(
+                schema,
+                &format!("Query.{}", schema.display_name(&self.query_def.name)),
+                &published,
+                &mut self.arguments,
+            )?;
+        }
         crate::runtime::coerce_enum_arguments(schema, &published, &mut self.arguments);
         Ok(self)
     }
@@ -252,17 +254,25 @@ pub struct QueryMatcher {
 /// The arguments a query's field takes, as the matcher validates a document against them.
 struct QueryArguments {
     /// What introspection publishes, typed: [`QueryDefinition::graphql_arguments`].
-    published: Vec<ArgumentDefinition>,
+    published:      Vec<ArgumentDefinition>,
     /// What the runtime reads, wider and untyped:
     /// [`QueryDefinition::accepted_argument_names`].
-    accepted:  Vec<String>,
+    accepted:       Vec<String>,
+    /// Whether an omitted input field can take a default here: the schema declares one and
+    /// an argument takes an input object. Known once per query, so a query that cannot is
+    /// not walked per request.
+    input_defaults: bool,
 }
 
 impl QueryArguments {
     fn derive(query: &QueryDefinition, schema: &CompiledSchema) -> Self {
+        let published = query.graphql_arguments(schema);
+        let input_defaults =
+            schema.declares_input_defaults() && crate::runtime::takes_input_objects(&published);
         Self {
-            published: query.graphql_arguments(schema),
-            accepted:  query.accepted_argument_names(schema),
+            published,
+            accepted: query.accepted_argument_names(schema),
+            input_defaults,
         }
     }
 }
@@ -665,12 +675,13 @@ impl QueryMatcher {
         }
 
         let derived;
-        let published = if let Some(published) = self.arguments.get(&query_def.name) {
-            &published.published
+        let query_arguments = if let Some(query_arguments) = self.arguments.get(&query_def.name) {
+            query_arguments
         } else {
             derived = QueryArguments::derive(&query_def, &self.schema);
-            &derived.published
+            &derived
         };
+        let published = &query_arguments.published;
 
         // 9. #1614: a null item at a `[T!]` position, however it was written: a literal, a whole
         //    variable, or one nested in a literal.
@@ -683,12 +694,14 @@ impl QueryMatcher {
 
         // 10. #1580: an enum member named in an argument becomes the value it is stored as, the
         //     value SQL compares. After 5e, so every name here is a member.
-        crate::runtime::apply_input_defaults(
-            &self.schema,
-            &format!("Query.{}", self.schema.display_name(&query_def.name)),
-            published,
-            &mut arguments,
-        )?;
+        if query_arguments.input_defaults {
+            crate::runtime::apply_input_defaults(
+                &self.schema,
+                &format!("Query.{}", self.schema.display_name(&query_def.name)),
+                published,
+                &mut arguments,
+            )?;
+        }
         crate::runtime::coerce_enum_arguments(&self.schema, published, &mut arguments);
 
         Ok(QueryMatch {

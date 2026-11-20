@@ -31,6 +31,24 @@ impl CompiledSchema {
         sources
     }
 
+    /// Whether an input type of this schema declares a field default, which the reads and
+    /// writes ask before walking their arguments for one.
+    ///
+    /// Computed once per schema value and kept in [`DerivedState`], like
+    /// [`declares_enrichment_consumer`](Self::declares_enrichment_consumer): filled on
+    /// first use, so a schema that skipped `build_indexes` still answers from its
+    /// declarations; a clone starts unfilled, and `build_indexes` clears it.
+    ///
+    /// [`DerivedState`]: super::DerivedState
+    #[must_use]
+    pub fn declares_input_defaults(&self) -> bool {
+        self.derived.input_defaults.get(|| {
+            self.input_types
+                .iter()
+                .any(|t| t.fields.iter().any(|f| f.default_value.is_some()))
+        })
+    }
+
     /// Whether this schema reads the enriched identity at all: whether
     /// [`enriched_fields_read`](Self::enriched_fields_read) is non-empty, through any of
     /// its seven reader kinds.
@@ -166,6 +184,7 @@ impl CompiledSchema {
     /// [`derived_inputs::derive`]: crate::schema::derived_inputs::derive
     pub fn build_indexes(&mut self) {
         self.derived.enrichment_consumer = super::LazyFlag::default();
+        self.derived.input_defaults = super::LazyFlag::default();
         let derived = crate::schema::derived_inputs::derive(self);
         self.input_types.extend(derived.input_types);
         self.enums.extend(derived.enums);

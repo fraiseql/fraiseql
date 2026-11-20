@@ -1736,7 +1736,7 @@ async fn prepare_write<'a>(
     // the client sent. Every transport's arguments meet here.
     let defaulted = crate::runtime::apply_input_defaults_to_object(
         &ctx.schema,
-        &format!("Mutation.{}", ctx.schema.display_name(mutation_name)),
+        || format!("Mutation.{}", ctx.schema.display_name(mutation_name)),
         &mutation_def.arguments,
         variables,
     )?;
