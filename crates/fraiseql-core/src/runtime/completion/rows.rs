@@ -9,11 +9,13 @@
 //!
 //! An `Int` is a signed 32-bit integer (§ 3.5.1), and a count or an `int8` group key is
 //! wider: a value outside that range is a field error, its field `null`, never a number the
-//! type says cannot occur.
+//! type says cannot occur. A whole number written with a fraction (`3.0`, a `numeric`
+//! average) is served as the integer it is. The rule is the one every `Int` position is
+//! completed by.
 
 use serde_json::{Map, Value};
 
-use super::{OutputTypes, Step, TypeRef, Walk, response_path};
+use super::{IntCoercion, OutputTypes, Step, TypeRef, Walk, coerce_int, response_path};
 use crate::graphql::FieldSelection;
 
 impl OutputTypes {
@@ -99,7 +101,14 @@ impl OutputTypes {
                                 fields.and_then(|f| f.get(&field.name)),
                                 Some(TypeRef::Named(name)) if name == "Int"
                             );
-                            if is_int && !fits_an_int(&value) {
+                            let coerced = if is_int {
+                                coerce_int(&value)
+                            } else {
+                                IntCoercion::Served
+                            };
+                            if let IntCoercion::Whole(n) = coerced {
+                                Value::from(n)
+                            } else if coerced == IntCoercion::Refused {
                                 let path =
                                     [Step::Key(root_key), Step::Index(index), Step::Key(key)];
                                 errors.push(int_out_of_range(
@@ -151,20 +160,12 @@ impl Walk<'_> {
     }
 }
 
-/// Whether `value` is `null`, or not a number, or a number an `Int` holds.
-fn fits_an_int(value: &Value) -> bool {
-    let Value::Number(number) = value else {
-        return true;
-    };
-    number.as_i64().is_some_and(|n| i32::try_from(n).is_ok())
-}
-
-/// The field error for a computed value outside an `Int`'s range.
+/// The field error for a computed value no `Int` holds: outside its range, or fractional.
 fn int_out_of_range(type_name: &str, field: &str, value: &Value, path: &[Step<'_>]) -> Value {
     serde_json::json!({
         "message": format!(
             "`{type_name}.{field}` is an `Int`, a signed 32-bit integer, and the computed \
-             value {value} is outside its range"
+             value {value} is not one"
         ),
         "path": response_path(path),
     })

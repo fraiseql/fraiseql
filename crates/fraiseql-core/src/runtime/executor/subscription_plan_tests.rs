@@ -930,6 +930,7 @@ fn captured_schema(document: bool) -> CompiledSchema {
         FieldDefinition::nullable("status", FieldType::String),
         FieldDefinition::nullable("customer", FieldType::Object("Customer".to_string())),
         FieldDefinition::new("owner", FieldType::Object("Customer".to_string())),
+        FieldDefinition::nullable("quantity", FieldType::Int),
     ];
     let mut customer = TypeDefinition::new("Customer", "v_customer");
     customer.fields = vec![FieldDefinition::nullable("name", FieldType::String)];
@@ -1014,6 +1015,26 @@ fn a_captured_row_lacking_a_non_null_selected_field_says_why_the_event_is_null()
     let said = messages(&served);
     assert_eq!(said.len(), 1, "{said:?}");
     assert!(said[0].contains("`Order.owner`") && said[0].contains("`tb_order`"), "{said:?}");
+}
+
+/// An event is completed as a query's response is: an `Int` past the 32-bit range is a
+/// field error at its path, and a whole decimal is served as the integer it is (§ 3.5.1).
+#[test]
+fn an_event_int_past_the_range_is_a_field_error_and_a_whole_decimal_its_integer() {
+    let planned = captured_plan(false, "id quantity");
+
+    let served = planned
+        .deliver(&json!({"id": "o1", "quantity": 3_000_000_000_i64}), false)
+        .unwrap();
+    assert_eq!(served.data, json!({"id": "o1", "quantity": null}));
+    assert_eq!(served.errors.len(), 1, "{:?}", served.errors);
+    assert_eq!(served.errors[0]["path"], json!(["orderChanged", "quantity"]));
+    assert!(messages(&served)[0].contains("3000000000"), "{:?}", served.errors);
+
+    let served = planned.deliver(&json!({"id": "o1", "quantity": 2.0}), false).unwrap();
+    assert_eq!(served.errors, Vec::<serde_json::Value>::new());
+    assert_eq!(served.data, json!({"id": "o1", "quantity": 2}));
+    assert!(served.data["quantity"].is_i64());
 }
 
 #[test]

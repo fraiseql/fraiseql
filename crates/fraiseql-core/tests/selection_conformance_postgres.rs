@@ -61,19 +61,20 @@ INSERT INTO v_selection_conformance_user (pk_user, data) VALUES
 
 /// Numbers whose text `serde_json` writes back otherwise: a scale, a width past `u64`, more
 /// digits than an `f64` holds, an exponent, `-0`. `jsonb` keeps a number's scale and digits
-/// and drops its exponent.
+/// and drops its exponent. `magnitude` is a `Float`, which serves an integer of any width as
+/// read; an `Int` holds 32 bits (§ 3.5.1), and [`COUNTER_FIXTURE`] reads that rule.
 const MEASURE_VIEW: &str = "v_selection_conformance_measure";
 const MEASURE_FIXTURE: &str = r#"
 DROP TABLE IF EXISTS v_selection_conformance_measure;
 CREATE TABLE v_selection_conformance_measure (data jsonb);
 INSERT INTO v_selection_conformance_measure (data) VALUES
-  ('{"price":1.50,"score":0.1,"total":100.00,"count":7}'::jsonb),
+  ('{"price":1.50,"score":0.1,"total":100.00,"magnitude":7}'::jsonb),
   ('{"price":12345678901234567890.12,"score":1e3,"total":123456789012345678.99,
-     "count":18446744073709551616}'::jsonb),
-  ('{"price":100000000000000000000,"score":-0,"total":2.5E-3,"count":-9223372036854775809}'::jsonb),
-  ('{"price":19.99,"score":1.5e300,"total":-0.0,"count":1234567890123456789}'::jsonb),
+     "magnitude":18446744073709551616}'::jsonb),
+  ('{"price":100000000000000000000,"score":-0,"total":2.5E-3,"magnitude":-9223372036854775809}'::jsonb),
+  ('{"price":19.99,"score":1.5e300,"total":-0.0,"magnitude":1234567890123456789}'::jsonb),
   ('{"price":0.000000000000000000001,"score":0.3333333333333333333333,"total":1.0,
-     "count":0}'::jsonb);
+     "magnitude":0}'::jsonb);
 DROP TABLE IF EXISTS v_selection_conformance_ledger CASCADE;
 CREATE TABLE v_selection_conformance_ledger (pk_ledger bigint, data jsonb);
 INSERT INTO v_selection_conformance_ledger (pk_ledger, data) VALUES
@@ -142,6 +143,20 @@ INSERT INTO v_selection_conformance_holding (pk_holding, data) VALUES
 CREATE OR REPLACE FUNCTION fn_selection_conformance_holding() RETURNS SETOF v_selection_conformance_holding LANGUAGE sql STABLE AS 'SELECT * FROM v_selection_conformance_holding ORDER BY pk_holding';
 "#;
 
+/// `Int` fields (§ 3.5.1): `n` holds integers in range, `wide` one past it, `whole` a whole
+/// decimal, `frac` a fractional one; `inner.m`, a non-null `Int`, one past the range in the
+/// first row; `big` is a `Float` holding the same digits as `wide`.
+const COUNTER_VIEW: &str = "v_selection_conformance_counter";
+const COUNTER_FIXTURE: &str = r#"
+DROP TABLE IF EXISTS v_selection_conformance_counter;
+CREATE TABLE v_selection_conformance_counter (pk_counter bigint, data jsonb);
+INSERT INTO v_selection_conformance_counter (pk_counter, data) VALUES
+  (1, '{"n":7,"wide":3000000000,"whole":3.0,"frac":2.5,"big":3000000000,
+     "inner":{"m":4294967296,"tag":"a"}}'::jsonb),
+  (2, '{"n":-2147483648,"wide":2147483647,"whole":-4.00,"frac":1,"big":1.5,
+     "inner":{"m":5,"tag":"b"}}'::jsonb);
+"#;
+
 /// A document of 120 keys, past the 50 pairs one `jsonb_build_object` call could carry (#1544).
 const WIDE_VIEW: &str = "v_selection_conformance_wide";
 const WIDE_FIELDS: usize = 120;
@@ -179,11 +194,24 @@ fn schema() -> CompiledSchema {
     for i in 0..WIDE_FIELDS {
         wide_type = wide_type.with_simple_field(&wide_field(i), FieldType::Int);
     }
+    let counter_type = TestTypeBuilder::new("Counter", COUNTER_VIEW)
+        .with_nullable_field("n", FieldType::Int)
+        .with_nullable_field("wide", FieldType::Int)
+        .with_nullable_field("whole", FieldType::Int)
+        .with_nullable_field("frac", FieldType::Int)
+        .with_nullable_field("big", FieldType::Float)
+        .with_nullable_field("inner", FieldType::Object("CounterInner".to_string()))
+        .build();
+    let counter_inner_type =
+        TestTypeBuilder::new("CounterInner", "v_selection_conformance_counter_inner")
+            .with_simple_field("m", FieldType::Int)
+            .with_nullable_field("tag", FieldType::String)
+            .build();
     let measure_type = TestTypeBuilder::new("Measure", MEASURE_VIEW)
         .with_simple_field("price", FieldType::Decimal)
         .with_simple_field("score", FieldType::Float)
         .with_simple_field("total", FieldType::Decimal)
-        .with_simple_field("count", FieldType::Int)
+        .with_simple_field("magnitude", FieldType::Float)
         .build();
     let entry_type = TestTypeBuilder::new("Entry", "v_selection_conformance_entry")
         .with_simple_field("amount", FieldType::Decimal)
@@ -350,6 +378,10 @@ fn schema() -> CompiledSchema {
         .with_sql_source(LEDGER_FUNCTION)
         .build();
     ledger_rows_query.sql_source_kind = SourceKind::Function;
+    let counters_query = TestQueryBuilder::new("counters", "Counter")
+        .returns_list(true)
+        .with_sql_source(COUNTER_VIEW)
+        .build();
     let measures_query = TestQueryBuilder::new("measures", "Measure")
         .returns_list(true)
         .with_sql_source(MEASURE_VIEW)
@@ -386,6 +418,8 @@ fn schema() -> CompiledSchema {
         .with_type(address_type)
         .with_type(wide_type.build())
         .with_type(measure_type)
+        .with_type(counter_type)
+        .with_type(counter_inner_type)
         .with_type(entry_type)
         .with_type(ledger_type)
         .with_query(ledgers_query)
@@ -412,6 +446,7 @@ fn schema() -> CompiledSchema {
         .with_query(users_query)
         .with_query(user_query)
         .with_query(measures_query)
+        .with_query(counters_query)
         .with_query(wides_query)
         .with_query(connection_query)
         .build();
@@ -438,6 +473,7 @@ async fn executor_for(schema: CompiledSchema) -> Option<Executor> {
         .chain(PARITY_FIXTURE.split(";\n"))
         .chain(ROSTER_FIXTURE.split(";\n"))
         .chain(HOLDING_FIXTURE.split(";\n"))
+        .chain(COUNTER_FIXTURE.split(";\n"))
     {
         if stmt.trim().is_empty() {
             continue;
@@ -989,7 +1025,9 @@ const RAW_ELIGIBLE: &[&str] = &[
     "{ users { name profile { tier address { city zip } } } }",
     "query Named { users { name } }",
     "{ wides { kaa kab kbb kep } }",
-    "{ measures { price score total count } }",
+    "{ measures { price score total magnitude } }",
+    // An `Int` holding only integers in range, beside a `Float` holding one past it.
+    "{ counters { n big } }",
     // `__typename` of a statically concrete position is the literal the projection writes,
     // where it was selected and under its alias, at every depth.
     "{ users { __typename name } }",
@@ -1077,6 +1115,112 @@ async fn an_eligible_read_is_answered_raw_with_the_value_paths_bytes() {
         "{} read(s) failed:\n  {}",
         failures.len(),
         failures.join("\n  ")
+    );
+}
+
+/// The body of `query`, parsed, and whether it was answered raw.
+async fn answer(exec: &Executor, query: &str) -> (Value, bool) {
+    let body = exec
+        .execute_operation_body(query, None, None)
+        .await
+        .unwrap_or_else(|e| panic!("{query}: {e}"));
+    let raw = body.is_raw();
+    (serde_json::from_slice(&body.into_bytes().unwrap()).unwrap(), raw)
+}
+
+/// The path of each error of `response`, and whether its message names `needle`.
+fn error_paths(response: &Value, needle: &str) -> Vec<(Value, bool)> {
+    response["errors"]
+        .as_array()
+        .map(|errors| {
+            errors
+                .iter()
+                .map(|e| (e["path"].clone(), e["message"].as_str().unwrap_or("").contains(needle)))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// An `Int` is a signed 32-bit integer (§ 3.5.1). A read the projection answers whole, a
+/// flat list of scalars, is the one the raw path splices as the database wrote it: a value
+/// outside the range under an `Int` is still a field error at its path, its field `null`.
+#[tokio::test]
+async fn an_int_outside_the_32_bit_range_is_a_field_error_on_the_raw_eligible_read() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+
+    let (response, _) = answer(&exec, "{ counters { n wide } }").await;
+    let rows = &response["data"]["counters"];
+    assert_eq!(rows[0], json!({"n": 7, "wide": null}), "{response}");
+    assert_eq!(rows[1], json!({"n": -2_147_483_648, "wide": 2_147_483_647}), "{response}");
+    assert_eq!(
+        error_paths(&response, "3000000000"),
+        vec![(json!(["counters", 0, "wide"]), true)],
+        "{response}"
+    );
+}
+
+/// A whole number written with a fraction is the integer it is (§ 3.5.1 allows a coercion
+/// that loses nothing); a fractional one is no `Int`'s.
+#[tokio::test]
+async fn an_int_holding_a_whole_decimal_is_served_as_the_integer_and_a_fraction_is_refused() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+
+    let (response, _) = answer(&exec, "{ counters { whole frac } }").await;
+    let rows = &response["data"]["counters"];
+    assert_eq!(rows[0], json!({"whole": 3, "frac": null}), "{response}");
+    assert_eq!(rows[1], json!({"whole": -4, "frac": 1}), "{response}");
+    assert!(rows[0]["whole"].is_i64() && rows[1]["whole"].is_i64(), "{response}");
+    assert_eq!(
+        error_paths(&response, "2.5"),
+        vec![(json!(["counters", 0, "frac"]), true)],
+        "{response}"
+    );
+}
+
+/// A non-null `Int` outside the range nulls its nearest nullable ancestor (§ 6.4.4).
+#[tokio::test]
+async fn a_non_null_int_outside_the_range_nulls_its_nullable_parent() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+
+    let (response, _) = answer(&exec, "{ counters { n inner { m tag } } }").await;
+    let rows = &response["data"]["counters"];
+    assert_eq!(rows[0], json!({"n": 7, "inner": null}), "{response}");
+    assert_eq!(
+        rows[1],
+        json!({"n": -2_147_483_648, "inner": {"m": 5, "tag": "b"}}),
+        "{response}"
+    );
+    assert_eq!(
+        error_paths(&response, "4294967296"),
+        vec![(json!(["counters", 0, "inner", "m"]), true)],
+        "{response}"
+    );
+}
+
+/// A read the raw path does not take is completed by the same rule.
+#[tokio::test]
+async fn an_int_outside_the_range_is_a_field_error_on_the_value_path_too() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+
+    let (response, raw) = answer(&exec, "{ counters { wide } measures { price } }").await;
+    assert!(!raw, "two root fields are read as `Value`s");
+    assert_eq!(response["data"]["counters"][0], json!({"wide": null}), "{response}");
+    assert_eq!(
+        error_paths(&response, "3000000000"),
+        vec![(json!(["counters", 0, "wide"]), true)],
+        "{response}"
     );
 }
 

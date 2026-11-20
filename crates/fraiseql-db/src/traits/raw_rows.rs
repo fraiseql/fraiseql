@@ -52,18 +52,32 @@ pub fn compact_json(src: &[u8], out: &mut Vec<u8>) -> Compacted {
     compact(src, out, None)
 }
 
-/// Where the `null`s of compacted text sit: under which member keys, each once, and
-/// whether one sits where no key names it, an array element or the text itself.
+/// Where values of one kind sit in compacted text: under which member keys, each once,
+/// and whether one sits where no key names it, an array element or the text itself.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-struct Nulls {
-    /// The distinct keys a `null` is the value of, as ranges of the compacted text.
+struct Keys {
+    /// The distinct keys such a value is the value of, as ranges of the compacted text.
     keyed:   Vec<std::ops::Range<usize>>,
-    /// A `null` that is no member's value.
+    /// Such a value that is no member's value.
     unkeyed: bool,
 }
 
-impl Nulls {
-    /// Note a `null` under the key at `key` of `out`, or under none.
+/// The values of compacted text a reader may have to look at before serving it as it is.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct Marks {
+    /// Where each `null` sits.
+    nulls:   Keys,
+    /// Whether a number that is not a signed 32-bit integer, written as one, sits anywhere.
+    ///
+    /// Where is found only when asked ([`RawRows::has_non_int_under`]): such numbers are
+    /// every `Float` and `Decimal` with a fraction, and placing each under its key as it is
+    /// copied cost a row of forty numbers 43% more to compact, a cost every read paid for
+    /// a question only a read selecting an `Int` asks.
+    non_int: bool,
+}
+
+impl Keys {
+    /// Note a value under the key at `key` of `out`, or under none.
     fn note(&mut self, out: &[u8], key: Option<std::ops::Range<usize>>) {
         match key {
             Some(key) => {
@@ -74,10 +88,17 @@ impl Nulls {
             None => self.unkeyed = true,
         }
     }
+
+    /// Whether `at` holds of a noted key of `text`, or of `None` when one was noted under
+    /// no key.
+    fn any_where(&self, text: &[u8], at: impl Fn(Option<&[u8]>) -> bool) -> bool {
+        (self.unkeyed && at(None)) || self.keyed.iter().any(|key| at(Some(&text[key.clone()])))
+    }
 }
 
-/// [`compact_json`], noting in `nulls` where each `null` sits.
-fn compact(src: &[u8], out: &mut Vec<u8>, mut nulls: Option<&mut Nulls>) -> Compacted {
+/// [`compact_json`], noting in `marks` where each `null` sits, and whether a number that is
+/// not a signed 32-bit integer does.
+fn compact(src: &[u8], out: &mut Vec<u8>, mut marks: Option<&mut Marks>) -> Compacted {
     let mut found = Compacted {
         exact: true,
         ..Compacted::default()
@@ -94,6 +115,10 @@ fn compact(src: &[u8], out: &mut Vec<u8>, mut nulls: Option<&mut Nulls>) -> Comp
                 out.push(b);
                 i += 1;
                 continue;
+            }
+            // Once one number is no `Int`'s, whether another is changes nothing.
+            if let Some(marks) = marks.as_deref_mut().filter(|marks| !marks.non_int) {
+                marks.non_int = !holds_an_int(&src[start..i]);
             }
             found.exact &= write_number(&src[start..i], out, out_start);
             number_start = None;
@@ -141,10 +166,10 @@ fn compact(src: &[u8], out: &mut Vec<u8>, mut nulls: Option<&mut Nulls>) -> Comp
                 tally.literals += 1;
                 if b == b'n' {
                     found.null = true;
-                    if let Some(nulls) = nulls.as_deref_mut() {
+                    if let Some(marks) = marks.as_deref_mut() {
                         // In an object, a literal is a member's value: the key just written.
                         let key = (open.last() == Some(&true)).then(|| member_key(out)).flatten();
-                        nulls.note(out, key);
+                        marks.nulls.note(out, key);
                     }
                 }
                 // The rest of the literal is copied below as plain bytes.
@@ -160,9 +185,27 @@ fn compact(src: &[u8], out: &mut Vec<u8>, mut nulls: Option<&mut Nulls>) -> Comp
         i += 1;
     }
     if let Some((start, out_start)) = number_start {
+        if let Some(marks) = marks.filter(|marks| !marks.non_int) {
+            marks.non_int = !holds_an_int(&src[start..]);
+        }
         found.exact &= write_number(&src[start..], out, out_start);
     }
     found
+}
+
+/// Whether a number token is a signed 32-bit integer written as one: digits, an optional
+/// `-`, no fraction or exponent, and not `-0`, which `serde_json` reads as a float.
+fn holds_an_int(token: &[u8]) -> bool {
+    let digits = token.strip_prefix(b"-").unwrap_or(token);
+    if digits.is_empty() || !digits.iter().all(u8::is_ascii_digit) || token == b"-0" {
+        return false;
+    }
+    // Nine digits always fit; ten may; eleven never do.
+    match digits.len() {
+        0..=9 => true,
+        10 => std::str::from_utf8(token).is_ok_and(|text| text.parse::<i32>().is_ok()),
+        _ => false,
+    }
 }
 
 /// The key of the member whose value `out` is about to receive, as the range of `out`
@@ -247,6 +290,67 @@ fn exact_integer(token: &[u8]) -> bool {
         && token != b"-0"
 }
 
+/// Whether compact JSON `text` holds a number that is not a signed 32-bit integer, written
+/// as one, under one of `keys`, or where no key names it (an array element, the text itself,
+/// a member whose key holds an escape). A number under any other key is passed over unread.
+fn non_int_under(text: &[u8], keys: &[&[u8]]) -> bool {
+    // Per open container: whether it is an object.
+    let mut open: Vec<bool> = Vec::new();
+    // The last key read, `None` when it held an escape.
+    let mut key: Option<std::ops::Range<usize>> = None;
+    let mut i = 0;
+    while let Some(&b) = text.get(i) {
+        match b {
+            b'"' => {
+                let start = i + 1;
+                let mut end = start;
+                let mut escaped = false;
+                while let Some(at) =
+                    text.get(end..).and_then(|rest| memchr::memchr2(b'"', b'\\', rest))
+                {
+                    end += at;
+                    if text[end] == b'"' {
+                        break;
+                    }
+                    escaped = true;
+                    end += 2;
+                }
+                // A string where an object expects a key is one: `{` or `,` precedes it.
+                if open.last() == Some(&true)
+                    && matches!(i.checked_sub(1).map(|before| text[before]), Some(b'{' | b','))
+                {
+                    key = (!escaped).then_some(start..end);
+                }
+                i = end + 1;
+            },
+            b'{' | b'[' => {
+                open.push(b == b'{');
+                i += 1;
+            },
+            b'}' | b']' => {
+                open.pop();
+                i += 1;
+            },
+            b'0'..=b'9' | b'-' => {
+                let end = text[i..]
+                    .iter()
+                    .position(|c| !matches!(c, b'0'..=b'9' | b'-' | b'+' | b'.' | b'e' | b'E'))
+                    .map_or(text.len(), |len| i + len);
+                let matters = match (open.last() == Some(&true), &key) {
+                    (true, Some(range)) => keys.contains(&&text[range.clone()]),
+                    _ => true,
+                };
+                if matters && !holds_an_int(&text[i..end]) {
+                    return true;
+                }
+                i = end;
+            },
+            _ => i += 1,
+        }
+    }
+    false
+}
+
 /// Rows a read returned, each the database's own serialization, compacted and joined by
 /// `,` with no enclosing brackets.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -254,7 +358,7 @@ pub struct RawRows {
     bytes: Vec<u8>,
     rows:  Vec<RawRow>,
     exact: bool,
-    nulls: Nulls,
+    marks: Marks,
 }
 
 /// One row of a [`RawRows`]: where it ends, and its tokens.
@@ -274,9 +378,12 @@ impl RawRows {
             bytes: Vec::new(),
             rows:  Vec::new(),
             exact: true,
-            nulls: Nulls {
-                keyed:   Vec::new(),
-                unkeyed: false,
+            marks: Marks {
+                nulls:   Keys {
+                    keyed:   Vec::new(),
+                    unkeyed: false,
+                },
+                non_int: false,
             },
         }
     }
@@ -286,7 +393,7 @@ impl RawRows {
         if !self.rows.is_empty() {
             self.bytes.push(b',');
         }
-        let found = compact(src, &mut self.bytes, Some(&mut self.nulls));
+        let found = compact(src, &mut self.bytes, Some(&mut self.marks));
         self.exact &= found.exact;
         self.rows.push(RawRow {
             end:   self.bytes.len(),
@@ -335,8 +442,19 @@ impl RawRows {
     /// member's value. A key is asked as the compact text holds it, between its quotes.
     #[must_use]
     pub fn has_null_where(&self, at: impl Fn(Option<&[u8]>) -> bool) -> bool {
-        (self.nulls.unkeyed && at(None))
-            || self.nulls.keyed.iter().any(|key| at(Some(&self.bytes[key.clone()])))
+        self.marks.nulls.any_where(&self.bytes, at)
+    }
+
+    /// Whether any row holds a number that is not a signed 32-bit integer written as one
+    /// (`3000000000`, `1.5`, `3.0`, `1e3`, `-0`) under one of `keys`, or where no key names
+    /// it. A key holding an escape names nothing, as for
+    /// [`has_null_where`](Self::has_null_where).
+    ///
+    /// The rows are read only when one holds such a number at all, and only a number under
+    /// one of `keys`, or under none, is looked at.
+    #[must_use]
+    pub fn has_non_int_under(&self, keys: &[&[u8]]) -> bool {
+        self.marks.non_int && non_int_under(&self.bytes, keys)
     }
 
     /// The rows, parsed.

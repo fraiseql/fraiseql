@@ -1,5 +1,6 @@
 //! Non-null completion of a response — GraphQL § 6.4.4 (*Handling Execution Errors*, #1522),
-//! and the result coercion of an enum whose members store values (§ 3.9, #1580).
+//! and the result coercion of an enum whose members store values (§ 3.9, #1580) and of an
+//! `Int` (§ 3.5.1, #1928).
 //!
 //! A field the schema publishes as non-null (`String!`, `[Edge!]!`) must never be answered
 //! with `null`. When the stored value is missing or `null`, § 6.4.4 makes it a **field
@@ -203,14 +204,39 @@ impl OutputTypes {
         selections: &[FieldSelection],
         variables: Option<&Value>,
     ) {
-        let walk = Walk::new(self, variables);
+        Self::complete_with(&Walk::new(self, variables), response, root_type, selections);
+    }
+
+    /// [`complete`](Self::complete), for a transport that publishes an `Int` field as an
+    /// integer of any size: a number at an `Int` position is served as it was read.
+    ///
+    /// REST describes such a field to its clients as an OpenAPI `integer` with no `int32`
+    /// format, so a `bigint` value is one its contract allows, and refusing it would turn
+    /// a correct answer into a failed read. GraphQL publishes the same field as `Int`, a
+    /// signed 32-bit integer (§ 3.5.1), and [`complete`](Self::complete) holds it to that.
+    pub fn complete_published_as_integer(
+        &self,
+        response: &mut Value,
+        root_type: &str,
+        selections: &[FieldSelection],
+    ) {
+        let walk = Walk::new(self, None).serving_ints_as_read();
+        Self::complete_with(&walk, response, root_type, selections);
+    }
+
+    fn complete_with(
+        walk: &Walk<'_>,
+        response: &mut Value,
+        root_type: &str,
+        selections: &[FieldSelection],
+    ) {
         let mut errors = Vec::new();
         let Some(data) = response.get_mut("data").and_then(Value::as_object_mut) else {
             return;
         };
         let mut null_data = false;
         let mut path = Vec::new();
-        if let Some((root_type, fields)) = self.type_fields(root_type) {
+        if let Some((root_type, fields)) = walk.types.type_fields(root_type) {
             walk.for_each_field(selections, root_type, &mut |sel| {
                 let Some(field_ref) = fields.get(&sel.name) else {
                     return;
@@ -334,6 +360,58 @@ fn not_a_member(
     })
 }
 
+/// The field error for a stored value of an `Int` position that no `Int` holds.
+fn not_an_int(label: Label<'_>, path: &[Step<'_>], stored: &Value) -> Value {
+    serde_json::json!({
+        "message": format!(
+            "`{label}` is an `Int`, a signed 32-bit integer, and the stored value {stored} is \
+             not one"
+        ),
+        "path": response_path(path),
+    })
+}
+
+/// How § 3.5.1 serves a value at an `Int` position.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IntCoercion {
+    /// As it is: a signed 32-bit integer, or not a number, which this rule does not
+    /// adjudicate.
+    Served,
+    /// As this integer: a number written with a fraction or an exponent (`3.0`, `-0`,
+    /// `3e2`) whose value is a whole number in range. Coercing it loses nothing.
+    Whole(i32),
+    /// Refused: a number outside the range, or one with a fractional part.
+    Refused,
+}
+
+/// How § 3.5.1 serves `value` at an `Int` position. Every completion of an `Int` asks this,
+/// the aggregate rows' included, so one rule decides what an `Int` may hold.
+fn coerce_int(value: &Value) -> IntCoercion {
+    let Value::Number(number) = value else {
+        return IntCoercion::Served;
+    };
+    if let Some(n) = number.as_i64() {
+        return if i32::try_from(n).is_ok() {
+            IntCoercion::Served
+        } else {
+            IntCoercion::Refused
+        };
+    }
+    // An integer past `i64` is a `u64`, and outside the range whatever its value.
+    if !number.is_f64() {
+        return IntCoercion::Refused;
+    }
+    let Some(float) = number.as_f64() else {
+        return IntCoercion::Refused;
+    };
+    if float.fract() != 0.0 || !(f64::from(i32::MIN)..=f64::from(i32::MAX)).contains(&float) {
+        return IntCoercion::Refused;
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    // Reason: a whole number checked to lie within `i32` just above
+    IntCoercion::Whole(float as i32)
+}
+
 fn response_path(path: &[Step<'_>]) -> Vec<Value> {
     path.iter()
         .map(|step| match *step {
@@ -353,6 +431,8 @@ struct Walk<'a> {
     types:               &'a OutputTypes,
     variables:           Option<&'a Value>,
     directive_variables: OnceCell<HashMap<String, Value>>,
+    /// Whether an `Int` position is held to a signed 32-bit integer (§ 3.5.1).
+    coerces_ints:        bool,
 }
 
 impl<'a> Walk<'a> {
@@ -361,7 +441,15 @@ impl<'a> Walk<'a> {
             types,
             variables,
             directive_variables: OnceCell::new(),
+            coerces_ints: true,
         }
+    }
+
+    /// The same walk, serving an `Int` position's number as it is: see
+    /// [`OutputTypes::complete_published_as_integer`].
+    const fn serving_ints_as_read(mut self) -> Self {
+        self.coerces_ints = false;
+        self
     }
 
     /// Whether `@skip`/`@include` keep `sel`.
@@ -504,6 +592,17 @@ impl<'a> Walk<'a> {
             },
             TypeRef::Named(name) => match value {
                 Value::Object(map) => self.object(map, name, sel, path, errors, depth),
+                Value::Number(_) if self.coerces_ints && name == "Int" => match coerce_int(value) {
+                    IntCoercion::Served => Ok(()),
+                    IntCoercion::Whole(n) => {
+                        *value = Value::from(n);
+                        Ok(())
+                    },
+                    IntCoercion::Refused => {
+                        errors.push(not_an_int(label, path, value));
+                        Err(Propagate)
+                    },
+                },
                 _ => Ok(()),
             },
         }

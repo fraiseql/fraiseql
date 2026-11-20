@@ -99,6 +99,18 @@ disagreed, and the promise was the part that was wrong.
   naming `Timestamp` no longer loads. Declare a fact table's column by its real type,
   `TIMESTAMPTZ` for an instant and `TIMESTAMP` for a local date-time; a `timestamptz`
   column declared `TIMESTAMP` or `DATETIME` is now read as local.
+- **A GraphQL `Int` holding a value past the signed 32-bit range is `null` with a field
+  error (#1928).** A query, mutation payload, `_entities` read or subscription event whose
+  `Int` field held such a value (a `bigint` column, a count) or a fractional one served the
+  number; it now serves `null` at that path with an error naming the field, and an `Int!`
+  nulls its nearest nullable parent. A whole number written with a fraction, such as `3.0`
+  from a `numeric` column, is served as the integer it is. Aggregate roots already refused
+  a value past the range, and a
+  fact table's `SUM` over a `BigInt` measure is a `Float`, so those are unchanged. REST
+  serves the stored value as before. There is no wider integer scalar: a field that holds
+  64-bit integers can be declared `Float`, exact up to 2^53, or `String`, with the view
+  writing the column as text (`id::text`), which keeps every digit. Neither keeps an
+  integer type on the wire.
 - **A discovery document that names another issuer refuses the boot (#2135).** The
   `[auth]` PKCE client and the social and generic OIDC providers fetch
   `{discovery_url}/.well-known/openid-configuration`; the `issuer` the document names must
@@ -726,6 +738,8 @@ disagreed, and the promise was the part that was wrong.
   the reload, so a refused reload leaves rows and running observers as they were. An event
   already matched is delivered by the declaration it matched, retries included. A changed
   `[observers]` section or `[project] name` still needs a restart.
+- **An aggregate `Int` holding a whole decimal such as `3.0` is served as `3` (#1928); it was
+  a field error.** Aggregate rows follow the same `Int` rule as every other read.
 - **A saga time past year 9999 is unreadable (#2026).** A saga's times hold years -9999 to
   9999, where PostgreSQL's `timestamptz` reaches further. A load of a saga or step whose
   stored time lies past that range returns `SagaStoreError::CorruptStoredValue`; it was
