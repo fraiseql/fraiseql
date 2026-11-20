@@ -7,6 +7,10 @@
 //! and no row becomes a [`serde_json::Value`]. Only their numbers are written again, as
 //! `serde_json` writes them.
 //!
+//! A number no `Int` holds as written, under a key an `Int` field is selected under, sends
+//! the rows to the `Value` path too: completion coerces it or makes it a field error
+//! (§ 3.5.1).
+//!
 //! Anything Rust would still reshape keeps the read on the `Value` path: a localized,
 //! encrypted or computed field, an enum, a list of anything but objects, a JSON scalar, an
 //! abstract type and any `__typename` below one, a mask the projection did not write, a
@@ -67,18 +71,18 @@ impl QueryRunner {
         };
 
         // § 6.4.4 completion leaves the response as it is unless a non-null position holds
-        // `null`: a selected non-null field, or a non-null single root with no row.
+        // `null` (a selected non-null field, or a non-null single root with no row), or an
+        // `Int` position holds a number no `Int` holds as written (§ 3.5.1).
         let selections = query_match
             .selections
             .first()
             .map_or(&[][..], |root| root.nested_fields.as_slice());
+        let schema = &self.ctx.schema;
+        let return_type = &query_def.return_type;
         let completes_unchanged =
-            !shape.may_hold_null_at_non_null(
-                &rows,
-                selections,
-                &self.ctx.schema,
-                &query_def.return_type,
-            ) && (query_def.returns_list || query_def.nullable || !rows.rows().is_empty());
+            !shape.may_hold_null_at_non_null(&rows, selections, schema, return_type)
+                && !shape.may_hold_non_int_at_int(&rows, selections, schema, return_type)
+                && (query_def.returns_list || query_def.nullable || !rows.rows().is_empty());
         if !rows.exact() || !completes_unchanged {
             let parsed = rows.parse().map_err(|e| FraiseQLError::Internal {
                 message: format!("a row the database serialized is not valid JSON: {e}"),
@@ -119,9 +123,10 @@ fn envelope(rows: &RawRows, response_key: &str, is_list: bool) -> Vec<u8> {
 }
 
 /// A read whose rows need no shaping in Rust, and whether its selection holds a non-null
-/// field.
+/// field and an `Int` field.
 struct RawShape {
     non_null: bool,
+    ints:     bool,
 }
 
 impl RawShape {
@@ -144,12 +149,34 @@ impl RawShape {
             })
     }
 
+    /// Whether `rows`, read through `selections` of a `type_name`, may hold a number no
+    /// `Int` holds as written at an `Int` field: under a key an `Int` field is selected
+    /// under, at any depth, or where no key names it. Under any other key such a number is
+    /// a `Float`'s or a `Decimal`'s, and is served as read; the rows are not read there.
+    fn may_hold_non_int_at_int(
+        &self,
+        rows: &RawRows,
+        selections: &[FieldSelection],
+        schema: &CompiledSchema,
+        type_name: &str,
+    ) -> bool {
+        if !self.ints {
+            return false;
+        }
+        let mut keys = Vec::new();
+        int_keys(selections, schema, type_name, &mut keys);
+        rows.has_non_int_under(&keys)
+    }
+
     fn of(read: &RootRead, query_match: &QueryMatch, schema: &CompiledSchema) -> Option<Self> {
         if !Self::flat(read) {
             return None;
         }
         let root = query_match.selections.first()?;
-        let mut shape = Self { non_null: false };
+        let mut shape = Self {
+            non_null: false,
+            ints:     false,
+        };
         shape
             .admits(&root.nested_fields, schema, &query_match.query_def.return_type)
             .then_some(shape)
@@ -212,6 +239,7 @@ impl RawShape {
                 return false;
             }
             self.non_null |= !field.nullable;
+            self.ints |= matches!(field.field_type, FieldType::Int);
             match &field.field_type {
                 FieldType::String
                 | FieldType::Id
@@ -247,6 +275,30 @@ fn selects_non_null_under(
             || object_type(&field.field_type)
                 .is_some_and(|child| selects_non_null_under(&sel.nested_fields, schema, child, key))
     })
+}
+
+/// Push to `keys` the response key of every `Int` field `selections` of a `type_name`
+/// select, at any depth. A read reaches here only through [`RawShape::admits`], which
+/// refuses a type the schema does not declare, so every level is found.
+fn int_keys<'s>(
+    selections: &'s [FieldSelection],
+    schema: &CompiledSchema,
+    type_name: &str,
+    keys: &mut Vec<&'s [u8]>,
+) {
+    let Some(type_def) = schema.find_type(type_name) else {
+        return;
+    };
+    for sel in selections {
+        let Some(field) = type_def.fields.iter().find(|f| f.name == sel.name.as_str()) else {
+            continue;
+        };
+        if matches!(field.field_type, FieldType::Int) {
+            keys.push(sel.response_key().as_bytes());
+        } else if let Some(child) = object_type(&field.field_type) {
+            int_keys(&sel.nested_fields, schema, child, keys);
+        }
+    }
 }
 
 /// The object type of a single object, or of a list's elements.

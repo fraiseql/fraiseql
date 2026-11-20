@@ -191,3 +191,58 @@ fn a_null_is_reported_under_the_key_it_is_the_value_of() {
     assert_eq!(nulls(&[r#"{"x" : 1, "a,\"b" : null}"#]), (keys(&[]), true), "and a comma");
     assert_eq!(nulls(&[r#"{"a\\" : null}"#]), (keys(&[]), false), "an escaped backslash");
 }
+
+/// The keys a number an `Int` does not hold as written sits under: one outside the signed
+/// 32-bit range, or written with a fraction, an exponent or as `-0`. One no key names is
+/// found whatever keys are asked.
+#[test]
+fn a_number_no_int_holds_as_written_is_found_under_its_key() {
+    let non_ints = |text: &str| {
+        let mut rows = RawRows::new();
+        rows.push(text.as_bytes());
+        let keys: Vec<&str> = ["a", "b", "c"]
+            .into_iter()
+            .filter(|key| rows.has_non_int_under(&[key.as_bytes()]))
+            .collect();
+        (keys, rows.has_non_int_under(&[]))
+    };
+
+    for int in [
+        "0",
+        "7",
+        "-7",
+        "999999999",
+        "2147483647",
+        "-2147483648",
+        "1000000000",
+    ] {
+        assert_eq!(non_ints(&format!(r#"{{"a" : {int}}}"#)), (vec![], false), "{int}");
+    }
+    for not_int in [
+        "2147483648",
+        "-2147483649",
+        "9999999999",
+        "30000000000",
+        "1.5",
+        "3.0",
+        "1e3",
+        "-0",
+    ] {
+        assert_eq!(non_ints(&format!(r#"{{"a" : {not_int}}}"#)), (vec!["a"], false), "{not_int}");
+    }
+    assert_eq!(
+        non_ints(r#"{"a" : 1, "b" : {"c" : 1.50}}"#),
+        (vec!["c"], false),
+        "nested, rewritten"
+    );
+    assert_eq!(non_ints(r#"{"a" : [{"b" : 3000000000}], "c" : 2}"#), (vec!["b"], false));
+    assert_eq!(non_ints(r#"{"a" : [1, 2.5]}"#), (vec!["a", "b", "c"], true), "an element");
+    assert_eq!(non_ints("2.5"), (vec!["a", "b", "c"], true), "the text itself");
+    assert_eq!(non_ints(r#"{"a" : "3000000000"}"#), (vec![], false), "a string is no number");
+    assert_eq!(
+        non_ints(r#"{"a\"b" : 1.5}"#),
+        (vec!["a", "b", "c"], true),
+        "a key with an escape"
+    );
+    assert_eq!(non_ints(r#"{"b" : "x\"y", "a" : 1.5}"#), (vec!["a"], false), "an escaped value");
+}

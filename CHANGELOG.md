@@ -84,6 +84,18 @@ disagreed, and the promise was the part that was wrong.
   said. Both now refuse boot, naming the key, the value and the range.
   `ObserverRuntime::start` refuses the same range for a runtime built in code, and
   `fraiseql_observers::checkpoint::MAX_BATCH_SIZE` names the bound.
+- **A GraphQL `Int` holding a value past the signed 32-bit range is `null` with a field
+  error (#1928).** A query, mutation payload, `_entities` read or subscription event whose
+  `Int` field held such a value (a `bigint` column, a count) or a fractional one served the
+  number; it now serves `null` at that path with an error naming the field, and an `Int!`
+  nulls its nearest nullable parent. A whole number written with a fraction, such as `3.0`
+  from a `numeric` column, is served as the integer it is. Aggregate roots already refused
+  a value past the range, and a
+  fact table's `SUM` over a `BigInt` measure is a `Float`, so those are unchanged. REST
+  serves the stored value as before. There is no wider integer scalar: a field that holds
+  64-bit integers can be declared `Float`, exact up to 2^53, or `String`, with the view
+  writing the column as text (`id::text`), which keeps every digit. Neither keeps an
+  integer type on the wire.
 - **A discovery document that names another issuer refuses the boot (#2135).** The
   `[auth]` PKCE client and the social and generic OIDC providers fetch
   `{discovery_url}/.well-known/openid-configuration`; the `issuer` the document names must
@@ -684,6 +696,8 @@ disagreed, and the promise was the part that was wrong.
   for `max_delay_ms`. The compile refused an observer without `retry`; the compiled schema
   still carries the whole policy. The checks on a written policy see the fields filled in,
   so a `max_delay_ms` below the default `initial_delay_ms` is refused.
+- **An aggregate `Int` holding a whole decimal such as `3.0` is served as `3` (#1928); it was
+  a field error.** Aggregate rows follow the same `Int` rule as every other read.
 - **A saga time past year 9999 is unreadable (#2026).** A saga's times hold years -9999 to
   9999, where PostgreSQL's `timestamptz` reaches further. A load of a saga or step whose
   stored time lies past that range returns `SagaStoreError::CorruptStoredValue`; it was

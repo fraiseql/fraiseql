@@ -9,6 +9,10 @@
 //!   and where it was.
 //! - MCP: the tool's result is the GraphQL response, `errors` included, and is an error.
 //!
+//! An `Int` (#1928): GraphQL publishes it as a signed 32-bit integer (§ 3.5.1), so a stored
+//! value past that range is a field error there; REST publishes it as an OpenAPI `integer`
+//! with no `int32` format, so the same value is served as read.
+//!
 //! gRPC is driven in `locale_grpc_e2e_pg`, whose rig builds the service from descriptors.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
@@ -33,7 +37,8 @@ use serde_json::{Value, json};
 
 const SCHEMA: &str = "nn_transport";
 
-/// Two notes, the second with no `title`; a function that returns a note with no `title`.
+/// Two notes, the second with no `title`, the first with `views` past an `Int`'s range; a
+/// function that returns a note with no `title`.
 async fn provision(adapter: &PostgresAdapter) {
     let mut stmts = vec![
         "CREATE SCHEMA IF NOT EXISTS app".to_string(),
@@ -51,7 +56,7 @@ async fn provision(adapter: &PostgresAdapter) {
         format!("CREATE SCHEMA {SCHEMA}"),
         format!(
             "CREATE VIEW {SCHEMA}.v_note AS SELECT * FROM (VALUES \
-             ('n1', jsonb_build_object('id', 'n1', 'title', 'First')), \
+             ('n1', jsonb_build_object('id', 'n1', 'title', 'First', 'views', 3000000000)), \
              ('n2', jsonb_build_object('id', 'n2'))) AS t(id, data)"
         ),
         format!(
@@ -80,7 +85,8 @@ fn schema() -> CompiledSchema {
                 "sql_source": format!("{SCHEMA}.v_note"),
                 "fields": [
                     {"name": "id", "field_type": "ID", "nullable": false},
-                    {"name": "title", "field_type": "String", "nullable": false}
+                    {"name": "title", "field_type": "String", "nullable": false},
+                    {"name": "views", "field_type": "Int", "nullable": true}
                 ]
             }],
             "queries": [
@@ -216,6 +222,32 @@ async fn a_rest_read_of_an_incomplete_row_is_refused() {
         .await
         .unwrap();
     assert!(complete.status().is_success(), "a complete row reads: {}", complete.status());
+}
+
+/// REST publishes an `Int` field as an `integer` of any size, so a stored `bigint` is
+/// served as read; GraphQL publishes it as a 32-bit `Int`, so the same row's value is a
+/// field error there.
+#[tokio::test]
+async fn a_wide_int_is_served_by_rest_and_refused_by_graphql() {
+    let Some(url) = try_database_url() else {
+        return;
+    };
+    let server = serve(&url).await;
+    let response = reqwest::Client::new()
+        .get(format!("{}/rest/v1/notes/n1", server.base))
+        .send()
+        .await
+        .unwrap();
+    let status = response.status();
+    let text = response.text().await.unwrap();
+    assert!(status.is_success(), "{status}: {text}");
+    let body: Value = serde_json::from_str(&text).unwrap();
+    let views = body.get("data").unwrap_or(&body)["views"].clone();
+    assert_eq!(views, json!(3_000_000_000_i64), "REST serves the stored value: {text}");
+
+    let body = graphql(&server, r#"{ note(id: "n1") { id views } }"#, &json!({})).await;
+    assert_eq!(body["data"]["note"], json!({"id": "n1", "views": null}), "{body}");
+    assert_eq!(paths(&body), vec![json!(["note", "views"])], "{body}");
 }
 
 /// An MCP tool call's result is the GraphQL response: the error is in it, and the result

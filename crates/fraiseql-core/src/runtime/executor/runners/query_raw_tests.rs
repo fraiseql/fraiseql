@@ -118,7 +118,10 @@ fn schema() -> CompiledSchema {
 
 /// `Some(non_null)` when `selections` on `User` are admitted.
 fn admitted(selections: &[FieldSelection]) -> Option<bool> {
-    let mut shape = RawShape { non_null: false };
+    let mut shape = RawShape {
+        non_null: false,
+        ints:     false,
+    };
     shape.admits(selections, &schema(), "User").then_some(shape.non_null)
 }
 
@@ -141,7 +144,10 @@ fn a_typename_below_an_abstract_position_is_refused() {
     user.fields.push(field("pet", FieldType::Union("Pet".to_string())));
     schema.build_indexes();
     for position in ["partner", "pet"] {
-        let mut shape = RawShape { non_null: false };
+        let mut shape = RawShape {
+            non_null: false,
+            ints:     false,
+        };
         let selections = [select(position, vec![leaf("__typename")])];
         assert!(!shape.admits(&selections, &schema, "User"), "{position}");
     }
@@ -360,7 +366,11 @@ fn a_null_needs_completion_under_a_non_null_key_or_none() {
         select("profile", vec![leaf("tier")]),
     ];
     let needs = |non_null: bool, texts: &[&str]| {
-        RawShape { non_null }.may_hold_null_at_non_null(&rows(texts), &selections, &schema, "User")
+        RawShape {
+            non_null,
+            ints: false,
+        }
+        .may_hold_null_at_non_null(&rows(texts), &selections, &schema, "User")
     };
     assert!(!needs(true, &[r#"{"handle":"h","secret":null}"#]));
     assert!(!needs(true, &[r#"{"handle":"h","profile":{"tier":null}}"#]));
@@ -369,4 +379,38 @@ fn a_null_needs_completion_under_a_non_null_key_or_none() {
     assert!(needs(true, &[r#"{"tags":["a",null]}"#]), "an element no key names");
     assert!(needs(true, &["null"]), "a row that is null");
     assert!(!needs(false, &[r#"{"handle":null}"#]), "no non-null field is selected");
+}
+
+/// A number no `Int` holds as written (§ 3.5.1) under an `Int` field's key, or under no
+/// key, may need completion; one under a `Float`'s or a `Decimal`'s key does not, nor any
+/// number of a read that selects no `Int`.
+#[test]
+fn a_number_no_int_holds_needs_completion_under_an_int_key_or_none() {
+    let schema = schema();
+    let years = FieldSelection {
+        alias: Some("years".to_string()),
+        ..leaf("age")
+    };
+    let selections = [years, leaf("score"), leaf("price")];
+    let needs = |ints: bool, texts: &[&str]| {
+        RawShape {
+            non_null: false,
+            ints,
+        }
+        .may_hold_non_int_at_int(&rows(texts), &selections, &schema, "User")
+    };
+    assert!(
+        !needs(true, &[r#"{"years":7,"score":1.5,"price":3000000000}"#]),
+        "Float, Decimal"
+    );
+    assert!(!needs(true, &[r#"{"years":2147483647}"#]), "the top of the range");
+    assert!(needs(true, &[r#"{"years":2147483648}"#]), "past it");
+    assert!(needs(true, &[r#"{"years":3.0}"#]), "a whole decimal, coerced by completion");
+    assert!(needs(true, &[r#"{"years":1}"#, r#"{"years":-2147483649}"#]), "a later row");
+    assert!(
+        !needs(true, &[r#"{"age":3000000000}"#]),
+        "the field's name is not its response key"
+    );
+    assert!(needs(true, &["2.5"]), "a number no key names");
+    assert!(!needs(false, &[r#"{"years":3000000000}"#]), "no Int field is selected");
 }

@@ -945,9 +945,13 @@ impl Executor {
         if response["data"][query_match.response_key()].is_null() {
             return Ok(response);
         }
-        self.ctx
-            .output_types
-            .complete(&mut response, "Query", &query_match.selections, None);
+        // REST publishes an `Int` field as an `integer` of any size: see
+        // `OutputTypes::complete_published_as_integer`.
+        self.ctx.output_types.complete_published_as_integer(
+            &mut response,
+            "Query",
+            &query_match.selections,
+        );
         let Some(error) = response.get("errors").and_then(|e| e.get(0)) else {
             return Ok(response);
         };

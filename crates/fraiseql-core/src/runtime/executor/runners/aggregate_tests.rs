@@ -1423,6 +1423,40 @@ mod row_projection {
         }
     }
 
+    /// A whole number written with a fraction (`3.0`, `-0`, as a `numeric` aggregate writes
+    /// one) is the integer it is, and an `Int` serves it as that integer (§ 3.5.1 allows a
+    /// coercion that loses nothing); a fractional one is no `Int`'s, and is a field error.
+    #[tokio::test]
+    async fn an_aggregate_int_holding_a_whole_decimal_is_served_as_the_integer() {
+        for (count, served) in [
+            (serde_json::json!(3.0), Some(serde_json::json!(3))),
+            (serde_json::json!(-0.0), Some(serde_json::json!(0))),
+            (serde_json::json!(2_147_483_647.0), Some(serde_json::json!(2_147_483_647))),
+            (serde_json::json!(2_147_483_648.0), None),
+            (serde_json::json!(3.5), None),
+        ] {
+            let (res, _) = run(
+                &format!("{{ s: sales_aggregate({ARGS}) {{ tenant_id n: count }} }}"),
+                &[serde_json::json!({"tenant_id": "a", "count": count})],
+            )
+            .await;
+            let response = res.expect("served");
+            let row = &response["data"]["s"][0];
+            if let Some(integer) = served {
+                assert_eq!(row["n"], integer, "{count}: {response}");
+                assert!(row["n"].is_i64(), "{count} is served as an integer: {response}");
+                assert!(response.get("errors").is_none(), "{count}: {response}");
+            } else {
+                assert_eq!(row["n"], serde_json::Value::Null, "{count}: {response}");
+                assert_eq!(
+                    response["errors"][0]["path"],
+                    serde_json::json!(["s", 0, "n"]),
+                    "{count}: {response}"
+                );
+            }
+        }
+    }
+
     /// A row is an object (§ 5.3.3): a root with no selection set, a field the row does not
     /// publish (§ 5.3.1) and a selection set on a leaf are refused before the database is read.
     #[tokio::test]
