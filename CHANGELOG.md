@@ -59,6 +59,15 @@ disagreed, and the promise was the part that was wrong.
   A role that reads the cursors without owning the table needs `USAGE` on `core`.
 - **`fraiseql_observers::EventStorage` and `PostgresEventStorage` are removed (#1895).**
   Nothing constructed them and nothing created the `fraiseql_events` table they read.
+- **`fraiseql compile` refuses a default on an input field an update receives (#1915).**
+  An update leaves a field the request omits unchanged; now that defaults apply, a default
+  would overwrite the stored value on every update that omits the field. The compile error
+  names the field, its input type and the update. Remove the default, or give the update an
+  input type of its own without it. An input only a create receives keeps its defaults, and
+  a `null` default (an SDK's `= None`) declares none.
+- **A null sent for a non-null input field that declares a default is refused (#1915).** It
+  reached the function as null. A default stands in for an omitted field only (GraphQL,
+  Input Coercion), so the request is refused, naming the field.
 - **`[observers.runtime] batch_size` must be between 1 and 10000 (#2157).** A value
   above 10000 booted, then every full batch's checkpoint save was refused by the
   `observer_checkpoints` CHECK and logged at ERROR, so the observer's position stopped
@@ -773,6 +782,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **An omitted input field reaches the function as its declared default (#1915).** A field
+  declared with a default (`currency: str = "EUR"`) and left out of a request reached the
+  function as NULL on a flattened input, or as a missing key on a `jsonb` input, so the
+  default was published by introspection and never applied. It now applies to an omitted
+  field at any depth, each item of a list of input objects included, on every write
+  transport and on a read's input-object argument. A field that is sent keeps what was
+  sent, null included.
 - **The checkpoint PUT endpoint and a listener's first checkpoint compare-and-swap are
   accepted (#1900).** Both inserted `batch_size = 0`, which the `observer_checkpoints`
   CHECK refuses, so `PUT /api/observers/checkpoint/{listener_id}` answered 500 on every

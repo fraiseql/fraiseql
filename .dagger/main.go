@@ -2208,6 +2208,9 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// an undeclared input key) is refused before the function runs, on GraphQL, REST and
 		// MCP; the function's own call log proves it never ran.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test mutation_value_types_e2e_pg -- --test-threads=1",
+		// #1915 — an omitted input field reaches the function as its default (variable, literal,
+		// nested, jsonb input, REST); a sent null is kept, or refused on a non-null field.
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test input_field_defaults_e2e_pg -- --test-threads=1",
 		// #1522 — a stored value missing from a non-null field, on `_entities`, a mutation
 		// payload, REST (refused) and MCP (an error result).
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test non_null_completion_transports_e2e_pg -- --test-threads=1",

@@ -1731,6 +1731,17 @@ async fn prepare_write<'a>(
     .await?;
     let variables = gated_variables.as_ref().or(variables);
 
+    // An input field the request omits takes its declared default, before the value is
+    // checked and stored like a sent one; after the field-write gate, which judges only what
+    // the client sent. Every transport's arguments meet here.
+    let defaulted = crate::runtime::apply_input_defaults_to_object(
+        &ctx.schema,
+        &format!("Mutation.{}", ctx.schema.display_name(mutation_name)),
+        &mutation_def.arguments,
+        variables,
+    )?;
+    let variables = defaulted.as_ref().or(variables);
+
     // The same map, in the shape the field authorizer resolves against: a policy
     // that matches on a gated field's argument must see the value the client sent,
     // not the `{"$var": …}` reference marker (#903).

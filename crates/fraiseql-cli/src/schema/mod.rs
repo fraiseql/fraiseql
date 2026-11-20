@@ -15,6 +15,7 @@ pub mod native_joins;
 pub mod optimizer;
 pub mod pg_catalog;
 pub mod seam;
+pub mod update_input_defaults;
 pub mod validator;
 
 pub use artifact::CompiledArtifact;

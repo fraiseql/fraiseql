@@ -660,6 +660,9 @@ pub async fn compile_to_schema(
     // 5g'. Refuse a tenant-scoped fact table whose analytics roots nothing scopes.
     refuse_unscoped_fact_tables(&schema)?;
 
+    // 5g''. Refuse a default an update would write over stored data.
+    refuse_update_input_defaults(&schema)?;
+
     // 5h. Refuse a schema a server would refuse to load (ruling AF 4).
     refuse_what_a_server_would_not_load(&schema)?;
 
@@ -765,6 +768,39 @@ fn refuse_unscoped_fact_tables(schema: &CompiledSchema) -> Result<()> {
          current_setting(...) the server sets from [session_variables], never on client \
          input), declare `row_scope = \"relation\"` instead.",
         violations.join("\n  - ")
+    )
+}
+
+/// Refuse a default on an input field an update receives.
+///
+/// An update leaves a field the request omits unchanged. A defaulted field is never omitted:
+/// the default is filled in, so it would overwrite the stored value on every update that
+/// leaves the field out. The author who wrote the default meant it for a create; on an update
+/// it would rewrite data, so the shape is refused rather than applied or ignored.
+///
+/// # Errors
+///
+/// Returns an error naming every such field and the update that receives it.
+fn refuse_update_input_defaults(schema: &CompiledSchema) -> Result<()> {
+    let found = crate::schema::update_input_defaults::update_input_defaults(schema);
+    if found.is_empty() {
+        return Ok(());
+    }
+    let list = found
+        .iter()
+        .map(|f| {
+            format!(
+                "  - `{}.{}` (default {}), received by update mutation `{}`",
+                f.input_type, f.field, f.default, f.mutation
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    anyhow::bail!(
+        "input field default(s) an update would write:\n{list}\n\n\
+         An update leaves an omitted field unchanged; a default would overwrite it on every \
+         update that omits it. Remove the default, give the update its own input type without \
+         it, or make the mutation a full replace (not an update)."
     )
 }
 

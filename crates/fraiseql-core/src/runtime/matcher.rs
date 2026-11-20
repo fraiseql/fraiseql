@@ -194,6 +194,12 @@ impl QueryMatch {
             &published,
             |name| self.arguments.get(name),
         )?;
+        crate::runtime::apply_input_defaults(
+            schema,
+            &format!("Query.{}", schema.display_name(&self.query_def.name)),
+            &published,
+            &mut self.arguments,
+        )?;
         crate::runtime::coerce_enum_arguments(schema, &published, &mut self.arguments);
         Ok(self)
     }
@@ -677,6 +683,12 @@ impl QueryMatcher {
 
         // 10. #1580: an enum member named in an argument becomes the value it is stored as, the
         //     value SQL compares. After 5e, so every name here is a member.
+        crate::runtime::apply_input_defaults(
+            &self.schema,
+            &format!("Query.{}", self.schema.display_name(&query_def.name)),
+            published,
+            &mut arguments,
+        )?;
         crate::runtime::coerce_enum_arguments(&self.schema, published, &mut arguments);
 
         Ok(QueryMatch {

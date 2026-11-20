@@ -60,6 +60,7 @@ mod enum_coercion;
 mod executor;
 mod explain;
 pub mod field_filter;
+mod input_defaults;
 pub mod input_validator;
 pub mod jsonb_strategy;
 mod locale_argument;
@@ -137,6 +138,7 @@ pub use field_filter::{
     FieldAccessResult, can_access_field, can_reference_field, classify_field_access, filter_fields,
     may_select_field,
 };
+pub(crate) use input_defaults::{apply_input_defaults, apply_input_defaults_to_object};
 pub use jsonb_strategy::{JsonbOptimizationOptions, JsonbStrategy};
 pub use locale_argument::translations;
 pub(crate) use locale_argument::{
