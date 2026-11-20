@@ -105,9 +105,11 @@ pub struct EntryPoints {
     pub binary:    bool,
     /// An in-process server on a caller-bound listener (`Server::serve_on_listener`).
     pub listener:  bool,
-    /// The MCP stdio sidecar (`Server::serve_mcp_stdio`). It serves one client's
-    /// requests next to the deployment's HTTP server, so it starts no deployment-wide
-    /// work of its own: no poller, scheduler or consumer the HTTP server already runs.
+    /// The MCP stdio server (`Server::serve_mcp_stdio`): one client's requests over
+    /// stdin and stdout, and no HTTP. It may be the deployment's only process, so it
+    /// starts the background work the binary starts; what runs once per deployment
+    /// (a scheduled firing, a dispatched row) is held single by its lease, whichever
+    /// process takes it.
     pub mcp_stdio: bool,
     /// `fraiseql run`. It assembles and serves its server the way the binary does, so it
     /// starts what the binary starts.

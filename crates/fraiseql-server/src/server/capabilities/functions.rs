@@ -13,7 +13,6 @@ use crate::capability::Started;
 use crate::server::{
     ServerError,
     provision::{BootCx, ProvisionStep},
-    start::EntryPoint,
 };
 
 /// Declared functions. Their runtime is prepared during provisioning, so the hooks every
@@ -58,14 +57,8 @@ impl Capability for Functions {
     /// Start the `cron:` scheduler: one leased poller per cron function in the compiled
     /// schema, each firing on its schedule under a single-firing advisory lease with the
     /// phase-02 `run_as` host. A cron function is a scheduled source without a cursor.
-    ///
-    /// The scheduler is deployment-wide work, so the stdio sidecar, which serves the
-    /// functions to its own requests, leaves it to the HTTP server it runs beside.
     #[cfg(feature = "functions-runtime")]
     async fn start(&self, cx: &mut RunCx<'_>) -> crate::Result<Started> {
-        if cx.entry == EntryPoint::McpStdio {
-            return Ok(Started::Running);
-        }
         let app_state = cx.app;
         let server = &mut *cx.server;
         let (Some(db_pool), Some(hooks)) =

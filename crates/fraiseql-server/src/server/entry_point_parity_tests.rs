@@ -220,13 +220,14 @@ async fn every_entry_point_starts_what_the_registry_declares() {
 
         // What each entry point must do, stated apart from the metadata, so a wrong
         // declaration fails here rather than moving the loop and its check together. A
-        // listener binds no port its caller did not choose; the stdio sidecar runs no
-        // deployment-wide consumer beside the HTTP server that already runs one.
+        // listener binds no port its caller did not choose; the stdio server may be the
+        // deployment's only process, so it runs the observers as the binary does, and serves
+        // no Arrow Flight, which is not MCP.
         let must_run = |capability: &str| {
             matches!(
                 (capability, entry),
                 ("arrow_flight", EntryPoint::Http)
-                    | ("observers", EntryPoint::Http | EntryPoint::Listener)
+                    | ("observers", EntryPoint::Http | EntryPoint::Listener | EntryPoint::McpStdio)
             )
         };
         for (capability, running) in effects {

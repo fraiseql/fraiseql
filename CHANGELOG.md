@@ -843,6 +843,22 @@ disagreed, and the promise was the part that was wrong.
   failing the batch. A restart once failed this way in CI and has not been reproduced:
   these remove one place a stop could interrupt a transaction, and make the next
   occurrence name the backend.
+- **A server serving MCP over stdio runs its background work (#2000).** With
+  `FRAISEQL_MCP_STDIO` set, the server fired no `cron:` function and started no observer,
+  source poller, mailbox poller or change-log drain: it assumed an HTTP server of the same
+  deployment ran them, and a deployment served over stdio alone never ran them at all. It
+  now starts what the binary starts. Next to an HTTP server, each window and each row still
+  runs once: the lease or the row claim that holds it single is shared by every process. A
+  firing is delivered at least once: a process killed after running a cron function or a
+  source, and before recording its window, leaves the window to the next process that ticks
+  in it, which fires it with the same idempotency token; the lock is freed as soon as the
+  killed process's connection closes. A host that vanishes without closing its connection
+  holds the lock until `PostgreSQL` notices the connection is gone (its
+  `tcp_keepalives_*` settings, two hours with the operating system's defaults).
+- **A server serving MCP over stdio reloads its schema on `SIGUSR1` (#2000).** It installed
+  no handler, so the signal's default action ended the process: a reload sent to a stdio
+  deployment stopped it. It now reloads as the HTTP server does. The tool list stays the one
+  at boot.
 - **A cron function or a source fires once per window across replicas (#2162).**
   Each replica ticks once a minute from its own start, so two replicas reach one window
   at different seconds. The advisory lease only kept their firings from overlapping: the

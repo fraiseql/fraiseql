@@ -125,6 +125,20 @@ pub async fn cleanup_test_data(pool: &PgPool, test_id: &str) -> Result<(), sqlx:
     Ok(())
 }
 
+/// Record one request the mock received. Never dropped: two deliveries at once, the defect a
+/// replica test counts, contend for the lock. Nothing holds it across an `.await`, so a
+/// failed `try_lock` (a sync responder cannot await one) is another thread's push or read,
+/// and is retried.
+fn record_request(requests: &Mutex<Vec<serde_json::Value>>, body: serde_json::Value) {
+    loop {
+        if let Ok(mut reqs) = requests.try_lock() {
+            reqs.push(body);
+            return;
+        }
+        std::thread::yield_now();
+    }
+}
+
 /// Mock webhook server with request tracking
 pub struct MockWebhookServer {
     pub server: MockServer,
@@ -151,10 +165,7 @@ impl MockWebhookServer {
                 let body: serde_json::Value =
                     serde_json::from_slice(&req.body).unwrap_or_else(|_| serde_json::json!({}));
 
-                // Use try_lock() instead of blocking_lock() to avoid panic in async context
-                if let Ok(mut reqs) = requests.try_lock() {
-                    reqs.push(body);
-                }
+                record_request(&requests, body);
 
                 ResponseTemplate::new(200).set_body_json(serde_json::json!({"status": "success"}))
             })
@@ -175,9 +186,7 @@ impl MockWebhookServer {
                 // runtime (#928).
                 let body: serde_json::Value =
                     serde_json::from_slice(&req.body).unwrap_or_else(|_| serde_json::json!({}));
-                if let Ok(mut reqs) = requests.try_lock() {
-                    reqs.push(body);
-                }
+                record_request(&requests, body);
                 ResponseTemplate::new(status_code)
             })
             .mount(&self.server)
@@ -203,9 +212,7 @@ impl MockWebhookServer {
                     let body: serde_json::Value =
                         serde_json::from_slice(&req.body).unwrap_or_else(|_| serde_json::json!({}));
 
-                    if let Ok(mut reqs) = requests.try_lock() {
-                        reqs.push(body);
-                    }
+                    record_request(&requests, body);
 
                     ResponseTemplate::new(200)
                 }
@@ -240,9 +247,7 @@ impl MockWebhookServer {
                 let body: serde_json::Value =
                     serde_json::from_slice(&req.body).unwrap_or_else(|_| serde_json::json!({}));
 
-                if let Ok(mut reqs) = requests.try_lock() {
-                    reqs.push(body);
-                }
+                record_request(&requests, body);
 
                 ResponseTemplate::new(200)
                     .set_delay(delay)

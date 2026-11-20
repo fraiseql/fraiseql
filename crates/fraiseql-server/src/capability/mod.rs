@@ -189,7 +189,7 @@ pub static REGISTRY: &[Registration] = &[
         docs: Some("docs/architecture/sources.md"),
         maturity: Maturity::Stable,
         release: Release::Platform,
-        entry_points: EntryPoints::HTTP,
+        entry_points: EntryPoints::ALL,
     },
     register! {
         capability: impls::Mcp,
@@ -247,7 +247,7 @@ pub static REGISTRY: &[Registration] = &[
         docs: Some("docs/operations/observers.md"),
         maturity: Maturity::Stable,
         release: Release::Platform,
-        entry_points: EntryPoints::HTTP,
+        entry_points: EntryPoints::ALL,
     },
     register! {
         capability: impls::ArrowFlight,
@@ -283,7 +283,7 @@ pub static REGISTRY: &[Registration] = &[
         docs: Some("docs/architecture/inbound-email.md"),
         maturity: Maturity::Stable,
         release: Release::Platform,
-        entry_points: EntryPoints::HTTP,
+        entry_points: EntryPoints::ALL,
     },
     register! {
         capability: impls::Identity,
@@ -329,7 +329,7 @@ pub static REGISTRY: &[Registration] = &[
         docs: Some("docs/features/cdc-outbound.md"),
         maturity: Maturity::Stable,
         release: Release::Platform,
-        entry_points: EntryPoints::HTTP,
+        entry_points: EntryPoints::ALL,
     },
     register! {
         capability: impls::SubscriptionKafka,

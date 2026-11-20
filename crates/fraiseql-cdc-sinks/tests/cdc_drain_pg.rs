@@ -585,3 +585,82 @@ async fn a_commit_time_past_year_9999_is_dead_lettered_and_its_successors_publis
     // 10000-01-01T00:00:00Z: 252,455,616,000,000,000 µs after 2000-01-01T00:00:00Z.
     unreadable_commit_time_is_dead_lettered("10000-01-01 00:00:00+00", "252455616000000000").await;
 }
+
+/// A broker stand-in shared by several workers: every publish, from any worker, lands in
+/// one log, in the order the broker received it.
+struct SharedSink {
+    config: CdcSinkConfig,
+    worker: char,
+    log:    std::sync::Arc<Mutex<Vec<(char, i64)>>>,
+}
+
+impl CdcSink for SharedSink {
+    fn name(&self) -> &str {
+        &self.config.name
+    }
+
+    fn kind(&self) -> SinkKind {
+        SinkKind::NatsJetStream
+    }
+
+    fn matches(&self, ev: &ChangeEvent) -> bool {
+        self.config.matches(ev)
+    }
+
+    async fn publish(&self, ev: &ChangeEvent) -> PublishOutcome {
+        // Slow enough that the other worker's tick lands while this batch is being published.
+        tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+        self.log.lock().unwrap().push((self.worker, ev.seq));
+        PublishOutcome::Published
+    }
+}
+
+/// Two processes draining one sink (two replicas, or a server and an MCP stdio process
+/// beside it) publish each row once, in seq order between them: a worker never claims past
+/// the other's unexpired head.
+#[tokio::test]
+#[ignore = "requires Postgres (DATABASE_URL)"]
+async fn two_workers_on_one_sink_publish_each_row_once_in_order() {
+    let setup = pool().await;
+    setup_schema(&setup).await;
+    let table = unique("tbtwo");
+    let mut seeded = Vec::new();
+    for v in 0..60 {
+        seeded.push(seed(&setup, &table, "INSERT", None, Some(json!({ "v": v }))).await);
+    }
+
+    let sink_name = unique("sink");
+    let config =
+        CdcSinkConfig::new(sink_name.clone(), "fraiseql.{table}").with_tables(vec![table.clone()]);
+    let log = std::sync::Arc::new(Mutex::new(Vec::new()));
+    // Each worker on its own pool: two sessions, as two processes would hold.
+    let worker = |pool: PgPool, name: char| {
+        DrainWorker::new(
+            pool,
+            SharedSink {
+                config: config.clone(),
+                worker: name,
+                log:    std::sync::Arc::clone(&log),
+            },
+            config.clone(),
+        )
+        .with_batch_size(5)
+    };
+    let a = worker(pool().await, 'a');
+    let b = worker(pool().await, 'b');
+
+    let drain = |w: DrainWorker<SharedSink>| async move {
+        for _ in 0..200 {
+            w.tick().await.unwrap();
+        }
+    };
+    tokio::join!(drain(a), drain(b));
+
+    let log = log.lock().unwrap().clone();
+    let published: Vec<i64> = log.iter().map(|(_, seq)| *seq).collect();
+    assert_eq!(published, seeded, "each row once, in seq order, across both workers");
+    for name in ['a', 'b'] {
+        assert!(log.iter().any(|(w, _)| *w == name), "worker {name} published nothing: {log:?}");
+    }
+    assert_eq!(status_count(&setup, &sink_name, "published").await, 60);
+}
