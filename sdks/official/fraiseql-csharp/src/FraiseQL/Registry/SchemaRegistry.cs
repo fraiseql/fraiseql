@@ -41,7 +41,8 @@ public sealed class SchemaRegistry
     /// </summary>
     /// <param name="type">The C# type to register.</param>
     /// <exception cref="InvalidOperationException">
-    /// Thrown when <paramref name="type"/> is not decorated with <see cref="GraphQLTypeAttribute"/>.
+    /// Thrown when <paramref name="type"/> is not decorated with <see cref="GraphQLTypeAttribute"/>,
+    /// or is an input type with a field that sets <c>ScopedLikeParent</c>.
     /// </exception>
     public void Register(Type type)
     {
@@ -51,6 +52,19 @@ public sealed class SchemaRegistry
 
         var typeName = string.IsNullOrEmpty(typeAttr.Name) ? type.Name : typeAttr.Name;
         var fields = BuildFields(type);
+
+        if (typeAttr.IsInput)
+        {
+            // An input object is no scoped document: the declaration has nothing to bind
+            // to, and the export would drop it without a word.
+            var scoped = fields.FirstOrDefault(f => f.ScopedLikeParent);
+            if (scoped is not null)
+            {
+                throw new InvalidOperationException(
+                    $"Input type '{typeName}' field '{scoped.Name}': ScopedLikeParent applies "
+                    + "to output fields only");
+            }
+        }
 
         var definition = new TypeDefinition(
             Name: typeName,
@@ -74,7 +88,8 @@ public sealed class SchemaRegistry
                     // Normalise a singleton Scopes list onto Scope; anything longer is
                     // unrepresentable downstream and is refused rather than dropped (#807).
                     NormaliseScope(f.Scope, f.Scopes, f.Name), null, f.Computed ? true : null,
-                    f.Vector, f.VectorDistance, f.Deprecated, f.Localized ? true : null))
+                    f.Vector, f.VectorDistance, f.Deprecated, f.Localized ? true : null,
+                    f.ScopedLikeParent ? true : null))
                 .ToList()
                 .AsReadOnly();
 
@@ -416,7 +431,8 @@ public sealed class SchemaRegistry
                 Deprecated: fieldAttr.Deprecated is null
                     ? null
                     : new DeprecationInfo(fieldAttr.Deprecated.Length == 0 ? null : fieldAttr.Deprecated),
-                Localized: fieldAttr.Localized));
+                Localized: fieldAttr.Localized,
+                ScopedLikeParent: fieldAttr.ScopedLikeParent));
         }
 
         return fields.AsReadOnly();

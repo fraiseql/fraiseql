@@ -73,6 +73,8 @@ class FraiseQLSchema {
       );
     }
 
+    if (isInput) _refuseScopedLikeParent("input type '$name'", fields);
+
     final definition = <String, Object?>{
       'name': name,
       'fields': [
@@ -159,6 +161,22 @@ class FraiseQLSchema {
     }
   }
 
+  /// `scopedLikeParent` is about the object type holding the field, so it has no meaning
+  /// on an input field or an argument: it is refused here, where the author wrote it.
+  static void _refuseScopedLikeParent(
+    String owner,
+    Map<String, FieldType> fields,
+  ) {
+    for (final entry in fields.entries) {
+      if (entry.value.scopedLikeParent) {
+        throw ArgumentError(
+          "$owner: '${entry.key}' declares scopedLikeParent, which applies to an "
+          'object type\'s fields only.',
+        );
+      }
+    }
+  }
+
   /// Declares a GraphQL enum type.
   Map<String, Object?> enumType(
     String name,
@@ -219,6 +237,7 @@ class FraiseQLSchema {
         for (final entry in arguments.entries) entry.value._toJson(entry.key),
       ],
     };
+    _refuseScopedLikeParent('query $name', arguments);
     // Exactly one resolution path (#1329). Refused here rather than left to the compiler
     // because "neither" and "both" are distinct mistakes and each says which it is.
     if (sqlSource != null && function != null) {
@@ -288,6 +307,7 @@ class FraiseQLSchema {
         for (final entry in arguments.entries) entry.value._toJson(entry.key),
       ],
     };
+    _refuseScopedLikeParent('mutation $name', arguments);
     if (sqlSource != null) definition['sql_source'] = sqlSource;
     if (operation != null) definition['operation'] = operation;
     if (description != null) definition['description'] = description;
@@ -590,6 +610,14 @@ class FieldType {
   /// locale. Only a String can be localized; exporting any other localized type is refused.
   final bool localized;
 
+  /// On a field that embeds a type whose own query is scoped by `inject`: declares that
+  /// the type holding the field is scoped by the same columns from the same sources.
+  /// Without it such an embedding does not compile; with it the compiler checks every
+  /// query of the holding type.
+  ///
+  /// Emitted only when true. Refused on an input type's field and on an argument.
+  final bool scopedLikeParent;
+
   const FieldType.named(
     this.type, {
     this.nullable = true,
@@ -601,6 +629,7 @@ class FieldType {
     this.deprecated,
     this.computed = false,
     this.localized = false,
+    this.scopedLikeParent = false,
   }) : assert(
           vectorConfig == null || vectorDistance == null,
           'A field declares either vectorConfig or vectorDistance, not both: vectorConfig '
@@ -775,6 +804,7 @@ class FieldType {
       }
       json['localized'] = true;
     }
+    if (scopedLikeParent) json['scoped_like_parent'] = true;
     return json;
   }
 }

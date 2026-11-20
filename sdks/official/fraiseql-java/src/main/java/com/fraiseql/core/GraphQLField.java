@@ -85,6 +85,15 @@ public @interface GraphQLField {
     boolean localized() default false;
 
     /**
+     * Declares that the scoped type this field embeds is scoped like its parent.
+     *
+     * <p>A type whose own query is scoped by {@code inject} does not compile inside another
+     * type's document unless the embedding field says so; the compiler checks the claim.
+     * An input field cannot declare it: registering such an input type is refused.
+     */
+    boolean scopedLikeParent() default false;
+
+    /**
      * Optional JWT scope required to access this field.
      * Supports single scope as a string.
      *

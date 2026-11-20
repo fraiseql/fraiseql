@@ -6,6 +6,8 @@ package fraiseql
 
 import (
 	"encoding/json"
+	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -580,5 +582,63 @@ func TestMutationBuilderRetryOnAbort(t *testing.T) {
 	}
 	if _, present := findMutation(schema, "refund")["retry_on_abort"]; present {
 		t.Error("refund: an unset retry_on_abort must be left out, so it follows the server")
+	}
+}
+
+// `scoped_like_parent` is carried on the field that declares it and on no other: the
+// compiler reads an absent key as "not declared".
+func TestScopedLikeParentIsExportedOnlyOnTheFieldThatDeclaresIt(t *testing.T) {
+	Reset()
+	defer Reset()
+
+	if err := RegisterType("Order", []FieldInfo{{Name: "id", Type: "ID"}}, ""); err != nil {
+		t.Fatalf("RegisterType: %v", err)
+	}
+	if err := RegisterType("OrderShipment", []FieldInfo{
+		{Name: "id", Type: "ID"},
+		{Name: "order", Type: "Order", ScopedLikeParent: true},
+		{Name: "previousOrder", Type: "Order", Nullable: true},
+	}, ""); err != nil {
+		t.Fatalf("RegisterType: %v", err)
+	}
+
+	schema := exportedSchema(t)
+	fields := entry(t, schema, "types", "OrderShipment", "fields")
+	if fields["order"]["scoped_like_parent"] != true {
+		t.Errorf("OrderShipment.order: %v", fields["order"])
+	}
+	for _, sibling := range []string{"id", "previousOrder"} {
+		if _, present := fields[sibling]["scoped_like_parent"]; present {
+			t.Errorf("OrderShipment.%s did not declare it and carries no key: %v", sibling, fields[sibling])
+		}
+	}
+	if _, present := entry(t, schema, "types", "Order", "fields")["id"]["scoped_like_parent"]; present {
+		t.Error("Order.id: another type's field carries no key")
+	}
+}
+
+func TestScopedLikeParentIsRefusedOnAnInputField(t *testing.T) {
+	Reset()
+	defer Reset()
+
+	err := RegisterInputType("OrderShipmentInput", []FieldInfo{
+		{Name: "orderId", Type: "ID", ScopedLikeParent: true},
+	}, "")
+	if err == nil || !strings.Contains(err.Error(), `"orderId"`) ||
+		!strings.Contains(err.Error(), "scoped_like_parent") {
+		t.Errorf("RegisterInputType: %v", err)
+	}
+	if inputs, _ := exportedSchema(t)["input_types"].([]any); len(inputs) != 0 {
+		t.Errorf("a refused input type is not registered: %v", inputs)
+	}
+}
+
+func TestTheStructTagDeclaresScopedLikeParent(t *testing.T) {
+	info, err := parseFieldTag("order,type=Order,scoped_like_parent=true", "Order", reflect.TypeOf(""))
+	if err != nil {
+		t.Fatalf("parseFieldTag: %v", err)
+	}
+	if !info.ScopedLikeParent {
+		t.Errorf("scoped_like_parent=true was not read: %+v", info)
 	}
 }

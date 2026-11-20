@@ -105,6 +105,14 @@ def author_full
     t.field :similarity, :float, nullable: false, vector_distance: :embedding
   end
 
+  # A type whose own query is scoped by `inject` compiles inside another type only when
+  # the embedding field declares it scoped like its parent. An SDK that drops the flag
+  # produces a schema the compiler refuses, so the construct is observed on the field.
+  schema.type "OrderShipment", sql_source: "v_order_shipment" do |t|
+    t.field :id, :id, nullable: false
+    t.field :order, "Order", nullable: false, scoped_like_parent: true
+  end
+
   schema.type "CreateUserInput", is_input: true do |t|
     t.field :email, :string, nullable: false
     t.field :name, :string, nullable: true
@@ -147,6 +155,12 @@ def author_full
                                requires_actor: %w[human_user service_account] do |q|
     q.argument :include_archived, :boolean, nullable: true
   end
+
+  # Scoped by the same column from the same source as `tenant_orders`, which is what
+  # `OrderShipment.order` claims.
+  schema.query :tenant_order_shipments, return_type: "OrderShipment", returns_list: true,
+                                        nullable: false, sql_source: "v_order_shipment",
+                                        inject: { "tenant_id" => "jwt:tenant_id" }
 
   # #1305: the three authored states of pagination_order, one query each, because one
   # query can demonstrate only one. The key decides the total order a LIMIT/OFFSET page

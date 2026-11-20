@@ -42,6 +42,8 @@ final readonly class FieldDefinition
         public ?string $deprecated = null,
         /** A String stored as a locale map (#1527). */
         public bool $localized = false,
+        /** The scoped type this field embeds is scoped like the type holding the field. */
+        public bool $scopedLikeParent = false,
     ) {
     }
 

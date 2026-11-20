@@ -51,6 +51,14 @@ public sealed class GraphQLFieldAttribute : Attribute
     /// </summary>
     public bool Localized { get; set; }
 
+    /// <summary>
+    /// Gets or sets whether the type this field embeds is scoped like this field's own
+    /// type. A type whose query is scoped by an injected parameter does not compile inside
+    /// another type unless the embedding field declares this; the compiler checks the
+    /// claim. Output fields only: registering an input type that sets it is refused.
+    /// </summary>
+    public bool ScopedLikeParent { get; set; }
+
     /// <summary>Gets or sets a single required OAuth scope for field access.</summary>
     public string? Scope { get; set; }
 

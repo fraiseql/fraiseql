@@ -164,6 +164,7 @@ module SchemaRegistry =
                     vector_distance = vectorDistance
                     deprecated = deprecated
                     localized = if fieldAttr.Localized then Some true else None
+                    scoped_like_parent = if fieldAttr.ScopedLikeParent then Some true else None
                 }))
         |> Array.toList
 

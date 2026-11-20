@@ -336,6 +336,7 @@ public class TypeConverter {
                 fieldInfo.deprecationReason = annotation.deprecated();
             }
             fieldInfo.localized = annotation.localized();
+            fieldInfo.scopedLikeParent = annotation.scopedLikeParent();
 
             fields.put(fieldName, fieldInfo);
         }
@@ -429,6 +430,8 @@ public class TypeConverter {
         public String deprecationReason;
         /** Whether this String field is stored as a locale map (#1527). */
         public boolean localized;
+        /** Whether the scoped type this field embeds is declared scoped like its parent. */
+        public boolean scopedLikeParent;
 
         public GraphQLFieldInfo(String name, String type, boolean nullable, String description) {
             this(name, type, nullable, description, null, null, false);

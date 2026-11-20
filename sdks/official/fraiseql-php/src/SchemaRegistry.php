@@ -514,6 +514,7 @@ final class SchemaRegistry
             vectorDistance: $fieldAttr?->vectorDistance,
             deprecated: $fieldAttr?->deprecated,
             localized: $fieldAttr?->localized ?? false,
+            scopedLikeParent: $fieldAttr?->scopedLikeParent ?? false,
         );
     }
 }

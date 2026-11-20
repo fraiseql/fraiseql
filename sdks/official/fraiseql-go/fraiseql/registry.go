@@ -770,6 +770,14 @@ func RegisterInputType(name string, fields []FieldInfo, description string) erro
 	if err := validateFieldDeclarations(name, fields); err != nil {
 		return err
 	}
+	for _, f := range fields {
+		if f.ScopedLikeParent {
+			return fmt.Errorf(
+				"field %q of input type %q declares scoped_like_parent, which applies to output "+
+					"fields only: it describes a type a field embeds, and an input field embeds none",
+				f.Name, name)
+		}
+	}
 	reg := getInstance()
 	reg.mu.Lock()
 	defer reg.mu.Unlock()

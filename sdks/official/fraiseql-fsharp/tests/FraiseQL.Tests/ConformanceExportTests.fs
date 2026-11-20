@@ -174,6 +174,16 @@ type ConformanceDocument() =
     [<GraphQLField(Type = "Float", Nullable = false, VectorDistance = "embedding")>]
     member val Similarity = 0.0 with get, set
 
+// `Order` is scoped by `tenantOrders`, so a type that embeds it says it is scoped alike,
+// and its own query bears that out.
+[<GraphQLType(Name = "OrderShipment", SqlSource = "v_order_shipment")>]
+type ConformanceOrderShipment() =
+    [<GraphQLField(Type = "ID", Nullable = false)>]
+    member val Id = "" with get, set
+
+    [<GraphQLField(Type = "Order", Nullable = false, ScopedLikeParent = true)>]
+    member val Order = ConformanceOrder() with get, set
+
 let private authorMinimal () =
     SchemaRegistry.register typeof<ConformanceMinimalUser>
 
@@ -190,6 +200,7 @@ let private authorFull () =
     SchemaRegistry.register typeof<ConformanceUserNotFound>
     SchemaRegistry.register typeof<ConformanceDocument>
     SchemaRegistry.register typeof<ConformanceReadingSeries>
+    SchemaRegistry.register typeof<ConformanceOrderShipment>
 
     SchemaRegistry.registerInput
         {
@@ -222,6 +233,13 @@ let private authorFull () =
     |> QueryBuilder.nullable true
     |> QueryBuilder.sqlSource "v_user"
     |> QueryBuilder.withArgument "id" "ID" false
+    |> QueryBuilder.register
+
+    QueryBuilder.query "tenantOrderShipments"
+    |> QueryBuilder.returnType "OrderShipment"
+    |> QueryBuilder.returnsList true
+    |> QueryBuilder.sqlSource "v_order_shipment"
+    |> QueryBuilder.inject "tenant_id" "jwt:tenant_id"
     |> QueryBuilder.register
 
     QueryBuilder.query "readingSeriesByIds"

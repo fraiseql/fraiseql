@@ -86,6 +86,9 @@ defmodule FraiseQL.FieldDefinition do
     * `:deprecated` — `true` for deprecated with no stated reason, or the reason as a
       string. Surfaces as `isDeprecated` / `deprecationReason` through introspection.
     * `:localized` — `true` on a String stored as a locale map (#1527)
+    * `:scoped_like_parent` — `true` on a field that embeds a type whose own query is
+      scoped by `inject_params`: the embedded rows are scoped as the parent's are.
+      Refused on an input type's field.
   """
 
   @enforce_keys [:name, :type]
@@ -100,7 +103,8 @@ defmodule FraiseQL.FieldDefinition do
     vector_config: nil,
     vector_distance: nil,
     deprecated: nil,
-    localized: false
+    localized: false,
+    scoped_like_parent: false
   ]
 
   @type t :: %__MODULE__{
@@ -114,7 +118,8 @@ defmodule FraiseQL.FieldDefinition do
           vector_config: FraiseQL.VectorConfig.t() | nil,
           vector_distance: String.t() | nil,
           deprecated: boolean() | String.t() | nil,
-          localized: boolean()
+          localized: boolean(),
+          scoped_like_parent: boolean()
         }
 end
 

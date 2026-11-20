@@ -676,6 +676,21 @@ disagreed, and the promise was the part that was wrong.
   `retryOnAbort(false)`, C# `RetryOnAbort(false)`, F# `MutationBuilder.retryOnAbort false`,
   Ruby and Elixir `retry_on_abort: false`, Dart `retryOnAbort: false`; the conformance suite
   checks each, and the Rust SDK, which has no mutation builder, declares the gap.
+- **Nine more SDKs author `scoped_like_parent` (#2007).** A field that embeds a type whose
+  own query is scoped by `inject_params` must declare it, and only Python and TypeScript
+  could: a schema written with another SDK could not embed a scoped type without a
+  hand-edited `schema.json`. Go `FieldInfo{ScopedLikeParent: true}` (or the struct tag
+  `scoped_like_parent=true`), PHP `scopedLikeParent: true` on `#[GraphQLField]` and
+  `TypeBuilder::field`, Java `@GraphQLField(scopedLikeParent = true)`, C#
+  `[GraphQLField(ScopedLikeParent = true)]` and `Field(..., scopedLikeParent: true)`, F#
+  `ScopedLikeParent = true` on the attribute and `scopedLikeParent` in the field builder,
+  Ruby and Elixir `scoped_like_parent: true`, Dart `FieldType.named(..., scopedLikeParent:
+  true)`, Rust `Field::with_scoped_like_parent()`. Each writes the key only on a field that
+  declares it, and each SDK with input types refuses it on an input field. Conformance
+  checks the eight that can also author the scoped query; the Rust SDK has no query builder,
+  so its conformance gap stays, restated as that. Adding the member is a source change for
+  code that builds these SDKs' field records positionally or as full literals (the Rust
+  `Field` struct, the F# `FieldDefinition` record).
 - **The Java SDK's `Webhook` sets a webhook's method and a plain header (#2150).**
   `Webhook.method(action, "PUT")` sets the HTTP method, which was always the server's
   default `POST`, and `Webhook.header(action, name, value)` sends a header written into the

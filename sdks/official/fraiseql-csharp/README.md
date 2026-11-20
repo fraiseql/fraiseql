@@ -100,6 +100,7 @@ fraiseql compile schema.json
 | `Resolver` | `string?` | Custom resolver name |
 | `Scope` | `string?` | Required OAuth scope |
 | `Scopes` | `string[]?` | Multiple required scopes |
+| `ScopedLikeParent` | `bool` | The scoped type this field embeds is scoped like this type (output fields only) |
 
 ### C# to GraphQL type auto-detection
 

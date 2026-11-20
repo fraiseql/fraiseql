@@ -126,6 +126,7 @@ Marks a property as a GraphQL field.
 | `scope` | `?string` | JWT scope required to access this field |
 | `scopes` | `?array` | Multiple JWT scopes required |
 | `localized` | `bool` | A String stored as a locale map (`[locale]` in `fraiseql.toml`) |
+| `scopedLikeParent` | `bool` | The scoped type this field embeds is scoped like the type holding the field (output fields only) |
 
 A field is nullable when `nullable: true` or its property type is `?T`. A `type` written in
 the attribute is published as written. Without one, an `array` property is a list whose

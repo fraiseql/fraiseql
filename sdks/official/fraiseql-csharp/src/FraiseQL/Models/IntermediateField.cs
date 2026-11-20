@@ -39,6 +39,10 @@ namespace FraiseQL.Models;
 /// <param name="Localized">
 /// <see langword="true"/> on a String stored as a locale map (#1527); omitted otherwise.
 /// </param>
+/// <param name="ScopedLikeParent">
+/// <see langword="true"/> on a field declaring the scoped type it embeds scoped like its
+/// parent; omitted otherwise.
+/// </param>
 public record IntermediateField(
     [property: JsonPropertyName("name")]        string Name,
     [property: JsonPropertyName("type")]        string Type,
@@ -60,4 +64,6 @@ public record IntermediateField(
     // attribute to put a reason in, so a C# author could not deprecate a field at all.
     [property: JsonPropertyName("deprecated")]      DeprecationInfo? Deprecated = null,
     // #1527: a String stored as a locale map. Null (omitted) unless localized.
-    [property: JsonPropertyName("localized")]       bool? Localized = null);
+    [property: JsonPropertyName("localized")]       bool? Localized = null,
+    // Null (omitted) unless declared: the compiler reads an absent key as false.
+    [property: JsonPropertyName("scoped_like_parent")] bool? ScopedLikeParent = null);

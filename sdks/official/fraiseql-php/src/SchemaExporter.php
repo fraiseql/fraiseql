@@ -108,6 +108,7 @@ final class SchemaExporter
         }
 
         self::refuseLocalizedNonStrings($schema);
+        self::refuseScopedLikeParentOnInputs($schema);
 
         // #1325: serverless function definitions. Emitted only when present, so a
         // schema that declares none serialises exactly as it did before.
@@ -156,6 +157,33 @@ final class SchemaExporter
                     $field['name'],
                     $field['type'],
                 ));
+            }
+        }
+    }
+
+    /**
+     * Refuse `scoped_like_parent` on an input field: it describes how an embedded type is
+     * read, and an input field embeds nothing. Checked on an `isInput` type and on a
+     * registered input type alike.
+     *
+     * @param array<string, mixed> $schema
+     */
+    private static function refuseScopedLikeParentOnInputs(array $schema): void
+    {
+        $inputs = array_filter(
+            $schema['types'],
+            static fn (array $type): bool => ($type['is_input'] ?? false) === true,
+        );
+        foreach ([...$inputs, ...($schema['input_types'] ?? [])] as $input) {
+            foreach ($input['fields'] as $field) {
+                if (array_key_exists('scoped_like_parent', $field)) {
+                    throw new \InvalidArgumentException(sprintf(
+                        '%s.%s: scoped_like_parent applies to output fields only; '
+                        . 'an input field cannot declare it',
+                        $input['name'],
+                        $field['name'],
+                    ));
+                }
             }
         }
     }
@@ -232,6 +260,12 @@ final class SchemaExporter
 
                         if ($f->localized) {
                             $field['localized'] = true;
+                        }
+
+                        // Written only when declared: the compiler reads an absent key
+                        // as false, and a type declaring none exports as it did before.
+                        if ($f->scopedLikeParent) {
+                            $field['scoped_like_parent'] = true;
                         }
 
                         return $field;

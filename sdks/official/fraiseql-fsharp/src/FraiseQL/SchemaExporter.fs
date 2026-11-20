@@ -63,9 +63,25 @@ module SchemaExporter =
                         type_
                 )
 
+    /// Refuses `scoped_like_parent` on a field of an input type: an input object is no
+    /// scoped document, so the declaration has nothing to bind to.
+    let private refuseScopedLikeParentInputs (schema: IntermediateSchema) : unit =
+        for t in schema.types do
+            if t.is_input then
+                for f in t.fields do
+                    if f.scoped_like_parent = Some true then
+                        invalidOp (
+                            sprintf
+                                "%s.%s declares scoped_like_parent, which applies to output fields only; %s is an input type"
+                                t.name
+                                f.name
+                                t.name
+                        )
+
     /// Serializes an <see cref="IntermediateSchema"/> to a pretty-printed JSON string.
     let fromSchema (schema: IntermediateSchema) : string =
         refuseLocalizedNonStrings schema
+        refuseScopedLikeParentInputs schema
         JsonSerializer.Serialize(schema, prettyOptions)
 
     /// Serializes an <see cref="IntermediateSchema"/> to a pretty-printed JSON string.
@@ -75,6 +91,7 @@ module SchemaExporter =
     /// Serializes an <see cref="IntermediateSchema"/> to a compact (non-indented) JSON string.
     let exportSchemaCompact (schema: IntermediateSchema) : string =
         refuseLocalizedNonStrings schema
+        refuseScopedLikeParentInputs schema
         JsonSerializer.Serialize(schema, compactOptions)
 
     /// Serializes an <see cref="IntermediateSchema"/> and writes it to the given file path.

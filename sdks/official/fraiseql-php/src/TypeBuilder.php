@@ -64,6 +64,7 @@ final class TypeBuilder
      * @param string|null $description Optional field description
      * @param bool $computed When true, excluded from CRUD input types (Create/Update)
      * @param bool $localized A String stored as a locale map (#1527)
+     * @param bool $scopedLikeParent The scoped type this field embeds is scoped like this type
      * @return self Fluent interface
      */
     public function field(
@@ -74,6 +75,7 @@ final class TypeBuilder
         ?string $description = null,
         bool $computed = false,
         bool $localized = false,
+        bool $scopedLikeParent = false,
     ): self {
         $this->fields[$name] = new FieldDefinition(
             name: $name,
@@ -87,6 +89,7 @@ final class TypeBuilder
             parentType: $this->name,
             computed: $computed,
             localized: $localized,
+            scopedLikeParent: $scopedLikeParent,
         );
 
         return $this;

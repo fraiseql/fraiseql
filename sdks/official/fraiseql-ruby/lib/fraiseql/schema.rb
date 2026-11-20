@@ -95,7 +95,7 @@ module FraiseQL
               "type #{name.inspect}: an input object has no CRUD operations to generate."
       end
 
-      builder = TypeBuilder.new
+      builder = TypeBuilder.new(input: is_input)
       yield builder if block_given?
 
       definition = { "name" => name.to_s, "fields" => builder.fields }
@@ -472,7 +472,10 @@ module FraiseQL
     class TypeBuilder
       attr_reader :fields, :crud_fields
 
-      def initialize
+      # `input` is true when the block declares an input object, which refuses the
+      # field options that only mean something on an object type.
+      def initialize(input: false)
+        @input = input
         @fields = []
         # The same fields in the shape `CrudGenerator` reads, carrying `computed` — which
         # `fields` must not carry. Ruby's generator filters on `f[:computed]`, and the
@@ -491,9 +494,15 @@ module FraiseQL
       #
       # `localized: true` marks a String stored as a locale map (#1527); any other type is
       # refused here, where it is declared.
+      #
+      # `scoped_like_parent: true`, on a field that embeds a type whose own query is scoped
+      # by `inject`, declares that the type holding the field is scoped by the same columns
+      # from the same sources. Without it such an embedding does not compile; with it the
+      # compiler checks every query of the holding type. An input object embeds nothing,
+      # so the option is refused on one.
       def field(name, type, nullable: true, description: nil, requires_scope: nil, on_deny: nil,
                 vector_config: nil, vector_distance: nil, deprecated: false, computed: false,
-                localized: false)
+                localized: false, scoped_like_parent: nil)
         definition = {
           # camelCase on the way out (#1249). A field is declared as a snake_case symbol
           # because that is the Ruby idiom, and it used to reach the GraphQL API spelled
@@ -520,6 +529,7 @@ module FraiseQL
         definition["deprecated"] = (deprecated.is_a?(String) ? { "reason" => deprecated } : {}) if deprecated
         definition["localized"] = true if localized
 
+        add_scoped_like_parent(definition, name, scoped_like_parent)
         add_vector(definition, name, vector_config, vector_distance)
 
         @fields << definition
@@ -527,6 +537,25 @@ module FraiseQL
       end
 
       private
+
+      # `false` declares nothing, so it writes no key. Ruby would take any truthy value
+      # for the flag, so anything but a boolean is refused where it is written.
+      def add_scoped_like_parent(definition, name, scoped_like_parent)
+        return if scoped_like_parent.nil?
+
+        unless [true, false].include?(scoped_like_parent)
+          raise ArgumentError,
+                "Field #{name}: scoped_like_parent: must be true or false " \
+                "(got #{scoped_like_parent.inspect})"
+        end
+        if @input
+          raise ArgumentError,
+                "Field #{name}: scoped_like_parent: is not valid on an input type's field; " \
+                "it declares how an object type's embedded type is scoped"
+        end
+
+        definition["scoped_like_parent"] = true if scoped_like_parent
+      end
 
       # A `Vector` field without its config is refused by the compiler, so dropping these
       # would not be a silent loss — it would make the four pgvector field types

@@ -151,7 +151,7 @@ public final class CrudGenerator {
         Map<String, TypeConverter.GraphQLFieldInfo> createInputFields = new LinkedHashMap<>();
         for (Map.Entry<String, TypeConverter.GraphQLFieldInfo> entry : fieldList) {
             if (!entry.getValue().computed) {
-                createInputFields.put(entry.getKey(), entry.getValue());
+                createInputFields.put(entry.getKey(), asInputField(entry.getValue()));
             }
         }
         registry.registerInputType(createInputName, createInputFields,
@@ -166,7 +166,7 @@ public final class CrudGenerator {
         // Update mutation: register input type (PK required, others nullable), then use single "input" argument
         String updateInputName = "Update" + typeName + "Input";
         Map<String, TypeConverter.GraphQLFieldInfo> updateInputFields = new LinkedHashMap<>();
-        updateInputFields.put(pkName, pkEntry.getValue());
+        updateInputFields.put(pkName, asInputField(pkEntry.getValue()));
         for (int i = 1; i < fieldList.size(); i++) {
             Map.Entry<String, TypeConverter.GraphQLFieldInfo> entry = fieldList.get(i);
             if (!entry.getValue().computed) {
@@ -192,5 +192,25 @@ public final class CrudGenerator {
         registry.registerMutation(snakeToCamel("delete_" + snake), typeName, deleteArgs,
             "Delete a " + typeName + ".", "fn_delete_" + snake, "DELETE",
             null, null, null, cascade);
+    }
+
+    /**
+     * The field as a generated input type carries it: the same field, without the
+     * {@code scopedLikeParent} declaration, which an input field cannot make.
+     */
+    private static TypeConverter.GraphQLFieldInfo asInputField(TypeConverter.GraphQLFieldInfo field) {
+        if (!field.scopedLikeParent) {
+            return field;
+        }
+        TypeConverter.GraphQLFieldInfo copy = new TypeConverter.GraphQLFieldInfo(
+            field.name, field.type, field.nullable, field.description,
+            field.requiresScope, field.requiresScopes, field.computed);
+        copy.isDeprecated = field.isDeprecated;
+        copy.isList = field.isList;
+        copy.vectorConfig = field.vectorConfig;
+        copy.vectorDistance = field.vectorDistance;
+        copy.deprecationReason = field.deprecationReason;
+        copy.localized = field.localized;
+        return copy;
     }
 }

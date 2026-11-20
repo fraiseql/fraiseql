@@ -148,7 +148,8 @@ public static class SchemaExporter
                 Vector: f.Vector,
                 VectorDistance: f.VectorDistance,
                 Deprecated: f.Deprecated,
-                Localized: f.Localized ? true : null))
+                Localized: f.Localized ? true : null,
+                ScopedLikeParent: f.ScopedLikeParent ? true : null))
             .ToList()
             .AsReadOnly();
 

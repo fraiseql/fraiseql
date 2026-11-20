@@ -32,6 +32,7 @@ let private singleField =
         vector_distance = None
         deprecated = None
         localized = None
+        scoped_like_parent = None
     }
 
 let private singleType =

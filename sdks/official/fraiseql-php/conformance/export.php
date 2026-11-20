@@ -189,6 +189,18 @@ final class ConformanceDocument
     public float $similarity;
 }
 
+// `Order` is scoped by `tenantOrders`, so a type that embeds it says it is scoped the
+// same way; `tenantOrderShipments` below is the query that makes the claim true.
+#[GraphQLType(name: 'OrderShipment', sqlSource: 'v_order_shipment')]
+final class ConformanceOrderShipment
+{
+    #[GraphQLField(type: 'ID', nullable: false)]
+    public string $id;
+
+    #[GraphQLField(type: 'Order', nullable: false, scopedLikeParent: true)]
+    public ConformanceOrder $order;
+}
+
 #[GraphQLType(name: 'CreateUserInput', isInput: true)]
 final class ConformanceCreateUserInput
 {
@@ -235,6 +247,7 @@ function authorFull(): void
     StaticAPI::register(ConformanceUserNotFound::class);
     StaticAPI::register(ConformanceDocument::class);
     StaticAPI::register(ConformanceReadingSeries::class);
+    StaticAPI::register(ConformanceOrderShipment::class);
     StaticAPI::register(ConformanceCreateUserInput::class);
 
     StaticAPI::enum(OrderStatus::class);
@@ -310,6 +323,14 @@ function authorFull(): void
         ->returnsList()
         ->nullable(false)
         ->sqlSource('v_user')
+        ->register();
+
+    StaticAPI::query('tenantOrderShipments')
+        ->returnType('OrderShipment')
+        ->returnsList()
+        ->nullable(false)
+        ->sqlSource('v_order_shipment')
+        ->inject(['tenant_id' => 'jwt:tenant_id'])
         ->register();
 
     StaticAPI::mutation('createUser')

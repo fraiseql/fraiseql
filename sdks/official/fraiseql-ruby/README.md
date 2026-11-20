@@ -73,6 +73,13 @@ a field (`t.field :name, :string, localized: true`, input types included) or a m
 argument (`m.argument :display_name, :string, localized: true`). Only a String can be
 localized; any other type is refused where it is declared.
 
+A field that embeds a type whose own query is scoped by `inject` takes
+`scoped_like_parent: true` (`t.field :order, "Order", nullable: false, scoped_like_parent: true`).
+It declares that the type holding the field is scoped by the same columns from the same
+sources; the compiler checks the claim against every query of that type, and refuses the
+embedding without it. Anything but `true` or `false` is refused, and so is the option on an
+input type's field.
+
 ## Compile and Serve
 
 ```bash

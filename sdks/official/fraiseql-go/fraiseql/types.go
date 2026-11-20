@@ -40,6 +40,10 @@ type FieldInfo struct {
 	// request's locale, written per locale. Only a String can be localized; registering
 	// anything else is refused.
 	Localized bool `json:"localized,omitempty"`
+	// ScopedLikeParent declares, on a field that embeds a type whose own query is scoped
+	// by InjectParams, that the embedded type is scoped like the type holding the field.
+	// The compiler checks the claim. An output-field option: an input type refuses it.
+	ScopedLikeParent bool `json:"scoped_like_parent,omitempty"`
 }
 
 // VectorConfig is the pgvector configuration of a vector field.
@@ -299,6 +303,8 @@ func parseFieldTag(tag string, fieldName string, fieldType reflect.Type) (FieldI
 			fieldInfo.Nullable = value == "true"
 		case "localized":
 			fieldInfo.Localized = value == "true"
+		case "scoped_like_parent":
+			fieldInfo.ScopedLikeParent = value == "true"
 		case "scope":
 			if value == "" {
 				return FieldInfo{}, fmt.Errorf("empty scope value for field %s", fieldName)

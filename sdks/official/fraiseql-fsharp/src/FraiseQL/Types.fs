@@ -139,6 +139,12 @@ type FieldDefinition =
         /// `Some true` on a String stored as a locale map (#1527); `None` (omitted)
         /// otherwise. Only a String can be localized: the exporter refuses anything else.
         localized: bool option
+        /// `Some true` on a field declaring the scoped type it embeds scoped like its
+        /// parent; `None` (omitted) otherwise. A type whose own query is scoped by an
+        /// injected parameter does not compile inside another type without it, and the
+        /// compiler checks the claim. Output fields only: the exporter refuses it on a
+        /// field of an input type.
+        scoped_like_parent: bool option
     }
 
 /// Represents an argument on a GraphQL query or mutation, and a field of an input type.

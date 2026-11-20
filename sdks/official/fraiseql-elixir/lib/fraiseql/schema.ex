@@ -144,6 +144,12 @@ defmodule FraiseQL.Schema do
 
         unquote(block)
 
+        FraiseQL.Schema.__validate_input_fields__!(
+          unquote(name),
+          unquote(Keyword.get(type_opts, :is_input, false)),
+          @__fraiseql_field_buffer
+        )
+
         @fraiseql_types unquote(definition)
 
         Module.delete_attribute(__MODULE__, :__fraiseql_field_buffer)
@@ -408,6 +414,9 @@ defmodule FraiseQL.Schema do
     * `:vector_distance` — on a `:float` field, the vector field whose `nearest` search
       distance this field carries
     * `:deprecated` — `true`, or the deprecation reason as a string
+    * `:scoped_like_parent` — `true` on a field that embeds a type whose own query is
+      scoped by `inject_params`, declaring the embedded rows scoped as the parent's are.
+      Refused on a field of an `is_input` type
     * `:computed` — the field is server-assigned (a slug, a view aggregation), so it is
       omitted from the input objects `crud:` generates. Authoring-time only: it is never
       emitted into `schema.json`
@@ -474,7 +483,12 @@ defmodule FraiseQL.Schema do
         vector_config: unquote(vector_config),
         vector_distance: unquote(vector_distance),
         deprecated: unquote(opts[:deprecated]),
-        localized: unquote(localized)
+        localized: unquote(localized),
+        scoped_like_parent:
+          FraiseQL.Schema.__validate_scoped_like_parent__!(
+            unquote(field_name),
+            unquote(opts[:scoped_like_parent])
+          )
       }
     end
   end
@@ -571,6 +585,34 @@ defmodule FraiseQL.Schema do
   def __validate_retry_on_abort__!(name, value) do
     raise ArgumentError,
           "#{name}: retry_on_abort: must be true or false (got #{inspect(value)})"
+  end
+
+  @doc false
+  @spec __validate_scoped_like_parent__!(String.t(), term()) :: boolean()
+  def __validate_scoped_like_parent__!(_name, nil), do: false
+  def __validate_scoped_like_parent__!(_name, value) when is_boolean(value), do: value
+
+  def __validate_scoped_like_parent__!(name, value) do
+    raise ArgumentError,
+          "#{name}: scoped_like_parent: must be true or false (got #{inspect(value)})"
+  end
+
+  # An input object is an argument shape: it embeds no scoped rows, and the compiler
+  # reads the flag on an object type's field only.
+  @doc false
+  @spec __validate_input_fields__!(String.t(), boolean(), [FraiseQL.FieldDefinition.t()]) :: :ok
+  def __validate_input_fields__!(_name, false, _fields), do: :ok
+
+  def __validate_input_fields__!(name, true, fields) do
+    case Enum.find(fields, & &1.scoped_like_parent) do
+      nil ->
+        :ok
+
+      field ->
+        raise ArgumentError,
+              "fraiseql_type #{inspect(name)}: input field #{inspect(field.name)} declares " <>
+                "scoped_like_parent, which applies to an object type's field only"
+    end
   end
 
   @doc false

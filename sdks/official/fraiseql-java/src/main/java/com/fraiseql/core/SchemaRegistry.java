@@ -415,9 +415,20 @@ public class SchemaRegistry {
      * @param inputName the input type name
      * @param fields the input fields
      * @param description optional description
+     * @throws IllegalArgumentException if a field declares {@code scopedLikeParent}
      */
     public void registerInputType(String inputName, Map<String, TypeConverter.GraphQLFieldInfo> fields,
                                   String description) {
+        // The declaration is about the document a type's field embeds; an input field
+        // embeds none, and the compiler has no such key on an input field.
+        for (TypeConverter.GraphQLFieldInfo field : fields.values()) {
+            if (field.scopedLikeParent) {
+                throw new IllegalArgumentException(String.format(
+                    "Input type %s: field %s declares scopedLikeParent, which only a "
+                        + "field of an object type can declare",
+                    inputName, field.name));
+            }
+        }
         InputTypeInfo inputInfo = new InputTypeInfo(inputName, fields, description);
         inputTypes.put(inputName, inputInfo);
     }

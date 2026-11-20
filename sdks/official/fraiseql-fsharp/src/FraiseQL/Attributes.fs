@@ -136,6 +136,12 @@ type GraphQLFieldAttribute() =
     /// other localized field is refused.
     member val Localized: bool = false with get, set
 
+    /// When true, the scoped type this field embeds is declared scoped like this field's
+    /// own type. A type whose query is scoped by an injected parameter does not compile
+    /// inside another type without it; the compiler checks the claim. Output fields only:
+    /// exporting an input type that sets it is refused.
+    member val ScopedLikeParent: bool = false with get, set
+
     /// When true, this field is server-computed and excluded from CRUD input types.
     ///
     /// Computed fields (e.g. auto-generated slugs, view aggregations) are never

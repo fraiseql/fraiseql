@@ -42,6 +42,7 @@ module Dsl =
             vectorDistance: string option
             deprecated: DeprecationInfo option
             localized: bool option
+            scopedLikeParent: bool option
         }
 
     /// Computation expression builder for a single <see cref="FieldDefinition"/>.
@@ -61,6 +62,7 @@ module Dsl =
                 vectorDistance = None
                 deprecated = None
                 localized = None
+                scopedLikeParent = None
             }
 
         member this.Zero() : FieldState = this.Yield(())
@@ -79,6 +81,7 @@ module Dsl =
                 vector_distance = s.vectorDistance
                 deprecated = s.deprecated
                 localized = s.localized
+                scoped_like_parent = s.scopedLikeParent
             }
 
         /// Sets whether this field may be null.
@@ -103,6 +106,11 @@ module Dsl =
         /// Marks this String field as stored as a locale map (#1527).
         [<CustomOperation("localized")>]
         member _.Localized(s: FieldState) : FieldState = { s with localized = Some true }
+
+        /// Declares the scoped type this field embeds scoped like this field's own type.
+        [<CustomOperation("scopedLikeParent")>]
+        member _.ScopedLikeParent(s: FieldState) : FieldState =
+            { s with scopedLikeParent = Some true }
 
         /// Marks this field as server-computed; excluded from CRUD input types.
         [<CustomOperation("computed")>]

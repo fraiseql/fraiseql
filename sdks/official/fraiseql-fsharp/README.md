@@ -89,6 +89,15 @@ let schema =
 SchemaExporter.exportSchemaToFile "schema.json" schema
 ```
 
+## Embedding a Scoped Type
+
+A type whose own query is scoped by an injected parameter compiles inside another type only
+when the embedding field declares it scoped like its parent:
+`[<GraphQLField(Type = "Order", ScopedLikeParent = true)>]`, the DSL's `scopedLikeParent`
+on a field, or `scoped_like_parent = Some true` on a `FieldDefinition`. The compiler checks
+the claim. It applies to output fields only; exporting an input type that sets it is
+refused.
+
 ## Localized Strings
 
 A String stored as a locale map (`[locale]` in `fraiseql.toml`) is declared localized:

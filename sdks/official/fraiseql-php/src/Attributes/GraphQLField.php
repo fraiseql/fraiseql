@@ -50,6 +50,9 @@ final readonly class GraphQLField
      *   `deprecationReason` through introspection so generated clients can warn.
      * @param bool $localized A String stored as a locale map (#1527). Only a String can be
      *   localized; exporting any other localized field is refused.
+     * @param bool $scopedLikeParent On a field that embeds a type whose own query is scoped by
+     *   `inject`, declares that the type holding the field is scoped by the same columns from
+     *   the same sources. Output fields only; exporting an input field that sets it is refused.
      */
     public function __construct(
         public ?string $type = null,
@@ -62,6 +65,7 @@ final readonly class GraphQLField
         public ?string $vectorDistance = null,
         public ?string $deprecated = null,
         public bool $localized = false,
+        public bool $scopedLikeParent = false,
     ) {
         if ($vectorConfig !== null && $vectorDistance !== null) {
             throw new \InvalidArgumentException(

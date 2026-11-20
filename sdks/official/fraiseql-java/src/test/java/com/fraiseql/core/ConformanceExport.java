@@ -64,6 +64,7 @@ public class ConformanceExport {
         FraiseQL.registerErrorType(ConformanceUserNotFound.class);
         FraiseQL.registerType(ConformanceDocument.class);
         FraiseQL.registerType(ConformanceReadingSeries.class);
+        FraiseQL.registerType(ConformanceOrderShipment.class);
 
         FraiseQL.getRegistry().registerEnum("OrderStatus", enumValues(), "");
         Map<String, Object> priority = new LinkedHashMap<>();
@@ -115,6 +116,13 @@ public class ConformanceExport {
             // #966's actor allow-list, enforced in the same executor gate as requiresRole
             // on every transport, and authorable in no SDK until #1123.
             .requiresActor(ActorType.HUMAN_USER, ActorType.SERVICE_ACCOUNT)
+            .register();
+
+        FraiseQL.query("tenantOrderShipments")
+            .returnType("OrderShipment")
+            .returnsArray(true)
+            .sqlSource("v_order_shipment")
+            .inject(tenantInject)
             .register();
 
         // #1305: the three authored states of pagination_order, one query each, because
@@ -321,6 +329,17 @@ public class ConformanceExport {
         // The column `User.orders` joins on, published under the naming convention.
         @GraphQLField(type = "ID")
         public String fkUser;
+    }
+
+    // `Order` is scoped by `tenantOrders`, so a type that embeds it says it is scoped
+    // alike, and its own query bears that out.
+    @GraphQLType(name = "OrderShipment", sqlSource = "v_order_shipment")
+    public static class ConformanceOrderShipment {
+        @GraphQLField(type = "ID")
+        public String id;
+
+        @GraphQLField(type = "Order", scopedLikeParent = true)
+        public ConformanceOrder order;
     }
 
     // `crud` is an authoring-time expansion the compiler has no concept of, so the only

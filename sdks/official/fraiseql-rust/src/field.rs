@@ -163,6 +163,12 @@ pub struct Field {
     /// type.
     #[serde(skip_serializing_if = "core::ops::Not::not")]
     pub localized: bool,
+    /// On a field that embeds a type whose own queries are scoped by `inject_params`:
+    /// declares that every query of the holding type carries the same scope. The compiler
+    /// refuses the embedding without it, and refuses the declaration when a query of the
+    /// holding type does not bear it out. Emitted only when true.
+    #[serde(skip_serializing_if = "core::ops::Not::not")]
+    pub scoped_like_parent: bool,
 }
 
 /// Field deprecation, emitted as the `deprecated` object the compiler reads.
@@ -200,6 +206,7 @@ impl Field {
             vector_distance: None,
             deprecated: None,
             localized: false,
+            scoped_like_parent: false,
         }
     }
 
@@ -316,6 +323,20 @@ impl Field {
         self
     }
 
+    /// Declares that the type this field embeds is scoped like the type holding the field
+    /// (fluent API).
+    ///
+    /// # Example
+    /// ```
+    /// # use fraiseql_rust::Field;
+    /// let field = Field::new("order", "Order").with_scoped_like_parent();
+    /// ```
+    #[must_use]
+    pub const fn with_scoped_like_parent(mut self) -> Self {
+        self.scoped_like_parent = true;
+        self
+    }
+
     /// Names, on a `Float` field, the vector field whose search distance it carries.
     ///
     /// # Example
@@ -428,6 +449,35 @@ mod tests {
     #[should_panic(expected = "only a String can be localized")]
     fn localized_is_refused_on_a_field_that_is_not_a_string() {
         let _ = Field::new("price", "Float").with_localized().to_json();
+    }
+
+    /// The declaration is exported on the field that makes it and on no other.
+    #[test]
+    fn scoped_like_parent_is_exported_only_on_the_field_that_declares_it() {
+        let mut registry = crate::SchemaRegistry::new();
+        registry.register_type(
+            "OrderShipment",
+            vec![
+                Field::new("id", "ID"),
+                Field::new("order", "Order").with_scoped_like_parent(),
+            ],
+        );
+        registry.register_type("Order", vec![Field::new("id", "ID")]);
+        let schema: serde_json::Value = serde_json::from_str(&registry.export_to_json()).unwrap();
+        let declaring: Vec<(&str, &str)> = schema["types"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|ty| {
+                ty["fields"].as_array().unwrap().iter().filter_map(move |field| {
+                    field.get("scoped_like_parent").map(|flag| {
+                        assert_eq!(flag, &serde_json::json!(true), "{field}");
+                        (ty["name"].as_str().unwrap(), field["name"].as_str().unwrap())
+                    })
+                })
+            })
+            .collect();
+        assert_eq!(declaring, [("OrderShipment", "order")]);
     }
 
     #[test]

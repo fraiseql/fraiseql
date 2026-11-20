@@ -132,6 +132,21 @@ FraiseQLSchema authorFull() {
     },
   );
 
+  // `Order` is scoped by `tenantOrders`, so a type that embeds it says it is scoped
+  // alike, and its own query bears that out.
+  schema.type(
+    'OrderShipment',
+    sqlSource: 'v_order_shipment',
+    fields: {
+      'id': const FieldType.id(nullable: false),
+      'order': const FieldType.named(
+        'Order',
+        nullable: false,
+        scopedLikeParent: true,
+      ),
+    },
+  );
+
   schema.type(
     'Document',
     sqlSource: 'v_document',
@@ -222,6 +237,15 @@ FraiseQLSchema authorFull() {
     // #966's actor allow-list, enforced in the same executor gate as requiresRole on
     // every transport, and authorable in no SDK until #1123.
     requiresActor: const ['human_user', 'service_account'],
+  );
+
+  schema.query(
+    'tenantOrderShipments',
+    returnType: 'OrderShipment',
+    returnsList: true,
+    nullable: false,
+    sqlSource: 'v_order_shipment',
+    inject: {'tenant_id': 'jwt:tenant_id'},
   );
 
   // #1305: the three authored states of pagination_order, one query each, because one

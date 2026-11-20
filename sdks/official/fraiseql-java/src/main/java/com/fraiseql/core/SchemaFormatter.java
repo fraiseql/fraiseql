@@ -306,6 +306,10 @@ public class SchemaFormatter {
             }
             fieldNode.put("localized", true);
         }
+        // Written only when declared: the compiler reads an absent key as "not claimed".
+        if (fieldInfo.scopedLikeParent) {
+            fieldNode.put("scoped_like_parent", true);
+        }
         return fieldNode;
     }
 

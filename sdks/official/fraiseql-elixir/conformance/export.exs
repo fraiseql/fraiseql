@@ -81,6 +81,13 @@ defmodule Conformance.FullSchema do
     field(:fk_user, :id, nullable: false)
   end
 
+  # `order` embeds a type whose own query is scoped by `inject_params`; the flag declares
+  # the embedded rows scoped as the parent's are.
+  fraiseql_type "OrderShipment", sql_source: "v_order_shipment" do
+    field(:id, :id, nullable: false)
+    field(:order, "Order", nullable: false, scoped_like_parent: true)
+  end
+
   # `crud` is an authoring-time expansion the compiler has no concept of, so the only
   # evidence this SDK implements it is that the operations and input objects appear in the
   # compiled schema. `computed` is the same: emitting the flag makes the document
@@ -190,6 +197,14 @@ defmodule Conformance.FullSchema do
     requires_actor: ["human_user", "service_account"] do
     argument(:include_archived, :boolean, nullable: true)
   end
+
+  fraiseql_query(:tenant_order_shipments,
+    return_type: "OrderShipment",
+    returns_list: true,
+    nullable: false,
+    sql_source: "v_order_shipment",
+    inject_params: %{"tenant_id" => "jwt:tenant_id"}
+  )
 
   # #1305: the three authored states of pagination_order, one query each, because one
   # query can demonstrate only one. The key decides the total order a LIMIT/OFFSET page

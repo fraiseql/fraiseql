@@ -95,6 +95,7 @@ public class ConformanceExportTest
         SchemaRegistry.Instance.Register(typeof(ConformanceUserNotFound));
         SchemaRegistry.Instance.Register(typeof(ConformanceDocument));
         SchemaRegistry.Instance.Register(typeof(ConformanceReadingSeries));
+        SchemaRegistry.Instance.Register(typeof(ConformanceOrderShipment));
         SchemaRegistry.Instance.Register(typeof(ConformanceCreateUserInput));
 
         SchemaRegistry.Instance.RegisterEnum<OrderStatus>();
@@ -112,6 +113,13 @@ public class ConformanceExportTest
             .Nullable()
             .SqlSource("v_user")
             .Argument("id", "ID")
+            .Register();
+
+        QueryBuilder.Query("tenantOrderShipments")
+            .ReturnType("OrderShipment")
+            .ReturnsList()
+            .SqlSource("v_order_shipment")
+            .Inject("tenant_id", "jwt:tenant_id")
             .Register();
 
         QueryBuilder.Query("readingSeriesByIds")
@@ -276,6 +284,18 @@ public class ConformanceExportTest
 
         [GraphQLField]
         public List<List<double?>> Grid { get; set; } = new();
+    }
+
+    // `Order` is scoped by `tenantOrders`, so a type that embeds it says it is scoped
+    // alike, and its own query bears that out.
+    [GraphQLType(Name = "OrderShipment", SqlSource = "v_order_shipment")]
+    private sealed class ConformanceOrderShipment
+    {
+        [GraphQLField(Type = "ID")]
+        public string Id { get; set; } = string.Empty;
+
+        [GraphQLField(Type = "Order", ScopedLikeParent = true)]
+        public ConformanceOrder Order { get; set; } = new();
     }
 
     [GraphQLType(Name = "Document", SqlSource = "v_document")]

@@ -23,6 +23,9 @@ namespace FraiseQL.Models;
 /// <c>deprecationReason</c> through introspection.
 /// </param>
 /// <param name="Localized">Whether this String is stored as a locale map (#1527).</param>
+/// <param name="ScopedLikeParent">
+/// Whether the scoped type this field embeds is declared scoped like this field's own type.
+/// </param>
 public record FieldDefinition(
     string Name,
     string Type,
@@ -34,4 +37,5 @@ public record FieldDefinition(
     VectorConfig? Vector = null,
     string? VectorDistance = null,
     DeprecationInfo? Deprecated = null,
-    bool Localized = false);
+    bool Localized = false,
+    bool ScopedLikeParent = false);

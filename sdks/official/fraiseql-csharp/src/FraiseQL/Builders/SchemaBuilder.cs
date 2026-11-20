@@ -180,7 +180,8 @@ public sealed class SchemaBuilder
                 Nullable: f.Nullable,
                 Description: f.Description,
                 Scope: f.Scope,
-                Scopes: f.Scopes))
+                Scopes: f.Scopes,
+                ScopedLikeParent: f.ScopedLikeParent ? true : null))
             .ToList()
             .AsReadOnly();
 
@@ -229,6 +230,9 @@ public sealed class TypeConfigurator
     /// <param name="description">Optional field description.</param>
     /// <param name="scope">Optional required OAuth scope.</param>
     /// <param name="localized">Whether this String is stored as a locale map (#1527).</param>
+    /// <param name="scopedLikeParent">
+    /// Whether the scoped type this field embeds is scoped like this type.
+    /// </param>
     /// <returns>This configurator for chaining.</returns>
     public TypeConfigurator Field(
         string name,
@@ -236,10 +240,12 @@ public sealed class TypeConfigurator
         bool nullable = false,
         string? description = null,
         string? scope = null,
-        bool localized = false)
+        bool localized = false,
+        bool scopedLikeParent = false)
     {
         _fields.Add(new IntermediateField(name, type, nullable, description, scope,
-            Localized: localized ? true : null));
+            Localized: localized ? true : null,
+            ScopedLikeParent: scopedLikeParent ? true : null));
         return this;
     }
 

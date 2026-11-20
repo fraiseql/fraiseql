@@ -65,6 +65,13 @@ func authorFull() error {
 	}, ""); err != nil {
 		return err
 	}
+	// `Order` is scoped by `tenantOrders`, so a type that embeds it says it is scoped alike.
+	if err := fraiseql.RegisterType("OrderShipment", []fraiseql.FieldInfo{
+		{Name: "id", Type: "ID", Nullable: false},
+		{Name: "order", Type: "Order", Nullable: false, ScopedLikeParent: true},
+	}, ""); err != nil {
+		return err
+	}
 	// Both directions, deliberately (#1266): which join column is read off which side
 	// swaps with the cardinality, so a fixture carrying only OneToMany would be uniform
 	// in exactly the dimension that selects the branch. The keys name SQL *columns*
@@ -179,6 +186,14 @@ func authorFull() error {
 		// #966's actor allow-list, enforced in the same executor gate as RequiresRole on
 		// every transport, and authorable in no SDK until #1123.
 		RequiresActor(fraiseql.ActorHumanUser, fraiseql.ActorServiceAccount).
+		Register(); err != nil {
+		return err
+	}
+	// The query that bears out OrderShipment.order's declaration: scoped as `tenantOrders` is.
+	if err := fraiseql.NewQuery("tenantOrderShipments").
+		ReturnType("OrderShipment").ReturnsArray(true).Nullable(false).
+		SqlSource("v_order_shipment").
+		InjectParams(map[string]string{"tenant_id": "jwt:tenant_id"}).
 		Register(); err != nil {
 		return err
 	}
