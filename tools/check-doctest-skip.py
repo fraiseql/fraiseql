@@ -44,7 +44,6 @@ from pathlib import Path
 # Workspace libraries with no doctest, which the doctest leg does not build.
 SKIP = (
     "fraiseql-federation",
-    "fraiseql-guard",
     "fraiseql-jwks",
     "fraiseql-webhooks",
 )

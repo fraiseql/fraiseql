@@ -44,6 +44,7 @@ reqwest = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["full"] }
 tempfile.workspace = true
 wiremock = "0.6"
+temp-env = { workspace = true }
 # Migration integration tests connect through the test-support harness (env-URL first;
 # optional local-testcontainers spawn). Dagger provides the Postgres service in CI.
 sqlx = { version = "0.9.1", features = [
@@ -68,7 +69,7 @@ required-features = ["runtime-deno"]
 [features]
 runtime-wasm = ["wasmtime", "wasmtime-wasi"]
 runtime-deno = ["deno_core", "deno_ast"]
-host-live = ["fraiseql-core", "sqlparser", "reqwest"]
+host-live = ["fraiseql-core", "sqlparser", "reqwest", "fraiseql-guard/reqwest"]
 
 # wasmtime 51's default features minus `cache`, the on-disk compilation cache.
 # The runtime never configures that cache, so it stays out with its zstd and

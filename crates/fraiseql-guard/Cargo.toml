@@ -1,9 +1,15 @@
 [dependencies]
+# `reqwest::dns::Resolve`, for the resolver that pins a client to checked addresses.
+reqwest = { workspace = true, optional = true }
 # `lookup_host`, for the one resolve-and-check every outbound path runs (#1360).
 tokio = { workspace = true }
 # Facade only: lets a refused escape hatch be reported from the single place that
 # decides it (#882), without making this crate unreachable from any leaf crate.
 tracing = "0.1"
+
+[features]
+# `net::pinned`: a `reqwest` resolver that runs the resolve-and-check on every lookup.
+reqwest = ["dep:reqwest"]
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }
