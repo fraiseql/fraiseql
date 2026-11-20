@@ -46,7 +46,7 @@
 //! ledger against every row of the entity type — measured at 13 ms on a 60 000-row log,
 //! and linear in the log from there.
 
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 use sqlx::postgres::PgPool;
 
 use super::change_log::{CHANGE_LOG_PROJECTION, ChangeLogRow, DocumentDecoder, UnreadableRow};
@@ -83,7 +83,7 @@ pub struct ReplayScope {
 pub struct ResumePosition {
     /// When the batch carrying this row was recorded as dispatched, or `None` when the
     /// row has been delivered but its batch has not been recorded yet.
-    pub dispatched_at: Option<DateTime<Utc>>,
+    pub dispatched_at: Option<Timestamp>,
     /// The row's `pk_entity_change_log`, which breaks ties inside one batch — and is
     /// the batch's own delivery order.
     pub pk:            i64,
@@ -132,7 +132,7 @@ pub struct ChangeLogReplayReader {
 struct DispatchedRow {
     #[sqlx(flatten)]
     row:           ChangeLogRow,
-    dispatched_at: DateTime<Utc>,
+    dispatched_at: Timestamp,
 }
 
 impl ChangeLogReplayReader {
@@ -179,7 +179,7 @@ impl ChangeLogReplayReader {
     ///
     /// Returns [`ObserverError::DatabaseError`] if the query fails.
     pub async fn anchor(&self, scope: &ReplayScope, seq: i64) -> Result<ResumeAnchor> {
-        let row: Option<(i64, Option<DateTime<Utc>>)> = sqlx::query_as(
+        let row: Option<(i64, Option<Timestamp>)> = sqlx::query_as(
             r"
             SELECT e.pk_entity_change_log, d.dispatched_at
             FROM core.tb_entity_change_log e
@@ -415,7 +415,7 @@ impl ChangeLogReplayReader {
         scope: &ReplayScope,
         from: &ResumePosition,
         batch_size: u32,
-    ) -> Result<Vec<(ChangeLogRow, Option<DateTime<Utc>>)>> {
+    ) -> Result<Vec<(ChangeLogRow, Option<Timestamp>)>> {
         let limit = i64::from(batch_size);
 
         if let Some(dispatched_at) = from.dispatched_at {
@@ -490,7 +490,7 @@ impl ChangeLogReplayReader {
     fn replayed(
         &self,
         row: ChangeLogRow,
-        dispatched_at: Option<DateTime<Utc>>,
+        dispatched_at: Option<Timestamp>,
     ) -> Option<ReplayedEvent> {
         let (pk, id) = (row.pk_entity_change_log, row.id);
         let event = row.into_entry(&self.documents).and_then(|entry| {

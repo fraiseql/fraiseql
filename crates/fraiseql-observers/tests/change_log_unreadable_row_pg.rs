@@ -334,3 +334,115 @@ async fn a_page_the_unreadable_row_fills_continues_past_it() {
 
     assert_eq!(pks, vec![after.pk], "a page of one unreadable row came back as the head");
 }
+
+/// A readable row, one whose `created_at` is set to `stored`, and a readable one.
+async fn three_rows_with_created_at(pool: &PgPool, stored: &str) -> (Row, Row, Row) {
+    fresh_contract(pool).await;
+    let before = insert(pool, READABLE).await;
+    let unreadable = insert(pool, READABLE).await;
+    let after = insert(pool, READABLE).await;
+    sqlx::query("UPDATE core.tb_entity_change_log SET created_at = $2::timestamptz WHERE id = $1")
+        .bind(unreadable.id)
+        .bind(stored)
+        .execute(pool)
+        .await
+        .unwrap();
+    (before, unreadable, after)
+}
+
+/// The executor's loop over a row whose `created_at` is `stored`: it runs past the point
+/// where it gives up on a failing poll, dispatches the rows around that row, and leaves
+/// it out of the ledger.
+async fn the_loop_passes_over_a_created_at_of(stored: &str) {
+    let pool = pool().await;
+    let (before, unreadable, after) = three_rows_with_created_at(&pool, stored).await;
+
+    let executor = ObserverExecutor::new(EventMatcher::new(), Arc::new(NoDeadLetters));
+    let mut listener = listener(&pool);
+    let outcome = tokio::time::timeout(
+        Duration::from_mins(10),
+        executor.run_listener_loop(&mut listener, Some(LOOP_GIVES_UP_AFTER + 2)),
+    )
+    .await
+    .expect("the loop finishes its iterations");
+
+    outcome.unwrap_or_else(|e| panic!("the loop stopped on the unreadable created_at: {e}"));
+    let ledger = dispatched(&pool).await;
+    assert!(ledger.contains(&before.id), "the row before it was not dispatched: {ledger:?}");
+    assert!(ledger.contains(&after.id), "the row after it was not dispatched: {ledger:?}");
+    assert!(!ledger.contains(&unreadable.id), "the unreadable row was recorded dispatched");
+    assert!(listener.unreadable_reports() >= 1, "the row was passed over without a report");
+}
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn a_created_at_the_poller_cannot_read_does_not_block_the_rows_after_it() {
+    the_loop_passes_over_a_created_at_of("infinity").await;
+}
+
+/// The range a timestamp holds ends at year 9999; PostgreSQL's goes further.
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn a_created_at_past_year_9999_is_passed_over_like_any_unreadable_row() {
+    the_loop_passes_over_a_created_at_of("10000-01-01 00:00:00+00").await;
+}
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn the_tail_hands_out_the_rows_around_an_unreadable_created_at() {
+    let pool = pool().await;
+    fresh_contract(&pool).await;
+    let mut tail = ChangeLogTail::start_with_settle(pool.clone(), 10, Duration::from_mins(1))
+        .await
+        .unwrap();
+    let (before, _, after) = {
+        let before = insert(&pool, READABLE).await;
+        let unreadable = insert(&pool, READABLE).await;
+        let after = insert(&pool, READABLE).await;
+        sqlx::query(
+            "UPDATE core.tb_entity_change_log SET created_at = 'infinity'::timestamptz \
+             WHERE id = $1",
+        )
+        .bind(unreadable.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+        (before, unreadable, after)
+    };
+
+    let mut handed_out = Vec::new();
+    for _ in 0..5 {
+        let entries = tail
+            .next_batch()
+            .await
+            .unwrap_or_else(|e| panic!("a tail poll failed on the unreadable created_at: {e}"));
+        handed_out.extend(entries.into_iter().map(|e| e.id));
+    }
+
+    assert_eq!(handed_out, vec![before.pk, after.pk]);
+    assert_eq!(tail.unreadable_reports(), 1);
+}
+
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn a_resume_across_an_unreadable_created_at_reaches_the_row_after_it() {
+    let pool = pool().await;
+    let (before, _, after) = three_rows_with_created_at(&pool, "infinity").await;
+    let reader = ChangeLogReplayReader::new(pool.clone(), "default".to_string());
+    let scope = ReplayScope {
+        object_type: OBJECT_TYPE.to_string(),
+        tenant:      None,
+    };
+    let from = ResumePosition {
+        dispatched_at: None,
+        pk:            before.pk,
+    };
+
+    let page = reader
+        .page(&scope, &from, 10)
+        .await
+        .unwrap_or_else(|e| panic!("the resume failed on the unreadable created_at: {e}"));
+    let pks: Vec<i64> = page.iter().map(|r| r.position.pk).collect();
+
+    assert_eq!(pks, vec![after.pk]);
+}

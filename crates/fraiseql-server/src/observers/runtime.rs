@@ -976,7 +976,7 @@ impl ObserverRuntime {
                                     let state = ObserverCheckpointState {
                                         listener_id: listener_id.clone(),
                                         last_processed_id: last_entry.id,
-                                        last_processed_at: chrono::Utc::now(),
+                                        last_processed_at: fraiseql_time::Timestamp::now(),
                                         batch_size: entries.len(),
                                         event_count: checkpoint_event_count,
                                     };

@@ -88,8 +88,6 @@ pub use checkpoint::{
     CheckpointMode, CheckpointState, CheckpointStore, InMemoryCheckpointStore,
     PostgresCheckpointStore, check_checkpoint_requirement,
 };
-/// The `chrono` this crate's public API is built against (#1198).
-pub use chrono;
 pub use condition::{ConditionAst, ConditionParser};
 pub use config::{
     ActionConfig, BackoffStrategy, EmailSmtpConfig, FailurePolicy, ObserverDefinition, RedisConfig,

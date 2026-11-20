@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use aws_sdk_s3::{Client, primitives::ByteStream};
 use fraiseql_error::{FileError, FraiseQLError, Result};
+use fraiseql_time::{Timestamp, jiff::SignedDuration};
 
 use super::validate_key;
 
@@ -431,8 +432,8 @@ impl super::PresignCapable for S3Backend {
             .await
             .map_err(|e| storage_err_src("presigned PUT URL", e))?;
 
-        let expires_at = chrono::Utc::now()
-            + chrono::Duration::from_std(expires_in)
+        let expires_at = Timestamp::now()
+            + SignedDuration::try_from(expires_in)
                 .map_err(|e| storage_err_src("duration conversion", e))?;
 
         Ok(super::PresignedUrl::new(presigned.uri().to_string(), expires_at, "PUT"))
@@ -453,8 +454,8 @@ impl super::PresignCapable for S3Backend {
             .await
             .map_err(|e| storage_err_src("presigned GET URL", e))?;
 
-        let expires_at = chrono::Utc::now()
-            + chrono::Duration::from_std(expires_in)
+        let expires_at = Timestamp::now()
+            + SignedDuration::try_from(expires_in)
                 .map_err(|e| storage_err_src("duration conversion", e))?;
 
         Ok(super::PresignedUrl::new(presigned.uri().to_string(), expires_at, "GET"))

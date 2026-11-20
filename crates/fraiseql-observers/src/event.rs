@@ -1,6 +1,6 @@
 //! Event types and data structures for the observer system.
 
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -72,7 +72,7 @@ pub struct EntityEvent {
     #[serde(default)]
     pub tenant_id:      Option<String>,
     /// When the event occurred
-    pub timestamp:      DateTime<Utc>,
+    pub timestamp:      Timestamp,
     /// Wall-clock duration of the originating mutation in milliseconds, when the
     /// producer stamped it (Change-Spine perf column `duration_ms`). `None` for
     /// cooperative external producers that do not record timing.
@@ -131,7 +131,7 @@ impl EntityEvent {
             changes: None,
             user_id: None,
             tenant_id: None,
-            timestamp: Utc::now(),
+            timestamp: Timestamp::now(),
             duration_ms: None,
             seq: None,
             actor_type: None,

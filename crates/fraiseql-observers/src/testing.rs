@@ -456,7 +456,7 @@ pub mod mocks {
                     let new_state = crate::checkpoint::CheckpointState {
                         listener_id:       listener_id.to_string(),
                         last_processed_id: new_id,
-                        last_processed_at: chrono::Utc::now(),
+                        last_processed_at: fraiseql_time::Timestamp::now(),
                         batch_size:        0,
                         event_count:       0,
                     };

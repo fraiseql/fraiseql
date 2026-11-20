@@ -45,7 +45,7 @@
 //!         let state = CheckpointState {
 //!             listener_id:       LISTENER.to_string(),
 //!             last_processed_id: last.id,
-//!             last_processed_at: chrono::Utc::now(),
+//!             last_processed_at: fraiseql_time::Timestamp::now(),
 //!             batch_size:        batch.len(),
 //!             event_count:       processed,
 //!         };
@@ -110,7 +110,7 @@ pub const fn migration_sql() -> &'static str {
     include_str!("../../migrations/02_create_observer_checkpoints.sql")
 }
 
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 pub use postgres::PostgresCheckpointStore;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
@@ -128,7 +128,7 @@ pub struct CheckpointState {
     /// Last successfully processed changelog entry ID
     pub last_processed_id: i64,
     /// Timestamp of last checkpoint update
-    pub last_processed_at: DateTime<Utc>,
+    pub last_processed_at: Timestamp,
     /// Size of the last batch processed
     pub batch_size:        usize,
     /// Total events processed in this batch
@@ -140,7 +140,7 @@ impl Default for CheckpointState {
         Self {
             listener_id:       String::new(),
             last_processed_id: 0,
-            last_processed_at: Utc::now(),
+            last_processed_at: Timestamp::now(),
             batch_size:        0,
             event_count:       0,
         }
@@ -328,7 +328,7 @@ impl CheckpointStore for InMemoryCheckpointStore {
                     e.insert(CheckpointState {
                         listener_id:       listener_id.to_string(),
                         last_processed_id: new_id,
-                        last_processed_at: Utc::now(),
+                        last_processed_at: Timestamp::now(),
                         batch_size:        0,
                         event_count:       0,
                     });
@@ -340,7 +340,7 @@ impl CheckpointStore for InMemoryCheckpointStore {
             Entry::Occupied(mut e) => {
                 if e.get().last_processed_id == expected_id {
                     e.get_mut().last_processed_id = new_id;
-                    e.get_mut().last_processed_at = Utc::now();
+                    e.get_mut().last_processed_at = Timestamp::now();
                     Ok(true)
                 } else {
                     Ok(false)

@@ -14,8 +14,8 @@
 #[cfg(test)]
 mod tests;
 
-use chrono::{DateTime, Utc};
 use fraiseql_error::{FileError, FraiseQLError};
+use fraiseql_time::Timestamp;
 use sqlx::PgPool;
 
 fn db_err(e: sqlx::Error) -> FraiseQLError {
@@ -51,15 +51,15 @@ pub struct UploadSession {
     /// Opaque per-backend continuation state.
     pub backend_state:       serde_json::Value,
     /// Session creation time.
-    pub created_at:          DateTime<Utc>,
+    pub created_at:          Timestamp,
     /// After this instant the session is refused and reaped.
-    pub expires_at:          DateTime<Utc>,
+    pub expires_at:          Timestamp,
 }
 
 impl UploadSession {
     /// Whether the session's deadline has passed.
     #[must_use]
-    pub fn is_expired(&self, now: DateTime<Utc>) -> bool {
+    pub fn is_expired(&self, now: Timestamp) -> bool {
         self.expires_at <= now
     }
 }
@@ -84,7 +84,7 @@ pub struct NewUploadSession {
     /// Initial backend continuation state.
     pub backend_state:       serde_json::Value,
     /// Session deadline.
-    pub expires_at:          DateTime<Utc>,
+    pub expires_at:          Timestamp,
 }
 
 /// Repository over `_fraiseql_storage_uploads`.

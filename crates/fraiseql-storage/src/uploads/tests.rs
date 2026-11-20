@@ -3,7 +3,7 @@
 #![allow(clippy::unwrap_used)] // Reason: test module
 #![allow(clippy::print_stderr)] // Reason: skip diagnostic when no backing Postgres
 
-use chrono::Utc;
+use fraiseql_time::Timestamp;
 use sqlx::PgPool;
 
 use super::{NewUploadSession, UploadSessionRepo};
@@ -26,7 +26,7 @@ fn new_session(bucket: &str, key: &str) -> NewUploadSession {
         pk_storage_object:   1,
         created_reservation: true,
         backend_state:       serde_json::json!({}),
-        expires_at:          Utc::now() + chrono::Duration::hours(1),
+        expires_at:          Timestamp::now() + fraiseql_time::jiff::SignedDuration::from_hours(1),
     }
 }
 

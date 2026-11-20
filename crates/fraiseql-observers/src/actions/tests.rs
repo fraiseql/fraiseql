@@ -44,7 +44,7 @@ fn test_event() -> EntityEvent {
 #[test]
 fn signature_round_trips_with_stripe_verifier() {
     let secret = "whsec_round_trip";
-    let ts = chrono::Utc::now().timestamp();
+    let ts = fraiseql_time::Timestamp::now().as_second();
     let body = br#"{"id":"ord_1","amount":4200}"#;
 
     let header = webhook_signature(secret, ts, body);
@@ -62,7 +62,7 @@ fn signature_round_trips_with_stripe_verifier() {
 #[test]
 fn tampered_body_fails_verification() {
     let secret = "whsec_tamper";
-    let ts = chrono::Utc::now().timestamp();
+    let ts = fraiseql_time::Timestamp::now().as_second();
     let header = webhook_signature(secret, ts, br#"{"amount":1}"#);
 
     let verifier = StripeVerifier::new();

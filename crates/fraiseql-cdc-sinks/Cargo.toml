@@ -9,15 +9,14 @@ aws-sdk-kinesis = { version = "1", optional = true, default-features = false, fe
   "default-https-client",
   "rt-tokio",
 ] }
-chrono = { workspace = true }
 fraiseql-kafka = { workspace = true, optional = true }
+fraiseql-time = { workspace = true, features = ["sqlx"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { workspace = true }
 sqlx = { version = "0.8", features = [
   "postgres",
   "runtime-tokio",
   "uuid",
-  "chrono",
   "json",
 ] }
 thiserror = "2.0"

@@ -3,7 +3,7 @@
 //! This module provides traits for querying historical observer events
 //! from persistent storage (PostgreSQL, etc.).
 
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 
 use crate::{error::Result, event::EntityEvent};
 
@@ -33,8 +33,8 @@ pub trait EventStorage: Send + Sync {
     async fn query_events(
         &self,
         entity_type: &str,
-        start_date: Option<DateTime<Utc>>,
-        end_date: Option<DateTime<Utc>>,
+        start_date: Option<Timestamp>,
+        end_date: Option<Timestamp>,
         limit: Option<usize>,
     ) -> Result<Vec<EntityEvent>>;
 
@@ -44,15 +44,15 @@ pub trait EventStorage: Send + Sync {
     async fn count_events(
         &self,
         entity_type: &str,
-        start_date: Option<DateTime<Utc>>,
-        end_date: Option<DateTime<Utc>>,
+        start_date: Option<Timestamp>,
+        end_date: Option<Timestamp>,
     ) -> Result<usize>;
 }
 
 pub mod postgres {
     //! PostgreSQL implementation of event storage.
 
-    use chrono::{DateTime, Utc};
+    use fraiseql_time::Timestamp;
     use sqlx::PgPool;
     use uuid::Uuid;
 
@@ -97,8 +97,8 @@ pub mod postgres {
         async fn query_events(
             &self,
             entity_type: &str,
-            start_date: Option<DateTime<Utc>>,
-            end_date: Option<DateTime<Utc>>,
+            start_date: Option<Timestamp>,
+            end_date: Option<Timestamp>,
             limit: Option<usize>,
         ) -> Result<Vec<EntityEvent>> {
             // Build query with optional date filters
@@ -142,7 +142,7 @@ pub mod postgres {
                 event_type:  String,
                 entity_type: String,
                 entity_id:   Uuid,
-                timestamp:   DateTime<Utc>,
+                timestamp:   Timestamp,
                 data:        serde_json::Value,
                 user_id:     Option<String>,
                 tenant_id:   Option<String>,
@@ -205,8 +205,8 @@ pub mod postgres {
         async fn count_events(
             &self,
             entity_type: &str,
-            start_date: Option<DateTime<Utc>>,
-            end_date: Option<DateTime<Utc>>,
+            start_date: Option<Timestamp>,
+            end_date: Option<Timestamp>,
         ) -> Result<usize> {
             let mut query_str = String::from(
                 "SELECT COUNT(*) as count FROM fraiseql_events WHERE entity_type = $1",

@@ -6,7 +6,7 @@
 #[cfg(test)]
 mod tests;
 
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 
 use crate::{
     config::{BucketAccess, BucketConfig},
@@ -45,7 +45,7 @@ pub struct StorageCaller<'a> {
     /// The caller's normalised token claims; empty when the auth path has none.
     pub claims:         &'a ClaimValues,
     /// The instant this decision is made at.
-    pub now:            DateTime<Utc>,
+    pub now:            Timestamp,
     /// Whether the request arrived through the signed-URL path.
     pub via_signed_url: bool,
 }
@@ -57,7 +57,7 @@ impl<'a> StorageCaller<'a> {
         user_id: Option<&'a str>,
         roles: &'a [String],
         claims: &'a ClaimValues,
-        now: DateTime<Utc>,
+        now: Timestamp,
     ) -> Self {
         Self {
             user_id,
@@ -369,7 +369,7 @@ fn policy_decision(
     bucket: &BucketConfig,
     key: &str,
     owner_id: Option<&str>,
-    expires_at: Option<DateTime<Utc>>,
+    expires_at: Option<Timestamp>,
     metadata: &MetadataValues,
 ) -> Option<bool> {
     let policy = bucket.policies.as_ref()?;

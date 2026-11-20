@@ -18,12 +18,12 @@ mod checkpoint_tests {
 
     #[test]
     fn test_checkpoint_state_serialization() {
-        use chrono::Utc;
+        use fraiseql_time::Timestamp;
 
         let state = CheckpointState {
             listener_id:       "test-listener".to_string(),
             last_processed_id: 1000,
-            last_processed_at: Utc::now(),
+            last_processed_at: Timestamp::now(),
             batch_size:        50,
             event_count:       50,
         };
@@ -41,7 +41,7 @@ mod checkpoint_tests {
 
     #[tokio::test]
     async fn test_in_memory_load_save_round_trip() {
-        use chrono::Utc;
+        use fraiseql_time::Timestamp;
 
         let store = InMemoryCheckpointStore::new_silent();
         assert!(store.load("l1").await.unwrap().is_none());
@@ -49,7 +49,7 @@ mod checkpoint_tests {
         let state = CheckpointState {
             listener_id:       "l1".to_string(),
             last_processed_id: 42,
-            last_processed_at: Utc::now(),
+            last_processed_at: Timestamp::now(),
             batch_size:        10,
             event_count:       10,
         };
@@ -61,13 +61,13 @@ mod checkpoint_tests {
 
     #[tokio::test]
     async fn test_in_memory_delete() {
-        use chrono::Utc;
+        use fraiseql_time::Timestamp;
 
         let store = InMemoryCheckpointStore::new_silent();
         let state = CheckpointState {
             listener_id:       "l1".to_string(),
             last_processed_id: 1,
-            last_processed_at: Utc::now(),
+            last_processed_at: Timestamp::now(),
             batch_size:        0,
             event_count:       0,
         };

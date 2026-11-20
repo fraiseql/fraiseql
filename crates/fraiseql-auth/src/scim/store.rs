@@ -10,7 +10,7 @@
 //! creating a group never grants it any permission — see [`ScimStore::create_group`].
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 use sqlx::{Row, postgres::PgPool};
 use uuid::Uuid;
 
@@ -105,9 +105,9 @@ pub struct ScimUser {
     /// Monotonic row version behind `meta.version` / `ETag`.
     pub version:      i64,
     /// `meta.created`.
-    pub created_at:   DateTime<Utc>,
+    pub created_at:   Timestamp,
     /// `meta.lastModified`.
-    pub updated_at:   DateTime<Utc>,
+    pub updated_at:   Timestamp,
 }
 
 /// A provisioned group. Backed by `auth.tb_scim_group` and mirrored into an RBAC role.
@@ -124,9 +124,9 @@ pub struct ScimGroup {
     /// Monotonic row version.
     pub version:      i64,
     /// `meta.created`.
-    pub created_at:   DateTime<Utc>,
+    pub created_at:   Timestamp,
     /// `meta.lastModified`.
-    pub updated_at:   DateTime<Utc>,
+    pub updated_at:   Timestamp,
 }
 
 /// What a provisioning client supplies when creating or replacing a user.

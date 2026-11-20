@@ -22,6 +22,10 @@
 //!   toward 2000-01-01. Reading a value outside the range a [`Timestamp`] holds (`infinity`,
 //!   `-infinity`, or a year past 9999) is a decode error naming the value.
 //!
+//! - **chrono.** With the `chrono` feature, a [`Timestamp`] converts into a
+//!   `chrono::DateTime<Utc>`, and one converts back with `TryFrom`, which fails outside the range a
+//!   [`Timestamp`] holds.
+//!
 //! The type keeps those forms to itself: it has no `Deref` to [`jiff::Timestamp`], so
 //! jiff's own text forms are reached only through [`Timestamp::as_jiff`].
 
@@ -33,7 +37,12 @@ use std::{
 
 use jiff::{SignedDuration, tz::Offset};
 
+#[cfg(feature = "chrono")]
+mod chrono;
 mod parse;
+
+/// The jiff this crate's public API is built against.
+pub use jiff;
 #[cfg(any(feature = "sqlx", feature = "postgres"))]
 mod pg;
 #[cfg(feature = "postgres")]

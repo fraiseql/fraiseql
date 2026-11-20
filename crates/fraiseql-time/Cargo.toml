@@ -11,12 +11,11 @@ keywords.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-# Published once a published crate depends on it.
-publish = false
 version.workspace = true
 
 [dependencies]
 bytes = { workspace = true, optional = true }
+chrono = { workspace = true, optional = true }
 jiff = { workspace = true }
 postgres-types = { version = "0.2", optional = true }
 serde = { workspace = true }
@@ -39,6 +38,8 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tokio-postgres = { workspace = true }
 
 [features]
+# `From`/`TryFrom` between `Timestamp` and `chrono::DateTime<Utc>`.
+chrono = ["dep:chrono"]
 # `Type`/`Encode`/`Decode` for sqlx's PostgreSQL driver.
 sqlx = ["dep:sqlx"]
 # `ToSql`/`FromSql` for tokio-postgres (through postgres-types).

@@ -68,8 +68,6 @@ pub mod tls;
 pub mod tracing;
 pub mod types;
 
-/// The `chrono` this crate's public API is built against (#1198).
-pub use chrono;
 pub use composition_validator::{
     ComposedSchema, ComposedType, CompositionError, CompositionValidator, CrossSubgraphValidator,
 };

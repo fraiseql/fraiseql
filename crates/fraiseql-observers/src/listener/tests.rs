@@ -817,3 +817,58 @@ mod lease_tests {
         lease_b.release().await.unwrap();
     }
 }
+
+/// A `created_at` outside the range of a timestamp reaches the readers as an unreadable
+/// row that names the column and the value, not as a failed decode of the whole batch.
+#[allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+mod stored_time_tests {
+    use super::super::change_log::{CHANGE_LOG_PROJECTION, ChangeLogRow, DocumentDecoder};
+
+    /// One projected row whose `created_at` is `stored`, read the way every reader reads one.
+    async fn row_created_at(stored: &str) -> ChangeLogRow {
+        let pool = sqlx::PgPool::connect(&fraiseql_test_support::database_url()).await.unwrap();
+        sqlx::query_as(&format!(
+            "SELECT {CHANGE_LOG_PROJECTION} FROM (SELECT
+                 1::bigint AS pk_entity_change_log, gen_random_uuid() AS id,
+                 NULL::bigint AS fk_customer_org, NULL::bigint AS fk_contact,
+                 'Order'::text AS object_type, gen_random_uuid() AS object_id,
+                 'INSERT'::text AS modification_type, NULL::text AS change_status,
+                 '{{}}'::jsonb AS object_data, NULL::jsonb AS object_data_before,
+                 NULL::jsonb AS extra_metadata, $1::timestamptz AS created_at,
+                 NULL::uuid AS tenant_id, NULL::int4 AS duration_ms, NULL::int8 AS seq,
+                 NULL::text AS actor_type, NULL::uuid AS acting_for,
+                 NULL::text AS schema_version) e"
+        ))
+        .bind(stored)
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    #[ignore = "requires PostgreSQL (DATABASE_URL)"]
+    async fn an_unreadable_created_at_is_reported_with_its_value() {
+        for (stored, named) in [
+            ("infinity", "timestamptz infinity"),
+            ("-infinity", "timestamptz -infinity"),
+            ("10000-01-01 00:00:00+00", "timestamptz 252455616000000000 µs"),
+        ] {
+            let unreadable = row_created_at(stored)
+                .await
+                .into_entry(&DocumentDecoder::plain())
+                .expect_err("the row is unreadable");
+            assert_eq!(unreadable.column, "created_at", "{stored}");
+            assert!(unreadable.kind.contains(named), "{stored}: {}", unreadable.kind);
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "requires PostgreSQL (DATABASE_URL)"]
+    async fn a_readable_created_at_is_written_as_chrono_wrote_it() {
+        let entry = row_created_at("2025-11-20 12:00:00.12+00")
+            .await
+            .into_entry(&DocumentDecoder::plain())
+            .unwrap();
+        assert_eq!(entry.created_at, "2025-11-20T12:00:00.120+00:00");
+    }
+}

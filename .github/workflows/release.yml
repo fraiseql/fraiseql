@@ -652,7 +652,7 @@ jobs:
           # Every crate the `publish-crates` job ships — keep in sync with the CRATES
           # list in the validate-release "Dry-run publish" step. The old step checked
           # only `fraiseql` (1 of 16) and soft-passed a miss as "indexing in progress".
-          CRATES="fraiseql-guard fraiseql-kafka fraiseql-jwks fraiseql-error fraiseql-auth fraiseql-webhooks \
+          CRATES="fraiseql-time fraiseql-guard fraiseql-kafka fraiseql-jwks fraiseql-error fraiseql-auth fraiseql-webhooks \
                   fraiseql-wire fraiseql-cdc-sinks \
                   fraiseql-db fraiseql-storage fraiseql-federation fraiseql-core \
                   fraiseql-codegen fraiseql-arrow fraiseql-secrets fraiseql-observers \

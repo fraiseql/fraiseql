@@ -6,8 +6,8 @@
 #[cfg(test)]
 mod tests;
 
-use chrono::{DateTime, Utc};
 use fraiseql_error::{FileError, FraiseQLError};
+use fraiseql_time::Timestamp;
 use sqlx::PgPool;
 
 use crate::backend::types::ObjectInfo;
@@ -48,15 +48,15 @@ pub struct StorageMetadataRow {
     /// them against the stored object.
     pub pending:           bool,
     /// Row creation time.
-    pub created_at:        DateTime<Utc>,
+    pub created_at:        Timestamp,
     /// Last update time.
-    pub updated_at:        DateTime<Utc>,
+    pub updated_at:        Timestamp,
     /// When this object stops being servable, if ever (#974).
     ///
     /// Read by the [`require_unexpired`](crate::PolicyRule::require_unexpired)
     /// policy condition. `None` means no expiry was set, which that condition
     /// treats as a denial rather than as "never expires".
-    pub expires_at:        Option<DateTime<Utc>>,
+    pub expires_at:        Option<Timestamp>,
     /// User-defined metadata, read by the
     /// [`require_metadata`](crate::PolicyRule::require_metadata) policy
     /// condition (#1099).
@@ -536,9 +536,9 @@ struct MetadataQueryRow {
     etag:              Option<String>,
     owner_id:          Option<String>,
     pending:           bool,
-    created_at:        DateTime<Utc>,
-    updated_at:        DateTime<Utc>,
-    expires_at:        Option<DateTime<Utc>>,
+    created_at:        Timestamp,
+    updated_at:        Timestamp,
+    expires_at:        Option<Timestamp>,
     metadata:          sqlx::types::Json<crate::policy::MetadataValues>,
 }
 
@@ -575,7 +575,7 @@ impl From<&StorageMetadataRow> for ObjectInfo {
             size,
             content_type: row.content_type.clone(),
             etag: row.etag.clone().unwrap_or_default(),
-            last_modified: Some(row.updated_at),
+            last_modified: Some(row.updated_at.into()),
         }
     }
 }

@@ -514,3 +514,74 @@ async fn permanent_failure_dead_letters_and_is_not_retried() {
     assert_eq!(again.retried, 0);
     assert_eq!(again.dead, 0);
 }
+
+/// The `last_error` the drain recorded for the row with `seq`.
+async fn last_error(pool: &PgPool, sink_name: &str, seq: i64) -> Option<String> {
+    sqlx::query_scalar(
+        "SELECT last_error FROM core.tb_cdc_sink_state WHERE sink_name = $1 AND seq = $2",
+    )
+    .bind(sink_name)
+    .bind(seq)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+/// A row whose `commit_time` no event can carry, between two readable rows: the drain
+/// dead-letters that row with the value in `last_error` and publishes the rows around it.
+async fn unreadable_commit_time_is_dead_lettered(stored: &str, named: &str) {
+    let pool = pool().await;
+    setup_schema(&pool).await;
+
+    let table = unique("tbshipment");
+    let tenant = Some(Uuid::new_v4());
+    let before = seed(&pool, &table, "INSERT", tenant, Some(json!({ "n": 1 }))).await;
+    let unreadable = seed(&pool, &table, "UPDATE", tenant, Some(json!({ "n": 2 }))).await;
+    let after = seed(&pool, &table, "UPDATE", tenant, Some(json!({ "n": 3 }))).await;
+    sqlx::query(
+        "UPDATE core.tb_entity_change_log SET commit_time = $2::timestamptz WHERE seq = $1",
+    )
+    .bind(unreadable)
+    .bind(stored)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let sink_name = unique("sink");
+    let config = CdcSinkConfig::new(sink_name.clone(), "fraiseql.{tenant_id}.{table}")
+        .with_tables(vec![table.clone()]);
+    let worker =
+        DrainWorker::new(pool.clone(), StubSink::new(config.clone(), Mode::Publish), config);
+
+    let stats = worker.tick().await.unwrap();
+    assert_eq!(stats.enqueued, 3, "all three rows are tracked");
+    assert_eq!(stats.published, 2, "the rows around the unreadable one are published");
+    assert_eq!(stats.dead, 1, "the unreadable row is dead-lettered");
+    assert_eq!(
+        worker.sink().published_seqs(),
+        vec![before, after],
+        "published in order, around it"
+    );
+
+    let error = last_error(&pool, &sink_name, unreadable).await.unwrap();
+    assert!(error.contains(named), "last_error names the value {named:?}: {error}");
+
+    // A dead row is not claimed again, and holds nothing back.
+    let again = worker.tick().await.unwrap();
+    assert_eq!((again.published, again.retried, again.dead), (0, 0, 0), "nothing to do");
+    assert_eq!(status_count(&pool, &sink_name, "published").await, 2, "published rows");
+    assert_eq!(status_count(&pool, &sink_name, "dead").await, 1, "dead rows");
+}
+
+#[tokio::test]
+#[ignore = "requires Postgres (DATABASE_URL)"]
+async fn a_commit_time_the_drain_cannot_read_is_dead_lettered_and_its_successors_publish() {
+    unreadable_commit_time_is_dead_lettered("infinity", "infinity").await;
+}
+
+#[tokio::test]
+#[ignore = "requires Postgres (DATABASE_URL)"]
+async fn a_commit_time_past_year_9999_is_dead_lettered_and_its_successors_publish() {
+    // 10000-01-01T00:00:00Z: 252,455,616,000,000,000 µs after 2000-01-01T00:00:00Z.
+    unreadable_commit_time_is_dead_lettered("10000-01-01 00:00:00+00", "252455616000000000").await;
+}

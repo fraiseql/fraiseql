@@ -3440,3 +3440,43 @@ async fn a_key_shaped_stored_etag_settles_to_the_content_hash_on_read() {
         assert_eq!(stored, Some(super::object_etag(b"body")), "{key}: the row was not settled");
     }
 }
+
+/// `Upload-Expires` keeps the bytes chrono's `to_rfc2822` wrote.
+#[test]
+fn upload_expires_is_rfc_2822_as_chrono_wrote_it() {
+    use chrono::{DateTime, Utc};
+    use fraiseql_time::Timestamp;
+
+    for second in [
+        0,
+        1_763_640_000,
+        1_767_225_599,
+        1_772_323_200,
+        253_402_207_199,
+    ] {
+        let instant = Timestamp::new(second, 987_654_321).expect("in range");
+        let chrono = DateTime::<Utc>::from(instant).to_rfc2822();
+        assert_eq!(super::uploads::rfc2822(instant), chrono, "{second}");
+    }
+    let instant = Timestamp::from_second(1_772_323_200).expect("in range");
+    assert_eq!(super::uploads::rfc2822(instant), "Sun, 1 Mar 2026 00:00:00 +0000");
+}
+
+/// A session TTL that reaches past the last instant expires at that instant.
+#[test]
+fn a_session_ttl_past_the_range_expires_at_its_end() {
+    use fraiseql_time::{Timestamp, jiff};
+
+    let now = Timestamp::from_second(1_763_640_000).expect("in range");
+    assert_eq!(
+        super::uploads::session_expiry(now, 3_600),
+        Timestamp::from_second(1_763_643_600).expect("in range")
+    );
+    let end: Timestamp = jiff::Timestamp::MAX.into();
+    assert_eq!(super::uploads::session_expiry(now, 400_000_000_000), end);
+    assert_eq!(
+        super::uploads::session_expiry(now, u64::MAX),
+        Timestamp::from_second(1_763_726_400).expect("in range"),
+        "a TTL past i64 seconds keeps the one-day fallback"
+    );
+}

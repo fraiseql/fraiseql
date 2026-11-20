@@ -1516,8 +1516,8 @@ mod usage_tests {
 /// Timestamps are written as clients read them today: the fraction padded to `.120`, and
 /// a `Z` suffix.
 mod stored_time_format {
-    use chrono::{DateTime, Utc};
     use fraiseql_storage::PolicySource;
+    use fraiseql_time::Timestamp;
 
     use super::super::storage_policies::BucketPolicyResponse;
 
@@ -1529,9 +1529,7 @@ mod stored_time_format {
             access:     "private",
             rules:      None,
             updated_at: Some(
-                DateTime::parse_from_rfc3339("2025-11-20T12:00:00.12Z")
-                    .expect("a valid instant")
-                    .with_timezone(&Utc),
+                Timestamp::parse_rfc3339("2025-11-20T12:00:00.12Z").expect("a valid instant"),
             ),
         };
         assert_eq!(

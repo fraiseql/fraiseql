@@ -23,7 +23,6 @@ bytes = "1"
 sqlx = { version = "0.8", features = [
   "runtime-tokio-rustls",
   "postgres",
-  "chrono",
   "uuid",
 ] }
 tokio = { version = "1", features = ["fs", "io-util", "rt"] }
@@ -33,7 +32,10 @@ serde_json = { workspace = true }
 sha2 = "0.11"
 hex = "0.4"
 tracing = "0.1"
+# `ObjectInfo::last_modified`, and the strict RFC 3339 parser a policy's
+# `not_before`/`not_after` are held to.
 chrono = { workspace = true }
+fraiseql-time = { workspace = true, features = ["chrono", "sqlx"] }
 uuid = { workspace = true }
 walkdir = "2"
 

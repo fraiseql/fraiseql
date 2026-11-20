@@ -27,8 +27,8 @@
 //! written by a newer version), and [`StoredPolicyRow::parse`] reports it the
 //! same way the request path does.
 
-use chrono::{DateTime, Utc};
 use fraiseql_error::{FileError, FraiseQLError};
+use fraiseql_time::Timestamp;
 use sqlx::PgPool;
 
 use super::{BucketPolicy, PolicyRuleSpec, PolicySpecError, parse_policy};
@@ -92,7 +92,7 @@ pub struct StoredPolicyRow {
     /// instead of failing somewhere in the row decoder.
     pub rules:      serde_json::Value,
     /// When this policy was last written.
-    pub updated_at: DateTime<Utc>,
+    pub updated_at: Timestamp,
 }
 
 impl StoredPolicyRow {

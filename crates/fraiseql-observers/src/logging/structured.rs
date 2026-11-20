@@ -2,6 +2,8 @@
 
 use std::collections::HashMap;
 
+use fraiseql_time::Timestamp;
+
 use super::correlation::{TraceContext, get_current_trace_id};
 
 /// Structured logger with automatic trace ID field injection
@@ -92,7 +94,7 @@ impl StructuredLogger {
         let fields_str = self.format_fields(&all_fields);
         let log_line = format!(
             "{} [{}] {} {} {}",
-            chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ"),
+            log_time(Timestamp::now()),
             level,
             self.service,
             event,
@@ -196,5 +198,30 @@ impl LogBuilder {
         let logger = StructuredLogger::with_span(&self.service, "");
         let fields = self.fields.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect::<Vec<_>>();
         logger.error(event, fields);
+    }
+}
+
+/// A log line's time: UTC, to the millisecond, always three digits (`2025-11-20T12:00:00.000Z`).
+fn log_time(instant: Timestamp) -> String {
+    instant.as_jiff().strftime("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
+}
+
+#[cfg(test)]
+mod log_time_tests {
+    use fraiseql_time::Timestamp;
+
+    use super::log_time;
+
+    #[test]
+    fn a_log_line_time_has_three_fraction_digits_truncated() {
+        for (second, nanosecond, written) in [
+            (1_763_640_000, 0, "2025-11-20T12:00:00.000Z"),
+            (1_763_640_000, 120_000_000, "2025-11-20T12:00:00.120Z"),
+            (1_763_640_000, 999_999_999, "2025-11-20T12:00:00.999Z"),
+            (-1, -500_000_000, "1969-12-31T23:59:58.500Z"),
+        ] {
+            let instant = Timestamp::new(second, nanosecond).expect("in range");
+            assert_eq!(log_time(instant), written, "{second} s {nanosecond} ns");
+        }
     }
 }

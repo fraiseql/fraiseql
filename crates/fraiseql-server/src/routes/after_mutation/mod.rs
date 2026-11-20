@@ -562,7 +562,8 @@ pub fn observer_event_to_capture(
         event_kind,
         old,
         new,
-        timestamp: event.timestamp,
+        // The functions runtime is still on chrono.
+        timestamp: event.timestamp.into(),
     };
     Some((fn_event, event.cdc_source.clone()))
 }

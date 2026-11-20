@@ -53,7 +53,7 @@ impl AuthEvent {
             status:      "started".to_string(),
             duration_ms: 0.0,
             error:       None,
-            timestamp:   chrono::Utc::now().to_rfc3339(),
+            timestamp:   fraiseql_time::Timestamp::now().to_rfc3339(),
             request_id:  None,
         }
     }

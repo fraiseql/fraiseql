@@ -30,6 +30,7 @@ use axum::{
 };
 use bytes::Bytes;
 use fraiseql_error::{FileError, FraiseQLError};
+use fraiseql_time::Timestamp;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "aws-s3")]
@@ -366,7 +367,7 @@ impl StorageUser {
     /// to pass the claims along, which would turn every `require_claims` rule
     /// into a silent denial on that one path.
     #[must_use]
-    pub fn caller(&self, now: chrono::DateTime<chrono::Utc>) -> crate::StorageCaller<'_> {
+    pub fn caller(&self, now: Timestamp) -> crate::StorageCaller<'_> {
         crate::StorageCaller::new(self.user_id.as_deref(), self.roles.as_slice(), &self.claims, now)
     }
 }
@@ -515,7 +516,7 @@ fn authorise_upload_metadata(
         .map_err(|message| error_response(StatusCode::BAD_REQUEST, "invalid_metadata", &message))?;
     if !state
         .rls
-        .can_set_metadata(&user.caller(chrono::Utc::now()), bucket, key, existing)
+        .can_set_metadata(&user.caller(Timestamp::now()), bucket, key, existing)
     {
         tracing::warn!(
             bucket = %bucket.name,
@@ -571,12 +572,10 @@ async fn put_handler(
     };
 
     // RLS: create requires authentication; overwrite requires owner or admin.
-    if !state.rls.can_write_object(
-        &user.caller(chrono::Utc::now()),
-        bucket,
-        &key,
-        existing.as_ref(),
-    ) {
+    if !state
+        .rls
+        .can_write_object(&user.caller(Timestamp::now()), bucket, &key, existing.as_ref())
+    {
         tracing::warn!(
             bucket = %bucket_name,
             key = %key,
@@ -711,7 +710,7 @@ async fn get_handler(
         Err(e) => return storage_error_response(&e),
     };
 
-    if !state.rls.can_read(&user.caller(chrono::Utc::now()), bucket, &row) {
+    if !state.rls.can_read(&user.caller(Timestamp::now()), bucket, &row) {
         tracing::warn!(
             bucket = %bucket_name,
             key = %key,
@@ -818,7 +817,7 @@ async fn delete_handler(
     };
 
     let user = user.map(|Extension(u)| u).unwrap_or_default();
-    if !state.rls.can_delete(&user.caller(chrono::Utc::now()), bucket, &row) {
+    if !state.rls.can_delete(&user.caller(Timestamp::now()), bucket, &row) {
         tracing::warn!(
             bucket = %bucket_name,
             key = %key,
@@ -879,7 +878,7 @@ async fn list_handler(
     // `filter_visible`'s decision, applied below. Under a bucket policy `list`
     // is its own method (#371) — it is no longer implied by write access.
     if !state.rls.can_list(
-        &user.caller(chrono::Utc::now()),
+        &user.caller(Timestamp::now()),
         bucket,
         query.prefix.as_deref().unwrap_or(""),
     ) {
@@ -900,7 +899,7 @@ async fn list_handler(
     };
 
     // Apply RLS filtering
-    let visible = state.rls.filter_visible(&user.caller(chrono::Utc::now()), bucket, rows);
+    let visible = state.rls.filter_visible(&user.caller(Timestamp::now()), bucket, rows);
 
     let items: Vec<ListItem> = visible.iter().map(ListItem::from).collect();
     axum::Json(items).into_response()
@@ -999,7 +998,7 @@ async fn presign_handler(
             Err(e) => return storage_error_response(&e),
         };
         if !state.rls.can_write_object(
-            &user.caller(chrono::Utc::now()).through_signed_url(),
+            &user.caller(Timestamp::now()).through_signed_url(),
             bucket,
             &key,
             existing.as_ref(),
@@ -1050,7 +1049,7 @@ async fn presign_handler(
         };
         if !state
             .rls
-            .can_read(&user.caller(chrono::Utc::now()).through_signed_url(), bucket, &row)
+            .can_read(&user.caller(Timestamp::now()).through_signed_url(), bucket, &row)
         {
             tracing::warn!(
                 bucket = %bucket_name,
@@ -1348,7 +1347,7 @@ async fn get_metadata_handler(
         Ok(None) => return object_not_visible(bucket, &user),
         Err(e) => return storage_error_response(&e),
     };
-    if !state.rls.can_read(&user.caller(chrono::Utc::now()), bucket, &row) {
+    if !state.rls.can_read(&user.caller(Timestamp::now()), bucket, &row) {
         return object_not_visible(bucket, &user);
     }
     axum::Json(ObjectMetadataBody {
@@ -1398,12 +1397,10 @@ async fn put_metadata_handler(
         Ok(existing) => existing,
         Err(e) => return storage_error_response(&e),
     };
-    if !state.rls.can_set_metadata(
-        &user.caller(chrono::Utc::now()),
-        bucket,
-        &key,
-        existing.as_ref(),
-    ) {
+    if !state
+        .rls
+        .can_set_metadata(&user.caller(Timestamp::now()), bucket, &key, existing.as_ref())
+    {
         tracing::warn!(
             bucket = %bucket_name,
             key = %key,

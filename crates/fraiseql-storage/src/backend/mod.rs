@@ -6,10 +6,10 @@
 
 use std::time::Duration;
 
-use chrono::{DateTime, Utc};
 #[cfg(feature = "aws-s3")]
 use fraiseql_error::FraiseQLError;
 use fraiseql_error::{FileError, Result};
+use fraiseql_time::Timestamp;
 use serde::{Deserialize, Serialize};
 
 pub mod local;
@@ -24,7 +24,7 @@ pub struct PresignedUrl {
     /// The complete presigned URL (including query parameters)
     pub url:        String,
     /// When the URL expires (UTC)
-    pub expires_at: DateTime<Utc>,
+    pub expires_at: Timestamp,
     /// HTTP method this URL is valid for (GET or PUT)
     pub method:     String,
 }
@@ -38,7 +38,7 @@ impl PresignedUrl {
     /// * `expires_at` - When the URL expires
     /// * `method` - HTTP method (GET or PUT)
     #[must_use]
-    pub fn new(url: String, expires_at: DateTime<Utc>, method: &str) -> Self {
+    pub fn new(url: String, expires_at: Timestamp, method: &str) -> Self {
         Self {
             url,
             expires_at,

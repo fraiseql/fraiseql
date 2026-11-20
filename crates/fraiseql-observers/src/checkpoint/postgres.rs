@@ -3,7 +3,7 @@
 //! Provides durable, transactional checkpoint persistence using PostgreSQL.
 //! Supports atomic compare-and-swap for multi-listener coordination.
 
-use chrono::Utc;
+use fraiseql_time::Timestamp;
 use sqlx::PgPool;
 
 use super::{CheckpointState, CheckpointStore};
@@ -35,7 +35,7 @@ impl CheckpointStore for PostgresCheckpointStore {
     async fn load(&self, listener_id: &str) -> Result<Option<CheckpointState>> {
         #[allow(clippy::cast_possible_wrap)]
         // Reason: value is non-negative; wrap cannot occur in practice
-        let record = sqlx::query_as::<_, (String, i64, chrono::DateTime<Utc>, i32, i32)>(
+        let record = sqlx::query_as::<_, (String, i64, Timestamp, i32, i32)>(
             r"
             SELECT listener_id, last_processed_id, last_processed_at, batch_size, event_count
             FROM core.observer_checkpoints

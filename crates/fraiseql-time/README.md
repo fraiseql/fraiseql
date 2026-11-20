@@ -19,3 +19,6 @@ With the `sqlx` or `postgres` feature, a `Timestamp` is a PostgreSQL `timestampt
 whole microseconds from 2000-01-01, truncated toward it when written. Reading a value
 outside the range a `Timestamp` holds (`infinity`, `-infinity`, a year past 9999) is a
 decode error naming the value.
+
+With the `chrono` feature, a `Timestamp` converts into a `chrono::DateTime<Utc>`, and one
+converts back with `TryFrom`, which fails outside the range a `Timestamp` holds.

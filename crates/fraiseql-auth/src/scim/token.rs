@@ -9,7 +9,7 @@
 //! database disclosure cannot be replayed, and the lookup is by hash with a constant-time
 //! comparison so it cannot be turned into a timing oracle.
 
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 use sqlx::{Row, postgres::PgPool};
 use subtle::ConstantTimeEq as _;
 use uuid::Uuid;
@@ -32,9 +32,9 @@ pub struct ScimTokenRecord {
     /// Operator note.
     pub description:  Option<String>,
     /// Creation time.
-    pub created_at:   DateTime<Utc>,
+    pub created_at:   Timestamp,
     /// Last successful authentication, for spotting a credential that has gone quiet.
-    pub last_used_at: Option<DateTime<Utc>>,
+    pub last_used_at: Option<Timestamp>,
 }
 
 /// A freshly minted token: the record plus the one and only sight of the secret.

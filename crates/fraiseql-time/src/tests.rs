@@ -359,3 +359,43 @@ fn arithmetic_is_jiffs_and_checked_arithmetic_refuses_the_range() {
         "past the top of the range"
     );
 }
+
+#[cfg(feature = "chrono")]
+mod chrono_conversions {
+    use chrono::{DateTime, TimeZone, Utc};
+
+    use super::at;
+    use crate::{Error, Timestamp};
+
+    #[test]
+    fn every_timestamp_converts_to_the_same_chrono_instant_and_back() {
+        for (second, nanosecond) in [
+            (0, 0),
+            (1_763_640_000, 120_000_000),
+            (-1, -1),
+            (-1, -999_999_999),
+            (-62_135_596_800, -500),
+            // jiff's last instant, 9999-12-30T21:59:59.999999999Z.
+            (253_402_207_199, 999_999_999),
+            // jiff's first instant, -9999-01-02T01:59:59Z.
+            (-377_705_023_201, 0),
+        ] {
+            let ours = at(second, nanosecond);
+            let theirs = DateTime::<Utc>::from(ours);
+            let expected = Utc.timestamp_nanos(0)
+                + chrono::Duration::seconds(second)
+                + chrono::Duration::nanoseconds(i64::from(nanosecond));
+            assert_eq!(theirs, expected, "{second} s {nanosecond} ns");
+            assert_eq!(Timestamp::try_from(theirs), Ok(ours), "{second} s {nanosecond} ns");
+            assert_eq!(theirs.to_rfc3339(), ours.to_rfc3339(), "{second} s {nanosecond} ns");
+        }
+    }
+
+    #[test]
+    fn a_chrono_instant_past_year_9999_is_refused_by_value() {
+        let past = Utc.with_ymd_and_hms(10_000, 1, 1, 0, 0, 0).unwrap();
+        let error = Timestamp::try_from(past).expect_err("refused");
+        assert!(matches!(error, Error::OutOfRange { .. }), "{error:?}");
+        assert!(error.to_string().contains("+10000-01-01T00:00:00+00:00"), "{error}");
+    }
+}

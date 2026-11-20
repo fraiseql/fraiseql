@@ -64,7 +64,7 @@ mod tests;
 
 use std::collections::BTreeMap;
 
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 use serde::{Deserialize, Serialize};
 pub use spec::{PolicyRuleSpec, PolicySpecError, parse_policy, policy_to_specs};
 pub use store::{PolicySource, StoragePolicyStore, StoredPolicyRow, policy_source};
@@ -348,7 +348,7 @@ pub struct PolicyRule {
 
     /// The grant does not apply before this instant. Absent means no lower bound.
     #[serde(default)]
-    pub not_before: Option<DateTime<Utc>>,
+    pub not_before: Option<Timestamp>,
 
     /// The grant does not apply at or after this instant. Absent means no upper
     /// bound.
@@ -357,7 +357,7 @@ pub struct PolicyRule {
     /// half-open window is the only reading under which two adjacent grants
     /// (`..noon`, `noon..`) neither overlap nor leave a gap.
     #[serde(default)]
-    pub not_after: Option<DateTime<Utc>>,
+    pub not_after: Option<Timestamp>,
 
     /// The rule applies only to an object that has an expiry still in the
     /// future — `object.expires_at IS NOT NULL AND now < object.expires_at`.
@@ -441,12 +441,12 @@ pub struct PolicyRequest<'a> {
     /// Passed in rather than read from the clock inside the evaluator, so a
     /// time-bounded grant is testable without waiting for wall-clock time to
     /// pass — and so one request cannot straddle two different "now"s.
-    pub now: DateTime<Utc>,
+    pub now: Timestamp,
 
     /// The object's own expiry, when the request is about an existing object
     /// that has one. `None` covers both "no expiry set" and "no object"
     /// (a listing); [`PolicyRule::require_unexpired`] rejects both.
-    pub expires_at: Option<DateTime<Utc>>,
+    pub expires_at: Option<Timestamp>,
 
     /// The caller's normalised token claims. Empty when the auth path supplies
     /// none.

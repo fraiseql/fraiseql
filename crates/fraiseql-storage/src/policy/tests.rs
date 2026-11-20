@@ -7,7 +7,7 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test module
 
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 
 use super::{
     BucketPolicy, ClaimValues, MetadataValues, PolicyMethod, PolicyPrincipal, PolicyRequest,
@@ -130,7 +130,7 @@ fn evaluation_matrix_is_exhaustive_and_denies_by_default() {
                         roles: &roles,
                         key: "any/key.txt",
                         owner_id: owner.as_deref(),
-                        now: Utc::now(),
+                        now: Timestamp::now(),
                         expires_at: None,
                         claims: &NO_CLAIMS,
                         via_signed_url,
@@ -179,7 +179,7 @@ fn empty_policy_permits_nothing() {
             roles: &roles,
             key: "k",
             owner_id: owner.as_deref(),
-            now: Utc::now(),
+            now: Timestamp::now(),
             expires_at: None,
             claims: &NO_CLAIMS,
             via_signed_url,
@@ -232,7 +232,7 @@ fn key_prefix_narrows_the_rule() {
             roles: &roles,
             key,
             owner_id: None,
-            now: Utc::now(),
+            now: Timestamp::now(),
             expires_at: None,
             claims: &NO_CLAIMS,
             via_signed_url: false,
@@ -247,7 +247,7 @@ fn key_prefix_narrows_the_rule() {
             roles: &roles,
             key,
             owner_id: None,
-            now: Utc::now(),
+            now: Timestamp::now(),
             expires_at: None,
             claims: &NO_CLAIMS,
             via_signed_url: false,
@@ -287,7 +287,7 @@ fn owner_principal_never_matches_a_missing_side() {
             roles: &roles,
             key: "k",
             owner_id,
-            now: Utc::now(),
+            now: Timestamp::now(),
             expires_at: None,
             claims: &NO_CLAIMS,
             via_signed_url: false,
@@ -335,7 +335,7 @@ fn rules_are_a_union_of_permits() {
         roles:              &auditor_roles,
         key:                "k",
         owner_id:           Some("owner-1"),
-        now:                Utc::now(),
+        now:                Timestamp::now(),
         expires_at:         None,
         claims:             &NO_CLAIMS,
         via_signed_url:     false,
@@ -348,7 +348,7 @@ fn rules_are_a_union_of_permits() {
         roles:              &no_roles,
         key:                "k",
         owner_id:           Some("owner-1"),
-        now:                Utc::now(),
+        now:                Timestamp::now(),
         expires_at:         None,
         claims:             &NO_CLAIMS,
         via_signed_url:     false,
@@ -409,8 +409,8 @@ fn principal_parsing_accepts_the_vocabulary_and_rejects_everything_else() {
 
 /// A request at `now` about an object expiring at `expires_at`.
 fn request_at(
-    now: DateTime<Utc>,
-    expires_at: Option<DateTime<Utc>>,
+    now: Timestamp,
+    expires_at: Option<Timestamp>,
     claims: &ClaimValues,
 ) -> PolicyRequest<'_> {
     PolicyRequest {
@@ -427,8 +427,8 @@ fn request_at(
     }
 }
 
-fn at(secs: i64) -> DateTime<Utc> {
-    DateTime::from_timestamp(1_800_000_000 + secs, 0).expect("valid timestamp")
+fn at(secs: i64) -> Timestamp {
+    Timestamp::from_second(1_800_000_000 + secs).expect("valid timestamp")
 }
 
 /// `not_before` is inclusive at its own instant and denies strictly before it.
@@ -975,7 +975,7 @@ mod metadata_limits {
 // metadata is its own grant, and the condition refuses to hold for anyone who
 // holds it.
 mod require_metadata {
-    use chrono::Utc;
+    use fraiseql_time::Timestamp;
 
     use super::{
         BucketPolicy, ClaimValues, MetadataValues, NO_CLAIMS, PolicyMethod, PolicyPrincipal,
@@ -1012,7 +1012,7 @@ mod require_metadata {
             roles,
             key: "k.txt",
             owner_id: Some("someone-else"),
-            now: Utc::now(),
+            now: Timestamp::now(),
             expires_at: None,
             claims: &NO_CLAIMS,
             via_signed_url: false,

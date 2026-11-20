@@ -21,7 +21,7 @@ use axum::{
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
 };
-use chrono::Utc;
+use fraiseql_time::Timestamp;
 
 use super::{
     StorageState, StorageUser, backend_object_key, error_response, reject_unsafe_key,
@@ -34,6 +34,21 @@ const TUS_RESUMABLE: &str = "1.0.0";
 
 /// Session lifetime when the bucket does not configure `upload_ttl_secs`.
 const DEFAULT_UPLOAD_TTL_SECS: u64 = 24 * 60 * 60;
+
+/// When a session opened at `now` with a TTL of `ttl_secs` expires. A TTL that reaches
+/// past the last instant a timestamp holds expires at that instant.
+pub(super) fn session_expiry(now: Timestamp, ttl_secs: u64) -> Timestamp {
+    let ttl =
+        fraiseql_time::jiff::SignedDuration::from_secs(i64::try_from(ttl_secs).unwrap_or(86_400));
+    now.checked_add(ttl)
+        .unwrap_or_else(|| fraiseql_time::jiff::Timestamp::MAX.into())
+}
+
+/// RFC 2822 with a `+0000` offset and an unpadded day (`Sun, 1 Mar 2026 00:00:00 +0000`), as
+/// `Upload-Expires` carries it.
+pub(super) fn rfc2822(instant: Timestamp) -> String {
+    instant.as_jiff().strftime("%a, %-d %b %Y %H:%M:%S +0000").to_string()
+}
 
 /// The only body content type Tus permits on `PATCH`.
 const OFFSET_OCTET_STREAM: &str = "application/offset+octet-stream";
@@ -127,12 +142,10 @@ pub(super) async fn create_upload_handler(
         Ok(existing) => existing,
         Err(e) => return with_tus(storage_error_response(&e)),
     };
-    if !state.rls.can_write_object(
-        &user.caller(chrono::Utc::now()),
-        bucket,
-        &key,
-        existing.as_ref(),
-    ) {
+    if !state
+        .rls
+        .can_write_object(&user.caller(Timestamp::now()), bucket, &key, existing.as_ref())
+    {
         tracing::warn!(
             bucket = %bucket_name,
             key = %key,
@@ -211,7 +224,7 @@ pub(super) async fn create_upload_handler(
         };
 
     let ttl = bucket.upload_ttl_secs.unwrap_or(DEFAULT_UPLOAD_TTL_SECS);
-    let expires_at = Utc::now() + chrono::Duration::seconds(i64::try_from(ttl).unwrap_or(86_400));
+    let expires_at = session_expiry(Timestamp::now(), ttl);
     let session = NewUploadSession {
         bucket: bucket_name.clone(),
         key: key.clone(),
@@ -253,7 +266,7 @@ pub(super) async fn create_upload_handler(
     if let Ok(v) = format!("/storage/v1/uploads/{upload_id}").parse() {
         headers.insert(header::LOCATION, v);
     }
-    if let Ok(v) = expires_at.to_rfc2822().parse() {
+    if let Ok(v) = rfc2822(expires_at).parse() {
         headers.insert("Upload-Expires", v);
     }
     with_tus((StatusCode::CREATED, headers).into_response())
@@ -482,7 +495,7 @@ async fn reap_if_expired(
     state: &StorageState,
     session: &crate::uploads::UploadSession,
 ) -> Option<Response> {
-    if !session.is_expired(Utc::now()) {
+    if !session.is_expired(Timestamp::now()) {
         return None;
     }
     let object_key = backend_object_key(&session.bucket, &session.key);

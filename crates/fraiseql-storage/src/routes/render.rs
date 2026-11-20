@@ -20,6 +20,7 @@ use axum::{
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
 };
+use fraiseql_time::Timestamp;
 use serde::Deserialize;
 
 use super::{
@@ -184,7 +185,7 @@ async fn resolve_watermark(
             Ok(None) => return Err(object_not_visible(bucket, user)),
             Err(e) => return Err(storage_error_response(&e)),
         };
-        if !state.rls.can_read(&user.caller(chrono::Utc::now()), bucket, &row) {
+        if !state.rls.can_read(&user.caller(Timestamp::now()), bucket, &row) {
             tracing::warn!(
                 bucket = %bucket_name,
                 key = %mark_key,
@@ -384,7 +385,7 @@ pub(super) async fn render_handler(
         Ok(None) => return object_not_visible(bucket, &user),
         Err(e) => return storage_error_response(&e),
     };
-    if !state.rls.can_read(&user.caller(chrono::Utc::now()), bucket, &row) {
+    if !state.rls.can_read(&user.caller(Timestamp::now()), bucket, &row) {
         tracing::warn!(
             bucket = %bucket_name,
             key = %key,

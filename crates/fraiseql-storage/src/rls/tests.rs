@@ -1,4 +1,4 @@
-use chrono::Utc;
+use fraiseql_time::Timestamp;
 
 use super::{STORAGE_ADMIN_ROLE, StorageCaller, StorageRlsEvaluator};
 use crate::{
@@ -13,7 +13,7 @@ static NO_CLAIMS: ClaimValues = ClaimValues::new();
 /// A caller for the tests that predate #974's conditions: no claims, not
 /// through a signed URL, decided now.
 fn caller<'a>(user_id: Option<&'a str>, roles: &'a [String]) -> StorageCaller<'a> {
-    StorageCaller::new(user_id, roles, &NO_CLAIMS, Utc::now())
+    StorageCaller::new(user_id, roles, &NO_CLAIMS, Timestamp::now())
 }
 
 fn private_bucket() -> BucketConfig {
@@ -54,8 +54,8 @@ fn object_owned_by(owner: &str) -> StorageMetadataRow {
         etag:              None,
         owner_id:          Some(owner.to_string()),
         pending:           false,
-        created_at:        Utc::now(),
-        updated_at:        Utc::now(),
+        created_at:        Timestamp::now(),
+        updated_at:        Timestamp::now(),
         expires_at:        None,
         metadata:          crate::policy::MetadataValues::new(),
     }
@@ -254,8 +254,8 @@ fn test_rls_list_filters_to_visible_objects() {
                 etag:              None,
                 owner_id:          Some(owner.to_string()),
                 pending:           false,
-                created_at:        Utc::now(),
-                updated_at:        Utc::now(),
+                created_at:        Timestamp::now(),
+                updated_at:        Timestamp::now(),
                 expires_at:        None,
                 metadata:          crate::policy::MetadataValues::new(),
             }
@@ -282,8 +282,8 @@ fn test_rls_list_public_bucket_shows_all() {
             etag:              None,
             owner_id:          Some("someone".to_string()),
             pending:           false,
-            created_at:        Utc::now(),
-            updated_at:        Utc::now(),
+            created_at:        Timestamp::now(),
+            updated_at:        Timestamp::now(),
             expires_at:        None,
             metadata:          crate::policy::MetadataValues::new(),
         })

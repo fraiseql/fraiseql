@@ -415,7 +415,7 @@ impl WebhookAction {
 
         // Sign the exact transmitted bytes if a signing secret is configured.
         if let Some(secret) = signing_secret {
-            let ts = chrono::Utc::now().timestamp();
+            let ts = fraiseql_time::Timestamp::now().as_second();
             let signature = webhook_signature(secret, ts, &body_bytes);
             request = request.header(WEBHOOK_SIGNATURE_HEADER, signature);
         }

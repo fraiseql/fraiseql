@@ -6,7 +6,7 @@
 //! `08_create_entity_change_log_contract.sql`), so [`ChangeEvent`] is defined
 //! here, in the only crate that consumes it.
 
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
@@ -90,7 +90,7 @@ pub struct ChangeEvent {
     /// The opt-in pre-image (`object_data_before`); `None` unless opted in.
     pub before:      Option<Value>,
     /// The commit timestamp (the `commit_time` column), if recorded.
-    pub commit_time: Option<DateTime<Utc>>,
+    pub commit_time: Option<Timestamp>,
 }
 
 impl ChangeEvent {

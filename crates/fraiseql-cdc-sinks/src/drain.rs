@@ -38,9 +38,12 @@ use std::{
     time::Duration,
 };
 
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 use serde_json::Value;
-use sqlx::postgres::PgPool;
+use sqlx::{
+    FromRow, Row,
+    postgres::{PgPool, PgRow},
+};
 use uuid::Uuid;
 
 use crate::{
@@ -185,7 +188,7 @@ struct DueRow {
     after_data:        Option<Value>,
     before_data:       Option<Value>,
     object_id:         Option<Uuid>,
-    commit_time:       Option<DateTime<Utc>>,
+    commit_time:       Option<Timestamp>,
 }
 
 impl DueRow {
@@ -386,6 +389,32 @@ impl<S: CdcSink + Send + Sync> DrainWorker<S> {
         }
     }
 
+    /// Dead-letter a claimed row whose payload cannot be read (a `commit_time` outside the
+    /// range of a timestamp, say), with the decode error, which names the column and the
+    /// value, in `last_error`. Like any dead row, it releases the rows after it.
+    async fn dead_letter_unreadable(&self, raw: &PgRow, error: &sqlx::Error) -> Result<()> {
+        let pk: i64 = raw.try_get("pk_cdc_sink_state")?;
+        let seq: i64 = raw.try_get("seq")?;
+        let last_error = format!("the change-log row cannot be read: {error}");
+        tracing::error!(
+            sink = %self.config.name,
+            seq,
+            error = %error,
+            "a claimed change-log row cannot be read and is dead-lettered",
+        );
+        sqlx::query(
+            "UPDATE core.tb_cdc_sink_state \
+             SET status = 'dead', attempt_count = attempt_count + 1, \
+                 last_error = $2, lease_expires_at = NULL \
+             WHERE pk_cdc_sink_state = $1",
+        )
+        .bind(pk)
+        .bind(&last_error)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     /// Claim a head-contiguous batch of due rows, publish them with no open
     /// database transaction, and record each outcome as its own statement.
     async fn publish_due(&self) -> Result<DrainStats> {
@@ -399,16 +428,24 @@ impl<S: CdcSink + Send + Sync> DrainWorker<S> {
             return Ok(DrainStats::default());
         }
 
-        let rows: Vec<DueRow> = sqlx::query_as(claimed_payload_sql())
-            .bind(&claimed)
-            .fetch_all(&self.pool)
-            .await?;
+        // Each row is decoded on its own, so a row that cannot be read is dead-lettered
+        // and the rows after it are still published.
+        let rows: Vec<PgRow> =
+            sqlx::query(claimed_payload_sql()).bind(&claimed).fetch_all(&self.pool).await?;
 
         let mut published = 0u64;
         let mut retried = 0u64;
         let mut dead = 0u64;
 
-        for (idx, row) in rows.iter().enumerate() {
+        for (idx, raw) in rows.iter().enumerate() {
+            let row = match DueRow::from_row(raw) {
+                Ok(row) => row,
+                Err(error) => {
+                    self.dead_letter_unreadable(raw, &error).await?;
+                    dead += 1;
+                    continue;
+                },
+            };
             let event = row.to_change_event();
             match self.sink.publish(&event).await {
                 PublishOutcome::Published => {
@@ -450,8 +487,10 @@ impl<S: CdcSink + Send + Sync> DrainWorker<S> {
                     // Head-of-line blocking: a transiently failed row must not
                     // be overtaken. Release the rest of the batch and stop —
                     // they become claimable again once this row clears.
-                    let remaining: Vec<i64> =
-                        rows[idx + 1..].iter().map(|r| r.pk_cdc_sink_state).collect();
+                    let remaining = rows[idx + 1..]
+                        .iter()
+                        .map(|r| r.try_get::<i64, _>("pk_cdc_sink_state"))
+                        .collect::<std::result::Result<Vec<i64>, _>>()?;
                     if !remaining.is_empty() {
                         sqlx::query(
                             "UPDATE core.tb_cdc_sink_state \

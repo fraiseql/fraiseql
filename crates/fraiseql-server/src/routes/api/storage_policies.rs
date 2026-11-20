@@ -36,10 +36,10 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use chrono::{DateTime, Utc};
 use fraiseql_storage::{
     PolicyRuleSpec, PolicySource, StorageState, parse_policy, policy_source, policy_to_specs,
 };
+use fraiseql_time::Timestamp;
 use serde::{Deserialize, Serialize};
 
 /// What governs a bucket's access, and where it came from.
@@ -60,7 +60,7 @@ pub struct BucketPolicyResponse {
     /// When the stored policy was last written. Absent unless `source` is
     /// `store`.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<Timestamp>,
 }
 
 /// Body of a `PUT`.
@@ -255,7 +255,7 @@ pub async fn delete_bucket_policy_handler(
 fn describe(
     state: &StorageState,
     bucket: &str,
-    updated_at: Option<DateTime<Utc>>,
+    updated_at: Option<Timestamp>,
 ) -> Option<Json<BucketPolicyResponse>> {
     let buckets = state.buckets.load();
     let config = buckets.get(bucket)?;

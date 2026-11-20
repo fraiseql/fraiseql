@@ -496,3 +496,25 @@ mod stored_time_format {
         assert_eq!(serde_json::to_value(&read).expect("it writes"), doc);
     }
 }
+
+/// The `x-ms-date` header keeps the bytes chrono's `%a, %d %b %Y %H:%M:%S GMT` wrote.
+#[cfg(feature = "azure-blob")]
+#[test]
+fn the_azure_date_header_is_rfc_1123_in_gmt() {
+    use chrono::{DateTime, Utc};
+    use fraiseql_time::Timestamp;
+
+    for second in [
+        0,
+        1_763_640_000,
+        1_767_225_599,
+        1_772_323_200,
+        253_402_207_199,
+    ] {
+        let instant = Timestamp::new(second, 987_654_321).expect("in range");
+        let chrono = DateTime::<Utc>::from(instant).format("%a, %d %b %Y %H:%M:%S GMT");
+        assert_eq!(super::azure::x_ms_date(instant), chrono.to_string(), "{second}");
+    }
+    let instant = Timestamp::from_second(1_772_323_200).expect("in range");
+    assert_eq!(super::azure::x_ms_date(instant), "Sun, 01 Mar 2026 00:00:00 GMT");
+}

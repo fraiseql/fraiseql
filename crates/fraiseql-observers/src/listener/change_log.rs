@@ -35,9 +35,14 @@ use std::{
     time::{Duration, Instant},
 };
 
-use chrono::{DateTime, TimeZone, Utc};
+use fraiseql_time::Timestamp;
+use jiff::SignedDuration;
 use serde_json::Value;
-use sqlx::postgres::PgPool;
+use sqlx::{
+    Decode, Postgres, Type,
+    error::BoxDynError,
+    postgres::{PgPool, PgTypeInfo, PgValueRef},
+};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
@@ -45,6 +50,36 @@ use crate::{
     error::{ObserverError, Result},
     event::{EntityEvent, EventKind, FieldChanges},
 };
+
+/// A `timestamptz` column read so that its value cannot fail the decode of the whole row:
+/// the instant, or the error naming a value outside the range of a [`Timestamp`]. The
+/// readers turn the error into an [`UnreadableRow`], so the row is passed over and
+/// reported, and the rows around it are still delivered.
+#[derive(Debug, Clone)]
+pub(crate) struct StoredTime(std::result::Result<Timestamp, String>);
+
+impl StoredTime {
+    /// The instant, when the value is one a [`Timestamp`] holds.
+    pub(crate) fn instant(&self) -> Option<Timestamp> {
+        self.0.as_ref().ok().copied()
+    }
+}
+
+impl Type<Postgres> for StoredTime {
+    fn type_info() -> PgTypeInfo {
+        <Timestamp as Type<Postgres>>::type_info()
+    }
+
+    fn compatible(ty: &PgTypeInfo) -> bool {
+        <Timestamp as Type<Postgres>>::compatible(ty)
+    }
+}
+
+impl<'r> Decode<'r, Postgres> for StoredTime {
+    fn decode(value: PgValueRef<'r>) -> std::result::Result<Self, BoxDynError> {
+        Ok(Self(<Timestamp as Decode<Postgres>>::decode(value).map_err(|e| e.to_string())))
+    }
+}
 
 /// Row type returned from the `tb_entity_change_log` query.
 ///
@@ -88,7 +123,7 @@ pub(crate) struct ChangeLogRow {
     pub(crate) object_data_before:   Option<String>, /* the pre-image (changelog_pre_image);
                                                       * NULL unless opted in */
     pub(crate) extra_metadata:       Option<Value>,
-    pub(crate) created_at:           Option<DateTime<Utc>>,
+    pub(crate) created_at:           Option<StoredTime>,
     pub(crate) tenant_id:            Option<Uuid>, // public-facing UUID partition stamp
     pub(crate) duration_ms:          Option<i32>,  // perf column, int4
     pub(crate) seq:                  Option<i64>,  // Change-Spine ordering / dedup, int8
@@ -250,6 +285,18 @@ impl ChangeLogRow {
         let object_data_before = documents
             .decode(&object_type, object_data_before.as_deref())
             .map_err(|e| unreadable("object_data_before", &e))?;
+        let created_at = match created_at {
+            None => Timestamp::now(),
+            Some(StoredTime(Ok(instant))) => instant,
+            Some(StoredTime(Err(kind))) => {
+                return Err(UnreadableRow {
+                    pk: pk_entity_change_log,
+                    id,
+                    column: "created_at",
+                    kind,
+                });
+            },
+        };
         Ok(ChangeLogEntry {
             id: pk_entity_change_log,
             pk_entity_change_log: id.to_string(),
@@ -264,7 +311,7 @@ impl ChangeLogRow {
             object_data: object_data.unwrap_or(Value::Null),
             object_data_before,
             extra_metadata,
-            created_at: created_at.map_or_else(|| Utc::now().to_rfc3339(), |dt| dt.to_rfc3339()),
+            created_at: created_at.to_rfc3339(),
             // Trinity: tenant_id is the public-facing UUID partition stamp,
             // kept distinct from fk_customer_org above.
             tenant_id: tenant_id.map(|t| t.to_string()),
@@ -549,19 +596,13 @@ impl ChangeLogEntry {
             }
         })?;
 
-        // Parse timestamp from created_at (PostgreSQL TIMESTAMPTZ format)
-        // PostgreSQL returns: "2026-01-23 12:34:56.123456" or "2026-01-23 12:34:56.123456+00"
-        let timestamp = if let Ok(dt) = DateTime::parse_from_rfc3339(&self.created_at) {
-            dt.with_timezone(&Utc)
-        } else {
-            // Try PostgreSQL format without timezone indicator
-            let ndt =
-                chrono::NaiveDateTime::parse_from_str(&self.created_at, "%Y-%m-%d %H:%M:%S%.f")
-                    .map_err(|e| ObserverError::TemplateRenderingFailed {
-                        reason: format!("Invalid timestamp format: {} - {}", self.created_at, e),
-                    })?;
-            Utc.from_utc_datetime(&ndt)
-        };
+        // created_at is RFC 3339, or PostgreSQL's text without an offset
+        // ("2026-01-23 12:34:56.123456"), which is read as UTC.
+        let timestamp = Timestamp::parse_rfc3339(&self.created_at)
+            .or_else(|_| Timestamp::parse_rfc3339(&format!("{}Z", self.created_at)))
+            .map_err(|e| ObserverError::TemplateRenderingFailed {
+                reason: format!("Invalid timestamp format: {} - {e}", self.created_at),
+            })?;
 
         // Get entity data (use "after" values, or "before" for DELETE)
         let data = if event_kind == EventKind::Deleted {
@@ -932,17 +973,19 @@ impl ChangeLogListener {
         // known to be too small for this workload, so say so.
         let mut late_recovered = 0_u32;
         let scan_floor = self.last_processed_id;
-        let window_horizon = Utc::now()
-            - chrono::Duration::from_std(self.config.commit_lag_window)
-                .unwrap_or_else(|_| chrono::Duration::zero());
+        let window_horizon = SignedDuration::try_from(self.config.commit_lag_window)
+            .ok()
+            .and_then(|window| Timestamp::now().checked_sub(window));
 
         for row in rows {
             let pk = row.pk_entity_change_log;
-            let created = row.created_at;
+            let created = row.created_at.as_ref().and_then(StoredTime::instant);
 
             // Below the scan floor AND older than the window: nothing but the
             // full sweep could have surfaced this row.
-            if pk <= scan_floor && created.is_some_and(|dt| dt <= window_horizon) {
+            if pk <= scan_floor
+                && created.zip(window_horizon).is_some_and(|(at, horizon)| at <= horizon)
+            {
                 late_recovered += 1;
             }
 

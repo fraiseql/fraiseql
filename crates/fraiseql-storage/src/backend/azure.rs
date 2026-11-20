@@ -6,14 +6,19 @@
 use std::time::Duration;
 
 use base64::{Engine as _, engine::general_purpose};
-use chrono::Utc;
 use fraiseql_error::{FileError, FraiseQLError, Result};
+use fraiseql_time::Timestamp;
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use super::validate_key;
 
 const AZURE_API_VERSION: &str = "2023-11-03";
+
+/// The `x-ms-date` header: RFC 1123 in GMT (`Thu, 20 Nov 2025 12:00:00 GMT`).
+pub(crate) fn x_ms_date(instant: Timestamp) -> String {
+    instant.as_jiff().strftime("%a, %d %b %Y %H:%M:%S GMT").to_string()
+}
 
 /// Azure's ceiling on the number of blocks a single block blob may commit.
 const AZURE_MAX_BLOCKS: usize = 50_000;
@@ -217,7 +222,7 @@ impl AzureBackend {
     /// returns an unexpected status.
     pub async fn create_container_if_missing(&self) -> Result<()> {
         let url = format!("{}?restype=container", self.blob_url(""));
-        let date = Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+        let date = x_ms_date(Timestamp::now());
 
         // The `restype=container` query parameter participates in the
         // canonicalized resource for SharedKey signing. Content-Length is
@@ -346,7 +351,7 @@ impl AzureBackend {
     pub async fn upload(&self, key: &str, data: &[u8], content_type: &str) -> Result<String> {
         validate_key(key)?;
         let url = self.blob_url(key);
-        let date = Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+        let date = x_ms_date(Timestamp::now());
         let content_length = data.len().to_string();
 
         let auth = self.sign_request(
@@ -387,7 +392,7 @@ impl AzureBackend {
     pub async fn download(&self, key: &str) -> Result<Vec<u8>> {
         validate_key(key)?;
         let url = self.blob_url(key);
-        let date = Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+        let date = x_ms_date(Timestamp::now());
 
         let auth = self.sign_request("GET", key, "", "", &date, "");
 
@@ -426,7 +431,7 @@ impl AzureBackend {
     pub async fn delete(&self, key: &str) -> Result<()> {
         validate_key(key)?;
         let url = self.blob_url(key);
-        let date = Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+        let date = x_ms_date(Timestamp::now());
 
         let auth = self.sign_request("DELETE", key, "", "", &date, "");
 
@@ -462,7 +467,7 @@ impl AzureBackend {
     pub async fn exists(&self, key: &str) -> Result<bool> {
         validate_key(key)?;
         let url = self.blob_url(key);
-        let date = Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+        let date = x_ms_date(Timestamp::now());
 
         let auth = self.sign_request("HEAD", key, "", "", &date, "");
 
@@ -535,7 +540,7 @@ impl AzureBackend {
 
         let url =
             format!("{}?comp=block&blockid={}", self.blob_url(key), urlencoding::encode(&block_id));
-        let date = Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+        let date = x_ms_date(Timestamp::now());
         let content_length = data.len().to_string();
         // Query parameters join the canonicalized resource in lexicographic
         // order, URL-*decoded* — `blockid` sorts before `comp`. The URL carries
@@ -591,7 +596,7 @@ impl AzureBackend {
         body.push_str("</BlockList>");
 
         let url = format!("{}?comp=blocklist", self.blob_url(key));
-        let date = Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+        let date = x_ms_date(Timestamp::now());
         let content_length = body.len().to_string();
         let auth = self.sign_request_with_resource(
             "PUT",
@@ -657,7 +662,7 @@ impl AzureBackend {
     /// Fail unless the configured container exists.
     async fn require_container(&self) -> Result<()> {
         let url = format!("{}?restype=container", self.blob_url(""));
-        let date = Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+        let date = x_ms_date(Timestamp::now());
         let auth =
             self.sign_request_with_resource("HEAD", "", "", "", &date, "", "\nrestype:container");
 

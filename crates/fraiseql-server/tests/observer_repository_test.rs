@@ -666,7 +666,7 @@ async fn the_checkpoint_store_keeps_its_cursor_in_core() {
     let state = CheckpointState {
         listener_id:       "cas".to_string(),
         last_processed_id: 5,
-        last_processed_at: chrono::Utc::now(),
+        last_processed_at: fraiseql_time::Timestamp::now(),
         batch_size:        1,
         event_count:       1,
     };

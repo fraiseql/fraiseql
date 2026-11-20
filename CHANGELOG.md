@@ -29,6 +29,20 @@ disagreed, and the promise was the part that was wrong.
   `sanitize_database_errors` decides whether database text is served.
 - **`fraiseql_server::error::ErrorExtensions` has no `detail` field (#2023).** Nothing set
   it. Code that builds an `ErrorExtensions` drops the `detail` field from the initializer.
+- **Observers, CDC sinks, storage and SCIM carry instants as `fraiseql_time::Timestamp`
+  (#2026).** The fields and arguments that were `chrono::DateTime<Utc>` are now
+  `fraiseql_time::Timestamp`: in `fraiseql-observers`, `EntityEvent::timestamp`,
+  `CheckpointState::last_processed_at`, `ResumePosition::dispatched_at` and the date range
+  of `EventStorage`; in `fraiseql-cdc-sinks`, `ChangeEvent::commit_time`; in
+  `fraiseql-storage`, the object-metadata, upload-session and policy times,
+  `PresignedUrl::expires_at` and the `now` a `StorageCaller` is evaluated at
+  (`ObjectInfo::last_modified` stays a chrono instant for now); in `fraiseql-auth`, the SCIM user, group
+  and provisioning-token records. Their serde and text forms are unchanged, byte for byte.
+  With `fraiseql-time`'s `chrono` feature, a `Timestamp` converts into a
+  `chrono::DateTime<Utc>` with `From`, and back with `TryFrom`.
+- **`fraiseql_observers::chrono` and `fraiseql_federation::chrono` are removed (#2026).**
+  Neither crate's public API names a chrono type any more. A caller that reached chrono
+  through them depends on `chrono` directly.
 - **`RateLimiter::retry_after_for_path` is removed (#1911).** Nothing in the server
   called it: the `Retry-After` a rejected request carries comes from the rate-limit check
   itself. Its Redis implementation also matched a path to its rule differently from the
@@ -401,6 +415,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`fraiseql-time` is published (#2026).** It holds `Timestamp`, the instant type the
+  crates above now share: chrono's text forms byte for byte, a microsecond `timestamptz`
+  with the `sqlx` or `postgres` feature, and conversions to and from chrono with the
+  `chrono` feature. It re-exports the `jiff` its API is built on.
 - **A webhook header value can come from the environment: `headers_env` (#2040).** A
   webhook action's `headers_env` maps a header name to the name of an environment
   variable, read each time the webhook is delivered, so only the variable's name is
@@ -534,6 +552,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **A change-log timestamp past year 9999 is unreadable (#2026).** A `Timestamp` holds
+  years -9999 to 9999, where PostgreSQL's `timestamptz` reaches further. The observers
+  report a change-log row whose `created_at` lies outside that range and pass over it, as
+  for any row they cannot read, and the CDC drain dead-letters a row whose `commit_time`
+  does, with the value in `last_error`. Both columns are written by the database clock, so
+  only a row edited by hand can hold such a value. The drain published it before: an
+  operator with one finds it under `status = 'dead'`.
 - **The observer pool honours `[database_tls]` (#2098).** It read only `?sslmode=` in
   `database_url`, so `postgres_ssl_mode` and `ca_bundle_path` in `[database_tls]` applied
   to the query pool and not to it. It now connects as the query pool does. A deployment
@@ -650,6 +675,12 @@ disagreed, and the promise was the part that was wrong.
   then delivers it. A resume also passes over a row that makes no event, as the live
   loop does. `ChangeLogListener::unreadable_reports()` and
   `ChangeLogTail::unreadable_reports()` count the reports.
+- **A change-log row with a time the reader cannot read no longer stops the rows after it
+  (#2026).** An out-of-range value is a decode error of that row alone. The observers
+  report a row whose `created_at` they cannot read and pass over it, as they do a document
+  they cannot read (#2118): the report names the column and the value. The CDC drain
+  dead-letters a claimed row whose `commit_time` it cannot read, with the value in
+  `last_error`, and publishes the rows after it.
 - **The two rate-limit backends match a path to its rule in one place (#1911).** Redis's
   `retry_after_for_path` matched by plain prefix, so `/auth/startover` was given
   `/auth/start`'s interval; that method is removed (above). Both backends' per-path checks

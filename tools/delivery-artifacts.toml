@@ -387,6 +387,16 @@ builds = ["workflow:release.yml:validate-release"]
 executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
+# The shared instant type. `fraiseql-server` depends on it non-optionally, so the
+# consumption tier's `cargo install fraiseql-server` compiles it from the registry.
+id = "crate:fraiseql-time"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-time"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = ["tool:tools/consume-published-artifacts.sh"]
+
+[[artifact]]
 id = "crate:fraiseql-guard"
 kind = "crate"
 consumed_as = "crates.io/crates/fraiseql-guard"
