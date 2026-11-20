@@ -2,7 +2,7 @@
 
 use super::super::{Executor, MutationRoot, QueryType};
 use crate::{
-    error::{FraiseQLError, Result},
+    error::Result,
     graphql::{operation_selection_error, parse_query_with_operation_name, value_json},
     runtime::{collect_variable_references, validate_variable_uses, validate_variables_used},
     schema::is_fact_table_root,
@@ -255,31 +255,6 @@ impl Executor {
     ) -> Result<(QueryType, Option<crate::graphql::ParsedQuery>)> {
         let root_field = &parsed.root_field;
 
-        // A fact-table root is executed alone: its runner answers the document's first
-        // root only, so any root beside it was silently dropped. Refused, naming the roots,
-        // whichever comes first.
-        if parsed.operation_type != "mutation" && parsed.selections.len() > 1 {
-            if let Some(fact_root) =
-                parsed.selections.iter().find(|root| is_fact_table_root(&root.name))
-            {
-                let others: Vec<String> = parsed
-                    .selections
-                    .iter()
-                    .filter(|root| !std::ptr::eq(*root, fact_root))
-                    .map(|root| format!("`{}`", root.response_key()))
-                    .collect();
-                return Err(FraiseQLError::Validation {
-                    message: format!(
-                        "`{}` must be the only root of its document; it was sent with {}: send \
-                         each in its own request",
-                        fact_root.response_key(),
-                        others.join(", ")
-                    ),
-                    path:    None,
-                });
-            }
-        }
-
         // Introspection (highest priority): `__schema` or `__type`.
         // These are meta-fields defined by the GraphQL spec — always a root query.
         //
@@ -386,8 +361,10 @@ impl Executor {
 
         // Aggregate and window queries (root field ends with `_aggregate` / `_window`). Their
         // planners read the request — `groupBy`, `limit`, `offset`, … — from the root field's
-        // arguments, inline or as variables (#1609); the parsed document goes with them.
-        if is_fact_table_root(root_field) {
+        // arguments, inline or as variables (#1609); the parsed document goes with them. A
+        // fact-table root beside other roots is one root of a `Regular` document, planned and
+        // read by the multi-root pipeline like the others.
+        if is_fact_table_root(root_field) && parsed.selections.len() == 1 {
             let query_type = if root_field.ends_with("_aggregate") {
                 QueryType::Aggregate(root_field.clone())
             } else {

@@ -186,6 +186,14 @@ fn arg_value_to_graphql(arg: &GraphQLArgument) -> String {
 
 // ── Parallel execution ────────────────────────────────────────────────────────
 
+/// One root of a multi-root document, planned by the runner that reads it.
+enum PlannedRoot<'a> {
+    /// A declared query.
+    Regular(Box<super::super::runners::query_regular::PlannedRegular>),
+    /// A fact table's aggregate or window root.
+    FactTable(Box<super::super::runners::aggregate::PlannedFactRoot<'a>>),
+}
+
 impl Executor {
     /// Execute all root fields of a multi-root query: plan every root, then read them
     /// concurrently.
@@ -234,6 +242,7 @@ impl Executor {
         // and only the data-bearing roots are planned and read.
         let root_type = root_type_name(&parsed.operation_type);
         let runner = self.query_runner();
+        let fact_tables = self.aggregate_runner();
 
         // 1. Plan every data-bearing root, in request order. `None` as the operation name,
         //    deliberately: `field_selection_to_query` re-serialises each root into a *synthetic*
@@ -244,21 +253,49 @@ impl Executor {
             if field.name == "__typename" {
                 continue;
             }
-            let query = field_selection_to_query(field);
-            let query_match =
-                self.ctx.matcher.match_query_for(&query, variables, None, security_context)?;
-            let plan = runner.plan_regular_match(query_match, variables, security_context)?;
+            // A fact-table root is planned by its own runner, from the root itself: it is
+            // no declared query for the matcher to find.
+            let plan = if field.name.ends_with("_aggregate") {
+                PlannedRoot::FactTable(Box::new(fact_tables.plan_aggregate(
+                    &field.name,
+                    Some(field),
+                    Some(field),
+                    variables,
+                    security_context,
+                )?))
+            } else if field.name.ends_with("_window") {
+                PlannedRoot::FactTable(Box::new(fact_tables.plan_window(
+                    &field.name,
+                    Some(field),
+                    variables,
+                    security_context,
+                )?))
+            } else {
+                let query = field_selection_to_query(field);
+                let query_match =
+                    self.ctx.matcher.match_query_for(&query, variables, None, security_context)?;
+                PlannedRoot::Regular(Box::new(runner.plan_regular_match(
+                    query_match,
+                    variables,
+                    security_context,
+                )?))
+            };
             planned.push((index, field, plan));
         }
 
         // 2. Read the planned roots concurrently.
         let reads = planned.into_iter().map(|(index, field, plan)| {
-            let runner = &runner;
+            let (runner, fact_tables) = (&runner, &fact_tables);
             async move {
-                let outcome = runner
-                    .execute_planned_regular(plan, variables, security_context, false)
-                    .await
-                    .and_then(crate::runtime::ResponseBody::into_value);
+                let outcome = match plan {
+                    PlannedRoot::Regular(plan) => runner
+                        .execute_planned_regular(*plan, variables, security_context, false)
+                        .await
+                        .and_then(crate::runtime::ResponseBody::into_value),
+                    PlannedRoot::FactTable(plan) => {
+                        fact_tables.execute_planned_fact_root(*plan, variables).await
+                    },
+                };
                 (index, field, outcome)
             }
         });

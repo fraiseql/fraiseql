@@ -617,6 +617,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **An aggregate or window root beside other roots in one document (#1925).** A document
+  holding a fact table's `<name>_aggregate` or `<name>_window` root and any other root was
+  refused ("must be the only root of its document"). Each such root is now one root among
+  the others, under its alias: beside query roots, `__typename` or another fact-table root,
+  each read by its own statement. Its gates (`requires_role`, the fields of the type it is
+  read as, its arguments, its tenant scoping) are checked before any root of the document
+  is read and refuse the document as they refuse the root alone. A failing fact-table root
+  is a field error and, being non-null, makes `data` `null`. The response is not stored by
+  an HTTP cache, as the root's alone is not.
 - **`compile --database` checks the documents a `scoped_like_parent` field embeds (#2006).**
   The declaration was checked against the schema only. Now each view a query reads the
   holding document from is sampled, and the compile fails when a document embedded at the

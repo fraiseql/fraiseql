@@ -390,7 +390,8 @@ impl Executor {
     /// `None` — reuse nothing — unless the document parses, selects a plain query
     /// operation, and **every** root is a query that declares a positive TTL: one root
     /// without one makes the whole response as fresh as that root, which is not at all.
-    /// Introspection, mutations, aggregates and the rest answer `None`. Whether a
+    /// Introspection, mutations, aggregates and the rest answer `None`, and so does a
+    /// document holding an aggregate or window root beside others: no query declares one. Whether a
     /// response may be shared at all is the transport's decision (it knows who asked);
     /// this says only how long the data may be reused.
     #[must_use]

@@ -123,7 +123,7 @@ fn localize_where(
 /// does not read is refused, naming the ones it does, rather than ignored.
 fn root_request(
     query_name: &str,
-    parsed: Option<&crate::graphql::ParsedQuery>,
+    root: Option<&FieldSelection>,
     variables: Option<&serde_json::Value>,
     fact_table: &str,
     accepted: &[&str],
@@ -132,7 +132,7 @@ fn root_request(
         Some(serde_json::Value::Object(map)) => map.clone(),
         _ => serde_json::Map::new(),
     };
-    let Some(root) = parsed.and_then(|p| p.selections.first()) else {
+    let Some(root) = root else {
         return Ok(serde_json::Value::Object(request));
     };
     let variable_map = crate::runtime::matcher::QueryMatcher::extract_arguments(variables);
@@ -160,6 +160,40 @@ fn root_request(
         }
     }
     Ok(serde_json::Value::Object(request))
+}
+
+/// An aggregate request checked, planned and turned into its statement, nothing read yet.
+struct PreparedAggregate {
+    plan:          crate::compiler::aggregation::AggregationPlan,
+    parameterized: crate::runtime::aggregation::ParameterizedAggregationSql,
+    session_vars:  Vec<(String, String)>,
+    routing:       crate::backend::types::ReadRouting,
+}
+
+/// A window request checked, planned and turned into its statement, nothing read yet.
+struct PreparedWindow {
+    plan:         crate::compiler::window_functions::WindowExecutionPlan,
+    sql:          crate::runtime::window::WindowSql,
+    decimals:     Vec<String>,
+    session_vars: Vec<(String, String)>,
+    routing:      crate::backend::types::ReadRouting,
+}
+
+/// A fact-table root planned: every check made before the database is read, passed.
+pub(in super::super) struct PlannedFactRoot<'a> {
+    response_key: &'a str,
+    kind:         FactRootKind<'a>,
+}
+
+/// What a planned fact-table root reads, and how its rows are answered.
+enum FactRootKind<'a> {
+    /// Aggregate rows, projected onto the published row type's selection when it is built.
+    Aggregate {
+        prepared:   Box<PreparedAggregate>,
+        projection: Option<(&'a str, &'a FieldSelection)>,
+    },
+    /// Window rows, a leaf.
+    Window(Box<PreparedWindow>),
 }
 
 pub(in super::super) struct AggregateRunner {
@@ -358,20 +392,40 @@ impl AggregateRunner {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
+        let root = parsed.and_then(|p| p.selections.first());
+        let planned =
+            self.plan_aggregate(query_name, root, selection, variables, security_context)?;
+        self.execute_planned_fact_root(planned, variables).await
+    }
+
+    /// The half of [`execute_aggregate_dispatch`](Self::execute_aggregate_dispatch) that reads
+    /// nothing: the fact table visible to the caller (`requires_role`), the root's request
+    /// (its arguments, the `table` refusal) and its row selection checked against the row
+    /// type and the linked type's field gates. `root` is the root as written, `selection` the
+    /// same root with its fragment spreads expanded; `None` for an embedder's request.
+    ///
+    /// # Errors
+    ///
+    /// As [`execute_aggregate_dispatch`](Self::execute_aggregate_dispatch), before the
+    /// database is read.
+    pub(in super::super) fn plan_aggregate<'a>(
+        &'a self,
+        query_name: &'a str,
+        root: Option<&'a FieldSelection>,
+        selection: Option<&'a FieldSelection>,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<PlannedFactRoot<'a>> {
         // Extract table name from query name (e.g., "sales_aggregate" -> "tf_sales")
         let table_name =
             query_name.strip_suffix("_aggregate").ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Invalid aggregate query name: {}", query_name),
                 path:    None,
             })?;
-
-        let fact_table_name = format!("tf_{}", table_name);
-
-        let metadata = self.visible_fact_table(&fact_table_name, security_context)?;
-
-        let query_json = root_request(
+        let metadata = self.visible_fact_table(&format!("tf_{table_name}"), security_context)?;
+        let request = root_request(
             query_name,
-            parsed,
+            root,
             variables,
             &metadata.table_name,
             &[
@@ -384,30 +438,51 @@ impl AggregateRunner {
                 "offset",
             ],
         )?;
-        let query_json = &query_json;
-
-        // Execute aggregate query
         // The response answers under the root's response key: its alias when it has one.
-        let response_key = parsed
-            .and_then(|p| p.selections.first())
-            .map_or(query_name, |root| root.response_key());
-        let projection = match parsed.and_then(|p| p.selections.first()) {
+        let response_key = root.map_or(query_name, FieldSelection::response_key);
+        let projection = match root {
             Some(_) => self.row_selection(query_name, response_key, selection, variables)?,
             None => None,
         };
-        let mut response = self
-            .execute_aggregate_query(
-                query_json,
-                query_name,
-                response_key,
-                metadata,
-                security_context,
-            )
-            .await?;
-        if let Some((row_type, root)) = projection {
-            self.project_rows(&mut response, row_type, root, variables, response_key);
+        let prepared =
+            self.prepare_aggregate_query(&request, query_name, metadata, security_context)?;
+        Ok(PlannedFactRoot {
+            response_key,
+            kind: FactRootKind::Aggregate {
+                prepared: Box::new(prepared),
+                projection,
+            },
+        })
+    }
+
+    /// Run a fact-table root [`plan_aggregate`](Self::plan_aggregate) or
+    /// [`plan_window`](Self::plan_window) planned: the read, and an aggregate's rows projected
+    /// onto its selection. Every refusal, the row policy's among them, was made when it was
+    /// planned.
+    ///
+    /// # Errors
+    ///
+    /// As [`execute_aggregate_query`](Self::execute_aggregate_query) and
+    /// [`execute_window_query`](Self::execute_window_query).
+    pub(in super::super) async fn execute_planned_fact_root(
+        &self,
+        planned: PlannedFactRoot<'_>,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<serde_json::Value> {
+        let PlannedFactRoot { response_key, kind } = planned;
+        match kind {
+            FactRootKind::Aggregate {
+                prepared,
+                projection,
+            } => {
+                let mut response = self.read_aggregate(*prepared, response_key).await?;
+                if let Some((row_type, root)) = projection {
+                    self.project_rows(&mut response, row_type, root, variables, response_key);
+                }
+                Ok(response)
+            },
+            FactRootKind::Window(prepared) => self.read_window(*prepared, response_key).await,
         }
-        Ok(response)
     }
 
     /// The row type an aggregate root publishes and the selection made on it (#1800), once the
@@ -551,30 +626,41 @@ impl AggregateRunner {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
+        let root = parsed.and_then(|p| p.selections.first());
+        let planned = self.plan_window(query_name, root, variables, security_context)?;
+        self.execute_planned_fact_root(planned, variables).await
+    }
+
+    /// The half of [`execute_window_dispatch`](Self::execute_window_dispatch) that reads
+    /// nothing: the fact table visible to the caller, the root's request, and its rows a leaf.
+    ///
+    /// # Errors
+    ///
+    /// As [`execute_window_dispatch`](Self::execute_window_dispatch), before the database is
+    /// read.
+    pub(in super::super) fn plan_window<'a>(
+        &'a self,
+        query_name: &'a str,
+        root: Option<&'a FieldSelection>,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<PlannedFactRoot<'a>> {
         // Extract table name from query name (e.g., "sales_window" -> "tf_sales")
         let table_name =
             query_name.strip_suffix("_window").ok_or_else(|| FraiseQLError::Validation {
                 message: format!("Invalid window query name: {}", query_name),
                 path:    None,
             })?;
-
-        let fact_table_name = format!("tf_{}", table_name);
-
-        let metadata = self.visible_fact_table(&fact_table_name, security_context)?;
-
-        let query_json = root_request(
+        let metadata = self.visible_fact_table(&format!("tf_{table_name}"), security_context)?;
+        let request = root_request(
             query_name,
-            parsed,
+            root,
             variables,
             &metadata.table_name,
             &["select", "windows", "where", "orderBy", "limit", "offset"],
         )?;
-        let query_json = &query_json;
-
-        // Execute window query
         // The response answers under the root's response key: its alias when it has one.
-        let root = parsed.and_then(|p| p.selections.first());
-        let response_key = root.map_or(query_name, |root| root.response_key());
+        let response_key = root.map_or(query_name, FieldSelection::response_key);
         // Its rows are `JSON`, keyed by the `select` and `windows` aliases: a leaf (§ 5.3.3).
         if root.is_some_and(|root| !root.nested_fields.is_empty()) {
             return Err(FraiseQLError::Validation {
@@ -585,8 +671,12 @@ impl AggregateRunner {
                 path:    Some(response_key.to_string()),
             });
         }
-        self.execute_window_query(query_json, query_name, response_key, metadata, security_context)
-            .await
+        let prepared =
+            self.prepare_window_query(&request, query_name, metadata, security_context)?;
+        Ok(PlannedFactRoot {
+            response_key,
+            kind: FactRootKind::Window(Box::new(prepared)),
+        })
     }
 
     /// Execute an aggregate query.
@@ -652,6 +742,27 @@ impl AggregateRunner {
         metadata: &crate::compiler::fact_table::FactTableMetadata,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
+        let prepared =
+            self.prepare_aggregate_query(query_json, query_name, metadata, security_context)?;
+        self.read_aggregate(prepared, response_key).await
+    }
+
+    /// The half of [`execute_aggregate_query`](Self::execute_aggregate_query) that reads
+    /// nothing: the refusals (anonymous under a row policy, an unscoped tenant read, a field of
+    /// the linked type the caller may not read, a page past its ceiling), the request parsed
+    /// and planned with the row policy composed, and its statement generated.
+    ///
+    /// # Errors
+    ///
+    /// As [`execute_aggregate_query`](Self::execute_aggregate_query), before the database is
+    /// read.
+    fn prepare_aggregate_query(
+        &self,
+        query_json: &serde_json::Value,
+        query_name: &str,
+        metadata: &crate::compiler::fact_table::FactTableMetadata,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<PreparedAggregate> {
         self.refuse_anonymous_under_a_row_policy(query_name, security_context)?;
         self.refuse_an_unscoped_tenant_read(query_name, metadata)?;
         let inject = self.inject_conditions(query_name, metadata, security_context)?;
@@ -729,13 +840,38 @@ impl AggregateRunner {
         let sql_generator =
             crate::runtime::AggregationSqlGenerator::new(self.ctx.adapter.database_type());
         let parameterized = sql_generator.generate_parameterized(&plan)?;
+        Ok(PreparedAggregate {
+            plan,
+            parameterized,
+            session_vars: self.resolve_session_vars(security_context)?,
+            routing: self.aggregate_read_routing(query_name),
+        })
+    }
+
+    /// Read an aggregate [`prepare_aggregate_query`](Self::prepare_aggregate_query) prepared,
+    /// and answer its rows under `response_key`.
+    ///
+    /// # Errors
+    ///
+    /// A database error, or the carried-forward cell bound refusing the request.
+    async fn read_aggregate(
+        &self,
+        prepared: PreparedAggregate,
+        response_key: &str,
+    ) -> Result<serde_json::Value> {
+        let PreparedAggregate {
+            plan,
+            parameterized,
+            session_vars: resolved_session_vars,
+            routing,
+        } = prepared;
+        let sql_generator =
+            crate::runtime::AggregationSqlGenerator::new(self.ctx.adapter.database_type());
 
         // 4. Execute with bind parameters (eliminates escape-based injection risk), pinning session
         //    variables to the connection for current_setting() RLS (#329).
-        let resolved_session_vars = self.resolve_session_vars(security_context)?;
         let session_pairs: Vec<(&str, &str)> =
             resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-        let routing = self.aggregate_read_routing(query_name);
 
         // 4a. #1459: a carried-forward measure reads one row per (bucket, entity) cell. Count
         //     the cells first, reading no measure, and refuse past the bound rather than run.
@@ -855,6 +991,24 @@ impl AggregateRunner {
         metadata: &crate::compiler::fact_table::FactTableMetadata,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
+        let prepared =
+            self.prepare_window_query(query_json, query_name, metadata, security_context)?;
+        self.read_window(prepared, response_key).await
+    }
+
+    /// The half of [`execute_window_query`](Self::execute_window_query) that reads nothing,
+    /// as [`prepare_aggregate_query`](Self::prepare_aggregate_query) is for an aggregate.
+    ///
+    /// # Errors
+    ///
+    /// As [`execute_window_query`](Self::execute_window_query), before the database is read.
+    fn prepare_window_query(
+        &self,
+        query_json: &serde_json::Value,
+        query_name: &str,
+        metadata: &crate::compiler::fact_table::FactTableMetadata,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<PreparedWindow> {
         self.refuse_anonymous_under_a_row_policy(query_name, security_context)?;
         self.refuse_an_unscoped_tenant_read(query_name, metadata)?;
         let inject = self.inject_conditions(query_name, metadata, security_context)?;
@@ -920,14 +1074,39 @@ impl AggregateRunner {
         let sql_generator =
             crate::runtime::WindowSqlGenerator::new(self.ctx.adapter.database_type());
         let sql = sql_generator.generate(&plan)?;
+        Ok(PreparedWindow {
+            plan,
+            sql,
+            decimals,
+            session_vars: self.resolve_session_vars(security_context)?,
+            routing: self.aggregate_read_routing(query_name),
+        })
+    }
+
+    /// Read a window [`prepare_window_query`](Self::prepare_window_query) prepared, and answer
+    /// its rows under `response_key`.
+    ///
+    /// # Errors
+    ///
+    /// A database error, or the rows failing to project.
+    async fn read_window(
+        &self,
+        prepared: PreparedWindow,
+        response_key: &str,
+    ) -> Result<serde_json::Value> {
+        let PreparedWindow {
+            plan,
+            sql,
+            decimals,
+            session_vars: resolved_session_vars,
+            routing,
+        } = prepared;
 
         // 4. Execute SQL — bind parameters via execute_parameterized_aggregate so WHERE clause
         //    values are passed as prepared-statement parameters, not inlined. Session variables are
         //    pinned to the connection for current_setting() RLS (#329).
-        let resolved_session_vars = self.resolve_session_vars(security_context)?;
         let session_pairs: Vec<(&str, &str)> =
             resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-        let routing = self.aggregate_read_routing(query_name);
         let rows = self
             .ctx
             .adapter

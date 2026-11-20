@@ -1244,40 +1244,60 @@ mod fact_table_roots {
         assert!(adapter.captured_aggregate_sql().is_none(), "nothing reached the database");
     }
 
-    /// A fact-table root is executed alone: a document holding it and any other root was
-    /// answered for the first root only, and the others were silently dropped. Refused, naming
-    /// the roots, whichever comes first.
+    /// A fact-table root is one root of its document: beside a regular root, another
+    /// fact-table root or `__typename`, whichever comes first, every root is answered under
+    /// its response key.
     #[tokio::test]
-    async fn a_document_with_a_fact_table_root_and_another_root_is_refused() {
-        let (res, _) = run(
-            &format!(
-                "{{ totals: sales_aggregate({COUNT}) {{ count }} orders {{ id }} __typename }}"
+    async fn a_document_with_a_fact_table_root_and_another_root_is_served() {
+        let mut schema = schema_with_fact_table();
+        let mut orders = crate::runtime::executor::test_support::test_schema().queries[0].clone();
+        orders.name = "orders".to_string();
+        orders.sql_source = Some("v_order".to_string());
+        schema.queries.push(orders);
+        for (document, keys) in [
+            (
+                format!(
+                    "{{ totals: sales_aggregate({COUNT}) {{ count }} orders {{ id }} __typename }}"
+                ),
+                &["totals", "orders", "__typename"][..],
             ),
-            &serde_json::json!({}),
-        )
-        .await;
-        assert_eq!(
-            validation_message(&res),
-            "`totals` must be the only root of its document; it was sent with `orders`, \
-             `__typename`: send each in its own request",
-            "names the root by its response key and every other root: {res:?}"
-        );
-        for document in [
-            format!("{{ sales_aggregate({COUNT}) {{ count }} orders {{ id }} }}"),
-            format!("{{ orders {{ id }} sales_aggregate({COUNT}) {{ count }} }}"),
-            format!(
-                "{{ a: sales_aggregate({COUNT}) {{ count }} b: sales_aggregate({COUNT}) {{ count }} }}"
+            (
+                format!("{{ sales_aggregate({COUNT}) {{ count }} orders {{ id }} }}"),
+                &["sales_aggregate", "orders"][..],
             ),
-            format!("{{ sales_window({RANK}) __typename }}"),
-            format!("{{ __typename sales_window({RANK}) }}"),
+            (
+                format!("{{ orders {{ id }} sales_aggregate({COUNT}) {{ count }} }}"),
+                &["orders", "sales_aggregate"][..],
+            ),
+            (
+                format!(
+                    "{{ a: sales_aggregate({COUNT}) {{ count }} b: sales_aggregate({COUNT}) {{ count }} }}"
+                ),
+                &["a", "b"][..],
+            ),
+            (
+                format!("{{ sales_window({RANK}) __typename }}"),
+                &["sales_window", "__typename"][..],
+            ),
+            (
+                format!("{{ __typename sales_window({RANK}) }}"),
+                &["__typename", "sales_window"][..],
+            ),
         ] {
-            let (res, sql) = run(&document, &serde_json::json!({})).await;
-            let message = validation_message(&res);
+            let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
+            let res = Executor::new(schema.clone(), adapter.clone())
+                .execute_with_security(&document, None, &tenant_security_context("tenant-abc"))
+                .await;
+            assert!(res.is_ok(), "{document}: {res:?}");
+            let response = res.unwrap();
+            assert!(response.get("errors").is_none(), "{document}: {response}");
+            let data = response["data"].as_object().expect("data");
+            let answered: Vec<&str> = data.keys().map(String::as_str).collect();
+            assert_eq!(answered, keys, "{document}: every root, in request order");
             assert!(
-                message.contains("must be the only root of its document"),
-                "{document}: {res:?}"
+                adapter.captured_aggregate_sql().is_some(),
+                "{document}: the fact root was read"
             );
-            assert!(sql.is_none(), "{document}: reached the database: {sql:?}");
         }
     }
 

@@ -456,8 +456,13 @@ pub struct MockAdapter {
     /// handed over. A test compares it with the response's to tell a value moved into the
     /// response from one cloned into it (#1556).
     pub served_name_buffers: std::sync::Mutex<Vec<usize>>,
-    /// Views whose read fails with a database error carrying the given text.
+    /// Views whose read fails with a database error carrying the given text. An aggregate
+    /// statement naming one of them fails the same way.
     pub failing_views:       std::collections::HashMap<String, String>,
+    /// Rows every aggregate statement answers.
+    pub aggregate_rows:      Vec<std::collections::HashMap<String, serde_json::Value>>,
+    /// Every aggregate statement that reached the adapter, in order.
+    pub aggregate_sql:       std::sync::Mutex<Vec<String>>,
 }
 
 impl MockAdapter {
@@ -469,7 +474,24 @@ impl MockAdapter {
             captured_raw_sql: std::sync::Mutex::new(Vec::new()),
             served_name_buffers: std::sync::Mutex::new(Vec::new()),
             failing_views: std::collections::HashMap::new(),
+            aggregate_rows: Vec::new(),
+            aggregate_sql: std::sync::Mutex::new(Vec::new()),
         }
+    }
+
+    /// Every aggregate statement answers `rows`.
+    #[must_use]
+    pub fn with_aggregate_rows(mut self, rows: Vec<serde_json::Value>) -> Self {
+        self.aggregate_rows = rows
+            .into_iter()
+            .map(|row| serde_json::from_value(row).expect("an aggregate row is an object"))
+            .collect();
+        self
+    }
+
+    /// The aggregate statements that reached the adapter, in order.
+    pub fn aggregate_statements(&self) -> Vec<String> {
+        self.aggregate_sql.lock().unwrap().clone()
     }
 
     /// A read of `view` fails with a database error whose text is `message`.
@@ -559,10 +581,19 @@ impl DatabaseAdapter for MockAdapter {
 
     async fn execute_parameterized_aggregate(
         &self,
-        _sql: &str,
+        sql: &str,
         _params: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        Ok(vec![])
+        self.aggregate_sql.lock().unwrap().push(sql.to_string());
+        if let Some(message) = self
+            .failing_views
+            .iter()
+            .find(|(view, _)| sql.contains(view.as_str()))
+            .map(|(_, m)| m)
+        {
+            return Err(crate::error::FraiseQLError::database(message.clone()));
+        }
+        Ok(self.aggregate_rows.clone())
     }
 }
 

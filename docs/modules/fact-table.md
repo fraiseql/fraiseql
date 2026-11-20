@@ -461,6 +461,25 @@ error at its path, and the field is `null`. It is never a wrong number.
 A row type has no declaration of its own, and `@inaccessible` on its fields is not
 supported.
 
+An aggregate or window root can be one root among others in a document, beside query roots,
+`__typename` or another fact-table root, each under its own alias:
+
+```graphql
+{
+  orders { id }
+  byRegion: sales_aggregate(groupBy: {region: true}, aggregates: [{count: true}]) { region count }
+  total: sales_aggregate(aggregates: [{revenue_sum: true}]) { revenue_sum }
+}
+```
+
+Each root is read by its own statement, with the gates it has alone: its fact table's
+`requires_role`, the fields of the type it is read as, its arguments and its tenant scoping
+are checked before any root of the document is read, and refuse the whole document as they
+refuse the root alone. A root whose read then fails is a field error at its path; a fact-table
+root is non-null (`[Row!]!`), so its failure makes `data` `null` (see
+[Non-null completion](../features/non-null-completion.md)). A response holding a fact-table
+root is never stored by an HTTP cache.
+
 A schema whose roots cannot be published is refused when the server loads it, naming each
 cause:
 
