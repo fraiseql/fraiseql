@@ -514,6 +514,9 @@ public class SchemaFormatter {
             if (mutationInfo.cascade) {
                 mutationNode.put("cascade", true);
             }
+            if (mutationInfo.retryOnAbort != null) {
+                mutationNode.put("retry_on_abort", mutationInfo.retryOnAbort);
+            }
             if (mutationInfo.restPath != null) {
                 ObjectNode restNode = mapper.createObjectNode();
                 restNode.put("path", mutationInfo.restPath);

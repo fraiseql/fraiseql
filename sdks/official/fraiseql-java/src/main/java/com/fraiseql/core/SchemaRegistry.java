@@ -537,6 +537,21 @@ public class SchemaRegistry {
     }
 
     /**
+     * Set whether a registered mutation may be retried on a transaction abort (#1936).
+     *
+     * @param mutationName the mutation name
+     * @param retryOnAbort {@code false} to run it once, or null to follow the server
+     * @throws IllegalStateException if the mutation is not registered
+     */
+    public void setMutationRetryOnAbort(String mutationName, Boolean retryOnAbort) {
+        MutationInfo info = mutations.get(mutationName);
+        if (info == null) {
+            throw new IllegalStateException("Mutation '" + mutationName + "' is not registered.");
+        }
+        info.retryOnAbort = retryOnAbort;
+    }
+
+    /**
      * Mark a registered mutation's arguments as localized (#1527).
      *
      * @param mutationName the mutation name
@@ -989,6 +1004,11 @@ public class SchemaRegistry {
         public String requiresRole = null;
         /** The String arguments received as a locale map (#1527). */
         public java.util.Set<String> localizedArguments = java.util.Set.of();
+        /**
+         * Whether the server may retry this mutation's aborted transaction. Null: not
+         * declared, so the key is left out and the mutation follows the server.
+         */
+        public Boolean retryOnAbort = null;
         public final String sqlSource;
         public final String operation;
         public final Map<String, String> injectParams;

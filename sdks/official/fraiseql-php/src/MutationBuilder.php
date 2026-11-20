@@ -44,6 +44,8 @@ final class MutationBuilder
 
     private bool $cascadeValue = false;
 
+    private ?bool $retryOnAbortValue = null;
+
     private ?string $restPathValue = null;
     private ?string $restMethodValue = null;
 
@@ -186,6 +188,23 @@ final class MutationBuilder
         return $this;
     }
 
+    /**
+     * Whether the server's transaction retry policy may run this mutation's transaction
+     * again when PostgreSQL aborts it with `40P01` or `40001`.
+     *
+     * Pass `false` for a function with an effect outside its transaction (a `dblink` or
+     * `pg_background` call, a `nextval`, a call to another system), which each attempt
+     * would repeat: the server then runs the mutation once, and runs any batch holding
+     * it once. Not called, the mutation follows the server.
+     *
+     * @return self Fluent interface
+     */
+    public function retryOnAbort(bool $retry): self
+    {
+        $this->retryOnAbortValue = $retry;
+        return $this;
+    }
+
     public function restPath(string $path): self
     {
         $this->restPathValue = $path;
@@ -274,6 +293,10 @@ final class MutationBuilder
             $result['cascade'] = true;
         }
 
+        if ($this->retryOnAbortValue !== null) {
+            $result['retry_on_abort'] = $this->retryOnAbortValue;
+        }
+
         if ($this->restPathValue !== null) {
             $rest = ['path' => $this->restPathValue, 'method' => $this->restMethodValue ?? 'POST'];
             $result['rest'] = $rest;
@@ -323,6 +346,10 @@ final class MutationBuilder
 
         if ($this->cascadeValue) {
             $result['cascade'] = true;
+        }
+
+        if ($this->retryOnAbortValue !== null) {
+            $result['retry_on_abort'] = $this->retryOnAbortValue;
         }
 
         if ($this->restPathValue !== null) {

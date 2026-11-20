@@ -174,7 +174,8 @@ defmodule FraiseQL.SchemaDslTest do
       requires_role: "admin",
       requires_actor: ["service_account"],
       invalidates_views: ["v_author"],
-      invalidates_fact_tables: ["tf_author"] do
+      invalidates_fact_tables: ["tf_author"],
+      retry_on_abort: false do
       argument :name, :string, nullable: false
     end
 
@@ -189,7 +190,8 @@ defmodule FraiseQL.SchemaDslTest do
       requires_role: "admin",
       requires_actor: ["service_account"],
       invalidates_views: ["v_author"],
-      invalidates_fact_tables: ["tf_author"]
+      invalidates_fact_tables: ["tf_author"],
+      retry_on_abort: false
   end
 
   defmodule TwoFormTypeSchema do

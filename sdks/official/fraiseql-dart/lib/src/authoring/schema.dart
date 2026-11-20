@@ -257,6 +257,12 @@ class FraiseQLSchema {
   /// `invalidatesViews` and `invalidatesFactTables` are what connect a write to the
   /// cached reads of what it wrote; without them a new row stays invisible for the whole
   /// of a reader's TTL.
+  ///
+  /// `retryOnAbort: false` runs the mutation once even when the server's transaction
+  /// retry policy would run an aborted transaction again (#1936): for a function with an
+  /// effect outside its transaction (a `dblink` or `pg_background` call, a `nextval`, a
+  /// call to another system), which each attempt would repeat. A batch holding it runs
+  /// once too. Left out, the mutation follows the server.
   Map<String, Object?> mutation(
     String name, {
     required String returnType,
@@ -271,6 +277,7 @@ class FraiseQLSchema {
     Map<String, String> inject = const {},
     List<String> invalidatesViews = const [],
     List<String> invalidatesFactTables = const [],
+    bool? retryOnAbort,
   }) {
     final definition = <String, Object?>{
       'name': name,
@@ -296,6 +303,7 @@ class FraiseQLSchema {
     if (invalidatesFactTables.isNotEmpty) {
       definition['invalidates_fact_tables'] = invalidatesFactTables;
     }
+    if (retryOnAbort != null) definition['retry_on_abort'] = retryOnAbort;
 
     _mutations.add(definition);
     return definition;

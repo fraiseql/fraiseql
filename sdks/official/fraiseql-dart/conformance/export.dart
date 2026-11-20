@@ -285,6 +285,7 @@ FraiseQLSchema authorFull() {
     inject: {'user_id': 'jwt:sub'},
     invalidatesViews: ['v_order_summary'],
     invalidatesFactTables: ['tf_sale'],
+    retryOnAbort: false,
   );
 
   // #1329: a function-backed root query field. The query and the function it names are

@@ -256,6 +256,7 @@ let ``reset clears all mutations`` () =
             requires_actor = None
             invalidates_views = None
             invalidates_fact_tables = None
+            retry_on_abort = None
         }
 
     SchemaRegistry.registerMutation m
@@ -327,6 +328,7 @@ let ``registerMutation adds to getAllMutations`` () =
             requires_actor = None
             invalidates_views = None
             invalidates_fact_tables = None
+            retry_on_abort = None
         }
 
     SchemaRegistry.registerMutation m
@@ -423,6 +425,18 @@ let ``MutationBuilder toDefinition raises when returnType is missing`` () =
         |> MutationBuilder.toDefinition
         |> ignore)
     |> should throw typeof<InvalidOperationException>
+
+[<Fact>]
+let ``MutationBuilder retryOnAbort sets the definition's flag`` () =
+    let build retry =
+        MutationBuilder.mutation "chargeCard"
+        |> MutationBuilder.returnType "Charge"
+        |> MutationBuilder.sqlSource "fn_charge_card"
+        |> retry
+        |> MutationBuilder.toDefinition
+
+    (build (MutationBuilder.retryOnAbort false)).retry_on_abort |> should equal (Some false)
+    (build id).retry_on_abort |> should equal (None: bool option)
 
 [<Fact>]
 let ``MutationBuilder toDefinition raises when sqlSource is missing`` () =

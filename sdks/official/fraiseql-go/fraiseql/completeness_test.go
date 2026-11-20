@@ -559,3 +559,26 @@ func TestToSnakeCaseThreeWords(t *testing.T) {
 		t.Errorf("toSnakeCase(OrderItemDetail) = %q, want %q", got, "order_item_detail")
 	}
 }
+
+func TestMutationBuilderRetryOnAbort(t *testing.T) {
+	Reset()
+	if err := RegisterType("Charge", []FieldInfo{{Name: "id", Type: "ID"}}, ""); err != nil {
+		t.Fatalf("RegisterType: %v", err)
+	}
+	if err := NewMutation("chargeCard").ReturnType("Charge").SqlSource("fn_charge_card").
+		RetryOnAbort(false).Register(); err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+	if err := NewMutation("refund").ReturnType("Charge").SqlSource("fn_refund").
+		Register(); err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+
+	schema := schemaMap(t)
+	if got := findMutation(schema, "chargeCard")["retry_on_abort"]; got != false {
+		t.Errorf("chargeCard retry_on_abort: want false, got %v", got)
+	}
+	if _, present := findMutation(schema, "refund")["retry_on_abort"]; present {
+		t.Error("refund: an unset retry_on_abort must be left out, so it follows the server")
+	}
+}

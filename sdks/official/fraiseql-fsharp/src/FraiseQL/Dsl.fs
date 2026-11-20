@@ -370,6 +370,7 @@ module Dsl =
                 requires_actor = None
                 invalidates_views = None
                 invalidates_fact_tables = None
+                retry_on_abort = None
             }
 
         /// Sets the GraphQL return type.

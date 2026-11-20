@@ -380,7 +380,12 @@ defmodule FraiseQL.Schema do
             unquote(mutation_opts[:requires_actor])
           ),
         invalidates_views: unquote(mutation_opts[:invalidates_views]),
-        invalidates_fact_tables: unquote(mutation_opts[:invalidates_fact_tables])
+        invalidates_fact_tables: unquote(mutation_opts[:invalidates_fact_tables]),
+        retry_on_abort:
+          FraiseQL.Schema.__validate_retry_on_abort__!(
+            unquote(mutation_name),
+            unquote(mutation_opts[:retry_on_abort])
+          )
       }
     end
   end
@@ -557,6 +562,16 @@ defmodule FraiseQL.Schema do
   """
   @spec actor_types() :: [String.t()]
   def actor_types, do: @actor_types
+
+  @doc false
+  @spec __validate_retry_on_abort__!(String.t(), term()) :: boolean() | nil
+  def __validate_retry_on_abort__!(_name, value) when is_boolean(value) or is_nil(value),
+    do: value
+
+  def __validate_retry_on_abort__!(name, value) do
+    raise ArgumentError,
+          "#{name}: retry_on_abort: must be true or false (got #{inspect(value)})"
+  end
 
   @doc false
   @spec __validate_requires_actor__!(String.t(), [String.t()] | nil) :: [String.t()]

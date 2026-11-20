@@ -250,6 +250,7 @@ func authorFull() error {
 		InjectParams(map[string]string{"user_id": "jwt:sub"}).
 		InvalidatesViews([]string{"v_order_summary"}).
 		InvalidatesFactTables([]string{"tf_sale"}).
+		RetryOnAbort(false).
 		Register(); err != nil {
 		return err
 	}

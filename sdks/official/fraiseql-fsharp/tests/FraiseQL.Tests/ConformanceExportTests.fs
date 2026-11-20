@@ -308,6 +308,7 @@ let private authorFull () =
     |> MutationBuilder.inject "user_id" "jwt:sub"
     |> MutationBuilder.invalidatesViews [ "v_order_summary" ]
     |> MutationBuilder.invalidatesFactTables [ "tf_sale" ]
+    |> MutationBuilder.retryOnAbort false
     |> MutationBuilder.register
 
     // #1325: the function authoring path. The name is two words in snake_case on

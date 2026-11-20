@@ -311,6 +311,7 @@ defmodule FraiseQL.SchemaExporter do
     |> maybe_put_list("requires_actor", m.requires_actor)
     |> maybe_put("invalidates_views", m.invalidates_views)
     |> maybe_put("invalidates_fact_tables", m.invalidates_fact_tables)
+    |> maybe_put("retry_on_abort", m.retry_on_abort)
     |> maybe_put_rest(m.rest_path, m.rest_method, "POST")
   end
 

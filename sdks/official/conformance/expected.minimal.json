@@ -21,6 +21,7 @@
   "mutation_invalidates_views": {},
   "mutation_requires_actor": {},
   "mutation_requires_role": {},
+  "mutation_retry_on_abort": [],
   "mutations": {},
   "observer_condition": {},
   "observer_email": {},

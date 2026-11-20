@@ -570,7 +570,10 @@ disagreed, and the promise was the part that was wrong.
   again: for a function with an effect outside its transaction, such as a `dblink` call or a
   `nextval`, which each attempt would repeat. A batch holding such a mutation runs once as a
   whole. The default follows the server, and the compiled schema carries the flag only on a
-  mutation that opts out.
+  mutation that opts out. Ten SDKs write it: Go `RetryOnAbort(false)`, PHP and Java
+  `retryOnAbort(false)`, C# `RetryOnAbort(false)`, F# `MutationBuilder.retryOnAbort false`,
+  Ruby and Elixir `retry_on_abort: false`, Dart `retryOnAbort: false`; the conformance suite
+  checks each, and the Rust SDK, which has no mutation builder, declares the gap.
 - **The Java SDK's `Webhook` sets a webhook's method and a plain header (#2150).**
   `Webhook.method(action, "PUT")` sets the HTTP method, which was always the server's
   default `POST`, and `Webhook.header(action, name, value)` sends a header written into the

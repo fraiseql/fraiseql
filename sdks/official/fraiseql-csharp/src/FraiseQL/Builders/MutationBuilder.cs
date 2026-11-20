@@ -35,6 +35,7 @@ public sealed class MutationBuilder
     private readonly List<string> _invalidatesFactTables = new();
     private string? _requiresRole;
     private IReadOnlyList<string>? _requiresActor;
+    private bool? _retryOnAbort;
 
     private MutationBuilder(string name) => _name = name;
 
@@ -151,6 +152,20 @@ public sealed class MutationBuilder
         return this;
     }
 
+    /// <summary>
+    /// Sets whether the server's transaction retry policy may run this mutation's
+    /// transaction again when PostgreSQL aborts it with <c>40P01</c> or <c>40001</c> (#1936).
+    /// </summary>
+    /// <remarks>
+    /// Pass <see langword="false"/> for a function with an effect outside its transaction
+    /// (a <c>dblink</c> or <c>pg_background</c> call, a <c>nextval</c>, a call to another
+    /// system), which each attempt would repeat: the server then runs the mutation once,
+    /// and runs any batch holding it once. Not called, the mutation follows the server.
+    /// </remarks>
+    /// <param name="retry">Whether the mutation may be retried.</param>
+    /// <returns>This builder for chaining.</returns>
+    public MutationBuilder RetryOnAbort(bool retry) { _retryOnAbort = retry; return this; }
+
     /// <summary>Sets the REST endpoint path for this mutation.</summary>
     /// <param name="path">The REST path (e.g. <c>"/api/users"</c>).</param>
     /// <returns>This builder for chaining.</returns>
@@ -197,7 +212,8 @@ public sealed class MutationBuilder
             RequiresActor: _requiresActor,
             InvalidatesViews: _invalidatesViews.Count > 0 ? _invalidatesViews.AsReadOnly() : null,
             InvalidatesFactTables:
-                _invalidatesFactTables.Count > 0 ? _invalidatesFactTables.AsReadOnly() : null);
+                _invalidatesFactTables.Count > 0 ? _invalidatesFactTables.AsReadOnly() : null,
+            RetryOnAbort: _retryOnAbort);
     }
 
     /// <summary>

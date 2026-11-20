@@ -29,6 +29,11 @@ namespace FraiseQL.Models;
 /// Unlike views there is no inference fallback: an aggregate is only ever invalidated from
 /// this list.
 /// </param>
+/// <param name="RetryOnAbort">
+/// <see langword="false"/> runs the mutation once even when the server's transaction retry
+/// policy would run an aborted transaction again (#1936). Omitted from JSON when
+/// <see langword="null"/>: the mutation follows the server.
+/// </param>
 public record IntermediateMutation(
     [property: JsonPropertyName("name")]        string Name,
     [property: JsonPropertyName("return_type")] string ReturnType,
@@ -43,4 +48,5 @@ public record IntermediateMutation(
     // See IntermediateQuery.RequiresActor.
     [property: JsonPropertyName("requires_actor")]          IReadOnlyList<string>? RequiresActor = null,
     [property: JsonPropertyName("invalidates_views")]       IReadOnlyList<string>? InvalidatesViews = null,
-    [property: JsonPropertyName("invalidates_fact_tables")] IReadOnlyList<string>? InvalidatesFactTables = null);
+    [property: JsonPropertyName("invalidates_fact_tables")] IReadOnlyList<string>? InvalidatesFactTables = null,
+    [property: JsonPropertyName("retry_on_abort")]          bool? RetryOnAbort = null);

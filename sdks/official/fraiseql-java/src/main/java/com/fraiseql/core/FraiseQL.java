@@ -495,6 +495,7 @@ public class FraiseQL {
         private List<String> invalidatesViews = null;
         private List<String> invalidatesFactTables = null;
         private boolean cascade = false;
+        private Boolean retryOnAbort = null;
         private String restPath = null;
         private String restMethod = null;
 
@@ -679,6 +680,23 @@ public class FraiseQL {
         }
 
         /**
+         * Whether the server's transaction retry policy may run this mutation's transaction
+         * again when PostgreSQL aborts it with {@code 40P01} or {@code 40001} (#1936).
+         *
+         * <p>Pass {@code false} for a function with an effect outside its transaction (a
+         * {@code dblink} or {@code pg_background} call, a {@code nextval}, a call to another
+         * system), which each attempt would repeat: the server then runs the mutation once,
+         * and runs any batch holding it once. Not called, the mutation follows the server.
+         *
+         * @param retry whether the mutation may be retried
+         * @return this builder
+         */
+        public MutationBuilder retryOnAbort(boolean retry) {
+            this.retryOnAbort = retry;
+            return this;
+        }
+
+        /**
          * Enable cascade support on this mutation.
          *
          * @param cascade whether this mutation uses cascade
@@ -732,6 +750,7 @@ public class FraiseQL {
             }
             registry.setMutationMetadata(name, nullable, requiresRole, requiresActor);
             registry.setMutationLocalizedArguments(name, localizedArguments);
+            registry.setMutationRetryOnAbort(name, retryOnAbort);
         }
     }
 

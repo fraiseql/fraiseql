@@ -79,6 +79,7 @@ let private singleMutation: MutationDefinition =
         requires_actor = None
         invalidates_views = None
         invalidates_fact_tables = None
+        retry_on_abort = None
     }
 
 let private parseJson (json: string) =
@@ -315,6 +316,14 @@ let ``export mutation serializes operation`` () =
     let root = parseJson json
     root.GetProperty("mutations").[0].GetProperty("operation").GetString()
     |> should equal "insert"
+
+[<Fact>]
+let ``export mutation writes retry_on_abort only when it is set`` () =
+    let optedOut = { singleMutation with name = "chargeCard"; retry_on_abort = Some false }
+    let schema = { emptySchema with mutations = [ optedOut; singleMutation ] }
+    let mutations = (parseJson (SchemaExporter.exportSchema schema)).GetProperty("mutations")
+    mutations.[0].GetProperty("retry_on_abort").GetBoolean() |> should equal false
+    mutations.[1].TryGetProperty("retry_on_abort") |> fst |> should equal false
 
 // ---------------------------------------------------------------------------
 // Compact export tests

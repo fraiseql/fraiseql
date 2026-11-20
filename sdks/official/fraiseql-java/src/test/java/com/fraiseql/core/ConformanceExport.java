@@ -170,6 +170,7 @@ public class ConformanceExport {
             .inject(userInject)
             .invalidatesViews(List.of("v_order_summary"))
             .invalidatesFactTables(List.of("tf_sale"))
+            .retryOnAbort(false)
             .register();
 
         FraiseQL.subscription("orderUpdated")
