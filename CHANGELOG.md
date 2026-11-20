@@ -765,6 +765,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Stopping the observer runtime lets the subscription fan-out finish its batch (#1972).**
+  The stop aborted the change-log fan-out wherever it was, including inside the
+  transaction it reads each batch in. It now asks the fan-out to stop between batches and
+  waits up to five seconds for its current batch, then aborts it. When the fan-out is
+  handed a pooled connection that is already inside a transaction, it now logs at ERROR
+  that backend's pid, transaction start and state, read from `pg_stat_activity`, before
+  failing the batch. A restart once failed this way in CI and has not been reproduced:
+  these remove one place a stop could interrupt a transaction, and make the next
+  occurrence name the backend.
 - **The TypeScript SDK's `webhook()` writes only the headers it is given (#2146).** It
   added `Content-Type: application/json` to every webhook's `headers`, a header the author
   did not write; the other SDKs add none. The server sets that content type on every

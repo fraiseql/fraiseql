@@ -45,6 +45,8 @@ criterion = { version = "0.5", features = ["async_tokio"] }
 fraiseql-webhooks = { path = "../fraiseql-webhooks" }
 fraiseql-test-utils = { path = "../fraiseql-test-utils" }
 fraiseql-test-support = { path = "../fraiseql-test-support" }
+# Captures what the change-log tail logs of a connection handed out inside a transaction.
+tracing-subscriber = { workspace = true }
 proptest = { workspace = true }
 # The shipped example configs and the guide's TOML blocks are parsed by a test, so a key
 # the struct no longer accepts reddens CI instead of the reader's first boot.

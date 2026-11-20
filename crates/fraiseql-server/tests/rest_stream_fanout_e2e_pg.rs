@@ -941,3 +941,122 @@ async fn a_replayed_captured_row_is_the_same_error_frame() {
     rig.stop().await;
     cleanup_test_data(&pool, &test_id).await.ok();
 }
+
+// ---------------------------------------------------------------------------
+// Stopping the runtime while the change-log fan-out is reading a batch.
+
+/// A runtime whose change-log fan-out feeds `sender`, polling every 20 ms.
+async fn fanout_runtime(
+    pool: &sqlx::PgPool,
+    sender: tokio::sync::mpsc::Sender<fraiseql_server::subscriptions::EntityEvent>,
+) -> ObserverRuntime {
+    let mut runtime =
+        ObserverRuntime::new(ObserverRuntimeConfig::new(pool.clone()).with_poll_interval(20));
+    runtime.set_event_bridge_sender(sender);
+    runtime.start().await.expect("the runtime starts");
+    runtime
+}
+
+/// Take the change log in a lock no read can share, and wait until the fan-out's read
+/// is queued behind it: its batch is then under way and cannot finish.
+async fn hold_the_change_log(pool: &sqlx::PgPool) -> sqlx::Transaction<'static, sqlx::Postgres> {
+    let mut lock = pool.begin().await.unwrap();
+    sqlx::query("LOCK TABLE core.tb_entity_change_log IN ACCESS EXCLUSIVE MODE")
+        .execute(&mut *lock)
+        .await
+        .unwrap();
+    for _ in 0..500 {
+        if !fanout_reads_in_flight(pool).await.is_empty() {
+            return lock;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    panic!("the fan-out's read never queued behind the lock");
+}
+
+/// The backends still running the fan-out's horizon read, or inside its transaction.
+async fn fanout_reads_in_flight(pool: &sqlx::PgPool) -> Vec<(i32, String)> {
+    sqlx::query_as(
+        "SELECT pid, state FROM pg_stat_activity \
+         WHERE datname = current_database() AND pid <> pg_backend_pid() \
+           AND state <> 'idle' AND query LIKE '%pg_snapshot_xmin(pg_current_snapshot())%'",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap()
+}
+
+/// Write a row for a fresh entity type and wait for the fan-out to forward it.
+async fn assert_the_fan_out_delivers(
+    pool: &sqlx::PgPool,
+    received: &mut tokio::sync::mpsc::Receiver<fraiseql_server::subscriptions::EntityEvent>,
+) {
+    let entity_type = format!("Order_{}", Uuid::new_v4().simple());
+    let id = Uuid::new_v4().to_string();
+    insert_change_log_entry(pool, "INSERT", &entity_type, &id, serde_json::json!({"id": id}), None)
+        .await
+        .expect("insert a change-log row");
+    tokio::time::timeout(FRAME_TIMEOUT, async {
+        while let Some(event) = received.recv().await {
+            if format!("{event:?}").contains(&id) {
+                return;
+            }
+        }
+        panic!("the bridge channel closed");
+    })
+    .await
+    .expect("the restarted fan-out forwards a new row");
+}
+
+/// A stop waits for the fan-out's current batch to end, so no read of the change log
+/// is left running on the shared pool, and the runtime starts again.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_stop_lets_the_fan_out_finish_its_batch_and_the_runtime_starts_again() {
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("schema setup");
+    let observer = create_test_pool().await;
+    let (sender, mut received) = tokio::sync::mpsc::channel(1024);
+    let mut runtime = fanout_runtime(&pool, sender).await;
+
+    let lock = hold_the_change_log(&observer).await;
+    let release = tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        lock.commit().await.unwrap();
+    });
+    runtime.stop().await.expect("stop");
+
+    assert_eq!(
+        fanout_reads_in_flight(&observer).await,
+        vec![],
+        "the stop returned with the fan-out's read still running"
+    );
+    release.await.unwrap();
+
+    runtime.start().await.expect("the runtime starts again");
+    assert_the_fan_out_delivers(&pool, &mut received).await;
+    runtime.stop().await.expect("stop");
+}
+
+/// A batch that cannot finish does not hold the stop up: the fan-out is aborted once the
+/// wait runs out, and the runtime starts again once the change log is free.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_stop_does_not_wait_forever_for_a_batch_that_cannot_finish() {
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("schema setup");
+    let observer = create_test_pool().await;
+    let (sender, mut received) = tokio::sync::mpsc::channel(1024);
+    let mut runtime = fanout_runtime(&pool, sender).await;
+
+    let lock = hold_the_change_log(&observer).await;
+    tokio::time::timeout(Duration::from_secs(15), runtime.stop())
+        .await
+        .expect("the stop returns while the batch is still blocked")
+        .expect("stop");
+    lock.commit().await.unwrap();
+
+    runtime.start().await.expect("the runtime starts again");
+    assert_the_fan_out_delivers(&pool, &mut received).await;
+    runtime.stop().await.expect("stop");
+}

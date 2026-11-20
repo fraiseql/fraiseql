@@ -43,7 +43,7 @@ use std::{
 };
 
 use sqlx::{PgPool, Postgres, Transaction};
-use tracing::warn;
+use tracing::{error, warn};
 
 use super::change_log::{CHANGE_LOG_PROJECTION, ChangeLogEntry, ChangeLogRow, DocumentDecoder};
 use crate::error::{ObserverError, Result};
@@ -259,13 +259,73 @@ impl ChangeLogTail {
     }
 }
 
+/// The first statement of every snapshot. It is refused once a statement has run in the
+/// transaction, so a connection handed out already inside one fails here, loudly.
+const SNAPSHOT_ISOLATION: &str = "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY";
+
+/// SQLSTATE `active_sql_transaction`: the isolation level was set after a statement.
+const ACTIVE_SQL_TRANSACTION: &str = "25001";
+
+/// How long the report of a connection handed out inside a transaction waits for a
+/// second connection to read it from.
+const REPORT_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(2);
+
 async fn snapshot(pool: &PgPool) -> Result<Transaction<'static, Postgres>> {
     let mut tx = pool.begin().await.map_err(db_error)?;
-    sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
-        .execute(&mut *tx)
-        .await
-        .map_err(db_error)?;
+    if let Err(e) = sqlx::query(SNAPSHOT_ISOLATION).execute(&mut *tx).await {
+        if e.as_database_error().and_then(sqlx::error::DatabaseError::code).as_deref()
+            == Some(ACTIVE_SQL_TRANSACTION)
+        {
+            report_connection_inside_a_transaction(pool).await;
+        }
+        return Err(db_error(e));
+    }
     Ok(tx)
+}
+
+/// Say which backend the pool handed out inside a transaction, and since when.
+///
+/// The failed transaction is still open on that connection, so it is read from another
+/// one: the backend whose last statement is [`SNAPSHOT_ISOLATION`] and whose transaction
+/// failed. Matching that statement is what keeps every other session's statement text,
+/// and any value written into it, out of the log.
+async fn report_connection_inside_a_transaction(pool: &PgPool) {
+    let read = async {
+        let mut conn = tokio::time::timeout(REPORT_ACQUIRE_TIMEOUT, pool.acquire())
+            .await
+            .map_err(|_| "no second connection was free".to_string())?
+            .map_err(|e| e.to_string())?;
+        sqlx::query_as::<_, (i32, Option<String>, Option<String>, Option<String>)>(
+            "SELECT pid, xact_start::text, state, left(query, 200) FROM pg_stat_activity \
+             WHERE datname = current_database() AND pid <> pg_backend_pid() \
+               AND state = 'idle in transaction (aborted)' AND query = $1",
+        )
+        .bind(SNAPSHOT_ISOLATION)
+        .fetch_all(&mut *conn)
+        .await
+        .map_err(|e| e.to_string())
+    };
+    match read.await {
+        Ok(backends) if !backends.is_empty() => {
+            for (pid, xact_start, state, query) in backends {
+                error!(
+                    pid,
+                    xact_start = xact_start.as_deref().unwrap_or("unknown"),
+                    state = state.as_deref().unwrap_or("unknown"),
+                    query = query.as_deref().unwrap_or(""),
+                    "The change-log tail was handed a connection already inside a transaction"
+                );
+            }
+        },
+        Ok(_) => error!(
+            "The change-log tail was handed a connection already inside a transaction; \
+             its backend was not found in pg_stat_activity"
+        ),
+        Err(reason) => error!(
+            "The change-log tail was handed a connection already inside a transaction; \
+             its backend could not be read: {reason}"
+        ),
+    }
 }
 
 fn parse_xid(text: &str) -> Result<u64> {

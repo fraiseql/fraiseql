@@ -32,7 +32,7 @@ use fraiseql_observers::{
 use futures::StreamExt;
 use sqlx::PgPool;
 use tokio::{
-    sync::{RwLock, mpsc, oneshot},
+    sync::{RwLock, mpsc, oneshot, watch},
     task::JoinHandle,
 };
 use tracing::{debug, error, info, warn};
@@ -350,6 +350,9 @@ pub struct ObserverRuntime {
     task_handle:         Option<JoinHandle<()>>,
     /// Handle to this replica's subscription fan-out task (#1503), when it has one.
     fanout_handle:       Option<JoinHandle<()>>,
+    /// Asks the change-log fan-out to stop once its current batch is done; a broker
+    /// fan-out has none and is aborted.
+    fanout_stop:         Option<watch::Sender<bool>>,
     /// Handle to the `auto_reload` ticker, when `auto_reload` is on.
     reload_handle:       Option<JoinHandle<()>>,
     /// Channel to send shutdown signal
@@ -415,6 +418,7 @@ impl ObserverRuntime {
             running: Arc::new(AtomicBool::new(false)),
             task_handle: None,
             fanout_handle: None,
+            fanout_stop: None,
             reload_handle: None,
             shutdown_tx: None,
             events_processed: Arc::new(std::sync::atomic::AtomicU64::new(0)),
@@ -759,11 +763,14 @@ impl ObserverRuntime {
                     ))
                 })?
                 .with_documents(self.config.documents.clone());
+            let (stop, stopped) = watch::channel(false);
+            self.fanout_stop = Some(stop);
             self.fanout_handle = Some(tokio::spawn(run_change_log_fanout(
                 tail,
                 sender,
                 Duration::from_millis(self.config.poll_interval_ms),
                 self.errors.clone(),
+                stopped,
             )));
         }
 
@@ -1274,11 +1281,16 @@ impl ObserverRuntime {
         if let Some(handle) = self.task_handle.take() {
             let _ = tokio::time::timeout(Duration::from_secs(10), handle).await;
         }
-        // The fan-out holds no durable state: it records nothing and acknowledges
-        // nothing, so stopping it mid-poll loses only events no subscriber here
-        // will be connected to receive.
         if let Some(handle) = self.fanout_handle.take() {
-            handle.abort();
+            match self.fanout_stop.take() {
+                Some(stop) => {
+                    let _ = stop.send(true);
+                    finish_change_log_fanout(handle).await;
+                },
+                // A broker fan-out holds no transaction: aborting it mid-read loses only
+                // events no subscriber here will be connected to receive.
+                None => handle.abort(),
+            }
         }
         // A reload only swaps in what `tb_observer` holds, so stopping it mid-way
         // loses nothing the next start does not load again.
@@ -1681,10 +1693,13 @@ async fn run_change_log_fanout(
     sender: mpsc::Sender<BridgeEntityEvent>,
     poll_interval: Duration,
     errors: Arc<std::sync::atomic::AtomicU64>,
+    mut stop: watch::Receiver<bool>,
 ) {
-    loop {
-        match tail.next_batch().await {
-            Ok(entries) if entries.is_empty() => tokio::time::sleep(poll_interval).await,
+    // A batch runs to its end: it reads inside a transaction, and a stop lands only
+    // between batches or during a pause.
+    while !*stop.borrow() {
+        let pause = match tail.next_batch().await {
+            Ok(entries) if entries.is_empty() => poll_interval,
             Ok(entries) => {
                 for entry in entries {
                     match entry.to_entity_event() {
@@ -1695,13 +1710,35 @@ async fn run_change_log_fanout(
                         },
                     }
                 }
+                continue;
             },
             Err(e) => {
                 errors.fetch_add(1, Ordering::Relaxed);
                 warn!("Subscription fan-out failed to read the change log: {e}");
-                tokio::time::sleep(Duration::from_secs(1)).await;
+                Duration::from_secs(1)
             },
+        };
+        tokio::select! {
+            // A dropped sender stops the fan-out too.
+            _ = stop.changed() => break,
+            () = tokio::time::sleep(pause) => {},
         }
+    }
+}
+
+/// How long [`ObserverRuntime::stop`] waits for the change-log fan-out to finish its
+/// current batch before aborting it.
+const FANOUT_STOP_GRACE: Duration = Duration::from_secs(5);
+
+/// Wait for a change-log fan-out asked to stop, aborting it past [`FANOUT_STOP_GRACE`]:
+/// a batch blocked on a lock, or on a full bridge channel, does not hold the stop up.
+async fn finish_change_log_fanout(mut handle: JoinHandle<()>) {
+    if tokio::time::timeout(FANOUT_STOP_GRACE, &mut handle).await.is_err() {
+        warn!(
+            "Subscription fan-out did not finish its batch within {FANOUT_STOP_GRACE:?} of the \
+             stop; aborting it"
+        );
+        handle.abort();
     }
 }
 
