@@ -142,7 +142,7 @@ impl StorageTrigger {
             entity: event.bucket.clone(),
             event_kind: event.operation.as_str().to_string(),
             data,
-            timestamp: chrono::Utc::now(),
+            timestamp: fraiseql_time::Timestamp::now(),
         }
     }
 }

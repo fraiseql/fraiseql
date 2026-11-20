@@ -79,7 +79,7 @@ pub fn plan_after_mutation_dispatch(
         event_kind,
         old,
         new,
-        timestamp: chrono::Utc::now(),
+        timestamp: fraiseql_time::Timestamp::now(),
     };
 
     hooks
@@ -562,8 +562,7 @@ pub fn observer_event_to_capture(
         event_kind,
         old,
         new,
-        // The functions runtime is still on chrono.
-        timestamp: event.timestamp.into(),
+        timestamp: event.timestamp,
     };
     Some((fn_event, event.cdc_source.clone()))
 }

@@ -127,7 +127,7 @@ pub struct EventPayload {
     /// Event data (JSON).
     pub data:         serde_json::Value,
     /// Timestamp when the event occurred.
-    pub timestamp:    chrono::DateTime<chrono::Utc>,
+    pub timestamp:    fraiseql_time::Timestamp,
 }
 
 /// The least-privilege authority ceiling a function's `fraiseql_query` bridge
@@ -438,7 +438,7 @@ pub struct LogEntry {
     /// Log message.
     pub message:   String,
     /// When the log was written.
-    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub timestamp: fraiseql_time::Timestamp,
 }
 
 /// Result of a function invocation.

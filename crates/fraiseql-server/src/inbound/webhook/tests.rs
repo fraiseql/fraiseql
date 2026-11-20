@@ -22,10 +22,8 @@ fn lazy_pool() -> PgPool {
     PgPool::connect_lazy("postgres://test:test@localhost/test").unwrap()
 }
 
-fn timestamp() -> chrono::DateTime<chrono::Utc> {
-    chrono::DateTime::parse_from_rfc3339("2026-07-03T12:00:00Z")
-        .unwrap()
-        .with_timezone(&chrono::Utc)
+fn timestamp() -> fraiseql_time::Timestamp {
+    fraiseql_time::Timestamp::parse_rfc3339("2026-07-03T12:00:00Z").unwrap()
 }
 
 mod router_construction {
@@ -824,9 +822,7 @@ mod spine_handler_disposition {
                 provider: "stripe".to_string(),
             },
             key,
-            chrono::DateTime::parse_from_rfc3339("2026-07-03T12:00:00Z")
-                .unwrap()
-                .with_timezone(&chrono::Utc),
+            fraiseql_time::Timestamp::parse_rfc3339("2026-07-03T12:00:00Z").unwrap(),
         )
     }
 

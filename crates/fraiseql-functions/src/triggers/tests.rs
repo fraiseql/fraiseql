@@ -23,7 +23,7 @@ fn test_after_mutation_fires_on_insert() {
         event_kind: EventKind::Insert,
         old:        None,
         new:        Some(serde_json::json!({ "id": 1, "name": "Alice" })),
-        timestamp:  chrono::Utc::now(),
+        timestamp:  fraiseql_time::Timestamp::now(),
     };
 
     let payload = trigger.build_payload(&event);
@@ -50,7 +50,7 @@ fn test_after_mutation_fires_on_update() {
         event_kind: EventKind::Update,
         old:        Some(serde_json::json!({ "id": 1, "name": "Alice" })),
         new:        Some(serde_json::json!({ "id": 1, "name": "Alice Smith" })),
-        timestamp:  chrono::Utc::now(),
+        timestamp:  fraiseql_time::Timestamp::now(),
     };
 
     let payload = trigger.build_payload(&event);
@@ -77,7 +77,7 @@ fn test_after_mutation_fires_on_delete() {
         event_kind: EventKind::Delete,
         old:        Some(serde_json::json!({ "id": 1, "name": "Alice" })),
         new:        None,
-        timestamp:  chrono::Utc::now(),
+        timestamp:  fraiseql_time::Timestamp::now(),
     };
 
     let payload = trigger.build_payload(&event);
@@ -104,7 +104,7 @@ fn test_after_mutation_receives_entity_type() {
         event_kind: EventKind::Insert,
         old:        None,
         new:        Some(serde_json::json!({ "id": 1, "title": "Hello" })),
-        timestamp:  chrono::Utc::now(),
+        timestamp:  fraiseql_time::Timestamp::now(),
     };
 
     let payload = trigger.build_payload(&event);
@@ -193,7 +193,7 @@ fn test_after_mutation_payload_serialization() {
         event_kind: EventKind::Insert,
         old:        None,
         new:        Some(serde_json::json!({ "id": 1, "name": "Alice" })),
-        timestamp:  chrono::Utc::now(),
+        timestamp:  fraiseql_time::Timestamp::now(),
     };
 
     let payload = trigger.build_payload(&event);
@@ -253,7 +253,7 @@ async fn test_after_mutation_async_dispatch_nonblocking() {
         event_kind: EventKind::Insert,
         old:        None,
         new:        Some(serde_json::json!({ "id": 1, "name": "Alice" })),
-        timestamp:  chrono::Utc::now(),
+        timestamp:  fraiseql_time::Timestamp::now(),
     };
 
     // Building payload is synchronous (fast)
@@ -1503,7 +1503,7 @@ fn test_http_trigger_event_payload() {
         entity: "HttpRequest".to_string(),
         event_kind: "request".to_string(),
         data: http_payload,
-        timestamp: chrono::Utc::now(),
+        timestamp: fraiseql_time::Timestamp::now(),
     };
 
     assert_eq!(event.entity, "HttpRequest");

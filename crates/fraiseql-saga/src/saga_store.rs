@@ -30,7 +30,7 @@
 //! let saga = Saga {
 //!     id: Uuid::new_v4(),
 //!     state: SagaState::Pending,
-//!     created_at: chrono::Utc::now(),
+//!     created_at: fraiseql_time::Timestamp::now(),
 //!     completed_at: None,
 //!     metadata: None,
 //! };
@@ -41,6 +41,7 @@
 use std::sync::Arc;
 
 use deadpool_postgres::Pool;
+use fraiseql_time::Timestamp;
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -304,9 +305,9 @@ pub struct Saga {
     /// Current lifecycle state.
     pub state:        SagaState,
     /// Timestamp when the saga was created.
-    pub created_at:   chrono::DateTime<chrono::Utc>,
+    pub created_at:   Timestamp,
     /// Timestamp when the saga reached a terminal state, if any.
-    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub completed_at: Option<Timestamp>,
     /// Arbitrary JSON metadata attached to the saga.
     pub metadata:     Option<Value>,
 }
@@ -382,9 +383,9 @@ pub struct SagaStep {
     /// Mutation result payload, if the step has completed.
     pub result:                 Option<Value>,
     /// Timestamp when execution began, if started.
-    pub started_at:             Option<chrono::DateTime<chrono::Utc>>,
+    pub started_at:             Option<Timestamp>,
     /// Timestamp when execution finished, if finished.
-    pub completed_at:           Option<chrono::DateTime<chrono::Utc>>,
+    pub completed_at:           Option<Timestamp>,
     /// Name of the compensation (inverse) mutation for this step, if one is
     /// registered. `None`/empty means the step has no rollback and cannot be
     /// compensated. Distinct from [`crate::saga_coordinator::SagaStep`], whose
@@ -420,9 +421,9 @@ pub struct SagaRecovery {
     /// Strategy used for this recovery attempt (e.g. `"retry"`, `"compensate"`).
     pub recovery_type: String,
     /// When the first recovery attempt was initiated.
-    pub attempted_at:  chrono::DateTime<chrono::Utc>,
+    pub attempted_at:  Timestamp,
     /// Timestamp of the most recent attempt, if more than one.
-    pub last_attempt:  Option<chrono::DateTime<chrono::Utc>>,
+    pub last_attempt:  Option<Timestamp>,
     /// Number of recovery attempts made so far.
     pub attempt_count: i32,
     /// Error message from the last failed attempt, if any.
@@ -693,8 +694,8 @@ impl PostgresSagaStore {
         Ok(Saga {
             id: row.get(0),
             state,
-            created_at: row.get(2),
-            completed_at: row.get(3),
+            created_at: stored_time(row, 2, "created_at")?,
+            completed_at: stored_time(row, 3, "completed_at")?,
             metadata: row.get(4),
         })
     }
@@ -751,8 +752,8 @@ impl PostgresSagaStore {
             variables: row.get(6),
             state,
             result: row.get(8),
-            started_at: row.get(9),
-            completed_at: row.get(10),
+            started_at: stored_time(row, 9, "started_at")?,
+            completed_at: stored_time(row, 10, "completed_at")?,
             compensation_mutation: row.get(11),
             compensation_variables: row.get(12),
             required_fields,
@@ -771,7 +772,7 @@ impl PostgresSagaStore {
     pub async fn save_saga(&self, saga: &Saga) -> Result<()> {
         let conn = self.pool.get().await?;
         let state = saga.state.as_str();
-        let now = chrono::Utc::now();
+        let now = Timestamp::now();
 
         conn.execute(
             "INSERT INTO tb_federation_sagas (id, state, created_at, completed_at, updated_at, metadata)
@@ -853,7 +854,7 @@ impl PostgresSagaStore {
     pub async fn update_saga_state(&self, saga_id: Uuid, state: &SagaState) -> Result<()> {
         let conn = self.pool.get().await?;
         let state_str = state.as_str();
-        let now = chrono::Utc::now();
+        let now = Timestamp::now();
 
         let completed_at = if matches!(
             state,
@@ -942,7 +943,7 @@ impl PostgresSagaStore {
     pub async fn update_saga_step_state(&self, step_id: Uuid, state: &StepState) -> Result<()> {
         let conn = self.pool.get().await?;
         let state_str = state.as_str();
-        let now = chrono::Utc::now();
+        let now = Timestamp::now();
 
         let completed_at =
             if matches!(state, StepState::Completed | StepState::Failed | StepState::Compensated) {
@@ -1000,7 +1001,7 @@ impl PostgresSagaStore {
         let affected = conn
             .execute(
                 "UPDATE tb_federation_saga_steps SET compensation_error = $1, updated_at = $2 WHERE id = $3",
-                &[&error, &chrono::Utc::now(), &step_id],
+                &[&error, &Timestamp::now(), &step_id],
             )
             .await?;
         if affected == 0 {
@@ -1024,7 +1025,7 @@ impl PostgresSagaStore {
         let conn = self.pool.get().await?;
         let mutation_type = step.mutation_type.as_str();
         let state = step.state.as_str();
-        let now = chrono::Utc::now();
+        let now = Timestamp::now();
 
         // Note: step.order is casted to i32 for PostgreSQL storage.
         // In practice, sagas rarely exceed 2 billion steps, so this is safe.
@@ -1071,7 +1072,7 @@ impl PostgresSagaStore {
                     &step.result,
                     &step.started_at,
                     &step.completed_at,
-                    &chrono::Utc::now(),
+                    &Timestamp::now(),
                     &now,
                     &step.compensation_mutation,
                     &step.compensation_variables,
@@ -1100,7 +1101,7 @@ impl PostgresSagaStore {
     /// [`SagaStoreError::Database`] if the update fails.
     pub async fn update_saga_step_result(&self, step_id: Uuid, result: &Value) -> Result<()> {
         let conn = self.pool.get().await?;
-        let now = chrono::Utc::now();
+        let now = Timestamp::now();
 
         let affected = conn
             .execute(
@@ -1130,7 +1131,7 @@ impl PostgresSagaStore {
     pub async fn mark_saga_for_recovery(&self, saga_id: Uuid, reason: &str) -> Result<()> {
         let conn = self.pool.get().await?;
         let recovery_id = Uuid::new_v4();
-        let now = chrono::Utc::now();
+        let now = Timestamp::now();
 
         // Use subquery to convert saga natural key to surrogate key. The row's
         // attempt_count is the real running count — one more than the highest
@@ -1171,7 +1172,7 @@ impl PostgresSagaStore {
     /// Returns `SagaStoreError::Database` if the query fails.
     pub async fn find_pending_sagas(&self, older_than_secs: i64) -> Result<Vec<Saga>> {
         let conn = self.pool.get().await?;
-        let stale_before = chrono::Utc::now() - chrono::Duration::seconds(older_than_secs);
+        let stale_before = offset(Timestamp::now(), -i128::from(older_than_secs));
         let state_str = SagaState::Pending.as_str();
 
         let rows = conn
@@ -1425,9 +1426,9 @@ impl PostgresSagaStore {
         stuck_after_secs: i64,
     ) -> Result<Vec<Saga>> {
         let conn = self.pool.get().await?;
-        let now = chrono::Utc::now();
-        let lease_expiry = now + chrono::Duration::seconds(lease_secs);
-        let stale_before = now - chrono::Duration::seconds(stuck_after_secs);
+        let now = Timestamp::now();
+        let lease_expiry = offset(now, i128::from(lease_secs));
+        let stale_before = offset(now, -i128::from(stuck_after_secs));
         let state_str = SagaState::Executing.as_str();
 
         let rows = conn
@@ -1470,7 +1471,7 @@ impl PostgresSagaStore {
     /// or [`SagaStoreError::Database`] if the update fails.
     pub async fn touch_saga(&self, saga_id: Uuid) -> Result<()> {
         let conn = self.pool.get().await?;
-        let now = chrono::Utc::now();
+        let now = Timestamp::now();
         let affected = conn
             .execute(
                 "UPDATE tb_federation_sagas SET updated_at = $1 WHERE id = $2",
@@ -1503,7 +1504,7 @@ impl PostgresSagaStore {
                 "UPDATE tb_federation_sagas
                  SET recovery_worker_id = NULL, recovery_lease_expires_at = 'infinity', updated_at = $1
                  WHERE id = $2",
-                &[&chrono::Utc::now(), &saga_id],
+                &[&Timestamp::now(), &saga_id],
             )
             .await?;
         if affected == 0 {
@@ -1511,6 +1512,31 @@ impl PostgresSagaStore {
         }
         Ok(())
     }
+}
+
+/// A stored time column, or a [`SagaStoreError::CorruptStoredValue`] naming the column
+/// and the value when it cannot be read (a `timestamptz` outside years -9999 to 9999).
+fn stored_time<T>(row: &tokio_postgres::Row, idx: usize, column: &str) -> Result<T>
+where
+    T: for<'a> tokio_postgres::types::FromSql<'a>,
+{
+    row.try_get(idx).map_err(|e| SagaStoreError::CorruptStoredValue {
+        column: column.to_owned(),
+        value:  std::error::Error::source(&e).map_or_else(|| e.to_string(), ToString::to_string),
+    })
+}
+
+/// `now` moved by `seconds`, held at the first or last instant when it would pass one.
+fn offset(now: Timestamp, seconds: i128) -> Timestamp {
+    let limit = if seconds < 0 {
+        fraiseql_time::jiff::Timestamp::MIN
+    } else {
+        fraiseql_time::jiff::Timestamp::MAX
+    };
+    i64::try_from(seconds)
+        .ok()
+        .and_then(|s| now.checked_add(fraiseql_time::jiff::SignedDuration::from_secs(s)))
+        .unwrap_or_else(|| limit.into())
 }
 
 #[cfg(test)]

@@ -471,7 +471,7 @@ impl HostContext for LiveHostContext {
         let entry = LogEntry {
             level,
             message: message.to_string(),
-            timestamp: chrono::Utc::now(),
+            timestamp: fraiseql_time::Timestamp::now(),
         };
         self.logs.lock().expect("log mutex poisoned").push(entry);
     }

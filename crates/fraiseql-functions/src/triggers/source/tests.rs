@@ -17,10 +17,8 @@ use crate::triggers::ingest::{
     Transport,
 };
 
-fn ts() -> chrono::DateTime<chrono::Utc> {
-    chrono::DateTime::parse_from_rfc3339("2026-07-08T00:00:00Z")
-        .unwrap()
-        .with_timezone(&chrono::Utc)
+fn ts() -> fraiseql_time::Timestamp {
+    fraiseql_time::Timestamp::parse_rfc3339("2026-07-08T00:00:00Z").unwrap()
 }
 
 fn msg(key: &str) -> InboundMessage {

@@ -100,7 +100,7 @@ impl LogCollector {
             logs.push(LogEntry {
                 level,
                 message,
-                timestamp: chrono::Utc::now(),
+                timestamp: fraiseql_time::Timestamp::now(),
             });
         }
     }

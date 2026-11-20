@@ -4,10 +4,8 @@ use std::collections::BTreeMap;
 
 use super::{Classification, IngestSource, classify, derive_thread_key, normalize_email};
 
-fn received() -> chrono::DateTime<chrono::Utc> {
-    chrono::DateTime::parse_from_rfc3339("2026-07-03T12:00:00Z")
-        .expect("valid timestamp")
-        .with_timezone(&chrono::Utc)
+fn received() -> fraiseql_time::Timestamp {
+    fraiseql_time::Timestamp::parse_rfc3339("2026-07-03T12:00:00Z").expect("valid timestamp")
 }
 
 fn normalize(raw: &[u8]) -> super::ParsedEmail {

@@ -7,10 +7,8 @@ use sqlx::PgPool;
 
 use super::{Emitted, PostgresInboundSpine, emit_in_tx};
 
-fn timestamp() -> chrono::DateTime<chrono::Utc> {
-    chrono::DateTime::parse_from_rfc3339("2026-07-03T12:00:00Z")
-        .unwrap()
-        .with_timezone(&chrono::Utc)
+fn timestamp() -> fraiseql_time::Timestamp {
+    fraiseql_time::Timestamp::parse_rfc3339("2026-07-03T12:00:00Z").unwrap()
 }
 
 /// A stripe-source message with a caller-supplied idempotency key.

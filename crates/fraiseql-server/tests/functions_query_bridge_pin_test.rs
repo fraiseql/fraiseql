@@ -47,7 +47,7 @@ fn payload() -> EventPayload {
         entity:       "Order".to_string(),
         event_kind:   "update".to_string(),
         data:         serde_json::json!({ "new": { "id": 1 } }),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     }
 }
 

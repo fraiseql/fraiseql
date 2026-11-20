@@ -78,7 +78,7 @@ impl StoreData {
             let entry = LogEntry {
                 level,
                 message: message.to_string(),
-                timestamp: chrono::Utc::now(),
+                timestamp: fraiseql_time::Timestamp::now(),
             };
             self.logs.push(entry);
 

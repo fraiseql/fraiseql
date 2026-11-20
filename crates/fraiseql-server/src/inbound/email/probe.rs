@@ -111,7 +111,7 @@ pub async fn run_return_path_probe(
                     IngestSource::Email {
                         mailbox: "probe".to_string(),
                     },
-                    chrono::Utc::now(),
+                    fraiseql_time::Timestamp::now(),
                 )
             {
                 if message_carries_probe(&parsed.message, nonce) {

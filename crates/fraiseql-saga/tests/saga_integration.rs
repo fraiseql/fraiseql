@@ -224,7 +224,7 @@ mod wired_pg {
         Saga {
             id,
             state: SagaState::Pending,
-            created_at: chrono::Utc::now(),
+            created_at: fraiseql_time::Timestamp::now(),
             completed_at: None,
             metadata: None,
         }
@@ -788,7 +788,7 @@ mod recovery_pg {
         Saga {
             id,
             state: SagaState::Executing,
-            created_at: chrono::Utc::now(),
+            created_at: fraiseql_time::Timestamp::now(),
             completed_at: None,
             metadata: None,
         }
@@ -2314,7 +2314,7 @@ mod recovery_safety_pg {
             .save_saga(&Saga {
                 id:           saga_id,
                 state:        SagaState::Pending,
-                created_at:   chrono::Utc::now(),
+                created_at:   fraiseql_time::Timestamp::now(),
                 completed_at: None,
                 metadata:     None,
             })
@@ -2702,7 +2702,7 @@ mod recovery_safety_pg {
             .save_saga(&Saga {
                 id:           saga_id,
                 state:        SagaState::Pending,
-                created_at:   chrono::Utc::now(),
+                created_at:   fraiseql_time::Timestamp::now(),
                 completed_at: None,
                 metadata:     None,
             })
@@ -2771,7 +2771,7 @@ mod recovery_safety_pg {
             .save_saga(&Saga {
                 id:           saga_id,
                 state:        SagaState::Executing,
-                created_at:   chrono::Utc::now(),
+                created_at:   fraiseql_time::Timestamp::now(),
                 completed_at: None,
                 metadata:     None,
             })
@@ -2816,7 +2816,7 @@ mod recovery_safety_pg {
             .save_saga(&Saga {
                 id:           saga_id,
                 state:        SagaState::Executing,
-                created_at:   chrono::Utc::now(),
+                created_at:   fraiseql_time::Timestamp::now(),
                 completed_at: None,
                 metadata:     None,
             })
@@ -3179,7 +3179,7 @@ mod compensation_honesty_pg {
             .save_saga(&Saga {
                 id:           saga_id,
                 state:        SagaState::Pending,
-                created_at:   chrono::Utc::now(),
+                created_at:   fraiseql_time::Timestamp::now(),
                 completed_at: None,
                 metadata:     None,
             })

@@ -243,7 +243,7 @@ fn after_mutation_when_predicates_gate_firing() {
         }],
     };
 
-    let now = chrono::Utc::now();
+    let now = fraiseql_time::Timestamp::now();
     let event = |old: serde_json::Value, new: serde_json::Value| EntityEvent {
         entity:     "Order".to_string(),
         event_kind: EventKind::Update,

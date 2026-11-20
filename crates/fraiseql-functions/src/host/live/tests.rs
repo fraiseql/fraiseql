@@ -52,7 +52,7 @@ async fn test_host_query_executes_graphql() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let response = serde_json::json!({
@@ -80,7 +80,7 @@ async fn test_host_query_passes_variables() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let response = serde_json::json!({
@@ -107,7 +107,7 @@ async fn test_host_query_rejects_mutations() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let executor = MockQueryExecutor::error();
@@ -129,7 +129,7 @@ async fn test_host_query_invalid_graphql_returns_validation_error() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let executor = MockQueryExecutor::error();
@@ -147,7 +147,7 @@ async fn test_host_query_without_executor_returns_unsupported() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -172,7 +172,7 @@ async fn test_host_sql_query_readonly_is_unimplemented() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -200,7 +200,7 @@ async fn test_host_sql_query_rejects_insert() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -225,7 +225,7 @@ async fn test_host_sql_query_rejects_update() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -251,7 +251,7 @@ async fn test_host_sql_query_rejects_delete() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -268,7 +268,7 @@ async fn test_host_sql_query_rejects_ddl() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -291,7 +291,7 @@ async fn test_host_sql_query_rejects_copy() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -308,7 +308,7 @@ async fn test_host_sql_query_rejects_create_extension() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -325,7 +325,7 @@ async fn test_host_sql_query_rejects_set_role() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -342,7 +342,7 @@ async fn test_host_sql_query_rejects_call() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -359,7 +359,7 @@ async fn test_host_sql_query_rejects_truncate() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -376,7 +376,7 @@ async fn test_host_sql_query_allows_explain_without_analyze() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -401,7 +401,7 @@ async fn test_host_sql_query_rejects_explain_analyze() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -424,7 +424,7 @@ async fn test_host_sql_query_invalid_returns_validation_error() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -447,7 +447,7 @@ async fn test_host_http_valid_domain_passes_validation() {
         entity:       "API".to_string(),
         event_kind:   "called".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     // Configure to allow a specific domain
@@ -477,7 +477,7 @@ async fn test_host_http_subdomain_glob_pattern() {
         entity:       "API".to_string(),
         event_kind:   "called".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     // Configure with glob pattern
@@ -508,7 +508,7 @@ async fn test_host_http_blocks_disallowed_domain() {
         entity:       "API".to_string(),
         event_kind:   "called".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let mut config = HostContextConfig::default();
@@ -531,7 +531,7 @@ async fn test_host_http_blocks_private_ipv4() {
         entity:       "API".to_string(),
         event_kind:   "called".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -556,7 +556,7 @@ async fn test_host_http_blocks_ipv6_loopback() {
         entity:       "API".to_string(),
         event_kind:   "called".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -573,7 +573,7 @@ async fn test_host_http_blocks_ipv6_link_local() {
         entity:       "API".to_string(),
         event_kind:   "called".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -590,7 +590,7 @@ async fn test_host_http_allows_public_ipv4() {
         entity:       "API".to_string(),
         event_kind:   "called".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     // Deny-by-default: explicitly allow the public IP so this test exercises the
@@ -621,7 +621,7 @@ async fn test_host_http_invalid_url() {
         entity:       "API".to_string(),
         event_kind:   "called".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -640,7 +640,7 @@ async fn test_host_storage_get_returns_bytes() {
         entity:       "File".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let backend = super::storage::MockStorageBackend::new();
@@ -663,7 +663,7 @@ async fn test_host_storage_put_creates_object() {
         entity:       "File".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let backend = super::storage::MockStorageBackend::new();
@@ -685,7 +685,7 @@ async fn test_host_storage_get_nonexistent_returns_not_found() {
         entity:       "File".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let backend = super::storage::MockStorageBackend::new();
@@ -710,7 +710,7 @@ async fn test_host_storage_put_respects_size_limit() {
         entity:       "File".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let backend = super::storage::MockStorageBackend::new();
@@ -749,7 +749,7 @@ async fn test_host_auth_context_returns_claims() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -792,7 +792,7 @@ async fn test_host_auth_context_redacts_sensitive() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -837,7 +837,7 @@ async fn test_host_auth_context_exposes_verified_sending_identity() {
         entity:       "Deal".to_string(),
         event_kind:   "updated".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -874,7 +874,7 @@ async fn test_host_env_var_returns_allowed() {
         entity:       "Config".to_string(),
         event_kind:   "accessed".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let mut config = HostContextConfig::default();
@@ -904,7 +904,7 @@ async fn test_host_env_var_blocked_name_is_an_authorization_error() {
         entity:       "Config".to_string(),
         event_kind:   "accessed".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let mut config = HostContextConfig::default();
@@ -940,7 +940,7 @@ async fn test_host_auth_context_without_wired_identity_fails_loud() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -961,7 +961,7 @@ async fn test_host_env_var_nonexistent_returns_none() {
         entity:       "Config".to_string(),
         event_kind:   "accessed".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let mut config = HostContextConfig::default();
@@ -991,7 +991,7 @@ async fn test_host_event_payload_returns_trigger_data() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         event_data.clone(),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -1070,7 +1070,7 @@ fn send_email_payload() -> EventPayload {
         entity:       "Deal".to_string(),
         event_kind:   "updated".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     }
 }
 

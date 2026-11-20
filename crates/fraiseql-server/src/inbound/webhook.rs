@@ -890,7 +890,7 @@ pub async fn webhook_handler(
     });
 
     let header_map = collect_headers(&headers);
-    let received_at = chrono::Utc::now();
+    let received_at = fraiseql_time::Timestamp::now();
     let source = WebhookSource::new(route.provider.clone(), segment.clone());
 
     // #1321: the event is read out of what verification **authenticated**, inside

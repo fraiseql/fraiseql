@@ -220,7 +220,7 @@ pub fn request_query_payload(field: &str, arguments: serde_json::Value) -> Event
         entity:       field.to_string(),
         event_kind:   "request".to_string(),
         data:         arguments,
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     }
 }
 

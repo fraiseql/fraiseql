@@ -16,8 +16,6 @@
 
 use std::{path::PathBuf, sync::Arc};
 
-use chrono::Utc;
-
 use crate::{
     EventPayload, FunctionModule, ResourceLimits, RuntimeType,
     host::{HttpResponse, dyn_context::DynHostContext},
@@ -117,7 +115,7 @@ fn test_event() -> EventPayload {
         entity:       "Test".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({ "value": 42 }),
-        timestamp:    Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     }
 }
 

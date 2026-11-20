@@ -10,8 +10,6 @@
 
 use std::sync::Arc;
 
-use chrono::Utc;
-
 use crate::{
     EventPayload, FunctionModule, ResourceLimits, RuntimeType,
     host::{
@@ -32,7 +30,7 @@ fn event() -> EventPayload {
         entity:       "Deal".to_string(),
         event_kind:   "updated".to_string(),
         data:         serde_json::json!({ "id": "deal-1" }),
-        timestamp:    Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     }
 }
 

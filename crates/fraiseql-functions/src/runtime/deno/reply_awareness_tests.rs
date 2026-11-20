@@ -140,7 +140,7 @@ fn ingest(raw: &str) -> (EventPayload, Classification) {
         IngestSource::Email {
             mailbox: "test-mailbox".to_string(),
         },
-        chrono::Utc::now(),
+        fraiseql_time::Timestamp::now(),
     )
     .expect("fixture parses as a MIME message");
     let classification = parsed.message.classification.expect("email is classified");

@@ -18,7 +18,6 @@
 
 use std::sync::Arc;
 
-use chrono::Utc;
 use fraiseql_observers::{PostgresSourceCursorStore, SourceCursorStore};
 use sqlx::PgPool;
 
@@ -37,7 +36,7 @@ fn event() -> EventPayload {
         entity:       "cron".to_string(),
         event_kind:   "scheduled".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     }
 }
 

@@ -18,7 +18,6 @@ harness = false
 name = "mutation_http_bench"
 
 [dependencies]
-chrono = { workspace = true }
 deadpool = { workspace = true }
 deadpool-postgres = { workspace = true }
 # The engine. A saga step is a client of the mutation chokepoint
@@ -30,6 +29,7 @@ fraiseql-error = { workspace = true, default-features = false }
 # Entity metadata, `@requires` pre-fetch and the mTLS material a remote step
 # dispatches with. Federation proper stays *below* core; only orchestration is here.
 fraiseql-federation = { workspace = true }
+fraiseql-time = { workspace = true, features = ["postgres"] }
 reqwest = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

@@ -70,7 +70,7 @@ fraiseql-cdc-sinks = { workspace = true, features = [
 # FraiseQL observers (optional)
 fraiseql-observers = { workspace = true, optional = true }
 # The observers' instant type; `From` to chrono where server code still uses chrono.
-fraiseql-time = { workspace = true, features = ["chrono"] }
+fraiseql-time = { workspace = true, features = ["chrono", "sqlx"] }
 # Secrets management and encryption
 fraiseql-secrets = { workspace = true, optional = true }
 # Webhooks

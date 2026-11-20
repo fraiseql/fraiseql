@@ -151,7 +151,7 @@ impl PullSource for ImapSource {
         let mut messages = Vec::new();
         let mut highest = effective;
         for message in &fresh {
-            match normalize_email(&message.raw, self.source(), chrono::Utc::now()) {
+            match normalize_email(&message.raw, self.source(), fraiseql_time::Timestamp::now()) {
                 Ok(parsed) => {
                     let mut normalized = parsed.message;
                     normalized.routing = resolve_routing(&normalized, &self.routing_rules);

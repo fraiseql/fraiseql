@@ -9,7 +9,7 @@ fn test_store_data_creation() {
         entity:       "Test".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
     let limits = ResourceLimits::default();
 
@@ -27,7 +27,7 @@ fn test_store_data_log_respects_limit() {
         entity:       "Test".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
     let limits = ResourceLimits {
         max_memory_bytes: 128 * 1024 * 1024,
@@ -56,7 +56,7 @@ fn test_store_data_get_event_payload() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({"id": 42}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
     let store = StoreData::new(event, ResourceLimits::default());
 
@@ -76,7 +76,7 @@ fn test_store_data_host_context_typed() {
         entity:       "Test".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
     let mut store = StoreData::new(event.clone(), ResourceLimits::default());
 

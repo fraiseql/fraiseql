@@ -2,8 +2,6 @@
 
 #![allow(clippy::unwrap_used)] // Reason: tests use unwrap for clarity
 
-use chrono::Utc;
-
 use crate::{
     EventPayload, FunctionModule, ResourceLimits, RuntimeType, host::NoopHostContext,
     observer::FunctionObserver,
@@ -16,7 +14,7 @@ fn test_event() -> EventPayload {
         entity:       "Test".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({"value": 42}),
-        timestamp:    Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     }
 }
 
@@ -205,7 +203,7 @@ fn test_dispatch_entity_event_no_triggers_returns_empty() {
         event_kind: crate::triggers::mutation::EventKind::Insert,
         old:        None,
         new:        Some(serde_json::json!({ "id": 1, "name": "Alice" })),
-        timestamp:  Utc::now(),
+        timestamp:  fraiseql_time::Timestamp::now(),
     };
 
     let matching = observer.find_after_mutation_triggers(&registry, &event);
@@ -240,7 +238,7 @@ fn test_dispatch_entity_event_finds_matching_triggers() {
         event_kind: EventKind::Insert,
         old:        None,
         new:        Some(serde_json::json!({ "id": 1 })),
-        timestamp:  Utc::now(),
+        timestamp:  fraiseql_time::Timestamp::now(),
     };
     let matching = observer.find_after_mutation_triggers(&registry, &insert_event);
     assert_eq!(matching.len(), 1, "should match 1 trigger for User insert");
@@ -251,7 +249,7 @@ fn test_dispatch_entity_event_finds_matching_triggers() {
         event_kind: EventKind::Update,
         old:        Some(serde_json::json!({ "id": 1, "name": "Old" })),
         new:        Some(serde_json::json!({ "id": 1, "name": "New" })),
-        timestamp:  Utc::now(),
+        timestamp:  fraiseql_time::Timestamp::now(),
     };
     let matching = observer.find_after_mutation_triggers(&registry, &update_event);
     assert!(matching.is_empty(), "update event should not match insert-only trigger");

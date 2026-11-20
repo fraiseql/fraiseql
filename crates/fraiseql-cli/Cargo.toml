@@ -32,9 +32,10 @@ fraiseql-observers = { workspace = true }
 # `functions-runtime-deno` posture.
 fraiseql-functions = { workspace = true }
 # The harness names `fraiseql_error::Result` (the HostContext trait's return) and
-# `chrono` (the event payload timestamp) directly — pulled in with the harness.
+# `fraiseql_time::Timestamp` (the event payload timestamp) directly — pulled in with
+# the harness.
 fraiseql-error = { workspace = true, optional = true }
-chrono = { workspace = true, optional = true }
+fraiseql-time = { workspace = true, optional = true }
 fraiseql-server = { workspace = true, optional = true, features = ["cli"] }
 glob = "0.3"
 hex = { workspace = true }
@@ -91,7 +92,7 @@ functions-invoke = [
   "fraiseql-functions/runtime-deno",
   "fraiseql-functions/host-live",
   "dep:fraiseql-error",
-  "dep:chrono",
+  "dep:fraiseql-time",
 ]
 # Gate for the `--against-db` integration tests (#397/#409). The tests self-skip
 # when no `DATABASE_URL` is set, so enabling this under `--all-features` in a

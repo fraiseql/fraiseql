@@ -97,7 +97,7 @@ fn probe_payload() -> crate::types::EventPayload {
         entity:       "Test".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     }
 }
 

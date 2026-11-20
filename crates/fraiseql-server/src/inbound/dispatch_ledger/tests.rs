@@ -71,7 +71,7 @@ fn message(key: &str) -> InboundMessage {
             provider: "stripe".to_string(),
         },
         key,
-        chrono::Utc::now(),
+        fraiseql_time::Timestamp::now(),
     )
 }
 

@@ -5,8 +5,6 @@
 
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 
-use chrono::Utc;
-
 use super::{DenoConfig, DenoRuntime};
 use crate::{
     EventPayload, FunctionModule, FunctionRuntime, ResourceLimits, RuntimeType,
@@ -26,7 +24,7 @@ async fn invoke(source: &str) -> fraiseql_error::Result<crate::FunctionResult> {
         entity:       "Probe".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
     runtime
         .invoke(&module, event.clone(), &NoopHostContext::new(event), ResourceLimits::default())

@@ -69,7 +69,7 @@ pub fn build_source_payload(
     source_name: &str,
     schedule: &str,
     timezone: &str,
-    now: DateTime<Utc>,
+    now: fraiseql_time::Timestamp,
 ) -> EventPayload {
     EventPayload {
         trigger_type: format!("source:{source_name}"),
@@ -79,7 +79,7 @@ pub fn build_source_payload(
             "source": source_name,
             "schedule": schedule,
             "timezone": timezone,
-            "scheduled_at": now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            "scheduled_at": DateTime::<Utc>::from(now).to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
         }),
         timestamp:    now,
     }

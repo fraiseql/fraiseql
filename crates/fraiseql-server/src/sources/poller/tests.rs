@@ -12,7 +12,6 @@
 
 use std::{future::Future, pin::Pin, sync::Arc};
 
-use chrono::Utc;
 use fraiseql_functions::{
     FunctionModule, FunctionObserver, ResourceLimits, RuntimeType,
     host::live::{HostContextConfig, QueryExecutor},
@@ -30,7 +29,8 @@ use crate::cron::ScheduledPoller;
 
 #[test]
 fn source_payload_carries_the_trigger_context() {
-    let payload = build_source_payload("orders", "*/5 * * * *", "UTC", Utc::now());
+    let payload =
+        build_source_payload("orders", "*/5 * * * *", "UTC", fraiseql_time::Timestamp::now());
     assert_eq!(payload.trigger_type, "source:orders");
     assert_eq!(payload.entity, "source");
     assert_eq!(payload.event_kind, "scheduled");
@@ -69,7 +69,8 @@ async fn idempotency_token_is_signed_when_a_key_is_configured() {
             false,
         )
     };
-    let payload = build_source_payload("orders", "*/5 * * * *", "UTC", Utc::now());
+    let payload =
+        build_source_payload("orders", "*/5 * * * *", "UTC", fraiseql_time::Timestamp::now());
 
     let unsigned = build(None).idempotency_token(&payload);
     let secret: Arc<[u8]> = Arc::from(b"server-hmac-secret".as_slice());
@@ -168,8 +169,10 @@ async fn build_host_binds_both_the_cursor_and_the_executor() {
 
     let executor = StubExecutor::new(json!({ "data": { "createOrder": { "status": "ok" } } }));
     let poller = poller(&pool, source, executor.clone());
-    let host =
-        poller.build_host(build_source_payload(source, "*/5 * * * *", "UTC", Utc::now()), "tok");
+    let host = poller.build_host(
+        build_source_payload(source, "*/5 * * * *", "UTC", fraiseql_time::Timestamp::now()),
+        "tok",
+    );
 
     // The cursor is bound: it round-trips through the host against real Postgres.
     assert!(host.cursor().await.unwrap().is_none(), "a fresh source has no cursor");
@@ -263,7 +266,7 @@ async fn fires_a_model_b_connector_end_to_end() {
         false,
     );
 
-    let outcome = poller.fire_once(chrono::Utc::now()).await;
+    let outcome = poller.fire_once(fraiseql_time::Timestamp::now()).await;
     assert!(
         matches!(outcome, RunOutcome::Ran(Ok(_))),
         "the connector fired and ran to completion under the lease"
@@ -471,8 +474,10 @@ async fn the_poller_advances_the_declared_cursor_not_the_source_name() {
         false,
     );
 
-    let host = poller
-        .build_host(build_source_payload(source_name, "*/5 * * * *", "UTC", Utc::now()), "tok");
+    let host = poller.build_host(
+        build_source_payload(source_name, "*/5 * * * *", "UTC", fraiseql_time::Timestamp::now()),
+        "tok",
+    );
     host.advance_cursor(json!({ "page": 7 })).await.unwrap();
 
     assert_eq!(
@@ -515,7 +520,7 @@ async fn a_firing_is_skipped_while_another_replica_holds_the_lease() {
     });
     holding.await.expect("the other replica holds the lease");
 
-    let outcome = poller.fire_once(chrono::Utc::now()).await;
+    let outcome = poller.fire_once(fraiseql_time::Timestamp::now()).await;
     let _ = release.send(());
     leader.await.expect("the leader joined").expect("the leader's lease attempt");
 

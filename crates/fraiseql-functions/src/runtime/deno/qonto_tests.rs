@@ -12,8 +12,6 @@
 
 use std::sync::{Arc, Mutex};
 
-use chrono::Utc;
-
 use crate::{
     EventPayload, FunctionModule, ResourceLimits, RuntimeType,
     host::{HttpResponse, dyn_context::DynHostContext},
@@ -157,7 +155,7 @@ fn invoice_event(invoice: serde_json::Value) -> EventPayload {
         entity:       "Invoice".to_string(),
         event_kind:   "created".to_string(),
         data:         invoice,
-        timestamp:    Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     }
 }
 

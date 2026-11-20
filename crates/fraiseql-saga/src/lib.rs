@@ -46,8 +46,6 @@ pub mod saga_executor;
 pub mod saga_recovery_manager;
 pub mod saga_store;
 
-/// The `chrono` this crate's public API is built against (#1198).
-pub use chrono;
 pub use fraiseql_error::Result;
 pub use mutation_executor::*;
 pub use mutation_http_client::*;

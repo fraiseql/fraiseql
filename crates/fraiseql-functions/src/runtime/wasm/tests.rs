@@ -105,7 +105,7 @@ async fn test_wasm_guest_can_call_log() {
         entity:       "Test".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({"test": true}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let host = NoopHostContext::new(event.clone());
@@ -136,7 +136,7 @@ async fn test_wasm_guest_log_levels() {
         entity:       "Test".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let host = NoopHostContext::new(event.clone());
@@ -166,7 +166,7 @@ async fn test_wasm_guest_get_event_payload() {
         entity:       "User".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({"user_id": 42, "email": "test@example.com"}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let host = NoopHostContext::new(event.clone());
@@ -196,7 +196,7 @@ async fn test_wasm_guest_get_auth_context() {
         entity:       "Test".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let host = NoopHostContext::new(event.clone());
@@ -227,7 +227,7 @@ async fn test_wasm_guest_get_env_var() {
         entity:       "Test".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let host = NoopHostContext::new(event.clone());
@@ -263,7 +263,7 @@ async fn test_wasm_guest_calls_query_with_live_host() {
         entity:       "TestEntity".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({"id": 42, "name": "test_item"}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let config = HostContextConfig::default();
@@ -302,7 +302,7 @@ async fn test_wasm_guest_calls_http_request_with_live_host() {
         entity:       "TestEntity".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({"id": 42}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let config = HostContextConfig {
@@ -344,7 +344,7 @@ async fn test_wasm_guest_calls_storage_get_with_live_host() {
         entity:       "File".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let config = HostContextConfig::default();
@@ -383,7 +383,7 @@ async fn test_wasm_guest_calls_env_var_with_live_host() {
         entity:       "Test".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let mut config = HostContextConfig::default();
@@ -423,7 +423,7 @@ async fn test_wasm_guest_calls_auth_context_with_live_host() {
         entity:       "Test".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let config = HostContextConfig::default();

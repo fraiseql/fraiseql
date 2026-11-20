@@ -37,10 +37,8 @@ impl PushSource for FakeStripeSource {
     }
 }
 
-fn timestamp() -> chrono::DateTime<chrono::Utc> {
-    chrono::DateTime::parse_from_rfc3339("2026-07-03T12:00:00Z")
-        .expect("valid timestamp")
-        .with_timezone(&chrono::Utc)
+fn timestamp() -> fraiseql_time::Timestamp {
+    fraiseql_time::Timestamp::parse_rfc3339("2026-07-03T12:00:00Z").expect("valid timestamp")
 }
 
 #[test]

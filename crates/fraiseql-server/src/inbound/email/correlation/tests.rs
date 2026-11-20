@@ -41,7 +41,7 @@ fn email(
             mailbox: "test-mailbox".to_string(),
         },
         "mid-1",
-        now(),
+        fraiseql_time::Timestamp::now(),
     );
     message.to = to.iter().map(ToString::to_string).collect();
     message.headers = headers.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect();
@@ -343,7 +343,7 @@ fn a_real_bounce_eml_classifies_and_yields_its_send_id() {
         IngestSource::Email {
             mailbox: "test-mailbox".to_string(),
         },
-        now(),
+        fraiseql_time::Timestamp::now(),
     )
     .expect("bounce parses");
     assert_eq!(parsed.message.classification, Some(Classification::Bounce));
@@ -357,7 +357,7 @@ fn a_real_challenge_eml_classifies_and_yields_its_send_id() {
         IngestSource::Email {
             mailbox: "test-mailbox".to_string(),
         },
-        now(),
+        fraiseql_time::Timestamp::now(),
     )
     .expect("challenge parses");
     assert_eq!(parsed.message.classification, Some(Classification::Challenge));
@@ -374,7 +374,7 @@ async fn a_real_bounce_eml_drives_the_correlation_transition() {
         IngestSource::Email {
             mailbox: "test-mailbox".to_string(),
         },
-        now(),
+        fraiseql_time::Timestamp::now(),
     )
     .expect("bounce parses");
     let fake = FakeCorrelator::with_send(0);

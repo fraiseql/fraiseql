@@ -45,7 +45,7 @@ fn payload() -> EventPayload {
         entity:       "pay".to_string(),
         event_kind:   "before".to_string(),
         data:         serde_json::json!({ "input": { "amount": 10 } }),
-        timestamp:    Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     }
 }
 

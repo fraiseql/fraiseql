@@ -21,7 +21,7 @@ async fn probe() -> serde_json::Value {
         entity:       "Probe".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
     let runtime = super::WasmRuntime::new(&super::WasmConfig::default()).unwrap();
     let result = runtime

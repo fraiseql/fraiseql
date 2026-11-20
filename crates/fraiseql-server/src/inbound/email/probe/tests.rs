@@ -48,7 +48,7 @@ fn normalize(to: &str) -> fraiseql_functions::InboundMessage {
         fraiseql_functions::IngestSource::Email {
             mailbox: "test-mailbox".to_string(),
         },
-        chrono::Utc::now(),
+        fraiseql_time::Timestamp::now(),
     )
     .unwrap()
     .message

@@ -195,7 +195,7 @@ fn test_registry_registers_ingest_triggers() {
             provider: "stripe".to_string(),
         },
         "evt_1",
-        chrono::Utc::now(),
+        fraiseql_time::Timestamp::now(),
     );
     // The stripe message fires the source-agnostic trigger and the stripe-specific
     // one, but not the email trigger.

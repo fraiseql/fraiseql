@@ -181,7 +181,7 @@ impl FunctionChainGate {
                 entity:       request.mutation.to_string(),
                 event_kind:   "before".to_string(),
                 data:         input.clone(),
-                timestamp:    chrono::Utc::now(),
+                timestamp:    fraiseql_time::Timestamp::now(),
             },
             request.reader.clone(),
             request.principal,

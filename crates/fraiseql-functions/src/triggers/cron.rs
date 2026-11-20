@@ -498,7 +498,7 @@ impl CronTrigger {
             entity: "cron".to_string(),
             event_kind: "scheduled".to_string(),
             data,
-            timestamp: chrono::Utc::now(),
+            timestamp: fraiseql_time::Timestamp::now(),
         }
     }
 }

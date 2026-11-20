@@ -79,7 +79,7 @@ pub struct ParsedEmail {
 pub fn normalize_email(
     raw: &[u8],
     source: IngestSource,
-    received_at: chrono::DateTime<chrono::Utc>,
+    received_at: fraiseql_time::Timestamp,
 ) -> Result<ParsedEmail, IngestError> {
     let parsed = MessageParser::default()
         .parse(raw)

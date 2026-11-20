@@ -8,7 +8,7 @@ fn test_noop_host_context_returns_unsupported() {
         entity:       "Test".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
     let ctx = NoopHostContext::new(payload);
 
@@ -24,7 +24,7 @@ fn test_noop_host_context_log_captures_entries() {
         entity:       "Test".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
     let ctx = NoopHostContext::new(payload);
 
@@ -54,7 +54,7 @@ fn test_event_payload_available_in_context() {
         entity:       "User".to_string(),
         event_kind:   "updated".to_string(),
         data:         serde_json::json!({"id": 42}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
     let ctx = NoopHostContext::new(payload);
 
@@ -78,7 +78,7 @@ async fn test_host_storage_get_returns_bytes() {
         entity:       "File".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     // Create a mock storage backend
@@ -115,7 +115,7 @@ async fn test_host_storage_without_backend_returns_unsupported() {
         entity:       "File".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let ctx = LiveHostContext::new(payload, HostContextConfig::default());
@@ -141,7 +141,7 @@ async fn test_host_storage_put_respects_size_limit() {
         entity:       "File".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({}),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     // Create config with very small size limit

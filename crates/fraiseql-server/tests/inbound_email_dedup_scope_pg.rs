@@ -54,7 +54,7 @@ fn message_for(mailbox: &str, raw: &[u8]) -> fraiseql_functions::InboundMessage 
         IngestSource::Email {
             mailbox: mailbox.to_string(),
         },
-        chrono::Utc::now(),
+        fraiseql_time::Timestamp::now(),
     )
     .expect("email normalizes")
     .message

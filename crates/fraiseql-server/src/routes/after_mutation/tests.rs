@@ -293,7 +293,7 @@ fn plan_after_ingest_matches_source_and_builds_payload() {
             provider: "stripe".to_string(),
         },
         "evt_1",
-        chrono::Utc::now(),
+        fraiseql_time::Timestamp::now(),
     );
 
     let plans = plan_after_ingest_dispatch(&hooks, &message);
@@ -313,7 +313,7 @@ fn plan_after_ingest_skips_when_no_trigger_matches() {
             provider: "stripe".to_string(),
         },
         "evt_1",
-        chrono::Utc::now(),
+        fraiseql_time::Timestamp::now(),
     );
 
     assert!(plan_after_ingest_dispatch(&hooks, &message).is_empty());
@@ -367,7 +367,7 @@ mod durable_dispatch {
             entity:       "User".to_string(),
             event_kind:   "insert".to_string(),
             data:         serde_json::json!({ "new": { "id": "u1" } }),
-            timestamp:    chrono::Utc::now(),
+            timestamp:    fraiseql_time::Timestamp::now(),
         }
     }
 
@@ -673,7 +673,7 @@ mod query_bridge_wiring {
             entity:       "Order".to_string(),
             event_kind:   "update".to_string(),
             data:         serde_json::json!({ "new": { "id": 1 } }),
-            timestamp:    chrono::Utc::now(),
+            timestamp:    fraiseql_time::Timestamp::now(),
         }
     }
 
@@ -1011,7 +1011,7 @@ mod query_bridge_wiring {
                 provider: "stripe".to_string(),
             },
             "evt_9f8",
-            chrono::Utc::now(),
+            fraiseql_time::Timestamp::now(),
         );
         let payload = IngestTrigger {
             function_name: "ingestPayment".to_string(),

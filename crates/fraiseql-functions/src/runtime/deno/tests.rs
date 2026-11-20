@@ -16,7 +16,7 @@ fn test_event() -> EventPayload {
         entity:       "Test".to_string(),
         event_kind:   "created".to_string(),
         data:         serde_json::json!({"value": 42}),
-        timestamp:    Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     }
 }
 
@@ -873,7 +873,7 @@ export default async (event) => {
         .expect("Failed to create DenoRuntime");
 
     let event = test_event();
-    let before = chrono::Utc::now();
+    let before = fraiseql_time::Timestamp::now();
     let result = runtime
         .invoke(
             &module,
@@ -882,7 +882,7 @@ export default async (event) => {
             ResourceLimits::default(),
         )
         .await;
-    let after = chrono::Utc::now();
+    let after = fraiseql_time::Timestamp::now();
 
     // Should succeed and have captured log with proper timestamp
     assert!(result.is_ok(), "Log call should execute successfully");

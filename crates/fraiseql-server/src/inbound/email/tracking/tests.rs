@@ -140,7 +140,7 @@ fn inbound_to_verp(
             mailbox: "test-mailbox".to_string(),
         },
         "mid-e2e",
-        now,
+        fraiseql_time::Timestamp::try_from(now).expect("the test clock is in range"),
     );
     message.to = vec![format!("bounces+{send_id}@sales.example.com")];
     message.classification = Some(classification);

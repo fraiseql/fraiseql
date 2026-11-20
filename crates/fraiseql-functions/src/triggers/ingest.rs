@@ -222,7 +222,7 @@ pub struct InboundMessage {
     /// Selected message headers, keyed by name (sorted for determinism).
     pub headers:         BTreeMap<String, String>,
     /// When the message was received by the adapter.
-    pub received_at:     chrono::DateTime<chrono::Utc>,
+    pub received_at:     fraiseql_time::Timestamp,
     /// Pointer to the raw payload retained in storage, for replay/audit.
     pub raw_ref:         Option<StorageRef>,
     /// Declared routing outcome (entity mapping).
@@ -241,7 +241,7 @@ impl InboundMessage {
     pub fn new(
         source: IngestSource,
         idempotency_key: impl Into<String>,
-        received_at: chrono::DateTime<chrono::Utc>,
+        received_at: fraiseql_time::Timestamp,
     ) -> Self {
         Self {
             source,
@@ -285,7 +285,7 @@ pub struct RawDelivery<'a> {
     /// Relevant request headers, keyed by name.
     pub headers:     &'a BTreeMap<String, String>,
     /// When the delivery was received.
-    pub received_at: chrono::DateTime<chrono::Utc>,
+    pub received_at: fraiseql_time::Timestamp,
 }
 
 /// An inbound normalization error.

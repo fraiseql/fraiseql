@@ -276,7 +276,7 @@ impl SagaCoordinator {
         let saga = Saga {
             id:           saga_id,
             state:        SagaState::Pending,
-            created_at:   chrono::Utc::now(),
+            created_at:   fraiseql_time::Timestamp::now(),
             completed_at: None,
             metadata:     None,
         };

@@ -51,7 +51,7 @@ fn test_after_mutation_trigger_builds_payload() {
         event_kind: EventKind::Insert,
         old:        None,
         new:        Some(serde_json::json!({ "id": 1, "name": "Alice" })),
-        timestamp:  chrono::Utc::now(),
+        timestamp:  fraiseql_time::Timestamp::now(),
     };
 
     let payload = trigger.build_payload(&event);
@@ -209,7 +209,7 @@ async fn test_before_mutation_chain_execute_empty_chain_proceeds() {
         entity:       "createUser".to_string(),
         event_kind:   "before".to_string(),
         data:         input.clone(),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let result = chain
@@ -264,7 +264,7 @@ async fn test_before_mutation_chain_execute_passthrough_proceeds() {
         entity:       "createUser".to_string(),
         event_kind:   "before".to_string(),
         data:         input.clone(),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let result = chain
@@ -320,7 +320,7 @@ async fn test_before_mutation_chain_execute_abort() {
         entity:       "createUser".to_string(),
         event_kind:   "before".to_string(),
         data:         input.clone(),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let result = chain
@@ -381,7 +381,7 @@ export default async (event) => ({
         entity:       "createUser".to_string(),
         event_kind:   "before".to_string(),
         data:         input.clone(),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let result = chain
@@ -451,7 +451,7 @@ async fn test_before_mutation_chain_execute_missing_module_returns_error() {
         entity:       "createUser".to_string(),
         event_kind:   "before".to_string(),
         data:         input.clone(),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
 
     let result = chain
@@ -494,7 +494,7 @@ async fn the_chain_asks_each_hooks_limits_by_its_function_name() {
         entity:       "createUser".to_string(),
         event_kind:   "before".to_string(),
         data:         input.clone(),
-        timestamp:    chrono::Utc::now(),
+        timestamp:    fraiseql_time::Timestamp::now(),
     };
     let asked = Mutex::new(Vec::new());
 
@@ -644,7 +644,7 @@ mod trigger_predicates {
             event_filter:  Some(EventKind::Update),
             predicates:    vec![changed_to("status", json!("approved"))],
         };
-        let now = chrono::Utc::now();
+        let now = fraiseql_time::Timestamp::now();
         let fires = EntityEvent {
             entity:     "Order".to_string(),
             event_kind: EventKind::Update,
@@ -763,7 +763,7 @@ mod read_bridge {
                 entity:       "placeOrder".to_string(),
                 event_kind:   "before".to_string(),
                 data:         input.clone(),
-                timestamp:    chrono::Utc::now(),
+                timestamp:    fraiseql_time::Timestamp::now(),
             },
             Some(Arc::clone(&reader) as Arc<dyn GuestQueryBridge>),
             None,

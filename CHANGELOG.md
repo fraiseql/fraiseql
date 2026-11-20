@@ -18,6 +18,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Sagas and function events carry instants as `fraiseql_time::Timestamp` (#2026).** In
+  `fraiseql-saga`, the times of `Saga`, `SagaStep` and `SagaRecovery`; in
+  `fraiseql-functions`, `EventPayload::timestamp`, `LogEntry::timestamp`,
+  `EntityEvent::timestamp`, and the received time of an inbound message
+  (`InboundMessage::received_at`, `RawDelivery::received_at`, the argument of
+  `InboundMessage::new` and `normalize_email`). Their serde forms and stored values are
+  unchanged. The cron trigger's times stay `chrono::DateTime<Utc>`, and
+  `fraiseql_functions::chrono` stays with them.
+- **`fraiseql_saga::chrono` is removed (#2026).** The crate's public API names no chrono
+  type any more. A caller that reached chrono through it depends on `chrono` directly.
 - **`fraiseql_storage::ObjectInfo::last_modified` is `Option<chrono::DateTime<Utc>>` (#2112).**
   It was a `String` in a different format per backend. A listing that reports no time now
   gives `None`; serialized, the key is left out. Code that read the text uses the instant,
@@ -552,6 +562,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **A saga time past year 9999 is unreadable (#2026).** A saga's times hold years -9999 to
+  9999, where PostgreSQL's `timestamptz` reaches further. A load of a saga or step whose
+  stored time lies past that range returns `SagaStoreError::CorruptStoredValue`; it was
+  read before. The store writes the clock's time, so only a row edited by hand holds one.
 - **A change-log timestamp past year 9999 is unreadable (#2026).** A `Timestamp` holds
   years -9999 to 9999, where PostgreSQL's `timestamptz` reaches further. The observers
   report a change-log row whose `created_at` lies outside that range and pass over it, as
@@ -654,6 +668,9 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A saga or step whose stored time the store cannot read is reported as a corrupt value
+  (#2026).** The load returns `SagaStoreError::CorruptStoredValue` naming the column and
+  the value, as it does for a state it does not know. It did not return an error before.
 - **A stored object's `ETag` names its content (#2130).** An object written with
   `PUT /storage/v1/object/{bucket}/{key}` was given its storage key as its etag, on
   every backend: the same value after an overwrite, unquoted, and served on the

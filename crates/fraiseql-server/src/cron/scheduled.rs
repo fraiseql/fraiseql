@@ -93,14 +93,14 @@ impl ScheduledPoller {
     }
 
     /// The trigger payload of the firing at `now`.
-    pub(crate) fn payload(&self, now: DateTime<Utc>) -> EventPayload {
+    pub(crate) fn payload(&self, now: fraiseql_time::Timestamp) -> EventPayload {
         match &self.kind {
             ScheduledKind::Cron { .. } => CronTrigger {
                 function_name: self.name.clone(),
                 schedule:      self.schedule.expr.expression.clone(),
                 timezone:      self.schedule.tz.name().to_owned(),
             }
-            .build_payload(&now),
+            .build_payload(&DateTime::<Utc>::from(now)),
             #[cfg(feature = "sources")]
             ScheduledKind::Source { .. } => crate::sources::build_source_payload(
                 &self.name,
@@ -156,9 +156,10 @@ impl ScheduledPoller {
     /// logged here, with the firing's idempotency token.
     pub(crate) async fn fire_once(
         &self,
-        now: DateTime<Utc>,
+        at: fraiseql_time::Timestamp,
     ) -> RunOutcome<fraiseql_error::Result<FunctionResult>> {
-        let payload = self.payload(now);
+        let payload = self.payload(at);
+        let now = DateTime::<Utc>::from(at);
         let token = self.idempotency_token(&payload);
         #[cfg(feature = "sources")]
         if let ScheduledKind::Source {
@@ -309,7 +310,9 @@ impl ScheduledPoller {
         );
         loop {
             ticker.tick().await;
-            let now = Utc::now();
+            let at = fraiseql_time::Timestamp::now();
+            // The schedule's calendar is chrono's.
+            let now = DateTime::<Utc>::from(at);
             match self.schedule.decide(&self.state, &now) {
                 CronDecision::Fire => {},
                 // The normal idle tick.
@@ -332,7 +335,7 @@ impl ScheduledPoller {
                 },
             }
             self.state.record_execution(now);
-            let _ = self.fire_once(now).await;
+            let _ = self.fire_once(at).await;
         }
     }
 }

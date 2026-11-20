@@ -89,7 +89,7 @@ pub struct EntityEvent {
     /// New row data (None for Delete).
     pub new:        Option<serde_json::Value>,
     /// Timestamp of the event.
-    pub timestamp:  chrono::DateTime<chrono::Utc>,
+    pub timestamp:  fraiseql_time::Timestamp,
 }
 
 /// A single declarative field/transition predicate on an after:mutation trigger
@@ -390,7 +390,7 @@ impl BeforeMutationChain {
                 entity:       trigger.mutation_name.clone(),
                 event_kind:   "before".to_string(),
                 data:         current.clone(),
-                timestamp:    chrono::Utc::now(),
+                timestamp:    fraiseql_time::Timestamp::now(),
             };
 
             // `invoke_with_context`, not `invoke` (#1328). The sync path snapshots
