@@ -353,6 +353,55 @@ pub enum DatabaseWarning {
         /// Routes not sampled.
         unchecked: usize,
     },
+    /// L2: a temporal argument filters a native column of another type than its scalar's.
+    /// The value is bound with the column's type, so a `DateTime` over a `timestamp` column
+    /// has its offset dropped and is compared as another instant.
+    TemporalColumnType {
+        /// Name of the query.
+        query_name:  String,
+        /// The `sql_source` relation.
+        sql_source:  String,
+        /// The argument name.
+        arg_name:    String,
+        /// The argument's temporal scalar.
+        scalar:      &'static str,
+        /// The column type that holds that scalar's values.
+        expected:    &'static str,
+        /// The native column's SQL type.
+        column_type: String,
+    },
+    /// L3: sampled documents hold a temporal field outside its scalar's format, so a response
+    /// would serve the value as stored: a `DateTime` written from a `timestamp` column has no
+    /// offset.
+    TemporalValueOutOfFormat {
+        /// The read whose view was sampled.
+        query_name: String,
+        /// Its `sql_source` relation.
+        sql_source: String,
+        /// The type declaring the field.
+        owner:      String,
+        /// The field, as the schema names it.
+        field:      String,
+        /// The path of fields from the served document to the one holding the field, empty at
+        /// the root.
+        route:      String,
+        /// The field's temporal scalar.
+        scalar:     &'static str,
+        /// The column type whose values are in that format.
+        expected:   &'static str,
+        /// Documents holding the field with a non-null value.
+        documents:  u64,
+        /// Those whose value is outside the format.
+        refused:    u64,
+    },
+    /// L3: the view of a served document with temporal fields holds no rows, so their formats
+    /// were not checked.
+    TemporalFormatsUnchecked {
+        /// The read whose view was sampled.
+        query_name: String,
+        /// Its `sql_source` relation.
+        sql_source: String,
+    },
 }
 
 /// What would let an index serve a temporal field read out of a document
@@ -452,7 +501,9 @@ impl DatabaseWarning {
             | Self::TypeConvertibility { .. }
             | Self::NativeKeyDisagreement { .. }
             | Self::EmbeddedScopeKeyMissing { .. }
-            | Self::EmbeddedScopeKeyDisagreement { .. } => Severity::Error,
+            | Self::EmbeddedScopeKeyDisagreement { .. }
+            | Self::TemporalColumnType { .. }
+            | Self::TemporalValueOutOfFormat { .. } => Severity::Error,
             // Evidence of absence fails the compile; an empty relation proves nothing.
             Self::UnresolvableFilter { reason, .. } => match reason {
                 InjectMiss::NoJsonColumn | InjectMiss::NotInSampledRows { .. } => Severity::Error,
@@ -471,7 +522,8 @@ impl DatabaseWarning {
             | Self::TemporalKeyInDocument { .. }
             | Self::TviewIndexMissing { .. }
             | Self::EmbeddedScopeEmptyRelation { .. }
-            | Self::EmbeddedScopeRoutesUnchecked { .. } => Severity::Warn,
+            | Self::EmbeddedScopeRoutesUnchecked { .. }
+            | Self::TemporalFormatsUnchecked { .. } => Severity::Warn,
         }
     }
 }
@@ -792,6 +844,58 @@ impl fmt::Display for DatabaseWarning {
                      are sampled: {checked} checked, {unchecked} not checked"
                 )
             },
+            Self::TemporalColumnType {
+                query_name,
+                sql_source,
+                arg_name,
+                scalar,
+                expected,
+                column_type,
+            } => {
+                write!(
+                    f,
+                    "query `{query_name}`: argument `{arg_name}` is a {scalar}, which a \
+                     `{expected}` column holds, but `{sql_source}.{arg_name}` is `{column_type}`: \
+                     the value is cast to the column's type and compared as another value. Give \
+                     the column the type `{expected}`, or the argument the column's scalar"
+                )
+            },
+            Self::TemporalValueOutOfFormat {
+                query_name,
+                sql_source,
+                owner,
+                field,
+                route,
+                scalar,
+                expected,
+                documents,
+                refused,
+            } => {
+                let held = if route.is_empty() {
+                    format!("{refused} of {documents} sampled `{sql_source}` documents")
+                } else {
+                    format!(
+                        "{refused} of {documents} `{owner}` documents embedded at `{route}` in \
+                         sampled `{sql_source}` rows"
+                    )
+                };
+                write!(
+                    f,
+                    "query `{query_name}`: {held} hold `{owner}.{field}` outside the {scalar} \
+                     format, and a response would serve them as stored. Write the key from a \
+                     `{expected}` value (see docs/features/temporal-values.md)"
+                )
+            },
+            Self::TemporalFormatsUnchecked {
+                query_name,
+                sql_source,
+            } => {
+                write!(
+                    f,
+                    "query `{query_name}`: `{sql_source}` holds no rows, so the formats of its \
+                     temporal fields are unchecked"
+                )
+            },
             Self::TviewIndexMissing {
                 query_name,
                 tview,
@@ -1041,6 +1145,11 @@ pub async fn validate_schema_against_database(
                 }
             }
 
+            // L3: the temporal keys of the served documents, in their scalars' formats.
+            if column_map.get(jsonb_col).is_some_and(|t| is_json_type(t, db_type)) {
+                check_temporal_formats(schema, query, source, introspector, &mut warnings).await?;
+            }
+
             // L2: Check relay_cursor_column
             if query.relay {
                 if let Some(ref cursor_col) = query.relay_cursor_column {
@@ -1203,7 +1312,18 @@ pub async fn validate_schema_against_database(
             for arg in &query.arguments {
                 if let Some(native) = query_native.get(&arg.name) {
                     let col_type = &native.pg_type;
-                    if !arg_type_convertible(&arg.arg_type, col_type) {
+                    if let Some((scalar, expected, names)) = temporal_column(&arg.arg_type) {
+                        if !names.contains(&col_type.trim().to_lowercase().as_str()) {
+                            warnings.push(DatabaseWarning::TemporalColumnType {
+                                query_name: query.name.clone(),
+                                sql_source: source.clone(),
+                                arg_name: arg.name.clone(),
+                                scalar,
+                                expected,
+                                column_type: col_type.clone(),
+                            });
+                        }
+                    } else if !arg_type_convertible(&arg.arg_type, col_type) {
                         warnings.push(DatabaseWarning::TypeConvertibility {
                             query_name:   query.name.clone(),
                             sql_source:   source.clone(),
@@ -2094,6 +2214,153 @@ fn embedded_documents<'d>(
         })
         .filter(|at| at.is_object())
         .collect()
+}
+
+/// A temporal type's scalar name, the column type holding its values, and the names the
+/// catalog gives that type.
+fn temporal_column(
+    field_type: &FieldType,
+) -> Option<(&'static str, &'static str, &'static [&'static str])> {
+    let base = match field_type {
+        FieldType::List { item, .. } => item.as_ref(),
+        other => other,
+    };
+    match base {
+        FieldType::DateTime => {
+            Some(("DateTime", "timestamptz", &["timestamp with time zone", "timestamptz"]))
+        },
+        FieldType::LocalDateTime => {
+            Some(("LocalDateTime", "timestamp", &["timestamp without time zone", "timestamp"]))
+        },
+        FieldType::Date => Some(("Date", "date", &["date"])),
+        FieldType::Time => Some(("Time", "time", &["time without time zone", "time"])),
+        _ => None,
+    }
+}
+
+/// A temporal field reached from a served document: where its documents are, and what its
+/// values are held to.
+struct TemporalLeaf {
+    route:    Vec<String>,
+    owner:    String,
+    field:    String,
+    format:   fraiseql_db::types::temporal::Temporal,
+    scalar:   &'static str,
+    expected: &'static str,
+}
+
+/// The temporal fields of `type_name` and of the object types its document embeds, each
+/// with the route to the documents holding it. A type already on the route is not entered
+/// again, and a field the document does not hold as written (encrypted or localized) is
+/// skipped.
+fn temporal_leaves(
+    schema: &fraiseql_core::schema::CompiledSchema,
+    type_name: &str,
+    route: &mut Vec<String>,
+    entered: &mut Vec<String>,
+    leaves: &mut Vec<TemporalLeaf>,
+) {
+    let Some(declared) = schema.find_type(type_name) else {
+        return;
+    };
+    entered.push(type_name.to_string());
+    for field in &declared.fields {
+        if field.encryption.is_some() || field.localized {
+            continue;
+        }
+        let base = match &field.field_type {
+            FieldType::List { item, .. } => item.as_ref(),
+            other => other,
+        };
+        if let (Some(format), Some((scalar, expected, _))) =
+            (base.temporal(), temporal_column(base))
+        {
+            leaves.push(TemporalLeaf {
+                route: route.clone(),
+                owner: type_name.to_string(),
+                field: field.name.to_string(),
+                format,
+                scalar,
+                expected,
+            });
+        } else if let FieldType::Object(embedded) = base {
+            if !entered.contains(embedded) {
+                route.push(field.name.to_string());
+                temporal_leaves(schema, embedded, route, entered, leaves);
+                route.pop();
+            }
+        }
+    }
+    entered.pop();
+}
+
+/// Sample `source`, the view of `query`'s documents, and report each temporal field, at the
+/// root or embedded, holding a value outside its scalar's format. The finding counts
+/// documents and never quotes a value.
+async fn check_temporal_formats(
+    schema: &fraiseql_core::schema::CompiledSchema,
+    query: &fraiseql_core::schema::QueryDefinition,
+    source: &str,
+    introspector: &impl DatabaseIntrospector,
+    warnings: &mut Vec<DatabaseWarning>,
+) -> fraiseql_core::Result<()> {
+    let mut leaves = Vec::new();
+    temporal_leaves(schema, &query.return_type, &mut Vec::new(), &mut Vec::new(), &mut leaves);
+    if leaves.is_empty() {
+        return Ok(());
+    }
+    let Some(rows) = introspector
+        .sample_documents(source, &query.jsonb_column, &[], AGREEMENT_SAMPLE_ROWS)
+        .await?
+    else {
+        return Ok(());
+    };
+    if rows.is_empty() {
+        warnings.push(DatabaseWarning::TemporalFormatsUnchecked {
+            query_name: query.name.clone(),
+            sql_source: source.to_string(),
+        });
+        return Ok(());
+    }
+    for leaf in leaves {
+        let path: Vec<&str> = leaf.route.iter().map(String::as_str).collect();
+        let (stored, fallback) = fraiseql_core::runtime::stored_key_candidates(&leaf.field);
+        let (mut documents, mut refused) = (0_u64, 0_u64);
+        for (document, _) in &rows {
+            for holder in embedded_documents(document, &path) {
+                let value =
+                    holder.get(&stored).or_else(|| fallback.as_ref().and_then(|f| holder.get(f)));
+                let values: Vec<&serde_json::Value> = match value {
+                    None | Some(serde_json::Value::Null) => continue,
+                    Some(serde_json::Value::Array(items)) => items.iter().collect(),
+                    Some(other) => vec![other],
+                };
+                documents += 1;
+                let outside = values.iter().any(|value| match value {
+                    serde_json::Value::Null => false,
+                    serde_json::Value::String(text) => leaf.format.refusal(text).is_some(),
+                    _ => true,
+                });
+                if outside {
+                    refused += 1;
+                }
+            }
+        }
+        if refused > 0 {
+            warnings.push(DatabaseWarning::TemporalValueOutOfFormat {
+                query_name: query.name.clone(),
+                sql_source: source.to_string(),
+                owner: leaf.owner,
+                field: leaf.field,
+                route: leaf.route.join("."),
+                scalar: leaf.scalar,
+                expected: leaf.expected,
+                documents,
+                refused,
+            });
+        }
+    }
+    Ok(())
 }
 
 /// Rows sampled to check a native column against its document key (#1579).

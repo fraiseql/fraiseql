@@ -990,3 +990,219 @@ async fn an_empty_view_and_routes_past_the_cap_warn() {
         "the unchecked routes are counted:\n{log}"
     );
 }
+
+/// `Slot` publishes one field of each temporal scalar, read from `view`'s document; `Booking`
+/// embeds a `Slot` under `slot`. The query `slotsAt` filters on `at`, a native column when the
+/// view has one.
+fn temporal_schema(view: &str, booking_view: &str) -> NamedTempFile {
+    write_json(&json!({
+        "types": [
+            {
+                "name": "Slot",
+                "sql_source": view,
+                "fields": [
+                    {"name": "id", "type": "Int", "nullable": false},
+                    {"name": "at", "type": "DateTime", "nullable": true},
+                    {"name": "wall", "type": "LocalDateTime", "nullable": true},
+                    {"name": "day", "type": "Date", "nullable": true},
+                    {"name": "opens", "type": "Time", "nullable": true}
+                ]
+            },
+            {
+                "name": "Booking",
+                "sql_source": booking_view,
+                "fields": [
+                    {"name": "id", "type": "Int", "nullable": false},
+                    {"name": "slot", "type": "Slot", "nullable": true}
+                ]
+            }
+        ],
+        "queries": [
+            {"name": "slots", "return_type": "Slot", "returns_list": true, "sql_source": view},
+            {
+                "name": "bookings",
+                "return_type": "Booking",
+                "returns_list": true,
+                "sql_source": booking_view
+            }
+        ]
+    }))
+}
+
+/// A view whose document writes each temporal key from a column of the given types, in
+/// that order: `at`, `wall`, `day`, `opens`.
+async fn create_temporal_view(client: &tokio_postgres::Client, view: &str, types: [&str; 4]) {
+    let [at, wall, day, opens] = types;
+    client
+        .batch_execute(&format!(
+            "DROP VIEW IF EXISTS {view} CASCADE;
+             CREATE VIEW {view} AS SELECT 1 AS id, jsonb_build_object('id', 1, \
+             'at', '2026-07-01 09:30:00+00'::{at}, 'wall', '2026-07-01 09:30:00'::{wall}, \
+             'day', '2026-07-01'::{day}, 'opens', '09:30:00'::{opens}) AS data;"
+        ))
+        .await
+        .unwrap();
+}
+
+/// A booking view embedding, under `slot`, the document `slot_view` serves.
+async fn create_booking_view(client: &tokio_postgres::Client, view: &str, slot_view: &str) {
+    client
+        .batch_execute(&format!(
+            "DROP VIEW IF EXISTS {view};
+             CREATE VIEW {view} AS SELECT s.id, jsonb_build_object('id', s.id, 'slot', s.data) \
+             AS data FROM {slot_view} s;"
+        ))
+        .await
+        .unwrap();
+}
+
+const RIGHT_TYPES: [&str; 4] = ["timestamptz", "timestamp", "date", "time"];
+
+/// A view writing each temporal key from a column of its scalar's type compiles, with no
+/// finding on any temporal field.
+#[tokio::test]
+async fn temporal_keys_written_from_their_own_column_types_compile() {
+    let Some(client) = client().await else { return };
+    let url = fraiseql_test_support::try_database_url().unwrap();
+    create_temporal_view(&client, "v_cdf2176_right", RIGHT_TYPES).await;
+    create_booking_view(&client, "v_cdf2176_right_booking", "v_cdf2176_right").await;
+
+    let out_dir = TempDir::new().unwrap();
+    let out = out_dir.path().join("schema.compiled.json");
+    let schema = temporal_schema("v_cdf2176_right", "v_cdf2176_right_booking");
+    let (ok, log) = run_compile(schema.path(), &url, &out, &[]);
+    assert!(ok, "temporal keys in their scalars' formats compile:\n{log}");
+    assert!(!log.contains("Slot.at"), "a correct view draws no temporal finding:\n{log}");
+}
+
+/// `to_jsonb` of a `timestamp` writes no offset, so a `DateTime` read from it is served
+/// offset-less; likewise a `timestamptz` under a `LocalDateTime` carries one, a `timestamp`
+/// under a `Date` is a date-time, and a `timetz` under a `Time` carries an offset. Each fails
+/// the compile, naming the field, its scalar and the count, never a sampled value; the same
+/// documents embedded in another view fail it too.
+#[tokio::test]
+async fn a_temporal_key_outside_its_scalars_format_fails_the_compile() {
+    let Some(client) = client().await else { return };
+    let url = fraiseql_test_support::try_database_url().unwrap();
+
+    for (field, scalar, types) in [
+        ("at", "DateTime", ["timestamp", "timestamp", "date", "time"]),
+        ("wall", "LocalDateTime", ["timestamptz", "timestamptz", "date", "time"]),
+        ("day", "Date", ["timestamptz", "timestamp", "timestamp", "time"]),
+        ("opens", "Time", ["timestamptz", "timestamp", "date", "timetz"]),
+    ] {
+        let view = format!("v_cdf2176_wrong_{field}");
+        let booking = format!("v_cdf2176_wrong_{field}_booking");
+        create_temporal_view(&client, &view, types).await;
+        create_booking_view(&client, &booking, &view).await;
+
+        let out_dir = TempDir::new().unwrap();
+        let out = out_dir.path().join("schema.compiled.json");
+        let (ok, log) = run_compile(temporal_schema(&view, &booking).path(), &url, &out, &[]);
+
+        assert!(!ok, "`Slot.{field}` served outside the {scalar} format must fail:\n{log}");
+        assert!(
+            log.contains(&format!(
+                "query `slots`: 1 of 1 sampled `{view}` documents hold `Slot.{field}` \
+                 outside the {scalar} format"
+            )),
+            "the failure names the view, the field, its scalar and the count:\n{log}"
+        );
+        assert!(
+            log.contains(&format!(
+                "query `bookings`: 1 of 1 `Slot` documents embedded at `slot` in sampled \
+                 `{booking}` rows hold `Slot.{field}` outside the {scalar} format"
+            )),
+            "an embedded document is held to the same format:\n{log}"
+        );
+        assert!(!log.contains("09:30"), "the log carries a sampled value:\n{log}");
+        assert!(!out.exists(), "a failed compile must not write the artifact");
+    }
+}
+
+/// An empty view proves nothing about its temporal keys: it warns and compiles.
+#[tokio::test]
+async fn an_empty_view_leaves_its_temporal_keys_unchecked_and_warns() {
+    let Some(client) = client().await else { return };
+    let url = fraiseql_test_support::try_database_url().unwrap();
+    create_temporal_view(&client, "v_cdf2176_full", RIGHT_TYPES).await;
+    client
+        .batch_execute(
+            "DROP VIEW IF EXISTS v_cdf2176_empty_booking;
+             CREATE VIEW v_cdf2176_empty_booking AS SELECT 1 AS id, '{}'::jsonb AS data \
+             WHERE false;",
+        )
+        .await
+        .unwrap();
+
+    let out_dir = TempDir::new().unwrap();
+    let out = out_dir.path().join("schema.compiled.json");
+    let schema = temporal_schema("v_cdf2176_full", "v_cdf2176_empty_booking");
+    let (ok, log) = run_compile(schema.path(), &url, &out, &[]);
+    assert!(ok, "an empty view warns, it does not fail:\n{log}");
+    assert!(
+        log.contains(
+            "query `bookings`: `v_cdf2176_empty_booking` holds no rows, so the formats of its \
+             temporal fields are unchecked"
+        ),
+        "the empty view is named:\n{log}"
+    );
+}
+
+/// An argument filtering a native column binds its value with the column's type: a
+/// `DateTime` over a `timestamp` column drops the offset the argument carries, and the other
+/// scalars likewise compare against a column of another meaning. Each fails the compile,
+/// naming the argument and both types; the matching column type compiles.
+#[tokio::test]
+async fn a_temporal_argument_over_a_column_of_another_type_fails_the_compile() {
+    let Some(client) = client().await else { return };
+    let url = fraiseql_test_support::try_database_url().unwrap();
+
+    for (scalar, right, wrong) in [
+        ("DateTime", "timestamptz", "timestamp"),
+        ("LocalDateTime", "timestamp", "timestamptz"),
+        ("Date", "date", "timestamp"),
+        ("Time", "time", "timetz"),
+    ] {
+        let schema = |view: &str| {
+            write_json(&json!({
+                "types": [{
+                    "name": "Slot",
+                    "sql_source": view,
+                    "fields": [{"name": "id", "type": "Int", "nullable": false}]
+                }],
+                "queries": [{
+                    "name": "slotsAt",
+                    "return_type": "Slot",
+                    "returns_list": true,
+                    "sql_source": view,
+                    "arguments": [{"name": "at", "type": scalar, "nullable": true}]
+                }]
+            }))
+        };
+        let out_dir = TempDir::new().unwrap();
+        for (column_type, compiles) in [(right, true), (wrong, false)] {
+            let view = format!("v_cdf2176_arg_{}", column_type.replace(' ', "_"));
+            client
+                .batch_execute(&format!(
+                    "DROP VIEW IF EXISTS {view};
+                     CREATE VIEW {view} AS SELECT 1 AS id, NULL::{column_type} AS at, \
+                     '{{\"id\": 1}}'::jsonb AS data;"
+                ))
+                .await
+                .unwrap();
+            let out = out_dir.path().join(format!("{view}.json"));
+            let (ok, log) = run_compile(schema(&view).path(), &url, &out, &[]);
+            assert_eq!(ok, compiles, "{scalar} over `{column_type}`:\n{log}");
+            if !compiles {
+                assert!(
+                    log.contains(&format!(
+                        "query `slotsAt`: argument `at` is a {scalar}, which a `{right}` column \
+                         holds, but `{view}.at` is"
+                    )),
+                    "the failure names the argument, the scalar and both types:\n{log}"
+                );
+            }
+        }
+    }
+}

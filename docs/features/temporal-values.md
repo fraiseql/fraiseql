@@ -29,6 +29,37 @@ Every value that reaches a temporal cast is checked first, on every transport:
 A value outside its format is a validation error that names the argument or the field and
 the format it takes. The value itself is never quoted back.
 
+## Where a served value is checked
+
+A served value is the text the view writes into the document, and PostgreSQL writes each
+column type in one shape: a `timestamp` never with an offset, a `timestamptz` always with
+one. A `DateTime` key written from a `timestamp` column is therefore served without an offset,
+and read by a client in whatever zone it assumes.
+
+`compile --database` and `doctor --against-db` check this against the database:
+
+- they sample each served view's documents, the documents embedded in them included, and
+  fail on a temporal field holding a value outside its scalar's format. The finding names the
+  field, its scalar and how many sampled documents hold such a value, never a value. A view
+  holding no rows proves nothing, and draws a warning instead;
+- they fail on a temporal argument that filters a native column of another type than its
+  scalar's, since the value is cast to the column's type: a `DateTime` over a `timestamp`
+  column has its offset dropped.
+
+Each scalar is written from one column type:
+
+| Scalar | Column type |
+|---|---|
+| `DateTime` | `timestamptz` |
+| `LocalDateTime` | `timestamp` |
+| `Date` | `date` |
+| `Time` | `time` |
+
+PostgreSQL writes a `timestamptz` before 1900 in some zones with an offset in seconds
+(`+00:09:21` in `Europe/Paris`), which the `DateTime` format, `±HH:MM`, cannot carry. Such a
+value is refused like any other outside the format; a server whose sessions run in `UTC`
+never writes one.
+
 ## Why
 
 An operand is cast `::timestamptz`, `::timestamp`, `::date` or `::time`, and PostgreSQL's

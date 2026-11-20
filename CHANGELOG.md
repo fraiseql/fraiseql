@@ -38,6 +38,17 @@ disagreed, and the promise was the part that was wrong.
   Their introspection descriptions state the formats. A client sending offset-less
   instants, dates where a `DateTime` is declared, or times without seconds must send the
   published format. See `docs/features/temporal-values.md`.
+- **`compile --database` fails on a temporal field its view writes in another format
+  (#2176).** A view writing a `DateTime` key from a `timestamp` column serves it without an
+  offset, and a client reads it in a zone of its own choosing. `compile --database` and
+  `doctor --against-db` now sample each served view's documents, embedded ones included,
+  and fail on a `DateTime`, `LocalDateTime`, `Date` or `Time` field holding a value outside
+  its scalar's format, naming the field and a count, never a value; a view with no rows
+  warns. They also fail on a temporal argument over a native column of another type than
+  its scalar's (`timestamptz`, `timestamp`, `date`, `time`): a `DateTime` over a
+  `timestamp` column had its offset dropped. A project whose views write such keys must
+  write them from the scalar's column type, or declare the field with the scalar the
+  column holds. See `docs/features/temporal-values.md`.
 - **The Go SDK's `Webhook` and `WebhookWithEnv` take typed options (#2148).** Their
   optional keys were a `map[string]interface{}` that took any key and value. They are now
   `...WebhookOption`: `WebhookMethod`, `WebhookBodyTemplate`, `WebhookSigningSecretEnv`,
