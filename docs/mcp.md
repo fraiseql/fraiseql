@@ -44,7 +44,7 @@ MCP stdio mode is activated by setting the `FRAISEQL_MCP_STDIO` environment vari
 FRAISEQL_MCP_STDIO=1 fraiseql-server
 ```
 
-All standard server configuration still applies (database URL, schema path, etc.). The only difference is the transport layer: stdio replaces HTTP.
+All standard server configuration still applies (database URL, schema path, etc.). The only difference is the transport layer: stdio replaces HTTP. It starts the same background work the HTTP server starts (the observers, `cron:` functions, sources, mailbox pollers and the change-log drain), so a stdio server can be a deployment's only process; next to an HTTP server of the same deployment, each scheduled firing and each dispatched row still runs once. It reloads its schema on `SIGUSR1`. The tool list a client sees is the one at boot: a stdio session lasts as long as the process, and a reloaded schema answers the tools it already lists.
 
 ## Configuring AI Tools
 

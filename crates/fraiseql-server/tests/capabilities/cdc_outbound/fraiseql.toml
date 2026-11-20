@@ -1,6 +1,10 @@
 [project]
 name = "capability-cdc-outbound"
 
+# Served over MCP stdio too.
+[mcp]
+enabled = true
+
 [types.Order]
 sql_source = "app.v_order"
 fields.id = { type = "ID" }

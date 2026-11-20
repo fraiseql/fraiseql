@@ -24,10 +24,12 @@ pub enum EntryPoint {
     Http,
     /// [`Server::serve_on_listener`]: a caller-bound listener, the in-process harness.
     Listener,
-    /// `Server::serve_mcp_stdio`: one MCP client over stdin/stdout, a sidecar to the
-    /// deployment's HTTP server. Besides what the registry declares for it, it runs the
-    /// core workers its own requests need (async operations, the inbound dispatch sweep,
-    /// the storage quota sweep) and no schema reload handler.
+    /// `Server::serve_mcp_stdio`: one MCP client over stdin/stdout, and no HTTP. Like
+    /// every entry point it runs the core workers (async operations, the inbound
+    /// dispatch sweep, the storage quota sweep) and the schema reload handler, besides
+    /// what the registry declares for it.
+    #[cfg_attr(not(feature = "mcp"), allow(dead_code))]
+    // Reason: only the `mcp` feature serves stdio
     McpStdio,
 }
 
@@ -88,12 +90,6 @@ impl Server {
                 })
                 .await?;
             self.capability_starts.record(name, started == Started::Running);
-        }
-
-        // Schema reload is deployment-wide too: the stdio sidecar leaves it to the HTTP
-        // server beside it.
-        if entry == EntryPoint::McpStdio {
-            return Ok(());
         }
 
         // Spawn SIGUSR1 schema reload handler when running on Unix.

@@ -1735,6 +1735,91 @@ async fn test_standby_replica_takes_over_when_the_poller_stops() {
     );
 }
 
+/// A poller killed mid-dispatch hands the lease to the standby (#2000), which redelivers
+/// the row the killed poller had sent and not recorded, and dispatches what follows once.
+///
+/// Replica A runs on a tokio runtime of its own, shut down without waiting: its tasks are
+/// dropped and its connections closed at once, as when the process is killed. It runs no
+/// stop path, releases no lock and writes no checkpoint; the lock goes with its session.
+/// Delivery is at least once: the redelivered row carries the same change-log entry.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires PostgreSQL"]
+async fn test_a_poller_killed_mid_dispatch_hands_the_lease_to_the_standby() {
+    init_test_tracing();
+
+    let test_id = Uuid::new_v4().to_string();
+    let listener_id = format!("killed-{test_id}");
+    let pool_b = create_test_pool().await;
+    let (mock_server, entity_type) =
+        seed_replica_test(&pool_b, &test_id, Duration::from_secs(3)).await;
+
+    let killed = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()
+        .expect("replica A's runtime");
+    let (started, a_started) = tokio::sync::oneshot::channel::<()>();
+    let a_listener = listener_id.clone();
+    killed.spawn(async move {
+        let mut replica_a = ObserverRuntime::new(
+            ObserverRuntimeConfig::new(create_test_pool().await)
+                .with_poll_interval(50)
+                .with_listener_id(a_listener),
+        );
+        replica_a.start().await.expect("Failed to start replica A");
+        let _ = started.send(());
+        // Held until the runtime is shut down under it.
+        std::future::pending::<()>().await;
+        drop(replica_a);
+    });
+    a_started.await.expect("replica A started");
+    // A polls; B, started after it, stands by.
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let mut replica_b = ObserverRuntime::new(
+        ObserverRuntimeConfig::new(pool_b.clone())
+            .with_poll_interval(50)
+            .with_listener_id(listener_id.clone()),
+    );
+    replica_b.start().await.expect("Failed to start replica B");
+
+    // A sends the row; its webhook answers after 3 s, so A is killed before recording it.
+    let first = insert_order(&pool_b, &entity_type).await;
+    wait_for_webhook(&mock_server, 1, Duration::from_secs(20)).await;
+    // Ten of B's polls: a standby that polled too would have sent the row by now.
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert_eq!(mock_server.request_count().await, 1, "the row went out once before the kill");
+    let killed_at = std::time::Instant::now();
+    killed.shutdown_background();
+
+    wait_for_webhook(&mock_server, 2, Duration::from_secs(20)).await;
+    let handed_over_in = killed_at.elapsed();
+    // Past the 3 s answer of every outstanding request, so a third delivery would be counted.
+    tokio::time::sleep(Duration::from_secs(4)).await;
+    let second = insert_order(&pool_b, &entity_type).await;
+    wait_for_webhook(&mock_server, 3, Duration::from_secs(20)).await;
+    tokio::time::sleep(Duration::from_secs(4)).await;
+
+    let ids: Vec<String> = mock_server
+        .received_requests()
+        .await
+        .iter()
+        .filter_map(|r| r["id"].as_str().map(str::to_string))
+        .collect();
+    replica_b.stop().await.expect("Failed to stop replica B");
+    cleanup_test_data(&pool_b, &test_id).await.expect("Failed to cleanup");
+
+    assert_eq!(
+        ids,
+        [first.to_string(), first.to_string(), second.to_string()],
+        "the row being sent at the kill is redelivered by the standby, and the next row is delivered once"
+    );
+    // The lock goes with the killed session, and the standby retries every second.
+    assert!(
+        handed_over_in < Duration::from_secs(5),
+        "the standby took over {handed_over_in:?} after the kill"
+    );
+}
+
 /// The runtime on the NATS transport creates its stream and durable consumer with
 /// the `nats.jetstream` values (#1496): the dedup window, message age and
 /// delivery limit were parsed, validated and overridable, and never reached

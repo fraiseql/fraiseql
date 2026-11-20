@@ -125,7 +125,7 @@ impl Entry {
 /// The `cron` fixture declares `[mcp]` beside its SDK `schema.json` (#1719), and its function
 /// fires on the binary, a listener and `fraiseql run`. Served over MCP stdio it boots and
 /// answers, and the function does not fire within the fixture's deadline.
-const NOT_DRIVEN_YET: &[(&str, Entry, &str)] = &[("cron", Entry::McpStdio, "#2000")];
+const NOT_DRIVEN_YET: &[(&str, Entry, &str)] = &[];
 
 /// Whether `fixture` is listed in [`NOT_DRIVEN_YET`] for `entry`.
 fn waiting(fixture: &str, entry: Entry) -> bool {
@@ -1764,4 +1764,138 @@ async fn serve_on_a_listener() -> anyhow::Result<()> {
     .await?;
     Box::pin(server.serve_on_listener(listener, std::future::pending::<()>())).await?;
     Ok(())
+}
+
+/// Call `tool` over the server's stdin with no arguments, and return its answer.
+async fn call_over_stdio(stdio: &StdioChannel, tool: &str) -> Result<Value, String> {
+    let id = stdio.request("tools/call", &serde_json::json!({ "name": tool, "arguments": {} }))?;
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        if let Some(answer) = stdio.answer(id)? {
+            return Ok(answer);
+        }
+        if Instant::now() > deadline {
+            return Err(format!("mcp tools/call {tool}: no answer on stdout within 30s"));
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
+/// What the `mcp` fixture's `notes` query answers, through the entry point `served` serves.
+async fn read_notes(served: &Served) -> Result<String, String> {
+    match &served.stdio {
+        Some(stdio) => Ok(call_over_stdio(stdio, "notes").await?.to_string()),
+        None => reqwest::Client::new()
+            .post(format!("{}/graphql", served.base))
+            .json(&serde_json::json!({ "query": "{ notes { id title } }" }))
+            .send()
+            .await
+            .map_err(|e| format!("/graphql: {e}"))?
+            .text()
+            .await
+            .map_err(|e| format!("/graphql: {e}")),
+    }
+}
+
+/// Serve the `mcp` fixture through `entry`, give its `notes` query a role in the compiled
+/// schema, signal `SIGUSR1`, and wait for `notes` to be hidden from the anonymous caller, as
+/// the reloaded schema hides a query whose role the caller lacks.
+#[cfg(unix)]
+async fn reload_on_sigusr1(entry: Entry) {
+    let Some(admin_url) = try_database_url() else {
+        eprintln!("SKIP reload on {}: DATABASE_URL not set", entry.name());
+        return;
+    };
+    let dir = fixtures_dir().join("mcp");
+    let fixture = read_fixture(&dir).unwrap();
+    let compiled = tempfile::tempdir().unwrap();
+    let schema = compiled.path().join("schema.compiled.json");
+    compile(&dir, &schema).await.unwrap();
+    let db = format!("cap_reload_{}", entry.name());
+    let setup_sql = format!(
+        "{}\nINSERT INTO app.tb_note VALUES (gen_random_uuid(), 'as booted');",
+        std::fs::read_to_string(dir.join("setup.sql")).unwrap()
+    );
+    let database_url = prepare_database(&admin_url, &db, &setup_sql, fixture.fraiseql_setup)
+        .await
+        .unwrap();
+    let scratch = tempfile::tempdir().unwrap();
+
+    let outcome = async {
+        let mut served = serve(
+            entry,
+            &dir,
+            &fixture,
+            &schema,
+            &database_url,
+            scratch.path(),
+            Receiver::start().await,
+        )
+        .await?;
+        let before = read_notes(&served).await?;
+        if !before.contains("as booted") {
+            return Err(format!("the booted schema serves `notes`: {before}"));
+        }
+
+        let mut document: Value =
+            serde_json::from_str(&std::fs::read_to_string(&schema).unwrap()).unwrap();
+        let notes = document["queries"]
+            .as_array_mut()
+            .and_then(|queries| queries.iter_mut().find(|q| q["name"] == "notes"))
+            .ok_or("the compiled schema has a `notes` query")?;
+        notes["requires_role"] = Value::from("auditor");
+        let staged = schema.with_extension("staged");
+        std::fs::write(&staged, document.to_string()).unwrap();
+        std::fs::rename(&staged, &schema).unwrap();
+        let signalled = Command::new("kill")
+            .args(["-USR1", &served.child.id().to_string()])
+            .status()
+            .map_err(|e| format!("kill -USR1: {e}"))?;
+        if !signalled.success() {
+            return Err(format!("kill -USR1 exited {signalled}"));
+        }
+
+        let deadline = Instant::now() + Duration::from_secs(20);
+        loop {
+            tokio::time::sleep(Duration::from_millis(250)).await;
+            // Without a handler, the signal's default action ends the process.
+            served.still_running()?;
+            let after = read_notes(&served).await?;
+            if after.contains("Query 'notes' not found in schema") {
+                return Ok(());
+            }
+            if Instant::now() > deadline {
+                let stderr = std::fs::read_to_string(&served.stderr).unwrap_or_default();
+                let reload: Vec<&str> =
+                    stderr.lines().filter(|line| line.to_lowercase().contains("reload")).collect();
+                return Err(format!(
+                    "`notes` is still served as booted 20s after SIGUSR1: {after}\n\
+                     --- what the server logged about the reload ---\n{}",
+                    reload.join("\n")
+                ));
+            }
+        }
+    }
+    .await;
+    drop_database(&admin_url, &db).await;
+    if let Err(failure) = outcome {
+        panic!("reload on {}: {failure}", entry.name());
+    }
+}
+
+/// A server serving MCP over stdio reloads its schema on `SIGUSR1`, as the binary serving
+/// HTTP does. The tool list stays the boot one (a stdio session lasts the process); the
+/// reloaded schema answers the query a tool runs.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_stdio_server_reloads_its_schema_on_sigusr1() {
+    reload_on_sigusr1(Entry::McpStdio).await;
+}
+
+/// The binary serving HTTP reloads its schema on `SIGUSR1`: the reference the stdio server is
+/// held to.
+#[cfg(unix)]
+#[tokio::test]
+async fn the_binary_reloads_its_schema_on_sigusr1() {
+    reload_on_sigusr1(Entry::Binary).await;
 }

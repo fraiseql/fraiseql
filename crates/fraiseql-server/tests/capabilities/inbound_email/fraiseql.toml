@@ -1,6 +1,10 @@
 [project]
 name = "capability-inbound-email"
 
+# Served over MCP stdio too.
+[mcp]
+enabled = true
+
 [types.Note]
 sql_source = "app.v_note"
 fields.id = { type = "ID" }
