@@ -649,18 +649,36 @@ async fn two_workers_on_one_sink_publish_each_row_once_in_order() {
     let a = worker(pool().await, 'a');
     let b = worker(pool().await, 'b');
 
-    let drain = |w: DrainWorker<SharedSink>| async move {
-        for _ in 0..200 {
-            w.tick().await.unwrap();
+    // Each worker ticks until every row is published or the deadline passes. A tick that
+    // finds the other worker's batch at the head claims nothing and returns at once, so a
+    // fixed number of ticks runs out while a slow batch is published, not when the drain
+    // is done.
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
+    let drain = |w: DrainWorker<SharedSink>| {
+        let setup = setup.clone();
+        let sink_name = sink_name.clone();
+        async move {
+            while status_count(&setup, &sink_name, "published").await < 60
+                && tokio::time::Instant::now() < deadline
+            {
+                w.tick().await.unwrap();
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
         }
     };
     tokio::join!(drain(a), drain(b));
 
     let log = log.lock().unwrap().clone();
+    let published_rows = status_count(&setup, &sink_name, "published").await;
+    assert_eq!(
+        published_rows,
+        60,
+        "not drained within 30 s: {published_rows} rows published, {} publishes logged: {log:?}",
+        log.len()
+    );
     let published: Vec<i64> = log.iter().map(|(_, seq)| *seq).collect();
     assert_eq!(published, seeded, "each row once, in seq order, across both workers");
     for name in ['a', 'b'] {
         assert!(log.iter().any(|(w, _)| *w == name), "worker {name} published nothing: {log:?}");
     }
-    assert_eq!(status_count(&setup, &sink_name, "published").await, 60);
 }
