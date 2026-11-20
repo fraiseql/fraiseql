@@ -14,6 +14,7 @@
     <Compile Include="SchemaExporterTests.fs" />
     <Compile Include="DslTests.fs" />
     <Compile Include="VectorFieldTests.fs" />
+    <Compile Include="FieldScopeTests.fs" />
     <Compile Include="LocalizedTests.fs" />
     <Compile Include="ScopedLikeParentTests.fs" />
     <Compile Include="ClientTests.fs" />

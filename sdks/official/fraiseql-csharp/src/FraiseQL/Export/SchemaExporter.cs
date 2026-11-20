@@ -149,8 +149,8 @@ public static class SchemaExporter
             Type: f.Type,
             Nullable: f.Nullable,
             Description: f.Description,
-            Scope: f.Scope,
-            Scopes: f.Scopes,
+            // A one-item Scopes list is the Scope; a longer one is refused (#807).
+            Scope: SchemaRegistry.NormaliseScope(f.Scope, f.Scopes, f.Name),
             Computed: f.Computed ? true : null,
             Vector: f.Vector,
             VectorDistance: f.VectorDistance,
