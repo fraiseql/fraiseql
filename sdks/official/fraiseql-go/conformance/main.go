@@ -317,19 +317,18 @@ func authorFull() error {
 
 // authorObservers declares one observer per action kind through the observer builder
 // and the action constructors. Every observer sets its retry: the default differs
-// between SDKs. The webhook's optional keys go through the options map, the only way
-// this SDK sets them.
+// between SDKs. The webhook's optional keys go through the typed webhook options.
 func authorObservers() error {
 	if err := fraiseql.NewObserver("orderPlacedWebhook").
 		Entity("Order").
 		Event("INSERT").
-		Action(fraiseql.WebhookWithEnv("CONFORMANCE_HOOK_URL", map[string]interface{}{
-			"method":             "PUT",
-			"body_template":      `{"total": {{ total }}}`,
-			"signing_secret_env": "CONFORMANCE_HOOK_KEY",
-			"headers":            map[string]string{"X-Source": "conformance"},
-			"headers_env":        map[string]string{"Authorization": "CONFORMANCE_HOOK_TOKEN"},
-		})).
+		Action(fraiseql.WebhookWithEnv("CONFORMANCE_HOOK_URL",
+			fraiseql.WebhookMethod("PUT"),
+			fraiseql.WebhookBodyTemplate(`{"total": {{ total }}}`),
+			fraiseql.WebhookSigningSecretEnv("CONFORMANCE_HOOK_KEY"),
+			fraiseql.WebhookHeader("X-Source", "conformance"),
+			fraiseql.WebhookHeaderFromEnv("Authorization", "CONFORMANCE_HOOK_TOKEN"),
+		)).
 		Retry(fraiseql.RetryConfig{
 			MaxAttempts: 5, BackoffStrategy: "linear", InitialDelayMs: 200, MaxDelayMs: 5000,
 		}).

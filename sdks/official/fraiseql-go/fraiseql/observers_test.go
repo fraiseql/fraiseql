@@ -59,10 +59,10 @@ func TestEmailEmitsTheKeysTheRuntimeReads(t *testing.T) {
 }
 
 func TestWebhookEmitsTheKeysTheRuntimeReads(t *testing.T) {
-	got := exportedAction(t, WebhookWithEnv("ORDER_HOOK_URL", map[string]interface{}{
-		"method":             "PUT",
-		"signing_secret_env": "ORDER_HOOK_SECRET",
-	}))
+	got := exportedAction(t, WebhookWithEnv("ORDER_HOOK_URL",
+		WebhookMethod("PUT"),
+		WebhookSigningSecretEnv("ORDER_HOOK_SECRET"),
+	))
 	want := map[string]interface{}{
 		"type":               "webhook",
 		"url_env":            "ORDER_HOOK_URL",
@@ -75,14 +75,51 @@ func TestWebhookEmitsTheKeysTheRuntimeReads(t *testing.T) {
 }
 
 func TestWebhookCarriesAHeaderValueFromTheEnvironmentByName(t *testing.T) {
-	got := exportedAction(t, Webhook("https://example.com/hook", map[string]interface{}{
-		"headers_env": map[string]string{"Authorization": "ORDER_HOOK_TOKEN"},
-	}))
+	got := exportedAction(t, Webhook("https://example.com/hook",
+		WebhookHeaderFromEnv("Authorization", "ORDER_HOOK_TOKEN"),
+	))
 	want := map[string]interface{}{
 		"type":        "webhook",
 		"url":         "https://example.com/hook",
 		"headers_env": map[string]interface{}{"Authorization": "ORDER_HOOK_TOKEN"},
 	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestWebhookOptionsSetEveryKeyTheRuntimeReads(t *testing.T) {
+	got := exportedAction(t, Webhook("https://example.com/hook",
+		WebhookMethod("PATCH"),
+		WebhookBodyTemplate(`{"id": "{{ id }}"}`),
+		WebhookSigningSecretEnv("ORDER_HOOK_SECRET"),
+		WebhookHeader("X-Source", "orders"),
+		WebhookHeader("X-Tenant", "acme"),
+		WebhookHeaderFromEnv("Authorization", "ORDER_HOOK_TOKEN"),
+		WebhookHeaderFromEnv("X-Api-Key", "ORDER_HOOK_KEY"),
+	))
+	want := map[string]interface{}{
+		"type":               "webhook",
+		"url":                "https://example.com/hook",
+		"method":             "PATCH",
+		"body_template":      `{"id": "{{ id }}"}`,
+		"signing_secret_env": "ORDER_HOOK_SECRET",
+		"headers":            map[string]interface{}{"X-Source": "orders", "X-Tenant": "acme"},
+		"headers_env": map[string]interface{}{
+			"Authorization": "ORDER_HOOK_TOKEN",
+			"X-Api-Key":     "ORDER_HOOK_KEY",
+		},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+// A webhook given no option authors no optional key: the server applies its own
+// defaults, and an SDK that wrote them would author what the author did not.
+func TestWebhookWithoutOptionsAuthorsOnlyItsURL(t *testing.T) {
+	got := exportedAction(t, WebhookWithEnv("ORDER_HOOK_URL"))
+	want := map[string]interface{}{"type": "webhook", "url_env": "ORDER_HOOK_URL"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, want %v", got, want)
 	}

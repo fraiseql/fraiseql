@@ -77,9 +77,9 @@ func main() {
 		Event("UPDATE").
 		Condition("field_changed_to('status', 'shipped')").
 		Actions(
-			fraiseql.WebhookWithEnv("SHIPPING_WEBHOOK_URL", map[string]interface{}{
-				"signing_secret_env": "SHIPPING_WEBHOOK_SECRET",
-			}),
+			fraiseql.WebhookWithEnv("SHIPPING_WEBHOOK_URL",
+				fraiseql.WebhookSigningSecretEnv("SHIPPING_WEBHOOK_SECRET"),
+			),
 			fraiseql.EmailAction(
 				"fulfilment@example.com",
 				"An order has shipped",
@@ -95,12 +95,10 @@ func main() {
 		Condition("status == 'failed'").
 		Actions(
 			fraiseql.Slack("#payments", "⚠️ Payment failed for order {{ order_id }}: {{ amount }}"),
-			fraiseql.Webhook("https://api.example.com/payment-failures", map[string]interface{}{
-				"headers": map[string]string{
-					"X-Source": "fraiseql",
-				},
-				"signing_secret_env": "PAYMENT_WEBHOOK_SECRET",
-			}),
+			fraiseql.Webhook("https://api.example.com/payment-failures",
+				fraiseql.WebhookHeader("X-Source", "fraiseql"),
+				fraiseql.WebhookSigningSecretEnv("PAYMENT_WEBHOOK_SECRET"),
+			),
 		).
 		Retry(fraiseql.RetryConfig{
 			MaxAttempts:     5,
@@ -114,9 +112,9 @@ func main() {
 	must(fraiseql.NewObserver("onOrderDeleted").
 		Entity("Order").
 		Event("DELETE").
-		Action(fraiseql.Webhook("https://api.example.com/archive", map[string]interface{}{
-			"body_template": `{"type": "order", "id": "{{ id }}", "status": "{{ status }}"}`,
-		})).
+		Action(fraiseql.Webhook("https://api.example.com/archive",
+			fraiseql.WebhookBodyTemplate(`{"type": "order", "id": "{{ id }}", "status": "{{ status }}"}`),
+		)).
 		Register())
 
 	// Observer 5: Simple notification for all new orders

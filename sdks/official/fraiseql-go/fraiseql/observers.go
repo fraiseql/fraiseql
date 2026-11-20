@@ -152,40 +152,69 @@ func (b *ObserverBuilder) Register() error {
 	return nil
 }
 
-// Webhook creates a webhook observer action.
-// The first argument is the URL. An optional second argument provides extra
-// configuration: method, headers, body_template, signing_secret_env, and headers_env
-// (header name to the environment variable holding its value, read by the server at
-// delivery; use it for a credential header, which the compiler refuses under headers).
-func Webhook(url string, opts ...map[string]interface{}) ObserverAction {
-	cfg := map[string]interface{}{
-		"url": url,
+// WebhookOption sets one optional key of a webhook action. Pass any number to [Webhook]
+// or [WebhookWithEnv]; a webhook given none authors only its URL.
+type WebhookOption func(cfg map[string]interface{})
+
+// WebhookMethod sets the HTTP method. The server sends POST when it is not set.
+func WebhookMethod(method string) WebhookOption {
+	return func(cfg map[string]interface{}) { cfg["method"] = method }
+}
+
+// WebhookBodyTemplate sets the request body: `{{ field }}` placeholders name fields of
+// the observed entity by their stored key. Without it the server sends the event as JSON.
+func WebhookBodyTemplate(template string) WebhookOption {
+	return func(cfg map[string]interface{}) { cfg["body_template"] = template }
+}
+
+// WebhookSigningSecretEnv signs each request with the HMAC key held in the environment
+// variable envVar. The key itself is never authored: an exported schema is a build
+// artifact.
+func WebhookSigningSecretEnv(envVar string) WebhookOption {
+	return func(cfg map[string]interface{}) { cfg["signing_secret_env"] = envVar }
+}
+
+// WebhookHeader adds a header whose value is written into the schema. Use it for a value
+// that is not a secret: the compiler refuses a credential header written here. A
+// credential goes through [WebhookHeaderFromEnv].
+func WebhookHeader(name, value string) WebhookOption {
+	return func(cfg map[string]interface{}) { headerMap(cfg, "headers")[name] = value }
+}
+
+// WebhookHeaderFromEnv adds a header whose value the server reads from the environment
+// variable envVar at delivery. Use it for a credential (Authorization, an API key).
+func WebhookHeaderFromEnv(name, envVar string) WebhookOption {
+	return func(cfg map[string]interface{}) { headerMap(cfg, "headers_env")[name] = envVar }
+}
+
+// headerMap is the header map stored under key, created on first use.
+func headerMap(cfg map[string]interface{}, key string) map[string]string {
+	headers, ok := cfg[key].(map[string]string)
+	if !ok {
+		headers = map[string]string{}
+		cfg[key] = headers
 	}
-	if len(opts) > 0 {
-		for k, v := range opts[0] {
-			cfg[k] = v
-		}
+	return headers
+}
+
+// Webhook creates a webhook observer action sending to url.
+func Webhook(url string, opts ...WebhookOption) ObserverAction {
+	return webhook(map[string]interface{}{"url": url}, opts)
+}
+
+// WebhookWithEnv creates a webhook observer action whose URL the server reads from the
+// environment variable envVar at delivery.
+func WebhookWithEnv(envVar string, opts ...WebhookOption) ObserverAction {
+	return webhook(map[string]interface{}{"url_env": envVar}, opts)
+}
+
+func webhook(cfg map[string]interface{}, opts []WebhookOption) ObserverAction {
+	for _, opt := range opts {
+		opt(cfg)
 	}
 	return ObserverAction{Type: "webhook", Config: cfg}
 }
 
-// WebhookWithEnv creates a webhook observer action whose URL is read from
-// the named environment variable at runtime. An optional second argument provides
-// extra configuration, as for Webhook.
-func WebhookWithEnv(envVar string, opts ...map[string]interface{}) ObserverAction {
-	cfg := map[string]interface{}{
-		"url_env": envVar,
-	}
-	if len(opts) > 0 {
-		for k, v := range opts[0] {
-			cfg[k] = v
-		}
-	}
-	return ObserverAction{Type: "webhook", Config: cfg}
-}
-
-// DefaultSlackWebhookEnv names the environment variable a Slack action reads its
-// incoming-webhook URL from unless the action says otherwise.
 const DefaultSlackWebhookEnv = "SLACK_WEBHOOK_URL"
 
 // Slack creates a Slack notification observer action.

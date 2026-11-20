@@ -18,6 +18,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **The Go SDK's `Webhook` and `WebhookWithEnv` take typed options (#2148).** Their
+  optional keys were a `map[string]interface{}` that took any key and value. They are now
+  `...WebhookOption`: `WebhookMethod`, `WebhookBodyTemplate`, `WebhookSigningSecretEnv`,
+  `WebhookHeader` and `WebhookHeaderFromEnv`, one per key the server reads. A call passing
+  a map does not compile: write each entry as its option, so
+  `map[string]interface{}{"signing_secret_env": "HOOK_KEY"}` becomes
+  `fraiseql.WebhookSigningSecretEnv("HOOK_KEY")`. The authored schema is unchanged.
 - **A discovery document that names another issuer refuses the boot (#2135).** The
   `[auth]` PKCE client and the social and generic OIDC providers fetch
   `{discovery_url}/.well-known/openid-configuration`; the `issuer` the document names must
