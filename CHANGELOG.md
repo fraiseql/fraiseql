@@ -18,6 +18,25 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A `DateTime`, `Date` or `Time` value is held to its scalar's format (#2179).** Such a
+  value was checked only for being a string, then cast `::timestamptz`, `::date` or `::time`
+  by PostgreSQL, whose parser reads far more and answered without an error: an offset-less
+  `DateTime` was read in the session's time zone, a date alone as midnight there, a `Time`'s
+  offset was dropped, and `now` or `today` compared against the clock. Each is now a
+  validation error naming the argument or field, at a root argument, a variable, a mutation
+  input field, a `where` operand (GraphQL and REST) and a fact table's `where` operand on a
+  `timestamptz`, `date` or `time` column, as a `LocalDateTime` already was. Formats, from
+  the scalars' `specifiedByURL`s:
+  - `DateTime`: `YYYY-MM-DDTHH:MM:SS`, optional 1-9 fraction digits, then `Z` or `±HH:MM`
+    (required, never `-00:00`);
+  - `Date`: `YYYY-MM-DD`;
+  - `Time`: `HH:MM:SS`, optional fraction, no offset, so `09:00` is refused.
+  The three scalars' `specifiedByURL`s move from `scalars.graphql.org/andimarek/*` to the
+  `chillicream/*` specifications, which `LocalDateTime` already used: the `andimarek`
+  `DateTime` takes exactly three fraction digits, and its `local-time` page does not exist.
+  Their introspection descriptions state the formats. A client sending offset-less
+  instants, dates where a `DateTime` is declared, or times without seconds must send the
+  published format. See `docs/features/temporal-values.md`.
 - **The Go SDK's `Webhook` and `WebhookWithEnv` take typed options (#2148).** Their
   optional keys were a `map[string]interface{}` that took any key and value. They are now
   `...WebhookOption`: `WebhookMethod`, `WebhookBodyTemplate`, `WebhookSigningSecretEnv`,

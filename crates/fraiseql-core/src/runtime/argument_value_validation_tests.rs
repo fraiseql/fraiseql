@@ -748,3 +748,101 @@ fn a_local_date_time_argument_refuses_an_offset_and_a_non_matching_string() {
     let msg = message(validate_variable_values(Some("Q"), &vars, Some(&values)));
     assert!(msg.contains("$when") && msg.contains("LocalDateTime"), "{msg}");
 }
+
+/// A `DateTime`, a `Date` and a `Time` argument hold their scalar's format, as a
+/// `LocalDateTime` one does: PostgreSQL's cast reads an offset-less date-time in the session
+/// zone, drops a time's offset and reads words such as `now`, so the value is refused,
+/// naming the argument, on the literal path and the variable path.
+#[test]
+fn a_temporal_argument_refuses_a_value_outside_its_format() {
+    for (field_type, type_name, accepted, refused) in [
+        (
+            FieldType::DateTime,
+            "DateTime",
+            &[
+                "2026-07-01T12:00:00Z",
+                "2026-07-01t12:00:00.5+02:00",
+                "2026-07-01T12:00:00-08:00",
+            ][..],
+            &[
+                "2026-07-01T12:00:00",
+                "2026-07-01",
+                "2026-07-01 12:00:00Z",
+                "2026-07-01T12:00:00-00:00",
+                "2026-07-01T24:00:00Z",
+                "2026-02-30T12:00:00Z",
+                "now",
+            ][..],
+        ),
+        (
+            FieldType::Date,
+            "Date",
+            &["2026-07-01", "2024-02-29"][..],
+            &[
+                "2026-07-01T00:00:00Z",
+                "2026-7-1",
+                "01/07/2026",
+                "2025-02-29",
+                "today",
+            ][..],
+        ),
+        (
+            FieldType::Time,
+            "Time",
+            &["09:00:00", "23:59:59.123456789"][..],
+            &[
+                "09:00:00+02:00",
+                "09:00:00Z",
+                "09:00",
+                "24:00:00",
+                "allballs",
+            ][..],
+        ),
+    ] {
+        let at = vec![ArgumentDefinition::optional("at", field_type)];
+        for value in accepted {
+            let args = [literal("at", "string", &format!("\"{value}\""))];
+            assert!(validate_argument_values("Query.things", &at, &args, &[]).is_ok(), "{value}");
+        }
+        for value in refused {
+            let args = [literal("at", "string", &format!("\"{value}\""))];
+            let msg = message(validate_argument_values("Query.things", &at, &args, &[]));
+            assert!(msg.contains("at") && msg.contains(type_name), "{value}: {msg}");
+
+            let vars = [var("when", type_name, true)];
+            let values = json!({ "when": value });
+            let msg = message(validate_variable_values(Some("Q"), &vars, Some(&values)));
+            assert!(msg.contains("$when") && msg.contains(type_name), "{value}: {msg}");
+        }
+    }
+}
+
+/// A temporal field inside a mutation's input object is held to its format, as at an
+/// argument: the function it is bound to casts it.
+#[test]
+fn a_temporal_field_inside_a_mutation_input_refuses_a_value_outside_its_format() {
+    let mut schema = CompiledSchema::new();
+    schema.input_types.push(
+        InputObjectDefinition::new("SlotInput")
+            .with_field(InputFieldDefinition::new("at", "DateTime"))
+            .with_field(InputFieldDefinition::new("day", "Date"))
+            .with_field(InputFieldDefinition::new("opens", "Time")),
+    );
+    let input = vec![ArgumentDefinition::optional(
+        "input",
+        FieldType::Object("SlotInput".to_string()),
+    )];
+    let fine =
+        json!({"input": {"at": "2026-07-01T12:00:00Z", "day": "2026-07-01", "opens": "09:00:00"}});
+    assert!(validate_mutation_argument_values(&schema, "M.m", &input, Some(&fine)).is_ok());
+    for (field, value) in [
+        ("at", "2026-07-01T12:00:00"),
+        ("day", "2026-07-01T00:00:00Z"),
+        ("opens", "09:00:00+02:00"),
+    ] {
+        let values = json!({ "input": { field: value } });
+        let err = message(validate_mutation_argument_values(&schema, "M.m", &input, Some(&values)));
+        assert!(err.contains(&format!("input.{field}")), "{field}: {err}");
+        assert!(!err.contains(value), "the value is described, never quoted: {err}");
+    }
+}

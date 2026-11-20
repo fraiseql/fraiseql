@@ -28,10 +28,10 @@ Your code  →  SDK  →  schema.json  →  fraiseql-cli compile  →  schema.co
 | `"Float"`    | `Float`        | Double precision               |
 | `"Boolean"`  | `Boolean`      |                                |
 | `"ID"`       | `ID`           | An argument value may be a string or an integer |
-| `"DateTime"` | `DateTime`     | ISO 8601                       |
+| `"DateTime"` | `DateTime`     | An instant: `T`, then `Z` or `±HH:MM`, required ([formats](features/temporal-values.md)) |
 | `"LocalDateTime"` | `LocalDateTime` | A date and time of day in no zone: `T`, no offset (a `timestamp` column) |
-| `"Date"`     | `Date`         | ISO 8601 date-only             |
-| `"Time"`     | `Time`         | ISO 8601 time-only             |
+| `"Date"`     | `Date`         | `YYYY-MM-DD`                   |
+| `"Time"`     | `Time`         | `HH:MM:SS`, optional fraction, no offset |
 | `"Json"`     | `JSON`         |                                |
 | `"UUID"`     | `UUID`         |                                |
 | `"Decimal"`  | `Decimal`      | Arbitrary-precision numeric    |

@@ -2,10 +2,10 @@
 
 pub mod db_types;
 pub mod described_rows;
-pub mod local_date_time;
 pub mod query_stats;
 pub mod read_routing;
 pub mod sql_hints;
+pub mod temporal;
 
 // Re-export db types so `crate::types::DatabaseType` etc. still work
 #[cfg(feature = "postgres")]

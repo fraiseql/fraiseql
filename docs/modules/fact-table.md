@@ -231,7 +231,9 @@ the [`LocalDateTime` scalar](https://scalars.graphql.org/chillicream/local-date-
 specifies. A `where` on a `timestamp` column compares local date-times, whatever the
 session's `TimeZone`. Its operand is refused, naming the key, when it carries an offset or a
 `Z`, which the `::timestamp` cast would drop, or is not a local date-time at all; so is a
-`LocalDateTime` argument or variable, and a view field's `LocalDateTime` operand. Declare the column's real type: `TIMESTAMPTZ` (or
+`LocalDateTime` argument or variable, and a view field's `LocalDateTime` operand. An operand
+on a `timestamptz`, `date` or `time` column is held to the `DateTime`, `Date` or `Time`
+format the same way ([Temporal values](../features/temporal-values.md)). Declare the column's real type: `TIMESTAMPTZ` (or
 `timestamp with time zone`) for an instant, `TIMESTAMP` (or `timestamp without time zone`)
 for a local date-time; a `timestamptz` column declared `TIMESTAMP` is read as local.
 

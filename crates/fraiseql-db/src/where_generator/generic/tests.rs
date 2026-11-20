@@ -916,3 +916,54 @@ fn a_null_test_on_a_local_date_time_field_is_not_a_comparison() {
         .typed(Arc::new(on_column));
     assert!(gen.generate(&compared).expect_err("refused").to_string().contains("offset"));
 }
+
+/// A `DateTime`, `Date` or `Time` operand holds its scalar's format, as a `LocalDateTime` one
+/// does: refused, naming the field, before any SQL is written.
+#[test]
+fn a_temporal_operand_outside_its_format_is_refused() {
+    use std::sync::Arc;
+
+    use crate::{types::sql_hints::ScalarFieldType, where_clause::FieldTypeMap};
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    for (ty, operator, refused, accepted) in [
+        (
+            ScalarFieldType::DateTime,
+            WhereOperator::Lt,
+            json!("2026-03-08T03:15:00"),
+            json!("2026-03-08T03:15:00Z"),
+        ),
+        (
+            ScalarFieldType::DateTime,
+            WhereOperator::In,
+            json!(["2026-03-08T03:15:00Z", "now"]),
+            json!(["2026-03-08T03:15:00+05:00"]),
+        ),
+        (
+            ScalarFieldType::DateTime,
+            WhereOperator::Eq,
+            json!("2026-03-08T03:15:00-00:00"),
+            json!("2026-03-08t03:15:00.1z"),
+        ),
+        (
+            ScalarFieldType::Date,
+            WhereOperator::Eq,
+            json!("2026-03-08T00:00:00Z"),
+            json!("2026-03-08"),
+        ),
+        (
+            ScalarFieldType::Time,
+            WhereOperator::Gte,
+            json!("03:15:00+02:00"),
+            json!("03:15:00"),
+        ),
+        (ScalarFieldType::Time, WhereOperator::Lte, json!("03:15"), json!("03:15:00.5")),
+    ] {
+        let typed = |value: serde_json::Value| {
+            field("loggedAt", operator.clone(), value)
+                .typed(Arc::new(FieldTypeMap::from_pairs([("loggedAt", ty)])))
+        };
+        let err = gen.generate(&typed(refused.clone())).expect_err(&format!("{ty:?} {refused}"));
+        assert!(err.to_string().contains("loggedAt"), "{err}");
+        assert!(gen.generate(&typed(accepted.clone())).is_ok(), "{ty:?} {accepted}");
+    }
+}

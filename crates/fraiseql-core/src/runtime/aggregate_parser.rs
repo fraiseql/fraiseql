@@ -45,6 +45,7 @@
 //! }
 //! ```
 
+use fraiseql_db::types::temporal::Temporal;
 use serde_json::Value;
 
 use crate::{
@@ -806,22 +807,29 @@ pub(super) fn where_condition(
         },
     );
     Ok(if let Some((column, pg_cast)) = native {
-        // A `timestamp` column holds local date-times, and its `::timestamp` cast drops an
-        // offset: an operand carrying one would compare as another time.
-        if pg_cast == "timestamp"
-            && matches!(
-                operator,
-                WhereOperator::Eq
-                    | WhereOperator::Neq
-                    | WhereOperator::Gt
-                    | WhereOperator::Gte
-                    | WhereOperator::Lt
-                    | WhereOperator::Lte
-                    | WhereOperator::In
-                    | WhereOperator::Nin
-            )
-        {
-            fraiseql_db::types::local_date_time::check_local_date_time_operand(key, value)?;
+        // A temporal column's cast reads more than its scalar publishes: an offset-less
+        // instant in the session zone, a local value with its offset dropped, words such as
+        // `now`. An operand outside the scalar's format would compare as another value.
+        let temporal = match pg_cast.as_str() {
+            "timestamptz" => Some(Temporal::DateTime),
+            "timestamp" => Some(Temporal::LocalDateTime),
+            "date" => Some(Temporal::Date),
+            "time" => Some(Temporal::Time),
+            _ => None,
+        };
+        let compared = matches!(
+            operator,
+            WhereOperator::Eq
+                | WhereOperator::Neq
+                | WhereOperator::Gt
+                | WhereOperator::Gte
+                | WhereOperator::Lt
+                | WhereOperator::Lte
+                | WhereOperator::In
+                | WhereOperator::Nin
+        );
+        if let (Some(temporal), true) = (temporal, compared) {
+            temporal.check_operand(key, value)?;
         }
         WhereClause::NativeField {
             column,

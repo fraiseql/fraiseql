@@ -83,7 +83,7 @@
 //! declarations (§ 6.1.2), including the case where a non-null variable is not
 //! supplied at all: that also dropped its argument and widened the result.
 
-use fraiseql_db::types::local_date_time::local_date_time_refusal;
+use fraiseql_db::types::temporal::Temporal;
 use serde_json::Value;
 
 use crate::{
@@ -190,8 +190,8 @@ impl Scalar {
         if self == Self::Uuid && value.is_string() {
             return Some("a String that is not a UUID".to_string());
         }
-        if let (Self::LocalDateTime, Some(text)) = (self, value.as_str()) {
-            let why = local_date_time_refusal(text).unwrap_or("is not one");
+        if let (Some(temporal), Some(text)) = (self.temporal(), value.as_str()) {
+            let why = temporal.refusal(text).unwrap_or("is not one");
             return Some(format!("a String that {why}"));
         }
         if self == Self::Decimal && value.is_number() {
@@ -222,12 +222,14 @@ impl Scalar {
             // overflowed `u32` at the read site and dropped the clause.
             Self::Int => value.as_i64().is_some_and(|v| i32::try_from(v).is_ok()),
             Self::Float => value.is_number(),
-            Self::String | Self::DateTime | Self::Date | Self::Time => value.is_string(),
-            // Its value space is fully specified, like a UUID's. An offset matters most: the
-            // `::timestamp` cast drops one, so the value would compare as another time.
-            Self::LocalDateTime => {
-                value.as_str().is_some_and(|s| local_date_time_refusal(s).is_none())
-            },
+            Self::String => value.is_string(),
+            // Each value space is fully specified, like a UUID's, and PostgreSQL's cast reads
+            // more than it: an offset-less instant in the session zone, a local value with its
+            // offset dropped, words such as `now`. Any of those would compare as another value.
+            Self::DateTime | Self::LocalDateTime | Self::Date | Self::Time => value
+                .as_str()
+                .zip(self.temporal())
+                .is_some_and(|(text, temporal)| temporal.refusal(text).is_none()),
             // A UUID's value space is fully specified, like an enum's (#1362): a string that
             // does not parse as one is contradicted by the type, not a project's choice. It
             // reached PostgreSQL as a cast error that quotes the value (#1528).
@@ -239,6 +241,23 @@ impl Scalar {
             // ordinary way to write one; a number with a fraction or an exponent was
             // rounded to an `f64` before anything could read it.
             Self::Decimal => value.is_string() || value.is_i64() || value.is_u64(),
+        }
+    }
+
+    /// The temporal scalar whose format this one holds its strings to.
+    const fn temporal(self) -> Option<Temporal> {
+        match self {
+            Self::DateTime => Some(Temporal::DateTime),
+            Self::LocalDateTime => Some(Temporal::LocalDateTime),
+            Self::Date => Some(Temporal::Date),
+            Self::Time => Some(Temporal::Time),
+            Self::Int
+            | Self::Float
+            | Self::String
+            | Self::Boolean
+            | Self::Id
+            | Self::Uuid
+            | Self::Decimal => None,
         }
     }
 

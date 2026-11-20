@@ -15,6 +15,7 @@
 | Understand the cache system | [`docs/modules/cache.md`](modules/cache.md) |
 | Serve text in several languages (localized fields, request locale) | [`docs/guides/localization.md`](guides/localization.md) |
 | Understand what a missing non-null value returns | [`docs/features/non-null-completion.md`](features/non-null-completion.md) |
+| Write a `DateTime`, `LocalDateTime`, `Date` or `Time` value | [`docs/features/temporal-values.md`](features/temporal-values.md) |
 | Give SQL per-request values (claims, headers, literals) | [`docs/features/session-variables.md`](features/session-variables.md) |
 | Understand how paginated reads are ordered | [`docs/features/pagination.md`](features/pagination.md) |
 | Understand window functions | [`docs/modules/window-functions.md`](modules/window-functions.md) |

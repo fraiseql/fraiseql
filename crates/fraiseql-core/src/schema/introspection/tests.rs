@@ -1246,3 +1246,20 @@ fn the_decimal_scalar_says_it_travels_as_a_string_of_its_digits() {
         "{description}"
     );
 }
+
+/// The four temporal scalars point at one specification family, the one whose formats the
+/// runtime holds their values to: an offset required on a `DateTime`, never on the others,
+/// one to nine fraction digits.
+#[test]
+fn the_temporal_scalars_are_specified_by_the_formats_they_hold_values_to() {
+    let scalars = super::type_resolver::builtin_scalars();
+    for (name, url) in [
+        ("DateTime", "https://scalars.graphql.org/chillicream/date-time"),
+        ("LocalDateTime", "https://scalars.graphql.org/chillicream/local-date-time"),
+        ("Date", "https://scalars.graphql.org/chillicream/local-date"),
+        ("Time", "https://scalars.graphql.org/chillicream/local-time"),
+    ] {
+        let scalar = scalars.iter().find(|t| t.name.as_deref() == Some(name)).unwrap();
+        assert_eq!(scalar.specified_by_u_r_l.as_deref(), Some(url), "{name}");
+    }
+}

@@ -30,8 +30,8 @@
       {
         "kind": "SCALAR",
         "name": "DateTime",
-        "description": "ISO-8601 datetime string",
-        "specifiedByURL": "https://scalars.graphql.org/andimarek/date-time"
+        "description": "An instant: a date and a time of day with its offset from UTC (\"2026-07-01T12:00:00Z\", \"2026-07-01T14:00:00+02:00\"): a `T`, optional fractional seconds, then `Z` or `±HH:MM`, which is required and never `-00:00`.",
+        "specifiedByURL": "https://scalars.graphql.org/chillicream/date-time"
       },
       {
         "kind": "SCALAR",
@@ -42,14 +42,14 @@
       {
         "kind": "SCALAR",
         "name": "Date",
-        "description": "ISO-8601 date string",
-        "specifiedByURL": "https://scalars.graphql.org/andimarek/local-date"
+        "description": "A calendar date (\"2026-07-01\"), `YYYY-MM-DD`.",
+        "specifiedByURL": "https://scalars.graphql.org/chillicream/local-date"
       },
       {
         "kind": "SCALAR",
         "name": "Time",
-        "description": "ISO-8601 time string",
-        "specifiedByURL": "https://scalars.graphql.org/andimarek/local-time"
+        "description": "A time of day in no time zone (\"09:30:00\"): seconds, optional fractional seconds, never an offset.",
+        "specifiedByURL": "https://scalars.graphql.org/chillicream/local-time"
       },
       {
         "kind": "SCALAR",

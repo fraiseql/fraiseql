@@ -290,7 +290,9 @@ cast: each argument is typed by the function's signature and read by that type's
 function, so a parameter may be any type, `float8`, `numeric`, `date`, `timestamptz`,
 `interval`, an enum or a domain included, and takes what that type accepts as text
 (`"NaN"`, `"infinity"`, an offset like `"+02:00"`; a timestamp without one is read in the
-session's time zone). A list argument binds to an array parameter (`list[str]` to `text[]`,
+session's time zone). An argument declared `DateTime`, `LocalDateTime`, `Date` or `Time` is
+first held to that scalar's format ([Temporal values](features/temporal-values.md)), so an
+offset-less `DateTime` or a word such as `now` is refused before the call. A list argument binds to an array parameter (`list[str]` to `text[]`,
 a list of lists to a two-dimensional array) and to a `jsonb` one as JSON. Its items are
 non-null unless declared nullable (`list[str | None]` is `[String]`): a `null` item at a
 non-null position is refused with its path (`names[0]`) before the function is called.

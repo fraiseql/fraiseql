@@ -354,6 +354,40 @@ async fn a_local_date_time_operand_with_an_offset_is_refused() {
     }
 }
 
+/// An operand on a `timestamptz` or a `date` filter column holds its scalar's format, as a
+/// `timestamp` one does: an offset-less instant would be read in the session zone, and a
+/// date-time compared with a date would be cut to its day. Refused, naming the key.
+#[tokio::test]
+async fn an_instant_or_date_operand_outside_its_format_is_refused() {
+    let Some(executor) = executor_in(EAST).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    for (key, operand, says) in [
+        ("at_tz_lt", "2026-07-01T12:00:00", "DateTime"),
+        ("at_tz_gte", "today", "DateTime"),
+        ("day_eq", "2026-07-01T00:00:00Z", "Date"),
+        ("day_lt", "07/01/2026", "Date"),
+    ] {
+        let request = json!({
+            "where": { key: operand },
+            "aggregates": [{ "amount_sum": true }],
+        });
+        let outcome = executor
+            .execute(&format!("{{ {ROOT} {{ amount_sum }} }}"), Some(&request))
+            .await;
+        let text = match &outcome {
+            Ok(response) => response.to_string(),
+            Err(e) => e.to_string(),
+        };
+        assert!(
+            outcome.is_err() || outcome.as_ref().is_ok_and(|r| r.get("errors").is_some()),
+            "{key} {operand}: {text}"
+        );
+        assert!(text.contains(key) && text.contains(says), "{key} {operand}: {text}");
+    }
+}
+
 /// A `timestamptz` column buckets as it did: at midnight in the session zone, as an instant.
 #[tokio::test]
 async fn a_timestamptz_bucket_is_unchanged() {

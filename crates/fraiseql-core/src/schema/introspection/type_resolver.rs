@@ -52,8 +52,10 @@ pub(super) fn builtin_scalars() -> Vec<IntrospectionType> {
         // FraiseQL custom scalars (with specifiedByURL per GraphQL spec §3.5.5)
         scalar_type_with_url(
             "DateTime",
-            "ISO-8601 datetime string",
-            Some("https://scalars.graphql.org/andimarek/date-time"),
+            "An instant: a date and a time of day with its offset from UTC \
+             (\"2026-07-01T12:00:00Z\", \"2026-07-01T14:00:00+02:00\"): a `T`, optional \
+             fractional seconds, then `Z` or `±HH:MM`, which is required and never `-00:00`.",
+            Some("https://scalars.graphql.org/chillicream/date-time"),
         ),
         scalar_type_with_url(
             "LocalDateTime",
@@ -64,13 +66,14 @@ pub(super) fn builtin_scalars() -> Vec<IntrospectionType> {
         ),
         scalar_type_with_url(
             "Date",
-            "ISO-8601 date string",
-            Some("https://scalars.graphql.org/andimarek/local-date"),
+            "A calendar date (\"2026-07-01\"), `YYYY-MM-DD`.",
+            Some("https://scalars.graphql.org/chillicream/local-date"),
         ),
         scalar_type_with_url(
             "Time",
-            "ISO-8601 time string",
-            Some("https://scalars.graphql.org/andimarek/local-time"),
+            "A time of day in no time zone (\"09:30:00\"): seconds, optional fractional \
+             seconds, never an offset.",
+            Some("https://scalars.graphql.org/chillicream/local-time"),
         ),
         scalar_type_with_url("UUID", "UUID string", Some("https://tools.ietf.org/html/rfc4122")),
         scalar_type_with_url(
