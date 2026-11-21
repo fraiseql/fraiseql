@@ -776,10 +776,18 @@ impl Executor {
 
     /// Execute an aggregate query directly.
     ///
+    /// `metadata` need not be a table this executor's schema holds, nor one named
+    /// `tf_<name>`; `query_name` names the root in messages. `query_json` is held to the
+    /// arguments the `<name>_aggregate` root publishes before any SQL runs: a `where` operand
+    /// of another type is refused naming its path and type, never the value. They are the
+    /// schema's when it publishes that root for exactly this `metadata`, and are otherwise
+    /// derived from `metadata` alone, by the derivation a loaded schema publishes them with.
+    ///
     /// # Errors
     ///
     /// Returns error if query parsing, plan generation, SQL generation, database execution,
-    /// or result projection fails.
+    /// or result projection fails, and `FraiseQLError::Validation` for a value of another
+    /// type than its argument publishes, or a table whose keys no root can publish.
     pub async fn execute_aggregate_query(
         &self,
         query_json: &serde_json::Value,
@@ -809,10 +817,18 @@ impl Executor {
 
     /// Execute a window query directly.
     ///
+    /// `metadata` need not be a table this executor's schema holds, nor one named
+    /// `tf_<name>`; `query_name` names the root in messages. `query_json` is held to the
+    /// arguments the `<name>_window` root publishes before any SQL runs: a `where` operand
+    /// of another type is refused naming its path and type, never the value. They are the
+    /// schema's when it publishes that root for exactly this `metadata`, and are otherwise
+    /// derived from `metadata` alone, by the derivation a loaded schema publishes them with.
+    ///
     /// # Errors
     ///
     /// Returns error if query parsing, plan generation, SQL generation, database execution,
-    /// or result projection fails.
+    /// or result projection fails, and `FraiseQLError::Validation` for a value of another
+    /// type than its argument publishes, or a table whose keys no root can publish.
     pub async fn execute_window_query(
         &self,
         query_json: &serde_json::Value,

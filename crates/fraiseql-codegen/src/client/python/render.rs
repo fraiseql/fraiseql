@@ -13,9 +13,9 @@ use fraiseql_core::schema::{FieldDefinition, FieldType};
 /// input, union, interface names) — the caller passes those through verbatim.
 pub(super) fn named_scalar_py(name: &str) -> Option<&'static str> {
     match name.to_ascii_lowercase().as_str() {
-        "string" | "id" | "uuid" | "decimal" | "datetime" | "timestamp" | "date" | "time" => {
-            Some("str")
-        },
+        // `BigInt` and `Decimal` are served as the string of their digits.
+        "string" | "id" | "uuid" | "bigint" | "decimal" | "datetime" | "localdatetime"
+        | "timestamp" | "date" | "time" => Some("str"),
         "int" | "integer" => Some("int"),
         "float" | "double" => Some("float"),
         "boolean" | "bool" => Some("bool"),

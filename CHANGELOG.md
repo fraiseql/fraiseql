@@ -806,7 +806,8 @@ disagreed, and the promise was the part that was wrong.
     filter value that is not the digits of a signed 64-bit integer is refused at the edge.
   - gRPC: a proto `int64`, every digit the column holds. Declare the field `int64`.
   - Generated clients: a `string` in TypeScript and Go, a `String` in Rust, a `str` in
-    Python, as a `Decimal` is.
+    Python, as a `Decimal` is, in every module that names one: a response type, a filter
+    input (`BigIntFilter`), a declared input, and a query's or a mutation's arguments.
   - Arrow: `graphql_type_to_arrow("BigInt")` is `Int64`.
 
 - **`compile --database` warns on a view casting a document's text to a temporal type
@@ -1146,6 +1147,12 @@ disagreed, and the promise was the part that was wrong.
   did.
 
 ### Fixed
+
+- **A generated client's input module names no undefined `LocalDateTime`.** An input field or
+  a derived filter operand of a `LocalDateTime` was emitted under the scalar's own name, which
+  no generated module defines: the Python, Go and Rust clients did not type-check or compile,
+  and the TypeScript one did not compile. It is a `string` in TypeScript and Go, a `String` in
+  Rust and a `str` in Python, as a `DateTime` is.
 
 - **A pgvector `vector`, `halfvec` or `sparsevec` column read as a native column is served as
   its text (#2243), the JSON string `to_jsonb` writes: `"[1.5,-0.25,1e+06]"`,

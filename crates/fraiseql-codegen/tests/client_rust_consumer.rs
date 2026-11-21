@@ -174,17 +174,43 @@ const BIG_INT_FIXTURE: &str = include_str!("fixtures/big_int_schema.json");
 
 /// A response holding `BigInt`s past 2^53, the first integer an `f64` cannot hold exactly,
 /// and at the ends of the signed 64-bit range.
-const BIG_INT_WIRE: &str = r#"{"id":"l1","balance":"9007199254740993","credit":"-9223372036854775808","history":["9223372036854775807","9007199254740993"]}"#;
+const BIG_INT_WIRE: &str = r#"{"id":"l1","balance":"9007199254740993","credit":"-9223372036854775808","history":["9223372036854775807","9007199254740993"],"postedAt":"2026-07-01T09:30:00"}"#;
 
 const BIG_INT_LIB_RS: &str = r#"#![deny(warnings)]
 
 pub mod generated;
 
-use generated::{Error, FraiseqlClient, Ledger, Transport, queries};
+use generated::{
+    AdjustLedgerInput, BigIntFilter, Error, FraiseqlClient, Ledger, LedgerWhereInput,
+    LocalDateTimeFilter, Transport, mutations, queries,
+};
 
 /// A `BigInt` argument is written as the digits the server reads it from.
 pub fn lookup(client: &FraiseqlClient<impl Transport>) -> Result<Option<Ledger>, Error> {
     queries::ledger(client, "l1".to_string(), Some("9007199254740993".to_string()))
+}
+
+/// A `BigInt` filter operand, input field and mutation argument is a `String` of digits, and
+/// a `LocalDateTime` its text.
+pub fn filter_and_adjust(
+    client: &FraiseqlClient<impl Transport>,
+    balance: BigIntFilter,
+    posted: LocalDateTimeFilter,
+    change: AdjustLedgerInput,
+) -> Result<Ledger, Error> {
+    let operand: &Option<String> = &balance.eq;
+    let items: &Option<Vec<String>> = &balance.in_;
+    let bound: &Option<String> = &posted.lt;
+    let by: &String = &change.by;
+    let at: &Option<String> = &change.at;
+    let _ = (operand, items, bound, by, at);
+    let where_: LedgerWhereInput = serde_json::from_value(serde_json::json!({
+        "balance": balance,
+        "postedAt": posted,
+    }))
+    .expect("the filter encodes");
+    queries::ledgers(client, Some(where_), None, None)?;
+    mutations::adjust_ledger(client, change, Some("9223372036854775807".to_string()))
 }
 
 /// Decode a response into the generated type and encode it again.
@@ -193,6 +219,8 @@ pub fn round_trip(wire: &str) -> String {
     let balance: &String = &ledger.balance;
     let credit: &Option<String> = &ledger.credit;
     let history: &Vec<String> = &ledger.history;
+    let posted_at: &Option<String> = &ledger.posted_at;
+    assert!(posted_at.is_some());
     assert_eq!((balance.len(), credit.is_some(), history.len()), (16, true, 2));
     serde_json::to_string(&ledger).expect("the generated type encodes")
 }
@@ -203,7 +231,8 @@ pub fn round_trip(wire: &str) -> String {
 #[test]
 #[ignore = "requires cargo and the crates.io registry"]
 fn a_big_int_past_two_to_the_53_round_trips_exactly() {
-    let schema: CompiledSchema = serde_json::from_str(BIG_INT_FIXTURE).unwrap();
+    // Loaded as a server loads it, so the derived `where` inputs are generated too.
+    let schema = CompiledSchema::from_json(BIG_INT_FIXTURE, false).unwrap();
     let generated = rust::generate(&schema).unwrap();
 
     let project = tempfile::tempdir().unwrap();

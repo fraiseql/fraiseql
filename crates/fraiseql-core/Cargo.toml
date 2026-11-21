@@ -222,6 +222,10 @@ required-features = ["federation"]
 # declaration the `adapter_comparison` and `full_pipeline_comparison` benches
 # above already carry for the same reason.
 [[test]]
+name = "aggregate_big_int_pg"
+required-features = ["postgres"]
+
+[[test]]
 name = "aggregate_decimal_digits_pg"
 required-features = ["postgres"]
 

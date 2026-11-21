@@ -170,7 +170,7 @@ const BIG_INT_FIXTURE: &str = include_str!("fixtures/big_int_schema.json");
 
 /// A response holding `BigInt`s past 2^53, the first integer an `f64` cannot hold exactly,
 /// and at the ends of the signed 64-bit range. The Go type declares the discriminant.
-const BIG_INT_WIRE: &str = r#"{"__typename":"Ledger","id":"l1","balance":"9007199254740993","credit":"-9223372036854775808","history":["9223372036854775807","9007199254740993"]}"#;
+const BIG_INT_WIRE: &str = r#"{"__typename":"Ledger","id":"l1","balance":"9007199254740993","credit":"-9223372036854775808","history":["9223372036854775807","9007199254740993"],"postedAt":"2026-07-01T09:30:00"}"#;
 
 /// Reads a response into the generated type and writes it out again. `encoding/json`
 /// refuses a string at a numeric field, so a numeric type for a `BigInt` fails the decode.
@@ -190,8 +190,30 @@ func lookup(c *client.Client) (*client.Ledger, error) {
 	return c.Ledger("l1", &atLeast)
 }
 
+// filterAndAdjust writes a BigInt filter operand, input field and argument as digits, and
+// a LocalDateTime as its text: each is a string field the compiler holds them to.
+func filterAndAdjust(c *client.Client) (client.Ledger, error) {
+	gt := "9007199254740993"
+	lt := "2026-07-01T09:30:00"
+	where := client.LedgerWhereInput{
+		Balance:  &client.BigIntFilter{Gt: &gt, In: []string{"-9223372036854775808"}},
+		PostedAt: &client.LocalDateTimeFilter{Lt: &lt},
+	}
+	if _, err := c.Ledgers(&where, nil, nil); err != nil {
+		return client.Ledger{}, err
+	}
+	change := client.AdjustLedgerInput{
+		Id:    "l1",
+		By:    "9007199254740993",
+		Steps: []string{"9223372036854775807"},
+		At:    &lt,
+	}
+	limit := "9223372036854775807"
+	return c.AdjustLedger(change, &limit)
+}
+
 func main() {
-	_ = lookup
+	_, _ = lookup, filterAndAdjust
 	var ledger client.Ledger
 	if err := json.Unmarshal([]byte(os.Args[1]), &ledger); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -200,7 +222,8 @@ func main() {
 	var balance string = ledger.Balance
 	var credit *string = ledger.Credit
 	var history []string = ledger.History
-	_, _, _ = balance, credit, history
+	var postedAt *string = ledger.PostedAt
+	_, _, _, _ = balance, credit, history, postedAt
 	encoded, err := json.Marshal(ledger)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -215,7 +238,8 @@ func main() {
 #[test]
 #[ignore = "requires the Go toolchain"]
 fn a_big_int_past_two_to_the_53_round_trips_exactly() {
-    let schema: CompiledSchema = serde_json::from_str(BIG_INT_FIXTURE).unwrap();
+    // Loaded as a server loads it, so the derived `where` inputs are generated too.
+    let schema = CompiledSchema::from_json(BIG_INT_FIXTURE, false).unwrap();
     let generated = go::generate(&schema).unwrap();
 
     let project = tempfile::tempdir().unwrap();

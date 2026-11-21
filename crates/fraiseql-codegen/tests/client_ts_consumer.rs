@@ -106,7 +106,7 @@ const BIG_INT_FIXTURE: &str = include_str!("fixtures/big_int_schema.json");
 
 /// A response holding `BigInt`s past 2^53, the first integer an `f64` cannot hold exactly,
 /// and at the ends of the signed 64-bit range.
-const BIG_INT_WIRE: &str = r#"{"id":"l1","balance":"9007199254740993","credit":"-9223372036854775808","history":["9223372036854775807","9007199254740993"]}"#;
+const BIG_INT_WIRE: &str = r#"{"id":"l1","balance":"9007199254740993","credit":"-9223372036854775808","history":["9223372036854775807","9007199254740993"],"postedAt":"2026-07-01T09:30:00"}"#;
 
 const BIG_INT_TSCONFIG: &str = r#"{
   "compilerOptions": {
@@ -124,11 +124,35 @@ const BIG_INT_TSCONFIG: &str = r#"{
 }
 "#;
 
-/// A `BigInt` argument is written as the digits the server reads it from.
-const BIG_INT_LOOKUP_TS: &str = r#"import { FraiseqlClient, ledger, type Ledger } from "./generated";
+/// A `BigInt` argument, filter operand and input field is written as the digits the server
+/// reads it from, and a `LocalDateTime` as its text.
+const BIG_INT_LOOKUP_TS: &str = r#"import {
+  FraiseqlClient,
+  adjustLedger,
+  ledger,
+  ledgers,
+  type AdjustLedgerInput,
+  type Ledger,
+  type LedgerWhereInput,
+} from "./generated";
 
 export async function lookup(client: FraiseqlClient): Promise<Ledger | null> {
   return ledger(client, { id: "l1", atLeast: "9007199254740993" });
+}
+
+export async function filterAndAdjust(client: FraiseqlClient): Promise<Ledger> {
+  const where: LedgerWhereInput = {
+    balance: { gt: "9007199254740993", in: ["-9223372036854775808"] },
+    postedAt: { lt: "2026-07-01T09:30:00" },
+  };
+  await ledgers(client, { where });
+  const change: AdjustLedgerInput = {
+    id: "l1",
+    by: "9007199254740993",
+    steps: ["9223372036854775807"],
+    at: "2026-07-01T09:30:00",
+  };
+  return adjustLedger(client, { input: change, limit: "9223372036854775807" });
 }
 "#;
 
@@ -136,15 +160,26 @@ export async function lookup(client: FraiseqlClient): Promise<Ledger | null> {
 /// run time, so a `number` would let a consumer do arithmetic the value cannot survive, and
 /// a `bigint` would describe a value `JSON.parse` never produces. Node then runs the file
 /// (its types stripped; the import is type-only, so nothing is resolved).
-const BIG_INT_ROUND_TRIP_TS: &str = r#"import type { Ledger } from "./generated";
+const BIG_INT_ROUND_TRIP_TS: &str = r#"import type {
+  AdjustLedgerInput,
+  BigIntFilter,
+  Ledger,
+  LocalDateTimeFilter,
+} from "./generated";
 
 type Exactly<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 const balance: Exactly<Ledger["balance"], string> = true;
 const credit: Exactly<Ledger["credit"], string | null> = true;
 const history: Exactly<Ledger["history"], string[]> = true;
+const posted: Exactly<Ledger["postedAt"], string | null> = true;
+const operand: Exactly<BigIntFilter["eq"], string | null | undefined> = true;
+const items: Exactly<BigIntFilter["in"], string[] | null | undefined> = true;
+const bound: Exactly<LocalDateTimeFilter["lt"], string | null | undefined> = true;
+const by: Exactly<AdjustLedgerInput["by"], string> = true;
+const inputs = posted && operand && items && bound && by;
 
 const decoded: Ledger = JSON.parse(process.argv[2] ?? "");
-process.stdout.write(JSON.stringify(decoded) + (balance && credit && history ? "" : "!"));
+process.stdout.write(JSON.stringify(decoded) + (balance && credit && history && inputs ? "" : "!"));
 
 declare const process: { argv: string[]; stdout: { write(text: string): void } };
 "#;
@@ -154,7 +189,8 @@ declare const process: { argv: string[]; stdout: { write(text: string): void } }
 #[test]
 #[ignore = "requires network (npx typescript) and Node"]
 fn a_big_int_past_two_to_the_53_round_trips_exactly() {
-    let schema: CompiledSchema = serde_json::from_str(BIG_INT_FIXTURE).unwrap();
+    // Loaded as a server loads it, so the derived `where` inputs are generated too.
+    let schema = CompiledSchema::from_json(BIG_INT_FIXTURE, false).unwrap();
     let generated = typescript::generate(&schema).unwrap();
 
     let project = tempfile::tempdir().unwrap();

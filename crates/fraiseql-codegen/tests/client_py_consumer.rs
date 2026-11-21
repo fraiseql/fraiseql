@@ -139,15 +139,23 @@ const BIG_INT_FIXTURE: &str = include_str!("fixtures/big_int_schema.json");
 
 /// A response holding `BigInt`s past 2^53, the first integer an `f64` cannot hold exactly,
 /// and at the ends of the signed 64-bit range.
-const BIG_INT_WIRE: &str = r#"{"id": "l1", "balance": "9007199254740993", "credit": "-9223372036854775808", "history": ["9223372036854775807", "9007199254740993"]}"#;
+const BIG_INT_WIRE: &str = r#"{"id": "l1", "balance": "9007199254740993", "credit": "-9223372036854775808", "history": ["9223372036854775807", "9007199254740993"], "postedAt": "2026-07-01T09:30:00"}"#;
 
-/// `ty` holds each `BigInt` position to `str`, the digits the server sends; the run reads a
-/// response into the generated type and writes it out again.
+/// `ty` holds each `BigInt` and `LocalDateTime` position to `str`, the text the server sends
+/// and reads, in every module that can name one: a response type, a filter input, a declared
+/// input, a query's and a mutation's arguments. The run reads a response into the generated
+/// type and writes it out again.
 const BIG_INT_USAGE_PY: &str = r#"import json
 import sys
 from typing import assert_type, cast
 
-from fraiseql_client import FraiseqlClient, ledger
+from fraiseql_client import FraiseqlClient, adjustLedger, ledger, ledgers
+from fraiseql_client.inputs import (
+    AdjustLedgerInput,
+    BigIntFilter,
+    LedgerWhereInput,
+    LocalDateTimeFilter,
+)
 from fraiseql_client.types import Ledger
 
 
@@ -155,11 +163,37 @@ def lookup(client: FraiseqlClient) -> Ledger | None:
     return ledger(client, id="l1", atLeast="9007199254740993")
 
 
+def filter_and_adjust(client: FraiseqlClient) -> Ledger:
+    where: LedgerWhereInput = {
+        "balance": {"gt": "9007199254740993", "in": ["-9223372036854775808"]},
+        "postedAt": {"lt": "2026-07-01T09:30:00"},
+    }
+    ledgers(client, where=where)
+    change: AdjustLedgerInput = {
+        "id": "l1",
+        "by": "9007199254740993",
+        "steps": ["9223372036854775807"],
+        "at": "2026-07-01T09:30:00",
+    }
+    return adjustLedger(client, input=change, limit="9223372036854775807")
+
+
+def input_types(
+    balance: BigIntFilter, posted: LocalDateTimeFilter, change: AdjustLedgerInput
+) -> None:
+    assert_type(balance.get("eq"), str | None)
+    assert_type(balance.get("in"), list[str] | None)
+    assert_type(posted.get("lt"), str | None)
+    assert_type(change["by"], str)
+    assert_type(change.get("at"), str | None)
+
+
 def round_trip(wire: str) -> str:
     decoded = cast(Ledger, json.loads(wire))
     assert_type(decoded["balance"], str)
     assert_type(decoded["credit"], str | None)
     assert_type(decoded["history"], list[str])
+    assert_type(decoded["postedAt"], str | None)
     return json.dumps(decoded)
 
 
@@ -172,7 +206,8 @@ if __name__ == "__main__":
 #[test]
 #[ignore = "requires network (uvx ty) and uv"]
 fn a_big_int_past_two_to_the_53_round_trips_exactly() {
-    let schema: CompiledSchema = serde_json::from_str(BIG_INT_FIXTURE).unwrap();
+    // Loaded as a server loads it, so the derived `where` inputs are generated too.
+    let schema = CompiledSchema::from_json(BIG_INT_FIXTURE, false).unwrap();
     let generated = python::generate(&schema).unwrap();
 
     let project = tempfile::tempdir().unwrap();

@@ -6,10 +6,32 @@
       "jsonb_column": "data",
       "description": "A balance past the 2^53 that a JSON number holds exactly.",
       "fields": [
-        { "name": "id", "field_type": "ID" },
-        { "name": "balance", "field_type": "BigInt" },
-        { "name": "credit", "field_type": "BigInt", "nullable": true },
-        { "name": "history", "field_type": { "List": { "item": "BigInt" } } }
+        {
+          "name": "id",
+          "field_type": "ID"
+        },
+        {
+          "name": "balance",
+          "field_type": "BigInt"
+        },
+        {
+          "name": "credit",
+          "field_type": "BigInt",
+          "nullable": true
+        },
+        {
+          "name": "history",
+          "field_type": {
+            "List": {
+              "item": "BigInt"
+            }
+          }
+        },
+        {
+          "name": "postedAt",
+          "field_type": "LocalDateTime",
+          "nullable": true
+        }
       ]
     }
   ],
@@ -21,8 +43,80 @@
       "nullable": true,
       "sql_source": "v_ledger",
       "arguments": [
-        { "name": "id", "arg_type": "ID", "nullable": false },
-        { "name": "atLeast", "arg_type": "BigInt", "nullable": true }
+        {
+          "name": "id",
+          "arg_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "atLeast",
+          "arg_type": "BigInt",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "name": "ledgers",
+      "return_type": "Ledger",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_ledger",
+      "auto_params": {
+        "has_where": true,
+        "has_order_by": true,
+        "has_limit": true
+      }
+    }
+  ],
+  "input_types": [
+    {
+      "name": "AdjustLedgerInput",
+      "description": "A change to a balance past 2^53.",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "by",
+          "field_type": "BigInt",
+          "nullable": false
+        },
+        {
+          "name": "floor",
+          "field_type": "BigInt"
+        },
+        {
+          "name": "steps",
+          "field_type": "[BigInt!]"
+        },
+        {
+          "name": "at",
+          "field_type": "LocalDateTime"
+        }
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "name": "adjustLedger",
+      "return_type": "Ledger",
+      "operation": "Custom",
+      "sql_source": "adjust_ledger",
+      "arguments": [
+        {
+          "name": "input",
+          "arg_type": {
+            "Input": "AdjustLedgerInput"
+          },
+          "nullable": false
+        },
+        {
+          "name": "limit",
+          "arg_type": "BigInt",
+          "nullable": true
+        }
       ]
     }
   ]
