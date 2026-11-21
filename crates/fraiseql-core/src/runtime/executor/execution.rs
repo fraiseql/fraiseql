@@ -628,7 +628,8 @@ impl Executor {
                         &parsed.variables,
                         variables,
                     )?;
-                    let pr = self.execute_parallel(parsed, variables, security_context).await?;
+                    let mut pr = self.execute_parallel(parsed, variables, security_context).await?;
+                    resolved = std::mem::take(&mut pr.resolved);
                     Ok(pr.into_response())
                 } else if let Some(completion) = completion {
                     // The document was parsed and its spreads expanded when it was
@@ -706,15 +707,18 @@ impl Executor {
             QueryType::Mutation { roots } => {
                 self.execute_mutation_roots(roots, variables, security_context).await
             },
-            QueryType::NodeQuery { selections } => {
+            QueryType::NodeQuery { root, selections } => {
                 // The node runner fails closed for any RLS/inject/role-gated type
                 // when `security_context` is `None` (H2 IDOR fix).
                 let (response, type_name) = self
                     .query_runner()
-                    .execute_node_query(query, variables, selections, security_context)
+                    .execute_node_query(root, selections, variables, security_context)
                     .await?;
                 if let Some(type_name) = type_name {
-                    resolved = crate::runtime::completion::ResolvedTypes::root("node", &type_name);
+                    resolved = crate::runtime::completion::ResolvedTypes::root(
+                        root.response_key(),
+                        &type_name,
+                    );
                 }
                 Ok(response)
             },

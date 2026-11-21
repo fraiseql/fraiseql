@@ -457,28 +457,57 @@ impl QueryRunner {
         Ok(response)
     }
 
-    /// Execute a Relay global `node(id: ID!)` query.
+    /// Execute a document whose one root is a Relay `node(id: ID!)` lookup.
     ///
-    /// Decodes the opaque node ID (`base64("TypeName:uuid")`), locates the
-    /// appropriate SQL view by searching the compiled schema for a query that
-    /// returns that type, and fetches the matching row.
-    ///
-    /// Returns `{ "data": { "node": <object> } }` on success, or
-    /// `{ "data": { "node": null } }` when the object is not found, with the type the id
-    /// resolved to when an object was read: completion holds the object to that type.
+    /// `root` is the lookup's root field, `selections` its selection set with inline
+    /// fragments flattened. Returns `{ "data": { <key>: <object> } }` under the root's
+    /// response key (its alias, or `node`), `null` there when no node is found, and the type
+    /// the id resolved to when an object was read: completion holds the object to that
+    /// type. A root `@skip`/`@include` excludes answers `{ "data": {} }`.
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Validation` when:
-    /// - The `id` argument is missing or malformed
-    /// - No SQL view is registered for the requested type
+    /// As [`Self::plan_node`], and a failed read.
     pub(in super::super) async fn execute_node_query(
         &self,
-        query: &str,
-        variables: Option<&serde_json::Value>,
+        root: &FieldSelection,
         selections: &[FieldSelection],
+        variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<(serde_json::Value, Option<String>)> {
+        let vars = crate::graphql::selection_set::variables_map(variables);
+        let included = crate::graphql::DirectiveEvaluator::evaluate_directives(root, &vars)
+            .map_err(|e| FraiseQLError::Validation {
+                message: e.to_string(),
+                path:    Some("directives".to_string()),
+            })?;
+        if !included {
+            return Ok((serde_json::json!({ "data": {} }), None));
+        }
+        let plan = self.plan_node(root, selections, variables, security_context).await?;
+        let (value, type_name) = self.execute_planned_node(plan, security_context).await?;
+        Ok((ResultProjector::wrap_in_data_envelope(value, root.response_key()), type_name))
+    }
+
+    /// Plan a `node(id:)` lookup: decode its id, check its selection against the type the
+    /// id names, pass that type's read through its gates, and compose the read — or decide
+    /// that there is no node, with nothing read.
+    ///
+    /// Nothing is read here but a bare UUID's probe: an object's `id` names no type, and
+    /// the type is found by reading each readable Node type's view for it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` when the `id` argument is missing or malformed,
+    /// or a field is selected that the type does not declare, and the refusal of the
+    /// type's gates.
+    pub(in super::super) async fn plan_node(
+        &self,
+        root: &FieldSelection,
+        selections: &[FieldSelection],
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<PlannedNode> {
         use crate::{
             backend::{WhereClause, where_clause::WhereOperator},
             graphql::selection_set,
@@ -490,24 +519,22 @@ impl QueryRunner {
         //    available — the same split as the mutation path. Before this the node runner evaluated
         //    no directives at all, so `node(id:) { secret @skip(if: true) }` projected and returned
         //    the field.
-        let filtered_selections =
-            selection_set::filter(selections, &selection_set::variables_map(variables))?;
-        let selections: &[FieldSelection] = &filtered_selections;
+        let vars = selection_set::variables_map(variables);
+        let selections = selection_set::filter(selections, &vars)?;
 
-        // 1. Extract the raw opaque ID. Priority: $variables.id > inline literal in query text.
-        let raw_id: String = if let Some(id_val) = variables
-            .and_then(|v| v.as_object())
-            .and_then(|obj| obj.get("id"))
-            .and_then(|v| v.as_str())
-        {
-            id_val.to_string()
-        } else {
-            // Fall back to extracting inline literal, e.g. node(id: "NDI=")
-            Self::extract_inline_node_id(query).ok_or_else(|| FraiseQLError::Validation {
+        // 1. The root's own `id` argument, a literal or a variable.
+        let raw_id: String = root
+            .arguments
+            .iter()
+            .find(|arg| arg.name == "id")
+            .and_then(|arg| {
+                crate::graphql::value_json::decode_resolved(&arg.value_json, &vars).ok()
+            })
+            .and_then(|id| id.as_str().map(str::to_string))
+            .ok_or_else(|| FraiseQLError::Validation {
                 message: "node query: missing or unresolvable 'id' argument".to_string(),
-                path:    Some("node.id".to_string()),
-            })?
-        };
+                path:    Some(format!("{}.id", root.response_key())),
+            })?;
 
         // 2. Resolve the id to (type_name, uuid). An object's `id` is its bare UUID (the Relay
         //    global id, ADR-0017), so that is what `node(id: x.id)` receives; its type is resolved
@@ -519,10 +546,7 @@ impl QueryRunner {
             match self.resolve_bare_node_type(&raw_id, security_context, variables).await? {
                 Some(type_name) => (type_name, raw_id.clone()),
                 None => {
-                    return Ok((
-                        ResultProjector::wrap_in_data_envelope(serde_json::Value::Null, "node"),
-                        None,
-                    ));
+                    return Ok(PlannedNode::Null);
                 },
             }
         } else {
@@ -531,23 +555,20 @@ impl QueryRunner {
                     "node query: invalid node ID '{raw_id}' — expected an object's id (a UUID) \
                      or base64(\"Type:uuid\")"
                 ),
-                path:    Some("node.id".to_string()),
+                path:    Some(format!("{}.id", root.response_key())),
             });
         };
 
         // 2a. An id naming no Node type names no node, as an id naming no row does.
         let Some(sql_source) = self.ctx.node_type_index.get(&type_name).cloned() else {
-            return Ok((
-                ResultProjector::wrap_in_data_envelope(serde_json::Value::Null, "node"),
-                None,
-            ));
+            return Ok(PlannedNode::Null);
         };
 
         // 2b. #939: the selection set is scoped to the type the opaque id resolved,
         //     so field-existence can only be checked here — the matcher never sees
         //     this path. An undeclared field would otherwise be projected as
         //     `data->>'name'`, i.e. a `null` under a 200.
-        crate::graphql::validate_selection_set(&self.ctx.schema, &type_name, selections)?;
+        crate::graphql::validate_selection_set(&self.ctx.schema, &type_name, &selections)?;
 
         // #423: the Relay `node` lookup has no SecurityContext and emits the entity blob
         // directly; fail closed if the resolved type has any policy-gated field.
@@ -558,7 +579,7 @@ impl QueryRunner {
                      '{type_name}' declares a policy-gated field"
                 ),
                 action:   Some("read".to_string()),
-                resource: Some(type_name.clone()),
+                resource: Some(type_name),
             });
         }
 
@@ -577,7 +598,7 @@ impl QueryRunner {
             .find(|q| q.return_type == type_name && q.reads_relation().is_some())
             .ok_or_else(|| FraiseQLError::Validation {
                 message: format!("node query: no registered SQL view for type '{type_name}'"),
-                path:    Some("node.id".to_string()),
+                path:    Some(format!("{}.id", root.response_key())),
             })?;
 
         // The backing query's operation gate (`root_read::OperationGate`): `requires_role`
@@ -599,10 +620,7 @@ impl QueryRunner {
             variables,
         ) {
             if Self::hidden_by_role(node_qdef, security_context, &refused) {
-                return Ok((
-                    ResultProjector::wrap_in_data_envelope(serde_json::Value::Null, "node"),
-                    None,
-                ));
+                return Ok(PlannedNode::Null);
             }
             return Err(refused);
         }
@@ -613,10 +631,7 @@ impl QueryRunner {
         let security_where = match self.node_scope(node_qdef, security_context)? {
             NodeScope::Readable(scope) => scope,
             NodeScope::Hidden => {
-                return Ok((
-                    ResultProjector::wrap_in_data_envelope(serde_json::Value::Null, "node"),
-                    None,
-                ));
+                return Ok(PlannedNode::Null);
             },
         };
 
@@ -627,7 +642,7 @@ impl QueryRunner {
         let selection_access = super::query_nested::SelectionAccess::classify(
             &self.ctx.schema,
             &type_name,
-            selections,
+            &selections,
             Vec::new(),
             security_context,
             super::query_nested::LevelAuthz::from_config(&self.ctx.config, variables),
@@ -637,7 +652,7 @@ impl QueryRunner {
         //     predicate. The node is one row by id: the same composed document read as the
         //     GraphQL root, rooted at that row.
         let nested_reads =
-            self.plan_nested_reads(&type_name, selections, security_context, &selection_access)?;
+            self.plan_nested_reads(&type_name, &selections, security_context, &selection_access)?;
 
         // 4. Build WHERE clause: data->>'id' = uuid, AND'd under the security filter (which always
         //    comes first so it cannot be bypassed).
@@ -650,6 +665,42 @@ impl QueryRunner {
             Some(sec) => WhereClause::And(vec![sec, id_where]),
             None => id_where,
         };
+
+        Ok(PlannedNode::Read(Box::new(NodeRead {
+            type_name,
+            sql_source,
+            read_routing: node_qdef.read_routing,
+            where_clause,
+            selections,
+            selection_access,
+            nested_reads,
+        })))
+    }
+
+    /// Read a planned `node(id:)` lookup: the node's value, unwrapped, and the type its id
+    /// named when an object was read.
+    ///
+    /// # Errors
+    ///
+    /// A failed read, or a projection that cannot be built.
+    pub(in super::super) async fn execute_planned_node(
+        &self,
+        plan: PlannedNode,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<(serde_json::Value, Option<String>)> {
+        let PlannedNode::Read(read) = plan else {
+            return Ok((serde_json::Value::Null, None));
+        };
+        let NodeRead {
+            type_name,
+            sql_source,
+            read_routing,
+            where_clause,
+            selections,
+            selection_access,
+            nested_reads,
+        } = *read;
+        let selections: &[FieldSelection] = &selections;
 
         // 5. Read the row (limit 1), pinning session variables to the read's connection so a
         //    PostgreSQL `current_setting()`-backed RLS policy constrains the node lookup the same
@@ -706,7 +757,7 @@ impl QueryRunner {
                         scalar_keys:   None,
                     },
                     &session_pairs,
-                    node_qdef.read_routing,
+                    read_routing,
                 )
                 .await?;
             self.charge_node_budget(&rows)?;
@@ -744,7 +795,7 @@ impl QueryRunner {
                         decimals:     self.ctx.decimals.shape(&type_name).cloned(),
                     },
                     &session_pairs,
-                    node_qdef.read_routing,
+                    read_routing,
                 )
                 .await?;
             self.charge_node_budget(&rows)?;
@@ -760,8 +811,7 @@ impl QueryRunner {
             value
         };
 
-        let response = ResultProjector::wrap_in_data_envelope(node_value, "node");
-        Ok((response, Some(type_name)))
+        Ok((node_value, Some(type_name)))
     }
 
     /// Whether `refused` is `query`'s role gate refusing `principal`: the one refusal of the
@@ -1064,6 +1114,32 @@ fn sub_selections_named(selections: &[FieldSelection], name: &str) -> Vec<FieldS
         }
     }
     out
+}
+
+/// A planned `node(id:)` lookup.
+pub(in super::super) enum PlannedNode {
+    /// No node: the id names no Node type, or one whose row the caller may not read.
+    Null,
+    /// The read of the one row the id names.
+    Read(Box<NodeRead>),
+}
+
+/// The read a planned `node(id:)` lookup makes, every gate already passed.
+pub(in super::super) struct NodeRead {
+    /// The Node type the id names.
+    type_name:        String,
+    /// Its view.
+    sql_source:       Arc<str>,
+    /// Where its backing query reads.
+    read_routing:     crate::backend::types::ReadRouting,
+    /// The row by id, under the caller's row scope.
+    where_clause:     WhereClause,
+    /// The selection, its directives evaluated.
+    selections:       Vec<FieldSelection>,
+    /// What field-level RBAC masks.
+    selection_access: super::query_nested::SelectionAccess,
+    /// The nested levels whose type scopes its rows.
+    nested_reads:     Vec<crate::backend::ComposedEmbed>,
 }
 
 /// What a `node` lookup may read of a Node type's view.

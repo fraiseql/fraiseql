@@ -33,24 +33,6 @@ impl QueryRunner {
     pub(in super::super) const fn new(ctx: Arc<ExecutorContext>) -> Self {
         Self { ctx }
     }
-
-    /// Extract an inline node ID literal from a `node(id: "...")` query string.
-    ///
-    /// Used as a fallback when the ID is not provided via variables.
-    /// Returns `None` if no inline string literal can be found.
-    pub(super) fn extract_inline_node_id(query: &str) -> Option<String> {
-        let after_node = query.find("node(")?;
-        let args_region = &query[after_node..];
-        let after_id = args_region.find("id:")?;
-        let after_colon = args_region[after_id + 3..].trim_start();
-        let quote_char = after_colon.chars().next()?;
-        if quote_char != '"' && quote_char != '\'' {
-            return None;
-        }
-        let inner = &after_colon[1..];
-        let end = inner.find(quote_char)?;
-        Some(inner[..end].to_string())
-    }
 }
 
 #[cfg(test)]

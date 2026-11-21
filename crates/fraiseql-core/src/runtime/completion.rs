@@ -431,6 +431,11 @@ impl ResolvedTypes {
         }
     }
 
+    /// The root value at `response_key` is also of type `type_name`.
+    pub fn insert(&mut self, response_key: &str, type_name: &str) {
+        self.roots.push((response_key.to_string(), type_name.to_string()));
+    }
+
     /// The type resolved for the value at `path`, if it is a root this names.
     fn at(&self, path: &[Step<'_>]) -> Option<&str> {
         let [Step::Key(key)] = path else {

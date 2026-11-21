@@ -390,7 +390,7 @@ mod classify {
         let query = r#"{ node(id: "VXNlcjoxMjM=") { ... on User { name email } } }"#;
         let qt = executor.classify_query(query, None).unwrap();
         match qt {
-            QueryType::NodeQuery { selections } => {
+            QueryType::NodeQuery { selections, .. } => {
                 let names: Vec<&str> = selections.iter().map(|s| s.name.as_str()).collect();
                 assert_eq!(names, vec!["name", "email"]);
             },
@@ -408,7 +408,7 @@ mod classify {
         let query = r"query GetNode($id: ID!) { node(id: $id) { id name } }";
         let qt = executor.classify_query(query, None).unwrap();
         match qt {
-            QueryType::NodeQuery { selections } => {
+            QueryType::NodeQuery { selections, .. } => {
                 let names: Vec<&str> = selections.iter().map(|s| s.name.as_str()).collect();
                 assert_eq!(names, vec!["id", "name"]);
             },

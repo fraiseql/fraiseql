@@ -3,7 +3,9 @@
 use super::super::{Executor, MutationRoot, QueryType};
 use crate::{
     error::Result,
-    graphql::{operation_selection_error, parse_query_with_operation_name, value_json},
+    graphql::{
+        FieldSelection, operation_selection_error, parse_query_with_operation_name, value_json,
+    },
     runtime::{collect_variable_references, validate_variable_uses, validate_variables_used},
     schema::is_fact_table_root,
     security::SecurityContext,
@@ -305,35 +307,29 @@ impl Executor {
         // the request variables are available — the same split as mutations, and
         // what keeps this classification cacheable by query string alone.
         // Only where the schema publishes `node`: elsewhere it is a field like any other the
-        // schema does not declare, refused by the matcher.
+        // schema does not declare, refused by the matcher. Only as the document's one root: a
+        // `node` root beside others is planned and read among them, by the multi-root pipeline.
         if parsed.operation_type == "query"
             && root_field == "node"
+            && parsed.selections.len() == 1
             && self.ctx.schema.publishes_node()
         {
-            let raw = parsed.selections.first().map_or(&[][..], |s| s.nested_fields.as_slice());
+            let root = &parsed.selections[0];
             let resolved = crate::graphql::selection_set::resolve(
-                raw,
+                &root.nested_fields,
                 &parsed.fragments,
                 self.max_query_depth(),
             )?;
-
-            // Flatten inline fragments: `node { ... on Booking { id startDate } }`.
-            // Only `"...on "` entries carry their selections in `nested_fields`;
-            // after expansion no bare `"...Name"` spread survives. Lifting the
-            // children out discards the inline fragment itself, so its own
-            // directives travel with them.
-            let mut selections = Vec::with_capacity(resolved.len());
-            for sel in resolved {
-                if sel.name.starts_with("...on ") {
-                    for mut child in sel.nested_fields {
-                        child.inherit_directives(&sel.directives);
-                        selections.push(child);
-                    }
-                } else {
-                    selections.push(sel);
-                }
-            }
-            return Ok((QueryType::NodeQuery { selections }, None));
+            return Ok((
+                QueryType::NodeQuery {
+                    root:       Box::new(FieldSelection {
+                        nested_fields: Vec::new(),
+                        ..root.clone()
+                    }),
+                    selections: flatten_node_fragments(resolved),
+                },
+                None,
+            ));
         }
 
         // Mutations are routed by operation type. Carry the full result selection
@@ -383,4 +379,27 @@ impl Executor {
         // the multi-root pipeline path.
         Ok((QueryType::Regular, Some(parsed)))
     }
+}
+
+/// A `node` lookup's selection set with its inline fragments flattened:
+/// `node { ... on Booking { id startDate } }` selects `id` and `startDate`.
+///
+/// Only `"...on "` entries carry their selections in `nested_fields`; after expansion no
+/// bare `"...Name"` spread survives. Lifting the children out discards the inline fragment
+/// itself, so its own directives travel with them.
+pub(in super::super) fn flatten_node_fragments(
+    resolved: Vec<FieldSelection>,
+) -> Vec<FieldSelection> {
+    let mut selections = Vec::with_capacity(resolved.len());
+    for sel in resolved {
+        if sel.name.starts_with("...on ") {
+            for mut child in sel.nested_fields {
+                child.inherit_directives(&sel.directives);
+                selections.push(child);
+            }
+        } else {
+            selections.push(sel);
+        }
+    }
+    selections
 }

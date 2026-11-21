@@ -263,10 +263,14 @@ enum QueryType {
     /// (#759).
     Mutation { roots: Vec<MutationRoot> },
 
-    /// Relay global node lookup: `node(id: ID!)`.
-    /// Resolves any type that implements the Node interface by global opaque ID.
-    /// Contains the field selections from the inline fragment for projection.
+    /// A document whose one root is the Relay global node lookup, `node(id: ID!)`:
+    /// resolves any type that implements the Node interface by its id. A `node` root beside
+    /// others is `Regular`, read by the multi-root pipeline.
     NodeQuery {
+        /// The root field, its selection set taken out: its alias, its `id` argument and
+        /// its directives.
+        root:       Box<crate::graphql::FieldSelection>,
+        /// Its selection set, fragments expanded and inline fragments flattened.
         selections: Vec<crate::graphql::FieldSelection>,
     },
 

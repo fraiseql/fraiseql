@@ -47,14 +47,16 @@ pub struct RootFieldResult {
 pub struct PipelineResult {
     /// Results for each root field, in the order they were requested. A root that failed
     /// is `null` here.
-    pub fields:      Vec<RootFieldResult>,
+    pub fields:          Vec<RootFieldResult>,
     /// `true` when results were produced by the parallel path.
-    pub parallel:    bool,
+    pub parallel:        bool,
     /// The field errors of the roots that failed while read, and those their runners
     /// reported, each at its path.
-    pub errors:      Vec<serde_json::Value>,
+    pub errors:          Vec<serde_json::Value>,
     /// A root published as non-null failed, so `data` is `null` (§ 6.4.4).
-    pub data_nulled: bool,
+    pub data_nulled:     bool,
+    /// The type each `node` root's id named, for completion.
+    pub(crate) resolved: crate::runtime::completion::ResolvedTypes,
 }
 
 impl PipelineResult {
@@ -192,6 +194,8 @@ enum PlannedRoot<'a> {
     Regular(Box<super::super::runners::query_regular::PlannedRegular>),
     /// A fact table's aggregate or window root.
     FactTable(Box<super::super::runners::aggregate::PlannedFactRoot<'a>>),
+    /// A Relay `node(id:)` lookup.
+    Node(Box<super::super::runners::query_relay::PlannedNode>),
 }
 
 impl Executor {
@@ -201,11 +205,13 @@ impl Executor {
     /// Each root is planned as the single-root document it would be alone: matched, its
     /// operation, field and scope gates checked, its arguments and row scope resolved. Any
     /// root refused there refuses the document before anything is read, as GraphQL
-    /// validation does. The planned roots are then read concurrently, and a root whose read
-    /// fails is `null` with a field error at its path while the others are served; when
-    /// that root is published non-null, `data` is `null` (§ 6.4.4). Its error is rendered
-    /// by the embedder's [`root_error_renderer`](crate::runtime::RuntimeConfig), as a
-    /// failed multi-root mutation's is.
+    /// validation does. `node` roots are planned last: a bare UUID's type is found by
+    /// reading for it, so every other root's refusal comes first. The planned roots are then read
+    /// concurrently, and a root whose read fails is `null` with a field error at its path while
+    /// the others are served; when that root is published non-null, `data` is `null` (§ 6.4.4).
+    /// Its error is rendered by the embedder's
+    /// [`root_error_renderer`](crate::runtime::RuntimeConfig), as a failed multi-root
+    /// mutation's is.
     ///
     /// # Errors
     ///
@@ -248,9 +254,11 @@ impl Executor {
         //    deliberately: `field_selection_to_query` re-serialises each root into a *synthetic*
         //    single-root anonymous document, which the request's `operationName` does not name.
         //    Operation selection already happened upstream, in classification.
+        let is_node =
+            |field: &FieldSelection| field.name == "node" && self.ctx.schema.publishes_node();
         let mut planned = Vec::with_capacity(resolved.len());
         for (index, field) in resolved.iter().enumerate() {
-            if field.name == "__typename" {
+            if field.name == "__typename" || is_node(field) {
                 continue;
             }
             // A fact-table root is planned by its own runner, from the root itself: it is
@@ -282,11 +290,17 @@ impl Executor {
             };
             planned.push((index, field, plan));
         }
+        for (index, field) in resolved.iter().enumerate().filter(|(_, field)| is_node(field)) {
+            let selections = super::classify::flatten_node_fragments(field.nested_fields.clone());
+            let plan = runner.plan_node(field, &selections, variables, security_context).await?;
+            planned.push((index, field, PlannedRoot::Node(Box::new(plan))));
+        }
 
         // 2. Read the planned roots concurrently.
         let reads = planned.into_iter().map(|(index, field, plan)| {
             let (runner, fact_tables) = (&runner, &fact_tables);
             async move {
+                let mut node_type = None;
                 let outcome = match plan {
                     PlannedRoot::Regular(plan) => runner
                         .execute_planned_regular(*plan, variables, security_context, false)
@@ -295,8 +309,18 @@ impl Executor {
                     PlannedRoot::FactTable(plan) => {
                         fact_tables.execute_planned_fact_root(*plan, variables).await
                     },
+                    PlannedRoot::Node(plan) => runner
+                        .execute_planned_node(*plan, security_context)
+                        .await
+                        .map(|(value, type_name)| {
+                            node_type = type_name;
+                            crate::runtime::ResultProjector::wrap_in_data_envelope(
+                                value,
+                                field.response_key(),
+                            )
+                        }),
                 };
-                (index, field, outcome)
+                (index, field, outcome, node_type)
             }
         });
         let outcomes = futures::future::join_all(reads).await;
@@ -307,8 +331,12 @@ impl Executor {
             std::collections::HashMap::with_capacity(outcomes.len());
         let mut errors = Vec::new();
         let mut data_nulled = false;
-        for (index, field, outcome) in outcomes {
+        let mut node_types = crate::runtime::completion::ResolvedTypes::default();
+        for (index, field, outcome, node_type) in outcomes {
             let key = field.response_key();
+            if let Some(type_name) = node_type {
+                node_types.insert(key, &type_name);
+            }
             match outcome {
                 Ok(mut response) => {
                     if let Some(serde_json::Value::Array(reported)) =
@@ -347,6 +375,7 @@ impl Executor {
             parallel: true,
             errors,
             data_nulled,
+            resolved: node_types,
         })
     }
 }

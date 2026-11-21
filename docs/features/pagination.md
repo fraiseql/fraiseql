@@ -299,6 +299,11 @@ not a `relay` type, or one the caller may not read, is `null`. A caller the type
 `requires_role` excludes gets `null`, as one its row policy hides does, and nothing in the
 answer names the query behind it.
 
+A `node` root may be aliased and may stand beside other roots, each lookup reading its own
+`id` argument: `{ a: node(id: $first) { id } b: node(id: $second) { id } orders { id } }`.
+Every root is checked before any is read, `node` roots last, so another root's refusal comes
+before a bare id is looked up.
+
 `node` exists only where the schema publishes it, that is where some type is a `relay` type.
 Elsewhere introspection does not list it, and a document that asks for it is refused as one
 asking for any field the schema does not declare.

@@ -1091,6 +1091,15 @@ disagreed, and the promise was the part that was wrong.
   so a `Time` field refuses it as it refuses any value outside its format. A `timetz` keeps
   its zone (`09:30:00+05:30`). An `interval` is not decoded, on purpose: its text depends on
   the session's `IntervalStyle`.
+- **A `node(id:)` root is answered beside other roots and under its alias (#2244).** A
+  document whose first root was `node` answered `node` alone and dropped every other root;
+  one with `node` after another root was refused, naming `node` as a query the schema does
+  not have. An aliased lookup (`found: node(id:)`) was answered under `node`, so the value at
+  `found` went uncompleted. A `node` root is now one root among the others: planned with
+  them before anything is read (after them, since a bare id is read to learn its type),
+  read with them, a failed read a field error at its key, and its value completed under its
+  response key as the type its id names. Its `id` is read from the root's own argument, so
+  `node(id: $anyName)` is accepted, and `@skip`/`@include` on the root are honoured.
 - **An omitted input field reaches the function as its declared default (#1915).** A field
   declared with a default (`currency: str = "EUR"`) and left out of a request reached the
   function as NULL on a flattened input, or as a missing key on a `jsonb` input, so the
