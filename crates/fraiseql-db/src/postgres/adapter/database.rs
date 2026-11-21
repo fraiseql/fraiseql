@@ -1025,19 +1025,19 @@ impl<'a> FromSql<'a> for PgEnumLabel {
     }
 }
 
-/// Accepts every PostgreSQL type and decodes none of it.
+/// A cell's binary form, of any PostgreSQL type, decoded by [`decode_value`].
 ///
-/// Read as `Option<AnyCell>`, it answers one question: is this cell SQL `NULL`. Each branch
-/// of [`decode_cell`]'s ladder refuses a `NULL` with `WasNull`, so without this a `NULL` of any
-/// type would fall through the ladder and be refused as not decoded (#1514).
-struct AnyCell;
+/// Read as `Option<RawCell>`, it also answers whether the cell is SQL `NULL`, once, before
+/// any type is tried: each type's `FromSql` refuses a `NULL` with `WasNull`, so a `NULL` of
+/// any type would otherwise be refused as not decoded (#1514).
+struct RawCell<'a>(&'a [u8]);
 
-impl<'a> FromSql<'a> for AnyCell {
+impl<'a> FromSql<'a> for RawCell<'a> {
     fn from_sql(
         _ty: &Type,
-        _raw: &'a [u8],
+        raw: &'a [u8],
     ) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
-        Ok(Self)
+        Ok(Self(raw))
     }
 
     fn accepts(_ty: &Type) -> bool {
@@ -1392,101 +1392,333 @@ fn row_to_map_exact(
 
 /// Decode one cell of a `tokio_postgres::Row` to JSON.
 ///
-/// The decode ladder itself, extracted from [`row_to_map`] so the positional
-/// reader the admin SQL console needs (#962) and the name-keyed map every other
-/// caller wants cannot disagree about what a `numeric`, an enum or a `timestamptz`
-/// becomes. A console keyed by column *name* would also collapse `SELECT 1 AS a,
-/// 2 AS a` to one column and silently drop the other.
+/// The positional reader the admin SQL console needs (#962) and the name-keyed map every
+/// other caller wants share it, so they cannot disagree about what a `numeric`, an enum or a
+/// `timestamptz` becomes. A console keyed by column *name* would also collapse `SELECT 1 AS
+/// a, 2 AS a` to one column and silently drop the other.
 ///
-/// Tries each PostgreSQL type in priority order. A SQL `NULL` of any type is `null`.
+/// A SQL `NULL` of any type is `null`; any other cell is [`decode_value`]'s.
 ///
 /// # Errors
 ///
-/// A present cell no rung decodes is refused as [`Undecoded`], naming its column, its type
-/// and the [`refusal`], never the value: it is never served as `null`, which would read as
-/// a value the database does not hold.
+/// A present cell of a type that is not decoded is refused as [`Undecoded`], naming its
+/// column, its type and the [`refusal`], never the value: it is never served as `null`, which
+/// would read as a value the database does not hold.
 pub(super) fn decode_cell(
     row: &Row,
     idx: usize,
 ) -> std::result::Result<serde_json::Value, Undecoded> {
     let column = &row.columns()[idx];
-    let cell = if matches!(row.try_get::<_, Option<AnyCell>>(idx), Ok(None)) {
-        // SQL NULL, whatever the column's type: decided once, before the ladder (#1514).
-        serde_json::Value::Null
-    } else if let Ok(v) = row.try_get::<_, i16>(idx) {
-        // SMALLINT/int2 columns (e.g. `app.mutation_response.http_status`).
-        // Without this branch a non-null int2 fell through to `Null` because
-        // `FromSql for i32` rejects int2 — which dropped `MutationError`'s
-        // `httpStatus` to absent. Order among i16/i32/i64 is correctness-
-        // neutral (each `FromSql` accepts only its own PG int width), so this
-        // sits first for readability.
+    let decoded = match row.try_get::<_, Option<RawCell<'_>>>(idx) {
+        // SQL NULL, whatever the column's type: decided once, before any type is tried (#1514).
+        Ok(None) => Ok(serde_json::Value::Null),
+        Ok(Some(RawCell(raw))) => decode_value(column.type_(), raw),
+        Err(_) => Err(refusal(column.type_())),
+    };
+    decoded.map_err(|refusal| Undecoded {
+        column: column.name().to_string(),
+        pg_type: type_name(column.type_()),
+        refusal,
+    })
+}
+
+/// `raw` read as `T`, when `T` reads `ty`.
+fn read<'a, T: FromSql<'a>>(ty: &Type, raw: &'a [u8]) -> Option<T> {
+    if T::accepts(ty) {
+        T::from_sql(ty, raw).ok()
+    } else {
+        None
+    }
+}
+
+/// One present value of `ty`, from its binary form, rendered as `to_jsonb` renders it where
+/// that rendering does not depend on a session setting. A cell and each element of an array
+/// are decoded alike.
+///
+/// Each type is tried in turn; every `FromSql` here accepts only its own types, so their
+/// order decides no value, only how soon a common type is found.
+///
+/// # Errors
+///
+/// The [`refusal`] for a type that is not decoded; for an array, its element's.
+fn decode_value(ty: &Type, raw: &[u8]) -> std::result::Result<serde_json::Value, Refusal> {
+    let value = if let Some(v) = read::<i16>(ty, raw) {
+        // SMALLINT/int2 columns (e.g. `app.mutation_response.http_status`): `i32` does not
+        // read an int2, which once dropped `MutationError`'s `httpStatus` to absent.
         serde_json::json!(v)
-    } else if let Ok(v) = row.try_get::<_, i32>(idx) {
+    } else if let Some(v) = read::<i32>(ty, raw) {
         serde_json::json!(v)
-    } else if let Ok(v) = row.try_get::<_, i64>(idx) {
+    } else if let Some(v) = read::<i64>(ty, raw) {
         serde_json::json!(v)
-    } else if let Ok(v) = row.try_get::<_, f64>(idx) {
+    } else if let Some(v) = read::<f64>(ty, raw) {
         serde_json::json!(v)
-    } else if let Ok(v) = row.try_get::<_, String>(idx) {
+    } else if let Some(v) = read::<String>(ty, raw) {
+        serde_json::Value::String(v)
+    } else if let Some(v) = read::<bool>(ty, raw) {
         serde_json::json!(v)
-    } else if let Ok(v) = row.try_get::<_, bool>(idx) {
-        serde_json::json!(v)
-    } else if let Ok(v) = row.try_get::<_, PgNumericText>(idx) {
-        // NUMERIC/DECIMAL — decoded to PostgreSQL's exact text rendering
-        // (#980), then re-parsed as a JSON number so the value isn't forced
-        // through f64 at construction. Without this branch a `SUM(revenue)`
-        // aggregate (and every raw NUMERIC column) fell through to `Null`
-        // (H35). Falls back to a JSON string for the values whose text is
-        // not JSON numeric syntax: NaN, Infinity and -Infinity.
+    } else if let Some(v) = read::<PgNumericText>(ty, raw) {
+        // NUMERIC/DECIMAL — PostgreSQL's exact text (#980), re-parsed as a JSON number so
+        // the value is not forced through an f64 at construction (H35). NaN, Infinity and
+        // -Infinity are not JSON numbers, and stay strings.
         let s = v.0;
         serde_json::from_str::<serde_json::Value>(&s).unwrap_or(serde_json::Value::String(s))
-    } else if let Ok(v) = row.try_get::<_, uuid::Uuid>(idx) {
-        // UUID columns (e.g. `app.mutation_response.entity_id`) render as the
-        // canonical hyphenated string instead of silently nulling (H35).
-        serde_json::json!(v.to_string())
-    } else if let Ok(v) = row.try_get::<_, chrono::DateTime<chrono::Utc>>(idx) {
+    } else if let Some(v) = read::<uuid::Uuid>(ty, raw) {
+        // UUID columns (e.g. `app.mutation_response.entity_id`): the hyphenated text (H35).
+        serde_json::Value::String(v.to_string())
+    } else if let Some(v) = read::<chrono::DateTime<chrono::Utc>>(ty, raw) {
         // `timestamptz` → RFC 3339 / ISO 8601 text (H35).
-        serde_json::json!(v.to_rfc3339())
-    } else if let Ok(v) = row.try_get::<_, chrono::NaiveDateTime>(idx) {
-        // `timestamp` (no tz) → a local date-time: `T`, no offset, the fraction in
-        // 3, 6 or 9 digits as `to_rfc3339` writes the `timestamptz` one. `to_string`
-        // wrote a space, which no date-time reader accepts.
-        serde_json::json!(v.format("%Y-%m-%dT%H:%M:%S%.f").to_string())
-    } else if let Ok(v) = row.try_get::<_, chrono::NaiveDate>(idx) {
+        serde_json::Value::String(v.to_rfc3339())
+    } else if let Some(v) = read::<chrono::NaiveDateTime>(ty, raw) {
+        // `timestamp` (no tz) → a local date-time: `T`, no offset, the fraction in 3, 6 or
+        // 9 digits as `to_rfc3339` writes the `timestamptz` one. `to_string` wrote a space,
+        // which no date-time reader accepts.
+        serde_json::Value::String(v.format("%Y-%m-%dT%H:%M:%S%.f").to_string())
+    } else if let Some(v) = read::<chrono::NaiveDate>(ty, raw) {
         // `date` → ISO 8601 date text (H35).
-        serde_json::json!(v.to_string())
-    } else if let Ok(v) = row.try_get::<_, PgTimeText>(idx) {
+        serde_json::Value::String(v.to_string())
+    } else if let Some(v) = read::<PgTimeText>(ty, raw) {
         // `time` → PostgreSQL's own text, as the document path carries it.
         serde_json::Value::String(v.0)
-    } else if let Ok(v) = row.try_get::<_, PgTimeTzText>(idx) {
+    } else if let Some(v) = read::<PgTimeTzText>(ty, raw) {
         // `timetz` → PostgreSQL's own text, its zone included.
         serde_json::Value::String(v.0)
-    } else if let Ok(v) = row.try_get::<_, Vec<String>>(idx) {
-        // TEXT[] columns (e.g. `app.mutation_response.updated_fields`) — without
-        // this branch a non-null text array falls through to Null and a parser
-        // expecting a sequence fails. Must precede the jsonb branch (a jsonb
-        // column never deserializes as Vec<String>, so ordering is safe).
-        serde_json::json!(v)
-    } else if let Ok(v) = row.try_get::<_, PgEnumLabel>(idx) {
-        // ENUM columns (e.g. `app.mutation_response.error_class`, the
-        // `app.mutation_error_class` enum) render as their text label. Without
-        // this branch a non-null enum fell through to `Null` (`String: FromSql`
-        // rejects a custom enum OID), which dropped `error_class` to absent on a
-        // failed mutation — and the parser then rejected the row with
-        // "succeeded=false requires error_class", so the typed error arm was
-        // never reached (#472). `PgEnumLabel` accepts only `Kind::Enum`, so this
-        // never shadows another branch regardless of position.
-        serde_json::json!(v.0)
-    } else if let Ok(v) = row.try_get::<_, serde_json::Value>(idx) {
+    } else if let Some(v) = read::<PgEnumLabel>(ty, raw) {
+        // ENUM columns (e.g. `app.mutation_response.error_class`) → their label. `String`
+        // does not read a custom enum OID, which once dropped `error_class` to absent and
+        // left a failed mutation's typed error arm unreachable (#472).
+        serde_json::Value::String(v.0)
+    } else if let Some(v) = read::<serde_json::Value>(ty, raw) {
         v
+    } else if let Some(v) = read::<f32>(ty, raw) {
+        float4_json(v)
+    } else if let Some(v) = read::<u32>(ty, raw) {
+        // `oid` → its decimal text, a string as `to_jsonb` writes it.
+        serde_json::Value::String(v.to_string())
+    } else if let Some(v) = read::<i8>(ty, raw) {
+        // `"char"` → its one byte.
+        serde_json::Value::String(char_text(v.to_ne_bytes()[0]))
+    } else if let Some(PgText(v)) = read::<PgText>(ty, raw) {
+        // `inet`, `cidr`, `macaddr`, `macaddr8`, `bit`, `varbit`, `pg_lsn`, `xml` → the text
+        // PostgreSQL writes.
+        serde_json::Value::String(v)
     } else {
-        return Err(Undecoded {
-            column:  column.name().to_string(),
-            pg_type: type_name(column.type_()),
-            refusal: refusal(column.type_()),
-        });
+        return match ty.kind() {
+            // An array, not `int2vector` or `oidvector`: those are arrays to the driver,
+            // and refused as system types.
+            Kind::Array(element) if ty.name().starts_with('_') => decode_array(element, raw),
+            _ => Err(refusal(ty)),
+        };
     };
-    Ok(cell)
+    Ok(value)
+}
+
+/// A `float4` as `to_jsonb` writes it: its shortest text that reads back as the same
+/// `float4` (PostgreSQL's at its default `extra_float_digits`), as a JSON number; zero
+/// without its sign; `NaN` and the infinities as strings.
+fn float4_json(v: f32) -> serde_json::Value {
+    if v.is_nan() {
+        serde_json::Value::String("NaN".to_string())
+    } else if v.is_infinite() {
+        let sign = if v.is_sign_negative() { "-" } else { "" };
+        serde_json::Value::String(format!("{sign}Infinity"))
+    } else if v == 0.0 {
+        serde_json::json!(0)
+    } else {
+        let text = v.to_string();
+        serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text))
+    }
+}
+
+/// A `"char"`'s byte as PostgreSQL writes it: none for a zero byte, an ASCII byte as itself,
+/// any other as a backslash and three octal digits.
+fn char_text(byte: u8) -> String {
+    match byte {
+        0 => String::new(),
+        1..=127 => char::from(byte).to_string(),
+        _ => format!("\\{byte:03o}"),
+    }
+}
+
+/// The types whose binary form is read into the text PostgreSQL writes for them, which no
+/// session setting changes: `inet`, `cidr`, `macaddr`, `macaddr8`, `bit`, `varbit`,
+/// `pg_lsn` and `xml`.
+struct PgText(String);
+
+impl<'a> FromSql<'a> for PgText {
+    fn from_sql(
+        ty: &Type,
+        raw: &'a [u8],
+    ) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        let text = if *ty == Type::INET || *ty == Type::CIDR {
+            inet_text(raw)
+        } else if *ty == Type::MACADDR || *ty == Type::MACADDR8 {
+            Some(mac_text(raw))
+        } else if *ty == Type::BIT || *ty == Type::VARBIT {
+            bit_text(raw)
+        } else if *ty == Type::PG_LSN {
+            let lsn = u64::from_be_bytes(raw.try_into()?);
+            Some(format!("{:X}/{:X}", lsn >> 32, lsn & 0xFFFF_FFFF))
+        } else {
+            Some(std::str::from_utf8(raw)?.to_owned())
+        };
+        text.map(Self).ok_or_else(|| format!("a malformed {ty}").into())
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        [
+            Type::INET,
+            Type::CIDR,
+            Type::MACADDR,
+            Type::MACADDR8,
+            Type::BIT,
+            Type::VARBIT,
+            Type::PG_LSN,
+            Type::XML,
+        ]
+        .contains(ty)
+    }
+}
+
+/// An `inet` or `cidr` as PostgreSQL writes it: the address, then `/` and the prefix length
+/// for a `cidr`, and for an `inet` whose prefix is not the whole address.
+fn inet_text(raw: &[u8]) -> Option<String> {
+    let (&[family, bits, is_cidr, length], address) = raw.split_first_chunk::<4>()?;
+    let (mut text, whole) = match (family, length, address) {
+        (2, 4, [a, b, c, d]) => (format!("{a}.{b}.{c}.{d}"), 32),
+        (3, 16, address) => (ipv6_text(address.try_into().ok()?), 128),
+        _ => return None,
+    };
+    if is_cidr != 0 || bits != whole {
+        let _ = write!(text, "/{bits}");
+    }
+    Some(text)
+}
+
+/// An IPv6 address as PostgreSQL writes it: hexadecimal groups without leading zeros, the
+/// first longest run of two or more zero groups written `::`, and the last four bytes in
+/// dotted form for an address that embeds an IPv4 one (`::a.b.c.d`, `::ffff:a.b.c.d`).
+fn ipv6_text(address: [u8; 16]) -> String {
+    let words: Vec<u16> =
+        address.chunks_exact(2).map(|w| u16::from_be_bytes([w[0], w[1]])).collect();
+    let mut best: Option<(usize, usize)> = None;
+    let mut run: Option<(usize, usize)> = None;
+    for (i, &word) in words.iter().chain(std::iter::once(&1)).enumerate() {
+        if word == 0 {
+            run = Some(run.map_or((i, 1), |(start, len)| (start, len + 1)));
+        } else if let Some(zeros) = run.take() {
+            if best.is_none_or(|(_, len)| zeros.1 > len) {
+                best = Some(zeros);
+            }
+        }
+    }
+    let best = best.filter(|&(_, len)| len >= 2);
+    let embeds_ipv4 = best.is_some_and(|(start, len)| {
+        start == 0 && (len == 6 || (len == 7 && words[7] != 1) || (len == 5 && words[5] == 0xFFFF))
+    });
+    let mut text = String::new();
+    for (i, word) in words.iter().enumerate() {
+        if let Some((start, len)) = best {
+            if (start..start + len).contains(&i) {
+                if i == start {
+                    text.push(':');
+                }
+                continue;
+            }
+        }
+        if i != 0 {
+            text.push(':');
+        }
+        if i == 6 && embeds_ipv4 {
+            let _ = write!(text, "{}.{}.{}.{}", address[12], address[13], address[14], address[15]);
+            return text;
+        }
+        let _ = write!(text, "{word:x}");
+    }
+    if best.is_some_and(|(start, len)| start + len == 8) {
+        text.push(':');
+    }
+    text
+}
+
+/// A `macaddr` or `macaddr8`: its bytes in lowercase hexadecimal, joined by `:`.
+fn mac_text(raw: &[u8]) -> String {
+    raw.iter().map(|byte| format!("{byte:02x}")).collect::<Vec<_>>().join(":")
+}
+
+/// A `bit` or `varbit`: its length in bits, then its bits, most significant first.
+fn bit_text(raw: &[u8]) -> Option<String> {
+    let (length, bytes) = raw.split_first_chunk::<4>()?;
+    let length = usize::try_from(i32::from_be_bytes(*length)).ok()?;
+    (bytes.len() * 8 >= length).then(|| {
+        (0..length)
+            .map(|i| {
+                if bytes[i / 8] & (0x80 >> (i % 8)) == 0 {
+                    '0'
+                } else {
+                    '1'
+                }
+            })
+            .collect()
+    })
+}
+
+/// An array as `to_jsonb` writes it: nested JSON arrays, one level per dimension, whatever
+/// its lower bounds; a `NULL` element as `null`; each other element as [`decode_value`]
+/// decodes its type.
+///
+/// # Errors
+///
+/// The element type's [`refusal`], when it is not decoded or the array is malformed.
+fn decode_array(element: &Type, raw: &[u8]) -> std::result::Result<serde_json::Value, Refusal> {
+    let malformed = || refusal(element);
+    let mut rest = raw;
+    let mut take = || -> std::result::Result<i32, Refusal> {
+        let (head, tail) = rest.split_first_chunk::<4>().ok_or_else(malformed)?;
+        rest = tail;
+        Ok(i32::from_be_bytes(*head))
+    };
+    let dimensions = take()?;
+    let _has_nulls = take()?;
+    let _element_oid = take()?;
+    let mut lengths = Vec::new();
+    for _ in 0..dimensions {
+        lengths.push(usize::try_from(take()?).map_err(|_| malformed())?);
+        let _lower_bound = take()?;
+    }
+    if lengths.is_empty() {
+        return Ok(serde_json::Value::Array(Vec::new()));
+    }
+    nest(element, &lengths, &mut rest)
+}
+
+/// The elements of one level of an array, of `lengths[0]` items each nesting the levels
+/// below, read from `elements` in order.
+fn nest(
+    element: &Type,
+    lengths: &[usize],
+    elements: &mut &[u8],
+) -> std::result::Result<serde_json::Value, Refusal> {
+    let malformed = || refusal(element);
+    let (&length, below) = lengths.split_first().ok_or_else(malformed)?;
+    let mut items = Vec::with_capacity(length);
+    for _ in 0..length {
+        if !below.is_empty() {
+            items.push(nest(element, below, elements)?);
+            continue;
+        }
+        let (size, rest) = elements.split_first_chunk::<4>().ok_or_else(malformed)?;
+        let size = i32::from_be_bytes(*size);
+        *elements = rest;
+        if size < 0 {
+            items.push(serde_json::Value::Null);
+            continue;
+        }
+        let size = usize::try_from(size).map_err(|_| malformed())?;
+        let (value, rest) = elements.split_at_checked(size).ok_or_else(malformed)?;
+        *elements = rest;
+        items.push(decode_value(element, value)?);
+    }
+    Ok(serde_json::Value::Array(items))
 }
 
 /// Apply transaction-local session variables on an in-progress transaction.

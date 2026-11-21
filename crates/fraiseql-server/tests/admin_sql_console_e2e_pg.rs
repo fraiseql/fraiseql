@@ -419,6 +419,33 @@ async fn a_time_cell_is_shown_as_postgresql_writes_it() {
     assert_eq!(data["undecoded"][0]["pg_type"], "interval", "{data}");
 }
 
+/// A `float4`, an array, an `inet` and a `"char"` are shown as `to_jsonb` writes them, and are
+/// not listed; beside them, a `bytea` is.
+#[tokio::test]
+async fn a_decoded_cell_is_shown_and_only_one_not_decoded_is_listed() {
+    if database_url_or_skip("a_decoded_cell_is_shown_and_only_one_not_decoded_is_listed").is_none()
+    {
+        return;
+    }
+    let rig = Box::pin(boot_console()).await.unwrap();
+
+    let data = ok_sql(
+        &rig.server,
+        READONLY_TOKEN,
+        json!({ "sql": "SELECT 1.5::float4, ARRAY[[1, NULL], [3, 4]], '10.0.0.1/8'::inet, \
+                        'q'::\"char\", '\\xfeedc0de'::bytea" }),
+    )
+    .await;
+
+    assert_eq!(
+        data["rows"],
+        json!([[1.5, [[1, null], [3, 4]], "10.0.0.1/8", "q", null]]),
+        "{data}"
+    );
+    assert_eq!(data["undecoded"].as_array().map(Vec::len), Some(1), "{data}");
+    assert_eq!(data["undecoded"][0]["column"], 4, "{data}");
+}
+
 /// A cell whose type is not decoded is shown as `null` and listed in `undecoded`, with its row,
 /// its column's index, its type and why, never its value. A SQL `NULL` of such a type is a
 /// `null` and is not listed, so a `null` in `rows` is never ambiguous.

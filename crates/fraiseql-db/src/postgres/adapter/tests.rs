@@ -779,6 +779,7 @@ fn each_refused_type_is_refused_for_its_own_reason() {
     use super::database::refusal;
     let vector = Type::new("vector".into(), 90_001, Kind::Simple, "public".into());
     let pair = Type::new("pair".into(), 90_003, Kind::Composite(vec![]), "public".into());
+    let hstore = Type::new("hstore".into(), 90_004, Kind::Simple, "public".into());
     for (ty, names, cast) in [
         (Type::BYTEA, "bytea_output", "encode(col, 'base64')"),
         (Type::BYTEA_ARRAY, "bytea_output", "encode(col, 'base64')"),
@@ -797,7 +798,7 @@ fn each_refused_type_is_refused_for_its_own_reason() {
         (Type::TXID_SNAPSHOT, "system type", "::text"),
         (Type::INT2_VECTOR, "system type", "::text"),
         (vector, "pgvector", "::real[]"),
-        (Type::FLOAT4, "no decoder", "to_jsonb(col)"),
+        (hstore, "no decoder", "to_jsonb(col)"),
     ] {
         let refusal = refusal(&ty);
         assert!(refusal.reason.contains(names), "{ty}: {refusal}");

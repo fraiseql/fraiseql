@@ -1036,17 +1036,191 @@ const REFUSED: &[(&str, &str, &str, &str)] = &[
     ("'4711 4712'::int2vector", "int2vector", "system type", "::text"),
     ("'[47.11,0.5]'::vector", "vector", "pgvector", "::real[]"),
     ("ARRAY['\\xfeedc0de4711'::bytea]", "bytea[]", "bytea_output", "encode(col"),
-    // Not decoded yet: no decoder reads these.
-    ("47.11::float4", "float4", "no decoder", "to_jsonb(col)"),
-    ("4711::oid", "oid", "no decoder", "to_jsonb(col)"),
-    ("'203.0.113.47/27'::inet", "inet", "no decoder", "to_jsonb(col)"),
-    ("'203.0.113.32/27'::cidr", "cidr", "no decoder", "to_jsonb(col)"),
-    ("'0a:1b:2c:3d:4e:5f'::macaddr", "macaddr", "no decoder", "to_jsonb(col)"),
-    ("B'1011001'::varbit", "varbit", "no decoder", "to_jsonb(col)"),
-    ("'47/11004711'::pg_lsn", "pg_lsn", "no decoder", "to_jsonb(col)"),
-    ("'<quokka/>'::xml", "xml", "no decoder", "to_jsonb(col)"),
-    ("ARRAY[4711, 4712]", "int4[]", "no decoder", "to_jsonb(col)"),
 ];
+
+/// Each type `decode_cell` decodes beyond the scalars and temporals, and arrays: values
+/// chosen for the edges of each one's text.
+const DECODED: &[&str] = &[
+    // float4: the shortest text that reads back, the signed zero, the ends, the specials.
+    "1.1::float4",
+    "(1.0/3)::float4",
+    "47::float4",
+    "-2.5::float4",
+    "0::float4",
+    "'-0'::float4",
+    "1e30::float4",
+    "1.5e-40::float4",
+    "1e-45::float4",
+    "3.4028235e38::float4",
+    "-3.4028235e38::float4",
+    "'NaN'::float4",
+    "'Infinity'::float4",
+    "'-Infinity'::float4",
+    // oid
+    "0::oid",
+    "4711::oid",
+    "4294967295::oid",
+    // "char": ASCII, a control byte, the empty byte, high bytes.
+    "'a'::\"char\"",
+    "' '::\"char\"",
+    "E'\\001'::\"char\"",
+    "''::\"char\"",
+    "'\\200'::\"char\"",
+    "'\\377'::\"char\"",
+    // inet and cidr: whole and partial prefixes, every IPv6 compression shape.
+    "'203.0.113.47'::inet",
+    "'203.0.113.47/27'::inet",
+    "'0.0.0.0/0'::inet",
+    "'::'::inet",
+    "'::1'::inet",
+    "'::2'::inet",
+    "'1::'::inet",
+    "'1:0:0:2:0:0:0:3'::inet",
+    "'1:0:2:0:3:0:4:0'::inet",
+    "'1:0:0:2:0:0:3:4'::inet",
+    "'2001:db8:0:0:1:0:0:1/128'::inet",
+    "'2001:db8::1/64'::inet",
+    "'fe80::1:2:3:4'::inet",
+    "'::1.2.3.4'::inet",
+    "'::ffff:1.2.3.4'::inet",
+    "'::ffff:0.0.0.0'::inet",
+    "'::ffff:0:0'::inet",
+    "'::1:0:0:0'::inet",
+    "'10.1/16'::cidr",
+    "'0.0.0.0/0'::cidr",
+    "'203.0.113.47/32'::cidr",
+    "'fe80::/64'::cidr",
+    "'::/0'::cidr",
+    "'0:0:0:0:0:ffff:0:0/96'::cidr",
+    // macaddr, macaddr8
+    "'08:00:2B:01:02:03'::macaddr",
+    "'00:00:00:00:00:00'::macaddr",
+    "'08:00:2b:01:02:03:04:05'::macaddr8",
+    // bit, varbit: under a byte, across bytes, empty.
+    "B'1011'::bit(4)",
+    "B'10110011101'::bit(11)",
+    "B''::varbit",
+    "B'1'::varbit",
+    "B'1011001110101100'::varbit",
+    // pg_lsn
+    "'0/0'::pg_lsn",
+    "'47/11004711'::pg_lsn",
+    "'FFFFFFFF/FFFFFFFF'::pg_lsn",
+    // xml: elements, text, entities, a declaration, non-ASCII.
+    "'<a/>'::xml",
+    "'<a b=\"c\">x &amp; y</a>'::xml",
+    "'text only'::xml",
+    "'<?xml version=\"1.0\"?><a/>'::xml",
+    "'<?xml version=\"1.0\" encoding=\"UTF-8\"?><a>é</a>'::xml",
+    "xmlparse(content 'é<b/>')",
+    // Arrays: empty, a lower bound, dimensions, NULL elements, each element kind.
+    "ARRAY[4711, 4712]",
+    "'{}'::int[]",
+    "'[0:1]={1,2}'::int[]",
+    "ARRAY[[1, 2], [3, 4]]",
+    "ARRAY[[[1]], [[2]]]",
+    "ARRAY[NULL::int, 1]",
+    "ARRAY[[NULL::int]]",
+    "ARRAY['a', NULL, 'c']",
+    "ARRAY[['a', 'b'], ['c', 'd']]",
+    "ARRAY['a'::varchar]",
+    "ARRAY[1::int2, 2]",
+    "ARRAY[9000000000::int8]",
+    "ARRAY[1.5, 2.25]::numeric[]",
+    "ARRAY[1.5::float8, -0.25]",
+    "ARRAY[true, false]",
+    "ARRAY['11111111-2222-3333-4444-555555555555'::uuid]",
+    "ARRAY['{\"k\": 1}'::jsonb, '[1]']",
+    "ARRAY['{\"k\": 1}'::json]",
+    "ARRAY['2030-01-02'::date]",
+    "ARRAY['10:00:00.5'::time, '24:00:00']",
+    "ARRAY['08:00:00+02'::timetz]",
+    "ARRAY[47.11::float4, 'NaN']",
+    "ARRAY[4711::oid]",
+    "ARRAY['a'::\"char\"]",
+    "ARRAY['203.0.113.47/27'::inet, '::1']",
+    "ARRAY['08:00:2b:01:02:03'::macaddr]",
+    "ARRAY[B'101'::varbit]",
+    "ARRAY['0/16B6C50'::pg_lsn]",
+];
+
+/// Each value of [`DECODED`] decodes to what `to_jsonb` writes for it, in the same row:
+/// the document path's rendering, at the session's default settings.
+#[tokio::test]
+async fn a_cell_decodes_to_what_to_jsonb_writes_for_it() {
+    let adapter = create_test_adapter().await;
+    for value in DECODED {
+        let rows = adapter
+            .execute_raw_query(&format!(
+                "SELECT x AS cell, to_jsonb(x) AS oracle FROM (SELECT {value} AS x) AS v"
+            ))
+            .await
+            .unwrap_or_else(|e| panic!("{value}: {e}"));
+        assert_eq!(rows[0]["cell"], rows[0]["oracle"], "{value}");
+    }
+}
+
+/// An aggregate over a `float4` column is served, as `to_jsonb` writes its value.
+#[tokio::test]
+async fn an_aggregate_of_a_float4_is_served() {
+    let adapter = create_test_adapter().await;
+    let rows = adapter
+        .execute_parameterized_aggregate(
+            "SELECT max(x) AS top, min(x) AS bottom FROM (VALUES (1.1::float4), ($1::float4)) AS v(x)",
+            &[json!(-2.5)],
+        )
+        .await
+        .expect("an aggregate of a float4");
+    assert_eq!(rows[0]["top"], json!(1.1));
+    assert_eq!(rows[0]["bottom"], json!(-2.5));
+}
+
+/// A row-shaped read, the gRPC transport's source, serves an array column under a JSON
+/// field and a `float4` column under a float field, collected and streamed alike.
+#[tokio::test]
+async fn a_row_read_serves_an_array_and_a_float4_column() {
+    use fraiseql_db::{dialect::RowViewColumnType, types::ColumnSpec};
+    use futures::StreamExt as _;
+
+    let adapter = create_test_adapter().await;
+    let view = "v_decoded_row_read";
+    for stmt in [
+        format!("DROP VIEW IF EXISTS {view}"),
+        format!(
+            "CREATE VIEW {view} AS SELECT 1 AS id, ARRAY[[4711, NULL], [4712, 4713]] AS ns, \
+             47.25::float4 AS weight"
+        ),
+    ] {
+        adapter.execute_raw_query(&stmt).await.expect("row-read fixture DDL");
+    }
+    let columns = [
+        ColumnSpec {
+            name:        "ns".to_string(),
+            column_type: RowViewColumnType::Json,
+        },
+        ColumnSpec {
+            name:        "weight".to_string(),
+            column_type: RowViewColumnType::Float64,
+        },
+    ];
+    let collected = adapter
+        .execute_row_query(view, &columns, None, Some("id"), None, None)
+        .await
+        .expect("a row read of an array and a float4");
+    let streamed: Vec<_> = adapter
+        .stream_row_query(view, &columns, None, Some("id"), None, None)
+        .await
+        .expect("open the streaming row read")
+        .map(|row| row.expect("row"))
+        .collect()
+        .await;
+    assert_eq!(
+        format!("{collected:?}"),
+        r#"[[Json("[[4711,null],[4712,4713]]"), Float64(47.25)]]"#
+    );
+    assert_eq!(format!("{streamed:?}"), format!("{collected:?}"));
+    let _ = adapter.execute_raw_query(&format!("DROP VIEW IF EXISTS {view}")).await;
+}
 
 /// A cell of a type `decode_cell` does not decode refuses the read, naming the column, its
 /// type and why, and how to cast it. It is never served as `null`, and the refusal never
@@ -1087,18 +1261,7 @@ async fn a_cell_of_a_type_not_decoded_refuses_the_read_by_name_never_by_value() 
         );
         assert!(!message.contains(&text), "{value}: the refusal quotes {text:?}: {message}");
         for fragment in [
-            "4711",
-            "47.11",
-            "31.5",
-            "98765",
-            "feedc0de",
-            "quokka",
-            "47:11",
-            "pg_proc",
-            "1011001",
-            "2047",
-            "203.0.113",
-            "0a:1b",
+            "4711", "47.11", "31.5", "98765", "feedc0de", "quokka", "47:11", "pg_proc", "2047",
         ] {
             assert!(
                 !message.contains(fragment),

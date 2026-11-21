@@ -1045,6 +1045,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A native column of type `float4`, `oid`, `"char"`, `inet`, `cidr`, `macaddr`,
+  `macaddr8`, `bit`, `varbit`, `pg_lsn` or `xml`, or an array, is served as `to_jsonb`
+  writes it (#2242); it was `null`.** A `float4` is a JSON number in its shortest exact text
+  (`1.1`, not `1.100000023841858`), `NaN` and the infinities strings. An `oid` and a
+  `pg_lsn` are strings, an `inet` drops a whole-address prefix (`10.0.0.1`), IPv6 is
+  compressed as PostgreSQL writes it. An array of any element type that is decoded is a JSON
+  array, one level per dimension, its `NULL` elements `null`: `int4[]`, `numeric[]`,
+  `uuid[]`, `jsonb[]`, `date[]` and the rest, where only `text[]` and `varchar[]` were read
+  before, and a `text[]` holding a `NULL` was `null`. An array of a type that is not decoded
+  is refused for its element's reason. This reaches the gRPC row view, the admin SQL
+  console, Arrow Flight, aggregate results and function results. Decoding a cell also costs
+  less: 35% to 62% fewer instructions per row on the shapes measured.
 - **A PostgreSQL `time` or `timetz` column read as a native column is served as the text
   PostgreSQL writes for it (#2234); it was `null`.** This changes the gRPC row view (a
   `Time` field over a `time` column was served unset), the admin SQL console, Arrow Flight
