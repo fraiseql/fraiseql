@@ -1378,3 +1378,161 @@ async fn doctor_reports_a_text_key_cast_to_a_temporal_type() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+/// A ledger schema whose `total`, and the `qty` of the `line` its document embeds, are
+/// declared `field_type`, over `view`.
+fn ledger_schema(view: &str, field_type: &str) -> NamedTempFile {
+    write_json(&json!({
+        "types": [
+            {
+                "name": "Line",
+                "sql_source": view,
+                "fields": [{"name": "qty", "type": field_type, "nullable": true}]
+            },
+            {
+                "name": "Ledger",
+                "sql_source": view,
+                "fields": [
+                    {"name": "id", "type": "Int", "nullable": false},
+                    {"name": "total", "type": field_type, "nullable": true},
+                    {"name": "line", "type": "Line", "nullable": true}
+                ]
+            }
+        ],
+        "queries": [
+            {"name": "ledgers", "return_type": "Ledger", "returns_list": true, "sql_source": view}
+        ]
+    }))
+}
+
+/// A view of two ledgers whose `total` and embedded `line.qty` are `totals` and `qtys`.
+async fn create_ledger_view(
+    client: &tokio_postgres::Client,
+    view: &str,
+    totals: [i64; 2],
+    qtys: [i64; 2],
+) {
+    client
+        .batch_execute(&format!(
+            "DROP VIEW IF EXISTS {view};
+             CREATE VIEW {view} AS SELECT id, jsonb_build_object('id', id, 'total', total, \
+             'line', jsonb_build_object('qty', qty)) AS data FROM (VALUES \
+             (1, {}::bigint, {}::bigint), (2, {}::bigint, {}::bigint)) AS t(id, total, qty);",
+            totals[0], qtys[0], totals[1], qtys[1]
+        ))
+        .await
+        .unwrap();
+}
+
+/// An `Int` is a signed 32-bit integer, and a response refuses a stored value outside it as
+/// a field error. Sampled documents holding one, at the root or embedded, warn and name
+/// `BigInt`, counting documents and never quoting a value; the compile still succeeds.
+/// Values within the range draw no finding, nor do the same values under `BigInt`.
+#[tokio::test]
+async fn an_int_holding_values_past_32_bits_warns_naming_big_int() {
+    let Some(client) = client().await else { return };
+    let url = fraiseql_test_support::try_database_url().unwrap();
+    let out_dir = TempDir::new().unwrap();
+
+    let wide = "v_cdf2175_wide_ledger";
+    create_ledger_view(&client, wide, [9_007_199_254_740_993, 7], [3_000_000_000, -3_000_000_000])
+        .await;
+    let out = out_dir.path().join("wide.json");
+    let (ok, log) = run_compile(ledger_schema(wide, "Int").path(), &url, &out, &[]);
+    assert!(ok, "an Int past 32 bits warns, it does not fail:\n{log}");
+    assert!(
+        log.contains(&format!(
+            "query `ledgers`: 1 of 2 sampled `{wide}` documents hold `Ledger.total` outside \
+             the signed 32-bit range of an `Int`"
+        )),
+        "the warning names the field and the count:\n{log}"
+    );
+    assert!(
+        log.contains(&format!(
+            "query `ledgers`: 2 of 2 `Line` documents embedded at `line` in sampled `{wide}` \
+             rows hold `Line.qty` outside the signed 32-bit range of an `Int`"
+        )),
+        "an embedded document is held to the same range:\n{log}"
+    );
+    assert!(log.contains("Declare it `BigInt`"), "the warning names the scalar:\n{log}");
+    assert!(!log.contains("9007199254740993"), "the log carries a sampled value:\n{log}");
+
+    let out = out_dir.path().join("wide-big-int.json");
+    let (ok, log) = run_compile(ledger_schema(wide, "BigInt").path(), &url, &out, &[]);
+    assert!(ok, "{log}");
+    assert!(!log.contains("signed 32-bit range"), "a BigInt holds them:\n{log}");
+
+    let narrow = "v_cdf2175_narrow_ledger";
+    create_ledger_view(&client, narrow, [2_147_483_647, -2_147_483_648], [1, 2]).await;
+    let out = out_dir.path().join("narrow.json");
+    let (ok, log) = run_compile(ledger_schema(narrow, "Int").path(), &url, &out, &[]);
+    assert!(ok, "{log}");
+    assert!(!log.contains("signed 32-bit range"), "values within it draw nothing:\n{log}");
+
+    // An empty view proves nothing, and an `Int` alone names no temporal format unchecked.
+    let empty = "v_cdf2175_empty_ledger";
+    client
+        .batch_execute(&format!(
+            "DROP VIEW IF EXISTS {empty};
+             CREATE VIEW {empty} AS SELECT 1 AS id, '{{}}'::jsonb AS data WHERE false;"
+        ))
+        .await
+        .unwrap();
+    let out = out_dir.path().join("empty.json");
+    let (ok, log) = run_compile(ledger_schema(empty, "Int").path(), &url, &out, &[]);
+    assert!(ok, "{log}");
+    assert!(!log.contains("unchecked"), "an Int is no temporal format:\n{log}");
+}
+
+/// An `Int` argument filtering a `bigint` column cannot be passed a value past 32 bits: it
+/// warns, naming the argument, the column and `BigInt`, and the compile succeeds. A `BigInt`
+/// argument, and an `Int` over an `integer` column, draw no finding.
+#[tokio::test]
+async fn an_int_argument_over_a_bigint_column_warns_naming_big_int() {
+    let Some(client) = client().await else { return };
+    let url = fraiseql_test_support::try_database_url().unwrap();
+    let out_dir = TempDir::new().unwrap();
+    let schema = |view: &str, arg_type: &str| {
+        write_json(&json!({
+            "types": [{
+                "name": "Account",
+                "sql_source": view,
+                "fields": [{"name": "id", "type": "Int", "nullable": false}]
+            }],
+            "queries": [{
+                "name": "accounts",
+                "return_type": "Account",
+                "returns_list": true,
+                "sql_source": view,
+                "arguments": [{"name": "account", "type": arg_type, "nullable": true}]
+            }]
+        }))
+    };
+    for (column_type, arg_type, warns) in [
+        ("bigint", "Int", true),
+        ("bigint", "BigInt", false),
+        ("integer", "Int", false),
+    ] {
+        let view = format!("v_cdf2175_account_{column_type}");
+        client
+            .batch_execute(&format!(
+                "DROP VIEW IF EXISTS {view};
+                 CREATE VIEW {view} AS SELECT 1 AS id, 1::{column_type} AS account, \
+                 '{{\"id\": 1}}'::jsonb AS data;"
+            ))
+            .await
+            .unwrap();
+        let out = out_dir.path().join(format!("{view}-{arg_type}.json"));
+        let (ok, log) = run_compile(schema(&view, arg_type).path(), &url, &out, &[]);
+        assert!(ok, "{arg_type} over `{column_type}` compiles:\n{log}");
+        let finding = "query `accounts`: argument `account` is an `Int`, a signed 32-bit integer";
+        assert_eq!(log.contains(finding), warns, "{arg_type} over `{column_type}`:\n{log}");
+        if warns {
+            assert!(
+                log.contains(&format!("{finding}, but `{view}.account` is `bigint`")),
+                "the warning names the column and its type:\n{log}"
+            );
+            assert!(log.contains("Declare it `BigInt`"), "the warning names the scalar:\n{log}");
+        }
+    }
+}

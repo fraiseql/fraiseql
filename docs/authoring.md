@@ -691,6 +691,13 @@ the row's column and counts, never a sampled value. An empty view is a warning. 
 declared fields at more than 64 places is checked at the first 64, and the rest are counted
 in a warning. A type no query returns has no view to sample and is not checked.
 
+`compile --database` also warns when an `Int`, a signed 32-bit integer, is wider in the
+database. Sampled documents holding an `Int` field outside that range, at the root or
+embedded, are counted: a response refuses each value as a field error. An `Int` argument
+that filters a `bigint` column is named too: a value of the column past 32 bits cannot be
+passed to it. Both warnings name `BigInt`, a signed 64-bit integer served as the string of
+its digits, and never quote a sampled value.
+
 > **RLS + views: make `sql_source` views `security_invoker`.** If you enforce
 > tenant isolation with PostgreSQL Row-Level Security, every `sql_source` view MUST
 > be created `WITH (security_invoker = true)`:

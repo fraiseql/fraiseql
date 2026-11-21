@@ -751,6 +751,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`compile --database` warns where an `Int` is wider in the database (#2175).** Sampled
+  documents holding an `Int` field outside the signed 32-bit range, at the root or
+  embedded, are counted, since a response refuses each as a field error; an `Int` argument
+  filtering a `bigint` column is named, since a value past 32 bits cannot be passed. Both
+  name `BigInt` and never quote a sampled value; the compile still succeeds.
+
 - **A `BigInt` scalar for a signed 64-bit integer (#2175).** GraphQL's `Int` is 32 bits, so
   a `bigint` column past that range was a field error under one, and `Float` is exact only
   to 2^53. A `BigInt` field is served as the string of its digits (`"9007199254740993"`) on

@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use fraiseql_core::schema::FieldType;
 
-use super::{arg_type_convertible, detect_query_native_columns};
+use super::{ValueCheck, arg_type_convertible, detect_query_native_columns};
 
 fn cols(pairs: &[(&str, &str)]) -> HashMap<String, String> {
     pairs.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect()
@@ -465,4 +465,23 @@ mod embedded_scope_key_tests {
             assert!(disagreement.contains(needle), "names {needle}: {disagreement}");
         }
     }
+}
+
+/// An `Int` is held to the signed 32-bit range: a number outside it is counted, its two
+/// ends are not, and a value of another kind is the completion's concern, not this range's.
+#[test]
+fn an_int_is_held_to_the_signed_32_bit_range_and_only_a_number_counts() {
+    let check = ValueCheck::of(&FieldType::Int).unwrap();
+    for (value, outside) in [
+        (serde_json::json!(2_147_483_648_i64), true),
+        (serde_json::json!(-2_147_483_649_i64), true),
+        (serde_json::json!(3.0e9), true),
+        (serde_json::json!(2_147_483_647), false),
+        (serde_json::json!(-2_147_483_648_i64), false),
+        (serde_json::json!("3000000000"), false),
+        (serde_json::json!(true), false),
+    ] {
+        assert_eq!(check.refuses(&value), outside, "{value}");
+    }
+    assert!(ValueCheck::of(&FieldType::BigInt).is_none(), "a BigInt holds 64 bits");
 }

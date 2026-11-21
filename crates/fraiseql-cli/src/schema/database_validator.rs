@@ -394,6 +394,38 @@ pub enum DatabaseWarning {
         /// Those whose value is outside the format.
         refused:    u64,
     },
+    /// L3: sampled documents hold an `Int` field outside the signed 32-bit range, which a
+    /// response refuses as a field error: the column is wider than the scalar, and `BigInt`
+    /// holds it.
+    IntValueOutOfRange {
+        /// The read whose view was sampled.
+        query_name: String,
+        /// Its `sql_source` relation.
+        sql_source: String,
+        /// The type declaring the field.
+        owner:      String,
+        /// The field, as the schema names it.
+        field:      String,
+        /// The path of fields from the served document to the one holding the field, empty at
+        /// the root.
+        route:      String,
+        /// Documents holding the field with a non-null value.
+        documents:  u64,
+        /// Those whose value is outside the range.
+        refused:    u64,
+    },
+    /// L2: an `Int` argument resolves to a `bigint` native column, so a value of the column
+    /// past 32 bits cannot be passed to it: `BigInt` can.
+    IntArgumentOverBigintColumn {
+        /// Name of the query.
+        query_name:  String,
+        /// The `sql_source` relation.
+        sql_source:  String,
+        /// The argument name.
+        arg_name:    String,
+        /// The native column's SQL type.
+        column_type: String,
+    },
     /// L2: a view reads a document key as text cast to a temporal type, so PostgreSQL has
     /// reinterpreted the stored text before the server sees it: a value without an offset is
     /// read in the session's time zone, an offset is dropped, or a date-time is cut to its
@@ -536,8 +568,29 @@ impl DatabaseWarning {
             | Self::EmbeddedScopeEmptyRelation { .. }
             | Self::EmbeddedScopeRoutesUnchecked { .. }
             | Self::TemporalCastFromText { .. }
-            | Self::TemporalFormatsUnchecked { .. } => Severity::Warn,
+            | Self::TemporalFormatsUnchecked { .. }
+            | Self::IntValueOutOfRange { .. }
+            | Self::IntArgumentOverBigintColumn { .. } => Severity::Warn,
         }
+    }
+}
+
+/// The sampled documents a finding counts: `refused` of `documents`, at the root of
+/// `sql_source`'s documents or embedded at `route` as `owner` documents.
+fn sampled_holders(
+    sql_source: &str,
+    owner: &str,
+    route: &str,
+    documents: u64,
+    refused: u64,
+) -> String {
+    if route.is_empty() {
+        format!("{refused} of {documents} sampled `{sql_source}` documents")
+    } else {
+        format!(
+            "{refused} of {documents} `{owner}` documents embedded at `{route}` in sampled \
+             `{sql_source}` rows"
+        )
     }
 }
 
@@ -873,6 +926,37 @@ impl fmt::Display for DatabaseWarning {
                      the column the type `{expected}`, or the argument the column's scalar"
                 )
             },
+            Self::IntValueOutOfRange {
+                query_name,
+                sql_source,
+                owner,
+                field,
+                route,
+                documents,
+                refused,
+            } => {
+                let held = sampled_holders(sql_source, owner, route, *documents, *refused);
+                write!(
+                    f,
+                    "query `{query_name}`: {held} hold `{owner}.{field}` outside the signed \
+                     32-bit range of an `Int`, and a response refuses each as a field error. \
+                     Declare it `BigInt`, a signed 64-bit integer"
+                )
+            },
+            Self::IntArgumentOverBigintColumn {
+                query_name,
+                sql_source,
+                arg_name,
+                column_type,
+            } => {
+                write!(
+                    f,
+                    "query `{query_name}`: argument `{arg_name}` is an `Int`, a signed 32-bit \
+                     integer, but `{sql_source}.{arg_name}` is `{column_type}`: a value of the \
+                     column past 32 bits cannot be passed. Declare it `BigInt`, a signed \
+                     64-bit integer"
+                )
+            },
             Self::TemporalValueOutOfFormat {
                 query_name,
                 sql_source,
@@ -884,14 +968,7 @@ impl fmt::Display for DatabaseWarning {
                 documents,
                 refused,
             } => {
-                let held = if route.is_empty() {
-                    format!("{refused} of {documents} sampled `{sql_source}` documents")
-                } else {
-                    format!(
-                        "{refused} of {documents} `{owner}` documents embedded at `{route}` in \
-                         sampled `{sql_source}` rows"
-                    )
-                };
+                let held = sampled_holders(sql_source, owner, route, *documents, *refused);
                 write!(
                     f,
                     "query `{query_name}`: {held} hold `{owner}.{field}` outside the {scalar} \
@@ -1177,7 +1254,7 @@ pub async fn validate_schema_against_database(
 
             // L3: the temporal keys of the served documents, in their scalars' formats.
             if column_map.get(jsonb_col).is_some_and(|t| is_json_type(t, db_type)) {
-                check_temporal_formats(schema, query, source, introspector, &mut warnings).await?;
+                check_document_values(schema, query, source, introspector, &mut warnings).await?;
             }
 
             // L2: Check relay_cursor_column
@@ -1342,7 +1419,16 @@ pub async fn validate_schema_against_database(
             for arg in &query.arguments {
                 if let Some(native) = query_native.get(&arg.name) {
                     let col_type = &native.pg_type;
-                    if let Some((scalar, expected, names)) = temporal_column(&arg.arg_type) {
+                    if arg.arg_type == FieldType::Int
+                        && matches!(col_type.trim().to_lowercase().as_str(), "bigint" | "int8")
+                    {
+                        warnings.push(DatabaseWarning::IntArgumentOverBigintColumn {
+                            query_name:  query.name.clone(),
+                            sql_source:  source.clone(),
+                            arg_name:    arg.name.clone(),
+                            column_type: col_type.clone(),
+                        });
+                    } else if let Some((scalar, expected, names)) = temporal_column(&arg.arg_type) {
                         if !names.contains(&col_type.trim().to_lowercase().as_str()) {
                             warnings.push(DatabaseWarning::TemporalColumnType {
                                 query_name: query.name.clone(),
@@ -2344,27 +2430,68 @@ fn temporal_column(
     }
 }
 
-/// A temporal field reached from a served document: where its documents are, and what its
-/// values are held to.
-struct TemporalLeaf {
-    route:    Vec<String>,
-    owner:    String,
-    field:    String,
-    format:   fraiseql_db::types::temporal::Temporal,
-    scalar:   &'static str,
-    expected: &'static str,
+/// A field reached from a served document whose stored values are checked: where its
+/// documents are, and what its values are held to.
+struct DocumentLeaf {
+    route: Vec<String>,
+    owner: String,
+    field: String,
+    check: ValueCheck,
 }
 
-/// The temporal fields of `type_name` and of the object types its document embeds, each
-/// with the route to the documents holding it. A type already on the route is not entered
-/// again, and a field the document does not hold as written (encrypted or localized) is
-/// skipped.
-fn temporal_leaves(
+/// What a sampled leaf's values are held to.
+enum ValueCheck {
+    /// A temporal scalar's format, which a `expected` column writes.
+    Temporal {
+        format:   fraiseql_db::types::temporal::Temporal,
+        scalar:   &'static str,
+        expected: &'static str,
+    },
+    /// An `Int`'s signed 32-bit range.
+    Int,
+}
+
+impl ValueCheck {
+    /// The check a field of type `base`, its list item type unwrapped, is held to.
+    fn of(base: &FieldType) -> Option<Self> {
+        if let (Some(format), Some((scalar, expected, _))) =
+            (base.temporal(), temporal_column(base))
+        {
+            return Some(Self::Temporal {
+                format,
+                scalar,
+                expected,
+            });
+        }
+        (*base == FieldType::Int).then_some(Self::Int)
+    }
+
+    /// Whether `value`, a non-null stored value, is outside what the check holds it to. A
+    /// value of another kind is the completion's concern, not this range's: an `Int` holding
+    /// a string is not counted.
+    fn refuses(&self, value: &serde_json::Value) -> bool {
+        match (self, value) {
+            (Self::Temporal { format, .. }, serde_json::Value::String(text)) => {
+                format.refusal(text).is_some()
+            },
+            (Self::Temporal { .. }, _) => true,
+            (Self::Int, serde_json::Value::Number(number)) => number
+                .as_f64()
+                .is_some_and(|n| n < f64::from(i32::MIN) || n > f64::from(i32::MAX)),
+            (Self::Int, _) => false,
+        }
+    }
+}
+
+/// The checked fields of `type_name` and of the object types its document embeds, each with
+/// the route to the documents holding it. A type already on the route is not entered again,
+/// and a field the document does not hold as written (encrypted or localized) is skipped.
+fn document_leaves(
     schema: &fraiseql_core::schema::CompiledSchema,
     type_name: &str,
     route: &mut Vec<String>,
     entered: &mut Vec<String>,
-    leaves: &mut Vec<TemporalLeaf>,
+    leaves: &mut Vec<DocumentLeaf>,
 ) {
     let Some(declared) = schema.find_type(type_name) else {
         return;
@@ -2378,21 +2505,17 @@ fn temporal_leaves(
             FieldType::List { item, .. } => item.as_ref(),
             other => other,
         };
-        if let (Some(format), Some((scalar, expected, _))) =
-            (base.temporal(), temporal_column(base))
-        {
-            leaves.push(TemporalLeaf {
+        if let Some(check) = ValueCheck::of(base) {
+            leaves.push(DocumentLeaf {
                 route: route.clone(),
                 owner: type_name.to_string(),
                 field: field.name.to_string(),
-                format,
-                scalar,
-                expected,
+                check,
             });
         } else if let FieldType::Object(embedded) = base {
             if !entered.contains(embedded) {
                 route.push(field.name.to_string());
-                temporal_leaves(schema, embedded, route, entered, leaves);
+                document_leaves(schema, embedded, route, entered, leaves);
                 route.pop();
             }
         }
@@ -2400,10 +2523,11 @@ fn temporal_leaves(
     entered.pop();
 }
 
-/// Sample `source`, the view of `query`'s documents, and report each temporal field, at the
-/// root or embedded, holding a value outside its scalar's format. The finding counts
-/// documents and never quotes a value.
-async fn check_temporal_formats(
+/// Sample `source`, the view of `query`'s documents, and report each checked field, at the
+/// root or embedded, holding a value outside what it is held to: a temporal field outside
+/// its scalar's format, an `Int` outside the signed 32-bit range. A finding counts documents
+/// and never quotes a value.
+async fn check_document_values(
     schema: &fraiseql_core::schema::CompiledSchema,
     query: &fraiseql_core::schema::QueryDefinition,
     source: &str,
@@ -2411,7 +2535,7 @@ async fn check_temporal_formats(
     warnings: &mut Vec<DatabaseWarning>,
 ) -> fraiseql_core::Result<()> {
     let mut leaves = Vec::new();
-    temporal_leaves(schema, &query.return_type, &mut Vec::new(), &mut Vec::new(), &mut leaves);
+    document_leaves(schema, &query.return_type, &mut Vec::new(), &mut Vec::new(), &mut leaves);
     if leaves.is_empty() {
         return Ok(());
     }
@@ -2422,10 +2546,13 @@ async fn check_temporal_formats(
         return Ok(());
     };
     if rows.is_empty() {
-        warnings.push(DatabaseWarning::TemporalFormatsUnchecked {
-            query_name: query.name.clone(),
-            sql_source: source.to_string(),
-        });
+        // An empty view proves nothing; only a temporal format is named as unchecked.
+        if leaves.iter().any(|leaf| matches!(leaf.check, ValueCheck::Temporal { .. })) {
+            warnings.push(DatabaseWarning::TemporalFormatsUnchecked {
+                query_name: query.name.clone(),
+                sql_source: source.to_string(),
+            });
+        }
         return Ok(());
     }
     for leaf in leaves {
@@ -2442,29 +2569,40 @@ async fn check_temporal_formats(
                     Some(other) => vec![other],
                 };
                 documents += 1;
-                let outside = values.iter().any(|value| match value {
-                    serde_json::Value::Null => false,
-                    serde_json::Value::String(text) => leaf.format.refusal(text).is_some(),
-                    _ => true,
-                });
-                if outside {
+                if values.iter().any(|value| !value.is_null() && leaf.check.refuses(value)) {
                     refused += 1;
                 }
             }
         }
-        if refused > 0 {
-            warnings.push(DatabaseWarning::TemporalValueOutOfFormat {
-                query_name: query.name.clone(),
-                sql_source: source.to_string(),
-                owner: leaf.owner,
-                field: leaf.field,
-                route: leaf.route.join("."),
-                scalar: leaf.scalar,
-                expected: leaf.expected,
+        if refused == 0 {
+            continue;
+        }
+        let (query_name, sql_source) = (query.name.clone(), source.to_string());
+        let (owner, field, route) = (leaf.owner, leaf.field, leaf.route.join("."));
+        warnings.push(match leaf.check {
+            ValueCheck::Temporal {
+                scalar, expected, ..
+            } => DatabaseWarning::TemporalValueOutOfFormat {
+                query_name,
+                sql_source,
+                owner,
+                field,
+                route,
+                scalar,
+                expected,
                 documents,
                 refused,
-            });
-        }
+            },
+            ValueCheck::Int => DatabaseWarning::IntValueOutOfRange {
+                query_name,
+                sql_source,
+                owner,
+                field,
+                route,
+                documents,
+                refused,
+            },
+        });
     }
     Ok(())
 }
