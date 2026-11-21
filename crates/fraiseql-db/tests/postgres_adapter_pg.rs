@@ -1259,6 +1259,49 @@ async fn a_composite_named_vector_is_not_read_as_a_pgvector_value() {
     }
 }
 
+/// A type of the user's named as a built-in the decoder refuses by name gets its own handling,
+/// not the built-in's: the names in the refusal table are `pg_catalog`'s. A composite named
+/// `interval` is refused as a composite and a range named `point` as a range. An enum named
+/// `money` is served as its label, and a domain named `bytea` over `int4` as its number:
+/// PostgreSQL describes a domain's column by its base type.
+#[tokio::test]
+async fn a_user_type_named_as_a_refused_built_in_gets_its_own_handling() {
+    let adapter = create_test_adapter().await;
+    for statement in [
+        "DROP SCHEMA IF EXISTS builtin_shadow CASCADE",
+        "CREATE SCHEMA builtin_shadow",
+        "CREATE TYPE builtin_shadow.interval AS (a int)",
+        "CREATE TYPE builtin_shadow.point AS RANGE (subtype = int4)",
+        "CREATE DOMAIN builtin_shadow.bytea AS int4",
+        "CREATE TYPE builtin_shadow.money AS ENUM ('kept')",
+    ] {
+        adapter.execute_raw_query(statement).await.expect("provision the shadow types");
+    }
+    let read = |sql: &'static str| adapter.execute_raw_query(sql);
+    let refused = [
+        (
+            "interval",
+            "a composite",
+            read("SELECT ROW(1)::builtin_shadow.interval AS c").await,
+        ),
+        ("point", "a range", read("SELECT builtin_shadow.point(1, 5) AS c").await),
+    ];
+    let enum_label = read("SELECT 'kept'::builtin_shadow.money AS c").await;
+    let domain = read("SELECT 5::builtin_shadow.bytea AS c").await;
+    let _ = adapter.execute_raw_query("DROP SCHEMA IF EXISTS builtin_shadow CASCADE").await;
+    for (name, reason, read) in refused {
+        let Err(FraiseQLError::Database { message, .. }) = read else {
+            panic!("{name}: expected a refusal, got {read:?}");
+        };
+        let prefix = format!(
+            "column `c` of PostgreSQL type `builtin_shadow.{name}` is not decoded: {reason}"
+        );
+        assert!(message.starts_with(&prefix), "{message}");
+    }
+    assert_eq!(enum_label.expect("an enum is decoded")[0]["c"], "kept");
+    assert_eq!(domain.expect("a domain is decoded as its base type")[0]["c"], 5);
+}
+
 /// An aggregate over a `float4` column is served, as `to_jsonb` writes its value.
 #[tokio::test]
 async fn an_aggregate_of_a_float4_is_served() {

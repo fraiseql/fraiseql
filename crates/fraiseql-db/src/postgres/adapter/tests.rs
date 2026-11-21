@@ -958,3 +958,24 @@ fn a_vector_whose_bytes_do_not_fit_its_layout_is_not_read() {
         Some("{}/1")
     );
 }
+
+#[test]
+fn a_type_outside_pg_catalog_is_not_refused_for_a_built_in_s_reason() {
+    use tokio_postgres::types::{Kind, Type};
+
+    use super::database::refusal;
+    let user = |name: &str, kind: Kind| Type::new(name.into(), 90_200, kind, "app".into());
+    for (ty, reason) in [
+        (user("interval", Kind::Simple), "no decoder reads this type"),
+        (user("money", Kind::Simple), "no decoder reads this type"),
+        (user("record", Kind::Simple), "no decoder reads this type"),
+        (user("int2vector", Kind::Array(Type::INT2)), "no decoder reads this type"),
+        (user("bytea", Kind::Composite(Vec::new())), "a composite"),
+        (user("point", Kind::Range(Type::INT4)), "a range"),
+        (Type::INTERVAL, "an interval"),
+        (Type::INT2_VECTOR, "a system type"),
+        (Type::RECORD, "a composite"),
+    ] {
+        assert!(refusal(&ty).reason.starts_with(reason), "{ty}: {}", refusal(&ty).reason);
+    }
+}

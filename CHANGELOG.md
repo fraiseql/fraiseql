@@ -27,7 +27,9 @@ disagreed, and the promise was the part that was wrong.
   `interval` on `IntervalStyle`, the `reg*` types on `search_path`, a range of timestamps on
   `TimeZone`, geometry on `extra_float_digits`), or when no decoder reads it (composites and
   `record`, `tsvector` and `tsquery`, system types, an extension type other than pgvector's).
-  What each output does now:
+  The types named here are PostgreSQL's own: a type of yours that shares a name, a composite
+  called `interval` or a range called `point`, is handled as its kind, not refused for the
+  built-in's reason (#2253). What each output does now:
   - gRPC row view: the read is refused with `INTERNAL`.
   - Aggregate results and Arrow Flight queries: the query is refused.
   - Function results: the write is refused and its transaction rolls back, so a function whose

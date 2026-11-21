@@ -1222,8 +1222,14 @@ const UNKNOWN_REFUSAL: Refusal = Refusal {
 };
 
 /// The refusal [`REFUSED_BY_NAME`] holds for `ty`'s own name, whatever its kind:
-/// `int2vector` and `oidvector` are arrays to the driver, and refused as system types.
+/// `int2vector` and `oidvector` are arrays to the driver, and refused as system types. The
+/// names are `pg_catalog`'s: a type of the user's named `interval` or `money` is not the
+/// built-in, and gets its own kind's handling. Only a superuser allowed to modify the system
+/// catalogs can add a type to `pg_catalog`.
 fn refused_by_name(ty: &Type) -> Option<Refusal> {
+    if ty.schema() != "pg_catalog" {
+        return None;
+    }
     REFUSED_BY_NAME
         .iter()
         .find(|(names, _)| names.contains(&ty.name()))
@@ -1240,7 +1246,7 @@ pub(super) fn refusal(ty: &Type) -> Refusal {
         Kind::Array(element) => refusal(element),
         Kind::Range(_) | Kind::Multirange(_) => RANGE_REFUSAL,
         Kind::Composite(_) => COMPOSITE_REFUSAL,
-        _ if ty.name() == "record" => COMPOSITE_REFUSAL,
+        _ if *ty == Type::RECORD => COMPOSITE_REFUSAL,
         _ => UNKNOWN_REFUSAL,
     }
 }
