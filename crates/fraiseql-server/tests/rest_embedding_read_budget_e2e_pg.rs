@@ -261,10 +261,11 @@ async fn a_nested_embed_is_served_in_full() {
 
     let rows = body.get("data").and_then(Value::as_array).unwrap();
     assert_eq!(rows.len(), 2, "both users: {body}");
-    for (user, name) in [(1, "alice"), (2, "bob")] {
+    // `User.id` is an `ID`, served as its text whatever the column holds.
+    for (user, name) in [("1", "alice"), ("2", "bob")] {
         let row = rows
             .iter()
-            .find(|r| r.get("id").and_then(Value::as_i64) == Some(user))
+            .find(|r| r.get("id").and_then(Value::as_str) == Some(user))
             .unwrap_or_else(|| panic!("user {user}: {body}"));
         let orders = row.get("orders").and_then(Value::as_array).unwrap();
         assert_eq!(orders.len(), 2, "every parent's orders, and only its own: {body}");
@@ -524,7 +525,7 @@ async fn an_embed_inside_the_cost_ceiling_is_served_in_full() {
     assert_eq!(rows.len(), 2, "both users: {body}");
     let alice = rows
         .iter()
-        .find(|r| r.get("id").and_then(Value::as_i64) == Some(1))
+        .find(|r| r.get("id").and_then(Value::as_str) == Some("1"))
         .unwrap_or_else(|| panic!("alice: {body}"));
     let orders = alice.get("orders").and_then(Value::as_array).unwrap();
     assert_eq!(orders.len(), 2, "every parent's orders are all there: {body}");

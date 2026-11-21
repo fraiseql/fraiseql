@@ -231,8 +231,8 @@ async fn a_compiled_schema_serves_an_embed_it_declared_in_toml() {
     let (status, body) = rig.get("/rest/v1/users?select=id,orders(id,total)").await;
     assert_eq!(status, StatusCode::OK, "read should succeed: {body}");
 
-    assert_eq!(order_totals(&body, 1), vec![100, 101], "alice's orders: {body}");
-    assert_eq!(order_totals(&body, 2), vec![200, 201], "bob's orders: {body}");
+    assert_eq!(order_totals(&body, "1"), vec![100, 101], "alice's orders: {body}");
+    assert_eq!(order_totals(&body, "2"), vec![200, 201], "bob's orders: {body}");
 }
 
 /// Before #1266 this request was a **400** against every compiled schema:
@@ -315,11 +315,12 @@ async fn a_count_embed_counts_the_right_parent_s_rows() {
     }
 }
 
-/// The `orders` array of the user row with `id == user_id`, as totals.
-fn order_totals(body: &Value, user_id: i64) -> Vec<i64> {
+/// The `orders` array of the user row with `id == user_id`, as totals. `User.id` is an
+/// `ID`, served as its text whatever the column holds.
+fn order_totals(body: &Value, user_id: &str) -> Vec<i64> {
     body.get("data")
         .and_then(Value::as_array)
-        .and_then(|rows| rows.iter().find(|r| r.get("id").and_then(Value::as_i64) == Some(user_id)))
+        .and_then(|rows| rows.iter().find(|r| r.get("id").and_then(Value::as_str) == Some(user_id)))
         .and_then(|row| row.get("orders"))
         .and_then(Value::as_array)
         .unwrap_or_else(|| panic!("user {user_id} has an orders array: {body}"))
