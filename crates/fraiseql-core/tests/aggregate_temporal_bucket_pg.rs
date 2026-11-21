@@ -326,7 +326,8 @@ async fn a_timestamp_filter_compares_local_date_times_in_any_session_zone() {
         .execute(&format!("{{ {ROOT} {{ amount_sum }} }}"), Some(&request))
         .await
         .unwrap();
-    assert_eq!(response["data"][ROOT][0]["amount_sum"], json!(32), "{response}");
+    // A `bigint` sum is a `numeric`, served as its digits.
+    assert_eq!(response["data"][ROOT][0]["amount_sum"], json!("32"), "{response}");
 }
 
 /// An operand on a `timestamp` column is a local date-time. `::timestamp` drops an offset or a

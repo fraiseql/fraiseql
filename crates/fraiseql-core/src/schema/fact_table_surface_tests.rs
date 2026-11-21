@@ -30,7 +30,9 @@ fn fixture() -> Value {
                 {"name": "day", "sql_type": "Date", "indexed": true},
                 {"name": "org_path", "sql_type": "Ltree", "indexed": true},
                 {"name": "region", "sql_type": "Text", "indexed": true},
-                {"name": "active", "sql_type": "Boolean", "indexed": false}
+                {"name": "active", "sql_type": "Boolean", "indexed": false},
+                {"name": "shelf", "sql_type": "Int", "indexed": false},
+                {"name": "account", "sql_type": "BigInt", "indexed": false}
             ]
         }}
     })
@@ -136,7 +138,9 @@ fn a_root_is_published_under_its_routed_name_whatever_the_naming_convention() {
     query_field(&schema, "sales_window");
 }
 
-/// Each row field is typed by what the runtime decodes for its column.
+/// Each row field is typed by what the runtime decodes for its column. A `SUM` of an
+/// `int4` is an `int8`, and an `int8` is wider than `Int`: a `BigInt`. A `SUM` of an `int8`
+/// is a `numeric` of up to 20 digits, read as its digits: a `Decimal`. A count stays `Int`.
 #[test]
 fn the_row_fields_are_typed_by_what_the_runtime_decodes() {
     let schema = load(&fixture());
@@ -152,10 +156,15 @@ fn the_row_fields_are_typed_by_what_the_runtime_decodes() {
         ("count", "Int"),
         ("revenue_sum", "Decimal"),
         ("revenue_avg", "Decimal"),
-        ("quantity_sum", "Int"),
+        ("quantity_sum", "BigInt"),
         ("quantity_avg", "Float"),
-        ("units_sum", "Float"),
-        ("units_max", "Int"),
+        ("quantity_max", "Int"),
+        ("units_sum", "Decimal"),
+        ("units_min", "BigInt"),
+        ("units_max", "BigInt"),
+        ("units_avg", "Float"),
+        ("shelf", "Int"),
+        ("account", "BigInt"),
         ("quantity_count_distinct", "Int"),
         ("active_bool_and", "Boolean"),
         ("region_array_agg", "[String]"),
@@ -210,6 +219,9 @@ fn the_where_input_publishes_the_operators_a_fact_table_filter_serves() {
         ("org_path_descendant_of", "String"),
         ("org_path_depth_eq", "Int"),
         ("category_eq", "String"),
+        ("shelf_gt", "Int"),
+        ("account_eq", "BigInt"),
+        ("account_in", "[BigInt!]"),
     ] {
         assert_eq!(field_type(&filter, field).as_deref(), Some(expected), "`{field}`");
     }
@@ -233,6 +245,8 @@ fn the_selection_having_and_order_by_inputs_follow_the_row() {
     let having = introspected(&schema, "SalesAggregateHaving");
     assert_eq!(field_type(&having, "revenue_sum_gt").as_deref(), Some("Decimal"));
     assert_eq!(field_type(&having, "count_gte").as_deref(), Some("Int"));
+    assert_eq!(field_type(&having, "quantity_sum_gt").as_deref(), Some("BigInt"));
+    assert_eq!(field_type(&having, "units_sum_lt").as_deref(), Some("Decimal"));
     let order_by = introspected(&schema, "SalesAggregateOrderBy");
     assert_eq!(field_type(&order_by, "revenue_sum").as_deref(), Some("SortDirection"));
     assert_eq!(field_type(&order_by, "category").as_deref(), Some("SortDirection"));

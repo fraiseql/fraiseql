@@ -447,8 +447,9 @@ A row field's type follows what the database returns:
 | Field | Type |
 |-------|------|
 | `count`, `<measure>_count_distinct`, a tree depth | `Int` |
-| `sum`, `min`, `max` of an `int` measure; `min`, `max` of a `bigint` measure; a `bigint` key | `Int` |
-| any reduction of a `numeric` measure | `Decimal`, exact |
+| `min`, `max` of an `int` measure; an `int` key | `Int` |
+| `sum` of an `int` measure; `min`, `max` of a `bigint` measure; a `bigint` key | `BigInt`, exact |
+| any reduction of a `numeric` measure; `sum` of a `bigint` measure | `Decimal`, exact |
 | any other reduction of a measure | `Float`, approximate (a double) |
 | a `date` bucket / a calendar bucket / a `timestamp` bucket / a `timestamptz` bucket | `Date` / `String` / `LocalDateTime` / `DateTime` |
 | a dimension, a tree level, `<filter>_string_agg` | `String` |
@@ -457,8 +458,11 @@ A row field's type follows what the database returns:
 | `<filter>_json_agg`, `<filter>_jsonb_agg`, `<measure>_json_agg`, `<measure>_jsonb_agg` | `JSON` |
 | a denormalized filter used as a key | its column's scalar |
 
-An `Int` is a signed 32-bit integer. A count or a `bigint` value outside that range is a field
-error at its path, and the field is `null`. It is never a wrong number.
+An `Int` is a signed 32-bit integer. A count outside that range is a field error at its path,
+and the field is `null`. It is never a wrong number. A `BigInt` is a signed 64-bit integer
+and a `Decimal` an exact number, each served as the string of its digits: PostgreSQL sums an
+`int` in `bigint` and a `bigint` in `numeric`, past what a JSON number holds exactly. A
+`where` or `having` operand of either takes the digits as a string or an integer.
 
 A row type has no declaration of its own, and `@inaccessible` on its fields is not
 supported.

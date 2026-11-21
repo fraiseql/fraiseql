@@ -1,4 +1,5 @@
 extend schema @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key", "@external", "@requires", "@provides", "@shareable", "@inaccessible", "@override", "@extends", "@tag"])
+scalar BigInt
 scalar JSON
 
 enum WindowColumnKind {
@@ -103,12 +104,12 @@ input ReviewVoteAggregateHaving {
   count_lte: Int
   count_eq: Int
   count_neq: Int
-  score_sum_gt: Int
-  score_sum_gte: Int
-  score_sum_lt: Int
-  score_sum_lte: Int
-  score_sum_eq: Int
-  score_sum_neq: Int
+  score_sum_gt: BigInt
+  score_sum_gte: BigInt
+  score_sum_lt: BigInt
+  score_sum_lte: BigInt
+  score_sum_eq: BigInt
+  score_sum_neq: BigInt
   score_avg_gt: Float
   score_avg_gte: Float
   score_avg_lt: Float
@@ -267,7 +268,7 @@ extend type Product @key(fields: "id") {
 type ReviewVoteAggregateRow {
   region: String
   count: Int
-  score_sum: Int
+  score_sum: BigInt
   score_avg: Float
   score_min: Int
   score_max: Int

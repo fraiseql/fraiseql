@@ -4,8 +4,9 @@
 //!
 //! `SUM`, `AVG`, `MIN`, `MAX`, `STDDEV` and `VARIANCE` over a `numeric` column are `numeric`
 //! themselves; decoded to a JSON number they went through an `f64` and lost every digit
-//! past the fifteenth. A `Decimal` is a string on every path, so these are too. A count, and
-//! an aggregate of a measure that is not a `Decimal`, stay numbers, and ordering by an
+//! past the fifteenth. A `Decimal` is a string on every path, so these are too, as is `SUM`
+//! of a `bigint`, a `numeric` as well. A count, and the other aggregates of a measure that
+//! is not a `Decimal`, stay numbers, and ordering by an
 //! aggregate still sorts by its value, not by its text.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
@@ -145,7 +146,11 @@ async fn an_aggregate_of_a_decimal_measure_keeps_every_digit() {
     for (alias, digits) in &expected {
         assert_eq!(group[alias], json!(digits), "{alias}: {group}");
     }
-    assert_eq!(group["qty_sum"], json!(7), "a sum of a bigint measure stays a number: {group}");
+    assert_eq!(
+        group["qty_sum"],
+        json!("7"),
+        "a sum of a bigint is a numeric, kept as its digits"
+    );
     assert_eq!(group["score_sum"], json!(3.75), "a Float stored as numeric stays a number");
     assert_eq!(group["count"], json!(2), "a count stays a number: {group}");
 }

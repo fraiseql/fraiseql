@@ -11,8 +11,9 @@
 //! - the roots themselves.
 //!
 //! A row field is typed by what the runtime decodes for it, which follows the declared
-//! column type: a `Decimal` measure's sums and averages are exact strings (`Decimal`), other
-//! numeric results are numbers. A combination the runtime would answer `null` for, or the
+//! column type: a `Decimal` measure's sums and averages, and an `int8` measure's sum, are
+//! exact strings (`Decimal`); an `int8` result is a `BigInt`; other numeric results are
+//! numbers. A combination the runtime would answer `null` for, or the
 //! database refuse, is not published: an aggregate of a dimension that is no column, an
 //! `array_agg` or `string_agg` of a non-text column, `bool_and`/`bool_or` of a non-boolean
 //! one, and every aggregate of a non-additive measure.
@@ -426,13 +427,14 @@ fn measure_fields(measure: &MeasureColumn) -> Vec<RowField> {
 }
 
 /// The type a measure function answers in, following what PostgreSQL returns for the column:
-/// a `numeric` result of a `Decimal` measure is an exact string; `SUM` of an `int4` is an
-/// `int8`, and `MIN`/`MAX` keep the column's type; every other result is a `numeric` or a
-/// `float8`, read as a number.
+/// a `numeric` result of a `Decimal` measure, and `SUM` of an `int8`, is an exact string;
+/// `SUM` of an `int4` is an `int8`, a `BigInt`, and `MIN`/`MAX` keep the column's type;
+/// every other result is a `numeric` or a `float8`, read as a number.
 fn measure_function_type(sql_type: &SqlType, function: &str) -> FieldType {
     match (sql_type, function) {
-        (SqlType::Decimal, _) => FieldType::Decimal,
-        (SqlType::Int, "sum" | "min" | "max") | (SqlType::BigInt, "min" | "max") => FieldType::Int,
+        (SqlType::Decimal, _) | (SqlType::BigInt, "sum") => FieldType::Decimal,
+        (SqlType::Int, "sum") | (SqlType::BigInt, "min" | "max") => FieldType::BigInt,
+        (SqlType::Int, "min" | "max") => FieldType::Int,
         _ => FieldType::Float,
     }
 }
@@ -475,7 +477,8 @@ fn filter_column_type(table: &FactTableMetadata, column: &str) -> FieldType {
 
 const fn scalar_of(sql_type: &SqlType) -> FieldType {
     match sql_type {
-        SqlType::Int | SqlType::BigInt => FieldType::Int,
+        SqlType::Int => FieldType::Int,
+        SqlType::BigInt => FieldType::BigInt,
         // A `numeric` group key is not one of the exact-string aliases: it is read as a number.
         SqlType::Decimal | SqlType::Float => FieldType::Float,
         SqlType::Uuid => FieldType::Uuid,

@@ -1,4 +1,5 @@
 extend schema @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key", "@external", "@requires", "@provides", "@shareable", "@inaccessible", "@override", "@extends", "@tag"])
+scalar BigInt
 scalar DateTime
 scalar JSON
 
@@ -227,12 +228,12 @@ input ProductCostAggregateHaving {
   count_lte: Int
   count_eq: Int
   count_neq: Int
-  units_sum_gt: Int
-  units_sum_gte: Int
-  units_sum_lt: Int
-  units_sum_lte: Int
-  units_sum_eq: Int
-  units_sum_neq: Int
+  units_sum_gt: BigInt
+  units_sum_gte: BigInt
+  units_sum_lt: BigInt
+  units_sum_lte: BigInt
+  units_sum_eq: BigInt
+  units_sum_neq: BigInt
   units_avg_gt: Float
   units_avg_gte: Float
   units_avg_lt: Float
@@ -374,12 +375,12 @@ input ProductSaleAggregateHaving {
   count_lte: Int
   count_eq: Int
   count_neq: Int
-  units_sum_gt: Int
-  units_sum_gte: Int
-  units_sum_lt: Int
-  units_sum_lte: Int
-  units_sum_eq: Int
-  units_sum_neq: Int
+  units_sum_gt: BigInt
+  units_sum_gte: BigInt
+  units_sum_lt: BigInt
+  units_sum_lte: BigInt
+  units_sum_eq: BigInt
+  units_sum_neq: BigInt
   units_avg_gt: Float
   units_avg_gte: Float
   units_avg_lt: Float
@@ -560,7 +561,7 @@ type TransportCheckpoint {
 type ProductCostAggregateRow @tag(name: "requires-role/catalog-admin") {
   region: String
   count: Int
-  units_sum: Int
+  units_sum: BigInt
   units_avg: Float
   units_min: Int
   units_max: Int
@@ -578,7 +579,7 @@ type ProductCostAggregateRow @tag(name: "requires-role/catalog-admin") {
 type ProductSaleAggregateRow {
   region: String
   count: Int
-  units_sum: Int
+  units_sum: BigInt
   units_avg: Float
   units_min: Int
   units_max: Int

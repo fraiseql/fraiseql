@@ -25,6 +25,15 @@ disagreed, and the promise was the part that was wrong.
     as the string of their digits, and a value that is not a signed 64-bit integer is a field
     error, where a custom scalar was served as read.
 
+- **A fact table's 64-bit results are `BigInt` and `Decimal` (#2175).** On an aggregate row,
+  `<measure>_sum` of an `int` measure, `<measure>_min` and `<measure>_max` of a `bigint`
+  measure, and a `bigint` key were `Int`, a field error past 32 bits: they are `BigInt`, the
+  string of their digits. `<measure>_sum` of a `bigint` measure was `Float`, rounded through
+  a double: it is `Decimal`, the digits PostgreSQL computed, on the GraphQL root and in
+  `execute_aggregate_query`'s rows alike. The `where` and `having` operands of these fields
+  take the same types, and accept the digits as a string or an integer. `count`, and `min`
+  and `max` of an `int` measure, stay `Int`.
+
 - **A native column of a type FraiseQL does not decode refuses the read, naming the column
   and its type (#2242); it was served as `null`.** A SQL `NULL` is still `null`: only a
   present value is refused, so a nullable field over such a column is not served unset
