@@ -8,7 +8,8 @@
 //! * a `Time` carrying an offset as the bare time of day, the offset dropped;
 //! * words such as `now` or `today`, whose rows change with the clock.
 //!
-//! Each was a wrong answer that read as a right one. Each is now refused, naming the field.
+//! Each was a wrong answer that read as a right one. Each is now refused, naming the path to
+//! the operand and the field's type.
 //! The session zone is pinned to `Asia/Tokyo` on every connection, so an offset-less operand
 //! read in the session zone selects other rows than the same digits read in UTC.
 //!
@@ -140,7 +141,10 @@ async fn an_offset_less_date_time_operand_is_refused() {
         json!({"at": {"lt": "2026-07-01T10:00:00-00:00"}}),
     ] {
         let refused = ids_matching(&exec, &filter).await.expect_err(&filter.to_string());
-        assert!(refused.contains("`at`") && refused.contains("DateTime"), "{filter}: {refused}");
+        assert!(
+            refused.contains("`where.at.") && refused.contains("DateTime"),
+            "{filter}: {refused}"
+        );
     }
 }
 
@@ -159,7 +163,10 @@ async fn a_time_operand_with_an_offset_is_refused() {
         json!({"opens": {"lt": "allballs"}}),
     ] {
         let refused = ids_matching(&exec, &filter).await.expect_err(&filter.to_string());
-        assert!(refused.contains("`opens`") && refused.contains("Time"), "{filter}: {refused}");
+        assert!(
+            refused.contains("`where.opens.") && refused.contains("Time"),
+            "{filter}: {refused}"
+        );
     }
 }
 
@@ -176,6 +183,9 @@ async fn a_date_operand_in_another_shape_is_refused() {
         json!({"day": {"lt": "today"}}),
     ] {
         let refused = ids_matching(&exec, &filter).await.expect_err(&filter.to_string());
-        assert!(refused.contains("`day`") && refused.contains("Date"), "{filter}: {refused}");
+        assert!(
+            refused.contains("`where.day.") && refused.contains("Date"),
+            "{filter}: {refused}"
+        );
     }
 }

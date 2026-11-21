@@ -3956,17 +3956,25 @@ mod where_types_reach_the_generator {
     }
 
     /// Value-shape inference — the cheap alternative to consulting the schema —
-    /// would compare a string bound as text and order `"9"` after `"10"`.
+    /// would compare a string bound as text and order `"9"` after `"10"`. A string at an
+    /// `Int` operand never reaches the generator: it is refused as no `Int`. An integer is
+    /// compared as one.
     #[tokio::test]
-    async fn an_int_field_is_typed_even_when_the_bound_arrives_as_a_string() {
+    async fn an_int_field_is_typed_and_a_string_bound_never_reaches_the_generator() {
         let adapter = Arc::new(CapturingMockAdapter::new(mock_rows()));
         let executor = Executor::new(schema_with_typed_user(false), Arc::clone(&adapter));
 
-        executor
+        let refused = executor
             .execute(r#"{ users(where: { age: { gte: "10" } }) { id } }"#, None)
             .await
-            .expect("query executes");
+            .expect_err("a String is no Int");
+        assert!(refused.to_string().contains("`where.age.gte` has type `Int`"), "{refused}");
+        assert!(adapter.captured_where().is_none(), "the refusal came after the read");
 
+        executor
+            .execute("{ users(where: { age: { gte: 10 } }) { id } }", None)
+            .await
+            .expect("query executes");
         let clause = adapter.captured_where().expect("the adapter received a WHERE clause");
         assert_declares(&clause, "age", ScalarFieldType::Integer);
         let sql = rendered(&clause);

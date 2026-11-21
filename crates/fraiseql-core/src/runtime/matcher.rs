@@ -178,17 +178,19 @@ impl QueryMatch {
     }
 
     /// Take the arguments as a client's, as [`QueryMatcher::match_query`] does for a GraphQL
-    /// document: refuse a null item at a `[T!]` position (#1614), then rewrite every enum
+    /// document: refuse a null item at a `[T!]` position (#1614) and a built-in scalar of
+    /// another type under an input object or a list, then rewrite every enum
     /// member named in them to the value it is stored as (#1580). A transport that builds a
     /// `QueryMatch` from its own request with [`from_operation`](Self::from_operation) calls
     /// this before executing it; a sub-query built from values the server read needs nothing.
     ///
     /// # Errors
     ///
-    /// Returns [`FraiseQLError::Validation`] naming the path to a null item of a `[T!]` list.
+    /// Returns [`FraiseQLError::Validation`] naming the path to a null item of a `[T!]` list,
+    /// or to a scalar of another type and the type it declares.
     pub fn with_client_arguments(mut self, schema: &CompiledSchema) -> Result<Self> {
         let published = self.query_def.graphql_arguments(schema);
-        crate::runtime::validate_argument_list_items(
+        crate::runtime::validate_resolved_arguments(
             schema,
             || format!("Query.{}", schema.display_name(&self.query_def.name)),
             &published,
@@ -683,9 +685,10 @@ impl QueryMatcher {
         };
         let published = &query_arguments.published;
 
-        // 9. #1614: a null item at a `[T!]` position, however it was written: a literal, a whole
+        // 9. A null item at a `[T!]` position (#1614), and a scalar of another type under an input
+        //    object or a list (a `where` operand), however it was written: a literal, a whole
         //    variable, or one nested in a literal.
-        crate::runtime::validate_argument_list_items(
+        crate::runtime::validate_resolved_arguments(
             &self.schema,
             || format!("Query.{}", self.schema.display_name(&query_def.name)),
             published,

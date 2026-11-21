@@ -18,6 +18,28 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A `where` operand is held to its field's type before any SQL runs (#2257).** An operand
+  written inline (`{n: {eq: "abc"}}`), carried by a whole `where` variable, or sent as a
+  REST or gRPC filter reached the database's cast unchecked, which refused it with an error
+  quoting the value. It is now refused naming the path to the operand and the field's type,
+  never the value, by the rule an argument and a scalar variable are held to. That covers
+  every built-in scalar (`Int`, `BigInt`, `Float`, `Decimal`, `Boolean`, the temporal
+  scalars, `UUID`, `String`), each item of `in` and `nin`, a null check's `Boolean`, a
+  pattern's `String`, and the operands under `_and`, `_or` and `_not`. What changes for a
+  client:
+  - An operand of another JSON type is refused where the cast had accepted it: a string at
+    a `Float` or `Int`, a number at a `String`, a number with a fraction at a `Decimal`
+    (write its digits as a string, as a `Decimal` variable already required).
+  - A `Decimal` string is its digits, optionally signed, with a fraction after a point: an
+    exponent (`"1e3"`), a leading point or padding is refused, on reads and writes alike.
+  - A malformed `UUID` operand is refused; compared as text on a column route, it had
+    matched nothing.
+  - A REST filter's `Decimal` value travels as its digits, not a rounded number, and a REST
+    refusal names the field and its type instead of quoting the value.
+  - A vector distance operator's operand is published as `JSON` on every vector leaf, the
+    `{vector, threshold}` object it is written as. A bit or sparse vector's leaf had
+    published its own `String`, which no distance is written as.
+
 - **`BigInt` is a built-in scalar (#2175).** Two authoring results change:
   - `fraiseql extract` maps a 64-bit integer (`i64`, `long`, `Long`, `int64`) to `BigInt`,
     where it mapped it to `Int`, under which a value past 32 bits is refused.

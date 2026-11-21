@@ -97,8 +97,9 @@ pub fn subscription_arguments(
             arguments.insert(argument.name.clone(), value);
         }
     }
-    // #1614: a null item at a `[T!]` position, however it was written.
-    crate::runtime::validate_argument_list_items(
+    // A null item at a `[T!]` position (#1614), and a scalar of another type in a list or an
+    // input object, however it was written.
+    crate::runtime::validate_resolved_arguments(
         schema,
         || format!("Subscription.{}", root.name),
         &definition.arguments,

@@ -514,3 +514,33 @@ fn a_local_date_time_field_filters_on_local_date_times() {
     );
     assert_eq!(field(input(&d, "LocalDateTimeFilter"), "eq").field_type, "LocalDateTime");
 }
+
+/// A vector distance takes the `{vector, threshold}` object it is written as on every vector
+/// leaf: a bit or sparse vector's own text form is a `String`, its distance's operand is not.
+/// An operand is held to this type, so publishing the leaf's scalar refused every distance.
+#[test]
+fn a_vector_distance_takes_its_threshold_object_on_every_vector_leaf() {
+    let mut schema = schema();
+    let order = schema.types.iter_mut().find(|t| t.name == "Order").expect("Order is declared");
+    for (name, field_type) in [
+        ("dense", FieldType::Vector),
+        ("half", FieldType::HalfVector),
+        ("bits", FieldType::BitVector),
+        ("sparse", FieldType::SparseVector),
+    ] {
+        order.fields.push(FieldDefinition::new(name, field_type));
+    }
+    let d = derived(&schema);
+    for (leaf, eq) in [
+        ("VectorFilter", "JSON"),
+        ("HalfVectorFilter", "JSON"),
+        ("BitVectorFilter", "String"),
+        ("SparseVectorFilter", "String"),
+    ] {
+        let filter = input(&d, leaf);
+        assert_eq!(field(filter, "eq").field_type, eq, "{leaf}.eq");
+        for op in VECTOR_OPERATORS {
+            assert_eq!(field(filter, op).field_type, "JSON", "{leaf}.{op}");
+        }
+    }
+}

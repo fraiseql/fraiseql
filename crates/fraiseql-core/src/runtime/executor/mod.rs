@@ -226,6 +226,9 @@ mod tests;
 #[cfg(test)]
 mod variable_visibility_tests;
 
+#[cfg(test)]
+mod where_operand_tests;
+
 /// Query type classification for routing.
 #[derive(Debug, Clone, PartialEq)]
 enum QueryType {

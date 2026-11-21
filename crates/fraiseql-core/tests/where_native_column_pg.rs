@@ -216,14 +216,13 @@ fn filters() -> Vec<Value> {
         json!({ "qty": { "lte": -5 } }),
         json!({ "qty": { "in": [1, 3] } }),
         json!({ "qty": { "nin": [3] } }),
-        json!({ "qty": { "eq": 3_000_000_000_i64 } }),
         json!({ "qty": { "gt": 2_147_483_646 } }),
         json!({ "qty": { "isnull": true } }),
-        json!({ "amount": { "eq": 1.5 } }),
+        json!({ "amount": { "eq": "1.5" } }),
         json!({ "amount": { "eq": "1.50" } }),
         json!({ "amount": { "gt": 1 } }),
-        json!({ "amount": { "lt": 0.2 } }),
-        json!({ "amount": { "in": [10, 2.25] } }),
+        json!({ "amount": { "lt": "0.2" } }),
+        json!({ "amount": { "in": [10, "2.25"] } }),
         json!({ "active": { "eq": true } }),
         json!({ "active": { "neq": true } }),
         json!({ "active": { "eq": false } }),
@@ -242,8 +241,6 @@ fn filters() -> Vec<Value> {
         json!({ "id": { "neq": U1 } }),
         json!({ "id": { "in": [upper, U2] } }),
         json!({ "id": { "nin": [U1] } }),
-        json!({ "id": { "eq": "not-a-uuid" } }),
-        json!({ "id": { "in": [U1, "not-a-uuid"] } }),
         json!({ "id": { "isnull": true } }),
         json!({ "qty": { "is_not_null": true } }),
         json!({ "_or": [{ "name": { "eq": "alpha" } }, { "qty": { "gt": 2 } }] }),
@@ -264,6 +261,18 @@ async fn a_column_selects_the_rows_the_document_selects() {
         assert!(column.is_ok(), "{filter} is a filter both can answer: {column:?}");
         assert_eq!(column, document, "the column and the document disagree under {filter}");
     }
+    // An operand that is no value of its field's type is refused on both routes alike,
+    // before either reads: an `Int` past 32 bits, a `Decimal` an f64 had rounded, a
+    // malformed UUID alone or in a list.
+    for filter in [
+        json!({ "qty": { "eq": 3_000_000_000_i64 } }),
+        json!({ "amount": { "eq": 1.5 } }),
+        json!({ "id": { "eq": "not-a-uuid" } }),
+        json!({ "id": { "in": [U1, "not-a-uuid"] } }),
+    ] {
+        assert!(pks(&executor, "items", &filter).await.is_err(), "{filter}");
+        assert!(pks(&executor, "documentItems", &filter).await.is_err(), "{filter}");
+    }
 }
 
 /// On a row whose columns disagree with its document, a filter mapped to a column
@@ -280,7 +289,7 @@ async fn a_mapped_field_is_compared_on_its_column() {
         (json!({ "id": { "eq": U1 } }), vec![1], vec![]),
         (json!({ "name": { "eq": "column" } }), vec![1], vec![]),
         (json!({ "qty": { "eq": 7 } }), vec![1], vec![]),
-        (json!({ "amount": { "eq": 7.5 } }), vec![1], vec![]),
+        (json!({ "amount": { "eq": "7.5" } }), vec![1], vec![]),
         (json!({ "active": { "eq": true } }), vec![1], vec![]),
         (json!({ "createdAt": { "eq": "2024-01-01T00:00:00Z" } }), vec![1], vec![]),
         (json!({ "day": { "eq": "2024-01-01" } }), vec![1], vec![]),
@@ -303,12 +312,6 @@ async fn a_mapped_field_is_compared_on_its_column() {
     // An operator the column route does not take reads the document, column or not.
     let by_document = json!({ "name": { "startswith": "doc" } });
     assert_eq!(pks(&executor, "driftItems", &by_document).await, Ok(vec![1, 2]));
-    // So does a malformed UUID, alone or in a list: compared as text it matches nothing,
-    // where casting it to the column's type would have raised.
-    let malformed = json!({ "id": { "eq": "not-a-uuid" } });
-    assert_eq!(pks(&executor, "driftItems", &malformed).await, Ok(vec![]));
-    let in_a_list = json!({ "id": { "in": [U2, "not-a-uuid"] } });
-    assert_eq!(pks(&executor, "driftItems", &in_a_list).await, Ok(vec![1, 2]));
 }
 
 /// A field the caller may not read may not decide which rows come back (ruling AA 3), and

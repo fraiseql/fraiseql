@@ -170,7 +170,7 @@ async fn a_top_level_range_filter_still_works() {
     };
 
     assert_eq!(
-        ids_matching(&exec, &json!({"total": {"gte": 20.0}})).await.unwrap(),
+        ids_matching(&exec, &json!({"total": {"gte": "20.0"}})).await.unwrap(),
         vec![2, 3],
         "the top-level cast is the control for this suite"
     );
@@ -238,10 +238,10 @@ async fn nested_in_agrees_with_nested_eq() {
         return;
     };
 
-    let eq = ids_matching(&exec, &json!({"customer": {"creditLimit": {"eq": 19.9}}}))
+    let eq = ids_matching(&exec, &json!({"customer": {"creditLimit": {"eq": "19.9"}}}))
         .await
         .expect("eq executes");
-    let in_ = ids_matching(&exec, &json!({"customer": {"creditLimit": {"in": [19.9]}}}))
+    let in_ = ids_matching(&exec, &json!({"customer": {"creditLimit": {"in": ["19.9"]}}}))
         .await
         .expect("in executes");
 

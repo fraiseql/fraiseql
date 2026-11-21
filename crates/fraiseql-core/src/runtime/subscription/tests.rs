@@ -1677,6 +1677,35 @@ fn a_null_item_at_a_non_null_list_argument_is_refused_at_subscribe() {
     assert_eq!(loose.unwrap(), serde_json::json!({ "tags": [null] }));
 }
 
+/// A subscription's list argument holds each item to its type, as a query field's does: an
+/// item of another type is refused at subscribe, naming the item and the type, never the
+/// value.
+#[test]
+fn a_list_arguments_item_of_another_type_is_refused_at_subscribe() {
+    use crate::schema::{ArgumentDefinition, FieldType};
+
+    let manager = manager_for(
+        SubscriptionDefinition::new("OrdersUpdated", "Order")
+            .with_topic("order_updated")
+            .with_argument(ArgumentDefinition::optional("ranks", FieldType::list(FieldType::Int))),
+    );
+    let arguments = |document: &str| {
+        let parsed = crate::graphql::parse_query(document).unwrap();
+        manager.subscription_arguments(&parsed, Some(&serde_json::json!({})))
+    };
+
+    let refused = arguments(r#"subscription { OrdersUpdated(ranks: [1, "12abc"]) { id } }"#);
+    assert!(
+        matches!(&refused, Err(crate::error::FraiseQLError::Validation { message, .. })
+            if message.contains("`ranks[1]` has type `Int`") && !message.contains("12abc")),
+        "{refused:?}"
+    );
+    assert_eq!(
+        arguments("subscription { OrdersUpdated(ranks: [1, 2]) { id } }").unwrap(),
+        serde_json::json!({ "ranks": [1, 2] })
+    );
+}
+
 /// Timestamps are written as stored documents hold them today: the fraction padded to
 /// `.120` / `.500`, none at a whole second, and a `Z` suffix. A document read and written
 /// again keeps those bytes; webhooks, idempotency keys and JSONB comparisons depend on them.

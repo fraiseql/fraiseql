@@ -38,8 +38,9 @@
 //! * **Custom scalars, input objects, lists and vectors.** A project may back any of these with any
 //!   JSON shape, so a disagreement here is not evidence of a client mistake.
 //! * **Nested input-object fields**, for the scalar check above. Only the value written *at* the
-//!   argument is adjudicated as a scalar, not the keys inside a `where:` predicate. Those have
-//!   their own surface and their own operators.
+//!   argument is adjudicated here; a built-in scalar under an input object or a list, a `where:`
+//!   operand among them, is held to the same rule by [`validate_resolved_arguments`], on the
+//!   arguments a read is answered from, whichever transport carried them.
 //!
 //! # Enums are the exception, and were wrongly inside the exclusion (#1362)
 //!
@@ -213,6 +214,9 @@ impl Scalar {
             let why = temporal.refusal(text).unwrap_or("is not one");
             return Some(format!("a String that {why}"));
         }
+        if self == Self::Decimal && value.is_string() {
+            return Some("a String that is not the digits of a decimal number".to_string());
+        }
         if self == Self::Decimal && value.is_number() {
             return Some(
                 "a number an f64 had already rounded: write a Decimal's digits as a string"
@@ -262,7 +266,11 @@ impl Scalar {
             // A Decimal travels as a string of its digits. An integer held exactly is an
             // ordinary way to write one; a number with a fraction or an exponent was
             // rounded to an `f64` before anything could read it.
-            Self::Decimal => value.is_string() || value.is_i64() || value.is_u64(),
+            Self::Decimal => {
+                value.as_str().is_some_and(crate::runtime::is_decimal_digits)
+                    || value.is_i64()
+                    || value.is_u64()
+            },
         }
     }
 
@@ -584,7 +592,9 @@ pub fn validate_mutation_argument_values(
 struct Rules {
     /// Enum membership.
     enums:   bool,
-    /// Built-in scalars under input objects and lists, and undeclared input keys.
+    /// Built-in scalars under input objects and lists: a `where` operand, a write's field.
+    scalars: bool,
+    /// Undeclared input keys.
     write:   bool,
     /// The value is a document literal, where a `{"$var": …}` object is a variable
     /// reference: its value is adjudicated against the variable's own declaration
@@ -594,29 +604,34 @@ struct Rules {
 }
 
 impl Rules {
-    /// A read's **resolved** arguments: item nullability only. Enum membership is the
-    /// document and variable walks' question, which can name the variable a value came
-    /// from; a resolved value cannot.
-    const LIST_ITEMS: Self = Self {
-        enums:   false,
-        write:   false,
-        literal: false,
-    };
     /// The read paths' document literals: enum membership (module header).
     const LITERAL: Self = Self {
         enums:   true,
+        scalars: false,
         write:   false,
         literal: true,
     };
     /// The read paths' variable values: enum membership.
     const READ: Self = Self {
         enums:   true,
+        scalars: false,
+        write:   false,
+        literal: false,
+    };
+    /// A read's **resolved** arguments: item nullability, and every built-in scalar under an
+    /// input object or a list, however it was written and whichever transport carried it.
+    /// Enum membership is the document and variable walks' question, which can name the
+    /// variable a value came from; a resolved value cannot.
+    const RESOLVED: Self = Self {
+        enums:   false,
+        scalars: true,
         write:   false,
         literal: false,
     };
     /// A mutation's arguments: everything (#1528).
     const WRITE: Self = Self {
         enums:   true,
+        scalars: true,
         write:   true,
         literal: false,
     };
@@ -689,42 +704,51 @@ pub fn validate_enum_variable_values(
     Ok(())
 }
 
-/// Refuse a `null` item at a `[T!]` position anywhere in a read's **resolved** arguments:
-/// an argument's own list, or a list field of an input object under it (#1614).
+/// Hold a read's **resolved** arguments to their declared types, before any SQL runs.
+///
+/// Two values are refused: a `null` item at a `[T!]` position (#1614), and a built-in
+/// scalar under an input object or a list holding a value of another type.
 ///
 /// Run on the map the read is answered from, after inline literals and variables are merged
 /// and nested `$var` references substituted, by both producers of a
 /// [`QueryMatch`](crate::runtime::QueryMatch) (the GraphQL matcher, and
 /// `QueryMatch::with_client_arguments`, which every other transport takes a client's
 /// arguments through) and by a subscription's argument resolution. `argument` looks one up
-/// by name. So a null item
-/// is refused however it was written, and whichever transport carried it: a `nin: [null, …]`
-/// reached SQL as `NOT IN (NULL, …)`, which is never true, and answered with no rows.
+/// by name. So a value is refused however it was written, and whichever transport carried
+/// it: a `nin: [null, …]` reached SQL as `NOT IN (NULL, …)`, which is never true, and
+/// answered with no rows, and a `where` operand of another type reached the database's
+/// cast, whose error quoted it.
+///
+/// A scalar is held to the one rule a built-in scalar's value is held to everywhere
+/// (`Scalar::rejection`), the rule an argument's literal and a variable's value are held
+/// to. A scalar written at the argument itself is that check's, not this walk's.
 ///
 /// `declared` is the field's published argument list
-/// ([`QueryDefinition::graphql_arguments`](crate::schema::QueryDefinition::graphql_arguments)).
-/// A localized argument holds a locale map, checked by its own pass.
+/// ([`QueryDefinition::graphql_arguments`](crate::schema::QueryDefinition::graphql_arguments)),
+/// which types `where` with its derived filter input. A localized argument holds a locale
+/// map, checked by its own pass.
 ///
-/// A null item is this walk's only refusal, so an argument whose
-/// value holds no array with a null in it is not walked: the walk's per-item paths and
-/// input-type lookups, and `field_label`, are paid only by a request that could be refused.
+/// Only an argument holding an object or a list is walked: the walk's per-item paths and
+/// input-type lookups, and `field_label`, are paid only by a request they could refuse.
 ///
 /// # Errors
 ///
-/// Returns [`FraiseQLError::Validation`] naming the field and the path to the null item.
-pub fn validate_argument_list_items<'a>(
+/// Returns [`FraiseQLError::Validation`] naming the field, the path to the value and, for
+/// a scalar, its type and the shape written, never the value.
+pub fn validate_resolved_arguments<'a>(
     schema: &CompiledSchema,
     field_label: impl Fn() -> String,
     declared: &[ArgumentDefinition],
     argument: impl Fn(&str) -> Option<&'a Value>,
 ) -> Result<()> {
     for arg in declared.iter().filter(|arg| !arg.localized) {
-        let Some(value) = argument(&arg.name).filter(|value| holds_a_null_item(value, 0)) else {
+        let Some(value) = argument(&arg.name).filter(|value| value.is_object() || value.is_array())
+        else {
             continue;
         };
         walk_field_type(
             schema,
-            Rules::LIST_ITEMS,
+            Rules::RESOLVED,
             &field_label(),
             &arg.name,
             &arg.arg_type,
@@ -733,22 +757,6 @@ pub fn validate_argument_list_items<'a>(
         )?;
     }
     Ok(())
-}
-
-/// Whether any array under `value` (`value` itself included) may hold a `null` item.
-///
-/// Past the walk's depth bound the answer is yes: the walk, which stops there too, decides.
-fn holds_a_null_item(value: &Value, depth: usize) -> bool {
-    if depth > MAX_WALK_DEPTH {
-        return true;
-    }
-    match value {
-        Value::Array(items) => {
-            items.iter().any(|item| item.is_null() || holds_a_null_item(item, depth + 1))
-        },
-        Value::Object(fields) => fields.values().any(|field| holds_a_null_item(field, depth + 1)),
-        _ => false,
-    }
 }
 
 /// Walk a compiled [`FieldType`] against `value`, adjudicating every enum under it
@@ -784,7 +792,7 @@ fn walk_field_type(
             walk_input_object(schema, rules, subject, path, name, value, depth)
         },
         other => match Scalar::from_field_type(other) {
-            Some(scalar) if rules.write => check_scalar(subject, path, scalar, value),
+            Some(scalar) if rules.scalars => check_scalar(subject, path, scalar, value),
             _ => Ok(()),
         },
     }
@@ -828,7 +836,7 @@ fn walk_type_ref(
         }
         return check_membership(schema, subject, path, declared, value);
     }
-    if let (true, Some(scalar)) = (rules.write, Scalar::from_type_name(declared)) {
+    if let (true, Some(scalar)) = (rules.scalars, Scalar::from_type_name(declared)) {
         return check_scalar(subject, path, scalar, value);
     }
     walk_input_object(schema, rules, subject, path, declared, value, depth)
@@ -932,6 +940,23 @@ fn walk_input_object(
         walk_type_ref(schema, rules, subject, &child, &field.field_type, value, depth + 1)?;
     }
     Ok(())
+}
+
+/// Hold one value a transport parsed for `name`, of `field_type`, to its scalar's rule.
+///
+/// The rule is the one every built-in scalar's value is held to: a GraphQL argument, a
+/// variable and a resolved `where` operand. A type that is not a built-in scalar is not
+/// adjudicated.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] naming `name`, its type and the shape written,
+/// never the value.
+pub fn check_scalar_value(name: &str, field_type: &FieldType, value: &Value) -> Result<()> {
+    match Scalar::from_field_type(field_type) {
+        Some(scalar) => check_scalar("The value", name, scalar, value),
+        None => Ok(()),
+    }
 }
 
 /// A built-in scalar at `path` must hold a value of its type (#1528).

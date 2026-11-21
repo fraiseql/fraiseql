@@ -36,13 +36,14 @@
 //!   `LTree`, `MACAddress` and `CIDR` — and the runtime already treats them as text.
 //! * A name the **author declared** is never derived over.
 //!
-//! # This is advertisement, not enforcement
+//! # Operands are enforced; operators are advertised
 //!
-//! Per-scalar filters are stricter than the engine, which restricts no operator
-//! by field type. Nothing coerces a query argument's value against its declared
-//! input type (`arg_type` is read at runtime only on the mutation path), so a
-//! stricter published type refuses nothing at execution — it constrains clients
-//! that validate locally against introspection.
+//! An operand's value is held to the type its operator publishes: a read's resolved
+//! arguments are walked through these inputs before any SQL runs
+//! ([`validate_resolved_arguments`](crate::runtime::validate_resolved_arguments)), so
+//! `{n: {eq: "abc"}}` on an `Int` is refused naming `where.n.eq` and `Int`, never the value.
+//! The operator set is not enforced: a key a leaf does not publish is passed to the engine,
+//! which restricts no operator by field type.
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -577,7 +578,9 @@ impl LeafFilter {
 ///
 /// Follows the operator, not the field: `in` takes a list of the field's type,
 /// a NULL check takes a `Boolean`, a LIKE pattern is always a `String`, a length
-/// comparison an `Int`, and JSONB containment a `JSON` document.
+/// comparison an `Int`, JSONB containment a `JSON` document, and a vector distance the
+/// `{vector, threshold}` object its comparison is written as, whatever the vector's own
+/// text form.
 fn operand_type(op: &str, operand: &str) -> String {
     if matches!(op, "in" | "nin") {
         return format!("[{operand}!]");
@@ -591,7 +594,10 @@ fn operand_type(op: &str, operand: &str) -> String {
     if op.starts_with("len_") {
         return "Int".to_string();
     }
-    if ARRAY_OPERATORS.contains(&op) || CONTAINMENT_OPERATORS.contains(&op) {
+    if ARRAY_OPERATORS.contains(&op)
+        || CONTAINMENT_OPERATORS.contains(&op)
+        || VECTOR_OPERATORS.contains(&op)
+    {
         return "JSON".to_string();
     }
     operand.to_string()

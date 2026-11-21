@@ -602,7 +602,7 @@ fn where_schema() -> (CompiledSchema, Vec<ArgumentDefinition>) {
 
 fn list_items(where_value: &Value) -> Result<()> {
     let (schema, declared) = where_schema();
-    validate_argument_list_items(
+    validate_resolved_arguments(
         &schema,
         || "Query.labels".to_string(),
         &declared,

@@ -661,6 +661,41 @@ fn coerce_big_int_keeps_its_digits_and_refuses_the_rest() {
     }
 }
 
+/// A filter value is held to the rule a GraphQL argument and a `where` operand are held to,
+/// before the `where` generator sees it, and refused naming the field and its type, never
+/// the value.
+#[test]
+fn a_filter_value_is_held_to_its_fields_type_and_never_quoted() {
+    for (field_type, refused, served) in [
+        ("Int", "3000000000", serde_json::json!(7)),
+        ("Int", "12abc", serde_json::json!(7)),
+        ("BigInt", "12abc", serde_json::json!("7")),
+        ("Float", "12abc", serde_json::json!(7.0)),
+        ("Decimal", "12abc", serde_json::json!("7")),
+        ("Decimal", "1e3", serde_json::json!("7")),
+        ("Boolean", "12abc", serde_json::json!(true)),
+        ("UUID", "12abc", serde_json::json!("00000000-0000-0000-0000-000000000007")),
+        ("DateTime", "12abc", serde_json::json!("2026-07-01T00:00:07Z")),
+        ("LocalDateTime", "12abc", serde_json::json!("2026-07-01T00:00:07")),
+        ("Date", "12abc", serde_json::json!("2026-07-07")),
+        ("Time", "12abc", serde_json::json!("00:00:07")),
+        ("JSON", "{12abc", serde_json::json!(7)),
+    ] {
+        let declared = FieldType::parse(field_type);
+        let err = coerce_to_type("total", refused, &declared).unwrap_err().to_string();
+        assert!(err.contains("`total`"), "{field_type}: the field is not named: {err}");
+        assert!(!err.contains(refused), "{field_type}: the value is quoted: {err}");
+        if field_type != "JSON" {
+            assert!(err.contains(&format!("`{field_type}`")), "{field_type}: no type: {err}");
+        }
+        let written = match &served {
+            serde_json::Value::String(text) => text.clone(),
+            other => other.to_string(),
+        };
+        assert_eq!(coerce_to_type("total", &written, &declared).unwrap(), served, "{field_type}");
+    }
+}
+
 #[test]
 fn coerce_float() {
     let result = coerce_to_type("v", "2.78", &FieldType::Float).unwrap();
@@ -692,7 +727,7 @@ fn coerce_boolean_false() {
 #[test]
 fn coerce_boolean_invalid() {
     let err = coerce_to_type("v", "maybe", &FieldType::Boolean).unwrap_err();
-    assert!(err.to_string().contains("Expected boolean"), "{err}");
+    assert!(err.to_string().contains("has type `Boolean`"), "{err}");
 }
 
 #[test]
@@ -1467,7 +1502,10 @@ fn a_list_element_of_the_wrong_type_is_refused() {
     let err = extractor
         .extract(&[], &[("age[in]", "30,old")])
         .expect_err("a non-integer element of an Int list must be refused");
-    assert!(format!("{err}").contains("integer"), "the error names the type, got: {err}");
+    assert!(
+        format!("{err}").contains("`age` has type `Int`"),
+        "the error names the type, got: {err}"
+    );
 }
 
 /// The `OpenAPI` document advertises exactly the operators the validator accepts.

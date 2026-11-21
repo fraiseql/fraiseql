@@ -424,7 +424,8 @@ mod rls_composition {
             RuntimeConfig::default(),
         );
         let ctx = tenant_security_context();
-        let vars = serde_json::json!({ "where": { "createdAt": { "eq": "2026-01-01" } } });
+        let vars =
+            serde_json::json!({ "where": { "createdAt": { "eq": "2026-01-01T00:00:00Z" } } });
         executor
             .execute_with_security("{ users { id } }", Some(&vars), &ctx)
             .await
