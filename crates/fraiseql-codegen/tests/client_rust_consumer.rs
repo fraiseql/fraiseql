@@ -169,3 +169,74 @@ fn generated_client_compiles_in_a_consumer_project() {
         String::from_utf8_lossy(&output.stderr),
     );
 }
+
+const BIG_INT_FIXTURE: &str = include_str!("fixtures/big_int_schema.json");
+
+/// A response holding `BigInt`s past 2^53, the first integer an `f64` cannot hold exactly,
+/// and at the ends of the signed 64-bit range.
+const BIG_INT_WIRE: &str = r#"{"id":"l1","balance":"9007199254740993","credit":"-9223372036854775808","history":["9223372036854775807","9007199254740993"]}"#;
+
+const BIG_INT_LIB_RS: &str = r#"#![deny(warnings)]
+
+pub mod generated;
+
+use generated::{Error, FraiseqlClient, Ledger, Transport, queries};
+
+/// A `BigInt` argument is written as the digits the server reads it from.
+pub fn lookup(client: &FraiseqlClient<impl Transport>) -> Result<Option<Ledger>, Error> {
+    queries::ledger(client, "l1".to_string(), Some("9007199254740993".to_string()))
+}
+
+/// Decode a response into the generated type and encode it again.
+pub fn round_trip(wire: &str) -> String {
+    let ledger: Ledger = serde_json::from_str(wire).expect("the generated type decodes the wire");
+    let balance: &String = &ledger.balance;
+    let credit: &Option<String> = &ledger.credit;
+    let history: &Vec<String> = &ledger.history;
+    assert_eq!((balance.len(), credit.is_some(), history.len()), (16, true, 2));
+    serde_json::to_string(&ledger).expect("the generated type encodes")
+}
+"#;
+
+/// The generated type of a `BigInt` carries a value past 2^53 exactly: decoded from the
+/// wire and encoded again, every digit is the one the server sent.
+#[test]
+#[ignore = "requires cargo and the crates.io registry"]
+fn a_big_int_past_two_to_the_53_round_trips_exactly() {
+    let schema: CompiledSchema = serde_json::from_str(BIG_INT_FIXTURE).unwrap();
+    let generated = rust::generate(&schema).unwrap();
+
+    let project = tempfile::tempdir().unwrap();
+    let generated_dir = project.path().join("src").join("generated");
+    std::fs::create_dir_all(&generated_dir).unwrap();
+    for (rel, content) in &generated {
+        std::fs::write(generated_dir.join(rel), content).unwrap();
+    }
+    std::fs::write(project.path().join("Cargo.toml"), CARGO_TOML).unwrap();
+    std::fs::write(project.path().join("src").join("lib.rs"), BIG_INT_LIB_RS).unwrap();
+    std::fs::write(
+        project.path().join("src").join("main.rs"),
+        format!(
+            "fn main() {{\n    print!(\"{{}}\", fraiseql_generated_consumer::round_trip({BIG_INT_WIRE:?}));\n}}\n"
+        ),
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO"))
+        .args(["run", "--quiet"])
+        .current_dir(project.path())
+        .env_remove("CARGO_TARGET_DIR")
+        .env_remove("RUSTFLAGS")
+        .output()
+        .expect("failed to run cargo");
+
+    assert!(
+        output.status.success(),
+        "the consumer did not build or run:\n--- stdout ---\n{}\n--- stderr ---\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let served: serde_json::Value = serde_json::from_str(BIG_INT_WIRE).unwrap();
+    let encoded: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(encoded, served, "the generated type did not carry every digit");
+}

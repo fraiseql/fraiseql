@@ -323,6 +323,7 @@ fn success_field_value_ok(
     let ok = match (&field.field_type, value) {
         (_, Value::Null) => field.nullable,
         (FieldType::Int, Value::Number(n)) => n.as_i64().is_some_and(|i| i32::try_from(i).is_ok()),
+        (FieldType::BigInt, value) => crate::runtime::completion::serves_big_int(value),
         (FieldType::Float | FieldType::Decimal, Value::Number(_))
         | (
             FieldType::String

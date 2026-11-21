@@ -432,6 +432,7 @@ impl CompiledSchema {
                 },
                 FieldType::String
                 | FieldType::Int
+                | FieldType::BigInt
                 | FieldType::Float
                 | FieldType::Boolean
                 | FieldType::Id

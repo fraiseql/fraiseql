@@ -95,8 +95,8 @@ impl IntrospectionBuilder {
         //
         // This runs last, and skips any name already published, because
         // `referenced_scalars` excludes only the five GraphQL built-ins while
-        // `builtin_scalars` publishes eleven — `DateTime`, `UUID`, `JSON`,
-        // `Date`, `Time` and `Decimal` are referenced names that already have a
+        // `builtin_scalars` publishes more — `DateTime`, `UUID`, `JSON`, `Date`,
+        // `Time`, `BigInt` and `Decimal` are referenced names that already have a
         // node. A duplicate would be invalid GraphQL and would silently collapse
         // in `build_type_map`, which is a last-write-wins `HashMap`.
         let published: std::collections::HashSet<&str> =

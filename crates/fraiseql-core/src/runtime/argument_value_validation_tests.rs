@@ -846,3 +846,108 @@ fn a_temporal_field_inside_a_mutation_input_refuses_a_value_outside_its_format()
         assert!(!err.contains(value), "the value is described, never quoted: {err}");
     }
 }
+
+// ---------------------------------------------------------------- BigInt input
+
+fn ledger_schema() -> CompiledSchema {
+    let mut schema = CompiledSchema::new();
+    schema.input_types.push(
+        InputObjectDefinition::new("CreditInput")
+            .with_field(InputFieldDefinition::new("amount", "BigInt"))
+            .with_field(InputFieldDefinition::new("history", "[BigInt!]")),
+    );
+    schema
+}
+
+fn credit_arg() -> Vec<ArgumentDefinition> {
+    vec![ArgumentDefinition::optional(
+        "input",
+        FieldType::Object("CreditInput".to_string()),
+    )]
+}
+
+/// A `BigInt` takes its canonical digits as a string, or a JSON integer in the signed
+/// 64-bit range: what a client holding a native 64-bit integer writes. A number with a
+/// fraction or an exponent was rounded to an `f64` before anything could read it.
+#[test]
+fn a_big_int_takes_its_digits_as_a_string_or_an_integer_in_range() {
+    let schema = ledger_schema();
+    let credits = |amount: &str| {
+        let values =
+            parsed(&format!(r#"{{"input": {{"amount": {amount}, "history": [{amount}]}}}}"#));
+        validate_mutation_argument_values(&schema, "Mutation.credit", &credit_arg(), Some(&values))
+    };
+    for held in [
+        r#""9007199254740993""#,
+        r#""-9223372036854775808""#,
+        "9007199254740993",
+        "-9223372036854775808",
+        "9223372036854775807",
+    ] {
+        assert!(credits(held).is_ok(), "{held}");
+    }
+    for (refused, why) in [
+        ("1.5", "as a string"),
+        ("1e3", "as a string"),
+        ("9223372036854775808", "64-bit range"),
+        (r#""9223372036854775808""#, "digits of a signed 64-bit integer"),
+        (r#""007""#, "digits of a signed 64-bit integer"),
+        (r#""1.0""#, "digits of a signed 64-bit integer"),
+        ("true", "Boolean"),
+    ] {
+        let msg = message(credits(refused));
+        assert!(msg.contains("input.amount") && msg.contains("BigInt"), "{refused}: {msg}");
+        assert!(msg.contains(why), "{refused}: {msg}");
+    }
+}
+
+#[test]
+fn a_big_int_argument_and_variable_take_the_same_values() {
+    let declared = vec![ArgumentDefinition::new(
+        "atLeast",
+        FieldType::parse("BigInt"),
+    )];
+    let literal_at = |text: &str, kind: &str| {
+        validate_argument_values("Query.ledgers", &declared, &[literal("atLeast", kind, text)], &[])
+    };
+    assert!(literal_at("9007199254740993", "int").is_ok());
+    assert!(literal_at(r#""9007199254740993""#, "string").is_ok());
+    assert!(literal_at(r#""9e15""#, "string").is_err());
+    assert!(literal_at("9007199254740993.0", "float").is_err(), "a Float literal is rounded");
+
+    let vars = [var("atLeast", "BigInt", false)];
+    let supplied = |text: &str| {
+        validate_variable_values(
+            Some("Q"),
+            &vars,
+            Some(&parsed(&format!(r#"{{"atLeast": {text}}}"#))),
+        )
+    };
+    assert!(supplied(r#""9007199254740993""#).is_ok());
+    assert!(supplied("9007199254740993").is_ok());
+    assert!(supplied(r#""x""#).is_err());
+    assert!(supplied("1.5").is_err());
+}
+
+/// A client's `Int` and `String` variables can supply a `BigInt`, which holds every `Int`
+/// and is written as a string; a `Float` cannot, its digits already rounded.
+#[test]
+fn an_int_or_string_variable_is_usable_at_a_big_int_argument_and_a_float_is_not() {
+    let declared = vec![ArgumentDefinition::new(
+        "atLeast",
+        FieldType::parse("BigInt"),
+    )];
+    let used_as = |type_name: &str| {
+        validate_argument_values(
+            "Query.ledgers",
+            &declared,
+            &[var_use("atLeast", "v")],
+            &[var("v", type_name, false)],
+        )
+    };
+    assert!(used_as("Int").is_ok());
+    assert!(used_as("String").is_ok());
+    assert!(used_as("BigInt").is_ok());
+    let msg = message(used_as("Float"));
+    assert!(msg.contains("$v") && msg.contains("Float"), "{msg}");
+}

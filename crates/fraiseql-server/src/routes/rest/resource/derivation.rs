@@ -69,7 +69,10 @@ pub(super) fn detect_id_arg(
 
 /// Check if a `FieldType` is suitable as an ID parameter.
 const fn is_id_like_type(ft: &FieldType) -> bool {
-    matches!(ft, FieldType::Id | FieldType::Uuid | FieldType::Int | FieldType::String)
+    matches!(
+        ft,
+        FieldType::Id | FieldType::Uuid | FieldType::Int | FieldType::BigInt | FieldType::String
+    )
 }
 
 /// Check if an argument looks like an ID parameter (for exclusion from coverage check).

@@ -18,6 +18,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`BigInt` is a built-in scalar (#2175).** Two authoring results change:
+  - `fraiseql extract` maps a 64-bit integer (`i64`, `long`, `Long`, `int64`) to `BigInt`,
+    where it mapped it to `Int`, under which a value past 32 bits is refused.
+  - A project's own scalar named `BigInt` now denotes the built-in one: its values are served
+    as the string of their digits, and a value that is not a signed 64-bit integer is a field
+    error, where a custom scalar was served as read.
+
 - **A native column of a type FraiseQL does not decode refuses the read, naming the column
   and its type (#2242); it was served as `null`.** A SQL `NULL` is still `null`: only a
   present value is refused, so a nullable field over such a column is not served unset
@@ -734,6 +741,25 @@ disagreed, and the promise was the part that was wrong.
   declared in the schema was already parsed when it is compiled.
 
 ### Added
+
+- **A `BigInt` scalar for a signed 64-bit integer (#2175).** GraphQL's `Int` is 32 bits, so
+  a `bigint` column past that range was a field error under one, and `Float` is exact only
+  to 2^53. A `BigInt` field is served as the string of its digits (`"9007199254740993"`) on
+  GraphQL, REST and MCP: a JSON number past 2^53 is not read exactly by a JavaScript client.
+  An integer within the signed 64-bit range is served as its digits, as is a whole number no
+  larger than 2^53 written with a fraction (`3.0`); any other value is a field error naming
+  the field, never the value. An argument, a variable or an input field takes the digits as
+  a string or a JSON integer in range; a filter compares the column's integer, so
+  `eq: "9007199254740993"` does not match 2^53's row.
+  - Authoring: the type name `BigInt` (also `bigint`, `int8`, `int64`, `long`), as a field, an
+    argument, an input field or a list item. Introspection and the SDL publish
+    `scalar BigInt`.
+  - REST and OpenAPI: `{"type": "string", "format": "int64"}` with the digits' pattern; a
+    filter value that is not the digits of a signed 64-bit integer is refused at the edge.
+  - gRPC: a proto `int64`, every digit the column holds. Declare the field `int64`.
+  - Generated clients: a `string` in TypeScript and Go, a `String` in Rust, a `str` in
+    Python, as a `Decimal` is.
+  - Arrow: `graphql_type_to_arrow("BigInt")` is `Int64`.
 
 - **`compile --database` warns on a view casting a document's text to a temporal type
   (#2213).** A served view, or with gRPC enabled a row view (`vr_<sql_source>`), whose

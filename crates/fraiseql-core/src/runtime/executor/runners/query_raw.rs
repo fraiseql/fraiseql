@@ -292,6 +292,9 @@ impl RawShape {
                 | FieldType::LocalDateTime
                 | FieldType::Date
                 | FieldType::Time => sel.nested_fields.is_empty(),
+                // Stored as a JSON number, a `BigInt` is served as the string of its
+                // digits: a rewrite the copy does not make, so completion serves it.
+                FieldType::BigInt => false,
                 ty => object_type(ty).is_some_and(|child| {
                     self.objects = true;
                     !sel.nested_fields.is_empty() && self.admits(&sel.nested_fields, schema, child)

@@ -350,9 +350,9 @@ fn derive_query_name(interface_name: &str) -> String {
 fn map_primitive_type(s: &str) -> String {
     match s {
         // Integer types
-        "int" | "i32" | "i64" | "Int" | "Integer" | "long" | "Long" | "int32" | "int64" => {
-            "Int".to_string()
-        },
+        "int" | "i32" | "Int" | "Integer" | "int32" => "Int".to_string(),
+        // A 64-bit integer: a value past 32 bits would be refused under an `Int`.
+        "i64" | "long" | "Long" | "int64" | "Int64" | "BigInt" => "BigInt".to_string(),
         // Float types
         "float" | "f32" | "f64" | "Float" | "Double" | "double" | "decimal" | "Decimal"
         | "Float32" | "Float64" => "Float".to_string(),

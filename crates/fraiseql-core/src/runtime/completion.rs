@@ -286,6 +286,8 @@ impl OutputTypes {
     ///   (the text `true` or `false` is it).
     /// - A `String` or an `ID` serves a value of any other kind as its JSON text and never refuses:
     ///   a REST client has no errors document to read a refusal from.
+    /// - A `BigInt` is a `string` of its digits, as on GraphQL: an integer within 64 bits, or a
+    ///   whole number no larger than 2^53 written with a fraction, is that string.
     /// - A `Decimal` is a `string` of its digits: an integer is its exact text.
     /// - A date, a time or a date-time is a `string` in its scalar's format, as on GraphQL; a UUID
     ///   is a `string`. Any other value is refused.
@@ -512,6 +514,7 @@ fn not_a_scalar_message(label: &dyn std::fmt::Display, scalar: Scalar, stored: &
     let name = scalar_name(scalar);
     let (article, gloss) = match scalar {
         Scalar::Int => ("an", ", a signed 32-bit integer"),
+        Scalar::BigInt => ("a", ", a signed 64-bit integer"),
         Scalar::Id => ("an", ""),
         _ => ("a", ""),
     };
@@ -524,6 +527,12 @@ fn not_a_scalar_message(label: &dyn std::fmt::Display, scalar: Scalar, stored: &
         kind_of(stored),
         why.unwrap_or("is not one")
     )
+}
+
+/// Whether a `BigInt` field serves `stored`, as completion serves it on every transport: a
+/// write's success field holds the values its read serves.
+pub fn serves_big_int(stored: &Value) -> bool {
+    !matches!(coerce_built_in::<false>(Scalar::BigInt, stored), Coercion::Refused)
 }
 
 /// What an `ID` field serves for `stored`, as GraphQL completion serves it.
@@ -673,6 +682,7 @@ fn coerce_built_in<const OPEN_API: bool>(scalar: Scalar, value: &Value) -> Coerc
 const fn scalar_name(scalar: Scalar) -> &'static str {
     match scalar {
         Scalar::Int => "Int",
+        Scalar::BigInt => "BigInt",
         Scalar::Float => "Float",
         Scalar::String => "String",
         Scalar::Boolean => "Boolean",
@@ -691,6 +701,9 @@ const fn scalar_name(scalar: Scalar) -> &'static str {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Scalar {
     Int,
+    /// A signed 64-bit integer, served as the string of its digits on every transport: a
+    /// JSON number past 2^53 is not read exactly by a `JavaScript` client.
+    BigInt,
     Float,
     String,
     Boolean,
@@ -713,6 +726,7 @@ impl Scalar {
     const fn of(field_type: &FieldType) -> Option<Self> {
         match field_type {
             FieldType::Int => Some(Self::Int),
+            FieldType::BigInt => Some(Self::BigInt),
             FieldType::Float => Some(Self::Float),
             // A bit vector's and a sparse vector's value is their text.
             FieldType::String | FieldType::BitVector | FieldType::SparseVector => {
@@ -747,7 +761,12 @@ impl Scalar {
             Self::Int => "integer",
             Self::Float => "number",
             Self::Boolean => "boolean",
-            Self::String | Self::Id | Self::Decimal | Self::Temporal(_) | Self::Uuid => "string",
+            Self::String
+            | Self::Id
+            | Self::BigInt
+            | Self::Decimal
+            | Self::Temporal(_)
+            | Self::Uuid => "string",
         }
     }
 }
@@ -771,6 +790,7 @@ fn served_as_is<const OPEN_API: bool>(scalar: Scalar, value: &Value) -> bool {
         | (Scalar::Float, Value::Number(_))
         | (Scalar::String | Scalar::Id | Scalar::Decimal | Scalar::Uuid, Value::String(_))
         | (Scalar::Boolean, Value::Bool(_)) => true,
+        (Scalar::BigInt, Value::String(text)) => crate::runtime::parse_big_int(text).is_some(),
         (Scalar::Decimal | Scalar::Uuid, _) => !OPEN_API,
         (Scalar::Int, Value::Number(number)) => {
             if OPEN_API {
@@ -786,7 +806,7 @@ fn served_as_is<const OPEN_API: bool>(scalar: Scalar, value: &Value) -> bool {
 /// [`coerce_built_in`] for a value [`served_as_is`] does not serve: never `null`, nor a
 /// value of the scalar's own kind but an `Int`'s number outside its range.
 fn coerce_other<const OPEN_API: bool>(scalar: Scalar, value: &Value) -> Coercion {
-    use Scalar::{Boolean, Decimal, Float, Id, Int, String, Temporal};
+    use Scalar::{BigInt, Boolean, Decimal, Float, Id, Int, String, Temporal};
     match (scalar, value) {
         // REST publishes a `String` or an `ID` as a `string`, and its client has no errors
         // document to read a refusal from: a value of any other kind is its JSON text. A
@@ -797,6 +817,7 @@ fn coerce_other<const OPEN_API: bool>(scalar: Scalar, value: &Value) -> Coercion
         (Int, Value::String(text)) => {
             canonical_int::<OPEN_API>(text).map_or(Coercion::Refused, Coercion::Rewrite)
         },
+        (BigInt, Value::Number(number)) => coerce_big_int(number),
         (Float, Value::String(text)) => {
             number_text(text).map_or(Coercion::Refused, |n| Coercion::Rewrite(Value::Number(n)))
         },
@@ -862,17 +883,30 @@ fn coerce_int<const OPEN_API: bool>(number: &serde_json::Number) -> Coercion {
     Coercion::Rewrite(Value::from(float as i32))
 }
 
+/// A number at a `BigInt` position, served as the string of its digits: an integer within
+/// `i64`, or a whole `f64` no larger than 2^53, past which an `f64` no longer holds every
+/// integer and its digits may not be the ones written. Any other number is refused.
+fn coerce_big_int(number: &serde_json::Number) -> Coercion {
+    if let Some(n) = number.as_i64() {
+        return Coercion::Rewrite(Value::String(n.to_string()));
+    }
+    let two_53 = 2.0_f64.powi(53);
+    match number.as_f64() {
+        Some(float) if number.is_f64() && float.fract() == 0.0 && float.abs() <= two_53 => {
+            #[allow(clippy::cast_possible_truncation)]
+            // Reason: a whole number checked to lie within ±2^53 just above
+            Coercion::Rewrite(Value::String((float as i64).to_string()))
+        },
+        _ => Coercion::Refused,
+    }
+}
+
 /// The integer `text` writes in its canonical form (`42`, `-7`, `0`: no sign but a leading
 /// `-`, no leading zero, no `-0`), if its position can hold it: a signed 32-bit integer
 /// under § 3.5.1, any integer JSON's numbers hold exactly under OpenAPI. Any other text
 /// would be served as a value its client never wrote.
 fn canonical_int<const OPEN_API: bool>(text: &str) -> Option<Value> {
-    let digits = text.strip_prefix('-').unwrap_or(text);
-    let canonical = !digits.is_empty()
-        && digits.bytes().all(|b| b.is_ascii_digit())
-        && (digits == "0" || !digits.starts_with('0'))
-        && text != "-0";
-    if !canonical {
+    if !crate::runtime::big_int::is_canonical_integer(text) {
         return None;
     }
     if OPEN_API {

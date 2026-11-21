@@ -101,3 +101,96 @@ fn generated_client_type_checks_in_a_consumer_project() {
         String::from_utf8_lossy(&output.stderr),
     );
 }
+
+const BIG_INT_FIXTURE: &str = include_str!("fixtures/big_int_schema.json");
+
+/// A response holding `BigInt`s past 2^53, the first integer an `f64` cannot hold exactly,
+/// and at the ends of the signed 64-bit range.
+const BIG_INT_WIRE: &str = r#"{"id":"l1","balance":"9007199254740993","credit":"-9223372036854775808","history":["9223372036854775807","9007199254740993"]}"#;
+
+const BIG_INT_TSCONFIG: &str = r#"{
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "types": [],
+    "skipLibCheck": true
+  },
+  "include": ["generated/**/*.ts", "lookup.ts", "round_trip.ts"]
+}
+"#;
+
+/// A `BigInt` argument is written as the digits the server reads it from.
+const BIG_INT_LOOKUP_TS: &str = r#"import { FraiseqlClient, ledger, type Ledger } from "./generated";
+
+export async function lookup(client: FraiseqlClient): Promise<Ledger | null> {
+  return ledger(client, { id: "l1", atLeast: "9007199254740993" });
+}
+"#;
+
+/// `tsc` holds each `BigInt` position to exactly `string`: a `TypeScript` type is erased at
+/// run time, so a `number` would let a consumer do arithmetic the value cannot survive, and
+/// a `bigint` would describe a value `JSON.parse` never produces. Node then runs the file
+/// (its types stripped; the import is type-only, so nothing is resolved).
+const BIG_INT_ROUND_TRIP_TS: &str = r#"import type { Ledger } from "./generated";
+
+type Exactly<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+const balance: Exactly<Ledger["balance"], string> = true;
+const credit: Exactly<Ledger["credit"], string | null> = true;
+const history: Exactly<Ledger["history"], string[]> = true;
+
+const decoded: Ledger = JSON.parse(process.argv[2] ?? "");
+process.stdout.write(JSON.stringify(decoded) + (balance && credit && history ? "" : "!"));
+
+declare const process: { argv: string[]; stdout: { write(text: string): void } };
+"#;
+
+/// The generated type of a `BigInt` carries a value past 2^53 exactly: `tsc` holds it to a
+/// `string`, and a response read into it and written out again keeps every digit.
+#[test]
+#[ignore = "requires network (npx typescript) and Node"]
+fn a_big_int_past_two_to_the_53_round_trips_exactly() {
+    let schema: CompiledSchema = serde_json::from_str(BIG_INT_FIXTURE).unwrap();
+    let generated = typescript::generate(&schema).unwrap();
+
+    let project = tempfile::tempdir().unwrap();
+    let generated_dir = project.path().join("generated");
+    std::fs::create_dir_all(&generated_dir).unwrap();
+    for (rel, content) in &generated {
+        std::fs::write(generated_dir.join(rel), content).unwrap();
+    }
+    std::fs::write(project.path().join("tsconfig.json"), BIG_INT_TSCONFIG).unwrap();
+    std::fs::write(project.path().join("lookup.ts"), BIG_INT_LOOKUP_TS).unwrap();
+    std::fs::write(project.path().join("round_trip.ts"), BIG_INT_ROUND_TRIP_TS).unwrap();
+
+    let checked = Command::new("npx")
+        .args(["-y", "-p", "typescript@5", "tsc", "-p", "tsconfig.json"])
+        .current_dir(project.path())
+        .output()
+        .expect("failed to run npx tsc — is Node installed?");
+    assert!(
+        checked.status.success(),
+        "tsc rejected the BigInt consumer:\n--- stdout ---\n{}\n--- stderr ---\n{}",
+        String::from_utf8_lossy(&checked.stdout),
+        String::from_utf8_lossy(&checked.stderr),
+    );
+
+    let run = Command::new("node")
+        .args(["--experimental-strip-types", "round_trip.ts", BIG_INT_WIRE])
+        .current_dir(project.path())
+        .output()
+        .expect("failed to run node");
+    assert!(
+        run.status.success(),
+        "the BigInt consumer did not run:\n{}\n{}",
+        String::from_utf8_lossy(&run.stdout),
+        String::from_utf8_lossy(&run.stderr),
+    );
+    let served: serde_json::Value = serde_json::from_str(BIG_INT_WIRE).unwrap();
+    let encoded: serde_json::Value = serde_json::from_slice(&run.stdout).unwrap();
+    assert_eq!(encoded, served, "the generated type did not carry every digit");
+}

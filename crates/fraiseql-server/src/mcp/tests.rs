@@ -92,6 +92,41 @@ mod executor_tests {
         assert_eq!(selection_for_type("String", &schema, &|_| true), "");
     }
 
+    /// A `BigInt` is a scalar: selected as a leaf, and declared as itself where it is an
+    /// argument, so the server reads the digits the caller sends.
+    #[test]
+    fn a_big_int_is_selected_as_a_leaf_and_declared_as_itself() {
+        let mut ledger = QueryDefinition::new("ledger", "Ledger");
+        ledger
+            .arguments
+            .push(ArgumentDefinition::optional("atLeast", FieldType::parse("BigInt")));
+        let mut ledger_type = TypeDefinition::new("Ledger", "v_ledger");
+        ledger_type.fields.push(FieldDefinition::new("id", FieldType::Id));
+        ledger_type
+            .fields
+            .push(FieldDefinition::new("balance", FieldType::parse("BigInt")));
+        let mut schema = CompiledSchema {
+            queries: vec![ledger],
+            types: vec![ledger_type],
+            ..CompiledSchema::default()
+        };
+        schema.build_indexes();
+
+        assert!(is_scalar_field_type(&FieldType::parse("BigInt")));
+        let args = serde_json::json!({ "atLeast": "9007199254740993" });
+        let op = build_operation(
+            "ledger",
+            Some(args.as_object().unwrap()),
+            &schema,
+            &open_config(),
+            &|_| true,
+        )
+        .unwrap();
+        assert!(op.document.contains("$atLeast: BigInt"), "{}", op.document);
+        assert!(op.document.contains("{ id balance }"), "{}", op.document);
+        assert_eq!(op.variables.get("atLeast"), args.get("atLeast"));
+    }
+
     /// One query `users(filter: JSON, limit: Int)` returning `User { id name }`.
     fn schema() -> CompiledSchema {
         let mut users = QueryDefinition::new("users", "User");
@@ -512,6 +547,10 @@ mod tools_tests {
 
         let schema = field_type_to_json_schema(&FieldType::Boolean);
         assert_eq!(schema, serde_json::json!({ "type": "boolean" }));
+
+        // The digits of a signed 64-bit integer, as the server serves and reads them.
+        let schema = field_type_to_json_schema(&FieldType::parse("BigInt"));
+        assert_eq!(schema, serde_json::json!({ "type": "string", "format": "int64" }));
 
         let schema = field_type_to_json_schema(&FieldType::list(FieldType::Int));
         assert_eq!(schema, serde_json::json!({ "type": "array", "items": { "type": "integer" } }));

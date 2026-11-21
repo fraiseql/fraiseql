@@ -104,6 +104,7 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Scalar {
     Int,
+    BigInt,
     Float,
     String,
     Boolean,
@@ -122,6 +123,7 @@ impl Scalar {
     const fn from_field_type(field_type: &FieldType) -> Option<Self> {
         match field_type {
             FieldType::Int => Some(Self::Int),
+            FieldType::BigInt => Some(Self::BigInt),
             FieldType::Float => Some(Self::Float),
             FieldType::String => Some(Self::String),
             FieldType::Boolean => Some(Self::Boolean),
@@ -143,6 +145,7 @@ impl Scalar {
     fn from_type_name(name: &str) -> Option<Self> {
         match name {
             "Int" => Some(Self::Int),
+            "BigInt" => Some(Self::BigInt),
             "Float" => Some(Self::Float),
             "String" => Some(Self::String),
             "Boolean" => Some(Self::Boolean),
@@ -161,6 +164,7 @@ impl Scalar {
     const fn name(self) -> &'static str {
         match self {
             Self::Int => "Int",
+            Self::BigInt => "BigInt",
             Self::Float => "Float",
             Self::String => "String",
             Self::Boolean => "Boolean",
@@ -186,6 +190,21 @@ impl Scalar {
         }
         if self == Self::Int && value.is_i64() {
             return Some(format!("an Int outside the 32-bit range ({}..={})", i32::MIN, i32::MAX));
+        }
+        if self == Self::BigInt {
+            return Some(
+                match value {
+                    Value::String(_) => {
+                        "a String that is not the digits of a signed 64-bit integer"
+                    },
+                    Value::Number(n) if n.is_f64() => {
+                        "a number an f64 had already rounded: write a BigInt's digits as a string"
+                    },
+                    Value::Number(_) => "an Int outside the signed 64-bit range",
+                    _ => return Some(format!("a {} value", json_shape(value))),
+                }
+                .to_string(),
+            );
         }
         if self == Self::Uuid && value.is_string() {
             return Some("a String that is not a UUID".to_string());
@@ -221,6 +240,9 @@ impl Scalar {
             // load-bearing rather than pedantic — `limit: 99999999999999`
             // overflowed `u32` at the read site and dropped the clause.
             Self::Int => value.as_i64().is_some_and(|v| i32::try_from(v).is_ok()),
+            // Its canonical digits as a string, or a JSON integer in range: what a client
+            // holding a native 64-bit integer writes.
+            Self::BigInt => crate::runtime::big_int_input(value).is_some(),
             Self::Float => value.is_number(),
             Self::String => value.is_string(),
             // Each value space is fully specified, like a UUID's, and PostgreSQL's cast reads
@@ -252,6 +274,7 @@ impl Scalar {
             Self::Date => Some(Temporal::Date),
             Self::Time => Some(Temporal::Time),
             Self::Int
+            | Self::BigInt
             | Self::Float
             | Self::String
             | Self::Boolean
@@ -276,10 +299,12 @@ impl Scalar {
         }
         matches!(
             (self, location),
-            (Self::Int, Self::Float | Self::Decimal | Self::Id)
+            (Self::Int, Self::BigInt | Self::Float | Self::Decimal | Self::Id)
+                | (Self::BigInt, Self::Decimal)
                 | (
                     Self::String,
-                    Self::Id
+                    Self::BigInt
+                        | Self::Id
                         | Self::Uuid
                         | Self::DateTime
                         | Self::LocalDateTime
@@ -290,7 +315,12 @@ impl Scalar {
                 | (Self::Id, Self::String | Self::Uuid)
                 | (Self::Uuid, Self::String | Self::Id)
                 | (
-                    Self::DateTime | Self::LocalDateTime | Self::Date | Self::Time | Self::Decimal,
+                    Self::BigInt
+                        | Self::DateTime
+                        | Self::LocalDateTime
+                        | Self::Date
+                        | Self::Time
+                        | Self::Decimal,
                     Self::String
                 )
         )

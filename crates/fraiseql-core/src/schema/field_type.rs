@@ -974,6 +974,11 @@ pub enum FieldType {
     /// GraphQL Int type (32-bit signed integer).
     Int,
 
+    /// A signed 64-bit integer, served as the string of its decimal digits
+    /// (`"9007199254740993"`): a JSON number past 2^53 is not read exactly by a
+    /// `JavaScript` client. An input is that string or a JSON integer in range.
+    BigInt,
+
     /// GraphQL Float type (double precision).
     Float,
 
@@ -1129,6 +1134,7 @@ macro_rules! builtin_scalars {
 builtin_scalars! {
     String => "String",
     Int => "Int",
+    BigInt => "BigInt",
     Float => "Float",
     Boolean => "Boolean",
     Id => "ID",
@@ -1176,6 +1182,7 @@ impl FieldType {
             self,
             Self::String
                 | Self::Int
+                | Self::BigInt
                 | Self::Float
                 | Self::Boolean
                 | Self::Id
@@ -1288,6 +1295,7 @@ impl FieldType {
             // `{1:0.5,7:0.25}/1000` — each type's own text form.
             Self::String | Self::BitVector | Self::SparseVector => "String".to_string(),
             Self::Int => "Int".to_string(),
+            Self::BigInt => "BigInt".to_string(),
             Self::Float => "Float".to_string(),
             Self::Boolean => "Boolean".to_string(),
             Self::Id => "ID".to_string(),
@@ -1324,6 +1332,7 @@ impl FieldType {
             // String, ID, and custom scalars are all stored as TEXT
             Self::String | Self::Id | Self::Scalar(_) => "TEXT".to_string(),
             Self::Int => "INTEGER".to_string(),
+            Self::BigInt => "BIGINT".to_string(),
             Self::Float => "DOUBLE PRECISION".to_string(),
             Self::Boolean => "BOOLEAN".to_string(),
             Self::DateTime => "TIMESTAMPTZ".to_string(),
@@ -1432,6 +1441,7 @@ impl FieldType {
         match s.to_lowercase().as_str() {
             "string" => Self::String,
             "int" | "integer" => Self::Int,
+            "bigint" | "int8" | "int64" | "long" => Self::BigInt,
             "float" | "double" => Self::Float,
             "boolean" | "bool" => Self::Boolean,
             "id" => Self::Id,

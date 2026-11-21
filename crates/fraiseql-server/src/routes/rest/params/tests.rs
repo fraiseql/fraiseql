@@ -647,6 +647,20 @@ fn coerce_int() {
     assert_eq!(result, serde_json::json!(42));
 }
 
+/// A `BigInt` operand is its canonical digits, kept as the string they were written as: a
+/// number past 2^53 is not held exactly as an `f64`. Anything else is refused at the edge.
+#[test]
+fn coerce_big_int_keeps_its_digits_and_refuses_the_rest() {
+    let big_int = FieldType::parse("BigInt");
+    for digits in ["9007199254740993", "-9223372036854775808", "0"] {
+        assert_eq!(coerce_to_type("v", digits, &big_int).unwrap(), serde_json::json!(digits));
+    }
+    for refused in ["9223372036854775808", "1.5", "1e3", "007", "-0", "abc", ""] {
+        let err = coerce_to_type("v", refused, &big_int).unwrap_err();
+        assert!(err.to_string().contains("64-bit integer"), "{refused}: {err}");
+    }
+}
+
 #[test]
 fn coerce_float() {
     let result = coerce_to_type("v", "2.78", &FieldType::Float).unwrap();

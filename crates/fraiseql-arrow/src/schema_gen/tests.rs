@@ -5,6 +5,7 @@ use super::*;
 fn test_graphql_to_arrow_scalars() {
     assert_eq!(graphql_type_to_arrow("String", false), DataType::Utf8);
     assert_eq!(graphql_type_to_arrow("Int", false), DataType::Int32);
+    assert_eq!(graphql_type_to_arrow("BigInt", false), DataType::Int64);
     assert_eq!(graphql_type_to_arrow("Float", false), DataType::Float64);
     assert_eq!(graphql_type_to_arrow("Boolean", false), DataType::Boolean);
     assert_eq!(graphql_type_to_arrow("ID", false), DataType::Utf8);

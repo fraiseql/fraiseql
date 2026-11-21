@@ -35,6 +35,15 @@ fn scalar_types_map_correctly() {
     assert_eq!(field_type_to_column_type(&FieldType::Decimal), Some(RowViewColumnType::Decimal));
 }
 
+/// A `BigInt` is read from the row view as the 64-bit integer its proto field carries.
+#[test]
+fn a_big_int_maps_to_a_64_bit_column() {
+    assert_eq!(
+        field_type_to_column_type(&FieldType::parse("BigInt")),
+        Some(RowViewColumnType::Int64)
+    );
+}
+
 #[test]
 fn non_scalar_types_return_none() {
     assert_eq!(field_type_to_column_type(&FieldType::Object("User".to_string())), None);

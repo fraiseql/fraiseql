@@ -4933,3 +4933,67 @@ mod is_input_field_attributes {
         }
     }
 }
+
+// ── BigInt ────────────────────────────────────────────────────────────────────
+
+/// An authored `BigInt` is the built-in 64-bit scalar, as a field, an argument and a list
+/// item alike, with nothing declaring it: an author reaches it as they reach `Decimal`.
+#[test]
+fn an_authored_big_int_is_the_built_in_scalar() {
+    let intermediate: IntermediateSchema = serde_json::from_value(serde_json::json!({
+        "types": [{
+            "name": "Ledger",
+            "sql_source": "v_ledger",
+            "fields": [
+                {"name": "id", "type": "ID", "nullable": false},
+                {"name": "balance", "type": "BigInt", "nullable": false},
+                {"name": "history", "type": "[BigInt!]", "nullable": true}
+            ]
+        }],
+        "queries": [{
+            "name": "ledgers",
+            "return_type": "Ledger",
+            "returns_list": true,
+            "sql_source": "v_ledger",
+            "arguments": [{"name": "atLeast", "type": "BigInt", "nullable": true}]
+        }]
+    }))
+    .expect("an authoring schema");
+    let compiled = SchemaConverter::convert(intermediate).expect("convert");
+    let ledger = compiled.types.iter().find(|t| t.name == "Ledger").unwrap();
+    let field = |name: &str| &ledger.fields.iter().find(|f| f.name == name).unwrap().field_type;
+    let big_int = FieldType::from_authoring_name("BigInt").expect("a built-in scalar");
+    assert!(big_int.is_scalar(), "{big_int:?}");
+    assert_eq!(field("balance"), &big_int);
+    assert_eq!(field("history"), &FieldType::list(big_int.clone()));
+    let query = compiled.queries.iter().find(|q| q.name == "ledgers").unwrap();
+    assert_eq!(query.arguments[0].arg_type, big_int);
+}
+
+/// A project's own scalar named `BigInt`, the workaround before the built-in existed, now
+/// denotes the built-in: its field is the 64-bit scalar, served as its digits.
+#[test]
+fn a_custom_scalar_named_big_int_denotes_the_built_in() {
+    let intermediate: IntermediateSchema = serde_json::from_value(serde_json::json!({
+        "custom_scalars": [{"name": "BigInt", "description": "a project's own 64-bit integer"}],
+        "types": [{
+            "name": "Ledger",
+            "sql_source": "v_ledger",
+            "fields": [
+                {"name": "id", "type": "ID", "nullable": false},
+                {"name": "balance", "type": "BigInt", "nullable": false}
+            ]
+        }],
+        "queries": [{
+            "name": "ledgers",
+            "return_type": "Ledger",
+            "returns_list": true,
+            "sql_source": "v_ledger"
+        }]
+    }))
+    .expect("an authoring schema");
+    let compiled = SchemaConverter::convert(intermediate).expect("convert");
+    let ledger = compiled.types.iter().find(|t| t.name == "Ledger").unwrap();
+    let balance = ledger.fields.iter().find(|f| f.name == "balance").unwrap();
+    assert_eq!(Some(&balance.field_type), FieldType::from_authoring_name("BigInt").as_ref());
+}

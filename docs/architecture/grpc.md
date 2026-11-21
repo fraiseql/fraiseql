@@ -87,6 +87,9 @@ A value of a kind its proto field cannot carry (a number at a `string`, a string
 `int32`) refuses the read with `INTERNAL`, naming the field and its declared kind, never the
 value.
 
+A `BigInt` field reads its column as a proto `int64`, every digit a `bigint` holds, past
+the 2^53 a JSON number holds exactly. Declare it `int64`.
+
 A `Decimal` column carries the exact digits the database stored, scale included (`1.50`).
 Declare its field as a `string`, or as a decimal message with a `string value` field, the
 `google.type.Decimal` shape:

@@ -82,6 +82,12 @@ pub(super) fn builtin_scalars() -> Vec<IntrospectionType> {
             Some("https://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf"),
         ),
         scalar_type(
+            "BigInt",
+            "A signed 64-bit integer, as a string of its digits (\"9007199254740993\"): a JSON \
+             number past 2^53 is not read exactly by every client. Written as such a string, or \
+             as an integer.",
+        ),
+        scalar_type(
             "Decimal",
             "Exact decimal number, as a string of its digits (\"12.50\"). Written as such a \
              string, or as an integer.",

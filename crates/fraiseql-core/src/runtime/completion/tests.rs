@@ -286,6 +286,7 @@ fn published_schema() -> CompiledSchema {
         ("label", FieldType::String),
         ("key", FieldType::Id),
         ("price", FieldType::Decimal),
+        ("total", FieldType::parse("BigInt")),
         ("at", FieldType::DateTime),
         ("local", FieldType::LocalDateTime),
         ("day", FieldType::Date),
@@ -795,4 +796,67 @@ fn a_values_typename_is_taken_before_the_resolved_type() {
         &ResolvedTypes::root("node", "Kind"),
     );
     assert!(response.get("errors").is_none(), "`__typename` wins: {response}");
+}
+
+/// The values a `BigInt` position serves, as the string of its digits, and the ones it
+/// refuses. Its digits are a string on GraphQL and on REST alike: a JSON number past 2^53
+/// is not read exactly by a `JavaScript` client.
+fn big_int_table() -> Vec<(Value, Option<Value>)> {
+    vec![
+        (json!("9007199254740993"), Some(json!("9007199254740993"))),
+        (json!("-9223372036854775808"), Some(json!("-9223372036854775808"))),
+        (json!(9_007_199_254_740_993_i64), Some(json!("9007199254740993"))),
+        (json!(i64::MAX), Some(json!("9223372036854775807"))),
+        (json!(-7), Some(json!("-7"))),
+        // A whole number written with a fraction or an exponent, where an `f64` still holds
+        // every integer: its digits are the ones written.
+        (json!(3.0), Some(json!("3"))),
+        (json!(-0.0), Some(json!("0"))),
+        (json!(9_007_199_254_740_992.0), Some(json!("9007199254740992"))),
+        (json!(null), Some(json!(null))),
+        // Past 2^53 an `f64` no longer holds every integer, and past `i64` no `BigInt` is.
+        (json!(18_014_398_509_481_984.0), None),
+        (json!(1e300), None),
+        (json!(u64::MAX), None),
+        (json!(1.5), None),
+        (json!("9223372036854775808"), None),
+        (json!("007"), None),
+        (json!("-0"), None),
+        (json!("1.0"), None),
+        (json!(" 1"), None),
+        (json!(true), None),
+        (json!(["1"]), None),
+        (json!({"n": "1"}), None),
+    ]
+}
+
+#[test]
+fn graphql_serves_a_big_int_as_the_string_of_its_digits_or_refuses_it() {
+    for (stored, served) in big_int_table() {
+        assert_eq!(served_by_graphql("total", &stored).ok(), served, "{stored}");
+    }
+}
+
+#[test]
+fn rest_serves_a_big_int_as_the_string_of_its_digits_or_refuses_it() {
+    for (stored, served) in big_int_table() {
+        assert_eq!(served_by_rest("total", &stored).ok(), served, "{stored}");
+    }
+}
+
+/// A refused `BigInt` names its scalar and the stored value's kind, never the value.
+#[test]
+fn a_big_int_refusal_names_the_scalar_and_never_the_value() {
+    let (message, path) = served_by_graphql("total", &json!("12s3cr3t")).unwrap_err();
+    assert_eq!(
+        message,
+        "`Reading.total` is a `BigInt`, a signed 64-bit integer, and the stored value is a \
+         String that is not one"
+    );
+    assert_eq!(path, json!(["readings", 0, "total"]));
+    assert_eq!(
+        served_by_rest("total", &json!(1.5)).unwrap_err(),
+        "`Reading.total` is published as an OpenAPI `string`, and the stored value is a number \
+         that is not one"
+    );
 }

@@ -101,6 +101,7 @@ read and at every level a `select=` embeds:
 | `Float` | `number` | A numeric string in JSON's syntax (`"2.5"`) is that number |
 | `Boolean` | `boolean` | `"true"` and `"false"` are that Boolean |
 | `String`, `ID` | `string` | Served as its JSON text, never refused (`7` → `"7"`, `1.50` → `"1.5"`) |
+| `BigInt` | `string`, format `int64` | An integer in the signed 64-bit range is its digits (`9007199254740993` → `"9007199254740993"`), as is a whole number no larger than 2^53 written with a fraction; a string other than canonical digits is refused |
 | `Decimal` | `string` | Its digits as stored (`12.50` → `"12.50"`) |
 | `DateTime`, `LocalDateTime`, `Date`, `Time` | `string` | Refused, as is a string outside the scalar's format ([temporal values](../features/temporal-values.md)) |
 | `UUID` | `string` | Refused |

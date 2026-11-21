@@ -114,6 +114,7 @@ pub const fn field_type_to_column_type(ft: &FieldType) -> Option<RowViewColumnTy
         | FieldType::Enum(_) => Some(RowViewColumnType::Text),
         FieldType::Decimal => Some(RowViewColumnType::Decimal),
         FieldType::Int => Some(RowViewColumnType::Int32),
+        FieldType::BigInt => Some(RowViewColumnType::Int64),
         FieldType::Float => Some(RowViewColumnType::Float64),
         FieldType::Boolean => Some(RowViewColumnType::Boolean),
         FieldType::Uuid => Some(RowViewColumnType::Uuid),

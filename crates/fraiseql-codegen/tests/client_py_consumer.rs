@@ -134,3 +134,79 @@ print("ok")
         String::from_utf8_lossy(&probe.stderr),
     );
 }
+
+const BIG_INT_FIXTURE: &str = include_str!("fixtures/big_int_schema.json");
+
+/// A response holding `BigInt`s past 2^53, the first integer an `f64` cannot hold exactly,
+/// and at the ends of the signed 64-bit range.
+const BIG_INT_WIRE: &str = r#"{"id": "l1", "balance": "9007199254740993", "credit": "-9223372036854775808", "history": ["9223372036854775807", "9007199254740993"]}"#;
+
+/// `ty` holds each `BigInt` position to `str`, the digits the server sends; the run reads a
+/// response into the generated type and writes it out again.
+const BIG_INT_USAGE_PY: &str = r#"import json
+import sys
+from typing import assert_type, cast
+
+from fraiseql_client import FraiseqlClient, ledger
+from fraiseql_client.types import Ledger
+
+
+def lookup(client: FraiseqlClient) -> Ledger | None:
+    return ledger(client, id="l1", atLeast="9007199254740993")
+
+
+def round_trip(wire: str) -> str:
+    decoded = cast(Ledger, json.loads(wire))
+    assert_type(decoded["balance"], str)
+    assert_type(decoded["credit"], str | None)
+    assert_type(decoded["history"], list[str])
+    return json.dumps(decoded)
+
+
+if __name__ == "__main__":
+    print(round_trip(sys.argv[1]), end="")
+"#;
+
+/// The generated type of a `BigInt` carries a value past 2^53 exactly: `ty` holds it to a
+/// `str`, and a response read into it and written out again keeps every digit.
+#[test]
+#[ignore = "requires network (uvx ty) and uv"]
+fn a_big_int_past_two_to_the_53_round_trips_exactly() {
+    let schema: CompiledSchema = serde_json::from_str(BIG_INT_FIXTURE).unwrap();
+    let generated = python::generate(&schema).unwrap();
+
+    let project = tempfile::tempdir().unwrap();
+    let package_dir = project.path().join("fraiseql_client");
+    std::fs::create_dir_all(&package_dir).unwrap();
+    for (rel, content) in &generated {
+        std::fs::write(package_dir.join(rel), content).unwrap();
+    }
+    std::fs::write(project.path().join("usage.py"), BIG_INT_USAGE_PY).unwrap();
+
+    let checked = Command::new("uvx")
+        .args(["ty", "check", "--python-version", "3.12", "."])
+        .current_dir(project.path())
+        .output()
+        .expect("failed to run uvx ty — is uv installed?");
+    assert!(
+        checked.status.success(),
+        "ty rejected the BigInt consumer:\n--- stdout ---\n{}\n--- stderr ---\n{}",
+        String::from_utf8_lossy(&checked.stdout),
+        String::from_utf8_lossy(&checked.stderr),
+    );
+
+    let run = Command::new("python3")
+        .args(["usage.py", BIG_INT_WIRE])
+        .current_dir(project.path())
+        .output()
+        .expect("failed to run python3");
+    assert!(
+        run.status.success(),
+        "the BigInt consumer did not run:\n{}\n{}",
+        String::from_utf8_lossy(&run.stdout),
+        String::from_utf8_lossy(&run.stderr),
+    );
+    let served: serde_json::Value = serde_json::from_str(BIG_INT_WIRE).unwrap();
+    let encoded: serde_json::Value = serde_json::from_slice(&run.stdout).unwrap();
+    assert_eq!(encoded, served, "the generated type did not carry every digit");
+}

@@ -302,6 +302,7 @@ const fn excludes_json_composites(field_type: &FieldType) -> bool {
         field_type,
         FieldType::String
             | FieldType::Int
+            | FieldType::BigInt
             | FieldType::Float
             | FieldType::Boolean
             | FieldType::Id

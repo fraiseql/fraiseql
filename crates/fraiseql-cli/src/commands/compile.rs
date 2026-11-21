@@ -1276,6 +1276,7 @@ pub(crate) fn field_type_to_pg(ft: &FieldType) -> String {
     match ft {
         FieldType::String | FieldType::Scalar(_) => "TEXT".to_string(),
         FieldType::Int => "INTEGER".to_string(),
+        FieldType::BigInt => "BIGINT".to_string(),
         FieldType::Float => "DOUBLE PRECISION".to_string(),
         FieldType::Boolean => "BOOLEAN".to_string(),
         FieldType::Id | FieldType::Uuid => "UUID".to_string(),
