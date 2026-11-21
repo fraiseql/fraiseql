@@ -5,7 +5,7 @@ use super::{Executor, support};
 use crate::{
     error::{FraiseQLError, Result},
     runtime::ExecutionContext,
-    security::{FieldAccessError, SecurityContext},
+    security::SecurityContext,
 };
 
 /// Resolve session variable mappings against the current security context.
@@ -50,37 +50,6 @@ pub fn resolve_session_variables(
 }
 
 impl Executor {
-    /// Validate that user has access to all requested fields.
-    pub(super) fn validate_field_access(
-        &self,
-        query: &str,
-        variables: Option<&serde_json::Value>,
-        user_scopes: &[String],
-        filter: &crate::security::FieldFilter,
-    ) -> Result<()> {
-        // Parse query to get field selections
-        let query_match = self.ctx.matcher.match_query(query, variables)?;
-
-        // Get the return type name from the query definition
-        let type_name = &query_match.query_def.return_type;
-
-        // Validate each requested field
-        let field_refs: Vec<&str> = query_match.fields.iter().map(String::as_str).collect();
-        let errors = filter.validate_fields(type_name, &field_refs, user_scopes);
-
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            // Return the first error (could aggregate all errors if desired)
-            let first_error = &errors[0];
-            Err(FraiseQLError::Authorization {
-                message:  first_error.message.clone(),
-                action:   Some("read".to_string()),
-                resource: Some(format!("{}.{}", first_error.type_name, first_error.field_name)),
-            })
-        }
-    }
-
     /// Execute a GraphQL query with cancellation support via `ExecutionContext`.
     ///
     /// This method allows graceful cancellation of long-running queries through a
@@ -270,38 +239,6 @@ impl Executor {
             true,
         )
         .await
-    }
-
-    /// Check if a specific field can be accessed with given scopes.
-    ///
-    /// This is a convenience method for checking field access without executing a query.
-    ///
-    /// # Arguments
-    ///
-    /// * `type_name` - The GraphQL type name
-    /// * `field_name` - The field name
-    /// * `user_scopes` - User's scopes from JWT token
-    ///
-    /// # Returns
-    ///
-    /// `Ok(())` if access is allowed, `Err(FieldAccessError)` if denied
-    ///
-    /// # Errors
-    ///
-    /// Returns `FieldAccessError::AccessDenied` if the user's scopes do not include the
-    /// required scope for the field.
-    pub fn check_field_access(
-        &self,
-        type_name: &str,
-        field_name: &str,
-        user_scopes: &[String],
-    ) -> std::result::Result<(), FieldAccessError> {
-        if let Some(ref filter) = self.ctx.config.field_filter {
-            filter.can_access(type_name, field_name, user_scopes)
-        } else {
-            // No filter configured, allow all access
-            Ok(())
-        }
     }
 
     /// Execute a query and return parsed JSON.

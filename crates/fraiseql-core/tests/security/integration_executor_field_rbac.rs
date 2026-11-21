@@ -13,7 +13,7 @@ use std::collections::HashMap;
 
 use chrono::Utc;
 use fraiseql_core::{
-    runtime::{JsonbOptimizationOptions, RuntimeConfig, can_access_field, filter_fields},
+    runtime::{RuntimeConfig, can_access_field, filter_fields},
     schema::{
         CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType, RoleDefinition,
         SecurityConfig, TypeDefinition,
@@ -322,45 +322,6 @@ fn test_executor_projection_fields_filtered_by_scope() {
         "Filtered fields should be less than total"
     );
     assert!(!accessible_field_names.contains(&"analytics".to_string()));
-}
-
-#[test]
-fn test_executor_runtime_config_with_field_filter() {
-    let config = RuntimeConfig {
-        query_function_resolver: None,
-        after_mutation_observer: None,
-        write_gate:              None,
-        root_error_renderer:     None,
-        suggestions:             true,
-
-        cache_query_plans:           true,
-        max_page_size:               Some(1000),
-        max_offset:                  None,
-        max_semi_additive_cells:     fraiseql_core::runtime::DEFAULT_MAX_SEMI_ADDITIVE_CELLS,
-        nearest_short_result:        fraiseql_core::runtime::notices::ShortResultPolicy::Signal,
-        enable_tracing:              false,
-        field_filter:                None,
-        rls_policy:                  None,
-        field_authorizer:            None,
-        authorizer:                  None,
-        query_timeout_ms:            30_000,
-        jsonb_optimization:          JsonbOptimizationOptions::default(),
-        query_validation:            None,
-        max_operation_cost:          None,
-        max_response_bytes:          None,
-        operator_max_response_bytes: None,
-        audit_mutations:             false,
-        changelog_enabled:           true,
-        dry_run_mutations:           false,
-        mutation_error_shape_check:  fraiseql_core::runtime::MutationErrorShapeCheck::Off,
-        constraint_metadata:         fraiseql_core::runtime::ConstraintMetadata::Identifier,
-        cascade_limits:              fraiseql_core::runtime::CascadeLimits::default(),
-        before_mutation_gate:        None,
-    };
-
-    // WHEN: Config is created
-    // THEN: Should have field_filter option
-    assert!(config.field_filter.is_none(), "Config should support field_filter");
 }
 
 #[test]

@@ -1,7 +1,6 @@
 //! Dynamic, decision-returning field-level authorization.
 //!
-//! Where [`FieldFilter`](crate::security::FieldFilter) /
-//! [`requires_scope`](crate::schema::FieldDefinition) answer the *static* question
+//! Where [`requires_scope`](crate::schema::FieldDefinition) answers the *static* question
 //! "does this principal hold scope X?", a [`FieldAuthorizer`] answers the *dynamic*
 //! question "may **this** principal read **this** field of **this** row, given the
 //! field's arguments?". It is the field-level analogue of an operation-level

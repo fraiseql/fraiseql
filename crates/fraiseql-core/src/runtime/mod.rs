@@ -199,8 +199,7 @@ pub use window_parser::WindowQueryParser;
 pub use window_projector::WindowProjector;
 
 use crate::security::{
-    Authorizer, BeforeMutationGate, FieldAuthorizer, FieldFilter, FieldFilterConfig,
-    QueryValidatorConfig, RLSPolicy,
+    Authorizer, BeforeMutationGate, FieldAuthorizer, QueryValidatorConfig, RLSPolicy,
 };
 
 /// Runtime configuration for the FraiseQL query executor.
@@ -216,7 +215,6 @@ use crate::security::{
 /// | `query_validation` | `None` | Derived from compiled `[validation]` limits (#379) |
 /// | `enable_tracing` | `false` | Emit `OpenTelemetry` spans for each query |
 /// | `query_timeout_ms` | `30 000` | Hard limit; 0 disables the timeout |
-/// | `field_filter` | `None` | No field-level access control |
 /// | `rls_policy` | `None` | No row-level security |
 /// | `authorizer` | `None` | No operation-level authorization |
 /// | `before_mutation_gate` | `None` | No `before:mutation` enforcement |
@@ -230,18 +228,12 @@ use crate::security::{
 ///
 /// ```
 /// use fraiseql_core::runtime::RuntimeConfig;
-/// use fraiseql_core::security::FieldFilterConfig;
 ///
 /// let config = RuntimeConfig {
 ///     enable_tracing: true,
 ///     query_timeout_ms: 5_000,
 ///     ..RuntimeConfig::default()
-/// }
-/// .with_field_filter(
-///     FieldFilterConfig::new()
-///         .protect_field("User", "salary")
-///         .protect_field("User", "ssn"),
-/// );
+/// };
 /// ```
 ///
 /// `Clone` is derived (the trait-object fields are behind `Arc`) so a rebuild —
@@ -279,10 +271,6 @@ pub struct RuntimeConfig {
 
     /// Enable performance tracing.
     pub enable_tracing: bool,
-
-    /// Optional field filter for access control.
-    /// When set, validates that users have required scopes to access fields.
-    pub field_filter: Option<FieldFilter>,
 
     /// Optional row-level security (RLS) policy.
     /// When set, evaluates access rules based on `SecurityContext` to determine
@@ -531,7 +519,6 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("max_semi_additive_cells", &self.max_semi_additive_cells)
             .field("nearest_short_result", &self.nearest_short_result)
             .field("enable_tracing", &self.enable_tracing)
-            .field("field_filter", &self.field_filter.is_some())
             .field("rls_policy", &self.rls_policy.is_some())
             .field("field_authorizer", &self.field_authorizer.is_some())
             .field("authorizer", &self.authorizer.is_some())
@@ -566,7 +553,6 @@ impl Default for RuntimeConfig {
             max_semi_additive_cells:     DEFAULT_MAX_SEMI_ADDITIVE_CELLS,
             nearest_short_result:        notices::ShortResultPolicy::Signal,
             enable_tracing:              false,
-            field_filter:                None,
             rls_policy:                  None,
             field_authorizer:            None,
             authorizer:                  None,
@@ -593,27 +579,6 @@ impl Default for RuntimeConfig {
 }
 
 impl RuntimeConfig {
-    /// Create a new runtime config with a field filter.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use fraiseql_core::runtime::RuntimeConfig;
-    /// use fraiseql_core::security::FieldFilterConfig;
-    ///
-    /// let config = RuntimeConfig::default()
-    ///     .with_field_filter(
-    ///         FieldFilterConfig::new()
-    ///             .protect_field("User", "salary")
-    ///             .protect_field("User", "ssn")
-    ///     );
-    /// ```
-    #[must_use = "builder method returns modified builder"]
-    pub fn with_field_filter(mut self, config: FieldFilterConfig) -> Self {
-        self.field_filter = Some(FieldFilter::new(config));
-        self
-    }
-
     /// Configure row-level security (RLS) policy for access control.
     ///
     /// When set, the executor will evaluate the RLS policy before executing queries,
@@ -916,7 +881,6 @@ impl RuntimeConfig {
             max_semi_additive_cells: _, // schema-derived
             nearest_short_result,
             enable_tracing,
-            field_filter,
             rls_policy,
             field_authorizer,
             authorizer,
@@ -947,7 +911,6 @@ impl RuntimeConfig {
             max_semi_additive_cells,
             nearest_short_result,
             enable_tracing,
-            field_filter,
             rls_policy,
             field_authorizer,
             authorizer,

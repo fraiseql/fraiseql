@@ -173,7 +173,7 @@ A PEP is only as strong as its least-guarded entry path. The authorizer is enfor
 | Path | Where it is enforced |
 |------|----------------------|
 | Authenticated GraphQL (`execute_with_security`) — queries, aggregate, window, `node`, `_entities`, introspection | Chokepoint, before dispatch (`principal = Some`) |
-| Anonymous GraphQL (`execute`), incl. multi-root, `execute_with_scopes`, `execute_with_context` | Chokepoint, before dispatch (`principal = None`) |
+| Anonymous GraphQL (`execute`), incl. multi-root, `execute_with_context` | Chokepoint, before dispatch (`principal = None`) |
 | MCP tool calls (auth + anon) | Route through the GraphQL chokepoints |
 | Mutations — GraphQL, MCP, **authenticated and anonymous REST**, the direct API | The universal mutation chokepoint (`execute_mutation_impl`), covering the anonymous-REST write path that bypasses the `execute*`/`execute_with_security` chokepoints |
 | REST reads — GET, count, streaming (NDJSON/CSV/XLSX), embedding sub-queries, bulk-by-filter lookup | The shared read runner methods (`execute_query_direct` / `count_rows`) |
@@ -190,9 +190,6 @@ A PEP is only as strong as its least-guarded entry path. The authorizer is enfor
 - **Per-event subscription re-evaluation.** A subscription is authorized **once**, at
   establishment. Per-event delivery does not route through the executor, so a policy that
   changes mid-stream is not re-applied to an already-established subscription.
-- **`execute_with_scopes` principal fidelity.** That entry point carries scopes but not a
-  full `SecurityContext`, so the authorizer sees it as anonymous (`None`). Use
-  `execute_with_security` for principal-aware operation authorization.
 - **`RLSPolicy::evaluate()` argument widening.** Row-filter injection already receives the
   operation name; widening it to also receive the operation arguments is a separate
   (breaking) change tracked independently.

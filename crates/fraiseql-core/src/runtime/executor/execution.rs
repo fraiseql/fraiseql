@@ -1,5 +1,4 @@
-//! Core query execution — `execute()`, the shared `execute_dispatch()`, and
-//! `execute_with_scopes()`.
+//! Core query execution — `execute()` and the shared `execute_dispatch()`.
 
 use std::{sync::Arc, time::Duration};
 
@@ -144,7 +143,7 @@ impl Executor {
                     let timeout_duration = Duration::from_millis(self.ctx.config.query_timeout_ms);
                     tokio::time::timeout(
                         timeout_duration,
-                        self.execute_dispatch_body(
+                        self.execute_dispatch(
                             query,
                             variables,
                             security_context,
@@ -162,14 +161,8 @@ impl Executor {
                         }
                     })?
                 } else {
-                    self.execute_dispatch_body(
-                        query,
-                        variables,
-                        security_context,
-                        operation_name,
-                        raw,
-                    )
-                    .await
+                    self.execute_dispatch(query, variables, security_context, operation_name, raw)
+                        .await
                 }
             })))
             .await;
@@ -186,9 +179,8 @@ impl Executor {
 
     /// GATE 1: query-structure validation (depth/complexity/size `DoS` limits).
     ///
-    /// The single implementation behind every entry point — `execute_dispatch`
-    /// and `execute_with_scopes` both call this, so the gate cannot drift
-    /// between them (#736).
+    /// The single implementation behind every entry point: `execute_dispatch` calls
+    /// this, so the gate cannot drift between them (#736).
     ///
     /// The validator is resolved once at construction: the embedder-installed
     /// `RuntimeConfig::query_validation` when set, otherwise derived from the
@@ -512,6 +504,9 @@ impl Executor {
     /// paths cannot diverge in which roots they return, whether GATE-1 runs, or
     /// whether the parse cache is consulted.
     ///
+    /// Answered as the body a transport sends: with `raw`, a single-root read whose rows
+    /// need no shaping in Rust is answered as the bytes the database serialized.
+    ///
     /// # Errors
     ///
     /// - [`FraiseQLError::Validation`] — GATE-1 limits exceeded, or a runner rejects.
@@ -521,25 +516,6 @@ impl Executor {
     /// - [`FraiseQLError::Internal`] — response serialisation failed.
     /// - [`FraiseQLError::Authorization`] — field-level access control denied a field.
     pub(super) async fn execute_dispatch(
-        &self,
-        query: &str,
-        variables: Option<&serde_json::Value>,
-        security_context: Option<&SecurityContext>,
-        operation_name: Option<&str>,
-    ) -> Result<serde_json::Value> {
-        self.execute_dispatch_body(query, variables, security_context, operation_name, false)
-            .await
-            .and_then(super::ResponseBody::into_value)
-    }
-
-    /// [`execute_dispatch`](Self::execute_dispatch), answered as the body a transport
-    /// sends: with `raw`, a single-root read whose rows need no shaping in Rust is
-    /// answered as the bytes the database serialized.
-    ///
-    /// # Errors
-    ///
-    /// As [`execute_dispatch`](Self::execute_dispatch).
-    pub(super) async fn execute_dispatch_body(
         &self,
         query: &str,
         variables: Option<&serde_json::Value>,
@@ -777,67 +753,6 @@ impl Executor {
             );
         }
         Ok(super::ResponseBody::Value(response))
-    }
-
-    /// Execute a GraphQL query with user context for field-level access control.
-    ///
-    /// This method validates that the user has permission to access all requested
-    /// fields before executing the query. If field filtering is enabled in the
-    /// `RuntimeConfig` and the user lacks required scopes, this returns an error.
-    ///
-    /// # Arguments
-    ///
-    /// * `query` - GraphQL query string
-    /// * `variables` - Query variables (optional)
-    /// * `user_scopes` - User's scopes from JWT token (pass empty slice if unauthenticated)
-    ///
-    /// # Returns
-    ///
-    /// GraphQL response as JSON string, or error if access denied
-    ///
-    /// # Errors
-    ///
-    /// * [`FraiseQLError::Validation`] — query validation fails, or the user's scopes do not
-    ///   include a field required by the `field_filter` policy.
-    /// * Propagates errors from query classification and execution.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// // Requires: a live database adapter and authenticated user context.
-    /// // See: tests/integration/ for runnable examples.
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let query = r#"query { users { id name salary } }"#;
-    /// // let user_scopes = user.scopes.clone();
-    /// // let result = executor.execute_with_scopes(query, None, &user_scopes).await?;
-    /// # Ok(()) }
-    /// ```
-    pub async fn execute_with_scopes(
-        &self,
-        query: &str,
-        variables: Option<&serde_json::Value>,
-        user_scopes: &[String],
-    ) -> Result<serde_json::Value> {
-        // GATE 1: Query structure validation (mirrors execute() — DoS protection).
-        // Same shared gate as execute_dispatch — the two call sites cannot drift (#736).
-        self.run_gate1(query, variables)?;
-
-        // 2. Classify query type
-        let query_type = self.classify_query(query, None)?;
-
-        // 3. Validate field access if filter is configured
-        if let Some(ref filter) = self.ctx.config.field_filter {
-            // Only validate for regular queries (not introspection)
-            if matches!(query_type, QueryType::Regular) {
-                self.validate_field_access(query, variables, user_scopes, filter)?;
-            }
-        }
-
-        // 4. Delegate to execute_dispatch — single source of routing truth. Field-access validation
-        //    (step 3) has already run for Regular queries; all other query types (introspection,
-        //    aggregate, federation, …) are routed correctly via execute_dispatch without
-        //    duplication. Scope-based filtering is not RLS, so no SecurityContext is threaded.
-        self.execute_dispatch(query, variables, None, None).await
     }
 
     /// Execute a mutation operation's root fields serially, in document order.

@@ -18,4 +18,6 @@ pub(super) mod security;
 #[cfg(test)]
 mod multi_root_tests;
 #[cfg(test)]
+mod scope_coverage_tests;
+#[cfg(test)]
 mod tests;

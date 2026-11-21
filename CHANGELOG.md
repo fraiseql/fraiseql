@@ -35,6 +35,16 @@ disagreed, and the promise was the part that was wrong.
   - The admin SQL console shows the cell as `null` and lists it in a new `undecoded` field of
     its response, with its row, column, type and reason (see
     `docs/operations/admin-sql-console.md`).
+- **`Executor::execute_with_scopes` and the runtime field filter are removed (#2208).**
+  `execute_with_scopes` checked a caller's scopes against only part of a document, through
+  a field filter (`RuntimeConfig::field_filter`, `with_field_filter`) that no other entry
+  point read. Removed with it: `Executor::check_field_access` and
+  `security::{FieldFilter, FieldFilterConfig, FieldFilterBuilder, FieldAccessError}`. No
+  shipped transport called them, so this reaches only a program embedding
+  `fraiseql-core`. **Migration:** declare each field's scope as its `requires_scope`, grant
+  the scope to a role in the schema's security roles, and call `execute_with_security`
+  with that role on the `SecurityContext`: every root and every nested selection is held
+  to it before anything is read.
 - **gRPC serves an `ID` as GraphQL serves it (#2192).** A gRPC read typed an `ID` as a UUID
   column, so an `ID` holding an integer or other text could not be read over gRPC where
   GraphQL and REST serve it. An `ID` is now a proto `string` read as text: a string as

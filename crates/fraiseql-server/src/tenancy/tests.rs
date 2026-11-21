@@ -826,7 +826,6 @@ mod runtime_config_drift {
             max_semi_additive_cells,
             nearest_short_result,
             enable_tracing,
-            field_filter,
             rls_policy,
             field_authorizer,
             authorizer,
@@ -867,9 +866,6 @@ mod runtime_config_drift {
         }
         if field_authorizer.is_some() != tenant.field_authorizer.is_some() {
             out.push("field_authorizer");
-        }
-        if field_filter.is_some() != tenant.field_filter.is_some() {
-            out.push("field_filter");
         }
         if query_function_resolver.is_some() != tenant.query_function_resolver.is_some() {
             out.push("query_function_resolver");

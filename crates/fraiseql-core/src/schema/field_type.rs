@@ -452,7 +452,9 @@ pub struct FieldDefinition {
     /// Scope required to access this field (field-level access control).
     ///
     /// When set, users must have this scope in their JWT to query this field.
-    /// The runtime `FieldFilter` validates these requirements.
+    /// The executor holds every root and every nested selection to it before anything is
+    /// read: the caller holds the scope when one of its `SecurityContext` roles is granted it
+    /// in the schema's security roles.
     ///
     /// # Example
     ///

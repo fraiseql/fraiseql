@@ -158,7 +158,6 @@
   │    security_context.rs SecurityContext (user + scopes)
   │    rls_policy.rs      Row-Level Security policy application
   │    introspection_enforcer  Schema introspection gating
-  │    field_filter.rs    Field visibility enforcement
   │    field_masking.rs   PII masking
   │    query_validator.rs Query allowlist / trusted-documents gate
   │    audit.rs           Security audit hooks

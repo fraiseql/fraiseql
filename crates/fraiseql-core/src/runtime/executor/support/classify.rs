@@ -160,6 +160,7 @@ impl Executor {
     /// // __schema       → Introspection
     /// // _entities      → Federation
     /// ```
+    #[cfg(test)]
     pub(in crate::runtime::executor) fn classify_query(
         &self,
         query: &str,
