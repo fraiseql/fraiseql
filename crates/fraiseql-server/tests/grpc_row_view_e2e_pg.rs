@@ -21,6 +21,9 @@
 //! A descriptor declaring a temporal or `ID` field as anything but a `string` is refused
 //! when the service is built, saying what to declare instead.
 //!
+//! A `BigInt` field over a `bigint` column is a proto `int64` holding every digit, past the
+//! 2^53 an `f64` holds exactly.
+//!
 //! Each case is its own type over its own one-row view, so one refusal does not hide
 //! another. Its document view (read by GraphQL) is built from that same row.
 //!
@@ -279,6 +282,22 @@ fn descriptor_set(local: FieldDescriptorProto, key_id: FieldDescriptorProto) -> 
         }],
         ..Default::default()
     };
+    let ledger = DescriptorProto {
+        name: Some("Ledger".into()),
+        field: vec![
+            field("id", 1, Type::Int64),
+            field("balance", 2, Type::Int64),
+        ],
+        ..Default::default()
+    };
+    let ledgers = DescriptorProto {
+        name: Some("ListLedgersResponse".into()),
+        field: vec![FieldDescriptorProto {
+            type_name: Some(format!(".{PACKAGE}.Ledger")),
+            ..response.field[0].clone()
+        }],
+        ..Default::default()
+    };
     let service = ServiceDescriptorProto {
         name: Some("FraiseqlService".into()),
         method: cases()
@@ -295,6 +314,10 @@ fn descriptor_set(local: FieldDescriptorProto, key_id: FieldDescriptorProto) -> 
                     method(format!("List{}KeyStream", c.pascal), "Key", true),
                 ]
             }))
+            .chain([
+                method("ListLedgers".to_string(), "ListLedgersResponse", false),
+                method("ListLedgerStream".to_string(), "Ledger", true),
+            ])
             .collect(),
         ..Default::default()
     };
@@ -303,7 +326,7 @@ fn descriptor_set(local: FieldDescriptorProto, key_id: FieldDescriptorProto) -> 
             name: Some("service.proto".into()),
             package: Some(PACKAGE.into()),
             syntax: Some("proto3".into()),
-            message_type: vec![slot, stamp, request, response, key, keys],
+            message_type: vec![slot, stamp, request, response, key, keys, ledger, ledgers],
             service: vec![service],
             ..Default::default()
         }],
@@ -375,6 +398,26 @@ fn schema(descriptor_path: &str) -> CompiledSchema {
                     .build(),
             );
     }
+    let ledger_view = "v_grpc_row_view_ledger";
+    builder = builder
+        .with_type(
+            TestTypeBuilder::new("Ledger", ledger_view)
+                .with_field(TestFieldBuilder::new("id", FieldType::Int).build())
+                .with_field(TestFieldBuilder::new("balance", FieldType::parse("BigInt")).build())
+                .build(),
+        )
+        .with_query(
+            TestQueryBuilder::new("ledgers", "Ledger")
+                .returns_list(true)
+                .with_sql_source(ledger_view)
+                .build(),
+        )
+        .with_query(
+            TestQueryBuilder::new("ledger_stream", "Ledger")
+                .returns_list(true)
+                .with_sql_source(ledger_view)
+                .build(),
+        );
     let mut schema = builder.build();
     schema.grpc_config = Some(GrpcConfig {
         enabled: true,
@@ -423,6 +466,26 @@ async fn seed(adapter: &PostgresAdapter) {
     }
 }
 
+/// 2^53 + 1, the first integer an `f64` cannot hold: a read that passed it through one
+/// would serve 2^53.
+const BALANCE: i64 = 9_007_199_254_740_993;
+
+async fn seed_ledger(adapter: &PostgresAdapter) {
+    let view = "v_grpc_row_view_ledger";
+    for ddl in [
+        format!("DROP VIEW IF EXISTS {view}"),
+        format!("DROP VIEW IF EXISTS vr_{view}"),
+        format!("CREATE VIEW vr_{view} AS SELECT 1 AS id, {BALANCE}::bigint AS balance"),
+        format!(
+            "CREATE VIEW {view} AS SELECT jsonb_build_object('id', id, 'balance', balance) AS \
+             data FROM vr_{view}"
+        ),
+    ] {
+        let _: Vec<std::collections::HashMap<String, serde_json::Value>> =
+            adapter.execute_raw_query(&ddl).await.unwrap();
+    }
+}
+
 /// The executor, and the gRPC service built over `descriptor` (its build error, if refused).
 async fn build(
     dir: &std::path::Path,
@@ -431,6 +494,7 @@ async fn build(
     let url = try_database_url()?;
     let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
     seed(&adapter).await;
+    seed_ledger(&adapter).await;
     let path = dir.join("descriptor.binpb");
     std::fs::write(&path, descriptor.encode_to_vec()).unwrap();
     let schema = schema(path.to_str().unwrap());
@@ -711,6 +775,33 @@ async fn a_grpc_read_serves_an_id_as_graphql_does() {
             },
         }
     }
+}
+
+/// A `BigInt` over a `bigint` column is a proto `int64`, every digit the column holds, on a
+/// unary and a streaming call alike; GraphQL serves the same value as the string of its
+/// digits.
+#[tokio::test]
+async fn a_grpc_read_serves_a_big_int_as_its_exact_int64() {
+    let dir = tempfile::tempdir().unwrap();
+    let Some((executor, services)) = build(dir.path(), &strings()).await else {
+        eprintln!("SKIP: DATABASE_URL not set");
+        return;
+    };
+    let svc = services.expect("an all-`string` descriptor builds");
+    let graphql = executor.execute("{ ledgers { balance } }", None).await.unwrap();
+    assert_eq!(graphql["data"]["ledgers"][0]["balance"], BALANCE.to_string(), "{graphql}");
+
+    let balance_of = |ledger: &prost_reflect::DynamicMessage| {
+        ledger.get_field_by_name("balance").unwrap().as_i64()
+    };
+    let (status, message, frames) = call(&svc, "ListLedgers").await;
+    assert_eq!(status, "0", "ListLedgers: {message}");
+    let response = decode(&frames[0], "ListLedgersResponse");
+    let items = response.get_field_by_name("items").unwrap();
+    assert_eq!(balance_of(items.as_list().unwrap()[0].as_message().unwrap()), Some(BALANCE));
+    let (status, message, frames) = call(&svc, "ListLedgerStream").await;
+    assert_eq!(status, "0", "ListLedgerStream: {message}");
+    assert_eq!(balance_of(&decode(&frames[0], "Ledger")), Some(BALANCE));
 }
 
 /// A descriptor declaring an `ID` field as anything but a `string` is refused when the

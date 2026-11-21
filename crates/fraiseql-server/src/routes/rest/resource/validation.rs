@@ -67,7 +67,7 @@ pub(super) fn validate_field_types(type_def: &TypeDefinition, diagnostics: &mut 
     for field in &type_def.fields {
         let name: &str = field.name.as_str();
         if name.starts_with("pk_") || name.starts_with("fk_") {
-            if !matches!(field.field_type, FieldType::Int | FieldType::Id) {
+            if !matches!(field.field_type, FieldType::Int | FieldType::BigInt | FieldType::Id) {
                 diagnostics.push(Diagnostic {
                     level:   DiagnosticLevel::Warning,
                     message: format!(

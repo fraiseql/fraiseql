@@ -79,8 +79,8 @@ pub const RICH_SCALARS: &[&str] = &[
 /// its own, which claimed to be "the unified source of truth" while disagreeing
 /// with the compiler in both directions: it spelled JSON `"JSON"` where the
 /// authoring format writes `"Json"`, it did not know the four vector types, and
-/// it called `BigInt`, `Timestamp` and `Void` built-ins, none of which the
-/// compiler recognizes as a field type.
+/// it called `BigInt`, `Timestamp` and `Void` built-ins when the compiler
+/// recognized none of them as a field type.
 ///
 /// # Arguments
 ///

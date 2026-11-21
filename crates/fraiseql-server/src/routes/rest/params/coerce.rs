@@ -32,6 +32,13 @@ pub fn coerce_to_type(
                 .map_err(|_| validation_error(format!("Expected integer value, got '{raw}'.")))?;
             Ok(serde_json::Value::Number(v.into()))
         },
+        // The digits travel as the string they were written as: a JSON number past 2^53
+        // is not read exactly by every client of the value.
+        FieldType::BigInt => fraiseql_core::runtime::parse_big_int(raw)
+            .map(|_| serde_json::Value::String(raw.to_string()))
+            .ok_or_else(|| {
+                validation_error(format!("Expected a signed 64-bit integer value, got '{raw}'."))
+            }),
         FieldType::Float | FieldType::Decimal => {
             let v: f64 = raw
                 .parse()

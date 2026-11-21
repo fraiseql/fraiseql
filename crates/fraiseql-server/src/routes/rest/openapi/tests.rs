@@ -144,6 +144,25 @@ fn scalar_fields_map_to_json_schema_types() {
     assert_eq!(props["pk_user_id"]["type"], "integer");
 }
 
+/// A `BigInt` is published as the string of its digits, with the `int64` format a client
+/// generator reads to type it, and the pattern its digits follow.
+#[test]
+fn a_big_int_field_is_published_as_a_string_of_int64_digits() {
+    let mut schema = rest_schema();
+    let user = schema.types.iter_mut().find(|t| t.name == "User").unwrap();
+    user.fields
+        .push(TestFieldBuilder::new("balance", FieldType::parse("BigInt")).build());
+    let spec = generate(&schema);
+    assert_eq!(
+        spec["components"]["schemas"]["User"]["properties"]["balance"],
+        serde_json::json!({
+            "type": "string",
+            "format": "int64",
+            "pattern": "^-?(0|[1-9][0-9]*)$"
+        })
+    );
+}
+
 #[test]
 fn nested_object_produces_ref() {
     let mut schema = rest_schema();

@@ -996,7 +996,7 @@ fn sql_type_family(sql_type: &str) -> SqlFamily {
 /// Whether a query argument's GraphQL type can cleanly drive an equality predicate
 /// against a native column of `sql_type`.
 ///
-/// Conservative by design: only the strongly-typed scalars (`Int`, `Float`,
+/// Conservative by design: only the strongly-typed scalars (`Int`, `BigInt`, `Float`,
 /// `Decimal`, `Boolean`, `UUID`) can flag a mismatch, and only against a *known*
 /// incompatible column family. Permissive scalars (`String`, `ID`, date/time, `JSON`,
 /// custom scalars) and non-scalar references never warn — the runtime binds them as
@@ -1013,7 +1013,9 @@ fn arg_type_convertible(field_type: &FieldType, sql_type: &str) -> bool {
         return true;
     }
     match base {
-        FieldType::Int | FieldType::Float | FieldType::Decimal => family == SqlFamily::Numeric,
+        FieldType::Int | FieldType::BigInt | FieldType::Float | FieldType::Decimal => {
+            family == SqlFamily::Numeric
+        },
         FieldType::Boolean => family == SqlFamily::Boolean,
         FieldType::Uuid => matches!(family, SqlFamily::Uuid | SqlFamily::Text),
         _ => true,
@@ -1668,7 +1670,7 @@ fn tview_index_advice(
                 QueryFilter::Inject(_) => None,
             };
             match arg_type {
-                Some(FieldType::Int | FieldType::Float) => {
+                Some(FieldType::Int | FieldType::BigInt | FieldType::Float) => {
                     serde_json::json!({ "path": key, "type": "numeric" })
                 },
                 Some(FieldType::Boolean) => serde_json::json!({ "path": key, "type": "boolean" }),

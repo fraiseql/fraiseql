@@ -221,6 +221,7 @@ fn accepted_argument_list(declared: &[fraiseql_core::schema::ArgumentDefinition]
 fn graphql_type_name(field_type: &FieldType) -> String {
     match field_type {
         FieldType::Int => "Int".to_string(),
+        FieldType::BigInt => "BigInt".to_string(),
         FieldType::Float => "Float".to_string(),
         FieldType::Boolean => "Boolean".to_string(),
         FieldType::Id => "ID".to_string(),
@@ -333,6 +334,7 @@ pub(crate) fn is_scalar_field_type(field_type: &FieldType) -> bool {
     match field_type {
         FieldType::String
         | FieldType::Int
+        | FieldType::BigInt
         | FieldType::Float
         | FieldType::Boolean
         | FieldType::Id

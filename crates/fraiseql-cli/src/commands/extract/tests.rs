@@ -83,6 +83,25 @@ fn test_map_type_scala() {
     assert_eq!(map_type(Language::Scala, "Int"), ("Int".to_string(), false));
 }
 
+/// A 64-bit integer is a `BigInt`: under an `Int` a value past 32 bits would be refused.
+/// A 32-bit one stays an `Int`.
+#[test]
+fn a_64_bit_integer_maps_to_big_int_and_a_32_bit_one_to_int() {
+    for (lang, wide, narrow) in [
+        (Language::Rust, "i64", "i32"),
+        (Language::Go, "int64", "int32"),
+        (Language::Kotlin, "Long", "Int"),
+        (Language::Scala, "Long", "Int"),
+        (Language::Java, "long", "int"),
+        (Language::CSharp, "long", "int"),
+    ] {
+        assert_eq!(map_type(lang, wide), ("BigInt".to_string(), false), "{lang:?} {wide}");
+        assert_eq!(map_type(lang, narrow), ("Int".to_string(), false), "{lang:?} {narrow}");
+    }
+    assert_eq!(map_type(Language::Rust, "Option<i64>"), ("BigInt".to_string(), true));
+    assert_eq!(map_type(Language::Go, "*int64"), ("BigInt".to_string(), true));
+}
+
 #[test]
 fn test_derive_query_name() {
     assert_eq!(derive_query_name("Posts"), "posts");

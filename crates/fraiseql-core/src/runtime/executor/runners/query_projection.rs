@@ -319,7 +319,7 @@ fn where_native_column(
         FT::String | FT::Enum(_) => {
             matches!(pg_type.as_str(), "text" | "varchar" | "character varying")
         },
-        FT::Int => matches!(
+        FT::Int | FT::BigInt => matches!(
             pg_type.as_str(),
             "smallint" | "integer" | "int" | "bigint" | "int2" | "int4" | "int8"
         ),
@@ -400,7 +400,7 @@ pub const fn field_type_to_where_type(ft: &crate::schema::FieldType) -> ScalarFi
 const fn scalar_cast_hint(ft: &crate::schema::FieldType) -> ScalarFieldType {
     use crate::schema::FieldType as FT;
     match ft {
-        FT::Int => ScalarFieldType::Integer,
+        FT::Int | FT::BigInt => ScalarFieldType::Integer,
         FT::Float | FT::Decimal => ScalarFieldType::Numeric,
         FT::Boolean => ScalarFieldType::Boolean,
         FT::DateTime => ScalarFieldType::DateTime,
@@ -659,6 +659,7 @@ mod cast_hint_characterisation {
         vec![
             FT::String,
             FT::Int,
+            FT::BigInt,
             FT::Float,
             FT::Boolean,
             FT::Id,
@@ -737,6 +738,8 @@ mod cast_hint_characterisation {
     #[test]
     fn strongly_typed_scalars_keep_their_casts_on_both_sides() {
         assert_eq!(field_type_to_where_type(&FT::Int), ScalarFieldType::Integer);
+        assert_eq!(field_type_to_where_type(&FT::BigInt), ScalarFieldType::Integer);
+        assert_eq!(field_type_to_order_by_type(&FT::BigInt), ScalarFieldType::Integer);
         assert_eq!(field_type_to_where_type(&FT::Decimal), ScalarFieldType::Numeric);
         assert_eq!(field_type_to_where_type(&FT::DateTime), ScalarFieldType::DateTime);
         assert_eq!(field_type_to_order_by_type(&FT::Int), ScalarFieldType::Integer);

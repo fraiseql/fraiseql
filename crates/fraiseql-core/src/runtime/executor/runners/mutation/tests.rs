@@ -8025,6 +8025,7 @@ fn a_success_field_value_is_checked_against_its_type() {
         f
     };
     let enum_type = || FieldType::Enum("Recovery".to_string());
+    let big_int = || FieldType::parse("BigInt");
     for (field_type, holds, refuses) in [
         (FieldType::Int, json!(3), json!(3.5)),
         (FieldType::Int, json!(-2_147_483_648_i64), json!(2_147_483_648_i64)),
@@ -8039,6 +8040,10 @@ fn a_success_field_value_is_checked_against_its_type() {
         (FieldType::Decimal, json!("-0.010"), json!("1.5e3")),
         (FieldType::Decimal, json!("7"), json!(".5")),
         (FieldType::Decimal, json!(12.5), json!(true)),
+        (big_int(), json!("9007199254740993"), json!("9e15")),
+        (big_int(), json!(9_007_199_254_740_993_i64), json!(u64::MAX)),
+        (big_int(), json!(3.0), json!(18_014_398_509_481_984.0)),
+        (big_int(), json!("-9223372036854775808"), json!(true)),
     ] {
         let declared = field(field_type.clone(), false);
         assert!(

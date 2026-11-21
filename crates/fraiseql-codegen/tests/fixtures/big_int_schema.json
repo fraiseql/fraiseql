@@ -1,0 +1,29 @@
+{
+  "types": [
+    {
+      "name": "Ledger",
+      "sql_source": "v_ledger",
+      "jsonb_column": "data",
+      "description": "A balance past the 2^53 that a JSON number holds exactly.",
+      "fields": [
+        { "name": "id", "field_type": "ID" },
+        { "name": "balance", "field_type": "BigInt" },
+        { "name": "credit", "field_type": "BigInt", "nullable": true },
+        { "name": "history", "field_type": { "List": { "item": "BigInt" } } }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "ledger",
+      "return_type": "Ledger",
+      "returns_list": false,
+      "nullable": true,
+      "sql_source": "v_ledger",
+      "arguments": [
+        { "name": "id", "arg_type": "ID", "nullable": false },
+        { "name": "atLeast", "arg_type": "BigInt", "nullable": true }
+      ]
+    }
+  ]
+}

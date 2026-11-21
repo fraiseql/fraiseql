@@ -30,10 +30,10 @@ pub(super) fn coerce_path_param_value(
             // the client gets "expected Boolean", not a silently wrong value.
             other => json!(other),
         },
-        // String, ID, UUID, Date/DateTime/Time, Decimal, JSON, enums, custom
-        // scalars — and unknown arguments — all stay exactly as the URL spelled
-        // them. `Decimal` in particular is serialized as a string for precision,
-        // so parsing it to a float here would lose digits.
+        // String, ID, UUID, Date/DateTime/Time, BigInt, Decimal, JSON, enums,
+        // custom scalars — and unknown arguments — all stay exactly as the URL
+        // spelled them. `BigInt` and `Decimal` in particular travel as strings for
+        // precision, so parsing either to a number here could lose digits.
         _ => json!(value),
     }
 }

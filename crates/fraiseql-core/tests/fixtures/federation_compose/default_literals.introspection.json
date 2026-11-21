@@ -65,6 +65,11 @@
       },
       {
         "kind": "SCALAR",
+        "name": "BigInt",
+        "description": "A signed 64-bit integer, as a string of its digits (\"9007199254740993\"): a JSON number past 2^53 is not read exactly by every client. Written as such a string, or as an integer."
+      },
+      {
+        "kind": "SCALAR",
         "name": "Decimal",
         "description": "Exact decimal number, as a string of its digits (\"12.50\"). Written as such a string, or as an integer."
       },

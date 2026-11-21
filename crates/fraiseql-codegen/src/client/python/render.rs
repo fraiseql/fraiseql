@@ -31,6 +31,9 @@ pub(super) fn field_type_py(ft: &FieldType) -> String {
         FieldType::String
         | FieldType::Id
         | FieldType::Uuid
+        // Served as the string of its digits: a number past 2^53 would not decode
+        // exactly in every client.
+        | FieldType::BigInt
         | FieldType::Decimal
         | FieldType::DateTime
         | FieldType::LocalDateTime

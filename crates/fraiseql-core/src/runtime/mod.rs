@@ -52,6 +52,7 @@ pub mod aggregation;
 mod argument_validation;
 /// Argument-value validation for a root field (GraphQL § 5.6.1, § 5.8.5, § 6.1.2).
 mod argument_value_validation;
+mod big_int;
 pub mod cascade;
 pub(crate) mod completion;
 mod decimal_shape;
@@ -99,6 +100,7 @@ pub use argument_value_validation::{
     validate_argument_list_items, validate_argument_values, validate_enum_argument_literals,
     validate_enum_variable_values, validate_mutation_argument_values, validate_variable_values,
 };
+pub use big_int::{big_int_input, parse_big_int};
 pub use completion::{CompletionRefused, id_value, temporal_refusal};
 pub use decimal_shape::{DecimalIndex, is_decimal_digits};
 pub use embed_selection::{CountSelection, EmbedSelection};

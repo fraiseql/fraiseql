@@ -39,6 +39,7 @@ pub fn graphql_type_to_arrow(graphql_type: &str, _nullable: bool) -> DataType {
         // GraphQL scalars
         "String" => DataType::Utf8,
         "Int" => DataType::Int32,
+        "BigInt" => DataType::Int64,
         "Float" => DataType::Float64,
         "Boolean" => DataType::Boolean,
         "ID" => DataType::Utf8,

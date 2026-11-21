@@ -25,6 +25,7 @@ Your code  →  SDK  →  schema.json  →  fraiseql-cli compile  →  schema.co
 |--------------|----------------|--------------------------------|
 | `"String"`   | `String`       |                                |
 | `"Int"`      | `Int`          | 32-bit signed integer          |
+| `"BigInt"`   | `BigInt`       | 64-bit signed integer, served as a string of its digits (`"9007199254740993"`); an argument value may be that string or an integer |
 | `"Float"`    | `Float`        | Double precision               |
 | `"Boolean"`  | `Boolean`      |                                |
 | `"ID"`       | `ID`           | An argument value may be a string or an integer |

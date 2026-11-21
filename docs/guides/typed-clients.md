@@ -231,6 +231,11 @@ would be a lie the compiler can't catch — and a trap for both developers and A
 coding agents. If you need nested data today, pass your own document to
 `client.request(...)`; first-class nested selection is a planned follow-up.
 
+**A `BigInt` or a `Decimal` is a string in every client** (`string` in TypeScript and
+Go, `String` in Rust, `str` in Python): the server sends each as the string of its
+digits, and a JSON number past 2^53 does not decode exactly in every client. Parse it
+with your language's 64-bit integer or decimal type where you compute with it.
+
 **Mutations are result unions discriminated by `__typename`.** FraiseQL mutations
 return their declared type directly — typically a union of the success entity and
 one or more `@fraiseql.error` types. The generated client mirrors that: the return

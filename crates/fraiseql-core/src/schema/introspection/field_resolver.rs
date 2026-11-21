@@ -190,6 +190,7 @@ pub(super) fn field_type_to_introspection(
 ) -> IntrospectionType {
     let inner = match field_type {
         FieldType::Int => type_ref("Int"),
+        FieldType::BigInt => type_ref("BigInt"),
         FieldType::Float => type_ref("Float"),
         // A bit vector's value IS its text form (`0`/`1` characters), and a
         // sparse vector's is `{1:0.5}/1000`, so both introspect as the scalar a

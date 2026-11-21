@@ -165,3 +165,76 @@ fn run(dir: &Path, program: &str, args: &[&str]) -> Output {
         stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
     }
 }
+
+const BIG_INT_FIXTURE: &str = include_str!("fixtures/big_int_schema.json");
+
+/// A response holding `BigInt`s past 2^53, the first integer an `f64` cannot hold exactly,
+/// and at the ends of the signed 64-bit range. The Go type declares the discriminant.
+const BIG_INT_WIRE: &str = r#"{"__typename":"Ledger","id":"l1","balance":"9007199254740993","credit":"-9223372036854775808","history":["9223372036854775807","9007199254740993"]}"#;
+
+/// Reads a response into the generated type and writes it out again. `encoding/json`
+/// refuses a string at a numeric field, so a numeric type for a `BigInt` fails the decode.
+const BIG_INT_MAIN_GO: &str = r#"package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+
+	client "example.com/consumer/fraiseqlclient"
+)
+
+// lookup writes a BigInt argument as the digits the server reads it from.
+func lookup(c *client.Client) (*client.Ledger, error) {
+	atLeast := "9007199254740993"
+	return c.Ledger("l1", &atLeast)
+}
+
+func main() {
+	_ = lookup
+	var ledger client.Ledger
+	if err := json.Unmarshal([]byte(os.Args[1]), &ledger); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	var balance string = ledger.Balance
+	var credit *string = ledger.Credit
+	var history []string = ledger.History
+	_, _, _ = balance, credit, history
+	encoded, err := json.Marshal(ledger)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Print(string(encoded))
+}
+"#;
+
+/// The generated type of a `BigInt` carries a value past 2^53 exactly: decoded from the
+/// wire and encoded again, every digit is the one the server sent.
+#[test]
+#[ignore = "requires the Go toolchain"]
+fn a_big_int_past_two_to_the_53_round_trips_exactly() {
+    let schema: CompiledSchema = serde_json::from_str(BIG_INT_FIXTURE).unwrap();
+    let generated = go::generate(&schema).unwrap();
+
+    let project = tempfile::tempdir().unwrap();
+    let package_dir = project.path().join("fraiseqlclient");
+    std::fs::create_dir_all(&package_dir).unwrap();
+    for (rel, content) in &generated {
+        std::fs::write(package_dir.join(rel), content).unwrap();
+    }
+    std::fs::write(project.path().join("go.mod"), GO_MOD).unwrap();
+    std::fs::write(project.path().join("main.go"), BIG_INT_MAIN_GO).unwrap();
+
+    let output = run(project.path(), "go", &["run", ".", BIG_INT_WIRE]);
+    assert!(
+        output.status.success(),
+        "the BigInt consumer did not build or run:\n--- stdout ---\n{}\n--- stderr ---\n{}",
+        output.stdout,
+        output.stderr,
+    );
+    let served: serde_json::Value = serde_json::from_str(BIG_INT_WIRE).unwrap();
+    let encoded: serde_json::Value = serde_json::from_str(&output.stdout).unwrap();
+    assert_eq!(encoded, served, "the generated type did not carry every digit");
+}

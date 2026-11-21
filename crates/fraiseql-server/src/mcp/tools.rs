@@ -297,6 +297,8 @@ pub(crate) fn arguments_to_json_schema(arguments: &[ArgumentDefinition]) -> Json
 pub(crate) fn field_type_to_json_schema(field_type: &FieldType) -> serde_json::Value {
     match field_type {
         FieldType::Int => serde_json::json!({ "type": "integer" }),
+        // The digits of a signed 64-bit integer, as the server serves and reads them.
+        FieldType::BigInt => serde_json::json!({ "type": "string", "format": "int64" }),
         FieldType::Float => serde_json::json!({ "type": "number" }),
         FieldType::Boolean => serde_json::json!({ "type": "boolean" }),
         FieldType::Json => serde_json::json!({ "type": "object" }),

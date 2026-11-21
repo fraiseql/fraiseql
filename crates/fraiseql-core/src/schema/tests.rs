@@ -1026,9 +1026,9 @@ fn test_builtin_scalars_recognized() {
 ///
 /// It used to carry its own list under a docstring calling itself the unified source of
 /// truth, and that list disagreed with the compiler in both directions — `"JSON"` for a
-/// format that writes `"Json"`, no vector types at all, and `BigInt` / `Timestamp` /
-/// `Void` reported as built-ins where `FieldType` resolves them to object references.
-/// Nothing called it, so nothing noticed.
+/// format that writes `"Json"`, no vector types at all, and `Timestamp` / `Void` reported
+/// as built-ins where `FieldType` resolves them to object references. Nothing called it, so
+/// nothing noticed.
 #[test]
 fn known_builtin_scalars_are_the_ones_the_compiler_parses() {
     for (name, expected) in BUILTIN_SCALARS {
@@ -1039,7 +1039,7 @@ fn known_builtin_scalars_are_the_ones_the_compiler_parses() {
             "{name} must denote the type the table pairs it with"
         );
     }
-    for absent in ["BigInt", "Timestamp", "Void", "JSON"] {
+    for absent in ["Timestamp", "Void", "JSON"] {
         assert!(
             !is_known_scalar(absent),
             "{absent} is not a field type the compiler recognizes, so calling it a known \
@@ -1067,7 +1067,7 @@ fn test_unknown_types_not_recognized() {
 #[test]
 fn test_builtin_scalar_count() {
     // Verify we have the expected number of builtin scalars
-    assert_eq!(BUILTIN_SCALARS.len(), 16);
+    assert_eq!(BUILTIN_SCALARS.len(), 17);
 }
 
 #[test]

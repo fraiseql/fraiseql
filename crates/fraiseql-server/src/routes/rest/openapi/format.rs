@@ -22,6 +22,13 @@ pub(crate) fn bracket_operators_desc() -> String {
 pub(super) fn field_type_to_json_schema(ft: &FieldType) -> Value {
     match ft {
         FieldType::Int => json!({ "type": "integer" }),
+        // Its digits as a string: a JSON number past 2^53 is not read exactly by a
+        // `JavaScript` client.
+        FieldType::BigInt => json!({
+            "type": "string",
+            "format": "int64",
+            "pattern": "^-?(0|[1-9][0-9]*)$"
+        }),
         FieldType::Float => json!({ "type": "number" }),
         FieldType::Boolean => json!({ "type": "boolean" }),
         // An `ID` names a row by any text, a stored integer's included: no format.

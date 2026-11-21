@@ -293,6 +293,7 @@ fn orders_meaningfully(schema: &CompiledSchema, field_type: &FieldType) -> bool 
         FieldType::Object(name) => adjudicable_type(schema, name).is_none(),
         FieldType::String
         | FieldType::Int
+        | FieldType::BigInt
         | FieldType::Float
         | FieldType::Boolean
         | FieldType::Id
@@ -693,6 +694,7 @@ fn classify(schema: &CompiledSchema, field_type: &FieldType) -> Slot {
 
     match field_type {
         FieldType::Int => leaf("Int", "Int", Ops::none()),
+        FieldType::BigInt => leaf("BigInt", "BigInt", Ops::none()),
         FieldType::Float => leaf("Float", "Float", Ops::none()),
         FieldType::Decimal => leaf("Decimal", "Decimal", Ops::none()),
         FieldType::Boolean => leaf("Boolean", "Boolean", Ops::none()),

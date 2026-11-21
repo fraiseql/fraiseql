@@ -311,6 +311,7 @@ fn every_field_type_maps_to_its_own_surface() {
         (FieldType::Id, "string"),
         (FieldType::Uuid, "string"),
         (FieldType::Decimal, "string"),
+        (FieldType::BigInt, "string"),
         (FieldType::DateTime, "string"),
         (FieldType::Date, "string"),
         (FieldType::Time, "string"),
