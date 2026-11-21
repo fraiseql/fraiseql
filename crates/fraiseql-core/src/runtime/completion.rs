@@ -505,6 +505,34 @@ const fn kind_of(value: &Value) -> &'static str {
     }
 }
 
+/// The source of the error refusing a REST read for a value it cannot serve.
+///
+/// The value is of a kind its published type cannot hold, or missing at a non-null field.
+/// Buffered or streamed, the refusal carries it, so a transport can tell it from a failure
+/// of the read itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CompletionRefused;
+
+impl std::fmt::Display for CompletionRefused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("a stored value its published type cannot hold, or a missing one")
+    }
+}
+
+impl std::error::Error for CompletionRefused {}
+
+impl CompletionRefused {
+    /// Whether `error` is a read refused for a value it could not serve.
+    #[must_use]
+    pub fn refused(error: &crate::error::FraiseQLError) -> bool {
+        matches!(
+            error,
+            crate::error::FraiseQLError::Internal { source: Some(source), .. }
+                if source.is::<Self>()
+        )
+    }
+}
+
 /// How § 3.5 result coercion serves a stored value at a built-in scalar position.
 #[derive(Debug, Clone, PartialEq)]
 enum Coercion {

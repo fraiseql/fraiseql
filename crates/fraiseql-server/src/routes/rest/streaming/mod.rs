@@ -78,6 +78,7 @@ pub async fn handle_ndjson_get(
     query_pairs: &[(&str, &str)],
     headers: &HeaderMap,
     security_context: Option<&SecurityContext>,
+    sanitizer: &std::sync::Arc<crate::config::error_sanitization::ErrorSanitizer>,
 ) -> Result<NdjsonResponse, RestError> {
     // Every request rule the export representations do not share with the JSON envelope
     // — count, pagination, and the `?select=` embeds and counts of #1268 — is applied by
@@ -130,12 +131,20 @@ pub async fn handle_ndjson_get(
     // row; `ready_chunks` takes whatever has arrived rather than waiting for a full
     // group, so a slow producer still reaches the client promptly.
     let chunks = rows.ready_chunks(usize::try_from(batch_size).unwrap_or(usize::MAX));
-    let ndjson_stream = stream::unfold(Some(chunks), |state| async move {
-        let mut chunks = state?;
+    let sanitizer = std::sync::Arc::clone(sanitizer);
+    let ndjson_stream = stream::unfold(Some((chunks, sanitizer)), |state| async move {
+        let (mut chunks, sanitizer) = state?;
         let chunk = chunks.next().await?;
 
-        let (bytes, failed) = helpers::ndjson_chunk(chunk);
-        Some((Ok(bytes), if failed { None } else { Some(chunks) }))
+        let (bytes, failed) = helpers::ndjson_chunk(chunk, &sanitizer);
+        Some((
+            Ok(bytes),
+            if failed {
+                None
+            } else {
+                Some((chunks, sanitizer))
+            },
+        ))
     });
 
     Ok(NdjsonResponse {

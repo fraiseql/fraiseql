@@ -937,7 +937,7 @@ impl Executor {
     /// that cannot be completed refuses the read, naming the field and where it was.
     fn complete_direct(
         &self,
-        mut response: serde_json::Value,
+        response: serde_json::Value,
         query_match: &QueryMatch,
         embeds: &[crate::runtime::EmbedSelection],
     ) -> Result<serde_json::Value> {
@@ -949,28 +949,7 @@ impl Executor {
         // REST holds each scalar to the OpenAPI type it publishes it as: see
         // `OutputTypes::complete_as_published`.
         let embedded = self.embedded_levels(&query_match.query_def.return_type, embeds);
-        self.ctx.output_types.complete_as_published(
-            &mut response,
-            "Query",
-            &query_match.selections,
-            query_match.response_key(),
-            &embedded,
-        );
-        let Some(error) = response.get("errors").and_then(|e| e.get(0)) else {
-            return Ok(response);
-        };
-        let message = error["message"].as_str().unwrap_or("Cannot return null");
-        let path = &error["path"];
-        // A value of a kind its published type cannot hold, or a missing one.
-        let message = if error.get("stored").is_some() {
-            format!("{message}. At {path}.")
-        } else {
-            format!("{message} At {path}: the stored value is missing.")
-        };
-        Err(crate::error::FraiseQLError::Internal {
-            message,
-            source: None,
-        })
+        complete_published(&self.ctx.output_types, response, query_match, &embedded, None)
     }
 
     /// The levels `embeds` writes into each row of a `parent_type` read, each with the type
@@ -1122,6 +1101,12 @@ impl Executor {
     /// The read resolves through the same authorization, RLS, `inject_params` and
     /// field-RBAC path as the buffered call — see
     /// `QueryRunner::resolve_root_read`.
+    ///
+    /// Each row is completed as that row of the buffered read is, as REST publishes it:
+    /// every caller of this is a REST export. A row that cannot be completed is an `Err`
+    /// item carrying the buffered read's refusal, its source a
+    /// [`CompletionRefused`](crate::runtime::CompletionRefused), and the stream's
+    /// consumer ends there.
     ///
     /// ⚠ On PostgreSQL the returned stream holds a pooled connection until it is
     /// dropped. Consume it promptly and drop it when the response ends.
@@ -1279,4 +1264,67 @@ impl Executor {
             Some(writer),
         )
     }
+}
+
+/// Complete `response`, a direct read of `query_match`, as REST publishes it (see
+/// `OutputTypes::complete_as_published`): a value that cannot be completed refuses the
+/// read, naming the field and where it was, never the value.
+///
+/// The buffered read and the streamed one (one row at a time, see
+/// [`complete_published_row`]) both refuse through here, so the two say the same thing.
+/// `row` is the streamed row's index, written into the refusal's path in place of the
+/// one-row page's `0`.
+fn complete_published(
+    output_types: &crate::runtime::completion::OutputTypes,
+    mut response: serde_json::Value,
+    query_match: &QueryMatch,
+    embedded: &[crate::runtime::completion::EmbeddedLevel],
+    row: Option<usize>,
+) -> Result<serde_json::Value> {
+    output_types.complete_as_published(
+        &mut response,
+        "Query",
+        &query_match.selections,
+        query_match.response_key(),
+        embedded,
+    );
+    let Some(error) = response.get_mut("errors").and_then(|e| e.get_mut(0)) else {
+        return Ok(response);
+    };
+    if let (Some(row), Some(step)) = (row, error["path"].get_mut(1)) {
+        *step = serde_json::Value::from(row);
+    }
+    let message = error["message"].as_str().unwrap_or("Cannot return null");
+    let path = &error["path"];
+    // A value of a kind its published type cannot hold, or a missing one.
+    let message = if error.get("stored").is_some() {
+        format!("{message}. At {path}.")
+    } else {
+        format!("{message} At {path}: the stored value is missing.")
+    };
+    Err(crate::error::FraiseQLError::Internal {
+        message,
+        source: Some(Box::new(crate::runtime::CompletionRefused)),
+    })
+}
+
+/// Complete `row`, the row at `index` of a streamed read of `query_match`, as the same
+/// row of a buffered read is: completed in place (`"7"` at an `integer` is `7`), or
+/// refused with the buffered read's error, its path naming `index`.
+///
+/// A stream embeds no level: an export refuses a `?select=` that names one.
+pub(super) fn complete_published_row(
+    output_types: &crate::runtime::completion::OutputTypes,
+    row: serde_json::Value,
+    query_match: &QueryMatch,
+    index: usize,
+) -> Result<serde_json::Value> {
+    let key = query_match.response_key();
+    let mut rows = serde_json::Map::new();
+    rows.insert(key.to_string(), serde_json::Value::Array(vec![row]));
+    let mut page = serde_json::Map::new();
+    page.insert("data".to_string(), serde_json::Value::Object(rows));
+    let page = serde_json::Value::Object(page);
+    let mut completed = complete_published(output_types, page, query_match, &[], Some(index))?;
+    Ok(completed["data"][key][0].take())
 }

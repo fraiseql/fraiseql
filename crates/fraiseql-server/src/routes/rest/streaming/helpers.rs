@@ -19,7 +19,7 @@ use fraiseql_core::{
 };
 use futures::StreamExt as _;
 
-use crate::routes::rest::handler::RestError;
+use crate::{config::error_sanitization::ErrorSanitizer, routes::rest::handler::RestError};
 
 /// Open the row source behind every export representation (#958).
 ///
@@ -145,14 +145,14 @@ pub(super) fn determine_columns(
 /// export's terminal condition: rows serialised before the failure still go out,
 /// followed by the error line. A truncated export that says why is recoverable;
 /// one that simply stops is indistinguishable from a complete one.
-pub(super) fn ndjson_chunk<I>(rows: I) -> (Bytes, bool)
+pub(super) fn ndjson_chunk<I>(rows: I, sanitizer: &ErrorSanitizer) -> (Bytes, bool)
 where
     I: IntoIterator<Item = fraiseql_core::error::Result<serde_json::Value>>,
 {
     let mut bytes = Vec::new();
     for row in rows {
         match row
-            .map_err(|e| e.to_string())
+            .map_err(|e| failure_text(e, sanitizer))
             .and_then(|row| serde_json::to_vec(&row).map_err(|e| e.to_string()))
         {
             Ok(mut line) => {
@@ -166,6 +166,23 @@ where
         }
     }
     (Bytes::from(bytes), false)
+}
+
+/// The text an export's terminal line gives for `error`, which ended it mid-stream.
+///
+/// A row the read refuses, for a value it cannot serve as its published type or a
+/// missing one, says what the same read buffered answers: the error a `500` body
+/// carries, sanitized as that body is. Any other failure is written as it was.
+pub(super) fn failure_text(
+    error: fraiseql_core::error::FraiseQLError,
+    sanitizer: &ErrorSanitizer,
+) -> String {
+    if !fraiseql_core::runtime::CompletionRefused::refused(&error) {
+        return error.to_string();
+    }
+    let mut refusal = RestError::from(error);
+    crate::routes::rest::router::helpers::sanitize(&mut refusal, sanitizer);
+    refusal.message
 }
 
 /// Serialize an error as an NDJSON error line.

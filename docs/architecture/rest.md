@@ -111,6 +111,13 @@ with `500`: a representation has no partial form, and the stored value is a defe
 data, not of the request. The error names the field, its published type and the stored
 value's kind, never the value. A row missing a non-null field is refused the same way.
 
+An NDJSON, CSV or XLSX export completes each row as the same read buffered completes it,
+one row at a time. A row it refuses ends the export, as its status is already sent: the
+rows before it are served, then the terminal line, `{"error": "…"}` for NDJSON and
+`# error: …` for CSV, carrying the message the buffered read's `500` body carries,
+sanitized as that body is, and no row after it. An XLSX workbook is sent only once built,
+so it answers the buffered read's `500` itself.
+
 ### Streams and exports
 
 - `Accept: application/x-ndjson` streams a collection as one JSON object per line, with

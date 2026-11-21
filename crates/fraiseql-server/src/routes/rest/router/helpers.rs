@@ -89,20 +89,7 @@ pub(super) fn rest_result_to_response(
             response
         },
         Err(mut e) => {
-            if (e.status.is_server_error() || e.carries_database_text())
-                && sanitizer.should_sanitize_internal()
-            {
-                tracing::error!(
-                    status = %e.status,
-                    code = e.code,
-                    "REST database error (message sanitized before client response): {}",
-                    e.message
-                );
-                let code = e.database_error_code();
-                e.message = sanitizer.replacement_message(code);
-                // Drop any structured detail too, so internal specifics never leak.
-                e.details = None;
-            }
+            sanitize(&mut e, sanitizer);
             // Render via `RestError::to_json` so structured `details` (e.g. a 422's
             // `missing_fields`) reach the client — `error_response` drops them.
             Response::builder()
@@ -111,6 +98,29 @@ pub(super) fn rest_result_to_response(
                 .body(axum::body::Body::from(e.to_json().to_string()))
                 .expect("Unable to construct error response")
         },
+    }
+}
+
+/// Replace `e`'s message with the sanitizer's generic one when `e` carries a message the
+/// operator's error sanitization withholds from a client (see [`rest_result_to_response`]),
+/// logging the original server-side.
+///
+/// Every REST error a client reads goes through here: a response's body, and the
+/// terminal line of an export that a refused row ends.
+pub(in crate::routes::rest) fn sanitize(e: &mut RestError, sanitizer: &ErrorSanitizer) {
+    if (e.status.is_server_error() || e.carries_database_text())
+        && sanitizer.should_sanitize_internal()
+    {
+        tracing::error!(
+            status = %e.status,
+            code = e.code,
+            "REST database error (message sanitized before client response): {}",
+            e.message
+        );
+        let code = e.database_error_code();
+        e.message = sanitizer.replacement_message(code);
+        // Drop any structured detail too, so internal specifics never reach a client.
+        e.details = None;
     }
 }
 

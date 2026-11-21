@@ -218,7 +218,15 @@ async fn build_workbook(ctx: BuildContext) -> Result<Bytes, RestError> {
 
     let mut rows = ctx.rows;
     while let Some(row) = rows.next().await {
-        let row = row.map_err(|e| RestError::internal(format!("XLSX export failed: {e}")))?;
+        // A row the read refuses answers as the same read buffered does: the response
+        // has not begun, so it is that read's `500`, sanitized where the body is.
+        let row = row.map_err(|e| {
+            if fraiseql_core::runtime::CompletionRefused::refused(&e) {
+                RestError::from(e)
+            } else {
+                RestError::internal(format!("XLSX export failed: {e}"))
+            }
+        })?;
 
         // Written on the first row rather than before the loop: the header is known up
         // front now (it is the projection), but the fallback for an empty projection

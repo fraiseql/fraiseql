@@ -741,6 +741,7 @@ async fn rest_get_handler_in_scope(
             &query_refs,
             &parts.headers,
             security_ctx.as_ref(),
+            &rest.error_sanitizer,
         )
         .await;
 
@@ -820,6 +821,7 @@ async fn rest_get_handler_in_scope(
             &query_refs,
             &parts.headers,
             security_ctx.as_ref(),
+            &rest.error_sanitizer,
         )
         .await;
 

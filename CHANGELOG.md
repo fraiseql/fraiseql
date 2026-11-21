@@ -18,6 +18,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A REST export completes each row as the buffered read does (#2160).** An NDJSON, CSV
+  or XLSX export served its rows as the database produced them: a missing non-null value
+  as `null`, an enum value outside its members, an object under an `integer`, a `DateTime`
+  without an offset, all of which the same read buffered refuses with `500`. Each streamed
+  row is now completed as that row of the buffered read is, its rewrites included (`"7"`
+  at an `integer` is `7`). A row it refuses ends the export after the rows before it, with
+  the format's terminal line (`{"error": …}`, `# error: …`) carrying the buffered body's
+  message, sanitized as that body is; an XLSX export answers that `500` itself. An export
+  that ran to its end over such rows now stops at the first. See `docs/architecture/rest.md`.
 - **A `DateTime`, `Date` or `Time` value is held to its scalar's format (#2179).** Such a
   value was checked only for being a string, then cast `::timestamptz`, `::date` or `::time`
   by PostgreSQL, whose parser reads far more and answered without an error: an offset-less

@@ -70,6 +70,7 @@ pub async fn handle_csv_get(
     query_pairs: &[(&str, &str)],
     headers: &HeaderMap,
     security_context: Option<&SecurityContext>,
+    sanitizer: &std::sync::Arc<crate::config::error_sanitization::ErrorSanitizer>,
 ) -> Result<CsvResponse, RestError> {
     // Count, pagination and the `?select=` embeds and counts of #1268 are all refused by
     // `resolve_streaming_get_query`, the one function every export representation
@@ -131,6 +132,7 @@ pub async fn handle_csv_get(
             columns: None,
             header_emitted: false,
             finished: false,
+            sanitizer: std::sync::Arc::clone(sanitizer),
         },
         |mut state| async move {
             if state.finished {
@@ -204,6 +206,9 @@ struct CsvStreamState {
     /// Set once a terminal payload (the error line, or the header-only body) has
     /// been emitted, so the next poll ends the stream instead of repeating it.
     finished:       bool,
+    /// The operator's error sanitization, which a refused row's terminal line goes
+    /// through as the same read's `500` body does.
+    sanitizer:      std::sync::Arc<crate::config::error_sanitization::ErrorSanitizer>,
 }
 
 /// Serialise the next group of rows as CSV bytes, or `None` when the export is
@@ -236,7 +241,7 @@ async fn serialize_next_csv_chunk(state: &mut CsvStreamState) -> Option<Bytes> {
         match row {
             Ok(row) => rows.push(row),
             Err(e) => {
-                failure = Some(e.to_string());
+                failure = Some(super::helpers::failure_text(e, &state.sanitizer));
                 break;
             },
         }

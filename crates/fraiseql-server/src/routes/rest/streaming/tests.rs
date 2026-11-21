@@ -141,8 +141,10 @@ fn ndjson_content_type_constant() {
 /// One JSON document per line, no envelope.
 #[test]
 fn ndjson_chunk_writes_one_line_per_row() {
-    let (bytes, failed) =
-        ndjson_chunk(vec![Ok(json!({"id": 1})), Ok(json!({"id": 2, "name": "Bob"}))]);
+    let (bytes, failed) = ndjson_chunk(
+        vec![Ok(json!({"id": 1})), Ok(json!({"id": 2, "name": "Bob"}))],
+        &sanitizer(false),
+    );
     assert!(!failed);
 
     let text = String::from_utf8(bytes.to_vec()).unwrap();
@@ -160,15 +162,18 @@ fn ndjson_chunk_writes_one_line_per_row() {
 /// representation.
 #[test]
 fn ndjson_chunk_emits_preceding_rows_then_the_error() {
-    let (bytes, failed) = ndjson_chunk(vec![
-        Ok(json!({"id": 1})),
-        Err(fraiseql_core::error::FraiseQLError::Database {
-            message:    "connection reset".to_string(),
-            sql_state:  None,
-            constraint: None,
-        }),
-        Ok(json!({"id": 3})),
-    ]);
+    let (bytes, failed) = ndjson_chunk(
+        vec![
+            Ok(json!({"id": 1})),
+            Err(fraiseql_core::error::FraiseQLError::Database {
+                message:    "connection reset".to_string(),
+                sql_state:  None,
+                constraint: None,
+            }),
+            Ok(json!({"id": 3})),
+        ],
+        &sanitizer(false),
+    );
     assert!(failed, "a failed group must terminate the export");
 
     let text = String::from_utf8(bytes.to_vec()).unwrap();
@@ -314,5 +319,38 @@ mod export_columns {
     #[test]
     fn determine_columns_is_empty_with_no_rows_and_no_projection() {
         assert!(determine_columns(None, &[]).is_empty());
+    }
+}
+
+fn sanitizer(enabled: bool) -> crate::config::error_sanitization::ErrorSanitizer {
+    crate::config::error_sanitization::ErrorSanitizer::new(
+        crate::config::error_sanitization::ErrorSanitizationConfig {
+            enabled,
+            ..crate::config::error_sanitization::ErrorSanitizationConfig::default()
+        },
+    )
+}
+
+/// A row the read refuses for a value it cannot serve ends the export with the text the
+/// same read's `500` body carries: the refusal's own with sanitization off, the
+/// sanitizer's generic one with it on, never a different rendering of either.
+#[test]
+fn a_refused_rows_terminal_line_is_the_buffered_bodys_message_sanitized_alike() {
+    let refused = || fraiseql_core::error::FraiseQLError::Internal {
+        message: "`Note.n` is published as an OpenAPI `integer`, and the stored value is an \
+                  object that is not one. At [\"notes\",1,\"n\"]."
+            .to_string(),
+        source:  Some(Box::new(fraiseql_core::runtime::CompletionRefused)),
+    };
+    for enabled in [false, true] {
+        let sanitizer = sanitizer(enabled);
+        let mut body = crate::routes::rest::handler::RestError::from(refused());
+        crate::routes::rest::router::helpers::sanitize(&mut body, &sanitizer);
+        let (bytes, failed) = ndjson_chunk(vec![Ok(json!({"n": 7})), Err(refused())], &sanitizer);
+        assert!(failed);
+        let text = String::from_utf8(bytes.to_vec()).unwrap();
+        let last: serde_json::Value = serde_json::from_str(text.lines().last().unwrap()).unwrap();
+        assert_eq!(last, json!({"error": body.message}), "sanitization {enabled}");
+        assert_eq!(body.message.contains("Note.n"), !enabled, "sanitization {enabled}");
     }
 }

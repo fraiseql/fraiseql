@@ -145,6 +145,9 @@ async fn csv_export(query_pairs: &[(&str, &str)]) -> Result<String, RestError> {
         query_pairs,
         &HeaderMap::new(),
         None,
+        &std::sync::Arc::new(crate::config::error_sanitization::ErrorSanitizer::new(
+            crate::config::error_sanitization::ErrorSanitizationConfig::default(),
+        )),
     )
     .await?;
 

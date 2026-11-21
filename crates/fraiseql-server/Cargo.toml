@@ -489,6 +489,13 @@ required-features = ["admin-sql"]
 name = "rest_search_relevance_e2e_pg"
 required-features = ["rest", "export-csv"]
 
+# #2160: a streamed read completes each row as the buffered read does. Drives NDJSON,
+# CSV and XLSX, so it needs both export writers compiled in rather than a file-level
+# `#![cfg]`, which would compile to an empty binary reading green without them.
+[[test]]
+name = "rest_stream_completion_e2e_pg"
+required-features = ["rest", "export-csv", "export-xlsx"]
+
 [[test]]
 name = "secrets_manager_integration_test"
 required-features = ["secrets"]

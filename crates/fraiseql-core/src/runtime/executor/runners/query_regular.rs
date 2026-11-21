@@ -1291,8 +1291,14 @@ impl QueryRunner {
         let budget = resolved.budget();
         let built = resolved.built_in_sql;
         let access = resolved.selection;
+        // Each row is completed as the same row of a buffered read is, REST's published
+        // types and the non-null rule included: every caller of a direct stream is a REST
+        // export. A row it refuses ends the stream with the buffered read's error.
+        let mut index = 0_usize;
         Ok(Box::pin(rows.map(move |row| {
             let row = row?;
+            let at = index;
+            index += 1;
             if let Some(ref budget) = budget {
                 budget.charge(crate::security::json_bytes(row.as_value()))?;
             }
@@ -1302,7 +1308,14 @@ impl QueryRunner {
             let projected =
                 runner.project_direct_rows(&query_match, &access, &[row], true, built)?;
             match projected {
-                serde_json::Value::Array(mut items) if items.len() == 1 => Ok(items.remove(0)),
+                serde_json::Value::Array(mut items) if items.len() == 1 => {
+                    super::super::core::complete_published_row(
+                        &runner.ctx.output_types,
+                        items.remove(0),
+                        &query_match,
+                        at,
+                    )
+                },
                 serde_json::Value::Array(items) => Err(FraiseQLError::Internal {
                     message: format!(
                         "streaming projection produced {} rows for one input row",

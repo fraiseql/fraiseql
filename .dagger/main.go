@@ -2333,6 +2333,12 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// duplicates. Needs the export features compiled in: the CSV and XLSX cases are
 		// `#[cfg]`-gated, and without `export-csv`/`export-xlsx` they would silently not run.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rest_export_integrity_e2e_pg -- --test-threads=1",
+		// #2160: a streamed read served its rows as the database produced them, never
+		// completed: a missing non-null value, an enum value outside its members, a value of
+		// another kind than its published type. Each row is now completed as the buffered
+		// read completes it, and a refused row ends the stream with that read's message.
+		// Needs `export-csv` and `export-xlsx` (in serverLegFeatures, required-features).
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rest_stream_completion_e2e_pg -- --test-threads=1",
 		// #1284: `?search=` with no `?sort=` answered 400 on every representation —
 		// the implicit relevance ordering emitted a shape no consumer parses, and no
 		// `ts_rank` existed to signal. The handler-level half runs on the required

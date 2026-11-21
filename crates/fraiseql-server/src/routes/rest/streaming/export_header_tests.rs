@@ -122,6 +122,9 @@ async fn csv_body_over(query_pairs: &[(&str, &str)], rows: Vec<JsonbValue>) -> S
         query_pairs,
         &HeaderMap::new(),
         None,
+        &std::sync::Arc::new(crate::config::error_sanitization::ErrorSanitizer::new(
+            crate::config::error_sanitization::ErrorSanitizationConfig::default(),
+        )),
     )
     .await
     .expect("the CSV export must resolve; #1274 is about what it writes, not whether it runs");
