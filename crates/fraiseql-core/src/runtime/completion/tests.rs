@@ -689,3 +689,32 @@ fn temporal_refusal_is_completions_rule_and_message() {
         assert_eq!(temporal_refusal(&"Kind.at", &field_type, &json!("noon")), None);
     }
 }
+
+/// `id_value` serves, rewrites and refuses exactly as GraphQL completion does at an `ID`,
+/// in its words.
+#[test]
+fn id_value_is_completions_rule_and_message() {
+    for value in [
+        json!("u-1"),
+        json!("7"),
+        json!(7),
+        json!(-7),
+        json!(7.5),
+        json!(true),
+        json!({"id": 1}),
+        json!([1]),
+        Value::Null,
+    ] {
+        let expected = match coerce_built_in::<false>(Scalar::Id, &value) {
+            Coercion::Served => Ok(None),
+            Coercion::Rewrite(rewritten) => Ok(Some(rewritten.as_str().unwrap().to_string())),
+            Coercion::Refused => Err(not_a_scalar(&"Kind.id", Scalar::Id, &value, &[])["message"]
+                .as_str()
+                .unwrap()
+                .to_string()),
+        };
+        assert_eq!(id_value(&"Kind.id", &value), expected, "{value}");
+    }
+    assert_eq!(id_value(&"Kind.id", &json!(7)), Ok(Some("7".to_string())));
+    assert!(id_value(&"Kind.id", &json!(true)).is_err());
+}

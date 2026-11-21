@@ -10,8 +10,12 @@
 //! read in any time zone. A `LocalDateTime` field is read like the others, and a missing one
 //! is refused when it is published non-null.
 //!
-//! A descriptor declaring a temporal field as anything but a `string` is refused when the
-//! service is built, saying what to declare instead.
+//! An `ID` field is a proto `string`: a string is served as stored, an integer as its
+//! decimal text, as GraphQL serves them; any other kind is refused in GraphQL's words. A
+//! value of a kind its proto field cannot carry refuses the read, naming the field.
+//!
+//! A descriptor declaring a temporal or `ID` field as anything but a `string` is refused
+//! when the service is built, saying what to declare instead.
 //!
 //! Each case is its own type over its own one-row view, so one refusal does not hide
 //! another. Its document view (read by GraphQL) is built from that same row.
@@ -131,10 +135,70 @@ fn field(name: &str, number: i32, ty: field_descriptor_proto::Type) -> FieldDesc
     }
 }
 
+/// Each `ID` case: its name (`Pascal`, `snake`), its row's `id` and `n` columns, what its
+/// `id` is served as, and the field its read is refused at (`None`: served).
+struct KeyCase {
+    pascal:  &'static str,
+    snake:   &'static str,
+    id:      &'static str,
+    n:       &'static str,
+    served:  &'static str,
+    refused: Option<&'static str>,
+}
+
+const UUID: &str = "00000000-0000-4000-8000-000000000007";
+
+fn key_cases() -> Vec<KeyCase> {
+    vec![
+        KeyCase {
+            pascal:  "Integer",
+            snake:   "integer",
+            id:      "7::int",
+            n:       "NULL::int",
+            served:  "7",
+            refused: None,
+        },
+        KeyCase {
+            pascal:  "Text",
+            snake:   "text",
+            id:      "'k-1'::text",
+            n:       "NULL::int",
+            served:  "k-1",
+            refused: None,
+        },
+        KeyCase {
+            pascal:  "Uuid",
+            snake:   "uuid",
+            id:      "'00000000-0000-4000-8000-000000000007'::uuid",
+            n:       "NULL::int",
+            served:  UUID,
+            refused: None,
+        },
+        KeyCase {
+            pascal:  "Fraction",
+            snake:   "fraction",
+            id:      "7.5::float8",
+            n:       "NULL::int",
+            served:  "",
+            refused: Some("id"),
+        },
+        KeyCase {
+            pascal:  "Uncarried",
+            snake:   "uncarried",
+            id:      "'k-1'::text",
+            n:       "3::int",
+            served:  "",
+            refused: Some("n"),
+        },
+    ]
+}
+
 /// `Slot { id, at, local, day, clock }`, with `local` replaced by `local`; per case, the
 /// unary `List<Case>Slots` (`ListSlotsResponse { repeated items }`) and the server-streaming
 /// `List<Case>SlotStream` (`Slot`). `Stamp` is an instant message, for the refused shape.
-fn descriptor_set(local: FieldDescriptorProto) -> FileDescriptorSet {
+/// `Key { id, n }`, with `id` replaced by `key_id` and `n` declared a `string` although the
+/// schema's `n` is an `Int`; per `ID` case, `List<Case>Keys` and `List<Case>KeyStream`.
+fn descriptor_set(local: FieldDescriptorProto, key_id: FieldDescriptorProto) -> FileDescriptorSet {
     use field_descriptor_proto::Type;
     let slot = DescriptorProto {
         name: Some("Slot".into()),
@@ -176,6 +240,19 @@ fn descriptor_set(local: FieldDescriptorProto) -> FileDescriptorSet {
         server_streaming: Some(streaming),
         ..Default::default()
     };
+    let key = DescriptorProto {
+        name: Some("Key".into()),
+        field: vec![key_id, field("n", 2, Type::String)],
+        ..Default::default()
+    };
+    let keys = DescriptorProto {
+        name: Some("ListKeysResponse".into()),
+        field: vec![FieldDescriptorProto {
+            type_name: Some(format!(".{PACKAGE}.Key")),
+            ..response.field[0].clone()
+        }],
+        ..Default::default()
+    };
     let service = ServiceDescriptorProto {
         name: Some("FraiseqlService".into()),
         method: cases()
@@ -186,6 +263,12 @@ fn descriptor_set(local: FieldDescriptorProto) -> FileDescriptorSet {
                     method(format!("List{}SlotStream", c.pascal), "Slot", true),
                 ]
             })
+            .chain(key_cases().iter().flat_map(|c| {
+                [
+                    method(format!("List{}Keys", c.pascal), "ListKeysResponse", false),
+                    method(format!("List{}KeyStream", c.pascal), "Key", true),
+                ]
+            }))
             .collect(),
         ..Default::default()
     };
@@ -194,16 +277,20 @@ fn descriptor_set(local: FieldDescriptorProto) -> FileDescriptorSet {
             name: Some("service.proto".into()),
             package: Some(PACKAGE.into()),
             syntax: Some("proto3".into()),
-            message_type: vec![slot, stamp, request, response],
+            message_type: vec![slot, stamp, request, response, key, keys],
             service: vec![service],
             ..Default::default()
         }],
     }
 }
 
-/// The descriptor every read runs over: each temporal field a `string`.
+/// The descriptor every read runs over: each temporal and `ID` field a `string`.
 fn strings() -> FileDescriptorSet {
-    descriptor_set(field("local", 3, field_descriptor_proto::Type::String))
+    descriptor_set(field("local", 3, field_descriptor_proto::Type::String), string_id())
+}
+
+fn string_id() -> FieldDescriptorProto {
+    field("id", 1, field_descriptor_proto::Type::String)
 }
 
 fn schema(descriptor_path: &str) -> CompiledSchema {
@@ -239,6 +326,29 @@ fn schema(descriptor_path: &str) -> CompiledSchema {
                 .build(),
             );
     }
+    for case in key_cases() {
+        let view = format!("v_grpc_row_view_key_{}", case.snake);
+        let name = format!("Key{}", case.pascal);
+        builder = builder
+            .with_type(
+                TestTypeBuilder::new(&name, &view)
+                    .with_field(TestFieldBuilder::new("id", FieldType::Id).build())
+                    .with_nullable_field("n", FieldType::Int)
+                    .build(),
+            )
+            .with_query(
+                TestQueryBuilder::new(&format!("{}_keys", case.snake), &name)
+                    .returns_list(true)
+                    .with_sql_source(&view)
+                    .build(),
+            )
+            .with_query(
+                TestQueryBuilder::new(&format!("{}_key_stream", case.snake), &name)
+                    .returns_list(true)
+                    .with_sql_source(&view)
+                    .build(),
+            );
+    }
     let mut schema = builder.build();
     schema.grpc_config = Some(GrpcConfig {
         enabled: true,
@@ -263,6 +373,22 @@ async fn seed(adapter: &PostgresAdapter) {
             format!(
                 "CREATE VIEW {view} AS SELECT id, jsonb_build_object('id', id, 'at', at, \
                  'local', local, 'day', day, 'clock', clock) AS data FROM vr_{view}"
+            ),
+        ] {
+            let _: Vec<std::collections::HashMap<String, serde_json::Value>> =
+                adapter.execute_raw_query(&ddl).await.unwrap();
+        }
+    }
+    for case in key_cases() {
+        let view = format!("v_grpc_row_view_key_{}", case.snake);
+        let (id, n) = (case.id, case.n);
+        for ddl in [
+            format!("DROP VIEW IF EXISTS {view}"),
+            format!("DROP VIEW IF EXISTS vr_{view}"),
+            format!("CREATE VIEW vr_{view} AS SELECT {id} AS id, {n} AS n"),
+            format!(
+                "CREATE VIEW {view} AS SELECT jsonb_build_object('id', id, 'n', n) AS data FROM \
+                 vr_{view}"
             ),
         ] {
             let _: Vec<std::collections::HashMap<String, serde_json::Value>> =
@@ -435,7 +561,8 @@ async fn a_descriptor_declaring_a_temporal_field_as_no_string_is_refused() {
         ("an integer", field("local", 3, Type::Int64)),
         ("a repeated string", repeated),
     ] {
-        let Some((_, services)) = build(dir.path(), &descriptor_set(local)).await else {
+        let Some((_, services)) = build(dir.path(), &descriptor_set(local, string_id())).await
+        else {
             eprintln!("SKIP: DATABASE_URL not set");
             return;
         };
@@ -445,5 +572,85 @@ async fn a_descriptor_declaring_a_temporal_field_as_no_string_is_refused() {
         assert!(error.contains("fraiseql.v1.Slot.local"), "{shape}: names the field: {error}");
         assert!(error.contains("LocalDateTime"), "{shape}: names the scalar: {error}");
         assert!(error.contains("Declare it `string local`"), "{shape}: says how: {error}");
+    }
+}
+
+/// A gRPC read serves an `ID` as GraphQL serves it: a string as stored, an integer as its
+/// decimal text, a UUID column as its text. A fraction is refused in GraphQL's words. A
+/// value of a kind its proto field cannot carry (an `Int` declared `string`) refuses the
+/// read, naming the field, on a unary and a streaming call alike.
+#[tokio::test]
+async fn a_grpc_read_serves_an_id_as_graphql_does() {
+    let dir = tempfile::tempdir().unwrap();
+    let Some((executor, services)) = build(dir.path(), &strings()).await else {
+        eprintln!("SKIP: DATABASE_URL not set");
+        return;
+    };
+    let svc = services.expect("an all-`string` descriptor builds");
+    let id_of = |key: &prost_reflect::DynamicMessage| {
+        key.get_field_by_name("id").unwrap().as_str().unwrap_or_default().to_string()
+    };
+    for case in key_cases() {
+        let unary = format!("List{}Keys", case.pascal);
+        let stream = format!("List{}KeyStream", case.pascal);
+        let query = format!("{{ {}_keys {{ id n }} }}", case.snake);
+        let graphql = executor.execute(&query, None).await.unwrap();
+        match case.refused {
+            None => {
+                assert_eq!(graphql["data"][format!("{}_keys", case.snake)][0]["id"], case.served);
+                let (status, message, frames) = call(&svc, &unary).await;
+                assert_eq!(status, "0", "{unary}: {message}");
+                let response = decode(&frames[0], "ListKeysResponse");
+                let items = response.get_field_by_name("items").unwrap();
+                assert_eq!(id_of(items.as_list().unwrap()[0].as_message().unwrap()), case.served);
+                let (status, message, frames) = call(&svc, &stream).await;
+                assert_eq!(status, "0", "{stream}: {message}");
+                assert_eq!(id_of(&decode(&frames[0], "Key")), case.served, "{stream}");
+            },
+            Some("id") => {
+                let refusal = graphql["errors"][0]["message"].as_str().unwrap().to_string();
+                let words = fraiseql_core::error::FraiseQLError::internal(refusal).to_string();
+                for method in [&unary, &stream] {
+                    let (status, message, frames) = call(&svc, method).await;
+                    assert_eq!(status, "13", "{method}: INTERNAL ({message})");
+                    assert_eq!(message, words, "{method}: GraphQL's words");
+                    assert!(frames.is_empty(), "{method}: no row is served");
+                }
+            },
+            Some(field) => {
+                assert!(graphql["errors"].is_null(), "GraphQL serves it: {graphql}");
+                for method in [&unary, &stream] {
+                    let (status, message, frames) = call(&svc, method).await;
+                    assert_eq!(status, "13", "{method}: INTERNAL ({message})");
+                    assert!(
+                        message
+                            .contains(&format!("`fraiseql.v1.Key.{field}` is declared `string`")),
+                        "{method}: names the field and its kind: {message}"
+                    );
+                    assert!(message.contains("a number"), "{method}: the held kind: {message}");
+                    assert!(frames.is_empty(), "{method}: no row is served");
+                }
+            },
+        }
+    }
+}
+
+/// A descriptor declaring an `ID` field as anything but a `string` is refused when the
+/// service is built, naming the field and what to declare.
+#[tokio::test]
+async fn a_descriptor_declaring_an_id_as_no_string_is_refused() {
+    use field_descriptor_proto::Type;
+    let dir = tempfile::tempdir().unwrap();
+    for id in [field("id", 1, Type::Int64), field("id", 1, Type::Bytes)] {
+        let local = field("local", 3, Type::String);
+        let Some((_, services)) = build(dir.path(), &descriptor_set(local, id)).await else {
+            eprintln!("SKIP: DATABASE_URL not set");
+            return;
+        };
+        let Err(error) = services else {
+            panic!("an `ID` declared as no `string` is refused");
+        };
+        assert!(error.contains("fraiseql.v1.Key.id"), "names the field: {error}");
+        assert!(error.contains("Declare it `string id`"), "says how: {error}");
     }
 }

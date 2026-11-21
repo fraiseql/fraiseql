@@ -365,8 +365,12 @@ impl DynamicGrpcService {
                     return self.engine_error(e);
                 }
                 let enums = handler::enum_columns(&read.columns, type_def, &self.schema);
+                let ids = handler::id_columns(&read.columns, type_def);
                 let mut rows = read.rows;
                 for row in &mut rows {
+                    if let Err(e) = handler::serve_ids(row, &ids, &read.columns, &op.type_name) {
+                        return self.engine_error(e);
+                    }
                     if let Err(e) =
                         handler::serve_enum_members(row, &enums, &read.columns, &op.type_name)
                     {

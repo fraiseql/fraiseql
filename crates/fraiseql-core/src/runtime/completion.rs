@@ -477,6 +477,29 @@ fn not_a_scalar_message(label: &dyn std::fmt::Display, scalar: Scalar, stored: &
     )
 }
 
+/// What an `ID` field serves for `stored`, as GraphQL completion serves it.
+///
+/// `Ok(None)` for the value as stored (a string, or `null`), `Ok(Some(text))` for an
+/// integer's decimal text, and `Err` with completion's message for any other kind.
+///
+/// An `ID` is a string (§ 3.5.5), and an integer the one other kind it names. A transport
+/// with no completion of its own (gRPC) asks this, so it serves and refuses the same values
+/// in the same words. `label` names the field, as `Type.field`. The message never quotes the
+/// value.
+///
+/// # Errors
+///
+/// Completion's message, naming the field and the stored value's kind.
+pub fn id_value(label: &dyn std::fmt::Display, stored: &Value) -> Result<Option<String>, String> {
+    match coerce_built_in::<false>(Scalar::Id, stored) {
+        Coercion::Served => Ok(None),
+        Coercion::Rewrite(Value::String(text)) => Ok(Some(text)),
+        Coercion::Rewrite(_) | Coercion::Refused => {
+            Err(not_a_scalar_message(label, Scalar::Id, stored))
+        },
+    }
+}
+
 /// Why a field of `field_type` cannot serve `stored`, worded as completion refuses it, or
 /// `None` when it serves the value as stored.
 ///

@@ -24,7 +24,7 @@ fn scalar_types_map_correctly() {
     assert_eq!(field_type_to_column_type(&FieldType::Int), Some(RowViewColumnType::Int32));
     assert_eq!(field_type_to_column_type(&FieldType::Float), Some(RowViewColumnType::Float64));
     assert_eq!(field_type_to_column_type(&FieldType::Boolean), Some(RowViewColumnType::Boolean));
-    assert_eq!(field_type_to_column_type(&FieldType::Id), Some(RowViewColumnType::Uuid));
+    assert_eq!(field_type_to_column_type(&FieldType::Id), Some(RowViewColumnType::Text));
     assert_eq!(
         field_type_to_column_type(&FieldType::DateTime),
         Some(RowViewColumnType::Timestamptz)
@@ -380,6 +380,28 @@ fn encode_row_sets_fields() {
     assert_eq!(msg.get_field(&id_field).into_owned(), Value::String("abc-123".into()));
     assert_eq!(msg.get_field(&name_field).into_owned(), Value::String("Alice".into()));
     assert_eq!(msg.get_field(&age_field).into_owned(), Value::I32(30));
+}
+
+/// A value of a kind its proto field cannot carry (a number at a `string`, a string at an
+/// `int32`) refuses the row, naming the field and the declared kind, never the value.
+#[test]
+fn encode_row_refuses_a_value_its_field_cannot_carry() {
+    let pool = test_descriptor_pool();
+    let user_desc = pool.get_message_by_name("test.User").unwrap();
+    let columns = |name: &str| {
+        vec![ColumnSpec {
+            name:        name.into(),
+            column_type: RowViewColumnType::Text,
+        }]
+    };
+    for (name, value) in [
+        ("name", ColumnValue::Int64(7_123_456)),
+        ("age", ColumnValue::Text("forty-two".into())),
+    ] {
+        let error = encode_row(&[value], &columns(name), &user_desc).unwrap_err().to_string();
+        assert!(error.contains(&format!("test.User.{name}")), "names the field: {error}");
+        assert!(!error.contains("7123456") && !error.contains("forty-two"), "{error}");
+    }
 }
 
 #[test]

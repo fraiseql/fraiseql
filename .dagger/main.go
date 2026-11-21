@@ -2234,7 +2234,8 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test locale_grpc_e2e_pg -- --test-threads=1",
 		// #2178/#2213: a gRPC read left out `LocalDateTime` fields and served a temporal
 		// value outside its scalar's format. Each is now served in its format, or refused in
-		// completion's words. Needs `grpc` (in serverLegFeatures, required-features).
+		// completion's words. #2192: an `ID` is read as text, as GraphQL serves it.
+		// Needs `grpc` (in serverLegFeatures, required-features).
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test grpc_row_view_e2e_pg -- --test-threads=1",
 		// #1520 — a `source = "header"` session variable is the request's header, never a
 		// claim of the same name, on every transport the suite drives; an anonymous request

@@ -18,6 +18,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **gRPC serves an `ID` as GraphQL serves it (#2192).** A gRPC read typed an `ID` as a UUID
+  column, so an `ID` holding an integer or other text could not be read over gRPC where
+  GraphQL and REST serve it. An `ID` is now a proto `string` read as text: a string as
+  stored, an integer as its decimal text, any other kind refused in GraphQL's words. A
+  descriptor declaring an `ID` field as anything but a `string` (an `int64`, say) is refused
+  when the service is built, naming the field and what to declare. A value of a kind its
+  proto field cannot carry refuses the read with `INTERNAL`, naming the field. A `UUID` field
+  keeps its column. gRPC is Preview and mounted by no shipped entry point, so this reaches an
+  embedder that mounts it.
 - **gRPC serves a temporal value in its scalar's format, or refuses it (#2178, #2213).** A
   gRPC read left `LocalDateTime` fields out of the response, and served a `DateTime`, `Date`
   or `Time` cell of its row view as stored: a `DateTime` without an offset reached the client

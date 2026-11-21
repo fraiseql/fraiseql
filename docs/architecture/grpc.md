@@ -71,9 +71,19 @@ text (`data->>'at'`). A cast in the view such as `(data->>'at')::timestamptz` re
 offset-less text in the session's time zone before the server sees it; `compile --database`
 checks the document view the row view reads from.
 
+An `ID` field is a proto `string` too, read as text whatever its column holds: a string is
+served as stored, an integer as its decimal text (`7` as `"7"`), as GraphQL serves them, and
+any other kind (a fraction, a Boolean) refuses the read in GraphQL's words. A `UUID` field is
+a `string` carrying the UUID's text.
+
 The server refuses to start with a descriptor declaring one of those fields as anything but
 a single `string`, naming the field and what to declare. A `google.protobuf.Timestamp` is an
-instant, which a `LocalDateTime`, a `Date` or a `Time` is not.
+instant, which a `LocalDateTime`, a `Date` or a `Time` is not; an integer field cannot carry
+an `ID` that is not one.
+
+A value of a kind its proto field cannot carry (a number at a `string`, a string at an
+`int32`) refuses the read with `INTERNAL`, naming the field and its declared kind, never the
+value.
 
 A `Decimal` column carries the exact digits the database stored, scale included (`1.50`).
 Declare its field as a `string`, or as a decimal message with a `string value` field, the
