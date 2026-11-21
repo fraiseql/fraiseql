@@ -1206,3 +1206,175 @@ async fn a_temporal_argument_over_a_column_of_another_type_fails_the_compile() {
         }
     }
 }
+
+/// A base table of stored documents, one row, every temporal text carrying an offset so the
+/// casts below parse.
+async fn create_cast_source(client: &tokio_postgres::Client) {
+    client
+        .batch_execute(
+            r#"DROP TABLE IF EXISTS tb_cdf2213 CASCADE;
+             CREATE TABLE tb_cdf2213 (id int PRIMARY KEY, src jsonb NOT NULL, ts timestamptz);
+             INSERT INTO tb_cdf2213 VALUES (1, '{
+                 "at": "2024-01-15T10:00:00+02:00", "path": {"at": "2024-01-15T10:00:00+02:00"},
+                 "nested": "2024-01-15T10:00:00+02:00", "spelled": "2024-01-15T10:00:00+02:00",
+                 "day": "2024-01-15", "opens": "09:30:00", "label": "2024-01-15T10:00:00+02:00"
+             }', '2024-01-15T08:00:00Z');"#,
+        )
+        .await
+        .unwrap();
+}
+
+/// A schema of one type, `Cast { id, at: DateTime }`, read from `view`, with gRPC enabled
+/// when `grpc`.
+fn cast_schema(view: &str, grpc: bool) -> NamedTempFile {
+    let mut schema = json!({
+        "types": [{
+            "name": "Cast",
+            "sql_source": view,
+            "fields": [
+                {"name": "id", "type": "Int", "nullable": false},
+                {"name": "at", "type": "DateTime", "nullable": true}
+            ]
+        }],
+        "queries": [{
+            "name": "casts",
+            "return_type": "Cast",
+            "returns_list": true,
+            "sql_source": view
+        }]
+    });
+    if grpc {
+        schema["grpc_config"] = json!({"enabled": true, "descriptor_path": "service.binpb"});
+    }
+    write_json(&schema)
+}
+
+/// The warning for `key` of `view` cast to `cast`, up to the reason.
+fn cast_warning(view: &str, key: &str, cast: &str) -> String {
+    format!("`{view}` reads the key `{key}` as text cast to `{cast}`")
+}
+
+/// A view reading a document key as text cast to a temporal type has reinterpreted the text
+/// before the server sees it, and its output is a valid value, so no sample can tell. Each
+/// shape warns, naming the view and the key, never a value, and the compile succeeds: the
+/// cast is exact whenever the text carries an offset. `CAST(… AS timestamptz)` and
+/// `::text::timestamptz` reach PostgreSQL's deparsed definition as `->>`'s shape.
+/// `label` is no temporal field of the schema, and warns anyway: whatever reads it, the
+/// database has already chosen a zone for it.
+#[tokio::test]
+async fn a_text_key_cast_to_a_temporal_type_warns() {
+    let Some(client) = client().await else { return };
+    let url = fraiseql_test_support::try_database_url().unwrap();
+    create_cast_source(&client).await;
+    client
+        .batch_execute(
+            "DROP VIEW IF EXISTS v_cdf2213_doc;
+             CREATE VIEW v_cdf2213_doc AS SELECT id, jsonb_build_object(
+                 'id', id,
+                 'at', (src->>'at')::timestamptz,
+                 'path_at', (src#>>'{path,at}')::timestamptz,
+                 'nested_at', (src->>'nested')::text::timestamptz,
+                 'spelled_at', CAST(src->>'spelled' AS timestamptz),
+                 'day', (src->>'day')::date,
+                 'opens', (src->>'opens')::time,
+                 'label', (src->>'label')::timestamptz
+             ) AS data FROM tb_cdf2213;",
+        )
+        .await
+        .unwrap();
+
+    let out_dir = TempDir::new().unwrap();
+    let out = out_dir.path().join("schema.compiled.json");
+    let (ok, log) = run_compile(cast_schema("v_cdf2213_doc", false).path(), &url, &out, &[]);
+    assert!(ok, "a cast is a warning, never drift:\n{log}");
+    for (key, cast) in [
+        ("at", "timestamp with time zone"),
+        ("{path,at}", "timestamp with time zone"),
+        ("nested", "timestamp with time zone"),
+        ("spelled", "timestamp with time zone"),
+        ("day", "date"),
+        ("opens", "time without time zone"),
+        ("label", "timestamp with time zone"),
+    ] {
+        assert!(log.contains(&cast_warning("v_cdf2213_doc", key, cast)), "`{key}`:\n{log}");
+    }
+    for value in ["10:00", "08:00", "09:30", "2024-01-15"] {
+        assert!(!log.contains(value), "the warning carries a stored value `{value}`:\n{log}");
+    }
+}
+
+/// The row view a gRPC read selects from (`vr_<sql_source>`) is read too, when gRPC is
+/// enabled, and only then. A key served from a `timestamptz` column draws nothing.
+#[tokio::test]
+async fn a_row_views_cast_warns_only_when_grpc_is_enabled() {
+    let Some(client) = client().await else { return };
+    let url = fraiseql_test_support::try_database_url().unwrap();
+    create_cast_source(&client).await;
+    client
+        .batch_execute(
+            "DROP VIEW IF EXISTS v_cdf2213_typed;
+             DROP VIEW IF EXISTS vr_v_cdf2213_typed;
+             CREATE VIEW v_cdf2213_typed AS
+                 SELECT id, jsonb_build_object('id', id, 'at', ts) AS data FROM tb_cdf2213;
+             CREATE VIEW vr_v_cdf2213_typed AS
+                 SELECT id, (src->>'at')::timestamptz AS at FROM tb_cdf2213;",
+        )
+        .await
+        .unwrap();
+
+    for grpc in [true, false] {
+        let out_dir = TempDir::new().unwrap();
+        let out = out_dir.path().join("schema.compiled.json");
+        let (ok, log) = run_compile(cast_schema("v_cdf2213_typed", grpc).path(), &url, &out, &[]);
+        assert!(ok, "grpc={grpc}:\n{log}");
+        let warning = cast_warning("vr_v_cdf2213_typed", "at", "timestamp with time zone");
+        assert_eq!(log.contains(&warning), grpc, "the row view is read iff gRPC is on:\n{log}");
+        assert!(
+            !log.contains("`v_cdf2213_typed` reads"),
+            "a `timestamptz` column draws nothing:\n{log}"
+        );
+    }
+}
+
+/// `doctor --against-db` reads the same definitions and reports the same warning.
+#[tokio::test]
+async fn doctor_reports_a_text_key_cast_to_a_temporal_type() {
+    let Some(client) = client().await else { return };
+    let url = fraiseql_test_support::try_database_url().unwrap();
+    create_cast_source(&client).await;
+    client
+        .batch_execute(
+            "DROP VIEW IF EXISTS v_cdf2213_doctor;
+             CREATE VIEW v_cdf2213_doctor AS SELECT id, jsonb_build_object(
+                 'id', id, 'at', (src->>'at')::timestamptz) AS data FROM tb_cdf2213;",
+        )
+        .await
+        .unwrap();
+    let out_dir = TempDir::new().unwrap();
+    let out = out_dir.path().join("schema.compiled.json");
+    let (ok, log) = run_compile(cast_schema("v_cdf2213_doctor", false).path(), &url, &out, &[]);
+    assert!(ok, "{log}");
+
+    let mut config = Builder::new().suffix(".toml").tempfile().unwrap();
+    config.write_all(b"[server]\nhost = \"0.0.0.0\"\nport = 8000\n").unwrap();
+    config.flush().unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+        .args([
+            "doctor",
+            "--config",
+            config.path().to_str().unwrap(),
+            "--schema",
+            out.to_str().unwrap(),
+            "--against-db",
+            &url,
+            "--json",
+        ])
+        .output()
+        .expect("failed to run fraiseql-cli doctor");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains(&cast_warning("v_cdf2213_doctor", "at", "timestamp with time zone")),
+        "doctor names the view and the key. stdout:\n{stdout}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}

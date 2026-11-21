@@ -53,7 +53,14 @@ GraphQL's words (see [the row view](../architecture/grpc.md#the-row-view)).
   holding no rows proves nothing, and draws a warning instead;
 - they fail on a temporal argument that filters a native column of another type than its
   scalar's, since the value is cast to the column's type: a `DateTime` over a `timestamp`
-  column has its offset dropped.
+  column has its offset dropped;
+- they warn on a served view, or with gRPC enabled a row view (`vr_<sql_source>`), whose
+  definition reads a document key as text cast to a temporal type: `(data->>'at')::timestamptz`,
+  a `#>>` path, `CAST(… AS timestamptz)`. PostgreSQL reads a value without an offset in the
+  session's time zone, drops an offset at a `timestamp` or a `time`, and cuts a date-time to
+  its date at a `date`, before the server sees it; the view's output is then a valid value,
+  which no sample can tell from a right one. The warning names the view and the key, never a
+  value. It is not drift: the cast is exact whenever the stored text carries an offset.
 
 Each scalar is written from one column type:
 

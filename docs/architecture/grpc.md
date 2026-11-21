@@ -68,8 +68,10 @@ uses, on a unary and a streaming call alike. It is never rewritten: a `DateTime`
 without an offset is not read in any time zone. Give each such column the type its scalar
 reads: `timestamptz` for a `DateTime`, `timestamp` for a `LocalDateTime`, or the document's
 text (`data->>'at'`). A cast in the view such as `(data->>'at')::timestamptz` reads an
-offset-less text in the session's time zone before the server sees it; `compile --database`
-checks the document view the row view reads from.
+offset-less text in the session's time zone before the server sees it, and its output is a
+valid value: `compile --database` and `doctor --against-db` warn on such a cast in the row
+view, naming the view and the key (see
+[temporal values](../features/temporal-values.md#where-a-served-value-is-checked)).
 
 An `ID` field is a proto `string` too, read as text whatever its column holds: a string is
 served as stored, an integer as its decimal text (`7` as `"7"`), as GraphQL serves them, and

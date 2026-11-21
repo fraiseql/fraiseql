@@ -690,6 +690,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`compile --database` warns on a view casting a document's text to a temporal type
+  (#2213).** A served view, or with gRPC enabled a row view (`vr_<sql_source>`), whose
+  definition reads a key as text cast to `timestamptz`, `timestamp`, `date` or `time`
+  reinterprets the stored text before the server sees it: a value without an offset is read
+  in the session's time zone, an offset is dropped, a date-time is cut to its date. Its
+  output is a valid value, so sampling the view cannot find it. `compile --database` and
+  `doctor --against-db` now read each such view's definition and warn, naming the view and
+  the key, never a value. It is a warning, not drift: the cast is exact whenever the stored
+  text carries an offset.
+
 - **An aggregate or window root beside other roots in one document (#1925).** A document
   holding a fact table's `<name>_aggregate` or `<name>_window` root and any other root was
   refused ("must be the only root of its document"). Each such root is now one root among

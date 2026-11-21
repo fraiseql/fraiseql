@@ -394,6 +394,18 @@ pub enum DatabaseWarning {
         /// Those whose value is outside the format.
         refused:    u64,
     },
+    /// L2: a view reads a document key as text cast to a temporal type, so PostgreSQL has
+    /// reinterpreted the stored text before the server sees it: a value without an offset is
+    /// read in the session's time zone, an offset is dropped, or a date-time is cut to its
+    /// date. A sample of the view's output cannot see it: the original text is gone.
+    TemporalCastFromText {
+        /// The view whose definition holds the cast.
+        view: String,
+        /// The key read (a path, as `{a,b}`, for `#>>`).
+        key:  String,
+        /// The type the text is cast to, as PostgreSQL writes it.
+        cast: &'static str,
+    },
     /// L3: the view of a served document with temporal fields holds no rows, so their formats
     /// were not checked.
     TemporalFormatsUnchecked {
@@ -523,6 +535,7 @@ impl DatabaseWarning {
             | Self::TviewIndexMissing { .. }
             | Self::EmbeddedScopeEmptyRelation { .. }
             | Self::EmbeddedScopeRoutesUnchecked { .. }
+            | Self::TemporalCastFromText { .. }
             | Self::TemporalFormatsUnchecked { .. } => Severity::Warn,
         }
     }
@@ -884,6 +897,21 @@ impl fmt::Display for DatabaseWarning {
                     "query `{query_name}`: {held} hold `{owner}.{field}` outside the {scalar} \
                      format, and a response would serve them as stored. Write the key from a \
                      `{expected}` value (see docs/features/temporal-values.md)"
+                )
+            },
+            Self::TemporalCastFromText { view, key, cast } => {
+                let why = match *cast {
+                    "timestamp with time zone" | "time with time zone" => {
+                        "a value without an offset is read in the session's time zone"
+                    },
+                    "date" => "a date-time is cut to its date",
+                    _ => "an offset the value carries is dropped",
+                };
+                write!(
+                    f,
+                    "`{view}` reads the key `{key}` as text cast to `{cast}`: {why}. Store the \
+                     value in a column of that type, or serve the text as stored and let the \
+                     server hold it to its scalar's format"
                 )
             },
             Self::TemporalFormatsUnchecked {
@@ -1418,6 +1446,7 @@ pub async fn validate_schema_against_database(
         }
     }
 
+    check_temporal_casts(schema, introspector, &mut warnings).await?;
     unify_tview_index_advice(&mut warnings);
 
     Ok(DatabaseValidationReport {
@@ -1425,6 +1454,81 @@ pub async fn validate_schema_against_database(
         native_columns,
         pagination_orders,
     })
+}
+
+/// The views a read serves from: each query's relation and, with gRPC enabled, the row
+/// view (`vr_<sql_source>`) of each type a query returns, which a gRPC read selects from.
+fn served_views(schema: &CompiledSchema) -> std::collections::BTreeSet<String> {
+    let grpc = schema.grpc_config.as_ref().is_some_and(|g| g.enabled);
+    let mut views = std::collections::BTreeSet::new();
+    for query in schema.queries.iter().filter(|q| q.sql_source_kind.is_relation()) {
+        if let Some(source) = &query.sql_source {
+            views.insert(source.clone());
+        }
+        if grpc {
+            if let Some(ty) = schema.find_type(&query.return_type) {
+                if !ty.sql_source.is_empty() {
+                    views.insert(format!("vr_{}", ty.sql_source));
+                }
+            }
+        }
+    }
+    views
+}
+
+/// Warn for each document key a served view reads as text cast to a temporal type
+/// ([`DatabaseWarning::TemporalCastFromText`]).
+///
+/// The check reads each view's definition; a table, or a relation that does not exist, has
+/// none.
+async fn check_temporal_casts(
+    schema: &CompiledSchema,
+    introspector: &impl DatabaseIntrospector,
+    warnings: &mut Vec<DatabaseWarning>,
+) -> fraiseql_core::Result<()> {
+    for view in served_views(schema) {
+        let Some(body) = introspector.get_view_definition(&view).await? else {
+            continue;
+        };
+        for (key, cast) in text_casts_to_temporal(&body) {
+            warnings.push(DatabaseWarning::TemporalCastFromText {
+                view: view.clone(),
+                key,
+                cast,
+            });
+        }
+    }
+    Ok(())
+}
+
+/// The document keys `view_body` reads as text and casts to a temporal type, each once,
+/// with the type.
+///
+/// Deliberately lexical, over `pg_get_viewdef`'s deparsed form, which writes every such
+/// cast one way: `(… ->> 'k'::text)::timestamp with time zone`, or `#>> '{a,k}'::text[]` for
+/// a path. `CAST(… AS timestamptz)` and `(… ->> 'k')::text::timestamptz` deparse to it too.
+fn text_casts_to_temporal(view_body: &str) -> Vec<(String, &'static str)> {
+    static CAST: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(
+            r"(?:->>|#>>) '((?:[^']|'')*)'::text(?:\[\])?\)::(timestamp with time zone|timestamp without time zone|time with time zone|time without time zone|date)\b",
+        )
+        .expect("a valid pattern")
+    });
+    let mut found: Vec<(String, &'static str)> = Vec::new();
+    for capture in CAST.captures_iter(view_body) {
+        let key = capture[1].replace("''", "'");
+        let cast = match &capture[2] {
+            "timestamp with time zone" => "timestamp with time zone",
+            "timestamp without time zone" => "timestamp without time zone",
+            "time with time zone" => "time with time zone",
+            "time without time zone" => "time without time zone",
+            _ => "date",
+        };
+        if !found.iter().any(|(k, c)| *k == key && *c == cast) {
+            found.push((key, cast));
+        }
+    }
+    found
 }
 
 /// Give every [`TviewIndexMissing`](DatabaseWarning::TviewIndexMissing) of one TVIEW the
