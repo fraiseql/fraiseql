@@ -452,6 +452,14 @@ fn not_a_scalar(
     stored: &Value,
     path: &[Value],
 ) -> Value {
+    serde_json::json!({
+        "message": not_a_scalar_message(label, scalar, stored),
+        "path": path,
+    })
+}
+
+/// The message of [`not_a_scalar`]'s error.
+fn not_a_scalar_message(label: &dyn std::fmt::Display, scalar: Scalar, stored: &Value) -> String {
     let name = scalar_name(scalar);
     let (article, gloss) = match scalar {
         Scalar::Int => ("an", ", a signed 32-bit integer"),
@@ -462,14 +470,33 @@ fn not_a_scalar(
         (Scalar::Temporal(temporal), Value::String(text)) => temporal.refusal(text),
         _ => None,
     };
-    serde_json::json!({
-        "message": format!(
-            "`{label}` is {article} `{name}`{gloss}, and the stored value is {} that {}",
-            kind_of(stored),
-            why.unwrap_or("is not one")
-        ),
-        "path": path,
-    })
+    format!(
+        "`{label}` is {article} `{name}`{gloss}, and the stored value is {} that {}",
+        kind_of(stored),
+        why.unwrap_or("is not one")
+    )
+}
+
+/// Why a field of `field_type` cannot serve `stored`, worded as completion refuses it, or
+/// `None` when it serves the value as stored.
+///
+/// Only a temporal field (`DateTime`, `LocalDateTime`, `Date`, `Time`) is held here: its
+/// value is a string in its scalar's format on every transport, so a transport with no
+/// completion of its own (gRPC) refuses the same values, in the same words, by asking this.
+/// `label` names the field, as `Type.field`. The message never quotes the value.
+#[must_use]
+pub fn temporal_refusal(
+    label: &dyn std::fmt::Display,
+    field_type: &FieldType,
+    stored: &Value,
+) -> Option<String> {
+    let scalar @ Scalar::Temporal(_) = Scalar::of(field_type)? else {
+        return None;
+    };
+    match coerce_built_in::<false>(scalar, stored) {
+        Coercion::Refused => Some(not_a_scalar_message(label, scalar, stored)),
+        Coercion::Served | Coercion::Rewrite(_) => None,
+    }
 }
 
 /// The error for a stored value REST cannot serve as the OpenAPI type `scalar` is

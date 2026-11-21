@@ -4,10 +4,11 @@ use std::borrow::Cow;
 
 use crate::types::sql_hints::ScalarFieldType;
 
-/// Column type used by row-shaped view (`vr_*`) DDL generation.
+/// The kind of value a column of a row-shaped (`vr_*`) read carries.
 ///
-/// Maps GraphQL scalar types to their SQL equivalents for typed column
-/// extraction from JSON/JSONB data columns.
+/// The project writes the `vr_*` view; a read decodes each of its cells by the column's
+/// own PostgreSQL type. Only `Decimal` changes how a cell is read: its digits are kept as
+/// the text the database printed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RowViewColumnType {
     /// Text / varchar column.
@@ -518,57 +519,5 @@ pub trait SqlDialect: Send + Sync + 'static {
             dialect:  self.name(),
             operator: "Lca",
         })
-    }
-
-    // ── Row-view DDL helpers (for gRPC transport) ──────────────────────────────
-
-    /// Generate a SQL expression that extracts a scalar field from a JSON column
-    /// and casts it to the given [`RowViewColumnType`].
-    ///
-    /// `json_column` is the unquoted column name (e.g., `"data"`).
-    /// `field_name` is the JSON key to extract.
-    /// `col_type` selects the target SQL type.
-    ///
-    /// Default: panics — each dialect must override.
-    fn row_view_column_expr(
-        &self,
-        json_column: &str,
-        field_name: &str,
-        col_type: &RowViewColumnType,
-    ) -> String {
-        let _ = (json_column, field_name, col_type);
-        // Reason: this is a default-impl panic that fires only if a dialect
-        // forgets to override; that's a compile-time-discoverable programmer
-        // error, not user input, so a panic on first call is the right
-        // failure mode.
-        #[allow(clippy::panic)]
-        {
-            panic!("{} dialect has not implemented row_view_column_expr", self.name())
-        }
-    }
-
-    /// Generate the full DDL statement(s) to create a row-shaped view.
-    ///
-    /// `view_name` is the unquoted view name (e.g., `"vr_user"`).
-    /// `source_table` is the unquoted source table (e.g., `"tb_user"`).
-    /// `columns` are `(alias, expression)` pairs from [`Self::row_view_column_expr`].
-    ///
-    /// Default: `CREATE OR REPLACE VIEW "view" AS SELECT ... FROM "table"`.
-    fn create_row_view_ddl(
-        &self,
-        view_name: &str,
-        source_table: &str,
-        columns: &[(String, String)],
-    ) -> String {
-        let quoted_view = self.quote_identifier(view_name);
-        let quoted_table = self.quote_identifier(source_table);
-        let col_list: Vec<String> = columns
-            .iter()
-            .map(|(alias, expr)| format!("{expr} AS {}", self.quote_identifier(alias)))
-            .collect();
-        format!(
-            "CREATE OR REPLACE VIEW {quoted_view} AS\nSELECT\n  {}\nFROM {quoted_table};",
-            col_list.join(",\n  ")
-        )
     }
 }

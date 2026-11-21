@@ -496,6 +496,13 @@ required-features = ["rest", "export-csv"]
 name = "rest_stream_completion_e2e_pg"
 required-features = ["rest", "export-csv", "export-xlsx"]
 
+# A gRPC read serves a temporal value in its scalar's format, or refuses it as GraphQL
+# does. `required-features` rather than a file-level `#![cfg]`, which would compile to an
+# empty binary reading green without `grpc`.
+[[test]]
+name = "grpc_row_view_e2e_pg"
+required-features = ["grpc"]
+
 [[test]]
 name = "secrets_manager_integration_test"
 required-features = ["secrets"]

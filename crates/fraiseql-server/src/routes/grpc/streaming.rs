@@ -43,6 +43,8 @@ struct StreamState {
     non_null:        Vec<bool>,
     /// The valued enum each of `columns` is typed as, if any (#1580).
     enums:           Vec<Option<fraiseql_core::schema::EnumDefinition>>,
+    /// The temporal scalar each of `columns` is typed as, if any.
+    temporals:       Vec<Option<fraiseql_core::schema::FieldType>>,
     /// The streamed type, for a refusal's message.
     type_name:       String,
     row_descriptor:  MessageDescriptor,
@@ -143,6 +145,7 @@ pub async fn build_streaming_body(
             chunks: rows.ready_chunks(usize::try_from(batch_size.max(1)).unwrap_or(usize::MAX)),
             non_null: handler::non_null_columns(&columns, type_def),
             enums: handler::enum_columns(&columns, type_def, executor.schema()),
+            temporals: handler::temporal_columns(&columns, type_def),
             type_name: type_def.name.to_string(),
             columns,
             row_descriptor,
@@ -163,6 +166,16 @@ pub async fn build_streaming_body(
             for row in chunk {
                 match row {
                     Ok(mut row) => {
+                        if let Err(e) = handler::serve_temporal_values(
+                            &row,
+                            &state.temporals,
+                            &state.columns,
+                            &state.type_name,
+                        ) {
+                            state.sent_trailers = true;
+                            let e = state.error_sanitizer.sanitize_error(e);
+                            return Some((Ok(error_trailers(&e.to_string())), state));
+                        }
                         if let Err(e) = handler::serve_enum_members(
                             &mut row,
                             &state.enums,

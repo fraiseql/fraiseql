@@ -18,6 +18,22 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **gRPC serves a temporal value in its scalar's format, or refuses it (#2178, #2213).** A
+  gRPC read left `LocalDateTime` fields out of the response, and served a `DateTime`, `Date`
+  or `Time` cell of its row view as stored: a `DateTime` without an offset reached the client
+  as an instant it never stated. A `LocalDateTime` field is now read like the others, and
+  each temporal field is held to its scalar's format as GraphQL and REST hold it: a value
+  outside it refuses the read with `INTERNAL`, naming the field in GraphQL's words, on a
+  unary and a streaming call. A missing non-null `LocalDateTime` is refused as any missing
+  non-null is. A descriptor declaring a temporal field as anything but a `string` (a
+  `google.protobuf.Timestamp`, an integer, a `repeated string`) is refused when the service
+  is built, naming the field and what to declare. gRPC is Preview and mounted by no shipped
+  entry point, so this reaches an embedder that mounts it.
+- **`SqlDialect::row_view_column_expr` and `SqlDialect::create_row_view_ddl` are removed.**
+  No caller used them: a gRPC read selects from the row view the project writes, and decodes
+  each cell by its column's type. The casts they described read an offset-less value in the
+  session's time zone. `RowViewColumnType`'s documentation now says what it decides: only a
+  `Decimal` column's digits are read differently.
 - **A REST export completes each row as the buffered read does (#2160).** An NDJSON, CSV
   or XLSX export served its rows as the database produced them: a missing non-null value
   as `null`, an enum value outside its members, an object under an `integer`, a `DateTime`

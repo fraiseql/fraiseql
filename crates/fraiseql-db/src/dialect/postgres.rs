@@ -2,7 +2,7 @@
 
 use std::{borrow::Cow, fmt::Write};
 
-use super::trait_def::{RowViewColumnType, SqlDialect, UnsupportedOperator};
+use super::trait_def::{SqlDialect, UnsupportedOperator};
 use crate::types::sql_hints::ScalarFieldType;
 
 /// PostgreSQL dialect for [`GenericWhereGenerator`].
@@ -302,26 +302,5 @@ impl SqlDialect for PostgresDialect {
             // Self-referencing: field_expr <op> (SELECT path FROM t WHERE id = $N)
             Ok(format!("({field_expr})::ltree {pg_op} ({path_subquery})"))
         }
-    }
-
-    fn row_view_column_expr(
-        &self,
-        json_column: &str,
-        field_name: &str,
-        col_type: &RowViewColumnType,
-    ) -> String {
-        let pg_type = match col_type {
-            RowViewColumnType::Text => "text",
-            RowViewColumnType::Int32 => "int",
-            RowViewColumnType::Int64 => "bigint",
-            RowViewColumnType::Float64 => "double precision",
-            RowViewColumnType::Boolean => "boolean",
-            RowViewColumnType::Uuid => "uuid",
-            RowViewColumnType::Timestamptz => "timestamptz",
-            RowViewColumnType::Date => "date",
-            RowViewColumnType::Json => "jsonb",
-            RowViewColumnType::Decimal => "numeric",
-        };
-        format!("({json_column}->>'{field_name}')::{pg_type}")
     }
 }

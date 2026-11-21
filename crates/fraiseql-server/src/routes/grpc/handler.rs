@@ -103,9 +103,13 @@ pub type RpcDispatchTable = HashMap<String, RpcOperation>;
 pub const fn field_type_to_column_type(ft: &FieldType) -> Option<RowViewColumnType> {
     match ft {
         // Enums map to text (their string representation).
-        FieldType::String | FieldType::Scalar(_) | FieldType::Time | FieldType::Enum(_) => {
-            Some(RowViewColumnType::Text)
-        },
+        // A `Time` and a `LocalDateTime` are read as the text their column holds, and held
+        // to their scalar's format by `serve_temporal_values`.
+        FieldType::String
+        | FieldType::Scalar(_)
+        | FieldType::Time
+        | FieldType::LocalDateTime
+        | FieldType::Enum(_) => Some(RowViewColumnType::Text),
         FieldType::Decimal => Some(RowViewColumnType::Decimal),
         FieldType::Int => Some(RowViewColumnType::Int32),
         FieldType::Float => Some(RowViewColumnType::Float64),
@@ -116,8 +120,7 @@ pub const fn field_type_to_column_type(ft: &FieldType) -> Option<RowViewColumnTy
         FieldType::Json => Some(RowViewColumnType::Json),
         // Types with no columnar representation: List, Object, Interface,
         // Union, Vector, BitVector — the vector kinds are searched, not
-        // projected into the columnar view. LocalDateTime has no column type
-        // either: read as an instant it would take the session's zone.
+        // projected into the columnar view.
         _ => None,
     }
 }
@@ -198,6 +201,78 @@ pub fn serve_enum_members(
         }
     }
     Ok(())
+}
+
+/// For each of `columns`, positionally, its field's type when that is a temporal scalar.
+///
+/// A `DateTime`, `LocalDateTime`, `Date` or `Time`, whose stored value
+/// [`serve_temporal_values`] holds to the scalar's format.
+#[must_use]
+pub fn temporal_columns(
+    columns: &[ColumnSpec],
+    type_def: &TypeDefinition,
+) -> Vec<Option<FieldType>> {
+    columns
+        .iter()
+        .map(|c| {
+            let field = type_def.fields.iter().find(|f| f.name.as_str() == c.name)?;
+            matches!(
+                field.field_type,
+                FieldType::DateTime | FieldType::LocalDateTime | FieldType::Date | FieldType::Time
+            )
+            .then(|| field.field_type.clone())
+        })
+        .collect()
+}
+
+/// Refuse `row` when a temporal column holds a value outside its scalar's format.
+///
+/// The rule and its words are completion's: GraphQL and REST refuse the same stored
+/// values, naming the field and the stored value's kind, never the value. A value is served
+/// as stored or refused, never rewritten: a `DateTime` without an offset is not read in any
+/// zone. Protobuf carries no per-field error, so the row is refused, as a missing non-null
+/// is.
+///
+/// # Errors
+///
+/// [`FraiseQLError::Internal`] carrying completion's message for the first such column.
+pub fn serve_temporal_values(
+    row: &[ColumnValue],
+    temporals: &[Option<FieldType>],
+    columns: &[ColumnSpec],
+    type_name: &str,
+) -> Result<(), FraiseQLError> {
+    for ((value, field_type), column) in row.iter().zip(temporals).zip(columns) {
+        let Some(field_type) = field_type else {
+            continue;
+        };
+        let label = format!("{type_name}.{}", column.name);
+        if let Some(message) =
+            fraiseql_core::runtime::temporal_refusal(&label, field_type, &stored_json(value))
+        {
+            return Err(FraiseQLError::internal(message));
+        }
+    }
+    Ok(())
+}
+
+/// A column value as the JSON the row was decoded from, for completion's rules.
+fn stored_json(value: &ColumnValue) -> serde_json::Value {
+    match value {
+        ColumnValue::Null => serde_json::Value::Null,
+        ColumnValue::Boolean(b) => serde_json::Value::Bool(*b),
+        ColumnValue::Int32(n) => serde_json::json!(n),
+        ColumnValue::Int64(n) => serde_json::json!(n),
+        ColumnValue::Float64(f) => serde_json::json!(f),
+        ColumnValue::Json(text) => {
+            serde_json::from_str(text).unwrap_or_else(|_| serde_json::Value::String(text.clone()))
+        },
+        ColumnValue::Text(s)
+        | ColumnValue::Uuid(s)
+        | ColumnValue::Timestamptz(s)
+        | ColumnValue::Date(s)
+        | ColumnValue::Decimal(s) => serde_json::Value::String(s.clone()),
+    }
 }
 
 /// The refusal for a row holding `NULL` in a column the schema publishes non-null, or
@@ -828,6 +903,45 @@ fn refuse_narrowed_decimals(
     Ok(())
 }
 
+/// Refuse a service whose proto declares a temporal column (`DateTime`, `LocalDateTime`,
+/// `Date`, `Time`) as anything but a single `string`: its value is served as the text of its
+/// scalar's format, which no other field kind carries. A `google.protobuf.Timestamp` is an
+/// instant, which a `LocalDateTime`, a `Date` or a `Time` is not.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] naming the field and what to declare instead.
+fn refuse_non_string_temporals(
+    columns: &[ColumnSpec],
+    type_def: &TypeDefinition,
+    row_desc: &MessageDescriptor,
+) -> Result<(), FraiseQLError> {
+    let temporals = temporal_columns(columns, type_def);
+    for (column, field_type) in columns.iter().zip(&temporals) {
+        let (Some(field_type), Some(field)) =
+            (field_type, row_desc.get_field_by_name(&column.name))
+        else {
+            continue;
+        };
+        if field.is_list() || field.is_map() || !matches!(field.kind(), Kind::String) {
+            return Err(FraiseQLError::validation(format!(
+                "gRPC: `{}` is a {} in the schema, and the proto declares it `{}{}`, which \
+                 cannot carry its text. Declare it `string {}`: the server sends the value \
+                 in its scalar's format.",
+                field.full_name(),
+                field_type.to_graphql_string(),
+                if field.is_list() { "repeated " } else { "" },
+                match field.kind() {
+                    Kind::Message(message) => message.full_name().to_string(),
+                    other => format!("{other:?}").to_lowercase(),
+                },
+                field.name(),
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Convert a [`ColumnValue`] to a protobuf [`Value`].
 ///
 /// Returns `None` for `ColumnValue::Null` (proto3 default absence).
@@ -973,6 +1087,7 @@ pub fn build_dispatch_table(
 
                 let kind = if is_server_streaming && query_def.returns_list {
                     refuse_narrowed_decimals(&columns, &response_desc)?;
+                    refuse_non_string_temporals(&columns, type_def, &response_desc)?;
                     RpcKind::ServerStream {
                         columns,
                         row_descriptor: response_desc.clone(),
@@ -988,6 +1103,7 @@ pub fn build_dispatch_table(
                         response_desc.clone()
                     };
                     refuse_narrowed_decimals(&columns, &row_desc)?;
+                    refuse_non_string_temporals(&columns, type_def, &row_desc)?;
                     RpcKind::Query {
                         returns_list: query_def.returns_list,
                         columns,

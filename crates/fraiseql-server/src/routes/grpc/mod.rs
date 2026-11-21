@@ -358,6 +358,12 @@ impl DynamicGrpcService {
                 }) {
                     return self.engine_error(e);
                 }
+                let temporals = handler::temporal_columns(&read.columns, type_def);
+                if let Err(e) = read.rows.iter().try_for_each(|row| {
+                    handler::serve_temporal_values(row, &temporals, &read.columns, &op.type_name)
+                }) {
+                    return self.engine_error(e);
+                }
                 let enums = handler::enum_columns(&read.columns, type_def, &self.schema);
                 let mut rows = read.rows;
                 for row in &mut rows {

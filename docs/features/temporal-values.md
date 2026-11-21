@@ -42,6 +42,8 @@ that names the field, its scalar and why, never the value, and its position is `
 a missing value's is: at a non-null field the `null` reaches the nearest nullable
 position. On REST, which has no partial response, it refuses the read with `500`, naming
 the field and its published type.
+On gRPC, whose message has no per-field error, it refuses the read with `INTERNAL`, in
+GraphQL's words (see [the row view](../architecture/grpc.md#the-row-view)).
 
 `compile --database` and `doctor --against-db` find such a view before it serves:
 

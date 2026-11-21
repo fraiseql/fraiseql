@@ -49,8 +49,31 @@ operation by name:
 
 A method with no matching operation is skipped and answers `UNIMPLEMENTED`; so is a
 function-backed query. Column values are encoded into the response message by type:
-text, numbers and booleans directly; timestamps, dates, JSON and UUIDs as strings; a
+text, numbers and booleans directly; temporal values, JSON and UUIDs as strings; a
 `NULL` leaves the field unset.
+
+## The row view
+
+A read selects from `vr_<sql_source>`, a view the project writes with one column per
+scalar field, named as the field. Each cell is read by its column's own PostgreSQL type:
+a `timestamptz` is written with its offset (`2024-01-15T10:00:00+00:00`), a `timestamp`
+without one (`2024-01-15T10:00:00`), a `date` as `2024-01-15`, and a `text` column as it
+is stored.
+
+A `DateTime`, `LocalDateTime`, `Date` or `Time` field is a proto `string` carrying its
+scalar's format, as GraphQL and REST serve it (see
+[temporal values](../features/temporal-values.md)). A value outside that format refuses the
+read with `INTERNAL`, naming the field and the kind of value stored, in the words GraphQL
+uses, on a unary and a streaming call alike. It is never rewritten: a `DateTime` stored
+without an offset is not read in any time zone. Give each such column the type its scalar
+reads: `timestamptz` for a `DateTime`, `timestamp` for a `LocalDateTime`, or the document's
+text (`data->>'at'`). A cast in the view such as `(data->>'at')::timestamptz` reads an
+offset-less text in the session's time zone before the server sees it; `compile --database`
+checks the document view the row view reads from.
+
+The server refuses to start with a descriptor declaring one of those fields as anything but
+a single `string`, naming the field and what to declare. A `google.protobuf.Timestamp` is an
+instant, which a `LocalDateTime`, a `Date` or a `Time` is not.
 
 A `Decimal` column carries the exact digits the database stored, scale included (`1.50`).
 Declare its field as a `string`, or as a decimal message with a `string value` field, the

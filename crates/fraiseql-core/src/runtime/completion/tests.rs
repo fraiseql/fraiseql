@@ -637,3 +637,55 @@ fn an_aggregate_row_holds_a_temporal_key_to_its_format() {
     let paths: Vec<&Value> = errors.iter().map(|e| &e["path"]).collect();
     assert_eq!(paths, [&json!(["r", 1, "at"]), &json!(["r", 1, "local"])]);
 }
+
+/// A transport with no completion of its own asks `temporal_refusal`: it refuses exactly the
+/// temporal values completion refuses, in completion's own words, and holds no other field.
+#[test]
+fn temporal_refusal_is_completions_rule_and_message() {
+    let temporals = [
+        FieldType::DateTime,
+        FieldType::LocalDateTime,
+        FieldType::Date,
+        FieldType::Time,
+    ];
+    let stored = [
+        json!("2024-01-15T10:00:00Z"),
+        json!("2024-01-15T10:00:00"),
+        json!("2024-01-15"),
+        json!("10:00:00"),
+        json!("noon"),
+        json!(7),
+        json!(true),
+        json!({"at": 1}),
+        Value::Null,
+    ];
+    for field_type in &temporals {
+        let scalar = Scalar::of(field_type).unwrap();
+        for value in &stored {
+            let expected = matches!(coerce_built_in::<false>(scalar, value), Coercion::Refused)
+                .then(|| {
+                    not_a_scalar(&"Kind.at", scalar, value, &[])["message"]
+                        .as_str()
+                        .unwrap()
+                        .to_string()
+                });
+            assert_eq!(
+                temporal_refusal(&"Kind.at", field_type, value),
+                expected,
+                "{field_type:?} {value}"
+            );
+        }
+    }
+    assert!(
+        temporal_refusal(&"Kind.at", &FieldType::DateTime, &json!("2024-01-15T10:00:00")).is_some(),
+        "an offset-less DateTime is refused"
+    );
+    for field_type in [
+        FieldType::String,
+        FieldType::Int,
+        FieldType::Id,
+        FieldType::Json,
+    ] {
+        assert_eq!(temporal_refusal(&"Kind.at", &field_type, &json!("noon")), None);
+    }
+}
