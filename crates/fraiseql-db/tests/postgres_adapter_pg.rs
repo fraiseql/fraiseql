@@ -989,6 +989,9 @@ async fn row_to_map_type_conformance() {
                '2030-06-13T08:00:00Z'::timestamptz          AS c_tstz, \
                '2030-06-13 08:00:00'::timestamp             AS c_ts, \
                '2030-06-13'::date                           AS c_date, \
+               '08:00:00.25'::time                          AS c_time, \
+               '08:00:00+02'::timetz                        AS c_timetz, \
+               '1 day'::interval                            AS c_interval, \
                ARRAY['a','b']::text[]                       AS c_textarr, \
                '{\"k\":1}'::jsonb                            AS c_jsonb, \
                NULL::text                                   AS c_null",
@@ -1008,9 +1011,58 @@ async fn row_to_map_type_conformance() {
     assert!(r["c_tstz"].as_str().is_some_and(|s| s.starts_with("2030-06-13")));
     assert!(r["c_ts"].as_str().is_some_and(|s| s.starts_with("2030-06-13")));
     assert_eq!(r["c_date"], json!("2030-06-13"));
+    assert_eq!(r["c_time"], json!("08:00:00.25"));
+    assert_eq!(r["c_timetz"], json!("08:00:00+02"));
+    // Not decoded: an interval's text depends on the session's `IntervalStyle`.
+    assert_eq!(r["c_interval"], serde_json::Value::Null);
     assert_eq!(r["c_textarr"], json!(["a", "b"]));
     assert_eq!(r["c_jsonb"], json!({"k": 1}));
     assert_eq!(r["c_null"], serde_json::Value::Null);
+}
+
+/// A `time` or `timetz` cell decodes to the text PostgreSQL writes for it, compared against
+/// the server's own `::text` of the same value in the same row: every fraction width, the
+/// ends of the day (`24:00:00` included), and zones with minutes and seconds.
+#[tokio::test]
+async fn a_time_cell_decodes_to_the_text_postgresql_writes() {
+    let adapter = create_test_adapter().await;
+    let times = [
+        "00:00:00",
+        "00:00:00.000001",
+        "12:34:56",
+        "12:34:56.1",
+        "12:34:56.12",
+        "12:34:56.123",
+        "12:34:56.1234",
+        "12:34:56.12345",
+        "12:34:56.123456",
+        "12:34:56.100000",
+        "23:59:59.999999",
+        "24:00:00",
+    ];
+    let zones = [
+        "+00",
+        "+02",
+        "-05",
+        "+05:30",
+        "-03:30",
+        "+05:30:15",
+        "-15:59",
+        "+15:59:59",
+    ];
+    let mut values: Vec<String> = times.iter().map(|t| format!("'{t}'::time")).collect();
+    values.extend(
+        times
+            .iter()
+            .flat_map(|t| zones.iter().map(move |z| format!("'{t}{z}'::timetz"))),
+    );
+    for value in values {
+        let rows = adapter
+            .execute_raw_query(&format!("SELECT {value} AS cell, ({value})::text AS text"))
+            .await
+            .expect("query failed");
+        assert_eq!(rows[0]["cell"], rows[0]["text"], "{value}");
+    }
 }
 
 // ── #980: NUMERIC values rust_decimal could not represent must not be null ────

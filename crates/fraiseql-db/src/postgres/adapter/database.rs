@@ -1045,6 +1045,85 @@ impl<'a> FromSql<'a> for AnyCell {
     }
 }
 
+/// Decodes a PostgreSQL `time` as the text PostgreSQL writes for it ([`time_text`]).
+///
+/// Not through `chrono::NaiveTime`: its `FromSql` adds the stored microseconds to midnight,
+/// which wraps, so a stored `24:00:00` would be read as `00:00:00`; and its `Display` pads a
+/// fraction to 3, 6 or 9 digits, where PostgreSQL trims it.
+struct PgTimeText(String);
+
+impl<'a> FromSql<'a> for PgTimeText {
+    fn from_sql(
+        _ty: &Type,
+        raw: &'a [u8],
+    ) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        let micros: [u8; 8] = raw.try_into().map_err(|_| "a time is 8 bytes")?;
+        Ok(Self(time_text(i64::from_be_bytes(micros))))
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        *ty == Type::TIME
+    }
+}
+
+/// Decodes a PostgreSQL `timetz` as the text PostgreSQL writes for it: its time of day
+/// ([`time_text`]), then its zone ([`zone_text`]).
+struct PgTimeTzText(String);
+
+impl<'a> FromSql<'a> for PgTimeTzText {
+    fn from_sql(
+        _ty: &Type,
+        raw: &'a [u8],
+    ) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        let (micros, zone) = raw.split_at_checked(8).ok_or("a timetz is 12 bytes")?;
+        let micros: [u8; 8] = micros.try_into().map_err(|_| "a timetz is 12 bytes")?;
+        let zone: [u8; 4] = zone.try_into().map_err(|_| "a timetz is 12 bytes")?;
+        // The wire carries the zone in seconds west of UTC; its text, east.
+        let east = -i32::from_be_bytes(zone);
+        Ok(Self(time_text(i64::from_be_bytes(micros)) + &zone_text(east)))
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        *ty == Type::TIMETZ
+    }
+}
+
+/// A time of day `micros` microseconds after midnight, as PostgreSQL writes it: `HH:MM:SS`,
+/// then the fraction with its trailing zeros dropped, if any. `24:00:00`, which a `time`
+/// holds, is written as such.
+pub(super) fn time_text(micros: i64) -> String {
+    let (seconds, fraction) = (micros.div_euclid(1_000_000), micros.rem_euclid(1_000_000));
+    let mut text = format!("{:02}:{:02}:{:02}", seconds / 3600, seconds % 3600 / 60, seconds % 60);
+    if fraction != 0 {
+        let digits = format!("{fraction:06}");
+        text.push('.');
+        text.push_str(digits.trim_end_matches('0'));
+    }
+    text
+}
+
+/// A zone `east` seconds east of UTC, as PostgreSQL writes it: a sign and the hours, then
+/// the minutes when they or the seconds are not zero, then the seconds when they are not.
+pub(super) fn zone_text(east: i32) -> String {
+    let sign = if east < 0 { '-' } else { '+' };
+    let east = east.unsigned_abs();
+    let (hours, minutes, seconds) = (east / 3600, east % 3600 / 60, east % 60);
+    match (minutes, seconds) {
+        (0, 0) => format!("{sign}{hours:02}"),
+        (_, 0) => format!("{sign}{hours:02}:{minutes:02}"),
+        _ => format!("{sign}{hours:02}:{minutes:02}:{seconds:02}"),
+    }
+}
+
+/// Why [`decode_cell`] does not decode a cell of `ty`, when that is decided rather than a gap:
+/// such a cell is read as `null`, and the warning says why.
+pub(super) fn undecoded_reason(ty: &Type) -> Option<&'static str> {
+    (*ty == Type::INTERVAL).then_some(
+        "an interval's text depends on the session's IntervalStyle, so no one rendering of it \
+         is right; cast it in the view (`::text`, `to_char`, `extract`)",
+    )
+}
+
 /// Convert a single `tokio_postgres::Row` into a `HashMap<String, serde_json::Value>`.
 ///
 /// Tries each PostgreSQL type in priority order; falls back to `Null` for
@@ -1141,7 +1220,8 @@ fn row_to_map_exact(
 /// 2 AS a` to one column and silently drop the other.
 ///
 /// Tries each PostgreSQL type in priority order; falls back to `Null` for types
-/// that cannot be represented as JSON.
+/// that cannot be represented as JSON, and for those it decides not to decode
+/// ([`undecoded_reason`]).
 pub(super) fn decode_cell(row: &Row, idx: usize) -> serde_json::Value {
     let column = &row.columns()[idx];
     if matches!(row.try_get::<_, Option<AnyCell>>(idx), Ok(None)) {
@@ -1189,6 +1269,12 @@ pub(super) fn decode_cell(row: &Row, idx: usize) -> serde_json::Value {
     } else if let Ok(v) = row.try_get::<_, chrono::NaiveDate>(idx) {
         // `date` → ISO 8601 date text (H35).
         serde_json::json!(v.to_string())
+    } else if let Ok(v) = row.try_get::<_, PgTimeText>(idx) {
+        // `time` → PostgreSQL's own text, as the document path carries it.
+        serde_json::Value::String(v.0)
+    } else if let Ok(v) = row.try_get::<_, PgTimeTzText>(idx) {
+        // `timetz` → PostgreSQL's own text, its zone included.
+        serde_json::Value::String(v.0)
     } else if let Ok(v) = row.try_get::<_, Vec<String>>(idx) {
         // TEXT[] columns (e.g. `app.mutation_response.updated_fields`) — without
         // this branch a non-null text array falls through to Null and a parser
@@ -1207,6 +1293,14 @@ pub(super) fn decode_cell(row: &Row, idx: usize) -> serde_json::Value {
         serde_json::json!(v.0)
     } else if let Ok(v) = row.try_get::<_, serde_json::Value>(idx) {
         v
+    } else if let Some(reason) = undecoded_reason(column.type_()) {
+        tracing::warn!(
+            column = %column.name(),
+            pg_type = %column.type_(),
+            reason,
+            "decode_cell: column type not decoded; returning null"
+        );
+        serde_json::Value::Null
     } else {
         // A column whose PostgreSQL type none of the branches above can
         // decode. Name the column and its type so the next drift is visible

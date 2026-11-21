@@ -724,3 +724,59 @@ fn a_counted_function_source_counts_the_same_call() {
     assert!(sql.contains("LIMIT $4"), "the bound follows the page's placeholders: {sql}");
     assert_eq!(params.len(), 3);
 }
+
+// ── decode_cell: the time rungs and the undecoded interval ─────────────────
+
+#[test]
+fn a_time_of_day_is_written_as_postgresql_writes_it() {
+    use super::database::time_text;
+    for (micros, text) in [
+        (0, "00:00:00"),
+        (1, "00:00:00.000001"),
+        (34_200_000_000, "09:30:00"),
+        (34_200_500_000, "09:30:00.5"),
+        (43_200_120_000, "12:00:00.12"),
+        (45_296_123_456, "12:34:56.123456"),
+        (86_399_999_999, "23:59:59.999999"),
+        (86_400_000_000, "24:00:00"),
+    ] {
+        assert_eq!(time_text(micros), text, "{micros}µs");
+    }
+}
+
+#[test]
+fn a_zone_is_written_as_postgresql_writes_it() {
+    use super::database::zone_text;
+    for (east, text) in [
+        (0, "+00"),
+        (7_200, "+02"),
+        (-18_000, "-05"),
+        (19_800, "+05:30"),
+        (-12_600, "-03:30"),
+        (19_815, "+05:30:15"),
+        (15, "+00:00:15"),
+        (-57_540, "-15:59"),
+        (57_599, "+15:59:59"),
+    ] {
+        assert_eq!(zone_text(east), text, "{east}s east");
+    }
+}
+
+#[test]
+fn an_interval_is_not_decoded_because_its_text_depends_on_intervalstyle() {
+    use tokio_postgres::types::Type;
+
+    use super::database::undecoded_reason;
+    let reason = undecoded_reason(&Type::INTERVAL).expect("an interval is not decoded");
+    assert!(reason.contains("interval"), "{reason}");
+    assert!(reason.contains("IntervalStyle"), "{reason}");
+    for decoded in [
+        Type::TIME,
+        Type::TIMETZ,
+        Type::TEXT,
+        Type::DATE,
+        Type::BYTEA,
+    ] {
+        assert_eq!(undecoded_reason(&decoded), None, "{decoded}");
+    }
+}

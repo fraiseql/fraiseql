@@ -2,8 +2,9 @@
 //! same words.
 //!
 //! A gRPC read decodes each cell of the type's `vr_*` view by the column's own PostgreSQL
-//! type: a `timestamptz` is written with its offset, a `timestamp` without one, and a text
-//! column as it is stored. A `DateTime`, `LocalDateTime`, `Date` or `Time` field is a proto
+//! type: a `timestamptz` is written with its offset, a `timestamp` without one, a `time` as
+//! PostgreSQL writes it (`24:00:00` included, which a `Time` refuses), and a text column as it
+//! is stored. A `DateTime`, `LocalDateTime`, `Date` or `Time` field is a proto
 //! `string` carrying its scalar's format. A value outside that format refuses the read
 //! (`INTERNAL`) with the message GraphQL completion gives for the same field and stored
 //! value, on a unary and a server-streaming call alike: a `DateTime` without an offset is not
@@ -115,6 +116,18 @@ fn cases() -> Vec<Case> {
             snake:   "date_time_day",
             columns: with(2, "'2024-01-15T10:00:00'::text"),
             refused: Some("day"),
+        },
+        Case {
+            pascal:  "TimeColumn",
+            snake:   "time_column",
+            columns: with(3, "'10:00:00.5'::time"),
+            refused: None,
+        },
+        Case {
+            pascal:  "HourTwentyFour",
+            snake:   "hour_twenty_four",
+            columns: with(3, "'24:00:00'::time"),
+            refused: Some("clock"),
         },
         Case {
             pascal:  "WordClock",
@@ -504,6 +517,31 @@ async fn a_grpc_read_serves_each_temporal_value_in_its_format() {
     assert_eq!(status, "0", "server-streaming: {message}");
     assert_eq!(frames.len(), 1, "server-streaming: one row");
     assert_eq!(temporals(&decode(&frames[0], "Slot")), expected, "server-streaming");
+}
+
+/// A `time` column is served as PostgreSQL writes it: its fraction trimmed, as the document
+/// GraphQL reads carries it.
+#[tokio::test]
+async fn a_grpc_read_serves_a_time_column_as_its_text() {
+    let dir = tempfile::tempdir().unwrap();
+    let Some((executor, services)) = build(dir.path(), &strings()).await else {
+        eprintln!("SKIP: DATABASE_URL not set");
+        return;
+    };
+    let svc = services.expect("an all-`string` descriptor builds");
+    let graphql = executor.execute("{ time_column_slots { clock } }", None).await.unwrap();
+    assert_eq!(graphql["data"]["time_column_slots"][0]["clock"], "10:00:00.5", "{graphql}");
+
+    let (status, message, frames) = call(&svc, "ListTimeColumnSlots").await;
+    assert_eq!(status, "0", "unary: {message}");
+    let response = decode(&frames[0], "ListSlotsResponse");
+    let items = response.get_field_by_name("items").unwrap();
+    let slot = items.as_list().unwrap()[0].as_message().unwrap().clone();
+    assert_eq!(temporals(&slot)[3], "10:00:00.5", "unary");
+
+    let (status, message, frames) = call(&svc, "ListTimeColumnSlotStream").await;
+    assert_eq!(status, "0", "server-streaming: {message}");
+    assert_eq!(temporals(&decode(&frames[0], "Slot"))[3], "10:00:00.5", "server-streaming");
 }
 
 #[tokio::test]

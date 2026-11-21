@@ -392,6 +392,30 @@ async fn a_readonly_token_can_select() {
     assert_eq!(data["read_only"], json!(true), "the transaction ran READ ONLY: {data}");
 }
 
+/// A `time` or `timetz` cell is shown as PostgreSQL writes it. An `interval` is not decoded:
+/// its text depends on the session's `IntervalStyle`, so the console shows no value for it.
+#[tokio::test]
+async fn a_time_cell_is_shown_as_postgresql_writes_it() {
+    if database_url_or_skip("a_time_cell_is_shown_as_postgresql_writes_it").is_none() {
+        return;
+    }
+    let rig = Box::pin(boot_console()).await.unwrap();
+
+    let data = ok_sql(
+        &rig.server,
+        READONLY_TOKEN,
+        json!({ "sql": "SELECT '09:30:00.5'::time, '24:00:00'::time, '09:30:00+05:30'::timetz, \
+                        '1 day'::interval" }),
+    )
+    .await;
+
+    assert_eq!(
+        data["rows"],
+        json!([["09:30:00.5", "24:00:00", "09:30:00+05:30", null]]),
+        "{data}"
+    );
+}
+
 /// A commit under a read-only token is refused *before* the database is touched.
 ///
 /// Not merely cosmetic: `COMMIT` on a `READ ONLY` transaction succeeds and

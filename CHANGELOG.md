@@ -1028,6 +1028,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A PostgreSQL `time` or `timetz` column read as a native column is served as the text
+  PostgreSQL writes for it (#2234); it was `null`.** This changes the gRPC row view (a
+  `Time` field over a `time` column was served unset), the admin SQL console, Arrow Flight
+  results, aggregate results and function results. A `time` is written `HH:MM:SS` with its
+  fraction trimmed, as the JSONB document carries it; a stored `24:00:00` is served as such,
+  so a `Time` field refuses it as it refuses any value outside its format. A `timetz` keeps
+  its zone (`09:30:00+05:30`). An `interval` is still read as `null`, on purpose: its text
+  depends on the session's `IntervalStyle`, and the warning now says so and how to cast it.
 - **An omitted input field reaches the function as its declared default (#1915).** A field
   declared with a default (`currency: str = "EUR"`) and left out of a request reached the
   function as NULL on a flattened input, or as a missing key on a `jsonb` input, so the
