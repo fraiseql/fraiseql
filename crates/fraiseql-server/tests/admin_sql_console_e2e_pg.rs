@@ -446,6 +446,34 @@ async fn a_decoded_cell_is_shown_and_only_one_not_decoded_is_listed() {
     assert_eq!(data["undecoded"][0]["column"], 4, "{data}");
 }
 
+/// A pgvector `vector`, `halfvec` and `sparsevec` are shown as their text, as `to_jsonb` writes
+/// them, and are not listed.
+#[tokio::test]
+async fn a_pgvector_cell_is_shown_as_its_text() {
+    if database_url_or_skip("a_pgvector_cell_is_shown_as_its_text").is_none() {
+        return;
+    }
+    let rig = Box::pin(boot_console()).await.unwrap();
+    rig.adapter
+        .execute_raw_query("CREATE EXTENSION IF NOT EXISTS vector")
+        .await
+        .expect("CREATE EXTENSION vector (the rig image ships pgvector)");
+
+    let data = ok_sql(
+        &rig.server,
+        READONLY_TOKEN,
+        json!({ "sql": "SELECT '[1.5,-0.25,1e6]'::vector, '[1.1]'::halfvec, '{2:3,4:1.5}/4'::sparsevec" }),
+    )
+    .await;
+
+    assert_eq!(
+        data["rows"],
+        json!([["[1.5,-0.25,1e+06]", "[1.0996094]", "{2:3,4:1.5}/4"]]),
+        "{data}"
+    );
+    assert_eq!(data["undecoded"], json!([]), "{data}");
+}
+
 /// A cell whose type is not decoded is shown as `null` and listed in `undecoded`, with its row,
 /// its column's index, its type and why, never its value. A SQL `NULL` of such a type is a
 /// `null` and is not listed, so a `null` in `rows` is never ambiguous.

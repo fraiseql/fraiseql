@@ -95,6 +95,14 @@ already outside this contract; add the column to the view's select list.
 Selection tip: don't select the `embedding` GraphQL field unless you want the
 payload — it is the type's declared field for configuration purposes.
 
+Read as a native column, outside the document (the gRPC row view, the admin SQL
+console, Arrow Flight, an aggregate or a function's result), a `vector`, `halfvec`
+or `sparsevec` is served as its text, the JSON string `to_jsonb` writes:
+`"[1.5,-0.25,1e+06]"`, `"{2:3}/4"`. That is the string the `embedding::text` copy
+above puts in `data`, so a native column and the same column read through the
+document agree. pgvector formats its floats itself, so no session setting
+(`extra_float_digits` included) changes the text.
+
 ## Top-K search: the `nearest` argument
 
 ```graphql

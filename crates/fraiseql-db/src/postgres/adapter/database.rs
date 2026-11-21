@@ -1194,13 +1194,6 @@ const REFUSED_BY_NAME: &[(&[&str], Refusal)] = &[
         },
     ),
     (
-        &["vector"],
-        Refusal {
-            reason: "a pgvector value is not decoded",
-            cast:   "`::text` or `::real[]`",
-        },
-    ),
-    (
         &["txid_snapshot", "pg_snapshot", "int2vector", "oidvector"],
         Refusal {
             reason: "a system type is not decoded",
@@ -1506,7 +1499,12 @@ fn decode_value(ty: &Type, raw: &[u8]) -> std::result::Result<serde_json::Value,
             // An array, not `int2vector` or `oidvector`: those are arrays to the driver,
             // and refused as system types.
             Kind::Array(element) if ty.name().starts_with('_') => decode_array(element, raw),
-            _ => Err(refusal(ty)),
+            // pgvector's `vector`, `halfvec`, `sparsevec` → their text, a string as `to_jsonb`
+            // writes it and as a document carrying `embedding::text` holds it. Last, so no
+            // other cell pays for the names.
+            _ => read::<PgVectorText>(ty, raw)
+                .map(|PgVectorText(v)| serde_json::Value::String(v))
+                .ok_or_else(|| refusal(ty)),
         };
     };
     Ok(value)
@@ -1576,6 +1574,169 @@ impl<'a> FromSql<'a> for PgText {
             Type::XML,
         ]
         .contains(ty)
+    }
+}
+
+/// pgvector's `vector`, `halfvec` and `sparsevec`, read into the text pgvector writes for
+/// them, which no session setting changes: pgvector formats its floats itself, not through
+/// `float4out`, so `extra_float_digits` does not reach them.
+///
+/// The extension's types have no fixed OID, so they are known by name. Resolving their OIDs
+/// when the pool starts would change how every pool is set up to guard against a type that
+/// is hypothetical: a base type of the same name from another extension. Its binary form
+/// would also have to fit the one read here to the byte, header, length and, for a
+/// `sparsevec`, ascending in-range indices, or the cell is refused as before. A composite or
+/// domain of the same name is not a base type, and is not read here.
+pub(super) struct PgVectorText(String);
+
+impl<'a> FromSql<'a> for PgVectorText {
+    fn from_sql(
+        ty: &Type,
+        raw: &'a [u8],
+    ) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        let text = match ty.name() {
+            "vector" => dense_vector_text(raw, 4, |b| Some(f32::from_be_bytes(b.try_into().ok()?))),
+            "halfvec" => {
+                dense_vector_text(raw, 2, |b| half_to_f32(u16::from_be_bytes(b.try_into().ok()?)))
+            },
+            _ => sparse_vector_text(raw),
+        };
+        text.map(Self).ok_or_else(|| format!("a malformed {ty}").into())
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        matches!(ty.kind(), Kind::Simple) && matches!(ty.name(), "vector" | "halfvec" | "sparsevec")
+    }
+}
+
+/// A `vector` or `halfvec`: an `i16` dimension count, two unused bytes, then that many
+/// elements of `width` bytes, written `[a,b,…]`.
+pub(super) fn dense_vector_text(
+    raw: &[u8],
+    width: usize,
+    element: impl Fn(&[u8]) -> Option<f32>,
+) -> Option<String> {
+    let (&[d0, d1, _, _], elements) = raw.split_first_chunk::<4>()?;
+    let dimensions = usize::try_from(i16::from_be_bytes([d0, d1])).ok()?;
+    if elements.len() != dimensions * width {
+        return None;
+    }
+    let mut text = String::with_capacity(2 + dimensions * 12);
+    let mut scratch = String::new();
+    text.push('[');
+    for (i, bytes) in elements.chunks_exact(width).enumerate() {
+        if i != 0 {
+            text.push(',');
+        }
+        push_vector_float(&mut text, &mut scratch, element(bytes)?);
+    }
+    text.push(']');
+    Some(text)
+}
+
+/// A `sparsevec`: `i32` dimension count, non-zero count and an unused word, then the
+/// non-zero entries' 0-based indices, then their `float4` values, written `{i:v,…}/d` with
+/// 1-based indices.
+pub(super) fn sparse_vector_text(raw: &[u8]) -> Option<String> {
+    let word = |at: usize| -> Option<i32> {
+        Some(i32::from_be_bytes(raw.get(at..at + 4)?.try_into().ok()?))
+    };
+    let dimensions = usize::try_from(word(0)?).ok()?;
+    let entries = usize::try_from(word(4)?).ok()?;
+    if raw.len() != 12 + entries * 8 {
+        return None;
+    }
+    let mut text = String::from("{");
+    let mut scratch = String::new();
+    let mut previous: Option<usize> = None;
+    for entry in 0..entries {
+        let index = usize::try_from(word(12 + entry * 4)?).ok()?;
+        if index >= dimensions || previous.is_some_and(|p| index <= p) {
+            return None;
+        }
+        previous = Some(index);
+        let value = f32::from_bits(u32::from_be_bytes(
+            raw.get(12 + entries * 4 + entry * 4..)?.get(..4)?.try_into().ok()?,
+        ));
+        if entry != 0 {
+            text.push(',');
+        }
+        let _ = write!(text, "{}:", index + 1);
+        push_vector_float(&mut text, &mut scratch, value);
+    }
+    let _ = write!(text, "}}/{dimensions}");
+    Some(text)
+}
+
+/// A half-precision float widened to `float4`, exactly; `None` for an infinity or a NaN,
+/// which pgvector never stores.
+pub(super) fn half_to_f32(half: u16) -> Option<f32> {
+    let sign = if half & 0x8000 == 0 { 1.0 } else { -1.0 };
+    let exponent = u32::from(half >> 10 & 0x1F);
+    let fraction = u32::from(half & 0x3FF);
+    match exponent {
+        // Zero and the subnormals: `fraction` × 2⁻²⁴, exact in a `float4`.
+        0 => Some(sign * f32::from(u16::try_from(fraction).ok()?) * f32::from_bits(0x3380_0000)),
+        0x1F => None,
+        _ => Some(f32::from_bits(
+            u32::from(half & 0x8000) << 16 | (exponent + 112) << 23 | fraction << 13,
+        )),
+    }
+}
+
+/// A `float4` as pgvector writes it, onto `out`: the shortest digits that read back as the
+/// same value, in `float4`'s notation, exponential below 1e-4 and from 1e6 (`1e+06`,
+/// `1.5e-05`, a signed exponent of at least two digits), else fixed; a negative zero as
+/// `-0`. `scratch` holds the digits, one buffer for every element of a vector.
+pub(super) fn push_vector_float(out: &mut String, scratch: &mut String, v: f32) {
+    if v == 0.0 {
+        out.push_str(if v.is_sign_negative() { "-0" } else { "0" });
+        return;
+    }
+    scratch.clear();
+    let _ = write!(scratch, "{v:e}");
+    let (mantissa, exponent) = scratch.split_once('e').unwrap_or((scratch.as_str(), "0"));
+    let exponent: i32 = exponent.parse().unwrap_or(0);
+    if let Some(magnitude) = mantissa.strip_prefix('-') {
+        out.push('-');
+        push_float_digits(out, magnitude, exponent);
+    } else {
+        push_float_digits(out, mantissa, exponent);
+    }
+}
+
+/// `d.ddd` × 10^`exponent` in `float4`'s notation; see [`push_vector_float`].
+fn push_float_digits(out: &mut String, mantissa: &str, exponent: i32) {
+    let (first, rest) = mantissa.split_once('.').unwrap_or((mantissa, ""));
+    if !(-4..6).contains(&exponent) {
+        out.push_str(first);
+        if !rest.is_empty() {
+            out.push('.');
+            out.push_str(rest);
+        }
+        let exponent_sign = if exponent < 0 { '-' } else { '+' };
+        let _ = write!(out, "e{exponent_sign}{:02}", exponent.unsigned_abs());
+    } else if exponent < 0 {
+        out.push_str("0.");
+        for _ in 1..-exponent {
+            out.push('0');
+        }
+        out.push_str(first);
+        out.push_str(rest);
+    } else {
+        // The digits before the point, after the first.
+        let whole = usize::try_from(exponent).unwrap_or(0);
+        out.push_str(first);
+        if rest.len() <= whole {
+            out.push_str(rest);
+            for _ in rest.len()..whole {
+                out.push('0');
+            }
+        } else {
+            out.push_str(&rest[..whole]);
+            out.push('.');
+            out.push_str(&rest[whole..]);
+        }
     }
 }
 

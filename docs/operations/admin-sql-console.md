@@ -242,7 +242,7 @@ A cell of a type FraiseQL does not decode is shown as `null` and listed in
 A type is not decoded when its text depends on a session setting, so that no one
 rendering of it is right (`bytea`, `money`, `interval`, the `reg*` types, ranges,
 geometry), or when FraiseQL has no decoder for it (composites, text search, system
-types, extension types such as pgvector's `vector`). Cast the column in the
+types, extension types such as `hstore`). Cast the column in the
 statement, as the reason says, to see its value. A SQL `NULL` is a `null` and is
 never listed, so a `null` in `rows` is never ambiguous; the value itself is never
 in the response.

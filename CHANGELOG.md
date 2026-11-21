@@ -26,8 +26,8 @@ disagreed, and the promise was the part that was wrong.
   depends on a session setting (`bytea` on `bytea_output`, `money` on `lc_monetary`,
   `interval` on `IntervalStyle`, the `reg*` types on `search_path`, a range of timestamps on
   `TimeZone`, geometry on `extra_float_digits`), or when no decoder reads it (composites and
-  `record`, `tsvector` and `tsquery`, system types, pgvector's `vector`, any other extension
-  type). What each output does now:
+  `record`, `tsvector` and `tsquery`, system types, an extension type other than pgvector's).
+  What each output does now:
   - gRPC row view: the read is refused with `INTERNAL`.
   - Aggregate results and Arrow Flight queries: the query is refused.
   - Function results: the write is refused and its transaction rolls back, so a function whose
@@ -1071,6 +1071,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A pgvector `vector`, `halfvec` or `sparsevec` column read as a native column is served as
+  its text (#2243), the JSON string `to_jsonb` writes: `"[1.5,-0.25,1e+06]"`,
+  `"{2:3}/4"`.** It is the string a document carrying `embedding::text` holds, so a native
+  column and the same column read through a JSONB view agree. pgvector writes its floats
+  itself, so no session setting changes the text. An array of each is a JSON array of those
+  strings. This reaches the gRPC row view, the admin SQL console, Arrow Flight, aggregate
+  results and function results, where #2242 refused such a column and the last release read
+  it as `null`.
 - **A native column of type `float4`, `oid`, `"char"`, `inet`, `cidr`, `macaddr`,
   `macaddr8`, `bit`, `varbit`, `pg_lsn` or `xml`, or an array, is served as `to_jsonb`
   writes it (#2242); it was `null`.** A `float4` is a JSON number in its shortest exact text

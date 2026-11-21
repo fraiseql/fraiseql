@@ -1034,7 +1034,6 @@ const REFUSED: &[(&str, &str, &str, &str)] = &[
     ("'{[4711,4799)}'::int4multirange", "int4multirange", "TimeZone", "lower(col)"),
     ("ROW(4711, 'quokka')", "record", "composite", "to_jsonb(col)"),
     ("'4711 4712'::int2vector", "int2vector", "system type", "::text"),
-    ("'[47.11,0.5]'::vector", "vector", "pgvector", "::real[]"),
     ("ARRAY['\\xfeedc0de4711'::bytea]", "bytea[]", "bytea_output", "encode(col"),
 ];
 
@@ -1160,6 +1159,106 @@ async fn a_cell_decodes_to_what_to_jsonb_writes_for_it() {
     }
 }
 
+/// pgvector values, chosen for the edges of their text: each notation threshold, the ends of
+/// `float4`, `-0`, a half's rounding and subnormals, a sparse vector's empty and last
+/// entries, and arrays of each.
+fn pgvector_values() -> Vec<String> {
+    let wide: Vec<String> =
+        (0..1536).map(|i| format!("{}", f64::from(i).mul_add(0.001_3, -1.0))).collect();
+    [
+        "'[1]'::vector",
+        "'[1.1,0.3333333333,-2.5,0]'::vector",
+        "'[-0]'::vector",
+        "'[100000,123456,99999.99,1e6,1234567,12345678,16777217]'::vector",
+        "'[0.0001,0.000123,0.00001,1.5e-5]'::vector",
+        "'[3.4028235e38,-3.4028235e38,1.17549435e-38,1e-45,7e22]'::vector",
+        "'[0.1,0.2,0.3,1e-7,1e-10]'::vector",
+        "'[1.1,0.3333333333,-2.5,65504,6e-8,0.000061035156,0.00006,1e-5]'::halfvec",
+        "'[-0,0]'::halfvec",
+        "'{}/1'::sparsevec",
+        "'{1:1.1,3:0.3333333333,5:-2.5}/6'::sparsevec",
+        "'{1:1e6,100000:1.5e-5}/100000'::sparsevec",
+        "ARRAY['[1,2]'::vector, NULL, '[-0]']",
+        "ARRAY['[1.1]'::halfvec]",
+        "ARRAY['{2:3,4:1.5}/4'::sparsevec]",
+    ]
+    .into_iter()
+    .map(str::to_string)
+    .chain([format!("'[{}]'::vector", wide.join(","))])
+    .collect()
+}
+
+/// Each pgvector value decodes to what `to_jsonb` writes for it, at the session's default
+/// `extra_float_digits` and at 0 and 3: pgvector's text does not follow that setting, so
+/// neither does the decoded cell.
+#[tokio::test]
+async fn a_pgvector_cell_decodes_to_what_to_jsonb_writes_at_any_extra_float_digits() {
+    let adapter = create_test_adapter().await;
+    adapter
+        .execute_raw_query("CREATE EXTENSION IF NOT EXISTS vector")
+        .await
+        .expect("CREATE EXTENSION vector (the rig image ships pgvector)");
+    for value in pgvector_values() {
+        let sql =
+            format!("SELECT x AS cell, to_jsonb(x) AS oracle FROM (SELECT {value} AS x) AS v");
+        let rows = adapter.execute_raw_query(&sql).await.unwrap_or_else(|e| panic!("{value}: {e}"));
+        assert!(rows[0]["cell"].is_string() || rows[0]["cell"].is_array(), "{value}");
+        assert_eq!(rows[0]["cell"], rows[0]["oracle"], "{value}");
+        for digits in ["0", "3"] {
+            let rows = adapter
+                .execute_parameterized_aggregate_with_session(
+                    &sql,
+                    &[],
+                    &[("extra_float_digits", digits)],
+                    ReadRouting::Primary,
+                )
+                .await
+                .unwrap_or_else(|e| panic!("{value} at {digits}: {e}"));
+            assert_eq!(
+                rows[0]["cell"], rows[0]["oracle"],
+                "{value} at extra_float_digits {digits}"
+            );
+        }
+    }
+}
+
+/// A composite named `vector` or `halfvec` in another schema is a composite, refused as one:
+/// the pgvector reader reads only a base type of that name. The `vector` has no attributes,
+/// so its binary form, a zero count, would also read as an empty vector if the name alone
+/// were enough.
+#[tokio::test]
+async fn a_composite_named_vector_is_not_read_as_a_pgvector_value() {
+    let adapter = create_test_adapter().await;
+    for statement in [
+        "DROP SCHEMA IF EXISTS vector_shadow CASCADE",
+        "CREATE SCHEMA vector_shadow",
+        "CREATE TYPE vector_shadow.vector AS ()",
+        "CREATE TYPE vector_shadow.halfvec AS (a int, b int)",
+    ] {
+        adapter.execute_raw_query(statement).await.expect("provision the shadow types");
+    }
+    let refused = [
+        (
+            "vector",
+            adapter.execute_raw_query("SELECT ROW()::vector_shadow.vector AS c").await,
+        ),
+        (
+            "halfvec",
+            adapter.execute_raw_query("SELECT ROW(1, 2)::vector_shadow.halfvec AS c").await,
+        ),
+    ];
+    let _ = adapter.execute_raw_query("DROP SCHEMA IF EXISTS vector_shadow CASCADE").await;
+    for (name, read) in refused {
+        let Err(FraiseQLError::Database { message, .. }) = read else {
+            panic!("{name}: expected a refusal, got {read:?}");
+        };
+        let prefix = format!(
+            "column `c` of PostgreSQL type `vector_shadow.{name}` is not decoded: a composite"
+        );
+        assert!(message.starts_with(&prefix), "{message}");
+    }
+}
+
 /// An aggregate over a `float4` column is served, as `to_jsonb` writes its value.
 #[tokio::test]
 async fn an_aggregate_of_a_float4_is_served() {
@@ -1175,20 +1274,25 @@ async fn an_aggregate_of_a_float4_is_served() {
     assert_eq!(rows[0]["bottom"], json!(-2.5));
 }
 
-/// A row-shaped read, the gRPC transport's source, serves an array column under a JSON
-/// field and a `float4` column under a float field, collected and streamed alike.
+/// A row-shaped read, the gRPC transport's source, serves an array column and a pgvector
+/// column (as its text) under JSON fields and a `float4` column under a float field,
+/// collected and streamed alike.
 #[tokio::test]
 async fn a_row_read_serves_an_array_and_a_float4_column() {
     use fraiseql_db::{dialect::RowViewColumnType, types::ColumnSpec};
     use futures::StreamExt as _;
 
     let adapter = create_test_adapter().await;
+    adapter
+        .execute_raw_query("CREATE EXTENSION IF NOT EXISTS vector")
+        .await
+        .expect("CREATE EXTENSION vector (the rig image ships pgvector)");
     let view = "v_decoded_row_read";
     for stmt in [
         format!("DROP VIEW IF EXISTS {view}"),
         format!(
             "CREATE VIEW {view} AS SELECT 1 AS id, ARRAY[[4711, NULL], [4712, 4713]] AS ns, \
-             47.25::float4 AS weight"
+             47.25::float4 AS weight, '[1.5,-0.25,1e6]'::vector(3) AS embedding"
         ),
     ] {
         adapter.execute_raw_query(&stmt).await.expect("row-read fixture DDL");
@@ -1201,6 +1305,10 @@ async fn a_row_read_serves_an_array_and_a_float4_column() {
         ColumnSpec {
             name:        "weight".to_string(),
             column_type: RowViewColumnType::Float64,
+        },
+        ColumnSpec {
+            name:        "embedding".to_string(),
+            column_type: RowViewColumnType::Json,
         },
     ];
     let collected = adapter
@@ -1216,7 +1324,7 @@ async fn a_row_read_serves_an_array_and_a_float4_column() {
         .await;
     assert_eq!(
         format!("{collected:?}"),
-        r#"[[Json("[[4711,null],[4712,4713]]"), Float64(47.25)]]"#
+        r#"[[Json("[[4711,null],[4712,4713]]"), Float64(47.25), Text("[1.5,-0.25,1e+06]")]]"#
     );
     assert_eq!(format!("{streamed:?}"), format!("{collected:?}"));
     let _ = adapter.execute_raw_query(&format!("DROP VIEW IF EXISTS {view}")).await;

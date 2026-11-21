@@ -777,7 +777,6 @@ fn each_refused_type_is_refused_for_its_own_reason() {
     use tokio_postgres::types::{Kind, Type};
 
     use super::database::refusal;
-    let vector = Type::new("vector".into(), 90_001, Kind::Simple, "public".into());
     let pair = Type::new("pair".into(), 90_003, Kind::Composite(vec![]), "public".into());
     let hstore = Type::new("hstore".into(), 90_004, Kind::Simple, "public".into());
     for (ty, names, cast) in [
@@ -797,7 +796,6 @@ fn each_refused_type_is_refused_for_its_own_reason() {
         (pair, "composite", "to_jsonb(col)"),
         (Type::TXID_SNAPSHOT, "system type", "::text"),
         (Type::INT2_VECTOR, "system type", "::text"),
-        (vector, "pgvector", "::real[]"),
         (hstore, "no decoder", "to_jsonb(col)"),
     ] {
         let refusal = refusal(&ty);
@@ -844,4 +842,119 @@ fn a_refusal_names_its_column_its_type_and_its_cast() {
         "{message}"
     );
     assert!(message.contains("cast it in the view (`encode(col, 'base64')`"), "{message}");
+}
+
+// ── pgvector: the float text, half widening, and the binary layouts ────────
+
+#[test]
+fn a_vector_float_is_written_as_pgvector_writes_it() {
+    use super::database::push_vector_float;
+    for (value, text) in [
+        (0.0_f32, "0"),
+        (-0.0, "-0"),
+        (1.0, "1"),
+        (1.1, "1.1"),
+        (-2.5, "-2.5"),
+        (1.0 / 3.0, "0.33333334"),
+        (100_000.0, "100000"),
+        (123_456.0, "123456"),
+        (99_999.99, "99999.99"),
+        (1e6, "1e+06"),
+        (1_234_567.0, "1.234567e+06"),
+        (16_777_216.0, "1.6777216e+07"),
+        (0.0001, "0.0001"),
+        (0.000_123, "0.000123"),
+        (1e-5, "1e-05"),
+        (1.5e-5, "1.5e-05"),
+        (f32::MAX, "3.4028235e+38"),
+        (f32::MIN_POSITIVE, "1.1754944e-38"),
+        (f32::from_bits(1), "1e-45"),
+        (7e22, "7e+22"),
+    ] {
+        let mut out = String::from("x");
+        push_vector_float(&mut out, &mut String::from("stale"), value);
+        assert_eq!(out, format!("x{text}"), "{value:e}");
+    }
+}
+
+#[test]
+fn only_a_base_type_named_as_pgvector_names_its_types_is_read_as_one() {
+    use tokio_postgres::types::{FromSql, Kind, Type};
+
+    use super::database::PgVectorText;
+    let named = |name: &str, kind: Kind| Type::new(name.into(), 90_100, kind, "public".into());
+    for name in ["vector", "halfvec", "sparsevec"] {
+        assert!(PgVectorText::accepts(&named(name, Kind::Simple)), "{name}");
+        assert!(!PgVectorText::accepts(&named(name, Kind::Composite(Vec::new()))), "{name}");
+        assert!(!PgVectorText::accepts(&named(name, Kind::Domain(Type::BYTEA))), "{name}");
+    }
+    for other in [
+        Type::BYTEA,
+        Type::TEXT,
+        Type::FLOAT4_ARRAY,
+        named("vectors", Kind::Simple),
+    ] {
+        assert!(!PgVectorText::accepts(&other), "{other}");
+    }
+}
+
+#[test]
+fn a_half_is_widened_exactly() {
+    use super::database::half_to_f32;
+    for (half, value) in [
+        (0x0000_u16, 0.0_f32),
+        (0x3C00, 1.0),
+        (0x3C66, 1.099_609_4),
+        (0xC100, -2.5),
+        (0x7BFF, 65_504.0),
+        (0x0001, 5.960_464_5e-8),
+        (0x03FF, 6.097_555e-5),
+        (0x0400, 6.103_515_6e-5),
+    ] {
+        assert_eq!(half_to_f32(half).map(f32::to_bits), Some(value.to_bits()), "{half:#06x}");
+    }
+    assert_eq!(half_to_f32(0x8000).map(f32::to_bits), Some((-0.0_f32).to_bits()));
+    assert_eq!(half_to_f32(0x7C00), None, "an infinity");
+    assert_eq!(half_to_f32(0x7E00), None, "a NaN");
+}
+
+#[test]
+fn a_vector_whose_bytes_do_not_fit_its_layout_is_not_read() {
+    use super::database::{dense_vector_text, sparse_vector_text};
+    let f32_element = |b: &[u8]| Some(f32::from_be_bytes(b.try_into().ok()?));
+    // `[1,2]`, then the same short of a byte, with a byte over, and claiming 3 dimensions.
+    let dense = [0, 2, 0, 0, 0x3F, 0x80, 0, 0, 0x40, 0, 0, 0];
+    assert_eq!(dense_vector_text(&dense, 4, f32_element).as_deref(), Some("[1,2]"));
+    assert_eq!(dense_vector_text(&dense[..11], 4, f32_element), None);
+    assert_eq!(dense_vector_text(&[&dense[..], &[0]].concat(), 4, f32_element), None);
+    assert_eq!(
+        dense_vector_text(&[[0, 3].as_slice(), &dense[2..]].concat(), 4, f32_element),
+        None
+    );
+    assert_eq!(dense_vector_text(&[0, 2], 4, f32_element), None);
+    // `{1:1,3:2}/5`, then indices out of order, repeated, out of range, more entries than
+    // dimensions, and the payload short of a byte and with a byte over.
+    let sparse = |dimensions: u8, entries: u8, indices: [u8; 2]| -> Vec<u8> {
+        [
+            [0, 0, 0, dimensions],
+            [0, 0, 0, entries],
+            [0, 0, 0, 0],
+            [0, 0, 0, indices[0]],
+            [0, 0, 0, indices[1]],
+            [0x3F, 0x80, 0, 0],
+            [0x40, 0, 0, 0],
+        ]
+        .concat()
+    };
+    assert_eq!(sparse_vector_text(&sparse(5, 2, [0, 2])).as_deref(), Some("{1:1,3:2}/5"));
+    assert_eq!(sparse_vector_text(&sparse(5, 2, [2, 0])), None);
+    assert_eq!(sparse_vector_text(&sparse(5, 2, [2, 2])), None);
+    assert_eq!(sparse_vector_text(&sparse(5, 2, [0, 5])), None);
+    assert_eq!(sparse_vector_text(&sparse(1, 2, [0, 1])), None);
+    assert_eq!(sparse_vector_text(&sparse(5, 2, [0, 2])[..27]), None);
+    assert_eq!(sparse_vector_text(&[sparse(5, 2, [0, 2]), vec![0]].concat()), None);
+    assert_eq!(
+        sparse_vector_text(&[0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]).as_deref(),
+        Some("{}/1")
+    );
 }
