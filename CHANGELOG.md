@@ -226,6 +226,9 @@ disagreed, and the promise was the part that was wrong.
   its rows from `request.raw_rows()` to answer, as it copies them, whether a selected
   `Int`, `Float`, `String` or `Boolean` holds a value of another kind; one that keeps
   `RawRows::new()` answers alike and reads its rows again.
+- **`ScalarKind`, a public enum in `fraiseql-db`, has four more variants: `DateTime`,
+  `LocalDateTime`, `Date` and `Time` (#2214).** A `match` over it that names every variant
+  must add them.
 - **A discovery document that names another issuer refuses the boot (#2135).** The
   `[auth]` PKCE client and the social and generic OIDC providers fetch
   `{discovery_url}/.well-known/openid-configuration`; the `issuer` the document names must
@@ -892,6 +895,12 @@ disagreed, and the promise was the part that was wrong.
   time whenever any of them held a fraction, as every `Float` or `Decimal` beside the
   `Int` does. The read now names its scalar keys and their kinds to the adapter, and the
   question is answered as the rows are copied.
+- **A read selecting a `DateTime`, `LocalDateTime`, `Date` or `Time` field is answered as
+  the database's text (#2214).** It was always read into `Value`s and completed. As the
+  rows are copied, each string under a selected temporal field's key is held to its
+  scalar's format by the same parser completion uses. A row holding one outside it, a value
+  of another kind or an escaped string sends the read to the `Value` path, where completion
+  refuses it as before; a key the read does not select is not looked at.
 - **An aggregate `Int` holding a whole decimal such as `3.0` is served as `3` (#1928); it was
   a field error.** Aggregate rows follow the same `Int` rule as every other read.
 - **A saga time past year 9999 is unreadable (#2026).** A saga's times hold years -9999 to

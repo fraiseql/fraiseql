@@ -293,6 +293,43 @@ INSERT INTO v_selection_conformance_counter (pk_counter, data) VALUES
      "inner":{"m":5,"tag":"b"}}'::jsonb);
 "#;
 
+/// Temporal fields written from the column type each scalar is written from (`timestamptz`,
+/// `timestamp`, `date`, `time`), so each holds a value in its scalar's format, as the
+/// database writes it: `jsonb_build_object` writes each through `to_jsonb`.
+const CLOCK_VIEW: &str = "v_selection_conformance_clock";
+const CLOCK_FIXTURE: &str = r"
+DROP TABLE IF EXISTS v_selection_conformance_clock;
+CREATE TABLE v_selection_conformance_clock (pk_clock bigint, data jsonb);
+INSERT INTO v_selection_conformance_clock (pk_clock, data)
+SELECT n, jsonb_build_object(
+    'case', 'clean',
+    'at', timestamptz '2026-07-01 12:00:00.5+02' + n * interval '1 day',
+    'local', timestamp '2026-07-01 12:00:00' + n * interval '1 hour',
+    'day', date '2026-07-01' + n::int,
+    'clock', time '09:30:00.25' + n * interval '1 minute',
+    'opens', time '08:00:00',
+    'inner', jsonb_build_object('at', timestamptz '1999-12-31 23:59:59+00'))
+FROM generate_series(1, 2) AS n;
+";
+
+/// [`CLOCK_VIEW`]'s first document with one value replaced, one case per row: a value outside
+/// its scalar's format, at each scalar and below an object, a value of another kind, and a
+/// `null` under the non-null `opens`. Beside each, the field its error is at. A `clean` row
+/// changes nothing.
+const CLOCK_DRIFT_VIEW: &str = "v_selection_conformance_clock_drift";
+const CLOCK_DRIFTS: &[(&str, &str, &[&str])] = &[
+    ("clean", "{}", &[]),
+    ("offsetless", r#"{"at": "2026-07-01T12:00:00"}"#, &["at"]),
+    ("seconds_offset", r#"{"at": "1890-01-01T00:00:00+00:09:21"}"#, &["at"]),
+    ("zoned_local", r#"{"local": "2026-07-01T12:00:00Z"}"#, &["local"]),
+    ("no_such_day", r#"{"day": "2026-02-30"}"#, &["day"]),
+    ("number_day", r#"{"day": 7}"#, &["day"]),
+    ("object_clock", r#"{"clock": {"t": 1}}"#, &["clock"]),
+    ("hour_24", r#"{"clock": "24:00:00"}"#, &["clock"]),
+    ("nested", r#"{"inner": {"at": "2026-07-01T12:00:00"}}"#, &["inner", "at"]),
+    ("no_opens", r#"{"opens": null}"#, &["opens"]),
+];
+
 /// A document of 120 keys, past the 50 pairs one `jsonb_build_object` call could carry (#1544).
 const WIDE_VIEW: &str = "v_selection_conformance_wide";
 const WIDE_FIELDS: usize = 120;
@@ -338,6 +375,30 @@ fn schema() -> CompiledSchema {
         .with_nullable_field("big", FieldType::Float)
         .with_nullable_field("inner", FieldType::Object("CounterInner".to_string()))
         .build();
+    let clock_type = |name: &str, view: &str| {
+        TestTypeBuilder::new(name, view)
+            .with_nullable_field("case", FieldType::String)
+            .with_nullable_field("at", FieldType::DateTime)
+            .with_nullable_field("local", FieldType::LocalDateTime)
+            .with_nullable_field("day", FieldType::Date)
+            .with_nullable_field("clock", FieldType::Time)
+            .with_simple_field("opens", FieldType::Time)
+            .with_nullable_field("inner", FieldType::Object("ClockInner".to_string()))
+            .build()
+    };
+    let clock_inner_type =
+        TestTypeBuilder::new("ClockInner", "v_selection_conformance_clock_inner")
+            .with_nullable_field("at", FieldType::DateTime)
+            .build();
+    let clocks_query = TestQueryBuilder::new("clocks", "Clock")
+        .returns_list(true)
+        .with_sql_source(CLOCK_VIEW)
+        .build();
+    let mut drifts_query = TestQueryBuilder::new("drifts", "ClockDrift")
+        .returns_list(true)
+        .with_sql_source(CLOCK_DRIFT_VIEW)
+        .build();
+    drifts_query.auto_params.has_where = true;
     let counter_inner_type =
         TestTypeBuilder::new("CounterInner", "v_selection_conformance_counter_inner")
             .with_simple_field("m", FieldType::Int)
@@ -608,6 +669,11 @@ fn schema() -> CompiledSchema {
         .with_query(user_query)
         .with_query(measures_query)
         .with_query(counters_query)
+        .with_type(clock_type("Clock", CLOCK_VIEW))
+        .with_type(clock_type("ClockDrift", CLOCK_DRIFT_VIEW))
+        .with_type(clock_inner_type)
+        .with_query(clocks_query)
+        .with_query(drifts_query)
         .with_type(kind_type("Kind", KIND_VIEW))
         .with_type(kind_type("CleanKind", KIND_CLEAN_VIEW))
         .with_query(kinds_query)
@@ -662,6 +728,7 @@ async fn executor_for(schema: CompiledSchema) -> Option<Executor> {
         .chain(ROSTER_FIXTURE.split(";\n"))
         .chain(HOLDING_FIXTURE.split(";\n"))
         .chain(COUNTER_FIXTURE.split(";\n"))
+        .chain(CLOCK_FIXTURE.split(";\n"))
     {
         if stmt.trim().is_empty() {
             continue;
@@ -698,6 +765,25 @@ async fn executor_for(schema: CompiledSchema) -> Option<Executor> {
         ),
     ] {
         adapter.execute_raw_query(&stmt).await.expect("provision the kind fixture");
+    }
+    let drift_rows = CLOCK_DRIFTS
+        .iter()
+        .map(|(case, patch, _)| {
+            format!(r#"('{{"case": "{case}"}}'::jsonb || '{}'::jsonb)"#, patch.replace('\'', "''"))
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    for stmt in [
+        format!("DROP TABLE IF EXISTS {CLOCK_DRIFT_VIEW}"),
+        format!("CREATE TABLE {CLOCK_DRIFT_VIEW} (pk_clock bigint, data jsonb)"),
+        format!(
+            "INSERT INTO {CLOCK_DRIFT_VIEW} (pk_clock, data) \
+             SELECT row_number() OVER (), clean.data || drift.patch \
+             FROM (SELECT data FROM {CLOCK_VIEW} WHERE pk_clock = 1) AS clean, \
+             (VALUES {drift_rows}) AS drift (patch)"
+        ),
+    ] {
+        adapter.execute_raw_query(&stmt).await.expect("provision the clock fixture");
     }
     let wide_document = (0..WIDE_FIELDS)
         .map(|i| format!("'{}', {i}", wide_field(i)))
@@ -1264,6 +1350,11 @@ const RAW_ELIGIBLE: &[&str] = &[
     "{ customers { id pastOrders { orderTotal shipTo { postalCode } } } }",
     "{ customers { pastOrders { orderTotal } displayName } }",
     "{ ledgers { lines { amount qty } } }",
+    // Temporal values in their scalars' formats, as the database writes each column type.
+    "{ clocks { at local day clock opens inner { at } } }",
+    "{ clocks { day } }",
+    "{ clocks { case inner { at } } }",
+    r#"{ drifts(where: { case: { eq: "clean" } }) { at local day clock opens inner { at } } }"#,
 ];
 
 /// Reads that must stay on the `Value` path: each needs a step the bytes cannot take.
@@ -1420,6 +1511,91 @@ async fn a_non_null_int_outside_the_range_nulls_its_nullable_parent() {
         vec![(json!(["counters", 0, "inner", "m"]), true)],
         "{response}"
     );
+}
+
+/// A temporal value outside its scalar's format, or of another kind, is completed on the
+/// `Value` path, whichever path the read could take: the raw copy defers each such row, so
+/// the one refusal is completion's, a field error at its path that never quotes the value.
+/// Each case is one row, read alone, so a check skipped at any one scalar shows.
+#[tokio::test]
+async fn a_temporal_value_outside_its_format_is_refused_by_completion_on_either_path() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+
+    let mut failures = Vec::new();
+    for (case, patch, at) in CLOCK_DRIFTS.iter().filter(|(_, _, at)| !at.is_empty()) {
+        let query = format!(
+            r#"{{ drifts(where: {{ case: {{ eq: "{case}" }} }}) {{ at local day clock opens inner {{ at }} }} }}"#
+        );
+        let expected = value_body(&exec, &query).await;
+        let body = exec
+            .execute_operation_body(&query, None, None)
+            .await
+            .unwrap_or_else(|e| panic!("{query}: {e}"));
+        let raw = body.is_raw();
+        let bytes = body.into_bytes().unwrap();
+        let response: Value = serde_json::from_slice(&bytes).unwrap();
+        let mut path = vec![json!("drifts"), json!(0)];
+        path.extend(at.iter().map(|key| json!(key)));
+        let stored = at
+            .iter()
+            .fold(serde_json::from_str::<Value>(patch).unwrap(), |v, key| v[key].clone());
+        let quoted = match &stored {
+            Value::String(text) => Some(text.clone()),
+            Value::Object(_) => Some(stored.to_string()),
+            _ => None,
+        };
+        let paths: Vec<Value> = error_paths(&response, "").into_iter().map(|(p, _)| p).collect();
+        if raw {
+            failures.push(format!("{case}: answered raw: {response}"));
+        } else if bytes != expected {
+            failures.push(format!(
+                "{case}: the two paths disagree\n    raw   {response}\n    value {}",
+                String::from_utf8_lossy(&expected)
+            ));
+        } else if paths != [Value::Array(path.clone())] {
+            failures.push(format!("{case}: no field error at {path:?}: {response}"));
+        } else if quoted.as_deref().is_some_and(|text| {
+            response["errors"].as_array().into_iter().flatten().any(|error| {
+                error["message"].as_str().is_some_and(|message| message.contains(text))
+            })
+        }) {
+            failures.push(format!("{case}: the error quotes the stored value: {response}"));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} case(s) failed:\n  {}",
+        failures.len(),
+        failures.join("\n  ")
+    );
+}
+
+/// A temporal value outside its format under a field the read does not select is no
+/// concern of the read: only the selected keys are held to their scalars, so the read is
+/// still answered raw, with the `Value` path's bytes.
+#[tokio::test]
+async fn a_temporal_value_outside_its_format_under_an_unselected_field_keeps_the_read_raw() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+
+    for (case, selection) in [
+        ("offsetless", "local day clock opens"),
+        ("number_day", "at local clock inner { at }"),
+        ("nested", "at day"),
+    ] {
+        let query =
+            format!(r#"{{ drifts(where: {{ case: {{ eq: "{case}" }} }}) {{ {selection} }} }}"#);
+        let expected = value_body(&exec, &query).await;
+        assert!(holds_rows(&expected), "{query}: the fixture returned no rows");
+        let body = exec.execute_operation_body(&query, None, None).await.unwrap();
+        assert!(body.is_raw(), "{query}: answered as a `Value`, not raw");
+        assert_eq!(body.into_bytes().unwrap(), expected, "{query}");
+    }
 }
 
 /// A read the raw path does not take is completed by the same rule.

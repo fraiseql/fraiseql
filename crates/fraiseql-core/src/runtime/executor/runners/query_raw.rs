@@ -10,7 +10,10 @@
 //! A value its scalar does not hold as served, under a key an `Int`, `Float`, `String` or
 //! `Boolean` field is selected under, sends the rows to the `Value` path too: a number no
 //! `Int` holds as written, a string under an `Int`, a number under a `String`, an object
-//! under any of them. Completion coerces it or makes it a field error (§ 3.5).
+//! under any of them. Completion coerces it or makes it a field error (§ 3.5). So does a
+//! value under a `DateTime`, `LocalDateTime`, `Date` or `Time` field that is no string in
+//! its scalar's format: the copy reads each such string as it copies it, and completion,
+//! which holds it to the format, refuses it.
 //!
 //! Anything Rust would still reshape keeps the read on the `Value` path: a localized,
 //! encrypted or computed field, an enum, a list of anything but objects, a JSON scalar, an
@@ -134,8 +137,8 @@ fn envelope(rows: &RawRows, response_key: &str, is_list: bool) -> Vec<u8> {
 }
 
 /// A read whose rows need no shaping in Rust, and what its selection holds, at any depth: a
-/// non-null field, an object field, an `Int`, `Float`, `String` or `Boolean` field, and one
-/// of those other than a `String`.
+/// non-null field, an object field, an `Int`, `Float`, `String`, `Boolean` or temporal
+/// field, and one of those other than a `String`.
 struct RawShape {
     non_null:    bool,
     objects:     bool,
@@ -173,7 +176,8 @@ impl RawShape {
     }
 
     /// Whether `rows`, read through `selections` of a `type_name`, may hold a value of
-    /// another kind under the key of a selected `Int`, `Float`, `String` or `Boolean`:
+    /// another kind, or a temporal string outside its format, under the key of a selected
+    /// `Int`, `Float`, `String`, `Boolean` or temporal field:
     /// asked of `told_keys` when the rows were [`told`](Self::told) them; otherwise of the
     /// keys, walked for only when the rows hold a value no `String` holds.
     fn may_hold_wrong_kind(
@@ -283,7 +287,11 @@ impl RawShape {
                 | FieldType::Int
                 | FieldType::Float
                 | FieldType::Decimal
-                | FieldType::Boolean => sel.nested_fields.is_empty(),
+                | FieldType::Boolean
+                | FieldType::DateTime
+                | FieldType::LocalDateTime
+                | FieldType::Date
+                | FieldType::Time => sel.nested_fields.is_empty(),
                 ty => object_type(ty).is_some_and(|child| {
                     self.objects = true;
                     !sel.nested_fields.is_empty() && self.admits(&sel.nested_fields, schema, child)
@@ -314,7 +322,8 @@ fn selects_non_null_under(
     })
 }
 
-/// The kind a built-in scalar field's value holds as served, for those § 3.5 adjudicates.
+/// The kind a built-in scalar field's value holds as served, for those § 3.5 adjudicates
+/// and the temporal scalars, whose strings completion holds to their formats.
 const fn scalar_kind(field_type: &FieldType) -> Option<ScalarKind> {
     match field_type {
         FieldType::Int => Some(ScalarKind::Int),
@@ -322,13 +331,19 @@ const fn scalar_kind(field_type: &FieldType) -> Option<ScalarKind> {
         // An `ID` holds a string as served (§ 3.5.5): an integer is rewritten by completion.
         FieldType::String | FieldType::Id => Some(ScalarKind::String),
         FieldType::Boolean => Some(ScalarKind::Boolean),
+        // Completion holds each to its format: a string the copy reads as it is copied.
+        FieldType::DateTime => Some(ScalarKind::DateTime),
+        FieldType::LocalDateTime => Some(ScalarKind::LocalDateTime),
+        FieldType::Date => Some(ScalarKind::Date),
+        FieldType::Time => Some(ScalarKind::Time),
         _ => None,
     }
 }
 
-/// The response key and kind of every `Int`, `Float`, `String` and `Boolean` field
-/// `selections` of a `type_name` select, at any depth: the keys under which a value of
-/// another kind may sit. Under any other key a value is served as read.
+/// The response key and kind of every `Int`, `Float`, `String`, `Boolean` and temporal
+/// field `selections` of a `type_name` select, at any depth: the keys under which a value of
+/// another kind, or a temporal string outside its format, may sit. Under any other key a value is
+/// served as read.
 fn scalar_keys<'s>(
     selections: &'s [FieldSelection],
     schema: &CompiledSchema,
@@ -339,8 +354,8 @@ fn scalar_keys<'s>(
     keys
 }
 
-/// Push to `keys` the response key and kind of every `Int`, `Float`, `String` and `Boolean`
-/// field `selections` of a `type_name` select, at any depth. A read reaches here only
+/// Push to `keys` the response key and kind of every `Int`, `Float`, `String`, `Boolean` and
+/// temporal field `selections` of a `type_name` select, at any depth. A read reaches here only
 /// through [`RawShape::admits`], which refuses a type the schema does not declare, so every
 /// level is found.
 fn push_scalar_keys<'s>(

@@ -16,14 +16,15 @@
 //! `respond` measures a read whose rows need no shaping in Rust both ways, each to the
 //! bytes a transport sends: `value_*` executes to a `Value` and serializes it, `raw_*`
 //! splices the rows' text, which the adapter holds as the database would send it.
-//! `numeric_*` does the same over rows of `Decimal`s and `Float`s, and `typename_*` over a
-//! selection holding `__typename`, which the projection writes as a literal. `masked_*` reads two
-//! fields the caller's scopes mask, which the projection writes as `null`, and `raw_null_list`
-//! nullable fields that hold `null`: forty `null`s a read, each one the compactor places
-//! under its key. The value path quotes
-//! each row's `Decimal`s before it parses them, as the database adapter does; the raw path
-//! receives them as the strings the projection reads, and writes each `Float`'s fraction
-//! again as `serde_json` would.
+//! `numeric_*` does the same over rows of `Decimal`s and `Float`s, `temporal_*` over rows
+//! of `DateTime`s, a `LocalDateTime`, a `Date` and a `Time`, each held to its format, and
+//! `typename_*` over a selection holding `__typename`, which the projection writes as a
+//! literal. `masked_*` reads two fields the caller's scopes mask, which the projection
+//! writes as `null`, and `raw_null_list` nullable fields that hold `null`: forty `null`s a
+//! read, each one the compactor places under its key. The value path quotes each row's
+//! `Decimal`s before it parses them, as the database adapter does; the raw path receives
+//! them as the strings the projection reads, and writes each `Float`'s fraction again as
+//! `serde_json` would.
 //!
 //! glibc's fastbins are off (`glibc.malloc.mxfast=0`). With them on, `malloc_consolidate`
 //! runs inside the measured call or not depending on the heap state setup leaves, which
@@ -44,8 +45,8 @@ use serde_json::Value;
 #[path = "support/fixed_rows.rs"]
 mod fixed_rows;
 use fixed_rows::{
-    FixedRows, null_user_row, nullable_user_row, plain_user_row, posts_user_row, reading_text,
-    typename_user_row, user_row,
+    FixedRows, event_text, null_user_row, nullable_user_row, plain_user_row, posts_user_row,
+    reading_text, typename_user_row, user_row,
 };
 
 const ROWS: usize = 20;
@@ -160,6 +161,8 @@ fn teardown_bytes(done: (Fixture, Vec<u8>)) {
 #[bench::raw_null_list(args = (NULL_LIST, false, true), setup = null_fixture, teardown = teardown_bytes)]
 #[bench::value_post_list(args = (false), setup = posts_fixture, teardown = teardown_bytes)]
 #[bench::raw_post_list(args = (true), setup = posts_fixture, teardown = teardown_bytes)]
+#[bench::value_temporal_list(args = (false), setup = temporal_fixture, teardown = teardown_bytes)]
+#[bench::raw_temporal_list(args = (true), setup = temporal_fixture, teardown = teardown_bytes)]
 fn respond((f, raw): (Fixture, bool)) -> (Fixture, Vec<u8>) {
     let query = black_box(f.query);
     let bytes = if raw {
@@ -236,6 +239,17 @@ fn numeric_fixture(raw: bool) -> (Fixture, bool) {
     let rows = FixedRows::from_texts((0..ROWS).map(reading_text).collect());
     (
         text_fixture_over(include_str!("fixtures/numeric_schema.json"), rows, NUMERIC_LIST),
+        raw,
+    )
+}
+
+const TEMPORAL_LIST: &str = "{ events(limit: 20) { id name at updatedAt local day clock } }";
+
+/// A fixture over [`event_text`] rows, and which path the measured call takes.
+fn temporal_fixture(raw: bool) -> (Fixture, bool) {
+    let rows = FixedRows::from_texts((0..ROWS).map(event_text).collect());
+    (
+        text_fixture_over(include_str!("fixtures/temporal_schema.json"), rows, TEMPORAL_LIST),
         raw,
     )
 }

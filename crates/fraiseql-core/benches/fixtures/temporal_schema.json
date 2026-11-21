@@ -1,0 +1,63 @@
+{
+  "types": [
+    {
+      "name": "Event",
+      "sql_source": "v_event",
+      "jsonb_column": "data",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID"
+        },
+        {
+          "name": "name",
+          "field_type": "String"
+        },
+        {
+          "name": "at",
+          "field_type": "DateTime"
+        },
+        {
+          "name": "updatedAt",
+          "field_type": "DateTime"
+        },
+        {
+          "name": "local",
+          "field_type": "LocalDateTime"
+        },
+        {
+          "name": "day",
+          "field_type": "Date"
+        },
+        {
+          "name": "clock",
+          "field_type": "Time"
+        }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "name": "events",
+      "return_type": "Event",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_event",
+      "jsonb_column": "data",
+      "arguments": [],
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": true,
+        "has_offset": false
+      }
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "directives": []
+}

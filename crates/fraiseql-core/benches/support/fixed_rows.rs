@@ -313,3 +313,23 @@ pub fn reading_text(i: usize) -> Vec<u8> {
     )
     .into_bytes()
 }
+
+/// An event's text as PostgreSQL writes its projection: each temporal value a string, as
+/// `to_jsonb` writes a `timestamptz`, a `timestamp`, a `date` and a `time`.
+#[allow(dead_code)] // Reason: one of the three benches that include this file reads it
+pub fn event_text(i: usize) -> Vec<u8> {
+    format!(
+        "{{\"id\" : \"00000000-0000-4000-8000-{i:012}\", \"name\" : \"Event {i}\", \
+         \"at\" : \"2026-07-{:02}T12:{:02}:00.5+02:00\", \
+         \"updatedAt\" : \"2026-10-22T08:00:{:02}+00:00\", \
+         \"local\" : \"2026-07-01T{:02}:30:00\", \"day\" : \"2026-07-{:02}\", \
+         \"clock\" : \"09:{:02}:00.25\"}}",
+        1 + i % 28,
+        i % 60,
+        i % 60,
+        i % 24,
+        1 + i % 28,
+        i % 60,
+    )
+    .into_bytes()
+}

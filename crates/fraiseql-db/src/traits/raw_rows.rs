@@ -1,5 +1,7 @@
 //! Rows read as the bytes the database serialized, never parsed into a `Value`.
 
+use crate::types::temporal::Temporal;
+
 /// What a compact JSON text holds, counted per kind of token.
 ///
 /// Enough to price the text the way a parsed value would be priced, without parsing it:
@@ -62,7 +64,8 @@ struct Keys {
     unkeyed: bool,
 }
 
-/// The kinds of JSON value a built-in scalar position holds as served (GraphQL § 3.5).
+/// The kinds of JSON value a built-in scalar position holds as served (GraphQL § 3.5), and
+/// the temporal scalars, whose strings completion holds to their formats.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScalarKind {
     /// An `Int`: a number written as a signed 32-bit integer.
@@ -73,6 +76,14 @@ pub enum ScalarKind {
     String,
     /// A `Boolean`: `true` or `false`.
     Boolean,
+    /// A `DateTime`: a string in its format ([`Temporal::DateTime`]).
+    DateTime,
+    /// A `LocalDateTime`: a string in its format ([`Temporal::LocalDateTime`]).
+    LocalDateTime,
+    /// A `Date`: a string in its format ([`Temporal::Date`]).
+    Date,
+    /// A `Time`: a string in its format ([`Temporal::Time`]).
+    Time,
 }
 
 impl ScalarKind {
@@ -82,7 +93,22 @@ impl ScalarKind {
             0 => Self::Int,
             1 => Self::Float,
             2 => Self::String,
-            _ => Self::Boolean,
+            3 => Self::Boolean,
+            4 => Self::DateTime,
+            5 => Self::LocalDateTime,
+            6 => Self::Date,
+            _ => Self::Time,
+        }
+    }
+
+    /// The format a string of this kind is held to, for a temporal kind.
+    const fn format(self) -> Option<Temporal> {
+        match self {
+            Self::DateTime => Some(Temporal::DateTime),
+            Self::LocalDateTime => Some(Temporal::LocalDateTime),
+            Self::Date => Some(Temporal::Date),
+            Self::Time => Some(Temporal::Time),
+            Self::Int | Self::Float | Self::String | Self::Boolean => None,
         }
     }
 }
@@ -127,22 +153,42 @@ impl ValueKind {
 /// Whether a value of `kind` is one `scalar` does not hold as served (§ 3.5): for an `Int`,
 /// anything but a number written as a signed 32-bit integer; for a `Float`, anything but a
 /// number; for a `String`, anything but a string; for a `Boolean`, anything but `true` or
-/// `false`.
+/// `false`; for a temporal scalar, anything but a string, whose format [`looked_at`] adds.
 const fn breaks(scalar: ScalarKind, kind: ValueKind) -> bool {
     !matches!(
         (scalar, kind),
         (ScalarKind::Int, ValueKind::Int)
             | (ScalarKind::Float, ValueKind::Int | ValueKind::Number)
-            | (ScalarKind::String, ValueKind::String)
+            | (
+                ScalarKind::String
+                    | ScalarKind::DateTime
+                    | ScalarKind::LocalDateTime
+                    | ScalarKind::Date
+                    | ScalarKind::Time,
+                ValueKind::String
+            )
             | (ScalarKind::Boolean, ValueKind::Boolean)
     )
 }
 
-/// The kinds of value `scalar` refuses ([`breaks`]), one bit per [`ValueKind`].
+/// Whether a value of `kind` under `scalar` must be looked at before it is served: one
+/// `scalar` refuses outright ([`breaks`]), or a string a temporal scalar holds to its format.
+const fn looked_at(scalar: ScalarKind, kind: ValueKind) -> bool {
+    breaks(scalar, kind) || (scalar.format().is_some() && matches!(kind, ValueKind::String))
+}
+
+/// Whether `text`, a string's contents as written, is outside `format`. No format holds a
+/// `\\`, so a string holding an escape is outside as written, whatever it decodes to:
+/// completion reads it decoded.
+fn outside_format(format: Temporal, text: &[u8]) -> bool {
+    std::str::from_utf8(text).map_or(true, |text| format.refusal(text).is_some())
+}
+
+/// The kinds of value `scalar` may refuse ([`looked_at`]), one bit per [`ValueKind`].
 fn refused_by(scalar: ScalarKind) -> u8 {
     ValueKind::ALL
         .into_iter()
-        .filter(|&kind| breaks(scalar, kind))
+        .filter(|&kind| looked_at(scalar, kind))
         .fold(0, |refused, kind| refused | kind.bit())
 }
 
@@ -224,17 +270,32 @@ impl Told {
     /// Whether a value of `kind` under `key`, as written, which may refuse it, is one a
     /// scalar that key is named as refuses. A key holding an escape decodes to one
     /// starting with its first byte, or, when that byte opens the escape, to any: it counts
-    /// as each named key it may decode to.
+    /// as each named key it may decode to, and a string under it as outside the format of
+    /// each temporal one, its contents unread.
     #[cold]
     fn refuses(&self, kind: ValueKind, key: &[u8]) -> bool {
         let escaped = memchr::memchr(b'\\', key).is_some();
         self.iter().any(|(named, scalar)| {
-            breaks(scalar, kind)
-                && if escaped {
-                    key.first() == Some(&b'\\') || named.first() == key.first()
-                } else {
-                    named == key
-                }
+            (if escaped {
+                looked_at(scalar, kind)
+            } else {
+                breaks(scalar, kind)
+            }) && if escaped {
+                key.first() == Some(&b'\\') || named.first() == key.first()
+            } else {
+                named == key
+            }
+        })
+    }
+
+    /// Whether the string `ahead` begins, its contents up to its closing quote, under
+    /// `key`, holding no escape, is outside the format of a temporal scalar `key` is named
+    /// as. A string holding an escape is outside as written ([`outside_format`]).
+    #[cold]
+    fn holds_outside(&self, key: &[u8], ahead: &[u8]) -> bool {
+        let text = memchr::memchr(b'"', ahead).map_or(ahead, |end| &ahead[..end]);
+        self.iter().any(|(named, scalar)| {
+            named == key && scalar.format().is_some_and(|format| outside_format(format, text))
         })
     }
 }
@@ -313,6 +374,19 @@ impl Noting<'_> {
             let key = out.get(self.key.0..self.key.1).unwrap_or_default();
             self.wrong_kind = self.told.refuses(kind, key);
         }
+    }
+
+    /// Note the string starting at `start` of `src`, past its opening quote, under the
+    /// current key: one of a kind the key's scalar refuses, or, under a temporal scalar,
+    /// outside its format.
+    #[inline]
+    fn string(&mut self, in_object: bool, out: &[u8], src: &[u8], start: usize) {
+        if self.wrong_kind || !in_object || self.key_refuses & ValueKind::String.bit() == 0 {
+            return;
+        }
+        let key = out.get(self.key.0..self.key.1).unwrap_or_default();
+        self.wrong_kind = self.told.refuses(ValueKind::String, key)
+            || self.told.holds_outside(key, src.get(start..).unwrap_or_default());
     }
 }
 
@@ -395,7 +469,9 @@ fn compact<const TOLD: bool>(
                 } else {
                     count_element(&open, tally);
                     if TOLD {
-                        noting.value(in_object, out, ValueKind::String, &[]);
+                        // The string is read where it starts, past its opening quote,
+                        // only if a temporal scalar holds it to its format.
+                        noting.string(in_object, out, src, i + 1);
                     }
                 }
                 out.push(b'"');
@@ -578,7 +654,8 @@ fn exact_integer(token: &[u8]) -> bool {
 /// Whether compact JSON `text` holds, under one of `keys`, a value its scalar does not hold
 /// as served (§ 3.5): for an `Int`, anything but a number written as a signed 32-bit integer;
 /// for a `Float`, anything but a number; for a `String`, anything but a string; for a
-/// `Boolean`, anything but `true` or `false`. `null` is no kind's concern here. A key named
+/// `Boolean`, anything but `true` or `false`; for a temporal scalar, anything but a string
+/// in its format, holding no escape. `null` is no kind's concern here. A key named
 /// by several scalars is held to each. A key holding an escape may decode to any of `keys`
 /// starting with its first byte, or to any when that byte opens the escape: a value one of
 /// those refuses counts. A value under any other key, or in an array, is passed over.
@@ -596,6 +673,21 @@ fn wrong_kind_under(text: &[u8], keys: &[(&[u8], ScalarKind)]) -> bool {
             } else {
                 *k == read
             }
+        })
+    };
+    // Whether the string `value`, as written, under the current key is outside the format
+    // of a temporal scalar the key may be selected as. A key holding an escape may be any
+    // of them, and its string is counted outside, unread.
+    let outside = |(range, key_escaped): &(std::ops::Range<usize>, bool), value: &[u8]| {
+        let read = &text[range.clone()];
+        keys.iter().any(|&(k, scalar)| {
+            scalar.format().is_some_and(|format| {
+                if *key_escaped {
+                    read.first() == Some(&b'\\') || k.first() == read.first()
+                } else {
+                    k == read && outside_format(format, value)
+                }
+            })
         })
     };
     let mut i = 0;
@@ -621,7 +713,10 @@ fn wrong_kind_under(text: &[u8], keys: &[(&[u8], ScalarKind)]) -> bool {
                     && matches!(i.checked_sub(1).map(|before| text[before]), Some(b'{' | b','))
                 {
                     key = (start..end, escaped);
-                } else if member && breaks(&key, ValueKind::String) {
+                } else if member
+                    && (breaks(&key, ValueKind::String)
+                        || outside(&key, &text[start..end.min(text.len())]))
+                {
                     return true;
                 }
                 i = end + 1;
@@ -784,7 +879,8 @@ impl RawRows {
     /// Whether any row holds, under one of `keys`, a value its scalar does not hold as
     /// served (§ 3.5; see [`ScalarKind`]): a number no `Int` holds as written
     /// (`3000000000`, `1.5`, `3.0`, `-0`), a string under an `Int`, a number under a
-    /// `String`, an object under any of them. A key holding an escape may decode to any of
+    /// `String`, an object under any of them, a string outside a temporal scalar's format
+    /// or holding an escape, anything else under one. A key holding an escape may decode to any of
     /// `keys` starting with its first byte, or to any when that byte opens the escape: a
     /// value one of those refuses counts. A value in an array, or under any other key, is
     /// passed over.

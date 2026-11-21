@@ -111,6 +111,7 @@ fn schema() -> CompiledSchema {
     profile.fields = vec![
         field("tier", FieldType::String),
         field("status", FieldType::Enum("Status".to_string())),
+        field("since", FieldType::DateTime),
     ];
     let mut schema = CompiledSchema::new();
     schema.types.push(user);
@@ -164,6 +165,14 @@ fn stored_scalars_and_objects_built_from_their_sub_fields_are_admitted() {
         select("profile", vec![leaf("tier")]),
     ];
     assert_eq!(admitted(&selections), Some(false));
+    for temporal in ["born", "wall", "birthday", "opens"] {
+        assert_eq!(admitted(&[leaf(temporal)]), Some(false), "{temporal}");
+    }
+    assert_eq!(
+        admitted(&[select("profiles", vec![leaf("since")])]),
+        Some(false),
+        "a temporal below a list of objects"
+    );
     let aliased = FieldSelection {
         alias: Some("who".to_string()),
         ..leaf("name")
@@ -175,11 +184,6 @@ fn stored_scalars_and_objects_built_from_their_sub_fields_are_admitted() {
 fn a_field_rust_would_reshape_is_refused() {
     for name in [
         "meta",
-        // A temporal value is held to its format by completion, which a raw read skips.
-        "born",
-        "wall",
-        "birthday",
-        "opens",
         "status",
         "tags",
         "title",
@@ -456,6 +460,60 @@ fn wrong_kind(schema: &CompiledSchema, selections: &[FieldSelection], texts: &[&
     let asked = shape.may_hold_wrong_kind(read, told_keys, selections, schema, "User");
     assert_eq!(answer, asked, "{texts:?}: as the read asks");
     answer
+}
+
+/// A value under a temporal field's key needs completion unless it is a string in its
+/// scalar's format: completion holds it to that format, and the copy only defers to it. A
+/// read selecting one is told its keys, so whatever else it selects, the copy answers.
+#[test]
+fn a_temporal_value_outside_its_format_needs_completion() {
+    let schema = schema();
+    let selections = [
+        leaf("born"),
+        leaf("wall"),
+        leaf("birthday"),
+        leaf("opens"),
+        select("profile", vec![leaf("since")]),
+    ];
+    let mut shape = RawShape::new();
+    assert!(shape.admits(&selections, &schema, "User"));
+    assert!(shape.told(), "a temporal key is told");
+    let needs = |text: &str| wrong_kind(&schema, &selections, &[text]);
+    let clean = r#"{"born":"2026-07-01T12:00:00+02:00","wall":"2026-07-01T12:00:00.5","birthday":"2026-07-01","opens":"09:30:00","profile":{"since":"1999-12-31T23:59:59Z"}}"#;
+    assert!(!needs(clean), "each value in its scalar's format");
+    assert!(!needs(r#"{"born":null,"birthday":null}"#), "a null is the non-null rule's");
+    for (text, why) in [
+        (r#"{"born":"2026-07-01T12:00:00"}"#, "a DateTime with no offset"),
+        (r#"{"born":"1890-01-01T00:00:00+00:09:21"}"#, "an offset in seconds"),
+        (r#"{"born":"2026-07-01T12:00:00-00:00"}"#, "the unknown offset"),
+        (r#"{"wall":"2026-07-01T12:00:00Z"}"#, "a LocalDateTime with an offset"),
+        (r#"{"birthday":"2026-02-30"}"#, "a date that does not exist"),
+        (r#"{"birthday":7}"#, "a number under a Date"),
+        (r#"{"opens":{"t":1}}"#, "an object under a Time"),
+        (r#"{"opens":"24:00:00"}"#, "hour 24"),
+        (r#"{"opens":true}"#, "a Boolean under a Time"),
+        (r#"{"profile":{"since":"2026-07-01"}}"#, "a date alone under a nested DateTime"),
+        (
+            r#"{"born":"2026-07-01T12:00:00\u002B02:00"}"#,
+            "an escape: the copy reads no escaped value in place",
+        ),
+    ] {
+        assert!(needs(text), "{why}: {text}");
+    }
+    let birthday = [leaf("birthday")];
+    let mut shape = RawShape::new();
+    assert!(shape.admits(&birthday, &schema, "User"));
+    assert!(shape.told(), "a temporal alone is told its key");
+    assert!(
+        wrong_kind(&schema, &birthday, &[r#"{"birthday":"now"}"#]),
+        "a word PostgreSQL reads"
+    );
+    for text in [
+        r#"{"birthday":"2026-07-01","born":"2026-07-01T12:00:00"}"#,
+        r#"{"birthday":"2026-07-01","wall":7,"opens":"24:00:00","profile":{"since":"x"}}"#,
+    ] {
+        assert!(!wrong_kind(&schema, &birthday, &[text]), "a temporal key not selected: {text}");
+    }
 }
 
 /// A read tells the adapter its scalar keys unless it selects no object field and no scalar

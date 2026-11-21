@@ -287,6 +287,87 @@ fn each_scalar_finds_a_value_of_another_kind_under_its_key() {
     );
 }
 
+/// A temporal scalar holds a string in its format and refuses anything else: a string
+/// outside it, one holding an escape (never read in place), a value of another kind. The
+/// string is read only under its own key; a key sharing its tag, or another kind's key, is
+/// not held to the format.
+#[test]
+fn a_temporal_scalar_holds_only_a_string_in_its_format() {
+    for (kind, inside, outside) in [
+        (
+            ScalarKind::DateTime,
+            [
+                "2026-07-01T12:00:00Z",
+                "2026-07-01t12:00:00.123456789+02:00",
+            ],
+            [
+                "2026-07-01T12:00:00",
+                "1890-01-01T00:00:00+00:09:21",
+                "2026-07-01T12:00:00-00:00",
+            ],
+        ),
+        (
+            ScalarKind::LocalDateTime,
+            ["2026-07-01T12:00:00", "2026-07-01T12:00:00.5"],
+            ["2026-07-01T12:00:00Z", "2026-07-01", "2026-02-30T00:00:00"],
+        ),
+        (
+            ScalarKind::Date,
+            ["2026-07-01", "2024-02-29"],
+            ["2025-02-29", "now", "2026-07-01T00:00:00"],
+        ),
+        (
+            ScalarKind::Time,
+            ["09:30:00", "23:59:59.25"],
+            ["24:00:00", "09:30", "09:30:00Z"],
+        ),
+    ] {
+        for text in inside {
+            assert!(
+                wrong_kinds(&format!(r#"{{"a" : "{text}"}}"#), kind).is_empty(),
+                "{kind:?} {text}"
+            );
+        }
+        for text in outside {
+            assert_eq!(
+                wrong_kinds(&format!(r#"{{"a" : "{text}"}}"#), kind),
+                vec!["a"],
+                "{kind:?} {text}"
+            );
+        }
+        for other in ["7", "true", "{}", r#"["2026-07-01"]"#] {
+            assert_eq!(
+                wrong_kinds(&format!(r#"{{"a" : {other}}}"#), kind),
+                vec!["a"],
+                "{kind:?} {other}"
+            );
+        }
+        assert!(wrong_kinds(r#"{"a" : null}"#, kind).is_empty(), "a null is the non-null rule's");
+        assert_eq!(
+            wrong_kinds(r#"{"a" : "2026\u002d07-01"}"#, kind),
+            vec!["a"],
+            "{kind:?}: an escape is never read in place"
+        );
+        assert_eq!(
+            wrong_kinds(r#"{"\u0061" : "x"}"#, kind),
+            vec!["a", "b", "c"],
+            "{kind:?}: a key holding an escape may be any"
+        );
+        assert_eq!(
+            wrong_kinds(r#"{"b" : "x", "c" : {"d" : "y"}}"#, kind),
+            vec!["b", "c"],
+            "{kind:?}: each key's own value is read, and `a`, holding none, holds no refusal"
+        );
+    }
+    let mut rows =
+        RawRows::with_scalar_keys(&[(b"a", ScalarKind::String), (b"b", ScalarKind::Date)]);
+    rows.push(br#"{"a" : "not a date", "b" : "2026-07-01"}"#);
+    assert!(
+        !rows.has_wrong_kind_under(&[(b"a", ScalarKind::String), (b"b", ScalarKind::Date)]),
+        "a String's key is not held to a Date's format"
+    );
+}
+
 /// A key holding an escape may decode to a selected key: `"\u0061"` is `a`. Compaction
 /// keeps the escape, so the key cannot be matched: a value counts when a selected key its
 /// kind breaks may be what the key decodes to, any when the key opens with the escape, one
