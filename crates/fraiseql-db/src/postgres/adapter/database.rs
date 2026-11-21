@@ -1029,7 +1029,7 @@ impl<'a> FromSql<'a> for PgEnumLabel {
 ///
 /// Read as `Option<AnyCell>`, it answers one question: is this cell SQL `NULL`. Each branch
 /// of [`decode_cell`]'s ladder refuses a `NULL` with `WasNull`, so without this a `NULL` of any
-/// type fell through to the "not representable" warning (#1514).
+/// type would fall through the ladder and be refused as not decoded (#1514).
 struct AnyCell;
 
 impl<'a> FromSql<'a> for AnyCell {
@@ -1115,25 +1115,197 @@ pub(super) fn zone_text(east: i32) -> String {
     }
 }
 
-/// Why [`decode_cell`] does not decode a cell of `ty`, when that is decided rather than a gap:
-/// such a cell is read as `null`, and the warning says why.
-pub(super) fn undecoded_reason(ty: &Type) -> Option<&'static str> {
-    (*ty == Type::INTERVAL).then_some(
-        "an interval's text depends on the session's IntervalStyle, so no one rendering of it \
-         is right; cast it in the view (`::text`, `to_char`, `extract`)",
-    )
+/// Why [`decode_cell`] does not decode a cell of some type, and how a view can cast the column
+/// so that it is decoded.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct Refusal {
+    /// Why no rendering of the type is served.
+    pub(super) reason: &'static str,
+    /// The casts that give the column a type that is decoded.
+    pub(super) cast:   &'static str,
+}
+
+impl std::fmt::Display for Refusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}; cast it in the view ({})", self.reason, self.cast)
+    }
+}
+
+/// The PostgreSQL types whose name is all their refusal needs: their binary form is a system
+/// type's, or their text depends on a session setting.
+const REFUSED_BY_NAME: &[(&[&str], Refusal)] = &[
+    (
+        &["interval"],
+        Refusal {
+            reason: "an interval's text depends on the session's IntervalStyle, so no one rendering \
+                 of it is right",
+            cast:   "`::text`, `to_char`, `extract`",
+        },
+    ),
+    (
+        &["bytea"],
+        Refusal {
+            reason: "a bytea's text depends on the session's bytea_output, so no one rendering of \
+                 it is right",
+            cast:   "`encode(col, 'base64')` or `encode(col, 'hex')`",
+        },
+    ),
+    (
+        &["money"],
+        Refusal {
+            reason: "a money's text depends on the session's lc_monetary, so no one rendering of it \
+                 is right",
+            cast:   "`::numeric`",
+        },
+    ),
+    (
+        &[
+            "regclass",
+            "regcollation",
+            "regconfig",
+            "regdictionary",
+            "regnamespace",
+            "regoper",
+            "regoperator",
+            "regproc",
+            "regprocedure",
+            "regrole",
+            "regtype",
+        ],
+        Refusal {
+            reason: "an object identifier's name depends on the session's search_path, so no one \
+                     rendering of it is right",
+            cast:   "`::oid`",
+        },
+    ),
+    (
+        &["point", "line", "lseg", "box", "path", "polygon", "circle"],
+        Refusal {
+            reason: "a geometric value's coordinates are written to the session's \
+                 extra_float_digits, so no one rendering of it is right",
+            cast:   "its coordinates, or `::text`",
+        },
+    ),
+    (
+        &["tsvector", "tsquery"],
+        Refusal {
+            reason: "a text-search value is not decoded",
+            cast:   "`::text`",
+        },
+    ),
+    (
+        &["vector"],
+        Refusal {
+            reason: "a pgvector value is not decoded",
+            cast:   "`::text` or `::real[]`",
+        },
+    ),
+    (
+        &["txid_snapshot", "pg_snapshot", "int2vector", "oidvector"],
+        Refusal {
+            reason: "a system type is not decoded",
+            cast:   "`::text`",
+        },
+    ),
+];
+
+/// A range or multirange, whatever its bounds' type.
+const RANGE_REFUSAL: Refusal = Refusal {
+    reason: "a range is written with its bounds' text, which for a range of timestamps follows \
+             the session's TimeZone, so ranges are not decoded",
+    cast:   "`lower(col)` and `upper(col)`, or `::text`",
+};
+
+/// A composite value, or an anonymous `record`.
+const COMPOSITE_REFUSAL: Refusal = Refusal {
+    reason: "a composite value is not decoded",
+    cast:   "`to_jsonb(col)`",
+};
+
+/// Any other type no rung of [`decode_cell`] decodes.
+const UNKNOWN_REFUSAL: Refusal = Refusal {
+    reason: "no decoder reads this type",
+    cast:   "`to_jsonb(col)`, or `::text`",
+};
+
+/// The refusal [`REFUSED_BY_NAME`] holds for `ty`'s own name, whatever its kind:
+/// `int2vector` and `oidvector` are arrays to the driver, and refused as system types.
+fn refused_by_name(ty: &Type) -> Option<Refusal> {
+    REFUSED_BY_NAME
+        .iter()
+        .find(|(names, _)| names.contains(&ty.name()))
+        .map(|(_, refusal)| *refusal)
+}
+
+/// Why [`decode_cell`] does not decode a cell of `ty`, consulted only for a cell no rung
+/// decoded. An array is refused for its element's reason.
+pub(super) fn refusal(ty: &Type) -> Refusal {
+    if let Some(refusal) = refused_by_name(ty) {
+        return refusal;
+    }
+    match ty.kind() {
+        Kind::Array(element) => refusal(element),
+        Kind::Range(_) | Kind::Multirange(_) => RANGE_REFUSAL,
+        Kind::Composite(_) => COMPOSITE_REFUSAL,
+        _ if ty.name() == "record" => COMPOSITE_REFUSAL,
+        _ => UNKNOWN_REFUSAL,
+    }
+}
+
+/// `ty` as a view's author writes it: an array as its element's name and `[]`, a type outside
+/// `pg_catalog` qualified by its schema. `int2vector` and `oidvector`, arrays to the driver,
+/// keep their own names.
+pub(super) fn type_name(ty: &Type) -> String {
+    match ty.kind() {
+        Kind::Array(element) if ty.name().starts_with('_') => format!("{}[]", type_name(element)),
+        _ => ty.to_string(),
+    }
+}
+
+/// A cell [`decode_cell`] does not decode: its column, its type and why, never its value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct Undecoded {
+    /// The column's name.
+    pub(super) column:  String,
+    /// The column's type, as [`type_name`] writes it.
+    pub(super) pg_type: String,
+    /// Why it is not decoded.
+    pub(super) refusal: Refusal,
+}
+
+impl std::fmt::Display for Undecoded {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "column `{}` of PostgreSQL type `{}` is not decoded: {}",
+            self.column, self.pg_type, self.refusal
+        )
+    }
+}
+
+impl From<Undecoded> for FraiseQLError {
+    fn from(undecoded: Undecoded) -> Self {
+        Self::Database {
+            message:    undecoded.to_string(),
+            sql_state:  None,
+            constraint: None,
+        }
+    }
 }
 
 /// Convert a single `tokio_postgres::Row` into a `HashMap<String, serde_json::Value>`.
 ///
-/// Tries each PostgreSQL type in priority order; falls back to `Null` for
-/// types that cannot be represented as JSON.
-fn row_to_map(row: &Row) -> std::collections::HashMap<String, serde_json::Value> {
+/// Each cell through [`decode_cell`].
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Database` naming the first column whose cell is not decoded.
+fn row_to_map(row: &Row) -> Result<std::collections::HashMap<String, serde_json::Value>> {
     let mut map = std::collections::HashMap::new();
     for (idx, column) in row.columns().iter().enumerate() {
-        map.insert(column.name().to_string(), decode_cell(row, idx));
+        map.insert(column.name().to_string(), decode_cell(row, idx)?);
     }
-    map
+    Ok(map)
 }
 
 /// [`row_to_map`] for a mutation's response row, each document column `decimals` reads
@@ -1144,7 +1316,7 @@ fn write_row_to_map(
     decimals: Option<&crate::traits::WriteDecimals>,
 ) -> Result<std::collections::HashMap<String, serde_json::Value>> {
     let Some(decimals) = decimals else {
-        return Ok(row_to_map(row));
+        return row_to_map(row);
     };
     let stamp = row.try_get::<_, Option<String>>("entity_type").ok().flatten();
     let mut map = std::collections::HashMap::new();
@@ -1152,8 +1324,8 @@ fn write_row_to_map(
         let read = decimals.column(column.name(), stamp.as_deref());
         let cell = match &read {
             Some(read) => json_column(row, idx, Decimals::column(read))
-                .unwrap_or_else(|| Ok(decode_cell(row, idx)))?,
-            None => decode_cell(row, idx),
+                .unwrap_or_else(|| decode_cell(row, idx).map_err(Into::into))?,
+            None => decode_cell(row, idx)?,
         };
         map.insert(column.name().to_string(), cell);
     }
@@ -1190,25 +1362,32 @@ fn row_to_columns(
         .filter(|c| c.column_type == crate::dialect::RowViewColumnType::Decimal)
         .map(|c| c.name.as_str())
         .collect();
-    crate::traits::row_to_column_values(&row_to_map_exact(row, &exact), columns)
+    crate::traits::row_to_column_values(&row_to_map_exact(row, &exact)?, columns)
 }
 
 /// [`row_to_map`], with each `NUMERIC` column named in `exact` kept as a string of the
 /// digits PostgreSQL printed: re-parsed as a JSON number, it would round through an `f64`.
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Database` naming the first column whose cell is not decoded.
 fn row_to_map_exact(
     row: &Row,
     exact: &[&str],
-) -> std::collections::HashMap<String, serde_json::Value> {
+) -> Result<std::collections::HashMap<String, serde_json::Value>> {
     let mut map = std::collections::HashMap::new();
     for (idx, column) in row.columns().iter().enumerate() {
         let digits = exact
             .contains(&column.name())
             .then(|| row.try_get::<_, Option<PgNumericText>>(idx).ok().flatten())
             .flatten();
-        let cell = digits.map_or_else(|| decode_cell(row, idx), |d| serde_json::Value::String(d.0));
+        let cell = match digits {
+            Some(digits) => serde_json::Value::String(digits.0),
+            None => decode_cell(row, idx)?,
+        };
         map.insert(column.name().to_string(), cell);
     }
-    map
+    Ok(map)
 }
 
 /// Decode one cell of a `tokio_postgres::Row` to JSON.
@@ -1219,12 +1398,19 @@ fn row_to_map_exact(
 /// becomes. A console keyed by column *name* would also collapse `SELECT 1 AS a,
 /// 2 AS a` to one column and silently drop the other.
 ///
-/// Tries each PostgreSQL type in priority order; falls back to `Null` for types
-/// that cannot be represented as JSON, and for those it decides not to decode
-/// ([`undecoded_reason`]).
-pub(super) fn decode_cell(row: &Row, idx: usize) -> serde_json::Value {
+/// Tries each PostgreSQL type in priority order. A SQL `NULL` of any type is `null`.
+///
+/// # Errors
+///
+/// A present cell no rung decodes is refused as [`Undecoded`], naming its column, its type
+/// and the [`refusal`], never the value: it is never served as `null`, which would read as
+/// a value the database does not hold.
+pub(super) fn decode_cell(
+    row: &Row,
+    idx: usize,
+) -> std::result::Result<serde_json::Value, Undecoded> {
     let column = &row.columns()[idx];
-    if matches!(row.try_get::<_, Option<AnyCell>>(idx), Ok(None)) {
+    let cell = if matches!(row.try_get::<_, Option<AnyCell>>(idx), Ok(None)) {
         // SQL NULL, whatever the column's type: decided once, before the ladder (#1514).
         serde_json::Value::Null
     } else if let Ok(v) = row.try_get::<_, i16>(idx) {
@@ -1293,25 +1479,14 @@ pub(super) fn decode_cell(row: &Row, idx: usize) -> serde_json::Value {
         serde_json::json!(v.0)
     } else if let Ok(v) = row.try_get::<_, serde_json::Value>(idx) {
         v
-    } else if let Some(reason) = undecoded_reason(column.type_()) {
-        tracing::warn!(
-            column = %column.name(),
-            pg_type = %column.type_(),
-            reason,
-            "decode_cell: column type not decoded; returning null"
-        );
-        serde_json::Value::Null
     } else {
-        // A column whose PostgreSQL type none of the branches above can
-        // decode. Name the column and its type so the next drift is visible
-        // in logs instead of a silent null (H35).
-        tracing::warn!(
-            column = %column.name(),
-            pg_type = %column.type_(),
-            "decode_cell: column type not representable as JSON; returning null"
-        );
-        serde_json::Value::Null
-    }
+        return Err(Undecoded {
+            column:  column.name().to_string(),
+            pg_type: type_name(column.type_()),
+            refusal: refusal(column.type_()),
+        });
+    };
+    Ok(cell)
 }
 
 /// Apply transaction-local session variables on an in-progress transaction.
@@ -1554,7 +1729,8 @@ impl PostgresAdapter {
             .filter(|column| column.numeric.is_some())
             .map(|column| column.name.as_str())
             .collect();
-        let rows = rows.iter().map(|row| row_to_map_exact(row, &numerics)).collect();
+        let rows =
+            rows.iter().map(|row| row_to_map_exact(row, &numerics)).collect::<Result<_>>()?;
         Ok(DescribedRows { columns, rows })
     }
 
@@ -1881,10 +2057,7 @@ impl DatabaseAdapter for PostgresAdapter {
         })?;
 
         // Convert each row to HashMap<String, Value>
-        let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
-            rows.iter().map(row_to_map).collect();
-
-        Ok(results)
+        rows.iter().map(row_to_map).collect()
     }
 
     async fn execute_parameterized_aggregate(
@@ -1893,7 +2066,7 @@ impl DatabaseAdapter for PostgresAdapter {
         params: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         let rows = self.aggregate_rows(sql, params, &[], ReadRouting::Any).await?;
-        Ok(rows.iter().map(row_to_map).collect())
+        rows.iter().map(row_to_map).collect()
     }
 
     async fn execute_parameterized_aggregate_with_session(
@@ -1904,7 +2077,7 @@ impl DatabaseAdapter for PostgresAdapter {
         routing: ReadRouting,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         let rows = self.aggregate_rows(sql, params, session_vars, routing).await?;
-        Ok(rows.iter().map(row_to_map).collect())
+        rows.iter().map(row_to_map).collect()
     }
 
     async fn execute_parameterized_aggregate_exact(
@@ -1916,7 +2089,7 @@ impl DatabaseAdapter for PostgresAdapter {
         exact: &[&str],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         let rows = self.aggregate_rows(sql, params, session_vars, routing).await?;
-        Ok(rows.iter().map(|row| row_to_map_exact(row, exact)).collect())
+        rows.iter().map(|row| row_to_map_exact(row, exact)).collect()
     }
 
     // PostgreSQL session variables are applied connection-affinely by the

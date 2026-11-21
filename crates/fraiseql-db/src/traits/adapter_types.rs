@@ -340,4 +340,22 @@ pub struct AdminSqlOutcome {
     /// Whether the transaction was committed. `false` means every effect was
     /// rolled back.
     pub committed:     bool,
+    /// The cells of `rows` shown as `null` because their type is not decoded, so that a
+    /// `null` in `rows` is never ambiguous: a SQL `NULL` is not listed here.
+    pub undecoded:     Vec<AdminSqlUndecodedCell>,
+}
+
+/// One cell of an [`AdminSqlOutcome`]'s rows that is shown as `null` because its type is not
+/// decoded. It never carries the value.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
+pub struct AdminSqlUndecodedCell {
+    /// The row's index in `rows`.
+    pub row:     usize,
+    /// The column's index in `columns`: two columns may share a name.
+    pub column:  usize,
+    /// The column's PostgreSQL type.
+    pub pg_type: String,
+    /// Why it is not decoded, and how to cast it so it is.
+    pub reason:  String,
 }

@@ -991,7 +991,6 @@ async fn row_to_map_type_conformance() {
                '2030-06-13'::date                           AS c_date, \
                '08:00:00.25'::time                          AS c_time, \
                '08:00:00+02'::timetz                        AS c_timetz, \
-               '1 day'::interval                            AS c_interval, \
                ARRAY['a','b']::text[]                       AS c_textarr, \
                '{\"k\":1}'::jsonb                            AS c_jsonb, \
                NULL::text                                   AS c_null",
@@ -1013,11 +1012,159 @@ async fn row_to_map_type_conformance() {
     assert_eq!(r["c_date"], json!("2030-06-13"));
     assert_eq!(r["c_time"], json!("08:00:00.25"));
     assert_eq!(r["c_timetz"], json!("08:00:00+02"));
-    // Not decoded: an interval's text depends on the session's `IntervalStyle`.
-    assert_eq!(r["c_interval"], serde_json::Value::Null);
     assert_eq!(r["c_textarr"], json!(["a", "b"]));
     assert_eq!(r["c_jsonb"], json!({"k": 1}));
     assert_eq!(r["c_null"], serde_json::Value::Null);
+}
+
+/// Each type `decode_cell` does not decode, with a value distinctive enough that a message
+/// quoting it would show: its type's name, the text in its refusal's reason, and the cast.
+const REFUSED: &[(&str, &str, &str, &str)] = &[
+    ("'7 days 03:47:11'::interval", "interval", "IntervalStyle", "to_char"),
+    ("'\\xfeedc0de4711'::bytea", "bytea", "bytea_output", "encode(col"),
+    ("98765.43::money", "money", "lc_monetary", "::numeric"),
+    ("'pg_proc'::regclass", "regclass", "search_path", "::oid"),
+    ("'pg_catalog.int4'::regtype", "regtype", "search_path", "::oid"),
+    ("'(31.5,47.25)'::point", "point", "extra_float_digits", "coordinates"),
+    ("'<(31.5,47.25),9.75>'::circle", "circle", "extra_float_digits", "coordinates"),
+    ("'zebra quokka'::tsvector", "tsvector", "text-search", "::text"),
+    ("'zebra & quokka'::tsquery", "tsquery", "text-search", "::text"),
+    ("'[4711,4799)'::int4range", "int4range", "TimeZone", "lower(col)"),
+    ("tstzrange('2047-11-11', '2047-12-12')", "tstzrange", "TimeZone", "lower(col)"),
+    ("'{[4711,4799)}'::int4multirange", "int4multirange", "TimeZone", "lower(col)"),
+    ("ROW(4711, 'quokka')", "record", "composite", "to_jsonb(col)"),
+    ("'4711 4712'::int2vector", "int2vector", "system type", "::text"),
+    ("'[47.11,0.5]'::vector", "vector", "pgvector", "::real[]"),
+    ("ARRAY['\\xfeedc0de4711'::bytea]", "bytea[]", "bytea_output", "encode(col"),
+    // Not decoded yet: no decoder reads these.
+    ("47.11::float4", "float4", "no decoder", "to_jsonb(col)"),
+    ("4711::oid", "oid", "no decoder", "to_jsonb(col)"),
+    ("'203.0.113.47/27'::inet", "inet", "no decoder", "to_jsonb(col)"),
+    ("'203.0.113.32/27'::cidr", "cidr", "no decoder", "to_jsonb(col)"),
+    ("'0a:1b:2c:3d:4e:5f'::macaddr", "macaddr", "no decoder", "to_jsonb(col)"),
+    ("B'1011001'::varbit", "varbit", "no decoder", "to_jsonb(col)"),
+    ("'47/11004711'::pg_lsn", "pg_lsn", "no decoder", "to_jsonb(col)"),
+    ("'<quokka/>'::xml", "xml", "no decoder", "to_jsonb(col)"),
+    ("ARRAY[4711, 4712]", "int4[]", "no decoder", "to_jsonb(col)"),
+];
+
+/// A cell of a type `decode_cell` does not decode refuses the read, naming the column, its
+/// type and why, and how to cast it. It is never served as `null`, and the refusal never
+/// carries the value: neither the server's own text of it nor a fragment of its literal.
+#[tokio::test]
+async fn a_cell_of_a_type_not_decoded_refuses_the_read_by_name_never_by_value() {
+    let adapter = create_test_adapter().await;
+    adapter
+        .execute_raw_query("CREATE EXTENSION IF NOT EXISTS vector")
+        .await
+        .expect("CREATE EXTENSION vector (the rig image ships pgvector)");
+    for (value, pg_type, reason, cast) in REFUSED {
+        let text = adapter
+            .execute_raw_query(&format!("SELECT ({value})::text AS text"))
+            .await
+            .expect("the value's text")[0]["text"]
+            .as_str()
+            .expect("text")
+            .to_string();
+        let refused = adapter
+            .execute_raw_query(&format!(
+                "SELECT 1 AS id, {value} AS c_stored, 'x'::text AS c_after"
+            ))
+            .await;
+        let Err(FraiseQLError::Database { message, .. }) = refused else {
+            panic!("{value}: expected a refusal, got {refused:?}");
+        };
+        assert!(
+            message.starts_with(&format!(
+                "column `c_stored` of PostgreSQL type `{pg_type}` is not decoded: "
+            )),
+            "{value}: {message}"
+        );
+        assert!(message.contains(reason), "{value}: {message}");
+        assert!(
+            message.contains(&format!("cast it in the view (`{cast}")) || message.contains(cast),
+            "{value}: {message}"
+        );
+        assert!(!message.contains(&text), "{value}: the refusal quotes {text:?}: {message}");
+        for fragment in [
+            "4711",
+            "47.11",
+            "31.5",
+            "98765",
+            "feedc0de",
+            "quokka",
+            "47:11",
+            "pg_proc",
+            "1011001",
+            "2047",
+            "203.0.113",
+            "0a:1b",
+        ] {
+            assert!(
+                !message.contains(fragment),
+                "{value}: the refusal quotes {fragment:?}: {message}"
+            );
+        }
+    }
+}
+
+/// A SQL `NULL` is `null` whatever its type: only a present value is refused.
+#[tokio::test]
+async fn a_null_of_a_type_not_decoded_is_null() {
+    let adapter = create_test_adapter().await;
+    adapter
+        .execute_raw_query("CREATE EXTENSION IF NOT EXISTS vector")
+        .await
+        .expect("CREATE EXTENSION vector (the rig image ships pgvector)");
+    let columns: Vec<String> = REFUSED
+        .iter()
+        .enumerate()
+        .map(|(i, (value, ..))| format!("CASE WHEN false THEN {value} END AS c{i}"))
+        .collect();
+    let rows = adapter
+        .execute_raw_query(&format!("SELECT {}", columns.join(", ")))
+        .await
+        .expect("a row of NULLs is decoded");
+    assert_eq!(rows[0].len(), REFUSED.len());
+    assert!(rows[0].values().all(serde_json::Value::is_null), "{:?}", rows[0]);
+}
+
+/// A write function whose result row holds a cell of a type not decoded is refused, and its
+/// transaction rolls back: the row it wrote is not there afterwards.
+#[tokio::test]
+async fn a_write_whose_result_is_not_decoded_is_refused_and_rolled_back() {
+    let adapter = create_test_adapter().await;
+    for statement in [
+        "CREATE TABLE IF NOT EXISTS undecoded_write_probe (id int PRIMARY KEY)",
+        "TRUNCATE undecoded_write_probe",
+        "CREATE OR REPLACE FUNCTION fn_undecoded_write_probe(p_id int) \
+         RETURNS TABLE (id int, avatar bytea) LANGUAGE sql AS $$ \
+           INSERT INTO undecoded_write_probe VALUES (p_id) \
+           RETURNING undecoded_write_probe.id, '\\xfeedc0de'::bytea $$",
+    ] {
+        adapter.execute_raw_query(statement).await.expect("provision the probe");
+    }
+    // Decoded as JSON numbers, and with its documents' `Decimal`s kept as digits: two paths.
+    let decimals = fraiseql_db::traits::WriteDecimals::new(std::sync::Arc::default());
+    let args = [json!(4711)];
+    for decimals in [None, Some(&decimals)] {
+        let request = fraiseql_db::WriteRequest::new("fn_undecoded_write_probe", &args)
+            .with_decimals(decimals);
+        let written = adapter.execute_write(&request, &|_| Ok(())).await;
+        let Err(FraiseQLError::Database { message, .. }) = written else {
+            panic!("{}: expected a refusal, got {written:?}", decimals.is_some());
+        };
+        assert!(
+            message.starts_with("column `avatar` of PostgreSQL type `bytea` is not decoded: "),
+            "{message}"
+        );
+        assert!(!message.contains("feedc0de"), "{message}");
+        let left = adapter
+            .execute_raw_query("SELECT count(*)::int AS n FROM undecoded_write_probe")
+            .await
+            .expect("count");
+        assert_eq!(left[0]["n"], json!(0), "the refused write committed its row");
+    }
 }
 
 /// A `time` or `timetz` cell decodes to the text PostgreSQL writes for it, compared against

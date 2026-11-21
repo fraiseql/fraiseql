@@ -23,7 +23,7 @@ use axum::{
     extract::{Extension, State},
 };
 use fraiseql_core::{
-    db::{AdminSqlOutcome, AdminSqlRequest},
+    db::{AdminSqlOutcome, AdminSqlRequest, AdminSqlUndecodedCell},
     security::AuthenticatedUser,
     types::UserId,
 };
@@ -142,6 +142,10 @@ pub struct AdminSqlResponse {
     pub statement_timeout_ms: u32,
     /// The row cap actually applied.
     pub max_rows:             usize,
+    /// The cells of `rows` shown as `null` because their PostgreSQL type is not decoded, each
+    /// with its row and column index, its type and the reason. A SQL `NULL` is not listed.
+    #[serde(default)]
+    pub undecoded:            Vec<AdminSqlUndecodedCell>,
 }
 
 /// Run one operator-supplied statement.
@@ -193,6 +197,7 @@ pub async fn admin_sql_handler(
             read_only:            applied.read_only,
             statement_timeout_ms: applied.statement_timeout_ms,
             max_rows:             applied.max_rows,
+            undecoded:            outcome.undecoded,
         })
     })
 }

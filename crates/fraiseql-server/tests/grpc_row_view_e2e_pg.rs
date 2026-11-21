@@ -11,6 +11,9 @@
 //! read in any time zone. A `LocalDateTime` field is read like the others, and a missing one
 //! is refused when it is published non-null.
 //!
+//! A column of a type that is not decoded, a `bytea` say, refuses the read, naming the column
+//! and its type, though its field is nullable.
+//!
 //! An `ID` field is a proto `string`: a string is served as stored, an integer as its
 //! decimal text, as GraphQL serves them; any other kind is refused in GraphQL's words. A
 //! value of a kind its proto field cannot carry refuses the read, naming the field.
@@ -57,6 +60,10 @@ const SERVED: [&str; 4] = [
     "'2024-01-15'::date",
     "'10:00:00'::text",
 ];
+
+/// A stored value of a type no rung decodes, distinctive enough that a message quoting it
+/// would show.
+const UNDECODED: &str = "'\\xfeedc0de'::bytea";
 
 /// Each case: its name (`Pascal`, `snake`), its row's `at`, `local`, `day` and `clock`
 /// columns, and the field it is refused at (`None`: served).
@@ -127,6 +134,12 @@ fn cases() -> Vec<Case> {
             pascal:  "HourTwentyFour",
             snake:   "hour_twenty_four",
             columns: with(3, "'24:00:00'::time"),
+            refused: Some("clock"),
+        },
+        Case {
+            pascal:  "UndecodedClock",
+            snake:   "undecoded_clock",
+            columns: with(3, UNDECODED),
             refused: Some("clock"),
         },
         Case {
@@ -544,6 +557,28 @@ async fn a_grpc_read_serves_a_time_column_as_its_text() {
     assert_eq!(temporals(&decode(&frames[0], "Slot"))[3], "10:00:00.5", "server-streaming");
 }
 
+/// A column whose PostgreSQL type is not decoded refuses the read (`INTERNAL`), naming the
+/// column and its type, never the value, though its field is nullable: it is not served unset.
+#[tokio::test]
+async fn a_grpc_read_refuses_a_column_whose_type_is_not_decoded() {
+    let dir = tempfile::tempdir().unwrap();
+    let Some((_executor, services)) = build(dir.path(), &strings()).await else {
+        eprintln!("SKIP: DATABASE_URL not set");
+        return;
+    };
+    let svc = services.expect("an all-`string` descriptor builds");
+    for method in ["ListUndecodedClockSlots", "ListUndecodedClockSlotStream"] {
+        let (status, message, frames) = call(&svc, method).await;
+        assert_eq!(status, "13", "{method}: INTERNAL, not served ({message})");
+        assert!(
+            message.contains("column `clock` of PostgreSQL type `bytea` is not decoded"),
+            "{method}: {message}"
+        );
+        assert!(!message.contains("feedc0de"), "{method}: {message}");
+        assert!(frames.is_empty(), "{method}: no row is served");
+    }
+}
+
 #[tokio::test]
 async fn a_grpc_read_refuses_a_temporal_value_as_graphql_does() {
     let dir = tempfile::tempdir().unwrap();
@@ -553,6 +588,11 @@ async fn a_grpc_read_refuses_a_temporal_value_as_graphql_does() {
     };
     let svc = services.expect("an all-`string` descriptor builds");
     for case in cases() {
+        if case.columns.contains(&UNDECODED) {
+            // Refused before any field is read, in its own words: see
+            // `a_grpc_read_refuses_a_column_whose_type_is_not_decoded`.
+            continue;
+        }
         let Some(field) = case.refused else {
             assert_eq!(graphql_refusal(&executor, &case).await, None, "{}", case.pascal);
             continue;

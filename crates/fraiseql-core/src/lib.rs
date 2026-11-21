@@ -117,6 +117,7 @@ pub mod db {
         // not a request-path surface).
         AdminSqlOutcome,
         AdminSqlRequest,
+        AdminSqlUndecodedCell,
         dialect::{self, PostgresDialect},
         // The runtime's own identifier quoting, so the boot-time `sql_source` probe
         // (#487) and the runtime cannot drift on how a name is rendered.

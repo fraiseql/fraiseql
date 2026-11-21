@@ -268,7 +268,7 @@ impl std::io::Write for CapturedLog {
 /// Every branch of the decode ladder refuses a `NULL` (`WasNull`), so a `NULL` used to fall
 /// through to the last branch, which logged a `warn` claiming type drift for ordinary
 /// `text`, `uuid` or `jsonb` columns. The second half guards the other direction: a value
-/// no branch decodes must still be reported.
+/// no branch decodes is still reported, as a refusal naming its column and type.
 #[tokio::test]
 async fn a_null_cell_of_any_type_decodes_to_null_without_a_warning() {
     let svc = fraiseql_test_support::postgres()
@@ -320,12 +320,11 @@ async fn a_null_cell_of_any_type_decodes_to_null_without_a_warning() {
     }
     assert_eq!(log.take(), "", "a NULL of any type is not a decode failure");
 
-    let rows = adapter.execute_raw_query("SELECT '(1,2)'::point AS p").await.expect("point");
-    assert_eq!(rows[0]["p"], serde_json::Value::Null);
-    let logged = log.take();
+    let refused = adapter.execute_raw_query("SELECT '(1,2)'::point AS p").await;
     assert!(
-        logged.contains(" WARN ") && logged.contains("column=p") && logged.contains("point"),
-        "a non-NULL value no branch decodes is still reported: {logged:?}"
+        matches!(&refused, Err(fraiseql_error::FraiseQLError::Database { message, .. })
+            if message.starts_with("column `p` of PostgreSQL type `point` is not decoded: ")),
+        "a non-NULL value no branch decodes is refused by name: {refused:?}"
     );
 
     adapter

@@ -763,20 +763,84 @@ fn a_zone_is_written_as_postgresql_writes_it() {
 }
 
 #[test]
-fn an_interval_is_not_decoded_because_its_text_depends_on_intervalstyle() {
+fn an_interval_is_refused_because_its_text_depends_on_intervalstyle() {
     use tokio_postgres::types::Type;
 
-    use super::database::undecoded_reason;
-    let reason = undecoded_reason(&Type::INTERVAL).expect("an interval is not decoded");
-    assert!(reason.contains("interval"), "{reason}");
-    assert!(reason.contains("IntervalStyle"), "{reason}");
-    for decoded in [
-        Type::TIME,
-        Type::TIMETZ,
-        Type::TEXT,
-        Type::DATE,
-        Type::BYTEA,
+    use super::database::refusal;
+    let refusal = refusal(&Type::INTERVAL);
+    assert!(refusal.reason.contains("interval"), "{refusal}");
+    assert!(refusal.reason.contains("IntervalStyle"), "{refusal}");
+}
+
+#[test]
+fn each_refused_type_is_refused_for_its_own_reason() {
+    use tokio_postgres::types::{Kind, Type};
+
+    use super::database::refusal;
+    let vector = Type::new("vector".into(), 90_001, Kind::Simple, "public".into());
+    let pair = Type::new("pair".into(), 90_003, Kind::Composite(vec![]), "public".into());
+    for (ty, names, cast) in [
+        (Type::BYTEA, "bytea_output", "encode(col, 'base64')"),
+        (Type::BYTEA_ARRAY, "bytea_output", "encode(col, 'base64')"),
+        (Type::MONEY, "lc_monetary", "::numeric"),
+        (Type::REGCLASS, "search_path", "::oid"),
+        (Type::REGTYPE, "search_path", "::oid"),
+        (Type::REGROLE, "search_path", "::oid"),
+        (Type::POINT, "extra_float_digits", "::text"),
+        (Type::CIRCLE, "extra_float_digits", "::text"),
+        (Type::TS_VECTOR, "text-search", "::text"),
+        (Type::TSTZ_RANGE, "TimeZone", "lower(col)"),
+        (Type::INT4_RANGE, "TimeZone", "lower(col)"),
+        (Type::INT4MULTI_RANGE, "TimeZone", "lower(col)"),
+        (Type::RECORD, "composite", "to_jsonb(col)"),
+        (pair, "composite", "to_jsonb(col)"),
+        (Type::TXID_SNAPSHOT, "system type", "::text"),
+        (Type::INT2_VECTOR, "system type", "::text"),
+        (vector, "pgvector", "::real[]"),
+        (Type::FLOAT4, "no decoder", "to_jsonb(col)"),
     ] {
-        assert_eq!(undecoded_reason(&decoded), None, "{decoded}");
+        let refusal = refusal(&ty);
+        assert!(refusal.reason.contains(names), "{ty}: {refusal}");
+        assert!(refusal.cast.contains(cast), "{ty}: {refusal}");
     }
+}
+
+#[test]
+fn a_refused_type_is_named_as_a_view_writes_it() {
+    use tokio_postgres::types::{Kind, Type};
+
+    use super::database::type_name;
+    let vector = Type::new("vector".into(), 90_001, Kind::Simple, "public".into());
+    let elsewhere = Type::new("hstore".into(), 90_002, Kind::Simple, "ext".into());
+    for (ty, name) in [
+        (Type::BYTEA, "bytea"),
+        (Type::BYTEA_ARRAY, "bytea[]"),
+        (Type::INT4_ARRAY, "int4[]"),
+        (Type::INT2_VECTOR, "int2vector"),
+        (vector, "vector"),
+        (elsewhere, "ext.hstore"),
+    ] {
+        assert_eq!(type_name(&ty), name);
+    }
+}
+
+#[test]
+fn a_refusal_names_its_column_its_type_and_its_cast() {
+    use tokio_postgres::types::Type;
+
+    use super::database::{Undecoded, refusal};
+    let message = fraiseql_error::FraiseQLError::from(Undecoded {
+        column:  "avatar".to_string(),
+        pg_type: "bytea".to_string(),
+        refusal: refusal(&Type::BYTEA),
+    })
+    .to_string();
+    assert!(
+        message.contains(
+            "column `avatar` of PostgreSQL type `bytea` is not decoded: a bytea's text depends \
+             on the session's bytea_output"
+        ),
+        "{message}"
+    );
+    assert!(message.contains("cast it in the view (`encode(col, 'base64')`"), "{message}");
 }

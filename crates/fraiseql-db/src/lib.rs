@@ -88,13 +88,13 @@ pub use serde_json;
 #[cfg(feature = "postgres")]
 pub use tokio_postgres;
 pub use traits::{
-    AdminSqlOutcome, AdminSqlRequest, ArcDatabaseAdapter, BatchRowGate, BoxDatabaseAdapter,
-    CHANGED_ROWS_KEY, COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ChangeLogWrite,
-    ChangedCollections, ChangedRows, ColumnRowStream, Compacted, ComposedEmbed, ComposedKeyset,
-    ComposedLevel, ConstraintDescription, CursorValue, DERIVED_CASCADE_KEY, DatabaseAdapter,
-    DerivedCascade, DispatchLedger, DispatchLedgerSink, DispatchSettlement, DueDispatch,
-    EmbedShape, EmbedSource, FUNCTION_DISPATCH_LEDGER_DDL, FUNCTION_DISPATCH_TABLE, JsonTally,
-    JsonbRowStream, LevelKeys, MutationRowGate, NativeCorrelation, PendingDispatch,
+    AdminSqlOutcome, AdminSqlRequest, AdminSqlUndecodedCell, ArcDatabaseAdapter, BatchRowGate,
+    BoxDatabaseAdapter, CHANGED_ROWS_KEY, COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY,
+    ChangeLogWrite, ChangedCollections, ChangedRows, ColumnRowStream, Compacted, ComposedEmbed,
+    ComposedKeyset, ComposedLevel, ConstraintDescription, CursorValue, DERIVED_CASCADE_KEY,
+    DatabaseAdapter, DerivedCascade, DispatchLedger, DispatchLedgerSink, DispatchSettlement,
+    DueDispatch, EmbedShape, EmbedSource, FUNCTION_DISPATCH_LEDGER_DDL, FUNCTION_DISPATCH_TABLE,
+    JsonTally, JsonbRowStream, LevelKeys, MutationRowGate, NativeCorrelation, PendingDispatch,
     ProjectionRequest, RawRow, RawRows, RelayCursor, RelayDatabaseAdapter, RelayPageResult,
     ResultCacheStats, ScalarKind, TviewProfile, WriteMode, WriteRequest, Writer, compact_json,
     composed_read_unsupported, dispatch_ledger_unsupported,

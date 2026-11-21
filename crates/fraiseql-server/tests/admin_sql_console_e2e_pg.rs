@@ -393,7 +393,8 @@ async fn a_readonly_token_can_select() {
 }
 
 /// A `time` or `timetz` cell is shown as PostgreSQL writes it. An `interval` is not decoded:
-/// its text depends on the session's `IntervalStyle`, so the console shows no value for it.
+/// its text depends on the session's `IntervalStyle`, so the console shows no value for it
+/// and lists it.
 #[tokio::test]
 async fn a_time_cell_is_shown_as_postgresql_writes_it() {
     if database_url_or_skip("a_time_cell_is_shown_as_postgresql_writes_it").is_none() {
@@ -414,6 +415,51 @@ async fn a_time_cell_is_shown_as_postgresql_writes_it() {
         json!([["09:30:00.5", "24:00:00", "09:30:00+05:30", null]]),
         "{data}"
     );
+    assert_eq!(data["undecoded"][0]["column"], 3, "{data}");
+    assert_eq!(data["undecoded"][0]["pg_type"], "interval", "{data}");
+}
+
+/// A cell whose type is not decoded is shown as `null` and listed in `undecoded`, with its row,
+/// its column's index, its type and why, never its value. A SQL `NULL` of such a type is a
+/// `null` and is not listed, so a `null` in `rows` is never ambiguous.
+#[tokio::test]
+async fn a_cell_whose_type_is_not_decoded_is_listed_not_guessed() {
+    if database_url_or_skip("a_cell_whose_type_is_not_decoded_is_listed_not_guessed").is_none() {
+        return;
+    }
+    let rig = Box::pin(boot_console()).await.unwrap();
+
+    let data = ok_sql(
+        &rig.server,
+        READONLY_TOKEN,
+        json!({ "sql": "SELECT * FROM (VALUES ('\\xfeedc0de'::bytea, 'kept'::text, \
+                        NULL::bytea), (NULL, 'also kept', '\\xc0ffee'::bytea)) AS t(a, b, a)" }),
+    )
+    .await;
+
+    assert_eq!(data["columns"], json!(["a", "b", "a"]), "{data}");
+    assert_eq!(data["rows"], json!([[null, "kept", null], [null, "also kept", null]]), "{data}");
+    let undecoded = data["undecoded"].as_array().expect("`undecoded` is a list");
+    let cells: Vec<(u64, u64, &str)> = undecoded
+        .iter()
+        .map(|cell| {
+            (
+                cell["row"].as_u64().unwrap(),
+                cell["column"].as_u64().unwrap(),
+                cell["pg_type"].as_str().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(cells, [(0, 0, "bytea"), (1, 2, "bytea")], "{data}");
+    for cell in undecoded {
+        let reason = cell["reason"].as_str().unwrap();
+        assert!(reason.contains("bytea_output") && reason.contains("encode(col"), "{reason}");
+    }
+    let text = data.to_string();
+    assert!(!text.contains("feedc0de") && !text.contains("c0ffee"), "{text}");
+
+    let none = ok_sql(&rig.server, READONLY_TOKEN, json!({ "sql": "SELECT 1 AS n" })).await;
+    assert_eq!(none["undecoded"], json!([]), "{none}");
 }
 
 /// A commit under a read-only token is refused *before* the database is touched.

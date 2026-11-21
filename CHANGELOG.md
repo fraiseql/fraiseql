@@ -18,6 +18,23 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A native column of a type FraiseQL does not decode refuses the read, naming the column
+  and its type (#2242); it was served as `null`.** A SQL `NULL` is still `null`: only a
+  present value is refused, so a nullable field over such a column is not served unset
+  either. The refusal names the column, its PostgreSQL type, why it is not decoded and how to
+  cast it in the view; it never carries the value. A type is not decoded when its text
+  depends on a session setting (`bytea` on `bytea_output`, `money` on `lc_monetary`,
+  `interval` on `IntervalStyle`, the `reg*` types on `search_path`, a range of timestamps on
+  `TimeZone`, geometry on `extra_float_digits`), or when no decoder reads it (composites and
+  `record`, `tsvector` and `tsquery`, system types, pgvector's `vector`, any other extension
+  type). What each output does now:
+  - gRPC row view: the read is refused with `INTERNAL`.
+  - Aggregate results and Arrow Flight queries: the query is refused.
+  - Function results: the write is refused and its transaction rolls back, so a function whose
+    result row holds such a column no longer commits.
+  - The admin SQL console shows the cell as `null` and lists it in a new `undecoded` field of
+    its response, with its row, column, type and reason (see
+    `docs/operations/admin-sql-console.md`).
 - **gRPC serves an `ID` as GraphQL serves it (#2192).** A gRPC read typed an `ID` as a UUID
   column, so an `ID` holding an integer or other text could not be read over gRPC where
   GraphQL and REST serve it. An `ID` is now a proto `string` read as text: a string as
@@ -1034,8 +1051,8 @@ disagreed, and the promise was the part that was wrong.
   results, aggregate results and function results. A `time` is written `HH:MM:SS` with its
   fraction trimmed, as the JSONB document carries it; a stored `24:00:00` is served as such,
   so a `Time` field refuses it as it refuses any value outside its format. A `timetz` keeps
-  its zone (`09:30:00+05:30`). An `interval` is still read as `null`, on purpose: its text
-  depends on the session's `IntervalStyle`, and the warning now says so and how to cast it.
+  its zone (`09:30:00+05:30`). An `interval` is not decoded, on purpose: its text depends on
+  the session's `IntervalStyle`.
 - **An omitted input field reaches the function as its declared default (#1915).** A field
   declared with a default (`currency: str = "EUR"`) and left out of a request reached the
   function as NULL on a flattened input, or as a missing key on a `jsonb` input, so the

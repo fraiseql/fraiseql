@@ -14,7 +14,7 @@ use tokio_postgres::types::ToSql;
 use super::PostgresAdapter;
 use crate::{
     postgres::pg_detail,
-    traits::{AdminSqlOutcome, AdminSqlRequest},
+    traits::{AdminSqlOutcome, AdminSqlRequest, AdminSqlUndecodedCell},
 };
 
 /// Run one operator-supplied statement under `request`'s bounds.
@@ -111,14 +111,30 @@ pub(super) async fn execute_admin_sql_impl(
         false
     };
 
-    let (columns, rows, truncated, rows_affected) = outcome?;
+    let StatementRead {
+        columns,
+        rows,
+        truncated,
+        rows_affected,
+        undecoded,
+    } = outcome?;
     Ok(AdminSqlOutcome {
         columns,
         rows,
         truncated,
         rows_affected,
         committed,
+        undecoded,
     })
+}
+
+/// What [`read_statement`] read.
+struct StatementRead {
+    columns:       Vec<String>,
+    rows:          Vec<Vec<serde_json::Value>>,
+    truncated:     bool,
+    rows_affected: Option<u64>,
+    undecoded:     Vec<AdminSqlUndecodedCell>,
 }
 
 /// Read at most `max_rows` rows, then look for one more.
@@ -127,8 +143,6 @@ pub(super) async fn execute_admin_sql_impl(
 /// comparing the row count to the budget: a result of exactly `max_rows` rows is
 /// complete, and reporting it as truncated would tell an operator their answer is
 /// partial when it is whole.
-type StatementRead = (Vec<String>, Vec<Vec<serde_json::Value>>, bool, Option<u64>);
-
 async fn read_statement(
     txn: &tokio_postgres::Transaction<'_>,
     request: &AdminSqlRequest,
@@ -144,6 +158,7 @@ async fn read_statement(
 
     let mut columns: Vec<String> = Vec::new();
     let mut rows: Vec<Vec<serde_json::Value>> = Vec::new();
+    let mut undecoded: Vec<AdminSqlUndecodedCell> = Vec::new();
     let mut truncated = false;
 
     while let Some(row) = stream.try_next().await.map_err(|e| {
@@ -159,9 +174,22 @@ async fn read_statement(
             truncated = true;
             break;
         }
+        // A console shows what it can: a cell whose type is not decoded is shown as `null`
+        // and listed, where every other read refuses the whole result.
+        let index = rows.len();
         rows.push(
             (0..row.columns().len())
-                .map(|i| super::database::decode_cell(&row, i))
+                .map(|column| {
+                    super::database::decode_cell(&row, column).unwrap_or_else(|cell| {
+                        undecoded.push(AdminSqlUndecodedCell {
+                            row: index,
+                            column,
+                            pg_type: cell.pg_type,
+                            reason: cell.refusal.to_string(),
+                        });
+                        serde_json::Value::Null
+                    })
+                })
                 .collect(),
         );
     }
@@ -174,5 +202,11 @@ async fn read_statement(
     } else {
         stream.rows_affected()
     };
-    Ok((columns, rows, truncated, rows_affected))
+    Ok(StatementRead {
+        columns,
+        rows,
+        truncated,
+        rows_affected,
+        undecoded,
+    })
 }

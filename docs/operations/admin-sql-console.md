@@ -211,7 +211,8 @@ Stated plainly, because the controls above are easy to over-read:
     "committed": false,
     "read_only": false,
     "statement_timeout_ms": 30000,
-    "max_rows": 1000
+    "max_rows": 1000,
+    "undecoded": []
   }
 }
 ```
@@ -219,6 +220,36 @@ Stated plainly, because the controls above are easy to over-read:
 Rows are **positional**, aligned to `columns`, rather than keyed by name:
 `SELECT 1 AS a, 2 AS a` is legal SQL, and a name-keyed object would silently drop
 one of the two.
+
+### Cells the console does not show
+
+A cell of a type FraiseQL does not decode is shown as `null` and listed in
+`undecoded`, with its row, its column's position in `columns`, its type and why:
+
+```jsonc
+// SELECT id, avatar FROM tb_user WHERE id = 4711
+"rows": [[4711, null]],
+"undecoded": [
+  {
+    "row": 0,
+    "column": 1,
+    "pg_type": "bytea",
+    "reason": "a bytea's text depends on the session's bytea_output, so no one rendering of it is right; cast it in the view (`encode(col, 'base64')` or `encode(col, 'hex')`)"
+  }
+]
+```
+
+A type is not decoded when its text depends on a session setting, so that no one
+rendering of it is right (`bytea`, `money`, `interval`, the `reg*` types, ranges,
+geometry), or when FraiseQL has no decoder for it (composites, text search, system
+types, extension types such as pgvector's `vector`). Cast the column in the
+statement, as the reason says, to see its value. A SQL `NULL` is a `null` and is
+never listed, so a `null` in `rows` is never ambiguous; the value itself is never
+in the response.
+
+Every other read refuses such a cell instead of guessing: a GraphQL aggregate,
+an Arrow Flight query, a gRPC read, a function's result. A console has to show
+what it can, so it lists.
 
 | Status | Meaning |
 |---|---|
