@@ -84,3 +84,4 @@
 #2015  docs and CI: fraiseql-core's `Executor` doctests compile with the crate defaults and the `compile_fail` one fails on the bound it documents, and a gate runs each library's doctests with its defaults; no shipped artifact changes
 #1898  docs and CI: the umbrella crate's documentation examples that need `server` or `wire` compile only with that feature, so its doctests pass with the defaults; no shipped artifact changes
 #2124  tests: the entry-point parity test sets the Arrow Flight address only on a build that has the field, so it runs with `observers` and no `arrow`; no shipped artifact changes
+#2233  tests: the async-operations recovery tests claim their rows with no server worker polling the same table; no shipped artifact changes

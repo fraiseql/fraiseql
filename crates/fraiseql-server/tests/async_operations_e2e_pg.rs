@@ -3,12 +3,12 @@
 //!
 //! The HTTP tests drive the production mount (`Server::serve_on_listener` with
 //! a real pool, `[auth]` trusting the ES256 test issuer, and live workers); the claim/recovery
-//! semantics drive `AsyncOperationStore` directly — they are about what the store's
-//! conditional UPDATEs allow, and simulating a dead worker needs a hand on
-//! `heartbeat_at`. Multi-tenant execution routing rides the same
-//! `tenant_dispatch` seam as `/graphql` and MCP (#858's two-tenant e2e pins
-//! that seam); here the recorded `tenant_key` is asserted through submission
-//! and the single-tenant dispatch path.
+//! semantics drive `AsyncOperationStore` directly, with no server and so no worker — they are
+//! about what the store's conditional UPDATEs allow, simulating a dead worker needs a hand on
+//! `heartbeat_at`, and a live worker polls the same `claim` and takes the rows they plant.
+//! Multi-tenant execution routing rides the same `tenant_dispatch` seam as `/graphql` and MCP
+//! (#858's two-tenant e2e pins that seam); here the recorded `tenant_key` is asserted through
+//! submission and the single-tenant dispatch path.
 //!
 //! Self-skips when no `DATABASE_URL` is set (no `#[ignore]`), so it is inert in
 //! the database-free `test` leg and runs in the Dagger `integration: server`
@@ -133,13 +133,16 @@ fn schema() -> CompiledSchema {
     schema
 }
 
+/// How often the booted server's worker claims a queued operation.
+const POLL_INTERVAL_MS: u64 = 100;
+
 fn config(issuer: &TestIssuer) -> ServerConfig {
     ServerConfig {
         auth: Some(common::test_issuer::oidc_config(issuer, true)),
         async_operations: Some(AsyncOperationsConfig {
             operations: vec!["createItem".to_string(), "failItem".to_string()],
             workers: 1,
-            poll_interval_ms: 100,
+            poll_interval_ms: POLL_INTERVAL_MS,
             ..AsyncOperationsConfig::default()
         }),
         cors_enabled: false,
@@ -150,7 +153,6 @@ fn config(issuer: &TestIssuer) -> ServerConfig {
 struct Rig {
     url:       String,
     pool:      PgPool,
-    store:     AsyncOperationStore,
     client:    reqwest::Client,
     _shutdown: tokio::sync::oneshot::Sender<()>,
     /// The issuer the server's `[auth]` trusts. It outlives the server: the validator
@@ -170,6 +172,11 @@ async fn boot_over(schema: CompiledSchema) -> Option<Rig> {
     let adapter = PostgresAdapter::new(&url).await.expect("adapter");
     provision(&adapter).await;
     let pool = PgPoolOptions::new().max_connections(4).connect(&url).await.expect("pool");
+    // The server runs no DDL: `_system.async_operations` is provisioned before it boots.
+    AsyncOperationStore::new(pool.clone())
+        .init()
+        .await
+        .expect("init _system.async_operations");
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let port = listener.local_addr().expect("addr").port();
@@ -183,7 +190,7 @@ async fn boot_over(schema: CompiledSchema) -> Option<Rig> {
     .await
     .expect("Server::new");
 
-    // Fresh slate for the assertions below (init ran during Server::new).
+    // Fresh slate for the assertions below.
     sqlx::query("TRUNCATE _system.async_operations")
         .execute(&pool)
         .await
@@ -202,8 +209,7 @@ async fn boot_over(schema: CompiledSchema) -> Option<Rig> {
 
     Some(Rig {
         url: format!("http://127.0.0.1:{port}"),
-        pool: pool.clone(),
-        store: AsyncOperationStore::new(pool),
+        pool,
         client: reqwest::Client::new(),
         _shutdown: tx,
         issuer,
@@ -261,6 +267,36 @@ impl Rig {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
         panic!("operation {op_id} never reached a terminal state");
+    }
+}
+
+/// The recovery tests' rig: the store over a pool, with no server and so no worker. A
+/// booted server's worker polls the same `claim` the tests call and would take the rows
+/// they plant, or hold one locked so the test's `SKIP LOCKED` passes it over.
+struct StoreRig {
+    pool:  PgPool,
+    store: AsyncOperationStore,
+}
+
+/// A [`StoreRig`] over a fresh `_system.async_operations`.
+async fn store_rig() -> Option<StoreRig> {
+    let url = try_database_url()?;
+    let pool = PgPoolOptions::new().max_connections(4).connect(&url).await.expect("pool");
+    let rig = StoreRig::over(pool);
+    rig.store.init().await.expect("init _system.async_operations");
+    sqlx::query("TRUNCATE _system.async_operations")
+        .execute(&rig.pool)
+        .await
+        .expect("truncate");
+    Some(rig)
+}
+
+impl StoreRig {
+    fn over(pool: PgPool) -> Self {
+        Self {
+            store: AsyncOperationStore::new(pool.clone()),
+            pool,
+        }
     }
 
     /// Insert a row directly in a given state (the recovery tests' fixture).
@@ -490,7 +526,7 @@ async fn a_failed_operations_error_is_sanitised_as_graphql_sanitises_it() {
 /// completed (or failed, or cancelled) work, however stale the row looks.
 #[tokio::test]
 async fn terminal_states_are_never_reclaimed() {
-    let Some(rig) = boot().await else {
+    let Some(rig) = store_rig().await else {
         eprintln!("SKIP terminal_never_reclaimed: no DATABASE_URL");
         return;
     };
@@ -510,7 +546,7 @@ async fn terminal_states_are_never_reclaimed() {
 /// a live long execution is never stolen.
 #[tokio::test]
 async fn running_is_reclaimable_only_when_stale() {
-    let Some(rig) = boot().await else {
+    let Some(rig) = store_rig().await else {
         eprintln!("SKIP running_stale_claim: no DATABASE_URL");
         return;
     };
@@ -530,7 +566,7 @@ async fn running_is_reclaimable_only_when_stale() {
 /// cannot be clobbered.
 #[tokio::test]
 async fn late_completion_after_supersession_is_a_noop() {
-    let Some(rig) = boot().await else {
+    let Some(rig) = store_rig().await else {
         eprintln!("SKIP late_completion: no DATABASE_URL");
         return;
     };
@@ -565,7 +601,7 @@ async fn late_completion_after_supersession_is_a_noop() {
 /// reported as exactly that — never as an accomplished cancellation.
 #[tokio::test]
 async fn cancellation_is_reported_truthfully() {
-    let Some(rig) = boot().await else {
+    let Some(rig) = store_rig().await else {
         eprintln!("SKIP cancellation_truthful: no DATABASE_URL");
         return;
     };
@@ -591,6 +627,49 @@ async fn cancellation_is_reported_truthfully() {
         .expect("row visible to its submitter");
     assert_eq!(row.state, "running", "still running — the request is not a cancellation");
     assert!(row.cancellation_requested);
+}
+
+/// The recovery tests' rows have no claimer but the test, whatever ran before them. A
+/// server booted by an earlier test is shown claiming a planted row, then its runtime ends
+/// as a `#[tokio::test]`'s does, its shutdown never signalled; a row planted after it
+/// through [`store_rig`] is still `queued` after three of that worker's polls.
+#[test]
+fn a_store_rig_row_has_no_claimer_but_the_test() {
+    let runtime = || {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime")
+    };
+    let booted = runtime();
+    let Some(server) = booted.block_on(async {
+        let rig = boot().await?;
+        let planted = StoreRig::over(rig.pool.clone());
+        let op_id = planted.plant("queued", 0).await;
+        for _ in 0..50 {
+            if planted.row_state(op_id).await.0 != "queued" {
+                return Some(rig);
+            }
+            tokio::time::sleep(Duration::from_millis(POLL_INTERVAL_MS)).await;
+        }
+        panic!("the booted server's worker never claimed the planted row");
+    }) else {
+        eprintln!("SKIP no_claimer_but_the_test: no DATABASE_URL");
+        return;
+    };
+    drop(booted);
+
+    runtime().block_on(async {
+        let rig = store_rig().await.expect("DATABASE_URL is set");
+        let op_id = rig.plant("queued", 0).await;
+        tokio::time::sleep(Duration::from_millis(3 * POLL_INTERVAL_MS)).await;
+        assert_eq!(
+            rig.row_state(op_id).await,
+            ("queued".to_string(), 1),
+            "a row the recovery tests plant is theirs alone"
+        );
+    });
+    drop(server);
 }
 
 // ── Scoping and refusals ─────────────────────────────────────────────────────
