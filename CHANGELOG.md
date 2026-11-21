@@ -35,6 +35,15 @@ disagreed, and the promise was the part that was wrong.
   - The admin SQL console shows the cell as `null` and lists it in a new `undecoded` field of
     its response, with its row, column, type and reason (see
     `docs/operations/admin-sql-console.md`).
+- **A `node(id:)` value is completed as the type its id names (#2194).** A field selected
+  only inside a type fragment of a `node` lookup (`node(id:) { ... on Kind { at } }`) was
+  served as stored unless the client also selected `__typename`: a `DateTime` without an
+  offset, an `Int` stored as text or a missing non-null value reached the client unchecked.
+  It is now held to its type and format as through the type's own query, with the same field
+  error, whether or not `__typename` is selected, and the response carries `__typename` only
+  when it is. A stored document at an interface or union field names no type unless its view
+  writes `__typename`, so a field selected only in its type fragment is still served as
+  stored (docs/features/non-null-completion.md).
 - **`Executor::execute_with_scopes` and the runtime field filter are removed (#2208).**
   `execute_with_scopes` checked a caller's scopes against only part of a document, through
   a field filter (`RuntimeConfig::field_filter`, `with_field_filter`) that no other entry

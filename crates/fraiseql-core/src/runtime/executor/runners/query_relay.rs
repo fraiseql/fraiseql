@@ -464,7 +464,8 @@ impl QueryRunner {
     /// returns that type, and fetches the matching row.
     ///
     /// Returns `{ "data": { "node": <object> } }` on success, or
-    /// `{ "data": { "node": null } }` when the object is not found.
+    /// `{ "data": { "node": null } }` when the object is not found, with the type the id
+    /// resolved to when an object was read: completion holds the object to that type.
     ///
     /// # Errors
     ///
@@ -477,7 +478,7 @@ impl QueryRunner {
         variables: Option<&serde_json::Value>,
         selections: &[FieldSelection],
         security_context: Option<&SecurityContext>,
-    ) -> Result<serde_json::Value> {
+    ) -> Result<(serde_json::Value, Option<String>)> {
         use crate::{
             backend::{WhereClause, where_clause::WhereOperator},
             graphql::selection_set,
@@ -518,9 +519,9 @@ impl QueryRunner {
             match self.resolve_bare_node_type(&raw_id, security_context, variables).await? {
                 Some(type_name) => (type_name, raw_id.clone()),
                 None => {
-                    return Ok(ResultProjector::wrap_in_data_envelope(
-                        serde_json::Value::Null,
-                        "node",
+                    return Ok((
+                        ResultProjector::wrap_in_data_envelope(serde_json::Value::Null, "node"),
+                        None,
                     ));
                 },
             }
@@ -602,7 +603,10 @@ impl QueryRunner {
         let security_where = match self.node_scope(node_qdef, security_context)? {
             NodeScope::Readable(scope) => scope,
             NodeScope::Hidden => {
-                return Ok(ResultProjector::wrap_in_data_envelope(serde_json::Value::Null, "node"));
+                return Ok((
+                    ResultProjector::wrap_in_data_envelope(serde_json::Value::Null, "node"),
+                    None,
+                ));
             },
         };
 
@@ -747,7 +751,7 @@ impl QueryRunner {
         };
 
         let response = ResultProjector::wrap_in_data_envelope(node_value, "node");
-        Ok(response)
+        Ok((response, Some(type_name)))
     }
 
     /// The rows of a Node type's view this caller may read: its backing query's RLS and

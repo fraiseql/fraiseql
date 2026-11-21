@@ -589,6 +589,8 @@ impl Executor {
         //    and are not completed against it.
         let completes =
             !matches!(query_type, QueryType::Introspection | QueryType::TypeName { .. });
+        // The concrete types a runner resolved for the abstract root values it answered.
+        let mut resolved = crate::runtime::completion::ResolvedTypes::default();
         let mut response = match query_type {
             QueryType::Regular => {
                 // Detect multi-root queries and dispatch them in parallel.
@@ -707,9 +709,14 @@ impl Executor {
             QueryType::NodeQuery { selections } => {
                 // The node runner fails closed for any RLS/inject/role-gated type
                 // when `security_context` is `None` (H2 IDOR fix).
-                self.query_runner()
+                let (response, type_name) = self
+                    .query_runner()
                     .execute_node_query(query, variables, selections, security_context)
-                    .await
+                    .await?;
+                if let Some(type_name) = type_name {
+                    resolved = crate::runtime::completion::ResolvedTypes::root("node", &type_name);
+                }
+                Ok(response)
             },
             QueryType::TypeName {
                 selection,
@@ -750,6 +757,7 @@ impl Executor {
                 target.root_type,
                 target.selections.written(),
                 variables,
+                &resolved,
             );
         }
         Ok(super::ResponseBody::Value(response))

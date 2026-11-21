@@ -38,7 +38,7 @@ fn a_missing_non_null_key_in_a_non_null_list_nulls_data() {
         "products",
         vec![sel("id", vec![]), sel("name", vec![])],
     )];
-    types.complete(&mut response, "Query", &selections, None);
+    types.complete(&mut response, "Query", &selections, None, &ResolvedTypes::default());
     assert_eq!(response["data"], Value::Null, "`[Product!]!` under the root");
     assert_eq!(response["errors"][0]["path"], json!(["products", 1, "name"]));
 }
@@ -48,7 +48,7 @@ fn every_violation_is_reported_before_the_list_is_nulled() {
     let types = OutputTypes::from_schema(&schema());
     let mut response = json!({"data": {"products": [{"id": "1"}, {"id": "2"}]}});
     let selections = [sel("products", vec![sel("name", vec![])])];
-    types.complete(&mut response, "Query", &selections, None);
+    types.complete(&mut response, "Query", &selections, None, &ResolvedTypes::default());
     assert_eq!(response["errors"].as_array().map(Vec::len), Some(2), "{response}");
 }
 
@@ -60,7 +60,7 @@ fn an_absent_nullable_field_is_left_absent() {
         "products",
         vec![sel("name", vec![]), sel("note", vec![])],
     )];
-    types.complete(&mut response, "Query", &selections, None);
+    types.complete(&mut response, "Query", &selections, None, &ResolvedTypes::default());
     assert_eq!(response, json!({"data": {"products": [{"id": "1", "name": "a"}]}}));
 }
 
@@ -69,7 +69,7 @@ fn a_type_introspection_does_not_publish_is_passed_through() {
     let types = OutputTypes::from_schema(&schema());
     let mut response = json!({"data": {"unknown": [{"name": null}]}});
     let selections = [sel("unknown", vec![sel("name", vec![])])];
-    types.complete(&mut response, "Query", &selections, None);
+    types.complete(&mut response, "Query", &selections, None, &ResolvedTypes::default());
     assert_eq!(response, json!({"data": {"unknown": [{"name": null}]}}));
 }
 
@@ -81,7 +81,7 @@ fn completion_keeps_the_documents_field_order() {
         "products",
         vec![sel("name", vec![]), sel("id", vec![]), sel("note", vec![])],
     )];
-    types.complete(&mut response, "Query", &selections, None);
+    types.complete(&mut response, "Query", &selections, None, &ResolvedTypes::default());
     let keys: Vec<&String> = response["data"]["products"][0].as_object().unwrap().keys().collect();
     assert_eq!(keys, ["name", "id", "note"], "{response}");
 }
@@ -97,7 +97,7 @@ fn a_violation_inside_a_matching_inline_fragment_is_reported() {
             sel("...on Product", vec![sel("name", vec![])]),
         ],
     )];
-    types.complete(&mut response, "Query", &selections, None);
+    types.complete(&mut response, "Query", &selections, None, &ResolvedTypes::default());
     assert_eq!(response["errors"][0]["path"], json!(["products", 0, "name"]), "{response}");
 }
 
@@ -464,7 +464,7 @@ fn graphql_serves_a_decimal_or_date_holding_another_kind_as_read() {
         "readings",
         vec![sel("price", vec![]), sel("uid", vec![])],
     )];
-    types.complete(&mut response, "Query", &selections, None);
+    types.complete(&mut response, "Query", &selections, None, &ResolvedTypes::default());
     assert_eq!(response.get("errors"), None, "{response}");
     assert_eq!(response["data"]["readings"][0], json!({"price": 12.5, "uid": true}));
 }
@@ -533,7 +533,7 @@ fn served_by_graphql(field: &str, stored: &Value) -> std::result::Result<Value, 
     let types = OutputTypes::from_schema(&published_schema());
     let mut response = json!({"data": {"readings": [{field: stored}]}});
     let selections = [sel("readings", vec![sel(field, vec![])])];
-    types.complete(&mut response, "Query", &selections, None);
+    types.complete(&mut response, "Query", &selections, None, &ResolvedTypes::default());
     match response.get("errors") {
         Some(errors) => {
             assert_eq!(response["data"]["readings"][0][field], Value::Null, "{response}");
@@ -601,7 +601,7 @@ fn a_refused_temporal_value_at_a_non_null_field_propagates() {
         {"since": "2026-07-01T12:00:00"},
     ]}});
     let selections = [sel("readings", vec![sel("since", vec![])])];
-    types.complete(&mut response, "Query", &selections, None);
+    types.complete(&mut response, "Query", &selections, None, &ResolvedTypes::default());
     assert_eq!(response["data"], Value::Null, "`[Reading!]!` under the root: {response}");
     assert_eq!(response["errors"][0]["path"], json!(["readings", 1, "since"]), "{response}");
 }
@@ -717,4 +717,82 @@ fn id_value_is_completions_rule_and_message() {
     }
     assert_eq!(id_value(&"Kind.id", &json!(7)), Ok(Some("7".to_string())));
     assert!(id_value(&"Kind.id", &json!(true)).is_err());
+}
+
+/// `node: Node`, with `Kind` a Node type and `Other` none; both declare `at: DateTime`.
+fn node_schema() -> CompiledSchema {
+    use crate::schema::InterfaceDefinition;
+    let mut schema = CompiledSchema::new();
+    for (name, implements) in [("Kind", true), ("Other", false)] {
+        let mut ty = TypeDefinition::new(name, "v_kind");
+        ty.fields = vec![
+            FieldDefinition::new("id", FieldType::Id),
+            FieldDefinition::nullable("at", FieldType::DateTime),
+        ];
+        ty.relay = implements;
+        if implements {
+            ty.implements = vec!["Node".to_string()];
+        }
+        schema.types.push(ty);
+        schema
+            .queries
+            .push(QueryDefinition::new(format!("{name}s"), name).returning_list());
+    }
+    schema.interfaces.push(
+        InterfaceDefinition::new("Node").with_field(FieldDefinition::new("id", FieldType::Id)),
+    );
+    schema
+}
+
+/// `node { ...on Kind { at } ...on Other { at } }` over a stored offset-less `at`.
+fn complete_node(node: &Value, resolved: &ResolvedTypes) -> Value {
+    let types = OutputTypes::from_schema(&node_schema());
+    let mut response = json!({"data": {"node": node}});
+    let selections = [sel(
+        "node",
+        vec![
+            sel("...on Kind", vec![sel("at", vec![])]),
+            sel("...on Other", vec![sel("at", vec![])]),
+        ],
+    )];
+    types.complete(&mut response, "Query", &selections, None, resolved);
+    response
+}
+
+#[test]
+fn an_abstract_root_is_completed_as_the_type_the_read_resolved() {
+    let response =
+        complete_node(&json!({"at": "2024-01-15T10:00:00"}), &ResolvedTypes::root("node", "Kind"));
+    assert_eq!(response["errors"][0]["path"], json!(["node", "at"]), "{response}");
+    assert_eq!(response["data"]["node"], json!({"at": null}), "nothing is added: {response}");
+}
+
+/// A resolved type steers only the root it names, and only when it is one of the declared
+/// type's: otherwise the declared type's own fields are completed, as with none.
+#[test]
+fn a_resolved_type_steers_only_its_own_root_and_only_within_the_declared_type() {
+    let stored = json!({"at": "2024-01-15T10:00:00"});
+    for resolved in [
+        ResolvedTypes::root("node", "Other"),
+        ResolvedTypes::root("elsewhere", "Kind"),
+    ] {
+        let response = complete_node(&stored, &resolved);
+        assert!(response.get("errors").is_none(), "{resolved:?}: {response}");
+        assert_eq!(response["data"]["node"], stored, "{resolved:?}");
+    }
+}
+
+/// The value's own `__typename` names its type before the resolved one does.
+#[test]
+fn a_values_typename_is_taken_before_the_resolved_type() {
+    let response = complete_node(
+        &json!({"__typename": "Kind", "at": "2024-01-15T10:00:00"}),
+        &ResolvedTypes::root("other_key", "Kind"),
+    );
+    assert_eq!(response["errors"][0]["path"], json!(["node", "at"]), "{response}");
+    let response = complete_node(
+        &json!({"__typename": "Node", "at": "2024-01-15T10:00:00"}),
+        &ResolvedTypes::root("node", "Kind"),
+    );
+    assert!(response.get("errors").is_none(), "`__typename` wins: {response}");
 }

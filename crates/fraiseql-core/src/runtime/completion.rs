@@ -24,8 +24,18 @@
 //!
 //! Completion runs once over a root field's finished value, guided by the operation's
 //! selection set (aliases are response keys; inline fragments apply when their type
-//! condition matches the object's `__typename`; `@skip`/`@include` are evaluated against the
-//! request's variables), rather than inside each projector. Every read path — regular,
+//! condition matches the object's type; `@skip`/`@include` are evaluated against the
+//! request's variables), rather than inside each projector.
+//!
+//! # An abstract value's type
+//!
+//! A value at an interface or union position is completed as its concrete type: the type
+//! its `__typename` names, else the type the read resolved for that position
+//! ([`ResolvedTypes`]: a `node(id:)` lookup knows the type its id names), else the declared
+//! type, whose own fields are then all that can be held to their types. A stored document
+//! at an interface or union field names no type unless its view writes `__typename`, so such
+//! a variant's own fields are completed only when the view writes it or the client selects
+//! it. Every read path — regular,
 //! relay, composed, node, federation `_entities`, aggregates, mutation payloads and
 //! subscription events — produces a value of the published type, so one walk over that
 //! value is the one place the rule can be applied to all of them alike.
@@ -252,15 +262,18 @@ impl OutputTypes {
     ///
     /// `selections` is the operation's root selection set with fragment spreads expanded
     /// and directives not yet evaluated; `variables` (the request's, an object) evaluates
-    /// them.
+    /// them. `resolved` are the concrete types the read resolved for its abstract root values:
+    /// each is completed as that type when its value carries no `__typename`.
     pub fn complete(
         &self,
         response: &mut Value,
         root_type: &str,
         selections: &[FieldSelection],
         variables: Option<&Value>,
+        resolved: &ResolvedTypes,
     ) {
-        Self::complete_with(&Walk::new(self, variables), response, root_type, selections);
+        let walk = Walk::new(self, variables).with_resolved(resolved);
+        Self::complete_with(&walk, response, root_type, selections);
     }
 
     /// [`complete`](Self::complete), for REST, which publishes its fields as OpenAPI
@@ -396,6 +409,37 @@ impl OutputTypes {
             value = Value::Null;
         }
         (value, errors)
+    }
+}
+
+/// The concrete type a read resolved for an abstract root value, by the root's response
+/// key: a `node(id:)` lookup reads the type its id names.
+///
+/// It steers completion only: nothing is written into the response, so a `__typename`
+/// the client did not select is not served.
+#[derive(Debug, Default)]
+pub struct ResolvedTypes {
+    roots: Vec<(String, String)>,
+}
+
+impl ResolvedTypes {
+    /// The root value at `response_key` is of type `type_name`.
+    #[must_use]
+    pub fn root(response_key: &str, type_name: &str) -> Self {
+        Self {
+            roots: vec![(response_key.to_string(), type_name.to_string())],
+        }
+    }
+
+    /// The type resolved for the value at `path`, if it is a root this names.
+    fn at(&self, path: &[Step<'_>]) -> Option<&str> {
+        let [Step::Key(key)] = path else {
+            return None;
+        };
+        self.roots
+            .iter()
+            .find(|(root, _)| root == key)
+            .map(|(_, type_name)| type_name.as_str())
     }
 }
 
@@ -865,6 +909,8 @@ struct Walk<'a> {
     /// Whether a built-in scalar position is held to the OpenAPI type REST publishes it as
     /// rather than to § 3.5: see [`OutputTypes::complete_as_published`].
     open_api:            bool,
+    /// The concrete types the read resolved for its abstract root values.
+    resolved:            Option<&'a ResolvedTypes>,
 }
 
 impl<'a> Walk<'a> {
@@ -874,7 +920,14 @@ impl<'a> Walk<'a> {
             variables,
             directive_variables: OnceCell::new(),
             open_api: false,
+            resolved: None,
         }
+    }
+
+    /// The same walk, completing each abstract root value `resolved` names as that type.
+    const fn with_resolved(mut self, resolved: &'a ResolvedTypes) -> Self {
+        self.resolved = Some(resolved);
+        self
     }
 
     /// The same walk, holding each built-in scalar position to the OpenAPI type REST
@@ -1068,12 +1121,19 @@ impl<'a> Walk<'a> {
     {
         // The object is of the type its `__typename` names, when that is a type the schema
         // publishes: an abstract type's variant, or the error type a failed mutation
-        // resolves to under a bare success return type. Without one, the declared type's
-        // own fields (an interface's) are all that can be adjudicated.
+        // resolves to under a bare success return type. Without one, of the type the read
+        // resolved for this position, when that is one of the declared type's. Without
+        // either, the declared type's own fields (an interface's) are all that can be
+        // adjudicated.
         let types = self.types;
+        let resolved = self
+            .resolved
+            .and_then(|resolved| resolved.at(path))
+            .filter(|t| self.satisfies(t, declared));
         let Some((concrete, fields)) = map
             .get("__typename")
             .and_then(Value::as_str)
+            .or(resolved)
             .and_then(|t| types.type_fields(t))
             .or_else(|| types.type_fields(declared))
         else {

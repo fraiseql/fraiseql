@@ -46,6 +46,20 @@ have nullable items; the compiler refuses `[[Float]]`.
 A field gated with `on_deny = "mask"` is published nullable: a caller the gate refuses reads
 it as `null`, which is a value it may take, not an error.
 
+## An interface or union value
+
+A value at an interface or union position is completed as its concrete type, the one its
+`__typename` names, so a field the client selects only inside a type fragment
+(`... on Booking { startDate }`) is held to its type and format as through the type's own
+query. A `node(id:)` lookup knows the type its id names, and completes its value as that
+type whether or not the client selects `__typename`; the response carries `__typename` only
+when the client selects it.
+
+A stored document at an interface or union field names no type unless its view writes
+`__typename`, which the server cannot infer. Without it, such a value's interface fields are
+completed, and a field selected only inside a type fragment is served as stored. Have the
+view write `__typename` into the document to complete them.
+
 ## A root that fails in a document of several
 
 A query with several roots plans all of them before it reads any: each root is matched, its
