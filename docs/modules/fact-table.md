@@ -436,6 +436,11 @@ The arguments decide what is computed, and the selection set decides what is ret
   refused, naming the argument: `where clause must be a JSON object`, `groupBy must be an
   object`, `orderBy must be an object or array`. So is a `having` key that is not an
   aggregate and a comparison (`count_gt`).
+- A `where` or `having` operand, and a window function's (`n`, `offset`), is held to the type
+  its input publishes before any SQL runs, as a list query's `where` operand is: each item of
+  an `_in` or `_nin`, a `Boolean` for a null check, a `String` for a pattern. One of another
+  type is refused naming its path and type (`` `where.day_eq` has type `Date` ``), never the
+  value. A `numeric` filter column publishes `Float`, so its operand is a number.
 - An aggregate row holds exactly the fields its selection set selects, under their response
   keys (aliases and `__typename` included). A selected field the arguments did not compute
   is `null`. Every row field is nullable, and the root must select at least one.

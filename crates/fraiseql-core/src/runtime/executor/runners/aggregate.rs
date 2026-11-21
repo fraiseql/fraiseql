@@ -576,6 +576,61 @@ impl AggregateRunner {
     /// # Errors
     ///
     /// [`FraiseQLError::Validation`] — no fact table of that name is visible to the caller.
+    /// Hold a fact-table root's request to the arguments its root publishes, as a list
+    /// query's resolved arguments are: a `where` or `having` operand, and a window function's,
+    /// of another type is refused, naming its path and type, never the value.
+    ///
+    /// The arguments are those the schema publishes for `metadata`'s table under `suffix`.
+    /// An embedder's request carries its table's metadata, which its schema need not hold or
+    /// publish, under a name of its choosing: its arguments are then derived from the metadata
+    /// alone, by the derivation a loaded schema publishes them with.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] for a value of another type, and for a table whose
+    /// keys no root can publish (a loaded schema refuses one).
+    fn validate_root_arguments(
+        &self,
+        query_name: &str,
+        metadata: &crate::compiler::fact_table::FactTableMetadata,
+        suffix: &str,
+        request: &serde_json::Value,
+    ) -> Result<()> {
+        let schema = &self.ctx.schema;
+        let label = || format!("Query.{query_name}");
+        let published = metadata
+            .table_name
+            .strip_prefix("tf_")
+            .filter(|_| schema.get_fact_table(&metadata.table_name) == Some(metadata))
+            .and_then(|name| schema.fact_root(&format!("{name}{suffix}")));
+        if let Some(root) = published {
+            return crate::runtime::validate_resolved_arguments(
+                schema,
+                label,
+                &root.arguments,
+                |name| request.get(name),
+            );
+        }
+        let mut table = metadata.clone();
+        table.table_name = "tf_request".to_string();
+        let mut derived = crate::schema::CompiledSchema::new();
+        derived.add_fact_table(table.table_name.clone(), table);
+        derived.build_indexes();
+        let root = derived.fact_root(&format!("request{suffix}")).ok_or_else(|| {
+            FraiseQLError::Validation {
+                message: format!(
+                    "`{query_name}` reads fact table `{}`, whose keys no root can publish, so \
+                     its request cannot be held to their types",
+                    metadata.table_name
+                ),
+                path:    Some(query_name.to_string()),
+            }
+        })?;
+        crate::runtime::validate_resolved_arguments(&derived, label, &root.arguments, |name| {
+            request.get(name)
+        })
+    }
+
     fn visible_fact_table(
         &self,
         fact_table_name: &str,
@@ -766,6 +821,8 @@ impl AggregateRunner {
         self.refuse_anonymous_under_a_row_policy(query_name, security_context)?;
         self.refuse_an_unscoped_tenant_read(query_name, metadata)?;
         let inject = self.inject_conditions(query_name, metadata, security_context)?;
+
+        self.validate_root_arguments(query_name, metadata, "_aggregate", query_json)?;
 
         // 1. Parse JSON query into AggregationRequest. Build native_columns from
         //    denormalized_filters so the parser can emit direct column references instead of JSONB
@@ -1013,6 +1070,8 @@ impl AggregateRunner {
         self.refuse_an_unscoped_tenant_read(query_name, metadata)?;
         let inject = self.inject_conditions(query_name, metadata, security_context)?;
 
+        self.validate_root_arguments(query_name, metadata, "_window", query_json)?;
+
         // 1. Parse JSON query into WindowRequest
         let mut request = crate::runtime::WindowQueryParser::parse(query_json, metadata)?;
         // #1459: a window aggregate runs over fact rows; over a measure not additive over time
@@ -1142,3 +1201,7 @@ mod aggregate_inject_tests;
 #[cfg(test)]
 #[path = "aggregate_argument_tests.rs"]
 mod aggregate_argument_tests;
+
+#[cfg(test)]
+#[path = "aggregate_operand_tests.rs"]
+mod aggregate_operand_tests;

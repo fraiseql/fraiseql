@@ -172,23 +172,35 @@ async fn a_mapped_dimension_filters_on_its_column() {
     );
 }
 
-/// The mapped column is an `int`; a filter value given as a string is cast to the column's
-/// type, as a denormalized filter's is, rather than compared as text.
+/// The mapped column is an `int`, and its filter is published as one: an integer compares
+/// with the column as an integer, not as text, and a string is refused before the statement
+/// is sent, naming the operand and its type.
 #[tokio::test]
-async fn a_mapped_filter_casts_its_value_to_the_column_type() {
+async fn a_mapped_filter_is_held_to_the_column_type() {
     let executor = executor().await;
     let metadata = metadata(&[("category", "category_id")]);
 
     assert_eq!(
-        revenue_where(&executor, &metadata, json!({ "category_eq": "2" })).await,
+        revenue_where(&executor, &metadata, json!({ "category_eq": 2 })).await,
         1.0,
-        "a string literal compares with the int column as an int"
+        "an integer compares with the int column as an int"
     );
     assert_eq!(
-        revenue_where(&executor, &metadata, json!({ "category_in": ["2"] })).await,
+        revenue_where(&executor, &metadata, json!({ "category_in": [2] })).await,
         1.0,
         "and so does a list"
     );
+    for (filter, path) in [
+        (json!({ "category_eq": "2" }), "where.category_eq"),
+        (json!({ "category_in": ["2"] }), "where.category_in[0]"),
+    ] {
+        let query = json!({ "where": filter, "aggregates": [{ "revenue_sum": true }] });
+        let refused = executor
+            .execute_aggregate_query(&query, "sales_aggregate", &metadata)
+            .await
+            .expect_err("a string is no Int");
+        assert!(refused.to_string().contains(&format!("`{path}` has type `Int`")), "{refused}");
+    }
 }
 
 /// A mapping fires whichever casing its key is declared in: the request may say

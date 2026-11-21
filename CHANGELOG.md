@@ -18,6 +18,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A fact-table root's `where` and `having` operands are held to their published types before
+  any SQL runs (#2262).** The aggregate and window roots bound an operand as text for the
+  database's cast, whose error quoted it, and their parsers' own refusals quoted some
+  values. Each root's request, written inline, carried by variables or sent by an embedder,
+  is now walked by the rule a list query's `where` operand is held to: every built-in scalar
+  a filter column or an aggregate publishes, each item of `_in` and `_nin`, a null check's
+  `Boolean`, a pattern's `String`, and a window function's `n` and `offset`. A refusal names
+  the path and the type, never the value. What changes for a client: a string at an `Int`
+  or `Float` filter column (a `numeric` column publishes `Float`; a `BigInt` one still takes
+  its digits as a string), a number at a text one, and a fractional number at a `Decimal`
+  `having` are refused.
 - **A `where` operand is held to its field's type before any SQL runs (#2257).** An operand
   written inline (`{n: {eq: "abc"}}`), carried by a whole `where` variable, or sent as a
   REST or gRPC filter reached the database's cast unchecked, which refused it with an error
