@@ -36,7 +36,14 @@ column type in one shape: a `timestamp` never with an offset, a `timestamptz` al
 one. A `DateTime` key written from a `timestamp` column is therefore served without an offset,
 and read by a client in whatever zone it assumes.
 
-`compile --database` and `doctor --against-db` check this against the database:
+A response serves a temporal field only in its scalar's format, on GraphQL, in an aggregate
+row and on REST alike. A value outside it, or a value that is no string, is a field error
+that names the field, its scalar and why, never the value, and its position is `null`, as
+a missing value's is: at a non-null field the `null` reaches the nearest nullable
+position. On REST, which has no partial response, it refuses the read with `500`, naming
+the field and its published type.
+
+`compile --database` and `doctor --against-db` find such a view before it serves:
 
 - they sample each served view's documents, the documents embedded in them included, and
   fail on a temporal field holding a value outside its scalar's format. The finding names the

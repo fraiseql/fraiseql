@@ -15,6 +15,10 @@
 //! old key already had the right date part. `timestamp` and `timestamptz` columns are pinned
 //! as they are.
 //!
+//! #2176: every key is served without a field error, so each is in the format of the scalar
+//! its column is published as: a `timestamp` key a `LocalDateTime`, a `timestamptz` key a
+//! `DateTime`, a `date` key a `Date`.
+//!
 //! Self-skips when no `DATABASE_URL` is set, so it is inert in the database-free `test` leg
 //! and runs in the Dagger `integration: postgres` leg (`--test '*'`).
 //!
@@ -146,6 +150,9 @@ async fn column_keys(executor: &Executor, column: &str) -> Vec<Value> {
         .execute(&format!("{{ {ROOT} {{ {column} }} }}"), Some(&request))
         .await
         .unwrap_or_else(|e| panic!("by {column}: {e}"));
+    // Each key is held to the scalar its column is published as: a refused one is a field
+    // error, its key `null`.
+    assert_eq!(response.get("errors"), None, "by {column}: {response}");
     response["data"][ROOT]
         .as_array()
         .unwrap_or_else(|| panic!("by {column}: {response}"))
@@ -167,6 +174,7 @@ async fn keys(executor: &Executor, column: &str, grain: &str, measure: &str) -> 
         .execute(&format!("{{ {ROOT} {{ {alias} }} }}"), Some(&request))
         .await
         .unwrap_or_else(|e| panic!("{column} by {grain}: {e}"));
+    assert_eq!(response.get("errors"), None, "{column} by {grain}: {response}");
     response["data"][ROOT]
         .as_array()
         .unwrap_or_else(|| panic!("{column} by {grain}: {response}"))

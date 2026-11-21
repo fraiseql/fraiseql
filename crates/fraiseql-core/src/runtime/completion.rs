@@ -36,6 +36,7 @@ use std::{
 };
 
 use ahash::AHashMap;
+use fraiseql_db::types::temporal::Temporal;
 use serde_json::{Map, Value};
 
 use crate::{
@@ -273,8 +274,8 @@ impl OutputTypes {
     /// - A `String` or an `ID` serves a value of any other kind as its JSON text and never refuses:
     ///   a REST client has no errors document to read a refusal from.
     /// - A `Decimal` is a `string` of its digits: an integer is its exact text.
-    /// - A date, a time, a date-time and a UUID are a `string`: any other kind is refused, their
-    ///   format not checked here.
+    /// - A date, a time or a date-time is a `string` in its scalar's format, as on GraphQL; a UUID
+    ///   is a `string`. Any other value is refused.
     /// - A JSON value and a project's own scalar are served as read.
     ///
     /// Any other value is refused with an entry in `response["errors"]` naming the field,
@@ -443,23 +444,29 @@ fn not_a_member(label: Label<'_>, path: &[Step<'_>], members: &EnumMembers) -> V
 
 /// The field error for a stored value a built-in scalar position cannot serve without loss.
 ///
-/// It says what kind of value is stored, never the value.
+/// It says what kind of value is stored, and why a string is not a temporal scalar's
+/// value, never the value.
 fn not_a_scalar(
     label: &dyn std::fmt::Display,
-    scalar: &str,
+    scalar: Scalar,
     stored: &Value,
     path: &[Value],
 ) -> Value {
+    let name = scalar_name(scalar);
     let (article, gloss) = match scalar {
-        "Int" => ("an", ", a signed 32-bit integer"),
-        "ID" => ("an", ""),
+        Scalar::Int => ("an", ", a signed 32-bit integer"),
+        Scalar::Id => ("an", ""),
         _ => ("a", ""),
+    };
+    let why = match (scalar, stored) {
+        (Scalar::Temporal(temporal), Value::String(text)) => temporal.refusal(text),
+        _ => None,
     };
     serde_json::json!({
         "message": format!(
-            "`{label}` is {article} `{scalar}`{gloss}, and the stored value is {} that is not \
-             one",
-            kind_of(stored)
+            "`{label}` is {article} `{name}`{gloss}, and the stored value is {} that {}",
+            kind_of(stored),
+            why.unwrap_or("is not one")
         ),
         "path": path,
     })
@@ -517,7 +524,7 @@ enum Coercion {
 #[cfg(test)]
 fn coerce_scalar(scalar: &str, value: &Value) -> Option<Coercion> {
     scalar_named(scalar)
-        .filter(|scalar| !matches!(scalar, Scalar::Decimal | Scalar::Temporal | Scalar::Uuid))
+        .filter(|scalar| !matches!(scalar, Scalar::Decimal | Scalar::Uuid))
         .map(|scalar| coerce_built_in::<false>(scalar, value))
 }
 
@@ -543,8 +550,12 @@ const fn scalar_name(scalar: Scalar) -> &'static str {
         Scalar::String => "String",
         Scalar::Boolean => "Boolean",
         Scalar::Id => "ID",
+        Scalar::Temporal(Temporal::DateTime) => "DateTime",
+        Scalar::Temporal(Temporal::LocalDateTime) => "LocalDateTime",
+        Scalar::Temporal(Temporal::Date) => "Date",
+        Scalar::Temporal(Temporal::Time) => "Time",
         // Served as read by GraphQL, so never named in its refusal.
-        Scalar::Decimal | Scalar::Temporal | Scalar::Uuid => "",
+        Scalar::Decimal | Scalar::Uuid => "",
     }
 }
 
@@ -560,9 +571,9 @@ enum Scalar {
     Id,
     /// Its digits, as a string. GraphQL serves it as read.
     Decimal,
-    /// A date, a time or a date-time: a string in its own format. GraphQL serves it as
-    /// read.
-    Temporal,
+    /// A date, a time or a date-time: a string in its scalar's format, on every
+    /// transport.
+    Temporal(Temporal),
     /// A UUID: a string. GraphQL serves it as read.
     Uuid,
 }
@@ -583,9 +594,10 @@ impl Scalar {
             FieldType::Boolean => Some(Self::Boolean),
             FieldType::Id => Some(Self::Id),
             FieldType::Decimal => Some(Self::Decimal),
-            FieldType::DateTime | FieldType::LocalDateTime | FieldType::Date | FieldType::Time => {
-                Some(Self::Temporal)
-            },
+            FieldType::DateTime => Some(Self::Temporal(Temporal::DateTime)),
+            FieldType::LocalDateTime => Some(Self::Temporal(Temporal::LocalDateTime)),
+            FieldType::Date => Some(Self::Temporal(Temporal::Date)),
+            FieldType::Time => Some(Self::Temporal(Temporal::Time)),
             FieldType::Uuid => Some(Self::Uuid),
             // Any JSON, the dense vectors published as JSON, a project's own scalar, and
             // what is no scalar.
@@ -608,7 +620,7 @@ impl Scalar {
             Self::Int => "integer",
             Self::Float => "number",
             Self::Boolean => "boolean",
-            Self::String | Self::Id | Self::Decimal | Self::Temporal | Self::Uuid => "string",
+            Self::String | Self::Id | Self::Decimal | Self::Temporal(_) | Self::Uuid => "string",
         }
     }
 }
@@ -632,8 +644,7 @@ fn served_as_is<const OPEN_API: bool>(scalar: Scalar, value: &Value) -> bool {
         | (Scalar::Float, Value::Number(_))
         | (Scalar::String | Scalar::Id | Scalar::Decimal | Scalar::Uuid, Value::String(_))
         | (Scalar::Boolean, Value::Bool(_)) => true,
-        // A temporal string is decided by its own arm in `coerce_other`.
-        (Scalar::Decimal | Scalar::Temporal | Scalar::Uuid, _) => !OPEN_API,
+        (Scalar::Decimal | Scalar::Uuid, _) => !OPEN_API,
         (Scalar::Int, Value::Number(number)) => {
             if OPEN_API {
                 !number.is_f64()
@@ -675,8 +686,13 @@ fn coerce_other<const OPEN_API: bool>(scalar: Scalar, value: &Value) -> Coercion
             "false" => Coercion::Rewrite(Value::Bool(false)),
             _ => Coercion::Refused,
         },
-        // A date, a time or a date-time: any string, and nothing else.
-        (Temporal, Value::String(_)) => Coercion::Served,
+        // A date, a time or a date-time: a string in its scalar's format, and nothing
+        // else. PostgreSQL writes a `timestamp` without an offset, which a `DateTime`
+        // would serve to be read in whatever zone each client assumes.
+        (Temporal(temporal), Value::String(text)) => match temporal.refusal(text) {
+            None => Coercion::Served,
+            Some(_) => Coercion::Refused,
+        },
         _ => Coercion::Refused,
     }
 }
@@ -945,7 +961,7 @@ impl<'a> Walk<'a> {
                         errors.push(if self.open_api {
                             not_published(&label, *scalar, value, &path)
                         } else {
-                            not_a_scalar(&label, scalar_name(*scalar), value, &path)
+                            not_a_scalar(&label, *scalar, value, &path)
                         });
                         Err(Propagate)
                     },

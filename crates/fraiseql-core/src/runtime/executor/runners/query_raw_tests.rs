@@ -90,6 +90,9 @@ fn schema() -> CompiledSchema {
         field("price", FieldType::Decimal),
         field("meta", FieldType::Json),
         field("born", FieldType::DateTime),
+        field("wall", FieldType::LocalDateTime),
+        field("birthday", FieldType::Date),
+        field("opens", FieldType::Time),
         field("status", FieldType::Enum("Status".to_string())),
         field("tags", FieldType::list(FieldType::String)),
         field("profile", FieldType::Object("Profile".to_string())),
@@ -172,7 +175,11 @@ fn stored_scalars_and_objects_built_from_their_sub_fields_are_admitted() {
 fn a_field_rust_would_reshape_is_refused() {
     for name in [
         "meta",
+        // A temporal value is held to its format by completion, which a raw read skips.
         "born",
+        "wall",
+        "birthday",
+        "opens",
         "status",
         "tags",
         "title",

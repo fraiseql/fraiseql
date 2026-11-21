@@ -142,10 +142,11 @@ fn an_int_position_serves_a_32_bit_integer_coerces_a_whole_decimal_and_refuses_t
     }
 }
 
-/// The scalars § 3.5's rule leaves alone: the extended built-ins and a project's own.
+/// The scalars § 3.5's rule leaves alone: the extended built-ins GraphQL serves as read,
+/// and a project's own.
 #[test]
 fn a_scalar_outside_the_five_is_not_adjudicated() {
-    for scalar in ["UUID", "Decimal", "DateTime", "LocalDateTime", "Email"] {
+    for scalar in ["UUID", "Decimal", "Email"] {
         assert_eq!(coerce_scalar(scalar, &json!(true)), None, "{scalar}");
     }
 }
@@ -200,7 +201,7 @@ fn a_float_position_reads_a_numeric_string_in_json_syntax_only() {
 #[test]
 fn a_refusal_names_the_kind_of_the_stored_value_and_never_the_value() {
     let message = |scalar: &str, stored: Value| {
-        not_a_scalar(&"Kind.at", scalar, &stored, &[json!("at")])["message"]
+        not_a_scalar(&"Kind.at", scalar_named(scalar).unwrap(), &stored, &[json!("at")])["message"]
             .as_str()
             .unwrap()
             .to_string()
@@ -264,7 +265,7 @@ fn an_aggregate_row_projects_an_int_by_the_same_rule() {
 /// An `ID` refusal reads as English and names the stored kind, never the value.
 #[test]
 fn an_id_refusal_names_the_scalar_and_the_stored_kind() {
-    let error = not_a_scalar(&"Note.id", "ID", &json!({"id": 7}), &[]);
+    let error = not_a_scalar(&"Note.id", Scalar::Id, &json!({"id": 7}), &[]);
     let message = error["message"].as_str().unwrap();
     assert!(
         message.starts_with("`Note.id` is an `ID`, and the stored value is an object"),
@@ -409,13 +410,11 @@ fn rest_serves_a_decimal_as_its_exact_text_or_refuses_it() {
 }
 
 /// A date, a time, a date-time with or without an offset and a UUID are published as a
-/// `string`: a string is served (its format is not checked here) and any other kind is
-/// refused. A JSON field
-/// and a custom scalar are served as read.
+/// `string`: any other kind is refused. A JSON field and a custom scalar are served as read.
 #[test]
 fn rest_refuses_a_non_string_at_a_temporal_or_uuid_field_and_serves_json_as_read() {
+    assert_eq!(served_by_rest("uid", &json!("anything")), Ok(json!("anything")));
     for field in ["at", "local", "day", "clock", "uid"] {
-        assert_eq!(served_by_rest(field, &json!("anything")), Ok(json!("anything")), "{field}");
         assert_eq!(served_by_rest(field, &json!(null)), Ok(json!(null)), "{field}");
         for stored in [json!(7), json!(true), json!({"t": 1}), json!(["t"])] {
             assert!(served_by_rest(field, &stored).is_err(), "{field} storing {stored}");
@@ -460,21 +459,181 @@ fn a_rest_refusal_names_the_published_type_and_never_the_value() {
 #[test]
 fn graphql_serves_a_decimal_or_date_holding_another_kind_as_read() {
     let types = OutputTypes::from_schema(&published_schema());
-    let mut response =
-        json!({"data": {"readings": [{"price": 12.5, "at": 7, "local": 7, "uid": true}]}});
+    let mut response = json!({"data": {"readings": [{"price": 12.5, "uid": true}]}});
     let selections = [sel(
         "readings",
-        vec![
-            sel("price", vec![]),
-            sel("at", vec![]),
-            sel("local", vec![]),
-            sel("uid", vec![]),
-        ],
+        vec![sel("price", vec![]), sel("uid", vec![])],
     )];
     types.complete(&mut response, "Query", &selections, None);
     assert_eq!(response.get("errors"), None, "{response}");
-    assert_eq!(
-        response["data"]["readings"][0],
-        json!({"price": 12.5, "at": 7, "local": 7, "uid": true})
+    assert_eq!(response["data"]["readings"][0], json!({"price": 12.5, "uid": true}));
+}
+
+/// The values outside each temporal field's format, and the reason a GraphQL refusal
+/// gives, completing "the stored value is …".
+fn outside_the_format(field: &str) -> Vec<(Value, &'static str)> {
+    let not_one = "a String that is not one";
+    match field {
+        "at" => vec![
+            (
+                json!("2026-07-01T12:00:00"),
+                "a String that has no time-zone offset, which a DateTime always carries",
+            ),
+            (
+                json!("2026-07-01T12:00:00-00:00"),
+                "a String that carries the unknown offset -00:00, which a DateTime does not take",
+            ),
+            (json!("2026-07-01 12:00:00+00"), not_one),
+            (json!("1890-01-01T00:00:00+00:09:21"), not_one),
+            (json!("2026-07-01"), not_one),
+            (json!(1_782_907_200), "a number that is not one"),
+        ],
+        "local" => vec![
+            (
+                json!("2026-07-01T12:00:00+00:00"),
+                "a String that carries a time-zone offset, which a LocalDateTime never has",
+            ),
+            (
+                json!("2026-07-01T12:00:00Z"),
+                "a String that carries a time-zone offset, which a LocalDateTime never has",
+            ),
+            (json!("2026-07-01 12:00:00"), not_one),
+            (json!(true), "a Boolean that is not one"),
+        ],
+        "day" => vec![
+            (json!("2026-07-01T00:00:00"), not_one),
+            (json!("2026-02-30"), not_one),
+            (json!({"y": 2026}), "an object that is not one"),
+        ],
+        "clock" => vec![
+            (
+                json!("09:30:00+02:00"),
+                "a String that carries a time-zone offset, which a Time never has",
+            ),
+            (json!("09:30"), not_one),
+            (json!("24:00:00"), not_one),
+            (json!(["09:30:00"]), "a list that is not one"),
+        ],
+        _ => Vec::new(),
+    }
+}
+
+/// Each temporal field of a `Reading`, its scalar, and a value in its format: a
+/// `timestamptz` and a `timestamp` column write the first two into a document.
+const TEMPORAL_SCALARS: [(&str, &str, &str); 4] = [
+    ("at", "DateTime", "2026-07-01T12:00:00+00:00"),
+    ("local", "LocalDateTime", "2026-07-01T12:00:00"),
+    ("day", "Date", "2026-07-01"),
+    ("clock", "Time", "09:30:00.25"),
+];
+
+/// What GraphQL serves for `stored` under `field` of a `Reading`, or the refusal's
+/// message and path.
+fn served_by_graphql(field: &str, stored: &Value) -> std::result::Result<Value, (String, Value)> {
+    let types = OutputTypes::from_schema(&published_schema());
+    let mut response = json!({"data": {"readings": [{field: stored}]}});
+    let selections = [sel("readings", vec![sel(field, vec![])])];
+    types.complete(&mut response, "Query", &selections, None);
+    match response.get("errors") {
+        Some(errors) => {
+            assert_eq!(response["data"]["readings"][0][field], Value::Null, "{response}");
+            Err((errors[0]["message"].as_str().unwrap().to_string(), errors[0]["path"].clone()))
+        },
+        None => Ok(response["data"]["readings"][0][field].clone()),
+    }
+}
+
+/// GraphQL serves a temporal value in its scalar's format, and refuses any other with a
+/// field error that names the field, the scalar and why, never the value: a `DateTime`
+/// written without an offset would be read by each client in the zone it assumes.
+#[test]
+fn graphql_refuses_a_temporal_value_outside_its_scalars_format() {
+    for (field, scalar, good) in TEMPORAL_SCALARS {
+        assert_eq!(served_by_graphql(field, &json!(good)), Ok(json!(good)), "{field}");
+        assert_eq!(served_by_graphql(field, &Value::Null), Ok(Value::Null), "{field}");
+        let outside = outside_the_format(field);
+        assert!(!outside.is_empty(), "{field} has values outside its format");
+        for (stored, why) in outside {
+            let (message, path) = served_by_graphql(field, &stored).unwrap_err();
+            assert_eq!(
+                message,
+                format!("`Reading.{field}` is a `{scalar}`, and the stored value is {why}"),
+                "{field} storing {stored}"
+            );
+            assert_eq!(path, json!(["readings", 0, field]), "{field} storing {stored}");
+            assert!(!message.contains("12:00") && !message.contains("09:30"), "{message}");
+        }
+    }
+}
+
+/// REST serves a temporal value in its scalar's format and refuses any other, as it
+/// refuses a value of another kind: naming the field and the OpenAPI type, never the value.
+#[test]
+fn rest_refuses_a_temporal_value_outside_its_scalars_format() {
+    for (field, _, good) in TEMPORAL_SCALARS {
+        assert_eq!(served_by_rest(field, &json!(good)), Ok(json!(good)), "{field}");
+        let outside = outside_the_format(field);
+        assert!(!outside.is_empty(), "{field} has values outside its format");
+        for (stored, _) in outside {
+            let message = served_by_rest(field, &stored).unwrap_err();
+            assert!(
+                message.starts_with(&format!(
+                    "`Reading.{field}` is published as an OpenAPI `string`, and the stored value is "
+                )),
+                "{field} storing {stored}: {message}"
+            );
+            assert!(!message.contains("12:00") && !message.contains("09:30"), "{message}");
+        }
+    }
+}
+
+/// A non-null temporal field holding a value outside its format is a field error that
+/// nulls the nearest nullable position, as a missing value is.
+#[test]
+fn a_refused_temporal_value_at_a_non_null_field_propagates() {
+    let mut schema = published_schema();
+    let reading = schema.types.iter_mut().find(|t| t.name == "Reading").unwrap();
+    reading.fields.push(FieldDefinition::new("since", FieldType::DateTime));
+    schema.build_indexes();
+    let types = OutputTypes::from_schema(&schema);
+    let mut response = json!({"data": {"readings": [
+        {"since": "2026-07-01T12:00:00Z"},
+        {"since": "2026-07-01T12:00:00"},
+    ]}});
+    let selections = [sel("readings", vec![sel("since", vec![])])];
+    types.complete(&mut response, "Query", &selections, None);
+    assert_eq!(response["data"], Value::Null, "`[Reading!]!` under the root: {response}");
+    assert_eq!(response["errors"][0]["path"], json!(["readings", 1, "since"]), "{response}");
+}
+
+/// Aggregate rows hold a temporal group key to its scalar's format, as a document's field
+/// is: the keys a `timestamptz`, a `timestamp`, a `date` column write are served, and a
+/// key outside its format is a field error at its row's path.
+#[test]
+fn an_aggregate_row_holds_a_temporal_key_to_its_format() {
+    let types = OutputTypes::from_schema(&published_schema());
+    let selections: Vec<FieldSelection> =
+        ["at", "local", "day"].iter().map(|name| sel(name, vec![])).collect();
+    let served = json!({"at": "2026-07-01T00:00:00+00:00", "local": "2026-07-01T00:00:00", "day": "2026-07-01"});
+    let (rows, errors) = types.project_rows(
+        vec![served.clone(), json!({"at": "2026-07-01T00:00:00", "local": "2026-07-01T00:00:00Z", "day": "2026-07-01"})],
+        "Reading",
+        &selections,
+        None,
+        "r",
     );
+    assert_eq!(rows[0], served, "{errors:?}");
+    assert_eq!(rows[1], json!({"at": null, "local": null, "day": "2026-07-01"}));
+    let messages: Vec<&str> = errors.iter().map(|e| e["message"].as_str().unwrap()).collect();
+    assert_eq!(
+        messages,
+        [
+            "`Reading.at` is a `DateTime`, and the stored value is a String that has no \
+             time-zone offset, which a DateTime always carries",
+            "`Reading.local` is a `LocalDateTime`, and the stored value is a String that \
+             carries a time-zone offset, which a LocalDateTime never has",
+        ]
+    );
+    let paths: Vec<&Value> = errors.iter().map(|e| &e["path"]).collect();
+    assert_eq!(paths, [&json!(["r", 1, "at"]), &json!(["r", 1, "local"])]);
 }

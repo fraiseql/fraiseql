@@ -17,7 +17,6 @@ use serde_json::{Map, Value};
 
 use super::{
     Coercion, OutputTypes, Step, TypeRef, Walk, coerce_built_in, not_a_scalar, response_path,
-    scalar_name,
 };
 use crate::graphql::FieldSelection;
 
@@ -104,20 +103,22 @@ impl OutputTypes {
                                 Some(TypeRef::Scalar(scalar)) => Some(*scalar),
                                 _ => None,
                             };
-                            match scalar.map(|scalar| coerce_built_in::<false>(scalar, &value)) {
-                                Some(Coercion::Rewrite(coerced)) => coerced,
-                                Some(Coercion::Refused) => {
+                            let coerced = scalar
+                                .map(|scalar| (scalar, coerce_built_in::<false>(scalar, &value)));
+                            match coerced {
+                                Some((_, Coercion::Rewrite(coerced))) => coerced,
+                                Some((scalar, Coercion::Refused)) => {
                                     let path =
                                         [Step::Key(root_key), Step::Index(index), Step::Key(key)];
                                     errors.push(not_a_scalar(
                                         &format!("{type_name}.{}", field.name),
-                                        scalar.map(scalar_name).unwrap_or_default(),
+                                        scalar,
                                         &value,
                                         &response_path(&path),
                                     ));
                                     Value::Null
                                 },
-                                Some(Coercion::Served) | None => value,
+                                Some((_, Coercion::Served)) | None => value,
                             }
                         };
                         out.insert(key.to_string(), value);
