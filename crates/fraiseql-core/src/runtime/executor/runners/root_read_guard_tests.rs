@@ -138,12 +138,14 @@ fn relay_executor(
 }
 
 fn relay_schema(edit: impl FnOnce(&mut QueryDefinition)) -> CompiledSchema {
-    schema_with(|q| {
+    let mut schema = schema_with(|q| {
         q.relay = true;
         q.relay_cursor_column = Some("pk_user".to_string());
         q.relay_cursor_type = CursorType::Int64;
         edit(q);
-    })
+    });
+    crate::runtime::executor::test_support::declare_node_types(&mut schema, &["User"]);
+    schema
 }
 
 /// The query match a direct read is handed: what the REST resolver builds.
@@ -532,7 +534,10 @@ async fn a_node_lookup_refuses_a_principal_of_the_wrong_actor_type() {
         .execute_with_security(&node_document(), None, &principal())
         .await
         .expect_err("a human user is not a service account");
-    assert!(is_refusal(&err), "{err}");
+    assert!(
+        matches!(err, FraiseQLError::Authorization { .. }),
+        "the actor gate refuses: {err}"
+    );
     assert!(adapter.captured_where().is_none());
 }
 

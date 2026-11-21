@@ -685,6 +685,11 @@ fn schema() -> CompiledSchema {
     schema.interfaces.push(
         InterfaceDefinition::new("Node").with_field(FieldDefinition::new("id", FieldType::Id)),
     );
+    // `CleanKind` is a Node type, as `relay = true` compiles one, so `node(id:)` can name it.
+    for ty in schema.types.iter_mut().filter(|t| t.name == "CleanKind") {
+        ty.relay = true;
+        ty.implements.push("Node".to_string());
+    }
     let mut party = UnionDefinition::new("Party");
     party.member_types = vec!["Org".to_string(), "Person".to_string()];
     schema.unions.push(party);

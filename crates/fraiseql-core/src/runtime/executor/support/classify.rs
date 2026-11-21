@@ -304,7 +304,12 @@ impl Executor {
         // `@skip`/`@include` are evaluated later in `execute_node_query`, where
         // the request variables are available — the same split as mutations, and
         // what keeps this classification cacheable by query string alone.
-        if parsed.operation_type == "query" && root_field == "node" {
+        // Only where the schema publishes `node`: elsewhere it is a field like any other the
+        // schema does not declare, refused by the matcher.
+        if parsed.operation_type == "query"
+            && root_field == "node"
+            && self.ctx.schema.publishes_node()
+        {
             let raw = parsed.selections.first().map_or(&[][..], |s| s.nested_fields.as_slice());
             let resolved = crate::graphql::selection_set::resolve(
                 raw,

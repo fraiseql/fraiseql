@@ -354,7 +354,8 @@ mod classify {
 
     #[test]
     fn test_classify_node_query_inline_id() {
-        let schema = test_schema();
+        let mut schema = test_schema();
+        declare_node_types(&mut schema, &[]);
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
 
@@ -367,7 +368,8 @@ mod classify {
 
     #[test]
     fn test_classify_node_query_with_variable() {
-        let schema = test_schema();
+        let mut schema = test_schema();
+        declare_node_types(&mut schema, &[]);
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
 
@@ -380,7 +382,8 @@ mod classify {
 
     #[test]
     fn test_classify_node_query_extracts_inline_fragment_selections() {
-        let schema = test_schema();
+        let mut schema = test_schema();
+        declare_node_types(&mut schema, &[]);
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
 
@@ -397,7 +400,8 @@ mod classify {
 
     #[test]
     fn test_classify_node_query_direct_fields_without_fragment() {
-        let schema = test_schema();
+        let mut schema = test_schema();
+        declare_node_types(&mut schema, &[]);
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
 
@@ -3187,8 +3191,10 @@ mod field_authz {
     // the entity blob directly — a gated resolved type fails closed.
     #[tokio::test]
     async fn node_query_with_gated_type_fails_closed() {
+        let mut schema = gated_schema(None);
+        declare_node_types(&mut schema, &["User"]);
         let executor = Executor::with_config(
-            gated_schema(None),
+            schema,
             Arc::new(MockAdapter::new(rows())),
             RuntimeConfig::default().with_field_authorizer(Arc::new(AllowAll)),
         );
@@ -3196,7 +3202,10 @@ mod field_authz {
         let res = executor
             .execute(r#"{ node(id: "VXNlcjoxMjM=") { ... on User { email } } }"#, None)
             .await;
-        assert!(res.is_err(), "node lookup of a gated type must fail closed");
+        assert!(
+            matches!(&res, Err(FraiseQLError::Authorization { message, .. }) if message.contains("policy-gated")),
+            "node lookup of a gated type must fail closed: {res:?}"
+        );
     }
 
     // The schema-level gated-field helpers used by the default-deny guards.
@@ -3484,15 +3493,20 @@ mod operation_authz {
 
     #[tokio::test]
     async fn node_is_gated() {
+        let mut schema = test_schema();
+        declare_node_types(&mut schema, &[]);
         let executor = Executor::with_config(
-            test_schema(),
+            schema,
             Arc::new(MockAdapter::new(vec![])),
             RuntimeConfig::default().with_authorizer(Arc::new(DenyAll)),
         );
         let res = executor
             .execute(r#"{ node(id: "VXNlcjoxMjM=") { ... on User { id } } }"#, None)
             .await;
-        assert!(res.is_err(), "node lookup must route through the op authorizer");
+        assert!(
+            matches!(res, Err(FraiseQLError::Authorization { .. })),
+            "node lookup must route through the op authorizer: {res:?}"
+        );
     }
 
     // ---- requires_role AND-composition (enumeration-hiding preserved) ------

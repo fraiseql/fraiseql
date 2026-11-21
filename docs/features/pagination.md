@@ -294,7 +294,14 @@ applies (`requires_role`, `requires_actor`, the authorizer, RLS, `inject_params`
 the caller may not read under any of them is `null`. Some schemas expose one entity as two
 relay types, such as `User` and `UserCard` over the same table. An id both readable types
 hold is refused rather than guessed: pass `base64("UserCard:6f1c…")` to name the type. That
-typed form is always accepted.
+typed form is always accepted, and answered as the bare form is: an id naming a type that is
+not a `relay` type, or one the caller may not read, is `null`. A caller the type's
+`requires_role` excludes gets `null`, as one its row policy hides does, and nothing in the
+answer names the query behind it.
+
+`node` exists only where the schema publishes it, that is where some type is a `relay` type.
+Elsewhere introspection does not list it, and a document that asks for it is refused as one
+asking for any field the schema does not declare.
 
 ## See also
 

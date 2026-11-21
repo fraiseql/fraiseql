@@ -46,8 +46,8 @@ use fraiseql_core::{
     runtime::{Executor, QueryMatch, RuntimeConfig},
     schema::{
         ArgumentDefinition, Cardinality, CompiledSchema, FieldDefinition, FieldDenyPolicy,
-        FieldType, MutationDefinition, MutationOperation, QueryDefinition, Relationship,
-        RoleDefinition, SecurityConfig, TypeDefinition, UnionDefinition,
+        FieldType, InterfaceDefinition, MutationDefinition, MutationOperation, QueryDefinition,
+        Relationship, RoleDefinition, SecurityConfig, TypeDefinition, UnionDefinition,
     },
     security::{
         Authorizer, AuthzDecision, AuthzRequest, CompiledRLSPolicy, ConstrainedPaths,
@@ -349,6 +349,16 @@ fn schema(user_view: &str) -> CompiledSchema {
     security.add_role(RoleDefinition::new("analyst", vec!["read:margin".to_string()]));
     security.add_role(RoleDefinition::new("costing", vec!["read:cost".to_string()]));
     schema.security = Some(security);
+    // The types `node(id:)` resolves here are Node types, as `relay = true` compiles them.
+    for ty in &mut schema.types {
+        if ["User", "Order", "Member", "Folder"].contains(&ty.name.as_str()) {
+            ty.relay = true;
+            ty.implements.push("Node".to_string());
+        }
+    }
+    schema.interfaces.push(
+        InterfaceDefinition::new("Node").with_field(FieldDefinition::new("id", FieldType::Id)),
+    );
     schema.build_indexes();
     schema
 }

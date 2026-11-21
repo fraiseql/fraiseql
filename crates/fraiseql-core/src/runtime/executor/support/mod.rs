@@ -20,6 +20,8 @@ mod multi_root_tests;
 #[cfg(test)]
 mod node_completion_tests;
 #[cfg(test)]
+mod node_publication_tests;
+#[cfg(test)]
 mod scope_coverage_tests;
 #[cfg(test)]
 mod tests;

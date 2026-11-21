@@ -372,11 +372,10 @@ impl Executor {
         let introspection = CallerIntrospection::new(&schema, build_introspection);
         let output_types = crate::runtime::completion::OutputTypes::from_schema(&schema);
 
-        // Build O(1) node-type index: return_type → sql_source.
-        // The first query with a matching return_type and a non-None sql_source wins
-        // (consistent with the previous linear-scan behaviour).
+        // Build O(1) node-type index: a Node type → the relation its first read query reads.
+        // A type that is no Node type has no entry: no `node(id:)` lookup names it.
         let mut node_type_index: HashMap<String, Arc<str>> = HashMap::new();
-        for q in &schema.queries {
+        for q in schema.queries.iter().filter(|q| schema.is_node_type(&q.return_type)) {
             if let Some(src) = q.reads_relation() {
                 node_type_index.entry(q.return_type.clone()).or_insert_with(|| Arc::from(src));
             }

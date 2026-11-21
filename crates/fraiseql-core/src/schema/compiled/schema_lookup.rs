@@ -324,6 +324,22 @@ impl CompiledSchema {
             .collect()
     }
 
+    /// Whether the schema publishes the Relay `node(id:)` root: it declares a Relay type or
+    /// the `Node` interface. Introspection publishes the field, and the executor answers it,
+    /// on this one answer.
+    #[must_use]
+    pub fn publishes_node(&self) -> bool {
+        self.types.iter().any(|t| t.relay) || self.find_interface("Node").is_some()
+    }
+
+    /// Whether `type_name` is a Node type, one a `node(id:)` lookup can name: it implements
+    /// the `Node` interface.
+    #[must_use]
+    pub fn is_node_type(&self, type_name: &str) -> bool {
+        self.find_type(type_name)
+            .is_some_and(|t| t.implements.iter().any(|i| i == "Node"))
+    }
+
     /// Find a union definition by name.
     #[must_use]
     pub fn find_union(&self, name: &str) -> Option<&UnionDefinition> {

@@ -165,10 +165,8 @@ fn build_query_type(schema: &CompiledSchema) -> IntrospectionType {
         schema.queries.iter().map(|q| build_query_field(q, schema)).collect();
     fields.extend(schema.derived.fact_roots.iter().map(|root| build_fact_root_field(root, schema)));
 
-    // Inject synthetic `node(id: ID!): Node` field when relay types exist.
-    let has_relay_types =
-        schema.types.iter().any(|t| t.relay) || schema.interfaces.iter().any(|i| i.name == "Node");
-    if has_relay_types && !fields.iter().any(|f| f.name == "node") {
+    // Inject synthetic `node(id: ID!): Node` field when the schema publishes it.
+    if schema.publishes_node() && !fields.iter().any(|f| f.name == "node") {
         fields.push(build_node_query_field());
     }
 

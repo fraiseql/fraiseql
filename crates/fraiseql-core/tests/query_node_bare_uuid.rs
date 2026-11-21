@@ -56,6 +56,7 @@ fn node_type(name: &str, view: &str) -> Value {
         "name": name,
         "sql_source": format!("{SCHEMA}.{view}"),
         "relay": true,
+        "implements": ["Node"],
         "fields": [
             { "name": "id", "field_type": "ID" },
             { "name": "name", "field_type": "String" }
@@ -90,7 +91,12 @@ fn schema(with_card: bool) -> CompiledSchema {
         types.push(node_type("AccountCard", "v_account"));
         queries.push(list_query("accountCards", "AccountCard", "v_account"));
     }
-    serde_json::from_value(json!({ "types": types, "queries": queries })).unwrap()
+    serde_json::from_value(json!({
+        "types": types,
+        "queries": queries,
+        "interfaces": [{ "name": "Node", "fields": [{ "name": "id", "field_type": "ID" }] }]
+    }))
+    .unwrap()
 }
 
 fn tenant(tenant: &str) -> SecurityContext {

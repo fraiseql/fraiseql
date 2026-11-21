@@ -535,6 +535,14 @@ impl QueryRunner {
             });
         };
 
+        // 2a. An id naming no Node type names no node, as an id naming no row does.
+        let Some(sql_source) = self.ctx.node_type_index.get(&type_name).cloned() else {
+            return Ok((
+                ResultProjector::wrap_in_data_envelope(serde_json::Value::Null, "node"),
+                None,
+            ));
+        };
+
         // 2b. #939: the selection set is scoped to the type the opaque id resolved,
         //     so field-existence can only be checked here — the matcher never sees
         //     this path. An undeclared field would otherwise be projected as
@@ -553,15 +561,6 @@ impl QueryRunner {
                 resource: Some(type_name.clone()),
             });
         }
-
-        // 3. Find the SQL view for this type (O(1) index lookup built at startup).
-        let sql_source: Arc<str> =
-            self.ctx.node_type_index.get(&type_name).cloned().ok_or_else(|| {
-                FraiseQLError::Validation {
-                    message: format!("node query: no registered SQL view for type '{type_name}'"),
-                    path:    Some("node.id".to_string()),
-                }
-            })?;
 
         // 3b. Authorization (H2). The Relay `node(id:)` lookup resolves an arbitrary type by
         //     opaque global id, so — like the regular query path — it must apply the backing
@@ -586,7 +585,10 @@ impl QueryRunner {
         // second door onto the rows that query guards — and, #422, the authorizer: `node`
         // was put to it at dispatch before the id was decoded; now the type is known, the
         // read is asked again as what it is.
-        super::root_read::OperationGate::new(&self.ctx).check(
+        //
+        //     A node the caller's roles may not read is `null`, as one its row policy hides is:
+        //     the lookup names no query, so the query's "not found" would name one.
+        if let Err(refused) = super::root_read::OperationGate::new(&self.ctx).check(
             super::root_read::Ask::Now(crate::security::AuthzOperation::root(
                 crate::security::OperationKind::Query,
                 "node",
@@ -595,7 +597,15 @@ impl QueryRunner {
             node_qdef,
             security_context,
             variables,
-        )?;
+        ) {
+            if Self::hidden_by_role(node_qdef, security_context, &refused) {
+                return Ok((
+                    ResultProjector::wrap_in_data_envelope(serde_json::Value::Null, "node"),
+                    None,
+                ));
+            }
+            return Err(refused);
+        }
 
         // Build the security WHERE (RLS ∧ inject_params). Fail closed when a policy is
         // configured but no security context is present: such a type is never resolvable by
@@ -752,6 +762,26 @@ impl QueryRunner {
 
         let response = ResultProjector::wrap_in_data_envelope(node_value, "node");
         Ok((response, Some(type_name)))
+    }
+
+    /// Whether `refused` is `query`'s role gate refusing `principal`: the one refusal of the
+    /// operation gate a lookup answers as `null`. The authorizer and the actor type refuse
+    /// with `Authorization`, an expired token with its own validation error, before or
+    /// after the role, and each stays a refusal.
+    fn hidden_by_role(
+        query: &crate::schema::QueryDefinition,
+        principal: Option<&SecurityContext>,
+        refused: &FraiseQLError,
+    ) -> bool {
+        matches!(refused, FraiseQLError::Validation { .. })
+            && !principal.is_some_and(SecurityContext::is_expired)
+            && crate::security::role_gate::enforce_requires_role(
+                "Query",
+                &query.name,
+                query.requires_role.as_deref(),
+                principal,
+            )
+            .is_err()
     }
 
     /// The rows of a Node type's view this caller may read: its backing query's RLS and

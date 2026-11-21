@@ -372,7 +372,7 @@ fn schema_with_a_relation_read() -> CompiledSchema {
             .returning_list()
             .with_sql_source("v_line_item"),
     );
-    schema.types[0].relay = true;
+    crate::runtime::executor::test_support::declare_node_types(&mut schema, &["LineItem"]);
     schema
 }
 

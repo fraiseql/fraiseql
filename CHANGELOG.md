@@ -35,6 +35,13 @@ disagreed, and the promise was the part that was wrong.
   - The admin SQL console shows the cell as `null` and lists it in a new `undecoded` field of
     its response, with its row, column, type and reason (see
     `docs/operations/admin-sql-console.md`).
+- **`node(id:)` is answered only where the schema publishes it, and only for Node types
+  (#2245).** A schema with no `relay` type does not list `node`, and a document asking for it
+  is now refused as one asking for any field the schema does not declare, where it was
+  answered. An id naming a type that is not a Node type is `null`, where it was read through
+  that type's query. A lookup the backing query's `requires_role` excludes is `null`, as one
+  a row policy hides is, where it was refused naming that query. Mark a type `relay = true`
+  to make it reachable through `node` (docs/features/pagination.md).
 - **A `node(id:)` value is completed as the type its id names (#2194).** A field selected
   only inside a type fragment of a `node` lookup (`node(id:) { ... on Kind { at } }`) was
   served as stored unless the client also selected `__typename`: a `DateTime` without an

@@ -953,6 +953,7 @@ mod session_variables {
             ];
             t
         });
+        crate::runtime::executor::test_support::declare_node_types(&mut schema, &["User"]);
         schema
     }
 
@@ -1367,6 +1368,7 @@ mod node_authz {
             ];
             t
         });
+        crate::runtime::executor::test_support::declare_node_types(&mut schema, &["User"]);
         schema
     }
 
@@ -1398,17 +1400,16 @@ mod node_authz {
         }
     }
 
+    /// A lookup the backing query's role hides is `null`, as one its row policy hides is:
+    /// nothing is read, and nothing names the query.
     #[tokio::test]
-    async fn node_requires_role_anonymous_is_not_found() {
+    async fn node_requires_role_anonymous_is_null() {
         let schema = node_user_schema(Some("admin"), IndexMap::new());
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
         let executor = Executor::new(schema, adapter.clone());
 
-        let err = executor.execute(&node_query(), None).await.unwrap_err();
-        assert!(
-            err.to_string().contains("not found"),
-            "expected enumeration-hiding error, got: {err}"
-        );
+        let result = executor.execute(&node_query(), None).await.unwrap();
+        assert_eq!(result, serde_json::json!({"data": {"node": null}}));
         assert!(
             adapter.captured_where().is_none(),
             "DB must not be queried when role check fails"
@@ -1416,14 +1417,14 @@ mod node_authz {
     }
 
     #[tokio::test]
-    async fn node_requires_role_authenticated_without_role_is_not_found() {
+    async fn node_requires_role_authenticated_without_role_is_null() {
         let schema = node_user_schema(Some("admin"), IndexMap::new());
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
         let executor = Executor::new(schema, adapter.clone());
 
         let ctx = ctx_with_roles(&["viewer"]);
-        let err = executor.execute_with_security(&node_query(), None, &ctx).await.unwrap_err();
-        assert!(err.to_string().contains("not found"));
+        let result = executor.execute_with_security(&node_query(), None, &ctx).await.unwrap();
+        assert_eq!(result, serde_json::json!({"data": {"node": null}}));
         assert!(adapter.captured_where().is_none());
     }
 

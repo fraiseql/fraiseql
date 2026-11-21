@@ -91,6 +91,7 @@ fn schema() -> CompiledSchema {
     security
         .add_role(RoleDefinition::new("reader", SCOPES.iter().map(ToString::to_string).collect()));
     schema.security = Some(security);
+    crate::runtime::executor::test_support::declare_node_types(&mut schema, &["Secret"]);
     schema.build_indexes();
     schema
 }

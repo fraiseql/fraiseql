@@ -732,6 +732,25 @@ impl DatabaseAdapter for ReadOnlyMockAdapter {
     }
 }
 
+/// Make each of `type_names` a Node type as the compiler writes one: a Relay type that
+/// implements the declared `Node` interface. The schema then publishes `node(id:)`, and a
+/// lookup can name those types and no others.
+pub fn declare_node_types(schema: &mut CompiledSchema, type_names: &[&str]) {
+    for ty in schema.types.iter_mut().filter(|t| type_names.contains(&t.name.as_str())) {
+        ty.relay = true;
+        if !ty.implements.iter().any(|i| i == "Node") {
+            ty.implements.push("Node".to_string());
+        }
+    }
+    if schema.find_interface("Node").is_none() {
+        schema.interfaces.push(
+            crate::schema::InterfaceDefinition::new("Node").with_field(
+                crate::schema::FieldDefinition::new("id", crate::schema::FieldType::Id),
+            ),
+        );
+    }
+}
+
 pub fn test_schema() -> CompiledSchema {
     let mut schema = CompiledSchema::new();
     schema.queries.push(QueryDefinition {
