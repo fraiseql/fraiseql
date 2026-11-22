@@ -879,6 +879,8 @@ disagreed, and the promise was the part that was wrong.
   - C#: `[GraphQLField(Type = "LocalDateTime")]` on a `DateTime` property, which wins over
     inference; F#: `[<GraphQLField(Type = "LocalDateTime")>]`. A `DateTime`'s zone is its
     run-time `Kind`, so an undeclared one stays `DateTime`.
+  - Python: `fraiseql.LocalDateTime`, a field, an argument or a list's item. A `datetime`
+    is naive or aware by its value, not its type, so it stays `DateTime`.
 
 - **`compile --database` warns on a view casting a document's text to a temporal type
   (#2213).** A served view, or with gRPC enabled a row view (`vr_<sql_source>`), whose

@@ -149,6 +149,13 @@ This is the REQUIRED type for `id` fields and foreign key references.
 DateTime = NewType("DateTime", str)
 """ISO 8601 DateTime scalar (e.g., "2025-01-10T12:00:00Z")."""
 
+LocalDateTime = NewType("LocalDateTime", str)
+"""A date and time with no offset (e.g., "2025-01-10T12:00:00"), a PostgreSQL ``timestamp``.
+
+A ``datetime`` is naive or aware by its value, not its type, so it stays ``DateTime``:
+annotate a field or argument whose values carry no offset with ``LocalDateTime``.
+"""
+
 Date = NewType("Date", str)
 """ISO 8601 Date scalar (e.g., "2025-01-10")."""
 
@@ -437,6 +444,7 @@ __all__ = [
     "LanguageCode",
     "Latitude",
     "LicensePlate",
+    "LocalDateTime",
     "LocaleCode",
     "Longitude",
     "MACAddress",

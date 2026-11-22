@@ -24,6 +24,7 @@ from fraiseql.scalars import (  # noqa: TC001 — deferred annotations are resol
     BigInt,
     BitVector,
     HalfVector,
+    LocalDateTime,
     SparseVector,
     Vector,
 )
@@ -184,6 +185,16 @@ class LedgerEntry:
     transfer_ids: list[BigInt]
 
 
+# #2177: a date and time with no offset is `fraiseql.LocalDateTime`; a `datetime` stays
+# `DateTime`.
+@fraiseql.type(sql_source="v_shift_slot")
+class ShiftSlot:
+    id: ID
+    starts_at: LocalDateTime
+    ends_at: LocalDateTime | None = None
+    breaks_at: list[LocalDateTime]
+
+
 # #1737: `Order` is scoped by `tenant_orders`, so a type that embeds it says it is scoped
 # alike, and its own query bears that out.
 @fraiseql.type(sql_source="v_order_shipment")
@@ -240,6 +251,13 @@ def tenant_order_shipments() -> list[OrderShipment]:
 def ledger_entries_by_account(
     account_number: BigInt, transfer_ids: list[BigInt] | None = None
 ) -> list[LedgerEntry]:
+    pass
+
+
+@fraiseql.query(sql_source="v_shift_slot")
+def shift_slots_starting_after(
+    starts_after: LocalDateTime, except_at: list[LocalDateTime] | None = None
+) -> list[ShiftSlot]:
     pass
 
 

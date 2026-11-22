@@ -174,6 +174,8 @@ localized; `Localized[int]` raises when the class is decorated.
 | `float` | `Float` |
 | `str` | `String` |
 | `bool` | `Boolean` |
+| `datetime.datetime` | `DateTime` |
+| `fraiseql.LocalDateTime` | `LocalDateTime` (a date and time with no offset, a PostgreSQL `timestamp`) |
 | `list[T]` | `[T]` |
 | `T \| None` | `T` (nullable) |
 | Custom class | Object type |
