@@ -2,11 +2,12 @@
 """check-deny-lint-flags.py — every `cargo deny check` invocation that covers the
 `bans` check must escalate cargo-deny's two unmatched-skip lints to errors.
 
-Background (#1020, and #933 before it). `deny.toml` carries six `[[bans.skip-tree]]`
-entries and several `[[bans.skip]]` entries, all pinned to an exact version. An exact
-pin stops matching the moment the crate is bumped, and the entry then covers nothing —
-the next `cargo deny check bans` reports every duplicate under that tree at once,
-naming crates that look entirely unrelated to the one that moved.
+Background (#1020, and #933 before it). `deny.toml` carries `[[bans.skip-tree]]` and
+`[[bans.skip]]` entries, each pinned to its crate's semver line (#1849; they were exact
+versions before). A pin stops matching the moment the crate moves to another line, and
+the entry then covers nothing: the next `cargo deny check bans` reports every duplicate
+under that tree at once, naming crates that look entirely unrelated to the one that
+moved.
 
 cargo-deny DOES detect this. It emits `unmatched-skip-root` (for `[[bans.skip-tree]]`)
 and `unmatched-skip` (for `[[bans.skip]]`) — but both default to WARN, so the run still

@@ -95,10 +95,11 @@ func (m *FraiseqlCi) CargoDeny(
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").
 		// -D unmatched-skip-root / -D unmatched-skip: both lints default to WARN, so a
-		// [[bans.skip-tree]] or [[bans.skip]] entry whose exact-version pin has gone
-		// stale covers NOTHING and this leg still exits 0 (#1020; the #933 duplicate
-		// storm is what a missed pin looks like). tools/check-deny-lint-flags.sh keeps
-		// the flags in lockstep with the Makefile and security-compliance.yml.
+		// [[bans.skip-tree]] or [[bans.skip]] entry whose pin has gone stale (its
+		// crate moved to another semver line) covers NOTHING and this leg still exits
+		// 0 (#1020; the #933 duplicate storm is what a missed pin looks like).
+		// tools/check-deny-lint-flags.sh keeps the flags in lockstep with the Makefile
+		// and security-compliance.yml.
 		WithExec([]string{
 			"cargo-deny", "check",
 			"-D", "unmatched-skip-root",

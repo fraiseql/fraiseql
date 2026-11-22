@@ -5,7 +5,7 @@
 # Exits non-zero if any assertion fails.
 #
 # The gate escalates cargo-deny's `unmatched-skip-root` / `unmatched-skip` lints, which
-# default to WARN — a stale exact-version skip pin therefore covers nothing while the run
+# default to WARN — a stale skip pin therefore covers nothing while the run
 # still exits 0 (#1020, #933). These assertions are red-capability assertions: each is a
 # shape the gate must REJECT. Three of them are shapes an earlier draft of this gate got
 # wrong, and each of those wrong verdicts was silent:

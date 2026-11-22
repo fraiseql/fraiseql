@@ -2276,9 +2276,9 @@ test-dockerfile-msrv-gate:
 
 # Gate: every `cargo deny check` invocation that covers `bans` must escalate
 # cargo-deny's unmatched-skip lints to errors. Both default to WARN, so a
-# [[bans.skip-tree]]/[[bans.skip]] entry whose exact-version pin has gone stale
-# covers nothing and the run still exits 0 (#1020; #933 is what that looks like
-# downstream). The level cannot be set in deny.toml, so it lives on three command
+# [[bans.skip-tree]]/[[bans.skip]] entry whose pin has gone stale (its crate
+# moved to another semver line) covers nothing and the run still exits 0 (#1020;
+# #933 is what that looks like downstream). The level cannot be set in deny.toml, so it lives on three command
 # lines — which is the drift shape this gate exists to pin.
 .PHONY: lint-deny-flags
 lint-deny-flags:

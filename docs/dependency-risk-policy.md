@@ -221,6 +221,10 @@ The current skip list primarily falls into these categories:
 When adding a new `[[bans.skip]]` or `[[advisories.ignore]]` entry:
 
 1. Add a `reason` field explaining the root cause
+   - For a `[[bans.skip]]` or `[[bans.skip-tree]]`, give `version` as the crate's semver
+     line (`^48`, `^0.13`), not one release: Cargo holds one version per line, so the line
+     names the same copy, and a patch bump inside it does not fail the security leg. A
+     move to another line matches nothing and fails it on `-D unmatched-skip(-root)`
 2. For advisories: include the deadline in the reason string, and a
    `# deadline: YYYY-MM-DD` comment line — `tools/check-deadlines.sh` greps for exactly that
    spelling, and prose forms match nothing

@@ -78,284 +78,293 @@ unmaintained = "workspace"
 multiple-versions = "deny"
 wildcards = "allow"
 
+# Every `[[bans.skip]]` and `[[bans.skip-tree]]` names its crate's semver-compatible line
+# (`^48`, `^0.52`), not one release. Cargo holds at most one version per line of a
+# registry crate, so the line names exactly the copy an exact pin would, and a patch or
+# minor bump inside it changes nothing an entry exempts. Only a move to another line can
+# change the duplicate set, and then the entry matches nothing: every call site passes
+# `-D unmatched-skip-root -D unmatched-skip`, so the run fails there and the entry is
+# reviewed when it can really change (#1849). An exact pin failed the run on every patch
+# bump instead (#933, #1020).
+
 # samael (SAML SP, #381) is an opt-in `auth-saml`-only dependency; its build/derive stack
 # (derive_builder 0.20 → darling 0.20; bindgen → nom 7) and openssl-probe 0.1 pull older
-# duplicate versions than the rest of the workspace. Pinned to the samael-side versions so
-# only those exact duplicates are exempt; bump these if samael's tree moves.
+# duplicate versions than the rest of the workspace. Pinned to the samael-side lines so
+# only those duplicates are exempt; move these if samael's tree moves to another line.
 [[bans.skip]]
 name = "darling"
 reason = "samael (#381 auth-saml) → derive_builder 0.20 → darling 0.20; workspace on 0.24"
-version = "=0.20.11"
+version = "^0.20"
 
 [[bans.skip]]
 name = "darling_core"
 reason = "samael (#381 auth-saml) → derive_builder 0.20 → darling_core 0.20; workspace on 0.24"
-version = "=0.20.11"
+version = "^0.20"
 
 [[bans.skip]]
 name = "darling_macro"
 reason = "samael (#381 auth-saml) → derive_builder 0.20 → darling_macro 0.20; workspace on 0.24"
-version = "=0.20.11"
+version = "^0.20"
 
 [[bans.skip]]
 name = "nom"
 reason = "samael (#381 auth-saml) → bindgen → nom 7; workspace on nom 8"
-version = "=7.1.3"
+version = "^7"
 
 [[bans.skip]]
 name = "openssl-probe"
 reason = "samael (#381 auth-saml) → openssl-probe 0.1; workspace on 0.2"
-version = "=0.1.6"
+version = "^0.1"
 
 [[bans.skip]]
 name = "sha1"
 reason = "transitive via sqlx-mysql (pinned to sha1 0.10.x); workspace direct on sha1 0.11 (#300)"
-version = "=0.10.6"
+version = "^0.10"
 
 [[bans.skip]]
 name = "http"
 reason = "aws-runtime 1.9 signs with http 0.2 types; workspace on http 1.x. A hard dependency of every aws-sdk-*, not selectable by feature (#1111)"
-version = "=0.2.12"
+version = "^0.2"
 
 [[bans.skip]]
 name = "http-body"
 reason = "aws-runtime 1.9 → http-body 0.4, same cause as the http 0.2 entry; workspace on http-body 1.x (#1111)"
-version = "=0.4.6"
+version = "^0.4"
 
 [[bans.skip]]
 name = "io-lifetimes"
 reason = "wasmtime-wasi 48 → cap-primitives 4 (io-lifetimes 3) and cap-primitives → fs-set-times 0.20 (io-lifetimes 2): both inside wasmtime-wasi's own tree, which the wasmtime skip-tree does not root"
-version = "=2.0.4"
+version = "^2"
 
 [[bans.skip]]
 name = "async-channel"
 reason = "async-imap (inbound-email) → stop-token → async-channel 1.9.0; workspace on 2.x"
-version = "=1.9.0"
+version = "^1"
 
 [[bans.skip]]
 name = "event-listener"
 reason = "async-imap (inbound-email) → stop-token → async-channel 1.9.0 → event-listener 2.5.3; workspace on 5.x"
-version = "=2.5.3"
+version = "^2"
 
 [[bans.skip]]
 name = "hashbrown"
 reason = "transitive via indexmap 2.x in some dependency chains"
-version = "=0.14.5"
+version = "^0.14"
 
 [[bans.skip]]
 name = "getrandom"
 reason = "transitive via rand 0.8 (many dependencies)"
-version = "=0.2.17"
+version = "^0.2"
 
 [[bans.skip]]
 name = "getrandom"
 reason = "transitive via rand 0.9"
-version = "=0.3.4"
+version = "^0.3"
 
 [[bans.skip]]
 name = "rand_chacha"
 reason = "transitive via rand 0.8"
-version = "=0.3.1"
+version = "^0.3"
 
 [[bans.skip]]
 name = "rand_chacha"
 reason = "transitive via rand 0.10"
-version = "=0.9.0"
+version = "^0.9"
 
 [[bans.skip]]
 name = "rand_core"
 reason = "transitive via rand 0.8"
-version = "=0.6.4"
+version = "^0.6"
 
 [[bans.skip]]
 name = "rand_core"
 reason = "transitive via rand 0.9"
-version = "=0.9.5"
+version = "^0.9"
 
 [[bans.skip]]
 name = "wasi"
 reason = "transitive via getrandom 0.2"
-version = "=0.11.1+wasi-snapshot-preview1"
+version = "^0.11"
 
 [[bans.skip]]
 name = "wasi"
 reason = "transitive via getrandom 0.3 (rand 0.10 chain)"
-version = "=0.14.7+wasi-0.2.4"
+version = "^0.14"
 
 [[bans.skip]]
 name = "toml_datetime"
 reason = "transitive via toml_edit 0.22"
-version = "=0.6.11"
+version = "^0.6"
 
 [[bans.skip]]
 name = "toml_edit"
 reason = "transitive via cargo-manifest or similar"
-version = "=0.22.27"
+version = "^0.22"
 
 [[bans.skip]]
 name = "lz4_flex"
 reason = "transitive via clickhouse dependency chain (0.11.x); parquet uses 0.12.x"
-version = "=0.11.6"
+version = "^0.11"
 
 [[bans.skip]]
 name = "cpufeatures"
 reason = "transitive via older sha2/aes crate versions"
-version = "=0.2.17"
+version = "^0.2"
 
 [[bans.skip]]
 name = "chacha20"
 reason = "transitive via older chacha20poly1305 version"
-version = "=0.9.1"
+version = "^0.9"
 
 [[bans.skip]]
 name = "webpki-roots"
 reason = "transitive via rustls 0.23 dependency chain"
-version = "=0.26.11"
+version = "^0.26"
 
 [[bans.skip]]
 name = "whoami"
 reason = "transitive via older sqlx version"
-version = "=1.6.1"
+version = "^1"
 
 [[bans.skip]]
 name = "wasite"
 reason = "transitive via whoami 1.x"
-version = "=0.1.0"
+version = "^0.1"
 
 [[bans.skip]]
 name = "base64"
 reason = "rmcp 3.5 (the `mcp` feature) → base64 0.23; the workspace is on 0.22. rmcp 1.x carried the GHSA-9pj6-vhgr-3mwh session leak, so the bump is not optional"
-version = "=0.23.1"
+version = "^0.23"
 
 [[bans.skip]]
 name = "base64-simd"
 reason = "transitive via older dependency chain"
-version = "=0.7.0"
+version = "^0.7"
 
 [[bans.skip]]
 name = "base64-simd"
 reason = "transitive via dependency chain"
-version = "=0.8.0"
+version = "^0.8"
 
 [[bans.skip]]
 name = "hashbrown"
 reason = "transitive; ecosystem migrating to 0.16"
-version = "=0.16.1"
+version = "^0.16"
 
 [[bans.skip]]
 name = "linux-raw-sys"
 reason = "transitive via rustix 0.38 (older dependency chain)"
-version = "=0.4.15"
+version = "^0.4"
 
 [[bans.skip]]
 name = "linux-raw-sys"
 reason = "transitive via rustix 1.x chain"
-version = "=0.12.1"
+version = "^0.12"
 
 [[bans.skip]]
 name = "hkdf"
 reason = "hkdf 0.12 under elliptic-curve 0.13 (p256, ecdsa: jsonwebtoken ES256 and webhook verification); sqlx-postgres 0.9 uses hkdf 0.13 for SCRAM"
-version = "=0.12.4"
+version = "^0.12"
 
 [[bans.skip]]
 name = "hmac"
 reason = "transitive via jsonwebtoken, totp-rs and the elliptic-curve 0.13 chain (hkdf 0.12, rfc6979); workspace direct on hmac 0.13"
-version = "=0.12.1"
+version = "^0.12"
 
 [[bans.skip]]
 name = "spin"
 reason = "transitive via aws-sdk-s3 1.137 → crc-fast (spin 0.10.x); lazy_static pins spin 0.9"
-version = "=0.10.1"
+version = "^0.10"
 
 [[bans.skip]]
 name = "outref"
 reason = "transitive via older dependency chain"
-version = "=0.1.0"
+version = "^0.1"
 
 [[bans.skip]]
 name = "pastey"
 reason = "transitive; ecosystem migrating to 0.2"
-version = "=0.1.1"
+version = "^0.1"
 
 [[bans.skip]]
 name = "rand"
 reason = "transitive via criterion and other deps pinned to 0.8"
-version = "=0.8.6"
+version = "^0.8"
 
 [[bans.skip]]
 name = "rand"
 reason = "transitive via criterion and other deps on rand 0.9"
-version = "=0.9.4"
+version = "^0.9"
 
 [[bans.skip]]
 name = "rand"
 reason = "transitive via newer dependency chain pulling rand 0.10"
-version = "=0.10.1"
+version = "^0.10"
 
 [[bans.skip]]
 name = "reqwest"
 reason = "transitive via opentelemetry-otlp 0.32 → opentelemetry-http (reqwest 0.13); workspace direct on reqwest 0.12"
-version = "=0.13.4"
+version = "^0.13"
 
 [[bans.skip]]
 name = "rustc_version"
 reason = "transitive via older build dependencies"
-version = "=0.2.3"
+version = "^0.2"
 
 [[bans.skip]]
 name = "rustix"
 reason = "transitive via older dependency chain (rustix 0.38)"
-version = "=0.38.44"
+version = "^0.38"
 
 [[bans.skip]]
 name = "rustix"
 reason = "transitive via newer dependency chain (rustix 1.x)"
-version = "=1.1.4"
+version = "^1"
 
 [[bans.skip]]
 name = "miniz_oxide"
 reason = "v8/deno_core pins 0.7.4; backtrace/dhat uses 0.8.9; both are optional feature paths"
-version = "=0.7.4"
+version = "^0.7"
 
 [[bans.skip]]
 name = "phf"
 reason = "swc (via deno_ast, runtime-deno) → phf 0.13; workspace on 0.11"
-version = "=0.13.1"
+version = "^0.13"
 
 [[bans.skip]]
 name = "phf_shared"
 reason = "swc (via deno_ast, runtime-deno) → phf_shared 0.13; workspace on 0.11"
-version = "=0.13.1"
+version = "^0.13"
 
 [[bans.skip]]
 name = "phf"
 reason = "chrono-tz 0.10 (the IANA timezone of a cron schedule) → phf 0.12; workspace on 0.11. An older chrono-tz shares 0.11 but embeds an older timezone database"
-version = "=0.12.1"
+version = "^0.12"
 
 [[bans.skip]]
 name = "phf_shared"
 reason = "chrono-tz 0.10 → phf_shared 0.12; workspace on 0.11"
-version = "=0.12.1"
+version = "^0.12"
 
 [[bans.skip]]
 name = "siphasher"
 reason = "swc (via deno_ast, runtime-deno) → phf 0.13 → siphasher 1.0; workspace on 0.3"
-version = "=1.0.2"
+version = "^1"
 
 [[bans.skip-tree]]
 name = "wasmtime"
-reason = "wasmtime pulls in older debug utilities (addr2line, gimli, object, etc.) via backtrace/dhat, plus its own wasm-tooling versions (wasm-encoder, wasmparser, wast). NOTE: this is an exact-version pin — a wasmtime bump that forgets to move it un-skips the whole tree and reports every duplicate under it as an unrelated-looking storm (#933). That is now caught at the source: every call site passes -D unmatched-skip-root, so a pin matching nothing fails the run instead of warning under the storm (#1020)."
-version = "=48.0.10"
+reason = "wasmtime pulls in older debug utilities (addr2line, gimli, object, etc.) via backtrace/dhat, plus its own wasm-tooling versions (wasm-encoder, wasmparser, wast). The 48 line, not one release: a patch bump keeps it matching, and a move to 49 matches nothing, which -D unmatched-skip-root fails at every call site, instead of un-skipping the tree into a storm of unrelated-looking duplicates (#933, #1020, #1849)."
+version = "^48"
 
 [[bans.skip-tree]]
 name = "windows-sys"
 reason = "windows-sys 0.52 → windows-targets 0.52.6 → windows_* 0.52.6 leaf crates"
-version = "=0.52.0"
+version = "^0.52"
 
 [[bans.skip-tree]]
 name = "windows-sys"
 reason = "windows-sys 0.60 (via notify 8) → windows-targets 0.53.5 → windows_* 0.53.1 leaf crates"
-version = "=0.60.2"
+version = "^0.60"
 
 # Non-wasmtime duplicates from ecosystem migrations
 [graph]

@@ -890,7 +890,7 @@ func (m *FraiseqlCi) ShellGates(
 		// Bidirectional — a local-only extra line falsifies the target's claim in
 		// the other direction.
 		"python3 tools/check-shard-parity.py",
-		// cargo-deny's unmatched-skip lints default to WARN, so a stale exact-version
+		// cargo-deny's unmatched-skip lints default to WARN, so a stale
 		// [[bans.skip-tree]] pin covers NOTHING while `cargo deny check` still exits 0.
 		// The level cannot be set in deny.toml, so `-D` lives on three command lines;
 		// this keeps them in lockstep (#1020, #933).
