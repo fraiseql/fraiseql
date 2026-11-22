@@ -143,6 +143,26 @@ INSERT INTO v_selection_conformance_holding (pk_holding, data) VALUES
 CREATE OR REPLACE FUNCTION fn_selection_conformance_holding() RETURNS SETOF v_selection_conformance_holding LANGUAGE sql STABLE AS 'SELECT * FROM v_selection_conformance_holding ORDER BY pk_holding';
 "#;
 
+/// Values of the interface `Holder`, implemented by `Bank`, alone and in a list: a
+/// `Decimal` with more digits than an `f64` keeps, a `BigInt` past 2^53, a `UUID` and a
+/// `LocalDateTime`, each a scalar served as the text the database stored.
+const ACCOUNT_VIEW: &str = "v_selection_conformance_account";
+/// A set-returning function over [`ACCOUNT_VIEW`]'s rows.
+const ACCOUNT_FUNCTION: &str = "fn_selection_conformance_account";
+const ACCOUNT_FIXTURE: &str = r#"
+DROP TABLE IF EXISTS v_selection_conformance_account CASCADE;
+CREATE TABLE v_selection_conformance_account (pk_account bigint, data jsonb);
+INSERT INTO v_selection_conformance_account (pk_account, data) VALUES
+  (1, '{"pk_account":1,"holder":{"__typename":"Bank","balance":98765432109876543.210,
+       "units":9007199254740993,"ref":"0b7e9f5c-1f0a-4c1e-9d3b-2a4f6c8e0d11",
+       "since":"2026-11-22T10:15:30.123456","name":"b"},
+     "holders":[{"__typename":"Bank","balance":1.50,"units":9007199254740995,
+       "ref":"0b7e9f5c-1f0a-4c1e-9d3b-2a4f6c8e0d12","since":"2026-01-02T03:04:05","name":"b1"},
+       null]}'::jsonb),
+  (2, '{"pk_account":2,"holder":null,"holders":[]}'::jsonb);
+CREATE OR REPLACE FUNCTION fn_selection_conformance_account() RETURNS SETOF v_selection_conformance_account LANGUAGE sql STABLE AS 'SELECT * FROM v_selection_conformance_account ORDER BY pk_account';
+"#;
+
 /// `Int` fields (§ 3.5.1): `n` holds integers in range, `wide` one past it, `whole` a whole
 /// decimal, `frac` a fractional one; `inner.m`, a non-null `Int`, one past the range in the
 /// first row; `big` is a `Float` holding the same digits as `wide`.
@@ -479,6 +499,34 @@ fn schema() -> CompiledSchema {
         .with_sql_source(HOLDING_VIEW)
         .relay_cursor_column("pk_holding")
         .build();
+    // `Account.holder` is of the interface `Holder`, which `Bank` implements.
+    let account_type = TestTypeBuilder::new("Account", ACCOUNT_VIEW)
+        .with_nullable_field("holder", FieldType::Interface("Holder".to_string()))
+        .with_nullable_field(
+            "holders",
+            FieldType::List {
+                item:           Box::new(FieldType::Interface("Holder".to_string())),
+                nullable_items: true,
+            },
+        )
+        .build();
+    let mut bank_type = TestTypeBuilder::new("Bank", "v_selection_conformance_bank")
+        .with_simple_field("balance", FieldType::Decimal)
+        .with_simple_field("units", FieldType::BigInt)
+        .with_simple_field("ref", FieldType::Uuid)
+        .with_simple_field("since", FieldType::LocalDateTime)
+        .with_simple_field("name", FieldType::String)
+        .build();
+    bank_type.implements.push("Holder".to_string());
+    let accounts_query = TestQueryBuilder::new("accounts", "Account")
+        .returns_list(true)
+        .with_sql_source(ACCOUNT_VIEW)
+        .build();
+    let mut account_rows_query = TestQueryBuilder::new("accountRows", "Account")
+        .returns_list(true)
+        .with_sql_source(ACCOUNT_FUNCTION)
+        .build();
+    account_rows_query.sql_source_kind = SourceKind::Function;
     let region_type = TestTypeBuilder::new("ParityRegion", "v_selection_conformance_region")
         .with_simple_field("regionName", FieldType::String)
         .build();
@@ -652,6 +700,10 @@ fn schema() -> CompiledSchema {
         .with_query(holdings_query)
         .with_query(holding_rows_query)
         .with_query(holdings_connection_query)
+        .with_type(account_type)
+        .with_type(bank_type)
+        .with_query(accounts_query)
+        .with_query(account_rows_query)
         .with_type(entry_estimate_type)
         .with_type(region_type)
         .with_type(parity_address_type)
@@ -690,6 +742,14 @@ fn schema() -> CompiledSchema {
         ty.relay = true;
         ty.implements.push("Node".to_string());
     }
+    schema.interfaces.push(
+        InterfaceDefinition::new("Holder")
+            .with_field(FieldDefinition::new("balance", FieldType::Decimal))
+            .with_field(FieldDefinition::new("units", FieldType::BigInt))
+            .with_field(FieldDefinition::new("ref", FieldType::Uuid))
+            .with_field(FieldDefinition::new("since", FieldType::LocalDateTime))
+            .with_field(FieldDefinition::new("name", FieldType::String)),
+    );
     let mut party = UnionDefinition::new("Party");
     party.member_types = vec!["Org".to_string(), "Person".to_string()];
     schema.unions.push(party);
@@ -732,6 +792,7 @@ async fn executor_for(schema: CompiledSchema) -> Option<Executor> {
         .chain(PARITY_FIXTURE.split(";\n"))
         .chain(ROSTER_FIXTURE.split(";\n"))
         .chain(HOLDING_FIXTURE.split(";\n"))
+        .chain(ACCOUNT_FIXTURE.split(";\n"))
         .chain(COUNTER_FIXTURE.split(";\n"))
         .chain(CLOCK_FIXTURE.split(";\n"))
     {
@@ -2697,4 +2758,53 @@ async fn an_integer_id_round_trips_through_node() {
     )
     .await;
     assert_eq!(refetched["data"]["node"], *first, "{refetched}");
+}
+
+/// An interface field read with a plain selection answers each scalar its implementor
+/// stores as the text the database stored: a `Decimal` keeps every digit, on the `Value`
+/// path and raw, from a view and from a set-returning function, alone and in a list.
+#[tokio::test]
+async fn an_interface_field_answers_its_scalars_with_the_stored_text() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let holder = json!({
+        "balance": "98765432109876543.210",
+        "units": "9007199254740993",
+        "ref": "0b7e9f5c-1f0a-4c1e-9d3b-2a4f6c8e0d11",
+        "since": "2026-11-22T10:15:30.123456",
+        "name": "b",
+    });
+    let listed = json!([{
+        "balance": "1.50",
+        "units": "9007199254740995",
+        "ref": "0b7e9f5c-1f0a-4c1e-9d3b-2a4f6c8e0d12",
+        "since": "2026-01-02T03:04:05",
+        "name": "b1",
+    }, null]);
+    let mut failures = Vec::new();
+    for root in ["accounts", "accountRows"] {
+        let query = format!(
+            "{{ {root} {{ holder {{ balance units ref since name }} \
+             holders {{ balance units ref since name }} }} }}"
+        );
+        let value = exec.execute(&query, None).await.unwrap_or_else(|e| panic!("{query}: {e}"));
+        let (body, raw) = answer(&exec, &query).await;
+        for (path, response) in [("value", &value), ("body", &body)] {
+            let got = (column(response, root, "holder"), column(response, root, "holders"));
+            let expected = (vec![holder.clone(), Value::Null], vec![listed.clone(), json!([])]);
+            if got != expected {
+                failures.push(format!(
+                    "{query} ({path}, raw={raw})\n    got      {got:?}\n    expected {expected:?}"
+                ));
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} read(s) failed:\n  {}",
+        failures.len(),
+        failures.join("\n  ")
+    );
 }

@@ -13,7 +13,7 @@ use std::{
 use crate::{
     db::traits::{DecimalFields, DecimalNode, DecimalShape, WriteDecimals},
     runtime::projection::stored_key_candidates,
-    schema::{CompiledSchema, FieldType},
+    schema::{CompiledSchema, FieldDefinition, FieldType},
 };
 
 #[cfg(test)]
@@ -37,43 +37,35 @@ impl DecimalIndex {
     #[must_use]
     pub fn new(schema: &CompiledSchema) -> Self {
         let reaching = reaching_types(schema);
+        // An interface's own fields read a document of it that names no `__typename`:
+        // every implementor holds each of them at the same type.
+        let interfaces = schema
+            .interfaces
+            .iter()
+            .filter(|i| reaches_abstract(schema, &reaching, &i.name))
+            .map(|i| (i.name.clone(), decimal_fields(schema, &reaching, &i.fields)));
         let types: HashMap<String, DecimalFields> = schema
             .types
             .iter()
             .filter(|t| reaching.contains(t.name.as_str()))
-            .map(|t| {
-                let mut fields = DecimalFields::new();
-                for field in &t.fields {
-                    let Some(node) = node_for(schema, &reaching, &field.field_type) else {
-                        continue;
-                    };
-                    let (stored, camel) = stored_key_candidates(field.name.as_str());
-                    let keys = [
-                        Some(field.name.to_string()),
-                        field.alias.clone(),
-                        Some(stored),
-                        camel,
-                    ];
-                    for key in keys.into_iter().flatten() {
-                        fields.insert(key, node.clone());
-                    }
-                }
-                (t.name.to_string(), fields)
-            })
+            .map(|t| (t.name.to_string(), decimal_fields(schema, &reaching, &t.fields)))
+            .chain(interfaces)
             .collect();
         let types = Arc::new(types);
-        let abstracts = schema
-            .unions
+        let shapes = schema
+            .types
             .iter()
-            .map(|u| u.name.as_str())
-            .chain(schema.interfaces.iter().map(|i| i.name.as_str()));
-        let shapes = types
-            .keys()
-            .map(|name| (name.clone(), DecimalNode::Object(name.clone())))
+            .filter(|t| reaching.contains(t.name.as_str()))
+            .map(|t| (t.name.to_string(), DecimalNode::Object(t.name.to_string())))
             .chain(
-                abstracts
-                    .filter(|name| reaches_abstract(schema, &reaching, name))
-                    .map(|name| (name.to_string(), DecimalNode::Abstract(None))),
+                schema
+                    .unions
+                    .iter()
+                    .map(|u| u.name.as_str())
+                    .chain(schema.interfaces.iter().map(|i| i.name.as_str()))
+                    .filter_map(|name| {
+                        abstract_node(schema, &reaching, name).map(|n| (name.to_string(), n))
+                    }),
             )
             .map(|(name, root)| (name, Arc::new(DecimalShape::new(root, Arc::clone(&types)))))
             .collect::<HashMap<_, _>>();
@@ -190,8 +182,47 @@ fn node_for(
             reaching.contains(name.as_str()).then(|| DecimalNode::Object(name.clone()))
         },
         FieldType::Union(name) | FieldType::Interface(name) => {
-            reaches_abstract(schema, reaching, name).then_some(DecimalNode::Abstract(None))
+            abstract_node(schema, reaching, name)
         },
         _ => None,
     }
+}
+
+/// The node of a union or an interface named `name` from which a `Decimal` is reachable: a
+/// value names its member by `__typename`, and one naming none is read by the interface's
+/// own fields. A union declares none, so such a value of one is copied as it is.
+fn abstract_node(
+    schema: &CompiledSchema,
+    reaching: &HashSet<String>,
+    name: &str,
+) -> Option<DecimalNode> {
+    let interface = schema.interfaces.iter().any(|i| i.name == name);
+    reaches_abstract(schema, reaching, name)
+        .then(|| DecimalNode::Abstract(interface.then(|| name.to_string())))
+}
+
+/// The keys of `fields` that lead to a `Decimal`, each under every key a document may hold
+/// it by: its name, its alias, its stored key and that key's camelCase form.
+fn decimal_fields(
+    schema: &CompiledSchema,
+    reaching: &HashSet<String>,
+    fields: &[FieldDefinition],
+) -> DecimalFields {
+    let mut decimal = DecimalFields::new();
+    for field in fields {
+        let Some(node) = node_for(schema, reaching, &field.field_type) else {
+            continue;
+        };
+        let (stored, camel) = stored_key_candidates(field.name.as_str());
+        let keys = [
+            Some(field.name.to_string()),
+            field.alias.clone(),
+            Some(stored),
+            camel,
+        ];
+        for key in keys.into_iter().flatten() {
+            decimal.insert(key, node.clone());
+        }
+    }
+    decimal
 }

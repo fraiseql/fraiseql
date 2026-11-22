@@ -1417,6 +1417,16 @@ disagreed, and the promise was the part that was wrong.
   an argument, by a second registry that did not carry the rich scalars; both registries
   now hold the names `FieldType::parse` reads as scalars.
 
+- **A `Decimal` read through an interface keeps its digits (#1824).** A field typed as an
+  interface, read with a plain selection, answered its implementor's `Decimal` as a
+  rounded JSON number (`9.876543210987654e16` for `98765432109876543.210`), from a view
+  and from a set-returning function. The projected value carries no `__typename`, so no
+  implementor was found to say where its `Decimal`s are. Such a value is now read by the
+  interface's own fields, which every implementor holds at the same type, and the
+  `Decimal` is served as the string of its stored digits. A value that names its
+  implementor is still read by that type. `BigInt`, `UUID` and `LocalDateTime` at the same
+  position were already served as their text, and are now pinned there too.
+
 - **No SDK document claims a parity it does not have (#2291).** The Rust SDK's README,
   its crates.io description and its crate docs claimed "100% feature parity" across ten
   languages, two of which are not official SDKs, with a hand-kept table scoring every
