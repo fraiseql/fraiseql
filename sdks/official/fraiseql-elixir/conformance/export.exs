@@ -107,6 +107,14 @@ defmodule Conformance.FullSchema do
 
   # Lists (#1586, #1608): Ecto's `{:array, type}` for non-null items, a GraphQL type string
   # for nullable ones.
+  # #2258: a 64-bit integer is Ecto's `:bigint`; `:integer` stays `Int`.
+  fraiseql_type "LedgerEntry", sql_source: "v_ledger_entry" do
+    field(:id, :id, nullable: false)
+    field(:amount, :bigint, nullable: false)
+    field(:balance, :bigint, nullable: true)
+    field(:transfer_ids, {:array, :bigint}, nullable: false)
+  end
+
   fraiseql_type "ReadingSeries", sql_source: "v_reading_series" do
     field(:id, :id, nullable: false)
     field(:labels, {:array, :string}, nullable: false)
@@ -196,6 +204,15 @@ defmodule Conformance.FullSchema do
     # transport, and authorable in no SDK until #1123.
     requires_actor: ["human_user", "service_account"] do
     argument(:include_archived, :boolean, nullable: true)
+  end
+
+  fraiseql_query :ledger_entries_by_account,
+                 return_type: "LedgerEntry",
+                 returns_list: true,
+                 nullable: false,
+                 sql_source: "v_ledger_entry" do
+    argument(:account_number, :bigint, nullable: false)
+    argument(:transfer_ids, {:array, :bigint}, nullable: true)
   end
 
   fraiseql_query(:tenant_order_shipments,

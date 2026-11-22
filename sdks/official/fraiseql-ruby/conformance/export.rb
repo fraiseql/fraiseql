@@ -83,6 +83,14 @@ def author_full
   end
 
   # Lists (#1586, #1608): the GraphQL type string, every level as written.
+  # #2258: a 64-bit integer is `:bigint`; `:int` stays `Int`.
+  schema.type "LedgerEntry", sql_source: "v_ledger_entry" do |t|
+    t.field :id, :id, nullable: false
+    t.field :amount, :bigint, nullable: false
+    t.field :balance, :bigint, nullable: true
+    t.field :transfer_ids, "[BigInt!]", nullable: false
+  end
+
   schema.type "ReadingSeries", sql_source: "v_reading_series" do |t|
     t.field :id, :id, nullable: false
     t.field :labels, "[String!]", nullable: false
@@ -158,6 +166,12 @@ def author_full
 
   # Scoped by the same column from the same source as `tenant_orders`, which is what
   # `OrderShipment.order` claims.
+  schema.query :ledger_entries_by_account, return_type: "LedgerEntry", returns_list: true,
+                                           nullable: false, sql_source: "v_ledger_entry" do |q|
+    q.argument :account_number, :bigint, nullable: false
+    q.argument :transfer_ids, "[BigInt!]", nullable: true
+  end
+
   schema.query :tenant_order_shipments, return_type: "OrderShipment", returns_list: true,
                                         nullable: false, sql_source: "v_order_shipment",
                                         inject: { "tenant_id" => "jwt:tenant_id" }

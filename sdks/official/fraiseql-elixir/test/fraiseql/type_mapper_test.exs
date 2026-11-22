@@ -33,6 +33,14 @@ defmodule FraiseQL.TypeMapperTest do
     assert TypeMapper.to_graphql_type(:int) == "Int"
   end
 
+  # A signed 64-bit integer, served as its digits. Elixir's integer has no width and is
+  # the type for small values, so `:integer` stays `Int`, which is 32 bits; Ecto spells a
+  # 64-bit column `:bigint`.
+  test "maps :bigint to BigInt, a list's items included" do
+    assert TypeMapper.to_graphql_type(:bigint) == "BigInt"
+    assert TypeMapper.to_graphql_type({:array, :bigint}) == "[BigInt!]"
+  end
+
   test "maps :float to Float" do
     assert TypeMapper.to_graphql_type(:float) == "Float"
   end

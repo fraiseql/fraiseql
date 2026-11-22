@@ -39,6 +39,8 @@ defmodule FraiseQL.TypeMapper do
   @known_types %{
     integer: "Int",
     int: "Int",
+    # A signed 64-bit integer, served as its digits: `Int` is 32 bits (Ecto's `:bigint`).
+    bigint: "BigInt",
     float: "Float",
     boolean: "Boolean",
     bool: "Boolean",
@@ -59,7 +61,7 @@ defmodule FraiseQL.TypeMapper do
   @doc """
   Maps an Elixir type atom to its GraphQL type string.
 
-  Known atoms (`:integer`, `:int`, `:float`, `:boolean`, `:bool`, `:string`,
+  Known atoms (`:integer`, `:int`, `:bigint`, `:float`, `:boolean`, `:bool`, `:string`,
   `:id`, `:datetime`, and Ecto's `:naive_datetime`, `:utc_datetime` (and their `_usec`
   forms), `:time_usec`, `:uuid`, `:binary_id`) are mapped to their canonical GraphQL
   equivalents. `:date`, `:time` and `:decimal` reach `Date`, `Time` and `Decimal` by the

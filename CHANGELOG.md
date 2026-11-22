@@ -852,6 +852,8 @@ disagreed, and the promise was the part that was wrong.
   constructs hold every SDK to it (the Rust SDK, which ships no query builder, authors the
   field only):
   - Python: `fraiseql.BigInt`, a field, an argument or a list's item.
+  - Ruby: `:bigint`; Elixir: `:bigint`, Ecto's name, `{:array, :bigint}` for a list. Both
+    had capitalised the symbol to `Bigint`.
 
 - **`compile --database` warns on a view casting a document's text to a temporal type
   (#2213).** A served view, or with gRPC enabled a row view (`vr_<sql_source>`), whose

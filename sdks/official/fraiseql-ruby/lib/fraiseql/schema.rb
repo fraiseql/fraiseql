@@ -34,6 +34,8 @@ module FraiseQL
     SCALARS = {
       int: "Int",
       integer: "Int",
+      # A signed 64-bit integer, served as its digits: `Int` is 32 bits.
+      bigint: "BigInt",
       float: "Float",
       string: "String",
       boolean: "Boolean",

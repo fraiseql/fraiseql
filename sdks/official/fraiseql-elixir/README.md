@@ -148,6 +148,7 @@ A field of an `is_input` type takes `nullable:`, `description:`, `deprecated:` a
 | Elixir atom | GraphQL type |
 |-------------|-------------|
 | `:integer` | `Int` |
+| `:bigint` | `BigInt` (a signed 64-bit integer, served as its digits) |
 | `:int` | `Int` |
 | `:float` | `Float` |
 | `:boolean` | `Boolean` |
