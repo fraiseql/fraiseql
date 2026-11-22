@@ -125,6 +125,21 @@ type ConformanceUserNotFound() =
     [<GraphQLField(Type = "String", Nullable = false)>]
     member val Code = "" with get, set
 
+// A 64-bit integer, inferred from the F# types: `int64` is `BigInt`.
+[<GraphQLType(Name = "LedgerEntry", SqlSource = "v_ledger_entry")>]
+type ConformanceLedgerEntry() =
+    [<GraphQLField(Type = "ID")>]
+    member val Id = "" with get, set
+
+    [<GraphQLField>]
+    member val Amount = 0L with get, set
+
+    [<GraphQLField>]
+    member val Balance: int64 option = None with get, set
+
+    [<GraphQLField>]
+    member val TransferIds: int64 list = [] with get, set
+
 // Lists (#1586, #1608), inferred from the F# types: an element is non-null unless it is
 // an `option`, at every level.
 [<GraphQLType(Name = "ReadingSeries", SqlSource = "v_reading_series")>]
@@ -201,6 +216,7 @@ let private authorFull () =
     SchemaRegistry.register typeof<ConformanceDocument>
     SchemaRegistry.register typeof<ConformanceReadingSeries>
     SchemaRegistry.register typeof<ConformanceOrderShipment>
+    SchemaRegistry.register typeof<ConformanceLedgerEntry>
 
     SchemaRegistry.registerInput
         {
@@ -233,6 +249,15 @@ let private authorFull () =
     |> QueryBuilder.nullable true
     |> QueryBuilder.sqlSource "v_user"
     |> QueryBuilder.withArgument "id" "ID" false
+    |> QueryBuilder.register
+
+    // A `BigInt` argument is named: an argument is a type string.
+    QueryBuilder.query "ledgerEntriesByAccount"
+    |> QueryBuilder.returnType "LedgerEntry"
+    |> QueryBuilder.returnsList true
+    |> QueryBuilder.sqlSource "v_ledger_entry"
+    |> QueryBuilder.withArgument "accountNumber" "BigInt" false
+    |> QueryBuilder.withArgument "transferIds" "[BigInt!]" true
     |> QueryBuilder.register
 
     QueryBuilder.query "tenantOrderShipments"

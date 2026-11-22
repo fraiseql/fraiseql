@@ -10,8 +10,8 @@ let ``int maps to Int`` () =
     TypeMapper.toGraphQLType typeof<int> |> should equal "Int"
 
 [<Fact>]
-let ``int64 maps to Int`` () =
-    TypeMapper.toGraphQLType typeof<int64> |> should equal "Int"
+let ``int64 maps to BigInt`` () =
+    TypeMapper.toGraphQLType typeof<int64> |> should equal "BigInt"
 
 [<Fact>]
 let ``int16 maps to Int`` () =

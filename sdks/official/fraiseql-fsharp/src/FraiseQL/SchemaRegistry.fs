@@ -41,8 +41,16 @@ module SchemaRegistry =
             prop.GetCustomAttribute<GraphQLFieldAttribute>()
             |> Option.ofObj
             |> Option.map (fun fieldAttr ->
+                // Inferred only when the attribute names no type: a type the SDK refuses to
+                // infer (a `uint64`) is declared by naming one.
                 let gqlType, autoNullable =
-                    TypeMapper.toGraphQLTypeWithNullability prop.PropertyType
+                    if fieldAttr.Type <> "" then
+                        fieldAttr.Type, TypeMapper.isNullable prop.PropertyType
+                    else
+                        try
+                            TypeMapper.toGraphQLTypeWithNullability prop.PropertyType
+                        with :? NotSupportedException as refused ->
+                            raise (NotSupportedException(sprintf "%s.%s: %s" t.Name prop.Name refused.Message, refused))
 
                 // camelCase on the way out (#1249). This was `toSnakeCase`, so an F#
                 // schema published `last_login_at` where every other SDK published

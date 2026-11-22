@@ -106,8 +106,11 @@ fraiseql compile schema.json
 
 | C# Type | GraphQL Type |
 |---------|-------------|
-| `int`, `long`, `short` | `Int` |
-| `int?`, `long?` | `Int` (nullable) |
+| `int`, `short` | `Int` |
+| `int?` | `Int` (nullable) |
+| `long`, `uint` | `BigInt` (a signed 64-bit integer, served as its digits) |
+| `long?`, `uint?` | `BigInt` (nullable) |
+| `ulong` | refused: no integer scalar holds it; declare `[GraphQLField(Type = "Decimal")]` |
 | `float`, `double`, `decimal` | `Float` |
 | `bool` | `Boolean` |
 | `Guid` | `ID` |

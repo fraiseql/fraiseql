@@ -40,7 +40,16 @@ public static class TypeMapper
         if (attr?.Type is { } explicitType)
             return (explicitType, attr.Nullable || isNullable);
 
-        var graphqlType = MapType(baseType, nullabilityInfo);
+        string graphqlType;
+        try
+        {
+            graphqlType = MapType(baseType, nullabilityInfo);
+        }
+        catch (NotSupportedException refused)
+        {
+            throw new NotSupportedException(
+                $"{prop.DeclaringType?.Name}.{prop.Name}: {refused.Message}", refused);
+        }
         // attr.Nullable = true can force nullable; C# type system nullability always applies
         var nullable = isNullable || (attr?.Nullable ?? false);
         return (graphqlType, nullable);
@@ -115,8 +124,16 @@ public static class TypeMapper
     /// <returns>The GraphQL scalar name. Defaults to <c>"String"</c> for unknown types.</returns>
     private static string MapBaseType(Type baseType)
     {
-        if (baseType == typeof(int) || baseType == typeof(long) || baseType == typeof(short))
+        // An integer maps to the narrowest scalar holding its range: `Int` is 32 bits and
+        // `BigInt` a signed 64, and no integer scalar holds an unsigned 64-bit one.
+        if (baseType == typeof(int) || baseType == typeof(short))
             return "Int";
+        if (baseType == typeof(long) || baseType == typeof(uint))
+            return "BigInt";
+        if (baseType == typeof(ulong))
+            throw new NotSupportedException(
+                $"{baseType.Name} has no integer scalar: BigInt is a signed 64-bit integer, so an "
+                + "unsigned 64-bit one is a Decimal ([GraphQLField(Type = \"Decimal\")])");
         if (baseType == typeof(float) || baseType == typeof(double) || baseType == typeof(decimal))
             return "Float";
         if (baseType == typeof(bool))

@@ -46,6 +46,17 @@ module TypeMapper =
     let private isNullableElement (t: System.Type) =
         unwrapOption t |> Option.isSome || unwrapNullable t |> Option.isSome
 
+    /// Refuses an unsigned 64-bit integer: it holds values no signed 64-bit one does, so no
+    /// integer scalar carries it.
+    let private refuseUnsigned64 (t: System.Type) : 'a =
+        raise (
+            System.NotSupportedException(
+                sprintf
+                    "%s has no integer scalar: BigInt is a signed 64-bit integer, so an unsigned 64-bit one is a Decimal ([<GraphQLField(Type = \"Decimal\")>])"
+                    t.Name
+            )
+        )
+
     /// Recursively converts a .NET type to a GraphQL type string.
     /// List types become <c>[ElementType!]</c>, or <c>[ElementType]</c> when the element is an
     /// <c>option</c> or <c>Nullable&lt;&gt;</c>. Option/Nullable wrappers are stripped
@@ -63,7 +74,11 @@ module TypeMapper =
                 | Some inner -> sprintf "[%s%s]" (toGraphQLType inner) (if isNullableElement inner then "" else "!")
                 | None ->
                     match t with
-                    | t when t = typeof<int> || t = typeof<int64> || t = typeof<int16> || t = typeof<int32> -> "Int"
+                    // The narrowest scalar holding the integer's range: `Int` is 32 bits,
+                    // `BigInt` a signed 64, and no integer scalar holds an unsigned 64-bit one.
+                    | t when t = typeof<int> || t = typeof<int16> || t = typeof<int32> -> "Int"
+                    | t when t = typeof<int64> || t = typeof<uint32> -> "BigInt"
+                    | t when t = typeof<uint64> -> refuseUnsigned64 t
                     | t when t = typeof<float> || t = typeof<double> || t = typeof<float32> -> "Float"
                     | t when t = typeof<decimal> -> "Float"
                     | t when t = typeof<bool> -> "Boolean"
@@ -90,7 +105,9 @@ module TypeMapper =
         let core = coreType t
 
         match core with
-        | t when t = typeof<int> || t = typeof<int64> || t = typeof<int16> || t = typeof<int32> -> GqlInt
+        | t when t = typeof<int> || t = typeof<int16> || t = typeof<int32> -> GqlInt
+        | t when t = typeof<int64> || t = typeof<uint32> -> GqlCustom "BigInt"
+        | t when t = typeof<uint64> -> refuseUnsigned64 t
         | t when t = typeof<float> || t = typeof<double> || t = typeof<float32> -> GqlFloat
         | t when t = typeof<decimal> -> GqlFloat
         | t when t = typeof<bool> -> GqlBoolean

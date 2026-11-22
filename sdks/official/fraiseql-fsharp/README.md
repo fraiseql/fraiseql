@@ -111,7 +111,9 @@ field or argument is refused.
 
 | F# Type | GraphQL Type |
 |---------|-------------|
-| `int`, `int64`, `int16` | `Int` |
+| `int`, `int16` | `Int` |
+| `int64`, `uint32` | `BigInt` (a signed 64-bit integer, served as its digits) |
+| `uint64` | refused: no integer scalar holds it; declare `[<GraphQLField(Type = "Decimal")>]` |
 | `float`, `double`, `float32` | `Float` |
 | `decimal` | `Float` |
 | `bool` | `Boolean` |

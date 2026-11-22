@@ -96,6 +96,7 @@ public class ConformanceExportTest
         SchemaRegistry.Instance.Register(typeof(ConformanceDocument));
         SchemaRegistry.Instance.Register(typeof(ConformanceReadingSeries));
         SchemaRegistry.Instance.Register(typeof(ConformanceOrderShipment));
+        SchemaRegistry.Instance.Register(typeof(ConformanceLedgerEntry));
         SchemaRegistry.Instance.Register(typeof(ConformanceCreateUserInput));
 
         SchemaRegistry.Instance.RegisterEnum<OrderStatus>();
@@ -113,6 +114,15 @@ public class ConformanceExportTest
             .Nullable()
             .SqlSource("v_user")
             .Argument("id", "ID")
+            .Register();
+
+        // A `BigInt` argument is named: an argument is a type string.
+        QueryBuilder.Query("ledgerEntriesByAccount")
+            .ReturnType("LedgerEntry")
+            .ReturnsList(true)
+            .SqlSource("v_ledger_entry")
+            .Argument("accountNumber", "BigInt")
+            .Argument("transferIds", "[BigInt!]", nullable: true)
             .Register();
 
         QueryBuilder.Query("tenantOrderShipments")
@@ -270,6 +280,23 @@ public class ConformanceExportTest
 
     // Lists (#1586, #1608), inferred from the C# types: an element is non-null unless
     // written `T?`, at every level.
+    // A 64-bit integer, inferred from the C# types: `long` is `BigInt`.
+    [GraphQLType(Name = "LedgerEntry", SqlSource = "v_ledger_entry")]
+    private sealed class ConformanceLedgerEntry
+    {
+        [GraphQLField(Type = "ID")]
+        public string Id { get; set; } = string.Empty;
+
+        [GraphQLField]
+        public long Amount { get; set; }
+
+        [GraphQLField]
+        public long? Balance { get; set; }
+
+        [GraphQLField]
+        public List<long> TransferIds { get; set; } = new();
+    }
+
     [GraphQLType(Name = "ReadingSeries", SqlSource = "v_reading_series")]
     private sealed class ConformanceReadingSeries
     {

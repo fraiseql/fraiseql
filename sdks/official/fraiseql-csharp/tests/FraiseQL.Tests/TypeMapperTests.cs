@@ -54,10 +54,10 @@ public sealed class TypeMapperTests
     }
 
     [Fact]
-    public void TestLongMapsToInt()
+    public void TestLongMapsToBigInt()
     {
         var (type, _) = Detect(nameof(AllTypesFixture.LongProp));
-        Assert.Equal("Int", type);
+        Assert.Equal("BigInt", type);
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public sealed class TypeMapperTests
     public void TestNullableLongIsNullable()
     {
         var (type, nullable) = Detect(nameof(AllTypesFixture.NullableLongProp));
-        Assert.Equal("Int", type);
+        Assert.Equal("BigInt", type);
         Assert.True(nullable);
     }
 

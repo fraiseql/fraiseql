@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="TypeMapperTests.fs" />
+    <Compile Include="BigIntTests.fs" />
     <Compile Include="AttributeTests.fs" />
     <Compile Include="SchemaRegistryTests.fs" />
     <Compile Include="SchemaExporterTests.fs" />
