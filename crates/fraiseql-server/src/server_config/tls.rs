@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 use super::defaults::{default_tls_min_version, default_verify_certs};
 
 /// GraphQL IDE/playground tool to use.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, schemars::JsonSchema,
+)]
 #[serde(rename_all = "kebab-case")]
 #[non_exhaustive]
 pub enum PlaygroundTool {
@@ -26,7 +28,7 @@ pub enum PlaygroundTool {
 }
 
 /// TLS server configuration for HTTPS and secure connections.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TlsServerConfig {
     /// Enable TLS for HTTP/gRPC endpoints.
@@ -57,7 +59,7 @@ pub struct TlsServerConfig {
 /// [`postgres_tls`](Self::postgres_tls). This section used to be parsed, validated
 /// and logged as "applied" while the pool was built with `NoTls` regardless (#801);
 /// the fields that could not be delivered were removed rather than left accepted.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DatabaseTlsConfig {
     /// PostgreSQL SSL mode: `disable`, `prefer`, `require`, or `verify-full`.

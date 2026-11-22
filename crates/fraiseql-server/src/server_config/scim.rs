@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 
 /// The `[scim]` section.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ScimServerConfig {
     /// Mount the SCIM surface. Off by default: it is a privileged provisioning API, and a

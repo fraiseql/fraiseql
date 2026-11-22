@@ -28,6 +28,7 @@ fraiseql_server::prelude api the server's glob import for embedders
 fraiseql_functions::runtime::deno::tests pending a test module compiled into the library; made cfg(test) by #1640
 
 # ── Promoted, rebuilt or deleted by a later milestone ────────────────────────────────
+fraiseql_server::server_config::json_schema pending the configuration schema the server's loader checks a file against; wired into the load path by #2048
 fraiseql_server::routes::grpc pending not mounted in any binary; mounted through admit() by #1642
 fraiseql_wire pending removed with its db adapter by #1642
 fraiseql_db::fraiseql_wire_adapter pending removed with fraiseql-wire by #1642

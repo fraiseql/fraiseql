@@ -491,7 +491,7 @@ impl ObserverConfig {
 ///
 /// Pairs with `crate::resilience::backpressure::AdmissionController`.
 /// See [`super::ServerConfig::admission_control`] for wiring instructions.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AdmissionConfig {
     /// Maximum number of in-flight concurrent requests (semaphore permits).

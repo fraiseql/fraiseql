@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 /// The result cache lives in one process, and a write evicts entries on the server that ran
 /// it. With several servers, the others keep serving what it made stale until the entry's
 /// `cache_ttl_seconds` runs out, forever at `0`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, schemars::JsonSchema,
+)]
 #[serde(rename_all = "kebab-case")]
 #[non_exhaustive]
 pub enum CacheCrossInstance {

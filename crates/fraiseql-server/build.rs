@@ -18,8 +18,12 @@ use std::{
     process::Command,
 };
 
+#[path = "src/server_config/build_features.rs"]
+mod build_features;
+
 fn main() {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
+    record_missing_features(&manifest_dir);
     let out_dir = env::var("OUT_DIR").expect("OUT_DIR not set");
     let studio_src = Path::new(&manifest_dir).join("studio");
     let build_dir = Path::new(&out_dir).join("studio");
@@ -140,5 +144,22 @@ fn emit_fallback_dist(dist_dir: &PathBuf) {
     if !css_path.exists() {
         fs::write(&css_path, b"/* FraiseQL Studio placeholder */\n")
             .expect("failed to write fallback app.css");
+    }
+}
+
+/// Record which of this crate's features the build leaves off, for the configuration
+/// schema's drift test: the committed schema is the one every feature generates.
+fn record_missing_features(manifest_dir: &str) {
+    let manifest_path = Path::new(manifest_dir).join("Cargo.toml");
+    println!("cargo:rerun-if-changed={}", manifest_path.display());
+    let manifest = fs::read_to_string(&manifest_path).expect("read Cargo.toml");
+    let missing = build_features::missing_features(&manifest, |feature| {
+        let var = format!("CARGO_FEATURE_{}", feature.to_uppercase().replace('-', "_"));
+        env::var_os(var).is_some()
+    });
+    println!("cargo:rustc-env=FRAISEQL_SERVER_MISSING_FEATURES={}", missing.join(","));
+    println!("cargo::rustc-check-cfg=cfg(fraiseql_server_all_features)");
+    if missing.is_empty() {
+        println!("cargo::rustc-cfg=fraiseql_server_all_features");
     }
 }

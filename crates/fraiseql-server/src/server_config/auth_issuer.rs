@@ -19,7 +19,7 @@ pub const DEFAULT_KEY_ENCRYPTION_KEY_ENV: &str = "FRAISEQL_AUTH_SIGNING_KEK";
 /// audience = "my-api"
 /// key_encryption_key_env = "FRAISEQL_AUTH_SIGNING_KEK"
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct IssuerConfig {
     /// The issuer's public URL: the `iss` of every token it mints, and where its

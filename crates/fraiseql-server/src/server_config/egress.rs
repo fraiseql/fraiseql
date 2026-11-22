@@ -23,7 +23,7 @@ const REPLACED_ENV: [&str; 2] = [
 ];
 
 /// The `[egress]` section.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct EgressConfig {
     /// The hosts guest code may call: `api.example.com`, `*.example.com` (its

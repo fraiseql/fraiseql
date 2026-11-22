@@ -1409,6 +1409,13 @@ bless-toml-schema:
 	@FRAISEQL_BLESS_TOML_SCHEMA=1 cargo test -q -p fraiseql-cli --lib \
 		json_schema::tests::the_committed_schema_is_the_generated_one
 
+# Regenerate docs/schemas/fraiseql-server.schema.json from the type the server reads its
+# configuration file into, built with every feature so the schema names every key.
+.PHONY: bless-server-config-schema
+bless-server-config-schema:
+	@FRAISEQL_BLESS_SERVER_CONFIG_SCHEMA=1 FRAISEQL_TEST_REQUIRE_ALL_FEATURES=1 cargo test -q \
+		-p fraiseql-server --all-features --lib server_config::json_schema::
+
 # Gate: every typed TOML config loader has a coverage manifest naming each key's consumer
 # (#909 — `fraiseql_core::config` accepted a whole `[server]`/`[database]`/`[cache]` tree
 # that no code outside its own module ever read).

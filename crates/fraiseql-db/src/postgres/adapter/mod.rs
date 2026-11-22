@@ -658,6 +658,7 @@ const MAX_PG_IDENTIFIER_LEN: usize = 63;
 /// silently falls back to `off` — the failure this setting exists to prevent.
 /// Being an enum is what keeps an unrepresentable value from reaching the wire.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum HnswIterativeScan {
     /// pgvector's own default: one bounded candidate list, no continuation.
@@ -698,6 +699,7 @@ pub enum HnswIterativeScan {
 /// turn the operator's choice into a value the server discards, which is the
 /// shape of the defect being fixed. Here it is simply not expressible.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum IvfflatIterativeScan {
     /// pgvector's own default; see [`HnswIterativeScan::Off`].

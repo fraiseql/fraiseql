@@ -29,7 +29,9 @@ const HTTP_STATUS_MAX: i16 = 599;
 /// reaches a person untranslated. With [`Warn`](Self::Warn) each such response is logged
 /// at `warn` and counted in [`mutation_error_shape_violations`]; the response itself is
 /// unchanged.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum MutationErrorShapeCheck {
@@ -47,7 +49,9 @@ pub enum MutationErrorShapeCheck {
 /// `identifier` is the constraint's name (a unique index's for a partial unique index),
 /// `code` its HTTP status, and `details.sqlstate` the SQLSTATE. Never the database's
 /// `DETAIL`, never a row value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum ConstraintMetadata {

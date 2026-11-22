@@ -352,7 +352,7 @@ pub const DEFAULT_MAX_QUERY_DEPTH: u32 = 11;
 // failure rather than a silent drop. That is the intended direction: a compiled schema
 // whose key does nothing is the same defect one layer down, and this project documents
 // compiled-schema breaks rather than avoiding them.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct ValidationConfig {
     /// Maximum allowed query nesting depth; [`DEFAULT_MAX_QUERY_DEPTH`] when unset.

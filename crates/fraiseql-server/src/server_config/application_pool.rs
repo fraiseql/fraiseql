@@ -24,7 +24,7 @@ use super::ServerConfig;
 /// max_connections = 5
 /// acquire_timeout_secs = 10
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct ApplicationPoolConfig {
     /// Most connections the pool opens at once (default: 5).

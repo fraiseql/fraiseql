@@ -61,9 +61,11 @@ fraiseql-auth = { workspace = true, optional = true }
 fraiseql-functions = { workspace = true }
 # FraiseQL core
 fraiseql-core = { workspace = true, features = ["postgres", "schema-lint"] }
+# `json-schema`: the server configuration's JSON Schema names fraiseql-db's config types.
+fraiseql-db = { workspace = true, features = ["json-schema"] }
 fraiseql-error = { workspace = true, features = ["axum-compat"] }
 # FraiseQL object storage
-fraiseql-storage = { workspace = true }
+fraiseql-storage = { workspace = true, features = ["json-schema"] }
 fraiseql-cdc-sinks = { workspace = true, features = [
   "cdc-nats-jetstream",
 ], optional = true }

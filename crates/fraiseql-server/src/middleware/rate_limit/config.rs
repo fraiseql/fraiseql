@@ -38,7 +38,7 @@ const RENAMED_SERVER_KEYS: &[(&str, &str)] = &[
 /// burst_size = 200
 /// cleanup_interval_secs = 300
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, schemars::JsonSchema)]
 pub struct ServerRateLimitingConfig {
     /// The rate-limit policy, as `[security.rate_limiting]` spells it.
     #[serde(flatten)]

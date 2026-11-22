@@ -21,7 +21,7 @@ const fn default_max_rows() -> usize {
 }
 
 /// The `[admin_sql]` section.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AdminSqlConfig {
     /// Mount `POST /api/v1/admin/sql`.

@@ -35,7 +35,9 @@ pub const POSSIBLY_TRUNCATED: &str = "nearest_possibly_truncated";
 /// them, and a `k` above `ef_search` is cut to it even with no filter. The search returns
 /// what it found, successfully, and the rows alone cannot tell that from "only these
 /// matched".
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum ShortResultPolicy {
     /// Serve the rows with a notice that they may be truncated (unverified). Costs nothing.

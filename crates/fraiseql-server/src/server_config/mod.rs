@@ -11,11 +11,14 @@ pub mod admin_sql;
 pub mod application_pool;
 pub mod async_operations;
 pub mod auth_issuer;
+#[cfg(test)]
+mod build_features;
 mod cache;
 #[cfg(feature = "cdc-outbound")]
 pub mod cdc_outbound;
 pub(crate) mod defaults;
 pub mod egress;
+pub mod json_schema;
 mod methods;
 pub mod observers;
 mod postgres_pool;
@@ -180,7 +183,7 @@ use crate::middleware::{RateLimitOverrides, ServerRateLimitingConfig};
 /// top-level (no `[server]`/`[database]` grouping tables), and an unknown key
 /// refuses to parse rather than being silently discarded (#839: a config whose
 /// every key landed in an unknown table booted on defaults with zero warnings).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ServerConfig {
     /// Path to compiled schema JSON file.
@@ -1331,7 +1334,7 @@ impl Default for SourcesConfig {
 ///
 /// The policy fields (`access`, `max_object_bytes`, `allowed_mime_types`,
 /// `serve_inline`) are optional and default to a private, force-download bucket.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StorageSectionConfig {
     /// Backend type: `"local"`, `"s3"` (and S3-compatible providers `"hetzner"`,
@@ -1442,7 +1445,7 @@ pub struct StorageSectionConfig {
 pub type PolicyRuleConfig = fraiseql_storage::PolicyRuleSpec;
 
 /// One named transform preset in a `[storage.<name>]` section (#370).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TransformPresetConfig {
     /// The preset name used as `?preset=<name>`.
@@ -1475,7 +1478,7 @@ pub struct TransformPresetConfig {
 /// File-upload routes are **not yet wired** into the binary; this type exists so
 /// the server can warn rather than silently ignore the section. All fields are
 /// optional to keep parsing tolerant.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FileSectionConfig {
     /// Named storage backend this upload route writes to.
@@ -1492,7 +1495,7 @@ pub struct FileSectionConfig {
 }
 
 /// Multi-tenant runtime configuration (`[tenancy]`).
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TenancyServerConfig {
     /// Per-tenant executor runtime settings (`[tenancy.runtime]`).
@@ -1504,7 +1507,7 @@ pub struct TenancyServerConfig {
 }
 
 /// Tenant storage-quota measurement (`[tenancy.storage_quota]`, #633).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TenancyStorageQuotaConfig {
     /// Seconds between two measurements of every tenant that has a `max_storage_bytes`.
@@ -1527,7 +1530,7 @@ impl Default for TenancyStorageQuotaConfig {
 }
 
 /// Per-tenant executor runtime settings (`[tenancy.runtime]`).
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TenancyRuntimeConfig {
     /// Mount the multi-tenant executor runtime (registry + admin tenant API +

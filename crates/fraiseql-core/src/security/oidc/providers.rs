@@ -53,7 +53,7 @@ pub struct MeEndpointConfig {
 // constructs it programmatically — so refusing an unknown key here closes the TOML
 // surface without affecting anything else. `require_jti` is a security switch that
 // used to sit at its default when misspelled, silently.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OidcConfig {
     /// Issuer URL (e.g., `https://your-tenant.auth0.com/`), optional.

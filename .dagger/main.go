@@ -1415,6 +1415,11 @@ const (
 	// returning None when they find no database, unset or unreachable: in a leg that
 	// promised one, a test that skipped would read as a pass while asserting nothing.
 	requirePostgresEnv = "FRAISEQL_TEST_REQUIRE_POSTGRES"
+	// requireAllFeaturesEnv is set on the leg that compares the committed server
+	// configuration schema, integrationServer, and on no other. There, fraiseql-server's drift test fails rather than being
+	// ignored when the build leaves a feature off: the committed schema is the one every
+	// feature generates, and this is the one run that checks it.
+	requireAllFeaturesEnv = "FRAISEQL_TEST_REQUIRE_ALL_FEATURES"
 
 	// pgStandbyBindHost — a REAL streaming standby of pgService, for the #957
 	// bounded-staleness suite. The pre-existing read-replica tests stand a second
@@ -2158,6 +2163,10 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		"set -e",
 		suiteCountPrelude,
 		"echo \"### toolchain: $(rustc --version)\"",
+		// The committed server configuration schema is the one a build with every feature
+		// generates, so only this build compares it; narrower builds list the test as
+		// ignored. `requireAllFeaturesEnv`, set on this leg, fails the run if it ever is.
+		"cargo test -p fraiseql-server --all-features --lib server_config::json_schema::",
 		"echo '### integration: server database (Dagger-bound postgres)'",
 		"bash tools/ci-target-canary.sh -- test -p fraiseql-server " + serverLegFeatures + " --test database_query_test", // #880 canary
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test database_query_test -- --test-threads=1",
@@ -2602,6 +2611,7 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		WithServiceBinding(pgTviewsBindHost, m.pgTviewsService(source)).
 		WithEnvVariable("DATABASE_URL", dbURL).
 		WithEnvVariable(requirePostgresEnv, "1").
+		WithEnvVariable(requireAllFeaturesEnv, "1").
 		// Auth's own role, which the auth_database suite boots auth on.
 		WithEnvVariable("AUTH_DATABASE_URL", authURL).
 		WithEnvVariable("STANDBY_DATABASE_URL", standbyURL).
