@@ -112,7 +112,7 @@ const BIG_INT_TSCONFIG: &str = r#"{
   "compilerOptions": {
     "strict": true,
     "noUncheckedIndexedAccess": true,
-    "noEmit": true,
+    "outDir": "out",
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -158,8 +158,9 @@ export async function filterAndAdjust(client: FraiseqlClient): Promise<Ledger> {
 
 /// `tsc` holds each `BigInt` position to exactly `string`: a `TypeScript` type is erased at
 /// run time, so a `number` would let a consumer do arithmetic the value cannot survive, and
-/// a `bigint` would describe a value `JSON.parse` never produces. Node then runs the file
-/// (its types stripped; the import is type-only, so nothing is resolved).
+/// a `bigint` would describe a value `JSON.parse` never produces. `tsc` compiles it, and
+/// plain `node` runs the output: the import is type-only, so nothing is resolved, and
+/// no type stripping is asked of a Node that may not have it.
 const BIG_INT_ROUND_TRIP_TS: &str = r#"import type {
   AdjustLedgerInput,
   BigIntFilter,
@@ -202,6 +203,8 @@ fn a_big_int_past_two_to_the_53_round_trips_exactly() {
     std::fs::write(project.path().join("tsconfig.json"), BIG_INT_TSCONFIG).unwrap();
     std::fs::write(project.path().join("lookup.ts"), BIG_INT_LOOKUP_TS).unwrap();
     std::fs::write(project.path().join("round_trip.ts"), BIG_INT_ROUND_TRIP_TS).unwrap();
+    // `tsc` emits ES modules; this tells `node` to read them as such.
+    std::fs::write(project.path().join("package.json"), r#"{ "type": "module" }"#).unwrap();
 
     let checked = Command::new("npx")
         .args(["-y", "-p", "typescript@5", "tsc", "-p", "tsconfig.json"])
@@ -216,7 +219,7 @@ fn a_big_int_past_two_to_the_53_round_trips_exactly() {
     );
 
     let run = Command::new("node")
-        .args(["--experimental-strip-types", "round_trip.ts", BIG_INT_WIRE])
+        .args(["out/round_trip.js", BIG_INT_WIRE])
         .current_dir(project.path())
         .output()
         .expect("failed to run node");
