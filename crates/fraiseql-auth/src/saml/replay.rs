@@ -160,10 +160,13 @@ impl PgSamlReplayStore {
     pub async fn init(&self) -> Result<(), SamlError> {
         // raw_sql: a multi-statement batch whose schema claim is a `DO` block, which a
         // split on `;` would cut apart.
-        sqlx::raw_sql(PG_SAML_REPLAY_SCHEMA_SQL)
-            .execute(&self.db)
-            .await
-            .map_err(|e| SamlError::Config(format!("saml replay table: {e}")))?;
+        // Reason: the crate's own DDL constant, behind the workspace's fixed lock statement.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(fraiseql_guard::ddl::lock_prefixed(
+            PG_SAML_REPLAY_SCHEMA_SQL,
+        )))
+        .execute(&self.db)
+        .await
+        .map_err(|e| SamlError::Config(format!("saml replay table: {e}")))?;
         Ok(())
     }
 

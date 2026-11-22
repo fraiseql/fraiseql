@@ -372,3 +372,74 @@ async fn a_tenant_accounts_local_credential_is_not_a_platform_login() {
         "a tenant's local identity must not answer a platform login: {refused:?}"
     );
 }
+
+/// Stores initialising at once, as two instances of a deployment do.
+const RACERS: usize = 8;
+/// Fresh databases the race runs on: the cold race is a few in ten, per database.
+const ROUNDS: usize = 5;
+
+/// Concurrent `init` calls succeed on a database that has never held the `auth` schema
+/// (`CREATE … IF NOT EXISTS` checks, then creates, and two callers can both pass the check)
+/// and on one that has. `init` runs four scripts, each its own transaction under the
+/// workspace's DDL lock. Each racer holds its own open connection and all are released at
+/// once.
+#[tokio::test]
+async fn concurrent_init_succeeds_on_a_cold_and_a_warm_database() {
+    let Some(url) = try_database_url() else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    let admin = PgPoolOptions::new().max_connections(1).connect(&url).await.unwrap();
+    let mut failures = Vec::new();
+    for round in 0..ROUNDS {
+        let database = format!("fq_auth_init_{}", uuid::Uuid::new_v4().simple());
+        // Reason: a database name this test generated from a UUID, not caller input.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!("CREATE DATABASE {database}")))
+            .execute(&admin)
+            .await
+            .unwrap();
+        let options = PgConnectOptions::from_str(&url).unwrap().database(&database);
+        let mut stores = Vec::with_capacity(RACERS);
+        for _ in 0..RACERS {
+            let pool = PgPoolOptions::new()
+                .min_connections(1)
+                .max_connections(1)
+                .connect_with(options.clone())
+                .await
+                .unwrap();
+            let accounts: Arc<dyn AccountStore> = Arc::new(PostgresAccountStore::new(pool.clone()));
+            stores.push((
+                pool.clone(),
+                Arc::new(
+                    LocalPasswordAuthenticator::with_params(pool, accounts, FAST_M_COST, 1, 1)
+                        .unwrap(),
+                ),
+            ));
+        }
+        for phase in ["cold", "warm"] {
+            let start = Arc::new(tokio::sync::Barrier::new(RACERS));
+            let mut set = tokio::task::JoinSet::new();
+            for (_, store) in &stores {
+                let (start, store) = (Arc::clone(&start), Arc::clone(store));
+                set.spawn(async move {
+                    start.wait().await;
+                    store.init().await
+                });
+            }
+            while let Some(joined) = set.join_next().await {
+                if let Err(error) = joined.unwrap() {
+                    failures.push(format!("round {round}, {phase}: {error}"));
+                }
+            }
+        }
+        for (pool, _) in stores {
+            pool.close().await;
+        }
+        // Reason: as above.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!("DROP DATABASE {database}")))
+            .execute(&admin)
+            .await
+            .unwrap();
+    }
+    assert!(failures.is_empty(), "concurrent init failed: {failures:#?}");
+}

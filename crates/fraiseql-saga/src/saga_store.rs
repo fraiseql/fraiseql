@@ -442,6 +442,102 @@ pub struct PostgresSagaStore {
     unreadable_reports: AtomicU64,
 }
 
+/// The store's tables, sequences and indexes, idempotent: one script, so that run as one
+/// simple query it is one transaction, held under the workspace's DDL lock
+/// ([`PostgresSagaStore::migrate_schema`]).
+pub const SAGA_SCHEMA_SQL: &str = r"
+-- Create sequence for auto-increment (with tb_ prefix)
+CREATE SEQUENCE IF NOT EXISTS seq_tb_federation_sagas START 1 INCREMENT 1;
+
+-- Create tb_federation_sagas table (trinity pattern)
+CREATE TABLE IF NOT EXISTS tb_federation_sagas (
+    pk_ BIGINT PRIMARY KEY DEFAULT nextval('seq_tb_federation_sagas'),
+    id UUID NOT NULL UNIQUE,
+    state TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    metadata JSONB
+);
+
+-- Recovery lease (nullable, added idempotently): `claim_stuck_sagas` marks a
+-- claimed saga with the recovering worker's id and a lease expiry so
+-- concurrent recovery workers never double-drive the same saga (FOR UPDATE
+-- SKIP LOCKED). A NULL/expired lease means the saga is claimable.
+ALTER TABLE tb_federation_sagas
+    ADD COLUMN IF NOT EXISTS recovery_worker_id UUID,
+    ADD COLUMN IF NOT EXISTS recovery_lease_expires_at TIMESTAMPTZ;
+
+-- Create sequence for steps
+CREATE SEQUENCE IF NOT EXISTS seq_tb_federation_saga_steps START 1 INCREMENT 1;
+
+-- Create tb_federation_saga_steps table (trinity pattern)
+CREATE TABLE IF NOT EXISTS tb_federation_saga_steps (
+    pk_ BIGINT PRIMARY KEY DEFAULT nextval('seq_tb_federation_saga_steps'),
+    id UUID NOT NULL UNIQUE,
+    saga_pk_ BIGINT NOT NULL REFERENCES tb_federation_sagas(pk_) ON DELETE CASCADE,
+    step_number INTEGER NOT NULL,
+    subgraph TEXT NOT NULL,
+    mutation_type TEXT NOT NULL,
+    typename TEXT NOT NULL,
+    variables JSONB NOT NULL,
+    state TEXT NOT NULL,
+    result JSONB,
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Compensation metadata (nullable): pre-existing step rows predate
+-- compensation, so both columns are added idempotently and may be NULL.
+-- A step with a NULL/empty compensation_mutation has no registered
+-- rollback and is skipped by the compensator (best-effort, #429).
+-- `mutation_name` (also nullable, added idempotently) carries the full
+-- remote operation name; NULL rows fall back to the mutation-kind verb.
+-- `required_fields` (nullable JSONB) carries the step's cross-subgraph
+-- `@requires` specs; NULL rows have none and skip pre-fetch.
+ALTER TABLE tb_federation_saga_steps
+    ADD COLUMN IF NOT EXISTS compensation_mutation TEXT,
+    ADD COLUMN IF NOT EXISTS compensation_variables JSONB,
+    ADD COLUMN IF NOT EXISTS mutation_name TEXT,
+    ADD COLUMN IF NOT EXISTS required_fields JSONB,
+    ADD COLUMN IF NOT EXISTS remote BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS compensation_error TEXT;
+
+-- Create sequence for recovery
+CREATE SEQUENCE IF NOT EXISTS seq_tb_federation_saga_recovery START 1 INCREMENT 1;
+
+-- Create tb_federation_saga_recovery table (trinity pattern)
+CREATE TABLE IF NOT EXISTS tb_federation_saga_recovery (
+    pk_ BIGINT PRIMARY KEY DEFAULT nextval('seq_tb_federation_saga_recovery'),
+    id UUID NOT NULL UNIQUE,
+    saga_pk_ BIGINT NOT NULL REFERENCES tb_federation_sagas(pk_) ON DELETE CASCADE,
+    recovery_type TEXT NOT NULL,
+    attempted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_attempt TIMESTAMPTZ,
+    attempt_count INTEGER DEFAULT 0,
+    last_error TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Create indices (primary composite indices for natural + surrogate keys)
+CREATE INDEX IF NOT EXISTS idx_tb_federation_sagas_id ON tb_federation_sagas(id);
+
+CREATE INDEX IF NOT EXISTS idx_tb_federation_sagas_state ON tb_federation_sagas(state);
+
+CREATE INDEX IF NOT EXISTS idx_tb_federation_sagas_created ON tb_federation_sagas(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_tb_federation_saga_steps_id ON tb_federation_saga_steps(id);
+
+CREATE INDEX IF NOT EXISTS idx_tb_federation_saga_steps_saga_pk ON tb_federation_saga_steps(saga_pk_);
+
+CREATE INDEX IF NOT EXISTS idx_tb_federation_saga_recovery_id ON tb_federation_saga_recovery(id);
+
+CREATE INDEX IF NOT EXISTS idx_tb_federation_saga_recovery_saga_pk ON tb_federation_saga_recovery(saga_pk_);
+";
+
 impl PostgresSagaStore {
     /// Trinity-convention table name for the saga recovery table.
     pub const TABLE_RECOVERY: &'static str = "tb_federation_saga_recovery";
@@ -503,168 +599,10 @@ impl PostgresSagaStore {
     /// Returns `SagaStoreError::Database` if schema creation fails.
     pub async fn migrate_schema(&self) -> Result<()> {
         let conn = self.pool.get().await?;
-
-        // Create sequence for auto-increment (with tb_ prefix)
-        conn.execute(
-            "CREATE SEQUENCE IF NOT EXISTS seq_tb_federation_sagas START 1 INCREMENT 1",
-            &[],
-        )
-        .await?;
-
-        // Create tb_federation_sagas table (trinity pattern)
-        conn.execute(
-            "
-            CREATE TABLE IF NOT EXISTS tb_federation_sagas (
-                pk_ BIGINT PRIMARY KEY DEFAULT nextval('seq_tb_federation_sagas'),
-                id UUID NOT NULL UNIQUE,
-                state TEXT NOT NULL,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                completed_at TIMESTAMPTZ,
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                metadata JSONB
-            )
-            ",
-            &[],
-        )
-        .await?;
-
-        // Recovery lease (nullable, added idempotently): `claim_stuck_sagas` marks a
-        // claimed saga with the recovering worker's id and a lease expiry so
-        // concurrent recovery workers never double-drive the same saga (FOR UPDATE
-        // SKIP LOCKED). A NULL/expired lease means the saga is claimable.
-        conn.execute(
-            "
-            ALTER TABLE tb_federation_sagas
-                ADD COLUMN IF NOT EXISTS recovery_worker_id UUID,
-                ADD COLUMN IF NOT EXISTS recovery_lease_expires_at TIMESTAMPTZ
-            ",
-            &[],
-        )
-        .await?;
-
-        // Create sequence for steps
-        conn.execute(
-            "CREATE SEQUENCE IF NOT EXISTS seq_tb_federation_saga_steps START 1 INCREMENT 1",
-            &[],
-        )
-        .await?;
-
-        // Create tb_federation_saga_steps table (trinity pattern)
-        conn.execute(
-            "
-            CREATE TABLE IF NOT EXISTS tb_federation_saga_steps (
-                pk_ BIGINT PRIMARY KEY DEFAULT nextval('seq_tb_federation_saga_steps'),
-                id UUID NOT NULL UNIQUE,
-                saga_pk_ BIGINT NOT NULL REFERENCES tb_federation_sagas(pk_) ON DELETE CASCADE,
-                step_number INTEGER NOT NULL,
-                subgraph TEXT NOT NULL,
-                mutation_type TEXT NOT NULL,
-                typename TEXT NOT NULL,
-                variables JSONB NOT NULL,
-                state TEXT NOT NULL,
-                result JSONB,
-                started_at TIMESTAMPTZ,
-                completed_at TIMESTAMPTZ,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            )
-            ",
-            &[],
-        )
-        .await?;
-
-        // Compensation metadata (nullable): pre-existing step rows predate
-        // compensation, so both columns are added idempotently and may be NULL.
-        // A step with a NULL/empty compensation_mutation has no registered
-        // rollback and is skipped by the compensator (best-effort, #429).
-        // `mutation_name` (also nullable, added idempotently) carries the full
-        // remote operation name; NULL rows fall back to the mutation-kind verb.
-        // `required_fields` (nullable JSONB) carries the step's cross-subgraph
-        // `@requires` specs; NULL rows have none and skip pre-fetch.
-        conn.execute(
-            "
-            ALTER TABLE tb_federation_saga_steps
-                ADD COLUMN IF NOT EXISTS compensation_mutation TEXT,
-                ADD COLUMN IF NOT EXISTS compensation_variables JSONB,
-                ADD COLUMN IF NOT EXISTS mutation_name TEXT,
-                ADD COLUMN IF NOT EXISTS required_fields JSONB,
-                ADD COLUMN IF NOT EXISTS remote BOOLEAN NOT NULL DEFAULT FALSE,
-                ADD COLUMN IF NOT EXISTS compensation_error TEXT
-            ",
-            &[],
-        )
-        .await?;
-
-        // Create sequence for recovery
-        conn.execute(
-            "CREATE SEQUENCE IF NOT EXISTS seq_tb_federation_saga_recovery START 1 INCREMENT 1",
-            &[],
-        )
-        .await?;
-
-        // Create tb_federation_saga_recovery table (trinity pattern)
-        conn.execute(
-            "
-            CREATE TABLE IF NOT EXISTS tb_federation_saga_recovery (
-                pk_ BIGINT PRIMARY KEY DEFAULT nextval('seq_tb_federation_saga_recovery'),
-                id UUID NOT NULL UNIQUE,
-                saga_pk_ BIGINT NOT NULL REFERENCES tb_federation_sagas(pk_) ON DELETE CASCADE,
-                recovery_type TEXT NOT NULL,
-                attempted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                last_attempt TIMESTAMPTZ,
-                attempt_count INTEGER DEFAULT 0,
-                last_error TEXT,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            )
-            ",
-            &[],
-        )
-        .await?;
-
-        // Create indices (primary composite indices for natural + surrogate keys)
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_tb_federation_sagas_id ON tb_federation_sagas(id)",
-            &[],
-        )
-        .await?;
-
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_tb_federation_sagas_state ON tb_federation_sagas(state)",
-            &[],
-        )
-        .await?;
-
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_tb_federation_sagas_created ON tb_federation_sagas(created_at)",
-            &[],
-        )
-        .await?;
-
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_tb_federation_saga_steps_id ON tb_federation_saga_steps(id)",
-            &[],
-        )
-        .await?;
-
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_tb_federation_saga_steps_saga_pk ON tb_federation_saga_steps(saga_pk_)",
-            &[],
-        )
-        .await?;
-
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_tb_federation_saga_recovery_id ON tb_federation_saga_recovery(id)",
-            &[],
-        )
-        .await?;
-
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_tb_federation_saga_recovery_saga_pk ON tb_federation_saga_recovery(saga_pk_)",
-            &[],
-        )
-        .await?;
-
+        // One simple-query script, so one transaction: the lock is held until the DDL
+        // commits, and two stores migrating one database at once do not race on the
+        // catalogue.
+        conn.batch_execute(&fraiseql_guard::ddl::lock_prefixed(SAGA_SCHEMA_SQL)).await?;
         Ok(())
     }
 

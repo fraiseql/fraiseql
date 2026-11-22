@@ -65,10 +65,13 @@ impl PostgresSessionStateStore {
     ///
     /// Returns [`AuthError::DatabaseError`] when the DDL cannot be applied.
     pub async fn init(&self) -> Result<()> {
-        sqlx::raw_sql(SESSION_STATE_SCHEMA_SQL)
-            .execute(&self.db)
-            .await
-            .map_err(|e| db_err("initialize _system.session_state", &e))?;
+        // Reason: the crate's own DDL constant, behind the workspace's fixed lock statement.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(fraiseql_guard::ddl::lock_prefixed(
+            SESSION_STATE_SCHEMA_SQL,
+        )))
+        .execute(&self.db)
+        .await
+        .map_err(|e| db_err("initialize _system.session_state", &e))?;
         Ok(())
     }
 

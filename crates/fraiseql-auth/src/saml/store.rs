@@ -197,10 +197,13 @@ impl PgSamlIdpStore {
     ///
     /// [`SamlError::Store`] if the DDL fails.
     pub async fn init(&self) -> Result<(), SamlError> {
-        sqlx::raw_sql(PG_SAML_IDP_SCHEMA_SQL)
-            .execute(&self.db)
-            .await
-            .map_err(|e| SamlError::Store(format!("initialize SAML IdP store: {e}")))?;
+        // Reason: the crate's own DDL constant, behind the workspace's fixed lock statement.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(fraiseql_guard::ddl::lock_prefixed(
+            PG_SAML_IDP_SCHEMA_SQL,
+        )))
+        .execute(&self.db)
+        .await
+        .map_err(|e| SamlError::Store(format!("initialize SAML IdP store: {e}")))?;
         Ok(())
     }
 

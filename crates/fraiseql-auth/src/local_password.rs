@@ -229,22 +229,30 @@ impl LocalPasswordAuthenticator {
     ///
     /// Returns [`AuthError::DatabaseError`] if the DDL fails.
     pub async fn init(&self) -> Result<()> {
-        sqlx::raw_sql(IDENTITY_SCHEMA_SQL)
+        // Reason: the crate's own DDL constant, behind the workspace's fixed lock statement.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(fraiseql_guard::ddl::lock_prefixed(IDENTITY_SCHEMA_SQL)))
             .execute(&self.db)
             .await
             .map_err(|e| db_error("initialize identity store (prerequisite)", &e))?;
-        sqlx::raw_sql(PASSWORD_SCHEMA_SQL)
+        // Reason: the crate's own DDL constant, behind the workspace's fixed lock statement.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(fraiseql_guard::ddl::lock_prefixed(PASSWORD_SCHEMA_SQL)))
             .execute(&self.db)
             .await
             .map_err(|e| db_error("initialize password credential store", &e))?;
-        sqlx::raw_sql(reset::PASSWORD_RESET_SCHEMA_SQL)
-            .execute(&self.db)
-            .await
-            .map_err(|e| db_error("initialize password reset token store", &e))?;
-        sqlx::raw_sql(verification::EMAIL_VERIFICATION_SCHEMA_SQL)
-            .execute(&self.db)
-            .await
-            .map_err(|e| db_error("initialize email verification token store", &e))?;
+        // Reason: the crate's own DDL constant, behind the workspace's fixed lock statement.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(fraiseql_guard::ddl::lock_prefixed(
+            reset::PASSWORD_RESET_SCHEMA_SQL,
+        )))
+        .execute(&self.db)
+        .await
+        .map_err(|e| db_error("initialize password reset token store", &e))?;
+        // Reason: the crate's own DDL constant, behind the workspace's fixed lock statement.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(fraiseql_guard::ddl::lock_prefixed(
+            verification::EMAIL_VERIFICATION_SCHEMA_SQL,
+        )))
+        .execute(&self.db)
+        .await
+        .map_err(|e| db_error("initialize email verification token store", &e))?;
         Ok(())
     }
 

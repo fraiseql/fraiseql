@@ -3396,3 +3396,70 @@ mod wired_execution_pg {
         drop_entity_table(&adapter, &typename).await;
     }
 }
+
+/// `migrate_schema` is safe to run from several stores at once.
+mod ddl_lock_pg {
+    use std::sync::Arc;
+
+    use fraiseql_saga::saga_store::PostgresSagaStore;
+
+    /// Stores migrating at once, as two instances of a deployment do.
+    const RACERS: usize = 8;
+    /// Fresh databases the race runs on: the cold race is a few in ten, per database.
+    const ROUNDS: usize = 5;
+
+    /// `url` with its database replaced by `database`.
+    fn with_database(url: &str, database: &str) -> String {
+        let (base, query) = url.split_once('?').map_or((url, None), |(b, q)| (b, Some(q)));
+        let (server, _) = base.rsplit_once('/').expect("a URL naming a database");
+        query.map_or_else(|| format!("{server}/{database}"), |q| format!("{server}/{database}?{q}"))
+    }
+
+    /// Concurrent `migrate_schema` calls succeed on a database that has never held the
+    /// store's tables (`CREATE … IF NOT EXISTS` checks, then creates, and two callers can
+    /// both pass the check) and on one that has. Each store holds the connection it opened
+    /// when it was built, and all are released at once.
+    #[tokio::test]
+    #[ignore = "requires DATABASE_URL (Postgres saga store)"]
+    async fn concurrent_migrations_succeed_on_a_cold_and_a_warm_database() {
+        let Some(url) = fraiseql_test_support::try_database_url() else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+        let (admin, connection) =
+            tokio_postgres::connect(&url, tokio_postgres::NoTls).await.unwrap();
+        tokio::spawn(connection);
+        let mut failures = Vec::new();
+        for round in 0..ROUNDS {
+            let database = format!("fq_saga_init_{}", uuid::Uuid::new_v4().simple());
+            admin.batch_execute(&format!("CREATE DATABASE {database}")).await.unwrap();
+            let url = with_database(&url, &database);
+            let mut stores = Vec::with_capacity(RACERS);
+            for _ in 0..RACERS {
+                stores.push(Arc::new(PostgresSagaStore::new(&url).await.unwrap()));
+            }
+            for phase in ["cold", "warm"] {
+                let start = Arc::new(tokio::sync::Barrier::new(RACERS));
+                let mut set = tokio::task::JoinSet::new();
+                for store in &stores {
+                    let (start, store) = (Arc::clone(&start), Arc::clone(store));
+                    set.spawn(async move {
+                        start.wait().await;
+                        store.migrate_schema().await
+                    });
+                }
+                while let Some(joined) = set.join_next().await {
+                    if let Err(error) = joined.unwrap() {
+                        failures.push(format!("round {round}, {phase}: {error}"));
+                    }
+                }
+            }
+            drop(stores);
+            admin
+                .batch_execute(&format!("DROP DATABASE {database} WITH (FORCE)"))
+                .await
+                .unwrap();
+        }
+        assert!(failures.is_empty(), "concurrent migrations failed: {failures:#?}");
+    }
+}

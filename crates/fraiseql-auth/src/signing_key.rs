@@ -293,10 +293,13 @@ impl PgSigningKeyStore {
     /// [`AuthError::DatabaseError`] when the DDL fails.
     pub async fn init(&self) -> Result<()> {
         // raw_sql: a multi-statement DDL batch, which the prepared-statement path refuses.
-        sqlx::raw_sql(SIGNING_KEY_SCHEMA_SQL)
-            .execute(&self.db)
-            .await
-            .map_err(|e| db_error("create auth.signing_key", &e))?;
+        // Reason: the crate's own DDL constant, behind the workspace's fixed lock statement.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(fraiseql_guard::ddl::lock_prefixed(
+            SIGNING_KEY_SCHEMA_SQL,
+        )))
+        .execute(&self.db)
+        .await
+        .map_err(|e| db_error("create auth.signing_key", &e))?;
         Ok(())
     }
 

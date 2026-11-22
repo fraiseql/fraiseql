@@ -1464,6 +1464,10 @@ disagreed, and the promise was the part that was wrong.
   registers. Each now runs under the workspace's DDL lock. A tenant's `CREATE SCHEMA` is
   sent as one statement, so its lock is taken inside a `DO` block
   (`fraiseql_guard::ddl::locked_statement`).
+  The public stores' own `init()`s take the same lock: the auth stores (account linking,
+  local passwords, OTP, SAML replay and IdP, SCIM, sessions, session state, signing keys,
+  TOTP), the webhook delivery ledger, and the saga store's `migrate_schema`, whose fifteen
+  statements now run as one script, in one transaction.
 - **`PostgresSourceCursorStore::init` is safe to run concurrently (#1868).** Two callers
   initialising the store against one database at once could fail: on a database that had
   never held the cursor table, one lost on a catalogue unique index

@@ -98,7 +98,10 @@ impl PostgresIdempotencyStore {
     /// Returns [`WebhookError::Database`](crate::WebhookError::Database) if the DDL
     /// fails.
     pub async fn init(&self) -> Result<()> {
-        sqlx::raw_sql(SCHEMA_SQL).execute(&self.db).await?;
+        // Reason: the crate's own DDL constant, behind the workspace's fixed lock statement.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(fraiseql_guard::ddl::lock_prefixed(SCHEMA_SQL)))
+            .execute(&self.db)
+            .await?;
         Ok(())
     }
 }

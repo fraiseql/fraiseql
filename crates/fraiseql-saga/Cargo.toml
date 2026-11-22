@@ -26,6 +26,8 @@ deadpool-postgres = { workspace = true }
 fraiseql-core = { workspace = true }
 fraiseql-db = { workspace = true, default-features = false }
 fraiseql-error = { workspace = true, default-features = false }
+# The workspace's one DDL advisory lock, for the store's schema script.
+fraiseql-guard = { workspace = true }
 # Entity metadata, `@requires` pre-fetch and the mTLS material a remote step
 # dispatches with. Federation proper stays *below* core; only orchestration is here.
 fraiseql-federation = { workspace = true }

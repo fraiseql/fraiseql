@@ -358,7 +358,8 @@ fn new_user_id() -> String {
 #[async_trait]
 impl ScimStore for PgScimStore {
     async fn init(&self) -> Result<()> {
-        sqlx::raw_sql(PG_SCIM_SCHEMA_SQL)
+        // Reason: the crate's own DDL constant, behind the workspace's fixed lock statement.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(fraiseql_guard::ddl::lock_prefixed(PG_SCIM_SCHEMA_SQL)))
             .execute(&self.db)
             .await
             .map_err(|e| db_error("initialize SCIM schema", &e))?;

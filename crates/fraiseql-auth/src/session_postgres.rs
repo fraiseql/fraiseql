@@ -193,11 +193,13 @@ impl PostgresSessionStore {
     pub async fn init(&self) -> Result<()> {
         // raw_sql: this is a multi-statement DDL batch, which the prepared-
         // statement path (`sqlx::query`) refuses at the protocol level.
-        sqlx::raw_sql(SESSIONS_SCHEMA_SQL).execute(&self.db).await.map_err(|e| {
-            AuthError::DatabaseError {
+        // Reason: the crate's own DDL constant, behind the workspace's fixed lock statement.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(fraiseql_guard::ddl::lock_prefixed(SESSIONS_SCHEMA_SQL)))
+            .execute(&self.db)
+            .await
+            .map_err(|e| AuthError::DatabaseError {
                 message: format!("Failed to initialize sessions table: {}", e),
-            }
-        })?;
+            })?;
 
         Ok(())
     }
