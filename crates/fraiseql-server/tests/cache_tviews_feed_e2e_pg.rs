@@ -127,6 +127,10 @@ async fn provision(url: &str) {
                                              body text NOT NULL);
              INSERT INTO {SCHEMA}.tb_p1589 VALUES (1, '{POST_A}', 'A'), (2, '{POST_B}', 'B');
              INSERT INTO {SCHEMA}.tb_c1589 VALUES (1, '{COMMENT_A}', 1, 'first');
+             -- The row `serve_as` writes to learn that the server's feed listens.
+             CREATE TABLE {SCHEMA}.tb_s1589 (pk_s1589 int PRIMARY KEY, id uuid NOT NULL UNIQUE,
+                                             mark text NOT NULL);
+             INSERT INTO {SCHEMA}.tb_s1589 VALUES (1, gen_random_uuid(), 'unmarked');
              SELECT tviews.pg_tviews_create('{SCHEMA}.tv_p1589', $q$
                SELECT p.pk_p1589, p.id,
                       jsonb_build_object('id', p.id, 'pk_p1589', p.pk_p1589, 'title', p.title) AS data
@@ -135,6 +139,10 @@ async fn provision(url: &str) {
                SELECT c.pk_c1589, c.id, c.fk_p1589,
                       jsonb_build_object('id', c.id, 'fk_p1589', c.fk_p1589, 'body', c.body) AS data
                FROM {SCHEMA}.tb_c1589 c JOIN {SCHEMA}.tb_p1589 p ON p.pk_p1589 = c.fk_p1589 $q$);
+             SELECT tviews.pg_tviews_create('{SCHEMA}.tv_s1589', $q$
+               SELECT s.pk_s1589, s.id,
+                      jsonb_build_object('id', s.id, 'pk_s1589', s.pk_s1589, 'mark', s.mark) AS data
+               FROM {SCHEMA}.tb_s1589 s $q$);
              CREATE TYPE {SCHEMA}.mutation_response AS (succeeded boolean,
                state_changed boolean, error_class text, status_detail text, http_status smallint,
                message text, entity_id uuid, entity_type text, entity jsonb,
@@ -193,6 +201,17 @@ sql_source = "{SCHEMA}.tv_c1589"
 fields.id = {{ type = "ID" }}
 fields.fk_p1589 = {{ type = "Int" }}
 fields.body = {{ type = "String" }}
+
+[types.Sentinel]
+sql_source = "{SCHEMA}.tv_s1589"
+fields.id = {{ type = "ID" }}
+fields.pk_s1589 = {{ type = "Int" }}
+fields.mark = {{ type = "String" }}
+
+[queries.sentinels]
+return_type = "Sentinel"
+return_array = true
+sql_source = "{SCHEMA}.tv_s1589"
 
 [queries.posts]
 return_type = "Post"
@@ -321,18 +340,49 @@ async fn serve_as(proxy: Option<&CountingProxy>, role: Option<&str>) -> Option<R
             })
             .await
     });
-    // The server's listener connects in the background: give it time to listen.
-    tokio::time::sleep(Duration::from_millis(500)).await;
-    Some(Running {
+    let running = Running {
         base: format!("http://127.0.0.1:{port}"),
         url,
         http: reqwest::Client::new(),
         _schema: schema_dir,
         _shutdown: tx,
-    })
+    };
+    running.until_the_feed_listens().await;
+    Some(running)
 }
 
+/// The read [`Running::until_the_feed_listens`] watches.
+const SENTINELS: &str = "/rest/v1/sentinels?select=id,mark";
+
+/// How long a server may take to start listening to the feed.
+const FEED_LISTENS_WITHIN: Duration = Duration::from_secs(30);
+
 impl Running {
+    /// Return once the server's feed listens.
+    ///
+    /// The listener connects in the background, and when it starts listening it clears the
+    /// cache: nothing written before was heard. A test that cached its reads before that
+    /// clear would see them evicted by it, which a test asserting that a read was kept reads
+    /// as a wrong eviction (#1955). So this caches the sentinel read, writes its row behind
+    /// the server's back, and waits for the new value. Only the feed can evict that read:
+    /// its clear when it starts listening, or the write's message once it listens. A fill
+    /// that was not stored was refused by a clear, which before the feed listens is that
+    /// same one. Either way it listens when the new value is seen.
+    async fn until_the_feed_listens(&self) {
+        assert!(shows(&self.get(SENTINELS).await, "unmarked"), "the sentinel is read");
+        let mark = format!("listening-{}", uuid::Uuid::new_v4().simple());
+        self.sql(&format!("UPDATE {SCHEMA}.tb_s1589 SET mark = '{mark}' WHERE pk_s1589 = 1"))
+            .await;
+        let start = std::time::Instant::now();
+        while !shows(&self.get(SENTINELS).await, &mark) {
+            assert!(
+                start.elapsed() < FEED_LISTENS_WITHIN,
+                "the server's feed did not start listening within {FEED_LISTENS_WITHIN:?}"
+            );
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    }
+
     async fn get(&self, path: &str) -> Value {
         let response = self.http.get(format!("{}{path}", self.base)).send().await.unwrap();
         assert!(response.status().is_success(), "{path}: {}", response.status());
@@ -906,4 +956,51 @@ async fn the_feed_evicts_the_reads_by_id_of_the_rows_it_names_only() {
     }
     assert_eq!(seen, "renamed", "post B is evicted by the feed");
     assert_eq!(read(POST_A).await, "A", "post A, which the feed did not name, is still cached");
+}
+
+/// A server whose feed starts listening late is served once it listens (#1955). Its feed
+/// connection is refused until a second and a half after the feed first tries it; the
+/// reads cached once [`serve`] returns are then not evicted by the clear the feed makes
+/// when it starts listening, so a comment on post B leaves post A's composed read cached.
+#[tokio::test]
+async fn a_feed_that_listens_late_is_waited_for() {
+    let Some(shared) = tviews_database_url() else {
+        eprintln!("skipping: TVIEWS_DATABASE_URL not set");
+        return;
+    };
+    require_typename(&shared).await;
+    let proxy = Arc::new(CountingProxy::start(&own_database(&shared).await));
+    proxy.sever();
+    // From the feed's first attempt, not from now: building the server takes longer than
+    // the hold, and a hold that ended before the server started would hold nothing.
+    let held = Arc::clone(&proxy);
+    let restored = tokio::spawn(async move {
+        while held.refused() == 0 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        held.restore();
+    });
+    let Some(server) = serve_with_feed_through(Some(&proxy)).await else {
+        return;
+    };
+    assert!(restored.is_finished(), "serve returned before the feed could listen");
+
+    assert!(shows(&server.get(POST_A_WITH_COMMENTS).await, "first"));
+    assert!(shows(&server.get(COMMENTS).await, "first"));
+    server
+        .sql(&format!(
+            "UPDATE {SCHEMA}.tv_c1589 SET data = data || '{{\"body\": \"behind\"}}' WHERE pk_c1589 = 1"
+        ))
+        .await;
+    server
+        .sql(&format!(
+            "INSERT INTO {SCHEMA}.tb_c1589 VALUES (3, gen_random_uuid(), 2, 'on B')"
+        ))
+        .await;
+    server.eventually(COMMENTS, |body| shows(body, "on B")).await;
+    assert!(
+        shows(&server.get(POST_A_WITH_COMMENTS).await, "first"),
+        "the clear the feed made when it started listening evicted post A's composed read"
+    );
 }

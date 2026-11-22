@@ -92,3 +92,4 @@
 #2152  CI: the Go SDK leg lints with staticcheck on its own pinned toolchain, the Go SDK gains a container fallback, and the CI install-pin gate covers `go run`/`go install` and `GOTOOLCHAIN`; no shipped artifact changes
 #2297  tools and CI: the SQL-text gate holds text given to a `sqlx::QueryBuilder` (its constructor, `push`, `push_unseparated`) to the rule `AssertSqlSafe` follows, a literal or a `// Reason:`, and refuses builder types it cannot follow; no shipped artifact changes
 #2301  tests: the admin API and `ActionConfig::from_authored` are pinned to refuse a webhook with both `signing_secret` and `signing_secret_env`, which they already refused; no shipped artifact changes
+#1955  tests: the tviews feed suite waits until the server's feed listens rather than for a fixed time; no shipped artifact changes

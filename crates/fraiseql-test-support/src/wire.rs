@@ -99,6 +99,8 @@ impl Withheld {
 struct Faults {
     /// Refuse every new connection.
     refusing:    AtomicBool,
+    /// Connections refused while `refusing`.
+    refused:     AtomicU64,
     /// The notifications the server sends that are swallowed.
     withheld:    Mutex<Withheld>,
     /// Connections forwarded so far.
@@ -150,6 +152,7 @@ impl CountingProxy {
             for client in listener.incoming().flatten() {
                 if faulting.refusing.load(Ordering::SeqCst) {
                     let _ = client.shutdown(Shutdown::Both);
+                    faulting.refused.fetch_add(1, Ordering::SeqCst);
                     continue;
                 }
                 let Ok(server) = TcpStream::connect(&upstream) else {
@@ -229,6 +232,13 @@ impl CountingProxy {
     #[must_use]
     pub fn connections(&self) -> u64 {
         self.faults.connections.load(Ordering::SeqCst)
+    }
+
+    /// The connections refused between a [`sever`](Self::sever) and its
+    /// [`restore`](Self::restore), since the proxy started.
+    #[must_use]
+    pub fn refused(&self) -> u64 {
+        self.faults.refused.load(Ordering::SeqCst)
     }
 
     /// The URL to connect through the proxy.
