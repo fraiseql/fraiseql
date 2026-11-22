@@ -54,6 +54,8 @@ repos:
       - id: check-case-conflict
       - id: mixed-line-ending
         args: ['--fix=lf']
+        # The same data: an email seed is CRLF because RFC 5322 is.
+        exclude: '/fuzz/seed_corpus/'
 
   # TOML formatting: taplo, every TOML file. The hook's rev pins the formatter itself
   # (`taplo==<rev>`, a static binary with no dependencies to resolve), so an environment

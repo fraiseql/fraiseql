@@ -1,0 +1,18 @@
+From: c@example.org
+To: inbox@example.com
+Subject: =?UTF-8?B?w6l0w6k=?=
+Auto-Submitted: auto-replied
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="x"
+
+--x
+Content-Type: text/html; charset=utf-8
+
+<p>hi</p>
+--x
+Content-Type: application/pdf; name="a.pdf"
+Content-Disposition: attachment; filename="a.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQK
+--x--

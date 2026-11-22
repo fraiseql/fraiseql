@@ -26,6 +26,16 @@
 mod filter;
 mod resources;
 
+/// Parse a provisioning client's `?filter=` into its attribute and value, or `None` where
+/// the server answers `400 invalidFilter`.
+///
+/// The filter parser's entry for its fuzz target; it exists only in a fuzzing build.
+#[cfg(fuzzing)]
+#[must_use]
+pub fn parse_scim_filter(filter: &str) -> Option<(String, String)> {
+    filter::parse_eq(filter).ok().map(|parsed| (parsed.attribute, parsed.value))
+}
+
 use std::sync::Arc;
 
 use axum::{

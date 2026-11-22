@@ -17,8 +17,16 @@ name = "state_token_decrypt"
 path = "fuzz_targets/state_token_decrypt.rs"
 doc = false
 
+[[bin]]
+name = "opaque_token"
+path = "fuzz_targets/opaque_token.rs"
+doc = false
+
 [dependencies]
 libfuzzer-sys = "0.4"
+# `opaque_token` re-encodes and hashes what the parser accepted.
+base64 = "0.22"
+sha2 = "0.11"
 
 [dependencies.fraiseql-auth]
 path = ".."

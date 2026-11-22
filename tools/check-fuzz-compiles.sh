@@ -49,6 +49,11 @@ checked=0
 # workspace's own cached artifacts. It lives under target/ so .gitignore already covers it.
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-target}/fuzz-check"
 
+# cargo-fuzz compiles every crate with `--cfg fuzzing`, and a target may reach a private
+# parser through an entry that exists only under it (`#[cfg(fuzzing)]`). Compile the way
+# the campaign does, or such a target fails here while building fine in `fuzz.yml`.
+export RUSTFLAGS="${RUSTFLAGS:-} --cfg fuzzing"
+
 shopt -s nullglob
 manifests=(crates/*/fuzz/Cargo.toml)
 shopt -u nullglob

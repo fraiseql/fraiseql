@@ -64,6 +64,18 @@ use crate::{
 
 mod opaque_token;
 mod reset;
+
+/// Parse a presented reset or verification token into its lookup selector and the
+/// SHA-256 of its verifier, or `None` where redemption would refuse it.
+///
+/// The token parser's entry for its fuzz target; it exists only in a fuzzing build.
+#[cfg(fuzzing)]
+#[must_use]
+pub fn parse_opaque_token(token: &str) -> Option<(String, Vec<u8>)> {
+    opaque_token::OpaqueToken::parse("fuzz", token)
+        .ok()
+        .map(|parsed| (parsed.selector, parsed.verifier_hash))
+}
 pub mod routes;
 pub mod verification;
 

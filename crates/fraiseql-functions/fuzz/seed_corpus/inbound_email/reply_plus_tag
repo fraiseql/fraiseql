@@ -1,0 +1,9 @@
+From: Ann <ann@example.org>
+To: support+ticket-42@example.com, Bob <bob@example.com>
+Cc: ops@example.com
+Subject: Re: order
+Message-ID: <m2@example.org>
+In-Reply-To: <m1@example.com>
+References: <m0@example.com> <m1@example.com>
+
+Thanks.

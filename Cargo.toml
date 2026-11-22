@@ -397,6 +397,9 @@ unwrap_used = "deny"
 use_self = "allow"
 
 [workspace.lints.rust]
+# `fuzzing` is the cfg cargo-fuzz sets: a fuzz target's entry into a private parser is
+# compiled under it and nowhere else.
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(fuzzing)"] }
 dead_code = "deny"
 missing_docs = "deny"
 # Reason: `deny` (not `forbid`) so fraiseql-functions can `#[allow(unsafe_code)]` on

@@ -1,0 +1,19 @@
+From: MAILER-DAEMON@mx.example.net
+To: bounces+0123456789abcdef0123456789abcdef@example.com
+Subject: Undelivered Mail Returned to Sender
+MIME-Version: 1.0
+Content-Type: multipart/report; report-type=delivery-status; boundary="b1"
+
+--b1
+Content-Type: text/plain
+
+Delivery failed.
+--b1
+Content-Type: message/delivery-status
+
+Reporting-MTA: dns; mx.example.net
+
+Final-Recipient: rfc822; gone@example.org
+Action: failed
+Status: 5.1.1
+--b1--

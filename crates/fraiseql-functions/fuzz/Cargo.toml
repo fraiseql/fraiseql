@@ -1,0 +1,27 @@
+[package]
+edition = "2021"
+name = "fraiseql-functions-fuzz"
+publish = false
+version = "2.19.1"
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+members = ["."]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+hex = "0.4"
+sha2 = "0.11"
+
+[dependencies.fraiseql-functions]
+path = ".."
+
+[dependencies.fraiseql-time]
+path = "../../fraiseql-time"
+
+[[bin]]
+doc = false
+name = "inbound_email"
+path = "fuzz_targets/inbound_email.rs"

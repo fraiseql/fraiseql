@@ -44,3 +44,8 @@ path = "fuzz_targets/rest_params.rs"
 doc = false
 name = "ws_client_message"
 path = "fuzz_targets/ws_client_message.rs"
+
+[[bin]]
+doc = false
+name = "scim_filter"
+path = "fuzz_targets/scim_filter.rs"
