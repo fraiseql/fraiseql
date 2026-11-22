@@ -41,4 +41,22 @@ describe("measure additivity", () => {
       undefined,
     ]);
   });
+
+  // A measure stored under another column declares it: the compiler publishes the measure by
+  // its name, types it by its sql_type and reads it from that column. A measure naming none
+  // emits no key.
+  it("exports a measure's column", () => {
+    SchemaRegistry.registerFactTable(
+      "tf_daily_volume",
+      [
+        { name: "volume", sql_type: "numeric", nullable: false, column: "volume_total" },
+        { name: "hits", sql_type: "bigint", nullable: false },
+      ],
+      { name: "data", paths: [] },
+      [],
+    );
+    const measures = SchemaRegistry.getSchema().fact_tables?.[0]?.measures ?? [];
+    expect(measures.map((m) => m.column)).toEqual(["volume_total", undefined]);
+    expect(JSON.parse(JSON.stringify(measures[1]))).not.toHaveProperty("column");
+  });
 });

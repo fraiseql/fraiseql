@@ -283,6 +283,12 @@ export interface Measure {
   nullable: boolean;
   /** How the measure aggregates over time; omitted: additive. */
   additivity?: Additivity;
+  /**
+   * The SQL column the measure is stored in, when it is not `name`: a pre-aggregated view
+   * storing `volume` as `volume_total`. The measure is still published as `name` and typed
+   * by `sql_type`. Omitted: the column of its name.
+   */
+  column?: string;
 }
 
 /**

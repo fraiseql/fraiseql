@@ -956,6 +956,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **The TypeScript and Go SDKs declare a measure's column (#2315).** A measure stored
+  under another column is declared as its `column`, as the Python SDK already could:
+  TypeScript's `Measure` takes an optional `column`, and Go's `FactTableBuilder` gains
+  `MeasureColumn(measure, column)`, which applies to a measure added by any of its measure
+  methods (`Register` refuses one the table does not declare). Both SDKs now conform on the
+  `fact_table_measure_column` construct, and their declared gap is gone.
+
 - **Cascade entries name their row's type (#2313).** `UpdatedEntity` and `DeletedEntity`
   publish `typename: String!`, as the graphql-cascade spec defines them: the row's GraphQL
   type, from the entry's `__typename` the runtime checks. A deleted entry has no entity, so

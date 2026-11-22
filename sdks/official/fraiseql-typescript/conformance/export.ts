@@ -434,7 +434,8 @@ function authorFull(): void {
   // own rows (#1799).
   SchemaRegistry.registerFactTable(
     "tf_sale",
-    [{ name: "total", sql_type: "numeric", nullable: false }],
+    // A measure stored under another column: published as `total`, read from `order_total`.
+    [{ name: "total", sql_type: "numeric", nullable: false, column: "order_total" }],
     { name: "data", paths: [{ name: "status", json_path: "data->>'status'", data_type: "text" }] },
     [{ name: "fk_user", sql_type: "uuid", indexed: true }],
     { typeName: "Order", rowScope: "relation" }

@@ -188,3 +188,46 @@ func TestHierarchyFilterNamesItsHierarchy(t *testing.T) {
 		t.Errorf("denormalized_filters: want %s, got %s", want, got)
 	}
 }
+
+// A measure stored under another column emits it as `column`: the compiler publishes the
+// measure by its name, types it by its sql_type and reads it from that column. A measure
+// that names none omits the key, and a column for a measure the table does not declare is
+// refused.
+func TestMeasureColumnIsEmitted(t *testing.T) {
+	Reset()
+	err := NewFactTable("data").
+		TableName("tf_daily_volume").
+		Measure("volume", "numeric", false).
+		SemiAdditiveMeasure("stock", "bigint", false, "day", ReduceLast, "site_id").
+		Measure("hits", "bigint", false).
+		MeasureColumn("volume", "volume_total").
+		MeasureColumn("stock", "stock_level").
+		DenormalizedFilter("site_id", "bigint", true).
+		DenormalizedFilter("day", "date", true).
+		Register()
+	if err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+	measures, _ := onlyFactTable(t)["measures"].([]interface{})
+	want := map[string]interface{}{"volume": "volume_total", "stock": "stock_level", "hits": nil}
+	for _, raw := range measures {
+		m, _ := raw.(map[string]interface{})
+		name, _ := m["name"].(string)
+		if got := m["column"]; got != want[name] {
+			t.Errorf("%s: column want %v, got %v", name, want[name], got)
+		}
+	}
+	if len(measures) != len(want) {
+		t.Fatalf("measures: want %d, got %v", len(want), measures)
+	}
+
+	Reset()
+	err = NewFactTable("data").
+		TableName("tf_daily_volume").
+		Measure("volume", "numeric", false).
+		MeasureColumn("volumes", "volume_total").
+		Register()
+	if err == nil || !strings.Contains(err.Error(), `"volumes"`) {
+		t.Errorf("a column for an undeclared measure: want a refusal naming it, got %v", err)
+	}
+}

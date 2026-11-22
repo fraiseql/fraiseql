@@ -396,6 +396,8 @@ func authorFull() error {
 		TypeName("Order").
 		RowScope(fraiseql.RowScopeRelation).
 		Measure("total", "numeric", false).
+		// A measure stored under another column: published as `total`, read from `order_total`.
+		MeasureColumn("total", "order_total").
 		Dimension("status", "data->>'status'", "text").
 		DenormalizedFilter("fk_user", "uuid", true).
 		Register(); err != nil {

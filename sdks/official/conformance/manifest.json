@@ -37,9 +37,7 @@
         "-c",
         "{ [ -d node_modules ] || npm ci --no-audit --no-fund --loglevel=error >/dev/null; } && npx --yes tsx conformance/export.ts"
       ],
-      "unsupported": {
-        "fact_table_measure_column": "a measure stored under another column cannot name it: the `Measure` that `SchemaRegistry.registerFactTable` takes has no `column` (Python's `fact_table` emits it)"
-      },
+      "unsupported": {},
       "container": "node:22",
       "container_env": [
         "HOME=/conformance-cache/node",
@@ -56,8 +54,7 @@
       ],
       "unsupported": {
         "type_crud": "the SDK ships no CRUD generation at all \u2014 `grep -rn crud sdks/official/fraiseql-go` matches nothing, and its builders expose no flag for it. Nine of the eleven SDKs have a generator; adding a tenth is a feature, not a key rename, so the gap is declared rather than papered over (#1182).",
-        "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)",
-        "fact_table_measure_column": "a measure stored under another column cannot name it: the `FactTableBuilder` measure methods and `MeasureDefinition` take no column (Python's `fact_table` emits it)"
+        "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)"
       },
       "container": "golang:1.24",
       "container_env": [

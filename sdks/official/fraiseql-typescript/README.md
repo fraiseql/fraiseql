@@ -197,9 +197,9 @@ and not a decorator. Aggregate queries are **not** declared in `schema.json` —
 refuses an `aggregate_queries` block (#956); declare each as an `[[analytics.queries]]`
 entry in `fraiseql.toml` instead, where it becomes an ordinary view-backed query.
 
-A measure is read from the column of its `name`. The compiler also accepts a measure stored
-under another column (`measures[].column`), which this SDK cannot declare yet (#2315); the
-Python SDK's `fact_table` can.
+A measure is read from the column of its `name`. One stored under another column declares
+it as `column` (`{ name: "volume", sql_type: "numeric", nullable: false, column:
+"volume_total" }`): it is still published as `volume` and typed by its `sql_type`.
 
 A denormalized filter on an `ltree` path column may name its hierarchy
 (`{ name: "org_path", sql_type: "ltree", indexed: true, hierarchy: "org" }`), so an

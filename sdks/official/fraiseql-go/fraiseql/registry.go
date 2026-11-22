@@ -159,6 +159,8 @@ type MeasureDefinition struct {
 	Nullable bool   `json:"nullable"`
 	// Additivity says how the measure aggregates over time (#1459); nil: additive.
 	Additivity *Additivity `json:"additivity,omitempty"`
+	// Column is the SQL column the measure is stored in, when it is not Name; empty: Name.
+	Column string `json:"column,omitempty"`
 }
 
 // Additivity says how a measure aggregates over time (#1459). A balance or a stock level is

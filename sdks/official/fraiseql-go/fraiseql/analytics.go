@@ -14,6 +14,7 @@ type FactTableBuilder struct {
 	rowScope    string
 	inject      map[string]string
 	measures    []MeasureDefinition
+	columns     map[string]string
 	dimensions  []DimensionPathDefinition
 	filters     []FilterDefinition
 	description string
@@ -99,6 +100,44 @@ func (b *FactTableBuilder) NonAdditiveMeasure(name, sqlType string, nullable boo
 	return b.measure(name, sqlType, nullable, &Additivity{Kind: "non_additive"})
 }
 
+// MeasureColumn declares the SQL column a measure is stored in, when it is not the measure's
+// name: a pre-aggregated view storing `volume` as `volume_total`. The measure is still
+// published by its name and typed by its SQL type. It applies to a measure added by any of
+// the measure methods, before or after this call; Register refuses a measure the table does
+// not declare.
+func (b *FactTableBuilder) MeasureColumn(measure, column string) *FactTableBuilder {
+	if b.columns == nil {
+		b.columns = map[string]string{}
+	}
+	b.columns[measure] = column
+	return b
+}
+
+// measuresWithColumns returns the measures, each carrying the column MeasureColumn declared
+// for it, or an error naming a column declared for a measure the table does not have.
+func (b *FactTableBuilder) measuresWithColumns() ([]MeasureDefinition, error) {
+	measures := make([]MeasureDefinition, len(b.measures))
+	copy(measures, b.measures)
+	declared := map[string]bool{}
+	for i := range measures {
+		declared[measures[i].Name] = true
+		if column, ok := b.columns[measures[i].Name]; ok {
+			measures[i].Column = column
+		}
+	}
+	names := make([]string, 0, len(b.columns))
+	for name := range b.columns {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		if !declared[name] {
+			return nil, fmt.Errorf("fact table %q: MeasureColumn(%q, %q) names no measure of the table", b.tableName, name, b.columns[name])
+		}
+	}
+	return measures, nil
+}
+
 func (b *FactTableBuilder) measure(name, sqlType string, nullable bool, additivity *Additivity) *FactTableBuilder {
 	b.measures = append(b.measures, MeasureDefinition{
 		Name:       name,
@@ -152,10 +191,14 @@ func (b *FactTableBuilder) Description(desc string) *FactTableBuilder {
 }
 
 // Register registers the fact table with the global schema registry.
-// Returns an error if a fact table with the same name is already registered, or if its
-// inject params cannot filter its rows.
+// Returns an error if a fact table with the same name is already registered, if its
+// inject params cannot filter its rows, or if MeasureColumn names a measure it does not have.
 func (b *FactTableBuilder) Register() error {
 	if err := b.checkInjectParams(); err != nil {
+		return err
+	}
+	measures, err := b.measuresWithColumns()
+	if err != nil {
 		return err
 	}
 	var injectParams map[string]interface{}
@@ -167,7 +210,7 @@ func (b *FactTableBuilder) Register() error {
 		TypeName:     b.typeName,
 		RowScope:     b.rowScope,
 		InjectParams: injectParams,
-		Measures:     b.measures,
+		Measures:     measures,
 		Dimensions: DimensionsDefinition{
 			Name:  b.name,
 			Paths: b.dimensions,
