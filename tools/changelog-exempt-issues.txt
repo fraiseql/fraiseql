@@ -85,3 +85,6 @@
 #1898  docs and CI: the umbrella crate's documentation examples that need `server` or `wire` compile only with that feature, so its doctests pass with the defaults; no shipped artifact changes
 #2124  tests: the entry-point parity test sets the Arrow Flight address only on a build that has the field, so it runs with `observers` and no `arrow`; no shipped artifact changes
 #2233  tests: the async-operations recovery tests claim their rows with no server worker polling the same table; no shipped artifact changes
+#2161  tools and CI: the suite-coverage gate reads a module declaration's `cfg` predicate as cargo does, instead of misreading `any(...)`; no shipped artifact changes
+#2271  tools and CI: the suite-coverage gate credits a leg whose test-name filters select every test of a module; no shipped artifact changes
+#2272  tools and CI: the suite-coverage gate finds lib test modules by following `mod` declarations, not by file name, and each exemption names its issue; no shipped artifact changes
