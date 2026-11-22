@@ -789,3 +789,39 @@ fn typescript_fact_root_documents_validate_against_the_schema() {
         between(&queries, &format!("const {constant} = `"), "`")
     });
 }
+
+/// The Python file `name` generated from `schema`.
+fn py_file(schema: &CompiledSchema, name: &str) -> String {
+    super::python::generate(schema).unwrap().remove(&PathBuf::from(name)).unwrap()
+}
+
+#[test]
+fn python_emits_a_fact_tables_aggregate_row_as_a_typed_dict() {
+    let types = py_file(&fact_table_schema(), "types.py");
+
+    assert!(types.contains("SalesAggregateRow = TypedDict("), "{types}");
+    assert!(types.contains("\"revenue_sum\": str | None,"), "{types}");
+}
+
+#[test]
+fn python_emits_a_typed_operation_for_each_fact_table_root() {
+    let queries = py_file(&fact_table_schema(), "queries.py");
+
+    assert!(queries.contains("def sales_aggregate("), "{queries}");
+    assert!(
+        queries.contains("    aggregates: list[SalesAggregateSelection] | None = None,"),
+        "the arguments are typed by the published inputs:\n{queries}"
+    );
+    assert!(queries.contains(") -> list[SalesAggregateRow]:"), "{queries}");
+    assert!(queries.contains("def sales_window("), "{queries}");
+    assert!(queries.contains(") -> list[Any]:"), "a window row is JSON:\n{queries}");
+}
+
+#[test]
+fn python_fact_root_documents_validate_against_the_schema() {
+    let schema = fact_table_schema();
+    let queries = py_file(&schema, "queries.py");
+    assert_fact_root_documents_validate(&schema, "Python", |constant| {
+        between(&queries, &format!("_{constant} = \"\"\""), "\"\"\"")
+    });
+}

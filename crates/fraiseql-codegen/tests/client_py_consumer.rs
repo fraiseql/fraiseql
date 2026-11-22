@@ -245,3 +245,61 @@ fn a_big_int_past_two_to_the_53_round_trips_exactly() {
     let encoded: serde_json::Value = serde_json::from_slice(&run.stdout).unwrap();
     assert_eq!(encoded, served, "the generated type did not carry every digit");
 }
+
+const FACT_TABLE_FIXTURE: &str = include_str!("fixtures/fact_table_schema.json");
+
+/// A consumer of a fact table's two roots: an aggregate grouped and filtered through the
+/// published inputs, read back through its typed row, and a window, whose rows are `JSON`.
+const FACTS_PY: &str = r#"from typing import Any, assert_type
+
+from fraiseql_client import FraiseqlClient, SalesAggregateRow, sales_aggregate, sales_window
+
+
+def demo(client: FraiseqlClient) -> None:
+    rows = sales_aggregate(
+        client,
+        where={"region_eq": "EU"},
+        groupBy={"region": True, "occurred_on_month": True},
+        aggregates=[{"revenue_sum": True, "count": True}],
+        limit=10,
+    )
+    assert_type(rows, list[SalesAggregateRow])
+    for row in rows:
+        assert_type(row["region"], str | None)
+        assert_type(row["revenue_sum"], str | None)
+        assert_type(row["count"], int | None)
+    everything = sales_aggregate(client)
+
+    windowed = sales_window(client, select=[{"type": "measure", "name": "revenue", "alias": "r"}])
+    assert_type(windowed, list[Any])
+    print(len(everything), len(windowed))
+"#;
+
+/// The fact-table roots are typed operations a consumer calls: `ty` accepts arguments built
+/// from the published inputs and holds the aggregate row's fields to their published types.
+#[test]
+#[ignore = "requires network (uvx ty) and uv"]
+fn fact_table_roots_type_check_in_a_consumer_project() {
+    let schema = CompiledSchema::from_json(FACT_TABLE_FIXTURE, false).unwrap();
+    let generated = python::generate(&schema).unwrap();
+
+    let project = tempfile::tempdir().unwrap();
+    let package_dir = project.path().join("fraiseql_client");
+    std::fs::create_dir_all(&package_dir).unwrap();
+    for (rel, content) in &generated {
+        std::fs::write(package_dir.join(rel), content).unwrap();
+    }
+    std::fs::write(project.path().join("facts.py"), FACTS_PY).unwrap();
+
+    let output = Command::new("uvx")
+        .args(["ty", "check", "--python-version", "3.12", "."])
+        .current_dir(project.path())
+        .output()
+        .expect("failed to run uvx ty — is uv installed?");
+    assert!(
+        output.status.success(),
+        "ty rejected the fact-table consumer project:\n--- stdout ---\n{}\n--- stderr ---\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+}
