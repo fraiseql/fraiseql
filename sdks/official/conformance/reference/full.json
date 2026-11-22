@@ -286,6 +286,42 @@
           "nullable": false
         }
       ]
+    },
+    {
+      "name": "PriceQuote",
+      "sql_source": "v_price_quote",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "amount",
+          "type": "Decimal",
+          "nullable": false
+        },
+        {
+          "name": "fxRate",
+          "type": "Decimal",
+          "nullable": true
+        },
+        {
+          "name": "deltas",
+          "type": "[Decimal!]",
+          "nullable": false
+        },
+        {
+          "name": "requestId",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "issuerId",
+          "type": "UUID",
+          "nullable": true
+        }
+      ]
     }
   ],
   "enums": [
@@ -568,6 +604,25 @@
         {
           "name": "exceptAt",
           "type": "[LocalDateTime!]",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "name": "priceQuotesByRequest",
+      "return_type": "PriceQuote",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_price_quote",
+      "arguments": [
+        {
+          "name": "requestId",
+          "type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "minAmount",
+          "type": "Decimal",
           "nullable": true
         }
       ]

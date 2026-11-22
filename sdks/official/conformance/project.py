@@ -147,6 +147,14 @@ BIGINT_QUERY = "ledgerEntriesByAccount"
 LOCALDATETIME_TYPE = "ShiftSlot"
 LOCALDATETIME_QUERY = "shiftSlotsStartingAfter"
 
+# The `exact_scalar_field` construct owns `PriceQuote`, and `exact_scalar_argument` the query
+# that takes its scalars (#2274): a decimal is `Decimal` and a UUID is `UUID`, the engine's
+# exact scalars. Published as `Float` a decimal loses its exactness, and as `String` or `ID`
+# a UUID loses its type. An `id` typed as a UUID is `ID` (ADR-0017); any other UUID field,
+# a reference like `issuerId`, is `UUID`. Owned and split for `BIGINT_TYPE`'s reasons.
+EXACT_SCALAR_TYPE = "PriceQuote"
+EXACT_SCALAR_QUERY = "priceQuotesByRequest"
+
 # The `function_definition` construct owns its one function (#1325). A function is not
 # a GraphQL surface at all — it is an out-of-band handler the server dispatches from the
 # compiled `functions` section, a *sibling* of the compiled schema rather than a field
@@ -261,6 +269,8 @@ CONSTRUCTS = (
     "bigint_argument",
     "localdatetime_field",
     "localdatetime_argument",
+    "exact_scalar_field",
+    "exact_scalar_argument",
     "function_definition",
     "function_backed_query",
     "observer_webhook",
@@ -842,6 +852,29 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
             ],
         }
         if LOCALDATETIME_QUERY in queries
+        else {}
+    )
+
+    observations["exact_scalar_field"] = (
+        {
+            "sql_source": types[EXACT_SCALAR_TYPE].get("sql_source"),
+            "fields": _fields(types[EXACT_SCALAR_TYPE]),
+        }
+        if EXACT_SCALAR_TYPE in types
+        else {}
+    )
+
+    observations["exact_scalar_argument"] = (
+        {
+            "return_type": queries[EXACT_SCALAR_QUERY].get("return_type"),
+            "returns_list": queries[EXACT_SCALAR_QUERY].get("returns_list"),
+            "arguments": [
+                {"name": a.get("name"), "type": a.get("arg_type"), "nullable": a.get("nullable")}
+                for a in queries[EXACT_SCALAR_QUERY].get("arguments", [])
+                if isinstance(a, dict)
+            ],
+        }
+        if EXACT_SCALAR_QUERY in queries
         else {}
     )
 

@@ -99,6 +99,61 @@
       "HIGH"
     ]
   },
+  "exact_scalar_argument": {
+    "arguments": [
+      {
+        "name": "requestId",
+        "nullable": false,
+        "type": "UUID"
+      },
+      {
+        "name": "minAmount",
+        "nullable": true,
+        "type": "Decimal"
+      }
+    ],
+    "return_type": "PriceQuote",
+    "returns_list": true
+  },
+  "exact_scalar_field": {
+    "fields": [
+      {
+        "name": "id",
+        "nullable": false,
+        "type": "ID"
+      },
+      {
+        "name": "amount",
+        "nullable": false,
+        "type": "Decimal"
+      },
+      {
+        "name": "fxRate",
+        "nullable": true,
+        "type": "Decimal"
+      },
+      {
+        "name": "deltas",
+        "nullable": false,
+        "type": {
+          "List": {
+            "item": "Decimal"
+          }
+        }
+      },
+      {
+        "name": "requestId",
+        "nullable": false,
+        "type": "UUID"
+      },
+      {
+        "name": "issuerId",
+        "nullable": true,
+        "type": "UUID"
+      }
+    ],
+    "sql_source": "v_price_quote"
+  },
   "fact_tables": {
     "tf_account_day": {
       "denormalized_filters": [

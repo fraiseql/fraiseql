@@ -33,7 +33,9 @@
         "observer_slack": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
         "observer_email": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
         "observer_condition": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
-        "observer_retry_default": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147)."
+        "observer_retry_default": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "exact_scalar_field": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)",
+        "exact_scalar_argument": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)"
       }
     },
     "typescript": {
@@ -44,7 +46,10 @@
         "-c",
         "{ [ -d node_modules ] || npm ci --no-audit --no-fund --loglevel=error >/dev/null; } && npx --yes tsx conformance/export.ts"
       ],
-      "unsupported": {},
+      "unsupported": {
+        "exact_scalar_field": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)",
+        "exact_scalar_argument": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)"
+      },
       "container": "node:22",
       "container_env": [
         "HOME=/conformance-cache/node",
@@ -61,7 +66,9 @@
       ],
       "unsupported": {
         "type_crud": "the SDK ships no CRUD generation at all \u2014 `grep -rn crud sdks/official/fraiseql-go` matches nothing, and its builders expose no flag for it. Nine of the eleven SDKs have a generator; adding a tenth is a feature, not a key rename, so the gap is declared rather than papered over (#1182).",
-        "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)"
+        "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)",
+        "exact_scalar_field": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)",
+        "exact_scalar_argument": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)"
       }
     },
     "php": {
@@ -80,7 +87,9 @@
         "observer_slack": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
         "observer_email": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
         "observer_condition": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
-        "observer_retry_default": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147)."
+        "observer_retry_default": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "exact_scalar_field": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)",
+        "exact_scalar_argument": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)"
       },
       "container": "composer:2",
       "container_env": [
@@ -101,7 +110,9 @@
       ],
       "unsupported": {
         "fact_tables": "the SDK authors no fact table: `@GraphQLFactTable` registers the annotated class as an ordinary type and emits no `fact_tables` entry, so there is no table to link to its type (AF 1). Fact-table authoring is a feature, not a key rename.",
-        "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)"
+        "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)",
+        "exact_scalar_field": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)",
+        "exact_scalar_argument": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)"
       },
       "container": "maven:3.9-eclipse-temurin-21",
       "container_env": [
@@ -129,7 +140,9 @@
         "observer_slack": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
         "observer_email": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
         "observer_condition": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
-        "observer_retry_default": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147)."
+        "observer_retry_default": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "exact_scalar_field": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)",
+        "exact_scalar_argument": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)"
       },
       "container": "mcr.microsoft.com/dotnet/sdk:9.0",
       "container_env": [
@@ -161,7 +174,9 @@
         "observer_slack": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
         "observer_email": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
         "observer_condition": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
-        "observer_retry_default": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147)."
+        "observer_retry_default": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "exact_scalar_field": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)",
+        "exact_scalar_argument": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)"
       },
       "container": "mcr.microsoft.com/dotnet/sdk:9.0",
       "container_env": [
@@ -189,7 +204,9 @@
         "observer_slack": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
         "observer_email": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
         "observer_condition": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
-        "observer_retry_default": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147)."
+        "observer_retry_default": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "exact_scalar_field": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)",
+        "exact_scalar_argument": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)"
       },
       "container": "elixir:1.17",
       "container_env": [
@@ -214,7 +231,9 @@
         "observer_slack": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
         "observer_email": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
         "observer_condition": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
-        "observer_retry_default": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147)."
+        "observer_retry_default": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "exact_scalar_field": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)",
+        "exact_scalar_argument": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)"
       },
       "container": "ruby:3.3"
     },
@@ -236,7 +255,9 @@
         "observer_slack": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
         "observer_email": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
         "observer_condition": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
-        "observer_retry_default": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147)."
+        "observer_retry_default": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
+        "exact_scalar_field": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)",
+        "exact_scalar_argument": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)"
       },
       "container": "dart:stable",
       "container_env": [
@@ -291,7 +312,9 @@
         "observer_condition": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
         "observer_retry_default": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
         "bigint_argument": "the SDK registers types only and ships no query builder, so it has no argument to declare a `BigInt` on; `bigint_field` holds it to the same rule for a type's fields",
-        "localdatetime_argument": "the SDK registers types only and ships no query builder, so it has no argument to declare a `LocalDateTime` on; `localdatetime_field` holds it to the same rule for a type's fields"
+        "localdatetime_argument": "the SDK registers types only and ships no query builder, so it has no argument to declare a `LocalDateTime` on; `localdatetime_field` holds it to the same rule for a type's fields",
+        "exact_scalar_field": "the SDK authors no `Decimal` and `UUID` construct yet (#2274)",
+        "exact_scalar_argument": "the SDK registers types only and ships no query builder, so it has no argument to declare a `Decimal` or `UUID` on; `exact_scalar_field` holds it to the same rule for a type's fields"
       }
     }
   }

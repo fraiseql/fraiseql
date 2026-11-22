@@ -3,6 +3,8 @@
   "bigint_field": {},
   "enum_values": {},
   "enums": {},
+  "exact_scalar_argument": {},
+  "exact_scalar_field": {},
   "fact_tables": {},
   "field_deprecated": {},
   "field_description": {},
