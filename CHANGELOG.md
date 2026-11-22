@@ -1528,6 +1528,16 @@ disagreed, and the promise was the part that was wrong.
   stays 1. `docs/operations/emit-ddl.md` now also states where an index goes: in the file of
   the table it indexes, after its `CREATE TABLE`, never in a file of its own.
 
+- **A function setting its trigger kind does not apply is refused (#1869).** A
+  `before:mutation` hook accepted `run_as`, `when`, `re_runnable` and `retry` and applied
+  none of them: it ran as its caller, on every call, whatever they said. A `cron:` function
+  accepted `when`, `re_runnable` and `retry` the same way, and an `after:ingest` function
+  `when`. Each is now refused at compile and at boot, naming the function and the setting.
+  A cron function's `run_as`, and an `after:ingest` function's `run_as`, `re_runnable`
+  and `retry`, are applied and still accepted. docs/architecture/functions.md states which
+  settings each trigger kind applies. The `request:query` refusals no longer carry a run of
+  spaces mid-sentence.
+
 - **The cascade docs say what a client reads at `__typename` (#1816).** They showed each
   `cascade.updated` entry's `__typename` as the row's type (`Post`, `User`), and the
   example's Apollo `applyCascade` keyed the cache on it. Followed as written, that wrote

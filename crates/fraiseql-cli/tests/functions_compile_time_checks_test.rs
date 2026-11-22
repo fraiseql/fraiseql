@@ -558,3 +558,19 @@ fn a_disabled_source_does_not_justify_a_functions_table() {
     let message = refusal(corpus);
     assert!(message.contains("no enabled source"), "{message}");
 }
+
+/// A setting a `before:mutation` hook cannot apply fails the compile, naming the function
+/// and the setting, rather than compiling a ceiling that bounds nothing.
+#[test]
+fn run_as_on_a_before_mutation_hook_fails_the_compile() {
+    let message = refusal(schema_with_function(json!({
+        "name": "authorize",
+        "trigger": "before:mutation:updateOrder",
+        "runtime": "Deno",
+        "run_as": {"roles": ["auditor"]}
+    })));
+    assert!(
+        message.contains("`authorize`") && message.contains("`run_as` cannot be declared"),
+        "the refusal must name the function and the setting; got: {message}"
+    );
+}

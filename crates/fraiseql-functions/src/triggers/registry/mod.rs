@@ -286,6 +286,27 @@ pub struct TriggerRegistry {
     pub function_count:           usize,
 }
 
+/// Refuse the first setting `func` declares that its trigger kind does not apply.
+///
+/// Each entry is a setting, whether `func` declares it, and why `kind` cannot apply it.
+/// A setting accepted and never applied reads as configured: `run_as` as a granted
+/// authority, `when` as a filter, `retry` as a delivery guarantee.
+fn refuse_unapplied_settings(
+    func: &FunctionDefinition,
+    kind: &str,
+    settings: &[(&str, bool, &str)],
+) -> Result<(), RegistryError> {
+    match settings.iter().find(|(_, declared, _)| *declared) {
+        Some((setting, _, why)) => Err(RegistryError {
+            message: format!(
+                "function `{}` trigger `{}`: `{setting}` cannot be declared on {kind} — {why}",
+                func.name, func.trigger
+            ),
+        }),
+        None => Ok(()),
+    }
+}
+
 impl TriggerRegistry {
     /// Create a new empty trigger registry.
     #[must_use]
@@ -558,6 +579,41 @@ impl TriggerRegistry {
                     registry.after_capture_triggers.add(trigger);
                 },
                 ParsedTrigger::BeforeMutation { mutation_name } => {
+                    // The hook runs inside the write's request, as its caller, and the write
+                    // waits on it: nothing about it is dispatched.
+                    refuse_unapplied_settings(
+                        func,
+                        "a before:mutation hook",
+                        &[
+                            (
+                                "run_as",
+                                func.run_as.is_some(),
+                                "the hook reads as the caller whose write it gates, through the \
+                             read bridge — a ceiling that bounds nothing reads as a granted \
+                             authority",
+                            ),
+                            (
+                                "when",
+                                !func.when.is_empty(),
+                                "a `when` predicate is evaluated against a row image, and the hook \
+                             runs before there is one: it is handed the mutation's arguments, \
+                             and decides on them itself",
+                            ),
+                            (
+                                "re_runnable",
+                                func.re_runnable,
+                                "it opts out of durable dispatch, and the hook is not dispatched — \
+                             the write waits on it, and its failure refuses the write",
+                            ),
+                            (
+                                "retry",
+                                func.retry.is_some(),
+                                "a retry policy governs durable dispatch, and the hook is not \
+                             dispatched — its failure refuses the write, which the caller may \
+                             send again",
+                            ),
+                        ],
+                    )?;
                     let trigger = BeforeMutationTrigger {
                         function_name: func.name.clone(),
                         mutation_name,
@@ -594,6 +650,19 @@ impl TriggerRegistry {
                     });
                 },
                 ParsedTrigger::AfterIngest { source } => {
+                    // Its dispatch is durable and runs under its `run_as`; only `when` has
+                    // nothing to read.
+                    refuse_unapplied_settings(
+                        func,
+                        "an after:ingest function",
+                        &[(
+                            "when",
+                            !func.when.is_empty(),
+                            "a `when` predicate is evaluated against a row image, and an \
+                         after:ingest function is handed an inbound message: select the \
+                         messages it runs on with the trigger's source",
+                        )],
+                    )?;
                     // A `None` source matches every inbound source; a named source
                     // must be a recognised selector (fail loud otherwise).
                     let source = match source {
@@ -615,43 +684,41 @@ impl TriggerRegistry {
                     });
                 },
                 ParsedTrigger::RequestQuery => {
-                    // The settings that describe a *dispatch* are refused here, where
-                    // both call sites see them. None of them is inert decoration:
-                    // `run_as` is an authority ceiling, and a security setting that is
-                    // accepted and never applied is the failure this seam exists to
-                    // remove (#1329). A request-serving function reads as its caller
-                    // through the bridge, so there is no background identity to grant.
-                    for (setting, declared, why) in [
-                        (
-                            "run_as",
-                            func.run_as.is_some(),
-                            "a request:query function reads as its caller, through the read                              bridge — there is no background identity for a ceiling to bound,                              and a ceiling that bounds nothing reads as a granted authority",
-                        ),
-                        (
-                            "when",
-                            !func.when.is_empty(),
-                            "a `when` predicate is evaluated against a row image, and a                              request-serving invocation has none: it is handed the query's                              arguments",
-                        ),
-                        (
-                            "re_runnable",
-                            func.re_runnable,
-                            "it opts out of durable dispatch, and a request-serving invocation                              is not dispatched — it answers a client that is waiting",
-                        ),
-                        (
-                            "retry",
-                            func.retry.is_some(),
-                            "a retry policy governs durable dispatch; a failed read is reported                              to the caller, who decides whether to ask again",
-                        ),
-                    ] {
-                        if declared {
-                            return Err(RegistryError {
-                                message: format!(
-                                    "function `{}` trigger `request:query`: `{setting}` cannot be                                      declared on a request-serving function — {why}",
-                                    func.name
-                                ),
-                            });
-                        }
-                    }
+                    // A request-serving function reads as its caller through the bridge, so
+                    // there is no background identity to grant, and it answers a client that
+                    // is waiting rather than being dispatched.
+                    refuse_unapplied_settings(
+                        func,
+                        "a request-serving function",
+                        &[
+                            (
+                                "run_as",
+                                func.run_as.is_some(),
+                                "a request:query function reads as its caller, through the read \
+                             bridge — there is no background identity for a ceiling to bound, \
+                             and a ceiling that bounds nothing reads as a granted authority",
+                            ),
+                            (
+                                "when",
+                                !func.when.is_empty(),
+                                "a `when` predicate is evaluated against a row image, and a \
+                             request-serving invocation has none: it is handed the query's \
+                             arguments",
+                            ),
+                            (
+                                "re_runnable",
+                                func.re_runnable,
+                                "it opts out of durable dispatch, and a request-serving invocation \
+                             is not dispatched — it answers a client that is waiting",
+                            ),
+                            (
+                                "retry",
+                                func.retry.is_some(),
+                                "a retry policy governs durable dispatch; a failed read is reported \
+                             to the caller, who decides whether to ask again",
+                            ),
+                        ],
+                    )?;
                     // No matcher and no schedule: the compiled query that declares
                     // `function = "<name>"` is what reaches this function, and that
                     // pairing is checked by `validate_query_bindings`, which needs
@@ -659,6 +726,32 @@ impl TriggerRegistry {
                     registry.request_query_functions.push(func.name.clone());
                 },
                 ParsedTrigger::Cron { expression } => {
+                    // A cron function runs under its `run_as`, once per window: a failed
+                    // firing is not retried but waits for the next window.
+                    refuse_unapplied_settings(
+                        func,
+                        "a cron function",
+                        &[
+                            (
+                                "when",
+                                !func.when.is_empty(),
+                                "a `when` predicate is evaluated against a row image, and a cron \
+                             firing has none: it is handed its schedule window",
+                            ),
+                            (
+                                "re_runnable",
+                                func.re_runnable,
+                                "it opts out of durable dispatch, and a cron firing is not \
+                             dispatched durably — a failed firing waits for the next window",
+                            ),
+                            (
+                                "retry",
+                                func.retry.is_some(),
+                                "a retry policy governs durable dispatch, and a cron firing is not \
+                             retried — a failed firing waits for the next window",
+                            ),
+                        ],
+                    )?;
                     // Parsed here so a bad expression or timezone fails the compile and
                     // the boot, naming the function, rather than a schedule never firing.
                     crate::triggers::cron::Schedule::parse(&expression, func.timezone.as_deref())

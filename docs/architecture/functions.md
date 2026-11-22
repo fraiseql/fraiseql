@@ -514,6 +514,25 @@ Never interpolate a value into the query text that `fraiseql_query` sends: bind 
 variable through the second argument, so no value can change the document.
 `make lint-query-variables` holds every example under `docs/` and `examples/` to that.
 
+### Which settings each trigger kind applies (#1869)
+
+A dispatch setting is applied by the trigger kinds that have the thing it configures,
+and refused, naming the function and the setting, on every other kind, at
+`fraiseql compile` and again at boot. None is accepted and then ignored: an
+unapplied `run_as` reads as a granted authority, an unapplied `when` as a filter, and an
+unapplied `retry` as a delivery guarantee.
+
+| Trigger kind | `run_as` | `when` | `re_runnable` | `retry` |
+|---|---|---|---|---|
+| `after:mutation`, `after:capture` | applied: the bridge's ceiling | applied: evaluated on the row images | applied | applied |
+| `after:ingest` | applied | refused: the function is handed an inbound message, not a row image; select messages with the trigger's source | applied | applied |
+| `cron:` | applied | refused: a firing is handed its schedule window, not a row image | refused: a firing is not dispatched durably | refused: a failed firing waits for the next window |
+| `before:mutation` | refused: the hook reads as the caller whose write it gates | refused: the hook is handed the mutation's arguments, before there is a row image | refused: the write waits on the hook | refused: the hook's failure refuses the write |
+| `request:query` | refused: the function reads as its caller | refused: it is handed the query's arguments | refused: it answers a waiting client | refused: a failed read is reported to the caller |
+
+`timeout_ms` applies to every kind (see [Timeouts](#timeouts)), and `timezone` only to
+`cron:`.
+
 ## Observability (#598)
 
 Function dispatch is observable on `/metrics` (Prometheus facade; exported when the
@@ -666,6 +685,7 @@ A bad declaration fails `fraiseql compile`, not server boot:
 | …whose trigger is `request:query` | a query bound to an `after:mutation` handler |
 | every `request:query` function is named by a query | a declared function no field points at — it would load, the server would boot, and nothing would ever call it |
 | no dispatch setting on a `request:query` function | `run_as`, `when`, `re_runnable`, `retry` — see below |
+| no setting a trigger kind does not apply | `run_as` on a `before:mutation` hook, `retry` on a `cron:` function — see [the table](#which-settings-each-trigger-kind-applies-1869) |
 | nothing that lowers into SQL beside a `function` | `relay`, `count`, `inject_params`, `pagination_order`, `auto_params`, `rest_stream`, `jsonb_column`, `read_routing`, `cache_ttl_seconds`, `additional_views`, a `rest` override |
 | `function` on a **nested** field | root fields only — see below |
 

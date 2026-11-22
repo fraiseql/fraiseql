@@ -696,3 +696,116 @@ fn test_registry_accepts_an_empty_run_as_static_enriched_value() {
     ];
     TriggerRegistry::load_from_definitions(&defs).expect("an empty value is a value");
 }
+
+// ── Settings a trigger kind does not apply are refused, not ignored ──────────
+//
+// `before:mutation`, `cron:` and `after:ingest` each accepted some of `run_as`, `when`,
+// `re_runnable` and `retry` and applied none of those. Each such pair is its own test, so
+// that dropping one refusal turns exactly one test red.
+
+/// A function of `trigger` declaring only `setting`.
+fn declaring(trigger: &str, setting: &str) -> FunctionDefinition {
+    let mut definition = FunctionDefinition::new("hook", trigger, RuntimeType::Deno);
+    match setting {
+        "run_as" => definition.run_as = Some(crate::RunAs::default()),
+        "when" => {
+            definition.when = vec![crate::triggers::mutation::TriggerPredicate {
+                field:      "status".to_string(),
+                eq:         Some(serde_json::json!("approved")),
+                changed_to: None,
+            }];
+        },
+        "re_runnable" => definition.re_runnable = true,
+        "retry" => definition.retry = Some(fraiseql_observers::RetryConfig::default()),
+        other => panic!("no such setting: {other}"),
+    }
+    definition
+}
+
+/// The refusal of `setting` on a function of `trigger`, which must name both.
+fn refusal(trigger: &str, setting: &str) -> String {
+    let error = TriggerRegistry::validate_definitions(&[declaring(trigger, setting)])
+        .expect_err(&format!("`{setting}` must be refused on `{trigger}`"))
+        .message;
+    assert!(
+        error.contains(&format!("`{setting}` cannot be declared")) && error.contains("`hook`"),
+        "the refusal must name the setting and the function; got: {error}"
+    );
+    error
+}
+
+const BEFORE: &str = "before:mutation:updateOrder";
+const CRON: &str = "cron:0 2 * * *";
+const INGEST: &str = "after:ingest:email";
+
+#[test]
+fn run_as_on_a_before_mutation_hook_is_refused() {
+    let error = refusal(BEFORE, "run_as");
+    assert!(error.contains("reads as the caller"), "{error}");
+}
+
+#[test]
+fn when_on_a_before_mutation_hook_is_refused() {
+    refusal(BEFORE, "when");
+}
+
+#[test]
+fn re_runnable_on_a_before_mutation_hook_is_refused() {
+    refusal(BEFORE, "re_runnable");
+}
+
+#[test]
+fn retry_on_a_before_mutation_hook_is_refused() {
+    refusal(BEFORE, "retry");
+}
+
+#[test]
+fn when_on_a_cron_function_is_refused() {
+    refusal(CRON, "when");
+}
+
+#[test]
+fn re_runnable_on_a_cron_function_is_refused() {
+    refusal(CRON, "re_runnable");
+}
+
+#[test]
+fn retry_on_a_cron_function_is_refused() {
+    refusal(CRON, "retry");
+}
+
+#[test]
+fn when_on_an_after_ingest_function_is_refused() {
+    refusal(INGEST, "when");
+}
+
+/// What each kind applies still loads: a cron function's mutations run under its
+/// `run_as`, and an `after:ingest` dispatch is durable, under its own `run_as`.
+#[test]
+fn the_settings_a_kind_applies_still_load() {
+    for (trigger, setting) in [
+        (CRON, "run_as"),
+        (INGEST, "run_as"),
+        (INGEST, "re_runnable"),
+        (INGEST, "retry"),
+    ] {
+        TriggerRegistry::validate_definitions(&[declaring(trigger, setting)])
+            .unwrap_or_else(|e| panic!("`{setting}` on `{trigger}` must load: {}", e.message));
+    }
+}
+
+/// The whole refusal, so its words cannot drift. Each sentence of these messages once
+/// carried a run of spaces where a line continuation had lost its backslash.
+#[test]
+fn a_request_query_refusal_reads_as_one_sentence() {
+    let error = TriggerRegistry::validate_definitions(&[declaring("request:query", "run_as")])
+        .expect_err("refused")
+        .message;
+    assert_eq!(
+        error,
+        "function `hook` trigger `request:query`: `run_as` cannot be declared on a \
+         request-serving function — a request:query function reads as its caller, through \
+         the read bridge — there is no background identity for a ceiling to bound, and a \
+         ceiling that bounds nothing reads as a granted authority"
+    );
+}

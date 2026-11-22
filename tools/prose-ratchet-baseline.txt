@@ -10,7 +10,7 @@ fraiseql-core 408
 fraiseql-db 87
 fraiseql-error 1
 fraiseql-federation 9
-fraiseql-functions 25
+fraiseql-functions 24
 fraiseql-guard 2
 fraiseql-jwks 2
 fraiseql-kafka 0
