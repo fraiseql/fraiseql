@@ -242,6 +242,17 @@ final class StaticAPI
     }
 
     /**
+     * Start building an observer (#2147).
+     *
+     * @param string $name The observer name
+     * @return ObserverBuilder The observer builder
+     */
+    public static function observer(string $name): ObserverBuilder
+    {
+        return ObserverBuilder::observer($name);
+    }
+
+    /**
      * Start building a mutation definition.
      *
      * @param string $name The mutation name

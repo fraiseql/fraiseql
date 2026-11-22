@@ -18,6 +18,8 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use FraiseQL\ActorType;
 use FraiseQL\Attributes\GraphQLField;
 use FraiseQL\Attributes\GraphQLType;
+use FraiseQL\ObserverAction;
+use FraiseQL\ObserverRetry;
 use FraiseQL\Relationship;
 use FraiseQL\Scalars;
 use FraiseQL\SchemaExporter;
@@ -479,6 +481,47 @@ function authorFull(): void
     // names a capability rather than an event, and it names no query — the binding lives
     // on the query, so there is one copy of it.
     StaticAPI::function_('preview_quote', 'request:query');
+
+    // #2147: one observer per action kind. Every observer but the last sets its retry;
+    // the last runs on the server's own policy, so it writes no retry block.
+    StaticAPI::observer('orderPlacedWebhook')
+        ->entity('Order')
+        ->event('INSERT')
+        ->action(ObserverAction::webhook(
+            urlEnv: 'CONFORMANCE_HOOK_URL',
+            method: 'PUT',
+            bodyTemplate: '{"total": {{ total }}}',
+            signingSecretEnv: 'CONFORMANCE_HOOK_KEY',
+            headers: ['X-Source' => 'conformance'],
+            headersEnv: ['Authorization' => 'CONFORMANCE_HOOK_TOKEN'],
+        ))
+        ->retry(new ObserverRetry(5, 'linear', 200, 5000))
+        ->register();
+
+    StaticAPI::observer('orderShippedSlack')
+        ->entity('Order')
+        ->event('UPDATE')
+        ->condition("status == 'shipped'")
+        ->action(ObserverAction::slack(
+            '#orders',
+            'Order {{ id }} shipped',
+            webhookUrlEnv: 'CONFORMANCE_SLACK_URL',
+        ))
+        ->retry(new ObserverRetry(4, 'exponential', 250, 8000))
+        ->register();
+
+    StaticAPI::observer('orderDeletedEmail')
+        ->entity('Order')
+        ->event('DELETE')
+        ->action(ObserverAction::email('ops@example.com', 'Order deleted', 'Order {{ id }} was deleted'))
+        ->retry(new ObserverRetry(2, 'fixed', 500, 500))
+        ->register();
+
+    StaticAPI::observer('orderCreatedDefaultRetry')
+        ->entity('Order')
+        ->event('INSERT')
+        ->action(ObserverAction::email('ops@example.com', 'Order created', 'Order {{ id }} was created'))
+        ->register();
 }
 
 $fixture = getenv('FRAISEQL_CONFORMANCE_FIXTURE');

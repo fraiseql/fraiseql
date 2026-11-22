@@ -873,6 +873,10 @@ disagreed, and the promise was the part that was wrong.
     `fraiseql.email` and `fraiseql.ObserverRetry` (not `fraiseql.RetryConfig`, the
     client's retry of a request). A webhook takes exactly one of `url=` and `url_env=`,
     and a Slack action at most one of `webhook_url=` and `webhook_url_env=`.
+  - PHP: `StaticAPI::observer('name')->entity()->event()->condition()->action()->retry()
+    ->register()`, with `ObserverAction::webhook()`, `::slack()` and `::email()` and
+    `ObserverRetry` (not `RetryConfig`, the client's retry of a request), under the same
+    one-destination rule.
 
 - **`compile --database` warns where an `Int` is wider in the database (#2175).** Sampled
   documents holding an `Int` field outside the signed 32-bit range, at the root or

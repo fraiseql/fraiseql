@@ -41,6 +41,9 @@ final class SchemaRegistry
     /** @var array<string, FunctionDefinition> Registered serverless functions (#1325) */
     private array $functions = [];
 
+    /** @var array<string, ObserverBuilder> Registered observers, by name (#2147) */
+    private array $observers = [];
+
     /** @var array<string, QueryBuilder> Registered queries */
     private array $queries = [];
 
@@ -242,6 +245,33 @@ final class SchemaRegistry
     {
         $this->functions[$function->name] = $function;
         return $this;
+    }
+
+    /**
+     * Register an observer.
+     *
+     * @throws \InvalidArgumentException An observer of this name is already registered.
+     */
+    public function registerObserver(ObserverBuilder $observer): self
+    {
+        if (isset($this->observers[$observer->name])) {
+            throw new \InvalidArgumentException(sprintf(
+                "observer '%s' is already registered; each name must be unique within a schema",
+                $observer->name,
+            ));
+        }
+        $this->observers[$observer->name] = $observer;
+        return $this;
+    }
+
+    /**
+     * Get all registered observers, in registration order.
+     *
+     * @return array<string, ObserverBuilder>
+     */
+    public function getAllObservers(): array
+    {
+        return $this->observers;
     }
 
     /**
@@ -465,6 +495,7 @@ final class SchemaRegistry
         $this->typeFields = [];
         $this->subscriptions = [];
         $this->functions = [];
+        $this->observers = [];
         $this->queries = [];
         $this->mutations = [];
         $this->inputTypes = [];

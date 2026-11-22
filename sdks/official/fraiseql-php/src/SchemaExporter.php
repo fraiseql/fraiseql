@@ -120,6 +120,15 @@ final class SchemaExporter
             );
         }
 
+        // #2147: observers, emitted only when present, as the other SDKs emit them.
+        $observers = $registry->getAllObservers();
+        if (!empty($observers)) {
+            $schema['observers'] = array_map(
+                static fn (ObserverBuilder $observer): array => $observer->toArray(),
+                array_values($observers),
+            );
+        }
+
         return $schema;
     }
 

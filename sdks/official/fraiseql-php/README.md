@@ -179,6 +179,32 @@ StaticAPI::mutation('deletePost')
     ->register();
 ```
 
+## Observers
+
+An observer runs actions when a row of an entity is inserted, updated or deleted:
+
+```php
+use FraiseQL\ObserverAction;
+use FraiseQL\ObserverRetry;
+use FraiseQL\StaticAPI;
+
+StaticAPI::observer('orderShipped')
+    ->entity('Order')
+    ->event('UPDATE')
+    ->condition("status == 'shipped'")
+    ->action(ObserverAction::webhook(urlEnv: 'ORDER_HOOK_URL', signingSecretEnv: 'ORDER_HOOK_KEY'))
+    ->action(ObserverAction::slack('#orders', 'Order {{ id }} shipped'))
+    ->action(ObserverAction::email('ops@example.com', 'Order shipped', 'Order {{ id }} shipped'))
+    ->retry(new ObserverRetry(maxAttempts: 5, backoffStrategy: 'exponential', initialDelayMs: 200, maxDelayMs: 5000))
+    ->register();
+```
+
+A webhook takes exactly one of `$url` and `$urlEnv`. A Slack action posts to the URL in
+`SLACK_WEBHOOK_URL` unless `$webhookUrl` or `$webhookUrlEnv` names another. The email
+sender is the server's SMTP configuration. An observer with no `retry()` runs on the
+server's own policy. `ObserverRetry` is not `RetryConfig`, which is the client's retry
+of a request.
+
 ## Schema export
 
 The `SchemaExporter` class produces the canonical `IntermediateSchema` JSON format:
