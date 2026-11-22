@@ -29,6 +29,7 @@ public sealed class SchemaRegistry
     private readonly List<IntermediateQuery> _queries = new();
     private readonly List<IntermediateMutation> _mutations = new();
     private readonly List<IntermediateFunction> _functions = new();
+    private readonly List<IntermediateObserver> _observers = new();
     private Dictionary<string, string>? _injectDefaultsBase;
     private Dictionary<string, string>? _injectDefaultsQueries;
     private Dictionary<string, string>? _injectDefaultsMutations;
@@ -325,6 +326,30 @@ public sealed class SchemaRegistry
         }
     }
 
+    /// <summary>Registers an observer (#2147).</summary>
+    /// <param name="observer">The observer definition to register.</param>
+    /// <exception cref="InvalidOperationException">An observer of this name is already registered.</exception>
+    public void RegisterObserver(IntermediateObserver observer)
+    {
+        lock (_lock)
+        {
+            if (_observers.Any(o => o.Name == observer.Name))
+                throw new InvalidOperationException(
+                    $"observer '{observer.Name}' is already registered; each name must be unique within a schema");
+            _observers.Add(observer);
+        }
+    }
+
+    /// <summary>Returns every registered observer, in registration order.</summary>
+    /// <returns>A snapshot of the registered observers.</returns>
+    public IReadOnlyList<IntermediateObserver> GetAllObservers()
+    {
+        lock (_lock)
+        {
+            return _observers.ToList().AsReadOnly();
+        }
+    }
+
     /// <summary>Returns every registered serverless function.</summary>
     /// <returns>A snapshot of the registered functions.</returns>
     public IReadOnlyList<IntermediateFunction> GetAllFunctions()
@@ -398,6 +423,7 @@ public sealed class SchemaRegistry
             _queries.Clear();
             _mutations.Clear();
             _functions.Clear();
+            _observers.Clear();
             _injectDefaultsBase = null;
             _injectDefaultsQueries = null;
             _injectDefaultsMutations = null;

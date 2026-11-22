@@ -51,7 +51,9 @@ public static class SchemaExporter
             InputTypes: inputTypes.Count > 0 ? inputTypes : null,
             Enums: registry.GetAllEnums() is { Count: > 0 } enums ? enums : null,
             // #1325: serverless function definitions, omitted when none are declared.
-            Functions: registry.GetAllFunctions() is { Count: > 0 } functions ? functions : null);
+            Functions: registry.GetAllFunctions() is { Count: > 0 } functions ? functions : null,
+            // #2147: observers, omitted when none are declared.
+            Observers: registry.GetAllObservers() is { Count: > 0 } observers ? observers : null);
     }
 
     /// <summary>

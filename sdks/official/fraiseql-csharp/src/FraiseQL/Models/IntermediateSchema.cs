@@ -13,6 +13,7 @@ namespace FraiseQL.Models;
 /// <param name="InputTypes">Registered GraphQL input types, omitted when empty.</param>
 /// <param name="Enums">Registered GraphQL enum types, omitted when empty.</param>
 /// <param name="Functions">Registered serverless functions (#1325), omitted when empty.</param>
+/// <param name="Observers">Registered observers (#2147), omitted when empty.</param>
 public record IntermediateSchema(
     [property: JsonPropertyName("version")]     string Version,
     [property: JsonPropertyName("types")]       IReadOnlyList<IntermediateType> Types,
@@ -20,4 +21,5 @@ public record IntermediateSchema(
     [property: JsonPropertyName("mutations")]   IReadOnlyList<IntermediateMutation> Mutations,
     [property: JsonPropertyName("input_types")] IReadOnlyList<IntermediateInputType>? InputTypes = null,
     [property: JsonPropertyName("enums")]       IReadOnlyList<IntermediateEnum>? Enums = null,
-    [property: JsonPropertyName("functions")]   IReadOnlyList<IntermediateFunction>? Functions = null);
+    [property: JsonPropertyName("functions")]   IReadOnlyList<IntermediateFunction>? Functions = null,
+    [property: JsonPropertyName("observers")]   IReadOnlyList<IntermediateObserver>? Observers = null);

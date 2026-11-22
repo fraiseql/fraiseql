@@ -163,6 +163,28 @@ or argument is refused.
 
 ---
 
+## ObserverBuilder
+
+An observer runs actions when a row of an entity is inserted, updated or deleted:
+
+```csharp
+ObserverBuilder.Observer("orderShipped")
+    .Entity("Order")
+    .Event("UPDATE")
+    .Condition("status == 'shipped'")
+    .Action(ObserverAction.Webhook(urlEnv: "ORDER_HOOK_URL", signingSecretEnv: "ORDER_HOOK_KEY"))
+    .Action(ObserverAction.Slack("#orders", "Order {{ id }} shipped"))
+    .Action(ObserverAction.Email("ops@example.com", "Order shipped", "Order {{ id }} shipped"))
+    .Retry(new RetryConfig(MaxAttempts: 5, BackoffStrategy: "exponential", InitialDelayMs: 200, MaxDelayMs: 5000))
+    .Register();
+```
+
+A webhook takes exactly one of `url` and `urlEnv`. A Slack action posts to the URL in
+`SLACK_WEBHOOK_URL` unless `webhookUrl` or `webhookUrlEnv` names another. The email
+sender is the server's SMTP configuration. An observer with no `Retry` runs on the
+server's own policy. `SchemaExporter` exports registered observers; `SchemaBuilder`
+merges only types, queries, mutations and input types, so it does not.
+
 ## Fluent SchemaBuilder API
 
 For teams that prefer a code-first approach without decorating domain model classes:

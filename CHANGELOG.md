@@ -877,6 +877,11 @@ disagreed, and the promise was the part that was wrong.
     ->register()`, with `ObserverAction::webhook()`, `::slack()` and `::email()` and
     `ObserverRetry` (not `RetryConfig`, the client's retry of a request), under the same
     one-destination rule.
+  - C#: `ObserverBuilder.Observer("name").Entity().Event().Condition().Action().Retry()
+    .Register()`, with `ObserverAction.Webhook()`, `.Slack()` and `.Email()` and a
+    `RetryConfig` record, under the same one-destination rule. `SchemaExporter` exports
+    them; `SchemaBuilder`, which merges only types, queries, mutations and input types
+    from the registry, does not.
 
 - **`compile --database` warns where an `Int` is wider in the database (#2175).** Sampled
   documents holding an `Int` field outside the signed 32-bit range, at the root or
