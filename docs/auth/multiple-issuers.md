@@ -62,6 +62,10 @@ Each `[[auth.additional_issuers]]` table accepts:
 - Each additional issuer is held to the same rules as `[auth]`: HTTPS (loopback `http`
   allowed for development), an audience, at least one algorithm. The error names the
   issuer at fault.
+- An issuer whose `jwks_uri` is not pinned is discovered from its `issuer`, and the
+  discovery document must name that issuer byte for byte, the way its tokens' `iss` is
+  compared. A trailing slash counts. A provider whose document names an issuer other than
+  its tokens' `iss` is configured by pinning `jwks_uri`, which performs no discovery.
 
 ## Delegation tokens
 

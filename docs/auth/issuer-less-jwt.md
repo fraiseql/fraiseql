@@ -15,7 +15,7 @@ is **optional**, symmetric with `audience`.
 
 | `issuer` | Behaviour |
 |----------|-----------|
-| **set** | `iss` **must be present and equal** the configured issuer. When `jwks_uri` is not pinned, `issuer` is also used for OIDC discovery. |
+| **set** | `iss` **must be present and equal** the configured issuer. When `jwks_uri` is not pinned, `issuer` is also used for OIDC discovery, and the discovery document must name that same issuer, byte for byte, or the server refuses to start. |
 | **unset** | `iss` is **not validated**. Discovery is impossible without an issuer, so `jwks_uri` **must be pinned**. |
 
 In both modes the token is still gated by:

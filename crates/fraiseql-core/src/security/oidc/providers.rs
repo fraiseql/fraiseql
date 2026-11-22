@@ -61,7 +61,8 @@ pub struct OidcConfig {
     /// When set, it serves two purposes: OIDC discovery (building the
     /// `.well-known/openid-configuration` URL when `jwks_uri` is not pinned) and
     /// `iss`-claim validation — tokens must then carry a matching `iss`. Include
-    /// a trailing slash if the provider expects one.
+    /// a trailing slash if the provider expects one. A discovery document must name
+    /// this issuer byte for byte, or the validator is refused.
     ///
     /// When unset (`None`), `iss` is **not** validated and no discovery is
     /// performed, so `jwks_uri` must be pinned explicitly. This supports `IdPs`

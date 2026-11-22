@@ -81,7 +81,8 @@ impl OidcValidator {
     ///
     /// Returns error if:
     /// - Config validation fails
-    /// - OIDC discovery fails
+    /// - OIDC discovery fails, or its document names an issuer other than the configured one, byte
+    ///   for byte
     /// - JWKS endpoint cannot be determined
     pub async fn new(config: OidcConfig) -> Result<Self> {
         config.validate()?;
@@ -176,6 +177,22 @@ impl OidcValidator {
             serde_json::from_slice(&body_bytes).map_err(|e| {
                 SecurityError::SecurityConfigError(format!("Invalid OIDC discovery response: {e}"))
             })?;
+
+        // `issuer` is also what a token's `iss` is compared with, byte for byte, so a
+        // document naming any other spelling belongs to an issuer whose tokens this
+        // validator refuses, and its `jwks_uri` is not the configured issuer's keys.
+        fraiseql_guard::oidc::check_discovered_issuer(
+            &discovery_url,
+            issuer,
+            &discovery.issuer,
+            fraiseql_guard::oidc::IssuerMatch::Exact,
+        )
+        .map_err(|message| {
+            SecurityError::SecurityConfigError(format!(
+                "{message}. A provider whose discovery document names an issuer other than its \
+                 tokens' `iss` is configured by pinning `jwks_uri`, which performs no discovery"
+            ))
+        })?;
 
         tracing::info!(
             issuer = %discovery.issuer,

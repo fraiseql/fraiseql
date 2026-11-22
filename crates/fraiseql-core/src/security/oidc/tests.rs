@@ -3,7 +3,10 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 use crate::security::{
     errors::SecurityError,
-    oidc::{providers::OidcConfig, token::OidcValidator},
+    oidc::{
+        providers::{OidcConfig, TrustedIssuer},
+        token::OidcValidator,
+    },
 };
 
 // ============================================================================
@@ -372,6 +375,126 @@ async fn oidc_discovery_within_size_limit_proceeds_to_parse() {
         !msg.contains("too large"),
         "small body must not trigger size limit error: {msg}"
     );
+}
+
+// ============================================================================
+// OIDC discovery: the document must name the configured issuer
+// ============================================================================
+
+/// A provider at `mock` whose discovery document names `named` as its issuer and
+/// lists its own `/jwks`. `expected` is how many times the document must be fetched.
+async fn serve_discovery(mock: &wiremock::MockServer, named: &str, expected: u64) {
+    use wiremock::{
+        Mock, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    Mock::given(method("GET"))
+        .and(path("/.well-known/openid-configuration"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "issuer": named,
+            "jwks_uri": format!("{}/jwks", mock.uri()),
+        })))
+        .expect(expected)
+        .mount(mock)
+        .await;
+}
+
+fn discovering(issuer: &str) -> OidcConfig {
+    OidcConfig {
+        issuer: Some(issuer.to_string()),
+        audience: Some("test-audience".to_string()),
+        ..Default::default()
+    }
+}
+
+/// The refusal for `config`, whose discovery names another issuer.
+async fn discovery_refusal(config: OidcConfig) -> String {
+    let refused = OidcValidator::new(config).await.err();
+    assert!(refused.is_some(), "a document naming another issuer must refuse the validator");
+    let refused = refused.unwrap();
+    assert!(
+        matches!(refused, SecurityError::SecurityConfigError(_)),
+        "refused as the operator's configuration error: {refused:?}"
+    );
+    refused.to_string()
+}
+
+/// The positive counterweight: a document naming the configured issuer, byte for
+/// byte, builds the validator.
+#[tokio::test]
+async fn a_discovery_document_naming_the_configured_issuer_is_accepted() {
+    let mock = wiremock::MockServer::start().await;
+    serve_discovery(&mock, &mock.uri(), 1).await;
+    let validator = OidcValidator::new(discovering(&mock.uri())).await;
+    assert!(validator.is_ok(), "{:?}", validator.err());
+}
+
+/// `OpenID` Connect Discovery 1.0 §4.3: the document's `issuer` is the issuer it was
+/// requested for. Another host, another path on the same host (another tenant or
+/// realm), or a trailing slash on either side: a token's `iss` is compared with the
+/// configured value byte for byte, so each names an issuer this validator refuses
+/// tokens from, and its `jwks_uri` is not the configured issuer's.
+#[tokio::test]
+async fn a_discovery_document_naming_another_issuer_refuses_the_validator() {
+    let mock = wiremock::MockServer::start().await;
+    let base = mock.uri();
+    let cases = [
+        (base.clone(), "https://other.example.com".to_string()),
+        (base.clone(), format!("{base}/realms/other")),
+        (base.clone(), format!("{base}/")),
+        (format!("{base}/"), base.clone()),
+    ];
+    for (configured, named) in cases {
+        mock.reset().await;
+        serve_discovery(&mock, &named, 1).await;
+        let message = discovery_refusal(discovering(&configured)).await;
+        assert!(
+            message.contains(&format!("{named:?}")),
+            "names the document's issuer: {message}"
+        );
+        assert!(
+            message.contains(&format!("{configured:?}")),
+            "names the configured one: {message}"
+        );
+        assert!(message.contains("jwks_uri"), "names pinning `jwks_uri`: {message}");
+    }
+}
+
+/// Every issuer that discovers is checked, not only the primary.
+#[tokio::test]
+async fn an_additional_issuers_discovery_document_is_checked_too() {
+    let primary = wiremock::MockServer::start().await;
+    serve_discovery(&primary, &primary.uri(), 1).await;
+    let extra = wiremock::MockServer::start().await;
+    serve_discovery(&extra, "https://other.example.com", 1).await;
+
+    let mut config = discovering(&primary.uri());
+    config.additional_issuers.push(TrustedIssuer {
+        issuer:               extra.uri(),
+        audience:             Some("test-audience".to_string()),
+        additional_audiences: Vec::new(),
+        allowed_algorithms:   vec!["RS256".to_string()],
+        clock_skew_secs:      60,
+        jwks_uri:             None,
+        scope_claim:          "scope".to_string(),
+        require_jti:          false,
+    });
+    let message = discovery_refusal(config).await;
+    assert!(message.contains(&format!("{:?}", extra.uri())), "names that issuer: {message}");
+}
+
+/// A pinned `jwks_uri` performs no discovery, so a provider whose document disagrees
+/// with its own tokens is configured by pinning it.
+#[tokio::test]
+async fn a_pinned_jwks_uri_never_reads_the_discovery_document() {
+    let mock = wiremock::MockServer::start().await;
+    serve_discovery(&mock, "https://other.example.com", 0).await;
+    let mut config = discovering(&mock.uri());
+    config.jwks_uri = Some(format!("{}/jwks", mock.uri()));
+    let validator = OidcValidator::new(config).await;
+    assert!(validator.is_ok(), "{:?}", validator.err());
+    mock.verify().await;
 }
 
 // ============================================================================

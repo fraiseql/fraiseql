@@ -52,6 +52,14 @@ disagreed, and the promise was the part that was wrong.
   where a compiled schema loads, so a server refuses at boot a compiled schema holding
   such a name, written by hand or by an earlier compiler. Every example and SDK
   conformance fixture compiles unchanged.
+- **The `[auth]` token validator refuses a discovery document that names another issuer
+  (#2135).** Boot refuses an `[auth]` issuer, or an `[[auth.additional_issuers]]` one,
+  whose discovery document names a different issuer, compared byte for byte, a trailing
+  slash included. The refusal names both. Every such configuration already refused
+  tokens whose `iss` matches the document. One whose tokens match the configured issuer
+  but whose document does not must now pin `jwks_uri`. An issuer with a pinned `jwks_uri`
+  performs no discovery and is unaffected.
+
 - **`WindowExecutionPlan` carries the fact table it reads, in `metadata` (#2263).** The
   window generator now lowers its `where` against the table, as an aggregate plan's is.
   A plan built by hand names the table's `FactTableMetadata`; one from `WindowPlanner`
