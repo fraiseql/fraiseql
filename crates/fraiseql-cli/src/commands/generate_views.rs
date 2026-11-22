@@ -219,7 +219,9 @@ async fn validate_ddl_against_database(sql: &str) -> Result<()> {
     let mut client = pool.get().await.context("--validate: failed to connect to DATABASE_URL")?;
 
     let txn = client.transaction().await.context("--validate: failed to open transaction")?;
-    txn.batch_execute(sql)
+    // Under the workspace's DDL lock, held until the rollback: a create races on the
+    // catalogue whether or not it commits.
+    txn.batch_execute(&fraiseql_guard::ddl::lock_prefixed(sql))
         .await
         .context("generated DDL was rejected by PostgreSQL — the file is NOT valid")?;
     txn.rollback().await.context("--validate: rollback failed")?;

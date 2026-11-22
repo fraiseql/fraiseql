@@ -5,6 +5,7 @@
 //! mutation functions under the v2.4.0 protocol.
 
 use anyhow::{Context, Result};
+use fraiseql_guard::ddl::lock_prefixed;
 use tracing::info;
 
 use crate::output::OutputFormatter;
@@ -137,15 +138,17 @@ async fn apply_helpers(pool: &deadpool_postgres::Pool, formatter: &OutputFormatt
     // trailing `DO`-block self-test, so it CANNOT be split on `;` — doing so
     // shreds the function bodies and installs nothing (#426). `batch_execute`
     // uses the simple-query protocol, which understands dollar-quoting and
-    // multi-statement scripts (the same way `psql -f` runs the file).
+    // multi-statement scripts (the same way `psql -f` runs the file). Each script runs as
+    // one implicit transaction under the workspace's DDL lock, so `fraiseql setup` against a
+    // database a server is booting on does not race the server's own scripts.
     client
-        .batch_execute(MUTATION_RESPONSE_SQL)
+        .batch_execute(&lock_prefixed(MUTATION_RESPONSE_SQL))
         .await
         .context("Failed to install FraiseQL helper library")?;
 
     // Install the cascade builders (depend on the `fraiseql` schema created above).
     client
-        .batch_execute(CASCADE_SQL)
+        .batch_execute(&lock_prefixed(CASCADE_SQL))
         .await
         .context("Failed to install FraiseQL cascade builders")?;
 
@@ -156,7 +159,7 @@ async fn apply_helpers(pool: &deadpool_postgres::Pool, formatter: &OutputFormatt
     // re-run. Row-Level Security on the change-log is a separate operator step (observers
     // migration 12), intentionally not installed here.
     client
-        .batch_execute(CHANGELOG_CONTRACT_SQL)
+        .batch_execute(&lock_prefixed(CHANGELOG_CONTRACT_SQL))
         .await
         .context("Failed to install FraiseQL change-log contract table")?;
 

@@ -35,6 +35,8 @@ fraiseql-functions = { workspace = true }
 # `fraiseql_time::Timestamp` (the event payload timestamp) directly — pulled in with
 # the harness.
 fraiseql-error = { workspace = true, optional = true }
+# The workspace's one DDL advisory lock, for `fraiseql setup`'s scripts.
+fraiseql-guard = { workspace = true }
 fraiseql-time = { workspace = true, optional = true }
 fraiseql-server = { workspace = true, optional = true, features = ["cli"] }
 glob = "0.3"

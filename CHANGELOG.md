@@ -1471,6 +1471,9 @@ disagreed, and the promise was the part that was wrong.
   The storage migration took a key of its own, so it did not exclude the server running
   the same script at boot, nor any other FraiseQL script on the catalogue; it now takes the
   workspace's key.
+  `fraiseql setup` runs its three scripts under the lock too, so it does not race a server
+  booting on the same database, and `generate-views --validate` takes it in the
+  transaction it rolls back.
 - **`PostgresSourceCursorStore::init` is safe to run concurrently (#1868).** Two callers
   initialising the store against one database at once could fail: on a database that had
   never held the cursor table, one lost on a catalogue unique index

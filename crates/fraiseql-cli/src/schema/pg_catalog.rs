@@ -498,6 +498,8 @@ impl PgCatalog {
             return Ok(PlpgsqlCheckOutcome::Unavailable);
         }
         let client = self.pool.get().await.context("failed to acquire DB connection")?;
+        // Reason: not a FraiseQL-owned script; a compile step installs a third-party
+        // extension it reads from, so it takes no DDL lock.
         client
             .batch_execute("CREATE EXTENSION IF NOT EXISTS plpgsql_check")
             .await

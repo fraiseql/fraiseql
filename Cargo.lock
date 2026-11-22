@@ -3785,6 +3785,7 @@ dependencies = [
  "fraiseql-db",
  "fraiseql-error",
  "fraiseql-functions",
+ "fraiseql-guard",
  "fraiseql-observers",
  "fraiseql-server",
  "fraiseql-test-support",
