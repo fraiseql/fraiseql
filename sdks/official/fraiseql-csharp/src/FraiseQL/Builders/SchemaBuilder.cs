@@ -12,7 +12,8 @@ namespace FraiseQL.Builders;
 /// <para>
 /// <see cref="SchemaBuilder"/> is an alternative to attribute-based registration.
 /// On <see cref="ToSchema"/>, it merges its own accumulated types/queries/mutations
-/// with anything already registered in <see cref="SchemaRegistry.Instance"/>.
+/// with everything <see cref="SchemaExporter"/> exports from
+/// <see cref="SchemaRegistry.Instance"/>, enums, functions and observers included.
 /// If a type name is registered both ways, the fluent registration wins.
 /// </para>
 /// </remarks>
@@ -80,47 +81,40 @@ public sealed class SchemaBuilder
     }
 
     /// <summary>
-    /// Builds an <see cref="IntermediateSchema"/> by merging fluent registrations with
-    /// anything already in <see cref="SchemaRegistry.Instance"/>.
-    /// Fluent registrations win on name conflicts.
+    /// Builds an <see cref="IntermediateSchema"/> by laying fluent registrations over
+    /// everything <see cref="SchemaExporter.ToSchema"/> exports from
+    /// <see cref="SchemaRegistry.Instance"/>: types, input types, queries, mutations,
+    /// enums, functions and observers. Fluent registrations win on name conflicts.
     /// </summary>
     /// <returns>The merged intermediate schema.</returns>
     public IntermediateSchema ToSchema()
     {
+        // The registry's half is the exporter's own schema, not a second reading of the
+        // registry: a second reading is what kept every section the exporter later learned
+        // (input types declared by attribute, enums, functions, observers) out of this one.
+        var registry = SchemaExporter.ToSchema();
+
         var fluentTypeNames = new HashSet<string>(_types.Select(t => t.Name));
         var fluentQueryNames = new HashSet<string>(_queries.Select(q => q.GetName()));
         var fluentMutationNames = new HashSet<string>(_mutations.Select(m => m.GetName()));
 
-        // Start with registry types not overridden by fluent types
-        var registryTypes = SchemaRegistry.Instance.GetAllTypes()
+        var allTypes = registry.Types
             .Where(t => !fluentTypeNames.Contains(t.Name))
-            .Select(SchemaExporter.TypeDefinitionToIntermediate)
-            .ToList();
-
-        var registryQueries = SchemaRegistry.Instance.GetAllQueries()
-            .Where(q => !fluentQueryNames.Contains(q.Name))
-            .ToList();
-
-        var registryMutations = SchemaRegistry.Instance.GetAllMutations()
-            .Where(m => !fluentMutationNames.Contains(m.Name))
-            .ToList();
-
-        // Merge fluent additions
-        var allTypes = registryTypes
             .Concat(_types.Select(c => c.Build()))
             .ToList()
             .AsReadOnly();
 
-        var mergedQueries = registryQueries
+        var mergedQueries = registry.Queries
+            .Where(q => !fluentQueryNames.Contains(q.Name))
             .Concat(_queries.Select(q => q.Build()))
             .ToList();
 
-        var mergedMutations = registryMutations
+        var mergedMutations = registry.Mutations
+            .Where(m => !fluentMutationNames.Contains(m.Name))
             .Concat(_mutations.Select(m => m.Build()))
             .ToList();
 
-        // Collect input types from registry
-        var mergedInputTypes = SchemaRegistry.Instance.GetAllInputTypes().ToList();
+        var mergedInputTypes = (registry.InputTypes ?? Array.Empty<IntermediateInputType>()).ToList();
 
         // Generate CRUD operations for fluent types that have crud enabled
         foreach (var tc in _types.Where(t => t.HasCrud))
@@ -140,12 +134,13 @@ public sealed class SchemaBuilder
             }
         }
 
-        return new IntermediateSchema(
-            "2.0.0",
-            allTypes,
-            mergedQueries.AsReadOnly(),
-            mergedMutations.AsReadOnly(),
-            mergedInputTypes.Count > 0 ? mergedInputTypes.AsReadOnly() : null);
+        return registry with
+        {
+            Types = allTypes,
+            Queries = mergedQueries.AsReadOnly(),
+            Mutations = mergedMutations.AsReadOnly(),
+            InputTypes = mergedInputTypes.Count > 0 ? mergedInputTypes.AsReadOnly() : null,
+        };
     }
 
     /// <summary>

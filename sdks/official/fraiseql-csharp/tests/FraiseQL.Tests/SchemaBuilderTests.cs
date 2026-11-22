@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FraiseQL.Attributes;
 using FraiseQL.Builders;
+using FraiseQL.Export;
 using FraiseQL.Registry;
 using Xunit;
 
@@ -20,6 +21,72 @@ public sealed class SchemaBuilderTests : IDisposable
 
         [GraphQLField(Type = "String", Nullable = false)]
         public string Name { get; set; } = string.Empty;
+    }
+
+    [GraphQLType(Name = "AuthorInput", IsInput = true)]
+    private class AuthorInputFixture
+    {
+        [GraphQLField(Type = "String", Nullable = false)]
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private enum Genre { Fiction, Poetry }
+
+    /// <summary>
+    /// One of everything the registry holds, each through its own registration path:
+    /// an attribute type, an attribute input type, a registered input type, a query, a
+    /// mutation, an enum, a function and an observer.
+    /// </summary>
+    private static void RegisterOneOfEach()
+    {
+        var registry = SchemaRegistry.Instance;
+        registry.Register(typeof(AuthorFixture));
+        registry.Register(typeof(AuthorInputFixture));
+        registry.RegisterInputType("AuthorFilter",
+            new[] { new FraiseQL.Models.IntermediateInputField("name", "String", true) });
+        QueryBuilder.Query("authors").ReturnType("Author").ReturnsList().SqlSource("v_author").Register();
+        MutationBuilder.Mutation("createAuthor")
+            .ReturnType("Author").SqlSource("fn_create_author").Operation("insert").Register();
+        registry.RegisterEnum<Genre>();
+        FunctionBuilder.Function("notify_author").Trigger("after:mutation:Author:insert").Register();
+        ObserverBuilder.Observer("authorCreated")
+            .Entity("Author")
+            .Event("INSERT")
+            .Action(ObserverAction.Email("ops@example.com", "s", "b"))
+            .Register();
+    }
+
+    [Fact]
+    public void ABuilderWithNoFluentAdditionsExportsWhatTheExporterExports()
+    {
+        RegisterOneOfEach();
+
+        Assert.Equal(SchemaExporter.Export(), new SchemaBuilder().Export());
+    }
+
+    [Fact]
+    public void AFluentTypeKeepsTheRegistrysEnumsFunctionsAndObservers()
+    {
+        RegisterOneOfEach();
+
+        var schema = new SchemaBuilder()
+            .Type("Book", t => t.SqlSource("v_book").Field("id", "ID"))
+            .ToSchema();
+
+        Assert.Equal(new[] { "Genre" }, schema.Enums!.Select(e => e.Name));
+        Assert.Equal(new[] { "notify_author" }, schema.Functions!.Select(f => f.Name));
+        Assert.Equal(new[] { "authorCreated" }, schema.Observers!.Select(o => o.Name));
+    }
+
+    [Fact]
+    public void AnAttributeInputTypeIsAnInputTypeNotAnOutputType()
+    {
+        RegisterOneOfEach();
+
+        var schema = new SchemaBuilder().ToSchema();
+
+        Assert.DoesNotContain("AuthorInput", schema.Types.Select(t => t.Name));
+        Assert.Contains("AuthorInput", schema.InputTypes!.Select(t => t.Name));
     }
 
     [Fact]

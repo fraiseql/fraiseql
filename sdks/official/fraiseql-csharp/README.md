@@ -182,8 +182,7 @@ ObserverBuilder.Observer("orderShipped")
 A webhook takes exactly one of `url` and `urlEnv`. A Slack action posts to the URL in
 `SLACK_WEBHOOK_URL` unless `webhookUrl` or `webhookUrlEnv` names another. The email
 sender is the server's SMTP configuration. An observer with no `Retry` runs on the
-server's own policy. `SchemaExporter` exports registered observers; `SchemaBuilder`
-merges only types, queries, mutations and input types, so it does not.
+server's own policy.
 
 ## Fluent SchemaBuilder API
 
@@ -211,8 +210,9 @@ new SchemaBuilder()
     .ExportToFile("schema.json");
 ```
 
-`SchemaBuilder.ToSchema()` merges fluent registrations with anything already in
-`SchemaRegistry.Instance`. Fluent registrations win on name conflicts.
+`SchemaBuilder.ToSchema()` merges fluent registrations with everything `SchemaExporter`
+exports from `SchemaRegistry.Instance`: types, input types, queries, mutations, enums,
+functions and observers. Fluent registrations win on name conflicts.
 
 ---
 

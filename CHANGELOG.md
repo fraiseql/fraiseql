@@ -1333,6 +1333,15 @@ disagreed, and the promise was the part that was wrong.
   an argument, by a second registry that did not carry the rich scalars; both registries
   now hold the names `FieldType::parse` reads as scalars.
 
+- **C#: `SchemaBuilder` exports everything the registry holds (#2289).**
+  `SchemaBuilder.ToSchema()` read the registry's types, queries, mutations and
+  registered input types itself. It dropped registered enums, functions and observers,
+  with no error and nothing for `fraiseql compile` to refuse, and it put a
+  `[GraphQLType(IsInput = true)]` type in `types` as an output type, a shape the exporter
+  stopped writing in #849. It now starts from the exporter's own schema and lays the
+  fluent registrations over it, so with no fluent additions the two export the same
+  document.
+
 - **Go: `RegisterTypes` exports fields in declaration order, and returns a registration
   error (#2275).** It built each type from a map, so its fields came out in a different
   order on each run, and it discarded `RegisterType`'s error, so a type registered twice
