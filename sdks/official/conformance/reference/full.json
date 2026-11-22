@@ -234,6 +234,32 @@
           "scoped_like_parent": true
         }
       ]
+    },
+    {
+      "name": "LedgerEntry",
+      "sql_source": "v_ledger_entry",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "amount",
+          "type": "BigInt",
+          "nullable": false
+        },
+        {
+          "name": "balance",
+          "type": "BigInt",
+          "nullable": true
+        },
+        {
+          "name": "transferIds",
+          "type": "[BigInt!]",
+          "nullable": false
+        }
+      ]
     }
   ],
   "enums": [
@@ -481,6 +507,25 @@
       "inject_params": {
         "tenant_id": "jwt:tenant_id"
       }
+    },
+    {
+      "name": "ledgerEntriesByAccount",
+      "return_type": "LedgerEntry",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_ledger_entry",
+      "arguments": [
+        {
+          "name": "accountNumber",
+          "type": "BigInt",
+          "nullable": false
+        },
+        {
+          "name": "transferIds",
+          "type": "[BigInt!]",
+          "nullable": true
+        }
+      ]
     }
   ],
   "mutations": [

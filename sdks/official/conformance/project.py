@@ -128,6 +128,16 @@ LIST_QUERY = "readingSeriesByIds"
 SCOPED_EMBEDDING_TYPE = "OrderShipment"
 SCOPED_EMBEDDING_QUERY = "tenantOrderShipments"
 
+# The `bigint_field` construct owns `LedgerEntry`, and `bigint_argument` the query that
+# takes a `BigInt` (#2258). A 64-bit integer published as `Int` is refused at read time
+# once its value passes 32 bits, so the scalar an SDK maps its 64-bit type to is a fact
+# the author declared: a non-null field, a nullable one, and the item of a list, and on
+# the query a non-null argument and a nullable list of them. Owned for `type_crud`'s
+# reason, and two constructs for `list_fields`' one: the Rust SDK authors types and no
+# queries.
+BIGINT_TYPE = "LedgerEntry"
+BIGINT_QUERY = "ledgerEntriesByAccount"
+
 # The `function_definition` construct owns its one function (#1325). A function is not
 # a GraphQL surface at all — it is an out-of-band handler the server dispatches from the
 # compiled `functions` section, a *sibling* of the compiled schema rather than a field
@@ -238,6 +248,8 @@ CONSTRUCTS = (
     "vector_fields",
     "list_fields",
     "list_arguments",
+    "bigint_field",
+    "bigint_argument",
     "function_definition",
     "function_backed_query",
     "observer_webhook",
@@ -776,6 +788,26 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
             ],
         }
         if LIST_QUERY in queries
+        else {}
+    )
+
+    observations["bigint_field"] = (
+        {"sql_source": types[BIGINT_TYPE].get("sql_source"), "fields": _fields(types[BIGINT_TYPE])}
+        if BIGINT_TYPE in types
+        else {}
+    )
+
+    observations["bigint_argument"] = (
+        {
+            "return_type": queries[BIGINT_QUERY].get("return_type"),
+            "returns_list": queries[BIGINT_QUERY].get("returns_list"),
+            "arguments": [
+                {"name": a.get("name"), "type": a.get("arg_type"), "nullable": a.get("nullable")}
+                for a in queries[BIGINT_QUERY].get("arguments", [])
+                if isinstance(a, dict)
+            ],
+        }
+        if BIGINT_QUERY in queries
         else {}
     )
 

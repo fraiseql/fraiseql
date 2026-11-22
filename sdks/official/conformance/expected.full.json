@@ -1,4 +1,53 @@
 {
+  "bigint_argument": {
+    "arguments": [
+      {
+        "name": "accountNumber",
+        "nullable": false,
+        "type": "BigInt"
+      },
+      {
+        "name": "transferIds",
+        "nullable": true,
+        "type": {
+          "List": {
+            "item": "BigInt"
+          }
+        }
+      }
+    ],
+    "return_type": "LedgerEntry",
+    "returns_list": true
+  },
+  "bigint_field": {
+    "fields": [
+      {
+        "name": "id",
+        "nullable": false,
+        "type": "ID"
+      },
+      {
+        "name": "amount",
+        "nullable": false,
+        "type": "BigInt"
+      },
+      {
+        "name": "balance",
+        "nullable": true,
+        "type": "BigInt"
+      },
+      {
+        "name": "transferIds",
+        "nullable": false,
+        "type": {
+          "List": {
+            "item": "BigInt"
+          }
+        }
+      }
+    ],
+    "sql_source": "v_ledger_entry"
+  },
   "enum_values": {
     "Delivery": [
       [
