@@ -1,7 +1,13 @@
 #![allow(clippy::unwrap_used)] // Reason: test code
 
+use fraiseql_core::utils::config_diagnostic::schema::is_refused;
+use serde_json::Value;
+
 use super::{SERVER_CONFIG_JSON_SCHEMA_PATH, server_config_json_schema};
-use crate::server_config::build_features::{declared_features, missing_features};
+use crate::server_config::{
+    build_features::{declared_features, missing_features},
+    methods::{RefusedKey, enrich_parse_error, refused_keys},
+};
 
 /// Set by the CI leg that runs the drift test with every feature on. Where it is set, a build
 /// that leaves a feature off fails the test instead of skipping it: that leg is the one place
@@ -149,5 +155,131 @@ fn this_crates_manifest_declares_its_features() {
     }
     for key in ["default", "name", "categories", "exclude"] {
         assert!(!declared.iter().any(|f| f == key), "{key} read as a feature: {declared:?}");
+    }
+}
+
+// ── the keys the loader refuses by name ───────────────────────────────────────────
+
+/// A file writing `refused` and nothing else.
+fn file_writing(refused: &RefusedKey) -> String {
+    if refused.key.is_empty() {
+        format!("[{}]\nx = 1\n", refused.section)
+    } else {
+        format!("[{}]\n{} = \"x\"\n", refused.section, refused.key)
+    }
+}
+
+/// The schema node for `refused`, followed through `$ref`s and an `Option`'s value arm.
+fn schema_node<'a>(schema: &'a Value, refused: &RefusedKey) -> Option<&'a Value> {
+    let follow = |mut node: &'a Value| {
+        for _ in 0..64 {
+            if let Some(name) = node
+                .get("$ref")
+                .and_then(Value::as_str)
+                .and_then(|r| r.strip_prefix("#/$defs/"))
+            {
+                node = &schema["$defs"][name];
+            } else if let Some(arm) = node.get("anyOf").and_then(Value::as_array).and_then(|arms| {
+                arms.iter().find(|a| a.get("type").and_then(Value::as_str) != Some("null"))
+            }) {
+                node = arm;
+            } else {
+                break;
+            }
+        }
+        node
+    };
+    let section = schema["properties"].get(refused.section)?;
+    if refused.key.is_empty() {
+        return Some(section);
+    }
+    follow(section)["properties"].get(refused.key)
+}
+
+/// Every key the loader refuses by name is refused by the schema, deprecated, and described
+/// in the words the loader's refusal of a file writing it gives.
+#[test]
+fn every_key_the_loader_refuses_is_refused_by_the_schema_with_its_words() {
+    let schema = server_config_json_schema();
+    let refused = refused_keys();
+    assert!(refused.len() >= 3, "{} refused keys", refused.len());
+    for key in &refused {
+        let (_, diagnostic) = enrich_parse_error(&[], &file_writing(key), String::new());
+        let loader = diagnostic.map(|d| d.message).unwrap_or_default();
+        assert_eq!(loader, key.note, "[{}] {}: the loader's refusal", key.section, key.key);
+        let node = schema_node(&schema, key);
+        assert!(
+            node.is_some_and(is_refused),
+            "[{}] {} is not refused by the schema: {node:?}",
+            key.section,
+            key.key
+        );
+        let node = node.unwrap();
+        assert_eq!(node["deprecated"], true, "[{}] {}", key.section, key.key);
+        assert_eq!(node["description"], key.note.as_str(), "[{}] {}", key.section, key.key);
+    }
+}
+
+/// A key the schema refuses is one the loader refuses: no refusal in the schema the loader
+/// does not give.
+#[test]
+fn the_schema_refuses_only_keys_the_loader_refuses() {
+    let schema = server_config_json_schema();
+    let refused = refused_keys();
+    let mut found = Vec::new();
+    collect_refused(&schema, &schema, "", &mut Vec::new(), &mut found);
+    for (section, key) in &found {
+        assert!(
+            refused.iter().any(|r| r.section == section && r.key == key),
+            "the schema refuses [{section}] {key}, which the loader does not refuse by name"
+        );
+    }
+    assert_eq!(found.len(), refused.len(), "{found:?}");
+}
+
+/// Every refused property reachable from `node`, as (section, key): a top-level refused
+/// table is (table, ""), a refused key one table down is (table, key).
+fn collect_refused(
+    root: &Value,
+    node: &Value,
+    section: &str,
+    seen: &mut Vec<String>,
+    found: &mut Vec<(String, String)>,
+) {
+    let Some(properties) = node.get("properties").and_then(Value::as_object) else {
+        return;
+    };
+    for (name, child) in properties {
+        if is_refused(child) {
+            found.push(if section.is_empty() {
+                (name.clone(), String::new())
+            } else {
+                (section.to_owned(), name.clone())
+            });
+            continue;
+        }
+        if !section.is_empty() {
+            continue;
+        }
+        let mut target = child;
+        for _ in 0..64 {
+            if let Some(name) = target
+                .get("$ref")
+                .and_then(Value::as_str)
+                .and_then(|r| r.strip_prefix("#/$defs/"))
+            {
+                if seen.iter().any(|s| s == name) {
+                    break;
+                }
+                target = &root["$defs"][name];
+            } else if let Some(arm) = target.get("anyOf").and_then(Value::as_array).and_then(|a| {
+                a.iter().find(|a| a.get("type").and_then(Value::as_str) != Some("null"))
+            }) {
+                target = arm;
+            } else {
+                break;
+            }
+        }
+        collect_refused(root, target, name, seen, found);
     }
 }

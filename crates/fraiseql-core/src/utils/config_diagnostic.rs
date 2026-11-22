@@ -152,5 +152,7 @@ impl fmt::Display for ConfigDiagnostic {
 
 impl std::error::Error for ConfigDiagnostic {}
 
+pub mod schema;
+
 #[cfg(test)]
 mod tests;

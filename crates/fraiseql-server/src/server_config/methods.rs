@@ -89,6 +89,75 @@ const FRAISEQL_TOML_SPELLINGS: &[(&str, &str, &str, Option<&str>)] = &[
     ),
 ];
 
+/// A key the server's file refuses by name: where it is written (the section, and the key or
+/// `""` for the section itself), the note its refusal gives, and the diagnostic it carries.
+pub(super) struct RefusedKey {
+    pub(super) section: &'static str,
+    pub(super) key:     &'static str,
+    pub(super) note:    String,
+    diagnostic:         ConfigDiagnostic,
+}
+
+impl RefusedKey {
+    /// Whether `table`, a parsed server file, writes this key.
+    fn written_in(&self, table: &toml::Table) -> bool {
+        if self.key.is_empty() {
+            return table.contains_key(self.section);
+        }
+        table
+            .get(self.section)
+            .and_then(toml::Value::as_table)
+            .is_some_and(|t| t.contains_key(self.key))
+    }
+}
+
+/// Every row of [`REMOVED_SECTIONS`], [`FRAISEQL_TOML_SPELLINGS`] and [`RETIRED_SECTIONS`], in
+/// that order, with the note and diagnostic its refusal gives. The loader's notes and the
+/// configuration schema's refused keys are both read from here.
+pub(super) fn refused_keys() -> Vec<RefusedKey> {
+    let removed = REMOVED_SECTIONS.iter().map(|(key, replacement)| {
+        let note = format!(
+            "there is no `[{key}]` table in a server config file; the keys are top-level. Use \
+             {replacement}."
+        );
+        RefusedKey {
+            section: key,
+            key: "",
+            diagnostic: ConfigDiagnostic::new(DiagnosticCode::Misplaced, key, "", note.clone())
+                .with_replacement(replacement),
+            note,
+        }
+    });
+    let spellings = FRAISEQL_TOML_SPELLINGS.iter().map(|(section, key, note, spelled)| {
+        let note = format!("`[{section}] {key}` {note}.");
+        let diagnostic =
+            ConfigDiagnostic::new(DiagnosticCode::Misplaced, section, key, note.clone());
+        // A setting this file spells otherwise is fixed here; one it does not make at all
+        // belongs in fraiseql.toml.
+        let diagnostic = match spelled {
+            Some(spelled) => diagnostic.with_replacement(spelled),
+            None => diagnostic.with_belongs_in("fraiseql.toml"),
+        };
+        RefusedKey {
+            section,
+            key,
+            note,
+            diagnostic,
+        }
+    });
+    let retired = RETIRED_SECTIONS.iter().map(|(key, replacement)| {
+        let note = format!("`[{key}]` is no longer supported: {replacement}.");
+        RefusedKey {
+            section: key,
+            key: "",
+            diagnostic: ConfigDiagnostic::new(DiagnosticCode::Retired, key, "", note.clone())
+                .with_replacement(replacement),
+            note,
+        }
+    });
+    removed.chain(spellings).chain(retired).collect()
+}
+
 /// The message for a parse error in the server's file.
 ///
 /// When variables were expanded, the message gives the line and the parser's reason but not
@@ -139,45 +208,10 @@ pub(super) fn enrich_parse_error(
                 );
             }
         }
-        for (key, replacement) in REMOVED_SECTIONS {
-            if table.contains_key(*key) {
-                let note = format!(
-                    "there is no `[{key}]` table in a server config file; the keys are \
-                     top-level. Use {replacement}."
-                );
-                let _ = write!(msg, "\nnote: {note}");
-                refused(
-                    ConfigDiagnostic::new(DiagnosticCode::Misplaced, key, "", note)
-                        .with_replacement(replacement),
-                );
-            }
-        }
-        for (section, key, note, spelled) in FRAISEQL_TOML_SPELLINGS {
-            let written = table
-                .get(*section)
-                .and_then(toml::Value::as_table)
-                .is_some_and(|t| t.contains_key(*key));
-            if written {
-                let note = format!("`[{section}] {key}` {note}.");
-                let _ = write!(msg, "\nnote: {note}");
-                let diagnostic =
-                    ConfigDiagnostic::new(DiagnosticCode::Misplaced, section, key, note);
-                // A setting this file spells otherwise is fixed here; one it does not make at
-                // all belongs in fraiseql.toml.
-                refused(match spelled {
-                    Some(spelled) => diagnostic.with_replacement(spelled),
-                    None => diagnostic.with_belongs_in("fraiseql.toml"),
-                });
-            }
-        }
-        for (key, replacement) in RETIRED_SECTIONS {
-            if table.contains_key(*key) {
-                let note = format!("`[{key}]` is no longer supported: {replacement}.");
-                let _ = write!(msg, "\nnote: {note}");
-                refused(
-                    ConfigDiagnostic::new(DiagnosticCode::Retired, key, "", note)
-                        .with_replacement(replacement),
-                );
+        for refused_key in refused_keys() {
+            if refused_key.written_in(&table) {
+                let _ = write!(msg, "\nnote: {}", refused_key.note);
+                refused(refused_key.diagnostic);
             }
         }
     }
