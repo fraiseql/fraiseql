@@ -537,3 +537,255 @@ fn an_arguments_list_items_are_typed_as_declared_in_every_client() {
     assert!(rs.contains("tags: Vec<Option<String>>"), "{rs}");
     assert!(rs.contains("ids: Vec<String>"), "{rs}");
 }
+
+/// A schema with one fact table, `tf_sales`, loaded the way `generate-client` loads one, so
+/// its aggregate row and its two roots are built.
+fn fact_table_schema() -> CompiledSchema {
+    CompiledSchema::from_json(include_str!("../../tests/fixtures/fact_table_schema.json"), false)
+        .unwrap()
+}
+
+#[test]
+fn a_fact_tables_aggregate_row_is_an_object_type_of_the_types_module() {
+    let schema = fact_table_schema();
+    let ctx = super::common::SchemaCtx::new(&schema);
+
+    assert_eq!(ctx.module_of("SalesAggregateRow"), Some("types"));
+}
+
+#[test]
+fn an_aggregate_root_selects_every_field_of_its_row_and_a_window_root_none() {
+    let schema = fact_table_schema();
+    let ctx = super::common::SchemaCtx::new(&schema);
+    let roots = super::common::fact_roots(&schema);
+    let names: Vec<&str> = roots.iter().map(|r| r.name.as_str()).collect();
+    assert_eq!(names, ["sales_aggregate", "sales_window"]);
+
+    let row = schema.derived.fact_rows.iter().find(|t| t.name == "SalesAggregateRow").unwrap();
+    let expected: String = std::iter::once("__typename")
+        .chain(row.fields.iter().map(|f| f.name.as_str()))
+        .fold(String::new(), |mut out, name| {
+            out.push_str("    ");
+            out.push_str(name);
+            out.push('\n');
+            out
+        });
+    assert_eq!(super::common::fact_root_selection(&ctx, &roots[0]), expected);
+    assert_eq!(super::common::fact_root_selection(&ctx, &roots[1]), "");
+}
+
+#[test]
+fn fact_table_roots_are_query_roots_and_a_schema_never_built_has_none() {
+    let schema = fact_table_schema();
+    assert!(super::common::has_query_roots(&schema));
+
+    let unbuilt = CompiledSchema {
+        fact_tables: schema.fact_tables,
+        ..CompiledSchema::default()
+    };
+    assert!(super::common::fact_roots(&unbuilt).is_empty());
+    assert!(!super::common::has_query_roots(&unbuilt));
+}
+
+/// The `TypeScript` file `name` generated from `schema`.
+fn ts_file(schema: &CompiledSchema, name: &str) -> String {
+    super::typescript::generate(schema)
+        .unwrap()
+        .remove(&PathBuf::from(name))
+        .unwrap()
+}
+
+#[test]
+fn typescript_emits_a_fact_tables_aggregate_row_as_an_interface() {
+    let types = ts_file(&fact_table_schema(), "types.ts");
+
+    assert!(types.contains("export interface SalesAggregateRow {"), "{types}");
+    // A `numeric` measure's sum is an exact `Decimal`, a string on the wire.
+    assert!(types.contains("  revenue_sum: string | null;"), "{types}");
+}
+
+#[test]
+fn typescript_emits_a_typed_operation_for_each_fact_table_root() {
+    let queries = ts_file(&fact_table_schema(), "queries.ts");
+
+    assert!(queries.contains("export async function sales_aggregate("), "{queries}");
+    assert!(
+        queries.contains("aggregates?: SalesAggregateSelection[] | null"),
+        "the arguments are typed by the published inputs:\n{queries}"
+    );
+    assert!(queries.contains("): Promise<SalesAggregateRow[]> {"), "{queries}");
+    assert!(queries.contains("export async function sales_window("), "{queries}");
+    assert!(queries.contains("windows?: WindowSpec[] | null"), "{queries}");
+    assert!(queries.contains("): Promise<unknown[]> {"), "a window row is JSON:\n{queries}");
+    assert!(
+        queries.contains("import type { SalesAggregateRow, Store } from \"./types\";"),
+        "{queries}"
+    );
+}
+
+/// Validate `document`, the one a generator emits for fact-table root `root`, the way the
+/// server validates a request, through core's public validators, then by the nullability
+/// rule below. Returns the first refusal.
+fn validate_fact_root_document(
+    schema: &CompiledSchema,
+    root: &fraiseql_core::schema::fact_table_surface::FactRoot,
+    document: &str,
+) -> Result<(), String> {
+    use fraiseql_core::{graphql, runtime};
+
+    let parsed = graphql::parse_query(document).map_err(|e| format!("parse: {e}"))?;
+    let op = parsed.operation_name.as_deref();
+    let field = parsed.selections.first().ok_or("no root field")?;
+    if field.name != root.name {
+        return Err(format!("the document calls `{}`, not `{}`", field.name, root.name));
+    }
+    runtime::validate_variable_types(schema, schema, op, &parsed.variables, false)
+        .map_err(|e| e.to_string())?;
+    let defined: Vec<String> = parsed.variables.iter().map(|v| v.name.clone()).collect();
+    let referenced = runtime::collect_variable_references(&parsed).map_err(|e| e.to_string())?;
+    runtime::validate_variable_uses(op, &defined, &referenced, false).map_err(|e| e.to_string())?;
+    runtime::validate_variables_used(op, &defined, &referenced).map_err(|e| e.to_string())?;
+    runtime::validate_argument_values(
+        &format!("Query.{}", root.name),
+        &root.arguments,
+        &field.arguments,
+        &parsed.variables,
+    )
+    .map_err(|e| e.to_string())?;
+    if let Some(row) = &root.row_type {
+        graphql::validate_selection_set(schema, row, &field.nested_fields)
+            .map_err(|e| e.to_string())?;
+        // The selection is the row's own fields: each selected field is checked against the
+        // published row.
+        let row = schema.derived.fact_rows.iter().find(|t| &t.name == row).unwrap();
+        if let Some(unknown) = field
+            .nested_fields
+            .iter()
+            .find(|f| f.name != "__typename" && !row.fields.iter().any(|r| r.name == f.name))
+        {
+            return Err(format!("`{}` is no field of `{}`", unknown.name, row.name));
+        }
+    }
+    for (name, declared) in declared_variable_types(document) {
+        let argument = root
+            .arguments
+            .iter()
+            .find(|a| a.name == name)
+            .ok_or_else(|| format!("`${name}` names no argument of `{}`", root.name))?;
+        if !variable_allowed_at(&declared, &argument.arg_type, argument.nullable) {
+            return Err(format!(
+                "`${name}` is declared `{declared}`, which `{}` at a `{}` position does not \
+                 allow",
+                argument.name,
+                argument.arg_type.to_graphql_string()
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Each variable an operation declares, with its type as the document writes it.
+///
+/// Read from the text, not from core's parse: core's `GraphQLType` keeps no item
+/// nullability (`[X]` and `[X!]` parse alike), which is the half of a list declaration
+/// the rule below needs.
+fn declared_variable_types(document: &str) -> Vec<(String, String)> {
+    let header = document.lines().next().unwrap_or_default();
+    let Some(open) = header.find('(') else {
+        return Vec::new();
+    };
+    let close = header.rfind(')').unwrap();
+    header[open + 1..close]
+        .split(", ")
+        .map(|decl| {
+            let (name, declared) = decl.split_once(": ").unwrap();
+            (name.trim_start_matches('$').to_string(), declared.to_string())
+        })
+        .collect()
+}
+
+/// GraphQL § 5.8.5's nullability half: a variable may be used at a position only when its
+/// declared type is at least as strict, at the position and at each list level. Core does
+/// not check this yet (#1617); this rule stands in for that check here, and is replaced by
+/// core's when #1617 is fixed.
+fn variable_allowed_at(declared: &str, position: &FieldType, position_nullable: bool) -> bool {
+    let (inner, non_null) =
+        declared.strip_suffix('!').map_or((declared, false), |inner| (inner, true));
+    if !non_null && !position_nullable {
+        return false;
+    }
+    match position {
+        FieldType::List {
+            item,
+            nullable_items,
+        } => inner
+            .strip_prefix('[')
+            .and_then(|rest| rest.strip_suffix(']'))
+            .is_some_and(|item_declared| variable_allowed_at(item_declared, item, *nullable_items)),
+        other => !inner.starts_with('[') && inner == innermost_name(other),
+    }
+}
+
+/// The named type inside a field type's list and non-null wrappers.
+fn innermost_name(field_type: &FieldType) -> String {
+    field_type
+        .to_graphql_string()
+        .trim_matches(|c| matches!(c, '[' | ']' | '!'))
+        .to_string()
+}
+
+/// The documents a generator emitted for each fact-table root, extracted from its source by
+/// `extract`, which is handed the root's constant name.
+fn assert_fact_root_documents_validate(
+    schema: &CompiledSchema,
+    language: &str,
+    extract: impl Fn(&str) -> String,
+) {
+    let roots = super::common::fact_roots(schema);
+    assert!(!roots.is_empty(), "the fixture publishes no fact-table root");
+    for root in roots {
+        let document = extract(&super::common::const_name(&root.name));
+        if let Err(refusal) = validate_fact_root_document(schema, root, &document) {
+            panic!("{language} `{}`: {refusal}\n{document}", root.name);
+        }
+    }
+}
+
+/// The text between `open` and the next `close` after it, in `source`.
+fn between(source: &str, open: &str, close: &str) -> String {
+    let start =
+        source.find(open).unwrap_or_else(|| panic!("no `{open}` in:\n{source}")) + open.len();
+    let end = source[start..].find(close).unwrap() + start;
+    source[start..end].to_string()
+}
+
+/// The validator itself: each refusal it is relied on for, against a document no generator
+/// wrote. A stricter variable than the position is allowed (§ 5.8.5), a looser one is not,
+/// at the list's items too.
+#[test]
+fn the_fact_root_document_validator_refuses_what_the_server_would_and_what_core_cannot_yet() {
+    let schema = fact_table_schema();
+    let root = schema.fact_root("sales_aggregate").unwrap();
+    let check = |doc: &str| validate_fact_root_document(&schema, root, doc);
+    let ok = "query sales_aggregate($aggregates: [SalesAggregateSelection!], $limit: Int) {\n  \
+              sales_aggregate(aggregates: $aggregates, limit: $limit) {\n    count\n  }\n}";
+    check(ok).unwrap();
+    check(&ok.replace("$limit: Int)", "$limit: Int!)")).expect("a stricter variable is allowed");
+    let loose = check(&ok.replace("[SalesAggregateSelection!]", "[SalesAggregateSelection]"));
+    assert!(
+        loose.unwrap_err().contains("does not allow"),
+        "a nullable item at `[X!]` is refused"
+    );
+    assert!(check(&ok.replace("Int)", "Nope)")).is_err(), "an unknown variable type");
+    assert!(check(&ok.replace(", limit: $limit", "")).is_err(), "a variable never used");
+    assert!(check(&ok.replace("count", "nope")).is_err(), "a field the row does not have");
+}
+
+#[test]
+fn typescript_fact_root_documents_validate_against_the_schema() {
+    let schema = fact_table_schema();
+    let queries = ts_file(&schema, "queries.ts");
+    assert_fact_root_documents_validate(&schema, "TypeScript", |constant| {
+        between(&queries, &format!("const {constant} = `"), "`")
+    });
+}

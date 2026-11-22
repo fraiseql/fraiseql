@@ -233,3 +233,85 @@ fn a_big_int_past_two_to_the_53_round_trips_exactly() {
     let encoded: serde_json::Value = serde_json::from_slice(&run.stdout).unwrap();
     assert_eq!(encoded, served, "the generated type did not carry every digit");
 }
+
+const FACT_TABLE_FIXTURE: &str = include_str!("fixtures/fact_table_schema.json");
+
+const FACT_TABLE_TSCONFIG: &str = r#"{
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "skipLibCheck": true
+  },
+  "include": ["generated/**/*.ts", "facts.ts"]
+}
+"#;
+
+/// A consumer of a fact table's two roots: an aggregate grouped and filtered through the
+/// published inputs, read back through its typed row, and a window, whose rows are `JSON`.
+const FACTS_TS: &str = r#"import {
+  FraiseqlClient,
+  sales_aggregate,
+  sales_window,
+  type SalesAggregateRow,
+} from "./generated";
+
+type Exactly<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+const region: Exactly<SalesAggregateRow["region"], string | null> = true;
+const revenue: Exactly<SalesAggregateRow["revenue_sum"], string | null> = true;
+const count: Exactly<SalesAggregateRow["count"], number | null> = true;
+
+export async function demo(client: FraiseqlClient): Promise<void> {
+  const rows = await sales_aggregate(client, {
+    where: { region_eq: "EU" },
+    groupBy: { region: true, occurred_on_month: true },
+    aggregates: [{ revenue_sum: true, count: true }],
+    limit: 10,
+  });
+  for (const row of rows) {
+    console.log(row.region, row.occurred_on_month, row.revenue_sum, row.count);
+  }
+  const everything: SalesAggregateRow[] = await sales_aggregate(client);
+
+  const windowed: unknown[] = await sales_window(client, {
+    select: [{ type: "measure", name: "revenue", alias: "revenue" }],
+  });
+  console.log(everything.length, windowed.length, region && revenue && count);
+}
+"#;
+
+/// The fact-table roots are typed operations a consumer calls: `tsc --strict` accepts
+/// arguments built from the published inputs and holds the aggregate row's fields to their
+/// published types.
+#[test]
+#[ignore = "requires network (npx typescript) and Node"]
+fn fact_table_roots_type_check_in_a_consumer_project() {
+    let schema = CompiledSchema::from_json(FACT_TABLE_FIXTURE, false).unwrap();
+    let generated = typescript::generate(&schema).unwrap();
+
+    let project = tempfile::tempdir().unwrap();
+    let generated_dir = project.path().join("generated");
+    std::fs::create_dir_all(&generated_dir).unwrap();
+    for (rel, content) in &generated {
+        std::fs::write(generated_dir.join(rel), content).unwrap();
+    }
+    std::fs::write(project.path().join("tsconfig.json"), FACT_TABLE_TSCONFIG).unwrap();
+    std::fs::write(project.path().join("facts.ts"), FACTS_TS).unwrap();
+
+    let output = Command::new("npx")
+        .args(["-y", "-p", "typescript@5", "tsc", "-p", "tsconfig.json"])
+        .current_dir(project.path())
+        .output()
+        .expect("failed to run npx tsc — is Node installed?");
+
+    assert!(
+        output.status.success(),
+        "tsc rejected the fact-table consumer project:\n--- stdout ---\n{}\n--- stderr ---\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+}

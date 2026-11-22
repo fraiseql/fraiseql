@@ -1,0 +1,101 @@
+{
+  "types": [
+    {
+      "name": "Store",
+      "sql_source": "v_store",
+      "jsonb_column": "data",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "name",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        }
+      ]
+    }
+  ],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "stores",
+      "return_type": "Store",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "sql_source": "v_store",
+      "auto_params": {
+        "has_where": true,
+        "has_order_by": true,
+        "has_limit": true,
+        "has_offset": true
+      },
+      "jsonb_column": "data",
+      "pagination_order": "identity"
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "fact_tables": {
+    "tf_sales": {
+      "table_name": "tf_sales",
+      "measures": [
+        {
+          "name": "revenue",
+          "sql_type": "Decimal",
+          "nullable": false
+        },
+        {
+          "name": "quantity",
+          "sql_type": "BigInt",
+          "nullable": false
+        }
+      ],
+      "dimensions": {
+        "name": "data",
+        "paths": [
+          {
+            "name": "category",
+            "json_path": "data->>'category'",
+            "data_type": "text"
+          }
+        ]
+      },
+      "denormalized_filters": [
+        {
+          "name": "region",
+          "sql_type": "Text",
+          "indexed": true
+        },
+        {
+          "name": "occurred_on",
+          "sql_type": "Date",
+          "indexed": true
+        }
+      ],
+      "calendar_dimensions": [],
+      "native_measures": {},
+      "native_dimension_mapping": {}
+    }
+  },
+  "security": {
+    "enterprise": {
+      "audit_logging_enabled": true
+    }
+  },
+  "session_variables": {
+    "variables": [],
+    "inject_started_at": true
+  },
+  "naming_convention": "camelCase",
+  "project_name": "fact-fixture",
+  "fraiseql_version": "2.19.1"
+}

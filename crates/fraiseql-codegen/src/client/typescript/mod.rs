@@ -61,7 +61,7 @@ pub fn generate(schema: &CompiledSchema) -> Result<Generated> {
     if !schema.input_types.is_empty() {
         add(&mut files, &mut modules, "inputs", emit::inputs(&ctx));
     }
-    if !schema.queries.is_empty() {
+    if super::common::has_query_roots(schema) {
         add(&mut files, &mut modules, "queries", emit::queries(&ctx));
     }
     if !schema.mutations.is_empty() {

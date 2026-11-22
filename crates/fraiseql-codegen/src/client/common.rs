@@ -14,7 +14,7 @@ use std::{
 
 use fraiseql_core::schema::{
     ArgumentDefinition, CompiledSchema, FieldDefinition, FieldType, InterfaceDefinition,
-    TypeDefinition, UnionDefinition,
+    TypeDefinition, UnionDefinition, fact_table_surface::FactRoot,
 };
 
 /// Resolved lookups over a [`CompiledSchema`], shared by all language emitters.
@@ -32,7 +32,15 @@ pub(super) struct SchemaCtx<'a> {
 
 impl<'a> SchemaCtx<'a> {
     pub(super) fn new(schema: &'a CompiledSchema) -> Self {
-        let object_types = schema.types.iter().map(|t| (t.name.as_str(), t)).collect();
+        // A fact table's aggregate row is an object type like any other to a client: it is
+        // imported, selected and emitted by the same code. It lives in the derived state
+        // because it is no entity, and is there only once the schema is built.
+        let object_types = schema
+            .types
+            .iter()
+            .chain(&schema.derived.fact_rows)
+            .map(|t| (t.name.as_str(), t))
+            .collect();
         let interfaces = schema.interfaces.iter().map(|i| (i.name.as_str(), i)).collect();
         let unions = schema.unions.iter().map(|u| (u.name.as_str(), u)).collect();
         let enum_names = schema.enums.iter().map(|e| e.name.as_str()).collect();
@@ -289,6 +297,27 @@ fn leaf_name_lines(ctx: &SchemaCtx, type_name: &str, indent: &str) -> String {
         }
     }
     out
+}
+
+/// Whether the schema publishes any query root: a declared query, or a fact table's
+/// `_aggregate` or `_window` root.
+pub(super) const fn has_query_roots(schema: &CompiledSchema) -> bool {
+    !schema.queries.is_empty() || !schema.derived.fact_roots.is_empty()
+}
+
+/// The fact-table roots a client calls, in the order the schema publishes them. Empty for a
+/// schema whose indexes were never built, which then publishes none of their inputs either.
+pub(super) fn fact_roots(schema: &CompiledSchema) -> &[FactRoot] {
+    &schema.derived.fact_roots
+}
+
+/// The selection-set lines for a fact-table root: every field of an aggregate root's row,
+/// which answers `null` for a key the request did not compute, and none for a window
+/// root, whose rows are `JSON`.
+pub(super) fn fact_root_selection(ctx: &SchemaCtx, root: &FactRoot) -> String {
+    root.row_type
+        .as_deref()
+        .map_or_else(String::new, |row| type_selection(ctx, row, "    "))
 }
 
 /// `getUser` → `GET_USER`, `postsConnection` → `POSTS_CONNECTION`.
