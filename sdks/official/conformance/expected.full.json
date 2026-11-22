@@ -159,6 +159,11 @@
       "org_path": "org"
     }
   },
+  "fact_table_measure_column": {
+    "tf_sale": {
+      "total": "order_total"
+    }
+  },
   "fact_tables": {
     "tf_account_day": {
       "denormalized_filters": [

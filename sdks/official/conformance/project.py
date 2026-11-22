@@ -265,6 +265,7 @@ CONSTRUCTS = (
     "mutation_invalidates_fact_tables",
     "fact_tables",
     "fact_table_hierarchy",
+    "fact_table_measure_column",
     "mutation_requires_role",
     "mutation_requires_actor",
     "mutation_retry_on_abort",
@@ -1002,6 +1003,23 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         name: _fact_table(table)
         for name, table in sorted(fact_tables.items())
         if isinstance(table, dict)
+    }
+
+    # The column a measure is stored in, when it is not its name, asserted by value. Kept
+    # out of `fact_tables` so an SDK that authors fact tables and cannot name a measure's
+    # column declares that one gap. An SDK that drops it emits a measure the compiler reads
+    # from a column the relation does not have.
+    observations["fact_table_measure_column"] = {
+        name: columns
+        for name, table in sorted(fact_tables.items())
+        if isinstance(table, dict)
+        and (
+            columns := {
+                m["name"]: m["column"]
+                for m in table.get("measures", [])
+                if isinstance(m, dict) and m.get("column") is not None
+            }
+        )
     }
 
     # #1909: the hierarchy an `ltree` denormalized filter names, asserted by value. It is

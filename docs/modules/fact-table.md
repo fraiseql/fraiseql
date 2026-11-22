@@ -399,6 +399,28 @@ fraiseql.fact_table(
 `fraiseql.fact_table()` is a plain function, not a decorator. The `sales_aggregate` and
 `sales_window` roots follow from the `tf_sales` name; nothing is declared per query.
 
+### A measure stored under another column
+
+A measure is read from the column of its `name`. A pre-aggregated view that stores it under
+another name declares that column:
+
+```python
+measures=[
+    {"name": "volume", "sql_type": "numeric", "nullable": False, "column": "volume_total"},
+]
+```
+
+The measure is still published as `volume` (`volume_sum`, `volume_avg`, …) and typed by its
+`sql_type`, as every measure is: a `numeric` one is a `Decimal`, its digits exact. Every read
+of it (an aggregate, `HAVING`, a window, a semi-additive reduction) reads `"volume_total"`,
+quoted. `column` must be one SQL identifier, `[A-Za-z_][A-Za-z0-9_]*` within 63 bytes; the
+compiler refuses anything else. `fraiseql validate facts` matches the measure against the
+database on its column, and reports a declared `sql_type` the column does not have.
+
+The `native_measures` section this replaces mapped a name to a column without a type, so
+every result of such a measure was a `Float`. A schema or compiled artifact still carrying
+it is refused, naming `measures[].column`.
+
 Explicit declarations override introspected metadata and are preferred in production
 deployments where sample-based discovery may be unreliable.
 

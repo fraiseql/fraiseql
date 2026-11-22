@@ -417,7 +417,10 @@ fraiseql.fact_table(
     "tf_sale",
     type_name="Order",
     row_scope="relation",
-    measures=[{"name": "total", "sql_type": "numeric", "nullable": False}],
+    # A measure stored under another column: published as `total`, read from `order_total`.
+    measures=[
+        {"name": "total", "sql_type": "numeric", "nullable": False, "column": "order_total"}
+    ],
     dimensions={
         "name": "data",
         "paths": [{"name": "status", "json_path": "data->>'status'", "data_type": "text"}],

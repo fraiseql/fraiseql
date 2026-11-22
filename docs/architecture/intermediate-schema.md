@@ -509,14 +509,15 @@ OLAP-style fact table for aggregate queries.
 | `type_name` | `string?` | The type the table is read as (alias `type`) |
 | `row_scope` | `"relation"?` | The relation filters its own rows by tenant, on values the server sets per request; the server adds no tenant predicate. Required on a tenant-scoped fact table that no row policy or `inject_params` scopes ([fact tables](../modules/fact-table.md#tenant-scoping-of-aggregate-and-window-roots)) |
 | `inject_params` | `object?` | Filters the server composes into every aggregate and window over the table: `{column: {"source": "jwt", "claim": …}}` or `{column: "jwt:<claim>"}`, each column a denormalized filter. Absent, inherited from the linked type's `inject_params`. Not with `row_scope` ([fact tables](../modules/fact-table.md#the-fact-tables-own-filters-inject_params)) |
-| `measures` | `{name, sql_type, nullable}[]` | Numeric measures |
+| `measures` | `{name, sql_type, nullable, additivity?, column?}[]` | Numeric measures. `column` is the SQL column a measure is stored in when it is not `name`: one identifier. The measure is published as `name` and typed by `sql_type` either way |
 | `dimensions` | `{name, paths: {name, json_path, data_type}[]}` | The JSONB dimensions column |
 | `denormalized_filters` | `{name, sql_type, indexed, hierarchy?}[]` | Filter columns. `hierarchy` names the `[hierarchies.<name>]` an `LTREE` path column belongs to, for node-id filters |
-| `native_measures` | `{[path]: column}?` | Measures stored as flat columns |
 | `native_dimension_mapping` | `{[path]: column}?` | Dimensions stored as flat columns; each column must be declared in `denormalized_filters` (it gives the column its type) |
 
 A fact table gives the `<name>_aggregate` root field. There is no `aggregate_queries`
-section: the compiler refuses one.
+section: the compiler refuses one. Nor is there a `native_measures` section: a measure
+stored under another column declares it as `measures[].column`, and the compiler (and the
+server, loading an older artifact) refuses the section by name.
 
 The `<name>_aggregate` and `<name>_window` root fields read the fact table `tf_<name>`, and
 take their request (`groupBy` or `select`, `aggregates` or `windows`, `where`, `having`,

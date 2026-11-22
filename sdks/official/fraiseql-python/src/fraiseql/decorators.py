@@ -1986,7 +1986,6 @@ def fact_table(  # noqa: PLR0913 — public API; all parameters are meaningful
     type_name: str | None = None,
     row_scope: str | None = None,
     inject: dict[str, str] | None = None,
-    native_measures: dict[str, str] | None = None,
     native_dimension_mapping: dict[str, str] | None = None,
 ) -> None:
     """Declare a fact table: what its ``<name>_aggregate`` and ``<name>_window`` roots read (#1797).
@@ -1998,9 +1997,11 @@ def fact_table(  # noqa: PLR0913 — public API; all parameters are meaningful
     Args:
         table_name: The relation, ``tf_<name>``; its roots are ``<name>_aggregate`` and
             ``<name>_window``.
-        measures: Aggregatable columns: ``{"name", "sql_type", "nullable"}``, and an optional
+        measures: Aggregatable columns: ``{"name", "sql_type", "nullable"}``, an optional
             ``"additivity"`` (``{"kind": "additive" | "semi_additive" | "delta" |
-            "non_additive", ...}``) for a measure not additive over time.
+            "non_additive", ...}``) for a measure not additive over time, and an optional
+            ``"column"``, the SQL column the measure is stored in when it is not ``name``.
+            The measure is published as ``name`` and typed by its ``sql_type`` either way.
         dimensions: The JSONB dimensions column: ``{"name", "paths": [{"name", "json_path",
             "data_type"}]}``. Absent: column ``data``, no declared paths.
         denormalized_filters: Flat columns to filter and bucket by: ``{"name", "sql_type",
@@ -2018,7 +2019,6 @@ def fact_table(  # noqa: PLR0913 — public API; all parameters are meaningful
             ``denormalized_filters``, equal to the caller's claim. Absent, the table inherits
             its linked type's ``inject_params``, when the type declares any. Not with
             ``row_scope``.
-        native_measures: Measure paths stored as flat columns: ``{path: column}``.
         native_dimension_mapping: Dimension paths stored as flat columns: ``{path: column}``.
             Each column must be a denormalized filter.
 
@@ -2063,8 +2063,6 @@ def fact_table(  # noqa: PLR0913 — public API; all parameters are meaningful
     definition["denormalized_filters"] = (
         denormalized_filters if denormalized_filters is not None else []
     )
-    if native_measures is not None:
-        definition["native_measures"] = native_measures
     if native_dimension_mapping is not None:
         definition["native_dimension_mapping"] = native_dimension_mapping
     SchemaRegistry.register_fact_table(definition)

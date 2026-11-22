@@ -789,7 +789,8 @@
         {
           "name": "total",
           "sql_type": "numeric",
-          "nullable": false
+          "nullable": false,
+          "column": "order_total"
         }
       ],
       "dimensions": {

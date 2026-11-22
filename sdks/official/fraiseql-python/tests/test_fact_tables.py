@@ -34,6 +34,7 @@ def test_every_declared_key_reaches_the_schema():
         "name": "closing_balance",
         "sql_type": "numeric",
         "nullable": False,
+        "column": "closing_balance_total",
         "additivity": {
             "kind": "semi_additive",
             "over": "day",
@@ -57,7 +58,6 @@ def test_every_declared_key_reaches_the_schema():
         denormalized_filters=filters,
         type_name="Account",
         row_scope="relation",
-        native_measures={"closing_balance": "closing_balance"},
         native_dimension_mapping={"status": "status_code"},
     )
 
@@ -69,10 +69,17 @@ def test_every_declared_key_reaches_the_schema():
             "measures": [balance],
             "dimensions": dimensions,
             "denormalized_filters": filters,
-            "native_measures": {"closing_balance": "closing_balance"},
             "native_dimension_mapping": {"status": "status_code"},
         }
     ]
+
+
+def test_native_measures_is_not_a_parameter():
+    """A measure stored under another column declares it as its ``column``."""
+    with pytest.raises(TypeError, match="native_measures"):
+        fraiseql.fact_table(
+            "tf_sales", measures=[REVENUE], native_measures={"revenue": "revenue_total"}
+        )
 
 
 def test_fact_tables_omitted_when_none_registered():

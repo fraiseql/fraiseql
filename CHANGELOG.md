@@ -40,6 +40,22 @@ disagreed, and the promise was the part that was wrong.
   sqlx 0.9.1 or later. 0.9 takes SQL built at runtime only through `sqlx::AssertSqlSafe`;
   see its changelog for the rest.
 
+- **A fact table's `native_measures` is replaced by `measures[].column` (#2267).** A
+  `native_measures` entry mapped a measure's key to a column and gave no type, so every
+  result of it was published as `Float` and read through a double: a `numeric` measure's
+  sum lost every digit past the fifteenth, and a `bigint` one's `min` and `max` were
+  floats. A measure stored under another column is now an ordinary measure that names it:
+  `{"name": "volume", "sql_type": "numeric", "nullable": false, "column": "volume_total"}`.
+  It is published by its name and typed by its `sql_type` like every other measure
+  (`Decimal` for `numeric`, `BigInt` and `Decimal` per the 64-bit rules), and read from
+  its column, quoted, by aggregates, `HAVING`, windows, which could not read such a
+  measure before, and semi-additive reductions. `column` must be one SQL identifier. A
+  `schema.json` or compiled schema still carrying `native_measures` is refused, naming
+  `measures[].column`; recompile from a schema that declares the measures. The Python SDK's
+  `fact_table` no longer takes `native_measures`: put `column` on the measure.
+  `fraiseql validate facts` matches a measure against the database on its column. The
+  TypeScript and Go SDKs cannot declare `column` yet, a gap the conformance matrix lists.
+
 - **A cascade's `deleted` entry is checked like an `updated` one (#2313).** Its
   `__typename` now fills the published `typename`, so an entry with none, or naming a type
   the schema does not have or a framework-internal one, fails the mutation, whatever the

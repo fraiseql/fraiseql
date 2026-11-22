@@ -283,7 +283,9 @@ fraiseql.fact_table(
 
 - `table_name` (required, positional): SQL relation name, `tf_<name>`
 - `measures` (required): List of measure columns, each `{"name", "sql_type", "nullable"}`,
-  with an optional `"additivity"`
+  with an optional `"additivity"` and an optional `"column"`: the SQL column the measure is
+  stored in, when it is not `name` (a pre-aggregated view storing `volume` as
+  `volume_total`). The measure is published as `name` and typed by its `sql_type` either way
 - `dimensions` (optional): The JSONB dimensions column, `{"name", "paths": [...]}`
   (default: `{"name": "data", "paths": []}`)
 - `denormalized_filters` (optional): Flat columns to filter and bucket by, each
@@ -301,7 +303,6 @@ fraiseql.fact_table(
   claim. A caller without the claim, or without a token, is refused. Absent, the table
   inherits its linked type's `inject_params` when the type declares any; a declaration
   naming another source for the same column fails to compile. Not with `row_scope`
-- `native_measures` (optional): Measure paths stored as flat columns, `{path: column}`
 - `native_dimension_mapping` (optional): Dimension paths stored as flat columns,
   `{path: column}`; each column must be a denormalized filter
 
