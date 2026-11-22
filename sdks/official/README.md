@@ -23,7 +23,7 @@ reason shown here, and the suite fails if a declared gap is no longer true.
 | Directory | Language | Distribution | Conformance | Declared gaps |
 |-----------|----------|--------------|-------------|---------------|
 | `fraiseql-python/` | Python 3.11+ | PyPI | 40/48 | observers: the SDK ships no observer authoring surface (#2147); exact scalars: the SDK authors no `Decimal` and `UUID` construct yet (#2274) |
-| `fraiseql-typescript/` | TypeScript / Node.js | npm | 46/48 | exact scalars: the SDK authors no `Decimal` and `UUID` construct yet (#2274) |
+| `fraiseql-typescript/` | TypeScript / Node.js | npm | 48/48 | — |
 | `fraiseql-go/` | Go 1.23+ | — (source-only) | 44/48 | type_crud: the SDK ships no CRUD generator; subscription_policy: no authoring surface (#1657); exact scalars: the SDK authors no `Decimal` and `UUID` construct yet (#2274) |
 | `fraiseql-php/` | PHP 8.2+ | — (source-only) | 38/48 | fact_tables: the SDK has no fact-table authoring; subscription_policy: no authoring surface (#1657); observers: the SDK ships no observer authoring surface (#2147); exact scalars: the SDK authors no `Decimal` and `UUID` construct yet (#2274) |
 | `fraiseql-java/` | Java 21+ | — (source-only) | 46/48 | fact_tables: `@GraphQLFactTable` registers an ordinary type and emits no fact table; subscription_policy: no authoring surface (#1657) |

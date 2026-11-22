@@ -203,6 +203,21 @@ function authorFull(): void {
     { sqlSource: "v_shift_slot" }
   );
 
+  // #2274: the exact scalars are `Decimal` and `UUID`, by name; an `id` is `ID`.
+  registerTypeFields(
+    "PriceQuote",
+    asFields({
+      id: "ID",
+      amount: "Decimal",
+      fxRate: "Decimal | null",
+      deltas: "Decimal[]",
+      requestId: "UUID",
+      issuerId: "UUID | null",
+    }),
+    undefined,
+    { sqlSource: "v_price_quote" }
+  );
+
   // Lists (#1586, #1608): the GraphQL type string, every level as written.
   registerTypeFields(
     "ReadingSeries",
@@ -280,6 +295,16 @@ function authorFull(): void {
     asFields({ startsAfter: "LocalDateTime", exceptAt: "[LocalDateTime!] | null" }),
     undefined,
     { sql_source: "v_shift_slot" }
+  );
+
+  registerQuery(
+    "priceQuotesByRequest",
+    "PriceQuote",
+    true,
+    false,
+    asFields({ requestId: "UUID", minAmount: "Decimal | null" }),
+    undefined,
+    { sql_source: "v_price_quote" }
   );
 
   registerQuery(

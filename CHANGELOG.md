@@ -920,6 +920,14 @@ disagreed, and the promise was the part that was wrong.
     `"LocalDateTime"`. A `Date` is an instant and stays `DateTime`. `LocalDateTime` is a
     known scalar name.
 
+- **TypeScript reads its primitive type names as their constructors (#2274).**
+  `typeToGraphQL`, and so `extractFieldInfo` and `extractFunctionSignature`, read
+  `"number"` as `Float`, `"string"` as `String` and `"boolean"` as `Boolean`, plain, with
+  `| null` and as a list's item, as `Number`, `String` and `Boolean` already were. Written
+  as is, each was a name the compiler refuses; both functions' documented examples had
+  promised the mapping. `"Date"` stays the engine's calendar `Date`, the `Date`
+  constructor `DateTime`.
+
 - **`compile --database` warns on a view casting a document's text to a temporal type
   (#2213).** A served view, or with gRPC enabled a row view (`vr_<sql_source>`), whose
   definition reads a key as text cast to `timestamptz`, `timestamp`, `date` or `time`

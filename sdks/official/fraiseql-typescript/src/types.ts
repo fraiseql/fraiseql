@@ -74,8 +74,9 @@ export function typeToGraphQL(type: unknown): [graphqlType: string, nullable: bo
       return [`[${scalarSpelling(elementType)}!]`, false];
     }
 
-    if (type === "bigint") {
-      return ["BigInt", false];
+    const primitive = PRIMITIVE_SCALARS.get(type);
+    if (primitive !== undefined) {
+      return [primitive, false];
     }
 
     // Recognize scalar types (ID, DateTime, Email, etc.)
@@ -90,9 +91,21 @@ export function typeToGraphQL(type: unknown): [graphqlType: string, nullable: bo
   throw new Error(`Unsupported type: ${type}`);
 }
 
-/** TypeScript's `bigint` type name is the engine's `BigInt`; any other name is as written. */
+/**
+ * TypeScript's primitive type names, read as their constructors are (#2258, #2274): written
+ * as is, each is a name the compiler refuses. `"Date"` is not among them: it is the engine's
+ * calendar `Date`, and a type string is a GraphQL name wherever it is one.
+ */
+const PRIMITIVE_SCALARS: ReadonlyMap<string, string> = new Map([
+  ["bigint", "BigInt"],
+  ["number", "Float"],
+  ["string", "String"],
+  ["boolean", "Boolean"],
+]);
+
+/** A primitive type name as its scalar; any other name is as written. */
 function scalarSpelling(name: string): string {
-  return name === "bigint" ? "BigInt" : name;
+  return PRIMITIVE_SCALARS.get(name) ?? name;
 }
 
 /**
@@ -147,7 +160,7 @@ export interface FieldInfo {
  *   email: "string | null"
  * };
  * extractFieldInfo(fields) => {
- *   id: { type: "Int", nullable: false },
+ *   id: { type: "Float", nullable: false },
  *   name: { type: "String", nullable: false },
  *   email: { type: "String", nullable: true }
  * }
@@ -211,8 +224,8 @@ export interface FunctionSignature {
  *   "User[]"
  * ) => {
  *   arguments: [
- *     { name: "limit", type: "Int", nullable: false },
- *     { name: "offset", type: "Int", nullable: false }
+ *     { name: "limit", type: "Float", nullable: false },
+ *     { name: "offset", type: "Float", nullable: false }
  *   ],
  *   returnType: { type: "[User!]", nullable: false, isList: true }
  * }
