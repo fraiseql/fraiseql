@@ -40,9 +40,11 @@ pub struct IntermediateFactTable {
     pub dimensions:               IntermediateDimensions,
     /// Denormalized filter columns
     pub denormalized_filters:     Vec<IntermediateFilter>,
-    /// Maps JSONB measure paths to flat SQL column names for pre-aggregated views
-    #[serde(default)]
-    pub native_measures:          HashMap<String, String>,
+    /// Removed: a measure stored under another column name declares it as
+    /// `measures[].column`. Read only so the compiler can refuse it by name, rather than
+    /// drop the measures it declared.
+    #[serde(default, skip_serializing)]
+    pub native_measures:          Option<serde_json::Value>,
     /// Maps deep JSONB dimension paths to flat SQL column names for GROUP BY
     #[serde(default)]
     pub native_dimension_mapping: HashMap<String, String>,
@@ -63,6 +65,9 @@ pub struct IntermediateMeasure {
         skip_serializing_if = "fraiseql_core::compiler::fact_table::Additivity::is_additive"
     )]
     pub additivity: fraiseql_core::compiler::fact_table::Additivity,
+    /// The SQL column the measure is read from, when it is not `name`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub column:     Option<String>,
 }
 
 /// Dimensions metadata

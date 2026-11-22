@@ -327,10 +327,8 @@ pub enum AggregateExpression {
         function: AggregateFunction,
         /// Result alias
         alias:    String,
-        /// Whether the column is a native SQL column (not JSONB-extracted).
-        ///
-        /// When `true`, the SQL generator quotes the column identifier and skips
-        /// any `::numeric` cast that would otherwise be needed for JSONB text values.
+        /// Whether `column` is a declared SQL column (a measure's `column`, or a reduction
+        /// slot) the SQL generator quotes, rather than the measure's own name.
         #[serde(default)]
         native:   bool,
     },
@@ -396,9 +394,7 @@ impl AggregationPlan {
     /// round it through a JSON number.
     #[must_use]
     pub fn decimal_aliases(&self) -> Vec<&str> {
-        let sql_type = |measure: &str| {
-            self.metadata.measures.iter().find(|m| m.name == measure).map(|m| &m.sql_type)
-        };
+        let sql_type = |measure: &str| self.metadata.measure(measure).map(|m| &m.sql_type);
         let is_decimal =
             |measure: &str| sql_type(measure) == Some(&super::fact_table::SqlType::Decimal);
         let sums_to_numeric =
@@ -433,6 +429,31 @@ impl AggregationPlan {
             _ => None,
         });
         keys.chain(aggregates).collect()
+    }
+}
+
+/// The SQL that reads `name`: a measure's
+/// [`MeasureColumn::sql`](super::fact_table::MeasureColumn::sql), or `name` itself for a dimension
+/// path or a filter column.
+fn measure_sql(metadata: &FactTableMetadata, name: &str) -> String {
+    metadata
+        .measure(name)
+        .map_or_else(|| name.to_string(), super::fact_table::MeasureColumn::sql)
+}
+
+/// `function` over `measure`, read from its declared `column` (quoted) when it has one.
+fn measure_aggregate(
+    metadata: &FactTableMetadata,
+    measure: &str,
+    function: AggregateFunction,
+    alias: &str,
+) -> AggregateExpression {
+    let column = metadata.measure(measure).and_then(|m| m.column.clone());
+    AggregateExpression::MeasureAggregate {
+        native: column.is_some(),
+        column: column.unwrap_or_else(|| measure.to_string()),
+        function,
+        alias: alias.to_string(),
     }
 }
 
@@ -480,7 +501,7 @@ impl AggregationPlanner {
         let aggregate_expressions = Self::validate_aggregates(&request.aggregates, &metadata)?;
 
         // Validate HAVING conditions
-        let having_conditions = Self::validate_having(&request.having, &aggregate_expressions)?;
+        let having_conditions = Self::validate_having(&request.having, &metadata)?;
 
         // An ORDER BY sorts the groups, so it names one of their outputs.
         Self::validate_order_by(&request)?;
@@ -667,7 +688,7 @@ impl AggregationPlanner {
                     }
 
                     expressions.push(AggregateExpression::CountDistinct {
-                        column: field.clone(),
+                        column: measure_sql(metadata, field),
                         alias:  alias.clone(),
                     });
                 },
@@ -676,14 +697,13 @@ impl AggregationPlanner {
                     function,
                     alias,
                 } => {
-                    // Validate measure exists (or is a dimension path, filter, or native measure)
-                    let measure_exists = metadata.measures.iter().any(|m| m.name == *measure);
+                    // Validate measure exists (or is a dimension path or filter)
+                    let measure_exists = metadata.measure(measure).is_some();
                     let is_dimension = metadata.dimensions.paths.iter().any(|p| p.name == *measure);
                     let is_filter =
                         metadata.denormalized_filters.iter().any(|f| f.name == *measure);
-                    let is_native_measure = metadata.native_measures.contains_key(measure.as_str());
 
-                    if !measure_exists && !is_dimension && !is_filter && !is_native_measure {
+                    if !measure_exists && !is_dimension && !is_filter {
                         return Err(FraiseQLError::Validation {
                             message: format!(
                                 "Measure or field '{}' not found in fact table '{}'",
@@ -702,7 +722,7 @@ impl AggregationPlanner {
                             | AggregateFunction::StringAgg
                     ) {
                         expressions.push(AggregateExpression::AdvancedAggregate {
-                            column:    measure.clone(),
+                            column:    measure_sql(metadata, measure),
                             function:  *function,
                             alias:     alias.clone(),
                             delimiter: if *function == AggregateFunction::StringAgg {
@@ -713,20 +733,7 @@ impl AggregationPlanner {
                             order_by:  None,
                         });
                     } else {
-                        // Check if the measure references a native measure mapping
-                        let (resolved_column, is_native) = if let Some(native_col) =
-                            metadata.native_measures.get(measure.as_str())
-                        {
-                            (native_col.clone(), true)
-                        } else {
-                            (measure.clone(), false)
-                        };
-                        expressions.push(AggregateExpression::MeasureAggregate {
-                            column:   resolved_column,
-                            function: *function,
-                            alias:    alias.clone(),
-                            native:   is_native,
-                        });
+                        expressions.push(measure_aggregate(metadata, measure, *function, alias));
                     }
                 },
                 AggregateSelection::BoolAggregate {
@@ -763,7 +770,7 @@ impl AggregationPlanner {
     /// Validate HAVING conditions
     fn validate_having(
         conditions: &[HavingCondition],
-        _aggregate_expressions: &[AggregateExpression],
+        metadata: &FactTableMetadata,
     ) -> Result<Vec<ValidatedHavingCondition>> {
         let mut validated = Vec::new();
 
@@ -775,7 +782,7 @@ impl AggregationPlanner {
                 },
                 AggregateSelection::CountDistinct { field, alias } => {
                     AggregateExpression::CountDistinct {
-                        column: field.clone(),
+                        column: measure_sql(metadata, field),
                         alias:  alias.clone(),
                     }
                 },
@@ -793,7 +800,7 @@ impl AggregationPlanner {
                             | AggregateFunction::StringAgg
                     ) {
                         AggregateExpression::AdvancedAggregate {
-                            column:    measure.clone(),
+                            column:    measure_sql(metadata, measure),
                             function:  *function,
                             alias:     alias.clone(),
                             delimiter: if *function == AggregateFunction::StringAgg {
@@ -804,12 +811,7 @@ impl AggregationPlanner {
                             order_by:  None,
                         }
                     } else {
-                        AggregateExpression::MeasureAggregate {
-                            column:   measure.clone(),
-                            function: *function,
-                            alias:    alias.clone(),
-                            native:   false,
-                        }
+                        measure_aggregate(metadata, measure, *function, alias)
                     }
                 },
                 AggregateSelection::BoolAggregate {

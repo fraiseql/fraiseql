@@ -560,6 +560,7 @@ async fn doctor_names_a_carried_forward_measure_no_index_serves() {
         sql_type: SqlType::BigInt,
         nullable: false,
         additivity,
+        column: None,
     };
     let filter = |name: &str, sql_type| FilterColumn {
         name: name.to_string(),
@@ -588,7 +589,6 @@ async fn doctor_names_a_carried_forward_measure_no_index_serves() {
                 filter("day", SqlType::Date),
             ],
             calendar_dimensions:      vec![],
-            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         },
     );

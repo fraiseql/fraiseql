@@ -69,6 +69,7 @@ pub(super) fn schema_with_fact_table() -> crate::schema::CompiledSchema {
                 sql_type:   SqlType::Decimal,
                 nullable:   false,
                 additivity: crate::compiler::fact_table::Additivity::Additive,
+                column:     None,
             }],
             dimensions:               DimensionColumn {
                 name:  "data".to_string(),
@@ -89,7 +90,6 @@ pub(super) fn schema_with_fact_table() -> crate::schema::CompiledSchema {
                 },
             ],
             calendar_dimensions:      vec![],
-            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         },
     );

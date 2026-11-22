@@ -26,6 +26,7 @@ fn test_validate_valid_fact_table() {
             sql_type:   SqlType::Decimal,
             nullable:   false,
             additivity: crate::compiler::fact_table::Additivity::Additive,
+            column:     None,
         }],
         dimensions:               DimensionColumn {
             name:  "dimensions".to_string(),
@@ -33,7 +34,6 @@ fn test_validate_valid_fact_table() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
-        native_measures:          HashMap::new(),
         native_dimension_mapping: HashMap::new(),
     };
 
@@ -55,7 +55,6 @@ fn test_validate_missing_measures() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
-        native_measures:          HashMap::new(),
         native_dimension_mapping: HashMap::new(),
     };
 
@@ -76,6 +75,7 @@ fn test_validate_non_numeric_measure() {
             sql_type:   SqlType::Text, // Wrong type for measure!
             nullable:   false,
             additivity: crate::compiler::fact_table::Additivity::Additive,
+            column:     None,
         }],
         dimensions:               DimensionColumn {
             name:  "dimensions".to_string(),
@@ -83,7 +83,6 @@ fn test_validate_non_numeric_measure() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
-        native_measures:          HashMap::new(),
         native_dimension_mapping: HashMap::new(),
     };
 
@@ -744,41 +743,41 @@ fn test_fact_table_declaration_large_grain() {
     assert_eq!(decl.dimensions.len(), 4);
 }
 
-// ==================== Native Measures Tests ====================
+// ==================== Measure Column Tests ====================
 
 #[test]
-fn test_fact_table_with_native_measures() {
+fn a_measure_reads_its_declared_column() {
     let json_str = r#"{
         "table_name": "mv_daily_sales",
-        "measures": [{"name": "volume", "sql_type": "BigInt", "nullable": false}],
+        "measures": [{"name": "volume", "sql_type": "BigInt", "nullable": false,
+                      "column": "volume_total"}],
         "dimensions": {"name": "data", "paths": []},
-        "denormalized_filters": [],
-        "calendar_dimensions": [],
-        "native_measures": {"measures.volume": "volume", "measures.cost": "cost"}
+        "denormalized_filters": []
     }"#;
 
     let ft: FactTableMetadata = serde_json::from_str(json_str).unwrap();
-    assert_eq!(ft.native_measures.get("measures.volume"), Some(&"volume".to_string()));
-    assert_eq!(ft.native_measures.get("measures.cost"), Some(&"cost".to_string()));
-    assert_eq!(ft.native_measures.len(), 2);
+    let volume = ft.measure("volume").unwrap();
+    assert_eq!(volume.column.as_deref(), Some("volume_total"));
+    assert_eq!(volume.sql(), r#""volume_total""#);
 }
 
 #[test]
-fn test_native_measures_backward_compat_absent() {
+fn a_measure_without_a_column_reads_its_name() {
     let json_str = r#"{
         "table_name": "tf_sales",
         "measures": [{"name": "revenue", "sql_type": "Decimal", "nullable": false}],
         "dimensions": {"name": "data", "paths": []},
-        "denormalized_filters": [],
-        "calendar_dimensions": []
+        "denormalized_filters": []
     }"#;
 
     let ft: FactTableMetadata = serde_json::from_str(json_str).unwrap();
-    assert!(ft.native_measures.is_empty());
+    assert_eq!(ft.measure("revenue").unwrap().sql(), "revenue");
+    let json = serde_json::to_value(&ft).unwrap();
+    assert!(json["measures"][0].get("column").is_none(), "{json}");
 }
 
 #[test]
-fn test_native_measures_roundtrip() {
+fn a_measure_column_roundtrips() {
     let ft = FactTableMetadata {
         table_name:               "mv_daily_sales".to_string(),
         type_name:                None,
@@ -789,6 +788,7 @@ fn test_native_measures_roundtrip() {
             sql_type:   SqlType::BigInt,
             nullable:   false,
             additivity: crate::compiler::fact_table::Additivity::Additive,
+            column:     Some("volume_total".to_string()),
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -796,16 +796,42 @@ fn test_native_measures_roundtrip() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
-        native_measures:          HashMap::from([(
-            "measures.volume".to_string(),
-            "volume".to_string(),
-        )]),
         native_dimension_mapping: HashMap::new(),
     };
 
     let json = serde_json::to_string(&ft).unwrap();
     let deserialized: FactTableMetadata = serde_json::from_str(&json).unwrap();
     assert_eq!(ft, deserialized);
+}
+
+/// A measure's `column` is interpolated into SQL: one identifier, or the table is refused.
+#[test]
+fn a_column_that_is_not_one_identifier_is_a_violation() {
+    let table = |column: &str| {
+        serde_json::from_value::<FactTableMetadata>(serde_json::json!({
+            "table_name": "tf_sales",
+            "measures": [{"name": "volume", "sql_type": "BigInt", "nullable": false,
+                          "column": column}],
+            "dimensions": {"name": "data", "paths": []},
+            "denormalized_filters": []
+        }))
+        .unwrap()
+    };
+    for hostile in [
+        r#"volume") FROM tf_sales; --"#,
+        "volume total",
+        "public.volume",
+        "1volume",
+        "",
+        &"v".repeat(64),
+    ] {
+        let violations = table(hostile).column_violations();
+        assert_eq!(violations.len(), 1, "{hostile:?}: {violations:?}");
+        assert!(violations[0].contains("`volume`"), "{violations:?}");
+    }
+    for fine in ["volume_total", "_v", "VolumeTotal", &"v".repeat(63)] {
+        assert!(table(fine).column_violations().is_empty(), "{fine:?}");
+    }
 }
 
 // ==================== Native Dimension Mapping Tests ====================
@@ -864,7 +890,6 @@ fn test_native_dimension_mapping_roundtrip() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
-        native_measures:          HashMap::new(),
         native_dimension_mapping: HashMap::from([(
             "dimensions.category.id".to_string(),
             "category_id".to_string(),

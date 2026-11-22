@@ -18,7 +18,7 @@
 
 mod common;
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use fraiseql_core::{
     compiler::fact_table::{
@@ -67,6 +67,7 @@ fn metadata(mapping: &[(&str, &str)]) -> FactTableMetadata {
             sql_type:   SqlType::Decimal,
             nullable:   false,
             additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
+            column:     None,
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -79,7 +80,6 @@ fn metadata(mapping: &[(&str, &str)]) -> FactTableMetadata {
             hierarchy: None,
         }],
         calendar_dimensions:      vec![],
-        native_measures:          HashMap::new(),
         native_dimension_mapping: mapping
             .iter()
             .map(|(k, v)| ((*k).to_string(), (*v).to_string()))

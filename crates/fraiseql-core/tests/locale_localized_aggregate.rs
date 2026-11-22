@@ -39,6 +39,7 @@ fn fact_table() -> FactTableMetadata {
             sql_type:   SqlType::BigInt,
             nullable:   false,
             additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
+            column:     None,
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -50,7 +51,6 @@ fn fact_table() -> FactTableMetadata {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
-        native_measures:          HashMap::new(),
         native_dimension_mapping: HashMap::new(),
     }
 }
@@ -167,6 +167,7 @@ fn a_localized_dimension_loads_and_a_localized_measure_does_not() {
         sql_type:   SqlType::Text,
         nullable:   true,
         additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
+        column:     None,
     });
     measured.fact_tables.insert(TABLE.to_string(), table);
     let err = CompiledSchema::from_json(&serde_json::to_string(&measured).unwrap(), false)

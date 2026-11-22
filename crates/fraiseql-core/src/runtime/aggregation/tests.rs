@@ -21,6 +21,7 @@ fn create_aggregation_test_metadata() -> crate::compiler::fact_table::FactTableM
             sql_type:   SqlType::Decimal,
             nullable:   false,
             additivity: crate::compiler::fact_table::Additivity::Additive,
+            column:     None,
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -33,7 +34,6 @@ fn create_aggregation_test_metadata() -> crate::compiler::fact_table::FactTableM
             hierarchy: None,
         }],
         calendar_dimensions:      vec![],
-        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     }
 }
@@ -49,6 +49,7 @@ fn create_test_plan() -> AggregationPlan {
             sql_type:   SqlType::Decimal,
             nullable:   false,
             additivity: crate::compiler::fact_table::Additivity::Additive,
+            column:     None,
         }],
         dimensions:               DimensionColumn {
             name:  "dimensions".to_string(),
@@ -61,7 +62,6 @@ fn create_test_plan() -> AggregationPlan {
             hierarchy: None,
         }],
         calendar_dimensions:      vec![],
-        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
@@ -680,7 +680,6 @@ fn make_string_where_plan(_db: DatabaseType) -> AggregationPlan {
             hierarchy: None,
         }],
         calendar_dimensions:      vec![],
-        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
@@ -740,6 +739,7 @@ fn test_parameterized_postgres_placeholder_numbering() {
             sql_type:   SqlType::Decimal,
             nullable:   false,
             additivity: crate::compiler::fact_table::Additivity::Additive,
+            column:     None,
         }],
         dimensions:               DimensionColumn {
             name:  "dimensions".to_string(),
@@ -760,7 +760,6 @@ fn test_parameterized_postgres_placeholder_numbering() {
             },
         ],
         calendar_dimensions:      vec![],
-        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
@@ -831,7 +830,6 @@ fn test_parameterized_in_array_expands_to_multiple_placeholders() {
             hierarchy: None,
         }],
         calendar_dimensions:      vec![],
-        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
     let request = AggregationRequest {
@@ -865,13 +863,11 @@ fn test_parameterized_in_array_expands_to_multiple_placeholders() {
     assert_eq!(result.params[2], serde_json::json!("c"));
 }
 
-// ==================== Native Measures Tests ====================
+// ==================== Measure Column Tests ====================
 
-#[test]
-fn test_aggregation_plan_uses_native_measure() {
-    use crate::compiler::aggregation::{AggregateExpression, AggregationPlanner};
-
-    let metadata = FactTableMetadata {
+/// `tf_daily_sales` publishes `volume`, stored as `volume_total`.
+fn column_mapped_metadata() -> FactTableMetadata {
+    FactTableMetadata {
         table_name:               "mv_daily_sales".to_string(),
         type_name:                None,
         row_scope:                FactRowScope::Server,
@@ -881,6 +877,7 @@ fn test_aggregation_plan_uses_native_measure() {
             sql_type:   SqlType::BigInt,
             nullable:   false,
             additivity: crate::compiler::fact_table::Additivity::Additive,
+            column:     Some("volume_total".to_string()),
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -888,91 +885,94 @@ fn test_aggregation_plan_uses_native_measure() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
-        native_measures:          std::collections::HashMap::from([(
-            "measures.volume".to_string(),
-            "volume".to_string(),
-        )]),
         native_dimension_mapping: std::collections::HashMap::new(),
-    };
+    }
+}
 
-    let request = AggregationRequest {
-        table_name:   "mv_daily_sales".to_string(),
+fn column_mapped_request(
+    aggregates: Vec<AggregateSelection>,
+    having: Vec<crate::compiler::aggregation::HavingCondition>,
+) -> AggregationRequest {
+    AggregationRequest {
+        table_name: "mv_daily_sales".to_string(),
         where_clause: None,
-        group_by:     vec![],
-        aggregates:   vec![AggregateSelection::MeasureAggregate {
-            measure:  "measures.volume".to_string(),
-            function: crate::compiler::aggregate_types::AggregateFunction::Sum,
-            alias:    "volume_sum".to_string(),
-        }],
-        having:       vec![],
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
-    };
+        group_by: vec![],
+        aggregates,
+        having,
+        order_by: vec![],
+        limit: None,
+        offset: None,
+    }
+}
 
-    let plan = AggregationPlanner::plan(request, metadata).unwrap();
+fn volume(function: crate::compiler::aggregate_types::AggregateFunction) -> AggregateSelection {
+    AggregateSelection::MeasureAggregate {
+        measure: "volume".to_string(),
+        function,
+        alias: "volume_agg".to_string(),
+    }
+}
+
+#[test]
+fn a_measure_with_a_column_is_planned_on_its_column() {
+    use crate::compiler::aggregation::{AggregateExpression, AggregationPlanner};
+
+    let request = column_mapped_request(
+        vec![volume(
+            crate::compiler::aggregate_types::AggregateFunction::Sum,
+        )],
+        vec![],
+    );
+    let plan = AggregationPlanner::plan(request, column_mapped_metadata()).unwrap();
     match &plan.aggregate_expressions[0] {
         AggregateExpression::MeasureAggregate { column, native, .. } => {
-            assert_eq!(column, "volume");
-            assert!(native, "native flag should be true for native measures");
+            assert_eq!(column, "volume_total");
+            assert!(native, "a declared column is quoted");
         },
         other => panic!("Expected MeasureAggregate, got: {other:?}"),
     }
 }
 
+/// Every read of the measure reads its column, quoted: the aggregate, an advanced
+/// aggregate, a distinct count and a `HAVING` condition.
 #[test]
-fn test_native_measure_sql_uses_quoted_identifier() {
-    use crate::compiler::aggregation::AggregationPlanner;
-
-    let metadata = FactTableMetadata {
-        table_name:               "mv_daily_sales".to_string(),
-        type_name:                None,
-        row_scope:                FactRowScope::Server,
-        inject_params:            indexmap::IndexMap::default(),
-        measures:                 vec![],
-        dimensions:               DimensionColumn {
-            name:  "data".to_string(),
-            paths: vec![],
-        },
-        denormalized_filters:     vec![],
-        calendar_dimensions:      vec![],
-        native_measures:          std::collections::HashMap::from([(
-            "measures.volume".to_string(),
-            "volume".to_string(),
-        )]),
-        native_dimension_mapping: std::collections::HashMap::new(),
+fn every_read_of_a_measure_with_a_column_quotes_the_column() {
+    use crate::compiler::{
+        aggregate_types::{AggregateFunction, HavingOperator},
+        aggregation::{AggregationPlanner, HavingCondition},
     };
 
-    let request = AggregationRequest {
-        table_name:   "mv_daily_sales".to_string(),
-        where_clause: None,
-        group_by:     vec![],
-        aggregates:   vec![AggregateSelection::MeasureAggregate {
-            measure:  "measures.volume".to_string(),
-            function: crate::compiler::aggregate_types::AggregateFunction::Sum,
-            alias:    "volume_sum".to_string(),
+    let request = column_mapped_request(
+        vec![
+            volume(AggregateFunction::Sum),
+            volume(AggregateFunction::ArrayAgg),
+            AggregateSelection::CountDistinct {
+                field: "volume".to_string(),
+                alias: "volume_count_distinct".to_string(),
+            },
+        ],
+        vec![HavingCondition {
+            aggregate: volume(AggregateFunction::Max),
+            operator:  HavingOperator::Gt,
+            value:     serde_json::json!(5),
         }],
-        having:       vec![],
-        order_by:     vec![],
-        limit:        None,
-        offset:       None,
-    };
-
-    let plan = AggregationPlanner::plan(request, metadata).unwrap();
-    let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = generator.generate_parameterized(&plan).unwrap();
-
-    // Native measure: SUM("volume") — quoted identifier, no ::numeric cast
-    assert!(
-        sql.sql.contains(r#"SUM("volume")"#),
-        "expected SUM(\"volume\"), got: {}",
-        sql.sql
     );
-    assert!(
-        !sql.sql.contains("::numeric"),
-        "native measure should not have ::numeric cast: {}",
-        sql.sql
-    );
+    let plan = AggregationPlanner::plan(request, column_mapped_metadata()).unwrap();
+    let sql = AggregationSqlGenerator::new(DatabaseType::PostgreSQL)
+        .generate_parameterized(&plan)
+        .unwrap()
+        .sql;
+
+    for read in [
+        r#"SUM("volume_total")"#,
+        r#"ARRAY_AGG("volume_total")"#,
+        r#"COUNT(DISTINCT "volume_total")"#,
+        r#"HAVING MAX("volume_total") > $"#,
+    ] {
+        assert!(sql.contains(read), "expected {read} in: {sql}");
+    }
+    assert!(!sql.contains("(volume)"), "the published name is not a column: {sql}");
+    assert!(!sql.contains("::numeric"), "{sql}");
 }
 
 #[test]
@@ -989,6 +989,7 @@ fn test_non_native_measure_unchanged() {
             sql_type:   SqlType::Decimal,
             nullable:   false,
             additivity: crate::compiler::fact_table::Additivity::Additive,
+            column:     None,
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -996,7 +997,6 @@ fn test_non_native_measure_unchanged() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
-        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
@@ -1049,7 +1049,6 @@ fn test_native_dimension_mapping_sql_output() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
-        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::from([(
             "dimensions.category.id".to_string(),
             "category_id".to_string(),

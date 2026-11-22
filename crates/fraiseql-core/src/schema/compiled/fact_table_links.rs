@@ -33,7 +33,6 @@ fn declared_names(metadata: &FactTableMetadata) -> Vec<&str> {
         .chain(metadata.denormalized_filters.iter().map(|f| f.name.as_str()))
         .chain(metadata.dimensions.paths.iter().map(|p| p.name.as_str()))
         .chain(metadata.calendar_dimensions.iter().map(|c| c.source_column.as_str()))
-        .chain(metadata.native_measures.keys().map(String::as_str))
         .chain(metadata.native_dimension_mapping.keys().map(String::as_str))
         .collect();
     names.sort_unstable();

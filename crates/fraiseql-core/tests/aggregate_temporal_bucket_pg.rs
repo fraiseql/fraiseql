@@ -66,6 +66,7 @@ fn fact_table() -> FactTableMetadata {
                 sql_type:   SqlType::BigInt,
                 nullable:   false,
                 additivity: Additivity::Additive,
+                column:     None,
             },
             MeasureColumn {
                 name:       "balance".to_string(),
@@ -76,6 +77,7 @@ fn fact_table() -> FactTableMetadata {
                     using:  SemiAdditiveReduction::Last,
                     entity: vec!["account_id".to_string()],
                 },
+                column:     None,
             },
         ],
         dimensions:               DimensionColumn {
@@ -89,7 +91,6 @@ fn fact_table() -> FactTableMetadata {
             filter("at_tz", SqlType::TimestampTz),
         ],
         calendar_dimensions:      vec![],
-        native_measures:          HashMap::new(),
         native_dimension_mapping: HashMap::new(),
     }
 }

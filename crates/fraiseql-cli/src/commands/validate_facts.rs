@@ -11,7 +11,9 @@ use std::{collections::HashSet, fs, path::Path};
 
 use anyhow::Result;
 use fraiseql_core::{
-    compiler::fact_table::{DatabaseIntrospector, FactTableDetector, FactTableMetadata},
+    compiler::fact_table::{
+        DatabaseIntrospector, FactTableDetector, FactTableMetadata, MeasureColumn,
+    },
     db::PostgresIntrospector,
     schema::CompiledSchema,
 };
@@ -225,17 +227,27 @@ pub(crate) fn compare_metadata(
 ) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
 
+    // A measure is stored in its declared `column` when it has one: that is the database's
+    // name for it, so it is what the introspected measures are matched on.
     let declared_measure_names: HashSet<&str> =
-        declared.measures.iter().map(|m| m.name.as_str()).collect();
+        declared.measures.iter().map(MeasureColumn::stored_column).collect();
     let actual_measure_names: HashSet<&str> =
         actual.measures.iter().map(|m| m.name.as_str()).collect();
 
     // Check for missing measures in actual
-    for name in &declared_measure_names {
-        if !actual_measure_names.contains(name) {
+    for declared_measure in &declared.measures {
+        let column = declared_measure.stored_column();
+        if !actual_measure_names.contains(column) {
+            let stored = declared_measure
+                .column
+                .as_ref()
+                .map_or_else(String::new, |c| format!(" (column '{c}')"));
             issues.push(ValidationIssue::error(
                 table_name.to_string(),
-                format!("Declared measure '{name}' not found in database"),
+                format!(
+                    "Declared measure '{}'{stored} not found in database",
+                    declared_measure.name
+                ),
             ));
         }
     }
@@ -253,7 +265,7 @@ pub(crate) fn compare_metadata(
     // Validate measure types
     for declared_measure in &declared.measures {
         if let Some(actual_measure) =
-            actual.measures.iter().find(|m| m.name == declared_measure.name)
+            actual.measures.iter().find(|m| m.name == declared_measure.stored_column())
         {
             let declared_type = format!("{:?}", declared_measure.sql_type);
             let actual_type = format!("{:?}", actual_measure.sql_type);

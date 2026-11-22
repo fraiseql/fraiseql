@@ -57,6 +57,12 @@
           "name": "quantity",
           "sql_type": "BigInt",
           "nullable": false
+        },
+        {
+          "name": "volume",
+          "sql_type": "Decimal",
+          "nullable": false,
+          "column": "volume_total"
         }
       ],
       "dimensions": {
@@ -82,7 +88,6 @@
         }
       ],
       "calendar_dimensions": [],
-      "native_measures": {},
       "native_dimension_mapping": {}
     }
   },

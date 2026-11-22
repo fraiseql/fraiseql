@@ -7,7 +7,8 @@
 //! field error past 2^31; published as `Float`, the last went through an `f64` and lost
 //! every digit past the fifteenth. An `int8` result is a `BigInt` and `SUM` of one a
 //! `Decimal`, each served as the string of its digits, and an `int8` group key is a
-//! `BigInt` a filter compares exactly. A count, and `MIN`/`MAX` of an `int4`, stay `Int`.
+//! `BigInt` a filter compares exactly. A count, and `MIN`/`MAX` of an `int4`, stay `Int`. A
+//! measure stored under another column (`column`) is typed by its `sql_type` as any other.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** creates and drops its own `tf_big_int_sale` table.
@@ -37,6 +38,7 @@ fn measure(name: &str, sql_type: SqlType) -> MeasureColumn {
         sql_type,
         nullable: false,
         additivity: Additivity::Additive,
+        column: None,
     }
 }
 
@@ -58,6 +60,11 @@ fn fact_table() -> FactTableMetadata {
         measures:                 vec![
             measure("qty", SqlType::Int),
             measure("units", SqlType::BigInt),
+            // Published as `stock`, stored in `units`: the table has no `stock` column.
+            MeasureColumn {
+                column: Some("units".to_string()),
+                ..measure("stock", SqlType::BigInt)
+            },
         ],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -68,7 +75,6 @@ fn fact_table() -> FactTableMetadata {
             filter("shelf", SqlType::Int),
         ],
         calendar_dimensions:      vec![],
-        native_measures:          HashMap::new(),
         native_dimension_mapping: HashMap::new(),
     }
 }
@@ -142,6 +148,31 @@ async fn a_64_bit_aggregate_is_served_as_its_exact_digits() {
                    "units_sum": "18446744073709551614", "units_min": "9223372036854775807",
                    "units_max": "9223372036854775807", "count": 2}),
         ]
+    );
+}
+
+/// An `int8` measure stored under another column is typed as one: its `SUM` a `Decimal`,
+/// its `MIN` and `MAX` `BigInt`s, each its exact digits through the published row type.
+#[tokio::test]
+async fn a_64_bit_measure_read_from_its_column_is_served_as_its_exact_digits() {
+    let Some(executor) = executor().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    let response = executor
+        .execute(
+            r"{ big_int_sale_aggregate(groupBy: {account: true},
+                 aggregates: [{stock_sum: true}, {stock_min: true}, {stock_max: true}],
+                 having: {stock_sum_gt: 0})
+                 { account stock_sum stock_min stock_max } }",
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        groups(&response),
+        [json!({"account": ODD, "stock_sum": "18446744073709551614",
+                "stock_min": "9223372036854775807", "stock_max": "9223372036854775807"})]
     );
 }
 

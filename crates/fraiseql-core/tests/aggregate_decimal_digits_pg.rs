@@ -8,7 +8,8 @@
 //! of a `bigint`, a `numeric` as well. So is a `numeric` filter column, as a key, as a
 //! window column and as a `where` operand. A count, and the other aggregates of a measure
 //! that is not a `Decimal`, stay numbers, as does a column declared `Float`, and ordering
-//! by an aggregate still sorts by its value, not by its text.
+//! by an aggregate still sorts by its value, not by its text. A measure stored under another
+//! column (`column`) is typed and read as any other: a `numeric` one is its digits too.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** each test creates and drops its own `tf_decimal_digits_*` table.
@@ -32,6 +33,7 @@ fn measure(name: &str, sql_type: SqlType) -> MeasureColumn {
         sql_type,
         nullable: false,
         additivity: Additivity::Additive,
+        column: None,
     }
 }
 
@@ -45,6 +47,11 @@ fn fact_table(table: &str) -> FactTableMetadata {
             measure("amount", SqlType::Decimal),
             measure("qty", SqlType::BigInt),
             measure("score", SqlType::Float),
+            // Published as `volume`, stored in `amount`: the table has no `volume` column.
+            MeasureColumn {
+                column: Some("amount".to_string()),
+                ..measure("volume", SqlType::Decimal)
+            },
         ],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -75,7 +82,6 @@ fn fact_table(table: &str) -> FactTableMetadata {
             },
         ],
         calendar_dimensions:      vec![],
-        native_measures:          HashMap::new(),
         native_dimension_mapping: HashMap::from([("list_price".to_string(), "price".to_string())]),
     }
 }
@@ -170,6 +176,43 @@ async fn an_aggregate_of_a_decimal_measure_keeps_every_digit() {
     assert_eq!(group["count"], json!(2), "a count stays a number: {group}");
 }
 
+/// A `numeric` measure stored under another column is a `Decimal` measure: every aggregate
+/// of it is the digits PostgreSQL computed over that column.
+#[tokio::test]
+async fn an_aggregate_of_a_decimal_measure_read_from_its_column_keeps_every_digit() {
+    let table = "tf_decimal_digits_column";
+    let Some(adapter) = seeded(table).await else {
+        return;
+    };
+    let mut expected = HashMap::new();
+    for function in ["sum", "avg", "min", "max", "stddev", "variance"] {
+        let digits =
+            computed(&adapter, table, &format!("{}(amount)", function.to_uppercase())).await;
+        expected.insert(format!("volume_{function}"), digits);
+    }
+
+    let big = groups(
+        adapter,
+        table,
+        json!({
+            "groupBy": { "region": true },
+            "aggregates": [
+                { "volume_sum": true }, { "volume_avg": true }, { "volume_min": true },
+                { "volume_max": true }, { "volume_stddev": true }, { "volume_variance": true }
+            ],
+            "having": { "volume_sum_gt": 1 },
+            "where": { "region_eq": "big" }
+        }),
+    )
+    .await;
+
+    let group = &big[0];
+    assert_eq!(group["volume_sum"], json!("12345678901234567.9000000000"), "{group}");
+    for (alias, digits) in &expected {
+        assert_eq!(group[alias], json!(digits), "{alias}: {group}");
+    }
+}
+
 #[tokio::test]
 async fn ordering_by_a_decimal_aggregate_sorts_its_value_not_its_text() {
     let table = "tf_decimal_digits_order";
@@ -210,10 +253,16 @@ async fn a_window_over_a_decimal_measure_keeps_every_digit() {
             { "type": "filter", "name": "id", "alias": "id" },
             { "type": "measure", "name": "amount", "alias": "amount" },
             { "type": "measure", "name": "qty", "alias": "qty" },
-            { "type": "measure", "name": "score", "alias": "score" }
+            { "type": "measure", "name": "score", "alias": "score" },
+            { "type": "measure", "name": "volume", "alias": "volume" }
         ],
         "windows": [
             window("running_sum", "measure", "running"),
+            json!({ "function": { "type": "running_sum", "measure": "volume" },
+                    "alias": "running_volume",
+                    "orderBy": [{ "field": "id", "direction": "ASC" }] }),
+            json!({ "function": { "type": "lag", "field": "volume" }, "alias": "previous_volume",
+                    "orderBy": [{ "field": "id", "direction": "ASC" }] }),
             window("running_max", "measure", "highest"),
             window("lag", "field", "previous"),
             window("first_value", "field", "first"),
@@ -245,6 +294,10 @@ async fn a_window_over_a_decimal_measure_keeps_every_digit() {
     assert_eq!(second["score"], json!(2.25), "a Float stored as numeric stays a number");
     assert_eq!(second["scored"], json!(3.75), "and so does its running sum");
     assert_eq!(second["n"], json!(2), "a rank stays a number");
+    // A measure stored under another column is read from it, as its digits.
+    assert_eq!(second["volume"], json!("0.0100000000"), "{second}");
+    assert_eq!(second["running_volume"], json!("12345678901234567.9000000000"), "{second}");
+    assert_eq!(second["previous_volume"], json!("12345678901234567.8900000000"), "{second}");
 }
 
 /// A balance carried forward per account is reduced in a common table expression first;
@@ -274,15 +327,24 @@ async fn a_carried_forward_decimal_balance_keeps_every_digit() {
         indexed: false,
         hierarchy: None,
     };
+    let carried = || Additivity::SemiAdditive {
+        over:   "day".to_string(),
+        using:  SemiAdditiveReduction::Last,
+        entity: vec!["account_id".to_string()],
+    };
     let metadata = FactTableMetadata {
-        measures: vec![MeasureColumn {
-            additivity: Additivity::SemiAdditive {
-                over:   "day".to_string(),
-                using:  SemiAdditiveReduction::Last,
-                entity: vec!["account_id".to_string()],
+        measures: vec![
+            MeasureColumn {
+                additivity: carried(),
+                ..measure("balance", SqlType::Decimal)
             },
-            ..measure("balance", SqlType::Decimal)
-        }],
+            // The same balance, published as `closing` and read from its column.
+            MeasureColumn {
+                additivity: carried(),
+                column: Some("balance".to_string()),
+                ..measure("closing", SqlType::Decimal)
+            },
+        ],
         denormalized_filters: vec![
             filter("account_id", SqlType::BigInt),
             filter("day", SqlType::Date),
@@ -295,7 +357,7 @@ async fn a_carried_forward_decimal_balance_keeps_every_digit() {
             &json!({
                 "where": { "day_gte": "2026-01-01", "day_lt": "2026-03-01" },
                 "groupBy": { "day_month": true },
-                "aggregates": [{ "balance_sum": true }],
+                "aggregates": [{ "balance_sum": true }, { "closing_sum": true }],
                 "orderBy": { "day_month": "ASC" }
             }),
             "decimal_digits_balances_aggregate",
@@ -303,20 +365,20 @@ async fn a_carried_forward_decimal_balance_keeps_every_digit() {
         )
         .await
         .unwrap();
-    let sums: Vec<&Value> = response["data"]["decimal_digits_balances_aggregate"]
+    let groups = response["data"]["decimal_digits_balances_aggregate"]
         .as_array()
-        .unwrap_or_else(|| panic!("{response}"))
-        .iter()
-        .map(|g| &g["balance_sum"])
-        .collect();
-    assert_eq!(
-        sums,
-        [
-            &json!("12345678901234567.90"),
-            &json!("1.010000000000000001")
-        ],
-        "{response}"
-    );
+        .unwrap_or_else(|| panic!("{response}"));
+    for alias in ["balance_sum", "closing_sum"] {
+        let sums: Vec<&Value> = groups.iter().map(|g| &g[alias]).collect();
+        assert_eq!(
+            sums,
+            [
+                &json!("12345678901234567.90"),
+                &json!("1.010000000000000001")
+            ],
+            "{alias}: {response}"
+        );
+    }
 }
 
 /// A `numeric` filter column is a `Decimal` wherever a fact table publishes it: its group key

@@ -751,15 +751,15 @@ fn test_array_agg_simple() {
 }
 
 #[test]
-fn test_native_measures_and_dimension_mapping_combined() {
-    // Exercises both native_measures (Phase 3) and native_dimension_mapping (Phase 4) together
+fn test_measure_columns_and_dimension_mapping_combined() {
+    // Measures read from declared columns, grouped by a mapped dimension
     let metadata = create_native_metadata();
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
 
     let query = json!({
         "aggregates": [
-            {"measures.volume_sum": true},
-            {"measures.latency_avg": true}
+            {"volume_sum": true},
+            {"latency_avg": true}
         ],
         "groupBy": {"dimensions.category.id": true}
     });
@@ -770,7 +770,7 @@ fn test_native_measures_and_dimension_mapping_combined() {
         fraiseql_core::compiler::aggregation::AggregationPlanner::plan(parsed, metadata).unwrap();
     let result = generator.generate_parameterized(&plan).unwrap();
 
-    // Native measures should produce quoted identifiers, not JSONB extraction
+    // Declared measure columns are quoted identifiers, not JSONB extraction
     assert_sql_contains(&result.sql, &["SUM(\"volume\")", "AVG(\"latency_ms\")"]);
     // Native dimension mapping should produce quoted GROUP BY column
     assert_sql_contains(&result.sql, &["GROUP BY", "\"category_id\""]);
@@ -789,7 +789,7 @@ fn test_native_and_jsonb_dimensions_coexist() {
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
 
     let query = json!({
-        "aggregates": [{"measures.volume_sum": true}],
+        "aggregates": [{"volume_sum": true}],
         "groupBy": {"dimensions.category.id": true, "source": true}
     });
 
@@ -806,14 +806,14 @@ fn test_native_and_jsonb_dimensions_coexist() {
 }
 
 #[test]
-fn test_native_measures_with_where_filter() {
-    // Native measures combined with WHERE clause on denormalized filter
+fn test_measure_columns_with_where_filter() {
+    // Measure columns combined with WHERE clause on denormalized filter
     let metadata = create_native_metadata();
     let generator = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
 
     let query = json!({
         "where": { "device_id_eq": "sensor-42" },
-        "aggregates": [{"measures.volume_sum": true}],
+        "aggregates": [{"volume_sum": true}],
         "groupBy": {"dimensions.region.code": true}
     });
 
@@ -903,7 +903,7 @@ mod table_reconciliation {
     }
 }
 
-/// Create metadata with `native_measures` and `native_dimension_mapping` for cross-feature tests
+/// Create metadata with measures stored under declared columns, and `native_dimension_mapping`
 fn create_native_metadata() -> fraiseql_core::compiler::fact_table::FactTableMetadata {
     use fraiseql_core::compiler::fact_table::*;
 
@@ -912,12 +912,29 @@ fn create_native_metadata() -> fraiseql_core::compiler::fact_table::FactTableMet
         type_name:                None,
         row_scope:                fraiseql_core::compiler::fact_table::FactRowScope::Server,
         inject_params:            indexmap::IndexMap::default(),
-        measures:                 vec![MeasureColumn {
-            name:       "raw_value".to_string(),
-            sql_type:   SqlType::Decimal,
-            nullable:   false,
-            additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
-        }],
+        measures:                 vec![
+            MeasureColumn {
+                name:       "raw_value".to_string(),
+                sql_type:   SqlType::Decimal,
+                nullable:   false,
+                additivity: Additivity::Additive,
+                column:     None,
+            },
+            MeasureColumn {
+                name:       "volume".to_string(),
+                sql_type:   SqlType::BigInt,
+                nullable:   false,
+                additivity: Additivity::Additive,
+                column:     Some("volume".to_string()),
+            },
+            MeasureColumn {
+                name:       "latency".to_string(),
+                sql_type:   SqlType::Float,
+                nullable:   false,
+                additivity: Additivity::Additive,
+                column:     Some("latency_ms".to_string()),
+            },
+        ],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
             paths: vec![DimensionPath {
@@ -933,10 +950,6 @@ fn create_native_metadata() -> fraiseql_core::compiler::fact_table::FactTableMet
             hierarchy: None,
         }],
         calendar_dimensions:      vec![],
-        native_measures:          std::collections::HashMap::from([
-            ("measures.volume".to_string(), "volume".to_string()),
-            ("measures.latency".to_string(), "latency_ms".to_string()),
-        ]),
         native_dimension_mapping: std::collections::HashMap::from([
             ("dimensions.category.id".to_string(), "category_id".to_string()),
             ("dimensions.region.code".to_string(), "region_code".to_string()),

@@ -53,6 +53,7 @@ fn metadata() -> FactTableMetadata {
             sql_type:   SqlType::Decimal,
             nullable:   false,
             additivity: Additivity::Additive,
+            column:     None,
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -77,7 +78,6 @@ fn metadata() -> FactTableMetadata {
             filter("path", SqlType::Ltree, Some("node")),
         ],
         calendar_dimensions:      vec![],
-        native_measures:          HashMap::new(),
         native_dimension_mapping: HashMap::from([("shelf".to_string(), "n".to_string())]),
     }
 }

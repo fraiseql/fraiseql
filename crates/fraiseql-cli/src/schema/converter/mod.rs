@@ -914,9 +914,17 @@ impl SchemaConverter {
     /// # Errors
     ///
     /// Returns an error for an inject source that is not `jwt:<claim>` (#1800): the table's
-    /// `inject_params` filter rows, which an absent claim cannot.
+    /// `inject_params` filter rows, which an absent claim cannot; and for a `native_measures`
+    /// section, which was removed: its measures are declared in `measures`.
     pub(crate) fn convert_fact_table(ft: IntermediateFactTable) -> Result<FactTableMetadata> {
         let owner = format!("Fact table '{}'", ft.table_name);
+        if ft.native_measures.is_some() {
+            anyhow::bail!(
+                "{owner}: `native_measures` was removed. Declare each one as a measure, with its \
+                 `sql_type`, and its column as `measures[].column`: {{\"name\": \"volume\", \
+                 \"sql_type\": \"bigint\", \"nullable\": false, \"column\": \"volume_total\"}}"
+            );
+        }
         let inject_params = ft
             .inject_params
             .into_iter()
@@ -940,6 +948,7 @@ impl SchemaConverter {
                     sql_type:   Self::parse_sql_type(&m.sql_type),
                     nullable:   m.nullable,
                     additivity: m.additivity,
+                    column:     m.column,
                 })
                 .collect(),
             dimensions: DimensionColumn {
@@ -966,7 +975,6 @@ impl SchemaConverter {
                 })
                 .collect(),
             calendar_dimensions: vec![],
-            native_measures: ft.native_measures,
             native_dimension_mapping: ft.native_dimension_mapping,
         })
     }

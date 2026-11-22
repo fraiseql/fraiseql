@@ -576,6 +576,21 @@ impl CompiledSchema {
                 path:    Some("fact_tables.measures.additivity".to_string()),
             });
         }
+        // A measure's `column` is interpolated (quoted) into every read of it.
+        let violations: Vec<String> = self
+            .fact_tables
+            .values()
+            .flat_map(crate::compiler::fact_table::FactTableMetadata::column_violations)
+            .collect();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "a measure's column is not a SQL column name:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("fact_tables.measures.column".to_string()),
+            });
+        }
         // #1530: a field typed as an object no type declares would be served with no value.
         let violations = self.unresolved_field_type_violations();
         if !violations.is_empty() {
@@ -1011,27 +1026,41 @@ impl CompiledSchema {
 /// loading), so a removed field would otherwise be ignored in silence, and what it configured
 /// would quietly not happen.
 fn refuse_removed_keys(value: &serde_json::Value) -> std::result::Result<(), FraiseQLError> {
-    // #1519: a fact table's `partial_period` had no producer, could not execute on
-    // PostgreSQL and would not recombine its branches. Ignored, the query would run on the
-    // coarse table alone.
-    let carrying: Vec<&str> = value
+    // Each key a fact table may no longer carry, and what replaced it. Ignored, either would
+    // load and then read something other than what was declared.
+    let removed: [(&str, &str); 2] = [
+        // #1519: `partial_period` had no producer, could not execute on PostgreSQL and would
+        // not recombine its branches. Ignored, the query would run on the coarse table alone.
+        (
+            "partial_period",
+            "which was removed (#1519): it had no producer and could not run on PostgreSQL. \
+             Remove the key; the table is read as declared.",
+        ),
+        // `native_measures` named a measure's column but not its type, so its results
+        // were published as `Float`. Ignored, its measures would no longer exist.
+        (
+            "native_measures",
+            "which was removed (#2267): declare each one as a measure, with its `sql_type`, \
+             and its column as `measures[].column`, then recompile.",
+        ),
+    ];
+    let tables = value
         .get("fact_tables")
         .and_then(serde_json::Value::as_object)
         .into_iter()
-        .flatten()
-        .filter(|(_, table)| table.get("partial_period").is_some())
-        .map(|(name, _)| name.as_str())
-        .collect();
-    if carrying.is_empty() {
-        return Ok(());
+        .flatten();
+    for (key, why) in removed {
+        let carrying: Vec<&str> = tables
+            .clone()
+            .filter(|(_, table)| table.get(key).is_some())
+            .map(|(name, _)| name.as_str())
+            .collect();
+        if !carrying.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!("fact table(s) {} declare `{key}`, {why}", carrying.join(", ")),
+                path:    Some(format!("fact_tables.{key}")),
+            });
+        }
     }
-    Err(FraiseQLError::Validation {
-        message: format!(
-            "fact table(s) {} declare `partial_period`, which was removed (#1519): it had no \
-             producer and could not run on PostgreSQL. Remove the key; the table is read as \
-             declared.",
-            carrying.join(", ")
-        ),
-        path:    Some("fact_tables.partial_period".to_string()),
-    })
+    Ok(())
 }

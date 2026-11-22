@@ -157,18 +157,6 @@ pub fn row_fields(table: &FactTableMetadata) -> Vec<RowField> {
     for measure in &table.measures {
         fields.extend(measure_fields(measure));
     }
-    let mut native: Vec<&String> = table.native_measures.keys().collect();
-    native.sort();
-    for key in native {
-        // A native measure is never read as `Decimal`: its results are numbers.
-        for function in MEASURE_FUNCTIONS {
-            fields.push(aggregate(
-                &format!("{key}_{function}"),
-                &format!("the `{function}` of native measure `{key}`"),
-                FieldType::Float,
-            ));
-        }
-    }
     for filter in &table.denormalized_filters {
         let name = &filter.name;
         let mut of = |function: &str, field_type: FieldType| {
@@ -217,7 +205,6 @@ pub fn unpublishable_key_violations(table: &FactTableMetadata) -> Vec<String> {
         .native_dimension_mapping
         .keys()
         .map(|k| ("native dimension mapping key", k.as_str()))
-        .chain(table.native_measures.keys().map(|k| ("native measure key", k.as_str())))
         .chain(table.dimensions.paths.iter().map(|p| ("dimension path", p.name.as_str())))
         .chain(table.measures.iter().map(|m| ("measure", m.name.as_str())))
         .chain(

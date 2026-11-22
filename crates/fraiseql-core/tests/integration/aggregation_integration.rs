@@ -47,12 +47,14 @@ fn create_test_metadata() -> FactTableMetadata {
                 sql_type:   SqlType::Decimal,
                 nullable:   false,
                 additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
+                column:     None,
             },
             MeasureColumn {
                 name:       "quantity".to_string(),
                 sql_type:   SqlType::Int,
                 nullable:   false,
                 additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
+                column:     None,
             },
         ],
         dimensions:               DimensionColumn {
@@ -94,7 +96,6 @@ fn create_test_metadata() -> FactTableMetadata {
                 ],
             }],
         }],
-        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     }
 }

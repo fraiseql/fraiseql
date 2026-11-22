@@ -70,10 +70,10 @@ struct CarryFilter {
 impl AggregationSqlGenerator {
     /// The SQL that reads a declared measure, as the plain aggregate does.
     fn measure_sql(&self, plan: &AggregationPlan, name: &str) -> String {
-        plan.metadata
-            .native_measures
-            .get(name)
-            .map_or_else(|| name.to_string(), |column| self.quote_identifier(column))
+        plan.metadata.measure(name).map_or_else(
+            || name.to_string(),
+            |m| m.column.as_deref().map_or_else(|| m.name.clone(), |c| self.quote_identifier(c)),
+        )
     }
 
     fn conjunction(parts: &[String]) -> String {

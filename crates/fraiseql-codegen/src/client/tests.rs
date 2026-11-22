@@ -587,6 +587,27 @@ fn fact_table_roots_are_query_roots_and_a_schema_never_built_has_none() {
     assert!(!super::common::has_query_roots(&unbuilt));
 }
 
+/// A `numeric` measure stored under another column is published by its name and typed as a
+/// `Decimal`, a string, in every client; its column is not a field.
+#[test]
+fn a_measure_read_from_another_column_is_a_decimal_in_every_client() {
+    let schema = fact_table_schema();
+    let ts = ts_file(&schema, "types.ts");
+    assert!(ts.contains("  volume_sum: string | null;"), "{ts}");
+    let py = py_file(&schema, "types.py");
+    assert!(py.contains("\"volume_sum\": str | None,"), "{py}");
+    let go = go_file(&schema, "types.go");
+    let go_field = go.lines().find(|l| l.contains("`json:\"volume_sum\"`")).unwrap_or_else(|| {
+        panic!("{go}");
+    });
+    assert!(go_field.contains("string"), "{go_field}");
+    let rs = rs_file(&schema, "types.rs");
+    assert!(rs.contains("    pub volume_sum: Option<String>,"), "{rs}");
+    for types in [&ts, &py, &go, &rs] {
+        assert!(!types.contains("volume_total"), "{types}");
+    }
+}
+
 /// The `TypeScript` file `name` generated from `schema`.
 fn ts_file(schema: &CompiledSchema, name: &str) -> String {
     super::typescript::generate(schema)

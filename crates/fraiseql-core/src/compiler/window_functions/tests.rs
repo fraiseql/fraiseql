@@ -14,12 +14,14 @@ fn create_test_metadata() -> FactTableMetadata {
                 sql_type:   SqlType::Decimal,
                 nullable:   false,
                 additivity: crate::compiler::fact_table::Additivity::Additive,
+                column:     None,
             },
             MeasureColumn {
                 name:       "quantity".to_string(),
                 sql_type:   SqlType::Int,
                 nullable:   false,
                 additivity: crate::compiler::fact_table::Additivity::Additive,
+                column:     None,
             },
         ],
         dimensions:               DimensionColumn {
@@ -45,7 +47,6 @@ fn create_test_metadata() -> FactTableMetadata {
             },
         ],
         calendar_dimensions:      vec![],
-        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     }
 }
@@ -258,6 +259,69 @@ fn test_window_planner_running_sum() {
     }
     assert_eq!(plan.windows[0].alias, "running_total");
     assert!(plan.windows[0].frame.is_some());
+}
+
+/// A measure stored under another column is read from it, quoted, wherever a window
+/// reads it: selected, through a value function, as a running aggregate, as a partition,
+/// and as an ordering key.
+#[test]
+fn a_window_reads_a_measure_from_its_declared_column() {
+    let mut metadata = create_test_metadata();
+    metadata.measures[0].column = Some("revenue_total".to_string());
+    let request = WindowRequest {
+        table_name:   "tf_sales".to_string(),
+        select:       vec![WindowSelectColumn::Measure {
+            name:  "revenue".to_string(),
+            alias: "revenue".to_string(),
+        }],
+        windows:      vec![
+            WindowFunctionRequest {
+                function:     WindowFunctionSpec::RunningSum {
+                    measure: "revenue".to_string(),
+                },
+                alias:        "running_total".to_string(),
+                partition_by: vec![PartitionByColumn::Measure {
+                    name: "revenue".to_string(),
+                }],
+                order_by:     vec![WindowOrderBy {
+                    field:     "revenue".to_string(),
+                    direction: OrderDirection::Asc,
+                }],
+                frame:        None,
+            },
+            WindowFunctionRequest {
+                function:     WindowFunctionSpec::Lag {
+                    field:   "revenue".to_string(),
+                    offset:  1,
+                    default: None,
+                },
+                alias:        "previous".to_string(),
+                partition_by: vec![],
+                order_by:     vec![],
+                frame:        None,
+            },
+        ],
+        where_clause: None,
+        order_by:     vec![],
+        limit:        None,
+        offset:       None,
+    };
+
+    let plan = WindowPlanner::plan(request, &metadata).expect("window plan should succeed");
+    let column = r#""revenue_total""#;
+    assert_eq!(plan.select[0].expression, column);
+    assert!(
+        matches!(&plan.windows[0].function, WindowFunctionType::Sum { field } if field == column),
+        "{:?}",
+        plan.windows[0].function
+    );
+    assert_eq!(plan.windows[0].partition_by, vec![column.to_string()]);
+    assert_eq!(plan.windows[0].order_by[0].field, column);
+    assert!(
+        matches!(&plan.windows[1].function, WindowFunctionType::Lag { field, .. } if field == column),
+        "{:?}",
+        plan.windows[1].function
+    );
 }
 
 #[test]

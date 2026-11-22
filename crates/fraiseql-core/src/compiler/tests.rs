@@ -28,7 +28,6 @@ mod compiler_tests {
             },
             denormalized_filters:     vec![],
             calendar_dimensions:      vec![],
-            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         };
 
@@ -90,12 +89,14 @@ mod window_allowlist_tests {
                     sql_type:   SqlType::Decimal,
                     nullable:   false,
                     additivity: crate::compiler::fact_table::Additivity::Additive,
+                    column:     None,
                 },
                 MeasureColumn {
                     name:       "units".to_string(),
                     sql_type:   SqlType::Int,
                     nullable:   false,
                     additivity: crate::compiler::fact_table::Additivity::Additive,
+                    column:     None,
                 },
             ],
             dimensions:               DimensionColumn {
@@ -113,7 +114,6 @@ mod window_allowlist_tests {
                 hierarchy: None,
             }],
             calendar_dimensions:      vec![],
-            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -223,12 +223,14 @@ mod aggregation_tests {
                     sql_type:   SqlType::Decimal,
                     nullable:   false,
                     additivity: crate::compiler::fact_table::Additivity::Additive,
+                    column:     None,
                 },
                 MeasureColumn {
                     name:       "quantity".to_string(),
                     sql_type:   SqlType::Int,
                     nullable:   false,
                     additivity: crate::compiler::fact_table::Additivity::Additive,
+                    column:     None,
                 },
             ],
             dimensions:               DimensionColumn {
@@ -250,7 +252,6 @@ mod aggregation_tests {
                 },
             ],
             calendar_dimensions:      vec![],
-            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -631,6 +632,7 @@ mod window_order_by_allowlist_tests {
                 sql_type:   SqlType::Decimal,
                 nullable:   false,
                 additivity: crate::compiler::fact_table::Additivity::Additive,
+                column:     None,
             }],
             dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),
@@ -647,7 +649,6 @@ mod window_order_by_allowlist_tests {
                 hierarchy: None,
             }],
             calendar_dimensions:      vec![],
-            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -787,7 +788,6 @@ mod window_order_by_allowlist_tests {
             },
             denormalized_filters:     vec![],
             calendar_dimensions:      vec![],
-            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         };
         let mut request = request_ordering_by("anythingAtAll");

@@ -38,6 +38,7 @@ fn fact_table() -> FactTableMetadata {
         sql_type,
         nullable: false,
         additivity: Additivity::Additive,
+        column: None,
     };
     FactTableMetadata {
         table_name:               "tf_metric".to_string(),
@@ -64,7 +65,6 @@ fn fact_table() -> FactTableMetadata {
             filter("label", SqlType::Text),
         ],
         calendar_dimensions:      vec![],
-        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     }
 }

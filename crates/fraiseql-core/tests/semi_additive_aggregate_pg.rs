@@ -63,6 +63,7 @@ fn measure(name: &str, additivity: Additivity) -> MeasureColumn {
         sql_type: SqlType::BigInt,
         nullable: false,
         additivity,
+        column: None,
     }
 }
 
@@ -118,7 +119,6 @@ fn fact_table(table: &str) -> FactTableMetadata {
             },
         ],
         calendar_dimensions:      vec![],
-        native_measures:          HashMap::new(),
         native_dimension_mapping: HashMap::new(),
     }
 }

@@ -305,6 +305,7 @@ fn aggregate_sum_produces_correct_sql() {
             sql_type:   SqlType::Decimal,
             nullable:   false,
             additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
+            column:     None,
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -312,7 +313,6 @@ fn aggregate_sum_produces_correct_sql() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
-        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
@@ -375,6 +375,7 @@ fn aggregate_group_by_produces_correct_sql() {
             sql_type:   SqlType::Decimal,
             nullable:   false,
             additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
+            column:     None,
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -386,7 +387,6 @@ fn aggregate_group_by_produces_correct_sql() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
-        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 

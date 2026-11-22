@@ -33,12 +33,14 @@ mod aggregate_parser_tests {
                     sql_type:   SqlType::Decimal,
                     nullable:   false,
                     additivity: crate::compiler::fact_table::Additivity::Additive,
+                    column:     None,
                 },
                 MeasureColumn {
                     name:       "quantity".to_string(),
                     sql_type:   SqlType::Int,
                     nullable:   false,
                     additivity: crate::compiler::fact_table::Additivity::Additive,
+                    column:     None,
                 },
             ],
             dimensions:               DimensionColumn {
@@ -63,7 +65,6 @@ mod aggregate_parser_tests {
                 hierarchy: None,
             }],
             calendar_dimensions:      vec![],
-            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -381,51 +382,51 @@ mod aggregate_parser_tests {
         assert_eq!(request.aggregates[3].alias(), "revenue_sum");
     }
 
+    /// A measure stored under another column is requested by its published name; its
+    /// column is never a request key.
     #[test]
-    fn test_parser_resolves_native_measure_aggregate() {
+    fn test_parser_resolves_a_measure_by_its_name_not_its_column() {
         let metadata = FactTableMetadata {
             table_name:               "mv_daily_sales".to_string(),
             type_name:                None,
             row_scope:                FactRowScope::Server,
             inject_params:            indexmap::IndexMap::default(),
-            measures:                 vec![],
+            measures:                 vec![crate::compiler::fact_table::MeasureColumn {
+                name:       "volume".to_string(),
+                sql_type:   crate::compiler::fact_table::SqlType::BigInt,
+                nullable:   false,
+                additivity: crate::compiler::fact_table::Additivity::Additive,
+                column:     Some("volume_total".to_string()),
+            }],
             dimensions:               DimensionColumn {
                 name:  "data".to_string(),
                 paths: vec![],
             },
             denormalized_filters:     vec![],
             calendar_dimensions:      vec![],
-            native_measures:          std::collections::HashMap::from([(
-                "measures.volume".to_string(),
-                "volume".to_string(),
-            )]),
             native_dimension_mapping: std::collections::HashMap::new(),
         };
+        let parse = |key: &str| {
+            AggregateQueryParser::parse(
+                &json!({ "aggregates": [{ key: true }] }),
+                &metadata,
+                &std::collections::HashMap::new(),
+            )
+        };
 
-        let query = json!({
-            "aggregates": [
-                {"measures.volume_sum": true}
-            ]
-        });
-
-        let request =
-            AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())
-                .unwrap();
-
-        assert_eq!(request.aggregates.len(), 1);
-        assert_eq!(request.aggregates[0].alias(), "measures.volume_sum");
-        // The measure field should be the JSONB path, resolved by planner later
+        let request = parse("volume_sum").unwrap();
         match &request.aggregates[0] {
             crate::compiler::aggregation::AggregateSelection::MeasureAggregate {
                 measure,
                 function,
                 ..
             } => {
-                assert_eq!(measure, "measures.volume");
+                assert_eq!(measure, "volume");
                 assert_eq!(*function, AggregateFunction::Sum);
             },
             other => panic!("Expected MeasureAggregate, got: {other:?}"),
         }
+        assert!(parse("volume_total_sum").is_err(), "a column is not a request key");
     }
 
     #[test]
@@ -442,7 +443,6 @@ mod aggregate_parser_tests {
             },
             denormalized_filters:     vec![],
             calendar_dimensions:      vec![],
-            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::from([(
                 "dimensions.category.id".to_string(),
                 "category_id".to_string(),
@@ -479,6 +479,7 @@ mod aggregate_parser_tests {
                 sql_type:   SqlType::BigInt,
                 nullable:   false,
                 additivity: crate::compiler::fact_table::Additivity::Additive,
+                column:     None,
             }],
             dimensions:               DimensionColumn {
                 name:  "data".to_string(),
@@ -486,7 +487,6 @@ mod aggregate_parser_tests {
             },
             denormalized_filters:     vec![],
             calendar_dimensions:      vec![],
-            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::from([(
                 "dimensions.category.id".to_string(),
                 "category_id".to_string(),
@@ -540,6 +540,7 @@ mod aggregate_projector_tests {
                 sql_type:   SqlType::Decimal,
                 nullable:   false,
                 additivity: crate::compiler::fact_table::Additivity::Additive,
+                column:     None,
             }],
             dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),
@@ -556,7 +557,6 @@ mod aggregate_projector_tests {
                 hierarchy: None,
             }],
             calendar_dimensions:      vec![],
-            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         };
 
@@ -4581,7 +4581,6 @@ mod window_tests {
             },
             denormalized_filters:     vec![],
             calendar_dimensions:      vec![],
-            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -4912,12 +4911,14 @@ mod window_parser_tests {
                     sql_type:   SqlType::Decimal,
                     nullable:   false,
                     additivity: crate::compiler::fact_table::Additivity::Additive,
+                    column:     None,
                 },
                 MeasureColumn {
                     name:       "quantity".to_string(),
                     sql_type:   SqlType::Int,
                     nullable:   false,
                     additivity: crate::compiler::fact_table::Additivity::Additive,
+                    column:     None,
                 },
             ],
             dimensions:               DimensionColumn {
@@ -4939,7 +4940,6 @@ mod window_parser_tests {
                 },
             ],
             calendar_dimensions:      vec![],
-            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -5596,6 +5596,7 @@ mod aggregate_argument_forms {
                 sql_type:   SqlType::Decimal,
                 nullable:   false,
                 additivity: Additivity::Additive,
+                column:     None,
             }],
             dimensions:               DimensionColumn {
                 name:  "data".to_string(),
@@ -5610,7 +5611,6 @@ mod aggregate_argument_forms {
                 filter("org_path", SqlType::Ltree),
             ],
             calendar_dimensions:      vec![],
-            native_measures:          HashMap::new(),
             native_dimension_mapping: HashMap::new(),
         }
     }
@@ -5759,7 +5759,6 @@ mod window_argument_forms {
             },
             denormalized_filters:     vec![],
             calendar_dimensions:      vec![],
-            native_measures:          HashMap::new(),
             native_dimension_mapping: HashMap::new(),
         }
     }

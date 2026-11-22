@@ -47,6 +47,7 @@ fn fact_table(table: &str) -> FactTableMetadata {
             sql_type:   SqlType::BigInt,
             nullable:   false,
             additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
+            column:     None,
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -58,7 +59,6 @@ fn fact_table(table: &str) -> FactTableMetadata {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
-        native_measures:          HashMap::new(),
         native_dimension_mapping: HashMap::new(),
     }
 }

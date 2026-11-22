@@ -125,6 +125,7 @@ fn fact_table(table_name: &str, row_scope: FactRowScope) -> FactTableMetadata {
             sql_type:   SqlType::Decimal,
             nullable:   false,
             additivity: Additivity::Additive,
+            column:     None,
         }],
         dimensions: DimensionColumn {
             name:  "data".to_string(),
@@ -137,7 +138,6 @@ fn fact_table(table_name: &str, row_scope: FactRowScope) -> FactTableMetadata {
             hierarchy: None,
         }],
         calendar_dimensions: vec![],
-        native_measures: std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     }
 }

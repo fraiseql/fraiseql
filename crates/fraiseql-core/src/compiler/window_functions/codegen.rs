@@ -57,7 +57,7 @@ impl OrderKeys<'_> {
             output_aliases,
         )?;
         // Mirrors `resolve_field_to_sql`'s priority.
-        let is_text = if self.metadata.measures.iter().any(|m| m.name == order.field) {
+        let is_text = if self.metadata.measure(&order.field).is_some() {
             false
         } else if self.metadata.denormalized_filters.iter().any(|f| f.name == order.field) {
             is_text_filter(self.metadata, &order.field)
@@ -252,23 +252,10 @@ impl WindowPlanner {
         // a check its siblings did not.
         Self::validate_alias(column.alias())?;
         match column {
-            WindowSelectColumn::Measure { name, alias } => {
-                // Validate measure exists
-                if !metadata.measures.iter().any(|m| m.name == *name) {
-                    return Err(FraiseQLError::Validation {
-                        message: format!(
-                            "Measure '{}' not found in fact table '{}'",
-                            name, metadata.table_name
-                        ),
-                        path:    None,
-                    });
-                }
-                // Measure columns are direct SQL columns
-                Ok(SelectColumn {
-                    expression: name.clone(),
-                    alias:      alias.clone(),
-                })
-            },
+            WindowSelectColumn::Measure { name, alias } => Ok(SelectColumn {
+                expression: Self::measure_sql(name, metadata)?,
+                alias:      alias.clone(),
+            }),
             WindowSelectColumn::Dimension { path, alias } => {
                 // SECURITY (#794): `path` is interpolated as a single-quoted JSONB key, so an
                 // embedded quote breaks out of the literal and appends arbitrary SQL.
@@ -403,18 +390,12 @@ impl WindowPlanner {
             },
 
             // Aggregate as window functions - need measure conversion
-            WindowFunctionSpec::RunningSum { measure } => {
-                Self::validate_measure(measure, metadata)?;
-                Ok(WindowFunctionType::Sum {
-                    field: measure.clone(),
-                })
-            },
-            WindowFunctionSpec::RunningAvg { measure } => {
-                Self::validate_measure(measure, metadata)?;
-                Ok(WindowFunctionType::Avg {
-                    field: measure.clone(),
-                })
-            },
+            WindowFunctionSpec::RunningSum { measure } => Ok(WindowFunctionType::Sum {
+                field: Self::measure_sql(measure, metadata)?,
+            }),
+            WindowFunctionSpec::RunningAvg { measure } => Ok(WindowFunctionType::Avg {
+                field: Self::measure_sql(measure, metadata)?,
+            }),
             WindowFunctionSpec::RunningCount => Ok(WindowFunctionType::Count { field: None }),
             WindowFunctionSpec::RunningCountField { field } => {
                 let sql_field =
@@ -423,30 +404,18 @@ impl WindowPlanner {
                     field: Some(sql_field),
                 })
             },
-            WindowFunctionSpec::RunningMin { measure } => {
-                Self::validate_measure(measure, metadata)?;
-                Ok(WindowFunctionType::Min {
-                    field: measure.clone(),
-                })
-            },
-            WindowFunctionSpec::RunningMax { measure } => {
-                Self::validate_measure(measure, metadata)?;
-                Ok(WindowFunctionType::Max {
-                    field: measure.clone(),
-                })
-            },
-            WindowFunctionSpec::RunningStddev { measure } => {
-                Self::validate_measure(measure, metadata)?;
-                Ok(WindowFunctionType::Stddev {
-                    field: measure.clone(),
-                })
-            },
-            WindowFunctionSpec::RunningVariance { measure } => {
-                Self::validate_measure(measure, metadata)?;
-                Ok(WindowFunctionType::Variance {
-                    field: measure.clone(),
-                })
-            },
+            WindowFunctionSpec::RunningMin { measure } => Ok(WindowFunctionType::Min {
+                field: Self::measure_sql(measure, metadata)?,
+            }),
+            WindowFunctionSpec::RunningMax { measure } => Ok(WindowFunctionType::Max {
+                field: Self::measure_sql(measure, metadata)?,
+            }),
+            WindowFunctionSpec::RunningStddev { measure } => Ok(WindowFunctionType::Stddev {
+                field: Self::measure_sql(measure, metadata)?,
+            }),
+            WindowFunctionSpec::RunningVariance { measure } => Ok(WindowFunctionType::Variance {
+                field: Self::measure_sql(measure, metadata)?,
+            }),
         }
     }
 
@@ -476,10 +445,7 @@ impl WindowPlanner {
                 }
                 Ok(name.clone())
             },
-            PartitionByColumn::Measure { name } => {
-                Self::validate_measure(name, metadata)?;
-                Ok(name.clone())
-            },
+            PartitionByColumn::Measure { name } => Self::measure_sql(name, metadata),
         }
     }
 
@@ -498,8 +464,8 @@ impl WindowPlanner {
         output_aliases: &std::collections::HashSet<String>,
     ) -> Result<String> {
         // Check if it's a measure
-        if metadata.measures.iter().any(|m| m.name == field) {
-            return Ok(field.to_string());
+        if let Some(measure) = metadata.measure(field) {
+            return Ok(measure.sql());
         }
 
         // Check if it's a filter column
@@ -627,17 +593,17 @@ impl WindowPlanner {
         }
     }
 
-    /// Validate that a measure exists in metadata.
-    fn validate_measure(measure: &str, metadata: &FactTableMetadata) -> Result<()> {
-        if !metadata.measures.iter().any(|m| m.name == *measure) {
-            return Err(FraiseQLError::Validation {
+    /// The SQL that reads the measure `measure`: its declared `column`, quoted, or its name.
+    fn measure_sql(measure: &str, metadata: &FactTableMetadata) -> Result<String> {
+        metadata
+            .measure(measure)
+            .map(crate::compiler::fact_table::MeasureColumn::sql)
+            .ok_or_else(|| FraiseQLError::Validation {
                 message: format!(
                     "Measure '{}' not found in fact table '{}'",
                     measure, metadata.table_name
                 ),
                 path:    None,
-            });
-        }
-        Ok(())
+            })
     }
 }

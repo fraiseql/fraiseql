@@ -2372,12 +2372,14 @@ mod introspect_facts_tests {
                     sql_type:   SqlType::Decimal,
                     nullable:   false,
                     additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
+                    column:     None,
                 },
                 MeasureColumn {
                     name:       "quantity".to_string(),
                     sql_type:   SqlType::Int,
                     nullable:   false,
                     additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
+                    column:     None,
                 },
             ],
             dimensions:               DimensionColumn {
@@ -2391,7 +2393,6 @@ mod introspect_facts_tests {
                 hierarchy: None,
             }],
             calendar_dimensions:      vec![],
-            native_measures:          std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         };
 
@@ -4278,7 +4279,6 @@ mod validate_facts_tests {
             },
             denormalized_filters: filters,
             calendar_dimensions: vec![],
-            native_measures: std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -4292,12 +4292,14 @@ mod validate_facts_tests {
                     sql_type:   SqlType::Decimal,
                     nullable:   false,
                     additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
+                    column:     None,
                 },
                 MeasureColumn {
                     name:       "quantity".to_string(),
                     sql_type:   SqlType::Int,
                     nullable:   false,
                     additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
+                    column:     None,
                 },
             ],
             "data",
@@ -4324,12 +4326,14 @@ mod validate_facts_tests {
                     sql_type:   SqlType::Decimal,
                     nullable:   false,
                     additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
+                    column:     None,
                 },
                 MeasureColumn {
                     name:       "profit".to_string(),
                     sql_type:   SqlType::Decimal,
                     nullable:   false,
                     additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
+                    column:     None,
                 },
             ],
             "data",
@@ -4341,6 +4345,7 @@ mod validate_facts_tests {
                 sql_type:   SqlType::Decimal,
                 nullable:   false,
                 additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
+                column:     None,
             }],
             "data",
             vec![],
@@ -4350,6 +4355,44 @@ mod validate_facts_tests {
         let errors: Vec<_> = issues.iter().filter(|i| i.severity == IssueSeverity::Error).collect();
         assert_eq!(errors.len(), 1);
         assert!(errors[0].message.contains("profit"));
+    }
+
+    /// A measure stored under another column is that column in the database: it is found
+    /// there, and its declared type is checked against the column's.
+    #[test]
+    fn test_compare_metadata_matches_a_measure_on_its_column() {
+        let measure = |name: &str, sql_type: SqlType, column: Option<&str>| MeasureColumn {
+            name: name.to_string(),
+            sql_type,
+            nullable: false,
+            additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
+            column: column.map(str::to_string),
+        };
+        let declared = make_metadata(
+            vec![measure("volume", SqlType::Float, Some("volume_total"))],
+            "data",
+            vec![],
+        );
+        let actual =
+            make_metadata(vec![measure("volume_total", SqlType::Decimal, None)], "data", vec![]);
+
+        let issues = compare_metadata("tf_sales", &declared, &actual);
+        assert!(
+            issues.iter().all(|i| i.severity != IssueSeverity::Error),
+            "found on its column: {issues:?}"
+        );
+        assert!(
+            issues.iter().any(|i| i.message.contains("'volume' type mismatch")),
+            "a column stored as numeric and declared Float is reported: {issues:?}"
+        );
+
+        let missing = make_metadata(vec![measure("volume", SqlType::Float, None)], "data", vec![]);
+        let issues = compare_metadata("tf_sales", &declared, &missing);
+        assert!(
+            issues.iter().any(|i| i.severity == IssueSeverity::Error
+                && i.message.contains("'volume' (column 'volume_total') not found")),
+            "a column the table lacks is missing, whatever the name: {issues:?}"
+        );
     }
 }
 

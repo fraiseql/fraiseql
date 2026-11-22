@@ -133,6 +133,7 @@ impl FactTableDetector {
                             sql_type:   sql_type.clone(),
                             nullable:   *is_nullable,
                             additivity: crate::compiler::fact_table::Additivity::Additive,
+                            column:     None,
                         });
                     }
 
@@ -206,7 +207,6 @@ impl FactTableDetector {
             }),
             denormalized_filters: filters,
             calendar_dimensions,
-            native_measures: std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         };
 
@@ -639,6 +639,7 @@ impl FactTableDetector {
                             sql_type,
                             nullable,
                             additivity: crate::compiler::fact_table::Additivity::Additive,
+                            column: None,
                         });
                     } else if name != "id" {
                         // This is a filter (_id columns)
@@ -684,7 +685,6 @@ impl FactTableDetector {
             dimensions,
             denormalized_filters: filters,
             calendar_dimensions: Vec::new(), // No calendar detection in test helper
-            native_measures: std::collections::HashMap::new(),
             native_dimension_mapping: std::collections::HashMap::new(),
         };
 

@@ -864,7 +864,6 @@ fn fact_table_add_and_get() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
-        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
     schema.add_fact_table("tf_sales".to_string(), meta);
@@ -890,7 +889,6 @@ fn list_fact_tables_returns_all_names() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
-        native_measures:          std::collections::HashMap::new(),
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
@@ -2631,7 +2629,6 @@ mod fact_table_hierarchy {
                     hierarchy: Some(hierarchy.to_string()),
                 }],
                 calendar_dimensions:      vec![],
-                native_measures:          HashMap::new(),
                 native_dimension_mapping: HashMap::new(),
             },
         );
@@ -2891,6 +2888,59 @@ mod removed_partial_period {
     fn the_same_fact_table_without_it_loads() {
         CompiledSchema::from_json(&artifact(&fact_table()), false)
             .expect("a fact table without partial_period loads");
+    }
+}
+
+/// `native_measures` named a measure's column and not its type. An artifact still carrying
+/// it is refused at load, naming what replaced it, rather than loading without its measures.
+mod removed_native_measures {
+    use crate::schema::CompiledSchema;
+
+    fn artifact(fact_table: &serde_json::Value) -> String {
+        serde_json::json!({ "fact_tables": { "tf_sales": fact_table } }).to_string()
+    }
+
+    fn fact_table() -> serde_json::Value {
+        serde_json::json!({
+            "table_name": "tf_sales",
+            "measures": [{ "name": "volume", "sql_type": "BigInt", "nullable": false,
+                           "column": "volume_total" }],
+            "dimensions": { "name": "data", "paths": [] },
+            "denormalized_filters": []
+        })
+    }
+
+    #[test]
+    fn an_artifact_carrying_native_measures_is_refused_naming_measure_column() {
+        let mut table = fact_table();
+        table["native_measures"] = serde_json::json!({ "volume": "volume_total" });
+        let err = CompiledSchema::from_json(&artifact(&table), false)
+            .expect_err("a removed key must not load")
+            .to_string();
+        assert!(err.contains("`native_measures`"), "{err}");
+        assert!(err.contains("`measures[].column`"), "{err}");
+        assert!(err.contains("tf_sales"), "{err}");
+    }
+
+    #[test]
+    fn the_same_fact_table_declaring_measure_columns_loads() {
+        CompiledSchema::from_json(&artifact(&fact_table()), false)
+            .expect("a fact table declaring a measure column loads");
+    }
+
+    /// A column is quoted wherever it is read, and one that is not an identifier is
+    /// refused at load as well.
+    #[test]
+    fn a_measure_column_that_is_not_an_identifier_is_refused_at_load() {
+        let mut table = fact_table();
+        table["measures"][0]["column"] = serde_json::json!(r#"v") FROM pg_authid --"#);
+        let err = CompiledSchema::from_json(&artifact(&table), false)
+            .expect_err("a hostile column must not load")
+            .to_string();
+        assert!(
+            err.contains("measure `volume`") && err.contains("not a SQL column name"),
+            "{err}"
+        );
     }
 }
 

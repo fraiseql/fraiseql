@@ -85,13 +85,6 @@ pub struct FactTableMetadata {
     /// Calendar dimensions for optimized temporal aggregations
     #[serde(default)]
     pub calendar_dimensions:      Vec<CalendarDimension>,
-    /// Maps JSONB measure paths to flat SQL column names for pre-aggregated views.
-    ///
-    /// When a materialized view stores measures as native columns (e.g. `volume BIGINT`)
-    /// instead of inside a JSONB `data` column, this mapping tells the SQL generator to
-    /// use `SUM("volume")` instead of `SUM((data->'measures'->>'volume')::numeric)`.
-    #[serde(default)]
-    pub native_measures:          HashMap<String, String>,
     /// Maps deep JSONB dimension paths to flat SQL column names.
     ///
     /// When a materialized view denormalizes dimension values into flat columns
@@ -103,6 +96,29 @@ pub struct FactTableMetadata {
 }
 
 impl FactTableMetadata {
+    /// The measure named `name`.
+    #[must_use]
+    pub fn measure(&self, name: &str) -> Option<&MeasureColumn> {
+        self.measures.iter().find(|m| m.name == name)
+    }
+
+    /// One message per measure whose `column` is not a single SQL identifier.
+    #[must_use]
+    pub fn column_violations(&self) -> Vec<String> {
+        self.measures
+            .iter()
+            .filter_map(|m| m.column.as_deref().map(|column| (m, column)))
+            .filter(|(_, column)| !is_column_identifier(column))
+            .map(|(m, column)| {
+                format!(
+                    "fact table `{}`, measure `{}`: `column` {column:?} is not a SQL column \
+                     name: one identifier, `[A-Za-z_][A-Za-z0-9_]*`, at most 63 bytes",
+                    self.table_name, m.name
+                )
+            })
+            .collect()
+    }
+
     /// The measures whose declared additivity cannot be planned (#1459): `over` must be a
     /// denormalized time column (`date`, `timestamp`), and `entity` must name at least one
     /// denormalized column, each declared. One message per fault.
@@ -189,6 +205,37 @@ pub struct MeasureColumn {
     /// How the measure aggregates over time (#1459). Omitted: [`Additivity::Additive`].
     #[serde(default, skip_serializing_if = "Additivity::is_additive")]
     pub additivity: Additivity,
+    /// The SQL column the measure is read from, when it is not `name`: a
+    /// pre-aggregated view storing `volume` as `volume_total`. Quoted wherever it is read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub column:     Option<String>,
+}
+
+impl MeasureColumn {
+    /// The column the measure is stored in: its `column`, or else its `name`.
+    #[must_use]
+    pub fn stored_column(&self) -> &str {
+        self.column.as_deref().unwrap_or(&self.name)
+    }
+
+    /// The SQL that reads the measure: its `column`, quoted, or else its `name`.
+    #[must_use]
+    pub fn sql(&self) -> String {
+        self.column.as_deref().map_or_else(
+            || self.name.clone(),
+            crate::backend::identifier::quote_postgres_identifier,
+        )
+    }
+}
+
+/// Whether `column` can be a measure's `column`: one unqualified SQL identifier,
+/// `[A-Za-z_][A-Za-z0-9_]*`, the charset every other fact-table column name has, within
+/// PostgreSQL's 63 bytes (it truncates a longer one to some other column's name).
+fn is_column_identifier(column: &str) -> bool {
+    let mut chars = column.chars();
+    column.len() <= 63
+        && chars.next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 /// How a measure aggregates over time (#1459).

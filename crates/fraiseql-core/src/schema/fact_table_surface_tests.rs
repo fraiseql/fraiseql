@@ -177,6 +177,41 @@ fn the_row_fields_are_typed_by_what_the_runtime_decodes() {
     }
 }
 
+/// A measure stored under another column is published by its name and typed by its
+/// `sql_type`, as every measure is: a `numeric` one is a `Decimal`, an `int8` one's `SUM` a
+/// `Decimal` and its `MIN` a `BigInt`. The column itself is not a field.
+#[test]
+fn a_measure_read_from_another_column_is_typed_by_its_sql_type() {
+    let mut doc = fixture();
+    let measures = doc["fact_tables"]["tf_sales"]["measures"].as_array_mut().unwrap();
+    measures.push(json!({"name": "volume", "sql_type": "Decimal", "nullable": false,
+                         "column": "volume_total"}));
+    measures.push(json!({"name": "hits", "sql_type": "BigInt", "nullable": false,
+                         "column": "hit_count"}));
+    let schema = load(&doc);
+    let row = introspected(&schema, "SalesAggregateRow");
+    for (field, expected) in [
+        ("volume_sum", "Decimal"),
+        ("volume_avg", "Decimal"),
+        ("volume_min", "Decimal"),
+        ("volume_stddev", "Decimal"),
+        ("volume_count_distinct", "Int"),
+        ("hits_sum", "Decimal"),
+        ("hits_min", "BigInt"),
+        ("hits_avg", "Float"),
+    ] {
+        assert_eq!(field_type(&row, field).as_deref(), Some(expected), "`{field}`");
+    }
+    for column in [
+        "volume_total_sum",
+        "hit_count_sum",
+        "volume_total",
+        "hit_count",
+    ] {
+        assert_eq!(field_type(&row, column), None, "`{column}` is a column, not a field");
+    }
+}
+
 /// What would decode to `null`, or be refused by the planner or the database, is not
 /// published.
 #[test]
@@ -323,27 +358,13 @@ fn a_declared_input_named_like_a_derived_one_is_refused_at_load() {
 /// D1: a key that is not a GraphQL name cannot be a field; the load says what to call it.
 #[test]
 fn a_fact_table_key_that_is_not_a_graphql_name_is_refused_naming_one_that_is() {
-    for (section, value, key, suggestion) in [
-        (
-            "native_dimension_mapping",
-            json!({"dimensions.category.id": "region"}),
-            "dimensions.category.id",
-            "dimensions_category_id",
-        ),
-        (
-            "native_measures",
-            json!({"measures.volume": "volume"}),
-            "measures.volume",
-            "measures_volume",
-        ),
-    ] {
-        let mut doc = fixture();
-        doc["fact_tables"]["tf_sales"][section] = value;
-        let message = refusal(&doc);
-        assert!(message.contains(&format!("`{key}`")), "{message}");
-        assert!(message.contains(&format!("`{suggestion}`")), "{message}");
-        assert!(message.contains("recompile"), "{message}");
-    }
+    let mut doc = fixture();
+    doc["fact_tables"]["tf_sales"]["native_dimension_mapping"] =
+        json!({"dimensions.category.id": "region"});
+    let message = refusal(&doc);
+    assert!(message.contains("`dimensions.category.id`"), "{message}");
+    assert!(message.contains("`dimensions_category_id`"), "{message}");
+    assert!(message.contains("recompile"), "{message}");
     // A measure, a dimension path and a filter: each is a row field or a key.
     for (pointer, key, what, suggestion) in [
         ("/fact_tables/tf_sales/measures/0/name", "rev.enue", "measure", "rev_enue"),
