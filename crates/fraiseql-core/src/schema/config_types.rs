@@ -506,6 +506,115 @@ pub struct SubscriptionsConfig {
     /// `subscribable_tables` spells it (`[subscriptions.capture.<table>]`).
     #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub capture: std::collections::BTreeMap<String, CaptureTableConfig>,
+    /// Open `WebSocket` connections one principal may hold at once, within its tenant.
+    /// `None` (omitted) is the server's default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_connections_per_principal: Option<ConnectionCap>,
+    /// Open `WebSocket` connections the authenticated principals of one tenant may hold
+    /// at once. `None` (omitted) is the server's default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_connections_per_tenant: Option<ConnectionCap>,
+    /// Open `WebSocket` connections with no principal, across the server. `None`
+    /// (omitted) is the server's default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_anonymous_connections: Option<ConnectionCap>,
+    /// Open `WebSocket` connections with no principal from one client address. `None`
+    /// (omitted) is the server's default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_anonymous_connections_per_ip: Option<ConnectionCap>,
+}
+
+/// A bound on open `WebSocket` connections: a positive count, or explicitly none.
+///
+/// Written as a positive integer or the string `"unlimited"`. `0` is refused: it would
+/// refuse every connection, which no deployment means by it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConnectionCap {
+    /// At most this many open connections.
+    Limit(std::num::NonZeroU32),
+    /// No bound.
+    Unlimited,
+}
+
+impl ConnectionCap {
+    /// The bound, or `None` for [`ConnectionCap::Unlimited`].
+    #[must_use]
+    pub const fn limit(self) -> Option<u32> {
+        match self {
+            Self::Limit(n) => Some(n.get()),
+            Self::Unlimited => None,
+        }
+    }
+}
+
+impl Serialize for ConnectionCap {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Limit(n) => serializer.serialize_u32(n.get()),
+            Self::Unlimited => serializer.serialize_str("unlimited"),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ConnectionCap {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Visitor;
+
+        impl serde::de::Visitor<'_> for Visitor {
+            type Value = ConnectionCap;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("a positive number of connections, or \"unlimited\"")
+            }
+
+            fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<ConnectionCap, E> {
+                let n = u32::try_from(value)
+                    .map_err(|_| E::custom(format!("{value} connections is more than a u32")))?;
+                std::num::NonZeroU32::new(n).map(ConnectionCap::Limit).ok_or_else(|| {
+                    E::custom(
+                        "0 connections would refuse every one; write \"unlimited\" for no bound",
+                    )
+                })
+            }
+
+            fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<ConnectionCap, E> {
+                u64::try_from(value).map_or_else(
+                    |_| Err(E::custom(format!("{value} is not a number of connections"))),
+                    |v| self.visit_u64(v),
+                )
+            }
+
+            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<ConnectionCap, E> {
+                if value == "unlimited" {
+                    Ok(ConnectionCap::Unlimited)
+                } else {
+                    Err(E::custom(format!(
+                        "`{value}` is not a connection bound; write a positive number or \
+                         \"unlimited\""
+                    )))
+                }
+            }
+        }
+
+        deserializer.deserialize_any(Visitor)
+    }
+}
+
+/// The two spellings a config writes, not the enum.
+impl schemars::JsonSchema for ConnectionCap {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "ConnectionCap".into()
+    }
+
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({
+            "description": "A positive number of connections, or \"unlimited\".",
+            "oneOf": [
+                { "type": "integer", "format": "uint32", "minimum": 1 },
+                { "type": "string", "const": "unlimited" },
+            ],
+        })
+    }
 }
 
 /// How the capture trigger reads one table (`[subscriptions.capture.<table>]`).

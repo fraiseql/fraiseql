@@ -1891,3 +1891,67 @@ fn an_unknown_mcp_key_is_refused() {
     .to_string();
     assert!(error.contains("transprot"), "{error}");
 }
+
+/// `[subscriptions]` as a compiled schema carries it, or the load error.
+fn subscriptions_config(section: serde_json::Value) -> Result<SubscriptionsConfig, String> {
+    serde_json::from_value(section).map_err(|e| e.to_string())
+}
+
+#[test]
+fn a_connection_bound_is_a_positive_number_or_unlimited() {
+    let config = subscriptions_config(serde_json::json!({
+        "max_connections_per_principal": 4,
+        "max_connections_per_tenant": "unlimited",
+    }))
+    .unwrap();
+    assert_eq!(
+        config.max_connections_per_principal,
+        Some(ConnectionCap::Limit(std::num::NonZeroU32::new(4).unwrap()))
+    );
+    assert_eq!(config.max_connections_per_tenant, Some(ConnectionCap::Unlimited));
+    assert_eq!(config.max_anonymous_connections, None, "an omitted bound is the default");
+}
+
+#[test]
+fn a_connection_bound_of_zero_is_refused_at_load() {
+    for key in [
+        "max_connections_per_principal",
+        "max_connections_per_tenant",
+        "max_anonymous_connections",
+        "max_anonymous_connections_per_ip",
+    ] {
+        let error = subscriptions_config(serde_json::json!({ key: 0 })).unwrap_err();
+        assert!(error.contains("0 connections would refuse every one"), "{key}: {error}");
+    }
+}
+
+#[test]
+fn a_connection_bound_that_is_neither_is_refused_at_load() {
+    for value in [
+        serde_json::json!(-1),
+        serde_json::json!("none"),
+        serde_json::json!(4_294_967_296_u64),
+        serde_json::json!(1.5),
+    ] {
+        let error =
+            subscriptions_config(serde_json::json!({ "max_connections_per_principal": value }))
+                .unwrap_err();
+        assert!(!error.is_empty(), "{value} was accepted");
+    }
+}
+
+#[test]
+fn a_connection_bound_is_written_as_it_is_read() {
+    let config = subscriptions_config(serde_json::json!({
+        "max_connections_per_principal": 4,
+        "max_anonymous_connections": "unlimited",
+    }))
+    .unwrap();
+    assert_eq!(
+        serde_json::to_value(&config).unwrap(),
+        serde_json::json!({
+            "max_connections_per_principal": 4,
+            "max_anonymous_connections": "unlimited",
+        })
+    );
+}

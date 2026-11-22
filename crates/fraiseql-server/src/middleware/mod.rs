@@ -24,7 +24,7 @@ pub use oidc_auth::{
     required_auth_middleware,
 };
 pub use rate_limit::{
-    RateLimitConfig, RateLimitOverrides, RateLimiter, RateLimitingSecurityConfig,
+    ClientAddress, RateLimitConfig, RateLimitOverrides, RateLimiter, RateLimitingSecurityConfig,
     ServerRateLimitingConfig, rate_limit_middleware,
 };
 pub use trace::trace_layer;

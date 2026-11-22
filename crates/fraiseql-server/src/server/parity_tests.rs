@@ -52,6 +52,20 @@ const FIXTURE_MAX_PAGE_SIZE: u32 = 100;
 
 /// The compiled `[subscriptions] max_subscriptions_per_connection`.
 const FIXTURE_MAX_SUBSCRIPTIONS: u32 = 7;
+/// Bounds on open connections, each unlike its default and the others.
+const FIXTURE_CONNECTION_CAPS: crate::subscriptions::ConnectionCaps =
+    crate::subscriptions::ConnectionCaps {
+        per_principal:    fraiseql_core::schema::ConnectionCap::Limit(
+            std::num::NonZeroU32::new(3).unwrap(),
+        ),
+        per_tenant:       fraiseql_core::schema::ConnectionCap::Unlimited,
+        anonymous:        fraiseql_core::schema::ConnectionCap::Limit(
+            std::num::NonZeroU32::new(11).unwrap(),
+        ),
+        anonymous_per_ip: fraiseql_core::schema::ConnectionCap::Limit(
+            std::num::NonZeroU32::new(5).unwrap(),
+        ),
+    };
 
 /// Answers every read with no rows, so the catalog holds no ICU collation.
 #[derive(Debug, Clone)]
@@ -198,6 +212,10 @@ fn fully_configured_schema() -> CompiledSchema {
         }),
         subscriptions_config: Some(SubscriptionsConfig {
             max_subscriptions_per_connection: Some(FIXTURE_MAX_SUBSCRIPTIONS),
+            max_connections_per_principal: Some(FIXTURE_CONNECTION_CAPS.per_principal),
+            max_connections_per_tenant: Some(FIXTURE_CONNECTION_CAPS.per_tenant),
+            max_anonymous_connections: Some(FIXTURE_CONNECTION_CAPS.anonymous),
+            max_anonymous_connections_per_ip: Some(FIXTURE_CONNECTION_CAPS.anonymous_per_ip),
             hooks: Some(SubscriptionHooksConfig {
                 on_connect: Some(UNREACHABLE_WEBHOOK.to_string()),
                 on_subscribe: Some(UNREACHABLE_WEBHOOK.to_string()),
@@ -259,6 +277,11 @@ async fn assert_carries_full_config(server: &Server, path: &str) {
         server.max_subscriptions_per_connection,
         Some(FIXTURE_MAX_SUBSCRIPTIONS),
         "{path}: [subscriptions] max_subscriptions_per_connection must be applied (#754)"
+    );
+    assert_eq!(
+        server.subscription_connections.caps(),
+        FIXTURE_CONNECTION_CAPS,
+        "{path}: the [subscriptions] bounds on open connections must be applied"
     );
 
     // The guarantee, not the type: a fail-closed on_connect hook pointed at a

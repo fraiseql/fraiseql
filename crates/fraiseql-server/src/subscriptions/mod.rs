@@ -5,6 +5,7 @@
 //! - `WebSocket` handler: Implements graphql-ws protocol
 //! - Subscription management: Tracks active subscriptions
 
+pub mod connection_caps;
 pub mod event_bridge;
 pub mod lifecycle;
 pub mod protocol;
@@ -13,6 +14,7 @@ pub mod webhook_lifecycle;
 #[cfg(test)]
 mod tests;
 
+pub use connection_caps::{ConnectionCaps, ConnectionSlot, Exhausted, Holder, OpenConnections};
 pub use event_bridge::{
     DEFAULT_ENTITY_FANOUT_CAPACITY, EntityEvent, EntityEventFanout, EventBridge, EventBridgeConfig,
 };

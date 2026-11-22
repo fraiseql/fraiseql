@@ -1424,12 +1424,13 @@ mod tenant_registry_tests {
     fn test_upsert_with_quota_sets_concurrency_limit() {
         let registry = TenantExecutorRegistry::new(default_executor());
         let quota = TenantQuota {
-            max_concurrent:         Some(2),
-            max_requests_per_sec:   None,
-            max_storage_bytes:      None,
-            cost_budget:            None,
-            cost_budget_per_minute: None,
-            cost_budget_per_actor:  std::collections::HashMap::new(),
+            max_concurrent:               Some(2),
+            max_requests_per_sec:         None,
+            max_storage_bytes:            None,
+            cost_budget:                  None,
+            cost_budget_per_minute:       None,
+            cost_budget_per_actor:        std::collections::HashMap::new(),
+            max_subscription_connections: None,
         };
         let was_insert = registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
         assert!(was_insert);
@@ -1452,12 +1453,13 @@ mod tenant_registry_tests {
     fn test_cost_budget_rejects_over_budget_and_admits_within() {
         let registry = TenantExecutorRegistry::new(default_executor());
         let quota = TenantQuota {
-            max_concurrent:         None,
-            max_requests_per_sec:   None,
-            max_storage_bytes:      None,
-            cost_budget:            Some(100),
-            cost_budget_per_minute: None,
-            cost_budget_per_actor:  std::collections::HashMap::new(),
+            max_concurrent:               None,
+            max_requests_per_sec:         None,
+            max_storage_bytes:            None,
+            cost_budget:                  Some(100),
+            cost_budget_per_minute:       None,
+            cost_budget_per_actor:        std::collections::HashMap::new(),
+            max_subscription_connections: None,
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
@@ -1536,12 +1538,13 @@ mod tenant_registry_tests {
     fn cost_window_accumulates_and_rejects_with_retry_hint() {
         let registry = TenantExecutorRegistry::new(default_executor());
         let quota = TenantQuota {
-            cost_budget_per_actor:  std::collections::HashMap::new(),
-            max_concurrent:         None,
-            max_requests_per_sec:   None,
-            max_storage_bytes:      None,
-            cost_budget:            None,
-            cost_budget_per_minute: Some(1_000),
+            cost_budget_per_actor:        std::collections::HashMap::new(),
+            max_concurrent:               None,
+            max_requests_per_sec:         None,
+            max_storage_bytes:            None,
+            cost_budget:                  None,
+            cost_budget_per_minute:       Some(1_000),
+            max_subscription_connections: None,
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
@@ -1627,12 +1630,13 @@ mod tenant_registry_tests {
 
         let registry = TenantExecutorRegistry::new(default);
         let quota = TenantQuota {
-            cost_budget_per_actor:  std::collections::HashMap::new(),
-            max_concurrent:         None,
-            max_requests_per_sec:   None,
-            max_storage_bytes:      None,
-            cost_budget:            None,
-            cost_budget_per_minute: Some(500),
+            cost_budget_per_actor:        std::collections::HashMap::new(),
+            max_concurrent:               None,
+            max_requests_per_sec:         None,
+            max_storage_bytes:            None,
+            cost_budget:                  None,
+            cost_budget_per_minute:       Some(500),
+            max_subscription_connections: None,
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
@@ -1666,12 +1670,13 @@ mod tenant_registry_tests {
     fn test_concurrency_permit_released_on_drop() {
         let registry = TenantExecutorRegistry::new(default_executor());
         let quota = TenantQuota {
-            max_concurrent:         Some(1),
-            max_requests_per_sec:   None,
-            max_storage_bytes:      None,
-            cost_budget:            None,
-            cost_budget_per_minute: None,
-            cost_budget_per_actor:  std::collections::HashMap::new(),
+            max_concurrent:               Some(1),
+            max_requests_per_sec:         None,
+            max_storage_bytes:            None,
+            cost_budget:                  None,
+            cost_budget_per_minute:       None,
+            cost_budget_per_actor:        std::collections::HashMap::new(),
+            max_subscription_connections: None,
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 
@@ -1716,6 +1721,38 @@ mod tenant_registry_tests {
         let parsed = serde_json::from_value::<TenantRegistrationRequest>(accepted)
             .expect("the enforced key is the supported spelling");
         assert_eq!(parsed.max_storage_bytes, Some(1_000_000));
+    }
+
+    /// A tenant's own bound on open subscription connections reaches its quota, and `0`,
+    /// which would refuse every connection, is refused at registration.
+    #[test]
+    fn a_tenants_subscription_connection_bound_is_registered_and_zero_refused() {
+        use crate::routes::api::tenant_admin::TenantRegistrationRequest;
+
+        let body = |bound: serde_json::Value| {
+            serde_json::json!({
+                "schema": {},
+                "connection": {"connection_string": "postgres://localhost/x"},
+                "max_subscription_connections": bound,
+            })
+        };
+        let err = serde_json::from_value::<TenantRegistrationRequest>(body(0.into()))
+            .expect_err("a bound of 0 must be refused");
+        assert!(err.to_string().contains("0 connections would refuse every one"), "{err}");
+
+        let parsed = serde_json::from_value::<TenantRegistrationRequest>(body(8.into())).unwrap();
+        assert_eq!(
+            parsed.max_subscription_connections,
+            Some(fraiseql_core::schema::ConnectionCap::Limit(
+                std::num::NonZeroU32::new(8).unwrap()
+            ))
+        );
+        let unlimited =
+            serde_json::from_value::<TenantRegistrationRequest>(body("unlimited".into())).unwrap();
+        assert_eq!(
+            unlimited.max_subscription_connections,
+            Some(fraiseql_core::schema::ConnectionCap::Unlimited)
+        );
     }
 
     fn storage_quota(limit: u64) -> TenantQuota {
@@ -1784,12 +1821,13 @@ mod tenant_registry_tests {
     fn test_tenant_quota_retrieval() {
         let registry = TenantExecutorRegistry::new(default_executor());
         let quota = TenantQuota {
-            max_requests_per_sec:   Some(100),
-            max_concurrent:         Some(10),
-            max_storage_bytes:      Some(1_000_000),
-            cost_budget:            None,
-            cost_budget_per_minute: None,
-            cost_budget_per_actor:  std::collections::HashMap::new(),
+            max_requests_per_sec:         Some(100),
+            max_concurrent:               Some(10),
+            max_storage_bytes:            Some(1_000_000),
+            cost_budget:                  None,
+            cost_budget_per_minute:       None,
+            cost_budget_per_actor:        std::collections::HashMap::new(),
+            max_subscription_connections: None,
         };
         registry.upsert_with_quota("tenant-abc", tenant_executor("abc"), quota);
 

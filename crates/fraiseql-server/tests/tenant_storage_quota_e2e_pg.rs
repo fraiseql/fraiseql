@@ -136,6 +136,7 @@ fn registration(
 ) -> TenantRegistrationRequest {
     TenantRegistrationRequest {
         cost_budget_per_actor: HashMap::new(),
+        max_subscription_connections: None,
         schema: serde_json::to_value(schema(mode)).unwrap(),
         connection: TenantPoolConfig {
             connection_string:    url.to_string(),

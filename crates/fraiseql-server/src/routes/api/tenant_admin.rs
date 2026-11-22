@@ -62,24 +62,24 @@ fn audit_actor(ctx: &OptionalSecurityContext) -> AuditActor {
 #[serde(deny_unknown_fields)]
 pub struct TenantRegistrationRequest {
     /// Compiled schema JSON (the full `schema.compiled.json` contents).
-    pub schema:                 serde_json::Value,
+    pub schema: serde_json::Value,
     /// Database connection configuration for this tenant.
-    pub connection:             TenantPoolConfig,
+    pub connection: TenantPoolConfig,
     /// Maximum requests per second (token bucket rate). `None` = unlimited.
     #[serde(default)]
-    pub max_requests_per_sec:   Option<u32>,
+    pub max_requests_per_sec: Option<u32>,
     /// Maximum concurrent in-flight requests. `None` = unlimited.
     #[serde(default)]
-    pub max_concurrent:         Option<u32>,
+    pub max_concurrent: Option<u32>,
     /// Maximum storage in bytes, enforced (#633). Schema-mode tenancy only; refused for a
     /// tenant whose schema is not. `None` = no quota. The old `max_storage_bytes_advisory`
     /// key is refused (`deny_unknown_fields`), and the refusal lists this one.
     #[serde(default)]
-    pub max_storage_bytes:      Option<u64>,
+    pub max_storage_bytes: Option<u64>,
     /// Maximum estimated cost of a single GraphQL operation (#379). `None` = no
     /// cost budget.
     #[serde(default)]
-    pub cost_budget:            Option<usize>,
+    pub cost_budget: Option<usize>,
     /// Rolling per-minute cost budget (#379): total estimated cost the tenant
     /// may spend per fixed 60-second window. `None` = no window budget.
     #[serde(default)]
@@ -92,7 +92,12 @@ pub struct TenantRegistrationRequest {
     /// the allowance the humans are drawing on. An override that sets neither
     /// number is refused, not stored.
     #[serde(default)]
-    pub cost_budget_per_actor:  std::collections::HashMap<ActorType, ActorCostBudget>,
+    pub cost_budget_per_actor: std::collections::HashMap<ActorType, ActorCostBudget>,
+    /// Open `WebSocket` subscription connections this tenant's authenticated principals
+    /// may hold at once: a positive number or `"unlimited"`. `None` = the server's
+    /// `[subscriptions] max_connections_per_tenant`; `0` is refused.
+    #[serde(default)]
+    pub max_subscription_connections: Option<fraiseql_core::schema::ConnectionCap>,
 }
 
 /// Response for tenant write operations.
@@ -279,12 +284,13 @@ pub async fn upsert_tenant_handler(
     // refusal. Checked ahead of the factory call so a rejected registration does
     // not leave a connection pool behind.
     let quota = TenantQuota {
-        max_requests_per_sec:   body.max_requests_per_sec,
-        max_concurrent:         body.max_concurrent,
-        max_storage_bytes:      body.max_storage_bytes,
-        cost_budget:            body.cost_budget,
-        cost_budget_per_minute: body.cost_budget_per_minute,
-        cost_budget_per_actor:  body.cost_budget_per_actor.clone(),
+        max_requests_per_sec:         body.max_requests_per_sec,
+        max_concurrent:               body.max_concurrent,
+        max_storage_bytes:            body.max_storage_bytes,
+        cost_budget:                  body.cost_budget,
+        cost_budget_per_minute:       body.cost_budget_per_minute,
+        cost_budget_per_actor:        body.cost_budget_per_actor.clone(),
+        max_subscription_connections: body.max_subscription_connections,
     };
     quota.validate().map_err(ApiError::validation_error)?;
 

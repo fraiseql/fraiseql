@@ -1242,8 +1242,10 @@ func (m *FraiseqlCi) Test(
 		// expiry/revocation (#771), loud broadcast lag (#772), hot-reload
 		// policy propagation (#611), graceful drain (#571), and the #758
 		// tenant fail-closed gate on the live /ws path.
+		// `subscription_connection_caps_ws_test` pins the bounds on open
+		// connections, and that a closed socket gives its slot back.
 		"echo '### cargo test -p fraiseql-server subscription test binaries (SYNC:SERVER_FEATURES; not covered by --lib) — P18 verification gate'",
-		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test subscription_ws_e2e_test --test subscription_protocol_test --test subscription_integration_test --test graphql_ws_row_visibility_pin_test --test subscription_lifecycle_ws_test",
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test subscription_ws_e2e_test --test subscription_protocol_test --test subscription_integration_test --test graphql_ws_row_visibility_pin_test --test subscription_lifecycle_ws_test --test subscription_connection_caps_ws_test",
 		"echo '### cargo test -p fraiseql-server test-issuer auth binary (SYNC:SERVER_FEATURES; not covered by --lib)'",
 		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test test_issuer_auth_test",
 		// P19 (#747): the GraphQL Idempotency-Key receiver contract — a saga

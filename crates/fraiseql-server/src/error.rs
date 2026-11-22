@@ -85,6 +85,10 @@ pub enum ErrorCode {
     /// refused (507) until a measurement finds it back under. Not database text: the
     /// message names the quota and is forwarded.
     InsufficientStorage,
+    /// A `WebSocket` upgrade would go over a bound on open subscription connections: the
+    /// principal's, its tenant's, or the unauthenticated ones'. 429; retryable once one of
+    /// those connections closes, so no `Retry-After`.
+    SubscriptionConnectionsExhausted,
 }
 
 impl ErrorCode {
@@ -153,7 +157,9 @@ impl ErrorCode {
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Conflict => StatusCode::CONFLICT,
-            Self::RateLimitExceeded | Self::CostBudgetExhausted => StatusCode::TOO_MANY_REQUESTS,
+            Self::RateLimitExceeded
+            | Self::CostBudgetExhausted
+            | Self::SubscriptionConnectionsExhausted => StatusCode::TOO_MANY_REQUESTS,
             // 408 means "the client took too long to send its request". A
             // server-side execution timeout is a 504 (#731).
             Self::Timeout => StatusCode::GATEWAY_TIMEOUT,
@@ -406,6 +412,13 @@ impl GraphQLError {
             request_id:       None,
             retry_after_secs: Some(retry_after_secs),
         })
+    }
+
+    /// Create a subscription-connections-exhausted error: a `WebSocket` upgrade would go
+    /// over a bound on open subscription connections.
+    #[must_use]
+    pub fn subscription_connections_exhausted(message: impl Into<String>) -> Self {
+        Self::new(message, ErrorCode::SubscriptionConnectionsExhausted)
     }
 
     /// Construct a typed [`GraphQLError`] from a [`fraiseql_core::error::FraiseQLError`] executor

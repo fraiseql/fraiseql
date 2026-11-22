@@ -127,6 +127,12 @@ pub struct Server {
     /// so a rolling deploy ends streams cleanly instead of aborting them.
     pub(super) subscription_drain: Arc<tokio::sync::watch::Sender<bool>>,
     pub(super) max_subscriptions_per_connection: Option<u32>,
+    /// The `/ws` connections open now, by principal, tenant and client address, against
+    /// the `[subscriptions]` bounds.
+    pub(super) subscription_connections: Arc<crate::subscriptions::OpenConnections>,
+    /// How `/ws` reads an unauthenticated client's address, with the rate limit's proxy
+    /// trust.
+    pub(super) client_address: crate::middleware::ClientAddress,
     pub(super) oidc_validator: Option<Arc<OidcValidator>>,
     /// The first-party issuer (`[auth_issuer]`, #1964): the ring every minted session
     /// is signed with. Its first read runs once the tables are provisioned, and it

@@ -87,6 +87,8 @@ EXPECTED_REACHABLE = int(os.environ.get("CONFIG_DENY_UNKNOWN_EXPECTED", "54"))
 # +1 (#2033): `[rate_limiting]` is `ServerRateLimitingConfig` over the compiled
 # `RateLimitingSecurityConfig`, replacing `RateLimitConfig`. Its `Deserialize` is written by
 # hand, and listed with its pinning test in `HAND_WRITTEN`.
+# +1 (TOML walk): `ConnectionCap`, a `[subscriptions]` connection bound, is a number or the
+# string "unlimited", never a table, so it has no key to be unknown.
 
 # The second walk starts at the type `fraiseql.toml` is read into, across the crates that
 # define the types it reaches.
@@ -96,7 +98,7 @@ TOML_CRATES = set(
         "CONFIG_DENY_UNKNOWN_TOML_CRATES", "fraiseql-cli,fraiseql-core,fraiseql-db"
     ).split(",")
 )
-TOML_EXPECTED_REACHABLE = int(os.environ.get("CONFIG_DENY_UNKNOWN_TOML_EXPECTED", "92"))
+TOML_EXPECTED_REACHABLE = int(os.environ.get("CONFIG_DENY_UNKNOWN_TOML_EXPECTED", "93"))
 
 # Each table `TomlSchema` reaches that is open on purpose, its keys chosen by the author:
 # `<type> <file> <reason>` per line.

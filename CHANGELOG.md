@@ -18,6 +18,20 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A `/ws` upgrade is refused once open subscription connections reach a bound (#1832).**
+  A further upgrade is answered `429 SUBSCRIPTION_CONNECTIONS_EXHAUSTED` before the `101`,
+  until one of the connections it counts closes. Four `[subscriptions]` keys set the bounds:
+  `max_connections_per_principal` (32 by default, a principal being a user id within its
+  tenant), `max_connections_per_tenant` (1000, the token-bound tenant's principals together),
+  `max_anonymous_connections` (1000, connections with no principal across the server) and
+  `max_anonymous_connections_per_ip` (32, read as the rate limiter reads a client's address).
+  A connection with no principal never counts against the tenant its request names. Each
+  key takes a positive number or `"unlimited"`; `0` is refused at compile and at load. A
+  tenant registered with `max_subscription_connections` uses that in place of
+  `max_connections_per_tenant`. A deployment holding more than 32 sockets per principal, or
+  more than 32 unauthenticated sockets from one address, is refused past them after
+  upgrading; see `docs/operations/subscription-connection-limits.md`.
+
 - **The crates whose API takes or returns sqlx types are on sqlx 0.9 (#1972).**
   `fraiseql-auth`, `fraiseql-observers`, `fraiseql-server`, `fraiseql-storage` and
   `fraiseql-webhooks` take a `PgPool` or a transaction at their public API, and

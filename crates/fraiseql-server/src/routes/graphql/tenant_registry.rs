@@ -80,28 +80,28 @@ impl TenantStatusSource for TenantExecutorRegistry {
 pub struct TenantQuota {
     /// Maximum requests per second (token bucket rate).
     #[serde(default)]
-    pub max_requests_per_sec:   Option<u32>,
+    pub max_requests_per_sec:         Option<u32>,
     /// Maximum concurrent in-flight requests (semaphore capacity).
     #[serde(default)]
-    pub max_concurrent:         Option<u32>,
+    pub max_concurrent:               Option<u32>,
     /// Maximum storage in bytes, enforced (#633). Schema-mode tenancy only: the tenant's
     /// schema is measured every `[tenancy.storage_quota] interval_secs`, and while it is
     /// over this a tenant's writes are refused (`507`); its reads are not. `None` means
     /// no quota.
     #[serde(default)]
-    pub max_storage_bytes:      Option<u64>,
+    pub max_storage_bytes:            Option<u64>,
     /// Maximum estimated cost of a single GraphQL operation (#379). `None` means
     /// no cost budget. A request whose `estimate_query_cost` exceeds this is
     /// rejected at the same chokepoint as the rate/concurrency quotas with
     /// `OPERATION_COST_EXCEEDED` — permanent for the operation, not retryable.
     #[serde(default)]
-    pub cost_budget:            Option<usize>,
+    pub cost_budget:                  Option<usize>,
     /// Rolling per-minute cost budget (#379): the sum of estimated operation
     /// costs a tenant may spend per fixed 60-second window. `None` means no
     /// window budget. An exhausted window rejects with `COST_BUDGET_EXHAUSTED`
     /// (429 + `Retry-After` until the window resets).
     #[serde(default)]
-    pub cost_budget_per_minute: Option<usize>,
+    pub cost_budget_per_minute:       Option<usize>,
     /// Per-actor-class overrides of the two budgets above (#966).
     ///
     /// A service account draining a report and a human clicking through a UI are
@@ -116,7 +116,12 @@ pub struct TenantQuota {
     /// a function of the traffic mix, which is exactly the coupling this exists
     /// to remove. A class absent here falls back to the tenant-wide budget.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub cost_budget_per_actor:  HashMap<ActorType, ActorCostBudget>,
+    pub cost_budget_per_actor:        HashMap<ActorType, ActorCostBudget>,
+    /// Open `WebSocket` subscription connections this tenant's authenticated principals
+    /// may hold at once: a positive number or `"unlimited"`. `None` is the server's
+    /// `[subscriptions] max_connections_per_tenant`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_subscription_connections: Option<fraiseql_core::schema::ConnectionCap>,
 }
 
 /// One actor class's override of a tenant's cost budgets (#966).

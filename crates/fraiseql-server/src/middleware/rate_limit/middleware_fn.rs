@@ -63,6 +63,35 @@ impl IntoResponse for RateLimitExceeded {
 static PROXY_WARNING_LOGGED: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
+/// How a transport reads a client's address: by [`extract_real_ip`], with the proxy trust
+/// the rate limiter was configured with. The default trusts no proxy header and reads
+/// the peer.
+#[derive(Debug, Clone, Default)]
+pub struct ClientAddress {
+    trust_proxy_headers: bool,
+    trusted_proxy_cidrs: std::sync::Arc<[ipnet::IpNet]>,
+}
+
+impl ClientAddress {
+    /// The rule `[security.rate_limiting]` configures: trust `X-Real-IP` and
+    /// `X-Forwarded-For` only when `trust_proxy_headers` is set and the peer is in
+    /// `trusted_proxy_cidrs`.
+    #[must_use]
+    pub fn new(trust_proxy_headers: bool, trusted_proxy_cidrs: &[ipnet::IpNet]) -> Self {
+        Self {
+            trust_proxy_headers,
+            trusted_proxy_cidrs: trusted_proxy_cidrs.into(),
+        }
+    }
+
+    /// The address a request from `peer` with `headers` comes from, as the rate limiter
+    /// keys it.
+    #[must_use]
+    pub fn of(&self, headers: &axum::http::HeaderMap, peer: Option<IpAddr>) -> String {
+        extract_real_ip(headers, self.trust_proxy_headers, &self.trusted_proxy_cidrs, peer)
+    }
+}
+
 /// The client IP a request is rate-limited as: the forwarded client when the peer is a
 /// trusted proxy, the peer otherwise.
 ///

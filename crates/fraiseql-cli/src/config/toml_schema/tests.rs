@@ -1112,3 +1112,50 @@ mod settings_tests {
         );
     }
 }
+
+mod subscription_connection_bounds {
+    use super::super::*;
+
+    /// The `[subscriptions]` section `toml` compiles to, as the server reads it.
+    fn compiled(toml: &str) -> anyhow::Result<fraiseql_core::schema::SubscriptionsConfig> {
+        let schema = TomlSchema::parse_toml(toml)?;
+        let section = schema
+            .lower_runtime_sections(&|_| true)?
+            .into_iter()
+            .find(|s| s.key == "subscriptions_config")
+            .expect("[subscriptions] is lowered");
+        Ok(serde_json::from_value(section.value)?)
+    }
+
+    #[test]
+    fn each_bound_reaches_the_compiled_schema() {
+        let config = compiled(
+            "[subscriptions]\nmax_connections_per_principal = 4\n\
+             max_connections_per_tenant = \"unlimited\"\nmax_anonymous_connections = 9\n\
+             max_anonymous_connections_per_ip = 2\n",
+        )
+        .unwrap();
+        let cap = |n| {
+            Some(fraiseql_core::schema::ConnectionCap::Limit(
+                std::num::NonZeroU32::new(n).unwrap(),
+            ))
+        };
+        assert_eq!(config.max_connections_per_principal, cap(4));
+        assert_eq!(
+            config.max_connections_per_tenant,
+            Some(fraiseql_core::schema::ConnectionCap::Unlimited)
+        );
+        assert_eq!(config.max_anonymous_connections, cap(9));
+        assert_eq!(config.max_anonymous_connections_per_ip, cap(2));
+    }
+
+    #[test]
+    fn a_bound_of_zero_is_refused() {
+        let error =
+            compiled("[subscriptions]\nmax_anonymous_connections_per_ip = 0\n").unwrap_err();
+        assert!(
+            format!("{error:#}").contains("0 connections would refuse every one"),
+            "{error:#}"
+        );
+    }
+}

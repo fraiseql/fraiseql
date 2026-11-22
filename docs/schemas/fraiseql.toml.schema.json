@@ -3515,6 +3515,50 @@
           "additionalProperties": {
             "$ref": "#/$defs/CaptureTableConfig"
           }
+        },
+        "max_connections_per_principal": {
+          "description": "Open WebSocket connections one principal may hold at once, within its tenant.\nA positive number or `\"unlimited\"`; omitted, 32. A further upgrade is refused\nwith `429 SUBSCRIPTION_CONNECTIONS_EXHAUSTED` until one of them closes.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConnectionCap"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_connections_per_tenant": {
+          "description": "Open WebSocket connections the authenticated principals of one tenant may hold\nat once. A positive number or `\"unlimited\"`; omitted, 1000. A tenant registered\nwith its own `max_subscription_connections` quota uses that instead.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConnectionCap"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_anonymous_connections": {
+          "description": "Open WebSocket connections with no principal, across the server. A positive\nnumber or `\"unlimited\"`; omitted, 1000. They never count against a tenant's\nor a principal's connections, whatever tenant they name.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConnectionCap"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_anonymous_connections_per_ip": {
+          "description": "Open WebSocket connections with no principal from one client address, read as\nthe rate limiter reads it (`[security.rate_limiting] trust_proxy_headers` and\n`trusted_proxy_cidrs`). A positive number or `\"unlimited\"`; omitted, 32.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConnectionCap"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false
@@ -3566,6 +3610,20 @@
       "additionalProperties": false,
       "required": [
         "document_column"
+      ]
+    },
+    "ConnectionCap": {
+      "description": "A positive number of connections, or \"unlimited\".",
+      "oneOf": [
+        {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 1
+        },
+        {
+          "type": "string",
+          "const": "unlimited"
+        }
       ]
     },
     "ValidationConfig": {

@@ -112,6 +112,8 @@ pub(super) struct SchemaSubsystems {
     #[cfg(feature = "auth")]
     pub oidc_server_client: Option<Arc<crate::auth::OidcServerClient>>,
     pub rate_limiter: Option<Arc<RateLimiter>>,
+    /// How a client's address is read, with the rate limit's proxy trust.
+    pub client_address: crate::middleware::ClientAddress,
     /// The `[webhooks.*]` routes, built and validated here so the mount serves
     /// exactly what boot accepted (#1321).
     #[cfg(feature = "inbound")]
@@ -376,6 +378,8 @@ impl Server {
         // whatever actually takes effect (#837) and CLI/env overrides win (#774).
         let rate_limiter =
             super::initialization::resolve_rate_limiter(schema, config, deployment).await?;
+        let client_address =
+            super::initialization::resolve_client_address(schema, config, deployment)?;
         // #787/#781: a configured inbound webhook route must be servable — known
         // provider, its secret env set (production), and a public_url when the
         // provider signs the request URL — or the server refuses to boot instead
@@ -420,6 +424,7 @@ impl Server {
             #[cfg(feature = "auth")]
             oidc_server_client,
             rate_limiter,
+            client_address,
             #[cfg(feature = "inbound")]
             webhook_routes,
             api_key_config,
@@ -473,6 +478,9 @@ impl Server {
             if let Some(max) = subs.max_subscriptions_per_connection {
                 self.max_subscriptions_per_connection = Some(max);
             }
+            self.subscription_connections = crate::subscriptions::OpenConnections::new(
+                crate::subscriptions::ConnectionCaps::DEFAULT.configured_by(&subs),
+            );
             if let Some(lifecycle) = crate::subscriptions::WebhookLifecycle::from_config(&subs) {
                 info!(
                     "Subscription lifecycle webhooks enabled (on_connect/on_subscribe are \
@@ -542,6 +550,7 @@ impl Server {
             #[cfg(feature = "auth")]
             oidc_server_client,
             rate_limiter,
+            client_address,
             #[cfg(feature = "inbound")]
             webhook_routes,
             api_key_config,
@@ -1143,6 +1152,10 @@ impl Server {
             subscription_lifecycle: Arc::new(crate::subscriptions::NoopLifecycle),
             subscription_drain: Arc::new(tokio::sync::watch::channel(false).0),
             max_subscriptions_per_connection: None,
+            subscription_connections: crate::subscriptions::OpenConnections::new(
+                crate::subscriptions::ConnectionCaps::DEFAULT,
+            ),
+            client_address,
             oidc_validator,
             #[cfg(feature = "auth")]
             first_party,

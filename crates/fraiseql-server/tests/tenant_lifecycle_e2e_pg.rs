@@ -63,9 +63,10 @@ fn tenancy_schema_json() -> Value {
 
 fn registration(url: &str) -> TenantRegistrationRequest {
     TenantRegistrationRequest {
-        cost_budget_per_actor:  std::collections::HashMap::new(),
-        schema:                 tenancy_schema_json(),
-        connection:             TenantPoolConfig {
+        cost_budget_per_actor: std::collections::HashMap::new(),
+        max_subscription_connections: None,
+        schema: tenancy_schema_json(),
+        connection: TenantPoolConfig {
             connection_string:    url.to_string(),
             max_connections:      2,
             connect_timeout_secs: 10,
@@ -80,10 +81,10 @@ fn registration(url: &str) -> TenantRegistrationRequest {
             vector_scan:          fraiseql_core::db::postgres::VectorScanConfig::default(),
             transaction_retry:    fraiseql_core::db::postgres::TransactionRetry::off(),
         },
-        max_requests_per_sec:   None,
-        max_concurrent:         None,
-        max_storage_bytes:      None,
-        cost_budget:            None,
+        max_requests_per_sec: None,
+        max_concurrent: None,
+        max_storage_bytes: None,
+        cost_budget: None,
         cost_budget_per_minute: None,
     }
 }

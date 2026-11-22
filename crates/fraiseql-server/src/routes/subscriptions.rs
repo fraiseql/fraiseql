@@ -237,6 +237,13 @@ pub struct SubscriptionState {
     /// bounds how long an idle expired stream, or a revoked-but-unexpired one,
     /// can stay open. `Duration::ZERO` disables the periodic check.
     pub auth_recheck_interval: Duration,
+    /// The connections open now, against the bounds a further upgrade is admitted by: per
+    /// principal, per tenant, and for connections with no principal, across the server
+    /// and per client address. A connection holds its slot from the upgrade to its close.
+    pub open_connections: Arc<crate::subscriptions::OpenConnections>,
+    /// How an upgrade with no principal reads its client's address, for
+    /// `max_anonymous_connections_per_ip`.
+    pub client_address: crate::middleware::ClientAddress,
 }
 
 impl SubscriptionState {
@@ -263,7 +270,29 @@ impl SubscriptionState {
             auth_recheck_interval: Duration::from_secs(
                 crate::server_config::defaults::default_subscription_auth_recheck_secs(),
             ),
+            open_connections: crate::subscriptions::OpenConnections::new(
+                crate::subscriptions::ConnectionCaps::DEFAULT,
+            ),
+            client_address: crate::middleware::ClientAddress::default(),
         }
+    }
+
+    /// Count open connections in `open`, against its bounds. Every state sharing one
+    /// count enforces them together.
+    #[must_use]
+    pub fn with_open_connections(
+        mut self,
+        open: Arc<crate::subscriptions::OpenConnections>,
+    ) -> Self {
+        self.open_connections = open;
+        self
+    }
+
+    /// Read an unauthenticated client's address by `client_address`.
+    #[must_use]
+    pub fn with_client_address(mut self, client_address: crate::middleware::ClientAddress) -> Self {
+        self.client_address = client_address;
+        self
     }
 
     /// Install the hot-reload policy signal (#611 layer 2). Each bump of the
@@ -527,6 +556,7 @@ pub async fn subscription_handler(
     headers: HeaderMap,
     OptionalSecurityContext(security_context): OptionalSecurityContext,
     token_claims: Option<axum::Extension<crate::middleware::oidc_auth::SessionTokenClaims>>,
+    peer: Option<axum::Extension<axum::extract::ConnectInfo<std::net::SocketAddr>>>,
     ws: WebSocketUpgrade,
     State(state): State<SubscriptionState>,
 ) -> impl IntoResponse {
@@ -574,8 +604,30 @@ pub async fn subscription_handler(
         },
     };
 
+    // Held by the closure below, so it is given back when the connection closes, or when
+    // the upgrade never completes and the closure is dropped unrun.
+    let slot = match take_connection_slot(
+        &state,
+        security_context.as_ref(),
+        tenant.as_ref(),
+        &headers,
+        peer.map(|axum::Extension(axum::extract::ConnectInfo(addr))| addr.ip()),
+    ) {
+        Ok(slot) => slot,
+        Err(exhausted) => {
+            warn!(%exhausted, "Subscription upgrade refused: open connections at their bound");
+            return crate::error::ErrorResponse::from_error(
+                crate::error::GraphQLError::subscription_connections_exhausted(
+                    exhausted.to_string(),
+                ),
+            )
+            .into_response();
+        },
+    };
+
     ws.protocols([protocol.as_str()])
-        .on_upgrade(move |socket| {
+        .on_upgrade(move |socket| async move {
+            let _slot = slot;
             handle_subscription_connection(
                 socket,
                 state,
@@ -585,8 +637,46 @@ pub async fn subscription_handler(
                 token_claims.map(|axum::Extension(claims)| claims),
                 headers,
             )
+            .await;
         })
         .into_response()
+}
+
+/// A slot among the open connections for an upgrade the admission above let through.
+///
+/// A principal's connection counts against the principal, within its tenant, and against
+/// that tenant: the one its token binds, since a request may name no other. A connection
+/// with no principal counts against the anonymous connections and its client address,
+/// never against the tenant a hint names: anyone can write a hint.
+///
+/// # Errors
+///
+/// The bound the connection would go over.
+fn take_connection_slot(
+    state: &SubscriptionState,
+    security_context: Option<&SecurityContext>,
+    tenant: Option<&Tenant>,
+    headers: &HeaderMap,
+    peer: Option<std::net::IpAddr>,
+) -> Result<crate::subscriptions::ConnectionSlot, crate::subscriptions::Exhausted> {
+    use crate::subscriptions::Holder;
+    let address;
+    let holder = if let Some(ctx) = security_context {
+        let key = tenant.and_then(Tenant::key);
+        let tenant_cap = key.and_then(|key| {
+            let registry = state.app.as_ref()?.tenant_registry()?;
+            registry.tenant_quota(key).ok()?.max_subscription_connections
+        });
+        Holder::Principal {
+            tenant: key,
+            user: ctx.user_id.as_str(),
+            tenant_cap,
+        }
+    } else {
+        address = state.client_address.of(headers, peer);
+        Holder::Anonymous { address: &address }
+    };
+    state.open_connections.admit(holder)
 }
 
 /// Admit an upgrade as `/graphql` admits a request: resolve the tenant the connection

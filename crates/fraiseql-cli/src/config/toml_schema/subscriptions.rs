@@ -38,6 +38,30 @@ pub struct SubscriptionsConfig {
     /// ```
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub capture: std::collections::BTreeMap<String, fraiseql_core::schema::CaptureTableConfig>,
+
+    /// Open WebSocket connections one principal may hold at once, within its tenant.
+    /// A positive number or `"unlimited"`; omitted, 32. A further upgrade is refused
+    /// with `429 SUBSCRIPTION_CONNECTIONS_EXHAUSTED` until one of them closes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_connections_per_principal: Option<fraiseql_core::schema::ConnectionCap>,
+
+    /// Open WebSocket connections the authenticated principals of one tenant may hold
+    /// at once. A positive number or `"unlimited"`; omitted, 1000. A tenant registered
+    /// with its own `max_subscription_connections` quota uses that instead.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_connections_per_tenant: Option<fraiseql_core::schema::ConnectionCap>,
+
+    /// Open WebSocket connections with no principal, across the server. A positive
+    /// number or `"unlimited"`; omitted, 1000. They never count against a tenant's
+    /// or a principal's connections, whatever tenant they name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_anonymous_connections: Option<fraiseql_core::schema::ConnectionCap>,
+
+    /// Open WebSocket connections with no principal from one client address, read as
+    /// the rate limiter reads it (`[security.rate_limiting] trust_proxy_headers` and
+    /// `trusted_proxy_cidrs`). A positive number or `"unlimited"`; omitted, 32.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_anonymous_connections_per_ip: Option<fraiseql_core::schema::ConnectionCap>,
 }
 
 /// Webhook URLs invoked during subscription lifecycle events.

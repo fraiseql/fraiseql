@@ -245,6 +245,8 @@ impl Server {
         let mut subscription_state = SubscriptionState::new(self.subscription_manager.clone())
             .with_lifecycle(self.subscription_lifecycle.clone())
             .with_max_subscriptions(self.max_subscriptions_per_connection)
+            .with_open_connections(Arc::clone(&self.subscription_connections))
+            .with_client_address(self.client_address.clone())
             // The upgrade and each subscription are admitted as a `/graphql` request is.
             .with_app(state.clone())
             // #422: enforce the operation-level authorizer (if any) at subscribe-time.

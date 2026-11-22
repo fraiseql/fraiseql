@@ -781,7 +781,6 @@ pub(super) async fn resolve_rate_limiter(
     deployment: Deployment,
 ) -> crate::Result<Option<Arc<RateLimiter>>> {
     let section = rate_limiting_section(schema, config)?;
-    let overrides = &config.rate_limit_overrides;
 
     // The auth endpoint rules come from the section when there is one and from
     // the defaults when there is not: an absent section is not a decision to leave
@@ -789,23 +788,7 @@ pub(super) async fn resolve_rate_limiter(
     let auth_rules = section.clone().unwrap_or_default();
     auth_rule_budgets_check(&auth_rules)?;
 
-    // Base: the one configured section, which faces the guards whichever file it came from.
-    let mut effective = match &section {
-        Some(sec) => rate_limit_config_checked(sec, deployment)?,
-        // Nothing configured anywhere. An override may still switch it on, in which
-        // case the defaults apply; otherwise the global limit is off and only the auth
-        // rules run.
-        None if overrides.enables() => crate::middleware::RateLimitConfig::default(),
-        None => crate::middleware::RateLimitConfig {
-            enabled: false,
-            ..crate::middleware::RateLimitConfig::default()
-        },
-    };
-    if let Some(server_table) = &config.rate_limiting {
-        effective.cleanup_interval_secs = server_table.cleanup_interval_secs;
-    }
-
-    overrides.apply_to(&mut effective);
+    let effective = effective_rate_limit_config(section.as_ref(), config, deployment)?;
 
     if !effective.enabled {
         if !auth_rules.auth_rules_enabled {
@@ -828,6 +811,57 @@ pub(super) async fn resolve_rate_limiter(
 
     let limiter = build_rate_limiter(effective, &auth_rules, section.as_ref(), deployment).await?;
     Ok(Some(Arc::new(limiter)))
+}
+
+/// The rate limit that takes effect: the one configured section, which faces the guards
+/// whichever file it came from, with the CLI and environment values applied.
+fn effective_rate_limit_config(
+    section: Option<&crate::middleware::RateLimitingSecurityConfig>,
+    config: &crate::ServerConfig,
+    deployment: Deployment,
+) -> crate::Result<crate::middleware::RateLimitConfig> {
+    let overrides = &config.rate_limit_overrides;
+    let mut effective = match section {
+        Some(sec) => rate_limit_config_checked(sec, deployment)?,
+        // Nothing configured anywhere. An override may still switch it on, in which
+        // case the defaults apply; otherwise the global limit is off and only the auth
+        // rules run.
+        None if overrides.enables() => crate::middleware::RateLimitConfig::default(),
+        None => crate::middleware::RateLimitConfig {
+            enabled: false,
+            ..crate::middleware::RateLimitConfig::default()
+        },
+    };
+    if let Some(server_table) = &config.rate_limiting {
+        effective.cleanup_interval_secs = server_table.cleanup_interval_secs;
+    }
+    overrides.apply_to(&mut effective);
+    Ok(effective)
+}
+
+/// How the transports that key a client by its address read it: the proxy trust the
+/// rate limit takes effect with, whether or not any limit is on.
+///
+/// # Errors
+///
+/// The rate limiter's own boot refusals: a section the guards refuse, or proxy-header
+/// trust a deployment may not have.
+pub(super) fn resolve_client_address(
+    schema: &CompiledSchema,
+    config: &crate::ServerConfig,
+    deployment: Deployment,
+) -> crate::Result<crate::middleware::ClientAddress> {
+    let section = rate_limiting_section(schema, config)?;
+    let effective = effective_rate_limit_config(section.as_ref(), config, deployment)?;
+    proxy_trust_check_parsed(
+        effective.trust_proxy_headers,
+        &effective.trusted_proxy_cidrs,
+        deployment,
+    )?;
+    Ok(crate::middleware::ClientAddress::new(
+        effective.trust_proxy_headers,
+        &effective.trusted_proxy_cidrs,
+    ))
 }
 
 /// Refuse a global limit whose budget is zero.
