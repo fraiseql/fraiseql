@@ -72,8 +72,9 @@ fn an_empty_return_type_is_diagnosed_not_panicked_on() {
 /// A type name starting with a multi-byte character must not panic.
 ///
 /// `&"Ünknown"[0..1]` is not a char boundary: "byte index 1 is not a char boundary; it is
-/// inside 'Ü' (bytes 0..2)". Non-ASCII type names are legal `GraphQL-adjacent` input and
-/// ordinary in non-English codebases.
+/// inside 'Ü' (bytes 0..2)". A non-ASCII name is not a GraphQL Name, and the compiler
+/// refuses it where the schema loads; the validator reads the schema before that, so it
+/// must diagnose one rather than panic.
 #[test]
 fn a_multibyte_type_name_is_diagnosed_not_panicked_on() {
     let report = validate(schema_returning("Ünknown"));

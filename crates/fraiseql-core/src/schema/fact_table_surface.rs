@@ -28,6 +28,7 @@ use super::{
     ArgumentDefinition, CompiledSchema, EnumDefinition, EnumValueDefinition, FieldDefinition,
     FieldType, InputFieldDefinition, InputObjectDefinition, TypeDefinition,
     derived_inputs::{COMPARISON_OPERATORS, NULL_OPERATORS, SORT_DIRECTION_ENUM, pascal_case},
+    is_graphql_name,
 };
 use crate::compiler::fact_table::{
     Additivity, FactTableMetadata, GroupKeySource, MeasureColumn, SqlType,
@@ -238,13 +239,6 @@ pub fn unpublishable_key_violations(table: &FactTableMetadata) -> Vec<String> {
             )
         })
         .collect()
-}
-
-/// Whether `name` is a GraphQL name: `[_A-Za-z][_0-9A-Za-z]*`.
-fn is_graphql_name(name: &str) -> bool {
-    let mut chars = name.chars();
-    chars.next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
-        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 /// The `snake_case` GraphQL name a key could have: `dimensions.category.id` →

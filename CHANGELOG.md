@@ -26,6 +26,18 @@ disagreed, and the promise was the part that was wrong.
   sqlx 0.9.1 or later. 0.9 takes SQL built at runtime only through `sqlx::AssertSqlSafe`;
   see its changelog for the rest.
 
+- **A declared name is a GraphQL Name, at compile and at load (#1840).** `fraiseql compile`
+  wrote a type, field or argument named `a'b` into `schema.compiled.json`; only a field
+  that was a sort key was refused, by the check that lists sort keys. Every type,
+  interface, union, enum, enum value, input type, input field, field, argument, query,
+  mutation, subscription and directive name is now held to `[_A-Za-z][_0-9A-Za-z]*`
+  (§ 2.1.9), and may not start with `__` (§ 3.1); an enum value may not be `true`, `false`
+  or `null` (§ 3.9). A field is checked under its JSONB key and its `alias`, and an
+  operation under the name the naming convention publishes it as, so `_2fa_codes` under
+  camelCase (`2faCodes`) is refused. One error lists every offending name. The check runs
+  where a compiled schema loads, so a server refuses at boot a compiled schema holding
+  such a name, written by hand or by an earlier compiler. Every example and SDK
+  conformance fixture compiles unchanged.
 - **`WindowExecutionPlan` carries the fact table it reads, in `metadata` (#2263).** The
   window generator now lowers its `where` against the table, as an aggregate plan's is.
   A plan built by hand names the table's `FactTableMetadata`; one from `WindowPlanner`

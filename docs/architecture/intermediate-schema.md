@@ -706,6 +706,7 @@ idiom conflicts with one, **the SDK adapts** — the compiler is the fixed point
 | Empty sections | Omit the key, or emit `[]`. **Never `null`.** |
 | Nullability | An explicit `nullable` boolean on every field and argument. Never a `!` suffix on the type string. |
 | Type strings | The bare GraphQL name (`String`, `User`), or a list wrapper (`[User!]`). `returns_list` is a separate boolean on operations, not `[...]` around `return_type`. |
+| Names | Every type, interface, union, enum, enum value, input type, field, argument, query, mutation, subscription and directive name is a GraphQL Name (`[_A-Za-z][_0-9A-Za-z]*`) not starting with `__`; an enum value is also not `true`, `false` or `null`. A field's `alias`, and an operation's name as the naming convention publishes it, are held to the same rule. The compiler refuses any other name, and so does a server loading a compiled schema, listing every offender in one error. |
 | Unknown keys | Rejected. Every struct denies unknown fields. |
 | Booleans that default false | Omit when false, so a schema not using the feature is byte-identical to one authored before it existed. |
 | Mutation verbs | Case-insensitive within the closed set; an unrecognized verb is an error, not a fallback to `CUSTOM`. |

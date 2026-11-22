@@ -82,6 +82,25 @@ const SCOPE_WITHOUT_SECURITY: &str = r#"{
   }]
 }"#;
 
+/// A type and an argument whose names are not GraphQL Names.
+const NOT_GRAPHQL_NAMES: &str = r#"{
+  "types": [{
+    "name": "Quote'd'); DROP TABLE x; --",
+    "sql_source": "v_user",
+    "fields": [
+      {"name": "id", "type": "ID", "nullable": false},
+      {"name": "name", "type": "String", "nullable": false}
+    ]
+  }],
+  "queries": [{
+    "name": "users",
+    "return_type": "Quote'd'); DROP TABLE x; --",
+    "returns_list": true,
+    "sql_source": "v_user",
+    "arguments": [{"name": "a'b", "type": "String", "nullable": true}]
+  }]
+}"#;
+
 /// Compile `schema_json` from a fresh temp dir, restoring the working directory.
 async fn compile(schema_json: &str) -> anyhow::Result<()> {
     let dir = TempDir::new().expect("temp dir");
@@ -220,6 +239,17 @@ async fn compile_refuses_what_the_server_would_refuse_to_load() {
     compile(&enum_default("ACTIVE"))
         .await
         .expect("a declared enum default compiles");
+
+    // A name that is not a GraphQL Name is refused, every one in one error.
+    let err = compile(NOT_GRAPHQL_NAMES)
+        .await
+        .expect_err("a type and an argument that are not GraphQL Names must not compile");
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("type `Quote'd'); DROP TABLE x; --` is not a GraphQL name")
+            && msg.contains("argument `users(a'b:)` is not a GraphQL name"),
+        "names the type and the argument: {msg}"
+    );
 
     // Control: the complete link compiles.
     let complete =

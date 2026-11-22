@@ -135,7 +135,7 @@ fn scalar(value: &Value) -> Result<String, String> {
             let fields = entries
                 .iter()
                 .map(|(key, v)| {
-                    if !is_name(key) {
+                    if !crate::schema::is_graphql_name(key) {
                         return Err(format!(
                             "key `{key}` is not a GraphQL name, so it has no literal"
                         ));
@@ -146,11 +146,4 @@ fn scalar(value: &Value) -> Result<String, String> {
             Ok(format!("{{{}}}", fields.join(", ")))
         },
     }
-}
-
-/// `/[_A-Za-z][_0-9A-Za-z]*/` (§2.1.9).
-fn is_name(s: &str) -> bool {
-    let mut chars = s.chars();
-    chars.next().is_some_and(|c| c == '_' || c.is_ascii_alphabetic())
-        && chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
 }

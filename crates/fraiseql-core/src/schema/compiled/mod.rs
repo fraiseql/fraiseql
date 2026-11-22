@@ -14,6 +14,7 @@ mod fact_table_scope;
 mod federation_keys;
 mod localized_indexes;
 pub mod mutation;
+mod name_violations;
 mod otp_allowed_query;
 pub mod query;
 pub mod schema;
@@ -38,6 +39,8 @@ mod enriched_fields_read_tests;
 mod fact_table_inject_tests;
 #[cfg(test)]
 mod federation_keys_tests;
+#[cfg(test)]
+mod name_violations_tests;
 #[cfg(test)]
 mod role_names_read_tests;
 #[cfg(test)]

@@ -503,6 +503,18 @@ impl CompiledSchema {
                 path:    Some("schema.names".to_string()),
             });
         }
+        // A name that is not a GraphQL Name cannot be typed by a client or published as SDL,
+        // and a field's name is a JSONB key the SQL is built from.
+        let violations = self.name_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "schema declares names that are not GraphQL Names (§ 2.1.9):\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("schema.names".to_string()),
+            });
+        }
         // #1306: a ceiling of 0 refuses every offset page; the compiler refuses it, and a
         // hand-written artifact is held to the same rule.
         if self.validation_config.as_ref().and_then(|v| v.max_offset) == Some(0) {
@@ -804,15 +816,10 @@ impl CompiledSchema {
     /// is what a hand-written or post-processed compiled schema still meets.
     /// Every sorting query whose derived `orderBy` item names an enum that is not exactly its
     /// sort keys, or a name another kind of type also takes (#1159). An item type the author
-    /// declared is their surface, and not checked.
+    /// declared is their surface, and not checked. A sort key that cannot be an enum value is
+    /// refused earlier, by `name_violations`, as a value of the derived enum.
     fn order_by_violations(&self) -> Vec<String> {
         use crate::schema::derived_inputs::{order_by_type_names, sortable_keys};
-        let is_name = |key: &str| {
-            let mut chars = key.chars();
-            chars.next().is_some_and(|c| c == '_' || c.is_ascii_alphabetic())
-                && chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
-                && !matches!(key, "true" | "false" | "null")
-        };
         let mut out = Vec::new();
         for query in &self.queries {
             let Some((item, field)) = order_by_type_names(self, query) else {
@@ -826,12 +833,6 @@ impl CompiledSchema {
             }
             let keys =
                 sortable_keys(self, &query.return_type, &query.native_columns).unwrap_or_default();
-            if let Some(bad) = keys.iter().find(|k| !is_name(k)) {
-                out.push(format!(
-                    "`{}`: the sort key `{bad}` is not a GraphQL name, so `{field}` cannot list it",
-                    query.name
-                ));
-            }
             let listed = self
                 .find_enum(&field)
                 .map(|e| e.values.iter().map(|v| v.name.as_str()).collect::<Vec<_>>());

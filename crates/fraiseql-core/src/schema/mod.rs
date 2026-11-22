@@ -51,6 +51,7 @@ pub mod derived_inputs;
 pub mod domain_types;
 pub mod fact_table_surface;
 mod field_type;
+mod graphql_name;
 mod graphql_type_defs;
 pub mod graphql_value;
 mod hierarchy;
@@ -92,6 +93,7 @@ pub use field_type::{
     BUILTIN_SCALARS, DeprecationInfo, DistanceMetric, FieldDefinition, FieldDenyPolicy,
     FieldEncryptionConfig, FieldType, VectorConfig, VectorIndexType,
 };
+pub use graphql_name::is_graphql_name;
 pub use graphql_type_defs::{
     EnumDefinition, EnumValueDefinition, InputFieldDefinition, InputObjectDefinition,
     InterfaceDefinition, SqlProjectionHint, StoredEnumValue, TypeDefinition, UnionDefinition,
