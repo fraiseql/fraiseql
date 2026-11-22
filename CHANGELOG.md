@@ -881,6 +881,9 @@ disagreed, and the promise was the part that was wrong.
     run-time `Kind`, so an undeclared one stays `DateTime`.
   - Python: `fraiseql.LocalDateTime`, a field, an argument or a list's item. A `datetime`
     is naive or aware by its value, not its type, so it stays `DateTime`.
+  - Go: `fraiseql.LocalDateTime`, a field's type (a pointer for a nullable one, a slice
+    for a list); an argument names `"LocalDateTime"`. `time.Time` is an instant and stays
+    `DateTime`.
 
 - **`compile --database` warns on a view casting a document's text to a temporal type
   (#2213).** A served view, or with gRPC enabled a row view (`vr_<sql_source>`), whose

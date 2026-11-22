@@ -142,6 +142,7 @@ FraiseQL supports the following Go types:
 | `*[]T` | `[T]` | Yes |
 | `time.Time` | `DateTime` | No |
 | `*time.Time` | `DateTime` | Yes |
+| `fraiseql.LocalDateTime` | `LocalDateTime` (a date and time with no offset, a PostgreSQL `timestamp`) | No |
 | `fraiseql.Email`, `fraiseql.Date`, … (any scalar in `scalars.go`) | that scalar (`Email`, `Date`, …) | No |
 | Custom struct | Custom Type | No |
 | `*CustomStruct` | Custom Type | Yes |

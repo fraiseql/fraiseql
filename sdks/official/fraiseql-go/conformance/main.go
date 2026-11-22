@@ -46,20 +46,38 @@ type ledgerEntry struct {
 	TransferIDs []int64 `fraiseql:"transferIds"`
 }
 
-// authorLedgerEntry registers ledgerEntry with the fields ExtractFields infers, in their
-// declared order: ExtractFields returns a map, and the fixture's order is part of it.
+// shiftSlot is authored from its Go types (#2177): a time.Time is an instant, so a date and
+// time with no offset is the SDK's LocalDateTime.
+type shiftSlot struct {
+	ID       string                   `fraiseql:"id"`
+	StartsAt fraiseql.LocalDateTime   `fraiseql:"startsAt"`
+	EndsAt   *fraiseql.LocalDateTime  `fraiseql:"endsAt"`
+	BreaksAt []fraiseql.LocalDateTime `fraiseql:"breaksAt"`
+}
+
+// authorLedgerEntry registers ledgerEntry from its inferred fields.
 func authorLedgerEntry() error {
-	structType := reflect.TypeOf(ledgerEntry{})
+	return authorInferred("LedgerEntry", reflect.TypeOf(ledgerEntry{}))
+}
+
+// authorShiftSlot registers shiftSlot the same way.
+func authorShiftSlot() error {
+	return authorInferred("ShiftSlot", reflect.TypeOf(shiftSlot{}))
+}
+
+// authorInferred registers structType under name with the fields ExtractFields infers, in
+// their declared order: ExtractFields returns a map, and the fixture's order is part of it.
+func authorInferred(name string, structType reflect.Type) error {
 	inferred, err := fraiseql.ExtractFields(structType)
 	if err != nil {
 		return err
 	}
 	fields := make([]fraiseql.FieldInfo, 0, structType.NumField())
 	for i := range structType.NumField() {
-		name := strings.Split(structType.Field(i).Tag.Get("fraiseql"), ",")[0]
-		fields = append(fields, inferred[name])
+		field := strings.Split(structType.Field(i).Tag.Get("fraiseql"), ",")[0]
+		fields = append(fields, inferred[field])
 	}
-	return fraiseql.RegisterType("LedgerEntry", fields, "")
+	return fraiseql.RegisterType(name, fields, "")
 }
 
 func authorFull() error {
@@ -140,6 +158,9 @@ func authorFull() error {
 	// Lists (#1586, #1608): the GraphQL type string, every level as written. A struct
 	// would say the same through goToGraphQLType: `*[]*float64` is `[Float]`.
 	if err := authorLedgerEntry(); err != nil {
+		return err
+	}
+	if err := authorShiftSlot(); err != nil {
 		return err
 	}
 
@@ -226,6 +247,15 @@ func authorFull() error {
 		SqlSource("v_ledger_entry").
 		Arg("accountNumber", "BigInt", nil, false).
 		Arg("transferIds", "[BigInt!]", nil, true).
+		Register(); err != nil {
+		return err
+	}
+	// A `LocalDateTime` argument is named the same way.
+	if err := fraiseql.NewQuery("shiftSlotsStartingAfter").
+		ReturnType("ShiftSlot").ReturnsArray(true).Nullable(false).
+		SqlSource("v_shift_slot").
+		Arg("startsAfter", "LocalDateTime", nil, false).
+		Arg("exceptAt", "[LocalDateTime!]", nil, true).
 		Register(); err != nil {
 		return err
 	}

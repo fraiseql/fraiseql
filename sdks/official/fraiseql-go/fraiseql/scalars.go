@@ -48,6 +48,11 @@ type ID string
 // DateTime is an ISO 8601 DateTime scalar (e.g., "2025-01-10T12:00:00Z").
 type DateTime string
 
+// LocalDateTime is a date and time with no offset (e.g., "2025-01-10T12:00:00"), a
+// PostgreSQL `timestamp`. A time.Time is an instant and stays DateTime: declare a field
+// whose values carry no offset with this type.
+type LocalDateTime string
+
 // Date is an ISO 8601 Date scalar (e.g., "2025-01-10").
 type Date string
 
@@ -290,11 +295,12 @@ var ScalarNames = map[string]bool{
 	"HalfVector":   true,
 	"SparseVector": true,
 	// Date/Time
-	"DateTime":  true,
-	"Date":      true,
-	"Time":      true,
-	"DateRange": true,
-	"Duration":  true,
+	"DateTime":      true,
+	"LocalDateTime": true,
+	"Date":          true,
+	"Time":          true,
+	"DateRange":     true,
+	"Duration":      true,
 	// Contact/Communication
 	"Email":       true,
 	"PhoneNumber": true,
