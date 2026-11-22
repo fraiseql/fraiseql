@@ -21,6 +21,7 @@ module SchemaRegistry =
     let private mutations = System.Collections.Generic.List<MutationDefinition>()
     let private enums = System.Collections.Generic.List<EnumDefinition>()
     let private functions = System.Collections.Generic.List<FunctionDefinition>()
+    let private observers = System.Collections.Generic.List<ObserverDefinition>()
     let private lockObj = obj ()
 
     /// Clears all registered types, input types, queries, and mutations. Required between test runs.
@@ -32,7 +33,8 @@ module SchemaRegistry =
             queries.Clear()
             mutations.Clear()
             enums.Clear()
-            functions.Clear())
+            functions.Clear()
+            observers.Clear())
 
     /// Reflects the fields of a type that carries <see cref="GraphQLFieldAttribute"/>.
     let private reflectFields (t: Type) : FieldDefinition list =
@@ -394,6 +396,22 @@ module SchemaRegistry =
     let registerFunction (f: FunctionDefinition) : unit =
         lock lockObj (fun () -> functions.Add(f))
 
+    /// Registers an observer (#2147).
+    /// Raises <see cref="InvalidOperationException"/> if an observer of this name is registered.
+    let registerObserver (o: ObserverDefinition) : unit =
+        lock lockObj (fun () ->
+            if observers.Exists(fun existing -> existing.name = o.name) then
+                raise (
+                    InvalidOperationException(
+                        sprintf "observer '%s' is already registered; each name must be unique within a schema" o.name
+                    )
+                )
+            observers.Add(o))
+
+    /// Returns all registered observers in registration order.
+    let getAllObservers () : ObserverDefinition list =
+        lock lockObj (fun () -> observers |> Seq.toList)
+
     /// Returns all registered serverless functions in registration order.
     let getAllFunctions () : FunctionDefinition list =
         lock lockObj (fun () -> functions |> Seq.toList)
@@ -408,4 +426,8 @@ module SchemaRegistry =
             queries = getAllQueries ()
             mutations = getAllMutations ()
             functions = getAllFunctions ()
+            observers =
+                match getAllObservers () with
+                | [] -> None
+                | registered -> Some registered
         }

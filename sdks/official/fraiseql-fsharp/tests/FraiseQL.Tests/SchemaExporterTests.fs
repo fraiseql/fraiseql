@@ -18,6 +18,7 @@ let private emptySchema: IntermediateSchema =
         queries = []
         mutations = []
         functions = []
+        observers = None
     }
 
 let private singleField =

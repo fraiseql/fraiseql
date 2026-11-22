@@ -466,6 +466,8 @@ module Dsl =
                 // through this computation expression, which yields only GraphQL surface
                 // items (#1325).
                 functions = []
+                // Observers likewise go through `ObserverBuilder.register` (#2147).
+                observers = None
             }
 
         /// Adds a <see cref="TypeDefinition"/> to the schema.

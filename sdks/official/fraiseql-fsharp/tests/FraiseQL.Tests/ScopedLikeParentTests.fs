@@ -52,6 +52,7 @@ let private emptySchema: IntermediateSchema =
         queries = []
         mutations = []
         functions = []
+        observers = None
     }
 
 [<Fact>]

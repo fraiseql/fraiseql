@@ -18,6 +18,7 @@
     <Compile Include="ScopedLikeParentTests.fs" />
     <Compile Include="ClientTests.fs" />
     <Compile Include="EnumValueTests.fs" />
+    <Compile Include="ObserverTests.fs" />
     <Compile Include="ConformanceExportTests.fs" />
   </ItemGroup>
   <ItemGroup>

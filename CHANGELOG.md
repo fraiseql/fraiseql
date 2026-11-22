@@ -129,6 +129,10 @@ disagreed, and the promise was the part that was wrong.
   caller that looked a field up by name now ranges the slice. Two struct fields that
   publish one name are refused, naming both.
 
+- **F#: `IntermediateSchema` has an `observers` field (#2147).** It is
+  `ObserverDefinition list option`, `None` when no observer is declared. Code that builds
+  the record by hand no longer compiles until it names the field: `observers = None`.
+
 - **A fact table's 64-bit results are `BigInt` and `Decimal` (#2175).** On an aggregate row,
   `<measure>_sum` of an `int` measure, `<measure>_min` and `<measure>_max` of a `bigint`
   measure, and a `bigint` key were `Int`, a field error past 32 bits: they are `BigInt`, the
@@ -882,6 +886,13 @@ disagreed, and the promise was the part that was wrong.
     `RetryConfig` record, under the same one-destination rule. `SchemaExporter` exports
     them; `SchemaBuilder`, which merges only types, queries, mutations and input types
     from the registry, does not.
+  - F#: `ObserverBuilder.observer "name" |> entity |> event |> condition |> webhook |>
+    slack |> email |> retry |> register`, with records from `ObserverAction.webhook`,
+    `.slack` and `.email` adjusted by copy-and-update and a `RetryConfig` record. A
+    destination is a union (`WebhookDestination.Url | UrlEnv`, `SlackDestination
+    .WebhookUrl | WebhookUrlEnv`), so an action has exactly one by construction.
+    `IntermediateSchema` gains `observers: ObserverDefinition list option`, so a record
+    built by hand names it.
 
 - **`compile --database` warns where an `Int` is wider in the database (#2175).** Sampled
   documents holding an `Int` field outside the signed 32-bit range, at the root or

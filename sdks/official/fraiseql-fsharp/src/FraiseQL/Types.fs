@@ -368,6 +368,83 @@ type FunctionDefinition =
         re_runnable: bool
     }
 
+/// Where a webhook action sends its request (#2147): one destination, by construction.
+[<RequireQualifiedAccess>]
+type WebhookDestination =
+    /// The URL, written into the schema.
+    | Url of string
+    /// The environment variable the server reads the URL from at delivery.
+    | UrlEnv of string
+
+/// A webhook action: an HTTP request to its destination (#2147).
+type WebhookAction =
+    {
+        destination: WebhookDestination
+        /// The HTTP method; absent, the server's default.
+        method: string option
+        /// The body, a template with `{{ field }}` placeholders.
+        body_template: string option
+        /// The variable holding the key the request is signed with.
+        signing_secret_env: string option
+        /// Headers sent as written.
+        headers: Map<string, string>
+        /// Headers whose values the server reads from these variables.
+        headers_env: Map<string, string>
+    }
+
+/// Where a Slack action posts (#2147): one destination, by construction.
+[<RequireQualifiedAccess>]
+type SlackDestination =
+    /// The incoming-webhook URL, written into the schema.
+    | WebhookUrl of string
+    /// The environment variable the server reads the incoming-webhook URL from.
+    | WebhookUrlEnv of string
+
+/// A Slack action: post a message to a channel (#2147).
+type SlackAction =
+    {
+        channel: string
+        /// The message, a template with `{{ field }}` placeholders.
+        message: string
+        destination: SlackDestination
+    }
+
+/// An email action (#2147). The sender is the server's SMTP configuration.
+type EmailAction =
+    {
+        ``to``: string
+        subject: string
+        /// The body, a template with `{{ field }}` placeholders.
+        body: string
+    }
+
+/// How an observer retries an action that fails (#2147).
+type RetryConfig =
+    {
+        /// The attempts, the first included.
+        max_attempts: int
+        /// "fixed", "linear" or "exponential".
+        backoff_strategy: string
+        initial_delay_ms: int
+        max_delay_ms: int
+    }
+
+/// An observer (#2147): actions run when a row of an entity is inserted, updated or deleted.
+type ObserverDefinition =
+    {
+        name: string
+        /// The type whose rows are observed.
+        entity: string
+        /// "INSERT", "UPDATE" or "DELETE".
+        event: string
+        /// An expression on the row; the actions run only when it holds.
+        condition: string option
+        /// Each action's keys, as the server's observer runtime reads them.
+        actions: Map<string, obj> list
+        /// How a failed action is retried; absent, the server's own policy.
+        retry: RetryConfig option
+    }
+
 /// The root schema record serialized to schema.json.
 [<CLIMutable>]
 type IntermediateSchema =
@@ -386,6 +463,8 @@ type IntermediateSchema =
         mutations: MutationDefinition list
         /// All serverless functions defined in this schema (#1325).
         functions: FunctionDefinition list
+        /// All observers defined in this schema (#2147); absent when there are none.
+        observers: ObserverDefinition list option
     }
 
 /// Discriminated union of all GraphQL scalar types.

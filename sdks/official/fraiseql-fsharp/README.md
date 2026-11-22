@@ -107,6 +107,32 @@ A String stored as a locale map (`[locale]` in `fraiseql.toml`) is declared loca
 input field. Only a String can be localized; exporting any other localized field, input
 field or argument is refused.
 
+## Observers
+
+An observer runs actions when a row of an entity is inserted, updated or deleted. Each
+action is a record, adjusted with copy-and-update; its destination is a union, so a
+webhook has exactly one:
+
+```fsharp
+ObserverBuilder.observer "orderShipped"
+|> ObserverBuilder.entity "Order"
+|> ObserverBuilder.event "UPDATE"
+|> ObserverBuilder.condition "status == 'shipped'"
+|> ObserverBuilder.webhook
+    { ObserverAction.webhook (WebhookDestination.UrlEnv "ORDER_HOOK_URL") with
+        signing_secret_env = Some "ORDER_HOOK_KEY" }
+|> ObserverBuilder.slack (ObserverAction.slack "#orders" "Order {{ id }} shipped")
+|> ObserverBuilder.email (ObserverAction.email "ops@example.com" "Order shipped" "Order {{ id }} shipped")
+|> ObserverBuilder.retry
+    { max_attempts = 5; backoff_strategy = "exponential"; initial_delay_ms = 200; max_delay_ms = 5000 }
+|> ObserverBuilder.register
+```
+
+A Slack action posts to the URL in `SLACK_WEBHOOK_URL` unless its `destination` is set
+to `SlackDestination.WebhookUrl` or another `SlackDestination.WebhookUrlEnv`. The email
+sender is the server's SMTP configuration. An observer with no `retry` runs on the
+server's own policy. The `fraiseql { }` computation expression yields no observers.
+
 ## Type Mapping
 
 | F# Type | GraphQL Type |

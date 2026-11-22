@@ -22,6 +22,7 @@
     <Compile Include="SchemaRegistry.fs" />
     <Compile Include="QueryBuilder.fs" />
     <Compile Include="MutationBuilder.fs" />
+    <Compile Include="ObserverBuilder.fs" />
     <Compile Include="SchemaExporter.fs" />
     <Compile Include="Dsl.fs" />
     <Compile Include="Client.fs" />

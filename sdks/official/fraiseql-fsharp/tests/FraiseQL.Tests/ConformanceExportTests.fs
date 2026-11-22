@@ -436,6 +436,47 @@ let private authorFull () =
             re_runnable = false
         }
 
+    // #2147: one observer per action kind. Every observer but the last sets its retry;
+    // the last runs on the server's own policy, so it writes no retry block.
+    ObserverBuilder.observer "orderPlacedWebhook"
+    |> ObserverBuilder.entity "Order"
+    |> ObserverBuilder.event "INSERT"
+    |> ObserverBuilder.webhook
+        { ObserverAction.webhook (WebhookDestination.UrlEnv "CONFORMANCE_HOOK_URL") with
+            method = Some "PUT"
+            body_template = Some """{"total": {{ total }}}"""
+            signing_secret_env = Some "CONFORMANCE_HOOK_KEY"
+            headers = Map [ "X-Source", "conformance" ]
+            headers_env = Map [ "Authorization", "CONFORMANCE_HOOK_TOKEN" ] }
+    |> ObserverBuilder.retry
+        { max_attempts = 5; backoff_strategy = "linear"; initial_delay_ms = 200; max_delay_ms = 5000 }
+    |> ObserverBuilder.register
+
+    ObserverBuilder.observer "orderShippedSlack"
+    |> ObserverBuilder.entity "Order"
+    |> ObserverBuilder.event "UPDATE"
+    |> ObserverBuilder.condition "status == 'shipped'"
+    |> ObserverBuilder.slack
+        { ObserverAction.slack "#orders" "Order {{ id }} shipped" with
+            destination = SlackDestination.WebhookUrlEnv "CONFORMANCE_SLACK_URL" }
+    |> ObserverBuilder.retry
+        { max_attempts = 4; backoff_strategy = "exponential"; initial_delay_ms = 250; max_delay_ms = 8000 }
+    |> ObserverBuilder.register
+
+    ObserverBuilder.observer "orderDeletedEmail"
+    |> ObserverBuilder.entity "Order"
+    |> ObserverBuilder.event "DELETE"
+    |> ObserverBuilder.email (ObserverAction.email "ops@example.com" "Order deleted" "Order {{ id }} was deleted")
+    |> ObserverBuilder.retry
+        { max_attempts = 2; backoff_strategy = "fixed"; initial_delay_ms = 500; max_delay_ms = 500 }
+    |> ObserverBuilder.register
+
+    ObserverBuilder.observer "orderCreatedDefaultRetry"
+    |> ObserverBuilder.entity "Order"
+    |> ObserverBuilder.event "INSERT"
+    |> ObserverBuilder.email (ObserverAction.email "ops@example.com" "Order created" "Order {{ id }} was created")
+    |> ObserverBuilder.register
+
 [<Fact>]
 let ConformanceExport () =
     let fixture = Environment.GetEnvironmentVariable("FRAISEQL_CONFORMANCE_FIXTURE")
