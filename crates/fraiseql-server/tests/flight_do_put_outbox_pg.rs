@@ -80,10 +80,13 @@ async fn pool() -> PgPool {
 /// The change-log table from the ONE shared provisioner (#942/#982) — the migration-08
 /// contract byte-for-byte, so this suite cannot assert against a shape no deployment has.
 async fn provision_changelog(pool: &PgPool) {
-    sqlx::raw_sql(&fraiseql_test_support::changelog::entity_change_log_provision_sql())
-        .execute(pool)
-        .await
-        .unwrap();
+    // Reason: the shared fixture's fixed change-log DDL.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(
+        fraiseql_test_support::changelog::entity_change_log_provision_sql(),
+    ))
+    .execute(pool)
+    .await
+    .unwrap();
 }
 
 /// A table this suite owns outright, so a run can never depend on — or damage — the
@@ -93,18 +96,25 @@ fn unique_table(kind: &str) -> String {
 }
 
 async fn create_table(pool: &PgPool, table: &str) {
-    sqlx::query(&format!("CREATE TABLE \"{table}\" (id UUID PRIMARY KEY, note TEXT)"))
-        .execute(pool)
-        .await
-        .unwrap();
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "CREATE TABLE \"{table}\" (id UUID PRIMARY KEY, note TEXT)"
+    )))
+    .execute(pool)
+    .await
+    .unwrap();
 }
 
 async fn drop_table(pool: &PgPool, table: &str) {
-    let _ = sqlx::query(&format!("DROP TABLE IF EXISTS \"{table}\"")).execute(pool).await;
+    // Reason: test SQL built from names and values this test defines.
+    let _ = sqlx::query(sqlx::AssertSqlSafe(format!("DROP TABLE IF EXISTS \"{table}\"")))
+        .execute(pool)
+        .await;
 }
 
 async fn row_count(pool: &PgPool, table: &str) -> i64 {
-    sqlx::query(&format!("SELECT count(*) AS n FROM \"{table}\""))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!("SELECT count(*) AS n FROM \"{table}\"")))
         .fetch_one(pool)
         .await
         .unwrap()

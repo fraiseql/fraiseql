@@ -59,9 +59,14 @@ async fn values_in_range_read_as_chrono_read_them() {
     let client = client().await;
     for text in IN_RANGE {
         let sql = format!("select '{text}'::timestamptz");
-        let ours: Timestamp = sqlx::query_scalar(&sql).fetch_one(&pool).await.expect("sqlx reads");
+        // Reason: the literal is one of the test's own constants.
+        let ours: Timestamp = sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str()))
+            .fetch_one(&pool)
+            .await
+            .expect("sqlx reads");
         let theirs: DateTime<Utc> =
-            sqlx::query_scalar(&sql).fetch_one(&pool).await.expect("sqlx reads chrono");
+            // Reason: the literal is one of the test's own constants.
+            sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())).fetch_one(&pool).await.expect("sqlx reads chrono");
         assert_eq!(ours.as_microsecond(), theirs.timestamp_micros(), "sqlx, {text}");
 
         let row = client.query_one(&sql, &[]).await.expect("tokio-postgres reads");
@@ -78,7 +83,8 @@ async fn values_out_of_range_are_a_decode_error_naming_the_value() {
     let client = client().await;
     for (text, named) in OUT_OF_RANGE {
         let sql = format!("select '{text}'::timestamptz");
-        let error = sqlx::query_scalar::<_, Timestamp>(&sql)
+        // Reason: the literal is one of the test's own constants.
+        let error = sqlx::query_scalar::<_, Timestamp>(sqlx::AssertSqlSafe(sql.as_str()))
             .fetch_one(&pool)
             .await
             .expect_err("sqlx refuses");
@@ -177,9 +183,10 @@ async fn the_text_form_reads_in_any_session_time_zone() {
     let pool = pool().await;
     let mut connection = pool.acquire().await.expect("a connection");
     for zone in ["UTC", "Asia/Kolkata", "America/St_Johns"] {
-        let rows = sqlx::raw_sql(&format!(
+        // Reason: the literal is one of the test's own constants.
+        let rows = sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
             "set time zone '{zone}'; select '2025-11-20 12:00:00.12+00'::timestamptz"
-        ))
+        )))
         .fetch_all(&mut *connection)
         .await
         .expect("the text query runs");

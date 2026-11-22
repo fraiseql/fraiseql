@@ -93,9 +93,10 @@ async fn ensure_role(admin: &PgPool, role: &str, password: &str) {
             .await
             .expect("read pg_roles");
     if !exists {
-        sqlx::raw_sql(&format!(
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
             "CREATE ROLE {role} LOGIN PASSWORD '{password}' NOSUPERUSER NOBYPASSRLS"
-        ))
+        )))
         .execute(admin)
         .await
         .expect("create role");
@@ -107,30 +108,38 @@ async fn ensure_role(admin: &PgPool, role: &str, password: &str) {
 /// Returns the superuser pool on it, the engine role's URL and the auth role's URL.
 async fn scratch(admin_url: &str, db: &str) -> (PgPool, String, String) {
     let admin = PgPool::connect(admin_url).await.expect("connect to admin database");
-    sqlx::raw_sql(&format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)")))
         .execute(&admin)
         .await
         .expect("drop scratch database");
-    sqlx::raw_sql(&format!("CREATE DATABASE {db}"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("CREATE DATABASE {db}")))
         .execute(&admin)
         .await
         .expect("create scratch database");
     let (auth_role, auth_password) = auth_credentials();
     ensure_role(&admin, ENGINE_ROLE, ENGINE_PASSWORD).await;
     ensure_role(&admin, &auth_role, &auth_password).await;
-    sqlx::raw_sql(&format!("GRANT CONNECT, CREATE ON DATABASE {db} TO {ENGINE_ROLE}, {auth_role}"))
-        .execute(&admin)
-        .await
-        .expect("grant on scratch database");
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+        "GRANT CONNECT, CREATE ON DATABASE {db} TO {ENGINE_ROLE}, {auth_role}"
+    )))
+    .execute(&admin)
+    .await
+    .expect("grant on scratch database");
     admin.close().await;
 
     let scratch_url = with_database(admin_url, db);
     let pool = PgPool::connect(&scratch_url).await.expect("connect to scratch database");
     // PostgreSQL 15+ gives PUBLIC no CREATE on `public`; the engine needs it.
-    sqlx::raw_sql(&format!("GRANT USAGE, CREATE ON SCHEMA public TO {ENGINE_ROLE}"))
-        .execute(&pool)
-        .await
-        .expect("grant on schema public");
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+        "GRANT USAGE, CREATE ON SCHEMA public TO {ENGINE_ROLE}"
+    )))
+    .execute(&pool)
+    .await
+    .expect("grant on schema public");
     (
         pool,
         with_user(&scratch_url, ENGINE_ROLE, ENGINE_PASSWORD),
@@ -142,9 +151,11 @@ async fn drop_scratch(admin_url: &str, db: &str) {
     let Ok(admin) = PgPool::connect(admin_url).await else {
         return;
     };
-    let _ = sqlx::raw_sql(&format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)"))
-        .execute(&admin)
-        .await;
+    // Reason: test SQL built from names and values this test defines.
+    let _ =
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)")))
+            .execute(&admin)
+            .await;
     admin.close().await;
 }
 
@@ -520,11 +531,12 @@ async fn a_schema_auth_fraiseql_did_not_create_refuses_the_boot() {
     std::env::set_var("FRAISEQL_TEST_U10_COLLISION_URL", &auth_url);
     // The application's own `auth` schema, with a table of its own.
     let (auth_role, _) = auth_credentials();
-    sqlx::raw_sql(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         "CREATE SCHEMA auth AUTHORIZATION {auth_role}; \
          CREATE TABLE auth.tb_user (id integer PRIMARY KEY); \
          ALTER TABLE auth.tb_user OWNER TO {auth_role};"
-    ))
+    )))
     .execute(&pool)
     .await
     .expect("create the application's own auth schema");

@@ -81,11 +81,13 @@ async fn setup_table(pool: &PgPool, src: &str, columns: &str, trigger_args: &str
         .unwrap();
     sqlx::query("TRUNCATE core.tb_entity_change_log").execute(pool).await.unwrap();
 
-    sqlx::query(&format!("DROP TABLE IF EXISTS {src} CASCADE"))
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP TABLE IF EXISTS {src} CASCADE")))
         .execute(pool)
         .await
         .unwrap();
-    sqlx::query(&format!("CREATE TABLE {src} ({columns})"))
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("CREATE TABLE {src} ({columns})")))
         .execute(pool)
         .await
         .unwrap();
@@ -95,11 +97,13 @@ async fn setup_table(pool: &PgPool, src: &str, columns: &str, trigger_args: &str
         ("upd", "UPDATE", "OLD TABLE AS old_table NEW TABLE AS new_table"),
         ("del", "DELETE", "OLD TABLE AS old_table"),
     ] {
-        sqlx::query(&format!(
+        // Reason: test SQL: names and values this test defines, or DDL the code under test
+        // generated.
+        sqlx::query(sqlx::AssertSqlSafe(format!(
             "CREATE TRIGGER tr_cdc_capture_{suffix} AFTER {when} ON {src}
              REFERENCING {referencing} FOR EACH STATEMENT
              EXECUTE FUNCTION core.fn_entity_change_log_capture({trigger_args})"
-        ))
+        )))
         .execute(pool)
         .await
         .unwrap();
@@ -147,9 +151,10 @@ async fn external_insert_is_captured_as_the_after_image() {
     setup(&pool, "public.tc_post", "id", "tenant_id", false).await;
 
     let tenant = "11111111-1111-1111-1111-111111111111";
-    sqlx::query(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "INSERT INTO public.tc_post (tenant_id, name) VALUES ('{tenant}', 'hello')"
-    ))
+    )))
     .execute(&pool)
     .await
     .unwrap();
@@ -225,15 +230,22 @@ async fn opted_in_update_and_delete_record_the_pre_image() {
     setup(&pool, "public.tc_post", "id", "tenant_id", true).await;
 
     let id = "22222222-2222-2222-2222-222222222222";
-    sqlx::query(&format!("INSERT INTO public.tc_post (id, name) VALUES ('{id}', 'v1')"))
-        .execute(&pool)
-        .await
-        .unwrap();
-    sqlx::query(&format!("UPDATE public.tc_post SET name = 'v2' WHERE id = '{id}'"))
-        .execute(&pool)
-        .await
-        .unwrap();
-    sqlx::query(&format!("DELETE FROM public.tc_post WHERE id = '{id}'"))
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO public.tc_post (id, name) VALUES ('{id}', 'v1')"
+    )))
+    .execute(&pool)
+    .await
+    .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "UPDATE public.tc_post SET name = 'v2' WHERE id = '{id}'"
+    )))
+    .execute(&pool)
+    .await
+    .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("DELETE FROM public.tc_post WHERE id = '{id}'")))
         .execute(&pool)
         .await
         .unwrap();
@@ -265,14 +277,20 @@ async fn non_opted_in_update_captures_after_image_only() {
     setup(&pool, "public.tc_post", "id", "tenant_id", false).await;
 
     let id = "55555555-5555-5555-5555-555555555555";
-    sqlx::query(&format!("INSERT INTO public.tc_post (id, name) VALUES ('{id}', 'v1')"))
-        .execute(&pool)
-        .await
-        .unwrap();
-    sqlx::query(&format!("UPDATE public.tc_post SET name = 'v2' WHERE id = '{id}'"))
-        .execute(&pool)
-        .await
-        .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO public.tc_post (id, name) VALUES ('{id}', 'v1')"
+    )))
+    .execute(&pool)
+    .await
+    .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "UPDATE public.tc_post SET name = 'v2' WHERE id = '{id}'"
+    )))
+    .execute(&pool)
+    .await
+    .unwrap();
 
     let rows = changelog_rows(&pool).await;
     let upd = &rows[1];
@@ -304,21 +322,24 @@ async fn a_table_that_keeps_a_document_is_captured_as_that_document() {
 
     let id = "66666666-6666-6666-6666-666666666666";
     let tenant = "77777777-7777-7777-7777-777777777777";
-    sqlx::query(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "INSERT INTO public.tc_ticket (id, tenant_id, data)
          VALUES ('{id}', '{tenant}', '{{\"review_status\": \"in_review\"}}')"
-    ))
+    )))
     .execute(&pool)
     .await
     .unwrap();
-    sqlx::query(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "UPDATE public.tc_ticket SET data = '{{\"review_status\": \"approved\"}}'
          WHERE id = '{id}'"
-    ))
+    )))
     .execute(&pool)
     .await
     .unwrap();
-    sqlx::query(&format!("DELETE FROM public.tc_ticket WHERE id = '{id}'"))
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("DELETE FROM public.tc_ticket WHERE id = '{id}'")))
         .execute(&pool)
         .await
         .unwrap();
@@ -366,16 +387,18 @@ async fn a_scope_column_is_written_into_the_document_over_a_key_of_its_name() {
     let claimed = "dddddddd-dddd-dddd-dddd-dddddddddddd";
     // The document names another tenant than the row's column, and no tenant after the
     // update: the column is what a SQL read of the type compares.
-    sqlx::query(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "INSERT INTO public.tc_ticket (id, tenant_id, data)
          VALUES ('{id}', '{column}', '{{\"tenant_id\": \"{claimed}\", \"title\": \"a\"}}')"
-    ))
+    )))
     .execute(&pool)
     .await
     .unwrap();
-    sqlx::query(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "UPDATE public.tc_ticket SET data = '{{\"title\": \"b\"}}' WHERE id = '{id}'"
-    ))
+    )))
     .execute(&pool)
     .await
     .unwrap();
@@ -405,10 +428,13 @@ async fn a_scope_column_is_not_written_into_a_captured_row() {
     .await;
 
     let id = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
-    sqlx::query(&format!("INSERT INTO public.tc_post (id, name) VALUES ('{id}', 'hello')"))
-        .execute(&pool)
-        .await
-        .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO public.tc_post (id, name) VALUES ('{id}', 'hello')"
+    )))
+    .execute(&pool)
+    .await
+    .unwrap();
 
     assert_eq!(
         changelog_rows(&pool).await[0].object_data,
@@ -429,10 +455,13 @@ async fn a_table_without_the_document_column_is_captured_as_its_row() {
     .await;
 
     let id = "88888888-8888-8888-8888-888888888888";
-    sqlx::query(&format!("INSERT INTO public.tc_post (id, name) VALUES ('{id}', 'hello')"))
-        .execute(&pool)
-        .await
-        .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO public.tc_post (id, name) VALUES ('{id}', 'hello')"
+    )))
+    .execute(&pool)
+    .await
+    .unwrap();
 
     let rows = changelog_rows(&pool).await;
     assert_eq!(rows.len(), 1);
@@ -450,9 +479,10 @@ async fn a_document_column_that_holds_no_object_leaves_the_row() {
 
     let unset = "99999999-9999-9999-9999-999999999999";
     let scalar = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
-    sqlx::query(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "INSERT INTO public.tc_ticket (id, data) VALUES ('{unset}', NULL), ('{scalar}', '\"text\"')"
-    ))
+    )))
     .execute(&pool)
     .await
     .unwrap();
@@ -480,9 +510,10 @@ async fn captured_row_decodes_into_a_subscriber_event() {
 
     let id = "33333333-3333-3333-3333-333333333333";
     let tenant = "44444444-4444-4444-4444-444444444444";
-    sqlx::query(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "INSERT INTO public.tc_post (id, tenant_id, name) VALUES ('{id}', '{tenant}', 'world')"
-    ))
+    )))
     .execute(&pool)
     .await
     .unwrap();

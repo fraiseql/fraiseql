@@ -50,7 +50,8 @@ impl EventHandler for RenamingHandler {
         params: Value,
         tx: &mut Transaction<'_, Postgres>,
     ) -> Result<Handled> {
-        sqlx::query(&format!("UPDATE {SCHEMA}.tb_item SET label = $1"))
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::query(sqlx::AssertSqlSafe(format!("UPDATE {SCHEMA}.tb_item SET label = $1")))
             .bind(params["label"].as_str().unwrap())
             .execute(&mut **tx)
             .await?;
@@ -67,7 +68,8 @@ fn tviews_database_url() -> Option<String> {
 async fn setup() -> Option<PgPool> {
     let url = tviews_database_url()?;
     let admin = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
-    sqlx::raw_sql(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         "CREATE EXTENSION IF NOT EXISTS pg_tviews CASCADE;
          DROP SCHEMA IF EXISTS {SCHEMA} CASCADE;
          CREATE SCHEMA {SCHEMA};
@@ -77,7 +79,7 @@ async fn setup() -> Option<PgPool> {
          SELECT tviews.pg_tviews_create('{SCHEMA}.tv_item', $T$
            SELECT i.pk_item, i.id, jsonb_build_object('id', i.id, 'label', i.label) AS data
            FROM {SCHEMA}.tb_item i $T$);"
-    ))
+    )))
     .execute(&admin)
     .await
     .unwrap();
@@ -111,10 +113,13 @@ fn event(id: String, label: String) -> impl FnOnce(Authenticated<'_>) -> Result<
 }
 
 async fn tview_label(pool: &PgPool) -> String {
-    sqlx::query_scalar::<_, String>(&format!("SELECT data->>'label' FROM {SCHEMA}.tv_item"))
-        .fetch_one(pool)
-        .await
-        .unwrap()
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query_scalar::<_, String>(sqlx::AssertSqlSafe(format!(
+        "SELECT data->>'label' FROM {SCHEMA}.tv_item"
+    )))
+    .fetch_one(pool)
+    .await
+    .unwrap()
 }
 
 #[tokio::test]

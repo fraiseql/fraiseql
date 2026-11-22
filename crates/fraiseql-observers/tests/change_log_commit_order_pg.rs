@@ -344,13 +344,14 @@ async fn a_role_without_ddl_rights_still_polls_an_already_migrated_ledger() {
         .await
         .unwrap();
 
-    sqlx::query(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "DO $$ BEGIN
              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{ROLE}') THEN
                  CREATE ROLE {ROLE} LOGIN PASSWORD '{ROLE_PASSWORD}' NOSUPERUSER;
              END IF;
          END $$;"
-    ))
+    )))
     .execute(&admin)
     .await
     .unwrap();
@@ -362,7 +363,8 @@ async fn a_role_without_ddl_rights_still_polls_an_already_migrated_ledger() {
         format!("GRANT SELECT ON core.tb_entity_change_log TO {ROLE}"),
         format!("GRANT SELECT, INSERT ON core.tb_observer_dispatch TO {ROLE}"),
     ] {
-        sqlx::query(&grant).execute(&admin).await.unwrap();
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::query(sqlx::AssertSqlSafe(grant.as_str())).execute(&admin).await.unwrap();
     }
 
     let pk: i64 = sqlx::query_scalar(INSERT_RETURNING_PK)
@@ -404,7 +406,11 @@ async fn a_role_without_ddl_rights_still_polls_an_already_migrated_ledger() {
         format!("REVOKE ALL ON SCHEMA core FROM {ROLE}"),
         format!("DROP ROLE IF EXISTS {ROLE}"),
     ] {
-        sqlx::query(&cleanup).execute(&admin).await.unwrap();
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::query(sqlx::AssertSqlSafe(cleanup.as_str()))
+            .execute(&admin)
+            .await
+            .unwrap();
     }
 }
 

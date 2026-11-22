@@ -245,9 +245,10 @@ fn derive(spec: &SamlIdpSpec) -> Result<(String, Option<DateTime<Utc>>), SamlErr
 #[async_trait]
 impl SamlIdpStore for PgSamlIdpStore {
     async fn list(&self) -> Result<Vec<SamlIdpRecord>, SamlError> {
-        let rows = sqlx::query(&format!(
+        // Reason: `COLUMNS` is a compile-time constant; every value is bound.
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT {COLUMNS} FROM auth.tb_saml_idp WHERE deleted_at IS NULL ORDER BY idp_name"
-        ))
+        )))
         .fetch_all(&self.db)
         .await
         .map_err(|e| SamlError::Store(format!("list SAML IdPs: {e}")))?;
@@ -255,9 +256,10 @@ impl SamlIdpStore for PgSamlIdpStore {
     }
 
     async fn get(&self, idp_name: &str) -> Result<Option<SamlIdpRecord>, SamlError> {
-        let row = sqlx::query(&format!(
+        // Reason: `COLUMNS` is a compile-time constant; every value is bound.
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT {COLUMNS} FROM auth.tb_saml_idp WHERE idp_name = $1 AND deleted_at IS NULL"
-        ))
+        )))
         .bind(idp_name)
         .fetch_optional(&self.db)
         .await
@@ -268,12 +270,13 @@ impl SamlIdpStore for PgSamlIdpStore {
     async fn create(&self, spec: &SamlIdpSpec) -> Result<SamlIdpRecord, SamlError> {
         let (idp_entity_id, expires_at) = derive(spec)?;
 
-        let row = sqlx::query(&format!(
+        // Reason: `COLUMNS` is a compile-time constant; every value is bound.
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
             "INSERT INTO auth.tb_saml_idp \
              (idp_name, tenant_id, sp_entity_id, acs_url, metadata_xml, idp_entity_id, \
               trust_asserted_email, certificate_expires_at) \
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING {COLUMNS}"
-        ))
+        )))
         .bind(&spec.idp_name)
         .bind(spec.tenant_id)
         .bind(&spec.sp_entity_id)
@@ -298,12 +301,13 @@ impl SamlIdpStore for PgSamlIdpStore {
     async fn update(&self, spec: &SamlIdpSpec) -> Result<SamlIdpRecord, SamlError> {
         let (idp_entity_id, expires_at) = derive(spec)?;
 
-        let row = sqlx::query(&format!(
+        // Reason: `COLUMNS` is a compile-time constant; every value is bound.
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
             "UPDATE auth.tb_saml_idp SET sp_entity_id = $2, acs_url = $3, metadata_xml = $4, \
              idp_entity_id = $5, trust_asserted_email = $6, certificate_expires_at = $7, \
              updated_at = now() \
              WHERE idp_name = $1 AND deleted_at IS NULL RETURNING {COLUMNS}"
-        ))
+        )))
         .bind(&spec.idp_name)
         .bind(&spec.sp_entity_id)
         .bind(&spec.acs_url)

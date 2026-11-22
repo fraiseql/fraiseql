@@ -80,7 +80,7 @@ insta = { version = "1", features = ["yaml"] }
 predicates = "3"
 # `sources_against_db` writes a cursor through the server's own store
 # (`fraiseql_observers::PostgresSourceCursorStore`), which takes a sqlx pool.
-sqlx = { version = "0.8", default-features = false, features = [
+sqlx = { version = "0.9.1", default-features = false, features = [
   "runtime-tokio",
   "postgres",
 ] }

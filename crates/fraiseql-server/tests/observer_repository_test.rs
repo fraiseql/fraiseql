@@ -434,10 +434,13 @@ async fn observer_tables_in_core(svc: &fraiseql_test_support::Service) -> PgPool
 }
 
 async fn reset_app_first_schema(pool: &PgPool) {
-    sqlx::raw_sql(&format!("DROP SCHEMA IF EXISTS {APP_FIRST} CASCADE; CREATE SCHEMA {APP_FIRST}"))
-        .execute(pool)
-        .await
-        .unwrap();
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+        "DROP SCHEMA IF EXISTS {APP_FIRST} CASCADE; CREATE SCHEMA {APP_FIRST}"
+    )))
+    .execute(pool)
+    .await
+    .unwrap();
 }
 
 async fn start_runtime_and_count(pool: &PgPool) -> Result<usize, fraiseql_server::ServerError> {
@@ -540,7 +543,8 @@ async fn a_populated_legacy_tb_observer_beside_an_empty_core_one_refuses_to_star
 
     // The statements it names are the whole migration: run them, boot again.
     let (_, statements) = message.split_once("restart:\n").expect("the refusal lists statements");
-    sqlx::raw_sql(statements).execute(&pool).await.unwrap();
+    // Reason: the migration the server's refusal names; running it is what the test checks.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(statements)).execute(&pool).await.unwrap();
     apply_boot_ddl(&pool).await;
     let loaded = start_runtime_and_count(&pool).await.expect("the runtime starts once moved");
     assert_eq!(loaded, 1, "the moved observer must load from core.tb_observer");
@@ -1335,13 +1339,14 @@ async fn a_table_an_earlier_release_created_takes_the_policy_and_so_do_the_rows_
     let (pool, _svc) = setup_pg().await;
     // The shape the earlier release left: its default, a row that took it, and two rows
     // someone wrote, one of them as unreadable as the default.
-    sqlx::raw_sql(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         r#"ALTER TABLE core.tb_observer ALTER COLUMN retry_config SET DEFAULT '{UNREADABLE_DEFAULT}'::jsonb;
            INSERT INTO core.tb_observer (name, actions) VALUES ('took_the_default', '[]');
            INSERT INTO core.tb_observer (name, actions, retry_config) VALUES
              ('wrote_backoff', '[]', '{{"max_attempts": 9, "backoff": "exponential", "initial_delay_ms": 1000}}'),
              ('wrote_a_policy', '[]', '{{"max_attempts": 5, "backoff_strategy": "fixed", "initial_delay_ms": 250, "max_delay_ms": 250}}');"#
-    ))
+    )))
     .execute(&pool)
     .await
     .unwrap();

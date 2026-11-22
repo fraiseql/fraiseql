@@ -68,10 +68,13 @@ async fn install_prerequisites(pool: &PgPool) {
     // (contract shape — object_id UUID nullable). The private TEXT-flavoured
     // twin this suite used to create is what the doctor suite tripped over on
     // a warm database.
-    sqlx::raw_sql(&fraiseql_test_support::changelog::entity_change_log_provision_sql())
-        .execute(pool)
-        .await
-        .unwrap();
+    // Reason: the shared fixture's fixed change-log DDL.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(
+        fraiseql_test_support::changelog::entity_change_log_provision_sql(),
+    ))
+    .execute(pool)
+    .await
+    .unwrap();
     sqlx::query(
         r"
         CREATE TABLE IF NOT EXISTS core.tb_transport_checkpoint (

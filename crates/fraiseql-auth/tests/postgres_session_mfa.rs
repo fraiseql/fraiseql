@@ -30,10 +30,13 @@ async fn fresh() -> Option<PgPool> {
         "auth.tb_mfa_enrollment",
         "auth.sessions",
     ] {
-        sqlx::query(&format!("DELETE FROM {table} WHERE user_id LIKE 'mfa-gate-%'"))
-            .execute(&pool)
-            .await
-            .unwrap();
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "DELETE FROM {table} WHERE user_id LIKE 'mfa-gate-%'"
+        )))
+        .execute(&pool)
+        .await
+        .unwrap();
     }
     Some(pool)
 }

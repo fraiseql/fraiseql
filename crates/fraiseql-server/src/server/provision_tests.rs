@@ -119,7 +119,8 @@ async fn replicas_booting_together_all_provision() {
         format!("DROP DATABASE IF EXISTS {SCRATCH_DB} WITH (FORCE)"),
         format!("CREATE DATABASE {SCRATCH_DB}"),
     ] {
-        sqlx::query(&ddl).execute(&admin).await.unwrap();
+        // Reason: test SQL: the test's scratch-database constants, or the crate's own DDL.
+        sqlx::query(sqlx::AssertSqlSafe(ddl.as_str())).execute(&admin).await.unwrap();
     }
     let pool = sqlx::PgPool::connect(&format!("{prefix}/{SCRATCH_DB}{query}")).await.unwrap();
 
@@ -163,10 +164,13 @@ async fn replicas_booting_together_all_provision() {
     }
 
     pool.close().await;
-    sqlx::query(&format!("DROP DATABASE IF EXISTS {SCRATCH_DB} WITH (FORCE)"))
-        .execute(&admin)
-        .await
-        .unwrap();
+    // Reason: test SQL: the test's scratch-database constants, or the crate's own DDL.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "DROP DATABASE IF EXISTS {SCRATCH_DB} WITH (FORCE)"
+    )))
+    .execute(&admin)
+    .await
+    .unwrap();
 }
 
 /// A database of its own: the probe needs every table absent.
@@ -200,7 +204,8 @@ async fn tables_are_created_by_provisioning_not_by_the_constructor() {
         format!("DROP DATABASE IF EXISTS {CTOR_SCRATCH_DB} WITH (FORCE)"),
         format!("CREATE DATABASE {CTOR_SCRATCH_DB}"),
     ] {
-        sqlx::query(&ddl).execute(&admin).await.unwrap();
+        // Reason: test SQL: the test's scratch-database constants, or the crate's own DDL.
+        sqlx::query(sqlx::AssertSqlSafe(ddl.as_str())).execute(&admin).await.unwrap();
     }
     let pool = sqlx::PgPool::connect(&format!("{prefix}/{CTOR_SCRATCH_DB}{query}"))
         .await
@@ -226,10 +231,13 @@ async fn tables_are_created_by_provisioning_not_by_the_constructor() {
 
     drop(server);
     pool.close().await;
-    sqlx::query(&format!("DROP DATABASE IF EXISTS {CTOR_SCRATCH_DB} WITH (FORCE)"))
-        .execute(&admin)
-        .await
-        .unwrap();
+    // Reason: test SQL: the test's scratch-database constants, or the crate's own DDL.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "DROP DATABASE IF EXISTS {CTOR_SCRATCH_DB} WITH (FORCE)"
+    )))
+    .execute(&admin)
+    .await
+    .unwrap();
     assert_eq!(constructed, Vec::<String>::new(), "the constructor ran DDL");
     provisioned.unwrap();
     for table in ["_system.async_operations", "_system.session_state"] {

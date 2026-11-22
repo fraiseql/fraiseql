@@ -83,24 +83,29 @@ async fn poison_deletes(db: &PgPool, table: &str) {
     .execute(db)
     .await
     .unwrap();
-    sqlx::query(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "CREATE TRIGGER {POISON_TRIGGER} BEFORE DELETE ON {table}
          FOR EACH ROW EXECUTE FUNCTION auth.fn_fraiseql_test_poison_delete()"
-    ))
+    )))
     .execute(db)
     .await
     .unwrap();
 }
 
 async fn unpoison_deletes(db: &PgPool, table: &str) {
-    sqlx::query(&format!("DROP TRIGGER IF EXISTS {POISON_TRIGGER} ON {table}"))
-        .execute(db)
-        .await
-        .unwrap();
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "DROP TRIGGER IF EXISTS {POISON_TRIGGER} ON {table}"
+    )))
+    .execute(db)
+    .await
+    .unwrap();
 }
 
 async fn row_count(db: &PgPool, table: &str) -> i64 {
-    sqlx::query(&format!("SELECT count(*) FROM {table}"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table}")))
         .fetch_one(db)
         .await
         .unwrap()

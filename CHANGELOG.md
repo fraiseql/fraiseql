@@ -18,6 +18,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **The crates whose API takes or returns sqlx types are on sqlx 0.9 (#1972).**
+  `fraiseql-auth`, `fraiseql-observers`, `fraiseql-server`, `fraiseql-storage` and
+  `fraiseql-webhooks` take a `PgPool` or a transaction at their public API, and
+  `fraiseql-time`'s `sqlx` feature implements sqlx's `Type`, `Encode` and `Decode` for
+  `Timestamp`: a crate that hands them a pool, or reads a `Timestamp` through sqlx, needs
+  sqlx 0.9.1 or later. 0.9 takes SQL built at runtime only through `sqlx::AssertSqlSafe`;
+  see its changelog for the rest.
+
 - **`WindowExecutionPlan` carries the fact table it reads, in `metadata` (#2263).** The
   window generator now lowers its `where` against the table, as an aggregate plan's is.
   A plan built by hand names the table's `FactTableMetadata`; one from `WindowPlanner`
@@ -1383,6 +1391,17 @@ disagreed, and the promise was the part that was wrong.
   or a field declaration `RegisterType` refuses (a localized field that is not a
   `String`, a vector of fewer than one dimension) was silently left out. It now stops at
   that type and returns the error, prefixed with the struct's name.
+
+- **A transaction start cancelled mid-round-trip no longer leaves its pooled connection
+  inside a transaction (#1972).** A task cancelled while it waited for the reply to its
+  `BEGIN`, whether aborted, timed out, or dropped with the request it served, left the
+  server-side transaction open and sent the connection back to the pool. The next
+  borrower's statements then ran inside it: an autocommit write that reported success
+  stayed invisible to every other session and was lost when that transaction rolled back,
+  and the subscription fan-out's snapshot was refused with "SET TRANSACTION ISOLATION LEVEL
+  must be called before any query", which once failed an observer runtime restart. Every
+  sqlx pool in the workspace is affected alike; the fix is sqlx 0.9.1's, which rolls such
+  a transaction back before the connection returns to the pool.
 
 - **A fact table's window root runs every `where` operator it publishes (#2263).** Both roots
   publish the one `<Name>AggregateWhere` input, but the window root lowered its filter

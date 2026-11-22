@@ -64,11 +64,16 @@ impl OtpAllowList for PgOtpAllowList {
             .execute(&mut *tx)
             .await
             .map_err(db_err)?;
-        sqlx::query(&format!("SET LOCAL statement_timeout = {STATEMENT_TIMEOUT_MS}"))
-            .execute(&mut *tx)
-            .await
-            .map_err(db_err)?;
-        let row = sqlx::query(&self.statement)
+        // Reason: a compile-time integer constant.
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SET LOCAL statement_timeout = {STATEMENT_TIMEOUT_MS}"
+        )))
+        .execute(&mut *tx)
+        .await
+        .map_err(db_err)?;
+        // Reason: the operator's configured query, checked by `otp_allowed_statement`; the address
+        // is bound as `$1` and the query runs read-only.
+        let row = sqlx::query(sqlx::AssertSqlSafe(self.statement.as_str()))
             .bind(email)
             .fetch_optional(&mut *tx)
             .await

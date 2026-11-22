@@ -177,14 +177,15 @@ impl ChangeLogTail {
         .await
         .map_err(db_error)?;
         let delivered: Vec<i64> = self.delivered.iter().copied().collect();
-        let rows: Vec<ChangeLogRow> = sqlx::query_as(&format!(
+        // Reason: `CHANGE_LOG_PROJECTION` is a compile-time constant; every value is bound.
+        let rows: Vec<ChangeLogRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
             "SELECT {CHANGE_LOG_PROJECTION}
              FROM core.tb_entity_change_log e
              WHERE e.pk_entity_change_log > $1
                AND NOT (e.pk_entity_change_log = ANY($2::bigint[]))
              ORDER BY e.pk_entity_change_log ASC
              LIMIT $3"
-        ))
+        )))
         .bind(self.floor)
         .bind(&delivered)
         .bind(self.batch_size)

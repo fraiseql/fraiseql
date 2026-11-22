@@ -20,7 +20,8 @@ async fn execute_ddl(pool: &PgPool, ddl: &str) {
     for stmt in ddl.split(';') {
         let trimmed = stmt.trim();
         if !trimmed.is_empty() {
-            sqlx::query(trimmed).execute(pool).await.unwrap();
+            // Reason: the crate's own migration DDL, split into statements.
+            sqlx::query(sqlx::AssertSqlSafe(trimmed)).execute(pool).await.unwrap();
         }
     }
 }
@@ -137,11 +138,15 @@ async fn concurrent_migrations_against_a_cold_database_all_succeed() {
     let scratch_url = format!("{prefix}/{SCRATCH_DB}{query}");
 
     let admin = PgPool::connect(base).await.unwrap();
-    sqlx::query(&format!("DROP DATABASE IF EXISTS {SCRATCH_DB} WITH (FORCE)"))
-        .execute(&admin)
-        .await
-        .unwrap();
-    sqlx::query(&format!("CREATE DATABASE {SCRATCH_DB}"))
+    // Reason: `SCRATCH_DB` is a compile-time constant.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "DROP DATABASE IF EXISTS {SCRATCH_DB} WITH (FORCE)"
+    )))
+    .execute(&admin)
+    .await
+    .unwrap();
+    // Reason: `SCRATCH_DB` is a compile-time constant.
+    sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {SCRATCH_DB}")))
         .execute(&admin)
         .await
         .unwrap();
@@ -176,10 +181,13 @@ async fn concurrent_migrations_against_a_cold_database_all_succeed() {
         .collect();
 
     pool.close().await;
-    sqlx::query(&format!("DROP DATABASE IF EXISTS {SCRATCH_DB} WITH (FORCE)"))
-        .execute(&admin)
-        .await
-        .unwrap();
+    // Reason: `SCRATCH_DB` is a compile-time constant.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "DROP DATABASE IF EXISTS {SCRATCH_DB} WITH (FORCE)"
+    )))
+    .execute(&admin)
+    .await
+    .unwrap();
 
     assert!(
         failures.is_empty(),

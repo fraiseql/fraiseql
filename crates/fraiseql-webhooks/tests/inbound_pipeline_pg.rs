@@ -360,30 +360,36 @@ async fn rls_denies_inbound_delivery_ledger_by_default() {
         .unwrap();
 
     // A NOBYPASSRLS reader with SELECT on the ledger (idempotent across runs).
-    sqlx::query(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "DO $$ BEGIN
              IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{READER_ROLE}') THEN
                  CREATE ROLE {READER_ROLE} LOGIN PASSWORD '{ROLE_PASSWORD}' NOSUPERUSER NOBYPASSRLS;
              END IF;
          END $$"
-    ))
+    )))
     .execute(&admin)
     .await
     .unwrap();
-    sqlx::query(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "ALTER ROLE {READER_ROLE} NOSUPERUSER NOBYPASSRLS LOGIN PASSWORD '{ROLE_PASSWORD}'"
-    ))
+    )))
     .execute(&admin)
     .await
     .unwrap();
-    sqlx::query(&format!("GRANT USAGE ON SCHEMA webhooks TO {READER_ROLE}"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!("GRANT USAGE ON SCHEMA webhooks TO {READER_ROLE}")))
         .execute(&admin)
         .await
         .unwrap();
-    sqlx::query(&format!("GRANT SELECT ON webhooks.tb_inbound_delivery TO {READER_ROLE}"))
-        .execute(&admin)
-        .await
-        .unwrap();
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "GRANT SELECT ON webhooks.tb_inbound_delivery TO {READER_ROLE}"
+    )))
+    .execute(&admin)
+    .await
+    .unwrap();
 
     let reader_opts = PgConnectOptions::from_str(&url)
         .unwrap()

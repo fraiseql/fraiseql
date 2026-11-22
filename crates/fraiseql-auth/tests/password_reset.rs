@@ -467,30 +467,36 @@ async fn rls_denies_reset_tokens_by_default_and_scopes_per_tenant() {
     };
     let h = fresh().await.unwrap();
 
-    sqlx::query(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "DO $$ BEGIN
              IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{READER_ROLE}') THEN
                  CREATE ROLE {READER_ROLE} LOGIN PASSWORD '{ROLE_PASSWORD}' NOSUPERUSER NOBYPASSRLS;
              END IF;
          END $$"
-    ))
+    )))
     .execute(&h.admin)
     .await
     .unwrap();
-    sqlx::query(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "ALTER ROLE {READER_ROLE} NOSUPERUSER NOBYPASSRLS LOGIN PASSWORD '{ROLE_PASSWORD}'"
-    ))
+    )))
     .execute(&h.admin)
     .await
     .unwrap();
-    sqlx::query(&format!("GRANT USAGE ON SCHEMA auth TO {READER_ROLE}"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!("GRANT USAGE ON SCHEMA auth TO {READER_ROLE}")))
         .execute(&h.admin)
         .await
         .unwrap();
-    sqlx::query(&format!("GRANT SELECT ON auth.tb_password_reset_token TO {READER_ROLE}"))
-        .execute(&h.admin)
-        .await
-        .unwrap();
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "GRANT SELECT ON auth.tb_password_reset_token TO {READER_ROLE}"
+    )))
+    .execute(&h.admin)
+    .await
+    .unwrap();
 
     // A NULL-tenant token from the live flow…
     h.auth.signup(EMAIL, PASSWORD).await.unwrap();
@@ -537,9 +543,10 @@ async fn start_is_a_silent_noop_for_a_tenant_accounts_local_credential() {
     let h = skip_if_no_db!();
     let user_id = h.auth.signup(EMAIL, "correct horse battery staple").await.unwrap();
     for table in ["auth.tb_user", "auth.tb_auth_identity"] {
-        sqlx::query(&format!(
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::query(sqlx::AssertSqlSafe(format!(
             "UPDATE {table} SET tenant_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' WHERE user_id = $1"
-        ))
+        )))
         .bind(&user_id)
         .execute(&h.admin)
         .await

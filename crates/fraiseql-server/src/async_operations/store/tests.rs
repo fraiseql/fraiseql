@@ -27,11 +27,15 @@ async fn concurrent_boots_initialise_the_store_without_racing() {
     let (prefix, tail) = base.rsplit_once('/').expect("a PostgreSQL URL carries a database path");
     let query = tail.find('?').map_or("", |i| &tail[i..]);
     let admin = PgPool::connect(base).await.unwrap();
-    sqlx::query(&format!("DROP DATABASE IF EXISTS {SCRATCH_DB} WITH (FORCE)"))
-        .execute(&admin)
-        .await
-        .unwrap();
-    sqlx::query(&format!("CREATE DATABASE {SCRATCH_DB}"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "DROP DATABASE IF EXISTS {SCRATCH_DB} WITH (FORCE)"
+    )))
+    .execute(&admin)
+    .await
+    .unwrap();
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {SCRATCH_DB}")))
         .execute(&admin)
         .await
         .unwrap();
@@ -57,8 +61,11 @@ async fn concurrent_boots_initialise_the_store_without_racing() {
     }
 
     pool.close().await;
-    sqlx::query(&format!("DROP DATABASE IF EXISTS {SCRATCH_DB} WITH (FORCE)"))
-        .execute(&admin)
-        .await
-        .unwrap();
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "DROP DATABASE IF EXISTS {SCRATCH_DB} WITH (FORCE)"
+    )))
+    .execute(&admin)
+    .await
+    .unwrap();
 }

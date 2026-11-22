@@ -93,10 +93,13 @@ async fn latest_returns_newest_cursor_against_seeded_changelog() {
 
     // #942: provision the contract table this test reads — a lib test in crate A
     // must not require crate B's tests to have run as its fixture.
-    sqlx::raw_sql(&fraiseql_test_support::changelog::entity_change_log_provision_sql())
-        .execute(&pool)
-        .await
-        .expect("provision core.tb_entity_change_log");
+    // Reason: the shared fixture's fixed change-log DDL.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(
+        fraiseql_test_support::changelog::entity_change_log_provision_sql(),
+    ))
+    .execute(&pool)
+    .await
+    .expect("provision core.tb_entity_change_log");
 
     sqlx::query("DELETE FROM core.tb_entity_change_log WHERE object_type = $1")
         .bind(obj)

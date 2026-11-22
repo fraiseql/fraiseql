@@ -498,7 +498,8 @@ impl DefaultActionDispatcher {
         let start = std::time::Instant::now();
         // Identifier-validated function name; the payload itself is a bound
         // parameter. The function's return value is deliberately discarded.
-        sqlx::query(&format!("SELECT {function_name}($1::jsonb)"))
+        // Reason: `function_name` passed `identity_check.validate()` when the action was built.
+        sqlx::query(sqlx::AssertSqlSafe(format!("SELECT {function_name}($1::jsonb)")))
             .bind(&envelope)
             .execute(pool)
             .await

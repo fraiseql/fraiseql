@@ -751,12 +751,13 @@ async fn deliver_ticket_when(
             ("data JSONB NOT NULL", "'id', '', 'false', 'data'")
         },
     };
-    sqlx::raw_sql(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         "CREATE TABLE {table} (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), {columns});
          CREATE TRIGGER tr_cdc_capture_ins AFTER INSERT ON {table}
              REFERENCING NEW TABLE AS new_table FOR EACH STATEMENT
              EXECUTE FUNCTION core.fn_entity_change_log_capture('{entity_type}', {trigger_args})"
-    ))
+    )))
     .execute(&pool)
     .await
     .expect("the captured table is created");
@@ -821,10 +822,11 @@ async fn deliver_ticket_when(
     assert_eq!(sources.len(), 1, "one producer wrote the change: {sources:?}");
     let delivered = receiver.received_requests().await;
 
-    sqlx::raw_sql(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         "DROP FUNCTION IF EXISTS public.fn_create_ticket_{test_id}(text);
          DROP TABLE {table} CASCADE"
-    ))
+    )))
     .execute(&pool)
     .await
     .ok();
@@ -834,10 +836,12 @@ async fn deliver_ticket_when(
 
 /// Write one ticket from outside the engine; `row` is what follows `INSERT INTO`.
 async fn insert_ticket(pool: &sqlx::PgPool, row: &str) -> String {
-    let (id,): (Uuid,) = sqlx::query_as(&format!("INSERT INTO {row} RETURNING id"))
-        .fetch_one(pool)
-        .await
-        .expect("the row is written");
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    let (id,): (Uuid,) =
+        sqlx::query_as(sqlx::AssertSqlSafe(format!("INSERT INTO {row} RETURNING id")))
+            .fetch_one(pool)
+            .await
+            .expect("the row is written");
     id.to_string()
 }
 
@@ -866,7 +870,8 @@ async fn create_ticket_by_mutation(
             format!("(SELECT data FROM {table} WHERE id = v_id)"),
         ),
     };
-    sqlx::raw_sql(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         "CREATE SCHEMA IF NOT EXISTS app;
          DO $$ BEGIN CREATE TYPE app.mutation_error_class AS ENUM ('validation','conflict',
              'not_found','unauthorized','forbidden','internal','transaction_failed','timeout',
@@ -887,7 +892,7 @@ async fn create_ticket_by_mutation(
              v_response.entity := {entity};
              RETURN v_response;
          END; $$"
-    ))
+    )))
     .execute(pool)
     .await
     .expect("the mutation function is created");

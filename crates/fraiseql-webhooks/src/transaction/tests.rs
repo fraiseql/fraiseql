@@ -6,6 +6,15 @@ fn test_isolation_level_sql() {
 }
 
 #[test]
+fn the_isolation_statement_sets_the_level_it_names() {
+    let level = WebhookIsolation::ReadCommitted;
+    assert_eq!(
+        level.set_transaction_sql(),
+        format!("SET TRANSACTION ISOLATION LEVEL {}", level.as_sql())
+    );
+}
+
+#[test]
 fn test_default_isolation_level() {
     let default = WebhookIsolation::default();
     assert_eq!(default.as_sql(), "READ COMMITTED");

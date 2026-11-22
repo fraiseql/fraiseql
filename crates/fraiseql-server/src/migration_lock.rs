@@ -69,7 +69,11 @@ pub const MIGRATION_LOCK_KEY: i64 = 0x4652_4149_5345_0001;
 /// The `sqlx::Error` of the lock acquisition or of any statement in `ddl`, so each
 /// caller's existing error mapping applies unchanged.
 pub async fn run_migration(pool: &PgPool, ddl: &str) -> Result<(), sqlx::Error> {
-    sqlx::raw_sql(&lock_prefixed(ddl)).execute(pool).await.map(|_| ())
+    // Reason: a server-owned migration script, unchanged, behind the fixed lock statement.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(lock_prefixed(ddl)))
+        .execute(pool)
+        .await
+        .map(|_| ())
 }
 
 /// Run several server-owned migration scripts, in order, each under [`MIGRATION_LOCK_KEY`].

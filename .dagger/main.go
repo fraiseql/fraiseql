@@ -700,6 +700,10 @@ func (m *FraiseqlCi) ShellGates(
 		// the old location, which fails only at runtime on the path that runs it.
 		"python3 tools/check-auth-schema-qualification.py",
 		"make test-auth-schema-gate",
+		// SQL text built at runtime reaches sqlx only through `sqlx::AssertSqlSafe`, each
+		// with a `// Reason:` beside it saying what the text is built from.
+		"python3 tools/check-sql-safe-assertions.py",
+		"make test-sql-safe-gate",
 		// The same shape one layer up (#1336): a transport that turns a credential into a
 		// principal and dispatches it unresolved. REST, MCP and gRPC each did for three
 		// releases, and no test could see it — a transport that skips the resolve answers

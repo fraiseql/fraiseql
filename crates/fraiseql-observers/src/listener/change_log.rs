@@ -937,7 +937,8 @@ impl ChangeLogListener {
         #[allow(clippy::cast_precision_loss)]
         // Reason: the window is an operator-set duration; sub-microsecond precision is irrelevant
         let window_secs = self.config.commit_lag_window.as_secs_f64();
-        let rows: Vec<ChangeLogRow> = sqlx::query_as(&format!(
+        // Reason: `CHANGE_LOG_PROJECTION` is a compile-time constant; every value is bound.
+        let rows: Vec<ChangeLogRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
             r"
                 SELECT {CHANGE_LOG_PROJECTION}
                 FROM core.tb_entity_change_log e
@@ -955,7 +956,7 @@ impl ChangeLogListener {
                 ORDER BY e.pk_entity_change_log ASC
                 LIMIT $2
                 ",
-        ))
+        )))
         .bind(pk_bound)
         .bind(batch_size_i64)
         .bind(&self.config.listener_id)

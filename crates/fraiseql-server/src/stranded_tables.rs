@@ -67,9 +67,12 @@ async fn has_rows(pool: &PgPool, schema: &str, table: &str) -> Result<Option<boo
     if exists.0.is_none() {
         return Ok(None);
     }
-    match sqlx::query_as::<_, (bool,)>(&format!("SELECT EXISTS (SELECT 1 FROM {qualified})"))
-        .fetch_one(pool)
-        .await
+    // Reason: `qualified` is two names each quoted by `quote_ident`.
+    match sqlx::query_as::<_, (bool,)>(sqlx::AssertSqlSafe(format!(
+        "SELECT EXISTS (SELECT 1 FROM {qualified})"
+    )))
+    .fetch_one(pool)
+    .await
     {
         Ok((populated,)) => Ok(Some(populated)),
         Err(e) => {

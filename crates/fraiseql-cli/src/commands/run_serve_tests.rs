@@ -209,7 +209,8 @@ async fn boot_until_observers_run(url: &str, schema: CompiledSchema) -> Result<(
 async fn database_with_no_observer_state(url: &str) -> fraiseql_server::sqlx::PgPool {
     let pool = fraiseql_server::sqlx::PgPool::connect(url).await.unwrap();
     fraiseql_server::sqlx::raw_sql(
-        &fraiseql_test_support::changelog::entity_change_log_provision_sql(),
+        // Reason: the shared fixture's fixed change-log DDL.
+        sqlx::AssertSqlSafe(fraiseql_test_support::changelog::entity_change_log_provision_sql()),
     )
     .execute(&pool)
     .await

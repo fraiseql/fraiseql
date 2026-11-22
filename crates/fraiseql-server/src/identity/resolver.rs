@@ -236,10 +236,15 @@ impl IdentityStore for PgIdentityStore {
             // `json` feature is on for the *encode* side, `bind_claims`); `LIMIT
             // 2` lets the resolver detect ambiguity (DESIGN §5, >1 row → Denied).
             let wrapped = format!("SELECT row_to_json(t)::text FROM ({sql}) t LIMIT 2");
-            let rows = sqlx::query_as_with::<_, (String,), _>(&wrapped, bind_claims(binds)?)
-                .fetch_all(&self.pool)
-                .await
-                .map_err(|e| ResolveError::new(format!("identity query failed: {e}")))?;
+            // Reason: the operator's configured identity query inside a fixed wrapper; every claim
+            // is bound.
+            let rows = sqlx::query_as_with::<_, (String,), _>(
+                sqlx::AssertSqlSafe(wrapped.as_str()),
+                bind_claims(binds)?,
+            )
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| ResolveError::new(format!("identity query failed: {e}")))?;
 
             let mut out = Vec::with_capacity(rows.len());
             for (json_text,) in rows {
@@ -265,7 +270,8 @@ impl IdentityStore for PgIdentityStore {
         binds: &'a [serde_json::Value],
     ) -> BoxFuture<'a, Result<(), ResolveError>> {
         Box::pin(async move {
-            sqlx::query_with(sql, bind_claims(binds)?)
+            // Reason: the operator's configured provisioning statement; every claim is bound.
+            sqlx::query_with(sqlx::AssertSqlSafe(sql), bind_claims(binds)?)
                 .execute(&self.pool)
                 .await
                 .map_err(|e| ResolveError::new(format!("identity provision failed: {e}")))?;

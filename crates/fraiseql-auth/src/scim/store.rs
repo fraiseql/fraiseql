@@ -383,12 +383,13 @@ impl ScimStore for PgScimStore {
         .await
         .map_err(|e| db_error("count SCIM users", &e))?;
 
-        let rows = sqlx::query(&format!(
+        // Reason: `user_columns()` returns a compile-time constant; every value is bound.
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT {} FROM auth.tb_user WHERE ($1::text IS NULL OR user_name = $1) \
              AND tenant_id IS NOT DISTINCT FROM $4 \
              ORDER BY pk_user LIMIT $2 OFFSET $3",
             user_columns()
-        ))
+        )))
         .bind(user_name)
         .bind(count)
         .bind(offset)
@@ -404,10 +405,11 @@ impl ScimStore for PgScimStore {
     }
 
     async fn get_user(&self, id: &str) -> Result<Option<ScimUser>> {
-        let row = sqlx::query(&format!(
+        // Reason: `user_columns()` returns a compile-time constant; every value is bound.
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT {} FROM auth.tb_user WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2",
             user_columns()
-        ))
+        )))
         .bind(id)
         .bind(self.tenant_id)
         .fetch_optional(&self.db)
@@ -418,13 +420,14 @@ impl ScimStore for PgScimStore {
 
     async fn create_user(&self, write: &ScimUserWrite) -> Result<ScimUser> {
         let user_id = new_user_id();
-        let row = sqlx::query(&format!(
+        // Reason: `user_columns()` returns a compile-time constant; every value is bound.
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
             "INSERT INTO auth.tb_user \
              (user_id, user_name, external_id, email, given_name, family_name, display_name, \
               active, tenant_id) \
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING {}",
             user_columns()
-        ))
+        )))
         .bind(&user_id)
         .bind(&write.user_name)
         .bind(write.external_id.as_deref())
@@ -447,13 +450,14 @@ impl ScimStore for PgScimStore {
     }
 
     async fn replace_user(&self, id: &str, write: &ScimUserWrite) -> Result<ScimUser> {
-        let row = sqlx::query(&format!(
+        // Reason: `user_columns()` returns a compile-time constant; every value is bound.
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
             "UPDATE auth.tb_user SET user_name = $2, external_id = $3, email = $4, \
              given_name = $5, family_name = $6, display_name = $7, active = $8, \
              version = version + 1, updated_at = now() \
              WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $9 RETURNING {}",
             user_columns()
-        ))
+        )))
         .bind(id)
         .bind(&write.user_name)
         .bind(write.external_id.as_deref())
@@ -477,11 +481,12 @@ impl ScimStore for PgScimStore {
     }
 
     async fn set_user_active(&self, id: &str, active: bool) -> Result<ScimUser> {
-        let row = sqlx::query(&format!(
+        // Reason: `user_columns()` returns a compile-time constant; every value is bound.
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
             "UPDATE auth.tb_user SET active = $2, version = version + 1, updated_at = now() \
              WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $3 RETURNING {}",
             user_columns()
-        ))
+        )))
         .bind(id)
         .bind(active)
         .bind(self.tenant_id)

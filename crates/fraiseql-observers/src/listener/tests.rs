@@ -827,7 +827,8 @@ mod stored_time_tests {
     /// One projected row whose `created_at` is `stored`, read the way every reader reads one.
     async fn row_created_at(stored: &str) -> ChangeLogRow {
         let pool = sqlx::PgPool::connect(&fraiseql_test_support::database_url()).await.unwrap();
-        sqlx::query_as(&format!(
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::query_as(sqlx::AssertSqlSafe(format!(
             "SELECT {CHANGE_LOG_PROJECTION} FROM (SELECT
                  1::bigint AS pk_entity_change_log, gen_random_uuid() AS id,
                  NULL::bigint AS fk_customer_org, NULL::bigint AS fk_contact,
@@ -838,7 +839,7 @@ mod stored_time_tests {
                  NULL::uuid AS tenant_id, NULL::int4 AS duration_ms, NULL::int8 AS seq,
                  NULL::text AS actor_type, NULL::uuid AS acting_for,
                  NULL::text AS schema_version) e"
-        ))
+        )))
         .bind(stored)
         .fetch_one(&pool)
         .await

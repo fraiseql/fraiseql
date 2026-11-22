@@ -73,7 +73,7 @@ impl ObserverScope {
     }
 
     /// Restrict `query` to observers this scope can see: its own and the global ones.
-    pub(crate) fn push_visible(self, query: &mut sqlx::QueryBuilder<'_, sqlx::Postgres>) {
+    pub(crate) fn push_visible(self, query: &mut sqlx::QueryBuilder<sqlx::Postgres>) {
         if let Self::Organisation(org) = self {
             query
                 .push(" AND (fk_customer_org IS NULL OR fk_customer_org = ")
@@ -86,7 +86,7 @@ impl ObserverScope {
     /// of. `observer_key` is the column holding the observer's `pk_observer`.
     pub(crate) fn push_owned(
         self,
-        query: &mut sqlx::QueryBuilder<'_, sqlx::Postgres>,
+        query: &mut sqlx::QueryBuilder<sqlx::Postgres>,
         observer_key: &str,
     ) {
         if let Self::Organisation(org) = self {

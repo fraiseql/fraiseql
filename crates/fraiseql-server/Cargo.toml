@@ -155,7 +155,7 @@ lettre = { version = "0.11", default-features = false, features = [
   "tokio1-rustls-tls",
 ], optional = true }
 # Database
-sqlx = { version = "0.8", features = [
+sqlx = { version = "0.9.1", features = [
   "postgres",
   "runtime-tokio",
   # TLS for every sqlx pool on the server's database (the application, observer and
@@ -253,7 +253,7 @@ zip = { version = "9", default-features = false, features = ["deflate"] }
 # HTTP testing
 reqwest = { workspace = true }
 # Database testing
-sqlx = { version = "0.8", features = ["runtime-tokio", "postgres"] }
+sqlx = { version = "0.9.1", features = ["runtime-tokio", "postgres"] }
 temp-env = { workspace = true }
 tempfile = "3.13"
 tokio-postgres = { workspace = true }

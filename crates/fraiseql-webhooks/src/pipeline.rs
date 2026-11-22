@@ -287,11 +287,7 @@ where
         //    `execute_in_transaction` remains the public building block for callers driving their
         //    own closures.
         let mut tx = self.pool.begin().await?;
-        // Safety: `as_sql()` returns only hardcoded `&'static str` literals; no
-        // user input reaches this statement and PostgreSQL does not parameterise SET.
-        sqlx::query(&format!("SET TRANSACTION ISOLATION LEVEL {}", self.isolation.as_sql()))
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query(self.isolation.set_transaction_sql()).execute(&mut *tx).await?;
 
         let claimed =
             match self.store.claim(&mut tx, delivery.route, &event.id, &event.event_type).await {

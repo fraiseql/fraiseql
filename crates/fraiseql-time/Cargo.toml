@@ -19,7 +19,7 @@ chrono = { workspace = true, optional = true }
 jiff = { workspace = true }
 postgres-types = { version = "0.2", optional = true }
 serde = { workspace = true }
-sqlx = { version = "0.8", default-features = false, features = [
+sqlx = { version = "0.9.1", default-features = false, features = [
   "postgres",
 ], optional = true }
 thiserror = { workspace = true }
@@ -29,7 +29,7 @@ thiserror = { workspace = true }
 chrono = { workspace = true }
 fraiseql-test-support = { path = "../fraiseql-test-support" }
 serde_json = { workspace = true }
-sqlx = { version = "0.8", default-features = false, features = [
+sqlx = { version = "0.9.1", default-features = false, features = [
   "postgres",
   "runtime-tokio",
   "chrono",

@@ -157,7 +157,9 @@ async fn fetch_changelog(
                 ""
             },
         );
-        let mut q = sqlx::query_as::<_, ChangelogRow>(&sql);
+        // Reason: `CHANGELOG_SELECT_COLS` is a compile-time constant and the predicate one of two
+        // literals; every value is bound.
+        let mut q = sqlx::query_as::<_, ChangelogRow>(sqlx::AssertSqlSafe(sql.as_str()));
         if let Some(ref object_type) = query.object_type {
             q = q.bind(object_type);
         }
@@ -165,22 +167,26 @@ async fn fetch_changelog(
     } else {
         let limit = query.limit.clamp(1, MAX_CHANGELOG_LIMIT);
         if let Some(ref object_type) = query.object_type {
-            sqlx::query_as::<_, ChangelogRow>(&format!(
+            // Reason: `CHANGELOG_SELECT_COLS` is a compile-time constant and the predicate one of
+            // two literals; every value is bound.
+            sqlx::query_as::<_, ChangelogRow>(sqlx::AssertSqlSafe(format!(
                 "SELECT {CHANGELOG_SELECT_COLS} FROM core.tb_entity_change_log \
                  WHERE pk_entity_change_log > $1 AND object_type = $3 \
                  ORDER BY pk_entity_change_log ASC LIMIT $2"
-            ))
+            )))
             .bind(query.after_cursor)
             .bind(limit)
             .bind(object_type)
             .fetch_all(pool)
             .await?
         } else {
-            sqlx::query_as::<_, ChangelogRow>(&format!(
+            // Reason: `CHANGELOG_SELECT_COLS` is a compile-time constant and the predicate one of
+            // two literals; every value is bound.
+            sqlx::query_as::<_, ChangelogRow>(sqlx::AssertSqlSafe(format!(
                 "SELECT {CHANGELOG_SELECT_COLS} FROM core.tb_entity_change_log \
                  WHERE pk_entity_change_log > $1 \
                  ORDER BY pk_entity_change_log ASC LIMIT $2"
-            ))
+            )))
             .bind(query.after_cursor)
             .bind(limit)
             .fetch_all(pool)

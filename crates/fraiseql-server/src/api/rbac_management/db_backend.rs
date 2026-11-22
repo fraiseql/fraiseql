@@ -950,13 +950,14 @@ impl RbacDbBackend {
         // One statement for every combination of filters: an `IS NULL OR` arm per
         // predicate, all bound. Composing the WHERE clause with `format!` is how the
         // #794/#795 injection holes were built; there is no reason to do it here.
-        let rows = sqlx::query(&format!(
+        // Reason: `AUDIT_PREDICATE` is a compile-time constant; every filter is bound.
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT id, occurred_at, event_type, role_id, role_name, user_id,
                     permission_id, tenant_id, details
              FROM fraiseql_permission_audit
              WHERE {AUDIT_PREDICATE}
              ORDER BY occurred_at, id LIMIT $7 OFFSET $8"
-        ))
+        )))
         .bind(filter.user_id)
         .bind(role_uuid)
         .bind(filter.event_type)
@@ -969,9 +970,10 @@ impl RbacDbBackend {
         .await
         .map_err(|e| RbacDbError::QueryError(e.to_string()))?;
 
-        let total: i64 = sqlx::query_scalar(&format!(
+        // Reason: `AUDIT_PREDICATE` is a compile-time constant; every filter is bound.
+        let total: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
             "SELECT COUNT(*) FROM fraiseql_permission_audit WHERE {AUDIT_PREDICATE}"
-        ))
+        )))
         .bind(filter.user_id)
         .bind(role_uuid)
         .bind(filter.event_type)

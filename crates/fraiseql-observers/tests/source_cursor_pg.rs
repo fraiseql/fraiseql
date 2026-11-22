@@ -176,19 +176,21 @@ async fn rls_denies_reads_to_a_role_without_the_tenant_guc() {
 
     // Create the NOBYPASSRLS reader (idempotent), re-asserting its attributes in
     // case it survived an earlier run.
-    sqlx::query(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "DO $$ BEGIN
              IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{RLS_ROLE}') THEN
                  CREATE ROLE {RLS_ROLE} LOGIN PASSWORD '{ROLE_PASSWORD}' NOSUPERUSER NOBYPASSRLS;
              END IF;
          END $$"
-    ))
+    )))
     .execute(&admin)
     .await
     .unwrap();
-    sqlx::query(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "ALTER ROLE {RLS_ROLE} NOSUPERUSER NOBYPASSRLS LOGIN PASSWORD '{ROLE_PASSWORD}'"
-    ))
+    )))
     .execute(&admin)
     .await
     .unwrap();
@@ -201,10 +203,11 @@ async fn rls_denies_reads_to_a_role_without_the_tenant_guc() {
         .unwrap();
     let store = PostgresSourceCursorStore::new(admin.clone());
     store.init().await.unwrap();
-    sqlx::raw_sql(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         "GRANT USAGE ON SCHEMA core TO {RLS_ROLE}; \
          GRANT SELECT ON core._fraiseql_source_cursor TO {RLS_ROLE}"
-    ))
+    )))
     .execute(&admin)
     .await
     .unwrap();
@@ -295,9 +298,10 @@ async fn a_stored_cursor_is_resumed_when_the_search_path_starts_elsewhere() {
         );
         return;
     };
-    sqlx::raw_sql(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         "CREATE SCHEMA IF NOT EXISTS core; DROP SCHEMA IF EXISTS {APP_FIRST} CASCADE"
-    ))
+    )))
     .execute(&pool)
     .await
     .unwrap();
@@ -308,7 +312,8 @@ async fn a_stored_cursor_is_resumed_when_the_search_path_starts_elsewhere() {
     let empty = first_boot.load(&resumed_source).await.unwrap();
     assert!(first_boot.advance(&resumed_source, &empty, json!({"page": 7})).await.unwrap());
 
-    sqlx::raw_sql(&format!("CREATE SCHEMA {APP_FIRST}"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("CREATE SCHEMA {APP_FIRST}")))
         .execute(&pool)
         .await
         .unwrap();
@@ -321,11 +326,13 @@ async fn a_stored_cursor_is_resumed_when_the_search_path_starts_elsewhere() {
         .advance(&new_source, &CursorSnapshot::empty(), json!({"page": 1}))
         .await;
     let (shadow,): (Option<String>,) =
-        sqlx::query_as(&format!("SELECT to_regclass('{APP_FIRST}._fraiseql_source_cursor')::text"))
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT to_regclass('{APP_FIRST}._fraiseql_source_cursor')::text")))
             .fetch_one(&pool)
             .await
             .unwrap();
-    sqlx::raw_sql(&format!("DROP SCHEMA IF EXISTS {APP_FIRST} CASCADE"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("DROP SCHEMA IF EXISTS {APP_FIRST} CASCADE")))
         .execute(&pool)
         .await
         .unwrap();

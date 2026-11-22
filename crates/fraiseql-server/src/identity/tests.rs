@@ -716,10 +716,13 @@ async fn connect_pool() -> Option<(sqlx::PgPool, fraiseql_test_support::Service)
 /// Create a fresh, uniquely-named actor table so parallel runs stay independent.
 async fn make_actor_table(pool: &sqlx::PgPool) -> String {
     let table = format!("tb_actor_test_{}", uuid::Uuid::new_v4().simple());
-    sqlx::query(&format!("CREATE TABLE {table} (sub text, actor_id text, actor_role text)"))
-        .execute(pool)
-        .await
-        .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "CREATE TABLE {table} (sub text, actor_id text, actor_role text)"
+    )))
+    .execute(pool)
+    .await
+    .unwrap();
     table
 }
 
@@ -740,9 +743,10 @@ async fn pg_store_resolves_and_renames_known_subject() {
         return;
     };
     let table = make_actor_table(&pool).await;
-    sqlx::query(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "INSERT INTO {table} (sub, actor_id, actor_role) VALUES ('u1', 'a-1', 'manager')"
-    ))
+    )))
     .execute(&pool)
     .await
     .unwrap();
@@ -756,7 +760,11 @@ async fn pg_store_resolves_and_renames_known_subject() {
         other => panic!("expected Resolved, got {other:?}"),
     }
 
-    sqlx::query(&format!("DROP TABLE {table}")).execute(&pool).await.unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP TABLE {table}")))
+        .execute(&pool)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -773,7 +781,11 @@ async fn pg_store_denies_unknown_subject() {
         IdentityResolution::Denied(DenyReason::ZeroRows)
     ));
 
-    sqlx::query(&format!("DROP TABLE {table}")).execute(&pool).await.unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP TABLE {table}")))
+        .execute(&pool)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -783,9 +795,10 @@ async fn pg_store_denies_ambiguous_subject() {
         return;
     };
     let table = make_actor_table(&pool).await;
-    sqlx::query(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "INSERT INTO {table} (sub, actor_id, actor_role) VALUES ('u1', 'a-1', 'manager'), ('u1', 'a-2', 'staff')"
-    ))
+    )))
     .execute(&pool)
     .await
     .unwrap();
@@ -796,7 +809,11 @@ async fn pg_store_denies_ambiguous_subject() {
         IdentityResolution::Denied(DenyReason::Ambiguous)
     ));
 
-    sqlx::query(&format!("DROP TABLE {table}")).execute(&pool).await.unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP TABLE {table}")))
+        .execute(&pool)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -806,9 +823,10 @@ async fn pg_store_denies_null_field() {
         return;
     };
     let table = make_actor_table(&pool).await;
-    sqlx::query(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "INSERT INTO {table} (sub, actor_id, actor_role) VALUES ('u1', 'a-1', NULL)"
-    ))
+    )))
     .execute(&pool)
     .await
     .unwrap();
@@ -819,7 +837,11 @@ async fn pg_store_denies_null_field() {
         other => panic!("expected Denied(NullField), got {other:?}"),
     }
 
-    sqlx::query(&format!("DROP TABLE {table}")).execute(&pool).await.unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP TABLE {table}")))
+        .execute(&pool)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -829,9 +851,10 @@ async fn pg_store_binds_hostile_subject_value_safely() {
         return;
     };
     let table = make_actor_table(&pool).await;
-    sqlx::query(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "INSERT INTO {table} (sub, actor_id, actor_role) VALUES ('u1', 'a-1', 'manager')"
-    ))
+    )))
     .execute(&pool)
     .await
     .unwrap();
@@ -846,13 +869,19 @@ async fn pg_store_binds_hostile_subject_value_safely() {
     ));
 
     // The table survives, proving the value never reached the SQL text.
-    let (count,): (i64,) = sqlx::query_as(&format!("SELECT count(*) FROM {table}"))
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    let (count,): (i64,) =
+        sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table}")))
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(count, 1);
 
-    sqlx::query(&format!("DROP TABLE {table}")).execute(&pool).await.unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP TABLE {table}")))
+        .execute(&pool)
+        .await
+        .unwrap();
 }
 
 // ── #1324: provision on miss against a live Postgres ──────────────────────
@@ -863,9 +892,10 @@ async fn pg_store_binds_hostile_subject_value_safely() {
 /// on it.
 async fn make_provisionable_actor_table(pool: &sqlx::PgPool) -> String {
     let table = format!("tb_actor_prov_{}", uuid::Uuid::new_v4().simple());
-    sqlx::query(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "CREATE TABLE {table} (sub text PRIMARY KEY, actor_id text, actor_role text)"
-    ))
+    )))
     .execute(pool)
     .await
     .unwrap();
@@ -890,29 +920,37 @@ async fn pg_provision_function_serves_a_new_subject_and_scopes_its_read() {
     // claim set to decide the role. A `$claims` bound as text resolves no such
     // function, and a `$claims` the function ignores would leave `actor_role`
     // the same whatever the token said.
-    sqlx::query(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "CREATE FUNCTION {func}(p_sub text, p_email text, p_claims jsonb) RETURNS void AS $$ \
            INSERT INTO {actor} (sub, actor_id, actor_role) \
            VALUES (p_sub, 'a-' || split_part(p_email, '@', 1), p_claims->>'department') \
            ON CONFLICT (sub) DO NOTHING; \
          $$ LANGUAGE sql"
-    ))
+    )))
     .execute(&pool)
     .await
     .unwrap();
-    sqlx::query(&format!("CREATE TABLE {item} (id int, owner_actor_id text)"))
-        .execute(&pool)
-        .await
-        .unwrap();
-    sqlx::query(&format!("INSERT INTO {item} VALUES (1,'a-newcomer'),(2,'a-someone-else')"))
-        .execute(&pool)
-        .await
-        .unwrap();
-    sqlx::query(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "CREATE TABLE {item} (id int, owner_actor_id text)"
+    )))
+    .execute(&pool)
+    .await
+    .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO {item} VALUES (1,'a-newcomer'),(2,'a-someone-else')"
+    )))
+    .execute(&pool)
+    .await
+    .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "CREATE VIEW {view} AS SELECT * FROM {item} \
          WHERE current_setting('app.actor_role', true) = 'manager' \
             OR owner_actor_id = current_setting('app.actor_id', true)"
-    ))
+    )))
     .execute(&pool)
     .await
     .unwrap();
@@ -936,7 +974,8 @@ async fn pg_provision_function_serves_a_new_subject_and_scopes_its_read() {
 
     // The row is durable, not a value the resolver made up in memory.
     let (count,): (i64,) =
-        sqlx::query_as(&format!("SELECT count(*) FROM {actor} WHERE sub = 'newcomer-sub'"))
+        // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+        sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {actor} WHERE sub = 'newcomer-sub'")))
             .fetch_one(&pool)
             .await
             .unwrap();
@@ -957,13 +996,26 @@ async fn pg_provision_function_serves_a_new_subject_and_scopes_its_read() {
         "the newly provisioned identity scopes the read to its own row"
     );
 
-    sqlx::query(&format!("DROP VIEW {view}")).execute(&pool).await.unwrap();
-    sqlx::query(&format!("DROP TABLE {item}")).execute(&pool).await.unwrap();
-    sqlx::query(&format!("DROP FUNCTION {func}(text, text, jsonb)"))
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP VIEW {view}")))
         .execute(&pool)
         .await
         .unwrap();
-    sqlx::query(&format!("DROP TABLE {actor}")).execute(&pool).await.unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP TABLE {item}")))
+        .execute(&pool)
+        .await
+        .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP FUNCTION {func}(text, text, jsonb)")))
+        .execute(&pool)
+        .await
+        .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP TABLE {actor}")))
+        .execute(&pool)
+        .await
+        .unwrap();
 }
 
 /// Connect with a pool wide enough that N requests really are in flight at once,
@@ -995,7 +1047,8 @@ async fn pg_sixteen_concurrent_first_requests_produce_one_row() {
     };
     let actor = make_provisionable_actor_table(&pool).await;
     let attempts = format!("tb_provision_attempt_{}", uuid::Uuid::new_v4().simple());
-    sqlx::query(&format!("CREATE TABLE {attempts} (sub text)"))
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("CREATE TABLE {attempts} (sub text)")))
         .execute(&pool)
         .await
         .unwrap();
@@ -1046,24 +1099,35 @@ async fn pg_sixteen_concurrent_first_requests_produce_one_row() {
         }
     }
 
-    let (attempted,): (i64,) = sqlx::query_as(&format!("SELECT count(*) FROM {attempts}"))
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    let (attempted,): (i64,) =
+        sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {attempts}")))
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(
         attempted, N_I64,
         "all {N} requests must have found zero rows and provisioned — a run where some found \
          the row already committed would prove nothing about the race"
     );
     let (count,): (i64,) =
-        sqlx::query_as(&format!("SELECT count(*) FROM {actor} WHERE sub = 'u-storm'"))
+        // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+        sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {actor} WHERE sub = 'u-storm'")))
             .fetch_one(&pool)
             .await
             .unwrap();
     assert_eq!(count, 1, "{N} provisions, one actor");
 
-    sqlx::query(&format!("DROP TABLE {attempts}")).execute(&pool).await.unwrap();
-    sqlx::query(&format!("DROP TABLE {actor}")).execute(&pool).await.unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP TABLE {attempts}")))
+        .execute(&pool)
+        .await
+        .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP TABLE {actor}")))
+        .execute(&pool)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -1095,7 +1159,11 @@ async fn pg_a_bare_insert_statement_provisions_too() {
         other => panic!("expected Resolved after an INSERT provision, got {other:?}"),
     }
 
-    sqlx::query(&format!("DROP TABLE {actor}")).execute(&pool).await.unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP TABLE {actor}")))
+        .execute(&pool)
+        .await
+        .unwrap();
 }
 
 // ── Consumer A: enrich_security_context + config (DESIGN §3, §7) ───────────
@@ -1359,10 +1427,12 @@ async fn count_visible(pool: &sqlx::PgPool, view: &str, role: &str, actor_id: &s
         .execute(&mut *tx)
         .await
         .unwrap();
-    let (count,): (i64,) = sqlx::query_as(&format!("SELECT count(*) FROM {view}"))
-        .fetch_one(&mut *tx)
-        .await
-        .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    let (count,): (i64,) =
+        sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {view}")))
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
     tx.rollback().await.unwrap();
     count
 }
@@ -1385,31 +1455,42 @@ async fn acceptance_two_role_read_boundary() {
     let item = format!("tb_item_acc_{suffix}");
     let view = format!("v_item_acc_{suffix}");
 
-    sqlx::query(&format!("CREATE TABLE {actor} (sub text, actor_id text, actor_role text)"))
-        .execute(&pool)
-        .await
-        .unwrap();
-    sqlx::query(&format!(
-        "INSERT INTO {actor} VALUES ('admin-sub','a-admin','manager'), ('staff-sub','a-staff','staff')"
-    ))
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "CREATE TABLE {actor} (sub text, actor_id text, actor_role text)"
+    )))
     .execute(&pool)
     .await
     .unwrap();
-    sqlx::query(&format!("CREATE TABLE {item} (id int, owner_actor_id text)"))
-        .execute(&pool)
-        .await
-        .unwrap();
-    sqlx::query(&format!("INSERT INTO {item} VALUES (1,'a-admin'),(2,'a-staff'),(3,'a-other')"))
-        .execute(&pool)
-        .await
-        .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO {actor} VALUES ('admin-sub','a-admin','manager'), ('staff-sub','a-staff','staff')"
+    )))
+    .execute(&pool)
+    .await
+    .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "CREATE TABLE {item} (id int, owner_actor_id text)"
+    )))
+    .execute(&pool)
+    .await
+    .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO {item} VALUES (1,'a-admin'),(2,'a-staff'),(3,'a-other')"
+    )))
+    .execute(&pool)
+    .await
+    .unwrap();
     // The view scopes exactly as the partner's does: a `manager` sees all, any
     // other role sees only its own rows.
-    sqlx::query(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "CREATE VIEW {view} AS SELECT * FROM {item} \
          WHERE current_setting('app.actor_role', true) = 'manager' \
             OR owner_actor_id = current_setting('app.actor_id', true)"
-    ))
+    )))
     .execute(&pool)
     .await
     .unwrap();
@@ -1459,9 +1540,21 @@ async fn acceptance_two_role_read_boundary() {
         EnrichmentOutcome::Denied
     );
 
-    sqlx::query(&format!("DROP VIEW {view}")).execute(&pool).await.unwrap();
-    sqlx::query(&format!("DROP TABLE {item}")).execute(&pool).await.unwrap();
-    sqlx::query(&format!("DROP TABLE {actor}")).execute(&pool).await.unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP VIEW {view}")))
+        .execute(&pool)
+        .await
+        .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP TABLE {item}")))
+        .execute(&pool)
+        .await
+        .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!("DROP TABLE {actor}")))
+        .execute(&pool)
+        .await
+        .unwrap();
 }
 
 // ── Admin flush endpoint (the immediate #539 follow-up) ────────────────────

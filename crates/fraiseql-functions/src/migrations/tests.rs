@@ -26,7 +26,8 @@ async fn execute_ddl(pool: &PgPool, ddl: &str) {
     for stmt in ddl.split(';') {
         let trimmed = stmt.trim();
         if !trimmed.is_empty() {
-            sqlx::query(trimmed).execute(pool).await.unwrap();
+            // Reason: the crate's own migration DDL, split into statements.
+            sqlx::query(sqlx::AssertSqlSafe(trimmed)).execute(pool).await.unwrap();
         }
     }
 }

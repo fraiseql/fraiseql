@@ -66,9 +66,12 @@ pub async fn setup_observer_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     // (contract shape — object_id UUID nullable). This helper's private
     // NOT-NULL twin is one of the shapes that broke the doctor suite on a
     // warm database.
-    sqlx::raw_sql(&fraiseql_test_support::changelog::entity_change_log_provision_sql())
-        .execute(pool)
-        .await?;
+    // Reason: the shared fixture's fixed change-log DDL.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(
+        fraiseql_test_support::changelog::entity_change_log_provision_sql(),
+    ))
+    .execute(pool)
+    .await?;
 
     // 3. The observer runtime's own tables, from the migrations the server provisions them with
     //    (#1710), not a hand-written copy: the copy had drifted (no `fk_customer_org` on the log,

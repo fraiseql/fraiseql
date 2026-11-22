@@ -73,11 +73,13 @@ fn with_database(url: &str, db: &str) -> String {
 
 async fn scratch_pool(admin_url: &str, db: &str) -> PgPool {
     let admin = PgPool::connect(admin_url).await.expect("connect to admin database");
-    sqlx::raw_sql(&format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)")))
         .execute(&admin)
         .await
         .expect("drop scratch database");
-    sqlx::raw_sql(&format!("CREATE DATABASE {db}"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("CREATE DATABASE {db}")))
         .execute(&admin)
         .await
         .expect("create scratch database");
@@ -92,9 +94,11 @@ async fn drop_scratch(admin_url: &str, db: &str) {
     let Ok(admin) = PgPool::connect(admin_url).await else {
         return;
     };
-    let _ = sqlx::raw_sql(&format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)"))
-        .execute(&admin)
-        .await;
+    // Reason: test SQL built from names and values this test defines.
+    let _ =
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)")))
+            .execute(&admin)
+            .await;
     admin.close().await;
 }
 

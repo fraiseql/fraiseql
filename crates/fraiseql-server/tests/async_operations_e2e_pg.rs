@@ -358,9 +358,10 @@ async fn submit_executes_through_the_real_pipeline_and_succeeds() {
     );
 
     // The write REALLY happened — same pipeline as /graphql, against the DB.
-    let n: i64 = sqlx::query(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    let n: i64 = sqlx::query(sqlx::AssertSqlSafe(format!(
         "SELECT count(*) AS n FROM {SCHEMA}.tb_item WHERE label = 'made-async'"
-    ))
+    )))
     .fetch_one(&rig.pool)
     .await
     .unwrap()

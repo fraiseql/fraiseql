@@ -127,9 +127,10 @@ const ALWAYS_FAILS: &str = r"export default async () => {
 
 /// `schema`'s function-dispatch ledger: `(function_name, state)` per row.
 async fn ledger(pool: &PgPool, schema: &str) -> Vec<(String, String)> {
-    sqlx::query_as(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "SELECT function_name, state FROM {schema}._fraiseql_function_dispatch ORDER BY 1"
-    ))
+    )))
     .fetch_all(pool)
     .await
     .unwrap()
@@ -142,11 +143,13 @@ fn with_database(url: &str, db: &str) -> String {
 
 async fn scratch_pool(admin_url: &str) -> PgPool {
     let admin = PgPool::connect(admin_url).await.expect("connect to admin database");
-    sqlx::raw_sql(&format!("DROP DATABASE IF EXISTS {DB} WITH (FORCE)"))
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("DROP DATABASE IF EXISTS {DB} WITH (FORCE)")))
         .execute(&admin)
         .await
         .expect("drop scratch database");
-    sqlx::raw_sql(&format!("CREATE DATABASE {DB}"))
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("CREATE DATABASE {DB}")))
         .execute(&admin)
         .await
         .expect("create scratch database");
@@ -158,10 +161,13 @@ async fn scratch_pool(admin_url: &str) -> PgPool {
 
 /// The receipts recorded in `schema`.
 async fn receipts(pool: &PgPool, schema: &str) -> Vec<String> {
-    sqlx::query_scalar(&format!("SELECT order_label FROM {schema}.tb_receipt ORDER BY 1"))
-        .fetch_all(pool)
-        .await
-        .unwrap()
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+        "SELECT order_label FROM {schema}.tb_receipt ORDER BY 1"
+    )))
+    .fetch_all(pool)
+    .await
+    .unwrap()
 }
 
 #[tokio::test]
@@ -181,8 +187,13 @@ async fn an_anonymous_tenant_writes_function_runs_within_that_tenant() {
         .execute(&pool)
         .await
         .unwrap();
-    sqlx::raw_sql(&objects("public")).execute(&pool).await.unwrap();
-    sqlx::raw_sql(&objects(&format!("tenant_{TENANT}")))
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(objects("public")))
+        .execute(&pool)
+        .await
+        .unwrap();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(objects(&format!("tenant_{TENANT}"))))
         .execute(&pool)
         .await
         .unwrap();
@@ -274,7 +285,8 @@ async fn an_anonymous_tenant_writes_function_runs_within_that_tenant() {
     assert_eq!(status, StatusCode::OK, "the anonymous write: {body}");
     assert!(body.get("errors").is_none(), "the anonymous write commits: {body}");
     let orders: Vec<String> =
-        sqlx::query_scalar(&format!("SELECT label FROM tenant_{TENANT}.tb_order"))
+        // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+        sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT label FROM tenant_{TENANT}.tb_order")))
             .fetch_all(&pool)
             .await
             .unwrap();
@@ -305,10 +317,11 @@ async fn an_anonymous_tenant_writes_function_runs_within_that_tenant() {
 
     // A dispatch the tenant recorded and never settled (its process died) is replayed by the
     // tenant's sweep, within the tenant: point the row at the receipt function and make it due.
-    sqlx::query(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "UPDATE {tenant_schema}._fraiseql_function_dispatch SET state = 'pending', \
          reason = NULL, function_name = 'recordReceipt', lease_until = now()"
-    ))
+    )))
     .execute(&pool)
     .await
     .unwrap();

@@ -59,18 +59,25 @@ fn unique_table(kind: &str) -> String {
 }
 
 async fn create_table(pool: &PgPool, table: &str) {
-    sqlx::query(&format!("CREATE TABLE \"{table}\" (id TEXT PRIMARY KEY, note TEXT)"))
-        .execute(pool)
-        .await
-        .unwrap();
+    // Reason: the table name is one the test made from a UUID.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "CREATE TABLE \"{table}\" (id TEXT PRIMARY KEY, note TEXT)"
+    )))
+    .execute(pool)
+    .await
+    .unwrap();
 }
 
 async fn drop_table(pool: &PgPool, table: &str) {
-    let _ = sqlx::query(&format!("DROP TABLE IF EXISTS \"{table}\"")).execute(pool).await;
+    // Reason: the table name is one the test made from a UUID.
+    let _ = sqlx::query(sqlx::AssertSqlSafe(format!("DROP TABLE IF EXISTS \"{table}\"")))
+        .execute(pool)
+        .await;
 }
 
 async fn row_count(pool: &PgPool, table: &str) -> i64 {
-    sqlx::query(&format!("SELECT count(*) AS n FROM \"{table}\""))
+    // Reason: the table name is one the test made from a UUID.
+    sqlx::query(sqlx::AssertSqlSafe(format!("SELECT count(*) AS n FROM \"{table}\"")))
         .fetch_one(pool)
         .await
         .unwrap()

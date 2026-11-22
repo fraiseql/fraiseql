@@ -343,7 +343,8 @@ impl ChangeLogReplayReader {
         from: &ResumePosition,
         batch_size: u32,
     ) -> Result<Vec<ReplayedEvent>> {
-        let rows: Vec<ChangeLogRow> = sqlx::query_as(&format!(
+        // Reason: `CHANGE_LOG_PROJECTION` is a compile-time constant; every value is bound.
+        let rows: Vec<ChangeLogRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
             r"
             SELECT {CHANGE_LOG_PROJECTION}
             FROM core.tb_entity_change_log e
@@ -357,7 +358,7 @@ impl ChangeLogReplayReader {
             ORDER BY e.pk_entity_change_log
             LIMIT $5
             "
-        ))
+        )))
         .bind(from.pk)
         .bind(&scope.object_type)
         .bind(scope.tenant.as_ref())
@@ -424,7 +425,8 @@ impl ChangeLogReplayReader {
             // predicates are deliberately not one row-wise comparison — a tuple
             // comparison spanning both tables cannot be an index condition on either,
             // so the planner falls back to hashing the whole ledger.
-            let rows: Vec<DispatchedRow> = sqlx::query_as(&format!(
+            // Reason: `CHANGE_LOG_PROJECTION` is a compile-time constant; every value is bound.
+            let rows: Vec<DispatchedRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
                 r"
                 SELECT {CHANGE_LOG_PROJECTION}, d.dispatched_at
                 FROM core.tb_observer_dispatch d
@@ -437,7 +439,7 @@ impl ChangeLogReplayReader {
                 ORDER BY d.dispatched_at, e.pk_entity_change_log
                 LIMIT $6
                 "
-            ))
+            )))
             .bind(&self.listener_id)
             .bind(dispatched_at)
             .bind(from.pk)
@@ -459,7 +461,8 @@ impl ChangeLogReplayReader {
             // read — only insertion order, which for everything after the anchor is the
             // order the poller will deliver in anyway. Over-sends by at most the rows
             // in flight; never under-sends.
-            let rows: Vec<ChangeLogRow> = sqlx::query_as(&format!(
+            // Reason: `CHANGE_LOG_PROJECTION` is a compile-time constant; every value is bound.
+            let rows: Vec<ChangeLogRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
                 r"
                 SELECT {CHANGE_LOG_PROJECTION}
                 FROM core.tb_entity_change_log e
@@ -469,7 +472,7 @@ impl ChangeLogReplayReader {
                 ORDER BY e.pk_entity_change_log
                 LIMIT $4
                 "
-            ))
+            )))
             .bind(from.pk)
             .bind(&scope.object_type)
             .bind(scope.tenant.as_ref())

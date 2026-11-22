@@ -65,11 +65,13 @@ async fn third_party_scim_client_finds_the_surface_conformant() {
     let scratch_url = format!("{base}/{DB}");
 
     let admin = PgPool::connect(&url).await.expect("connect to admin database");
-    sqlx::raw_sql(&format!("DROP DATABASE IF EXISTS {DB} WITH (FORCE)"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("DROP DATABASE IF EXISTS {DB} WITH (FORCE)")))
         .execute(&admin)
         .await
         .expect("drop scratch database");
-    sqlx::raw_sql(&format!("CREATE DATABASE {DB}"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("CREATE DATABASE {DB}")))
         .execute(&admin)
         .await
         .expect("create scratch database");
@@ -151,9 +153,11 @@ async fn third_party_scim_client_finds_the_surface_conformant() {
     let Ok(admin) = PgPool::connect(&url).await else {
         return;
     };
-    let _ = sqlx::raw_sql(&format!("DROP DATABASE IF EXISTS {DB} WITH (FORCE)"))
-        .execute(&admin)
-        .await;
+    // Reason: test SQL built from names and values this test defines.
+    let _ =
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!("DROP DATABASE IF EXISTS {DB} WITH (FORCE)")))
+            .execute(&admin)
+            .await;
 
     assert!(
         output.status.success(),

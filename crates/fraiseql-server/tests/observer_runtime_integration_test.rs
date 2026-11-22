@@ -1582,7 +1582,8 @@ async fn seed_replica_test(
         "core.tb_observer",
         "core.tb_entity_change_log",
     ] {
-        sqlx::query(&format!("DELETE FROM {table}"))
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::query(sqlx::AssertSqlSafe(format!("DELETE FROM {table}")))
             .execute(pool)
             .await
             .expect("Failed to clean table");
@@ -2506,7 +2507,11 @@ async fn test_an_event_in_retry_is_delivered_by_the_declaration_it_matched() {
         "core.tb_observer",
         "core.tb_entity_change_log",
     ] {
-        sqlx::query(&format!("DELETE FROM {table}")).execute(&pool).await.unwrap();
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::query(sqlx::AssertSqlSafe(format!("DELETE FROM {table}")))
+            .execute(&pool)
+            .await
+            .unwrap();
     }
     let entity_type = format!("Order_{test_id}");
     let old_target = MockWebhookServer::start().await;

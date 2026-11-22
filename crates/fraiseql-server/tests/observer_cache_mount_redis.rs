@@ -61,14 +61,16 @@ async fn clear_suite_observers(pool: &PgPool) {
     const OWNED: &str = "name LIKE 'cache-obs-%' OR name LIKE 'cache-noredis-%'";
     // `core.tb_observer_log.fk_observer` references `core.tb_observer`, so the audit rows
     // go first — the delete is otherwise refused by the constraint.
-    sqlx::query(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "DELETE FROM core.tb_observer_log WHERE fk_observer IN \
          (SELECT pk_observer FROM core.tb_observer WHERE {OWNED})"
-    ))
+    )))
     .execute(pool)
     .await
     .unwrap();
-    sqlx::query(&format!("DELETE FROM core.tb_observer WHERE {OWNED}"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!("DELETE FROM core.tb_observer WHERE {OWNED}")))
         .execute(pool)
         .await
         .unwrap();

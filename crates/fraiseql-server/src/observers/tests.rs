@@ -256,6 +256,7 @@ mod repository_tests {
             sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM core.tb_observer WHERE 1=1");
         qb.push(" AND entity_type = ").push_bind(malicious);
         let sql = qb.sql();
+        let sql = sql.as_str();
         assert!(!sql.contains(malicious), "user input must not appear in SQL string");
         assert!(sql.contains("$1"), "placeholder must be present");
     }
@@ -267,6 +268,7 @@ mod repository_tests {
             sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM core.tb_observer WHERE 1=1");
         qb.push(" AND event_type = ").push_bind(malicious);
         let sql = qb.sql();
+        let sql = sql.as_str();
         assert!(!sql.contains(malicious));
         assert!(sql.contains("$1"));
     }
@@ -278,6 +280,7 @@ mod repository_tests {
             sqlx::QueryBuilder::new("SELECT COUNT(*) FROM core.tb_observer_log WHERE 1=1");
         qb.push(" AND status = ").push_bind(malicious);
         let sql = qb.sql();
+        let sql = sql.as_str();
         assert!(!sql.contains(malicious));
         assert!(sql.contains("$1"));
     }
@@ -289,6 +292,7 @@ mod repository_tests {
             sqlx::QueryBuilder::new("SELECT COUNT(*) FROM core.tb_observer_log WHERE 1=1");
         qb.push(" AND trace_id = ").push_bind(malicious);
         let sql = qb.sql();
+        let sql = sql.as_str();
         assert!(!sql.contains(malicious));
         assert!(sql.contains("$1"));
     }
@@ -298,6 +302,7 @@ mod repository_tests {
         let qb: sqlx::QueryBuilder<sqlx::Postgres> =
             sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM core.tb_observer WHERE 1=1");
         let sql = qb.sql();
+        let sql = sql.as_str();
         assert!(!sql.contains("entity_type"));
         assert!(!sql.contains("event_type"));
         assert!(!sql.contains("enabled"));
@@ -311,6 +316,7 @@ mod repository_tests {
             sqlx::QueryBuilder::new("SELECT COUNT(*) AS count FROM core.tb_observer WHERE 1=1");
         qb.push(" AND deleted_at IS NULL");
         let sql = qb.sql();
+        let sql = sql.as_str();
         assert!(sql.contains("deleted_at IS NULL"));
     }
 
@@ -323,6 +329,7 @@ mod repository_tests {
             .push_bind(observer_id)
             .push(")");
         let sql = qb.sql();
+        let sql = sql.as_str();
         assert!(!sql.contains(&observer_id.to_string()), "UUID must not be inlined in SQL");
         assert!(sql.contains("$1"));
     }
@@ -335,6 +342,7 @@ mod repository_tests {
         qb.push(" AND event_type = ").push_bind("INSERT");
         qb.push(" AND enabled = ").push_bind(true);
         let sql = qb.sql();
+        let sql = sql.as_str();
         assert!(sql.contains("$1"));
         assert!(sql.contains("$2"));
         assert!(sql.contains("$3"));

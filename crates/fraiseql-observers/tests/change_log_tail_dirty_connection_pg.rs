@@ -102,7 +102,8 @@ async fn a_connection_handed_out_inside_a_transaction_is_reported_by_backend() {
         .await
         .unwrap();
     assert!(
-        sqlx::raw_sql(&format!("BEGIN; SELECT '{MARKER}'::int"))
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!("BEGIN; SELECT '{MARKER}'::int")))
             .execute(&mut *bystander)
             .await
             .is_err(),
@@ -141,10 +142,11 @@ async fn a_connection_handed_out_inside_a_transaction_is_reported_by_backend() {
                 .await
                 .unwrap(),
         );
-        sqlx::raw_sql(&format!(
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
             "BEGIN; SELECT count(*) FROM core.tb_entity_change_log \
              WHERE object_data->>'note' = '{MARKER}'"
-        ))
+        )))
         .execute(&mut **conn)
         .await
         .unwrap();

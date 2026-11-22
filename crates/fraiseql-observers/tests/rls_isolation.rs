@@ -77,20 +77,22 @@ async fn role_pool(role: &str) -> PgPool {
 /// the superuser (which bypasses RLS for seeding).
 async fn setup(admin: &PgPool, n_a: usize, n_b: usize) {
     for (role, bypass) in [(TENANT_ROLE, "NOBYPASSRLS"), (CONSUMER_ROLE, "BYPASSRLS")] {
-        sqlx::query(&format!(
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::query(sqlx::AssertSqlSafe(format!(
             "DO $$ BEGIN
                  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{role}') THEN
                      CREATE ROLE {role} LOGIN PASSWORD '{ROLE_PASSWORD}' NOSUPERUSER {bypass};
                  END IF;
              END $$"
-        ))
+        )))
         .execute(admin)
         .await
         .unwrap();
         // Re-assert the attributes in case the role pre-existed from an earlier run.
-        sqlx::query(&format!(
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::query(sqlx::AssertSqlSafe(format!(
             "ALTER ROLE {role} NOSUPERUSER {bypass} LOGIN PASSWORD '{ROLE_PASSWORD}'"
-        ))
+        )))
         .execute(admin)
         .await
         .unwrap();
@@ -104,22 +106,29 @@ async fn setup(admin: &PgPool, n_a: usize, n_b: usize) {
     sqlx::raw_sql(entity_change_log_rls_sql()).execute(admin).await.unwrap();
     sqlx::query("TRUNCATE core.tb_entity_change_log").execute(admin).await.unwrap();
 
-    sqlx::query(&format!("GRANT USAGE ON SCHEMA core TO {TENANT_ROLE}, {CONSUMER_ROLE}"))
-        .execute(admin)
-        .await
-        .unwrap();
-    sqlx::query(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "GRANT USAGE ON SCHEMA core TO {TENANT_ROLE}, {CONSUMER_ROLE}"
+    )))
+    .execute(admin)
+    .await
+    .unwrap();
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "GRANT SELECT ON core.tb_entity_change_log, core.v_entity_change_log, \
          core.v_entity_change_log_debezium TO {TENANT_ROLE}"
-    ))
+    )))
     .execute(admin)
     .await
     .unwrap();
     // The consumer also marks rows published in production, so grant UPDATE too.
-    sqlx::query(&format!("GRANT SELECT, UPDATE ON core.tb_entity_change_log TO {CONSUMER_ROLE}"))
-        .execute(admin)
-        .await
-        .unwrap();
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "GRANT SELECT, UPDATE ON core.tb_entity_change_log TO {CONSUMER_ROLE}"
+    )))
+    .execute(admin)
+    .await
+    .unwrap();
 
     for (tenant, count) in [(TENANT_A, n_a), (TENANT_B, n_b)] {
         for i in 0..count {
@@ -148,7 +157,9 @@ async fn count_with_guc(pool: &PgPool, guc: Option<&str>, sql: &str) -> i64 {
             .await
             .unwrap();
     }
-    let count: i64 = sqlx::query(sql).fetch_one(&mut *tx).await.unwrap().get(0);
+    // Reason: one of the test's own counting queries.
+    let count: i64 =
+        sqlx::query(sqlx::AssertSqlSafe(sql)).fetch_one(&mut *tx).await.unwrap().get(0);
     tx.commit().await.unwrap();
     count
 }
@@ -260,21 +271,26 @@ async fn definer_capture_writes_under_rls_for_a_nonbypassrls_writer() {
     .execute(&admin)
     .await
     .unwrap();
-    sqlx::query(&format!("GRANT USAGE ON SCHEMA public TO {TENANT_ROLE}"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!("GRANT USAGE ON SCHEMA public TO {TENANT_ROLE}")))
         .execute(&admin)
         .await
         .unwrap();
-    sqlx::query(&format!("GRANT INSERT ON public.tc_rls_post TO {TENANT_ROLE}"))
-        .execute(&admin)
-        .await
-        .unwrap();
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "GRANT INSERT ON public.tc_rls_post TO {TENANT_ROLE}"
+    )))
+    .execute(&admin)
+    .await
+    .unwrap();
 
     // The NOBYPASSRLS tenant role makes the external write. The SECURITY DEFINER
     // capture fn runs as the owner and writes the change-log row exempt from RLS.
     let tenant = role_pool(TENANT_ROLE).await;
-    sqlx::query(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "INSERT INTO public.tc_rls_post (tenant_id, name) VALUES ('{TENANT_A}', 'ext')"
-    ))
+    )))
     .execute(&tenant)
     .await
     .unwrap();

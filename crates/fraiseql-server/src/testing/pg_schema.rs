@@ -40,10 +40,13 @@ pub async fn fresh(schema: &str) -> Option<(PgPool, fraiseql_test_support::Servi
     let svc = fraiseql_test_support::postgres().await?;
     // On a default connection: a `search_path` cannot name a schema before it exists.
     let admin = PgPool::connect(svc.url()).await.unwrap();
-    sqlx::raw_sql(&format!("DROP SCHEMA IF EXISTS {schema} CASCADE; CREATE SCHEMA {schema}"))
-        .execute(&admin)
-        .await
-        .unwrap();
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+        "DROP SCHEMA IF EXISTS {schema} CASCADE; CREATE SCHEMA {schema}"
+    )))
+    .execute(&admin)
+    .await
+    .unwrap();
     admin.close().await;
     Some((pool_on(svc.url(), schema).await, svc))
 }

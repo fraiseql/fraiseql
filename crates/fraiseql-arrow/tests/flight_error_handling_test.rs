@@ -53,7 +53,8 @@ impl TestDb {
         let pool = PgPoolOptions::new().max_connections(1).connect(&db_url).await?;
         let test_db_name =
             format!("fraiseql_arrow_err_{}", uuid::Uuid::new_v4().to_string().replace('-', "_"));
-        sqlx::query(&format!("CREATE DATABASE \"{}\"", test_db_name))
+        // Reason: the database name is one the test made from a UUID.
+        sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE \"{}\"", test_db_name)))
             .execute(&pool)
             .await?;
 
@@ -120,13 +121,15 @@ impl Drop for TestDb {
                 if let Ok(pool) =
                     PgPoolOptions::new().max_connections(1).connect(&default_url).await
                 {
-                    let _ = sqlx::query(&format!(
+                    // Reason: the database name is one the test made from a UUID.
+                    let _ = sqlx::query(sqlx::AssertSqlSafe(format!(
                         "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = '{}' AND pid <> pg_backend_pid()",
                         db_name
-                    ))
+                    )))
                     .execute(&pool)
                     .await;
-                    let _ = sqlx::query(&format!("DROP DATABASE \"{}\"", db_name))
+                    // Reason: the database name is one the test made from a UUID.
+                    let _ = sqlx::query(sqlx::AssertSqlSafe(format!("DROP DATABASE \"{}\"", db_name)))
                         .execute(&pool)
                         .await;
                 }

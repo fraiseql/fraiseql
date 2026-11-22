@@ -70,10 +70,13 @@ async fn pool() -> PgPool {
 
 async fn setup_schema(pool: &PgPool) {
     // #942/#982: the change-log table comes from the ONE shared provisioner.
-    sqlx::raw_sql(&fraiseql_test_support::changelog::entity_change_log_provision_sql())
-        .execute(pool)
-        .await
-        .unwrap();
+    // Reason: the shared fixture's fixed change-log DDL.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(
+        fraiseql_test_support::changelog::entity_change_log_provision_sql(),
+    ))
+    .execute(pool)
+    .await
+    .unwrap();
     sqlx::raw_sql(outbox_sink_state_migration_sql()).execute(pool).await.unwrap();
 }
 

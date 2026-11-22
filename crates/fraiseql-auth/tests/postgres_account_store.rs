@@ -236,30 +236,36 @@ async fn rls_denies_by_default_and_scopes_per_tenant() {
     let (store, admin) = fresh().await.unwrap();
 
     // A NOBYPASSRLS reader with SELECT on the tables (idempotent across runs).
-    sqlx::query(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "DO $$ BEGIN
              IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{READER_ROLE}') THEN
                  CREATE ROLE {READER_ROLE} LOGIN PASSWORD '{ROLE_PASSWORD}' NOSUPERUSER NOBYPASSRLS;
              END IF;
          END $$"
-    ))
+    )))
     .execute(&admin)
     .await
     .unwrap();
-    sqlx::query(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "ALTER ROLE {READER_ROLE} NOSUPERUSER NOBYPASSRLS LOGIN PASSWORD '{ROLE_PASSWORD}'"
-    ))
+    )))
     .execute(&admin)
     .await
     .unwrap();
-    sqlx::query(&format!("GRANT USAGE ON SCHEMA auth TO {READER_ROLE}"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!("GRANT USAGE ON SCHEMA auth TO {READER_ROLE}")))
         .execute(&admin)
         .await
         .unwrap();
-    sqlx::query(&format!("GRANT SELECT ON auth.tb_user, auth.tb_auth_identity TO {READER_ROLE}"))
-        .execute(&admin)
-        .await
-        .unwrap();
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "GRANT SELECT ON auth.tb_user, auth.tb_auth_identity TO {READER_ROLE}"
+    )))
+    .execute(&admin)
+    .await
+    .unwrap();
 
     // The store writes a NULL-tenant (single-tenant) user…
     store

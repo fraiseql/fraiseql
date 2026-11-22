@@ -29,7 +29,7 @@ use std::{collections::BTreeSet, str::FromStr};
 use fraiseql_auth::auth_schema;
 use fraiseql_test_support::try_database_url;
 use sqlx::{
-    Executor, PgPool,
+    PgPool,
     postgres::{PgConnectOptions, PgPoolOptions},
 };
 
@@ -64,7 +64,11 @@ impl FreshDatabase {
     async fn create(url: &str, purpose: &str) -> Self {
         let admin = PgPoolOptions::new().max_connections(1).connect(url).await.unwrap();
         let name = format!("auth_inventory_{purpose}_{}", uuid::Uuid::new_v4().simple());
-        admin.execute(format!("CREATE DATABASE {name}").as_str()).await.unwrap();
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!("CREATE DATABASE {name}")))
+            .execute(&admin)
+            .await
+            .unwrap();
         let options = PgConnectOptions::from_str(url).unwrap().database(&name);
         let pool = PgPoolOptions::new().max_connections(2).connect_with(options).await.unwrap();
         Self { admin, name, pool }
@@ -72,10 +76,14 @@ impl FreshDatabase {
 
     async fn drop(self) {
         self.pool.close().await;
-        self.admin
-            .execute(format!("DROP DATABASE IF EXISTS {} WITH (FORCE)", self.name).as_str())
-            .await
-            .unwrap();
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "DROP DATABASE IF EXISTS {} WITH (FORCE)",
+            self.name
+        )))
+        .execute(&self.admin)
+        .await
+        .unwrap();
     }
 }
 
@@ -84,7 +92,8 @@ async fn provision_twice(pool: &PgPool) {
     let scripts = auth_schema::SCRIPTS.iter().chain(auth_schema::SAML_SCRIPTS);
     for pass in 1..=2 {
         for (index, script) in scripts.clone().enumerate() {
-            sqlx::raw_sql(script)
+            // Reason: the crate's own migration script.
+            sqlx::raw_sql(sqlx::AssertSqlSafe(*script))
                 .execute(pool)
                 .await
                 .unwrap_or_else(|e| panic!("pass {pass}, auth script #{index} failed: {e}"));
@@ -93,7 +102,8 @@ async fn provision_twice(pool: &PgPool) {
 }
 
 async fn rows(pool: &PgPool, sql: &str) -> BTreeSet<String> {
-    sqlx::query_scalar::<_, String>(sql)
+    // Reason: one of the test's own catalog queries.
+    sqlx::query_scalar::<_, String>(sqlx::AssertSqlSafe(sql))
         .fetch_all(pool)
         .await
         .unwrap()
@@ -191,7 +201,8 @@ async fn every_auth_script_refuses_a_schema_auth_it_did_not_create() {
     let mut accepted = Vec::new();
     let scripts = auth_schema::SCRIPTS.iter().chain(auth_schema::SAML_SCRIPTS);
     for (index, script) in scripts.enumerate() {
-        match sqlx::raw_sql(script).execute(&db.pool).await {
+        // Reason: the crate's own migration script.
+        match sqlx::raw_sql(sqlx::AssertSqlSafe(*script)).execute(&db.pool).await {
             Err(e) if e.to_string().contains("not created by FraiseQL") => {},
             other => accepted.push(format!("auth script #{index}: {other:?}")),
         }

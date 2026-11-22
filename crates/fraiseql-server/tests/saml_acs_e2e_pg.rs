@@ -72,11 +72,13 @@ fn with_database(url: &str, db: &str) -> String {
 
 async fn scratch_pool(admin_url: &str, db: &str) -> PgPool {
     let admin = PgPool::connect(admin_url).await.expect("connect to admin database");
-    sqlx::raw_sql(&format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)")))
         .execute(&admin)
         .await
         .expect("drop scratch database");
-    sqlx::raw_sql(&format!("CREATE DATABASE {db}"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("CREATE DATABASE {db}")))
         .execute(&admin)
         .await
         .expect("create scratch database");
@@ -91,9 +93,11 @@ async fn drop_scratch(admin_url: &str, db: &str) {
     let Ok(admin) = PgPool::connect(admin_url).await else {
         return;
     };
-    let _ = sqlx::raw_sql(&format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)"))
-        .execute(&admin)
-        .await;
+    // Reason: test SQL built from names and values this test defines.
+    let _ =
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)")))
+            .execute(&admin)
+            .await;
     admin.close().await;
 }
 
@@ -510,18 +514,20 @@ async fn a_saml_sign_in_runs_on_the_auth_role() {
                 .await
                 .expect("read pg_roles");
         if !exists {
-            sqlx::raw_sql(&format!(
+            // Reason: test SQL built from names and values this test defines.
+            sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
                 "CREATE ROLE {role} LOGIN PASSWORD '{password}' NOSUPERUSER NOBYPASSRLS"
-            ))
+            )))
             .execute(&pool)
             .await
             .expect("create role");
         }
     }
-    sqlx::raw_sql(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         "GRANT CONNECT, CREATE ON DATABASE {db} TO {ENGINE_ROLE}, {auth_role}; \
          GRANT USAGE, CREATE ON SCHEMA public TO {ENGINE_ROLE};"
-    ))
+    )))
     .execute(&pool)
     .await
     .expect("grant on the scratch database");

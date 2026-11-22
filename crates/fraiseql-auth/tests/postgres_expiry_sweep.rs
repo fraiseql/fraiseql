@@ -54,7 +54,8 @@ fn now() -> i64 {
 }
 
 async fn count(db: &PgPool, table: &str) -> i64 {
-    sqlx::query(&format!("SELECT count(*) AS n FROM {table}"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!("SELECT count(*) AS n FROM {table}")))
         .fetch_one(db)
         .await
         .unwrap()

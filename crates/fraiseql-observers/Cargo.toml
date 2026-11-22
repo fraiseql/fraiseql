@@ -31,7 +31,7 @@ schemars = { workspace = true }
 serde_json = { workspace = true }
 sha2 = "0.11"
 # PostgreSQL is the only backend, so its sqlx driver is always built.
-sqlx = { version = "0.8", features = ["runtime-tokio", "uuid", "postgres"] }
+sqlx = { version = "0.9.1", features = ["runtime-tokio", "uuid", "postgres"] }
 thiserror = "2.0"
 tokio = { workspace = true }
 tracing = "0.1"

@@ -13,7 +13,7 @@ fraiseql-kafka = { workspace = true, optional = true }
 fraiseql-time = { workspace = true, features = ["sqlx"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { workspace = true }
-sqlx = { version = "0.8", features = [
+sqlx = { version = "0.9.1", features = [
   "postgres",
   "runtime-tokio",
   "uuid",

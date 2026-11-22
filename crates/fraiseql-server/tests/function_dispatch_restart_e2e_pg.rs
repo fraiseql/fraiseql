@@ -150,7 +150,12 @@ async fn prepare_database(admin_url: &str, db: &str) -> String {
         format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)"),
         format!("CREATE DATABASE {db}"),
     ] {
-        sqlx::raw_sql(&statement).execute(&admin).await.unwrap();
+        // Reason: test SQL: names and values this test defines, or DDL the code under test
+        // generated.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(statement.as_str()))
+            .execute(&admin)
+            .await
+            .unwrap();
     }
     admin.close().await;
     let url = with_database(admin_url, db);
@@ -169,9 +174,13 @@ async fn prepare_database(admin_url: &str, db: &str) -> String {
 
 async fn drop_database(admin_url: &str, db: &str) {
     if let Ok(admin) = PgPool::connect(admin_url).await {
-        let _ = sqlx::raw_sql(&format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)"))
-            .execute(&admin)
-            .await;
+        // Reason: test SQL: names and values this test defines, or DDL the code under test
+        // generated.
+        let _ = sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "DROP DATABASE IF EXISTS {db} WITH (FORCE)"
+        )))
+        .execute(&admin)
+        .await;
         admin.close().await;
     }
 }

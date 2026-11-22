@@ -70,7 +70,8 @@ impl TestDb {
         tracing::info!("Creating test database: {}", test_db_name);
 
         // Create test database
-        sqlx::query(&format!("CREATE DATABASE \"{}\"", test_db_name))
+        // Reason: the database name is one the test made from a UUID.
+        sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE \"{}\"", test_db_name)))
             .execute(&pool)
             .await?;
 
@@ -189,15 +190,17 @@ impl Drop for TestDb {
                     .await
                 {
                     // Terminate all connections to test database
-                    let _ = sqlx::query(&format!(
+                    // Reason: the database name is one the test made from a UUID.
+                    let _ = sqlx::query(sqlx::AssertSqlSafe(format!(
                         "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = '{}' AND pid <> pg_backend_pid()",
                         db_name
-                    ))
+                    )))
                     .execute(&pool)
                     .await;
 
                     // Drop database
-                    let _ = sqlx::query(&format!("DROP DATABASE \"{}\"", db_name))
+                    // Reason: the database name is one the test made from a UUID.
+                    let _ = sqlx::query(sqlx::AssertSqlSafe(format!("DROP DATABASE \"{}\"", db_name)))
                         .execute(&pool)
                         .await;
 

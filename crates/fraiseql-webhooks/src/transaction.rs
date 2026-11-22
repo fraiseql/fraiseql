@@ -33,6 +33,14 @@ impl WebhookIsolation {
             Self::ReadCommitted => "READ COMMITTED",
         }
     }
+
+    /// The statement that sets this level, as the first statement of a transaction.
+    #[must_use]
+    pub const fn set_transaction_sql(self) -> &'static str {
+        match self {
+            Self::ReadCommitted => "SET TRANSACTION ISOLATION LEVEL READ COMMITTED",
+        }
+    }
 }
 
 /// Execute webhook handler within a transaction with specified isolation level.
@@ -57,11 +65,7 @@ where
 {
     let mut tx = pool.begin().await.map_err(|e| WebhookError::Database(e.to_string()))?;
 
-    // Set isolation level
-    // Safety: `isolation.as_sql()` is a match expression that returns only hardcoded
-    // `&'static str` literals ("READ COMMITTED").
-    // No user input reaches this call; PostgreSQL does not accept parameters for SET commands.
-    sqlx::query(&format!("SET TRANSACTION ISOLATION LEVEL {}", isolation.as_sql()))
+    sqlx::query(isolation.set_transaction_sql())
         .execute(&mut *tx)
         .await
         .map_err(|e| WebhookError::Database(e.to_string()))?;

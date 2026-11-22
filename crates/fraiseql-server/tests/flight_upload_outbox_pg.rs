@@ -38,10 +38,13 @@ async fn pool() -> PgPool {
 /// migration-08 contract byte-for-byte, so this suite cannot assert against a
 /// shape no deployment has.
 async fn provision_changelog(pool: &PgPool) {
-    sqlx::raw_sql(&fraiseql_test_support::changelog::entity_change_log_provision_sql())
-        .execute(pool)
-        .await
-        .unwrap();
+    // Reason: the shared fixture's fixed change-log DDL.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(
+        fraiseql_test_support::changelog::entity_change_log_provision_sql(),
+    ))
+    .execute(pool)
+    .await
+    .unwrap();
 }
 
 fn unique_table() -> String {
@@ -49,18 +52,29 @@ fn unique_table() -> String {
 }
 
 async fn create_table(pool: &PgPool, table: &str) {
-    sqlx::query(&format!("CREATE TABLE \"{table}\" (id UUID PRIMARY KEY, note TEXT)"))
-        .execute(pool)
-        .await
-        .unwrap();
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "CREATE TABLE \"{table}\" (id UUID PRIMARY KEY, note TEXT)"
+    )))
+    .execute(pool)
+    .await
+    .unwrap();
 }
 
 async fn drop_table(pool: &PgPool, table: &str) {
-    let _ = sqlx::query(&format!("DROP TABLE IF EXISTS \"{table}\"")).execute(pool).await;
+    // Reason: test SQL built from names and values this test defines.
+    let _ = sqlx::query(sqlx::AssertSqlSafe(format!("DROP TABLE IF EXISTS \"{table}\"")))
+        .execute(pool)
+        .await;
 }
 
 async fn count(pool: &PgPool, sql: &str) -> i64 {
-    sqlx::query(sql).fetch_one(pool).await.unwrap().get::<i64, _>("n")
+    // Reason: one of the test's own counting queries.
+    sqlx::query(sqlx::AssertSqlSafe(sql))
+        .fetch_one(pool)
+        .await
+        .unwrap()
+        .get::<i64, _>("n")
 }
 
 async fn adapter() -> FlightDatabaseAdapter {
@@ -194,10 +208,13 @@ async fn a_non_uuid_key_logs_a_null_object_id_rather_than_failing() {
     let pool = pool().await;
     provision_changelog(&pool).await;
     let table = unique_table();
-    sqlx::query(&format!("CREATE TABLE \"{table}\" (id TEXT PRIMARY KEY, note TEXT)"))
-        .execute(&pool)
-        .await
-        .unwrap();
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "CREATE TABLE \"{table}\" (id TEXT PRIMARY KEY, note TEXT)"
+    )))
+    .execute(&pool)
+    .await
+    .unwrap();
 
     let sql = format!("INSERT INTO \"{table}\" (id, note) VALUES ('not-a-uuid', 'one')");
     let written = adapter()

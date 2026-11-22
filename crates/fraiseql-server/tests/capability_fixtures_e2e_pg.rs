@@ -451,7 +451,9 @@ async fn prepare_database(
         format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)"),
         format!("CREATE DATABASE {db}"),
     ] {
-        sqlx::raw_sql(&statement)
+        // Reason: test SQL: names and values this test defines, or DDL the code under test
+        // generated.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(statement.as_str()))
             .execute(&admin)
             .await
             .map_err(|e| format!("{statement}: {e}"))?;
@@ -468,7 +470,8 @@ async fn prepare_database(
         .map_err(|e| format!("fraiseql setup: {e:#}"))?;
     }
     let pool = PgPool::connect(&url).await.map_err(|e| format!("connect to {db}: {e}"))?;
-    sqlx::raw_sql(setup_sql)
+    // Reason: the fixture's own setup script.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(setup_sql))
         .execute(&pool)
         .await
         .map_err(|e| format!("setup.sql: {e}"))?;
@@ -478,9 +481,13 @@ async fn prepare_database(
 
 async fn drop_database(admin_url: &str, db: &str) {
     if let Ok(admin) = PgPool::connect(admin_url).await {
-        let _ = sqlx::raw_sql(&format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)"))
-            .execute(&admin)
-            .await;
+        // Reason: test SQL: names and values this test defines, or DDL the code under test
+        // generated.
+        let _ = sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "DROP DATABASE IF EXISTS {db} WITH (FORCE)"
+        )))
+        .execute(&admin)
+        .await;
         admin.close().await;
     }
 }
@@ -1212,7 +1219,9 @@ async fn send(served: &Served, database_url: &str, stimulus: &Stimulus) -> Resul
         },
         Stimulus::Sql { statement } => {
             let pool = PgPool::connect(database_url).await.map_err(|e| format!("connect: {e}"))?;
-            sqlx::raw_sql(&served.receiver.expand(statement))
+            // Reason: test SQL: names and values this test defines, or DDL the code under test
+            // generated.
+            sqlx::raw_sql(sqlx::AssertSqlSafe(served.receiver.expand(statement)))
                 .execute(&pool)
                 .await
                 .map_err(|e| format!("stimulus `{statement}`: {e}"))?;
@@ -1262,7 +1271,9 @@ async fn observe(served: &Served, database_url: &str, effect: &Effect) -> Result
         Effect::Row { query, expect } => {
             let pool = PgPool::connect(database_url).await.map_err(|e| format!("connect: {e}"))?;
             let query = query.replace("$RUN_ID", &served.run_id);
-            let rows = sqlx::query(&query).fetch_all(&pool).await;
+            // Reason: test SQL: names and values this test defines, or DDL the code under test
+            // generated.
+            let rows = sqlx::query(sqlx::AssertSqlSafe(query.as_str())).fetch_all(&pool).await;
             pool.close().await;
             let rows = rows.map_err(|e| format!("`{query}`: {e}"))?;
             let got: Vec<Vec<String>> = rows

@@ -63,7 +63,8 @@ mod source_cursor {
             .execute(pool)
             .await
             .unwrap();
-        sqlx::raw_sql(&format!(
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
             "TRUNCATE core._fraiseql_source_cursor;
              DROP SCHEMA IF EXISTS {schema} CASCADE;
              CREATE SCHEMA {schema};
@@ -71,14 +72,15 @@ mod source_cursor {
                  (LIKE core._fraiseql_source_cursor INCLUDING ALL);
              INSERT INTO {schema}._fraiseql_source_cursor (source_name, cursor_value, version)
                  VALUES ('left-behind', '{{\"page\": 3}}', 3);"
-        ))
+        )))
         .execute(pool)
         .await
         .unwrap();
     }
 
     async fn drop_schema(pool: &PgPool, schema: &str) {
-        sqlx::raw_sql(&format!("DROP SCHEMA IF EXISTS {schema} CASCADE"))
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!("DROP SCHEMA IF EXISTS {schema} CASCADE")))
             .execute(pool)
             .await
             .unwrap();
@@ -110,7 +112,11 @@ mod source_cursor {
 
         // The statements it names are the whole migration: run them, and the cursor is
         // in `core` and the boot goes on.
-        sqlx::raw_sql(statements.trim()).execute(&pool).await.unwrap();
+        // Reason: the migration the refusal names, built by this test from its constants.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(statements.trim()))
+            .execute(&pool)
+            .await
+            .unwrap();
         let moved: (i64,) = sqlx::query_as(
             "SELECT version FROM core._fraiseql_source_cursor WHERE source_name = 'left-behind'",
         )
@@ -165,7 +171,8 @@ mod source_cursor {
             return;
         };
         strand_a_cursor_in(&pool, OLD_HOME).await;
-        sqlx::raw_sql(&format!("TRUNCATE {OLD_HOME}._fraiseql_source_cursor"))
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!("TRUNCATE {OLD_HOME}._fraiseql_source_cursor")))
             .execute(&pool)
             .await
             .unwrap();

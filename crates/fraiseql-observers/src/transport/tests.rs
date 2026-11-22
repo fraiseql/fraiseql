@@ -288,10 +288,13 @@ mod postgres_notify_tests {
 
         // The one provisioner for this table (#942/#982) — a private CREATE would be
         // an eleventh flavour of the contract.
-        sqlx::raw_sql(&fraiseql_test_support::changelog::entity_change_log_provision_sql())
-            .execute(&pool)
-            .await
-            .expect("provision core.tb_entity_change_log");
+        // Reason: the shared fixture's fixed change-log DDL.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(
+            fraiseql_test_support::changelog::entity_change_log_provision_sql(),
+        ))
+        .execute(&pool)
+        .await
+        .expect("provision core.tb_entity_change_log");
 
         let mine = uuid::Uuid::new_v4();
         let theirs = uuid::Uuid::new_v4();

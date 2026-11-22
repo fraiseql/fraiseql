@@ -35,15 +35,21 @@ async fn a_role_that_cannot_create_the_ledger_stops_the_boot_naming_the_table_an
         format!("CREATE ROLE {ROLE} LOGIN PASSWORD '{PASSWORD}'"),
         format!("CREATE DATABASE {DB}"),
     ] {
-        sqlx::raw_sql(&statement).execute(&admin).await.unwrap();
+        // Reason: test SQL: names and values this test defines, or DDL the code under test
+        // generated.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(statement.as_str()))
+            .execute(&admin)
+            .await
+            .unwrap();
     }
     let options = PgConnectOptions::from_str(&url).unwrap();
     let owner = PgPool::connect_with(options.clone().database(DB)).await.unwrap();
     // The role may connect and read, as a least-privilege serving role does, but not create.
-    sqlx::raw_sql(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         "REVOKE CREATE ON SCHEMA public FROM PUBLIC;
          GRANT USAGE ON SCHEMA public TO {ROLE};"
-    ))
+    )))
     .execute(&owner)
     .await
     .unwrap();
@@ -85,7 +91,12 @@ async fn a_role_that_cannot_create_the_ledger_stops_the_boot_naming_the_table_an
         format!("DROP DATABASE IF EXISTS {DB} WITH (FORCE)"),
         format!("DROP ROLE IF EXISTS {ROLE}"),
     ] {
-        sqlx::raw_sql(&statement).execute(&admin).await.unwrap();
+        // Reason: test SQL: names and values this test defines, or DDL the code under test
+        // generated.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(statement.as_str()))
+            .execute(&admin)
+            .await
+            .unwrap();
     }
     assert!(error.contains("_fraiseql_function_dispatch"), "names the table: {error}");
     assert!(error.contains("CREATE"), "names the missing privilege: {error}");

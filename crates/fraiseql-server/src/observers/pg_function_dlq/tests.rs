@@ -55,7 +55,8 @@ async fn connect_pool(schema: &str) -> Option<(PgPool, fraiseql_test_support::Se
     // The schema itself is created on a default connection — it cannot be created
     // through a `search_path` that names it before it exists.
     let admin = PgPool::connect(svc.url()).await.unwrap();
-    sqlx::query(&format!("CREATE SCHEMA IF NOT EXISTS {schema}"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!("CREATE SCHEMA IF NOT EXISTS {schema}")))
         .execute(&admin)
         .await
         .unwrap();

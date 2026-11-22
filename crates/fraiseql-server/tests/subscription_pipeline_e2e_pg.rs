@@ -775,11 +775,12 @@ async fn a_captured_document_is_served_to_its_rows_tenant_only() {
     schema.subscriptions_config = Some(subscriptions);
     schema.build_indexes();
 
-    sqlx::raw_sql(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         "CREATE TABLE {table} (id UUID PRIMARY KEY, tenant_id UUID NOT NULL, data JSONB NOT NULL);
          {}",
         generate_capture_trigger_ddl(&schema)
-    ))
+    )))
     .execute(&pool)
     .await
     .expect("the table and its generated triggers are created");
@@ -788,13 +789,14 @@ async fn a_captured_document_is_served_to_its_rows_tenant_only() {
     let (of_a, of_b, claims_a) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
     // Neither tenant's document names its tenant; the third row is tenant B's, and its
     // document names tenant A.
-    sqlx::raw_sql(&format!(
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         "INSERT INTO {table} (id, tenant_id, data) VALUES
            ('{of_a}', '{tenant_a}', '{{\"id\": \"{of_a}\", \"status\": \"open\"}}'),
            ('{of_b}', '{tenant_b}', '{{\"id\": \"{of_b}\", \"status\": \"open\"}}'),
            ('{claims_a}', '{tenant_b}',
             '{{\"id\": \"{claims_a}\", \"status\": \"open\", \"tenant_id\": \"{tenant_a}\"}}')"
-    ))
+    )))
     .execute(&pool)
     .await
     .expect("the rows are written from outside the engine");
@@ -810,7 +812,11 @@ async fn a_captured_document_is_served_to_its_rows_tenant_only() {
             images.push(entry.to_entity_event().expect("the row is an event").data);
         }
     }
-    sqlx::raw_sql(&format!("DROP TABLE {table} CASCADE")).execute(&pool).await.ok();
+    // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("DROP TABLE {table} CASCADE")))
+        .execute(&pool)
+        .await
+        .ok();
     cleanup_test_data(&pool, &test_id).await.ok();
     assert_eq!(images.len(), 3, "each write was captured: {images:?}");
 

@@ -108,11 +108,13 @@ fn with_database(url: &str, db: &str) -> String {
 /// at it.
 async fn scratch_auth_database(admin_url: &str) {
     let admin = PgPool::connect(admin_url).await.expect("connect to admin database");
-    sqlx::raw_sql(&format!("DROP DATABASE IF EXISTS {AUTH_DB} WITH (FORCE)"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("DROP DATABASE IF EXISTS {AUTH_DB} WITH (FORCE)")))
         .execute(&admin)
         .await
         .expect("drop scratch database");
-    sqlx::raw_sql(&format!("CREATE DATABASE {AUTH_DB}"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("CREATE DATABASE {AUTH_DB}")))
         .execute(&admin)
         .await
         .expect("create scratch database");

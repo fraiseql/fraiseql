@@ -278,30 +278,36 @@ async fn rls_denies_credentials_by_default_and_scopes_per_tenant() {
     let (auth, _accounts, admin) = fresh().await.unwrap();
 
     // A NOBYPASSRLS reader with SELECT on the credential table (idempotent across runs).
-    sqlx::query(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "DO $$ BEGIN
              IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{READER_ROLE}') THEN
                  CREATE ROLE {READER_ROLE} LOGIN PASSWORD '{ROLE_PASSWORD}' NOSUPERUSER NOBYPASSRLS;
              END IF;
          END $$"
-    ))
+    )))
     .execute(&admin)
     .await
     .unwrap();
-    sqlx::query(&format!(
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
         "ALTER ROLE {READER_ROLE} NOSUPERUSER NOBYPASSRLS LOGIN PASSWORD '{ROLE_PASSWORD}'"
-    ))
+    )))
     .execute(&admin)
     .await
     .unwrap();
-    sqlx::query(&format!("GRANT USAGE ON SCHEMA auth TO {READER_ROLE}"))
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!("GRANT USAGE ON SCHEMA auth TO {READER_ROLE}")))
         .execute(&admin)
         .await
         .unwrap();
-    sqlx::query(&format!("GRANT SELECT ON auth.tb_password_credential TO {READER_ROLE}"))
-        .execute(&admin)
-        .await
-        .unwrap();
+    // Reason: test SQL built from names and values this test defines.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "GRANT SELECT ON auth.tb_password_credential TO {READER_ROLE}"
+    )))
+    .execute(&admin)
+    .await
+    .unwrap();
 
     // The authenticator writes a NULL-tenant (single-tenant) credential…
     auth.signup("alice@example.com", PASSWORD).await.unwrap();
@@ -341,9 +347,10 @@ async fn rls_denies_credentials_by_default_and_scopes_per_tenant() {
 /// Re-home an account into a tenant, as if a tenant authority had created it (#1088).
 async fn move_to_tenant(pool: &PgPool, user_id: &str) {
     for table in ["auth.tb_user", "auth.tb_auth_identity"] {
-        sqlx::query(&format!(
+        // Reason: test SQL built from names and values this test defines.
+        sqlx::query(sqlx::AssertSqlSafe(format!(
             "UPDATE {table} SET tenant_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' WHERE user_id = $1"
-        ))
+        )))
         .bind(user_id)
         .execute(pool)
         .await

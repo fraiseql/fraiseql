@@ -16,7 +16,7 @@ schemars = { workspace = true }
 serde_json = { workspace = true }
 sha1 = "0.11"
 sha2 = "0.11"
-sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "uuid"] }
+sqlx = { version = "0.9.1", features = ["postgres", "runtime-tokio", "uuid"] }
 subtle = "2.5"
 thiserror = "2.0"
 tokio = { workspace = true }
