@@ -18,6 +18,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A fact table's `numeric` filter column is a `Decimal`, as a key and as an operand
+  (#2264).** It was published as `Float`: its `where` operand went through a double before
+  it reached the column, and its `groupBy` key came back as one, so two values that differ
+  past the fifteenth digit filtered and printed as the same number. Its `where` operand
+  (`<column>_eq`, `_in`, `_gt`, …) is now a `Decimal`, its digits as a string or an
+  integer, bound exactly; its key, and a dimension mapped to it, is served as the string
+  of its digits, as a `numeric` measure's `SUM`, `MIN` and `MAX` already were. So is the
+  column in a window row, selected or read through `lag`, `lead` or a `*_value` function.
+  What changes for a client: a JSON number at such an operand is a string of digits (an
+  integer is still accepted, a fractional number is refused), and the key a string.
 - **A fact-table root's `where` and `having` operands are held to their published types before
   any SQL runs (#2262).** The aggregate and window roots bound an operand as text for the
   database's cast, whose error quoted it, and their parsers' own refusals quoted some
@@ -26,9 +36,8 @@ disagreed, and the promise was the part that was wrong.
   a filter column or an aggregate publishes, each item of `_in` and `_nin`, a null check's
   `Boolean`, a pattern's `String`, and a window function's `n` and `offset`. A refusal names
   the path and the type, never the value. What changes for a client: a string at an `Int`
-  or `Float` filter column (a `numeric` column publishes `Float`; a `BigInt` one still takes
-  its digits as a string), a number at a text one, and a fractional number at a `Decimal`
-  `having` are refused.
+  or `Float` filter column (a `BigInt` or `Decimal` one takes its digits as a string), a
+  number at a text one, and a fractional number at a `Decimal` operand are refused.
 - **A `where` operand is held to its field's type before any SQL runs (#2257).** An operand
   written inline (`{n: {eq: "abc"}}`), carried by a whole `where` variable, or sent as a
   REST or gRPC filter reached the database's cast unchecked, which refused it with an error

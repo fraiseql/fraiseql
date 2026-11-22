@@ -391,9 +391,9 @@ impl AggregationPlan {
     }
 
     /// The aliases whose value is a `Decimal`: a function that keeps a `Decimal` measure's
-    /// type applied to one, and `SUM` of an `int8` measure. PostgreSQL computes each in
-    /// `numeric`, so the adapter can read it as digits rather than round it through a JSON
-    /// number.
+    /// type applied to one, `SUM` of an `int8` measure, and a key read from a `numeric`
+    /// filter column. Each is a `numeric`, so the adapter can read it as digits rather than
+    /// round it through a JSON number.
     #[must_use]
     pub fn decimal_aliases(&self) -> Vec<&str> {
         let sql_type = |measure: &str| {
@@ -403,29 +403,36 @@ impl AggregationPlan {
             |measure: &str| sql_type(measure) == Some(&super::fact_table::SqlType::Decimal);
         let sums_to_numeric =
             |measure: &str| sql_type(measure) == Some(&super::fact_table::SqlType::BigInt);
-        self.request
-            .aggregates
-            .iter()
-            .filter_map(|selection| match selection {
-                AggregateSelection::MeasureAggregate {
-                    measure,
-                    function:
-                        AggregateFunction::Sum
-                        | AggregateFunction::Avg
-                        | AggregateFunction::Min
-                        | AggregateFunction::Max
-                        | AggregateFunction::Stddev
-                        | AggregateFunction::Variance,
-                    alias,
-                } if is_decimal(measure) => Some(alias.as_str()),
-                AggregateSelection::MeasureAggregate {
-                    measure,
-                    function: AggregateFunction::Sum,
-                    alias,
-                } if sums_to_numeric(measure) => Some(alias.as_str()),
-                _ => None,
-            })
-            .collect()
+        let keys = self.group_by_expressions.iter().filter_map(|expression| match expression {
+            GroupByExpression::NativeColumn { column, alias, .. }
+                if self.metadata.denormalized_filters.iter().any(|f| {
+                    f.name == *column && f.sql_type == super::fact_table::SqlType::Decimal
+                }) =>
+            {
+                Some(alias.as_str())
+            },
+            _ => None,
+        });
+        let aggregates = self.request.aggregates.iter().filter_map(|selection| match selection {
+            AggregateSelection::MeasureAggregate {
+                measure,
+                function:
+                    AggregateFunction::Sum
+                    | AggregateFunction::Avg
+                    | AggregateFunction::Min
+                    | AggregateFunction::Max
+                    | AggregateFunction::Stddev
+                    | AggregateFunction::Variance,
+                alias,
+            } if is_decimal(measure) => Some(alias.as_str()),
+            AggregateSelection::MeasureAggregate {
+                measure,
+                function: AggregateFunction::Sum,
+                alias,
+            } if sums_to_numeric(measure) => Some(alias.as_str()),
+            _ => None,
+        });
+        keys.chain(aggregates).collect()
     }
 }
 

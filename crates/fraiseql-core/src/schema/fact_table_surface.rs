@@ -11,8 +11,8 @@
 //! - the roots themselves.
 //!
 //! A row field is typed by what the runtime decodes for it, which follows the declared
-//! column type: a `Decimal` measure's sums and averages, and an `int8` measure's sum, are
-//! exact strings (`Decimal`); an `int8` result is a `BigInt`; other numeric results are
+//! column type: a `Decimal` measure's results, an `int8` measure's sum and a `numeric` key
+//! are exact strings (`Decimal`); an `int8` result is a `BigInt`; other numeric results are
 //! numbers. A combination the runtime would answer `null` for, or the
 //! database refuse, is not published: an aggregate of a dimension that is no column, an
 //! `array_agg` or `string_agg` of a non-text column, `bool_and`/`bool_or` of a non-boolean
@@ -479,8 +479,9 @@ const fn scalar_of(sql_type: &SqlType) -> FieldType {
     match sql_type {
         SqlType::Int => FieldType::Int,
         SqlType::BigInt => FieldType::BigInt,
-        // A `numeric` group key is not one of the exact-string aliases: it is read as a number.
-        SqlType::Decimal | SqlType::Float => FieldType::Float,
+        // A `numeric` column is read as its digits, a `float8` as a number.
+        SqlType::Decimal => FieldType::Decimal,
+        SqlType::Float => FieldType::Float,
         SqlType::Uuid => FieldType::Uuid,
         SqlType::TimestampTz => FieldType::DateTime,
         SqlType::LocalTimestamp => FieldType::LocalDateTime,

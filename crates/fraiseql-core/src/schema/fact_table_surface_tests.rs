@@ -32,7 +32,8 @@ fn fixture() -> Value {
                 {"name": "region", "sql_type": "Text", "indexed": true},
                 {"name": "active", "sql_type": "Boolean", "indexed": false},
                 {"name": "shelf", "sql_type": "Int", "indexed": false},
-                {"name": "account", "sql_type": "BigInt", "indexed": false}
+                {"name": "account", "sql_type": "BigInt", "indexed": false},
+                {"name": "price", "sql_type": "Decimal", "indexed": false}
             ]
         }}
     })
@@ -140,7 +141,8 @@ fn a_root_is_published_under_its_routed_name_whatever_the_naming_convention() {
 
 /// Each row field is typed by what the runtime decodes for its column. A `SUM` of an
 /// `int4` is an `int8`, and an `int8` is wider than `Int`: a `BigInt`. A `SUM` of an `int8`
-/// is a `numeric` of up to 20 digits, read as its digits: a `Decimal`. A count stays `Int`.
+/// is a `numeric` of up to 20 digits, read as its digits: a `Decimal`, as is a `numeric` key.
+/// A count stays `Int`.
 #[test]
 fn the_row_fields_are_typed_by_what_the_runtime_decodes() {
     let schema = load(&fixture());
@@ -165,6 +167,7 @@ fn the_row_fields_are_typed_by_what_the_runtime_decodes() {
         ("units_avg", "Float"),
         ("shelf", "Int"),
         ("account", "BigInt"),
+        ("price", "Decimal"),
         ("quantity_count_distinct", "Int"),
         ("active_bool_and", "Boolean"),
         ("region_array_agg", "[String]"),
@@ -222,6 +225,8 @@ fn the_where_input_publishes_the_operators_a_fact_table_filter_serves() {
         ("shelf_gt", "Int"),
         ("account_eq", "BigInt"),
         ("account_in", "[BigInt!]"),
+        ("price_gt", "Decimal"),
+        ("price_in", "[Decimal!]"),
     ] {
         assert_eq!(field_type(&filter, field).as_deref(), Some(expected), "`{field}`");
     }

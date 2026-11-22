@@ -440,12 +440,14 @@ The arguments decide what is computed, and the selection set decides what is ret
   its input publishes before any SQL runs, as a list query's `where` operand is: each item of
   an `_in` or `_nin`, a `Boolean` for a null check, a `String` for a pattern. One of another
   type is refused naming its path and type (`` `where.day_eq` has type `Date` ``), never the
-  value. A `numeric` filter column publishes `Float`, so its operand is a number.
+  value. A `numeric` filter column publishes `Decimal`: its operand is its digits as a
+  string, or an integer, compared exactly.
 - An aggregate row holds exactly the fields its selection set selects, under their response
   keys (aliases and `__typename` included). A selected field the arguments did not compute
   is `null`. Every row field is nullable, and the root must select at least one.
 - A window row is `JSON` keyed by the `select` and `windows` aliases. The window root takes no
-  selection set.
+  selection set. A `numeric` measure or filter column in it, selected or read through a
+  window function, is the string of its digits.
 
 A row field's type follows what the database returns:
 
@@ -454,7 +456,7 @@ A row field's type follows what the database returns:
 | `count`, `<measure>_count_distinct`, a tree depth | `Int` |
 | `min`, `max` of an `int` measure; an `int` key | `Int` |
 | `sum` of an `int` measure; `min`, `max` of a `bigint` measure; a `bigint` key | `BigInt`, exact |
-| any reduction of a `numeric` measure; `sum` of a `bigint` measure | `Decimal`, exact |
+| any reduction of a `numeric` measure; `sum` of a `bigint` measure; a `numeric` key | `Decimal`, exact |
 | any other reduction of a measure | `Float`, approximate (a double) |
 | a `date` bucket / a calendar bucket / a `timestamp` bucket / a `timestamptz` bucket | `Date` / `String` / `LocalDateTime` / `DateTime` |
 | a dimension, a tree level, `<filter>_string_agg` | `String` |

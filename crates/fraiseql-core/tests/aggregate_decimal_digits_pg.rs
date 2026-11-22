@@ -5,9 +5,10 @@
 //! `SUM`, `AVG`, `MIN`, `MAX`, `STDDEV` and `VARIANCE` over a `numeric` column are `numeric`
 //! themselves; decoded to a JSON number they went through an `f64` and lost every digit
 //! past the fifteenth. A `Decimal` is a string on every path, so these are too, as is `SUM`
-//! of a `bigint`, a `numeric` as well. A count, and the other aggregates of a measure that
-//! is not a `Decimal`, stay numbers, and ordering by an
-//! aggregate still sorts by its value, not by its text.
+//! of a `bigint`, a `numeric` as well. So is a `numeric` filter column, as a key, as a
+//! window column and as a `where` operand. A count, and the other aggregates of a measure
+//! that is not a `Decimal`, stay numbers, as does a column declared `Float`, and ordering
+//! by an aggregate still sorts by its value, not by its text.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** each test creates and drops its own `tf_decimal_digits_*` table.
@@ -53,15 +54,29 @@ fn fact_table(table: &str) -> FactTableMetadata {
                 data_type: "string".to_string(),
             }],
         },
-        denormalized_filters:     vec![FilterColumn {
-            name:      "id".to_string(),
-            sql_type:  SqlType::BigInt,
-            indexed:   false,
-            hierarchy: None,
-        }],
+        denormalized_filters:     vec![
+            FilterColumn {
+                name:      "id".to_string(),
+                sql_type:  SqlType::BigInt,
+                indexed:   false,
+                hierarchy: None,
+            },
+            FilterColumn {
+                name:      "price".to_string(),
+                sql_type:  SqlType::Decimal,
+                indexed:   false,
+                hierarchy: None,
+            },
+            FilterColumn {
+                name:      "rate".to_string(),
+                sql_type:  SqlType::Float,
+                indexed:   false,
+                hierarchy: None,
+            },
+        ],
         calendar_dimensions:      vec![],
         native_measures:          HashMap::new(),
-        native_dimension_mapping: HashMap::new(),
+        native_dimension_mapping: HashMap::from([("list_price".to_string(), "price".to_string())]),
     }
 }
 
@@ -75,14 +90,14 @@ async fn seeded(table: &str) -> Option<PostgresAdapter> {
     for ddl in [
         format!("DROP TABLE IF EXISTS {table}"),
         format!(
-            "CREATE TABLE {table} (id bigint, amount numeric(30, 10), qty bigint, score numeric, data jsonb)"
+            "CREATE TABLE {table} (id bigint, amount numeric(30, 10), qty bigint, score numeric, price numeric(30, 10), rate numeric, data jsonb)"
         ),
         format!(
             "INSERT INTO {table} VALUES \
-             (1, 12345678901234567.89, 3, 1.5, '{{\"region\": \"big\"}}'), \
-             (2, 0.01, 4, 2.25, '{{\"region\": \"big\"}}'), \
-             (3, 9, 1, 0, '{{\"region\": \"nine\"}}'), \
-             (4, 10, 1, 0, '{{\"region\": \"ten\"}}')"
+             (1, 12345678901234567.89, 3, 1.5, 12345678901234567.89, 1.5, '{{\"region\": \"big\"}}'), \
+             (2, 0.01, 4, 2.25, 0.1, 2.5, '{{\"region\": \"big\"}}'), \
+             (3, 9, 1, 0, 0.1, 2.5, '{{\"region\": \"nine\"}}'), \
+             (4, 10, 1, 0, 12345678901234567.88, 2.5, '{{\"region\": \"ten\"}}')"
         ),
     ] {
         adapter.execute_raw_query(&ddl).await.unwrap();
@@ -302,4 +317,127 @@ async fn a_carried_forward_decimal_balance_keeps_every_digit() {
         ],
         "{response}"
     );
+}
+
+/// A `numeric` filter column is a `Decimal` wherever a fact table publishes it: its group key
+/// is its digits, and its `where` operand is the digits too, compared exactly. `price` holds
+/// two values that differ past the fifteenth digit, which one `f64` cannot tell apart; a
+/// dimension mapped to the column, `list_price`, is read the same way.
+#[tokio::test]
+async fn a_numeric_filter_column_is_its_digits_as_a_key_and_as_an_operand() {
+    let table = "tf_decimal_digits_price";
+    let Some(adapter) = seeded(table).await else {
+        return;
+    };
+    let executor = Executor::new(CompiledSchema::new(), Arc::new(adapter));
+    let run = |request: Value| {
+        let executor = &executor;
+        async move {
+            executor
+                .execute_aggregate_query(
+                    &request,
+                    "decimal_digits_sales_aggregate",
+                    &fact_table(table),
+                )
+                .await
+        }
+    };
+    let rows = |response: Value| response["data"]["decimal_digits_sales_aggregate"].clone();
+
+    for key in ["price", "list_price"] {
+        let grouped = run(json!({
+            "groupBy": { key: true },
+            "aggregates": [{ "count": true }],
+            "orderBy": { key: "ASC" }
+        }))
+        .await
+        .unwrap();
+        assert_eq!(
+            rows(grouped),
+            json!([
+                { key: "0.1000000000", "count": 2 },
+                { key: "12345678901234567.8800000000", "count": 1 },
+                { key: "12345678901234567.8900000000", "count": 1 }
+            ]),
+            "`{key}` groups by its digits"
+        );
+    }
+
+    for (filter, count) in [
+        (json!({ "price_eq": "12345678901234567.89" }), 1),
+        (json!({ "list_price_neq": "12345678901234567.89" }), 3),
+        (json!({ "price_in": ["0.1", "12345678901234567.88"] }), 3),
+        (json!({ "price_gt": 1 }), 2),
+        (json!({ "list_price_lte": "0.10" }), 2),
+    ] {
+        let counted = run(json!({ "aggregates": [{ "count": true }], "where": filter }))
+            .await
+            .unwrap_or_else(|e| panic!("{filter}: {e}"));
+        assert_eq!(rows(counted), json!([{ "count": count }]), "{filter}");
+    }
+
+    // A column declared `Float` is published and read as a number, whatever it is stored as.
+    let rated = run(json!({
+        "groupBy": { "rate": true },
+        "aggregates": [{ "count": true }],
+        "orderBy": { "rate": "ASC" }
+    }))
+    .await
+    .unwrap();
+    assert_eq!(
+        rows(rated),
+        json!([{ "rate": 1.5, "count": 1 }, { "rate": 2.5, "count": 3 }]),
+        "a Float stored as numeric stays a number"
+    );
+
+    // A JSON number with a fraction is a double already: it is not a `Decimal` operand.
+    let refused = run(json!({ "aggregates": [{ "count": true }], "where": { "price_eq": 0.1 } }))
+        .await
+        .expect_err("a fractional JSON number is refused");
+    assert!(refused.to_string().contains("`where.price_eq` has type `Decimal`"), "{refused}");
+}
+
+/// A window reads a `numeric` filter column as its digits too, selected or through a value
+/// function, and filters on it exactly.
+#[tokio::test]
+async fn a_window_reads_a_numeric_filter_column_as_its_digits() {
+    let table = "tf_decimal_digits_price_window";
+    let Some(adapter) = seeded(table).await else {
+        return;
+    };
+    let request = json!({
+        "select": [
+            { "type": "filter", "name": "id", "alias": "id" },
+            { "type": "filter", "name": "price", "alias": "price" },
+            { "type": "filter", "name": "rate", "alias": "rate" }
+        ],
+        "windows": [{
+            "function": { "type": "lag", "field": "price" },
+            "alias": "previous",
+            "orderBy": [{ "field": "id", "direction": "ASC" }]
+        }],
+        "where": { "price_neq": "12345678901234567.88" },
+        "orderBy": [{ "field": "id", "direction": "ASC" }]
+    });
+    let executor = Executor::new(CompiledSchema::new(), Arc::new(adapter));
+    let response = executor
+        .execute_window_query(&request, "decimal_digits_sales_window", &fact_table(table))
+        .await
+        .unwrap();
+    let rows = response["data"]["decimal_digits_sales_window"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{response}"));
+
+    let prices: Vec<&Value> = rows.iter().map(|r| &r["price"]).collect();
+    assert_eq!(
+        prices,
+        [
+            &json!("12345678901234567.8900000000"),
+            &json!("0.1000000000"),
+            &json!("0.1000000000")
+        ],
+        "{rows:?}"
+    );
+    assert_eq!(rows[1]["previous"], json!("12345678901234567.8900000000"), "{rows:?}");
+    assert_eq!(rows[1]["rate"], json!(2.5), "a Float stored as numeric stays a number");
 }
