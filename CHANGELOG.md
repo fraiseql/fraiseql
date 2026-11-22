@@ -87,6 +87,14 @@ disagreed, and the promise was the part that was wrong.
     the property: declare `[<GraphQLField(Type = "Decimal")>]`. `toGraphQLScalar` returns
     `GqlCustom "BigInt"` for them, as it does for `Date` and `Time`.
 
+- **The SDKs map a zone-less date-time to `LocalDateTime` (#2177).** A field or argument of
+  a type that holds a date and time with no offset was published as `DateTime`, under which
+  its value reads as an instant it never was. What changes for an SDK author:
+  - Java: `java.time.LocalDateTime` is `LocalDateTime`, a list's items included.
+    `OffsetDateTime`, `ZonedDateTime`, `Instant`, `java.util.Date` and `java.sql.Timestamp`
+    are instants and stay `DateTime`. `Scalars.LOCAL_DATE_TIME` names it where a type is
+    given.
+
 - **A fact table's 64-bit results are `BigInt` and `Decimal` (#2175).** On an aggregate row,
   `<measure>_sum` of an `int` measure, `<measure>_min` and `<measure>_max` of a `bigint`
   measure, and a `bigint` key were `Int`, a field error past 32 bits: they are `BigInt`, the

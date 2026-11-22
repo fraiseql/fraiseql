@@ -72,6 +72,12 @@ public final class Scalars {
     /** ISO 8601 DateTime scalar (e.g., "2025-01-10T12:00:00Z"). */
     public static final String DATE_TIME = "DateTime";
 
+    /**
+     * A date and time with no offset ({@code YYYY-MM-DDTHH:MM:SS[.fff]}), a PostgreSQL
+     * {@code timestamp}. A {@code java.time.LocalDateTime} field infers it.
+     */
+    public static final String LOCAL_DATE_TIME = "LocalDateTime";
+
     /** ISO 8601 Date scalar (e.g., "2025-01-10"). */
     public static final String DATE = "Date";
 
@@ -327,6 +333,7 @@ public final class Scalars {
         names.add("SparseVector");
         // Date/Time
         names.add("DateTime");
+        names.add("LocalDateTime");
         names.add("Date");
         names.add("Time");
         names.add("DateRange");

@@ -247,7 +247,7 @@ public class TypeSystemTest {
     @DisplayName("Convert instants and date-times to GraphQL DateTime")
     void testConvertDateTimes() {
         for (Class<?> type : new Class<?>[] {
-            java.time.LocalDateTime.class, java.time.OffsetDateTime.class,
+            java.time.OffsetDateTime.class,
             java.time.ZonedDateTime.class, java.time.Instant.class,
             java.util.Date.class, java.sql.Timestamp.class}) {
             assertEquals("DateTime", TypeConverter.javaToGraphQL(type), type.getName());

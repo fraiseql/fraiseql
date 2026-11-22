@@ -69,7 +69,13 @@ public class TypeConverter {
             || javaType == java.sql.Time.class) {
             return "Time";
         }
-        if (javaType == LocalDateTime.class || javaType == java.time.OffsetDateTime.class
+        // A date and time with no offset, a PostgreSQL `timestamp` (#2177): published as
+        // DateTime, its value read as an instant it never was. java.sql.Timestamp is an
+        // instant in the JVM's zone, and stays DateTime with the other instants.
+        if (javaType == LocalDateTime.class) {
+            return "LocalDateTime";
+        }
+        if (javaType == java.time.OffsetDateTime.class
             || javaType == java.time.ZonedDateTime.class || javaType == java.time.Instant.class
             || javaType == java.util.Date.class || javaType == java.sql.Timestamp.class) {
             return "DateTime";

@@ -66,6 +66,7 @@ public class ConformanceExport {
         FraiseQL.registerType(ConformanceReadingSeries.class);
         FraiseQL.registerType(ConformanceOrderShipment.class);
         FraiseQL.registerType(ConformanceLedgerEntry.class);
+        FraiseQL.registerType(ConformanceShiftSlot.class);
 
         FraiseQL.getRegistry().registerEnum("OrderStatus", enumValues(), "");
         Map<String, Object> priority = new LinkedHashMap<>();
@@ -126,6 +127,15 @@ public class ConformanceExport {
             .sqlSource("v_ledger_entry")
             .arg("accountNumber", Scalars.BIG_INT + "!")
             .arg("transferIds", "[BigInt!]")
+            .register();
+
+        // A `LocalDateTime` argument is named: an argument is a type string.
+        FraiseQL.query("shiftSlotsStartingAfter")
+            .returnType("ShiftSlot")
+            .returnsArray(true)
+            .sqlSource("v_shift_slot")
+            .arg("startsAfter", Scalars.LOCAL_DATE_TIME + "!")
+            .arg("exceptAt", "[LocalDateTime!]")
             .register();
 
         FraiseQL.query("tenantOrderShipments")
@@ -400,6 +410,23 @@ public class ConformanceExport {
 
         @GraphQLField
         public List<Long> transferIds;
+    }
+
+    // A date-time with no offset (#2177), inferred from the Java type:
+    // `java.time.LocalDateTime` is `LocalDateTime`.
+    @GraphQLType(name = "ShiftSlot", sqlSource = "v_shift_slot")
+    public static class ConformanceShiftSlot {
+        @GraphQLField(type = "ID")
+        public String id;
+
+        @GraphQLField
+        public java.time.LocalDateTime startsAt;
+
+        @GraphQLField(nullable = true)
+        public java.time.LocalDateTime endsAt;
+
+        @GraphQLField
+        public List<java.time.LocalDateTime> breaksAt;
     }
 
     // Lists (#1586, #1608), inferred from the Java types: an element is non-null unless

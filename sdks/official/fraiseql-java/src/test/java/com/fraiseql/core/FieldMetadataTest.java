@@ -218,10 +218,10 @@ public class FieldMetadataTest {
     }
 
     @Test
-    @DisplayName("Date-time field maps to the DateTime scalar (#1530)")
+    @DisplayName("A LocalDateTime field maps to the LocalDateTime scalar (#1530, #2177)")
     void testDateFieldType() {
         var fields = TypeConverter.extractFields(DateTypeEntity.class);
-        assertEquals("DateTime!", fields.get("createdAt").getGraphQLType());
+        assertEquals("LocalDateTime!", fields.get("createdAt").getGraphQLType());
     }
 
     // =========================================================================
