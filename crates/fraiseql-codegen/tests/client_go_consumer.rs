@@ -262,3 +262,87 @@ fn a_big_int_past_two_to_the_53_round_trips_exactly() {
     let encoded: serde_json::Value = serde_json::from_str(&output.stdout).unwrap();
     assert_eq!(encoded, served, "the generated type did not carry every digit");
 }
+
+const FACT_TABLE_FIXTURE: &str = include_str!("fixtures/fact_table_schema.json");
+
+/// A consumer of a fact table's two roots: an aggregate grouped and filtered through the
+/// published inputs, read back through its typed row, and a window, whose rows are `JSON`.
+const FACTS_GO: &str = r#"package usage
+
+import (
+	"fmt"
+
+	client "example.com/consumer/fraiseqlclient"
+)
+
+func Facts(c *client.Client) error {
+	eu := "EU"
+	yes := true
+	limit := 10
+	rows, err := c.Sales_aggregate(
+		&client.SalesAggregateWhere{Region_eq: &eu},
+		&client.SalesAggregateGroupBy{Region: &yes, Occurred_on_month: &yes},
+		[]client.SalesAggregateSelection{{Revenue_sum: &yes, Count: &yes}},
+		nil, nil, &limit, nil,
+	)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		var region *string = row.Region
+		var revenue *string = row.Revenue_sum
+		var count *int = row.Count
+		fmt.Println(region, revenue, count, row.Occurred_on_month)
+	}
+
+	name := "revenue"
+	windowed, err := c.Sales_window(
+		[]client.WindowColumn{{Type: client.WindowColumnKindMeasure, Name: &name, Alias: "r"}},
+		nil, nil, nil, nil, nil,
+	)
+	if err != nil {
+		return err
+	}
+	var json []any = windowed
+	fmt.Println(len(json))
+	return nil
+}
+"#;
+
+/// The fact-table roots are typed operations a consumer calls: Go compiles arguments built
+/// from the published inputs and holds the aggregate row's fields to their published types.
+#[test]
+#[ignore = "requires the Go toolchain"]
+fn fact_table_roots_compile_in_a_consumer_project() {
+    let schema = CompiledSchema::from_json(FACT_TABLE_FIXTURE, false).unwrap();
+    let generated = go::generate(&schema).unwrap();
+
+    let project = tempfile::tempdir().unwrap();
+    let package_dir = project.path().join("fraiseqlclient");
+    std::fs::create_dir_all(&package_dir).unwrap();
+    for (rel, content) in &generated {
+        std::fs::write(package_dir.join(rel), content).unwrap();
+    }
+    std::fs::write(project.path().join("go.mod"), GO_MOD).unwrap();
+    let usage_dir = project.path().join("usage");
+    std::fs::create_dir_all(&usage_dir).unwrap();
+    std::fs::write(usage_dir.join("facts.go"), FACTS_GO).unwrap();
+
+    let formatted = run(project.path(), "gofmt", &["-l", "fraiseqlclient"]);
+    assert!(
+        formatted.status.success() && formatted.stdout.trim().is_empty(),
+        "gofmt would reformat the generated client:\n{}\n{}",
+        formatted.stdout,
+        formatted.stderr,
+    );
+    for args in [["build", "./..."], ["vet", "./..."]] {
+        let output = run(project.path(), "go", &args);
+        assert!(
+            output.status.success(),
+            "`go {}` rejected the fact-table consumer project:\n--- stdout ---\n{}\n--- stderr ---\n{}",
+            args.join(" "),
+            output.stdout,
+            output.stderr,
+        );
+    }
+}

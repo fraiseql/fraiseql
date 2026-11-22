@@ -15,6 +15,7 @@ use std::fmt::Write as _;
 use fraiseql_core::schema::{
     ArgumentDefinition, CompiledSchema, EnumDefinition, FieldDefinition, InputObjectDefinition,
     InterfaceDefinition, MutationDefinition, QueryDefinition, TypeDefinition, UnionDefinition,
+    fact_table_surface::FactRoot,
 };
 
 use super::{
@@ -49,7 +50,7 @@ pub(super) fn types(ctx: &Ctx) -> String {
         emit_interface(&mut out, iface);
         out.push('\n');
     }
-    for ty in &schema.types {
+    for ty in schema.types.iter().chain(&schema.derived.fact_rows) {
         emit_object(&mut out, ctx, ty);
         out.push('\n');
     }
@@ -317,7 +318,27 @@ pub(super) fn queries(ctx: &Ctx) -> String {
         emit_query(&mut out, ctx, q);
         out.push('\n');
     }
+    for root in common::fact_roots(ctx.schema) {
+        emit_fact_root(&mut out, ctx, root);
+        out.push('\n');
+    }
     finish(out)
+}
+
+/// A fact table's `_aggregate` or `_window` root, called like a declared query: its
+/// arguments typed by the inputs it publishes, an aggregate root answering its row type and
+/// a window root `JSON` rows.
+fn emit_fact_root(out: &mut String, ctx: &Ctx, root: &FactRoot) {
+    let op = build_operation(&root.arguments, false);
+    let selection = common::fact_root_selection(ctx, root);
+    let document = common::render_document("query", &root.name, &op.gql, &selection);
+    let result = root
+        .row_type
+        .as_deref()
+        .map_or_else(|| "[]any".to_string(), |row| format!("[]{}", type_name_to_go(row)));
+
+    emit_document_const(out, &root.name, &document);
+    emit_operation_fn(out, &root.name, &op, &result);
 }
 
 fn emit_query(out: &mut String, ctx: &Ctx, q: &QueryDefinition) {

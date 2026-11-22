@@ -53,7 +53,7 @@ pub fn generate(schema: &CompiledSchema) -> Result<Generated> {
     if !schema.input_types.is_empty() {
         add("inputs", emit::inputs(schema));
     }
-    if !schema.queries.is_empty() {
+    if super::common::has_query_roots(schema) {
         add("queries", emit::queries(&ctx));
     }
     if !schema.mutations.is_empty() {

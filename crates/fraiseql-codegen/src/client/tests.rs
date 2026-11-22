@@ -735,7 +735,7 @@ fn innermost_name(field_type: &FieldType) -> String {
 }
 
 /// The documents a generator emitted for each fact-table root, extracted from its source by
-/// `extract`, which is handed the root's constant name.
+/// `extract`, which is handed the root's name.
 fn assert_fact_root_documents_validate(
     schema: &CompiledSchema,
     language: &str,
@@ -744,7 +744,7 @@ fn assert_fact_root_documents_validate(
     let roots = super::common::fact_roots(schema);
     assert!(!roots.is_empty(), "the fixture publishes no fact-table root");
     for root in roots {
-        let document = extract(&super::common::const_name(&root.name));
+        let document = extract(&root.name);
         if let Err(refusal) = validate_fact_root_document(schema, root, &document) {
             panic!("{language} `{}`: {refusal}\n{document}", root.name);
         }
@@ -785,7 +785,8 @@ fn the_fact_root_document_validator_refuses_what_the_server_would_and_what_core_
 fn typescript_fact_root_documents_validate_against_the_schema() {
     let schema = fact_table_schema();
     let queries = ts_file(&schema, "queries.ts");
-    assert_fact_root_documents_validate(&schema, "TypeScript", |constant| {
+    assert_fact_root_documents_validate(&schema, "TypeScript", |root| {
+        let constant = super::common::const_name(root);
         between(&queries, &format!("const {constant} = `"), "`")
     });
 }
@@ -821,7 +822,48 @@ fn python_emits_a_typed_operation_for_each_fact_table_root() {
 fn python_fact_root_documents_validate_against_the_schema() {
     let schema = fact_table_schema();
     let queries = py_file(&schema, "queries.py");
-    assert_fact_root_documents_validate(&schema, "Python", |constant| {
+    assert_fact_root_documents_validate(&schema, "Python", |root| {
+        let constant = super::common::const_name(root);
         between(&queries, &format!("_{constant} = \"\"\""), "\"\"\"")
+    });
+}
+
+/// The Go file `name` generated from `schema`.
+fn go_file(schema: &CompiledSchema, name: &str) -> String {
+    super::go::generate(schema).unwrap().remove(&PathBuf::from(name)).unwrap()
+}
+
+#[test]
+fn go_emits_a_fact_tables_aggregate_row_as_a_struct() {
+    let types = go_file(&fact_table_schema(), "types.go");
+
+    assert!(types.contains("type SalesAggregateRow struct {"), "{types}");
+    assert!(types.contains("`json:\"revenue_sum\"`"), "{types}");
+}
+
+#[test]
+fn go_emits_a_typed_operation_for_each_fact_table_root() {
+    let queries = go_file(&fact_table_schema(), "queries.go");
+
+    // Named as `go_export` names every operation: the root's name, its first letter upper.
+    assert!(queries.contains("func (c *Client) Sales_aggregate("), "{queries}");
+    assert!(
+        queries.contains("aggregates []SalesAggregateSelection"),
+        "the arguments are typed by the published inputs:\n{queries}"
+    );
+    assert!(queries.contains(") ([]SalesAggregateRow, error) {"), "{queries}");
+    assert!(queries.contains("func (c *Client) Sales_window("), "{queries}");
+    assert!(queries.contains(") ([]any, error) {"), "a window row is JSON:\n{queries}");
+}
+
+#[test]
+fn go_fact_root_documents_validate_against_the_schema() {
+    let schema = fact_table_schema();
+    let queries = go_file(&schema, "queries.go");
+    // Each document is a raw string constant opening on its operation, whose name is the
+    // root's: `const …Document = \`query sales_aggregate(…`.
+    assert_fact_root_documents_validate(&schema, "Go", |root| {
+        let body = between(&queries, &format!("Document = `query {root}"), "`");
+        format!("query {root}{body}")
     });
 }
