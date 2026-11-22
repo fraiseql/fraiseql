@@ -931,6 +931,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **Generated clients call a fact table's roots (#1927).** `fraiseql generate-client`
+  emitted a fact table's argument inputs and nothing that calls `<name>_aggregate` or
+  `<name>_window`. All four clients now emit each root as a typed operation: arguments
+  typed by the published inputs, and an aggregate root answering a list of its
+  `<Stem>AggregateRow`, which each client emits as a data type. A window root's rows are
+  `JSON`: `unknown[]` in TypeScript, `list[Any]` in Python, `[]any` in Go and
+  `Vec<serde_json::Value>` in Rust. A schema whose only query roots are fact tables' now
+  gets a queries module. Every emitted fact-root document is validated against the
+  compiled schema in the codegen suite, and the four consumer-usage tests call both roots.
+
 - **Eight more SDKs author observers (#2147).** An observer runs actions when a row of an
   entity is inserted, updated or deleted: a webhook (`url` or `url_env`, `method`,
   `body_template`, `signing_secret_env`, `headers`, `headers_env`), a Slack message (to

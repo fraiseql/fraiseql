@@ -867,3 +867,43 @@ fn go_fact_root_documents_validate_against_the_schema() {
         format!("query {root}{body}")
     });
 }
+
+/// The Rust file `name` generated from `schema`.
+fn rs_file(schema: &CompiledSchema, name: &str) -> String {
+    super::rust::generate(schema).unwrap().remove(&PathBuf::from(name)).unwrap()
+}
+
+#[test]
+fn rust_emits_a_fact_tables_aggregate_row_as_a_struct() {
+    let types = rs_file(&fact_table_schema(), "types.rs");
+
+    assert!(types.contains("pub struct SalesAggregateRow {"), "{types}");
+    assert!(types.contains("    pub revenue_sum: Option<String>,"), "{types}");
+}
+
+#[test]
+fn rust_emits_a_typed_operation_for_each_fact_table_root() {
+    let queries = rs_file(&fact_table_schema(), "queries.rs");
+
+    assert!(queries.contains("pub fn sales_aggregate<T: Transport>("), "{queries}");
+    assert!(
+        queries.contains("    aggregates: Option<Vec<SalesAggregateSelection>>,"),
+        "the arguments are typed by the published inputs:\n{queries}"
+    );
+    assert!(queries.contains(") -> Result<Vec<SalesAggregateRow>, Error> {"), "{queries}");
+    assert!(queries.contains("pub fn sales_window<T: Transport>("), "{queries}");
+    assert!(
+        queries.contains(") -> Result<Vec<serde_json::Value>, Error> {"),
+        "a window row is JSON:\n{queries}"
+    );
+}
+
+#[test]
+fn rust_fact_root_documents_validate_against_the_schema() {
+    let schema = fact_table_schema();
+    let queries = rs_file(&schema, "queries.rs");
+    assert_fact_root_documents_validate(&schema, "Rust", |root| {
+        let constant = super::common::const_name(root);
+        between(&queries, &format!("pub const {constant}: &str = r#\""), "\"#")
+    });
+}

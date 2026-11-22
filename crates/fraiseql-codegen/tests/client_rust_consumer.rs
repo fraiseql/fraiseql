@@ -269,3 +269,92 @@ fn a_big_int_past_two_to_the_53_round_trips_exactly() {
     let encoded: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(encoded, served, "the generated type did not carry every digit");
 }
+
+const FACT_TABLE_FIXTURE: &str = include_str!("fixtures/fact_table_schema.json");
+
+const FACT_TABLE_LIB_RS: &str = "#![deny(warnings)]\n\npub mod facts;\npub mod generated;\n";
+
+/// A consumer of a fact table's two roots: an aggregate grouped and filtered through the
+/// published inputs, read back through its typed row, and a window, whose rows are `JSON`.
+/// The where, group-by and selection inputs hold one optional field per key, so they are
+/// built from JSON here, as a caller holding a request body would.
+const FACTS_RS: &str = r#"use crate::generated::{
+    Error, FraiseqlClient, SalesAggregateGroupBy, SalesAggregateRow, SalesAggregateSelection,
+    SalesAggregateWhere, Transport, WindowColumn, WindowColumnKind, queries,
+};
+
+fn input<T: serde::de::DeserializeOwned>(value: serde_json::Value) -> T {
+    serde_json::from_value(value).expect("a published input")
+}
+
+pub fn demo(client: &FraiseqlClient<impl Transport>) -> Result<(), Error> {
+    let filter: SalesAggregateWhere = input(serde_json::json!({ "region_eq": "EU" }));
+    let group_by: SalesAggregateGroupBy =
+        input(serde_json::json!({ "region": true, "occurred_on_month": true }));
+    let selection: SalesAggregateSelection =
+        input(serde_json::json!({ "revenue_sum": true, "count": true }));
+
+    let rows: Vec<SalesAggregateRow> = queries::sales_aggregate(
+        client,
+        Some(filter),
+        Some(group_by),
+        Some(vec![selection]),
+        None,
+        None,
+        Some(10),
+        None,
+    )?;
+    for row in rows {
+        let region: Option<String> = row.region;
+        let revenue: Option<String> = row.revenue_sum;
+        let count: Option<i32> = row.count;
+        println!("{region:?} {revenue:?} {count:?} {:?}", row.occurred_on_month);
+    }
+
+    let column = WindowColumn {
+        type_: WindowColumnKind::Measure,
+        name: Some("revenue".to_string()),
+        path: None,
+        alias: "r".to_string(),
+    };
+    let windowed: Vec<serde_json::Value> =
+        queries::sales_window(client, Some(vec![column]), None, None, None, None, None)?;
+    println!("{}", windowed.len());
+    Ok(())
+}
+"#;
+
+/// The fact-table roots are typed operations a consumer calls: the consumer crate compiles
+/// arguments built from the published inputs and holds the aggregate row's fields to their
+/// published types.
+#[test]
+#[ignore = "requires cargo and the crates.io registry"]
+fn fact_table_roots_compile_in_a_consumer_project() {
+    let schema = CompiledSchema::from_json(FACT_TABLE_FIXTURE, false).unwrap();
+    let generated = rust::generate(&schema).unwrap();
+
+    let project = tempfile::tempdir().unwrap();
+    let generated_dir = project.path().join("src").join("generated");
+    std::fs::create_dir_all(&generated_dir).unwrap();
+    for (rel, content) in &generated {
+        std::fs::write(generated_dir.join(rel), content).unwrap();
+    }
+    std::fs::write(project.path().join("Cargo.toml"), CARGO_TOML).unwrap();
+    std::fs::write(project.path().join("src").join("lib.rs"), FACT_TABLE_LIB_RS).unwrap();
+    std::fs::write(project.path().join("src").join("facts.rs"), FACTS_RS).unwrap();
+
+    let output = Command::new(env!("CARGO"))
+        .args(["check", "--quiet"])
+        .current_dir(project.path())
+        .env_remove("CARGO_TARGET_DIR")
+        .env_remove("RUSTFLAGS")
+        .output()
+        .expect("failed to run cargo");
+
+    assert!(
+        output.status.success(),
+        "cargo rejected the fact-table consumer crate:\n--- stdout ---\n{}\n--- stderr ---\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+}

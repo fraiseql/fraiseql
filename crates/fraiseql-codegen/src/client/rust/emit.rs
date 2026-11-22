@@ -12,6 +12,7 @@ use std::{
 use fraiseql_core::schema::{
     ArgumentDefinition, CompiledSchema, EnumDefinition, FieldDefinition, InputObjectDefinition,
     InterfaceDefinition, MutationDefinition, QueryDefinition, TypeDefinition, UnionDefinition,
+    fact_table_surface::FactRoot,
 };
 
 use super::{
@@ -81,7 +82,7 @@ pub struct Connection<T> {
 pub(super) fn types(ctx: &Ctx) -> String {
     let schema = ctx.schema;
     let mut refs: BTreeSet<&str> = BTreeSet::new();
-    for t in &schema.types {
+    for t in schema.types.iter().chain(&schema.derived.fact_rows) {
         collect_leaf_refs(&t.fields, &mut refs);
     }
     for i in &schema.interfaces {
@@ -102,7 +103,7 @@ pub(super) fn types(ctx: &Ctx) -> String {
         emit_interface(&mut out, iface);
         out.push('\n');
     }
-    for ty in &schema.types {
+    for ty in schema.types.iter().chain(&schema.derived.fact_rows) {
         emit_object(&mut out, ctx, ty);
         out.push('\n');
     }
@@ -422,17 +423,43 @@ pub(super) fn queries(ctx: &Ctx) -> String {
         }
         operations.push(build_operation(arguments, q.relay));
     }
+    let roots = common::fact_roots(schema);
+    for root in roots {
+        refs.extend(root.row_type.as_deref());
+        refs.extend(root.arguments.iter().filter_map(|a| referenced_named_type(&a.arg_type)));
+        operations.push(build_operation(&root.arguments, false));
+    }
 
     let mut out = String::new();
     out.push_str(&runtime_imports(&operations));
     out.push_str(&render_imports(ctx, &refs, "queries"));
     out.push('\n');
 
-    for (q, op) in schema.queries.iter().zip(&operations) {
+    let (query_ops, root_ops) = operations.split_at(schema.queries.len());
+    for (q, op) in schema.queries.iter().zip(query_ops) {
         emit_query(&mut out, ctx, q, op);
         out.push('\n');
     }
+    for (root, op) in roots.iter().zip(root_ops) {
+        emit_fact_root(&mut out, ctx, root, op);
+        out.push('\n');
+    }
     finish(out)
+}
+
+/// A fact table's `_aggregate` or `_window` root, called like a declared query: its
+/// arguments typed by the inputs it publishes, an aggregate root answering its row type and
+/// a window root `JSON` rows.
+fn emit_fact_root(out: &mut String, ctx: &Ctx, root: &FactRoot, op: &Operation) {
+    let selection = common::fact_root_selection(ctx, root);
+    let document = common::render_document("query", &root.name, &op.gql, &selection);
+    let result = root.row_type.as_deref().map_or_else(
+        || "Vec<serde_json::Value>".to_string(),
+        |row| format!("Vec<{}>", type_name_to_rs(row)),
+    );
+
+    emit_document_const(out, &root.name, &document);
+    emit_operation_fn(out, &root.name, op, &result);
 }
 
 fn emit_query(out: &mut String, ctx: &Ctx, q: &QueryDefinition, op: &Operation) {
