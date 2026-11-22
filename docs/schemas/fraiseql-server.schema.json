@@ -42,6 +42,7 @@
       "description": "Arrow Flight gRPC bind address (requires `arrow` feature).\n\nDefaults to loopback `127.0.0.1:50051` (#874 — parity with\n[`bind_addr`](Self::bind_addr); binding other interfaces is an explicit\noperator decision). Override with the `--flight-bind-addr` flag or the\n`FRAISEQL_FLIGHT_BIND_ADDR` environment variable — which follow the\nstandard CLI > env > file > default precedence and refuse startup on a\nmalformed value — or with this field in the config file.",
       "type": "string",
       "default": "127.0.0.1:50051",
+      "x-fraiseql-feature": "arrow",
       "x-fraiseql-env": "FRAISEQL_FLIGHT_BIND_ADDR"
     },
     "flight_upload_tables": {
@@ -50,7 +51,8 @@
       "items": {
         "type": "string"
       },
-      "default": []
+      "default": [],
+      "x-fraiseql-feature": "arrow"
     },
     "flight_views": {
       "description": "Views the Arrow Flight `OptimizedView` ticket may serve (default: none).\n\nThat ticket reads a view **whole**, with no row policy, field gate or authorizer\n(#716): every Flight-authenticated principal can read every row and column of a\nview named here. Name only views whose entire contents every such principal may\nread. Plain identifiers (resolved through the connection's `search_path`); each is\ntyped from one of its rows at boot, so a view empty at boot is not served.\n\n```toml\nflight_views = [\"va_public_metrics\"]\n```",
@@ -58,7 +60,8 @@
       "items": {
         "type": "string"
       },
-      "default": []
+      "default": [],
+      "x-fraiseql-feature": "arrow"
     },
     "cors_enabled": {
       "description": "Enable CORS.",
@@ -445,7 +448,8 @@
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "x-fraiseql-feature": "auth-saml"
     },
     "scim": {
       "description": "SCIM 2.0 provisioning (#946).\n\nMounts `/scim/v2/*` behind a provisioning bearer token, and\n`/api/scim/tokens` behind the admin token. Requires a database pool and\n`admin_token`.",
@@ -578,7 +582,8 @@
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "x-fraiseql-feature": "observers"
     },
     "sources": {
       "description": "Scheduled-ingress source scheduler configuration (optional, requires the\n`sources` feature). The source *definitions* live in the compiled schema;\nthis `[sources]` section tunes the runtime (global on/off, connector SSRF\nallowlist).\n\nBoxed to keep `ServerConfig` small: this section is rarely set and read once\nat startup, so it does not belong inline in a struct that sits on the\nrequest-handling futures (an inline copy tips borderline futures past\nclippy's `large_futures` stack budget).",
@@ -590,7 +595,8 @@
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "x-fraiseql-feature": "sources"
     },
     "pool_tuning": {
       "description": "Connection pool pressure monitoring configuration.\n\nWhen `enabled = true`, the server spawns a background task that monitors\npool metrics and emits scaling recommendations via Prometheus metrics and\nlog lines. **The pool is not resized at runtime** — act on\n`fraiseql_pool_tuning_*` events by adjusting `max_connections` and restarting.\n\n# Example (TOML)\n\n```toml\n[pool_tuning]\nenabled = true\nmin_pool_size = 5\nmax_pool_size = 50\ntuning_interval_ms = 30000\n```",
@@ -693,7 +699,8 @@
       "additionalProperties": {
         "$ref": "#/$defs/WebhookRouteConfig"
       },
-      "default": {}
+      "default": {},
+      "x-fraiseql-feature": "inbound"
     },
     "inbound_dispatch": {
       "description": "How the dispatch ledger makes `after:ingest` dispatch at-least-once (`[inbound_dispatch]`,\n#1175): the lease a recorded dispatch takes, how often the sweep re-runs those whose\nlease ran out, and how many one sweep claims. Requires the `inbound` feature.",
@@ -702,7 +709,8 @@
         "lease_secs": 300,
         "sweep_interval_secs": 30,
         "batch_size": 100
-      }
+      },
+      "x-fraiseql-feature": "inbound"
     },
     "function_dispatch": {
       "description": "How the dispatch ledger makes `after:mutation` and `after:capture` dispatch\nat-least-once (`[function_dispatch]`, #1628): the lease a recorded dispatch takes, how\noften the sweep re-runs those whose lease ran out, and how many one sweep claims.\nRequires the `functions-runtime` feature.",
@@ -711,7 +719,8 @@
         "lease_secs": 300,
         "sweep_interval_secs": 30,
         "batch_size": 100
-      }
+      },
+      "x-fraiseql-feature": "functions-runtime"
     },
     "mailbox": {
       "description": "Connected mailbox accounts (`[mailbox.<name>]`), keyed by account name.\n\nEach account carries an optional poll-IMAP receive half\n(`[mailbox.<name>.imap]`) — a background poll worker that fetches new\nmessages by UID watermark, normalizes their MIME to an `InboundMessage` on\nthe durable spine, and fires `after:ingest:email` functions — and (via the\nhardening `send_email` transport) an SMTP send half. Requires the\n`inbound-email` feature and a PostgreSQL pool; empty by default.",
@@ -719,7 +728,8 @@
       "additionalProperties": {
         "$ref": "#/$defs/MailboxConfig"
       },
-      "default": {}
+      "default": {},
+      "x-fraiseql-feature": "inbound-email"
     },
     "send": {
       "description": "Delivery-feedback send policy (`[send]`).\n\nGoverns how the correlation step reacts to inbound bounces / challenges /\nreplies — currently the challenge-suppression threshold\n(`challenge_suppress_after`, default 2). Requires the `inbound-email`\nfeature; defaults apply when the section is absent.",
@@ -727,7 +737,8 @@
       "default": {
         "challenge_suppress_after": 2,
         "verp_probe_on_start": false
-      }
+      },
+      "x-fraiseql-feature": "inbound-email"
     },
     "tenancy": {
       "description": "Multi-tenant executor runtime configuration.\n\nOff by default. Enable with `[tenancy.runtime] enabled = true` to mount the\nmulti-tenant runtime in the off-the-shelf binary: the per-tenant executor\nregistry, `X-Tenant-ID` / JWT `tenant_id` / Host dispatch, and the\n`/api/v1/admin/tenants/*` lifecycle API. Runtime tenant provisioning\n(registering a tenant with its own connection) is PostgreSQL-only.\n\n```toml\n[tenancy.runtime]\nenabled = true\n```",
@@ -756,7 +767,8 @@
           "xlsx",
           "parquet"
         ]
-      }
+      },
+      "x-fraiseql-feature": "rest"
     },
     "identity": {
       "description": "Enriched-identity resolution (#539): `[identity.enrichment]` /\n`[identity.sender]`. Top-level (not under `[auth]`) so it applies under\nany auth mode: `[auth]` and `[auth_issuer]` alike. Gated on `auth`\nbecause enrichment requires an authenticated subject and the auth DB pool.",
@@ -768,7 +780,8 @@
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "x-fraiseql-feature": "auth"
     },
     "session_state": {
       "description": "Durable per-thread conversation / session state (#389):\n`[session_state]`. Presence enables the subsystem — `backend =\n\"postgres\"` requires a database pool and refuses to boot when its table\ncannot be initialised (never a silent in-memory downgrade). Gated on\n`auth` because the store lives in `fraiseql-auth` and the `session_id`\ncomes from the authenticated context.",
@@ -780,7 +793,8 @@
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "x-fraiseql-feature": "auth"
     },
     "async_operations": {
       "description": "Durable long-running operations (#391): `[async_operations]`. Presence\nmounts `POST/GET/DELETE /operations/v1/…` (a new HTTP surface — an\nexplicit operator decision) and starts the worker pool; requires a\ndatabase pool and refuses to boot when `_system.async_operations`\ncannot be initialised. The `operations` allowlist is required and\nfail-closed.",
@@ -811,7 +825,8 @@
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "x-fraiseql-feature": "cdc-outbound"
     },
     "subscription_kafka": {
       "description": "`[subscription_kafka]` — mirror subscription deliveries to a Kafka topic (#1102).\n\nPresent ⇒ every payload the subscription manager broadcasts is also published to\nKafka. Absent ⇒ no producer is built. A configured section whose endpoint is\nrefused by the transport guard is a **boot refusal**: this path carries entity\nafter-images and pre-images, so falling back to an unguarded connection is the\none outcome that must not be possible.\n\nNot a change stream — see [`SubscriptionKafkaConfig`] for why `[cdc_outbound]` is\nthe section for that.",
@@ -823,7 +838,8 @@
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "x-fraiseql-feature": "subscription-kafka"
     },
     "server": {
       "not": {},

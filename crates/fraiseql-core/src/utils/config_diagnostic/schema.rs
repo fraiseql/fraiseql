@@ -95,11 +95,21 @@ pub fn mark_refused(schema: &mut Value, section: &str, key: &str, message: &str)
 }
 
 /// Set `name` to `value` on the schema of the dotted `path`'s key, through every `$ref` and
-/// `Option` on the way.
+/// `Option` on the way. A key the schema does not describe is left undescribed: an
+/// annotation never adds a key.
 pub fn annotate(schema: &mut Value, path: &str, name: &str, value: Value) {
     let mut pointer = String::new();
     for part in path.split('.').filter(|part| !part.is_empty()) {
-        pointer = property(schema, &pointer, part);
+        let object = object_at(schema, pointer);
+        let exists = schema
+            .pointer(&object)
+            .and_then(|node| node.get("properties"))
+            .and_then(|properties| properties.get(part))
+            .is_some();
+        if !exists {
+            return;
+        }
+        pointer = format!("{object}/properties/{}", escape(part));
     }
     if let Some(Value::Object(node)) = schema.pointer_mut(&pointer) {
         node.insert(name.to_owned(), value);

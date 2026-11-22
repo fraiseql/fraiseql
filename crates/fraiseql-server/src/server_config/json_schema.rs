@@ -9,13 +9,12 @@
 //! loader's own refusal as its description.
 //!
 //! A key an environment variable overrides names it as `x-fraiseql-env`, read from the
-//! server's argument declarations.
+//! server's argument declarations. A key a build compiles in only with a feature names it as
+//! `x-fraiseql-feature`, read from the capability registry.
 
 use std::sync::OnceLock;
 
-#[cfg(feature = "cli")]
-use fraiseql_core::utils::config_diagnostic::schema::annotate;
-use fraiseql_core::utils::config_diagnostic::schema::mark_refused;
+use fraiseql_core::utils::config_diagnostic::schema::{annotate, mark_refused};
 use serde_json::Value;
 
 use super::ServerConfig;
@@ -25,6 +24,9 @@ pub const SERVER_CONFIG_JSON_SCHEMA_PATH: &str = "docs/schemas/fraiseql-server.s
 
 /// The schema annotation naming the environment variable that overrides a key.
 pub const ENV_ANNOTATION: &str = "x-fraiseql-env";
+
+/// The schema annotation naming the feature a build compiles a key in with.
+pub const FEATURE_ANNOTATION: &str = "x-fraiseql-feature";
 
 /// The schema's URL for this release: the committed file at the release's tag. It is the
 /// schema's `$id`.
@@ -50,6 +52,13 @@ fn schema() -> &'static Value {
             serde_json::to_value(schemars::schema_for!(ServerConfig)).unwrap_or_default();
         for refused in super::methods::refused_keys() {
             mark_refused(&mut schema, refused.section, refused.key, &refused.note);
+        }
+        // The feature a key needs, from the capability registry the loader names it from
+        // when a build compiles the key out.
+        for (key, feature, compiled_in) in crate::capability::feature_gated_keys() {
+            if compiled_in {
+                annotate(&mut schema, key, FEATURE_ANNOTATION, Value::String(feature.to_owned()));
+            }
         }
         // The variable that overrides a key, named where the key is described.
         #[cfg(feature = "cli")]

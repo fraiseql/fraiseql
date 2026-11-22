@@ -3,7 +3,7 @@
 use fraiseql_core::utils::config_diagnostic::schema::is_refused;
 use serde_json::Value;
 
-use super::{SERVER_CONFIG_JSON_SCHEMA_PATH, server_config_json_schema};
+use super::{FEATURE_ANNOTATION, SERVER_CONFIG_JSON_SCHEMA_PATH, server_config_json_schema};
 use crate::server_config::{
     build_features::{declared_features, missing_features},
     methods::{RefusedKey, enrich_parse_error, refused_keys},
@@ -282,4 +282,92 @@ fn collect_refused(
         }
         collect_refused(root, target, name, seen, found);
     }
+}
+
+// ── the keys a build compiles out ─────────────────────────────────────────────────
+
+/// The committed schema, which every feature generates.
+fn committed() -> Value {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join(SERVER_CONFIG_JSON_SCHEMA_PATH);
+    serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+}
+
+/// Every key of every object the schema describes, as `(definition, key)`: the top level is
+/// the definition `""`.
+fn keys(schema: &Value) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    let mut add = |definition: &str, node: &Value| {
+        if let Some(properties) = node.get("properties").and_then(Value::as_object) {
+            out.extend(properties.keys().map(|key| (definition.to_owned(), key.clone())));
+        }
+    };
+    add("", schema);
+    if let Some(definitions) = schema.get("$defs").and_then(Value::as_object) {
+        for (name, node) in definitions {
+            add(name, node);
+        }
+    }
+    out
+}
+
+/// A key the committed schema has and this build's does not is one a feature this build
+/// leaves off compiles in, and the committed schema says which. A key is judged in an object
+/// this build still describes. Only a narrower build tests anything here: with every
+/// feature on, nothing is missing.
+#[test]
+fn every_key_this_build_compiles_out_is_marked_with_its_feature() {
+    let committed = committed();
+    let built = keys(&server_config_json_schema());
+    let left_off: Vec<&str> = env!("FRAISEQL_SERVER_MISSING_FEATURES")
+        .split(',')
+        .filter(|f| !f.is_empty())
+        .collect();
+    let mut unmarked = Vec::new();
+    for (definition, key) in keys(&committed) {
+        // A definition this build does not have at all is compiled out with the key that
+        // holds it, and judged there.
+        let defined = definition.is_empty() || built.iter().any(|(d, _)| d == &definition);
+        if !defined || built.contains(&(definition.clone(), key.clone())) {
+            continue;
+        }
+        let node = if definition.is_empty() {
+            &committed["properties"][&key]
+        } else {
+            &committed["$defs"][&definition]["properties"][&key]
+        };
+        let feature = node.get(FEATURE_ANNOTATION).and_then(Value::as_str);
+        if !feature.is_some_and(|feature| left_off.contains(&feature)) {
+            unmarked.push(format!("{definition}.{key} ({FEATURE_ANNOTATION}: {feature:?})"));
+        }
+    }
+    assert!(
+        unmarked.is_empty(),
+        "keys this build compiles out, with no feature it leaves off marked on them (it leaves \
+         off {left_off:?}):\n{}",
+        unmarked.join("\n")
+    );
+}
+
+/// An annotation describes a key this build reads; it never adds one. A property holding
+/// nothing but annotations would accept any value for a key this build compiled out.
+#[test]
+fn no_key_is_only_an_annotation() {
+    let schema = server_config_json_schema();
+    let mut phantoms = Vec::new();
+    for (definition, key) in keys(&schema) {
+        let node = if definition.is_empty() {
+            &schema["properties"][&key]
+        } else {
+            &schema["$defs"][&definition]["properties"][&key]
+        };
+        let annotations_only = node
+            .as_object()
+            .is_some_and(|node| node.keys().all(|name| name.starts_with("x-fraiseql-")));
+        if annotations_only {
+            phantoms.push(format!("{definition}.{key}: {node}"));
+        }
+    }
+    assert!(phantoms.is_empty(), "{}", phantoms.join("\n"));
 }

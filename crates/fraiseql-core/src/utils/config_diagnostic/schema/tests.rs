@@ -59,3 +59,13 @@ fn an_annotation_lands_on_the_key_through_an_optional_section() {
     assert_eq!(schema["$defs"]["Tls"]["properties"]["cert_path"]["type"], "string");
     assert_eq!(schema["properties"]["name"]["x-env"], "NAME");
 }
+
+#[test]
+fn an_annotation_never_adds_a_key() {
+    let mut schema = sample();
+    let before = schema.clone();
+    annotate(&mut schema, "observers", "x-env", json!("OBS"));
+    annotate(&mut schema, "tls.cert_file", "x-env", json!("TLS"));
+    annotate(&mut schema, "name.inner", "x-env", json!("INNER"));
+    assert_eq!(schema, before);
+}
