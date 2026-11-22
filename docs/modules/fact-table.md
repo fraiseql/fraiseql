@@ -415,6 +415,9 @@ sales_window(select: [WindowColumn!], windows: [WindowSpec!], where: SalesAggreg
              orderBy: [WindowOrderBy!], limit: Int, offset: Int): [JSON!]!
 ```
 
+Both roots take the one `where` input, and both run every operator it publishes, node-id
+filters included, with the same meaning.
+
 The arguments decide what is computed, and the selection set decides what is returned:
 
 ```graphql

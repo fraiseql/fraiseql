@@ -12,10 +12,7 @@
 use std::fmt::Write as _;
 
 use crate::{
-    backend::{
-        GenericWhereGenerator, PostgresDialect, identifier::quote_postgres_identifier,
-        types::DatabaseType,
-    },
+    backend::{identifier::quote_postgres_identifier, types::DatabaseType},
     compiler::{
         aggregation::OrderDirection,
         window_functions::{
@@ -104,14 +101,16 @@ impl WindowSqlGenerator {
         // FROM clause
         let _ = write!(sql, " FROM {}", plan.table);
 
-        // WHERE clause (if any) — use parameterized generation to avoid literal
-        // value escaping and enable the database to cache execution plans.
+        // WHERE clause (if any), parameterized. It is lowered by the aggregate root's
+        // generator: both roots publish one `where` input, so one generator runs every
+        // operator it offers, on a column, a JSONB dimension or a node id alike.
         if let Some(clause) = &plan.where_clause {
-            let gen = GenericWhereGenerator::new(PostgresDialect);
-            let (where_sql, where_params) = gen.generate(clause)?;
-            sql.push_str(" WHERE ");
-            sql.push_str(&where_sql);
-            parameters.extend(where_params);
+            let where_sql = crate::runtime::AggregationSqlGenerator::new(self.database_type)
+                .build_where_clause_parameterized(clause, &plan.metadata, &mut parameters)?;
+            if !where_sql.is_empty() {
+                sql.push(' ');
+                sql.push_str(&where_sql);
+            }
         }
 
         // ORDER BY clause

@@ -1110,6 +1110,16 @@ impl AggregateRunner {
             }
         }
 
+        // 1a''. Node-id filters resolve through the hierarchy their column declares, as for an
+        //       aggregate. The caller's clause only: the policy below never carries one.
+        if let Some(clause) = request.where_clause.take() {
+            request.where_clause = Some(super::aggregate_hierarchy::attach_hierarchies(
+                clause,
+                metadata,
+                self.ctx.schema.hierarchies_config.as_ref(),
+            )?);
+        }
+
         // 1b. Compose the row policy and the fact table's inject filters before the caller's own
         //     filter, so it cannot bypass them.
         let user = request.where_clause.take();

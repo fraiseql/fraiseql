@@ -4567,6 +4567,25 @@ mod window_tests {
         runtime::window::*,
     };
 
+    /// The fact table the plans read: `tf_sales`, with no column a `where` names.
+    pub(super) fn sales() -> crate::compiler::fact_table::FactTableMetadata {
+        crate::compiler::fact_table::FactTableMetadata {
+            table_name:               "tf_sales".to_string(),
+            type_name:                None,
+            row_scope:                crate::compiler::fact_table::FactRowScope::Server,
+            inject_params:            indexmap::IndexMap::default(),
+            measures:                 vec![],
+            dimensions:               crate::compiler::fact_table::DimensionColumn {
+                name:  "data".to_string(),
+                paths: vec![],
+            },
+            denormalized_filters:     vec![],
+            calendar_dimensions:      vec![],
+            native_measures:          std::collections::HashMap::new(),
+            native_dimension_mapping: std::collections::HashMap::new(),
+        }
+    }
+
     #[test]
     fn test_generate_row_number() {
         let generator = WindowSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -4591,6 +4610,7 @@ mod window_tests {
             order_by:     vec![],
             limit:        None,
             offset:       None,
+            metadata:     sales(),
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -4637,6 +4657,7 @@ mod window_tests {
             order_by:     vec![],
             limit:        None,
             offset:       None,
+            metadata:     sales(),
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -4686,6 +4707,7 @@ mod window_tests {
             order_by:     vec![],
             limit:        None,
             offset:       None,
+            metadata:     sales(),
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -4745,6 +4767,7 @@ mod window_tests {
             order_by:     vec![],
             limit:        None,
             offset:       None,
+            metadata:     sales(),
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -4781,16 +4804,18 @@ mod window_tests {
             order_by:     vec![],
             limit:        None,
             offset:       None,
+            metadata:     sales(),
         };
 
         let sql = generator.generate(&plan).unwrap();
 
         // WHERE clause must use bind parameter ($1), not a literal string value.
         assert!(
-            sql.raw_sql.contains("WHERE data->>'status' = $1"),
+            sql.raw_sql.contains("WHERE data->>'status'") && sql.raw_sql.contains("= $1"),
             "expected bind parameter $1, got: {}",
             sql.raw_sql
         );
+        assert!(!sql.raw_sql.contains("active"), "the value is bound: {}", sql.raw_sql);
         assert!(!sql.raw_sql.contains("WHERE 1=1"));
         assert_eq!(sql.parameters, vec![serde_json::json!("active")]);
     }
@@ -4820,6 +4845,7 @@ mod window_tests {
             order_by:     vec![],
             limit:        None,
             offset:       None,
+            metadata:     sales(),
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -4847,6 +4873,7 @@ mod window_tests {
             order_by:     vec![],
             limit:        None,
             offset:       None,
+            metadata:     sales(),
         };
 
         let sql = generator.generate(&plan).unwrap();
@@ -5278,6 +5305,7 @@ mod window_projector_tests {
             order_by:     vec![],
             limit:        None,
             offset:       None,
+            metadata:     super::window_tests::sales(),
         }
     }
 

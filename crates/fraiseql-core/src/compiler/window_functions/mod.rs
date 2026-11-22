@@ -448,6 +448,10 @@ pub struct WindowExecutionPlan {
 
     /// Result offset
     pub offset: Option<u32>,
+
+    /// The fact table the plan reads. Its `where` is lowered against it, as an aggregate
+    /// plan's is.
+    pub metadata: FactTableMetadata,
 }
 
 /// Regular SELECT column

@@ -226,6 +226,10 @@ name = "aggregate_big_int_pg"
 required-features = ["postgres"]
 
 [[test]]
+name = "window_where_operators_pg"
+required-features = ["postgres"]
+
+[[test]]
 name = "aggregate_decimal_digits_pg"
 required-features = ["postgres"]
 

@@ -224,6 +224,7 @@ impl WindowPlanner {
             order_by,
             limit: request.limit,
             offset: request.offset,
+            metadata: metadata.clone(),
         })
     }
 

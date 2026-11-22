@@ -18,6 +18,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`WindowExecutionPlan` carries the fact table it reads, in `metadata` (#2263).** The
+  window generator now lowers its `where` against the table, as an aggregate plan's is.
+  A plan built by hand names the table's `FactTableMetadata`; one from `WindowPlanner`
+  already does.
 - **A fact table's `numeric` filter column is a `Decimal`, as a key and as an operand
   (#2264).** It was published as `Float`: its `where` operand went through a double before
   it reached the column, and its `groupBy` key came back as one, so two values that differ
@@ -1157,6 +1161,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A fact table's window root runs every `where` operator it publishes (#2263).** Both roots
+  publish the one `<Name>AggregateWhere` input, but the window root lowered its filter
+  through the generic `where` generator, which runs only `eq` and `neq` on a column and
+  resolves no node id: on a filter column or a mapped dimension, `gt`, `in`, a null check,
+  a pattern, an ltree operator or `descendant_of_id` was refused before SQL. The window root now lowers its filter through
+  the aggregate root's generator, after resolving node ids through their hierarchy as the
+  aggregate root does, so each published operator runs on both roots with the same meaning.
 - **A generated client's input module names no undefined `LocalDateTime`.** An input field or
   a derived filter operand of a `LocalDateTime` was emitted under the scalar's own name, which
   no generated module defines: the Python, Go and Rust clients did not type-check or compile,

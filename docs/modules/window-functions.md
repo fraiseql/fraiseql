@@ -66,6 +66,7 @@ pub struct WindowExecutionPlan {
     pub order_by: Vec<OrderByClause>,
     pub limit: Option<u32>,
     pub offset: Option<u32>,
+    pub metadata: FactTableMetadata,  // the table the `where` is lowered against
 }
 
 pub struct SelectColumn {
