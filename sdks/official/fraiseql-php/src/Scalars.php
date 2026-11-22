@@ -66,6 +66,13 @@ final class Scalars
     /** ISO 8601 DateTime scalar (e.g., "2025-01-10T12:00:00Z"). */
     public const DATE_TIME = 'DateTime';
 
+    /**
+     * A date and time with no offset (e.g., "2025-01-10T12:00:00"), a PostgreSQL `timestamp`.
+     * PHP's date-time classes always carry a zone and stay `DateTime`: name this on a field
+     * or argument whose values carry no offset (`#[GraphQLField(type: Scalars::LOCAL_DATE_TIME)]`).
+     */
+    public const LOCAL_DATE_TIME = 'LocalDateTime';
+
     /** ISO 8601 Date scalar (e.g., "2025-01-10"). */
     public const DATE = 'Date';
 
@@ -319,6 +326,7 @@ final class Scalars
         'SparseVector' => true,
         // Date/Time
         'DateTime' => true,
+        'LocalDateTime' => true,
         'Date' => true,
         'Time' => true,
         'DateRange' => true,

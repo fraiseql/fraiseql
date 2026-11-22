@@ -307,6 +307,8 @@ PHP types are automatically mapped to GraphQL scalar types:
 | `float` | `Float` |
 | `bool` | `Boolean` |
 | `string` | `String` |
+| `DateTimeInterface`, `DateTime`, `DateTimeImmutable` | `DateTime` |
+| a date-time named `#[GraphQLField(type: Scalars::LOCAL_DATE_TIME)]` | `LocalDateTime` (a date and time with no offset, a PostgreSQL `timestamp`) |
 | `?T` | nullable `T` |
 
 Use `#[GraphQLField(type: 'ID')]` to override the inferred type.

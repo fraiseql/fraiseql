@@ -154,6 +154,25 @@ final class ConformanceLedgerEntry
     public array $transferIds;
 }
 
+// #2177: a date and time with no offset is named `Scalars::LOCAL_DATE_TIME`; a PHP
+// date-time class stays `DateTime`.
+#[GraphQLType(name: 'ShiftSlot', sqlSource: 'v_shift_slot')]
+final class ConformanceShiftSlot
+{
+    #[GraphQLField(type: 'ID', nullable: false)]
+    public string $id;
+
+    #[GraphQLField(type: Scalars::LOCAL_DATE_TIME, nullable: false)]
+    public \DateTimeImmutable $startsAt;
+
+    #[GraphQLField(type: Scalars::LOCAL_DATE_TIME, nullable: true)]
+    public ?\DateTimeImmutable $endsAt;
+
+    /** @var list<\DateTimeImmutable> */
+    #[GraphQLField(type: '[LocalDateTime!]', nullable: false)]
+    public array $breaksAt;
+}
+
 #[GraphQLType(name: 'ReadingSeries', sqlSource: 'v_reading_series')]
 final class ConformanceReadingSeries
 {
@@ -268,6 +287,7 @@ function authorFull(): void
     StaticAPI::register(ConformanceReadingSeries::class);
     StaticAPI::register(ConformanceOrderShipment::class);
     StaticAPI::register(ConformanceLedgerEntry::class);
+    StaticAPI::register(ConformanceShiftSlot::class);
     StaticAPI::register(ConformanceCreateUserInput::class);
 
     StaticAPI::enum(OrderStatus::class);
@@ -295,6 +315,14 @@ function authorFull(): void
         ->sqlSource('v_ledger_entry')
         ->argument('accountNumber', Scalars::BIG_INT, nullable: false)
         ->argument('transferIds', '[BigInt!]', nullable: true)
+        ->register();
+
+    StaticAPI::query('shiftSlotsStartingAfter')
+        ->returnType('ShiftSlot')
+        ->returnsList(true)
+        ->sqlSource('v_shift_slot')
+        ->argument('startsAfter', Scalars::LOCAL_DATE_TIME, nullable: false)
+        ->argument('exceptAt', '[LocalDateTime!]', nullable: true)
         ->register();
 
     StaticAPI::query('readingSeriesByIds')

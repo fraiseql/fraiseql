@@ -25,7 +25,7 @@ reason shown here, and the suite fails if a declared gap is no longer true.
 | `fraiseql-python/` | Python 3.11+ | PyPI | 40/46 | observers: the SDK ships no observer authoring surface (#2147) |
 | `fraiseql-typescript/` | TypeScript / Node.js | npm | 44/46 | localdatetime: the SDK authors no `LocalDateTime` yet (#2177) |
 | `fraiseql-go/` | Go 1.23+ | — (source-only) | 44/46 | type_crud: the SDK ships no CRUD generator; subscription_policy: no authoring surface (#1657) |
-| `fraiseql-php/` | PHP 8.2+ | — (source-only) | 36/46 | fact_tables: the SDK has no fact-table authoring; subscription_policy: no authoring surface (#1657); observers: the SDK ships no observer authoring surface (#2147); localdatetime: the SDK authors no `LocalDateTime` yet (#2177) |
+| `fraiseql-php/` | PHP 8.2+ | — (source-only) | 38/46 | fact_tables: the SDK has no fact-table authoring; subscription_policy: no authoring surface (#1657); observers: the SDK ships no observer authoring surface (#2147) |
 | `fraiseql-java/` | Java 21+ | — (source-only) | 44/46 | fact_tables: `@GraphQLFactTable` registers an ordinary type and emits no fact table; subscription_policy: no authoring surface (#1657) |
 | `fraiseql-csharp/` | C# / .NET 8+ | — (source-only) | 37/46 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring; subscription_policy: no authoring surface (#1657); observers: the SDK ships no observer authoring surface (#2147) |
 | `fraiseql-fsharp/` | F# / .NET 8+ | — (source-only) | 37/46 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring; subscription_policy: no authoring surface (#1657); observers: the SDK ships no observer authoring surface (#2147) |
