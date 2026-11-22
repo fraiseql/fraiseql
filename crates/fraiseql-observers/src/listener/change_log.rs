@@ -795,9 +795,14 @@ impl ChangeLogListener {
     ///
     /// Returns [`ObserverError::DatabaseError`] if the DDL fails.
     pub async fn init_dispatch_ledger(&mut self) -> Result<()> {
-        let ddl = sqlx::raw_sql(crate::migrations::observer_dispatch_sql())
-            .execute(&self.config.pool)
-            .await;
+        // Under the workspace's DDL lock: every listener runs this on its first poll, so
+        // two instances starting together would otherwise race on the catalogue.
+        // Reason: the crate's own DDL constant, behind the workspace's fixed lock statement.
+        let ddl = sqlx::raw_sql(sqlx::AssertSqlSafe(fraiseql_guard::ddl::lock_prefixed(
+            crate::migrations::observer_dispatch_sql(),
+        )))
+        .execute(&self.config.pool)
+        .await;
 
         if let Err(ddl_error) = ddl {
             // A least-privilege deployment runs the poller as a role with no

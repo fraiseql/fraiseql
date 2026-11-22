@@ -12,7 +12,9 @@
 //!
 //! Two server instances booting against one database, or two tests initialising one store,
 //! are enough. [`lock_prefixed`] makes a transaction-scoped advisory lock the script's first
-//! statement, so no two scripts hold a catalogue entry or a relation lock at once.
+//! statement, so no two scripts hold a catalogue entry or a relation lock at once. An
+//! executor that sends one statement per call cannot run such a script; for one DDL
+//! statement, [`locked_statement`] takes the lock inside a `DO` block instead.
 //!
 //! # Why one key for every script
 //!
@@ -40,6 +42,45 @@ pub const MIGRATION_LOCK_KEY: i64 = 0x4652_4149_5345_0001;
 #[must_use]
 pub fn lock_prefixed(ddl: &str) -> String {
     format!("SELECT pg_advisory_xact_lock({MIGRATION_LOCK_KEY});\n{ddl}")
+}
+
+/// The dollar-quote tag around [`locked_statement`]'s body.
+const BODY_TAG: &str = "$fraiseql_ddl$";
+
+/// A statement [`locked_statement`] cannot wrap: it carries the tag that would close the
+/// wrapping block's quote early.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TagInStatement;
+
+impl std::fmt::Display for TagInStatement {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "a DDL statement may not contain the dollar-quote tag {BODY_TAG}")
+    }
+}
+
+impl std::error::Error for TagInStatement {}
+
+/// `statement`, one DDL statement, as a single `DO` block that takes the advisory lock
+/// first.
+///
+/// For an executor that sends one statement per call over the extended protocol
+/// (`tokio_postgres::Client::query`, `sqlx::query`): a lock taken by [`lock_prefixed`]'s
+/// separate first statement would be released before the DDL ran, as each statement
+/// commits on its own. A `DO` block is one statement, so it runs in one transaction, and
+/// the lock is held until the DDL in it commits.
+///
+/// # Errors
+///
+/// [`TagInStatement`] if `statement` contains the block's dollar-quote tag: it would end
+/// the block's body early, and what followed would run as a statement of its own.
+pub fn locked_statement(statement: &str) -> Result<String, TagInStatement> {
+    if statement.contains(BODY_TAG) {
+        return Err(TagInStatement);
+    }
+    Ok(format!(
+        "DO {BODY_TAG} BEGIN PERFORM pg_advisory_xact_lock({MIGRATION_LOCK_KEY}); {statement}; \
+         END {BODY_TAG}"
+    ))
 }
 
 #[cfg(test)]

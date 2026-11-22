@@ -502,3 +502,58 @@ async fn a_dead_lettered_dispatch_keeps_its_row_with_its_reason_and_is_never_cla
         .unwrap();
     assert_eq!(rows(&client, &tenant).await.len(), 1);
 }
+
+/// Callers provisioning the ledger at once, as tenant registrations do.
+const RACERS: usize = 8;
+/// Fresh databases the race runs on: the cold race is a few in ten, per database.
+const ROUNDS: usize = 5;
+
+/// `url` with its database replaced by `database`.
+fn with_database(url: &str, database: &str) -> String {
+    let (base, query) = url.split_once('?').map_or((url, None), |(b, q)| (b, Some(q)));
+    let (server, _) = base.rsplit_once('/').expect("a URL naming a database");
+    query.map_or_else(|| format!("{server}/{database}"), |q| format!("{server}/{database}?{q}"))
+}
+
+/// Concurrent `provision_dispatch_ledger` calls succeed on a database that has no ledger
+/// (cold: `CREATE TABLE IF NOT EXISTS` checks, then creates, and two callers can both pass
+/// the check) and on one that has it (warm). Each racer holds its own open connection and
+/// all are released at once, so the statements reach the server together.
+#[tokio::test]
+async fn concurrent_provisioning_succeeds_on_a_cold_and_a_warm_database() {
+    use std::sync::Arc;
+
+    use fraiseql_db::DatabaseAdapter as _;
+
+    let admin = client().await;
+    for _ in 0..ROUNDS {
+        let name = format!("fq_ledger_race_{}", uuid::Uuid::new_v4().simple());
+        admin.batch_execute(&format!("CREATE DATABASE {name}")).await.unwrap();
+        let url = with_database(&fraiseql_test_support::database_url(), &name);
+        let mut racers = Vec::with_capacity(RACERS);
+        for _ in 0..RACERS {
+            let adapter = PostgresAdapter::with_pool_size(&url, 1).await.unwrap();
+            adapter.execute_raw_query("SELECT 1").await.unwrap();
+            racers.push(adapter);
+        }
+        for temperature in ["cold", "warm"] {
+            let barrier = Arc::new(tokio::sync::Barrier::new(RACERS));
+            let results = futures::future::join_all(racers.iter().map(|adapter| {
+                let barrier = Arc::clone(&barrier);
+                async move {
+                    barrier.wait().await;
+                    adapter.provision_dispatch_ledger().await
+                }
+            }))
+            .await;
+            for result in results {
+                result.unwrap_or_else(|e| panic!("{temperature} provisioning failed: {e}"));
+            }
+        }
+        drop(racers);
+        admin
+            .batch_execute(&format!("DROP DATABASE {name} WITH (FORCE)"))
+            .await
+            .unwrap();
+    }
+}

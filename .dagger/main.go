@@ -3445,6 +3445,8 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// pull in the SSRF-guard unit tests this suite disables.
 		"cargo test -p fraiseql-observers --test advisory_lease_pg -- --test-threads=1",
 		"cargo test -p fraiseql-observers --test source_cursor_pg -- --test-threads=1",
+		// The DDL the change-log listener runs on its first poll, raced by eight listeners.
+		"cargo test -p fraiseql-observers --test ddl_lock_pg -- --test-threads=1",
 		// #382 outbound CDC: the drain-worker state machine vs the bound Postgres
 		// (stub sink, no broker) + the NATS JetStream sink end-to-end vs the bound
 		// JetStream (DATABASE_URL + NATS_URL + FRAISEQL_NATS_ALLOW_PLAINTEXT below).

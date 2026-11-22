@@ -106,7 +106,11 @@ pub async fn provision_tenant_schema(key: &str, adapter: &dyn DatabaseAdapter) -
     let schema_name = tenant_schema_name(key)?;
     let inherited = count_relations(&schema_name, adapter).await;
 
-    let ddl = create_schema_ddl(key)?;
+    // `execute_raw_query` sends one statement over the extended protocol, which commits on
+    // its own: the lock goes inside the statement, so two registrations of one key at once
+    // do not race on the catalogue.
+    let ddl = fraiseql_guard::ddl::locked_statement(&create_schema_ddl(key)?)
+        .map_err(|e| FraiseQLError::validation(e.to_string()))?;
     adapter.execute_raw_query(&ddl).await.map_err(|e| {
         FraiseQLError::database(format!("Failed to provision schema for tenant '{key}': {e}"))
     })?;

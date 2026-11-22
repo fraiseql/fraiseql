@@ -3902,6 +3902,7 @@ dependencies = [
  "criterion",
  "deadpool-postgres",
  "fraiseql-error",
+ "fraiseql-guard",
  "fraiseql-test-support",
  "fraiseql-wire",
  "futures",

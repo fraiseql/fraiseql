@@ -115,7 +115,9 @@ impl DispatchLedger for PostgresAdapter {
     async fn provision_dispatch_ledger(&self) -> Result<()> {
         let client = self.acquire_connection_with_retry().await?;
         client
-            .batch_execute(FUNCTION_DISPATCH_LEDGER_DDL)
+            // One simple-query script, so one transaction: the lock is held until the
+            // DDL commits, and two registrations at once do not race on the catalogue.
+            .batch_execute(&fraiseql_guard::ddl::lock_prefixed(FUNCTION_DISPATCH_LEDGER_DDL))
             .await
             .map_err(|e| ledger_error("provision", &e))
     }

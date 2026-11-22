@@ -687,7 +687,11 @@ mod schema_isolation_tests {
         // The adoption probe runs first, then the DDL.
         assert_eq!(queries.len(), 2, "{queries:?}");
         assert!(queries[0].contains("pg_class"), "{}", queries[0]);
-        assert_eq!(queries[1], "CREATE SCHEMA IF NOT EXISTS tenant_acme");
+        assert_eq!(
+            queries[1],
+            fraiseql_guard::ddl::locked_statement("CREATE SCHEMA IF NOT EXISTS tenant_acme")
+                .unwrap()
+        );
     }
 
     #[tokio::test]
@@ -748,7 +752,7 @@ mod schema_isolation_tests {
         let ddl: Vec<String> = adapter
             .recorded_queries()
             .into_iter()
-            .filter(|q| q.starts_with("CREATE SCHEMA"))
+            .filter(|q| q.contains("CREATE SCHEMA"))
             .collect();
         assert_eq!(ddl.len(), 2);
         // Both should be IF NOT EXISTS — idempotent
@@ -762,6 +766,22 @@ mod schema_isolation_tests {
         assert!(matches!(err, FraiseQLError::Validation { .. }));
         // No SQL should have been executed
         assert!(adapter.recorded_queries().is_empty());
+    }
+
+    /// The key is interpolated into the DDL, inside a dollar-quoted `DO` block: a key that
+    /// could close a string or the block's quote is refused before any SQL is built.
+    #[tokio::test]
+    async fn provision_refuses_a_key_that_could_close_a_quote() {
+        for key in [
+            "acme'; DROP SCHEMA public; --",
+            "acme$fraiseql_ddl$",
+            "acme\"x",
+        ] {
+            let adapter = SpyAdapter::new();
+            let err = provision_tenant_schema(key, &adapter).await.unwrap_err();
+            assert!(matches!(err, FraiseQLError::Validation { .. }), "{key}: {err:?}");
+            assert!(adapter.recorded_queries().is_empty(), "{key}");
+        }
     }
 
     /// The adoption probe is advisory. An adapter that cannot answer it must not

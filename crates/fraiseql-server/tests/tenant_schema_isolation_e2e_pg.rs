@@ -670,3 +670,52 @@ fn the_document_loads_without_a_database() {
             .unwrap_or_else(|e| panic!("the {mode}-mode document must be accepted: {e}"));
     }
 }
+
+/// Registrations of one tenant at once, each on a connection of its own.
+const RACERS: usize = 8;
+/// Fresh tenant keys the race runs on: the cold race is a few in ten, per key.
+const ROUNDS: usize = 10;
+
+/// Concurrent `provision_tenant_schema` calls for one key succeed while its schema does
+/// not exist yet (`CREATE SCHEMA IF NOT EXISTS` checks, then creates, and two callers can
+/// both pass the check) and once it does. The statement is sent over the extended
+/// protocol, one statement per call, so this is the proof that the lock it takes is held
+/// until its DDL commits. Each racer holds its own open connection and all are released
+/// at once.
+#[tokio::test]
+async fn concurrent_provisioning_of_one_tenant_succeeds() {
+    use std::sync::Arc;
+
+    use fraiseql_server::tenancy::schema_isolation::provision_tenant_schema;
+
+    let Some(url) = try_database_url() else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    let admin = PostgresAdapter::new(&url).await.expect("connect to the test database");
+    let mut racers = Vec::with_capacity(RACERS);
+    for _ in 0..RACERS {
+        let adapter = PostgresAdapter::with_pool_size(&url, 1).await.unwrap();
+        exec(&adapter, "SELECT 1").await;
+        racers.push(adapter);
+    }
+    for round in 0..ROUNDS {
+        let key = format!("p2312race{round}");
+        exec(&admin, &format!("DROP SCHEMA IF EXISTS tenant_{key}")).await;
+        for state in ["absent", "present"] {
+            let barrier = Arc::new(tokio::sync::Barrier::new(RACERS));
+            let results = futures::future::join_all(racers.iter().map(|adapter| {
+                let (barrier, key) = (Arc::clone(&barrier), key.as_str());
+                async move {
+                    barrier.wait().await;
+                    provision_tenant_schema(key, adapter).await
+                }
+            }))
+            .await;
+            for result in results {
+                result.unwrap_or_else(|e| panic!("provisioning, schema {state}: {e}"));
+            }
+        }
+        exec(&admin, &format!("DROP SCHEMA tenant_{key}")).await;
+    }
+}

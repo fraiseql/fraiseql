@@ -1453,6 +1453,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The DDL FraiseQL runs at runtime takes one advisory lock (#2312).** Scripts that
+  create FraiseQL's own tables are idempotent but were not safe to run concurrently: on a
+  database without the table, two callers could both pass `IF NOT EXISTS` and one lose on
+  a catalogue unique index. Three ran at runtime without the lock: the change-log
+  listener's dispatch ledger, created on every listener's first poll, so two instances
+  starting together raced (a lost race was mostly hidden by the fallback for a role
+  without `CREATE`, and failed the first poll when it was not); the function-dispatch
+  ledger, provisioned at tenant registration; and a tenant's schema, created when it
+  registers. Each now runs under the workspace's DDL lock. A tenant's `CREATE SCHEMA` is
+  sent as one statement, so its lock is taken inside a `DO` block
+  (`fraiseql_guard::ddl::locked_statement`).
 - **`PostgresSourceCursorStore::init` is safe to run concurrently (#1868).** Two callers
   initialising the store against one database at once could fail: on a database that had
   never held the cursor table, one lost on a catalogue unique index

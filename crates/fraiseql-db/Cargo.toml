@@ -6,6 +6,8 @@ chrono = { workspace = true }
 deadpool-postgres = { workspace = true, optional = true }
 # Error types
 fraiseql-error = { workspace = true }
+# The workspace's one DDL advisory lock, for the dispatch ledger's provisioning script.
+fraiseql-guard = { workspace = true, optional = true }
 # Wire protocol (optional)
 fraiseql-wire = { workspace = true, optional = true }
 futures = { workspace = true }
@@ -50,6 +52,7 @@ tracing-subscriber = { workspace = true }
 [features]
 default = ["postgres"]
 postgres = [
+  "dep:fraiseql-guard",
   "dep:tokio-postgres",
   "dep:deadpool-postgres",
   "dep:rustls",
