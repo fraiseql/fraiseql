@@ -856,6 +856,7 @@ disagreed, and the promise was the part that was wrong.
     had capitalised the symbol to `Bigint`.
   - PHP: `Scalars::BIG_INT`, named on an `int` field or argument
     (`#[GraphQLField(type: Scalars::BIG_INT)]`); `BigInt` is a known scalar name.
+  - Dart: `FieldType.bigInt(...)`, beside `FieldType.int_`, for a field or an argument.
 
 - **`compile --database` warns on a view casting a document's text to a temporal type
   (#2213).** A served view, or with gRPC enabled a row view (`vr_<sql_source>`), whose

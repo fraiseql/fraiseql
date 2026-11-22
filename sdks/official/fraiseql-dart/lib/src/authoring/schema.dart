@@ -727,6 +727,25 @@ class FieldType {
           computed: computed,
         );
 
+  /// `BigInt`: a signed 64-bit integer, served as the string of its digits. [FieldType.int_]
+  /// is `Int`, which is 32 bits: declare a field or argument whose values pass that with this.
+  const FieldType.bigInt({
+    bool nullable = true,
+    String? description,
+    String? requiresScope,
+    String? onDeny,
+    String? deprecated,
+    bool computed = false,
+  }) : this.named(
+          'BigInt',
+          nullable: nullable,
+          description: description,
+          requiresScope: requiresScope,
+          onDeny: onDeny,
+          deprecated: deprecated,
+          computed: computed,
+        );
+
   /// GraphQL `Float`.
   const FieldType.float({
     bool nullable = true,

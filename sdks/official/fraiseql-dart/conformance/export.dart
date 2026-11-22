@@ -121,6 +121,18 @@ FraiseQLSchema authorFull() {
   );
 
   // Lists (#1586, #1608): the GraphQL type string, every level as written.
+  // #2258: a 64-bit integer is `FieldType.bigInt`; `FieldType.int_` stays `Int`.
+  schema.type(
+    'LedgerEntry',
+    sqlSource: 'v_ledger_entry',
+    fields: {
+      'id': const FieldType.id(nullable: false),
+      'amount': const FieldType.bigInt(nullable: false),
+      'balance': const FieldType.bigInt(),
+      'transferIds': const FieldType.named('[BigInt!]', nullable: false),
+    },
+  );
+
   schema.type(
     'ReadingSeries',
     sqlSource: 'v_reading_series',
@@ -210,6 +222,18 @@ FraiseQLSchema authorFull() {
     nullable: true,
     sqlSource: 'v_user',
     arguments: {'id': const FieldType.id(nullable: false)},
+  );
+
+  schema.query(
+    'ledgerEntriesByAccount',
+    returnType: 'LedgerEntry',
+    returnsList: true,
+    nullable: false,
+    sqlSource: 'v_ledger_entry',
+    arguments: {
+      'accountNumber': const FieldType.bigInt(nullable: false),
+      'transferIds': const FieldType.named('[BigInt!]'),
+    },
   );
 
   schema.query(
