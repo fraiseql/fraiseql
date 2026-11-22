@@ -563,8 +563,9 @@ func (m *FraiseqlCi) ShellGates(
 		"bash tools/check-compiled-schema-stamp.sh",
 		"bash tools/tests/compiled_schema_stamp_test.sh",
 		// Every fuzz.yml matrix row must name a target that exists in the crate it
-		// names. One-directional: targets on disk need not be in the matrix (#1128).
+		// names (#1128), and every target on disk has a row or a stated exemption (#1847).
 		"bash tools/check-fuzz-targets.sh",
+		"make test-fuzz-targets-gate",
 		// A Compose file merely NAMED by a make target, and absent, is outside
 		// check-examples-integrity.sh — that gate discovers compose files with `find` and
 		// checks what is inside them. Three make targets drove a path in no commit

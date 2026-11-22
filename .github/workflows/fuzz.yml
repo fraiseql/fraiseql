@@ -65,17 +65,28 @@ jobs:
       issues: write        # report-finding opens an issue on a crash
     strategy:
       fail-fast: false
-      # Maintained target set (#441 minimum). Each (crate, target) is build-verified
-      # against the current API. The remaining libFuzzer targets are tracked for triage in
-      # the campaign issue before being added here.
+      # Every fuzz target on disk, each (crate, target) build-verified against the current
+      # API. tools/check-fuzz-targets.sh fails on a target with no row here and no line in
+      # tools/fuzz-unscheduled-targets.txt saying why (#1847).
       matrix:
         include:
           - { crate: fraiseql-core,       target: graphql_parser }
           - { crate: fraiseql-core,       target: complexity }
           - { crate: fraiseql-core,       target: schema_deser }
           - { crate: fraiseql-core,       target: value_json_seam }
+          - { crate: fraiseql-core,       target: oidc_token }
+          - { crate: fraiseql-core,       target: query_variables }
+          - { crate: fraiseql-core,       target: schema_compile }
+          - { crate: fraiseql-core,       target: sql_codegen }
+          - { crate: fraiseql-arrow,      target: db_convert }
+          - { crate: fraiseql-arrow,      target: flight_ticket }
+          - { crate: fraiseql-auth,       target: pkce_token_parse }
+          - { crate: fraiseql-auth,       target: state_token_decrypt }
+          - { crate: fraiseql-secrets,    target: encrypted_field_decode }
+          - { crate: fraiseql-secrets,    target: vault_secret_name }
           - { crate: fraiseql-wire,       target: protocol_decode }
           - { crate: fraiseql-wire,       target: json_validate }
+          - { crate: fraiseql-wire,       target: scram_parse }
           - { crate: fraiseql-db,         target: where_from_json }
           - { crate: fraiseql-db,         target: where_generator }
           - { crate: fraiseql-db,         target: identifier_validation }

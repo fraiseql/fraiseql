@@ -1,0 +1,5 @@
+# Fuzz targets on disk that .github/workflows/fuzz.yml does not run, and why.
+#
+# Format: `<crate>/<target>  <why it is not scheduled>`. tools/check-fuzz-targets.sh
+# fails on a target on disk with neither a matrix row nor a line here, on a line without
+# a reason, and on a line naming a scheduled or missing target (#1847).
