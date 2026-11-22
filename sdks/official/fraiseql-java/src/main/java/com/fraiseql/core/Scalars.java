@@ -97,6 +97,12 @@ public final class Scalars {
     /** Decimal/BigDecimal scalar for precise numeric values. */
     public static final String DECIMAL = "Decimal";
 
+    /**
+     * A signed 64-bit integer, served as the string of its digits. A {@code long} field
+     * infers it; name it ({@code @GraphQLField(type = Scalars.BIG_INT)}) where a type is given.
+     */
+    public static final String BIG_INT = "BigInt";
+
     /** Vector scalar for pgvector embeddings — a {@code vector(N)} column, {@code [Float!]!} in GraphQL. */
     public static final String VECTOR = "Vector";
 
@@ -314,6 +320,7 @@ public final class Scalars {
         names.add("UUID");
         names.add("Json");
         names.add("Decimal");
+        names.add("BigInt");
         names.add("Vector");
         names.add("BitVector");
         names.add("HalfVector");

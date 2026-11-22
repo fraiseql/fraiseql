@@ -203,7 +203,7 @@ public class SchemaValidator {
 
         // Built-in scalar types
         Set<String> scalarTypes = new HashSet<>(Arrays.asList(
-            "Int", "Float", "String", "Boolean", "ID"
+            "Int", "BigInt", "Float", "String", "Boolean", "ID"
         ));
 
         String baseType = extractBaseType(typeString);

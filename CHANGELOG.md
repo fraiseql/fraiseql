@@ -77,6 +77,8 @@ disagreed, and the promise was the part that was wrong.
   - Go: `int64`, `uint32` and `time.Duration` (its nanoseconds) are `BigInt`; `int` and the
     narrower types stay `Int`. `uint` and `uint64` are refused at authoring, naming the
     type: no integer scalar holds them, so declare `type=Decimal`.
+  - Java: `long` and `Long` are `BigInt`, a list's items included. `Scalars.BIG_INT` names
+    it where a type is given.
 
 - **A fact table's 64-bit results are `BigInt` and `Decimal` (#2175).** On an aggregate row,
   `<measure>_sum` of an `int` measure, `<measure>_min` and `<measure>_max` of a `bigint`

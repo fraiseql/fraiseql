@@ -34,7 +34,8 @@ public class TypeConverter {
             return "Int";
         }
         if (javaType == long.class || javaType == Long.class) {
-            return "Int";  // GraphQL doesn't distinguish long vs int
+            // A signed 64-bit integer: `Int` is 32 bits, refusing a value past that (#2258).
+            return "BigInt";
         }
         if (javaType == short.class || javaType == Short.class
             || javaType == byte.class || javaType == Byte.class) {

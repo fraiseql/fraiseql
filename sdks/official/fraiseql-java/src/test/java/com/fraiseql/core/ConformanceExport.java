@@ -65,6 +65,7 @@ public class ConformanceExport {
         FraiseQL.registerType(ConformanceDocument.class);
         FraiseQL.registerType(ConformanceReadingSeries.class);
         FraiseQL.registerType(ConformanceOrderShipment.class);
+        FraiseQL.registerType(ConformanceLedgerEntry.class);
 
         FraiseQL.getRegistry().registerEnum("OrderStatus", enumValues(), "");
         Map<String, Object> priority = new LinkedHashMap<>();
@@ -116,6 +117,15 @@ public class ConformanceExport {
             // #966's actor allow-list, enforced in the same executor gate as requiresRole
             // on every transport, and authorable in no SDK until #1123.
             .requiresActor(ActorType.HUMAN_USER, ActorType.SERVICE_ACCOUNT)
+            .register();
+
+        // A `BigInt` argument is named: an argument is a type string.
+        FraiseQL.query("ledgerEntriesByAccount")
+            .returnType("LedgerEntry")
+            .returnsArray(true)
+            .sqlSource("v_ledger_entry")
+            .arg("accountNumber", Scalars.BIG_INT + "!")
+            .arg("transferIds", "[BigInt!]")
             .register();
 
         FraiseQL.query("tenantOrderShipments")
@@ -375,6 +385,22 @@ public class ConformanceExport {
     @java.lang.annotation.Target(java.lang.annotation.ElementType.TYPE_USE)
     @java.lang.annotation.Retention(java.lang.annotation.RetentionPolicy.RUNTIME)
     @interface Nullable {}
+
+    // A 64-bit integer (#2258), inferred from the Java types: `long` is `BigInt`.
+    @GraphQLType(name = "LedgerEntry", sqlSource = "v_ledger_entry")
+    public static class ConformanceLedgerEntry {
+        @GraphQLField(type = "ID")
+        public String id;
+
+        @GraphQLField
+        public long amount;
+
+        @GraphQLField(nullable = true)
+        public Long balance;
+
+        @GraphQLField
+        public List<Long> transferIds;
+    }
 
     // Lists (#1586, #1608), inferred from the Java types: an element is non-null unless
     // marked @Nullable (or an Optional), at every level.

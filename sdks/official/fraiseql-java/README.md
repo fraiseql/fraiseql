@@ -117,7 +117,7 @@ Java types map to GraphQL types:
 | Java Type | GraphQL Type | Nullable |
 |-----------|-------------|----------|
 | `int`, `Integer` | `Int` | No |
-| `long`, `Long` | `Int` | No |
+| `long`, `Long` | `BigInt` (a signed 64-bit integer, served as its digits) | No |
 | `float`, `Float` | `Float` | No |
 | `double`, `Double` | `Float` | No |
 | `String` | `String` | No |

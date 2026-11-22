@@ -108,9 +108,7 @@
       ],
       "unsupported": {
         "fact_tables": "the SDK authors no fact table: `@GraphQLFactTable` registers the annotated class as an ordinary type and emits no `fact_tables` entry, so there is no table to link to its type (AF 1). Fact-table authoring is a feature, not a key rename.",
-        "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)",
-        "bigint_field": "the SDK maps no type of its own to `BigInt` yet (#2258)",
-        "bigint_argument": "the SDK maps no type of its own to `BigInt` yet (#2258)"
+        "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)"
       },
       "container": "maven:3.9-eclipse-temurin-21",
       "container_env": [

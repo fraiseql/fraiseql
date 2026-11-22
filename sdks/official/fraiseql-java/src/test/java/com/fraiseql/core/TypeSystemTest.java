@@ -227,10 +227,10 @@ public class TypeSystemTest {
     }
 
     @Test
-    @DisplayName("Convert long to GraphQL Int")
+    @DisplayName("Convert long to GraphQL BigInt")
     void testConvertLong() {
-        assertEquals("Int", TypeConverter.javaToGraphQL(long.class));
-        assertEquals("Int", TypeConverter.javaToGraphQL(Long.class));
+        assertEquals("BigInt", TypeConverter.javaToGraphQL(long.class));
+        assertEquals("BigInt", TypeConverter.javaToGraphQL(Long.class));
     }
 
     // #1530: the java.time and JDBC temporal types export as the engine's Date, DateTime and
