@@ -26,8 +26,8 @@ let ``float32 maps to Float`` () =
     TypeMapper.toGraphQLType typeof<float32> |> should equal "Float"
 
 [<Fact>]
-let ``decimal maps to Float`` () =
-    TypeMapper.toGraphQLType typeof<decimal> |> should equal "Float"
+let ``decimal maps to Decimal`` () =
+    TypeMapper.toGraphQLType typeof<decimal> |> should equal "Decimal"
 
 [<Fact>]
 let ``bool maps to Boolean`` () =
@@ -38,8 +38,8 @@ let ``string maps to String`` () =
     TypeMapper.toGraphQLType typeof<string> |> should equal "String"
 
 [<Fact>]
-let ``Guid maps to ID`` () =
-    TypeMapper.toGraphQLType typeof<Guid> |> should equal "ID"
+let ``Guid maps to UUID`` () =
+    TypeMapper.toGraphQLType typeof<Guid> |> should equal "UUID"
 
 [<Fact>]
 let ``DateTime maps to DateTime`` () =
@@ -72,8 +72,8 @@ let ``int option maps to Int and is nullable`` () =
     TypeMapper.isNullable typeof<int option> |> should equal true
 
 [<Fact>]
-let ``Guid list maps to [ID!]`` () =
-    TypeMapper.toGraphQLType typeof<Guid list> |> should equal "[ID!]"
+let ``Guid list maps to [UUID!]`` () =
+    TypeMapper.toGraphQLType typeof<Guid list> |> should equal "[UUID!]"
 
 [<Fact>]
 let ``int array maps to [Int!]`` () =
@@ -108,7 +108,7 @@ let ``unknown record type maps to its type name`` () =
 [<Fact>]
 let ``toGraphQLTypeWithNullability returns pair for option type`` () =
     let gqlType, isNull = TypeMapper.toGraphQLTypeWithNullability typeof<Guid option>
-    gqlType |> should equal "ID"
+    gqlType |> should equal "UUID"
     isNull |> should equal true
 
 [<Fact>]
@@ -116,8 +116,8 @@ let ``toGraphQLScalar returns GqlInt for int`` () =
     TypeMapper.toGraphQLScalar typeof<int> |> should equal GqlInt
 
 [<Fact>]
-let ``toGraphQLScalar returns GqlId for Guid`` () =
-    TypeMapper.toGraphQLScalar typeof<Guid> |> should equal GqlId
+let ``toGraphQLScalar returns GqlCustom UUID for Guid`` () =
+    TypeMapper.toGraphQLScalar typeof<Guid> |> should equal (GqlCustom "UUID")
 
 [<Fact>]
 let ``toGraphQLScalar returns GqlString for string`` () =
@@ -174,7 +174,7 @@ let ``toCamelCase handles empty string`` () =
 let ``ResizeArray and seq map to lists`` () =
     TypeMapper.toGraphQLType typeof<ResizeArray<string>> |> should equal "[String!]"
     TypeMapper.toGraphQLType typeof<seq<int option>> |> should equal "[Int]"
-    TypeMapper.toGraphQLType typeof<Set<Guid>> |> should equal "[ID!]"
+    TypeMapper.toGraphQLType typeof<Set<Guid>> |> should equal "[UUID!]"
 
 [<Fact>]
 let ``a nested list carries each level's items`` () =

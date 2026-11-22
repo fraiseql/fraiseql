@@ -156,6 +156,28 @@ type ConformanceShiftSlot() =
     [<GraphQLField(Type = "[LocalDateTime!]")>]
     member val BreaksAt: System.DateTime list = [] with get, set
 
+// The exact scalars (#2274), inferred from the F# types: `decimal` is `Decimal` and `Guid` is
+// `UUID`, an `Id` of it `ID`.
+[<GraphQLType(Name = "PriceQuote", SqlSource = "v_price_quote")>]
+type ConformancePriceQuote() =
+    [<GraphQLField>]
+    member val Id = System.Guid.Empty with get, set
+
+    [<GraphQLField>]
+    member val Amount = 0m with get, set
+
+    [<GraphQLField>]
+    member val FxRate: decimal option = None with get, set
+
+    [<GraphQLField>]
+    member val Deltas: decimal list = [] with get, set
+
+    [<GraphQLField>]
+    member val RequestId = System.Guid.Empty with get, set
+
+    [<GraphQLField>]
+    member val IssuerId: System.Guid option = None with get, set
+
 // Lists (#1586, #1608), inferred from the F# types: an element is non-null unless it is
 // an `option`, at every level.
 [<GraphQLType(Name = "ReadingSeries", SqlSource = "v_reading_series")>]
@@ -234,6 +256,7 @@ let private authorFull () =
     SchemaRegistry.register typeof<ConformanceOrderShipment>
     SchemaRegistry.register typeof<ConformanceLedgerEntry>
     SchemaRegistry.register typeof<ConformanceShiftSlot>
+    SchemaRegistry.register typeof<ConformancePriceQuote>
 
     SchemaRegistry.registerInput
         {
@@ -283,6 +306,14 @@ let private authorFull () =
     |> QueryBuilder.sqlSource "v_shift_slot"
     |> QueryBuilder.withArgument "startsAfter" "LocalDateTime" false
     |> QueryBuilder.withArgument "exceptAt" "[LocalDateTime!]" true
+    |> QueryBuilder.register
+
+    QueryBuilder.query "priceQuotesByRequest"
+    |> QueryBuilder.returnType "PriceQuote"
+    |> QueryBuilder.returnsList true
+    |> QueryBuilder.sqlSource "v_price_quote"
+    |> QueryBuilder.withArgument "requestId" "UUID" false
+    |> QueryBuilder.withArgument "minAmount" "Decimal" true
     |> QueryBuilder.register
 
     QueryBuilder.query "tenantOrderShipments"

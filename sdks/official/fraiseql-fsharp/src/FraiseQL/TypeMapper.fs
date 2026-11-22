@@ -80,10 +80,13 @@ module TypeMapper =
                     | t when t = typeof<int64> || t = typeof<uint32> -> "BigInt"
                     | t when t = typeof<uint64> -> refuseUnsigned64 t
                     | t when t = typeof<float> || t = typeof<double> || t = typeof<float32> -> "Float"
-                    | t when t = typeof<decimal> -> "Float"
+                    // The engine's exact scalars (#2274): as `Float` a decimal loses digits,
+                    // and as `ID` a Guid that is not the type's `id` loses its type. An `id`
+                    // is still `ID`: the registry canonicalises it.
+                    | t when t = typeof<decimal> -> "Decimal"
                     | t when t = typeof<bool> -> "Boolean"
                     | t when t = typeof<string> -> "String"
-                    | t when t = typeof<System.Guid> -> "ID"
+                    | t when t = typeof<System.Guid> -> "UUID"
                     | t when t = typeof<System.DateTime> -> "DateTime"
                     | t when t = typeof<System.DateTimeOffset> -> "DateTime"
                     // The engine's Date and Time (#1530); they exported as their class names.
@@ -109,10 +112,10 @@ module TypeMapper =
         | t when t = typeof<int64> || t = typeof<uint32> -> GqlCustom "BigInt"
         | t when t = typeof<uint64> -> refuseUnsigned64 t
         | t when t = typeof<float> || t = typeof<double> || t = typeof<float32> -> GqlFloat
-        | t when t = typeof<decimal> -> GqlFloat
+        | t when t = typeof<decimal> -> GqlCustom "Decimal"
         | t when t = typeof<bool> -> GqlBoolean
         | t when t = typeof<string> -> GqlString
-        | t when t = typeof<System.Guid> -> GqlId
+        | t when t = typeof<System.Guid> -> GqlCustom "UUID"
         | t when t = typeof<System.DateTime> -> GqlDateTime
         | t when t = typeof<System.DateTimeOffset> -> GqlDateTime
         | t when t = typeof<System.DateOnly> -> GqlCustom "Date"

@@ -115,10 +115,10 @@ field or argument is refused.
 | `int64`, `uint32` | `BigInt` (a signed 64-bit integer, served as its digits) |
 | `uint64` | refused: no integer scalar holds it; declare `[<GraphQLField(Type = "Decimal")>]` |
 | `float`, `double`, `float32` | `Float` |
-| `decimal` | `Float` |
+| `decimal` | `Decimal` (exact, served as its digits) |
 | `bool` | `Boolean` |
 | `string` | `String` |
-| `System.Guid` | `ID` |
+| `System.Guid` | `UUID`; an `Id` field is `ID` |
 | `System.DateTime` | `DateTime`; a date and time with no offset (a PostgreSQL `timestamp`) is declared `[<GraphQLField(Type = "LocalDateTime")>]` |
 | `System.DateTimeOffset` | `DateTime` |
 | `System.DateOnly` | `Date` |
