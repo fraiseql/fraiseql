@@ -1,10 +1,10 @@
 /**
  * TypeScript ↔ Python Feature Parity Tests
  *
- * This test suite validates that TypeScript can express every feature that Python can.
- * For each feature, we test that TypeScript generates equivalent JSON schemas.
- *
- * This ensures 100% feature expressiveness across both languages.
+ * Each test authors one shape that the Python SDK also authors and checks the JSON the
+ * TypeScript SDK emits for it. These tests do not run Python: the cross-SDK comparison is
+ * the conformance suite in `sdks/official/conformance/`, whose support matrix is in
+ * `sdks/official/README.md`.
  */
 
 import {
@@ -29,8 +29,8 @@ describe("TypeScript ↔ Python Feature Parity", () => {
   // ============================================================================
 
   describe("Type System Parity", () => {
-    it("should have parity: object types with all scalar types", () => {
-      // TypeScript: Define User with all scalar types
+    it("should have parity: object types with ID, Email, Int, Float, Boolean and DateTime fields", () => {
+      // TypeScript: Define User with six scalar types
       registerTypeFields("User", [
         { name: "id", type: "ID", nullable: false },
         { name: "email", type: "Email", nullable: false },
@@ -43,7 +43,7 @@ describe("TypeScript ↔ Python Feature Parity", () => {
       const schema = SchemaRegistry.getSchema();
       const userType = schema.types[0];
 
-      // Parity check: All scalar types are present
+      // Parity check: the six scalar types are present, in order
       expect(userType.fields).toHaveLength(6);
       expect(userType.fields.map((f) => f.type)).toEqual([
         "ID",
@@ -533,8 +533,8 @@ describe("TypeScript ↔ Python Feature Parity", () => {
   // FEATURE COMPLETENESS TESTS
   // ============================================================================
 
-  describe("Feature Completeness", () => {
-    it("should support complex schema with all feature types", () => {
+  describe("One schema of every section", () => {
+    it("should author a type, enum, interface, union, input, query, mutation, subscription and observer together", () => {
       // Create a comprehensive schema using all TypeScript features
 
       // Types
@@ -582,7 +582,7 @@ describe("TypeScript ↔ Python Feature Parity", () => {
         { type: "webhook", url: "https://example.com" },
       ]);
 
-      // Verify completeness
+      // One of each section
       const schema = SchemaRegistry.getSchema();
       expect(schema.types).toHaveLength(1);
       expect(schema.enums).toHaveLength(1);
@@ -593,37 +593,6 @@ describe("TypeScript ↔ Python Feature Parity", () => {
       expect(schema.mutations).toHaveLength(1);
       expect(schema.subscriptions).toHaveLength(1);
       expect(schema.observers).toHaveLength(1);
-    });
-
-    it("should achieve 100% feature expressiveness parity with Python", () => {
-      // This test validates that TypeScript has all the same capabilities as Python
-
-      const parityFeatures = {
-        types: true, // ✓ registerTypeFields
-        enums: true, // ✓ enum_()
-        interfaces: true, // ✓ interface_()
-        unions: true, // ✓ union()
-        inputs: true, // ✓ input()
-        queries: true, // ✓ registerQuery
-        mutations: true, // ✓ registerMutation
-        subscriptions: true, // ✓ registerSubscription
-        fieldMetadata: true, // ✓ field() with requiresScope, deprecated, description
-        factTables: true, // ✓ registerFactTable
-        // aggregateQueries is deliberately absent: the compiler refuses a schema
-        // declaring `aggregate_queries` (#956), so parity here would mean parity on
-        // producing an uncompilable document. Use `[[analytics.queries]]` in
-        // fraiseql.toml (#1023).
-        observers: true, // ✓ registerObserver
-      };
-
-      // Count implemented features
-      const implementedCount = Object.values(parityFeatures).filter((v) => v === true).length;
-      const totalFeatures = Object.keys(parityFeatures).length;
-
-      expect(implementedCount).toBe(totalFeatures);
-      // 11, not 12: aggregate-query authoring was removed because the compiler
-      // refuses the block it produced (#956, #1023).
-      expect(implementedCount).toBe(11);
     });
   });
 });

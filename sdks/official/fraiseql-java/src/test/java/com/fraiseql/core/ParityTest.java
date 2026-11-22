@@ -286,7 +286,7 @@ public class ParityTest {
     // =========================================================================
 
     @Test
-    @DisplayName("Parity: Complete schema with all feature types")
+    @DisplayName("Parity: Types, queries, mutations, subscriptions and an observer in one schema")
     void testParityCompleteSchema() {
         // Register types
         FraiseQL.registerTypes(ParityUser.class, ParityOrder.class);
