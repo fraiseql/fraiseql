@@ -487,6 +487,92 @@ expect "a file-level shape the gate cannot model is refused" 2 "$WORK/i_file_nes
     "not modelled"
 
 echo
+echo "── a filter naming a test fn runs the gated code inside it, and only that ──"
+#
+# \`covers_module\` matched a filter only as a prefix of the target's module path, so a leg
+# naming \`tests::plans\` was never credited with a \`#[cfg(feature = "parquet")] { … }\`
+# block inside \`plans\`, which it does run.
+
+FN_BODY='#[test]
+fn plans() {
+    #[cfg(feature = "parquet")]
+    {
+        let _ = 1;
+    }
+}
+
+#[test]
+fn sibling() {}'
+
+make_fixture "$WORK/fn_named" "$FEATS" "$FN_BODY" "cargo test -p demo --lib --features parquet -- tests::plans"
+expect "a leg naming the test fn covers the gated block inside it" 0 "$WORK/fn_named"
+
+make_fixture "$WORK/fn_sibling" "$FEATS" "$FN_BODY" "cargo test -p demo --lib --features parquet -- tests::sibling"
+expect "...and a leg naming a sibling fn does not" 1 "$WORK/fn_sibling" "demo::lib::tests[parquet]"
+
+make_fixture "$WORK/fn_gated" "$FEATS" '#[cfg(feature = "parquet")]
+#[test]
+fn only_with_parquet() {}
+
+#[test]
+fn sibling() {}' "cargo test -p demo --lib --features parquet -- tests::only_with_parquet"
+expect "a leg naming a gated test fn covers it" 0 "$WORK/fn_gated"
+
+make_fixture "$WORK/fn_two_sites" "$FEATS" '#[test]
+fn plans() {
+    #[cfg(feature = "parquet")]
+    let _ = 1;
+}
+
+#[test]
+fn renders() {
+    #[cfg(feature = "parquet")]
+    let _ = 2;
+}' "cargo test -p demo --lib --features parquet -- tests::plans"
+expect "a gate with sites in two fns needs both named" 1 "$WORK/fn_two_sites" "demo::lib::tests[parquet]"
+
+make_fixture "$WORK/fn_both_sites" "$FEATS" '#[test]
+fn plans() {
+    #[cfg(feature = "parquet")]
+    let _ = 1;
+}
+
+#[test]
+fn renders() {
+    #[cfg(feature = "parquet")]
+    let _ = 2;
+}' "cargo test -p demo --lib --features parquet -- tests::plans tests::renders"
+expect "...and is covered when both are" 0 "$WORK/fn_both_sites"
+
+make_fixture "$WORK/fn_held" "$FEATS" '#[cfg(feature = "parquet")]
+mod render {
+    #[test]
+    fn plans() {}
+
+    #[test]
+    fn crops() {}
+}' "cargo test -p demo --lib --features parquet -- tests::render::plans"
+expect "a gated item holding two tests is not covered by naming one" 1 "$WORK/fn_held" \
+    "demo::lib::tests::render[parquet]"
+
+make_fixture "$WORK/fn_helper" "$FEATS" '#[cfg(feature = "parquet")]
+fn helper() -> u8 { 1 }
+
+#[test]
+fn plans() {}' "cargo test -p demo --lib --features parquet -- tests::plans"
+expect "a gated helper outside any test is not covered by naming a test" 1 "$WORK/fn_helper" \
+    "demo::lib::tests[parquet]"
+
+make_fixture "$WORK/fn_inline" "$FEATS" 'mod inner {
+    #[test]
+    fn plans() {
+        #[cfg(feature = "parquet")]
+        let _ = 1;
+    }
+}' "cargo test -p demo --lib --features parquet -- tests::inner::plans"
+expect "a test fn inside an inline mod is named with its path" 0 "$WORK/fn_inline"
+
+echo
 if [ "$TESTS_FAILED" -gt 0 ]; then
     echo "suite-coverage inner-gate self-test: $TESTS_FAILED of $TESTS_RUN FAILED"
     exit 1

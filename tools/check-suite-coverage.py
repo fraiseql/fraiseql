@@ -257,6 +257,7 @@ class LibTestModule:
         forbidden: frozenset[str] = frozenset(),
         any_groups: tuple[frozenset[str], ...] = (),
         label: str = "",
+        site_tests: tuple[tuple[str, ...], ...] = (),
     ):
         self.crate = crate
         self.module_path = module_path  # e.g. "inbound::email::tracking::tests"
@@ -272,6 +273,9 @@ class LibTestModule:
         self.any_groups = any_groups
         # Distinguishes the virtual inner-gate targets from the module itself.
         self.label = label
+        # For a virtual target, the full test paths that run each of its gated sites
+        # (see `InnerGate.site_tests`), so a filter naming a test fn can cover it.
+        self.site_tests = site_tests
         # The two questions `covers_binary` asked and `covers_module` did not
         # (#1297). Without them any leg that merely COMPILES a module with the
         # right features was credited with covering it, including one that binds
@@ -785,6 +789,49 @@ class InnerGate(NamedTuple):
     groups: tuple[frozenset[str], ...]
     source: str  # gated source, string literals INTACT — service detection
     code: str  # the same span, string literals blanked — attribute counting
+    # Per site, the tests that run its gated code, by path below the file's module:
+    # the test fn it sits in, or the tests it holds. Empty for code no test runs.
+    site_tests: tuple[tuple[str, ...], ...] = ()
+
+
+_INLINE_MOD_AT = re.compile(r"(?<![A-Za-z0-9_])(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{")
+_FN_AT = re.compile(r"(?<![A-Za-z0-9_])(?:async\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def _brace_end(structural: str, open_at: int) -> int:
+    """The offset just past the `}` closing the `{` at `open_at`."""
+    depth = 0
+    for j in range(open_at, len(structural)):
+        if structural[j] == "{":
+            depth += 1
+        elif structural[j] == "}":
+            depth -= 1
+            if depth == 0:
+                return j + 1
+    return len(structural)
+
+
+def _test_fn_spans(structural: str) -> list[tuple[str, int, int]]:
+    """Each test fn in a file: its path below the file's module, and its span.
+
+    The span runs from its test attribute to the end of its body; the path includes the
+    inline `mod NAME { … }` blocks around it, as cargo names the test.
+    """
+    mods = [
+        (m.group(1), m.start(), _brace_end(structural, m.end() - 1))
+        for m in _INLINE_MOD_AT.finditer(structural)
+    ]
+    out: list[tuple[str, int, int]] = []
+    for a in _TEST_ATTR.finditer(structural):
+        f = _FN_AT.search(structural, a.end())
+        if not f:
+            continue
+        body = structural.find("{", f.end())
+        if body < 0:
+            continue
+        prefix = [name for name, start, end in mods if start < a.start() < end]
+        out.append(("::".join([*prefix, f.group(1)]), a.start(), _brace_end(structural, body)))
+    return out
 
 
 def inner_gate_requirements(text: str) -> list[InnerGate]:
@@ -808,12 +855,14 @@ def inner_gate_requirements(text: str) -> list[InnerGate]:
     out: dict[tuple, tuple] = {}
     bodies: dict[tuple, list[str]] = {}
     codes: dict[tuple, list[str]] = {}
+    sites: dict[tuple, list[tuple[str, ...]]] = {}
     stripped = scrub_source(text)
     # The predicate is read from the string-KEEPING scrub — `feature = "x"` is a
     # string literal, so a blanked one carries no feature name at all — and the
     # item after it from the string-blanked one. Both scrubs are length-preserving,
     # so `m.end()` indexes either.
     structural = scrub_source(text, blank_strings=True)
+    test_fns = _test_fn_spans(structural)
     for m in INNER_CFG.finditer(stripped):
         pred = " ".join(m.group("pred").split())
         # `any(a, b)` is a disjunction: at least one. Lift the groups out first so their
@@ -851,10 +900,17 @@ def inner_gate_requirements(text: str) -> list[InnerGate]:
         start, end = _gated_item_span(structural, m.start(), m.end())
         bodies.setdefault(key, []).append(stripped[start:end])
         codes.setdefault(key, []).append(structural[start:end])
+        # Code inside a test fn runs when that test does; a gated item holding tests runs
+        # when they all do. A leg naming the test fn runs the gated code it holds.
+        around = [path for path, s0, e0 in test_fns if s0 <= start and end <= e0]
+        held = tuple(path for path, s0, e0 in test_fns if start <= s0 and e0 <= end)
+        sites.setdefault(key, []).append((around[-1],) if around else held)
         out[key] = key
     return sorted(
         (
-            InnerGate(k[0], k[1], k[2], k[3], "\n".join(bodies[k]), "\n".join(codes[k]))
+            InnerGate(
+                k[0], k[1], k[2], k[3], "\n".join(bodies[k]), "\n".join(codes[k]), tuple(sites[k])
+            )
             for k in out
         ),
         key=lambda g: (g.submodule, sorted(g.required), sorted(g.forbidden)),
@@ -941,6 +997,9 @@ def discover_lib_modules(crate_dir: Path, crate: str) -> list[LibTestModule]:
                 forbidden=frozenset(chain_forbidden) | gate.forbidden,
                 any_groups=tuple(chain_groups) + gate.groups,
                 label=_gate_label(gate.required, gate.forbidden, gate.groups),
+                site_tests=tuple(
+                    tuple(f"{module_path}::{t}" for t in site) for site in gate.site_tests
+                ),
             )
             # A virtual target is scored over the source its cfg gates, not over the
             # file. `fraiseql-auth/src/tests.rs` holds 345 tests of which 9 are
@@ -2434,6 +2493,24 @@ def covers_binary(inv: Invocation, b: TestBinary) -> bool:
     return True
 
 
+def filters_select_module(filters: list[str], mod: LibTestModule) -> bool:
+    """Whether a positional filter list runs every test of `mod`.
+
+    A filter that prefixes the module's path runs all of it. A filter naming a test fn
+    runs the gated code inside that fn, and nothing in its siblings: an inner gate is
+    covered that way only when every one of its sites runs under some filter, and a site
+    no test runs (a gated helper) never is.
+    """
+    if any(mod.module_path.startswith(f.rstrip(":")) for f in filters):
+        return True
+    if not mod.site_tests:
+        return False
+    return all(
+        site and all(any(t.startswith(f.rstrip(":")) for f in filters) for t in site)
+        for site in mod.site_tests
+    )
+
+
 def covers_module(inv: Invocation, mod: LibTestModule) -> bool:
     if inv.doc_only or inv.tests:
         return False
@@ -2449,7 +2526,7 @@ def covers_module(inv: Invocation, mod: LibTestModule) -> bool:
         return False
     if mod.any_groups and not any_groups_satisfied(inv, mod.crate, mod.any_groups):
         return False
-    if inv.filters and not any(mod.module_path.startswith(f.rstrip(":")) for f in inv.filters):
+    if inv.filters and not filters_select_module(inv.filters, mod):
         return False
     if any(mod.module_path.startswith(s.rstrip(":")) for s in inv.skips):
         return False
