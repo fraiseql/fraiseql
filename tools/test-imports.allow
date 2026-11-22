@@ -18,4 +18,3 @@ crates/fraiseql-cli/src/commands/generate_views.rs
 crates/fraiseql-cli/src/commands/doctor.rs
 crates/fraiseql-cli/src/commands/query.rs
 crates/fraiseql-cli/src/commands/run.rs
-
