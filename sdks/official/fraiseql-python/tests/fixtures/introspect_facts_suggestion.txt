@@ -1,0 +1,25 @@
+# Fact table: tf_sales (5 measures, 11 filters)
+fraiseql.fact_table(
+    "tf_sales",
+    measures=[
+        {"name": "quantity", "sql_type": "integer", "nullable": False},
+        {"name": "hits", "sql_type": "bigint", "nullable": False},
+        {"name": "revenue", "sql_type": "numeric", "nullable": True, "column": "revenue_total"},
+        {"name": "ratio", "sql_type": "double precision", "nullable": False},
+        {"name": "balance", "sql_type": "numeric", "nullable": False, "additivity": {"kind": "semi_additive", "over": "day", "using": "last", "entity": ["account_id"]}},
+    ],
+    dimensions={"name": "data", "paths": [{"name": "status", "json_path": "data->>'status'", "data_type": "text"}]},
+    denormalized_filters=[
+        {"name": "account_id", "sql_type": "bigint", "indexed": True},
+        {"name": "customer_id", "sql_type": "uuid", "indexed": True},
+        {"name": "occurred_at", "sql_type": "timestamptz", "indexed": True},
+        {"name": "logged_at", "sql_type": "timestamp", "indexed": True},
+        {"name": "day", "sql_type": "date", "indexed": True},
+        {"name": "active", "sql_type": "boolean", "indexed": True},
+        {"name": "region", "sql_type": "text", "indexed": True},
+        {"name": "payload", "sql_type": "jsonb", "indexed": True},
+        {"name": "legacy", "sql_type": "json", "indexed": True},
+        {"name": "client_ip", "sql_type": "inet", "indexed": True},
+        {"name": "org_path", "sql_type": "ltree", "indexed": True, "hierarchy": "org"},
+    ],
+)

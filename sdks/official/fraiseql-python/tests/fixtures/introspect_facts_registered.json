@@ -1,0 +1,107 @@
+{
+  "table_name": "tf_sales",
+  "measures": [
+    {
+      "name": "quantity",
+      "sql_type": "integer",
+      "nullable": false
+    },
+    {
+      "name": "hits",
+      "sql_type": "bigint",
+      "nullable": false
+    },
+    {
+      "name": "revenue",
+      "sql_type": "numeric",
+      "nullable": true,
+      "column": "revenue_total"
+    },
+    {
+      "name": "ratio",
+      "sql_type": "double precision",
+      "nullable": false
+    },
+    {
+      "name": "balance",
+      "sql_type": "numeric",
+      "nullable": false,
+      "additivity": {
+        "kind": "semi_additive",
+        "over": "day",
+        "using": "last",
+        "entity": [
+          "account_id"
+        ]
+      }
+    }
+  ],
+  "dimensions": {
+    "name": "data",
+    "paths": [
+      {
+        "name": "status",
+        "json_path": "data->>'status'",
+        "data_type": "text"
+      }
+    ]
+  },
+  "denormalized_filters": [
+    {
+      "name": "account_id",
+      "sql_type": "bigint",
+      "indexed": true
+    },
+    {
+      "name": "customer_id",
+      "sql_type": "uuid",
+      "indexed": true
+    },
+    {
+      "name": "occurred_at",
+      "sql_type": "timestamptz",
+      "indexed": true
+    },
+    {
+      "name": "logged_at",
+      "sql_type": "timestamp",
+      "indexed": true
+    },
+    {
+      "name": "day",
+      "sql_type": "date",
+      "indexed": true
+    },
+    {
+      "name": "active",
+      "sql_type": "boolean",
+      "indexed": true
+    },
+    {
+      "name": "region",
+      "sql_type": "text",
+      "indexed": true
+    },
+    {
+      "name": "payload",
+      "sql_type": "jsonb",
+      "indexed": true
+    },
+    {
+      "name": "legacy",
+      "sql_type": "json",
+      "indexed": true
+    },
+    {
+      "name": "client_ip",
+      "sql_type": "inet",
+      "indexed": true
+    },
+    {
+      "name": "org_path",
+      "sql_type": "ltree",
+      "indexed": true,
+      "hierarchy": "org"
+    }
+  ]
+}

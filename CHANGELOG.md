@@ -1489,6 +1489,17 @@ disagreed, and the promise was the part that was wrong.
   schemas only. `docs/releases.md` said the plain archive could run a server. The README
   and the getting-started guide named no archive at all, and now do.
 
+- **`fraiseql-cli introspect facts` prints a Python suggestion the SDK runs (#2332).** It
+  printed `@fraiseql.fact_table(measures=[...], dimensions='data', filters=[...],
+  calendar_columns=[...])` on a class. That raised a `TypeError`: the SDK's `fact_table`
+  takes no `filters` and no `calendar_columns`, and it is a call that returns nothing, not
+  a decorator. It now prints the `fraiseql.fact_table("tf_<name>", measures=...,
+  dimensions=..., denormalized_filters=...)` call the SDK takes. Each column carries the
+  `sql_type` the compiler reads back as the introspected type, with a measure's `column`
+  and additivity and a filter's `hierarchy` when present. The Python SDK's suite runs the
+  printed suggestion, and the CLI's suite compiles the entry it registers back to the
+  introspected table.
+
 - **The DDL FraiseQL runs at runtime takes one advisory lock (#2312).** Scripts that
   create FraiseQL's own tables are idempotent but were not safe to run concurrently: on a
   database without the table, two callers could both pass `IF NOT EXISTS` and one lose on

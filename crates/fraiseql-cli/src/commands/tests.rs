@@ -2355,53 +2355,146 @@ mod introspect_facts_tests {
         );
     }
 
-    #[test]
-    fn test_format_as_python() {
-        use fraiseql_core::compiler::fact_table::{
-            DimensionColumn, FactRowScope, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
+    /// A table holding every shape `introspect facts` reports: each `SqlType`, a measure
+    /// stored under another column, a semi-additive measure, a dimension path, an `ltree`
+    /// filter in a hierarchy, and a calendar dimension.
+    fn suggestion_fixture() -> fraiseql_core::compiler::fact_table::FactTableMetadata {
+        use fraiseql_core::compiler::{
+            aggregate_types::TemporalBucket,
+            fact_table::{
+                Additivity, CalendarBucket, CalendarDimension, CalendarGranularity,
+                DimensionColumn, DimensionPath, FactRowScope, FactTableMetadata, FilterColumn,
+                MeasureColumn, SemiAdditiveReduction, SqlType,
+            },
         };
 
-        let metadata = FactTableMetadata {
-            table_name:               "tf_sales".to_string(),
-            type_name:                None,
-            row_scope:                FactRowScope::Server,
-            inject_params:            indexmap::IndexMap::default(),
-            measures:                 vec![
-                MeasureColumn {
-                    name:       "revenue".to_string(),
-                    sql_type:   SqlType::Decimal,
-                    nullable:   false,
-                    additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
-                    column:     None,
-                },
-                MeasureColumn {
-                    name:       "quantity".to_string(),
-                    sql_type:   SqlType::Int,
-                    nullable:   false,
-                    additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
-                    column:     None,
+        let measure = |name: &str, sql_type: SqlType| MeasureColumn {
+            name: name.to_string(),
+            sql_type,
+            nullable: false,
+            additivity: Additivity::Additive,
+            column: None,
+        };
+        let filter = |name: &str, sql_type: SqlType| FilterColumn {
+            name: name.to_string(),
+            sql_type,
+            indexed: true,
+            hierarchy: None,
+        };
+        let mut measures = vec![
+            measure("quantity", SqlType::Int),
+            measure("hits", SqlType::BigInt),
+            MeasureColumn {
+                column: Some("revenue_total".to_string()),
+                nullable: true,
+                ..measure("revenue", SqlType::Decimal)
+            },
+            measure("ratio", SqlType::Float),
+        ];
+        measures.push(MeasureColumn {
+            additivity: Additivity::SemiAdditive {
+                over:   "day".to_string(),
+                using:  SemiAdditiveReduction::Last,
+                entity: vec!["account_id".to_string()],
+            },
+            ..measure("balance", SqlType::Decimal)
+        });
+        FactTableMetadata {
+            table_name: "tf_sales".to_string(),
+            type_name: None,
+            row_scope: FactRowScope::Server,
+            inject_params: indexmap::IndexMap::default(),
+            measures,
+            dimensions: DimensionColumn {
+                name:  "data".to_string(),
+                paths: vec![DimensionPath {
+                    name:      "status".to_string(),
+                    json_path: "data->>'status'".to_string(),
+                    data_type: "text".to_string(),
+                }],
+            },
+            denormalized_filters: vec![
+                filter("account_id", SqlType::BigInt),
+                filter("customer_id", SqlType::Uuid),
+                filter("occurred_at", SqlType::TimestampTz),
+                filter("logged_at", SqlType::LocalTimestamp),
+                filter("day", SqlType::Date),
+                filter("active", SqlType::Boolean),
+                filter("region", SqlType::Text),
+                filter("payload", SqlType::Jsonb),
+                filter("legacy", SqlType::Json),
+                filter("client_ip", SqlType::Other("inet".to_string())),
+                FilterColumn {
+                    hierarchy: Some("org".to_string()),
+                    ..filter("org_path", SqlType::Ltree)
                 },
             ],
-            dimensions:               DimensionColumn {
-                name:  "data".to_string(),
-                paths: vec![],
-            },
-            denormalized_filters:     vec![FilterColumn {
-                name:      "customer_id".to_string(),
-                sql_type:  SqlType::Uuid,
-                indexed:   true,
-                hierarchy: None,
+            calendar_dimensions: vec![CalendarDimension {
+                source_column: "day".to_string(),
+                granularities: vec![CalendarGranularity {
+                    column_name: "month_info".to_string(),
+                    buckets:     vec![CalendarBucket {
+                        json_key:    "month".to_string(),
+                        bucket_type: TemporalBucket::Month,
+                        data_type:   "integer".to_string(),
+                    }],
+                }],
             }],
-            calendar_dimensions:      vec![],
             native_dimension_mapping: std::collections::HashMap::new(),
-        };
+        }
+    }
 
+    /// The Python SDK's suite runs these two files: the suggestion, executed against the
+    /// SDK, must register exactly the entry (`test_introspect_facts_suggestion.py`).
+    fn sdk_fixture(name: &str) -> String {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../sdks/official/fraiseql-python/tests/fixtures")
+            .join(name);
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+    }
+
+    /// The printed suggestion is the one the Python SDK's suite executes. It passes only
+    /// arguments `fraiseql.fact_table` takes: no `calendar_columns`, no `filters`.
+    #[test]
+    fn the_python_suggestion_is_the_one_the_sdk_suite_runs() {
+        let output = format_as_python(&suggestion_fixture());
+        assert_eq!(
+            format!("{output}\n"),
+            sdk_fixture("introspect_facts_suggestion.txt"),
+            "regenerate the fixture from this output:\n{output}"
+        );
+        assert!(!output.contains("calendar"), "the SDK declares no calendar dimension");
+    }
+
+    /// The entry the SDK registers for the suggestion compiles back to the table that was
+    /// introspected, every `sql_type` included. Its calendar dimensions are the one part
+    /// not carried: the SDK declares none.
+    #[test]
+    fn the_registered_entry_compiles_back_to_the_introspected_table() {
+        let metadata = suggestion_fixture();
+        let mut entry = serde_json::Map::new();
+        entry.insert("table_name".to_string(), metadata.table_name.clone().into());
+        entry.extend(python_arguments(&metadata).into_iter().map(|(k, v)| (k.to_string(), v)));
+        let registered: serde_json::Value =
+            serde_json::from_str(&sdk_fixture("introspect_facts_registered.json")).unwrap();
+        assert_eq!(serde_json::Value::Object(entry), registered, "the fixture is this entry");
+
+        let compiled = crate::schema::SchemaConverter::convert_fact_table(
+            serde_json::from_value(registered).unwrap(),
+        )
+        .unwrap();
+        let mut expected = metadata;
+        expected.calendar_dimensions.clear();
+        assert_eq!(compiled, expected);
+    }
+
+    /// A name is written as a Python string literal, its quotes and backslashes escaped.
+    #[test]
+    fn a_python_suggestion_escapes_the_names_it_quotes() {
+        let mut metadata = suggestion_fixture();
+        metadata.dimensions.paths[0].json_path = r#"data->>'a"b\c'"#.to_string();
         let output = format_as_python(&metadata);
-        assert!(output.contains("@fraiseql.fact_table"));
-        assert!(output.contains("'revenue'"));
-        assert!(output.contains("'quantity'"));
-        assert!(output.contains("'customer_id'"));
-        assert!(output.contains("class Sales:"));
+        assert!(output.contains(r#""json_path": "data->>'a\"b\\c'""#), "{output}");
     }
 }
 
