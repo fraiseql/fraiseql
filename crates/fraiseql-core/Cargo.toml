@@ -238,6 +238,10 @@ name = "aggregate_dimension_paths"
 required-features = ["postgres"]
 
 [[test]]
+name = "aggregate_half_month_semester_pg"
+required-features = ["postgres"]
+
+[[test]]
 name = "aggregate_hierarchy_filters"
 required-features = ["postgres"]
 
