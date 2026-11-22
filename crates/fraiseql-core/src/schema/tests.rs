@@ -1250,8 +1250,11 @@ fn test_parse_builtin_scalars() {
     assert_eq!(FieldType::parse("DateTime"), FieldType::DateTime);
     assert_eq!(FieldType::parse("Date"), FieldType::Date);
     assert_eq!(FieldType::parse("Time"), FieldType::Time);
-    assert_eq!(FieldType::parse("JSON"), FieldType::Json);
+    assert_eq!(FieldType::parse("Json"), FieldType::Json);
     assert_eq!(FieldType::parse("UUID"), FieldType::Uuid);
+    for (name, ty) in BUILTIN_SCALARS {
+        assert_eq!(&FieldType::parse(name), ty, "{name}");
+    }
 }
 
 #[test]
@@ -1269,23 +1272,13 @@ fn test_parse_rich_scalars_exact_case() {
     assert_eq!(result, FieldType::Scalar("URL".to_string()));
 }
 
+/// A rich scalar is named in its own case, as `compile` accepts it; any other case is a
+/// reference to a type the schema declares, or nothing.
 #[test]
-fn test_parse_rich_scalars_case_insensitive() {
-    // Email is in RICH_SCALARS - should match case-insensitively
-    let result = FieldType::parse("email");
-    assert_eq!(result, FieldType::Scalar("Email".to_string()));
-
-    // Should also work for mixed case
-    let result = FieldType::parse("EMAIL");
-    assert_eq!(result, FieldType::Scalar("Email".to_string()));
-
-    // IBAN - case insensitive matching
-    let result = FieldType::parse("iban");
-    assert_eq!(result, FieldType::Scalar("IBAN".to_string()));
-
-    // PhoneNumber - case insensitive
-    let result = FieldType::parse("phonenumber");
-    assert_eq!(result, FieldType::Scalar("PhoneNumber".to_string()));
+fn test_parse_rich_scalars_only_in_their_own_case() {
+    for spelling in ["email", "EMAIL", "iban", "phonenumber"] {
+        assert_eq!(FieldType::parse(spelling), FieldType::Object(spelling.to_string()));
+    }
 }
 
 #[test]
@@ -1423,18 +1416,33 @@ fn test_parse_as_scalar_if_unknown_converts_objects() {
     assert_eq!(result, FieldType::Object("CustomType".to_string()));
 }
 
+/// A built-in is named as `compile` accepts it, in its own case and by no alias: every
+/// other spelling parses as an object reference, which `compile` refuses as undeclared.
 #[test]
-fn test_parse_case_variations() {
-    // Test various case combinations for builtin types
-    assert_eq!(FieldType::parse("string"), FieldType::String);
-    assert_eq!(FieldType::parse("STRING"), FieldType::String);
-    assert_eq!(FieldType::parse("String"), FieldType::String);
-
-    // Test integer variations
-    assert_eq!(FieldType::parse("int"), FieldType::Int);
-    assert_eq!(FieldType::parse("INT"), FieldType::Int);
-    assert_eq!(FieldType::parse("integer"), FieldType::Int);
-    assert_eq!(FieldType::parse("INTEGER"), FieldType::Int);
+fn test_parse_reads_no_other_spelling_of_a_builtin() {
+    for spelling in [
+        "string",
+        "STRING",
+        "int",
+        "INT",
+        "integer",
+        "bigint",
+        "int8",
+        "int64",
+        "long",
+        "double",
+        "bool",
+        "timestamp",
+        "JSON",
+        "jsonb",
+        "numeric",
+        "bigdecimal",
+        "halfvec",
+        "sparsevec",
+        "bit_vector",
+    ] {
+        assert_eq!(FieldType::parse(spelling), FieldType::Object(spelling.to_string()));
+    }
 }
 
 #[test]

@@ -794,6 +794,13 @@ disagreed, and the promise was the part that was wrong.
   and the observer never ran. An empty or blank condition is refused the same way; to
   store an observer with no condition, leave `condition_expression` out. A condition
   declared in the schema was already parsed when it is compiled.
+- **`FieldType::parse` reads a scalar's name only as `compile` accepts it (#2175).** It
+  also read lower-case and upper-case spellings and aliases (`integer`, `bigint`, `int8`,
+  `int64`, `long`, `double`, `bool`, `timestamp`, `JSON`, `jsonb`, `numeric`,
+  `bigdecimal`, `halfvec`, `sparsevec`, `bit_vector`, …) as built-ins, and a rich
+  scalar in any case, though `compile` refused every one as undeclared. Each is now an
+  object reference, as `compile` reads it. Write the name in its own case: `Int`,
+  `BigInt`, `Json`, `Email`.
 
 ### Added
 
@@ -812,8 +819,8 @@ disagreed, and the promise was the part that was wrong.
   the field, never the value. An argument, a variable or an input field takes the digits as
   a string or a JSON integer in range; a filter compares the column's integer, so
   `eq: "9007199254740993"` does not match 2^53's row.
-  - Authoring: the type name `BigInt` (also `bigint`, `int8`, `int64`, `long`), as a field, an
-    argument, an input field or a list item. Introspection and the SDL publish
+  - Authoring: the type name `BigInt`, as a field, an argument, an input field or a list
+    item. Introspection and the SDL publish
     `scalar BigInt`.
   - REST and OpenAPI: `{"type": "string", "format": "int64"}` with the digits' pattern; a
     filter value that is not the digits of a signed 64-bit integer is refused at the edge.
@@ -1160,6 +1167,13 @@ disagreed, and the promise was the part that was wrong.
   did.
 
 ### Fixed
+
+- **An input field's type is checked as an object field's is, and a rich scalar is a known
+  type as a query or mutation argument (#2175).** An input field naming a type declared
+  nowhere compiled, as a reference to an object no input can carry; it is now refused,
+  naming the field. A rich scalar (`Email`, `URL`, …) compiled as a field and was refused as
+  an argument, by a second registry that did not carry the rich scalars; both registries
+  now hold the names `FieldType::parse` reads as scalars.
 
 - **A fact table's window root runs every `where` operator it publishes (#2263).** Both roots
   publish the one `<Name>AggregateWhere` input, but the window root lowered its filter

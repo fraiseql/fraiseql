@@ -29,9 +29,9 @@ pub use validator::SchemaValidator;
 /// Every scalar type name the compiler recognizes, for the validator and the
 /// converter to seed their known-type registries with.
 ///
-/// Derived from `fraiseql_core::schema::BUILTIN_SCALARS`, which is the same
-/// table `SchemaConverter::parse_field_type` reads — the only other place that
-/// decides whether a name is a scalar or an object-type reference. The two were
+/// Derived from `fraiseql_core::schema::BUILTIN_SCALARS` and `RICH_SCALARS`, the
+/// tables `SchemaConverter::parse_field_type` and `FieldType::parse` read: a name
+/// is a scalar exactly when `fraiseql_core::schema::is_known_scalar` says so. The two were
 /// separately hand-maintained lists and drifted twice. First over spelling
 /// (#724 item 2): this list held `"JSON"`, which the converter does not
 /// recognize, while `"Json"` — the spelling every SDK emits — was missing here,
@@ -39,9 +39,14 @@ pub use validator::SchemaValidator;
 /// other was reported as undeclared. Then over the vector types added in #959,
 /// which the converter parsed and this list did not carry, so every schema
 /// authoring a `BitVector` compiled with a warning advising the author to
-/// declare a custom scalar shadowing a built-in.
-pub(crate) fn builtin_scalar_names() -> impl Iterator<Item = &'static str> {
-    fraiseql_core::schema::BUILTIN_SCALARS.iter().map(|(name, _)| *name)
+/// declare a custom scalar shadowing a built-in. And a third time over the rich
+/// scalars, which one of the two registries carried and the other did not, so
+/// `Email` compiled as a field and was refused as a query argument.
+pub(crate) fn known_scalar_names() -> impl Iterator<Item = &'static str> {
+    fraiseql_core::schema::BUILTIN_SCALARS
+        .iter()
+        .map(|(name, _)| *name)
+        .chain(fraiseql_core::schema::RICH_SCALARS.iter().copied())
 }
 
 #[cfg(test)]

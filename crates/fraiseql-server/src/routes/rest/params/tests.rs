@@ -679,13 +679,13 @@ fn a_filter_value_is_held_to_its_fields_type_and_never_quoted() {
         ("LocalDateTime", "12abc", serde_json::json!("2026-07-01T00:00:07")),
         ("Date", "12abc", serde_json::json!("2026-07-07")),
         ("Time", "12abc", serde_json::json!("00:00:07")),
-        ("JSON", "{12abc", serde_json::json!(7)),
+        ("Json", "{12abc", serde_json::json!(7)),
     ] {
         let declared = FieldType::parse(field_type);
         let err = coerce_to_type("total", refused, &declared).unwrap_err().to_string();
         assert!(err.contains("`total`"), "{field_type}: the field is not named: {err}");
         assert!(!err.contains(refused), "{field_type}: the value is quoted: {err}");
-        if field_type != "JSON" {
+        if field_type != "Json" {
             assert!(err.contains(&format!("`{field_type}`")), "{field_type}: no type: {err}");
         }
         let written = match &served {

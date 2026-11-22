@@ -736,8 +736,8 @@ impl SchemaConverter {
             type_names.insert(enum_def.name.clone());
         }
 
-        // Add built-in scalars
-        for scalar in crate::schema::builtin_scalar_names() {
+        // Add built-in and rich scalars
+        for scalar in crate::schema::known_scalar_names() {
             type_names.insert(scalar.to_string());
         }
 

@@ -1410,17 +1410,6 @@ impl FieldType {
         Self::parse_type_string(type_str.trim())
     }
 
-    /// Try to match a type string against known rich scalars (case-insensitive).
-    ///
-    /// Returns the canonical scalar name if found, or None if not a rich scalar.
-    fn try_match_rich_scalar(s: &str) -> Option<String> {
-        let lower = s.to_lowercase();
-        scalar_types::RICH_SCALARS
-            .iter()
-            .find(|&&rich_scalar| lower == rich_scalar.to_lowercase())
-            .map(|&name| name.to_string())
-    }
-
     /// Internal parser for type strings.
     fn parse_type_string(s: &str) -> Self {
         // Strip non-null marker (we handle nullability separately)
@@ -1437,37 +1426,19 @@ impl FieldType {
             };
         }
 
-        // Handle core scalar types (case-insensitive matching)
-        match s.to_lowercase().as_str() {
-            "string" => Self::String,
-            "int" | "integer" => Self::Int,
-            "bigint" | "int8" | "int64" | "long" => Self::BigInt,
-            "float" | "double" => Self::Float,
-            "boolean" | "bool" => Self::Boolean,
-            "id" => Self::Id,
-            "datetime" | "timestamp" => Self::DateTime,
-            "localdatetime" => Self::LocalDateTime,
-            "date" => Self::Date,
-            "time" => Self::Time,
-            "json" | "jsonb" => Self::Json,
-            "uuid" => Self::Uuid,
-            "decimal" | "numeric" | "bigdecimal" => Self::Decimal,
-            "vector" => Self::Vector,
-            "bitvector" | "bit_vector" => Self::BitVector,
-            "halfvector" | "half_vector" | "halfvec" => Self::HalfVector,
-            "sparsevector" | "sparse_vector" | "sparsevec" => Self::SparseVector,
-            _ => {
-                // Check if it's a known rich scalar (case-insensitive)
-                if let Some(canonical_name) = Self::try_match_rich_scalar(s) {
-                    return Self::Scalar(canonical_name);
-                }
-
-                // Unknown type - default to Object for backwards compatibility
-                // Custom scalars must be explicitly defined in scalar_types::RICH_SCALARS or
-                // handled at a higher level (e.g., schema validation)
-                Self::Object(s.to_string())
-            },
+        // A scalar is named exactly as `compile` accepts it: the built-in table that
+        // `from_authoring_name` reads, then the engine's rich scalars. This parser once
+        // also took lower-case spellings and aliases (`integer`, `bigint`, `timestamp`,
+        // …) that `compile` refuses as undeclared, so two readers of one name disagreed.
+        if let Some(builtin) = Self::from_authoring_name(s) {
+            return builtin;
         }
+        if scalar_types::RICH_SCALARS.contains(&s) {
+            return Self::Scalar(s.to_string());
+        }
+        // Anything else is a reference to a declared type, which only the schema around
+        // it can resolve.
+        Self::Object(s.to_string())
     }
 
     /// Parse a type string, treating unknown types as custom scalars.

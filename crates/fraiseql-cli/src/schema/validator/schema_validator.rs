@@ -130,11 +130,8 @@ impl SchemaValidator {
 
         // Add built-in scalars, and the engine's rich scalars (#1530): the converter
         // resolves both without a declaration, so both are known names here.
-        for scalar in crate::schema::builtin_scalar_names() {
+        for scalar in crate::schema::known_scalar_names() {
             type_names.insert(scalar.to_string());
-        }
-        for scalar in fraiseql_core::schema::RICH_SCALARS {
-            type_names.insert((*scalar).to_string());
         }
 
         // Add **declared** custom scalars.
@@ -168,6 +165,30 @@ impl SchemaValidator {
                         type_def.name, field.name
                     ),
                     path:       format!("types[{type_idx}].fields[{field_idx}].type"),
+                    severity:   ErrorSeverity::Error,
+                    suggestion: Some(format!(
+                        "{} If '{base}' is a custom scalar, declare it in `custom_scalars`.",
+                        Self::suggest_similar_type(base, &type_names)
+                    )),
+                });
+            }
+        }
+
+        // An input field's type is held to the same rule. Unchecked, a typo'd name
+        // compiled as a reference to an object no input can carry.
+        for (input_idx, input_def) in schema.input_types.iter().enumerate() {
+            for (field_idx, field) in input_def.fields.iter().enumerate() {
+                let base = extract_base_type(&field.field_type);
+                if base.is_empty() || type_names.contains(base) {
+                    continue;
+                }
+                report.errors.push(ValidationError {
+                    message:    format!(
+                        "Input field '{}.{}' has type '{base}', which is not a declared type, \
+                         enum, interface, union, input type, built-in scalar or custom scalar",
+                        input_def.name, field.name
+                    ),
+                    path:       format!("input_types[{input_idx}].fields[{field_idx}].type"),
                     severity:   ErrorSeverity::Error,
                     suggestion: Some(format!(
                         "{} If '{base}' is a custom scalar, declare it in `custom_scalars`.",
