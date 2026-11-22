@@ -71,6 +71,13 @@ disagreed, and the promise was the part that was wrong.
     as the string of their digits, and a value that is not a signed 64-bit integer is a field
     error, where a custom scalar was served as read.
 
+- **The SDKs map a 64-bit integer to `BigInt` (#2258).** A field or argument of a native
+  64-bit integer type was published as `Int`, under which a value past 32 bits is refused
+  at read time. What changes for an SDK author:
+  - Go: `int64`, `uint32` and `time.Duration` (its nanoseconds) are `BigInt`; `int` and the
+    narrower types stay `Int`. `uint` and `uint64` are refused at authoring, naming the
+    type: no integer scalar holds them, so declare `type=Decimal`.
+
 - **A fact table's 64-bit results are `BigInt` and `Decimal` (#2175).** On an aggregate row,
   `<measure>_sum` of an `int` measure, `<measure>_min` and `<measure>_max` of a `bigint`
   measure, and a `bigint` key were `Int`, a field error past 32 bits: they are `BigInt`, the

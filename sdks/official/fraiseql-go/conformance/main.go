@@ -15,6 +15,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"reflect"
+	"strings"
 
 	"github.com/fraiseql/fraiseql-go/fraiseql"
 )
@@ -33,6 +35,31 @@ func authorMinimalQueries() error {
 		Nullable(false).
 		SqlSource("v_user").
 		Register()
+}
+
+// ledgerEntry is authored from its Go types (#2258): its fields' scalars are what the SDK
+// maps int64 to, which a type string would only restate.
+type ledgerEntry struct {
+	ID          string  `fraiseql:"id"`
+	Amount      int64   `fraiseql:"amount"`
+	Balance     *int64  `fraiseql:"balance"`
+	TransferIDs []int64 `fraiseql:"transferIds"`
+}
+
+// authorLedgerEntry registers ledgerEntry with the fields ExtractFields infers, in their
+// declared order: ExtractFields returns a map, and the fixture's order is part of it.
+func authorLedgerEntry() error {
+	structType := reflect.TypeOf(ledgerEntry{})
+	inferred, err := fraiseql.ExtractFields(structType)
+	if err != nil {
+		return err
+	}
+	fields := make([]fraiseql.FieldInfo, 0, structType.NumField())
+	for i := range structType.NumField() {
+		name := strings.Split(structType.Field(i).Tag.Get("fraiseql"), ",")[0]
+		fields = append(fields, inferred[name])
+	}
+	return fraiseql.RegisterType("LedgerEntry", fields, "")
 }
 
 func authorFull() error {
@@ -112,6 +139,10 @@ func authorFull() error {
 
 	// Lists (#1586, #1608): the GraphQL type string, every level as written. A struct
 	// would say the same through goToGraphQLType: `*[]*float64` is `[Float]`.
+	if err := authorLedgerEntry(); err != nil {
+		return err
+	}
+
 	if err := fraiseql.RegisterType("ReadingSeries", []fraiseql.FieldInfo{
 		{Name: "id", Type: "ID", Nullable: false},
 		{Name: "labels", Type: "[String!]", Nullable: false},
@@ -186,6 +217,15 @@ func authorFull() error {
 		// #966's actor allow-list, enforced in the same executor gate as RequiresRole on
 		// every transport, and authorable in no SDK until #1123.
 		RequiresActor(fraiseql.ActorHumanUser, fraiseql.ActorServiceAccount).
+		Register(); err != nil {
+		return err
+	}
+	// A `BigInt` argument has no Go type to infer from: arguments are type strings.
+	if err := fraiseql.NewQuery("ledgerEntriesByAccount").
+		ReturnType("LedgerEntry").ReturnsArray(true).Nullable(false).
+		SqlSource("v_ledger_entry").
+		Arg("accountNumber", "BigInt", nil, false).
+		Arg("transferIds", "[BigInt!]", nil, true).
 		Register(); err != nil {
 		return err
 	}

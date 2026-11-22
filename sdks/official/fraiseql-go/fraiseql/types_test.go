@@ -35,7 +35,7 @@ func TestGoToGraphQLType(t *testing.T) {
 		{
 			name:         "int64",
 			goType:       reflect.TypeOf(int64(0)),
-			expectedType: "Int",
+			expectedType: "BigInt",
 			expectedNull: false,
 		},
 		{

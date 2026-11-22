@@ -155,12 +155,20 @@ func goToGraphQLType(goType reflect.Type) (string, bool, error) {
 		return goType.Name(), nullable, nil
 	}
 
-	// Handle basic types
+	// Handle basic types. An integer maps to the narrowest scalar holding every value of its
+	// type: `Int` is 32 bits and `BigInt` a signed 64 (#2258), so int64 (time.Duration's
+	// nanoseconds among them) and uint32 are `BigInt`. `int` stays `Int`, the type Go code
+	// reaches for whatever the value's size. No integer scalar holds an unsigned 64-bit one.
 	switch goType.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32,
+		reflect.Uint8, reflect.Uint16:
 		return "Int", nullable, nil
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return "Int", nullable, nil
+	case reflect.Int64, reflect.Uint32:
+		return "BigInt", nullable, nil
+	case reflect.Uint, reflect.Uint64:
+		return "", false, fmt.Errorf("%s has no integer scalar: BigInt is a signed 64-bit "+
+			"integer, so an unsigned 64-bit one is a Decimal (`fraiseql:\"name,type=Decimal\"`)",
+			goType.String())
 	case reflect.Float32, reflect.Float64:
 		return "Float", nullable, nil
 	case reflect.String:
@@ -173,8 +181,6 @@ func goToGraphQLType(goType reflect.Type) (string, bool, error) {
 		case reflect.TypeOf(time.Time{}):
 			// An instant: the engine's DateTime (#1530).
 			return "DateTime", nullable, nil
-		case reflect.TypeOf(time.Duration(0)):
-			return "String", nullable, nil
 		default:
 			// Custom struct types use their name
 			return goType.Name(), nullable, nil

@@ -66,9 +66,7 @@
       ],
       "unsupported": {
         "type_crud": "the SDK ships no CRUD generation at all \u2014 `grep -rn crud sdks/official/fraiseql-go` matches nothing, and its builders expose no flag for it. Nine of the eleven SDKs have a generator; adding a tenth is a feature, not a key rename, so the gap is declared rather than papered over (#1182).",
-        "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)",
-        "bigint_field": "the SDK maps no type of its own to `BigInt` yet (#2258)",
-        "bigint_argument": "the SDK maps no type of its own to `BigInt` yet (#2258)"
+        "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)"
       }
     },
     "php": {

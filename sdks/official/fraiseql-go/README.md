@@ -128,8 +128,10 @@ FraiseQL supports the following Go types:
 |---------|-------------|----------|
 | `int` | `Int` | No |
 | `*int` | `Int` | Yes |
-| `int32` | `Int` | No |
-| `int64` | `Int` | No |
+| `int8`, `int16`, `int32`, `uint8`, `uint16` | `Int` | No |
+| `int64`, `uint32`, `time.Duration` (nanoseconds) | `BigInt` (a signed 64-bit integer, served as its digits) | No |
+| `*int64` | `BigInt` | Yes |
+| `uint`, `uint64` | refused: no integer scalar holds them; declare `type=Decimal` | |
 | `float64` | `Float` | No |
 | `*float64` | `Float` | Yes |
 | `string` | `String` | No |
