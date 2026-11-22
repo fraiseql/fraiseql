@@ -36,7 +36,7 @@ mod transpile_tests;
 #[cfg(all(test, feature = "host-live"))]
 mod idempotency_tests;
 // Model B cursor ops end-to-end on a source-bound `LiveHostContext` (host-live) +
-// real Postgres; local-only like every deno test (V8 SIGSEGVs in the CI sandbox).
+// real Postgres, run where a leg binds the database.
 #[cfg(all(test, feature = "host-live"))]
 mod cursor_tests;
 #[cfg(test)]

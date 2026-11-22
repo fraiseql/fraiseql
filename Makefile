@@ -232,6 +232,7 @@ test-integration-postgres: db-up db-failover-reset
 	@echo ""
 	@echo "### live-PostgreSQL lib tests"
 	@cargo test -p fraiseql-functions --lib migrations::tests -- --test-threads=1
+	@cargo test -p fraiseql-functions --features 'runtime-deno,runtime-wasm,host-live' --lib runtime::deno::cursor_tests:: -- --test-threads=1
 	@echo ""
 	@echo "### auth: durable identity store, password, reset, verification, linking, single-use, sweeps"
 	@cargo test -p fraiseql-auth --test postgres_account_store -- --test-threads=1

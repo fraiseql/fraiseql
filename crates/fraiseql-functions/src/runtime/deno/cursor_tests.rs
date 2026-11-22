@@ -7,11 +7,9 @@
 //! scoped to the bound source (no cross-source bleed) — and that a non-source host
 //! refuses the advance.
 //!
-//! Each test runs exactly one guest → one V8 isolate per test process, which is
-//! required (two isolates in one process SIGSEGV). Like every `runtime-deno` test
-//! this runs locally only — CI compiles the path but excludes execution (embedded
-//! V8 SIGSEGVs inside the Dagger exec sandbox). The Postgres-backed tests self-skip
-//! when no `DATABASE_URL` is set.
+//! Each test runs one guest. CI runs this module in `integrationPostgres`, which binds
+//! the database; the `Test` leg's deno run has none, and there the Postgres-backed tests
+//! skip.
 
 #![allow(clippy::unwrap_used)] // Reason: test code
 #![allow(clippy::print_stderr)] // Reason: skip diagnostic when no backing Postgres

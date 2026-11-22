@@ -36,13 +36,3 @@ reason = "a routing decision, not a verdict: it only decides whether the leg aft
 # GitHub Actions `run:` blocks and sees that job directly, so the claim is
 # checked rather than asserted: delete a `--test` flag from that step and the
 # gate reports four orphans.
-
-# ── Lib test modules discovery by declaration found unrun (#2272 → #2273) ────
-# Discovery used to search for files named `tests.rs`, so these modules were never
-# tracked. Following the `mod` declarations (`#[path]` included) found each one gated
-# on a feature set, or on a database, that no leg runs it under. Each row goes when
-# its module is wired into a leg.
-
-[[exempt]]
-target = "fraiseql-functions::lib::runtime::deno::cursor_tests"
-reason = "never run by any leg (#2273): needs Postgres, and the only runtime-deno leg binds none"

@@ -1733,6 +1733,9 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// runs them, and `--lib` can never reach one, whatever features it enables.
 		// Tier-C migrated: fraiseql-functions cron-state migration (lib tests; harness postgres()).
 		"cargo test -p fraiseql-functions --lib migrations::tests -- --test-threads=1",
+		// The Model B cursor ops through the Deno runtime need this leg's database: in the
+		// `Test` leg's deno run they self-skip, having none. V8 runs here as it does there.
+		"cargo test -p fraiseql-functions --features 'runtime-deno,runtime-wasm,host-live' --lib runtime::deno::cursor_tests:: -- --test-threads=1",
 		// #411 durable identity store (PostgresAccountStore: auth.tb_user / tb_auth_identity + RLS).
 		"cargo test -p fraiseql-auth --test postgres_account_store -- --test-threads=1",
 		// #1450: a minted session carries the account's tenant under the tenant claim.
