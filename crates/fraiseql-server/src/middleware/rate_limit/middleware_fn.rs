@@ -63,9 +63,9 @@ impl IntoResponse for RateLimitExceeded {
 static PROXY_WARNING_LOGGED: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
-/// How a transport reads a client's address: by [`extract_real_ip`], with the proxy trust
-/// the rate limiter was configured with. The default trusts no proxy header and reads
-/// the peer.
+/// How a transport reads a client's address: by the rate limiter's `extract_real_ip`, with
+/// the proxy trust the rate limiter was configured with. The default trusts no proxy
+/// header and reads the peer.
 #[derive(Debug, Clone, Default)]
 pub struct ClientAddress {
     trust_proxy_headers: bool,
