@@ -18,31 +18,6 @@ use super::{
 };
 use crate::{ServerError, extractors::OptionalSecurityContext};
 
-/// Reject observer actions whose `type` the runtime cannot dispatch (#612 item 10).
-///
-/// Every current DTO action type has a real dispatcher since #632; this gate
-/// stays so that any future variant added to the DTO before its runtime
-/// dispatcher exists is rejected at create time instead of returning 201 and
-/// being silently warn-and-skipped at load ("success then nothing"). Returns a
-/// `400` response naming the offending type and the supported set, or `None`
-/// when every action is dispatchable.
-pub(super) fn reject_undispatchable_actions(actions: &[ActionConfig]) -> Option<Response> {
-    actions.iter().find(|a| !a.is_runtime_dispatchable()).map(|action| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({
-                "error": format!(
-                    "Observer action type '{}' has no runtime dispatcher: the observer would be \
-                     created and then silently skipped at load. Supported action types: {}.",
-                    action.type_name(),
-                    ActionConfig::RUNTIME_DISPATCHABLE_TYPES.join(", ")
-                )
-            })),
-        )
-            .into_response()
-    })
-}
-
 /// Refuse a webhook `body_template` that names a path the observed entity cannot fill.
 ///
 /// The runtime renders a webhook template against the changed row and dead-letters an
@@ -346,9 +321,6 @@ pub async fn create_observer(
 
     // Reject action types the runtime cannot dispatch (#612 item 10) — 400 now
     // rather than 201-then-silently-skipped at load.
-    if let Some(resp) = reject_undispatchable_actions(&request.actions) {
-        return resp;
-    }
     if let Some(resp) = reject_unknown_event_type(request.event_type.as_ref()) {
         return resp;
     }
@@ -413,9 +385,6 @@ pub async fn update_observer(
         return resp;
     }
     // Reject action types the runtime cannot dispatch (#612 item 10).
-    if let Some(resp) = request.actions.as_deref().and_then(reject_undispatchable_actions) {
-        return resp;
-    }
     if let Some(resp) = check_updated_observer(&state, id, &request, scope).await {
         return resp;
     }

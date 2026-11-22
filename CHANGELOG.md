@@ -129,6 +129,18 @@ disagreed, and the promise was the part that was wrong.
   caller that looked a field up by name now ranges the slice. Two struct fields that
   publish one name are refused, naming both.
 
+- **The observer admin API reads and stores the runtime's action type (#2039).**
+  `fraiseql_server::observers::ActionConfig`, the admin API's own copy of the action
+  type, is removed; `CreateObserverRequest` and `UpdateObserverRequest` carry
+  `fraiseql_observers::ActionConfig`, the type the runtime dispatches. An action is
+  stored as that type serializes it, so a key the request left out is echoed as `null`:
+  a webhook's `method` reads `null` where it read `"POST"`, and means `POST` as before.
+  Rows already stored load unchanged. The admin API now also accepts, as `fraiseql
+  compile` does, a Slack action with no `message_template` (the runtime posts its own
+  text) and a `cache` action. It takes a webhook's or a Slack action's destination as a
+  literal URL, as it did, and now says so: "the admin API takes a webhook's destination
+  as a literal URL: set `url`, not `url_env`".
+
 - **An observer action names one destination (#2279).** `fraiseql compile` and the
   observer admin API refuse a webhook with both `url` and `url_env`, or a Slack action
   with both `webhook_url` and `webhook_url_env`, naming the observer, the action and the

@@ -49,6 +49,7 @@ pub use changelog_handlers::ChangelogState;
 use chrono::{DateTime, Utc};
 pub use config::ObserverManagementConfig;
 pub use dlq_handlers::DlqState;
+use fraiseql_observers::ActionConfig;
 pub use handlers::{ObserverState, RuntimeHealthState};
 pub use repository::{ObserverRepository, Reconciled};
 pub use routes::{
@@ -260,11 +261,13 @@ impl Observer {
     }
 }
 
-/// The `actions` of a request: each is read through
-/// [`fraiseql_observers::ActionConfig::from_authored`] before it becomes an
-/// [`ActionConfig`], so the admin API refuses what the compiler refuses of a declared
-/// observer. An action carrying a key the runtime ignores is refused, by that key,
-/// instead of being stored and doing nothing.
+/// The `actions` of a request, each read by [`ActionConfig::from_authored`]: the admin
+/// API refuses what the compiler refuses of a declared observer, with the same text, and
+/// stores the action the runtime reads. An action carrying a key the runtime ignores is
+/// refused, by that key, instead of being stored and doing nothing.
+///
+/// The admin API also takes a webhook's or a Slack action's destination as a literal URL:
+/// `url_env` and `webhook_url_env` are refused here (see [`literal_destination`]).
 fn authored_actions<'de, D>(deserializer: D) -> Result<Vec<ActionConfig>, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -276,12 +279,31 @@ where
         .into_iter()
         .enumerate()
         .map(|(index, action)| {
-            fraiseql_observers::ActionConfig::from_authored(&action)
-                .map_err(|e| D::Error::custom(format!("actions[{index}]: {e}")))?;
-            serde_json::from_value(action)
+            let read = ActionConfig::from_authored(&action).map_err(|e| e.to_string());
+            read.and_then(|read| literal_destination(&read).map(|()| read))
                 .map_err(|e| D::Error::custom(format!("actions[{index}]: {e}")))
         })
         .collect()
+}
+
+/// Refuse a destination the admin API does not take: a webhook's or a Slack action's URL
+/// read from an environment variable. An observer the schema declares may name one; one
+/// created through the admin API names its URL.
+fn literal_destination(action: &ActionConfig) -> Result<(), String> {
+    match action {
+        ActionConfig::Webhook {
+            url_env: Some(_), ..
+        } => Err("the admin API takes a webhook's destination as a literal URL: set `url`, \
+                  not `url_env`"
+            .to_string()),
+        ActionConfig::Slack {
+            webhook_url_env: Some(_),
+            ..
+        } => Err("the admin API takes a Slack action's destination as a literal URL: set \
+                  `webhook_url`, not `webhook_url_env`"
+            .to_string()),
+        _ => Ok(()),
+    }
 }
 
 /// [`authored_actions`] for a request that may leave `actions` unchanged.
@@ -443,141 +465,6 @@ impl UpdateObserverRequest {
             && priority.is_none()
             && retry_config.is_none()
             && timeout_ms.is_none()
-    }
-}
-
-/// Action configuration for an observer.
-///
-/// Marked `#[non_exhaustive]` so that new action types can be added in future
-/// minor versions without breaking downstream exhaustive `match` expressions.
-#[non_exhaustive]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum ActionConfig {
-    /// HTTP webhook action
-    Webhook {
-        /// Target URL for the webhook POST request.
-        url:                String,
-        /// HTTP method (default: POST).
-        #[serde(default = "default_method")]
-        method:             String,
-        /// Optional custom request headers.
-        ///
-        /// `skip_serializing_if` keeps a `None` out of the persisted `actions`
-        /// JSONB (matching `signing_secret` below) so it is stored as an absent
-        /// key rather than `"headers": null` — the runtime's `ActionConfig`
-        /// reads headers as a non-optional map and rejects an explicit `null`
-        /// (#466 round-trip).
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        headers:            Option<std::collections::HashMap<String, String>>,
-        /// Headers whose value the runtime reads from the environment at delivery: header
-        /// name to environment variable *name*. Only the names are stored, and they are
-        /// shown in admin-API responses: a name is not a secret. Consumed by the runtime's
-        /// `fraiseql_observers::ActionConfig::Webhook`, which this type must carry it to.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        headers_env:        Option<std::collections::HashMap<String, String>>,
-        /// Optional Handlebars body template.
-        #[serde(default)]
-        body_template:      Option<String>,
-        /// Per-subscription HMAC signing secret *literal* (#467).
-        ///
-        /// Mutually exclusive with `signing_secret_env`. Lets a DB-backed /
-        /// admin-API-managed observer carry its own signing key when the static
-        /// env-var model cannot (one shared process secret per binary). Stored in
-        /// the observer's `actions` JSONB at rest and **redacted** in admin-API
-        /// responses (see `redact_action_secrets`); never logged. Consumed by the
-        /// runtime's `fraiseql_observers::ActionConfig::Webhook`.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        signing_secret:     Option<String>,
-        /// Name of the environment variable holding the HMAC signing secret (#345).
-        ///
-        /// When set, the observer runtime signs outbound payloads for this
-        /// webhook (HMAC-SHA256, `X-FraiseQL-Signature-256: t=<ts>,v1=<hex>`,
-        /// Stripe-compatible). This is the env var *name*, never the secret
-        /// literal. Stored in the observer's `actions` JSONB and consumed by the
-        /// runtime's `fraiseql_observers::ActionConfig::Webhook`.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        signing_secret_env: Option<String>,
-    },
-
-    /// Email notification action: the keys the runtime's email dispatcher uses.
-    Email {
-        /// Recipient address.
-        to:            String,
-        /// Subject line, sent as written.
-        subject:       String,
-        /// Template for the email body.
-        body_template: String,
-    },
-
-    /// Slack message action
-    Slack {
-        /// Incoming webhook URL for the Slack workspace.
-        webhook_url:      String,
-        /// Optional target channel override.
-        #[serde(default)]
-        channel:          Option<String>,
-        /// Handlebars template for the Slack message text.
-        message_template: String,
-    },
-
-    /// Database function call
-    Database {
-        /// Name of the PostgreSQL function to invoke.
-        function_name: String,
-        /// Optional JSON parameters passed to the function.
-        #[serde(default)]
-        params:        Option<serde_json::Value>,
-    },
-
-    /// Log action (for debugging)
-    Log {
-        /// Log level: "trace", "debug", "info", "warn", or "error".
-        #[serde(default = "default_log_level")]
-        level:            String,
-        /// Handlebars template for the log message.
-        message_template: String,
-    },
-}
-
-impl ActionConfig {
-    /// Action types the observer runtime can actually dispatch (#612 item 10).
-    ///
-    /// The runtime (`fraiseql_observers`) has wired dispatchers for all of
-    /// these. `database` (a PostgreSQL function call with the event envelope)
-    /// and `log` (a structured tracing event) gained real dispatchers in #632,
-    /// so the #612-era API rejection for them is lifted.
-    pub const RUNTIME_DISPATCHABLE_TYPES: &'static [&'static str] =
-        &["webhook", "email", "slack", "database", "log"];
-
-    /// The action `type` discriminant as it appears in the admin API and the
-    /// persisted `actions` JSONB (`webhook`, `email`, `slack`, `database`, `log`).
-    #[must_use]
-    pub const fn type_name(&self) -> &'static str {
-        match self {
-            Self::Webhook { .. } => "webhook",
-            Self::Email { .. } => "email",
-            Self::Slack { .. } => "slack",
-            Self::Database { .. } => "database",
-            Self::Log { .. } => "log",
-        }
-    }
-
-    /// Whether the observer runtime has a wired dispatcher for this action type.
-    ///
-    /// All current DTO variants dispatch for real since #632; the method stays
-    /// (with its `reject_undispatchable_actions` caller) as the gate for any
-    /// future variant added to the DTO before its runtime dispatcher exists.
-    #[must_use]
-    pub const fn is_runtime_dispatchable(&self) -> bool {
-        matches!(
-            self,
-            Self::Webhook { .. }
-                | Self::Email { .. }
-                | Self::Slack { .. }
-                | Self::Database { .. }
-                | Self::Log { .. }
-        )
     }
 }
 
@@ -812,12 +699,6 @@ const fn default_priority() -> i32 {
 }
 const fn default_timeout() -> i32 {
     30000
-}
-fn default_method() -> String {
-    "POST".to_string()
-}
-fn default_log_level() -> String {
-    "info".to_string()
 }
 /// The retry policy's defaults are the runtime's, by name: a field the server fills in
 /// when it stores a policy is the value the runtime would give a document without it.

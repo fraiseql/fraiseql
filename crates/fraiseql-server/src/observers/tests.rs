@@ -45,8 +45,8 @@ mod redaction_tests {
 
     #[test]
     fn webhook_headers_env_names_are_kept_by_the_stored_type_and_shown() {
-        // The admin API stores an action through this crate's own `ActionConfig`: a key
-        // it did not carry would pass the runtime's check and be dropped on store.
+        // The admin API stores an action as the runtime's `ActionConfig` serializes it: a
+        // key that type did not carry would pass the check and be dropped on store.
         let written = serde_json::json!({
             "type": "webhook",
             "url": "https://hook.example/path",
@@ -159,6 +159,79 @@ mod repository_tests {
         assert!(
             message.contains("set one of `webhook_url` / `webhook_url_env`, not both"),
             "{message}"
+        );
+    }
+
+    fn created(action: serde_json::Value) -> Result<super::super::CreateObserverRequest, String> {
+        let mut request = serde_json::json!({ "name": "order_created" });
+        request["actions"] = serde_json::Value::Array(vec![action]);
+        serde_json::from_value::<super::super::CreateObserverRequest>(request)
+            .map_err(|e| e.to_string())
+    }
+
+    /// The admin API takes what the compiler takes of a declared observer: a Slack action
+    /// with no `message_template` posts the runtime's own text.
+    #[test]
+    fn a_created_slack_action_without_a_message_template_is_accepted() {
+        created(serde_json::json!({"type": "slack", "webhook_url": "https://example.test/slack"}))
+            .expect("the runtime posts a Slack action with no template");
+    }
+
+    #[test]
+    fn a_created_cache_action_is_accepted() {
+        created(
+            serde_json::json!({"type": "cache", "key_pattern": "order:*", "action": "invalidate"}),
+        )
+        .expect("the runtime dispatches a cache action");
+    }
+
+    /// The admin API takes a webhook's destination as a literal URL.
+    #[test]
+    fn a_created_webhook_destination_read_from_the_environment_is_refused() {
+        let message = created(serde_json::json!({"type": "webhook", "url_env": "ORDER_HOOK_URL"}))
+            .expect_err("the admin API takes a literal URL");
+        assert!(message.contains("actions[0]"), "{message}");
+        assert!(
+            message.contains(
+                "the admin API takes a webhook's destination as a literal URL: set `url`"
+            ),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn a_created_slack_destination_read_from_the_environment_is_refused() {
+        let message = created(serde_json::json!({
+            "type": "slack", "message_template": "m", "webhook_url_env": "SLACK_WEBHOOK_URL"
+        }))
+        .expect_err("the admin API takes a literal URL");
+        assert!(message.contains("actions[0]"), "{message}");
+        assert!(
+            message.contains(
+                "the admin API takes a Slack action's destination as a literal URL: set `webhook_url`"
+            ),
+            "{message}"
+        );
+    }
+
+    /// A type the runtime does not dispatch is refused at the one check the compiler also
+    /// asks, naming the type.
+    #[test]
+    fn a_created_action_of_a_type_the_runtime_does_not_dispatch_is_refused() {
+        let message = created(serde_json::json!({"type": "sms", "to": "+100"}))
+            .expect_err("the runtime has no sms dispatcher");
+        assert!(message.contains("actions[0]") && message.contains("`sms`"), "{message}");
+    }
+
+    /// The action stored is the one the runtime reads: the runtime's own type, serialized.
+    #[test]
+    fn a_created_action_is_stored_as_the_runtime_reads_it() {
+        let written = serde_json::json!({"type": "webhook", "url": "https://example.test/hook"});
+        let request = created(written.clone()).unwrap();
+        let runtime = fraiseql_observers::ActionConfig::from_authored(&written).unwrap();
+        assert_eq!(
+            serde_json::to_value(&request.actions).unwrap(),
+            serde_json::json!([serde_json::to_value(&runtime).unwrap()])
         );
     }
 
@@ -542,86 +615,6 @@ mod retry_config_backoff_wire {
         )
         .expect_err("an unexpected key must fail loud at reload, not be silently dropped");
         assert!(err.to_string().contains("backoff"), "{err}");
-    }
-}
-
-mod action_type_dispatch {
-    //! #612 item 10: action types the runtime cannot dispatch are rejected at
-    //! create/update (400) rather than accepted (201) then silently skipped.
-    //! Since #632 every current DTO type has a real dispatcher; the gate stays
-    //! for future variants.
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
-    use super::super::{ActionConfig, handlers::reject_undispatchable_actions};
-
-    fn action(json: serde_json::Value) -> ActionConfig {
-        serde_json::from_value(json).unwrap()
-    }
-
-    #[test]
-    fn webhook_email_slack_are_dispatchable() {
-        for (json, name) in [
-            (serde_json::json!({ "type": "webhook", "url": "https://h/x" }), "webhook"),
-            (
-                serde_json::json!({ "type": "email", "to": "a@b.c", "subject": "s", "body_template": "b" }),
-                "email",
-            ),
-            (
-                serde_json::json!({ "type": "slack", "webhook_url": "https://h/x", "message_template": "m" }),
-                "slack",
-            ),
-        ] {
-            let a = action(json);
-            assert_eq!(a.type_name(), name);
-            assert!(a.is_runtime_dispatchable(), "{name} must be dispatchable");
-        }
-    }
-
-    /// #632: the runtime now has real `database` and `log` dispatchers, so the
-    /// admin API must accept those action types again (the #612-era 400 was the
-    /// stopgap for "created then silently skipped at load").
-    #[test]
-    fn database_and_log_are_dispatchable_since_632() {
-        for json in [
-            serde_json::json!({ "type": "database", "function_name": "fn_notify" }),
-            serde_json::json!({ "type": "log", "message_template": "m" }),
-        ] {
-            let a = action(json);
-            assert!(
-                a.is_runtime_dispatchable(),
-                "{} has a real runtime dispatcher since #632",
-                a.type_name()
-            );
-        }
-    }
-
-    #[test]
-    fn reject_helper_passes_database_and_log_actions_since_632() {
-        let actions = vec![
-            action(serde_json::json!({
-                "type": "database",
-                "function_name": "fn_notify"
-            })),
-            action(serde_json::json!({
-                "type": "log",
-                "message_template": "order {{ id }} changed"
-            })),
-        ];
-        assert!(
-            reject_undispatchable_actions(&actions).is_none(),
-            "#632: database/log actions have real dispatchers and must be accepted"
-        );
-    }
-
-    #[test]
-    fn reject_helper_passes_all_dispatchable_actions() {
-        let actions = vec![action(
-            serde_json::json!({ "type": "webhook", "url": "https://h/x" }),
-        )];
-        assert!(
-            reject_undispatchable_actions(&actions).is_none(),
-            "a webhook-only action set is accepted"
-        );
     }
 }
 

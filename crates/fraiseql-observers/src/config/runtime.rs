@@ -314,9 +314,8 @@ pub enum ActionConfig {
         ///
         /// `deserialize_with` treats an explicit JSON `null` the same as an
         /// absent key (an empty map). `#[serde(default)]` alone only covers an
-        /// absent key; the admin-API writer (`fraiseql-server`'s `ActionConfig`)
-        /// serializes `None` headers as `null`, and existing `tb_observer.actions`
-        /// rows may already hold `"headers": null`, so reload must accept it
+        /// absent key; `tb_observer.actions` rows written by an earlier admin API
+        /// may hold `"headers": null`, so reload must accept it
         /// rather than fail the whole observer with `invalid type: null, expected
         /// a map` (#466 round-trip).
         #[serde(default, deserialize_with = "null_as_default")]
@@ -408,9 +407,8 @@ pub enum ActionConfig {
     ///
     /// Contract: the function receives **one** `jsonb` argument, the envelope
     /// `{"event": <EntityEvent>, "params": <params or null>}`, and its return
-    /// value is discarded. Field names mirror the admin-API DTO
-    /// (`fraiseql-server`'s `ActionConfig::Database`), which persists into
-    /// `tb_observer.actions` and is deserialized here at runtime load.
+    /// value is discarded. The admin API stores this type into
+    /// `tb_observer.actions`, and it is deserialized here at runtime load.
     Database {
         /// Name of the PostgreSQL function to invoke — a plain or
         /// schema-qualified SQL identifier (`fn_notify` / `app.fn_notify`).

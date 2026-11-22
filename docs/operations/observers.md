@@ -99,7 +99,11 @@ when the runtime could not run it as written:
   `to_template`, `subject_template` and `reply_to` are refused for the same reason: the
   dispatcher sends to `to` with `subject` and uses none of the three. The admin API
   applies this same check to the actions it is sent (see
-  [Observer Management](#observer-management-changelog-and-checkpoints)).
+  [Observer Management](#observer-management-changelog-and-checkpoints)), and stores
+  each action as the runtime reads it: a key the action leaves out is stored as `null`
+  (a webhook's `method` then means `POST`). The admin API takes a webhook's
+  destination as a literal URL: it refuses `url_env`, and a Slack action's
+  `webhook_url_env`, which a declared observer may use.
 - A webhook carries a `signing_secret` literal. The compiled schema is a build artifact;
   name the environment variable that holds the key with `signing_secret_env`.
 - A webhook `headers` entry whose name says it carries a credential: the name contains
