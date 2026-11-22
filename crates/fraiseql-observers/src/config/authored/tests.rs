@@ -89,6 +89,19 @@ fn a_slack_action_naming_both_destinations_is_refused_naming_the_fix() {
 }
 
 #[test]
+fn a_webhook_naming_both_signing_secrets_is_refused_naming_the_fix() {
+    let refusal = refusal(&json!({"type": "webhook", "url": "https://example.test/hook",
+                                   "signing_secret": "hunter2",
+                                   "signing_secret_env": "HOOK_SIGNING_SECRET"}));
+
+    assert!(
+        refusal.contains("sets both 'signing_secret' and 'signing_secret_env'; set exactly one"),
+        "{refusal}"
+    );
+    assert!(!refusal.contains("hunter2"), "the secret is not repeated: {refusal}");
+}
+
+#[test]
 fn a_destination_left_null_beside_the_other_is_one_destination() {
     for action in [
         json!({"type": "webhook", "url": null, "url_env": "HOOK_URL"}),

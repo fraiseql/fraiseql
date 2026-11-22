@@ -162,6 +162,21 @@ mod repository_tests {
         );
     }
 
+    /// The admin API refuses an action signing two ways, which dispatch would refuse at
+    /// every delivery.
+    #[test]
+    fn a_created_action_naming_both_signing_secrets_is_refused_naming_the_fix() {
+        let message = created(serde_json::json!({
+            "type": "webhook", "url": "https://example.test/hook",
+            "signing_secret": "hunter2", "signing_secret_env": "HOOK_SIGNING_SECRET"
+        }))
+        .expect_err("an action with both signing secrets must be refused");
+
+        assert!(message.contains("actions[0]"), "{message}");
+        assert!(message.contains("set exactly one"), "{message}");
+        assert!(!message.contains("hunter2"), "the secret is not repeated: {message}");
+    }
+
     fn created(action: serde_json::Value) -> Result<super::super::CreateObserverRequest, String> {
         let mut request = serde_json::json!({ "name": "order_created" });
         request["actions"] = serde_json::Value::Array(vec![action]);
