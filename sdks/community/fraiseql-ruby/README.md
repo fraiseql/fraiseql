@@ -1,12 +1,12 @@
 # FraiseQL Ruby
 
-> **100% Feature Parity** with Python, TypeScript, Java, Go, PHP, and Node.js
+> Not conformance-tested; see [sdks/community/README.md](../README.md).
 
 Declarative, type-safe GraphQL schema authoring for Ruby with advanced authorization and security.
 
 ## Features
 
-### Authorization & Security (NEW in Phase 11)
+### Authorization & Security
 
 ✅ **Custom Authorization Rules** - Expression-based authorization with context variables
 ✅ **Role-Based Access Control (RBAC)** - Multiple roles with flexible matching strategies
@@ -14,17 +14,6 @@ Declarative, type-safe GraphQL schema authoring for Ruby with advanced authoriza
 ✅ **Authorization Policies** - Reusable policies (RBAC, ABAC, CUSTOM, HYBRID)
 ✅ **Caching** - Configurable TTL for authorization decisions
 ✅ **Audit Logging** - Comprehensive access decision tracking
-
-### 100% Feature Parity
-
-All 30 core features available across 7 languages:
-
-- Type system (6 features)
-- Operations (7 features)
-- Field metadata (4 features)
-- Analytics (5 features)
-- Security (3 features)
-- Observers (5 features)
 
 ## Installation
 
@@ -297,23 +286,12 @@ FraiseQL::Security::AuthzPolicyBuilder.create(name: string)
   .build
 ```
 
-## Feature Parity
+## Conformance
 
-100% feature parity across all authoring languages:
-
-| Language | Type System | Operations | Metadata | Analytics | Security | Observers | Total |
-|----------|-------------|-----------|----------|-----------|----------|-----------|-----------|
-| Python | 6/6 | 7/7 | 4/4 | 5/5 | 3/3 | 5/5 | 30/30 ✅ |
-| TypeScript | 6/6 | 7/7 | 4/4 | 5/5 | 3/3 | 5/5 | 30/30 ✅ |
-| Java | 6/6 | 7/7 | 4/4 | 5/5 | 3/3 | 5/5 | 30/30 ✅ |
-| Go | 6/6 | 7/7 | 4/4 | 5/5 | 3/3 | 5/5 | 30/30 ✅ |
-| PHP | 6/6 | 7/7 | 4/4 | 5/5 | 3/3 | 5/5 | 30/30 ✅ |
-| Node.js | 6/6 | 7/7 | 4/4 | 5/5 | 3/3 | 5/5 | 30/30 ✅ |
-| **Ruby** | **6/6** | **7/7** | **4/4** | **5/5** | **3/3** | **5/5** | **30/30** ✅ |
+Not conformance-tested; see [sdks/community/README.md](../README.md).
 
 ## Documentation
 
-- [ruby-feature-parity.md](./ruby-feature-parity.md) - Complete feature parity status
 - [Ruby Documentation](https://ruby-doc.org/) - Language documentation
 - [RSpec Documentation](https://rspec.info/) - Testing framework
 
@@ -337,9 +315,3 @@ Contributions are welcome! Please ensure:
 - [FraiseQL Go](../fraiseql-go/)
 - [FraiseQL PHP](../fraiseql-php/)
 - [FraiseQL Node.js](../fraiseql-nodejs/)
-
----
-
-**Phase 11** - Ruby Feature Parity - Security Extensions ✅
-
-All 30 features implemented with 100% parity across 7 languages.

@@ -48,7 +48,7 @@ publishing {
 
             pom {
                 name.set("FraiseQL Kotlin")
-                description.set("Kotlin authoring language for FraiseQL with 100% feature parity")
+                description.set("Kotlin authoring language for FraiseQL (experimental; not conformance-tested)")
                 url.set("https://github.com/fraiseql/fraiseql")
 
                 licenses {

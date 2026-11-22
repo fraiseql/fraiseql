@@ -1,6 +1,6 @@
 # FraiseQL Groovy
 
-> **100% Feature Parity** with 12 other languages
+> Not conformance-tested; see [sdks/community/README.md](../README.md).
 
 Declarative, type-safe GraphQL schema authoring for Groovy with advanced authorization and security.
 
@@ -78,13 +78,11 @@ fraiseql-groovy/
 │   └── test/groovy/com/fraiseql/security/
 │       └── SecuritySpec.groovy
 ├── build.gradle
-├── README.md
-└── groovy-feature-parity.md
+└── README.md
 ```
 
 ## Documentation
 
-- [groovy-feature-parity.md](./groovy-feature-parity.md) - Feature parity status
 - [Groovy Documentation](https://groovy-lang.org/documentation.html)
 - [Spock Framework](http://spockframework.org/)
 
@@ -106,9 +104,3 @@ Apache License 2.0
 - [FraiseQL Rust](../fraiseql-rust/)
 - [FraiseQL Swift](../fraiseql-swift/)
 - [FraiseQL Scala](../fraiseql-scala/)
-
----
-
-**Phase 17** - Groovy Feature Parity - Security Extensions ✅
-
-All 30 features implemented with 100% parity across 13 languages.

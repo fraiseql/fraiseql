@@ -1,7 +1,7 @@
 {
   "name": "fraiseql-nodejs",
   "version": "1.0.0",
-  "description": "FraiseQL Node.js authoring language - 100% feature parity with Python, TypeScript, Java, and Go",
+  "description": "FraiseQL Node.js authoring language (experimental; not conformance-tested)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

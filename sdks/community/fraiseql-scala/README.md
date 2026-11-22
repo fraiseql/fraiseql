@@ -1,12 +1,12 @@
 # FraiseQL Scala
 
-> **100% Feature Parity** with 11 other languages
+> Not conformance-tested; see [sdks/community/README.md](../README.md).
 
 Declarative, type-safe GraphQL schema authoring for Scala with advanced authorization and security.
 
 ## Features
 
-### Authorization & Security (NEW in Phase 16)
+### Authorization & Security
 
 ✅ **Custom Authorization Rules** - Expression-based authorization with context variables
 ✅ **Role-Based Access Control (RBAC)** - Multiple roles with flexible matching strategies
@@ -14,17 +14,6 @@ Declarative, type-safe GraphQL schema authoring for Scala with advanced authoriz
 ✅ **Authorization Policies** - Reusable policies (RBAC, ABAC, CUSTOM, HYBRID)
 ✅ **Caching** - Configurable TTL for authorization decisions
 ✅ **Audit Logging** - Comprehensive access decision tracking
-
-### 100% Feature Parity
-
-All 30 core features available across 12 languages:
-
-- Type system (6 features)
-- Operations (7 features)
-- Field metadata (4 features)
-- Analytics (5 features)
-- Security (3 features)
-- Observers (5 features)
 
 ## Requirements
 
@@ -210,8 +199,7 @@ fraiseql-scala/
 │   └── test/scala/com/fraiseql/security/
 │       └── SecuritySpec.scala           # 44 comprehensive tests
 ├── build.sbt                            # SBT manifest
-├── README.md                            # This file
-└── scala-feature-parity.md             # Feature parity status
+└── README.md                            # This file
 ```
 
 ## API Documentation
@@ -270,28 +258,12 @@ new AuthzPolicyBuilder(name: String)
   .build(): AuthzPolicyConfig
 ```
 
-## Feature Parity
+## Conformance
 
-100% feature parity across all authoring languages:
-
-| Language | Total Features |
-|----------|-----------------|
-| Python | 30/30 ✅ |
-| TypeScript | 30/30 ✅ |
-| Java | 30/30 ✅ |
-| Go | 30/30 ✅ |
-| PHP | 30/30 ✅ |
-| Node.js | 30/30 ✅ |
-| Ruby | 30/30 ✅ |
-| Kotlin | 30/30 ✅ |
-| C#/.NET | 30/30 ✅ |
-| Rust | 30/30 ✅ |
-| Swift | 30/30 ✅ |
-| **Scala** | **30/30** ✅ |
+Not conformance-tested; see [sdks/community/README.md](../README.md).
 
 ## Documentation
 
-- [scala-feature-parity.md](./scala-feature-parity.md) - Complete feature parity status
 - [Scala Documentation](https://docs.scala-lang.org/) - Language documentation
 - [SBT Guide](https://www.scala-sbt.org/1.x/docs/) - Build tool documentation
 
@@ -320,9 +292,3 @@ Contributions are welcome! Please ensure:
 - [FraiseQL C#/.NET](../fraiseql-csharp/)
 - [FraiseQL Rust](../fraiseql-rust/)
 - [FraiseQL Swift](../fraiseql-swift/)
-
----
-
-**Phase 16** - Scala Feature Parity - Security Extensions ✅
-
-All 30 features implemented with 100% parity across 12 languages.

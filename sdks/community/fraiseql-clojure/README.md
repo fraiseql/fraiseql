@@ -1,6 +1,6 @@
 # FraiseQL Clojure
 
-> **100% Feature Parity** with 13 other languages
+> Not conformance-tested; see [sdks/community/README.md](../README.md).
 
 Declarative, type-safe GraphQL schema authoring for Clojure with advanced authorization and security.
 
@@ -185,8 +185,7 @@ fraiseql-clojure/
 │   └── fraiseql/
 │       └── security_test.clj     # 44 comprehensive tests
 ├── project.clj                   # Leiningen manifest
-├── README.md                     # This file
-└── clojure-feature-parity.md    # Feature parity status
+└── README.md                     # This file
 ```
 
 ## API Documentation
@@ -221,30 +220,12 @@ Create authorization policy:
   :rule "hasRole($context, 'data_manager')")
 ```
 
-## Feature Parity
+## Conformance
 
-100% feature parity across all authoring languages:
-
-| Language | Total Features |
-|----------|-----------------|
-| Python | 30/30 ✅ |
-| TypeScript | 30/30 ✅ |
-| Java | 30/30 ✅ |
-| Go | 30/30 ✅ |
-| PHP | 30/30 ✅ |
-| Node.js | 30/30 ✅ |
-| Ruby | 30/30 ✅ |
-| Kotlin | 30/30 ✅ |
-| C#/.NET | 30/30 ✅ |
-| Rust | 30/30 ✅ |
-| Swift | 30/30 ✅ |
-| Scala | 30/30 ✅ |
-| Groovy | 30/30 ✅ |
-| **Clojure** | **30/30** ✅ |
+Not conformance-tested; see [sdks/community/README.md](../README.md).
 
 ## Documentation
 
-- [clojure-feature-parity.md](./clojure-feature-parity.md) - Feature parity status
 - [Clojure Documentation](https://clojure.org/guides/getting_started)
 - [Leiningen Guide](https://leiningen.org/)
 
@@ -267,9 +248,3 @@ Apache License 2.0
 - [FraiseQL Swift](../fraiseql-swift/)
 - [FraiseQL Scala](../fraiseql-scala/)
 - [FraiseQL Groovy](../fraiseql-groovy/)
-
----
-
-**Phase 18** - Clojure Feature Parity - Security Extensions ✅
-
-All 30 features implemented with 100% parity across 14 languages.

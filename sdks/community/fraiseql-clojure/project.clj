@@ -1,5 +1,5 @@
 (defproject com.fraiseql/fraiseql-clojure "1.0.0"
-  :description "Clojure authoring language for FraiseQL with 100% feature parity"
+  :description "Clojure authoring language for FraiseQL (experimental; not conformance-tested)"
   :url "https://github.com/fraiseql/fraiseql"
   :license {:name "Apache License 2.0"
             :url "https://www.apache.org/licenses/LICENSE-2.0.txt"}

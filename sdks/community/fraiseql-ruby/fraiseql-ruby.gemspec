@@ -6,21 +6,20 @@ Gem::Specification.new do |spec|
   spec.authors       = ['FraiseQL Contributors']
   spec.email         = ['contact@fraiseql.dev']
 
-  spec.summary       = 'FraiseQL Ruby - 100% Feature Parity GraphQL Schema Authoring'
+  spec.summary       = 'FraiseQL Ruby - GraphQL schema authoring (experimental; not conformance-tested)'
   spec.description   = <<-DESC
     FraiseQL Ruby provides declarative, type-safe GraphQL schema definitions with:
     - Advanced authorization and security features
     - Role-based access control (RBAC)
     - Attribute-based access control (ABAC)
     - Authorization policies
-    - 100% feature parity with Python, Java, Go, PHP, TypeScript, and Node.js
   DESC
 
   spec.homepage      = 'https://github.com/fraiseql/fraiseql'
   spec.license       = 'Apache-2.0'
 
   spec.files         = Dir.glob('lib/**/*.rb') + Dir.glob('spec/**/*.rb') +
-                       ['README.md', 'RUBY_FEATURE_PARITY.md', 'Gemfile', '.gitignore']
+                       ['README.md', 'Gemfile', '.gitignore']
   spec.bindir        = 'bin'
   spec.require_paths = ['lib']
 

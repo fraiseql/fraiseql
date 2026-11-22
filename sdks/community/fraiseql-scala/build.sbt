@@ -7,7 +7,7 @@ ThisBuild / scalaVersion := "2.13.12"
 lazy val root = (project in file("."))
   .settings(
     name := "fraiseql-scala",
-    description := "Scala authoring language for FraiseQL with 100% feature parity",
+    description := "Scala authoring language for FraiseQL (experimental; not conformance-tested)",
     homepage := Some(url("https://github.com/fraiseql/fraiseql")),
     licenses := List("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0.txt")),
     developers := List(

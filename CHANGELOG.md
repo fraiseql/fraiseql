@@ -1341,6 +1341,9 @@ disagreed, and the promise was the part that was wrong.
   `rust-feature-parity.md`, and the TypeScript SDK's `feature-parity.md`) made the same
   claim and are removed. Java's README kept a test table whose every count was wrong.
   Each now points at the support matrix in `sdks/official/README.md`, which CI checks.
+  The seven community SDKs (experimental, unmaintained and not in the matrix) made the
+  same claim in their READMEs, their package descriptions and seven more such documents,
+  now removed; each says it is not conformance-tested instead.
 
 - **C#: `SchemaBuilder` exports everything the registry holds (#2289).**
   `SchemaBuilder.ToSchema()` read the registry's types, queries, mutations and

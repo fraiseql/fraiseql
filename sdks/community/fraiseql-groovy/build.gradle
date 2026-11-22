@@ -31,7 +31,7 @@ publishing {
             from components.java
             pom {
                 name = 'FraiseQL Groovy'
-                description = 'Groovy authoring language for FraiseQL with 100% feature parity'
+                description = 'Groovy authoring language for FraiseQL (experimental; not conformance-tested)'
                 url = 'https://github.com/fraiseql/fraiseql'
                 licenses {
                     license {
