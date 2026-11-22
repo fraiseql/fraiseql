@@ -1789,7 +1789,11 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// a schema of its own (testing::pg_schema); a serial leg could not see the shared-table
 		// races that made these red under any parallel run. #1787 will rework how legs select
 		// tests: keep this line parallel when it does.
-		"cargo test -p fraiseql-server --features inbound,inbound-email --lib -- inbound:: server::provision_tests::",
+		// `auth` and `server::parity_tests::`: the parity suite's inbound arms, and the one
+		// that needs `auth` with `inbound-email` (a local-auth OTP naming an unknown
+		// mailbox), compiled in no leg until the suite-coverage gate followed `mod`
+		// declarations.
+		"cargo test -p fraiseql-server --features inbound,inbound-email,auth --lib -- inbound:: server::provision_tests:: server::parity_tests::",
 		// #974: the storage bucket-policy admin API (PUT/GET/DELETE) against a
 		// real policy store — the split-token separation, the request-time
 		// refusal that leaves the running policy in place, and the wholesale

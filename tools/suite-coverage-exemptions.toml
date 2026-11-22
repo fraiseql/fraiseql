@@ -50,11 +50,3 @@ reason = "never run by any leg (#2273): needs Postgres, and the only runtime-den
 [[exempt]]
 target = "fraiseql-server::lib::capability::schema_tests[sources]"
 reason = "never run by any leg (#2273): the sources leg does not filter capability::"
-
-[[exempt]]
-target = "fraiseql-server::lib::server::parity_tests[auth,inbound-email]"
-reason = "never run by any leg (#2273): no leg enables auth and inbound-email on server::parity_tests"
-
-[[exempt]]
-target = "fraiseql-server::lib::server::parity_tests[inbound]"
-reason = "never run by any leg (#2273): no inbound leg runs server::parity_tests"
