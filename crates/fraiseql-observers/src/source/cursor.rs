@@ -115,14 +115,20 @@ impl PostgresSourceCursorStore {
     /// Create the `core._fraiseql_source_cursor` table and its RLS policies
     /// (idempotent). Call once on startup.
     ///
+    /// Safe to call concurrently, from several processes or tasks against one database:
+    /// the script runs under the workspace's DDL lock ([`fraiseql_guard::ddl`]).
+    ///
     /// # Errors
     ///
     /// Returns [`ObserverError::DatabaseError`] if the DDL fails.
     pub async fn init(&self) -> Result<()> {
-        sqlx::raw_sql(crate::migrations::source_cursor_sql())
-            .execute(&self.pool)
-            .await
-            .map_err(|error| db_err("init", &error))?;
+        // Reason: the crate's own DDL constant, behind the workspace's fixed lock statement.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(fraiseql_guard::ddl::lock_prefixed(
+            crate::migrations::source_cursor_sql(),
+        )))
+        .execute(&self.pool)
+        .await
+        .map_err(|error| db_err("init", &error))?;
         Ok(())
     }
 

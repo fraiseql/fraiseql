@@ -1453,6 +1453,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`PostgresSourceCursorStore::init` is safe to run concurrently (#1868).** Two callers
+  initialising the store against one database at once could fail: on a database that had
+  never held the cursor table, one lost on a catalogue unique index
+  (`pg_namespace_nspname_index`), and on one that had, the policy statements could
+  deadlock. `init` now runs its script under the advisory lock the server's own DDL takes,
+  which moves to `fraiseql_guard::ddl` so every crate that owns a script can take the same
+  key.
+
 - **`fraiseql run` reads the server's environment variables as `fraiseql-server` does
   (#2048).** A server setting given a value that is not valid UTF-8 refuses to start, as
   fraiseql-server already does; `fraiseql run` read it as unset. The variables are read

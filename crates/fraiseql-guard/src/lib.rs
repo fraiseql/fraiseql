@@ -9,6 +9,9 @@
 //!   target.
 //! - [`deployment`] — the single answer to whether this process is running in production, and
 //!   therefore whether a development escape hatch may be honoured.
+//! - [`ddl`] — the one advisory lock every FraiseQL-owned DDL script runs under, so two scripts
+//!   initialising at once against one database neither race on the catalogue nor deadlock on a
+//!   relation.
 //! - [`kafka`] — endpoint parsing and the plaintext refusal for Kafka, shared by the CDC outbox
 //!   sink and the subscription transport (#1102). A transport whose own wire format cannot express
 //!   transport security needs one answer to "may this be plaintext?", not one per caller.
@@ -32,6 +35,7 @@
 
 pub mod oidc;
 
+pub mod ddl;
 pub mod deployment;
 pub mod kafka;
 pub mod net;

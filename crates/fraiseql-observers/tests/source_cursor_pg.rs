@@ -345,3 +345,89 @@ async fn a_stored_cursor_is_resumed_when_the_search_path_starts_elsewhere() {
     assert_eq!(in_core.load(&resumed_source).await.unwrap().value, Some(json!({"page": 8})));
     assert_eq!(in_core.load(&new_source).await.unwrap().value, Some(json!({"page": 1})));
 }
+
+/// How many `init` calls race, on how many fresh databases. One database with two
+/// parallel callers lost the race in 8 runs of 10; four callers on one lost in 3 of 10.
+/// Eight callers on each of five databases makes a run that misses the race unlikely.
+const RACERS: usize = 8;
+const ROUNDS: usize = 5;
+
+/// Run `init` from one caller per pool, all at once: each pool holds one connection,
+/// opened before any caller starts, so none is still connecting while the others run.
+/// Return every error raised.
+async fn race_init(pools: &[PgPool]) -> Vec<String> {
+    let start = std::sync::Arc::new(tokio::sync::Barrier::new(pools.len()));
+    let mut set = tokio::task::JoinSet::new();
+    for pool in pools {
+        let store = PostgresSourceCursorStore::new(pool.clone());
+        let start = std::sync::Arc::clone(&start);
+        set.spawn(async move {
+            start.wait().await;
+            store.init().await
+        });
+    }
+    let mut errors = Vec::new();
+    while let Some(joined) = set.join_next().await {
+        if let Err(error) = joined.unwrap() {
+            errors.push(error.to_string());
+        }
+    }
+    errors
+}
+
+/// `init` is safe to run concurrently, on a database that has never held the table and
+/// on one that has.
+///
+/// Cold, `CREATE SCHEMA IF NOT EXISTS` and `CREATE TABLE IF NOT EXISTS` check the
+/// catalogue and then create, so concurrent callers both pass the check and one loses
+/// on a catalogue unique index. Warm, the `ALTER TABLE` and `CREATE POLICY` statements
+/// take `ACCESS EXCLUSIVE` on the table, and two callers can deadlock on it.
+///
+/// The cold phase needs a database without the `core` schema, so each round makes its
+/// own and drops it after.
+#[tokio::test]
+async fn concurrent_init_succeeds_on_a_cold_and_a_warm_database() {
+    let Some((admin, svc)) = connect_pool().await else {
+        eprintln!("SKIP concurrent_init_succeeds_on_a_cold_and_a_warm_database: no postgres");
+        return;
+    };
+    let mut failures = Vec::new();
+    for round in 0..ROUNDS {
+        let database = format!("fq_cursor_init_{}", uuid::Uuid::new_v4().simple());
+        // Reason: a database name this test generated from a UUID, not caller input.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!("CREATE DATABASE {database}")))
+            .execute(&admin)
+            .await
+            .unwrap();
+        let opts = PgConnectOptions::from_str(svc.url())
+            .expect("parse DATABASE_URL")
+            .database(&database);
+        let mut pools = Vec::with_capacity(RACERS);
+        for _ in 0..RACERS {
+            pools.push(
+                PgPoolOptions::new()
+                    .min_connections(1)
+                    .max_connections(1)
+                    .connect_with(opts.clone())
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        for phase in ["cold", "warm"] {
+            let errors = race_init(&pools).await;
+            if !errors.is_empty() {
+                failures.push(format!("round {round}, {phase}: {errors:?}"));
+            }
+        }
+        for pool in pools {
+            pool.close().await;
+        }
+        // Reason: as above.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!("DROP DATABASE {database}")))
+            .execute(&admin)
+            .await
+            .unwrap();
+    }
+    assert!(failures.is_empty(), "concurrent inits failed: {failures:#?}");
+}

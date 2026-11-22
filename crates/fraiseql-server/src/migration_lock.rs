@@ -45,15 +45,10 @@
 //! leave the cross-script case — the one that actually happens at startup, six scripts at
 //! once — racing as before.
 
+/// The advisory-lock key every server-owned migration script takes before its DDL: the
+/// workspace's one key, which the stores outside this crate take too.
+pub use fraiseql_guard::ddl::MIGRATION_LOCK_KEY;
 use sqlx::PgPool;
-
-/// The advisory-lock key every server-owned migration script takes before its DDL.
-///
-/// The ASCII bytes of `FRAISE` followed by a version byte, so a key seen in `pg_locks`
-/// during an incident is recognisable rather than an arbitrary number. Advisory locks
-/// share one 64-bit space per database with every other application on it, which is the
-/// reason to pick a value nothing else plausibly picks.
-pub const MIGRATION_LOCK_KEY: i64 = 0x4652_4149_5345_0001;
 
 /// Run a server-owned migration script under [`MIGRATION_LOCK_KEY`].
 ///
@@ -88,14 +83,7 @@ pub async fn run_migrations(pool: &PgPool, scripts: &[&str]) -> Result<(), sqlx:
     Ok(())
 }
 
-/// `ddl` with the advisory-lock acquisition as its first statement.
-///
-/// Separate from `run_migration` so a test can assert the composed script's shape
-/// without a database: that the lock comes *first*, and that the caller's DDL is
-/// carried through unaltered.
-fn lock_prefixed(ddl: &str) -> String {
-    format!("SELECT pg_advisory_xact_lock({MIGRATION_LOCK_KEY});\n{ddl}")
-}
+use fraiseql_guard::ddl::lock_prefixed;
 
 #[cfg(test)]
 mod tests;
