@@ -190,6 +190,19 @@ function authorFull(): void {
     { sqlSource: "v_ledger_entry" }
   );
 
+  // #2177: a date and time with no offset is `LocalDateTime`, by name; a `Date` is an instant.
+  registerTypeFields(
+    "ShiftSlot",
+    asFields({
+      id: "ID",
+      startsAt: "LocalDateTime",
+      endsAt: "LocalDateTime | null",
+      breaksAt: "LocalDateTime[]",
+    }),
+    undefined,
+    { sqlSource: "v_shift_slot" }
+  );
+
   // Lists (#1586, #1608): the GraphQL type string, every level as written.
   registerTypeFields(
     "ReadingSeries",
@@ -257,6 +270,16 @@ function authorFull(): void {
     asFields({ accountNumber: BigInt, transferIds: "[BigInt!] | null" }),
     undefined,
     { sql_source: "v_ledger_entry" }
+  );
+
+  registerQuery(
+    "shiftSlotsStartingAfter",
+    "ShiftSlot",
+    true,
+    false,
+    asFields({ startsAfter: "LocalDateTime", exceptAt: "[LocalDateTime!] | null" }),
+    undefined,
+    { sql_source: "v_shift_slot" }
   );
 
   registerQuery(

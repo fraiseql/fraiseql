@@ -44,10 +44,7 @@
         "-c",
         "{ [ -d node_modules ] || npm ci --no-audit --no-fund --loglevel=error >/dev/null; } && npx --yes tsx conformance/export.ts"
       ],
-      "unsupported": {
-        "localdatetime_field": "the SDK authors no `LocalDateTime` yet (#2177)",
-        "localdatetime_argument": "the SDK authors no `LocalDateTime` yet (#2177)"
-      },
+      "unsupported": {},
       "container": "node:22",
       "container_env": [
         "HOME=/conformance-cache/node",

@@ -136,6 +136,7 @@ export type {
   SparseVector,
   // Date/Time scalars
   DateTime,
+  LocalDateTime,
   Date,
   Time,
   DateRange,

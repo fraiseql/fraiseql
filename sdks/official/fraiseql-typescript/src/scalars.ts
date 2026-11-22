@@ -175,6 +175,12 @@ export type ID = Brand<string, "ID">;
 /** ISO 8601 DateTime scalar (e.g., "2025-01-10T12:00:00Z"). */
 export type DateTime = Brand<string, "DateTime">;
 
+/**
+ * A date and time with no offset (e.g., "2025-01-10T12:00:00"), a PostgreSQL `timestamp`.
+ * A JavaScript `Date` is an instant and stays `DateTime`.
+ */
+export type LocalDateTime = Brand<string, "LocalDateTime">;
+
 /** ISO 8601 Date scalar (e.g., "2025-01-10"). */
 export type Date = Brand<string, "Date">;
 
@@ -424,6 +430,7 @@ export const SCALAR_NAMES = new Set([
   "SparseVector",
   // Date/Time
   "DateTime",
+  "LocalDateTime",
   "Date",
   "Time",
   "DateRange",
