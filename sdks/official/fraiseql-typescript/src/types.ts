@@ -43,6 +43,12 @@ export function typeToGraphQL(type: unknown): [graphqlType: string, nullable: bo
     return ["Boolean", false];
   }
 
+  // A `bigint` is the engine's `BigInt`, a signed 64-bit integer served as its digits
+  // (#2258). The class-name rule below reached the same name for the constructor; this says so.
+  if (type === BigInt) {
+    return ["BigInt", false];
+  }
+
   // A JavaScript `Date` is an instant: the engine's `DateTime` (#1530). Its constructor's
   // name, `Date`, is a calendar date, so the class-name rule below would mislabel it.
   if (type === Date) {
@@ -59,13 +65,17 @@ export function typeToGraphQL(type: unknown): [graphqlType: string, nullable: bo
     // Check if it's a nullable type (T | null syntax in string)
     if (type.includes(" | null")) {
       const baseType = type.replace(" | null", "").trim();
-      return [baseType, true];
+      return [scalarSpelling(baseType), true];
     }
 
     // Check if it's a list type (T[])
     if (type.endsWith("[]")) {
       const elementType = type.slice(0, -2);
-      return [`[${elementType}!]`, false];
+      return [`[${scalarSpelling(elementType)}!]`, false];
+    }
+
+    if (type === "bigint") {
+      return ["BigInt", false];
     }
 
     // Recognize scalar types (ID, DateTime, Email, etc.)
@@ -78,6 +88,11 @@ export function typeToGraphQL(type: unknown): [graphqlType: string, nullable: bo
   }
 
   throw new Error(`Unsupported type: ${type}`);
+}
+
+/** TypeScript's `bigint` type name is the engine's `BigInt`; any other name is as written. */
+function scalarSpelling(name: string): string {
+  return name === "bigint" ? "BigInt" : name;
 }
 
 /**

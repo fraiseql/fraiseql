@@ -857,6 +857,10 @@ disagreed, and the promise was the part that was wrong.
   - PHP: `Scalars::BIG_INT`, named on an `int` field or argument
     (`#[GraphQLField(type: Scalars::BIG_INT)]`); `BigInt` is a known scalar name.
   - Dart: `FieldType.bigInt(...)`, beside `FieldType.int_`, for a field or an argument.
+  - TypeScript: `typeToGraphQL` and `extractFieldInfo` read the `bigint` type name
+    (`"bigint"`, `"bigint | null"`, `"bigint[]"`) as `BigInt`, where it had passed through
+    as written, a name the compiler refuses; the `BigInt` constructor already exported as
+    `BigInt`. `BigInt` is a known scalar name.
 
 - **`compile --database` warns on a view casting a document's text to a temporal type
   (#2213).** A served view, or with gRPC enabled a row view (`vr_<sql_source>`), whose

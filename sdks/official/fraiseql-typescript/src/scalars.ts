@@ -417,6 +417,7 @@ export const SCALAR_NAMES = new Set([
   "UUID",
   "Json",
   "Decimal",
+  "BigInt",
   "Vector",
   "BitVector",
   "HalfVector",

@@ -26,7 +26,17 @@ import {
   webhook,
   slack,
   email,
+  extractFieldInfo,
 } from "../src/index";
+
+/** `extractFieldInfo`'s map as the `{name, type, nullable}` list the registry takes. */
+function asFields(declared: Record<string, unknown>): { name: string; type: string; nullable: boolean }[] {
+  return Object.entries(extractFieldInfo(declared)).map(([name, info]) => ({
+    name,
+    type: info.type,
+    nullable: info.nullable,
+  }));
+}
 
 function authorMinimal(): void {
   registerTypeFields(
@@ -172,6 +182,14 @@ function authorFull(): void {
     { sqlSource: "v_document" }
   );
 
+  // #2258: a `bigint` is `BigInt`, read off TypeScript's own type names.
+  registerTypeFields(
+    "LedgerEntry",
+    asFields({ id: "ID", amount: "bigint", balance: "bigint | null", transferIds: "bigint[]" }),
+    undefined,
+    { sqlSource: "v_ledger_entry" }
+  );
+
   // Lists (#1586, #1608): the GraphQL type string, every level as written.
   registerTypeFields(
     "ReadingSeries",
@@ -230,6 +248,16 @@ function authorFull(): void {
     sql_source: "v_order_shipment",
     inject_params: { tenant_id: "jwt:tenant_id" },
   });
+
+  registerQuery(
+    "ledgerEntriesByAccount",
+    "LedgerEntry",
+    true,
+    false,
+    asFields({ accountNumber: BigInt, transferIds: "[BigInt!] | null" }),
+    undefined,
+    { sql_source: "v_ledger_entry" }
+  );
 
   registerQuery(
     "readingSeriesByIds",
