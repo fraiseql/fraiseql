@@ -1427,6 +1427,18 @@ disagreed, and the promise was the part that was wrong.
   implementor is still read by that type. `BigInt`, `UUID` and `LocalDateTime` at the same
   position were already served as their text, and are now pinned there too.
 
+- **An SDK-authored fact table can filter by hierarchy node (#1909).** A denormalized
+  `ltree` filter names its hierarchy (`"hierarchy": "org"`) so `org_path_descendant_of_id`
+  and `org_path_ancestor_of_id` resolve a node id. The hierarchy itself is declared as
+  `[hierarchies.org]` in the `fraiseql.toml` beside the SDK's `schema.json`. That already
+  compiled (#1719), and a test now pins that it satisfies every link the document makes.
+  The Python, TypeScript and Go docs say where the definition goes. The Go SDK could not
+  name a hierarchy at all: `FactTableBuilder.HierarchyFilter(name, sqlType, indexed,
+  hierarchy)` adds one, and `DenormalizedFilter` is unchanged. SDK conformance now checks
+  the hierarchy name under its own construct, `fact_table_hierarchy`, where it had
+  projected a filter without it. Python, TypeScript and Go satisfy it; the SDKs that author
+  no fact table declare the gap.
+
 - **A type checker sees what the Python SDK's `type`, `query` and `mutation` decorate
   (#1901).** Each decorator, usable bare (`@fraiseql.type`) or called
   (`@fraiseql.query(sql_source=...)`), had one signature returning the union of the two

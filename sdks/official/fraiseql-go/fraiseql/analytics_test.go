@@ -166,3 +166,25 @@ func TestMeasureAdditivityIsEmitted(t *testing.T) {
 		}
 	}
 }
+
+// #1909: an `ltree` filter names the hierarchy its paths belong to, so an aggregate can
+// filter by node id. The name travels under `hierarchy`; a plain filter emits no key. The
+// hierarchy itself is declared in the project's `fraiseql.toml`, never by the SDK.
+func TestHierarchyFilterNamesItsHierarchy(t *testing.T) {
+	Reset()
+	err := NewFactTable("data").
+		TableName("tf_account_day").
+		Measure("closing_balance", "numeric", false).
+		DenormalizedFilter("day", "date", true).
+		HierarchyFilter("org_path", "ltree", true, "org").
+		Register()
+	if err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+	got, _ := json.Marshal(onlyFactTable(t)["denormalized_filters"])
+	want := `[{"indexed":true,"name":"day","sql_type":"date"},` +
+		`{"hierarchy":"org","indexed":true,"name":"org_path","sql_type":"ltree"}]`
+	if string(got) != want {
+		t.Errorf("denormalized_filters: want %s, got %s", want, got)
+	}
+}

@@ -22,17 +22,17 @@ reason shown here, and the suite fails if a declared gap is no longer true.
 
 | Directory | Language | Distribution | Conformance | Declared gaps |
 |-----------|----------|--------------|-------------|---------------|
-| `fraiseql-python/` | Python 3.11+ | PyPI | 49/49 | — |
-| `fraiseql-typescript/` | TypeScript / Node.js | npm | 49/49 | — |
-| `fraiseql-go/` | Go 1.23+ | — (source-only) | 47/49 | type_crud: the SDK ships no CRUD generator; subscription_policy: no authoring surface (#1657) |
-| `fraiseql-php/` | PHP 8.2+ | — (source-only) | 47/49 | fact_tables: the SDK has no fact-table authoring; subscription_policy: no authoring surface (#1657) |
-| `fraiseql-java/` | Java 21+ | — (source-only) | 47/49 | fact_tables: `@GraphQLFactTable` registers an ordinary type and emits no fact table; subscription_policy: no authoring surface (#1657) |
-| `fraiseql-csharp/` | C# / .NET 8+ | — (source-only) | 46/49 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring; subscription_policy: no authoring surface (#1657) |
-| `fraiseql-fsharp/` | F# / .NET 8+ | — (source-only) | 46/49 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring; subscription_policy: no authoring surface (#1657) |
-| `fraiseql-elixir/` | Elixir | — (source-only) | 46/49 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring; subscription_policy: no authoring surface (#1657) |
-| `fraiseql-ruby/` | Ruby 3.2+ | — (source-only) | 46/49 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring; subscription_policy: no authoring surface (#1657) |
-| `fraiseql-dart/` | Dart / Flutter | — (source-only) | 45/49 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring; enum_values: a Dart enum member carries no stored value, so every member is stored as its name; subscription_policy: no authoring surface (#1657) |
-| `fraiseql-rust/` | Rust | crates.io | 17/49 | queries, mutations, subscriptions, enums and their values, input types, CRUD, relationships, Relay and error-type flags, serverless functions, fact tables, localized mutation arguments, list, `BigInt`, `LocalDateTime`, `Decimal` and `UUID` arguments, the retry opt-out: the Rust SDK is field-level-RBAC focused and ships no builder for them; subscription_policy: no authoring surface (#1657); scoped_like_parent: authored on the field, and no query builder to author the scoped query it is checked against |
+| `fraiseql-python/` | Python 3.11+ | PyPI | 50/50 | — |
+| `fraiseql-typescript/` | TypeScript / Node.js | npm | 50/50 | — |
+| `fraiseql-go/` | Go 1.23+ | — (source-only) | 48/50 | type_crud: the SDK ships no CRUD generator; subscription_policy: no authoring surface (#1657) |
+| `fraiseql-php/` | PHP 8.2+ | — (source-only) | 47/50 | fact_tables: the SDK has no fact-table authoring; fact_table_hierarchy: no fact table to name a hierarchy on; subscription_policy: no authoring surface (#1657) |
+| `fraiseql-java/` | Java 21+ | — (source-only) | 47/50 | fact_tables: `@GraphQLFactTable` registers an ordinary type and emits no fact table; fact_table_hierarchy: no fact table to name a hierarchy on; subscription_policy: no authoring surface (#1657) |
+| `fraiseql-csharp/` | C# / .NET 8+ | — (source-only) | 46/50 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring; fact_table_hierarchy: no fact table to name a hierarchy on; subscription_policy: no authoring surface (#1657) |
+| `fraiseql-fsharp/` | F# / .NET 8+ | — (source-only) | 46/50 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring; fact_table_hierarchy: no fact table to name a hierarchy on; subscription_policy: no authoring surface (#1657) |
+| `fraiseql-elixir/` | Elixir | — (source-only) | 46/50 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring; fact_table_hierarchy: no fact table to name a hierarchy on; subscription_policy: no authoring surface (#1657) |
+| `fraiseql-ruby/` | Ruby 3.2+ | — (source-only) | 46/50 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring; fact_table_hierarchy: no fact table to name a hierarchy on; subscription_policy: no authoring surface (#1657) |
+| `fraiseql-dart/` | Dart / Flutter | — (source-only) | 45/50 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring; fact_table_hierarchy: no fact table to name a hierarchy on; enum_values: a Dart enum member carries no stored value, so every member is stored as its name; subscription_policy: no authoring surface (#1657) |
+| `fraiseql-rust/` | Rust | crates.io | 17/50 | queries, mutations, subscriptions, enums and their values, input types, CRUD, relationships, Relay and error-type flags, serverless functions, fact tables and the hierarchies their filters name, localized mutation arguments, list, `BigInt`, `LocalDateTime`, `Decimal` and `UUID` arguments, the retry opt-out: the Rust SDK is field-level-RBAC focused and ships no builder for them; subscription_policy: no authoring surface (#1657); scoped_like_parent: authored on the field, and no query builder to author the scoped query it is checked against |
 
 The scores and gap counts above are checked against `conformance/manifest.json` by
 `selftest.py`, because they had already drifted: the table read `19/19` when the fixture

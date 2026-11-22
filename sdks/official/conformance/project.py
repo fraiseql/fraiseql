@@ -264,6 +264,7 @@ CONSTRUCTS = (
     "mutation_invalidates_views",
     "mutation_invalidates_fact_tables",
     "fact_tables",
+    "fact_table_hierarchy",
     "mutation_requires_role",
     "mutation_requires_actor",
     "mutation_retry_on_abort",
@@ -1001,6 +1002,24 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         name: _fact_table(table)
         for name, table in sorted(fact_tables.items())
         if isinstance(table, dict)
+    }
+
+    # #1909: the hierarchy an `ltree` denormalized filter names, asserted by value. It is
+    # kept out of `fact_tables` so an SDK that authors fact tables and cannot name a
+    # hierarchy declares that one gap. Its survival is also the compiler having acted on
+    # it: `compile` loads what it writes (AF 4), and the load refuses a link no
+    # `[hierarchies]` table declares, which `project_toml` derives from the export.
+    observations["fact_table_hierarchy"] = {
+        name: links
+        for name, table in sorted(fact_tables.items())
+        if isinstance(table, dict)
+        and (
+            links := {
+                f["name"]: f["hierarchy"]
+                for f in table.get("denormalized_filters", [])
+                if isinstance(f, dict) and f.get("hierarchy") is not None
+            }
+        )
     }
 
     observers = _by_name(compiled.get("observers"))

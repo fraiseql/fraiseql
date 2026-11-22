@@ -288,7 +288,10 @@ fraiseql.fact_table(
   (default: `{"name": "data", "paths": []}`)
 - `denormalized_filters` (optional): Flat columns to filter and bucket by, each
   `{"name", "sql_type", "indexed"}`, with an optional `"hierarchy"` naming the hierarchy an
-  `ltree` path column belongs to
+  `ltree` path column belongs to. The SDK emits the name only: declare the hierarchy itself
+  as `[hierarchies.<name>]` (`table`, `path_column`) in the `fraiseql.toml` beside
+  `schema.json`. A name no `[hierarchies]` table declares is refused when the schema is
+  compiled
 - `type_name` (optional): The type the fact table is read as. Every measure, denormalized
   filter and dimension path must be a field of it, and its read gates apply
 - `row_scope` (optional): `"relation"` when the relation filters its own rows by tenant on a

@@ -208,6 +208,10 @@ type FilterDefinition struct {
 	Name    string `json:"name"`
 	SqlType string `json:"sql_type"`
 	Indexed bool   `json:"indexed"`
+	// Hierarchy names the `[hierarchies.<name>]` an `ltree` path column belongs to, so an
+	// aggregate can filter by node id (`<name>_descendant_of_id`). Declared in the
+	// project's `fraiseql.toml`; the SDK emits the name only.
+	Hierarchy string `json:"hierarchy,omitempty"`
 }
 
 // FactTableDefinition represents a GraphQL fact table for analytics.

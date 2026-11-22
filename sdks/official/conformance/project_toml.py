@@ -43,6 +43,33 @@ def declares_localized(node: object) -> bool:
     return False
 
 
+def linked_hierarchies(node: object) -> list[str]:
+    """Every hierarchy name a field or fact-table filter of an exported schema links (#1909),
+    sorted."""
+    found: set[str] = set()
+    stack = [node]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, dict):
+            name = item.get("hierarchy")
+            if isinstance(name, str) and name:
+                found.add(name)
+            stack.extend(item.values())
+        elif isinstance(item, list):
+            stack.extend(item)
+    return sorted(found)
+
+
+def hierarchies_section(names: list[str]) -> str:
+    """A `[hierarchies.<name>]` table for each name: an SDK names a hierarchy and never
+    defines it, so the project config declaring it is the only home it has."""
+    return "".join(
+        f"[hierarchies.{json.dumps(name)}]\n"
+        f'table = "tb_{name}"\npath_column = "path"\n\n'
+        for name in names
+    )
+
+
 def declares_observers(exported: object) -> bool:
     """Whether an exported schema declares at least one observer."""
     return isinstance(exported, dict) and bool(exported.get("observers"))
@@ -57,7 +84,8 @@ OBSERVERS_SECTION = '[project]\nname = "conformance"\n\n[observers]\nenabled = t
 def project_toml(schema: Path) -> str:
     """The `fraiseql.toml` a project compiling `schema` carries: a role granting each scope
     the schema declares, a `[locale]` when it declares a localized field, and a
-    `[project] name` with an enabled `[observers]` when it declares observers.
+    `[project] name` with an enabled `[observers]` when it declares observers, and a
+    `[hierarchies.<name>]` for each hierarchy it links.
 
     A scope is granted only by a role the project's security section defines, and a schema
     declaring `requires_scope` with no such section is one no server can load — so the
@@ -75,10 +103,13 @@ def project_toml(schema: Path) -> str:
     # name, and the compiler refuses them otherwise. Top-level tables go before the role array so neither is read
     # as a key of it.
     observers = OBSERVERS_SECTION if declares_observers(exported) else ""
+    # A linked hierarchy must be declared, or the compiler refuses the link; derived from
+    # the export for the reason the roles are, so a misspelled name reaches the diff.
+    hierarchies = hierarchies_section(linked_hierarchies(exported))
     if not scopes:
-        return locale + observers
+        return locale + observers + hierarchies
     listed = ", ".join(json.dumps(s) for s in scopes)
-    return locale + observers + (
+    return locale + observers + hierarchies + (
         "[[security.role_definitions]]\n"
         'name = "conformance"\n'
         'description = "Grants every scope the exported schema declares"\n'

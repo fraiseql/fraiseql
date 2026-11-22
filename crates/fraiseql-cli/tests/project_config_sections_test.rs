@@ -676,3 +676,66 @@ fn a_capture_entry_that_cannot_be_generated_from_is_refused_naming_it() {
         }
     }
 }
+
+/// An SDK document whose type field and fact-table filter each link hierarchy `org`, as
+/// the SDKs emit them: the link names the hierarchy, and no SDK emits its definition.
+fn document_linking_a_hierarchy() -> Value {
+    json!({
+        "types": [{"name": "Unit", "sql_source": "v_unit",
+                   "fields": [{"name": "id", "type": "ID", "nullable": false},
+                              {"name": "path", "type": "LTree", "nullable": false,
+                               "hierarchy": "org"}]}],
+        "queries": [{"name": "units", "return_type": "Unit", "returns_list": true,
+                     "sql_source": "v_unit"}],
+        "mutations": [],
+        "fact_tables": [{
+            "table_name": "tf_account_day",
+            "measures": [{"name": "balance", "sql_type": "numeric", "nullable": false}],
+            "dimensions": {"name": "data", "paths": []},
+            "denormalized_filters": [
+                {"name": "org_path", "sql_type": "ltree", "indexed": true, "hierarchy": "org"}
+            ]
+        }]
+    })
+}
+
+fn compiled_linking_a_hierarchy(toml: &str) -> Compiled {
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("schema.json"), document_linking_a_hierarchy().to_string()).unwrap();
+    fs::write(dir.path().join("fraiseql.toml"), format!("{toml}\n[project]\nname = \"app\"\n"))
+        .unwrap();
+    run(&dir, &["schema.json"])
+}
+
+/// An SDK names a hierarchy and cannot define it: the definition is the project config's
+/// `[hierarchies]`, and it satisfies every link the document makes.
+#[test]
+fn a_hierarchy_in_the_project_config_satisfies_the_links_an_sdk_document_makes() {
+    let compiled = compiled_linking_a_hierarchy(
+        "[hierarchies.org]\ntable = \"tb_org_unit\"\npath_column = \"path\"\n",
+    );
+
+    assert!(compiled.ok, "{}", compiled.log);
+    assert_eq!(
+        compiled.schema["hierarchies_config"],
+        json!({"org": {"table": "tb_org_unit", "path_column": "path"}})
+    );
+    let unit = &compiled.schema["types"][0];
+    let path = unit["fields"].as_array().unwrap().iter().find(|f| f["name"] == "path").unwrap();
+    assert_eq!(path["hierarchy"], "org");
+    let filter = &compiled.schema["fact_tables"]["tf_account_day"]["denormalized_filters"][0];
+    assert_eq!(filter["hierarchy"], "org", "{filter}");
+}
+
+#[test]
+fn a_link_to_a_hierarchy_neither_file_declares_is_refused_naming_each_link() {
+    let compiled = compiled_linking_a_hierarchy("");
+
+    assert!(!compiled.ok, "compiled with no [hierarchies.org]");
+    assert!(compiled.log.contains("`Unit.path` links hierarchy `org`"), "{}", compiled.log);
+    assert!(
+        compiled.log.contains("`tf_account_day.org_path` links hierarchy `org`"),
+        "{}",
+        compiled.log
+    );
+}

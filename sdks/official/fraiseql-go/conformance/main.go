@@ -411,6 +411,8 @@ func authorFull() error {
 		SemiAdditiveMeasure("closing_balance", "numeric", false, "day", fraiseql.ReduceLast, "account_id").
 		DenormalizedFilter("account_id", "bigint", true).
 		DenormalizedFilter("day", "date", true).
+		// #1909: a path column naming its hierarchy.
+		HierarchyFilter("org_path", "ltree", true, "org").
 		Register(); err != nil {
 		return err
 	}

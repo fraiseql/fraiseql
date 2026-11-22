@@ -457,6 +457,8 @@ function authorFull(): void {
     [
       { name: "account_id", sql_type: "bigint", indexed: true },
       { name: "day", sql_type: "date", indexed: true },
+      // #1909: a path column naming its hierarchy.
+      { name: "org_path", sql_type: "ltree", indexed: true, hierarchy: "org" },
     ],
     { inject: { account_id: "jwt:account_id" } }
   );

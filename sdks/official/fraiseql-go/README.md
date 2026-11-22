@@ -310,6 +310,7 @@ Methods:
 - `Measure(name, sqlType string, nullable bool)` - Add a measure column
 - `Dimension(name, jsonPath, dataType string)` - Add a dimension path reading the dimensions column
 - `DenormalizedFilter(name, sqlType string, indexed bool)` - Add a filter column
+- `HierarchyFilter(name, sqlType string, indexed bool, hierarchy string)` - Add an `ltree` path column that belongs to `hierarchy`, so an aggregate can filter it by node id (`<name>_descendant_of_id`, `<name>_ancestor_of_id`). The SDK emits the name only: declare the hierarchy as `[hierarchies.<name>]` (`table`, `path_column`) in the `fraiseql.toml` beside `schema.json`. A name no `[hierarchies]` table declares is refused when the schema is compiled
 - `Description(string)` - Set description
 - `Register()` - Register the fact table
 

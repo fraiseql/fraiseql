@@ -447,6 +447,8 @@ fraiseql.fact_table(
     denormalized_filters=[
         {"name": "account_id", "sql_type": "bigint", "indexed": True},
         {"name": "day", "sql_type": "date", "indexed": True},
+        # #1909: a path column naming its hierarchy.
+        {"name": "org_path", "sql_type": "ltree", "indexed": True, "hierarchy": "org"},
     ],
 )
 

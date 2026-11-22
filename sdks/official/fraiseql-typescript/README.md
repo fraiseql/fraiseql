@@ -197,6 +197,19 @@ and not a decorator. Aggregate queries are **not** declared in `schema.json` —
 refuses an `aggregate_queries` block (#956); declare each as an `[[analytics.queries]]`
 entry in `fraiseql.toml` instead, where it becomes an ordinary view-backed query.
 
+A denormalized filter on an `ltree` path column may name its hierarchy
+(`{ name: "org_path", sql_type: "ltree", indexed: true, hierarchy: "org" }`), so an
+aggregate `where` can filter by node id (`org_path_descendant_of_id`). The SDK emits the
+name only. Declare the hierarchy itself in the `fraiseql.toml` beside `schema.json`:
+
+```toml
+[hierarchies.org]
+table = "tb_org_unit"   # holds id (UUID) + the ltree path
+path_column = "path"
+```
+
+A name no `[hierarchies]` table declares is refused when the schema is compiled.
+
 #### `@Subscription(config?)`
 
 Mark a function as a GraphQL subscription for real-time events.

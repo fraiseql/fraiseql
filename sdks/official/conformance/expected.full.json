@@ -154,6 +154,11 @@
     ],
     "sql_source": "v_price_quote"
   },
+  "fact_table_hierarchy": {
+    "tf_account_day": {
+      "org_path": "org"
+    }
+  },
   "fact_tables": {
     "tf_account_day": {
       "denormalized_filters": [
@@ -166,6 +171,11 @@
           "indexed": true,
           "name": "day",
           "sql_type": "Date"
+        },
+        {
+          "indexed": true,
+          "name": "org_path",
+          "sql_type": "Ltree"
         }
       ],
       "dimensions": {

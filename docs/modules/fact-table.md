@@ -185,7 +185,9 @@ groups by `nlevel(org_path)` and answers as `org_path_depth`. Both need the colu
 
 **Filter by node id.** `org_path_descendant_of_id` and `org_path_ancestor_of_id` take the
 `id` of a node and compare against that node's path. The column names the hierarchy the
-node lives in, declared in `fraiseql.toml`:
+node lives in, declared in `fraiseql.toml`: the TOML schema, or the project config beside
+an SDK's `schema.json`. An SDK emits the column's `hierarchy` name and never the
+definition:
 
 ```toml
 # fraiseql.toml

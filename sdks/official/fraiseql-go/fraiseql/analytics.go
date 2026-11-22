@@ -121,10 +121,26 @@ func (b *FactTableBuilder) Dimension(name, jsonPath, dataType string) *FactTable
 
 // DenormalizedFilter adds a flat filter column on the fact table.
 func (b *FactTableBuilder) DenormalizedFilter(name, sqlType string, indexed bool) *FactTableBuilder {
+	return b.filter(name, sqlType, indexed, "")
+}
+
+// HierarchyFilter adds an `ltree` path column that belongs to hierarchy `hierarchy`, so an
+// aggregate can filter it by node id (`<name>_descendant_of_id`, `<name>_ancestor_of_id`)
+// (#1909). The hierarchy itself is declared in the project's `fraiseql.toml`:
+//
+//	[hierarchies.org]
+//	table = "tb_org_unit"
+//	path_column = "path"
+func (b *FactTableBuilder) HierarchyFilter(name, sqlType string, indexed bool, hierarchy string) *FactTableBuilder {
+	return b.filter(name, sqlType, indexed, hierarchy)
+}
+
+func (b *FactTableBuilder) filter(name, sqlType string, indexed bool, hierarchy string) *FactTableBuilder {
 	b.filters = append(b.filters, FilterDefinition{
-		Name:    name,
-		SqlType: sqlType,
-		Indexed: indexed,
+		Name:      name,
+		SqlType:   sqlType,
+		Indexed:   indexed,
+		Hierarchy: hierarchy,
 	})
 	return b
 }

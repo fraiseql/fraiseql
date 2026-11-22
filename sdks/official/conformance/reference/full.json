@@ -847,6 +847,12 @@
           "name": "day",
           "sql_type": "date",
           "indexed": true
+        },
+        {
+          "name": "org_path",
+          "sql_type": "ltree",
+          "indexed": true,
+          "hierarchy": "org"
         }
       ]
     }
