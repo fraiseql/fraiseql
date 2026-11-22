@@ -362,28 +362,10 @@ pub(crate) fn refuse_unknown_keys(table: &toml::Table) -> Result<()> {
     let Some(unknown) = toml_schema::json_schema::unknown_key(table) else {
         return Ok(());
     };
-    let accepted: Vec<&str> = unknown.accepted.iter().map(String::as_str).collect();
-    let near = fraiseql_core::runtime::suggest_similar(&unknown.key, &accepted)
-        .first()
-        .copied();
-    let spelling = if unknown.table.is_empty() {
-        format!("`{}`", unknown.key)
-    } else {
-        format!("`[{}] {}`", unknown.table, unknown.key)
-    };
-    let message = match near {
-        Some(near) => format!("fraiseql.toml takes no {spelling}; did you mean `{near}`?"),
-        None => format!(
-            "fraiseql.toml takes no {spelling}; remove it. That table takes: {}",
-            accepted.join(", ")
-        ),
-    };
-    let diagnostic =
-        ConfigDiagnostic::new(DiagnosticCode::UnknownKey, &unknown.table, &unknown.key, message);
-    Err(match near {
-        Some(near) => diagnostic.with_replacement(&format!("`{near}`")),
-        None => diagnostic,
-    }
+    Err(fraiseql_core::utils::config_diagnostic::schema::unknown_key_diagnostic(
+        "fraiseql.toml",
+        &unknown,
+    )
     .into())
 }
 

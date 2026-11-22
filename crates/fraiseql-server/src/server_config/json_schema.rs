@@ -45,7 +45,8 @@ pub fn server_config_json_schema() -> Value {
     schema().clone()
 }
 
-fn schema() -> &'static Value {
+/// The schema, generated once.
+pub(super) fn schema() -> &'static Value {
     static SCHEMA: OnceLock<Value> = OnceLock::new();
     SCHEMA.get_or_init(|| {
         let mut schema =

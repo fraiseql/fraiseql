@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used)] // Reason: test code
 
-use fraiseql_core::utils::config_diagnostic::schema::is_refused;
+use fraiseql_core::utils::config_diagnostic::schema::{is_refused, unknown_key};
 use serde_json::Value;
 
 use super::{FEATURE_ANNOTATION, SERVER_CONFIG_JSON_SCHEMA_PATH, server_config_json_schema};
@@ -370,4 +370,169 @@ fn no_key_is_only_an_annotation() {
         }
     }
     assert!(phantoms.is_empty(), "{}", phantoms.join("\n"));
+}
+
+// ── the walk against serde ────────────────────────────────────────────────────────
+
+/// A key no table of the server's file takes.
+const NOT_A_KEY: &str = "zz_not_a_key";
+
+/// `node` with every `$ref` followed and an `Option`'s value arm taken; `None` for a union of
+/// several shapes, which the walk judges arm by arm and this sweep does not reach into.
+fn object_of<'a>(root: &'a Value, mut node: &'a Value) -> Option<&'a Value> {
+    for _ in 0..64 {
+        if let Some(name) = node
+            .get("$ref")
+            .and_then(Value::as_str)
+            .and_then(|r| r.strip_prefix("#/$defs/"))
+        {
+            node = &root["$defs"][name];
+            continue;
+        }
+        let arms: Vec<&Value> = ["anyOf", "oneOf"]
+            .iter()
+            .filter_map(|c| node.get(*c).and_then(Value::as_array))
+            .flatten()
+            .filter(|arm| arm.get("type").and_then(Value::as_str) != Some("null"))
+            .collect();
+        match arms.as_slice() {
+            [] => return Some(node),
+            [arm] => node = arm,
+            _ => return None,
+        }
+    }
+    Some(node)
+}
+
+/// How a file reaches a table: through a key, an array's item, or a map's entry.
+#[derive(Clone, Debug)]
+enum Step {
+    Key(String),
+    Item,
+    Entry,
+}
+
+/// Every table the schema describes, by the steps a file takes to reach it, with its schema.
+fn tables(root: &Value) -> Vec<(Vec<Step>, &Value)> {
+    fn visit<'a>(
+        root: &'a Value,
+        node: &'a Value,
+        steps: &mut Vec<Step>,
+        out: &mut Vec<(Vec<Step>, &'a Value)>,
+    ) {
+        let Some(node) = object_of(root, node) else {
+            return;
+        };
+        if steps.len() > 6 {
+            return;
+        }
+        if let Some(items) = node.get("items") {
+            steps.push(Step::Item);
+            visit(root, items, steps, out);
+            steps.pop();
+            return;
+        }
+        if let Some(entry @ Value::Object(_)) = node.get("additionalProperties") {
+            steps.push(Step::Entry);
+            visit(root, entry, steps, out);
+            steps.pop();
+        }
+        let Some(properties) = node.get("properties").and_then(Value::as_object) else {
+            return;
+        };
+        out.push((steps.clone(), node));
+        for (key, child) in properties {
+            if is_refused(child) {
+                continue;
+            }
+            steps.push(Step::Key(key.clone()));
+            visit(root, child, steps, out);
+            steps.pop();
+        }
+    }
+    let mut out = Vec::new();
+    visit(root, root, &mut Vec::new(), &mut out);
+    out
+}
+
+/// A file holding `leaf` in the table `steps` reach.
+fn file_reaching(steps: &[Step], leaf: toml::Table) -> toml::Table {
+    let mut value = toml::Value::Table(leaf);
+    for step in steps.iter().rev() {
+        value = match step {
+            Step::Key(key) => toml::Value::Table(toml::Table::from_iter([(key.clone(), value)])),
+            Step::Entry => {
+                toml::Value::Table(toml::Table::from_iter([("probe".to_owned(), value)]))
+            },
+            Step::Item => toml::Value::Array(vec![value]),
+        };
+    }
+    match value {
+        toml::Value::Table(table) => table,
+        _ => toml::Table::new(),
+    }
+}
+
+/// Whether serde, reading `file` as the server does, refuses `key` as a field it does not
+/// know.
+fn serde_refuses_as_unknown(file: &toml::Table, key: &str) -> bool {
+    toml::Value::Table(file.clone())
+        .try_into::<crate::server_config::ServerConfig>()
+        .is_err_and(|e| e.to_string().contains(&format!("unknown field `{key}`")))
+}
+
+/// The walk refuses a key exactly where serde refuses it as unknown: in each table the
+/// schema describes, a key no table takes is refused by both or by neither.
+#[test]
+fn the_walk_refuses_an_unknown_key_where_serde_does() {
+    let schema = server_config_json_schema();
+    let tables = tables(&schema);
+    assert!(tables.len() >= 20, "{} tables reached", tables.len());
+    let mut disagree = Vec::new();
+    for (steps, _) in &tables {
+        let file = file_reaching(steps, toml::Table::from_iter([(NOT_A_KEY.into(), 1.into())]));
+        let walk = unknown_key(&schema, &file).is_some_and(|u| u.key == NOT_A_KEY);
+        let serde = serde_refuses_as_unknown(&file, NOT_A_KEY);
+        if walk != serde {
+            disagree.push(format!("{steps:?}: the walk refuses: {walk}, serde refuses: {serde}"));
+        }
+    }
+    assert!(disagree.is_empty(), "{}", disagree.join("\n"));
+}
+
+/// Every key the schema describes is one serde knows, and the walk takes.
+#[test]
+fn every_key_the_schema_describes_is_one_serde_knows() {
+    let schema = server_config_json_schema();
+    let mut unknown = Vec::new();
+    for (steps, node) in tables(&schema) {
+        let properties = node["properties"].as_object().unwrap();
+        for (key, child) in properties {
+            if is_refused(child) {
+                continue;
+            }
+            let file = file_reaching(&steps, toml::Table::from_iter([(key.clone(), true.into())]));
+            if serde_refuses_as_unknown(&file, key) || unknown_key(&schema, &file).is_some() {
+                unknown.push(format!("{steps:?} {key}"));
+            }
+        }
+    }
+    assert!(unknown.is_empty(), "{}", unknown.join("\n"));
+}
+
+/// A table serde reads with no key written requires none in the schema, so an editor does not
+/// demand a key the server defaults.
+#[test]
+fn a_table_serde_reads_empty_requires_no_key() {
+    let schema = server_config_json_schema();
+    let mut demanding = Vec::new();
+    for (steps, node) in tables(&schema) {
+        let required = node.get("required").and_then(Value::as_array).filter(|r| !r.is_empty());
+        let file = file_reaching(&steps, toml::Table::new());
+        let read = toml::Value::Table(file).try_into::<crate::server_config::ServerConfig>();
+        if let (Some(required), Ok(_)) = (required, read) {
+            demanding.push(format!("{steps:?} requires {required:?}"));
+        }
+    }
+    assert!(demanding.is_empty(), "{}", demanding.join("\n"));
 }

@@ -2093,3 +2093,40 @@ fn a_fraiseql_toml_setting_in_the_server_file_names_where_it_belongs() {
     assert_eq!(diagnostic.belongs_in, None);
     assert_eq!(diagnostic.replacement.as_deref(), Some("`cert_path`"));
 }
+
+/// A key the server's file does not take is refused as `E-CONFIG-UNKNOWN-KEY`, naming its
+/// table and the accepted spelling nearest to it, the file named.
+#[test]
+fn an_unknown_key_in_the_server_file_carries_its_diagnostic() {
+    use fraiseql_core::utils::config_diagnostic::DiagnosticCode;
+
+    for (written, table, key, replacement) in [
+        ("bind_adr = \"127.0.0.1:8080\"\n", "", "bind_adr", Some("`bind_addr`")),
+        ("[tls]\ncert_pth = \"c.pem\"\n", "tls", "cert_pth", Some("`cert_path`")),
+        ("[tls]\nzzzzzzzz = 1\n", "tls", "zzzzzzzz", None),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("server.toml");
+        std::fs::write(&path, written).unwrap();
+        let refused = ServerConfig::load_file(&path).expect_err(written);
+        assert!(refused.diagnostic().is_some(), "{written}: {refused}");
+        let diagnostic = refused.diagnostic().unwrap();
+        assert_eq!(diagnostic.code, DiagnosticCode::UnknownKey, "{written}");
+        assert_eq!((diagnostic.table.as_str(), diagnostic.key.as_deref()), (table, Some(key)));
+        assert_eq!(diagnostic.replacement.as_deref(), replacement, "{written}");
+        assert_eq!(diagnostic.file.as_deref(), Some(path.display().to_string().as_str()));
+        assert!(refused.to_string().contains(&diagnostic.message), "{refused}");
+    }
+}
+
+/// A section this build compiled out keeps its feature note, and is not called unknown.
+#[cfg(not(feature = "observers"))]
+#[test]
+fn a_compiled_out_section_is_not_an_unknown_key() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("server.toml");
+    std::fs::write(&path, "[observers]\nenabled = true\n").unwrap();
+    let refused = ServerConfig::load_file(&path).expect_err("compiled out");
+    assert!(refused.diagnostic().is_none(), "{refused}");
+    assert!(refused.to_string().contains("`observers` feature"), "{refused}");
+}

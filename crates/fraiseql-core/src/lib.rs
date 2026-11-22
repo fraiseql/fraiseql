@@ -183,6 +183,8 @@ pub use reqwest;
 pub use serde_json;
 /// The `tokio_postgres` this crate's public API is built against (#1198).
 pub use tokio_postgres;
+/// The `toml` this crate's public API is built against (#1198).
+pub use toml;
 /// The `tracing` this crate's public API is built against (#1198).
 pub use tracing;
 #[cfg(feature = "schema-lint")]

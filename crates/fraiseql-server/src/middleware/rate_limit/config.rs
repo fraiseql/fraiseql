@@ -38,13 +38,21 @@ const RENAMED_SERVER_KEYS: &[(&str, &str)] = &[
 /// burst_size = 200
 /// cleanup_interval_secs = 300
 /// ```
+// The schema states what the hand-written `Deserialize` below reads: a closed table, and
+// `cleanup_interval_secs` optional.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, schemars::JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct ServerRateLimitingConfig {
     /// The rate-limit policy, as `[security.rate_limiting]` spells it.
     #[serde(flatten)]
     pub policy:                RateLimitingSecurityConfig,
     /// Seconds between two sweeps of idle buckets. Default 300.
+    #[schemars(default = "default_cleanup_interval_secs")]
     pub cleanup_interval_secs: u64,
+}
+
+const fn default_cleanup_interval_secs() -> u64 {
+    DEFAULT_CLEANUP_INTERVAL_SECS
 }
 
 impl Default for ServerRateLimitingConfig {

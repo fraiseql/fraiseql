@@ -1,5 +1,7 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 
+use fraiseql_core::utils::config_diagnostic::schema::is_refused;
+
 use super::*;
 
 /// The schema of the table at `path` (`["project"]`, `["security", "rate_limiting"]`), with

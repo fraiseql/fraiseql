@@ -1777,12 +1777,11 @@
           "description": "Seconds between two sweeps of idle buckets. Default 300.",
           "type": "integer",
           "format": "uint64",
-          "minimum": 0
+          "minimum": 0,
+          "default": 300
         }
       },
-      "required": [
-        "cleanup_interval_secs"
-      ]
+      "additionalProperties": false
     },
     "ObserverConfig": {
       "description": "Observer configuration block (`[observers]`).\n\nThis is the **shared-file** view: `[observers]` is owned by the compiler\nschema (`backend`/`redis_url`/`nats_url`/`handlers`), while the server's\nruntime tuning lives under [`runtime`](ObserverConfig::runtime)\n(`[observers.runtime]`). The only top-level key both tools read is\n`enabled`. Unknown top-level keys are tolerated here so the compiler's own\nkeys do not break server boot (the compiler is the strict gate for the\n`[observers]` table); the strictness for the server's own settings lives on\n[`ObserverRuntimeSettings`].\n\nThe `legacy_*` fields are migration traps for the pre-#342 flat layout (see\n[`misplaced_runtime_keys`](ObserverConfig::misplaced_runtime_keys)).",

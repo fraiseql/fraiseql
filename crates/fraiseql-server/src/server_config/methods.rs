@@ -1,9 +1,15 @@
 use fraiseql_core::{
     db::postgres::PostgresTlsConfig,
-    utils::config_diagnostic::{ConfigDiagnostic, DiagnosticCode},
+    utils::config_diagnostic::{
+        ConfigDiagnostic, DiagnosticCode,
+        schema::{unknown_key, unknown_key_diagnostic},
+    },
 };
 
 use super::{DatabaseTlsConfig, ServerConfig};
+
+/// How a refusal names the file it refuses.
+const SERVER_FILE_NAME: &str = "the server's configuration file";
 
 /// Grouping tables `ServerConfig` has never had, mapped to the keys that do the job.
 ///
@@ -212,6 +218,18 @@ pub(super) fn enrich_parse_error(
             if refused_key.written_in(&table) {
                 let _ = write!(msg, "\nnote: {}", refused_key.note);
                 refused(refused_key.diagnostic);
+            }
+        }
+        // A key no table takes, when no refusal names it. A section this build compiled out
+        // is not one: its note above says which feature it needs.
+        let compiled_out = |key: &str| sections.iter().any(|(k, _, on)| !on && *k == key);
+        if first.is_none() {
+            if let Some(unknown) = unknown_key(super::json_schema::schema(), &table)
+                .filter(|u| !(u.table.is_empty() && compiled_out(&u.key)))
+            {
+                let diagnostic = unknown_key_diagnostic(SERVER_FILE_NAME, &unknown);
+                let _ = write!(msg, "\nnote: {}", diagnostic.message);
+                first = Some(diagnostic);
             }
         }
     }

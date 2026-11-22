@@ -536,6 +536,28 @@ fn run_refuses_a_fraiseql_toml_spelling_in_the_server_file_as_misplaced() {
     );
 }
 
+/// A key the server's file does not take is refused by `fraiseql run` as
+/// `E-CONFIG-UNKNOWN-KEY`, with the accepted spelling nearest to it, naming the server's file.
+#[cfg(feature = "run-server")]
+#[test]
+fn run_refuses_an_unknown_key_in_the_server_file_with_its_nearest_spelling() {
+    let refused = run_with_server_file(
+        "[tls]
+cert_pth = \"cert.pem\"\n",
+    );
+    let error = refused.error();
+    assert_eq!(refused.code, Some(2), "{error}");
+    let diagnostic = &error["diagnostic"];
+    assert_eq!(diagnostic["code"], "E-CONFIG-UNKNOWN-KEY", "{error}");
+    assert_eq!(diagnostic["table"], "tls", "{error}");
+    assert_eq!(diagnostic["key"], "cert_pth", "{error}");
+    assert_eq!(diagnostic["replacement"], "`cert_path`", "{error}");
+    assert!(
+        diagnostic["file"].as_str().is_some_and(|f| f.ends_with("server.toml")),
+        "{error}"
+    );
+}
+
 /// Each kind of refusal note the server's file gets carries its diagnostic: a grouping
 /// table it never had, and a section it no longer takes.
 #[cfg(feature = "run-server")]
