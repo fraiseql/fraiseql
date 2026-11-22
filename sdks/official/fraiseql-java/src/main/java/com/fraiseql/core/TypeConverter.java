@@ -45,8 +45,10 @@ public class TypeConverter {
             || javaType == double.class || javaType == Double.class) {
             return "Float";
         }
+        // The engine's exact scalars (#2274): as Float a decimal loses digits, and a
+        // BigInteger has no width, so BigInt (64 bits) cannot hold every value of it.
         if (javaType == java.math.BigDecimal.class || javaType == java.math.BigInteger.class) {
-            return "Float";
+            return "Decimal";
         }
         if (javaType == boolean.class || javaType == Boolean.class) {
             return "Boolean";
@@ -54,8 +56,9 @@ public class TypeConverter {
         if (javaType == String.class) {
             return "String";
         }
+        // An `id` of this type is still ID: see canonicalizeIdType.
         if (javaType == java.util.UUID.class) {
-            return "String";
+            return "UUID";
         }
 
         // Handle temporal types: the engine's Date, DateTime and Time scalars (#1530). They

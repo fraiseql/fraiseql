@@ -101,6 +101,14 @@ disagreed, and the promise was the part that was wrong.
     creates for them. `:utc_datetime`, `:utc_datetime_usec` and `:datetime` stay
     `DateTime`.
 
+- **The SDKs map a decimal to `Decimal` and a UUID to `UUID` (#2274).** A decimal was
+  published as `Float`, which loses its exactness, and a UUID as `String` or `ID`, which
+  loses its type in the schema, its filters and its generated clients. An `id` field typed
+  as a UUID stays `ID`. What changes for an SDK author:
+  - Java: `BigDecimal` and `BigInteger` are `Decimal` (a `BigInteger` has no width, so
+    `BigInt` cannot hold it), a list's items included; `UUID` is `UUID`, where it had
+    been `String`.
+
 - **A fact table's 64-bit results are `BigInt` and `Decimal` (#2175).** On an aggregate row,
   `<measure>_sum` of an `int` measure, `<measure>_min` and `<measure>_max` of a `bigint`
   measure, and a `bigint` key were `Int`, a field error past 32 bits: they are `BigInt`, the

@@ -120,6 +120,8 @@ Java types map to GraphQL types:
 | `long`, `Long` | `BigInt` (a signed 64-bit integer, served as its digits) | No |
 | `float`, `Float` | `Float` | No |
 | `double`, `Double` | `Float` | No |
+| `BigDecimal`, `BigInteger` | `Decimal` (exact, served as its digits) | No |
+| `UUID` | `UUID`; an `id` field is `ID` | No |
 | `String` | `String` | No |
 | `boolean`, `Boolean` | `Boolean` | No |
 | `LocalDate`, `java.sql.Date` | `Date` | No |

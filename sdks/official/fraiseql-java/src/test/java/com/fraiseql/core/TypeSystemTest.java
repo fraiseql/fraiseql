@@ -263,15 +263,15 @@ public class TypeSystemTest {
     }
 
     @Test
-    @DisplayName("Convert UUID to GraphQL String")
+    @DisplayName("Convert UUID to GraphQL UUID")
     void testConvertUUID() {
-        assertEquals("String", TypeConverter.javaToGraphQL(java.util.UUID.class));
+        assertEquals("UUID", TypeConverter.javaToGraphQL(java.util.UUID.class));
     }
 
     @Test
-    @DisplayName("Convert BigDecimal to GraphQL Float")
+    @DisplayName("Convert BigDecimal to GraphQL Decimal")
     void testConvertBigDecimal() {
-        assertEquals("Float", TypeConverter.javaToGraphQL(java.math.BigDecimal.class));
+        assertEquals("Decimal", TypeConverter.javaToGraphQL(java.math.BigDecimal.class));
     }
 
     @Test

@@ -67,6 +67,7 @@ public class ConformanceExport {
         FraiseQL.registerType(ConformanceOrderShipment.class);
         FraiseQL.registerType(ConformanceLedgerEntry.class);
         FraiseQL.registerType(ConformanceShiftSlot.class);
+        FraiseQL.registerType(ConformancePriceQuote.class);
 
         FraiseQL.getRegistry().registerEnum("OrderStatus", enumValues(), "");
         Map<String, Object> priority = new LinkedHashMap<>();
@@ -136,6 +137,15 @@ public class ConformanceExport {
             .sqlSource("v_shift_slot")
             .arg("startsAfter", Scalars.LOCAL_DATE_TIME + "!")
             .arg("exceptAt", "[LocalDateTime!]")
+            .register();
+
+        // `Decimal` and `UUID` arguments are named: an argument is a type string.
+        FraiseQL.query("priceQuotesByRequest")
+            .returnType("PriceQuote")
+            .returnsArray(true)
+            .sqlSource("v_price_quote")
+            .arg("requestId", Scalars.UUID + "!")
+            .arg("minAmount", Scalars.DECIMAL)
             .register();
 
         FraiseQL.query("tenantOrderShipments")
@@ -427,6 +437,29 @@ public class ConformanceExport {
 
         @GraphQLField
         public List<java.time.LocalDateTime> breaksAt;
+    }
+
+    // The exact scalars (#2274), inferred from the Java types: `BigDecimal` is `Decimal`
+    // and `UUID` is `UUID`, an `id` of it `ID`.
+    @GraphQLType(name = "PriceQuote", sqlSource = "v_price_quote")
+    public static class ConformancePriceQuote {
+        @GraphQLField
+        public java.util.UUID id;
+
+        @GraphQLField
+        public java.math.BigDecimal amount;
+
+        @GraphQLField(nullable = true)
+        public java.math.BigDecimal fxRate;
+
+        @GraphQLField
+        public List<java.math.BigDecimal> deltas;
+
+        @GraphQLField
+        public java.util.UUID requestId;
+
+        @GraphQLField(nullable = true)
+        public java.util.UUID issuerId;
     }
 
     // Lists (#1586, #1608), inferred from the Java types: an element is non-null unless
