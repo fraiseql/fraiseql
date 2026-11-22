@@ -91,7 +91,7 @@ mutation CreatePost($input: CreatePostInput!) {
   createPost(input: $input) {
     entity { id title authorId }
     cascade {
-      updated { __typename id operation entity { ... on Post { title } ... on User { postCount } } }
+      updated { __typename id operation entity { __typename ... on Post { title } ... on User { postCount } } }
       invalidations { queryName strategy scope }
       metadata { affectedCount truncated }
     }
@@ -107,8 +107,8 @@ mutation CreatePost($input: CreatePostInput!) {
       "entity": { "id": "post-123", "title": "My New Post", "authorId": "user-456" },
       "cascade": {
         "updated": [
-          { "__typename": "Post", "id": "post-123", "operation": "CREATED", "entity": { "title": "My New Post" } },
-          { "__typename": "User", "id": "user-456", "operation": "UPDATED", "entity": { "postCount": 5 } }
+          { "__typename": "UpdatedEntity", "id": "post-123", "operation": "CREATED", "entity": { "__typename": "Post", "title": "My New Post" } },
+          { "__typename": "UpdatedEntity", "id": "user-456", "operation": "UPDATED", "entity": { "__typename": "User", "postCount": 5 } }
         ],
         "invalidations": [ { "queryName": "posts", "strategy": "INVALIDATE", "scope": "PREFIX" } ],
         "metadata": { "affectedCount": 2, "truncated": false }
@@ -119,17 +119,22 @@ mutation CreatePost($input: CreatePostInput!) {
 }
 ```
 
+Each entry's own `__typename` is `UpdatedEntity`, the GraphQL type of a `cascade.updated`
+entry. The row's type is the entity's `__typename`, which the query selects. The
+`'Post'`/`'User'` the function passes to `fraiseql.cascade_entity` is its input to the
+runtime, which resolves the entity with it; it is not echoed as the entry's `__typename`.
+
 ## Client Integration (Apollo)
 
-Because each `cascade.updated` entry carries `__typename` + `id` + the full `entity`,
-a normalized cache can write it directly:
+Because each `cascade.updated` entry carries `id`, the full `entity` and, in it, the row's
+`__typename`, a normalized cache can write it directly:
 
 ```typescript
 function applyCascade(cache: ApolloCache<unknown>, cascade: CascadeUpdates) {
   cascade.updated?.forEach(u => {
     cache.writeFragment({
-      id: cache.identify({ __typename: u.__typename, id: u.id }),
-      fragment: gql`fragment _ on ${u.__typename} { id }`,
+      id: cache.identify({ __typename: u.entity.__typename, id: u.id }),
+      fragment: gql`fragment _ on ${u.entity.__typename} { id }`,
       data: u.entity,
     });
   });
@@ -150,7 +155,7 @@ psql -v ON_ERROR_STOP=1 -d cascade_create_example -f schema.sql
 ## Key Learning Points
 
 1. **Opt in with `cascade=True`** — the mutation then returns `<Name>Payload { entity, cascade, updatedFields }`.
-2. **Nested entry shape** — each `updated` entry is `{ __typename, id, operation, entity }`; `deleted` entries are `{ __typename, id, deletedAt }` (no body).
+2. **Nested entry shape** — each `updated` entry is an `UpdatedEntity` `{ id, operation, entity }`, the row's type at `entity { __typename }`; `deleted` entries are a `DeletedEntity` `{ id, deletedAt }` (no body). An entry's own `__typename` names that envelope type, not the row's; a deleted row's type does not reach the client yet (#2313).
 3. **Read from views** — assemble cascade entities from `v_*` (RLS-protected), never `tb_*`.
 4. **Enforced like a query** — cascade entities are projected to camelCase and field-authorized; the response is bounded by `cascade_limits`.
 5. **Cache-clean** — cascade is on the payload, not the entity, so normalized client caches never store a `cascade` key on `Post`.

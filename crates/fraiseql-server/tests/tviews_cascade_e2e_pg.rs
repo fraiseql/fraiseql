@@ -370,6 +370,70 @@ async fn the_cascade_lists_the_rows_pg_tviews_refreshed() {
     assert_eq!(entries.len(), 2, "each row once: {body}");
 }
 
+/// A cascade entry's own `__typename` is its envelope's GraphQL type, `UpdatedEntity` or
+/// `DeletedEntity`, whatever the function wrote there (#1816). A row's type is read at
+/// `entity { __typename }`, through `CascadeNode`; a deleted entry has no entity.
+#[tokio::test]
+async fn an_entrys_typename_is_its_envelope_and_its_entitys_is_the_rows_type() {
+    let Some(server) = serve().await else {
+        return;
+    };
+    let body = post_graphql(
+        &server,
+        &format!(
+            "mutation {{ updatePost(id: \"{POST}\", title: \"typed\") {{ ... on \
+             UpdatePostPayload {{ cascade {{ updated {{ __typename id entity {{ __typename id }} \
+             }} }} }} }} }}"
+        ),
+    )
+    .await;
+    let updated = body["data"]["updatePost"]["cascade"]["updated"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{body}"))
+        .clone();
+    let mut entities: Vec<(String, String)> = updated
+        .iter()
+        .map(|e| {
+            assert_eq!(e["__typename"], "UpdatedEntity", "the entry's own type: {body}");
+            assert_eq!(e["entity"]["id"], e["id"], "{body}");
+            (e["entity"]["__typename"].as_str().unwrap().to_string(), e["id"].to_string())
+        })
+        .collect();
+    entities.sort();
+    assert_eq!(
+        entities.iter().map(|(t, _)| t.as_str()).collect::<Vec<_>>(),
+        ["Post", "User"],
+        "each row's type is its entity's `__typename`: {body}"
+    );
+
+    // The function lists the deletion as a `Post`; the entry answers its envelope's type.
+    let body = post_graphql(
+        &server,
+        &format!(
+            "mutation {{ deletePostOwn(id: \"{OTHER_POST}\", title: \"x\") {{ ... on \
+             DeletePostOwnPayload {{ cascade {{ deleted {{ __typename id }} }} }} }} }}"
+        ),
+    )
+    .await;
+    assert_eq!(
+        body["data"]["deletePostOwn"]["cascade"]["deleted"],
+        json!([{ "__typename": "DeletedEntity", "id": OTHER_POST }]),
+        "{body}"
+    );
+}
+
+async fn post_graphql(server: &Running, query: &str) -> Value {
+    reqwest::Client::new()
+        .post(format!("{}/graphql", server.base))
+        .json(&json!({ "query": query }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap()
+}
+
 /// A derived row keeps its `Decimal`s' digits: it is read from its view as the type
 /// `pg_tviews` names it, not decoded through an `f64`.
 #[tokio::test]

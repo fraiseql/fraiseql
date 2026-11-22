@@ -1446,6 +1446,15 @@ disagreed, and the promise was the part that was wrong.
   stays 1. `docs/operations/emit-ddl.md` now also states where an index goes: in the file of
   the table it indexes, after its `CREATE TABLE`, never in a file of its own.
 
+- **The cascade docs say what a client reads at `__typename` (#1816).** They showed each
+  `cascade.updated` entry's `__typename` as the row's type (`Post`, `User`), and the
+  example's Apollo `applyCascade` keyed the cache on it. Followed as written, that wrote
+  every cascade row under `UpdatedEntity:<id>`. An entry's own `__typename` is its GraphQL
+  type, `UpdatedEntity` (or `DeletedEntity`). The row's type is `entity { __typename }`,
+  which the example now selects and keys on. The `__typename` in the `cascade` JSONB a
+  function builds is its input to the runtime. A deleted row's type does not reach the
+  client yet (#2313). A server test now executes both answers against PostgreSQL.
+
 - **An SDK-authored fact table can filter by hierarchy node (#1909).** A denormalized
   `ltree` filter names its hierarchy (`"hierarchy": "org"`) so `org_path_descendant_of_id`
   and `org_path_ancestor_of_id` resolve a node id. The hierarchy itself is declared as
