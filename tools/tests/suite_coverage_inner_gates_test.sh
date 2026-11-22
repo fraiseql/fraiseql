@@ -645,6 +645,34 @@ make_fixture "$WORK/fn_inline" "$FEATS" 'mod inner {
 expect "a test fn inside an inline mod is named with its path" 0 "$WORK/fn_inline"
 
 echo
+echo "── a gated mod inside an inline mod is named by its whole path ──"
+
+NESTED_BODY='mod outer {
+    #[cfg(feature = "parquet")]
+    mod gated {
+        #[test]
+        fn probe() {}
+    }
+
+    #[test]
+    fn other() {}
+}'
+
+make_fixture "$WORK/n_real" "$FEATS" "$NESTED_BODY" \
+    "cargo test -p demo --lib --features parquet -- tests::outer::gated::"
+expect "a filter on the gated mod's real path covers it" 0 "$WORK/n_real"
+
+make_fixture "$WORK/n_short" "$FEATS" "$NESTED_BODY" \
+    "cargo test -p demo --lib --features parquet -- tests::gated::"
+expect "...and one on its own name alone does not, and names the real path" 1 "$WORK/n_short" \
+    "demo::lib::tests::outer::gated[parquet]"
+
+make_fixture "$WORK/n_exempt" "$FEATS" "$NESTED_BODY" "cargo test -p demo --lib"
+printf '[[exempt]]\ntarget = "demo::lib::tests::outer::gated[parquet]"\nreason = "never run by any leg (#0000)"\n' \
+    >"$WORK/n_exempt/tools/suite-coverage-exemptions.toml"
+expect "an exemption names a nested gated mod by its real path" 0 "$WORK/n_exempt" "1 exemptions in use"
+
+echo
 echo "── an exemption for a module a leg runs is refused ──"
 
 make_fixture "$WORK/x_covered" "$FEATS" "$DECL_BODY" "cargo test -p demo --lib --features parquet" "" \

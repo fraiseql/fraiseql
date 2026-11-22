@@ -888,16 +888,21 @@ def _brace_end(structural: str, open_at: int) -> int:
     return len(structural)
 
 
+def _inline_mod_spans(structural: str) -> list[tuple[str, int, int]]:
+    """Each inline `mod NAME { … }` in a file: its name and its span, in source order."""
+    return [
+        (m.group(1), m.start(), _brace_end(structural, m.end() - 1))
+        for m in _INLINE_MOD_AT.finditer(structural)
+    ]
+
+
 def _test_fn_spans(structural: str) -> list[tuple[str, int, int]]:
     """Each test fn in a file: its path below the file's module, and its span.
 
     The span runs from its test attribute to the end of its body; the path includes the
     inline `mod NAME { … }` blocks around it, as cargo names the test.
     """
-    mods = [
-        (m.group(1), m.start(), _brace_end(structural, m.end() - 1))
-        for m in _INLINE_MOD_AT.finditer(structural)
-    ]
+    mods = _inline_mod_spans(structural)
     out: list[tuple[str, int, int]] = []
     for a in _TEST_ATTR.finditer(structural):
         f = _FN_AT.search(structural, a.end())
@@ -920,7 +925,8 @@ def inner_gate_requirements(text: str) -> list[InnerGate]:
     inverted, since the leg does enable the feature while nothing compiled the
     `not(feature)` arms.
 
-    `submodule` is the inner `mod` the cfg gates, or "" when it gates a fn or a block.
+    `submodule` is the path of the inner `mod` the cfg gates, below the file's module and
+    through any inline mods around it, or "" when it gates a fn or a block.
 
     The fifth element is the SOURCE the gate covers, concatenated over every site
     carrying that same requirement set. Without it the two axes `covers_binary`
@@ -940,6 +946,7 @@ def inner_gate_requirements(text: str) -> list[InnerGate]:
     # so `m.end()` indexes either.
     structural = scrub_source(text, blank_strings=True)
     test_fns = _test_fn_spans(structural)
+    inline_mods = _inline_mod_spans(structural)
     for m in INNER_CFG.finditer(stripped):
         pred = " ".join(m.group("pred").split())
         # `any(a, b)` is a disjunction: at least one. Lift the groups out first so their
@@ -972,7 +979,10 @@ def inner_gate_requirements(text: str) -> list[InnerGate]:
                 continue
             break
         mod_match = INNER_MOD.match(tail)
-        submodule = mod_match.group(1) if mod_match else ""
+        # A gated `mod` is named by its path below the file's module, the inline mods
+        # around it included, as cargo names its tests: a filter on that path selects it.
+        enclosing = [name for name, s0, e0 in inline_mods if s0 < m.start() < e0]
+        submodule = "::".join([*enclosing, mod_match.group(1)]) if mod_match else ""
         key = (submodule, required, forbidden, tuple(sorted(groups, key=sorted)))
         start, end = _gated_item_span(structural, m.start(), m.end())
         bodies.setdefault(key, []).append(stripped[start:end])
