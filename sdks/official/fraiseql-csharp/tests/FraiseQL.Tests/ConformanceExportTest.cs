@@ -98,6 +98,7 @@ public class ConformanceExportTest
         SchemaRegistry.Instance.Register(typeof(ConformanceOrderShipment));
         SchemaRegistry.Instance.Register(typeof(ConformanceLedgerEntry));
         SchemaRegistry.Instance.Register(typeof(ConformanceShiftSlot));
+        SchemaRegistry.Instance.Register(typeof(ConformancePriceQuote));
         SchemaRegistry.Instance.Register(typeof(ConformanceCreateUserInput));
 
         SchemaRegistry.Instance.RegisterEnum<OrderStatus>();
@@ -132,6 +133,14 @@ public class ConformanceExportTest
             .SqlSource("v_shift_slot")
             .Argument("startsAfter", "LocalDateTime")
             .Argument("exceptAt", "[LocalDateTime!]", nullable: true)
+            .Register();
+
+        QueryBuilder.Query("priceQuotesByRequest")
+            .ReturnType("PriceQuote")
+            .ReturnsList(true)
+            .SqlSource("v_price_quote")
+            .Argument("requestId", "UUID")
+            .Argument("minAmount", "Decimal", nullable: true)
             .Register();
 
         QueryBuilder.Query("tenantOrderShipments")
@@ -322,6 +331,30 @@ public class ConformanceExportTest
 
         [GraphQLField(Type = "[LocalDateTime!]")]
         public List<DateTime> BreaksAt { get; set; } = new();
+    }
+
+    // The exact scalars (#2274), inferred from the C# types: `decimal` is `Decimal` and
+    // `Guid` is `UUID`, an `id` of it `ID`.
+    [GraphQLType(Name = "PriceQuote", SqlSource = "v_price_quote")]
+    private sealed class ConformancePriceQuote
+    {
+        [GraphQLField]
+        public Guid Id { get; set; }
+
+        [GraphQLField]
+        public decimal Amount { get; set; }
+
+        [GraphQLField]
+        public decimal? FxRate { get; set; }
+
+        [GraphQLField]
+        public List<decimal> Deltas { get; set; } = new();
+
+        [GraphQLField]
+        public Guid RequestId { get; set; }
+
+        [GraphQLField]
+        public Guid? IssuerId { get; set; }
     }
 
     [GraphQLType(Name = "ReadingSeries", SqlSource = "v_reading_series")]

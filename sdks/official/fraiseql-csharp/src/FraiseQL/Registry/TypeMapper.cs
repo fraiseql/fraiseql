@@ -121,7 +121,10 @@ public static class TypeMapper
 
     /// <summary>Maps a non-nullable C# base type to its GraphQL scalar equivalent.</summary>
     /// <param name="baseType">The C# type to map.</param>
-    /// <returns>The GraphQL scalar name. Defaults to <c>"String"</c> for unknown types.</returns>
+    /// <returns>The GraphQL type name.</returns>
+    /// <exception cref="NotSupportedException">
+    /// The type is none the SDK maps: declare it with <c>[GraphQLField(Type = "...")]</c>.
+    /// </exception>
     private static string MapBaseType(Type baseType)
     {
         // An integer maps to the narrowest scalar holding its range: `Int` is 32 bits and
@@ -134,12 +137,17 @@ public static class TypeMapper
             throw new NotSupportedException(
                 $"{baseType.Name} has no integer scalar: BigInt is a signed 64-bit integer, so an "
                 + "unsigned 64-bit one is a Decimal ([GraphQLField(Type = \"Decimal\")])");
-        if (baseType == typeof(float) || baseType == typeof(double) || baseType == typeof(decimal))
+        if (baseType == typeof(float) || baseType == typeof(double))
             return "Float";
+        // The engine's exact scalars (#2274): as `Float` a decimal loses digits, and as `ID` a
+        // Guid that is not the type's `id` (a reference) lost its type. An `id` is still `ID`:
+        // see CanonicalizeIdType.
+        if (baseType == typeof(decimal))
+            return "Decimal";
         if (baseType == typeof(bool))
             return "Boolean";
         if (baseType == typeof(Guid))
-            return "ID";
+            return "UUID";
         if (baseType == typeof(string))
             return "String";
         // The engine's temporal scalars (#1530); these used to export as String.
@@ -150,7 +158,20 @@ public static class TypeMapper
         if (baseType == typeof(TimeOnly))
             return "Time";
 
-        // Fallback for unknown types
-        return "String";
+        if (baseType == typeof(System.Text.Json.JsonElement)
+            || baseType == typeof(System.Text.Json.JsonDocument)
+            || typeof(System.Text.Json.Nodes.JsonNode).IsAssignableFrom(baseType))
+            return "Json";
+        // An enum is published under its type name (RegisterEnum), a [GraphQLType] class under
+        // its declared name.
+        if (baseType.IsEnum)
+            return baseType.Name;
+        if (baseType.GetCustomAttribute<GraphQLTypeAttribute>() is { } typeAttr)
+            return string.IsNullOrEmpty(typeAttr.Name) ? baseType.Name : typeAttr.Name;
+
+        // Anything else used to be published as `String`, hiding the value's type.
+        throw new NotSupportedException(
+            $"{baseType.Name} maps to no GraphQL type: declare one with "
+            + "[GraphQLField(Type = \"...\")]");
     }
 }

@@ -35,7 +35,7 @@ public sealed class ListTypeMapperTests
     [InlineData(nameof(Series.Readings), "[Float]", true)]
     [InlineData(nameof(Series.Notes), "[String]", false)]
     [InlineData(nameof(Series.Counts), "[Int!]", false)]
-    [InlineData(nameof(Series.Ids), "[ID!]", false)]
+    [InlineData(nameof(Series.Ids), "[UUID!]", false)]
     [InlineData(nameof(Series.Grid), "[[Float]!]", false)]
     [InlineData(nameof(Series.Rows), "[[Float!]]", false)]
     public void EachListLevelIsNonNullUnlessMarkedNullable(string property, string type, bool nullable)

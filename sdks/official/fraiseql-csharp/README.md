@@ -111,14 +111,19 @@ fraiseql compile schema.json
 | `long`, `uint` | `BigInt` (a signed 64-bit integer, served as its digits) |
 | `long?`, `uint?` | `BigInt` (nullable) |
 | `ulong` | refused: no integer scalar holds it; declare `[GraphQLField(Type = "Decimal")]` |
-| `float`, `double`, `decimal` | `Float` |
+| `float`, `double` | `Float` |
+| `decimal` | `Decimal` (exact, served as its digits) |
 | `bool` | `Boolean` |
-| `Guid` | `ID` |
+| `Guid` | `UUID`; an `id` field is `ID` |
 | `string` | `String` |
 | `string?` | `String` (nullable) |
 | `DateTime`, `DateTimeOffset` | `DateTime`; a date and time with no offset (a PostgreSQL `timestamp`) is declared `[GraphQLField(Type = "LocalDateTime")]` |
 | `DateOnly` | `Date` |
 | `TimeOnly` | `Time` |
+| `JsonElement`, `JsonDocument`, `JsonNode` | `Json` |
+| an enum | its type name, as `RegisterEnum<T>` publishes it |
+| a `[GraphQLType]` class | its declared name |
+| any other type, `object` included | refused at registration, naming the property: declare `[GraphQLField(Type = "...")]` |
 
 ---
 

@@ -108,6 +108,14 @@ disagreed, and the promise was the part that was wrong.
   - Java: `BigDecimal` and `BigInteger` are `Decimal` (a `BigInteger` has no width, so
     `BigInt` cannot hold it), a list's items included; `UUID` is `UUID`, where it had
     been `String`.
+  - C#: `decimal` is `Decimal`, where it had been `Float`. `Guid` is `UUID`, where it had
+    been `ID`: a `Guid` property that is not the type's `id`, a foreign key such as
+    `IssuerId`, now publishes `UUID` instead of `ID`, and a list of them `[UUID!]`.
+    `JsonElement`, `JsonDocument` and `JsonNode` are `Json`. An enum property publishes
+    its enum's name and a `[GraphQLType]` class property its type's name; both had been
+    `String`. Any other type the SDK does not map, `object` included, had been published
+    as `String` and is now refused at registration, naming the property: declare
+    `[GraphQLField(Type = "...")]`.
 
 - **A fact table's 64-bit results are `BigInt` and `Decimal` (#2175).** On an aggregate row,
   `<measure>_sum` of an `int` measure, `<measure>_min` and `<measure>_max` of a `bigint`

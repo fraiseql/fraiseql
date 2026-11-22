@@ -82,10 +82,10 @@ public sealed class TypeMapperTests
     }
 
     [Fact]
-    public void TestDecimalMapsToFloat()
+    public void TestDecimalMapsToDecimal()
     {
         var (type, _) = Detect(nameof(AllTypesFixture.DecimalProp));
-        Assert.Equal("Float", type);
+        Assert.Equal("Decimal", type);
     }
 
     [Fact]
@@ -96,10 +96,10 @@ public sealed class TypeMapperTests
     }
 
     [Fact]
-    public void TestGuidMapsToId()
+    public void TestGuidMapsToUuid()
     {
         var (type, _) = Detect(nameof(AllTypesFixture.GuidProp));
-        Assert.Equal("ID", type);
+        Assert.Equal("UUID", type);
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public sealed class TypeMapperTests
     public void TestNullableGuidIsNullable()
     {
         var (type, nullable) = Detect(nameof(AllTypesFixture.NullableGuidProp));
-        Assert.Equal("ID", type);
+        Assert.Equal("UUID", type);
         Assert.True(nullable);
     }
 
