@@ -1,0 +1,2 @@
+graphql-transport-ws
+{"type":"subscribe","id":"1","payload":{"query":"subscription { orderCreated { id } }","variables":{"a":1}}}

@@ -61,3 +61,8 @@ path = "fuzz_targets/oidc_token.rs"
 doc = false
 name = "value_json_seam"
 path = "fuzz_targets/value_json_seam.rs"
+
+[[bin]]
+doc = false
+name = "relay_ids"
+path = "fuzz_targets/relay_ids.rs"

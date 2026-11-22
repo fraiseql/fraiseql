@@ -12,9 +12,16 @@ path = "fuzz_targets/graphql_request.rs"
 libfuzzer-sys = "0.4"
 serde_json = "1"
 toml = "0.8"
+# `rest_params` decodes a query string as the router does.
+url = "2"
+
+[dependencies.fraiseql-core]
+path = "../../fraiseql-core"
 
 [dependencies.fraiseql-server]
 path = ".."
+# `rest_params` reaches the REST extractor, compiled only with this feature.
+features = ["rest"]
 
 [package]
 edition = "2021"
@@ -27,3 +34,13 @@ cargo-fuzz = true
 
 [workspace]
 members = ["."]
+
+[[bin]]
+doc = false
+name = "rest_params"
+path = "fuzz_targets/rest_params.rs"
+
+[[bin]]
+doc = false
+name = "ws_client_message"
+path = "fuzz_targets/ws_client_message.rs"

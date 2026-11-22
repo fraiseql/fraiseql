@@ -1,0 +1,2 @@
+graphql-ws
+{"type":"start","id":"op-2","payload":{"query":"subscription { x }","operationName":"X"}}

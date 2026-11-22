@@ -78,7 +78,8 @@ jobs:
           - { crate: fraiseql-core,       target: query_variables }
           - { crate: fraiseql-core,       target: schema_compile }
           - { crate: fraiseql-core,       target: sql_codegen }
-          - { crate: fraiseql-arrow,      target: db_convert }
+          - { crate: fraiseql-core,       target: relay_ids }
+          - { crate: fraiseql-arrow,     target: db_convert }
           - { crate: fraiseql-arrow,      target: flight_ticket }
           - { crate: fraiseql-auth,       target: pkce_token_parse }
           - { crate: fraiseql-auth,       target: state_token_decrypt }
@@ -93,6 +94,8 @@ jobs:
           - { crate: fraiseql-db,         target: projection_generator }
           - { crate: fraiseql-federation, target: subgraph_response }
           - { crate: fraiseql-server,     target: graphql_request }
+          - { crate: fraiseql-server,     target: rest_params }
+          - { crate: fraiseql-server,     target: ws_client_message }
           # Lives in fraiseql-server, not fraiseql-core: `5a4a8f86b` (#909) deleted
           # fraiseql_core::config::FraiseQLConfig — the TOML tree nothing read — and its
           # fuzz target with it, while the target fuzzing the config loader that IS live

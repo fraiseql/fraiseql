@@ -1,0 +1,2 @@
+graphql-ws, graphql-transport-ws
+{"type":"connection_init","payload":{"authorization":"Bearer t"}}
