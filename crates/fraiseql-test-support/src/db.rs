@@ -21,13 +21,37 @@ pub fn database_url() -> String {
     resolve_or_panic("DATABASE_URL", "postgresql://...", try_database_url())
 }
 
+/// Set by every CI leg that binds a database (`.dagger/main.go`).
+///
+/// Where it is set, a test that finds no database fails instead of skipping: the run
+/// promised one, so a skip there would read as a pass while asserting nothing.
+pub const REQUIRE_POSTGRES_ENV: &str = "FRAISEQL_TEST_REQUIRE_POSTGRES";
+
 /// Returns the PostgreSQL test URL if `DATABASE_URL` is set, or `None` otherwise.
 ///
-/// Use this for tests that should be silently skipped (return early) when no
-/// database is available, instead of being permanently `#[ignore]`d.
+/// Use this for tests that should be skipped (return early) when no database is
+/// available, instead of being permanently `#[ignore]`d.
+///
+/// # Panics
+///
+/// Panics if `DATABASE_URL` is not set where [`REQUIRE_POSTGRES_ENV`] is.
 #[must_use]
 pub fn try_database_url() -> Option<String> {
-    env_url("DATABASE_URL")
+    demand_postgres("DATABASE_URL is not set", env_url("DATABASE_URL"))
+}
+
+/// `found`, unless it is `None` in a run [`REQUIRE_POSTGRES_ENV`] says binds a database.
+///
+/// # Panics
+///
+/// Panics, saying `why`, when `found` is `None` and [`REQUIRE_POSTGRES_ENV`] is set.
+pub(crate) fn demand_postgres<T>(why: &str, found: Option<T>) -> Option<T> {
+    assert!(
+        found.is_some() || env_url(REQUIRE_POSTGRES_ENV).is_none(),
+        "{why}, but {REQUIRE_POSTGRES_ENV} is set: this run binds a database, so a test that \
+         skipped here would read as a pass"
+    );
+    found
 }
 
 /// Returns the URL of the REAL streaming standby of [`database_url`]'s primary,

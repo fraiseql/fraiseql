@@ -1216,6 +1216,11 @@ func (m *FraiseqlCi) Test(
 		// the default one, was never tested.
 		"echo '### cargo test -p fraiseql-auth --lib (default features: the not(auth-saml) arms)'",
 		"cargo test -p fraiseql-auth --lib",
+		// fraiseql-test-support's pin that postgres() fails with DATABASE_URL unset holds
+		// only in the build without `local-testcontainers`, where an unset URL cannot
+		// spawn a database; the workspace sweep above enables every feature.
+		"echo '### cargo test -p fraiseql-test-support --lib (default features: no local spawn)'",
+		"cargo test -p fraiseql-test-support --lib",
 		// The MCP transport's Docker-free test binaries. They ran in
 		// feature-flags.yml's `feature-integration-tests` job, which has been
 		// dispatch-only since the Dagger migration (2026-05-31) — so no CI leg
@@ -1401,6 +1406,11 @@ const (
 	// pgBindHost is the service-binding alias; bound callers reach Postgres here on
 	// its internal 5432 (not the legacy host-mapped 5433).
 	pgBindHost = "postgres"
+	// requirePostgresEnv is set on every leg that binds DATABASE_URL. There,
+	// fraiseql-test-support's postgres() and try_database_url() fail instead of
+	// returning None when they find no database, unset or unreachable: in a leg that
+	// promised one, a test that skipped would read as a pass while asserting nothing.
+	requirePostgresEnv = "FRAISEQL_TEST_REQUIRE_POSTGRES"
 
 	// pgStandbyBindHost — a REAL streaming standby of pgService, for the #957
 	// bounded-staleness suite. The pre-existing read-replica tests stand a second
@@ -1691,6 +1701,7 @@ func (m *FraiseqlCi) integrationExamples(ctx context.Context, source *dagger.Dir
 		// URL it can connect to while doing that — the maintenance database, not one
 		// of its own.
 		WithEnvVariable("DATABASE_URL", dbURL).
+		WithEnvVariable(requirePostgresEnv, "1").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }
@@ -1975,6 +1986,7 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		WithServiceBinding(pgStandbyBindHost, m.pgStandbyService(source, primary, "fraiseql_standby")).
 		WithServiceBinding(pgFailoverBindHost, m.pgStandbyService(source, primary, pgFailoverSlot)).
 		WithEnvVariable("DATABASE_URL", dbURL).
+		WithEnvVariable(requirePostgresEnv, "1").
 		WithEnvVariable("STANDBY_DATABASE_URL", standbyURL).
 		WithEnvVariable("FAILOVER_STANDBY_DATABASE_URL", failoverURL).
 		WithServiceBinding(pgBelowFloorBindHost, m.pgBelowFloorService()).
@@ -2067,6 +2079,7 @@ func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directo
 	return m.integrationBase(source, rustMsrv, lane).
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithEnvVariable("DATABASE_URL", dbURL).
+		WithEnvVariable(requirePostgresEnv, "1").
 		// Auth's own role, which the ACS suite's two-role sign-in boots auth on.
 		WithEnvVariable("AUTH_DATABASE_URL", authURL).
 		WithExec([]string{"bash", "-c", script}).
@@ -2570,6 +2583,7 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		WithServiceBinding(pgStandbyBindHost, m.pgStandbyService(source, primary, "fraiseql_standby")).
 		WithServiceBinding(pgTviewsBindHost, m.pgTviewsService(source)).
 		WithEnvVariable("DATABASE_URL", dbURL).
+		WithEnvVariable(requirePostgresEnv, "1").
 		// Auth's own role, which the auth_database suite boots auth on.
 		WithEnvVariable("AUTH_DATABASE_URL", authURL).
 		WithEnvVariable("STANDBY_DATABASE_URL", standbyURL).
@@ -2622,6 +2636,7 @@ func (m *FraiseqlCi) integrationWire(ctx context.Context, source *dagger.Directo
 	return m.integrationBase(source, rustMsrv, lane).
 		WithServiceBinding(wireBindHost, m.wirePgService()).
 		WithEnvVariable("DATABASE_URL", dbURL).
+		WithEnvVariable(requirePostgresEnv, "1").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }
@@ -2735,6 +2750,7 @@ func (m *FraiseqlCi) integrationStorage(ctx context.Context, source *dagger.Dire
 		WithServiceBinding(azuriteBindHost, m.azuriteService()).
 		WithServiceBinding(fakeGcsBindHost, m.fakeGcsService()).
 		WithEnvVariable("DATABASE_URL", dbURL).
+		WithEnvVariable(requirePostgresEnv, "1").
 		WithEnvVariable("AZURE_BLOB_ENDPOINT", azureEndpoint).
 		WithEnvVariable("GCS_ENDPOINT", gcsEndpoint).
 		WithEnvVariable("FRAISEQL_TEST_FONT", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf").
@@ -2804,6 +2820,7 @@ func (m *FraiseqlCi) integrationServerStorage(ctx context.Context, source *dagge
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithEnvVariable("MINIO_ENDPOINT", minioEndpoint).
 		WithEnvVariable("DATABASE_URL", dbURL).
+		WithEnvVariable(requirePostgresEnv, "1").
 		// fraiseql-storage's s3/tests.rs reads S3_ENDPOINT (or AWS_ENDPOINT_URL), whereas
 		// the server test reads MINIO_ENDPOINT; both point at the same bound MinIO.
 		WithEnvVariable("S3_ENDPOINT", minioEndpoint).
@@ -2860,6 +2877,7 @@ func (m *FraiseqlCi) integrationFederation(ctx context.Context, source *dagger.D
 		WithServiceBinding(fedSubgraphBBindHost, subgraphB).
 		WithServiceBinding(apolloRouterBindHost, router).
 		WithEnvVariable("DATABASE_URL", usersURL).
+		WithEnvVariable(requirePostgresEnv, "1").
 		WithEnvVariable("FEDERATION_TESTS", "1").
 		WithEnvVariable("ROUTER_URL", routerURL).
 		WithEnvVariable("SUBGRAPH_A_URL", subgraphAURL).
@@ -3037,6 +3055,7 @@ func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Direct
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithServiceBinding(redisBindHost, m.redisService()).
 		WithEnvVariable("DATABASE_URL", dbURL).
+		WithEnvVariable(requirePostgresEnv, "1").
 		WithEnvVariable("TEST_DATABASE_URL", dbURL).
 		WithEnvVariable("REDIS_URL", redisURL).
 		// The #844 job-queue tests dispatch real webhooks to an in-process
@@ -3501,6 +3520,7 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		WithEnvVariable("GREENMAIL_SMTP_PORT", "3025").
 		WithEnvVariable("GREENMAIL_CA", "/greenmail-ca.crt").
 		WithEnvVariable("DATABASE_URL", dbURL).
+		WithEnvVariable(requirePostgresEnv, "1").
 		WithEnvVariable("TEST_DATABASE_URL", dbURL).
 		WithEnvVariable("REDIS_URL", redisURL).
 		WithEnvVariable("NATS_URL", natsURL).

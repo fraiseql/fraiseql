@@ -91,11 +91,21 @@ fn normalize(raw: Option<String>) -> Option<String> {
 }
 
 /// PostgreSQL. Env: `DATABASE_URL`. Local spawn: yes (with `local-testcontainers`).
+///
+/// Where [`crate::db::REQUIRE_POSTGRES_ENV`] is set, it fails instead of returning `None`.
+///
+/// # Panics
+///
+/// Panics if no database is found, unset or unreachable, where
+/// [`crate::db::REQUIRE_POSTGRES_ENV`] is set.
 pub async fn postgres() -> Option<Service> {
     if let Some(url) = env_url(POSTGRES_URL_ENV) {
-        return reachable_service(POSTGRES_URL_ENV, url);
+        return crate::db::demand_postgres(
+            "DATABASE_URL is set but unreachable",
+            reachable_service(POSTGRES_URL_ENV, url),
+        );
     }
-    spawn_postgres().await
+    crate::db::demand_postgres("DATABASE_URL is not set", spawn_postgres().await)
 }
 
 /// Redis. Env: `REDIS_URL`.
