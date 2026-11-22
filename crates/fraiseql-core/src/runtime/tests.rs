@@ -144,6 +144,56 @@ mod aggregate_parser_tests {
         }
     }
 
+    /// `<column>_half_month` and `<column>_semester` are buckets of the column, matched
+    /// whole: `occurred_at_half_month` is never `_month` of a column `occurred_at_half`.
+    #[test]
+    fn half_month_and_semester_keys_are_buckets_of_their_column() {
+        let metadata = create_test_metadata();
+        for (key, expected) in [
+            ("occurred_at_half_month", TemporalBucket::HalfMonth),
+            ("occurred_at_semester", TemporalBucket::Semester),
+        ] {
+            let query = json!({ "groupBy": { key: true }, "aggregates": [{"count": true}] });
+            let request =
+                AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())
+                    .unwrap();
+            match &request.group_by[..] {
+                [
+                    GroupBySelection::TemporalBucket {
+                        column,
+                        bucket,
+                        alias,
+                    },
+                ] => {
+                    assert_eq!(
+                        (column.as_str(), *bucket, alias.as_str()),
+                        ("occurred_at", expected, key)
+                    );
+                },
+                other => panic!("{key}: expected one TemporalBucket selection, got {other:?}"),
+            }
+        }
+    }
+
+    /// The refused `groupBy: {column: "<bucket>"}` form names the key that replaces it,
+    /// spelled as the published key is: `_half_month`, not a `DATE_TRUNC` unit.
+    #[test]
+    fn the_old_bucket_form_names_the_half_month_and_semester_keys() {
+        let metadata = create_test_metadata();
+        for (form, key) in [
+            ("half_month", "occurred_at_half_month"),
+            ("semester", "occurred_at_semester"),
+        ] {
+            let query =
+                json!({ "groupBy": { "occurred_at": form }, "aggregates": [{"count": true}] });
+            let message =
+                AggregateQueryParser::parse(&query, &metadata, &std::collections::HashMap::new())
+                    .expect_err("the old form is refused")
+                    .to_string();
+            assert!(message.contains(&format!("send `{key}: true`")), "{form}: {message}");
+        }
+    }
+
     #[test]
     fn test_parse_multiple_aggregates() {
         let metadata = create_test_metadata();

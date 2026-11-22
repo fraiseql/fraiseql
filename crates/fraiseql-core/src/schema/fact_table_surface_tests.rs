@@ -242,6 +242,25 @@ fn the_group_by_input_is_a_boolean_per_key_and_an_int_per_tree_level() {
     assert_eq!(field_type(&group_by, "revenue_sum"), None, "an aggregate is no group key");
 }
 
+/// Every time column publishes a `_half_month` and a `_semester` key beside its other
+/// buckets: a `Boolean` in the `groupBy` input, and a row field typed as the column's other
+/// bucket keys are.
+#[test]
+fn every_time_column_publishes_half_month_and_semester_keys() {
+    let schema = load(&fixture());
+    let group_by = introspected(&schema, "SalesAggregateGroupBy");
+    let row = introspected(&schema, "SalesAggregateRow");
+    for (key, row_type) in [
+        ("occurred_at_half_month", "DateTime"),
+        ("occurred_at_semester", "DateTime"),
+        ("day_half_month", "Date"),
+        ("day_semester", "Date"),
+    ] {
+        assert_eq!(field_type(&group_by, key).as_deref(), Some("Boolean"), "`{key}`");
+        assert_eq!(field_type(&row, key).as_deref(), Some(row_type), "`{key}`");
+    }
+}
+
 #[test]
 fn the_where_input_publishes_the_operators_a_fact_table_filter_serves() {
     let schema = load(&fixture());

@@ -267,6 +267,25 @@ fn test_infer_calendar_buckets_year_info() {
     assert_eq!(buckets[0].bucket_type, crate::compiler::aggregate_types::TemporalBucket::Year);
 }
 
+/// A `semester_info` column's `semester` key is a semester bucket, not a second quarter.
+#[test]
+fn a_semester_info_column_serves_the_semester_bucket() {
+    use crate::compiler::aggregate_types::TemporalBucket;
+
+    let buckets: Vec<(String, TemporalBucket)> =
+        FactTableDetector::infer_calendar_buckets("semester_info")
+            .into_iter()
+            .map(|b| (b.json_key, b.bucket_type))
+            .collect();
+    assert_eq!(
+        buckets,
+        [
+            ("semester".to_string(), TemporalBucket::Semester),
+            ("year".to_string(), TemporalBucket::Year),
+        ]
+    );
+}
+
 #[test]
 fn test_infer_calendar_buckets_unknown() {
     let buckets = FactTableDetector::infer_calendar_buckets("unknown_info");

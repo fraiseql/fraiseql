@@ -41,18 +41,30 @@ pub struct CellCountSql {
     pub params: Vec<serde_json::Value>,
 }
 
-/// The step between two buckets of `bucket`.
-const fn bucket_step(bucket: TemporalBucket) -> &'static str {
+/// The fixed step from one bucket's start to the next, or `None` for a half-month, whose
+/// first half is 15 days and whose second is the rest of the month.
+const fn bucket_step(bucket: TemporalBucket) -> Option<&'static str> {
     match bucket {
-        TemporalBucket::Second => "interval '1 second'",
-        TemporalBucket::Minute => "interval '1 minute'",
-        TemporalBucket::Hour => "interval '1 hour'",
-        TemporalBucket::Day => "interval '1 day'",
-        TemporalBucket::Week => "interval '1 week'",
-        TemporalBucket::Month => "interval '1 month'",
-        TemporalBucket::Quarter => "interval '3 months'",
-        TemporalBucket::Year => "interval '1 year'",
+        TemporalBucket::Second => Some("interval '1 second'"),
+        TemporalBucket::Minute => Some("interval '1 minute'"),
+        TemporalBucket::Hour => Some("interval '1 hour'"),
+        TemporalBucket::Day => Some("interval '1 day'"),
+        TemporalBucket::Week => Some("interval '1 week'"),
+        TemporalBucket::HalfMonth => None,
+        TemporalBucket::Month => Some("interval '1 month'"),
+        TemporalBucket::Quarter => Some("interval '3 months'"),
+        TemporalBucket::Semester => Some("interval '6 months'"),
+        TemporalBucket::Year => Some("interval '1 year'"),
     }
+}
+
+/// The end of the bucket starting at `start`, which is the next bucket's start. Sixteen days
+/// on from a half-month's start always lands in the next half, whichever half it is.
+fn bucket_end(bucket: TemporalBucket, start: &str) -> String {
+    bucket_step(bucket).map_or_else(
+        || bucket.postgres_start(&format!("({start} + INTERVAL '16 days')")),
+        |step| format!("{start} + {step}"),
+    )
 }
 
 /// The filter fragments a carried-forward reduction composes.
@@ -160,22 +172,36 @@ impl AggregationSqlGenerator {
         })
     }
 
-    /// Every bucket from the filter's low bound to its high bound. Over a `date` column the
-    /// buckets are dates, as the grouping's are (#1798).
+    /// A query of every bucket start from the filter's low bound to its high bound, as the
+    /// column [`BUCKET`]. Over a `date` column the buckets are dates, as the grouping's are
+    /// (#1798).
+    ///
+    /// A half-month has no fixed step, so its series walks the range a day at a time and
+    /// keeps each distinct bucket start.
     fn bucket_series(reduction: &TimeReduction, filter: &CarryFilter) -> String {
-        let grain = reduction.bucket.postgres_arg();
-        let step = bucket_step(reduction.bucket);
-        let (lo, hi) = (&filter.lo, &filter.hi);
-        if reduction.over_date {
-            format!(
-                "CAST(generate_series(DATE_TRUNC('{grain}', ({lo})::timestamp), \
-                 DATE_TRUNC('{grain}', ({hi})::timestamp), {step}) AS date)"
-            )
+        let bucket = reduction.bucket;
+        let (lo, hi) = if reduction.over_date {
+            (format!("({})::timestamp", filter.lo), format!("({})::timestamp", filter.hi))
         } else {
-            format!(
-                "generate_series(DATE_TRUNC('{grain}', {lo}), DATE_TRUNC('{grain}', {hi}), {step})"
-            )
-        }
+            (filter.lo.clone(), filter.hi.clone())
+        };
+        let (first, last) = (bucket.postgres_start(&lo), bucket.postgres_start(&hi));
+        let series = bucket_step(bucket).map_or_else(
+            || {
+                format!(
+                    "SELECT DISTINCT {} AS s FROM generate_series({first}, {last}, \
+                     interval '1 day') AS d(d)",
+                    bucket.postgres_start("d.d")
+                )
+            },
+            |step| format!("SELECT generate_series({first}, {last}, {step}) AS s"),
+        );
+        let start = if reduction.over_date {
+            "CAST(s AS date)"
+        } else {
+            "s"
+        };
+        format!("SELECT {start} AS {BUCKET} FROM ({series}) AS series")
     }
 
     fn entity_columns(&self, reduction: &TimeReduction) -> Vec<String> {
@@ -202,7 +228,7 @@ impl AggregationSqlGenerator {
         let filter = self.carry_filter(plan, reduction, &mut params)?;
         let cap = bound.saturating_add(1);
         let sql = format!(
-            "SELECT\n  (SELECT count(*) FROM (SELECT {series} LIMIT {cap}) b) AS buckets,\n  \
+            "SELECT\n  (SELECT count(*) FROM ({series} LIMIT {cap}) b) AS buckets,\n  \
              (SELECT count(*) FROM (SELECT DISTINCT {entities} FROM {table} WHERE {rest} AND \
              {upper} LIMIT {cap}) e) AS entities",
             series = Self::bucket_series(reduction, &filter),
@@ -246,7 +272,7 @@ impl AggregationSqlGenerator {
 
         if reduction.reduction.carries_forward() {
             let filter = self.carry_filter(plan, reduction, params)?;
-            let step = bucket_step(reduction.bucket);
+            let end = bucket_end(reduction.bucket, &format!("b.{BUCKET}"));
             let mut columns: Vec<String> =
                 groupings.iter().map(|(expr, alias)| format!("{expr} AS {alias}")).collect();
             columns.extend(
@@ -269,12 +295,12 @@ impl AggregationSqlGenerator {
                 )
             };
             let lateral = match reduction.reduction {
-                Reduction::Last => last_by(&format!("{bucket} + {step}")),
+                Reduction::Last => last_by(&end),
                 // The bucket's first row; else the last row before it, carried in. The
                 // priority orders the two: a (parallel) append may return either first.
                 Reduction::First => format!(
                     "(SELECT {columns}, 0 AS {PRIORITY} FROM {table} WHERE {common} AND {over} \
-                     >= {bucket} AND {over} < {bucket} + {step} ORDER BY {over} ASC LIMIT 1)\n    \
+                     >= {bucket} AND {over} < {end} ORDER BY {over} ASC LIMIT 1)\n    \
                      UNION ALL\n    (SELECT {columns}, 1 AS {PRIORITY} FROM {table} WHERE \
                      {common} AND {over} < {bucket} ORDER BY {over} DESC LIMIT 1)\n    ORDER BY \
                      {PRIORITY} LIMIT 1"
@@ -290,7 +316,7 @@ impl AggregationSqlGenerator {
                 .collect::<Vec<_>>()
                 .join(", ");
             Ok(format!(
-                "WITH \"__fraiseql_buckets\" AS (SELECT {series} AS {BUCKET}),\n\
+                "WITH \"__fraiseql_buckets\" AS ({series}),\n\
                  \"__fraiseql_entities\" AS (SELECT DISTINCT {entity_columns} FROM {table} WHERE \
                  {rest} AND {upper}),\n\
                  {REDUCED} AS (SELECT {bucket} AS {bucket_alias}, s.* FROM \

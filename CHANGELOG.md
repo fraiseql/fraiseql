@@ -974,6 +974,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **Fact-table aggregates group by half-month and by semester (#1793).** Every `date`,
+  `timestamp` and `timestamptz` denormalized filter publishes `<column>_half_month` and
+  `<column>_semester` `groupBy` keys beside its other buckets. A half-month starts on the
+  1st or the 16th, and a semester on 1 January or 1 July, the period starts v1's reports
+  used. A `date` column's keys equal v1's. A `timestamptz` key starts at local midnight in
+  the session's `TimeZone`, on either side of a daylight-saving change. A semi-additive
+  measure reduces per entity and per half-month or semester, carried forward into a bucket
+  with no row as for any other bucket. Before, `<column>_half_month` was not a bucket key:
+  it was read as a JSONB dimension of that name, absent on every row, so it answered one
+  group of `null`. A `semester_info` calendar column's `semester` key is now detected as a
+  semester, not as a second quarter.
+
 - **The TypeScript and Go SDKs declare a measure's column (#2315).** A measure stored
   under another column is declared as its `column`, as the Python SDK already could:
   TypeScript's `Measure` takes an optional `column`, and Go's `FactTableBuilder` gains

@@ -3210,6 +3210,17 @@ fn a_generated_group_key_spelled_like_a_column_or_dimension_is_refused() {
     }
 }
 
+/// Two time columns whose generated keys spell the same name are refused: the half-month of
+/// `occurred_at` and the month of `occurred_at_half` are both `occurred_at_half_month`.
+#[test]
+fn a_half_month_key_spelled_like_another_columns_month_key_is_refused() {
+    let doc = group_key_fixture(&[("occurred_at_half", "Date")], &[]);
+    let message = group_key_refusal(&doc);
+    assert!(message.contains("groupBy key `occurred_at_half_month` is both"), "{message}");
+    assert!(message.contains("the `half_month` bucket of `occurred_at`"), "{message}");
+    assert!(message.contains("the `month` bucket of `occurred_at_half`"), "{message}");
+}
+
 /// A calendar dimension serves a time column's own buckets faster: its `<column>_<bucket>`
 /// key is the same grouping as the filter's, not a second meaning.
 #[test]

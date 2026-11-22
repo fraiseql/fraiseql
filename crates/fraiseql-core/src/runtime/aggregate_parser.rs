@@ -357,7 +357,7 @@ impl AggregateQueryParser {
             Value::String(form) if form == "depth" => Some(format!("`{key}_depth: true`")),
             Value::String(form) => TemporalBucket::from_str(form)
                 .ok()
-                .map(|bucket| format!("`{key}_{}: true`", bucket.postgres_arg())),
+                .map(|bucket| format!("`{key}_{}: true`", bucket.field_suffix())),
             Value::Object(form) => form.get("level").map(|level| format!("`{key}_level: {level}`")),
             _ => None,
         };
@@ -414,8 +414,10 @@ impl AggregateQueryParser {
                 ("_hour", TemporalBucket::Hour),
                 ("_day", TemporalBucket::Day),
                 ("_week", TemporalBucket::Week),
+                ("_half_month", TemporalBucket::HalfMonth),
                 ("_month", TemporalBucket::Month),
                 ("_quarter", TemporalBucket::Quarter),
+                ("_semester", TemporalBucket::Semester),
                 ("_year", TemporalBucket::Year),
             ] {
                 let expected_key = format!("{}{}", filter_col.name, bucket.0);

@@ -211,7 +211,9 @@ A schema whose filter names an undeclared hierarchy, or links one to a column th
 
 `groupBy: {occurred_at_month: true}` (keyed `occurred_at_month`) groups by a bucket of a
 denormalized time column: `second`, `minute`, `hour`, `day`, `week` (starting Monday),
-`month`, `quarter` or `year`. The key follows the column's declared `sql_type`:
+`half_month` (starting on the 1st and on the 16th), `month`, `quarter`, `semester`
+(starting on 1 January and on 1 July) or `year`. The key follows the column's declared
+`sql_type`:
 
 | Column | Bucket key | Example (`month`) |
 |--------|-----------|-------------------|
@@ -220,7 +222,9 @@ denormalized time column: `second`, `minute`, `hour`, `day`, `week` (starting Mo
 | `timestamptz` | the instant the bucket starts at, in the session's `TimeZone`, rendered in UTC | `"2026-06-30T15:00:00+00:00"` under `Asia/Tokyo` |
 
 A `date` bucket does not depend on the session time zone. A sub-day grain (`hour`, `minute`,
-`second`) of a `date` column is the date itself.
+`second`) of a `date` column is the date itself. A `timestamptz` half-month or semester
+starts at midnight in the session's `TimeZone`, as a month does, so its half is decided by
+the local date: `2026-03-16T00:30:00+01:00` is in the half starting on 16 March.
 
 A bucket key is published as `Date` for a `date` column, as `LocalDateTime` for a
 `timestamp` column without a time zone, and as `DateTime` for a `timestamptz` column, and
@@ -268,6 +272,7 @@ bucket levels:
 | `week_info` | week, month, quarter, year |
 | `month_info` | month, quarter, year |
 | `quarter_info` | quarter, year |
+| `semester_info` | semester, year |
 | `year_info` | year |
 
 **Why pre-compute?** `DATE_TRUNC('month', occurred_at)` at query time applies a function

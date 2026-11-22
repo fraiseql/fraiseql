@@ -119,10 +119,14 @@ pub enum TemporalBucket {
     Day,
     /// Week-level grouping
     Week,
+    /// Half-month grouping: periods start on the 1st and on the 16th
+    HalfMonth,
     /// Month-level grouping
     Month,
     /// Quarter-level grouping
     Quarter,
+    /// Semester grouping: periods start on 1 January and on 1 July
+    Semester,
     /// Year-level grouping
     Year,
 }
@@ -137,8 +141,10 @@ impl TemporalBucket {
             Self::Hour,
             Self::Day,
             Self::Week,
+            Self::HalfMonth,
             Self::Month,
             Self::Quarter,
+            Self::Semester,
             Self::Year,
         ]
     }
@@ -152,24 +158,40 @@ impl TemporalBucket {
             Self::Hour => "hour",
             Self::Day => "day",
             Self::Week => "week",
+            Self::HalfMonth => "half_month",
             Self::Month => "month",
             Self::Quarter => "quarter",
+            Self::Semester => "semester",
             Self::Year => "year",
         }
     }
 
-    /// Get PostgreSQL `DATE_TRUNC` argument
+    /// The PostgreSQL expression for the start of the bucket `value` falls in, of `value`'s
+    /// own type (`timestamp` or `timestamptz`).
+    ///
+    /// `DATE_TRUNC` has a unit for every bucket but the half-month and the semester. Those
+    /// are the month and the year truncated, moved forward 15 days or 6 months when `value`
+    /// lies in the second half. `EXTRACT` reads `value` in the session's time zone, as
+    /// `DATE_TRUNC` does, so the two agree on which half a `timestamptz` instant is in.
     #[must_use]
-    pub const fn postgres_arg(&self) -> &'static str {
+    pub fn postgres_start(&self, value: &str) -> String {
         match self {
-            Self::Second => "second",
-            Self::Minute => "minute",
-            Self::Hour => "hour",
-            Self::Day => "day",
-            Self::Week => "week",
-            Self::Month => "month",
-            Self::Quarter => "quarter",
-            Self::Year => "year",
+            Self::HalfMonth => format!(
+                "(DATE_TRUNC('month', {value}) + CASE WHEN EXTRACT(DAY FROM {value}) <= 15 THEN \
+                 INTERVAL '0 days' ELSE INTERVAL '15 days' END)"
+            ),
+            Self::Semester => format!(
+                "(DATE_TRUNC('year', {value}) + CASE WHEN EXTRACT(MONTH FROM {value}) <= 6 THEN \
+                 INTERVAL '0 months' ELSE INTERVAL '6 months' END)"
+            ),
+            Self::Second
+            | Self::Minute
+            | Self::Hour
+            | Self::Day
+            | Self::Week
+            | Self::Month
+            | Self::Quarter
+            | Self::Year => format!("DATE_TRUNC('{}', {value})", self.field_suffix()),
         }
     }
 
@@ -186,8 +208,10 @@ impl TemporalBucket {
             "hour" => Ok(Self::Hour),
             "day" => Ok(Self::Day),
             "week" => Ok(Self::Week),
+            "half_month" => Ok(Self::HalfMonth),
             "month" => Ok(Self::Month),
             "quarter" => Ok(Self::Quarter),
+            "semester" => Ok(Self::Semester),
             "year" => Ok(Self::Year),
             _ => Err(crate::error::FraiseQLError::parse(format!("Invalid temporal bucket: {}", s))),
         }

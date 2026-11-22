@@ -591,7 +591,7 @@ impl FactTableDetector {
             "semester_info" => vec![
                 CalendarBucket {
                     json_key:    "semester".to_string(),
-                    bucket_type: TemporalBucket::Quarter, // Map to Quarter for now
+                    bucket_type: TemporalBucket::Semester,
                     data_type:   "integer".to_string(),
                 },
                 CalendarBucket {

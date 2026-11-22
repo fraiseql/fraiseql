@@ -120,11 +120,9 @@ impl AggregationSqlGenerator {
         let column = self.quote_identifier(column);
         match self.database_type {
             DatabaseType::PostgreSQL if date => {
-                format!("DATE_TRUNC('{}', {column}::timestamp)::date", bucket.postgres_arg())
+                format!("{}::date", bucket.postgres_start(&format!("{column}::timestamp")))
             },
-            DatabaseType::PostgreSQL => {
-                format!("DATE_TRUNC('{}', {column})", bucket.postgres_arg())
-            },
+            DatabaseType::PostgreSQL => bucket.postgres_start(&column),
         }
     }
 

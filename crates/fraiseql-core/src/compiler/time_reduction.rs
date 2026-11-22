@@ -238,7 +238,8 @@ pub fn plan_time_reduction(
         _ => {
             return Err(refusal(format!(
                 "`{measure}` is reduced per bucket of `{over}`: group by exactly one time \
-                 bucket of `{over}` (a day, week, month, quarter or year of it)"
+                 bucket of `{over}` (a day, week, half-month, month, quarter, semester \
+                 or year of it)"
             )));
         },
     };
