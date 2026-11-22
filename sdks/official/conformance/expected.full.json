@@ -520,6 +520,20 @@
       }
     }
   },
+  "observer_one_destination": {
+    "orderRefundedDirect": [
+      {
+        "type": "webhook",
+        "url": "https://hooks.example.com/conformance/refunds"
+      },
+      {
+        "channel": "#refunds",
+        "message_template": "Order {{ id }} refunded",
+        "type": "slack",
+        "webhook_url": "https://hooks.slack.example.com/services/conformance"
+      }
+    ]
+  },
   "observer_retry_default": {
     "orderCreatedDefaultRetry": {
       "backoff_strategy": "exponential",

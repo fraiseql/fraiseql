@@ -99,11 +99,14 @@ interface WebhookOptions {
  * @param options - Additional options: url_env, method, headers, body_template,
  *   signing_secret_env, headers_env
  * @returns Webhook action definition
- * @throws If neither url nor url_env is provided
+ * @throws If neither or both of url and url_env are provided: an action has one destination
  */
 export function webhook(url?: string, options?: WebhookOptions): ObserverAction {
   if (url === undefined && options?.url_env === undefined) {
     throw new Error("Either url or url_env must be provided");
+  }
+  if (url !== undefined && options?.url_env !== undefined) {
+    throw new Error("webhook: set one of url / url_env, not both");
   }
   const action: ObserverAction & {
     headers?: Record<string, string>;
@@ -156,25 +159,26 @@ interface SlackOptions {
  * @param channel - Slack channel (e.g. "#orders")
  * @param message - Message template with `{{ field }}` placeholders, emitted as
  *   `message_template`
- * @param options - Optional webhook URL or environment variable override
+ * @param options - Optional webhook URL or environment variable override. With neither,
+ *   the URL is read from `SLACK_WEBHOOK_URL`; a written `webhook_url` is the one
+ *   destination, so no default environment variable is emitted beside it.
  * @returns Slack action definition
+ * @throws If both webhook_url and webhook_url_env are provided
  */
 export function slack(channel: string, message: string, options?: SlackOptions): ObserverAction {
-  const action: ObserverAction & {
-    channel: string;
-    message_template: string;
-    webhook_url_env: string;
-    webhook_url?: string;
-  } = {
+  if (options?.webhook_url !== undefined && options.webhook_url_env !== undefined) {
+    throw new Error("slack: set one of webhook_url / webhook_url_env, not both");
+  }
+  const destination: { webhook_url: string } | { webhook_url_env: string } =
+    options?.webhook_url !== undefined
+      ? { webhook_url: options.webhook_url }
+      : { webhook_url_env: options?.webhook_url_env ?? "SLACK_WEBHOOK_URL" };
+  return {
     type: "slack",
     channel,
     message_template: message,
-    webhook_url_env: options?.webhook_url_env ?? "SLACK_WEBHOOK_URL",
+    ...destination,
   };
-  if (options?.webhook_url !== undefined) {
-    action.webhook_url = options.webhook_url;
-  }
-  return action;
 }
 
 /**

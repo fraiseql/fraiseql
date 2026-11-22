@@ -129,6 +129,17 @@ disagreed, and the promise was the part that was wrong.
   caller that looked a field up by name now ranges the slice. Two struct fields that
   publish one name are refused, naming both.
 
+- **An observer action names one destination (#2279).** `fraiseql compile` and the
+  observer admin API refuse a webhook with both `url` and `url_env`, or a Slack action
+  with both `webhook_url` and `webhook_url_env`, naming the observer, the action and the
+  fix: "set one of `webhook_url` / `webhook_url_env`, not both". The runtime sent to the
+  written URL and never read the variable beside it, so nothing delivered differently;
+  the schema now says which. The TypeScript SDK's `slack(channel, message, { webhook_url
+  })` wrote the default `webhook_url_env: "SLACK_WEBHOOK_URL"` beside the URL, so a
+  `schema.json` it exported with an explicit Slack URL no longer compiles: export it
+  again with this release's SDK, which writes the URL alone. A schema already compiled,
+  and an observer already stored, keep running as before.
+
 - **F#: `IntermediateSchema` has an `observers` field (#2147).** It is
   `ObserverDefinition list option`, `None` when no observer is declared. Code that builds
   the record by hand no longer compiles until it names the field: `observers = None`.

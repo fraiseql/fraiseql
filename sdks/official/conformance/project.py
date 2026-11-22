@@ -210,6 +210,12 @@ AUTHORED_OBSERVERS = ("orderPlacedWebhook", "orderShippedSlack", "orderDeletedEm
 # instead compiles to that, and `observer_retry_default` sees the difference (#2145).
 DEFAULT_RETRY_OBSERVER = "orderCreatedDefaultRetry"
 
+# The observer whose actions each write their destination as a URL. An action names one
+# destination; an SDK that also writes a default environment variable beside a URL it was
+# given emits an action the compiler refuses, and one the runtime would send to the URL
+# while the variable sat unused (#2279).
+ONE_DESTINATION_OBSERVER = "orderRefundedDirect"
+
 # The webhook keys `observer_webhook_headers` observes, and `observer_webhook` does not:
 # split so an SDK that adds or drops a header fails the header construct alone, not the
 # whole webhook (#2146).
@@ -279,6 +285,7 @@ CONSTRUCTS = (
     "observer_email",
     "observer_condition",
     "observer_retry_default",
+    "observer_one_destination",
 )
 
 
@@ -1017,6 +1024,21 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
     default_retry = observers.get(DEFAULT_RETRY_OBSERVER)
     observations["observer_retry_default"] = (
         {DEFAULT_RETRY_OBSERVER: default_retry.get("retry")} if default_retry else {}
+    )
+
+    # Every key of every action, `type` included, so a destination added beside the one
+    # written is a difference. An empty map is left out, as `_observer_actions` does.
+    one_destination = observers.get(ONE_DESTINATION_OBSERVER)
+    observations["observer_one_destination"] = (
+        {
+            ONE_DESTINATION_OBSERVER: [
+                {key: value for key, value in action.items() if value != {}}
+                for action in one_destination.get("actions") or []
+                if isinstance(action, dict)
+            ]
+        }
+        if one_destination
+        else {}
     )
 
     missing = set(CONSTRUCTS) - set(observations)

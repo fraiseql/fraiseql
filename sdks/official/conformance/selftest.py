@@ -197,6 +197,41 @@ class ObserverProjectionsSeeWhatAnSdkChanges(unittest.TestCase):
         )
 
 
+class TheOneDestinationConstructSeesASecondDestination(unittest.TestCase):
+    """`observer_one_destination` holds an action to the one destination it was given.
+
+    The compiler refuses an action naming two, so the construct also fails an SDK whose
+    fixture does not compile; what it pins on its own is the exact keys, so a destination
+    an SDK adds beside the URL it was given is a difference, not a pass.
+    """
+
+    SLACK = {
+        "type": "slack",
+        "channel": "#refunds",
+        "message_template": "m",
+        "webhook_url": "https://hooks.slack.example.com/services/conformance",
+    }
+
+    @staticmethod
+    def observe(action: dict) -> object:
+        compiled = {
+            "observers": [
+                {"name": project.ONE_DESTINATION_OBSERVER, "entity": "Order",
+                 "event": "UPDATE", "actions": [action]}
+            ]
+        }
+        return project.project(compiled)["observer_one_destination"]
+
+    def test_a_default_env_beside_the_url_is_a_difference(self) -> None:
+        self.assertNotEqual(
+            self.observe({**self.SLACK, "webhook_url_env": "SLACK_WEBHOOK_URL"}),
+            self.observe(self.SLACK),
+        )
+
+    def test_the_observer_missing_is_an_empty_observation(self) -> None:
+        self.assertEqual(project.project({"observers": []})["observer_one_destination"], {})
+
+
 class ACasingNearMissIsNamed(unittest.TestCase):
     """An operation published under another convention is reported as that, not as absent.
 

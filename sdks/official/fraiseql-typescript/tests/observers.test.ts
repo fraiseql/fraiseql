@@ -204,7 +204,7 @@ describe("webhook action", () => {
   });
 
   it("should emit only keys the observer runtime reads", () => {
-    const action = webhook("https://example.com", {
+    const action = webhook(undefined, {
       url_env: "ORDER_WEBHOOK_URL",
       method: "POST",
       headers: { "X-Source": "fraiseql" },
@@ -220,9 +220,14 @@ describe("webhook action", () => {
       "method",
       "signing_secret_env",
       "type",
-      "url",
       "url_env",
     ]);
+  });
+
+  it("should throw error with both URL and url_env", () => {
+    expect(() => webhook("https://example.com/orders", { url_env: "ORDER_WEBHOOK_URL" })).toThrow(
+      "set one of url / url_env, not both",
+    );
   });
 
   it("should throw error without URL or url_env", () => {
@@ -247,7 +252,22 @@ describe("slack action", () => {
       webhook_url: "https://hooks.slack.com/services/XXX",
     });
 
-    expect(action.webhook_url).toBe("https://hooks.slack.com/services/XXX");
+    // The written URL is the one destination: the default env is not emitted beside it.
+    expect(action).toEqual({
+      type: "slack",
+      channel: "#orders",
+      message_template: "New order",
+      webhook_url: "https://hooks.slack.com/services/XXX",
+    });
+  });
+
+  it("should refuse both a webhook URL and its environment variable", () => {
+    expect(() =>
+      slack("#orders", "New order", {
+        webhook_url: "https://hooks.slack.com/services/XXX",
+        webhook_url_env: "SLACK_ALERTS_WEBHOOK",
+      }),
+    ).toThrow("set one of webhook_url / webhook_url_env, not both");
   });
 
   it("should support custom environment variable", () => {

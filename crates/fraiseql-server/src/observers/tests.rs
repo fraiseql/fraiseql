@@ -141,6 +141,27 @@ mod repository_tests {
 
     use super::super::RetryConfig;
 
+    /// The admin API refuses what the compiler refuses of a declared observer, with the
+    /// same text: an action names one destination.
+    #[test]
+    fn a_created_action_naming_two_destinations_is_refused_naming_the_fix() {
+        let err =
+            serde_json::from_value::<super::super::CreateObserverRequest>(serde_json::json!({
+                "name": "order_created",
+                "actions": [{"type": "slack", "message_template": "m",
+                             "webhook_url": "https://example.test/slack",
+                             "webhook_url_env": "SLACK_WEBHOOK_URL"}]
+            }))
+            .expect_err("an action with two destinations must be refused");
+
+        let message = err.to_string();
+        assert!(message.contains("actions[0]"), "{message}");
+        assert!(
+            message.contains("set one of `webhook_url` / `webhook_url_env`, not both"),
+            "{message}"
+        );
+    }
+
     #[test]
     fn test_retry_config_default() {
         let config = RetryConfig::default();

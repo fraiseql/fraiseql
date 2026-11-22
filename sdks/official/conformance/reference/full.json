@@ -929,6 +929,24 @@
           "body_template": "Order {{ id }} was created"
         }
       ]
+    },
+    {
+      "name": "orderRefundedDirect",
+      "entity": "Order",
+      "event": "UPDATE",
+      "condition": "status == 'refunded'",
+      "actions": [
+        {
+          "type": "webhook",
+          "url": "https://hooks.example.com/conformance/refunds"
+        },
+        {
+          "type": "slack",
+          "channel": "#refunds",
+          "message_template": "Order {{ id }} refunded",
+          "webhook_url": "https://hooks.slack.example.com/services/conformance"
+        }
+      ]
     }
   ]
 }

@@ -289,6 +289,16 @@ public class ConformanceExport {
             .addAction(EmailAction.create(
                 "ops@example.com", "Order created", "Order {{ id }} was created"))
             .register();
+
+        // One destination per action, written as a URL: no default environment variable beside it (#2279).
+        new ObserverBuilder("orderRefundedDirect")
+            .entity("Order")
+            .event("UPDATE")
+            .condition("status == 'refunded'")
+            .addAction(Webhook.create("https://hooks.example.com/conformance/refunds"))
+            .addAction(SlackAction.withWebhookUrl(
+                "#refunds", "Order {{ id }} refunded", "https://hooks.slack.example.com/services/conformance"))
+            .register();
     }
 
     private static Map<String, String> enumValues() {

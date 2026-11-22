@@ -297,6 +297,13 @@ def author_full
   schema.observer :order_created_default_retry, entity: "Order", event: "INSERT" do |o|
     o.email "ops@example.com", "Order created", "Order {{ id }} was created"
   end
+  # One destination per action, written as a URL: no default environment variable beside it (#2279).
+  schema.observer :order_refunded_direct, entity: "Order", event: "UPDATE",
+                                          condition: "status == 'refunded'" do |o|
+    o.webhook url: "https://hooks.example.com/conformance/refunds"
+    o.slack "#refunds", "Order {{ id }} refunded",
+            webhook_url: "https://hooks.slack.example.com/services/conformance"
+  end
 
   schema
 end

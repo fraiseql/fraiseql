@@ -27,8 +27,8 @@ impl ActionConfig {
     /// Read an action as written, refusing one the runtime would not run as written.
     ///
     /// Refused: a `type` the runtime does not dispatch, a key the action type does not
-    /// hold, a key it holds and its dispatcher does not use, and whatever
-    /// [`validate`](Self::validate) refuses.
+    /// hold, a key it holds and its dispatcher does not use, a webhook or Slack action
+    /// naming two destinations, and whatever [`validate`](Self::validate) refuses.
     ///
     /// # Errors
     ///
@@ -41,6 +41,14 @@ impl ActionConfig {
         let read: Self = serde_json::from_value(action.clone())
             .map_err(|e| invalid(format!("not an action the runtime dispatches: {e}")))?;
         read.validate()?;
+        if let Some((written, from_env)) = read.two_destinations() {
+            return Err(invalid(format!(
+                "a `{}` action names two destinations, and the runtime would send to \
+                 `{written}` and never read `{from_env}`: set one of `{written}` / \
+                 `{from_env}`, not both",
+                read.action_type()
+            )));
+        }
 
         let held = serde_json::to_value(&read)
             .map_err(|e| invalid(format!("the action does not serialize: {e}")))?;
@@ -76,6 +84,30 @@ impl ActionConfig {
             )));
         }
         Ok(read)
+    }
+}
+
+impl ActionConfig {
+    /// The two keys of a destination named both ways, written URL first.
+    ///
+    /// The runtime sends to the written URL and reads the environment variable only when
+    /// there is none, so an action naming both delivers to one of them and says nothing.
+    /// A row stored by an earlier release with both still loads: only an action as
+    /// written is refused.
+    const fn two_destinations(&self) -> Option<(&'static str, &'static str)> {
+        match self {
+            Self::Webhook {
+                url: Some(_),
+                url_env: Some(_),
+                ..
+            } => Some(("url", "url_env")),
+            Self::Slack {
+                webhook_url: Some(_),
+                webhook_url_env: Some(_),
+                ..
+            } => Some(("webhook_url", "webhook_url_env")),
+            _ => None,
+        }
     }
 }
 

@@ -69,6 +69,49 @@ fn an_action_validate_refuses_is_refused_with_its_reason() {
 }
 
 #[test]
+fn a_webhook_naming_both_destinations_is_refused_naming_the_fix() {
+    let refusal = refusal(&json!({"type": "webhook", "url": "https://example.test/hook",
+                                   "url_env": "HOOK_URL"}));
+
+    assert!(refusal.contains("set one of `url` / `url_env`, not both"), "{refusal}");
+}
+
+#[test]
+fn a_slack_action_naming_both_destinations_is_refused_naming_the_fix() {
+    let refusal = refusal(&json!({"type": "slack", "webhook_url": "https://example.test/slack",
+                                   "webhook_url_env": "SLACK_WEBHOOK_URL",
+                                   "message_template": "Order {{ id }}"}));
+
+    assert!(
+        refusal.contains("set one of `webhook_url` / `webhook_url_env`, not both"),
+        "{refusal}"
+    );
+}
+
+#[test]
+fn a_destination_left_null_beside_the_other_is_one_destination() {
+    for action in [
+        json!({"type": "webhook", "url": null, "url_env": "HOOK_URL"}),
+        json!({"type": "webhook", "url": "https://example.test/hook", "url_env": null}),
+        json!({"type": "slack", "webhook_url": null, "webhook_url_env": "SLACK_WEBHOOK_URL",
+               "message_template": "m"}),
+        json!({"type": "slack", "webhook_url": "https://example.test/slack",
+               "webhook_url_env": null, "message_template": "m"}),
+    ] {
+        let read = ActionConfig::from_authored(&action);
+        assert!(read.is_ok(), "{action} is refused: {read:?}");
+    }
+}
+
+#[test]
+fn a_slack_action_naming_neither_destination_is_refused() {
+    assert!(
+        refusal(&json!({"type": "slack", "message_template": "m"}))
+            .contains("'webhook_url' or 'webhook_url_env'")
+    );
+}
+
+#[test]
 fn a_type_the_runtime_does_not_dispatch_is_refused_naming_it() {
     assert!(refusal(&json!({"type": "sms", "to": "+33100000000"})).contains("sms"));
 }

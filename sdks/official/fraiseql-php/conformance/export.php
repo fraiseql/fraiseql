@@ -522,6 +522,19 @@ function authorFull(): void
         ->event('INSERT')
         ->action(ObserverAction::email('ops@example.com', 'Order created', 'Order {{ id }} was created'))
         ->register();
+
+    // One destination per action, written as a URL: no default environment variable beside it (#2279).
+    StaticAPI::observer('orderRefundedDirect')
+        ->entity('Order')
+        ->event('UPDATE')
+        ->condition("status == 'refunded'")
+        ->action(ObserverAction::webhook('https://hooks.example.com/conformance/refunds'))
+        ->action(ObserverAction::slack(
+            '#refunds',
+            'Order {{ id }} refunded',
+            webhookUrl: 'https://hooks.slack.example.com/services/conformance',
+        ))
+        ->register();
 }
 
 $fixture = getenv('FRAISEQL_CONFORMANCE_FIXTURE');

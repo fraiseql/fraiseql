@@ -477,6 +477,17 @@ let private authorFull () =
     |> ObserverBuilder.email (ObserverAction.email "ops@example.com" "Order created" "Order {{ id }} was created")
     |> ObserverBuilder.register
 
+    // One destination per action, written as a URL: no default environment variable beside it (#2279).
+    ObserverBuilder.observer "orderRefundedDirect"
+    |> ObserverBuilder.entity "Order"
+    |> ObserverBuilder.event "UPDATE"
+    |> ObserverBuilder.condition "status == 'refunded'"
+    |> ObserverBuilder.webhook (ObserverAction.webhook (WebhookDestination.Url "https://hooks.example.com/conformance/refunds"))
+    |> ObserverBuilder.slack
+        { ObserverAction.slack "#refunds" "Order {{ id }} refunded" with
+            destination = SlackDestination.WebhookUrl "https://hooks.slack.example.com/services/conformance" }
+    |> ObserverBuilder.register
+
 [<Fact>]
 let ConformanceExport () =
     let fixture = Environment.GetEnvironmentVariable("FRAISEQL_CONFORMANCE_FIXTURE")

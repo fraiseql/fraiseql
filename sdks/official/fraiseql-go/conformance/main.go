@@ -464,6 +464,18 @@ func authorObservers() error {
 		Register(); err != nil {
 		return err
 	}
+	// One destination per action, written as a URL: no default environment variable beside it (#2279).
+	if err := fraiseql.NewObserver("orderRefundedDirect").
+		Entity("Order").
+		Event("UPDATE").
+		Condition("status == 'refunded'").
+		Action(fraiseql.Webhook("https://hooks.example.com/conformance/refunds")).
+		Action(fraiseql.Slack("#refunds", "Order {{ id }} refunded",
+			fraiseql.SlackWebhookURL("https://hooks.slack.example.com/services/conformance"),
+		)).
+		Register(); err != nil {
+		return err
+	}
 	return fraiseql.NewObserver("orderDeletedEmail").
 		Entity("Order").
 		Event("DELETE").

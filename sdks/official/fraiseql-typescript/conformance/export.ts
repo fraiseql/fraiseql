@@ -549,6 +549,20 @@ function authorFull(): void {
       actions: [email("ops@example.com", "Order created", "Order {{ id }} was created")],
     })
     orderCreatedDefaultRetry(): void {}
+
+    // One destination per action, written as a URL: no default environment variable beside it (#2279).
+    @Observer({
+      entity: "Order",
+      event: "UPDATE",
+      condition: "status == 'refunded'",
+      actions: [
+        webhook("https://hooks.example.com/conformance/refunds"),
+        slack("#refunds", "Order {{ id }} refunded", {
+          webhook_url: "https://hooks.slack.example.com/services/conformance",
+        }),
+      ],
+    })
+    orderRefundedDirect(): void {}
   }
   void ConformanceObservers;
 }

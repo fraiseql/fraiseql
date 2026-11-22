@@ -508,3 +508,21 @@ def order_deleted_email() -> None:
 )
 def order_created_default_retry() -> None:
     pass
+
+
+# One destination per action, written as a URL: no default environment variable beside it (#2279).
+@fraiseql.observer(
+    entity="Order",
+    event="UPDATE",
+    condition="status == 'refunded'",
+    actions=[
+        fraiseql.webhook(url="https://hooks.example.com/conformance/refunds"),
+        fraiseql.slack(
+            "#refunds",
+            "Order {{ id }} refunded",
+            webhook_url="https://hooks.slack.example.com/services/conformance",
+        ),
+    ],
+)
+def order_refunded_direct() -> None:
+    pass

@@ -180,6 +180,17 @@ fn full() -> SchemaRegistry {
         Observer::new("orderCreatedDefaultRetry", "Order", ObserverEvent::Insert).with_action(
             EmailAction::new("ops@example.com", "Order created", "Order {{ id }} was created"),
         ),
+        // One destination per action, written as a URL: no default environment variable beside it (#2279).
+        Observer::new("orderRefundedDirect", "Order", ObserverEvent::Update)
+            .with_condition("status == 'refunded'")
+            .with_action(WebhookAction::new(WebhookDestination::Url(
+                "https://hooks.example.com/conformance/refunds".to_string(),
+            )))
+            .with_action(SlackAction::new("#refunds", "Order {{ id }} refunded").with_destination(
+                SlackDestination::WebhookUrl(
+                    "https://hooks.slack.example.com/services/conformance".to_string(),
+                ),
+            )),
     ] {
         registry.register_observer(observer).expect("observer names are distinct");
     }

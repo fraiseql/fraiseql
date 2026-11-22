@@ -477,6 +477,19 @@ FraiseQLSchema authorFull() {
         ObserverAction.email(
             'ops@example.com', 'Order created', 'Order {{ id }} was created'),
       ],
+    )
+    // One destination per action, written as a URL: no default environment variable beside it (#2279).
+    ..observer(
+      'orderRefundedDirect',
+      entity: 'Order',
+      event: 'UPDATE',
+      condition: "status == 'refunded'",
+      actions: [
+        ObserverAction.webhook(
+            url: 'https://hooks.example.com/conformance/refunds'),
+        ObserverAction.slack('#refunds', 'Order {{ id }} refunded',
+            webhookUrl: 'https://hooks.slack.example.com/services/conformance'),
+      ],
     );
 
   return schema;

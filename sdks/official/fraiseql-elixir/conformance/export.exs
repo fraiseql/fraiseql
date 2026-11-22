@@ -399,6 +399,19 @@ defmodule Conformance.FullSchema do
       FraiseQL.Observer.email("ops@example.com", "Order created", "Order {{ id }} was created")
     ]
   )
+
+  # One destination per action, written as a URL: no default environment variable beside it (#2279).
+  fraiseql_observer(:order_refunded_direct,
+    entity: "Order",
+    event: "UPDATE",
+    condition: "status == 'refunded'",
+    actions: [
+      FraiseQL.Observer.webhook(url: "https://hooks.example.com/conformance/refunds"),
+      FraiseQL.Observer.slack("#refunds", "Order {{ id }} refunded",
+        webhook_url: "https://hooks.slack.example.com/services/conformance"
+      )
+    ]
+  )
 end
 
 fixture = System.get_env("FRAISEQL_CONFORMANCE_FIXTURE")

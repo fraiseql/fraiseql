@@ -285,6 +285,15 @@ public class ConformanceExportTest
             .Event("INSERT")
             .Action(ObserverAction.Email("ops@example.com", "Order created", "Order {{ id }} was created"))
             .Register();
+        // One destination per action, written as a URL: no default environment variable beside it (#2279).
+        ObserverBuilder.Observer("orderRefundedDirect")
+            .Entity("Order")
+            .Event("UPDATE")
+            .Condition("status == 'refunded'")
+            .Action(ObserverAction.Webhook("https://hooks.example.com/conformance/refunds"))
+            .Action(ObserverAction.Slack("#refunds", "Order {{ id }} refunded",
+                webhookUrl: "https://hooks.slack.example.com/services/conformance"))
+            .Register();
     }
 
     [GraphQLType(Name = "User", SqlSource = "v_user")]

@@ -144,6 +144,35 @@ fn an_action_the_runtime_would_refuse_is_refused_naming_the_observer() {
 }
 
 #[test]
+fn an_action_naming_two_destinations_is_refused_naming_the_observer_action_and_fix() {
+    for (action, fix) in [
+        (
+            json!({"type": "webhook", "url": "https://example.test/hook", "url_env": "HOOK_URL"}),
+            "set one of `url` / `url_env`, not both",
+        ),
+        (
+            json!({"type": "slack", "message_template": "Order {{ id }}",
+                   "webhook_url": "https://example.test/slack",
+                   "webhook_url_env": "SLACK_WEBHOOK_URL"}),
+            "set one of `webhook_url` / `webhook_url_env`, not both",
+        ),
+    ] {
+        // The second action is at fault, so the index is not the default 0.
+        let observers = json!([{
+            "name": "order_created", "entity": "Order", "event": "INSERT",
+            "actions": [{"type": "webhook", "url_env": "OK_HOOK_URL"}, action]
+        }]);
+        let refusal = format!(
+            "{:#}",
+            compile(schema_declaring(&observers)).expect_err("the declaration must be refused")
+        );
+
+        assert!(refusal.contains("observer `order_created`, action 1"), "{refusal}");
+        assert!(refusal.contains(fix), "{refusal}");
+    }
+}
+
+#[test]
 fn an_action_type_the_runtime_does_not_dispatch_is_refused_naming_it() {
     let refusal = refusal_for(&json!({"type": "sms", "to": "+33100000000"}));
 
