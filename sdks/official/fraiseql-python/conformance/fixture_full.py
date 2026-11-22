@@ -15,6 +15,8 @@ place the deferred-annotation path is exercised end to end.
 
 from __future__ import annotations
 
+import decimal  # noqa: TC003 — deferred annotations are resolved at runtime
+import uuid  # noqa: TC003 — deferred annotations are resolved at runtime
 from enum import Enum
 from typing import Annotated
 
@@ -195,6 +197,18 @@ class ShiftSlot:
     breaks_at: list[LocalDateTime]
 
 
+# #2274: the stdlib's `decimal.Decimal` and `uuid.UUID` are `Decimal` and `UUID`; an `id`
+# of a UUID is `ID`.
+@fraiseql.type(sql_source="v_price_quote")
+class PriceQuote:
+    id: uuid.UUID
+    amount: decimal.Decimal
+    fx_rate: decimal.Decimal | None = None
+    deltas: list[decimal.Decimal]
+    request_id: uuid.UUID
+    issuer_id: uuid.UUID | None = None
+
+
 # #1737: `Order` is scoped by `tenant_orders`, so a type that embeds it says it is scoped
 # alike, and its own query bears that out.
 @fraiseql.type(sql_source="v_order_shipment")
@@ -258,6 +272,13 @@ def ledger_entries_by_account(
 def shift_slots_starting_after(
     starts_after: LocalDateTime, except_at: list[LocalDateTime] | None = None
 ) -> list[ShiftSlot]:
+    pass
+
+
+@fraiseql.query(sql_source="v_price_quote")
+def price_quotes_by_request(
+    request_id: uuid.UUID, min_amount: decimal.Decimal | None = None
+) -> list[PriceQuote]:
     pass
 
 

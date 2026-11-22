@@ -98,6 +98,16 @@ def author_full
     t.field :breaks_at, "[LocalDateTime!]", nullable: false
   end
 
+  # #2274: the exact scalars are `:decimal` and `:uuid`.
+  schema.type "PriceQuote", sql_source: "v_price_quote" do |t|
+    t.field :id, :id, nullable: false
+    t.field :amount, :decimal, nullable: false
+    t.field :fx_rate, :decimal, nullable: true
+    t.field :deltas, "[Decimal!]", nullable: false
+    t.field :request_id, :uuid, nullable: false
+    t.field :issuer_id, :uuid, nullable: true
+  end
+
   # Lists (#1586, #1608): the GraphQL type string, every level as written.
   schema.type "ReadingSeries", sql_source: "v_reading_series" do |t|
     t.field :id, :id, nullable: false
@@ -184,6 +194,12 @@ def author_full
                                             nullable: false, sql_source: "v_shift_slot" do |q|
     q.argument :starts_after, :local_datetime, nullable: false
     q.argument :except_at, "[LocalDateTime!]", nullable: true
+  end
+
+  schema.query :price_quotes_by_request, return_type: "PriceQuote", returns_list: true,
+                                         nullable: false, sql_source: "v_price_quote" do |q|
+    q.argument :request_id, :uuid, nullable: false
+    q.argument :min_amount, :decimal, nullable: true
   end
 
   schema.query :tenant_order_shipments, return_type: "OrderShipment", returns_list: true,

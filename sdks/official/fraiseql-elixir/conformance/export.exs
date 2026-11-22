@@ -121,6 +121,16 @@ defmodule Conformance.FullSchema do
     field(:breaks_at, {:array, :naive_datetime}, nullable: false)
   end
 
+  # #2274: the exact scalars are Ecto's `:decimal` and `:uuid`.
+  fraiseql_type "PriceQuote", sql_source: "v_price_quote" do
+    field(:id, :id, nullable: false)
+    field(:amount, :decimal, nullable: false)
+    field(:fx_rate, :decimal, nullable: true)
+    field(:deltas, {:array, :decimal}, nullable: false)
+    field(:request_id, :uuid, nullable: false)
+    field(:issuer_id, :uuid, nullable: true)
+  end
+
   # Lists (#1586, #1608): Ecto's `{:array, type}` for non-null items, a GraphQL type string
   # for nullable ones.
   fraiseql_type "ReadingSeries", sql_source: "v_reading_series" do
@@ -230,6 +240,15 @@ defmodule Conformance.FullSchema do
                  sql_source: "v_shift_slot" do
     argument(:starts_after, :naive_datetime, nullable: false)
     argument(:except_at, {:array, :naive_datetime}, nullable: true)
+  end
+
+  fraiseql_query :price_quotes_by_request,
+                 return_type: "PriceQuote",
+                 returns_list: true,
+                 nullable: false,
+                 sql_source: "v_price_quote" do
+    argument(:request_id, :uuid, nullable: false)
+    argument(:min_amount, :decimal, nullable: true)
   end
 
   fraiseql_query(:tenant_order_shipments,

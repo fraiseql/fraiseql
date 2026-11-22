@@ -144,6 +144,20 @@ FraiseQLSchema authorFull() {
     },
   );
 
+  // #2274: the exact scalars are named `Decimal` and `UUID`.
+  schema.type(
+    'PriceQuote',
+    sqlSource: 'v_price_quote',
+    fields: {
+      'id': const FieldType.id(nullable: false),
+      'amount': const FieldType.named('Decimal', nullable: false),
+      'fxRate': const FieldType.named('Decimal'),
+      'deltas': const FieldType.named('[Decimal!]', nullable: false),
+      'requestId': const FieldType.named('UUID', nullable: false),
+      'issuerId': const FieldType.named('UUID'),
+    },
+  );
+
   // Lists (#1586, #1608): the GraphQL type string, every level as written.
   schema.type(
     'ReadingSeries',
@@ -257,6 +271,18 @@ FraiseQLSchema authorFull() {
     arguments: {
       'startsAfter': const FieldType.localDateTime(nullable: false),
       'exceptAt': const FieldType.named('[LocalDateTime!]'),
+    },
+  );
+
+  schema.query(
+    'priceQuotesByRequest',
+    returnType: 'PriceQuote',
+    returnsList: true,
+    nullable: false,
+    sqlSource: 'v_price_quote',
+    arguments: {
+      'requestId': const FieldType.named('UUID', nullable: false),
+      'minAmount': const FieldType.named('Decimal'),
     },
   );
 

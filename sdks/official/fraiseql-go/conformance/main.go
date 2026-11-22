@@ -55,6 +55,17 @@ type shiftSlot struct {
 	BreaksAt []fraiseql.LocalDateTime `fraiseql:"breaksAt"`
 }
 
+// priceQuote is authored from its Go types (#2274): Go has no decimal or UUID of its own,
+// so they are the SDK's Decimal and UUID; an `id` of a UUID is `ID`.
+type priceQuote struct {
+	ID        fraiseql.UUID      `fraiseql:"id"`
+	Amount    fraiseql.Decimal   `fraiseql:"amount"`
+	FxRate    *fraiseql.Decimal  `fraiseql:"fxRate"`
+	Deltas    []fraiseql.Decimal `fraiseql:"deltas"`
+	RequestID fraiseql.UUID      `fraiseql:"requestId"`
+	IssuerID  *fraiseql.UUID     `fraiseql:"issuerId"`
+}
+
 // authorLedgerEntry registers ledgerEntry from its inferred fields.
 func authorLedgerEntry() error {
 	return authorInferred("LedgerEntry", reflect.TypeOf(ledgerEntry{}))
@@ -63,6 +74,11 @@ func authorLedgerEntry() error {
 // authorShiftSlot registers shiftSlot the same way.
 func authorShiftSlot() error {
 	return authorInferred("ShiftSlot", reflect.TypeOf(shiftSlot{}))
+}
+
+// authorPriceQuote registers priceQuote the same way.
+func authorPriceQuote() error {
+	return authorInferred("PriceQuote", reflect.TypeOf(priceQuote{}))
 }
 
 // authorInferred registers structType under name with the fields ExtractFields infers, in
@@ -163,6 +179,9 @@ func authorFull() error {
 	if err := authorShiftSlot(); err != nil {
 		return err
 	}
+	if err := authorPriceQuote(); err != nil {
+		return err
+	}
 
 	if err := fraiseql.RegisterType("ReadingSeries", []fraiseql.FieldInfo{
 		{Name: "id", Type: "ID", Nullable: false},
@@ -256,6 +275,15 @@ func authorFull() error {
 		SqlSource("v_shift_slot").
 		Arg("startsAfter", "LocalDateTime", nil, false).
 		Arg("exceptAt", "[LocalDateTime!]", nil, true).
+		Register(); err != nil {
+		return err
+	}
+	// `Decimal` and `UUID` arguments are named the same way.
+	if err := fraiseql.NewQuery("priceQuotesByRequest").
+		ReturnType("PriceQuote").ReturnsArray(true).Nullable(false).
+		SqlSource("v_price_quote").
+		Arg("requestId", "UUID", nil, false).
+		Arg("minAmount", "Decimal", nil, true).
 		Register(); err != nil {
 		return err
 	}

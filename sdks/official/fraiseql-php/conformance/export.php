@@ -173,6 +173,31 @@ final class ConformanceShiftSlot
     public array $breaksAt;
 }
 
+// #2274: PHP has no decimal or UUID type of its own, so they are named
+// `Scalars::DECIMAL` and `Scalars::UUID`.
+#[GraphQLType(name: 'PriceQuote', sqlSource: 'v_price_quote')]
+final class ConformancePriceQuote
+{
+    #[GraphQLField(type: 'ID', nullable: false)]
+    public string $id;
+
+    #[GraphQLField(type: Scalars::DECIMAL, nullable: false)]
+    public string $amount;
+
+    #[GraphQLField(type: Scalars::DECIMAL, nullable: true)]
+    public ?string $fxRate;
+
+    /** @var list<string> */
+    #[GraphQLField(type: '[Decimal!]', nullable: false)]
+    public array $deltas;
+
+    #[GraphQLField(type: Scalars::UUID, nullable: false)]
+    public string $requestId;
+
+    #[GraphQLField(type: Scalars::UUID, nullable: true)]
+    public ?string $issuerId;
+}
+
 #[GraphQLType(name: 'ReadingSeries', sqlSource: 'v_reading_series')]
 final class ConformanceReadingSeries
 {
@@ -288,6 +313,7 @@ function authorFull(): void
     StaticAPI::register(ConformanceOrderShipment::class);
     StaticAPI::register(ConformanceLedgerEntry::class);
     StaticAPI::register(ConformanceShiftSlot::class);
+    StaticAPI::register(ConformancePriceQuote::class);
     StaticAPI::register(ConformanceCreateUserInput::class);
 
     StaticAPI::enum(OrderStatus::class);
@@ -323,6 +349,14 @@ function authorFull(): void
         ->sqlSource('v_shift_slot')
         ->argument('startsAfter', Scalars::LOCAL_DATE_TIME, nullable: false)
         ->argument('exceptAt', '[LocalDateTime!]', nullable: true)
+        ->register();
+
+    StaticAPI::query('priceQuotesByRequest')
+        ->returnType('PriceQuote')
+        ->returnsList(true)
+        ->sqlSource('v_price_quote')
+        ->argument('requestId', Scalars::UUID, nullable: false)
+        ->argument('minAmount', Scalars::DECIMAL, nullable: true)
         ->register();
 
     StaticAPI::query('readingSeriesByIds')
