@@ -818,6 +818,59 @@ mod compile_tests {
         assert_eq!(forward.keys().collect::<Vec<_>>(), ["doc.sql", "post.sql", "user.sql"]);
     }
 
+    /// Every index the directory carries is in the file of the table it indexes, after that
+    /// table's `CREATE TABLE` (#1850). A reader that applies the directory in path order
+    /// (Confiture's `build`) then never meets an index on a table it has not created yet; an
+    /// index in a file of its own would sort before or after its table by name alone.
+    #[test]
+    fn every_index_is_in_its_tables_file_after_its_create_table() {
+        let mut types = artifact_types();
+        let mut note = TypeDefinition::new("Note", "tv_note");
+        note.fields = vec![
+            FieldDefinition::new("id", FieldType::Id),
+            FieldDefinition::new("embedding", FieldType::Vector).with_vector_config(
+                fraiseql_core::schema::VectorConfig::new(3)
+                    .with_index(fraiseql_core::schema::VectorIndexType::IvfFlat),
+            ),
+        ];
+        types.push(note);
+
+        let mut indexes = 0;
+        for (name, bytes) in emitted(types) {
+            let text = String::from_utf8(bytes).unwrap();
+            let lines: Vec<&str> = text.lines().collect();
+            let created: Vec<(usize, &str)> = lines
+                .iter()
+                .enumerate()
+                .filter_map(|(i, l)| {
+                    l.strip_prefix("CREATE TABLE IF NOT EXISTS ")
+                        .and_then(|rest| rest.split_whitespace().next())
+                        .map(|table| (i, table))
+                })
+                .collect();
+            assert_eq!(created.len(), 1, "{name} creates exactly one table:\n{text}");
+            let (created_at, table) = created[0];
+            assert_eq!(table, format!("tb_{}", name.trim_end_matches(".sql")), "{name}");
+            // A file applies on its own to a database that has not created the extension: a
+            // `vector(N)` column is the extension's type, so the table needs it first.
+            for (i, _) in
+                lines.iter().enumerate().filter(|(_, l)| l.starts_with("CREATE EXTENSION"))
+            {
+                assert!(i < created_at, "{name}: an extension after the table using it:\n{text}");
+            }
+            for (i, line) in lines.iter().enumerate().filter(|(_, l)| l.starts_with("CREATE INDEX"))
+            {
+                indexes += 1;
+                assert!(
+                    line.contains(&format!(" ON {table} ")),
+                    "{name}: an index on another table than the file's own:\n{text}"
+                );
+                assert!(i > created_at, "{name}: an index before its CREATE TABLE:\n{text}");
+            }
+        }
+        assert_eq!(indexes, 2, "the HNSW index on Doc and the IVFFlat index on Note");
+    }
+
     /// #965: every file says which format it is and which compiler wrote it, first.
     #[test]
     fn every_file_names_its_format_and_its_compiler() {

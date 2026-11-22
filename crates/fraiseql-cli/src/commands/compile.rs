@@ -1210,6 +1210,37 @@ fn build_create_table_ddl(
         lines.push(format!("-- {desc}"));
     }
     lines.push(String::new());
+
+    // #386: vector columns need the extension and their declared ANN index.
+    // Binary vectors need it too — `bit(N)` is a PostgreSQL type, but `<~>`,
+    // `<%>` and the `bit_*_ops` operator classes come from pgvector (#959).
+    // The extension comes first: a `vector(N)` column is its type, so a file applied on its
+    // own to a database that has not created it would refuse the table (#1850).
+    let vector_fields: Vec<_> = type_def
+        .fields
+        .iter()
+        .filter_map(|f| f.vector_config.as_ref().map(|c| (f, c)))
+        .collect();
+    let mut index_lines: Vec<String> = Vec::new();
+    for (field, config) in &vector_fields {
+        let col_name = to_snake_case(field.name.as_str());
+        let index_ddl = config
+            .index_type
+            .index_sql(
+                &format!("tb_{table_name}"),
+                &col_name,
+                &field.field_type,
+                config.distance_metric,
+            )
+            .with_context(|| format!("field '{}.{}'", type_def.name, field.name.as_str()))?;
+        if let Some(index_ddl) = index_ddl {
+            index_lines.push(format!("{index_ddl};"));
+        }
+    }
+    if !vector_fields.is_empty() {
+        lines.push("CREATE EXTENSION IF NOT EXISTS vector;".to_string());
+        lines.push(String::new());
+    }
     lines.push(format!("CREATE TABLE IF NOT EXISTS tb_{table_name} ("));
 
     let col_lines: Vec<String> = type_def
@@ -1243,32 +1274,10 @@ fn build_create_table_ddl(
 
     lines.push(");".to_string());
 
-    // #386: vector columns need the extension and their declared ANN index.
-    // Binary vectors need it too — `bit(N)` is a PostgreSQL type, but `<~>`,
-    // `<%>` and the `bit_*_ops` operator classes come from pgvector (#959).
-    let vector_fields: Vec<_> = type_def
-        .fields
-        .iter()
-        .filter_map(|f| f.vector_config.as_ref().map(|c| (f, c)))
-        .collect();
-    if !vector_fields.is_empty() {
+    // Each index in its table's own file, after the table (#1850).
+    if !index_lines.is_empty() {
         lines.push(String::new());
-        lines.push("CREATE EXTENSION IF NOT EXISTS vector;".to_string());
-        for (field, config) in vector_fields {
-            let col_name = to_snake_case(field.name.as_str());
-            let index_ddl = config
-                .index_type
-                .index_sql(
-                    &format!("tb_{table_name}"),
-                    &col_name,
-                    &field.field_type,
-                    config.distance_metric,
-                )
-                .with_context(|| format!("field '{}.{}'", type_def.name, field.name.as_str()))?;
-            if let Some(index_ddl) = index_ddl {
-                lines.push(format!("{index_ddl};"));
-            }
-        }
+        lines.extend(index_lines);
     }
 
     lines.push(String::new());

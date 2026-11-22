@@ -1437,6 +1437,15 @@ disagreed, and the promise was the part that was wrong.
   implementor is still read by that type. `BigInt`, `UUID` and `LocalDateTime` at the same
   position were already served as their text, and are now pinned there too.
 
+- **An `--emit-ddl` file with vector fields applies on its own (#1850).** The file wrote
+  `CREATE EXTENSION IF NOT EXISTS vector` after the `CREATE TABLE` whose `vector(N)`
+  columns need it, so on a database where pgvector was available but not yet created the
+  file failed on its first statement (`type "vector" does not exist`). The extension now
+  comes before the table. Byte change in emitted vector DDL: a type with vector fields gets
+  the same statements in a new order; other files are unchanged, and the format version
+  stays 1. `docs/operations/emit-ddl.md` now also states where an index goes: in the file of
+  the table it indexes, after its `CREATE TABLE`, never in a file of its own.
+
 - **An SDK-authored fact table can filter by hierarchy node (#1909).** A denormalized
   `ltree` filter names its hierarchy (`"hierarchy": "org"`) so `org_path_descendant_of_id`
   and `org_path_ancestor_of_id` resolve a node id. The hierarchy itself is declared as
