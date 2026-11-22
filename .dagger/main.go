@@ -1815,13 +1815,14 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// seam, the source poller build_host composition (cursor round-trip vs PG +
 		// executor reachable via host.query), and the scheduler's schedulable/config
 		// resolution. `--features sources` pulls the Deno path (compiled only). The
-		// The fires_a_model_b_connector_end_to_end name-skip is lifted (#971):
+		// fires_a_model_b_connector_end_to_end name-skip is lifted (#971):
 		// the "V8 SIGSEGVs in the exec sandbox" diagnosis was #969's
 		// second-isolate-per-process crash, fixed there — this run is the
 		// sandbox re-test the issue asked for. `inbound-email` compiles
-		// stranded_tables:: as both of its callers do; the suite-coverage gate
-		// reads its any(observers, sources, inbound-email) gate as all three.
-		"cargo test -p fraiseql-server --features sources,inbound-email --lib -- sources:: stranded_tables:: server_config::egress:: server::provision_tests::each_configured_capability_plans_its_own_tables --test-threads=1",
+		// stranded_tables:: as both of its callers do; its gate is
+		// any(observers, sources, inbound-email), which `sources` alone satisfies.
+		// `capability::schema_tests::` holds a sources-gated arm that ran in no leg.
+		"cargo test -p fraiseql-server --features sources,inbound-email --lib -- sources:: stranded_tables:: server_config::egress:: server::provision_tests::each_configured_capability_plans_its_own_tables capability::schema_tests:: --test-threads=1",
 		// P16 functions-runtime gate (#796/#803/#840/#841/#842): the cron
 		// fire-window + cross-restart guard vs real PG (`cron::tests` reads
 		// back `_fraiseql_cron_state`), and the dispatched host's identity /
