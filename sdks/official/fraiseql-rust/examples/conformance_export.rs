@@ -134,6 +134,19 @@ fn full() -> SchemaRegistry {
         ],
         "v_shift_slot",
     );
+    // The exact scalars are the type strings `Decimal` and `UUID`.
+    registry.register_type_with_source(
+        "PriceQuote",
+        vec![
+            Field::new("id", "ID").with_nullable(false),
+            Field::new("amount", "Decimal").with_nullable(false),
+            Field::new("fxRate", "Decimal").with_nullable(true),
+            Field::new("deltas", "[Decimal!]").with_nullable(false),
+            Field::new("requestId", "UUID").with_nullable(false),
+            Field::new("issuerId", "UUID").with_nullable(true),
+        ],
+        "v_price_quote",
+    );
     registry
 }
 
