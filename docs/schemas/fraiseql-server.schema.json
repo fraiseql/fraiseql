@@ -1025,7 +1025,7 @@
       "type": "object",
       "properties": {
         "issuer": {
-          "description": "Issuer URL (e.g., `https://your-tenant.auth0.com/`), optional.\n\nWhen set, it serves two purposes: OIDC discovery (building the\n`.well-known/openid-configuration` URL when `jwks_uri` is not pinned) and\n`iss`-claim validation — tokens must then carry a matching `iss`. Include\na trailing slash if the provider expects one.\n\nWhen unset (`None`), `iss` is **not** validated and no discovery is\nperformed, so `jwks_uri` must be pinned explicitly. This supports `IdPs`\nwhose access tokens omit the `iss` claim (e.g. self-hosted Hanko).\nSignature verification (against the pinned JWKS) and `audience`\nvalidation still apply, which is sufficient for a single-`IdP`,\ndirect-`jwks_uri` deployment.",
+          "description": "Issuer URL (e.g., `https://your-tenant.auth0.com/`), optional.\n\nWhen set, it serves two purposes: OIDC discovery (building the\n`.well-known/openid-configuration` URL when `jwks_uri` is not pinned) and\n`iss`-claim validation — tokens must then carry a matching `iss`. Include\na trailing slash if the provider expects one. A discovery document must name\nthis issuer byte for byte, or the validator is refused.\n\nWhen unset (`None`), `iss` is **not** validated and no discovery is\nperformed, so `jwks_uri` must be pinned explicitly. This supports `IdPs`\nwhose access tokens omit the `iss` claim (e.g. self-hosted Hanko).\nSignature verification (against the pinned JWKS) and `audience`\nvalidation still apply, which is sufficient for a single-`IdP`,\ndirect-`jwks_uri` deployment.",
           "type": [
             "string",
             "null"
