@@ -65,6 +65,7 @@ defmodule FraiseQL.Schema do
           fraiseql_mutation: 3,
           fraiseql_enum: 2,
           fraiseql_function: 2,
+          fraiseql_observer: 2,
           # `field`/`argument` are used inside the type/query/mutation blocks. Import
           # them here (module-wide) rather than per-block: a per-block
           # `import …, only: [field: …]` *replaces* this module's import set for the
@@ -82,6 +83,7 @@ defmodule FraiseQL.Schema do
       Module.register_attribute(__MODULE__, :fraiseql_mutations, accumulate: true)
       Module.register_attribute(__MODULE__, :fraiseql_enums, accumulate: true)
       Module.register_attribute(__MODULE__, :fraiseql_functions, accumulate: true)
+      Module.register_attribute(__MODULE__, :fraiseql_observers, accumulate: true)
       Module.put_attribute(__MODULE__, :fraiseql_schema, true)
       @before_compile FraiseQL.Schema
     end
@@ -812,6 +814,42 @@ defmodule FraiseQL.Schema do
     end
   end
 
+  @doc """
+  Registers an observer (#2147): its actions run when a row of `:entity` sees `:event`.
+
+      fraiseql_observer :order_shipped,
+        entity: "Order",
+        event: "UPDATE",
+        condition: "status == 'shipped'",
+        actions: [
+          FraiseQL.Observer.webhook(url_env: "ORDER_HOOK_URL"),
+          FraiseQL.Observer.slack("#orders", "Order {{ id }} shipped")
+        ],
+        retry: %FraiseQL.RetryConfig{
+          max_attempts: 5,
+          backoff_strategy: "exponential",
+          initial_delay_ms: 200,
+          max_delay_ms: 5000
+        }
+
+  The name is a snake_case atom published camelCase, as an operation name is.
+
+  Options:
+
+    * `:entity` — required; the type whose rows are observed
+    * `:event` — required; `"INSERT"`, `"UPDATE"` or `"DELETE"`
+    * `:condition` — optional expression on the row; the actions run only when it holds
+    * `:actions` — built with `FraiseQL.Observer.webhook/1`, `slack/3` and `email/3`
+    * `:retry` — a `%FraiseQL.RetryConfig{}`; absent, the server's own policy applies
+  """
+  defmacro fraiseql_observer(name, opts) do
+    observer_name = FraiseQL.TypeMapper.to_camel_case(name)
+
+    quote do
+      @fraiseql_observers FraiseQL.Observer.definition!(unquote(observer_name), unquote(opts))
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # @before_compile — inject accessor functions
   # ---------------------------------------------------------------------------
@@ -823,6 +861,8 @@ defmodule FraiseQL.Schema do
     mutations = Module.get_attribute(env.module, :fraiseql_mutations) |> Enum.reverse()
     enums = Module.get_attribute(env.module, :fraiseql_enums) |> Enum.reverse()
     functions = Module.get_attribute(env.module, :fraiseql_functions) |> Enum.reverse()
+    observers = Module.get_attribute(env.module, :fraiseql_observers) |> Enum.reverse()
+    validate_no_duplicate_observers!(observers, env.module)
 
     # Expand CRUD operations for types that have crud enabled.
     #
@@ -860,6 +900,12 @@ defmodule FraiseQL.Schema do
       def __fraiseql_functions__, do: unquote(Macro.escape(functions))
 
       @doc """
+      Returns all observer definitions declared in this schema module (#2147).
+      """
+      @spec __fraiseql_observers__() :: [FraiseQL.ObserverDefinition.t()]
+      def __fraiseql_observers__, do: unquote(Macro.escape(observers))
+
+      @doc """
       Returns all query definitions declared in this schema module, in declaration order.
       """
       @spec __fraiseql_queries__() :: [FraiseQL.QueryDefinition.t()]
@@ -890,6 +936,20 @@ defmodule FraiseQL.Schema do
       def to_intermediate_schema do
         FraiseQL.SchemaExporter.to_intermediate_schema(__MODULE__)
       end
+    end
+  end
+
+  defp validate_no_duplicate_observers!(observers, module) do
+    names = Enum.map(observers, & &1.name)
+
+    case names -- Enum.uniq(names) do
+      [] ->
+        :ok
+
+      [dup | _] ->
+        raise ArgumentError,
+              "duplicate observer name #{inspect(dup)} in #{inspect(module)}. " <>
+                "Each observer name must be unique within a schema module."
     end
   end
 

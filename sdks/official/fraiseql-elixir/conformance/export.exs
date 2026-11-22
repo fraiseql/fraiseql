@@ -337,6 +337,68 @@ defmodule Conformance.FullSchema do
   # names a capability rather than an event, and it names no query — the binding lives on
   # the query, so there is one copy of it.
   fraiseql_function("preview_quote", trigger: "request:query")
+
+  # #2147: one observer per action kind. Every observer but the last sets its retry; the
+  # last runs on the server's own policy, so it writes no retry block.
+  fraiseql_observer(:order_placed_webhook,
+    entity: "Order",
+    event: "INSERT",
+    actions: [
+      FraiseQL.Observer.webhook(
+        url_env: "CONFORMANCE_HOOK_URL",
+        method: "PUT",
+        body_template: ~s({"total": {{ total }}}),
+        signing_secret_env: "CONFORMANCE_HOOK_KEY",
+        headers: %{"X-Source" => "conformance"},
+        headers_env: %{"Authorization" => "CONFORMANCE_HOOK_TOKEN"}
+      )
+    ],
+    retry: %FraiseQL.RetryConfig{
+      max_attempts: 5,
+      backoff_strategy: "linear",
+      initial_delay_ms: 200,
+      max_delay_ms: 5000
+    }
+  )
+
+  fraiseql_observer(:order_shipped_slack,
+    entity: "Order",
+    event: "UPDATE",
+    condition: "status == 'shipped'",
+    actions: [
+      FraiseQL.Observer.slack("#orders", "Order {{ id }} shipped",
+        webhook_url_env: "CONFORMANCE_SLACK_URL"
+      )
+    ],
+    retry: %FraiseQL.RetryConfig{
+      max_attempts: 4,
+      backoff_strategy: "exponential",
+      initial_delay_ms: 250,
+      max_delay_ms: 8000
+    }
+  )
+
+  fraiseql_observer(:order_deleted_email,
+    entity: "Order",
+    event: "DELETE",
+    actions: [
+      FraiseQL.Observer.email("ops@example.com", "Order deleted", "Order {{ id }} was deleted")
+    ],
+    retry: %FraiseQL.RetryConfig{
+      max_attempts: 2,
+      backoff_strategy: "fixed",
+      initial_delay_ms: 500,
+      max_delay_ms: 500
+    }
+  )
+
+  fraiseql_observer(:order_created_default_retry,
+    entity: "Order",
+    event: "INSERT",
+    actions: [
+      FraiseQL.Observer.email("ops@example.com", "Order created", "Order {{ id }} was created")
+    ]
+  )
 end
 
 fixture = System.get_env("FRAISEQL_CONFORMANCE_FIXTURE")

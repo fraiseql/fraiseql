@@ -512,9 +512,16 @@ defmodule FraiseQL.IntermediateSchema do
     * `:queries` — list of `FraiseQL.QueryDefinition` structs
     * `:mutations` — list of `FraiseQL.MutationDefinition` structs
     * `:functions` — list of `FraiseQL.FunctionDefinition` structs (#1325)
+    * `:observers` — list of `FraiseQL.ObserverDefinition` structs (#2147)
   """
 
-  defstruct version: "2.0.0", types: [], queries: [], mutations: [], enums: [], functions: []
+  defstruct version: "2.0.0",
+            types: [],
+            queries: [],
+            mutations: [],
+            enums: [],
+            functions: [],
+            observers: []
 
   @type t :: %__MODULE__{
           version: String.t(),
@@ -522,6 +529,7 @@ defmodule FraiseQL.IntermediateSchema do
           enums: [FraiseQL.EnumDefinition.t()],
           queries: [FraiseQL.QueryDefinition.t()],
           mutations: [FraiseQL.MutationDefinition.t()],
-          functions: [FraiseQL.FunctionDefinition.t()]
+          functions: [FraiseQL.FunctionDefinition.t()],
+          observers: [FraiseQL.ObserverDefinition.t()]
         }
 end

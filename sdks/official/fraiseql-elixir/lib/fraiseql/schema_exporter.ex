@@ -40,7 +40,8 @@ defmodule FraiseQL.SchemaExporter do
       enums: enums_of(module),
       queries: module.__fraiseql_queries__(),
       mutations: module.__fraiseql_mutations__(),
-      functions: functions_of(module)
+      functions: functions_of(module),
+      observers: observers_of(module)
     }
   end
 
@@ -107,7 +108,9 @@ defmodule FraiseQL.SchemaExporter do
   # A schema module compiled before `fraiseql_enum` existed has no accessor; treat that
   # as "no enums" rather than crashing the export.
   defp enums_of(module) do
-    if function_exported?(module, :__fraiseql_enums__, 0), do: module.__fraiseql_enums__(), else: []
+    if function_exported?(module, :__fraiseql_enums__, 0),
+      do: module.__fraiseql_enums__(),
+      else: []
   end
 
   # Same shape as `enums_of/1`: a schema module compiled before `fraiseql_function`
@@ -115,6 +118,13 @@ defmodule FraiseQL.SchemaExporter do
   defp functions_of(module) do
     if function_exported?(module, :__fraiseql_functions__, 0),
       do: module.__fraiseql_functions__(),
+      else: []
+  end
+
+  # Same shape again: a module compiled before `fraiseql_observer` existed has none.
+  defp observers_of(module) do
+    if function_exported?(module, :__fraiseql_observers__, 0),
+      do: module.__fraiseql_observers__(),
       else: []
   end
 
@@ -135,10 +145,36 @@ defmodule FraiseQL.SchemaExporter do
 
     # #1325: omitted entirely when none are declared, so a schema that has never heard
     # of functions serialises exactly as it did before.
-    if s.functions == [] do
+    base =
+      if s.functions == [] do
+        base
+      else
+        Map.put(base, "functions", Enum.map(s.functions, &function_to_map/1))
+      end
+
+    # #2147: observers, likewise only when one is declared.
+    if s.observers == [] do
       base
     else
-      Map.put(base, "functions", Enum.map(s.functions, &function_to_map/1))
+      Map.put(base, "observers", Enum.map(s.observers, &observer_to_map/1))
+    end
+  end
+
+  defp observer_to_map(%FraiseQL.ObserverDefinition{} = o) do
+    base = %{"name" => o.name, "entity" => o.entity, "event" => o.event, "actions" => o.actions}
+    base = if is_nil(o.condition), do: base, else: Map.put(base, "condition", o.condition)
+
+    case o.retry do
+      nil ->
+        base
+
+      %FraiseQL.RetryConfig{} = r ->
+        Map.put(base, "retry", %{
+          "max_attempts" => r.max_attempts,
+          "backoff_strategy" => r.backoff_strategy,
+          "initial_delay_ms" => r.initial_delay_ms,
+          "max_delay_ms" => r.max_delay_ms
+        })
     end
   end
 
@@ -365,10 +401,15 @@ defmodule FraiseQL.SchemaExporter do
   end
 
   defp maybe_put_rest(map, nil, _method, _default_method), do: map
-  defp maybe_put_rest(map, path, nil, default_method), do: Map.put(map, "rest", %{"path" => path, "method" => default_method})
-  defp maybe_put_rest(map, path, method, _default_method), do: Map.put(map, "rest", %{"path" => path, "method" => method})
+
+  defp maybe_put_rest(map, path, nil, default_method),
+    do: Map.put(map, "rest", %{"path" => path, "method" => default_method})
+
+  defp maybe_put_rest(map, path, method, _default_method),
+    do: Map.put(map, "rest", %{"path" => path, "method" => method})
 
   defp maybe_put_auto_params(map, nil), do: map
+
   defp maybe_put_auto_params(map, params) when is_map(params) do
     string_params = Map.new(params, fn {k, v} -> {to_string(k), v} end)
     Map.put(map, "auto_params", string_params)

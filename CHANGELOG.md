@@ -898,6 +898,11 @@ disagreed, and the promise was the part that was wrong.
     the name is camelCased as an operation name is. Retry is a `FraiseQL::ObserverRetry`
     (not `FraiseQL::RetryConfig`, the client's retry of a request), passed as `retry_:`
     because `retry` is a Ruby keyword, as `function`'s `when_:` is.
+  - Elixir: `fraiseql_observer :name, entity:, event:, condition:, actions:, retry:`, the
+    actions built with `FraiseQL.Observer.webhook/1`, `slack/3` and `email/3` under the
+    one-destination rule; the name is camelCased as an operation name is, and a duplicate
+    fails the module's compile. Retry is a `%FraiseQL.RetryConfig{}` struct and nothing
+    else (a keyword list is refused).
 
 - **`compile --database` warns where an `Int` is wider in the database (#2175).** Sampled
   documents holding an `Int` field outside the signed 32-bit range, at the root or

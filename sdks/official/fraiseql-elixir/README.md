@@ -143,6 +143,33 @@ A field of an `is_input` type takes `nullable:`, `description:`, `deprecated:` a
 | `description:` | string | nil | Human-readable description |
 | `localized:` | boolean | false | A String received as a locale map; any other type fails to compile |
 
+## Observers
+
+An observer runs actions when a row of an entity is inserted, updated or deleted:
+
+```elixir
+fraiseql_observer :order_shipped,
+  entity: "Order",
+  event: "UPDATE",
+  condition: "status == 'shipped'",
+  actions: [
+    FraiseQL.Observer.webhook(url_env: "ORDER_HOOK_URL", signing_secret_env: "ORDER_HOOK_KEY"),
+    FraiseQL.Observer.slack("#orders", "Order {{ id }} shipped"),
+    FraiseQL.Observer.email("ops@example.com", "Order shipped", "Order {{ id }} shipped")
+  ],
+  retry: %FraiseQL.RetryConfig{
+    max_attempts: 5,
+    backoff_strategy: "exponential",
+    initial_delay_ms: 200,
+    max_delay_ms: 5000
+  }
+```
+
+A webhook takes exactly one of `url:` and `url_env:`. A Slack action posts to the URL in
+`SLACK_WEBHOOK_URL` unless `webhook_url:` or `webhook_url_env:` names another. The email
+sender is the server's SMTP configuration. An observer with no `retry:` runs on the
+server's own policy; `retry:` takes a `%FraiseQL.RetryConfig{}` and nothing else.
+
 ## Type Mapping
 
 | Elixir atom | GraphQL type |
