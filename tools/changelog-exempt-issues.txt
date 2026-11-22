@@ -89,3 +89,4 @@
 #2271  tools and CI: the suite-coverage gate credits a leg whose test-name filters select every test of a module; no shipped artifact changes
 #2272  tools and CI: the suite-coverage gate finds lib test modules by following `mod` declarations, not by file name, and each exemption names its issue; no shipped artifact changes
 #2273  tools and CI: eight lib test modules the suite-coverage gate found unrun each run in a leg, a leg that binds a database fails a test that finds none, and the gate names nested gated modules by their real path; no shipped artifact changes
+#2152  CI: the Go SDK leg lints with staticcheck on its own pinned toolchain, the Go SDK gains a container fallback, and the CI install-pin gate covers `go run`/`go install` and `GOTOOLCHAIN`; no shipped artifact changes

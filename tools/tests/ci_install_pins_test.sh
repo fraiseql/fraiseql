@@ -124,6 +124,61 @@ else
   fail "a stale exemption should fail the run"
 fi
 
+# ── 9. A `go run`/`go install` of a floating version fails; an exact one passes ──────
+for float in latest master main HEAD upgrade patch; do
+  root="${tmp}/go-${float}"; exemption_line "$root"
+  mk "${root}/tools/suite.sh" "    run go run honnef.co/go/tools/cmd/staticcheck@${float} ./..."
+  run_gate "$root"
+  if [ "$(rc)" = "1" ] && said "suite.sh:1 installs without naming a version"; then
+    pass "go run …@${float} fails the gate"
+  else
+    fail "go run …@${float} should fail the gate"
+  fi
+done
+
+root="${tmp}/go-install-latest"; exemption_line "$root"
+mk "${root}/.github/workflows/lint.yml" '        run: go install golang.org/x/vuln/cmd/govulncheck@latest'
+run_gate "$root"
+if [ "$(rc)" = "1" ] && said "lint.yml:1 installs without naming a version"; then
+  pass "go install …@latest fails the gate"
+else
+  fail "go install …@latest should fail the gate"
+fi
+
+root="${tmp}/go-pinned"; exemption_line "$root"
+mk "${root}/tools/suite.sh" '    run go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
+    run go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+    run go run ./cmd/gen
+    run go test -race ./fraiseql/...'
+run_gate "$root"
+if [ "$(rc)" = "0" ]; then
+  pass "an exact go run/go install version passes, and a local package is no install"
+else
+  fail "an exact go run/go install version should pass"
+fi
+
+# ── 10. GOTOOLCHAIN names an exact release or `local` ────────────────────────────────
+for floating in auto go1.27 go1.27.4+auto path 'go1.27.4+path'; do
+  root="${tmp}/toolchain-${floating//[^a-z0-9.]/_}"; exemption_line "$root"
+  mk "${root}/tools/suite.sh" "    run env GOTOOLCHAIN=${floating} go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./..."
+  run_gate "$root"
+  if [ "$(rc)" = "1" ] && said "suite.sh:1 installs without naming a version"; then
+    pass "GOTOOLCHAIN=${floating} fails the gate"
+  else
+    fail "GOTOOLCHAIN=${floating} should fail the gate"
+  fi
+done
+
+root="${tmp}/toolchain-pinned"; exemption_line "$root"
+mk "${root}/tools/suite.sh" '    run env GOTOOLCHAIN=go1.27.4 go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
+          GOTOOLCHAIN: local'
+run_gate "$root"
+if [ "$(rc)" = "0" ]; then
+  pass "GOTOOLCHAIN=go1.27.4 and GOTOOLCHAIN: local pass"
+else
+  fail "an exact GOTOOLCHAIN and local should pass"
+fi
+
 if [ "$failures" -ne 0 ]; then
   echo "FAIL: ${failures} case(s) — check-ci-install-pins.sh does not discriminate as claimed" >&2
   exit 1

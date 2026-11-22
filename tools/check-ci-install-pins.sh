@@ -21,6 +21,12 @@
 #   pip     every package argument carries `==`, or the command installs from `-r <file>`
 #   cargo   `--version` is present, or `--path` (a local build of this workspace), or
 #           `--git` with `--rev` (a commit is a version)
+#   go      a `go run` or `go install` of `pkg@version` names a version, not a query that
+#           the module proxy answers by its clock (`@latest`, `@upgrade`, `@patch`) or a
+#           branch (`@master`, `@main`, `@HEAD`). A local package (`./cmd/x`) is no
+#           install. And `GOTOOLCHAIN` is `local` or one exact release (`go1.27.4`): the
+#           go command fetches that toolchain, so `auto`, `path`, a `+auto` suffix or a
+#           bare language version (`go1.27`) is a tool whose version is not this tree's.
 # A shell variable is a pin: `cargo install fraiseql-cli --version "$version"` names
 # exactly one version, chosen by the caller rather than by the registry's clock.
 #
@@ -29,9 +35,8 @@
 # * Lines inside a fenced ``` block. `sbom-generation.yml` prints installation
 #   *instructions* into its report; that text is documentation for a human, not a step
 #   this repository runs, and pinning it would publish a version that ages.
-# * `npm`/`go install`: `go install` already requires an `@version` suffix by
-#   construction, and the two npm installs in tools/ name `fraiseql@$version`. Stated
-#   so a reader does not read silence as coverage — add them here if that changes.
+# * `npm`: the two npm installs in tools/ name `fraiseql@$version`. Stated so a reader
+#   does not read silence as coverage — add it here if that changes.
 #
 # Exemptions live in EXEMPT below, each with the reason it is not a defect, and each
 # must still match something: a stale entry fails the run, so a pin that lands later
@@ -79,6 +84,13 @@ report() {
   violations=$((violations + 1))
 }
 
+# A `go run`/`go install` whose `@` names a query or a branch rather than a version.
+go_floating='go (run|install) .*@(latest|upgrade|patch|master|main|HEAD)([^A-Za-z0-9._-]|$)'
+# A GOTOOLCHAIN setting, shell (`GOTOOLCHAIN=x`) or YAML (`GOTOOLCHAIN: x`), its value
+# captured without quotes; and the one form of value that names a release.
+go_toolchain="GOTOOLCHAIN[=:] *[\"']?([^\"'[:space:]]*)"
+go_release='^go[0-9]+\.[0-9]+\.[0-9]+$'
+
 scanned=0
 while IFS= read -r file; do
   scanned=$((scanned + 1))
@@ -108,6 +120,17 @@ while IFS= read -r file; do
     if [[ "$line" == *"cargo install"* ]]; then
       is_exempt "$line" && continue
       if [[ "$line" != *"--version"* && "$line" != *"--path"* && "$line" != *"--rev"* ]]; then
+        report "$file" "$lineno" "$trimmed"
+      fi
+    fi
+
+    if [[ "$line" =~ $go_floating ]]; then
+      is_exempt "$line" && continue
+      report "$file" "$lineno" "$trimmed"
+    elif [[ "$line" =~ $go_toolchain ]]; then
+      toolchain="${BASH_REMATCH[1]}"
+      if ! [[ "$toolchain" == local || "$toolchain" =~ $go_release ]]; then
+        is_exempt "$line" && continue
         report "$file" "$lineno" "$trimmed"
       fi
     fi
@@ -147,7 +170,8 @@ if [ "$violations" -gt 0 ] || [ "$stale" -gt 0 ]; then
 
     Pin it. For pip, `pkg==X.Y.Z` (or a requirements file, as
     tools/scim-conformance-requirements.txt does for the SCIM conformance client).
-    For cargo, `--version X.Y.Z --locked`.
+    For cargo, `--version X.Y.Z --locked`. For go, `pkg@vX.Y.Z`, and
+    `GOTOOLCHAIN=goX.Y.Z` or `local`.
 
     If the install genuinely must float, add it to EXEMPT in this script with the
     reason — and expect the next reader to ask why a CI verdict is allowed to depend
@@ -156,5 +180,5 @@ EOF
   exit 1
 fi
 
-echo "OK: every pip/cargo install in .github/workflows, .dagger, tools and the Makefile" \
+echo "OK: every pip/cargo/go install in .github/workflows, .dagger, tools and the Makefile" \
      "names a version (${scanned} files scanned, ${#EXEMPT[@]} exemption(s), all live)."
