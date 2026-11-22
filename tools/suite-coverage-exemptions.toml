@@ -29,24 +29,6 @@ reason = "a routing decision, not a verdict: it lists the SDK suites a push need
 target = "already passed"
 reason = "a routing decision, not a verdict: it only decides whether the leg after it runs, and it fails toward running that leg, whose own required context is what gates the merge (.github/workflows/already-passed.yml)"
 
-# ── Arrow Flight DB-backed binaries — pending gate G1 (#908 → P05) ───────────
-# The Flight write/query surface itself is under a user decision (gate or
-# delete, #953/#954). The DB fixtures and the `Closes #908` wiring are owned by
-# P05 Cycle 3 of the 2026-08-06 remediation program; wiring them into the
-# postgres leg before G1 would build fixtures for a surface that may be deleted.
-
-[[exempt]]
-target = "fraiseql-arrow::flight_integration"
-reason = "pending G1 (#953/#954): Flight surface may be deleted; DB fixture + postgres-leg wiring owned by P05 Cycle 3 (#908)"
-
-[[exempt]]
-target = "fraiseql-arrow::flight_e2e_test"
-reason = "pending G1 (#953/#954): Flight surface may be deleted; DB fixture + postgres-leg wiring owned by P05 Cycle 3 (#908)"
-
-[[exempt]]
-target = "fraiseql-arrow::flight_error_handling_test"
-reason = "pending G1 (#953/#954): Flight surface may be deleted; DB fixture + postgres-leg wiring owned by P05 Cycle 3 (#908)"
-
 # ── Codegen real-consumer gates: no longer exempt (#1120) ────────────────────
 # The four `client_*_consumer` suites shell out to language toolchains and the
 # network, so they cannot run in the offline Dagger legs and execute in

@@ -420,6 +420,22 @@ reason = "never run by any leg"
 '
 expect "an [[exempt]] row naming no issue is FATAL" 2 "$WORK/noissue_exempt" "names no issue"
 
+# An `[[exempt]]` row says no leg runs its suite. Once one does, the row is false, and
+# keeping it would also excuse the suite from the merge-gating check it now owes.
+make_fixture "$WORK/exempt_covered" "$WF_EVERY_BRANCH" 'required = ["workspace tests"]' '[[exempt]]
+target = "demo::probe"
+reason = "never run by any leg (#0000)"
+'
+expect "an [[exempt]] row for a suite a leg runs is refused" 1 "$WORK/exempt_covered" \
+    "UNNEEDED EXEMPTION demo::probe: run by Test"
+
+make_fixture "$WORK/exempt_needed" "$WF_EVERY_BRANCH" 'required = ["workspace tests"]' '[[exempt]]
+target = "demo::unrun"
+reason = "never run by any leg (#0000)"
+'
+printf '#[test]\nfn nothing_runs_this() {}\n' >"$WORK/exempt_needed/crates/demo/tests/unrun.rs"
+expect "...and one for a suite no leg runs is kept" 0 "$WORK/exempt_needed" "1 exemptions in use"
+
 # ── 8. `dagger call test-integration --suite=X` resolves through the switch ─
 #
 # The suite name is read out of `.dagger/main.go`'s switch rather than mirrored,

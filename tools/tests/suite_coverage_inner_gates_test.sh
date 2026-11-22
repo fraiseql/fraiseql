@@ -645,6 +645,22 @@ make_fixture "$WORK/fn_inline" "$FEATS" 'mod inner {
 expect "a test fn inside an inline mod is named with its path" 0 "$WORK/fn_inline"
 
 echo
+echo "── an exemption for a module a leg runs is refused ──"
+
+make_fixture "$WORK/x_covered" "$FEATS" "$DECL_BODY" "cargo test -p demo --lib --features parquet" "" \
+    '#[cfg(feature = "parquet")]'
+printf '[[exempt]]\ntarget = "demo::lib::tests"\nreason = "never run by any leg (#0000)"\n' \
+    >"$WORK/x_covered/tools/suite-coverage-exemptions.toml"
+expect "an [[exempt]] row for a module a leg runs is refused" 1 "$WORK/x_covered" \
+    "UNNEEDED EXEMPTION demo::lib::tests"
+
+make_fixture "$WORK/x_needed" "$FEATS" "$DECL_BODY" "cargo test -p demo --lib" "" \
+    '#[cfg(feature = "parquet")]'
+printf '[[exempt]]\ntarget = "demo::lib::tests"\nreason = "never run by any leg (#0000)"\n' \
+    >"$WORK/x_needed/tools/suite-coverage-exemptions.toml"
+expect "...and one for a module no leg runs is kept" 0 "$WORK/x_needed" "1 exemptions in use"
+
+echo
 if [ "$TESTS_FAILED" -gt 0 ]; then
     echo "suite-coverage inner-gate self-test: $TESTS_FAILED of $TESTS_RUN FAILED"
     exit 1

@@ -2648,6 +2648,18 @@ def _load_exemption_table(table: str) -> dict[str, str]:
     return out
 
 
+def unneeded_exemption(target: str, legs: list[str]) -> str:
+    """The finding for an `[[exempt]]` row whose target a leg runs after all.
+
+    A row says "no leg runs this"; once one does, the row is false, and keeping it
+    also exempts the target from the merge-gating check it now owes.
+    """
+    return (
+        f"UNNEEDED EXEMPTION {target}: run by {', '.join(sorted(set(legs)))} — "
+        f"delete the [[exempt]] row"
+    )
+
+
 def main() -> int:
     main_go = DAGGER_MAIN.read_text(encoding="utf-8")
     dagger_invocations, dagger_ledger = extract_invocations(main_go)
@@ -2732,7 +2744,9 @@ def main() -> int:
     for b in binaries:
         legs = [inv.leg for inv in invocations if covers_binary(inv, b)]
         if legs:
-            if b.target_id not in exemptions:
+            if b.target_id in exemptions:
+                failures.append(unneeded_exemption(b.target_id, legs))
+            else:
                 check_gating(b.target_id, legs, "binary")
             continue
         if b.target_id in exemptions:
@@ -2761,7 +2775,9 @@ def main() -> int:
     for mod in modules:
         legs = [inv.leg for inv in invocations if covers_module(inv, mod)]
         if legs:
-            if mod.target_id not in exemptions:
+            if mod.target_id in exemptions:
+                failures.append(unneeded_exemption(mod.target_id, legs))
+            else:
                 check_gating(mod.target_id, legs, "lib test module")
             continue
         if mod.target_id in exemptions:
