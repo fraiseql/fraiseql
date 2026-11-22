@@ -32,11 +32,14 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 # make_fixture <dir> <crate-features-toml> <tests.rs body> <dagger cargo line>
+#              [<env binding>] [<attributes on the `mod tests;` declaration>]
 # A minimal repo: one crate with a lib, an UNGATED `mod tests`, and one Dagger
 # invocation. Everything the assertion turns on is in the tests.rs body and the
-# invocation, so a verdict is attributable to those two alone.
+# invocation, so a verdict is attributable to those two alone. The sixth argument
+# replaces the declaration's `#[cfg(test)]`, for the cases that gate the module itself.
 make_fixture() {
     local dir="$1" features="$2" body="$3" invocation="$4" env_binding="${5:-}"
+    local mod_attrs="${6:-#[cfg(test)]}"
     mkdir -p "$dir/tools" "$dir/.dagger" "$dir/crates/demo/src" "$dir/.github/workflows"
     cp "$GATE" "$dir/tools/check-suite-coverage.py"
 
@@ -75,14 +78,10 @@ edition = "2021"
 $features
 TOML
 
-    # `mod tests` is deliberately UNGATED: the whole point is that the module-chain
-    # scan sees nothing here and the inner scan must.
-    cat >"$dir/crates/demo/src/lib.rs" <<'RS'
-pub fn thing() -> u8 { 1 }
-
-#[cfg(test)]
-mod tests;
-RS
+    # `mod tests` is UNGATED unless a case passes its own attributes: the point of
+    # most cases is that the module-chain scan sees nothing here and the inner scan must.
+    printf 'pub fn thing() -> u8 { 1 }\n\n%s\nmod tests;\n' "$mod_attrs" \
+        >"$dir/crates/demo/src/lib.rs"
 
     printf '%s\n' "$body" >"$dir/crates/demo/src/tests.rs"
 
@@ -340,6 +339,78 @@ echo "── an ungated module with no inner gates creates no target at all ─�
 make_fixture "$WORK/none" "$FEATS" '#[test]
 fn always_runs() {}' "cargo test -p demo --lib"
 expect "no feature cfgs ⇒ nothing to track" 0 "$WORK/none"
+
+echo
+echo "── the predicate on a \`mod\` DECLARATION is read as a predicate ──"
+#
+# The module-chain scan collected every \`feature = "…"\` it saw above a declaration
+# and required them all. That over-demands \`any(…)\` (a leg enabling one member was
+# told it covered nothing) and reads \`cfg_attr\` as a gate, but it also HIDES suites:
+# \`not(feature = "x")\` came out as "requires x", so the one leg that compiles the
+# module out was credited with running it, and an attribute split over several lines
+# was cut at its first line, which left the module reading as ungated.
+
+DECL_BODY='#[test]
+fn always_runs() {}'
+
+make_fixture "$WORK/d_not_on" "$FEATS" "$DECL_BODY" "cargo test -p demo --lib --features parquet" "" \
+    '#[cfg(not(feature = "parquet"))]'
+expect "a not(feature) module is not covered by a leg enabling the feature" 1 "$WORK/d_not_on" \
+    "requires OFF=['parquet']"
+
+make_fixture "$WORK/d_not_off" "$FEATS" "$DECL_BODY" "cargo test -p demo --lib" "" \
+    '#[cfg(not(feature = "parquet"))]'
+expect "...and is covered by a leg leaving it off" 0 "$WORK/d_not_off"
+
+make_fixture "$WORK/d_split" "$FEATS" "$DECL_BODY" "cargo test -p demo --lib --features csv" "" \
+    '#[cfg(all(
+    feature = "csv",
+    feature = "xlsx",
+))]'
+expect "a predicate over several lines is read whole" 1 "$WORK/d_split" \
+    "features=['csv', 'xlsx']"
+
+make_fixture "$WORK/d_stacked" "$FEATS" "$DECL_BODY" "cargo test -p demo --lib" "" \
+    '#[cfg(feature = "csv")]
+// A comment between attributes is not the end of the block.
+#[allow(dead_code)]'
+expect "every attribute stacked above the declaration is read" 1 "$WORK/d_stacked" \
+    "features=['csv']"
+
+make_fixture "$WORK/d_any_one" "$FEATS" "$DECL_BODY" "cargo test -p demo --lib --features csv" "" \
+    '#[cfg(any(feature = "csv", feature = "xlsx"))]'
+expect "an any() module is covered by a leg enabling one member" 0 "$WORK/d_any_one"
+
+make_fixture "$WORK/d_any_none" "$FEATS" "$DECL_BODY" "cargo test -p demo --lib" "" \
+    '#[cfg(any(feature = "csv", feature = "xlsx"))]'
+expect "...and not by a leg enabling none" 1 "$WORK/d_any_none" "any=[['csv', 'xlsx']]"
+
+make_fixture "$WORK/d_inner" "$FEATS" '#[cfg(feature = "parquet")]
+#[test]
+fn only_with_parquet() {}' "cargo test -p demo --lib --features parquet" "" \
+    '#[cfg(any(feature = "csv", feature = "xlsx"))]'
+expect "a gated test inside an any() module needs the module's gate too" 1 "$WORK/d_inner" \
+    "demo::lib::tests[parquet]"
+
+make_fixture "$WORK/d_inner_not" "$FEATS" '#[cfg(feature = "csv")]
+#[test]
+fn only_with_csv() {}' "cargo test -p demo --lib --features csv,parquet" "" \
+    '#[cfg(not(feature = "parquet"))]'
+expect "...and so does one inside a not(feature) module" 1 "$WORK/d_inner_not" \
+    "demo::lib::tests[csv]"
+
+make_fixture "$WORK/d_any_test" "$FEATS" "$DECL_BODY" "cargo test -p demo --lib" "" \
+    '#[cfg(any(test, feature = "csv"))]'
+expect "any(test, …) holds in every test build" 0 "$WORK/d_any_test"
+
+make_fixture "$WORK/d_cfg_attr" "$FEATS" "$DECL_BODY" "cargo test -p demo --lib" "" \
+    '#[cfg_attr(not(feature = "parquet"), allow(dead_code))]'
+expect "a cfg_attr gates nothing" 0 "$WORK/d_cfg_attr"
+
+make_fixture "$WORK/d_nested" "$FEATS" "$DECL_BODY" "cargo test -p demo --lib --all-features" "" \
+    '#[cfg(any(feature = "csv", all(feature = "xlsx", feature = "parquet")))]'
+expect "a predicate the gate cannot model is refused, not guessed" 2 "$WORK/d_nested" \
+    "not modelled"
 
 echo
 if [ "$TESTS_FAILED" -gt 0 ]; then

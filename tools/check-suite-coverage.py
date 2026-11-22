@@ -478,24 +478,154 @@ def discover_binaries(crate_dir: Path, crate: str, manifest: dict) -> list[TestB
 MOD_DECL = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z0-9_]+)\s*;", re.M)
 
 
-def gating_features_of_mod(parent_src: str, mod_name: str) -> set[str] | None:
-    """Features gating `mod <name>;` in parent_src, or None if not declared."""
-    for m in re.finditer(rf"^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+{mod_name}\s*;", parent_src, re.M):
-        # Walk backwards over the contiguous attribute/comment block above.
-        head = parent_src[: m.start()]
-        lines = head.splitlines()
-        feats: set[str] = set()
-        i = len(lines) - 1
-        while i >= 0:
-            line = lines[i].strip()
-            if line.startswith("#[") or line.startswith("#!["):
-                feats.update(re.findall(r'feature\s*=\s*"([^"]+)"', line))
-                i -= 1
-            elif line.startswith("//") or line == "":
-                i -= 1
-            else:
+class DeclGate(NamedTuple):
+    """What a `mod` declaration's `#[cfg(…)]` attributes demand of a build."""
+
+    required: frozenset[str]
+    forbidden: frozenset[str]
+    groups: tuple[frozenset[str], ...]
+
+
+_CFG_TOKEN = re.compile(r'\s*(?:(?P<word>[A-Za-z_][A-Za-z0-9_]*)|(?P<str>"(?:\\.|[^"\\])*")|(?P<punct>[(),=]))')
+
+
+def _parse_cfg(pred: str) -> tuple:
+    """`pred` as a tree: ("feature", name), ("atom", text) or (op, [children]).
+
+    `op` is `all`, `any` or `not`. Anything that is not a well-formed predicate is
+    refused, since a guessed reading is how this gate would credit a leg with a suite.
+    """
+    tokens: list[tuple[str, str]] = []
+    pos = 0
+    while pos < len(pred):
+        if pred[pos:].strip() == "":
+            break
+        m = _CFG_TOKEN.match(pred, pos)
+        if not m:
+            die(f"cannot read the cfg predicate `{pred}`")
+        kind = m.lastgroup or ""
+        tokens.append((kind, m.group(kind)))
+        pos = m.end()
+
+    def node(i: int) -> tuple[tuple, int]:
+        if i >= len(tokens) or tokens[i][0] != "word":
+            die(f"cannot read the cfg predicate `{pred}`")
+        word = tokens[i][1]
+        i += 1
+        if i < len(tokens) and tokens[i][1] == "(":
+            children: list[tuple] = []
+            i += 1
+            while i < len(tokens) and tokens[i][1] != ")":
+                child, i = node(i)
+                children.append(child)
+                if i < len(tokens) and tokens[i][1] == ",":
+                    i += 1
+            if i >= len(tokens) or word not in ("all", "any", "not"):
+                die(f"cannot read the cfg predicate `{pred}`")
+            return (word, children), i + 1
+        if i < len(tokens) and tokens[i][1] == "=":
+            if i + 1 >= len(tokens) or tokens[i + 1][0] != "str":
+                die(f"cannot read the cfg predicate `{pred}`")
+            value = tokens[i + 1][1][1:-1]
+            return (("feature", value) if word == "feature" else ("atom", f"{word}={value}")), i + 2
+        return ("atom", word), i
+
+    tree, end = node(0)
+    if end != len(tokens):
+        die(f"cannot read the cfg predicate `{pred}`")
+    return tree
+
+
+def _lower_decl_cfg(tree: tuple, pred: str) -> DeclGate:
+    """A cfg tree as features that must be on, must be off, and one-of groups.
+
+    A non-feature atom (`test`, `unix`, `target_os = "…"`) demands nothing, as it
+    always has. Inside `any(…)`, `test` makes the whole group hold in every test
+    build, and any other atom is dropped, which can only make the gate ask for more.
+    A shape these three sets cannot express is refused rather than approximated.
+    """
+    kind, body = tree
+    if kind == "feature":
+        return DeclGate(frozenset([body]), frozenset(), ())
+    if kind == "atom":
+        return DeclGate(frozenset(), frozenset(), ())
+    if kind == "all":
+        req: set[str] = set()
+        forb: set[str] = set()
+        groups: list[frozenset[str]] = []
+        for child in body:
+            g = _lower_decl_cfg(child, pred)
+            req |= g.required
+            forb |= g.forbidden
+            groups.extend(g.groups)
+        return DeclGate(frozenset(req), frozenset(forb), tuple(groups))
+    unmodelled = (
+        f"a `mod` declaration gated by cfg({pred}) is not modelled by this gate; "
+        "it would be silently mis-credited"
+    )
+    if kind == "not":
+        if len(body) != 1 or body[0][0] not in ("feature", "atom"):
+            die(unmodelled)
+        if body[0][0] == "feature":
+            return DeclGate(frozenset(), frozenset([body[0][1]]), ())
+        return DeclGate(frozenset(), frozenset(), ())
+    # any(…)
+    if any(child[0] not in ("feature", "atom") for child in body):
+        die(unmodelled)
+    if ("atom", "test") in body:
+        return DeclGate(frozenset(), frozenset(), ())
+    members = frozenset(child[1] for child in body if child[0] == "feature")
+    if not members:
+        return DeclGate(frozenset(), frozenset(), ())
+    if len(members) == 1:
+        return DeclGate(members, frozenset(), ())
+    return DeclGate(frozenset(), frozenset(), (members,))
+
+
+def gate_of_mod_decl(parent_src: str, mod_name: str) -> DeclGate | None:
+    """What the attributes on `mod <name>;` in parent_src demand, or None if not declared.
+
+    Each `#[cfg(…)]` stacked above the declaration is read whole, however many lines it
+    spans, and as a predicate. Collecting every `feature = "…"` in sight and requiring
+    them all read `any(a, b)` as needing both, `not(feature = "x")` as needing x, and a
+    `cfg_attr` as a gate; and a walk by lines stopped inside a split attribute, which
+    left its module reading as ungated. Inner `#![…]` attributes above the declaration
+    belong to the file, not to it.
+    """
+    keep = scrub_source(parent_src)
+    structural = scrub_source(parent_src, blank_strings=True)
+    for m in re.finditer(rf"^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+{mod_name}\s*;", structural, re.M):
+        required: set[str] = set()
+        forbidden: set[str] = set()
+        groups: list[frozenset[str]] = []
+        i = m.start() + (len(m.group(0)) - len(m.group(0).lstrip()))
+        while True:
+            j = i
+            while j > 0 and structural[j - 1].isspace():
+                j -= 1
+            if j == 0 or structural[j - 1] != "]":
                 break
-        return feats
+            depth, k = 0, j - 1
+            while k >= 0:
+                if structural[k] == "]":
+                    depth += 1
+                elif structural[k] == "[":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                k -= 1
+            if k <= 0 or structural[k - 1] != "#":
+                break
+            attr = " ".join(keep[k + 1 : j - 1].split())
+            cfg = re.fullmatch(r"cfg\s*\((?P<pred>.*)\)", attr)
+            if cfg:
+                pred = cfg.group("pred")
+                g = _lower_decl_cfg(_parse_cfg(pred), pred)
+                required |= g.required
+                forbidden |= g.forbidden
+                groups.extend(g.groups)
+            i = k - 1
+        return DeclGate(frozenset(required), frozenset(forbidden), tuple(groups))
     return None
 
 
@@ -704,9 +834,10 @@ def discover_lib_modules(crate_dir: Path, crate: str) -> list[LibTestModule]:
     Two kinds of target come out of one `tests.rs`:
 
     1. The module itself, when its `mod` chain is feature-gated. For src/a/b/tests.rs
-       the module path is a::b::tests and the features are the union of the
-       `feature = "…"` cfgs on every `mod` declaration along the chain. An ungated
-       module always compiles with the lib and needs no target of its own.
+       the module path is a::b::tests and its gate is the conjunction of the
+       `#[cfg(…)]` predicates on every `mod` declaration along the chain
+       (`gate_of_mod_decl`). An ungated module always compiles with the lib and
+       needs no target of its own.
     2. One virtual target per distinct `#[cfg(…feature…)]` requirement set found
        INSIDE the file. These gate individual test fns, and they are invisible to
        (1) — an ungated module full of `#[cfg(feature = "x")]` tests was counted as
@@ -721,22 +852,33 @@ def discover_lib_modules(crate_dir: Path, crate: str) -> list[LibTestModule]:
         components = list(rel.parts[:-1]) + ["tests"]
         module_path = "::".join(components)
         feats: set[str] = set()
+        chain_forbidden: set[str] = set()
+        chain_groups: list[frozenset[str]] = []
         declared_everywhere = True
         for i, comp in enumerate(components):
             parent = module_file_for(src_root, components[:i])
             if parent is None:
                 declared_everywhere = False
                 break
-            g = gating_features_of_mod(parent.read_text(encoding="utf-8", errors="replace"), comp)
+            g = gate_of_mod_decl(parent.read_text(encoding="utf-8", errors="replace"), comp)
             if g is None:
                 declared_everywhere = False
                 break
-            feats.update(g)
+            feats |= g.required
+            chain_forbidden |= g.forbidden
+            chain_groups.extend(g.groups)
         if not declared_everywhere:
             continue
         text = tf.read_text(encoding="utf-8", errors="replace")
-        if feats:
-            whole = LibTestModule(crate, module_path, feats, tf)
+        if feats or chain_forbidden or chain_groups:
+            whole = LibTestModule(
+                crate,
+                module_path,
+                feats,
+                tf,
+                forbidden=frozenset(chain_forbidden),
+                any_groups=tuple(chain_groups),
+            )
             # The module target IS the whole file, so it is scored over the whole
             # file: every service any of its tests reaches, and its own counts.
             _score(whole, text, scrub_source(text, blank_strings=True))
@@ -748,8 +890,8 @@ def discover_lib_modules(crate_dir: Path, crate: str) -> list[LibTestModule]:
                 path,
                 feats | set(gate.required),
                 tf,
-                forbidden=gate.forbidden,
-                any_groups=gate.groups,
+                forbidden=frozenset(chain_forbidden) | gate.forbidden,
+                any_groups=tuple(chain_groups) + gate.groups,
                 label=_gate_label(gate.required, gate.forbidden, gate.groups),
             )
             # A virtual target is scored over the source its cfg gates, not over the
