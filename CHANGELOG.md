@@ -123,6 +123,12 @@ disagreed, and the promise was the part that was wrong.
     `obj` member, which had been published as `String`, is refused at registration, naming
     it: declare `[<GraphQLField(Type = "...")>]`.
 
+- **Go: `ExtractFields` returns a `[]FieldInfo` in declaration order (#2275).** It had
+  returned a `map[string]FieldInfo` keyed by published name, which lost the struct's
+  order and collapsed two struct fields publishing one name into whichever came last. A
+  caller that looked a field up by name now ranges the slice. Two struct fields that
+  publish one name are refused, naming both.
+
 - **A fact table's 64-bit results are `BigInt` and `Decimal` (#2175).** On an aggregate row,
   `<measure>_sum` of an `int` measure, `<measure>_min` and `<measure>_max` of a `bigint`
   measure, and a `bigint` key were `Int`, a field error past 32 bits: they are `BigInt`, the
@@ -1274,6 +1280,13 @@ disagreed, and the promise was the part that was wrong.
   naming the field. A rich scalar (`Email`, `URL`, …) compiled as a field and was refused as
   an argument, by a second registry that did not carry the rich scalars; both registries
   now hold the names `FieldType::parse` reads as scalars.
+
+- **Go: `RegisterTypes` exports fields in declaration order, and returns a registration
+  error (#2275).** It built each type from a map, so its fields came out in a different
+  order on each run, and it discarded `RegisterType`'s error, so a type registered twice
+  or a field declaration `RegisterType` refuses (a localized field that is not a
+  `String`, a vector of fewer than one dimension) was silently left out. It now stops at
+  that type and returns the error, prefixed with the struct's name.
 
 - **A fact table's window root runs every `where` operator it publishes (#2263).** Both roots
   publish the one `<Name>AggregateWhere` input, but the window root lowered its filter

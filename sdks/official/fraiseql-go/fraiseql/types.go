@@ -211,10 +211,12 @@ func canonicalizeIdType(fieldName, graphqlType string) string {
 	return graphqlType
 }
 
-// ExtractFields extracts field information from a struct using reflection and struct tags
+// ExtractFields extracts field information from a struct using reflection and struct tags.
 // Tag format: `fraiseql:"field_name,type=GraphQLType,nullable=true"`
-// Returns map of field name -> FieldInfo
-func ExtractFields(structType reflect.Type) (map[string]FieldInfo, error) {
+//
+// The fields are in the struct's declaration order, which is the order they are exported
+// in. Two struct fields that publish the same GraphQL name are refused.
+func ExtractFields(structType reflect.Type) ([]FieldInfo, error) {
 	if structType.Kind() == reflect.Pointer {
 		structType = structType.Elem()
 	}
@@ -223,7 +225,18 @@ func ExtractFields(structType reflect.Type) (map[string]FieldInfo, error) {
 		return nil, fmt.Errorf("expected struct type, got %v", structType.Kind())
 	}
 
-	fields := make(map[string]FieldInfo)
+	var fields []FieldInfo
+	// The Go field that published each GraphQL name, to refuse a second one.
+	publishedBy := make(map[string]string)
+	publish := func(goField string, info FieldInfo) error {
+		if first, taken := publishedBy[info.Name]; taken {
+			return fmt.Errorf("%s.%s and %s.%s both publish field %q; each field needs its own name",
+				structType.Name(), first, structType.Name(), goField, info.Name)
+		}
+		publishedBy[info.Name] = goField
+		fields = append(fields, info)
+		return nil
+	}
 	numFields := structType.NumField()
 
 	for i := 0; i < numFields; i++ {
@@ -248,10 +261,12 @@ func ExtractFields(structType reflect.Type) (map[string]FieldInfo, error) {
 				return nil, fmt.Errorf("cannot infer type for field %s: %w", field.Name, err)
 			}
 			graphQLType = canonicalizeIdType(field.Name, graphQLType)
-			fields[field.Name] = FieldInfo{
+			if err := publish(field.Name, FieldInfo{
 				Name:     field.Name,
 				Type:     graphQLType,
 				Nullable: nullable,
+			}); err != nil {
+				return nil, err
 			}
 			continue
 		}
@@ -261,7 +276,9 @@ func ExtractFields(structType reflect.Type) (map[string]FieldInfo, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid tag for field %s: %w", field.Name, err)
 		}
-		fields[fieldInfo.Name] = fieldInfo
+		if err := publish(field.Name, fieldInfo); err != nil {
+			return nil, err
+		}
 	}
 
 	return fields, nil

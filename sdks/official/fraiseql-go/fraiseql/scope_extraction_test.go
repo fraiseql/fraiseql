@@ -36,7 +36,7 @@ func TestSingleScopeExtraction(t *testing.T) {
 		Salary float64 `fraiseql:"salary,type=Float,scope=read:user.salary"`
 	}
 
-	fields, err := ExtractFields(reflect.TypeOf(UserWithScope{}))
+	fields, err := extractByName(reflect.TypeOf(UserWithScope{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestMultipleDifferentScopesExtraction(t *testing.T) {
 		SSN   string `fraiseql:"ssn,type=String,scope=read:user.ssn"`
 	}
 
-	fields, err := ExtractFields(reflect.TypeOf(UserWithMultipleScopes{}))
+	fields, err := extractByName(reflect.TypeOf(UserWithMultipleScopes{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestPublicFieldNoScopeExtraction(t *testing.T) {
 		Email string `fraiseql:"email,type=String,scope=read:user.email"`
 	}
 
-	fields, err := ExtractFields(reflect.TypeOf(UserWithMixedFields{}))
+	fields, err := extractByName(reflect.TypeOf(UserWithMixedFields{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestSingleScopeSurvivesAndMultipleAreRefused(t *testing.T) {
 		BasicField string `fraiseql:"basicField,type=String,scope=read:basic"`
 	}
 
-	fields, err := ExtractFields(reflect.TypeOf(SingleScopeType{}))
+	fields, err := extractByName(reflect.TypeOf(SingleScopeType{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -166,7 +166,7 @@ func TestSingletonScopesListIsAcceptedAsASingleScope(t *testing.T) {
 		Restricted string `fraiseql:"restricted,type=String,scopes=only:one"`
 	}
 
-	fields, err := ExtractFields(reflect.TypeOf(SingletonScopes{}))
+	fields, err := extractByName(reflect.TypeOf(SingletonScopes{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestResourceBasedScopePattern(t *testing.T) {
 		Phone string `fraiseql:"phone,type=String,scope=read:User.phone"`
 	}
 
-	fields, err := ExtractFields(reflect.TypeOf(ResourcePatternScopes{}))
+	fields, err := extractByName(reflect.TypeOf(ResourcePatternScopes{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -211,7 +211,7 @@ func TestActionBasedScopePattern(t *testing.T) {
 		WritableField string `fraiseql:"writableField,type=String,scope=write:User.*"`
 	}
 
-	fields, err := ExtractFields(reflect.TypeOf(ActionPatternScopes{}))
+	fields, err := extractByName(reflect.TypeOf(ActionPatternScopes{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -233,7 +233,7 @@ func TestGlobalWildcardScope(t *testing.T) {
 		AdminOverride string `fraiseql:"adminOverride,type=String,scope=*"`
 	}
 
-	fields, err := ExtractFields(reflect.TypeOf(GlobalWildcardScope{}))
+	fields, err := extractByName(reflect.TypeOf(GlobalWildcardScope{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -361,7 +361,7 @@ func TestScopePreservedWithMetadata(t *testing.T) {
 		Salary float64 `fraiseql:"salary,type=Float,scope=read:user.salary"`
 	}
 
-	fields, err := ExtractFields(reflect.TypeOf(ScopeWithMetadata{}))
+	fields, err := extractByName(reflect.TypeOf(ScopeWithMetadata{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -384,7 +384,7 @@ func TestScopeWithNullableField(t *testing.T) {
 		OptionalEmail *string `fraiseql:"optionalEmail,type=String,nullable=true,scope=read:user.email"`
 	}
 
-	fields, err := ExtractFields(reflect.TypeOf(ScopeWithNullable{}))
+	fields, err := extractByName(reflect.TypeOf(ScopeWithNullable{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -408,7 +408,7 @@ func TestMultipleScopedFieldsMetadataIndependence(t *testing.T) {
 		Field2 string `fraiseql:"field2,type=String,scope=read:scope2"`
 	}
 
-	fields, err := ExtractFields(reflect.TypeOf(MetadataIndependence{}))
+	fields, err := extractByName(reflect.TypeOf(MetadataIndependence{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}

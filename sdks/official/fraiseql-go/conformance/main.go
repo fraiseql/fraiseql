@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"strings"
 
 	"github.com/fraiseql/fraiseql-go/fraiseql"
 )
@@ -82,16 +81,11 @@ func authorPriceQuote() error {
 }
 
 // authorInferred registers structType under name with the fields ExtractFields infers, in
-// their declared order: ExtractFields returns a map, and the fixture's order is part of it.
+// their declared order.
 func authorInferred(name string, structType reflect.Type) error {
-	inferred, err := fraiseql.ExtractFields(structType)
+	fields, err := fraiseql.ExtractFields(structType)
 	if err != nil {
 		return err
-	}
-	fields := make([]fraiseql.FieldInfo, 0, structType.NumField())
-	for i := range structType.NumField() {
-		field := strings.Split(structType.Field(i).Tag.Get("fraiseql"), ",")[0]
-		fields = append(fields, inferred[field])
 	}
 	return fraiseql.RegisterType(name, fields, "")
 }

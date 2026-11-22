@@ -819,7 +819,9 @@ func RegisterInputType(name string, fields []FieldInfo, description string) erro
 	return nil
 }
 
-// RegisterTypes extracts fields from Go struct types and registers them
+// RegisterTypes extracts fields from Go struct types and registers each under its struct
+// name, its fields in declaration order. It stops at the first type it cannot register and
+// returns that error.
 func RegisterTypes(types ...interface{}) error {
 	for _, t := range types {
 		structType := reflect.TypeOf(t)
@@ -836,13 +838,9 @@ func RegisterTypes(types ...interface{}) error {
 			return fmt.Errorf("failed to extract fields from %s: %w", structType.Name(), err)
 		}
 
-		// Convert map to slice of FieldInfo
-		var fieldSlice []FieldInfo
-		for _, field := range fields {
-			fieldSlice = append(fieldSlice, field)
+		if err := RegisterType(structType.Name(), fields, ""); err != nil {
+			return fmt.Errorf("failed to register %s: %w", structType.Name(), err)
 		}
-
-		RegisterType(structType.Name(), fieldSlice, "")
 	}
 
 	return nil

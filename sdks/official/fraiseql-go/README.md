@@ -199,7 +199,9 @@ See `examples/analytics_schema.go` for a fact table example with measures and di
 
 #### RegisterTypes
 
-Register Go struct types with the schema registry.
+Register Go struct types with the schema registry, each under its struct name with its
+fields in declaration order. It returns the first error a type's fields or its
+registration raise, such as a type registered twice.
 
 ```go
 err := fraiseql.RegisterTypes(User{}, Post{}, Comment{})

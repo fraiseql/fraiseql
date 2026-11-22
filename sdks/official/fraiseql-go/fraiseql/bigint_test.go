@@ -73,7 +73,7 @@ func TestStructFieldsInferBigInt(t *testing.T) {
 		Amount  int64
 		Balance *int64 `fraiseql:"balance"`
 	}
-	fields, err := ExtractFields(reflect.TypeOf(ledgerEntry{}))
+	fields, err := extractByName(reflect.TypeOf(ledgerEntry{}))
 	if err != nil {
 		t.Fatalf("ExtractFields: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestStructFieldsInferBigInt(t *testing.T) {
 	type declaredTotal struct {
 		Total uint64 `fraiseql:"total,type=Decimal"`
 	}
-	fields, err = ExtractFields(reflect.TypeOf(declaredTotal{}))
+	fields, err = extractByName(reflect.TypeOf(declaredTotal{}))
 	if err != nil || fields["total"].Type != "Decimal" {
 		t.Errorf("ExtractFields(uint64 tagged Decimal) = %+v, %v, want a Decimal field", fields, err)
 	}

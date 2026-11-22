@@ -188,6 +188,19 @@ type testNullableFieldsType struct {
 	IsActive *bool   `fraiseql:"isActive,type=Boolean,nullable=true"`
 }
 
+// extractByName is ExtractFields keyed by published name, for tests that look one up.
+func extractByName(structType reflect.Type) (map[string]FieldInfo, error) {
+	fields, err := ExtractFields(structType)
+	if err != nil {
+		return nil, err
+	}
+	byName := make(map[string]FieldInfo, len(fields))
+	for _, f := range fields {
+		byName[f.Name] = f
+	}
+	return byName, nil
+}
+
 func TestExtractFields(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -251,7 +264,7 @@ func TestExtractFields(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			structType := reflect.TypeOf(tt.input)
-			fields, err := ExtractFields(structType)
+			fields, err := extractByName(structType)
 			if err != nil {
 				t.Fatalf("ExtractFields failed: %v", err)
 			}
@@ -270,7 +283,7 @@ func TestExtractFields(t *testing.T) {
 func TestExtractFieldsPointerType(t *testing.T) {
 	// Test that passing a pointer to a struct works
 	structType := reflect.TypeOf((*testUserType)(nil))
-	fields, err := ExtractFields(structType)
+	fields, err := extractByName(structType)
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -408,7 +421,7 @@ func TestCanonicalizeIdType(t *testing.T) {
 }
 
 func TestExtractFieldsEntityIdentityUntagged(t *testing.T) {
-	fields, err := ExtractFields(reflect.TypeOf(testIdStringType{}))
+	fields, err := extractByName(reflect.TypeOf(testIdStringType{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -431,7 +444,7 @@ func TestExtractFieldsEntityIdentityUntagged(t *testing.T) {
 }
 
 func TestExtractFieldsEntityIdentityNullableId(t *testing.T) {
-	fields, err := ExtractFields(reflect.TypeOf(testIdNullableStringType{}))
+	fields, err := extractByName(reflect.TypeOf(testIdNullableStringType{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -445,7 +458,7 @@ func TestExtractFieldsEntityIdentityNullableId(t *testing.T) {
 }
 
 func TestExtractFieldsEntityIdentityNumericId(t *testing.T) {
-	fields, err := ExtractFields(reflect.TypeOf(testIdIntType{}))
+	fields, err := extractByName(reflect.TypeOf(testIdIntType{}))
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
@@ -530,7 +543,7 @@ func TestExtractFieldsUnexportedFields(t *testing.T) {
 	_ = testPrivateType{name: "unused"} // reference field to satisfy staticcheck U1000
 
 	structType := reflect.TypeOf(testPrivateType{})
-	fields, err := ExtractFields(structType)
+	fields, err := extractByName(structType)
 	if err != nil {
 		t.Fatalf("ExtractFields failed: %v", err)
 	}
