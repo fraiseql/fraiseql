@@ -1211,6 +1211,11 @@ func (m *FraiseqlCi) Test(
 		// rather than ignored — compile only where those features are off (#1179).
 		"echo '### cargo test -p fraiseql-server --lib (default features: the feature-OFF refusal arms)'",
 		"cargo test -p fraiseql-server --lib -- --skip server::routing::storage_policy_admin_tests --skip tenancy::tests::runtime_config_drift",
+		// fraiseql-auth runs above only inside the `--all-features` workspace sweep, so its
+		// `#[cfg(not(feature = "auth-saml"))]` arms compiled nowhere: the build without SAML,
+		// the default one, was never tested.
+		"echo '### cargo test -p fraiseql-auth --lib (default features: the not(auth-saml) arms)'",
+		"cargo test -p fraiseql-auth --lib",
 		// The MCP transport's Docker-free test binaries. They ran in
 		// feature-flags.yml's `feature-integration-tests` job, which has been
 		// dispatch-only since the Dagger migration (2026-05-31) — so no CI leg

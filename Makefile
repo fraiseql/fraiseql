@@ -370,6 +370,7 @@ test-leg:
 	cargo test -p fraiseql-wire --lib --all-features
 	cargo test -p fraiseql-arrow --all-features
 	cargo test -p fraiseql-arrow --lib
+	cargo test -p fraiseql-auth --lib
 	@echo ""
 	@echo "### fraiseql-functions (incl. runtime-deno)"
 	cargo test -p fraiseql-functions --features 'runtime-deno,runtime-wasm,host-live' -- --skip migrations::tests

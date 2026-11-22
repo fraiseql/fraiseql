@@ -44,10 +44,6 @@ reason = "a routing decision, not a verdict: it only decides whether the leg aft
 # its module is wired into a leg.
 
 [[exempt]]
-target = "fraiseql-auth::lib::auth_schema::tests[!auth-saml]"
-reason = "never run by any leg (#2273): no leg runs fraiseql-auth's lib tests without auth-saml"
-
-[[exempt]]
 target = "fraiseql-functions::lib::runtime::deno::cursor_tests"
 reason = "never run by any leg (#2273): needs Postgres, and the only runtime-deno leg binds none"
 
