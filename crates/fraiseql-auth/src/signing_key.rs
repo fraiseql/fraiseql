@@ -497,6 +497,8 @@ struct ActiveRow {
 
 /// Take the ring's lock for the rest of `tx`.
 async fn lock_ring(tx: &mut sqlx::Transaction<'_, sqlx::Postgres>) -> Result<()> {
+    // Not the DDL lock: it orders the ring's rotations, writes to its rows, and no DDL
+    // runs under it.
     sqlx::query("SELECT pg_advisory_xact_lock($1)")
         .bind(RING_LOCK)
         .execute(&mut **tx)

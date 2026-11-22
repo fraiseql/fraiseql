@@ -1474,6 +1474,10 @@ disagreed, and the promise was the part that was wrong.
   `fraiseql setup` runs its three scripts under the lock too, so it does not race a server
   booting on the same database, and `generate-views --validate` takes it in the
   transaction it rolls back.
+  A new preflight gate, `make lint-ddl-lock`, refuses DDL text that reaches an executor
+  without the lock, however the text is built (a literal, a constant, `format!`,
+  `concat!`, `include_str!`, or a function writing into a buffer) or passed along, and an
+  advisory lock on any other key unless the statement says why it is not the DDL lock.
 - **`PostgresSourceCursorStore::init` is safe to run concurrently (#1868).** Two callers
   initialising the store against one database at once could fail: on a database that had
   never held the cursor table, one lost on a catalogue unique index

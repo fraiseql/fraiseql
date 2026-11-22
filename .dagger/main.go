@@ -704,6 +704,8 @@ func (m *FraiseqlCi) ShellGates(
 		// with a `// Reason:` beside it saying what the text is built from.
 		"python3 tools/check-sql-safe-assertions.py",
 		"make test-sql-safe-gate",
+		"python3 tools/check-ddl-lock.py",
+		"make test-ddl-lock-gate",
 		// The same shape one layer up (#1336): a transport that turns a credential into a
 		// principal and dispatches it unresolved. REST, MCP and gRPC each did for three
 		// releases, and no test could see it — a transport that skips the resolve answers

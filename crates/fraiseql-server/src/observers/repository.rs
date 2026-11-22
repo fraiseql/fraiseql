@@ -393,6 +393,8 @@ impl ObserverRepository {
     ) -> Result<Reconciled, ServerError> {
         let db = |e: sqlx::Error| ServerError::Database(e.to_string());
         let json = |e: serde_json::Error| ServerError::Validation(e.to_string());
+        // Not the DDL lock: it orders reconciliations of the declared observers, which
+        // write rows, and no DDL runs under it.
         sqlx::query("SELECT pg_advisory_xact_lock($1)")
             .bind(RECONCILE_LOCK_KEY)
             .execute(&mut *tx)
