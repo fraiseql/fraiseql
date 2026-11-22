@@ -2580,6 +2580,10 @@ def _load_exemption_table(table: str) -> dict[str, str]:
     for row in data.get(table, []):
         if "target" not in row or "reason" not in row or not row["reason"].strip():
             die(f"[[{table}]] row without target/reason: {row}")
+        # An `[[exempt]]` or `[[ungated]]` row is a gap the gate stops reporting, so it
+        # names the issue that tracks it. `[[unrequired]]` rows are routing decisions.
+        if table in ("exempt", "ungated") and not re.search(r"#\d+", row["reason"]):
+            die(f"[[{table}]] {row['target']}: the reason names no issue (#N) tracking the gap")
         out[row["target"]] = row["reason"]
     return out
 

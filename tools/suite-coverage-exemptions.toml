@@ -17,6 +17,9 @@
 #
 # A row here is for a check that must run and must NOT gate — a flaky
 # third-party probe, say — and the reason has to say which.
+#
+# An `[[exempt]]` or `[[ungated]]` row is a gap the gate has stopped reporting, so its
+# reason names the issue (`#N`) that tracks the gap; the gate refuses one that does not.
 
 [[unrequired]]
 target = "which SDKs changed"

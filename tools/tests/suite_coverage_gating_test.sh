@@ -405,6 +405,21 @@ reason = ""
 '
 expect "an [[ungated]] row without a reason is FATAL" 2 "$WORK/noreason" "without target/reason"
 
+# A row is a gap the gate has agreed to stop reporting, so it has to say where the gap
+# is tracked: a reason with no issue number is a gap nobody owns. `[[unrequired]]` rows
+# record permanent routing decisions, not gaps, and are not held to it.
+make_fixture "$WORK/noissue_ungated" "$WF_EVERY_BRANCH" 'required = []' '[[ungated]]
+target = "demo::probe"
+reason = "needs a networked runner"
+'
+expect "an [[ungated]] row naming no issue is FATAL" 2 "$WORK/noissue_ungated" "names no issue"
+
+make_fixture "$WORK/noissue_exempt" "$WF_EVERY_BRANCH" 'required = ["workspace tests"]' '[[exempt]]
+target = "demo::probe"
+reason = "never run by any leg"
+'
+expect "an [[exempt]] row naming no issue is FATAL" 2 "$WORK/noissue_exempt" "names no issue"
+
 # ── 8. `dagger call test-integration --suite=X` resolves through the switch ─
 #
 # The suite name is read out of `.dagger/main.go`'s switch rather than mirrored,
