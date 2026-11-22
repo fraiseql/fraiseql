@@ -413,6 +413,80 @@ expect "a predicate the gate cannot model is refused, not guessed" 2 "$WORK/d_ne
     "not modelled"
 
 echo
+echo "── a module file's own #![cfg(…)] gates it as its declaration would ──"
+#
+# A \`tests.rs\` that begins \`#![cfg(all(test, feature = "transforms"))]\` compiles to nothing
+# without the feature, whatever its declaration says. The gate read only the declaration,
+# so the module looked ungated and any lib run was credited with it.
+
+make_fixture "$WORK/i_file_off" "$FEATS" '#![cfg(all(test, feature = "parquet"))]
+
+#[test]
+fn always_runs() {}' "cargo test -p demo --lib"
+expect "a file-level cfg is a gate: a leg without the feature runs nothing" 1 "$WORK/i_file_off" \
+    "features=['parquet']"
+
+make_fixture "$WORK/i_file_on" "$FEATS" '//! A doc comment above the attribute is not the end of the header.
+#![cfg(all(test, feature = "parquet"))]
+
+#[test]
+fn always_runs() {}' "cargo test -p demo --lib --features parquet"
+expect "...and a leg enabling it covers the module" 0 "$WORK/i_file_on"
+
+make_fixture "$WORK/i_file_inner" "$FEATS" '#![cfg(not(feature = "parquet"))]
+
+#[cfg(feature = "csv")]
+#[test]
+fn only_with_csv() {}' "cargo test -p demo --lib --features csv,parquet"
+expect "...and its gate reaches the gated tests inside" 1 "$WORK/i_file_inner" \
+    "demo::lib::tests[csv]"
+
+# One level up: a parent module file's header gates every module below it.
+make_fixture "$WORK/i_parent" "$FEATS" '#[test]
+fn always_runs() {}' "cargo test -p demo --lib"
+mkdir -p "$WORK/i_parent/crates/demo/src/inner"
+mv "$WORK/i_parent/crates/demo/src/tests.rs" "$WORK/i_parent/crates/demo/src/inner/tests.rs"
+printf 'pub fn thing() -> u8 { 1 }\n\npub mod inner;\n' >"$WORK/i_parent/crates/demo/src/lib.rs"
+printf '#![cfg(feature = "parquet")]\n\n#[cfg(test)]\nmod tests;\n' \
+    >"$WORK/i_parent/crates/demo/src/inner/mod.rs"
+expect "a parent module file's own cfg gates the tests below it" 1 "$WORK/i_parent" \
+    "demo::lib::inner::tests"
+
+make_fixture "$WORK/i_file_any" "$FEATS" '#![cfg(any(feature = "csv", feature = "xlsx"))]
+
+#[test]
+fn always_runs() {}' "cargo test -p demo --lib --features xlsx"
+expect "...read as a predicate, as a declaration is" 0 "$WORK/i_file_any"
+
+make_fixture "$WORK/i_file_any_none" "$FEATS" '#![cfg(any(feature = "csv", feature = "xlsx"))]
+
+#[test]
+fn always_runs() {}' "cargo test -p demo --lib"
+expect "...so a leg enabling no member covers nothing" 1 "$WORK/i_file_any_none" \
+    "any=[['csv', 'xlsx']]"
+
+make_fixture "$WORK/i_file_stacked" "$FEATS" '#![allow(clippy::unwrap_used)] // Reason: test code
+#![cfg(feature = "parquet")]
+
+#[test]
+fn always_runs() {}' "cargo test -p demo --lib"
+expect "every leading inner attribute is read, not only the first" 1 "$WORK/i_file_stacked" \
+    "features=['parquet']"
+
+make_fixture "$WORK/i_file_cfg_attr" "$FEATS" '#![cfg_attr(not(feature = "parquet"), allow(dead_code))]
+
+#[test]
+fn always_runs() {}' "cargo test -p demo --lib"
+expect "a file-level cfg_attr gates nothing" 0 "$WORK/i_file_cfg_attr"
+
+make_fixture "$WORK/i_file_nested" "$FEATS" '#![cfg(not(any(feature = "csv", feature = "xlsx")))]
+
+#[test]
+fn always_runs() {}' "cargo test -p demo --lib"
+expect "a file-level shape the gate cannot model is refused" 2 "$WORK/i_file_nested" \
+    "not modelled"
+
+echo
 if [ "$TESTS_FAILED" -gt 0 ]; then
     echo "suite-coverage inner-gate self-test: $TESTS_FAILED of $TESTS_RUN FAILED"
     exit 1

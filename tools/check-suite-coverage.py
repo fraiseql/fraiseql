@@ -582,6 +582,55 @@ def _lower_decl_cfg(tree: tuple, pred: str) -> DeclGate:
     return DeclGate(frozenset(), frozenset(), (members,))
 
 
+def _gate_of_attributes(attributes: list[str]) -> DeclGate:
+    """The conjunction of the `cfg(…)` attributes among `attributes` (each without `#[ ]`).
+
+    Any other attribute, `cfg_attr` included, gates nothing.
+    """
+    required: set[str] = set()
+    forbidden: set[str] = set()
+    groups: list[frozenset[str]] = []
+    for attr in attributes:
+        cfg = re.fullmatch(r"cfg\s*\((?P<pred>.*)\)", " ".join(attr.split()))
+        if cfg:
+            pred = cfg.group("pred")
+            g = _lower_decl_cfg(_parse_cfg(pred), pred)
+            required |= g.required
+            forbidden |= g.forbidden
+            groups.extend(g.groups)
+    return DeclGate(frozenset(required), frozenset(forbidden), tuple(groups))
+
+
+def gate_of_file_header(src: str) -> DeclGate:
+    """What a module file's own leading `#![cfg(…)]` attributes demand of a build.
+
+    `#![cfg(all(test, feature = "transforms"))]` at the top of a `tests.rs` compiles the
+    module to nothing without the feature, whatever its `mod` declaration says, so it is
+    as much a part of the module's gate as the declaration's own `#[cfg(…)]`.
+    """
+    keep = scrub_source(src)
+    structural = scrub_source(src, blank_strings=True)
+    attributes: list[str] = []
+    i = 0
+    while True:
+        while i < len(structural) and structural[i].isspace():
+            i += 1
+        if not structural.startswith("#![", i):
+            break
+        depth, k = 0, i + 2
+        while k < len(structural):
+            if structural[k] == "[":
+                depth += 1
+            elif structural[k] == "]":
+                depth -= 1
+                if depth == 0:
+                    break
+            k += 1
+        attributes.append(keep[i + 3 : k])
+        i = k + 1
+    return _gate_of_attributes(attributes)
+
+
 def gate_of_mod_decl(parent_src: str, mod_name: str) -> DeclGate | None:
     """What the attributes on `mod <name>;` in parent_src demand, or None if not declared.
 
@@ -595,9 +644,7 @@ def gate_of_mod_decl(parent_src: str, mod_name: str) -> DeclGate | None:
     keep = scrub_source(parent_src)
     structural = scrub_source(parent_src, blank_strings=True)
     for m in re.finditer(rf"^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+{mod_name}\s*;", structural, re.M):
-        required: set[str] = set()
-        forbidden: set[str] = set()
-        groups: list[frozenset[str]] = []
+        attributes: list[str] = []
         i = m.start() + (len(m.group(0)) - len(m.group(0).lstrip()))
         while True:
             j = i
@@ -616,16 +663,9 @@ def gate_of_mod_decl(parent_src: str, mod_name: str) -> DeclGate | None:
                 k -= 1
             if k <= 0 or structural[k - 1] != "#":
                 break
-            attr = " ".join(keep[k + 1 : j - 1].split())
-            cfg = re.fullmatch(r"cfg\s*\((?P<pred>.*)\)", attr)
-            if cfg:
-                pred = cfg.group("pred")
-                g = _lower_decl_cfg(_parse_cfg(pred), pred)
-                required |= g.required
-                forbidden |= g.forbidden
-                groups.extend(g.groups)
+            attributes.append(keep[k + 1 : j - 1])
             i = k - 1
-        return DeclGate(frozenset(required), frozenset(forbidden), tuple(groups))
+        return _gate_of_attributes(attributes)
     return None
 
 
@@ -836,7 +876,8 @@ def discover_lib_modules(crate_dir: Path, crate: str) -> list[LibTestModule]:
     1. The module itself, when its `mod` chain is feature-gated. For src/a/b/tests.rs
        the module path is a::b::tests and its gate is the conjunction of the
        `#[cfg(…)]` predicates on every `mod` declaration along the chain
-       (`gate_of_mod_decl`). An ungated module always compiles with the lib and
+       (`gate_of_mod_decl`) and the leading `#![cfg(…)]` of every module file on it,
+       the `tests.rs` included (`gate_of_file_header`). An ungated module always compiles with the lib and
        needs no target of its own.
     2. One virtual target per distinct `#[cfg(…feature…)]` requirement set found
        INSIDE the file. These gate individual test fns, and they are invisible to
@@ -867,6 +908,13 @@ def discover_lib_modules(crate_dir: Path, crate: str) -> list[LibTestModule]:
             feats |= g.required
             chain_forbidden |= g.forbidden
             chain_groups.extend(g.groups)
+            # The declared module's own file can gate it too, with a leading `#![cfg(…)]`.
+            child = tf if i == len(components) - 1 else module_file_for(src_root, components[: i + 1])
+            if child is not None:
+                h = gate_of_file_header(child.read_text(encoding="utf-8", errors="replace"))
+                feats |= h.required
+                chain_forbidden |= h.forbidden
+                chain_groups.extend(h.groups)
         if not declared_everywhere:
             continue
         text = tf.read_text(encoding="utf-8", errors="replace")
