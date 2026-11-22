@@ -123,6 +123,17 @@ fn full() -> SchemaRegistry {
         ],
         "v_ledger_entry",
     );
+    // A date and time with no offset is the type string `LocalDateTime`.
+    registry.register_type_with_source(
+        "ShiftSlot",
+        vec![
+            Field::new("id", "ID").with_nullable(false),
+            Field::new("startsAt", "LocalDateTime").with_nullable(false),
+            Field::new("endsAt", "LocalDateTime").with_nullable(true),
+            Field::new("breaksAt", "[LocalDateTime!]").with_nullable(false),
+        ],
+        "v_shift_slot",
+    );
     registry
 }
 

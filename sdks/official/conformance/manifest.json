@@ -291,7 +291,6 @@
         "observer_condition": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
         "observer_retry_default": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
         "bigint_argument": "the SDK registers types only and ships no query builder, so it has no argument to declare a `BigInt` on; `bigint_field` holds it to the same rule for a type's fields",
-        "localdatetime_field": "the SDK authors no `LocalDateTime` yet (#2177)",
         "localdatetime_argument": "the SDK registers types only and ships no query builder, so it has no argument to declare a `LocalDateTime` on; `localdatetime_field` holds it to the same rule for a type's fields"
       }
     }
