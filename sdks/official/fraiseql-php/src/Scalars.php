@@ -91,6 +91,13 @@ final class Scalars
     /** Decimal/BigDecimal scalar for precise numeric values. */
     public const DECIMAL = 'Decimal';
 
+    /**
+     * A signed 64-bit integer, served as the string of its digits. A PHP `int` stays `Int`,
+     * which is 32 bits: name this on a field or argument whose values pass that
+     * (`#[GraphQLField(type: Scalars::BIG_INT)]`).
+     */
+    public const BIG_INT = 'BigInt';
+
     /** Vector scalar for pgvector embeddings — a `vector(N)` column, `[Float!]!` in GraphQL. */
     public const VECTOR = 'Vector';
 
@@ -305,6 +312,7 @@ final class Scalars
         'UUID' => true,
         'Json' => true,
         'Decimal' => true,
+        'BigInt' => true,
         'Vector' => true,
         'BitVector' => true,
         'HalfVector' => true,

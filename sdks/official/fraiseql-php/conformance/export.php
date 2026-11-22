@@ -19,6 +19,7 @@ use FraiseQL\ActorType;
 use FraiseQL\Attributes\GraphQLField;
 use FraiseQL\Attributes\GraphQLType;
 use FraiseQL\Relationship;
+use FraiseQL\Scalars;
 use FraiseQL\SchemaExporter;
 use FraiseQL\StaticAPI;
 use FraiseQL\VectorConfig;
@@ -135,6 +136,24 @@ final class ConformanceUserNotFound
 
 // Lists (#1586, #1608): the element type from the docblock, as PHPStan and Psalm read it;
 // every position non-null unless written `?T` / `T|null`, at every level.
+// #2258: a 64-bit integer is named `Scalars::BIG_INT`; a PHP `int` stays `Int`.
+#[GraphQLType(name: 'LedgerEntry', sqlSource: 'v_ledger_entry')]
+final class ConformanceLedgerEntry
+{
+    #[GraphQLField(type: 'ID', nullable: false)]
+    public string $id;
+
+    #[GraphQLField(type: Scalars::BIG_INT, nullable: false)]
+    public int $amount;
+
+    #[GraphQLField(type: Scalars::BIG_INT, nullable: true)]
+    public ?int $balance;
+
+    /** @var list<int> */
+    #[GraphQLField(type: '[BigInt!]', nullable: false)]
+    public array $transferIds;
+}
+
 #[GraphQLType(name: 'ReadingSeries', sqlSource: 'v_reading_series')]
 final class ConformanceReadingSeries
 {
@@ -248,6 +267,7 @@ function authorFull(): void
     StaticAPI::register(ConformanceDocument::class);
     StaticAPI::register(ConformanceReadingSeries::class);
     StaticAPI::register(ConformanceOrderShipment::class);
+    StaticAPI::register(ConformanceLedgerEntry::class);
     StaticAPI::register(ConformanceCreateUserInput::class);
 
     StaticAPI::enum(OrderStatus::class);
@@ -267,6 +287,14 @@ function authorFull(): void
         ->nullable(true)
         ->sqlSource('v_user')
         ->argument('id', 'ID', nullable: false)
+        ->register();
+
+    StaticAPI::query('ledgerEntriesByAccount')
+        ->returnType('LedgerEntry')
+        ->returnsList(true)
+        ->sqlSource('v_ledger_entry')
+        ->argument('accountNumber', Scalars::BIG_INT, nullable: false)
+        ->argument('transferIds', '[BigInt!]', nullable: true)
         ->register();
 
     StaticAPI::query('readingSeriesByIds')

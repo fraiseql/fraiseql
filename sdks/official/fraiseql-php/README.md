@@ -303,6 +303,7 @@ PHP types are automatically mapped to GraphQL scalar types:
 | PHP type | GraphQL type |
 |----------|-------------|
 | `int` | `Int` |
+| `int` named `#[GraphQLField(type: Scalars::BIG_INT)]` | `BigInt` (a signed 64-bit integer, served as its digits) |
 | `float` | `Float` |
 | `bool` | `Boolean` |
 | `string` | `String` |

@@ -854,6 +854,8 @@ disagreed, and the promise was the part that was wrong.
   - Python: `fraiseql.BigInt`, a field, an argument or a list's item.
   - Ruby: `:bigint`; Elixir: `:bigint`, Ecto's name, `{:array, :bigint}` for a list. Both
     had capitalised the symbol to `Bigint`.
+  - PHP: `Scalars::BIG_INT`, named on an `int` field or argument
+    (`#[GraphQLField(type: Scalars::BIG_INT)]`); `BigInt` is a known scalar name.
 
 - **`compile --database` warns on a view casting a document's text to a temporal type
   (#2213).** A served view, or with gRPC enabled a row view (`vr_<sql_source>`), whose
