@@ -1,10 +1,12 @@
 #![warn(clippy::all, clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)]
 
-//! FraiseQL Rust - Security module with 100% feature parity
+//! FraiseQL Rust: schema authoring for FraiseQL.
 //!
-//! Provides declarative, type-safe authorization and security configuration
-//! across 10 authoring languages.
+//! Registers types with their fields and field-level authorization, and observers,
+//! and exports them as `schema.json` for `fraiseql compile`. What it can author,
+//! construct by construct, is the `fraiseql-rust/` row of the support matrix in
+//! `sdks/official/README.md`.
 
 pub mod authorization;
 pub mod field;

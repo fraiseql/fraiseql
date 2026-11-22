@@ -20,7 +20,7 @@ unsafe_code = "forbid"
 [package]
 authors = ["FraiseQL Contributors"]
 categories = ["database", "network-programming"]
-description = "Rust authoring language for FraiseQL with 100% feature parity"
+description = "Rust authoring for FraiseQL schemas: types, field-level authorization and observers"
 edition = "2021"
 keywords = ["graphql", "authorization", "rbac", "schema"]
 license = "Apache-2.0"

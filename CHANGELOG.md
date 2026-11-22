@@ -1333,6 +1333,15 @@ disagreed, and the promise was the part that was wrong.
   an argument, by a second registry that did not carry the rich scalars; both registries
   now hold the names `FieldType::parse` reads as scalars.
 
+- **No SDK document claims a parity it does not have (#2291).** The Rust SDK's README,
+  its crates.io description and its crate docs claimed "100% feature parity" across ten
+  languages, two of which are not official SDKs, with a hand-kept table scoring every
+  SDK 30/30. The conformance suite has the Rust SDK at 16 of 48 constructs. Four
+  "certification" documents (`python-feature-parity.md`, `java-feature-parity.md`,
+  `rust-feature-parity.md`, and the TypeScript SDK's `feature-parity.md`) made the same
+  claim and are removed. Java's README kept a test table whose every count was wrong.
+  Each now points at the support matrix in `sdks/official/README.md`, which CI checks.
+
 - **C#: `SchemaBuilder` exports everything the registry holds (#2289).**
   `SchemaBuilder.ToSchema()` read the registry's types, queries, mutations and
   registered input types itself. It dropped registered enums, functions and observers,
