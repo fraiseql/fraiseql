@@ -1427,6 +1427,16 @@ disagreed, and the promise was the part that was wrong.
   implementor is still read by that type. `BigInt`, `UUID` and `LocalDateTime` at the same
   position were already served as their text, and are now pinned there too.
 
+- **A type checker sees what the Python SDK's `type`, `query` and `mutation` decorate
+  (#1901).** Each decorator, usable bare (`@fraiseql.type`) or called
+  (`@fraiseql.query(sql_source=...)`), had one signature returning the union of the two
+  forms, so a checker saw every decorated class as that union: each annotation naming it
+  was refused (`invalid-type-form`, and `unsupported-operator` for `Order | None`), and a
+  misuse of it went unreported. The decorators now declare `typing.overload` signatures for
+  the two forms. A suite test runs `ty` over a sample module using every form. The SDK's
+  `ty` floor rises to 0.0.107; earlier `ty` narrowed the bare `type` union to the class
+  and hid the defect.
+
 - **`compile` without `--database` advises a step an author can take (#1874).** For a
   query argument it could not map to a column, the warning said to "annotate with
   native_columns", which no SDK and no schema key can do. It now says the argument filters

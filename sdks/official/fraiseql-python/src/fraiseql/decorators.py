@@ -21,7 +21,7 @@ import re
 from dataclasses import dataclass
 from enum import Enum as PythonEnum
 from types import FunctionType
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, overload
 
 from fraiseql.registry import SchemaRegistry, _pascal_to_snake, _snake_to_camel
 from fraiseql.scope import validate_scope
@@ -501,6 +501,7 @@ def _validate_input_style(cfg: dict[str, Any], context: str) -> None:
 
 
 if TYPE_CHECKING:
+    import builtins
     from collections.abc import Callable
 
     from fraiseql.scalars import CustomScalar
@@ -837,6 +838,36 @@ def field(  # noqa: PLR0913 — public API; all parameters are meaningful
     )
 
 
+# `@type` returns the class it decorates; `@type(...)` returns a decorator that does. One
+# signature returning the union of the two made a type checker see every decorated class
+# as that union. `builtins.type` names the class type: `type` here is this function.
+@overload
+def type(cls: builtins.type[T], /) -> builtins.type[T]: ...
+
+
+@overload
+def type(
+    cls: None = None,
+    /,
+    *,
+    implements: list[str] | None = None,
+    relay: bool = False,
+    requires_role: str | None = None,
+    sql_source: str | None = None,
+    crud: bool | list[str] = False,
+    cascade: bool = False,
+    plural_name: str | None = None,
+    key_fields: list[str] | None = None,
+    extends: bool = False,
+    shareable: bool = False,
+    subscribable_tables: list[str] | None = None,
+    subscribable_pre_image: bool = False,
+    embedded: bool = False,
+    relationships: list[Relationship] | None = None,
+    subscription_policy: dict[str, Any] | None = None,
+) -> Callable[[builtins.type[T]], builtins.type[T]]: ...
+
+
 def type(  # noqa: PLR0913 — public API; all parameters are meaningful
     cls: type[T] | None = None,
     *,
@@ -1075,6 +1106,15 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
     return decorator(cls)
 
 
+# `@query` returns the function it decorates; `@query(...)` returns a decorator that does.
+@overload
+def query(func: F, /) -> F: ...
+
+
+@overload
+def query(func: None = None, /, **config_kwargs: Any) -> Callable[[F], F]: ...
+
+
 def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
     """Decorator to mark a function as a GraphQL query.
 
@@ -1247,6 +1287,16 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
         return decorator
     # Called without arguments: @query
     return decorator(func)
+
+
+# `@mutation` returns the function it decorates; `@mutation(...)` returns a decorator that
+# does.
+@overload
+def mutation(func: F, /) -> F: ...
+
+
+@overload
+def mutation(func: None = None, /, **config_kwargs: Any) -> Callable[[F], F]: ...
 
 
 def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:

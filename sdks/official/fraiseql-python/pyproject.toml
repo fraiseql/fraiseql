@@ -10,7 +10,9 @@ dev = [
   "anyio[trio]>=4.0",
   "httpx>=0.27",
   "ruff>=0.8.0",
-  "ty>=0.0.1a8",
+  # 0.0.107: an older ty narrowed a decorator's union return to the class, hiding the
+  # union tests/test_decorator_typing.py pins.
+  "ty>=0.0.107",
 ]
 
 [project]
@@ -118,5 +120,5 @@ python-version = "3.10"
 # string-deferred evaluation (from __future__ import annotations) so are valid.
 invalid-type-form = "ignore"
 # Optional integration dependencies (langchain, llamaindex, pydantic) are not
-# installed by default; suppress unresolved-import for these extras.
-unresolved-import = "ignore"
+# installed by default; suppress import-not-found for these extras.
+import-not-found = "ignore"
