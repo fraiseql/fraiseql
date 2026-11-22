@@ -631,14 +631,14 @@ fn build_updated_entities(
         //    — the framework never does) would otherwise yield a payload whose `entity` violates
         //    its declared interface. This reads `internal` off the re-loaded compiled schema — the
         //    flag's first runtime consumer, hence Phase 01 serializes it rather than `serde(skip)`.
-        match ctx.schema.find_type(typename) {
-            None => {
+        match cascade_delivery(&ctx.schema, typename) {
+            CascadeDelivery::Unknown => {
                 return Err(FraiseQLError::Validation {
                     message: format!("cascade.updated entry has unknown __typename '{typename}'"),
                     path:    Some("cascade.updated.__typename".to_string()),
                 });
             },
-            Some(ty) if ty.internal => {
+            CascadeDelivery::Internal => {
                 return Err(FraiseQLError::Validation {
                     message: format!(
                         "cascade.updated entry names framework-internal type '{typename}', a \
@@ -647,7 +647,7 @@ fn build_updated_entities(
                     path:    Some("cascade.updated.__typename".to_string()),
                 });
             },
-            Some(_) => {},
+            CascadeDelivery::Deliverable => {},
         }
         // Non-null `id: ID!` and a valid `operation: CascadeOperation!` are required.
         if !entry_obj.contains_key("id") {
@@ -744,14 +744,14 @@ fn build_deleted_entities(
                 path:    Some("cascade.deleted.__typename".to_string()),
             });
         };
-        match schema.find_type(typename) {
-            None => {
+        match cascade_delivery(schema, typename) {
+            CascadeDelivery::Unknown => {
                 return Err(FraiseQLError::Validation {
                     message: format!("cascade.deleted entry has unknown __typename '{typename}'"),
                     path:    Some("cascade.deleted.__typename".to_string()),
                 });
             },
-            Some(ty) if ty.internal => {
+            CascadeDelivery::Internal => {
                 return Err(FraiseQLError::Validation {
                     message: format!(
                         "cascade.deleted entry names framework-internal type '{typename}', a \
@@ -760,7 +760,7 @@ fn build_deleted_entities(
                     path:    Some("cascade.deleted.__typename".to_string()),
                 });
             },
-            Some(_) => {},
+            CascadeDelivery::Deliverable => {},
         }
         if !entry_obj.contains_key("id") {
             return Err(FraiseQLError::Validation {
@@ -2743,6 +2743,28 @@ pub(in super::super) async fn execute_mutation_batch_impl(
         .zip(built)
         .map(|(write, built)| write.execution(built))
         .collect())
+}
+
+/// Whether a cascade entry naming `typename` can be delivered.
+enum CascadeDelivery {
+    /// The schema has no such type: it cannot be projected or authorized.
+    Unknown,
+    /// A framework-internal bookkeeping projection (a change-log or checkpoint view): the
+    /// change-capture mechanism, never a cascade-deliverable entity.
+    Internal,
+    /// A type the schema serves.
+    Deliverable,
+}
+
+/// How a cascade entry naming `typename` is delivered: the one place a cascade reads a
+/// type's `internal` flag, for the entries a mutation returns and the ones derived from
+/// its writes alike.
+fn cascade_delivery(schema: &CompiledSchema, typename: &str) -> CascadeDelivery {
+    match schema.find_type(typename) {
+        None => CascadeDelivery::Unknown,
+        Some(ty) if ty.internal => CascadeDelivery::Internal,
+        Some(_) => CascadeDelivery::Deliverable,
+    }
 }
 
 #[cfg(test)]

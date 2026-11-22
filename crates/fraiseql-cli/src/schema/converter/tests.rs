@@ -2568,8 +2568,8 @@ mod tenancy_tests {
         let deleted = compiled.types.iter().find(|t| t.name.as_str() == "DeletedEntity").unwrap();
         assert!(deleted.find_field("entity").is_none(), "DeletedEntity has no entity body");
         assert!(deleted.find_field("deletedAt").is_some(), "DeletedEntity.deletedAt");
-        // Both entry types name their row's type, `typename: String!`, as graphql-cascade
-        // defines them (#2313).
+        // Both entry types name their row's type, `typename: String!`, as the
+        // graphql-cascade spec defines them.
         for entry in [updated, deleted] {
             let typename = entry.find_field("typename").expect("typename");
             assert_eq!(typename.field_type, FieldType::String, "{}.typename", entry.name);
