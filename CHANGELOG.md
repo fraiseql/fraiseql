@@ -18,6 +18,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`schema_gen::graphql_type_to_arrow` and `schema_gen::generate_arrow_schema` are removed
+  from `fraiseql-arrow`, and so from `fraiseql::arrow` (#1821).** No Flight path called
+  them, and the mapping they published disagreed with what Flight streams: a GraphQL
+  `Decimal` arrives as `Utf8` holding its digits, not as `Decimal128(38, 10)`, a whole
+  number as `Int64`, not `Int32`, and a `DateTime` as `Utf8`, not a timestamp. For a
+  view's schema, ask `GetFlightInfo` or `GetSchema`. For a `GraphQLQuery` result, read the
+  schema from the header of the `DoGet` stream.
+
 - **A `/ws` upgrade is refused once open subscription connections reach a bound (#1832).**
   A further upgrade is answered `429 SUBSCRIPTION_CONNECTIONS_EXHAUSTED` before the `101`,
   until one of the connections it counts closes. Four `[subscriptions]` keys set the bounds:
