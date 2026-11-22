@@ -1436,6 +1436,8 @@ disagreed, and the promise was the part that was wrong.
   the two forms. A suite test runs `ty` over a sample module using every form. The SDK's
   `ty` floor rises to 0.0.107; earlier `ty` narrowed the bare `type` union to the class
   and hid the defect.
+  The SDK's own source is now checked with `invalid-type-form` on, which it had ignored
+  because `type` there is the decorator: its annotations name `builtins.type`.
 
 - **`compile` without `--database` advises a step an author can take (#1874).** For a
   query argument it could not map to a column, the warning said to "annotate with

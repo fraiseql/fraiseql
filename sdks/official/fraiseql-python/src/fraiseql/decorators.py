@@ -21,7 +21,7 @@ import re
 from dataclasses import dataclass
 from enum import Enum as PythonEnum
 from types import FunctionType
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast, overload
 
 from fraiseql.registry import SchemaRegistry, _pascal_to_snake, _snake_to_camel
 from fraiseql.scope import validate_scope
@@ -501,6 +501,8 @@ def _validate_input_style(cfg: dict[str, Any], context: str) -> None:
 
 
 if TYPE_CHECKING:
+    # `type` is a decorator in this module, so annotations name the class type
+    # `builtins.type`.
     import builtins
     from collections.abc import Callable
 
@@ -840,7 +842,7 @@ def field(  # noqa: PLR0913 — public API; all parameters are meaningful
 
 # `@type` returns the class it decorates; `@type(...)` returns a decorator that does. One
 # signature returning the union of the two made a type checker see every decorated class
-# as that union. `builtins.type` names the class type: `type` here is this function.
+# as that union.
 @overload
 def type(cls: builtins.type[T], /) -> builtins.type[T]: ...
 
@@ -869,7 +871,7 @@ def type(
 
 
 def type(  # noqa: PLR0913 — public API; all parameters are meaningful
-    cls: type[T] | None = None,
+    cls: builtins.type[T] | None = None,
     *,
     implements: list[str] | None = None,
     relay: bool = False,
@@ -886,7 +888,7 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
     embedded: bool = False,
     relationships: list[Relationship] | None = None,
     subscription_policy: dict[str, Any] | None = None,
-) -> type[T] | Callable[[type[T]], type[T]]:
+) -> builtins.type[T] | Callable[[builtins.type[T]], builtins.type[T]]:
     """Decorator to mark a Python class as a GraphQL type.
 
     This decorator registers the class with the schema registry for JSON export.
@@ -974,9 +976,9 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
         - Use implements=["InterfaceName"] to implement interfaces
     """
 
-    def decorator(c: type[T]) -> type[T]:
-        # Mark class as a FraiseQL type
-        c.__fraiseql_type__ = True
+    def decorator(c: builtins.type[T]) -> builtins.type[T]:
+        # Mark class as a FraiseQL type (an attribute no class type declares)
+        cast("Any", c).__fraiseql_type__ = True
 
         # Extract field information from class annotations
         fields = extract_field_info(c)
@@ -1480,10 +1482,10 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
 
 
 def error(
-    cls: type[T] | None = None,
+    cls: builtins.type[T] | None = None,
     *,
     shareable: bool = False,
-) -> type[T] | Callable[[type[T]], type[T]]:
+) -> builtins.type[T] | Callable[[builtins.type[T]], builtins.type[T]]:
     """Decorator to mark a Python class as a GraphQL error type.
 
     Like @type, but sets is_error=True in the schema output. Error types are
@@ -1514,8 +1516,8 @@ def error(
         ...     message: str
     """
 
-    def decorator(c: type[T]) -> type[T]:
-        c.__fraiseql_type__ = True
+    def decorator(c: builtins.type[T]) -> builtins.type[T]:
+        cast("Any", c).__fraiseql_type__ = True
         fields = extract_field_info(c)
         SchemaRegistry.register_type(
             name=c.__name__,
@@ -1532,7 +1534,7 @@ def error(
     return decorator(cls)
 
 
-def enum(cls: type[E]) -> type[E]:
+def enum(cls: builtins.type[E]) -> builtins.type[E]:
     """Decorator to mark a Python enum as a GraphQL enum.
 
     This decorator registers the enum with the schema registry for JSON export.
@@ -1614,7 +1616,7 @@ def enum(cls: type[E]) -> type[E]:
     return cls
 
 
-def interface(cls: type[T]) -> type[T]:
+def interface(cls: builtins.type[T]) -> builtins.type[T]:
     """Decorator to mark a Python class as a GraphQL interface.
 
     This decorator registers the class with the schema registry for JSON export.
@@ -1685,7 +1687,7 @@ _OUTPUT_ONLY_FIELD_OPTIONS = frozenset(
 )
 
 
-def input(cls: type[T]) -> type[T]:
+def input(cls: builtins.type[T]) -> builtins.type[T]:
     """Decorator to mark a Python class as a GraphQL input object.
 
     This decorator registers the class with the schema registry for JSON export.
@@ -2145,8 +2147,8 @@ def function(  # noqa: PLR0913 — public API; all parameters are meaningful
 
 def union(
     name: str | None = None,
-    members: list[type] | None = None,
-) -> Callable[[type[T]], type[T]]:
+    members: list[builtins.type] | None = None,
+) -> Callable[[builtins.type[T]], builtins.type[T]]:
     """Decorator to mark a Python class as a GraphQL union type.
 
     Per GraphQL spec §3.10, unions represent a type that could be one of
@@ -2191,7 +2193,7 @@ def union(
         - Use docstrings on the class for descriptions
     """
 
-    def decorator(cls: type[T]) -> type[T]:
+    def decorator(cls: builtins.type[T]) -> builtins.type[T]:
         union_name = name if name is not None else cls.__name__
 
         # Extract member type names
@@ -2210,7 +2212,7 @@ def union(
     return decorator
 
 
-def scalar(cls: type[S]) -> type[S]:
+def scalar(cls: builtins.type[S]) -> builtins.type[S]:
     """Decorator to register a custom scalar with the schema.
 
     This decorator registers the scalar globally so it can be:

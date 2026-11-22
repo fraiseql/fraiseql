@@ -116,9 +116,6 @@ select = [
 python-version = "3.10"
 
 [tool.ty.rules]
-# `type` decorator in decorators.py shadows builtins.type; annotations use
-# string-deferred evaluation (from __future__ import annotations) so are valid.
-invalid-type-form = "ignore"
 # Optional integration dependencies (langchain, llamaindex, pydantic) are not
 # installed by default; suppress import-not-found for these extras.
 import-not-found = "ignore"
