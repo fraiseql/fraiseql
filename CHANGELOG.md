@@ -1427,6 +1427,15 @@ disagreed, and the promise was the part that was wrong.
   implementor is still read by that type. `BigInt`, `UUID` and `LocalDateTime` at the same
   position were already served as their text, and are now pinned there too.
 
+- **`compile` without `--database` advises a step an author can take (#1874).** For a
+  query argument it could not map to a column, the warning said to "annotate with
+  native_columns", which no SDK and no schema key can do. It now says the argument filters
+  through the JSONB document, that an `ID` or `UUID` argument is read as a column already,
+  and to compile with `--database`, in a container build from a stage that can reach the
+  database. `docs/performance.md` records declaring a native column by hand as a non-goal:
+  a declared column that exists and does not hold its document key would change what a
+  filter matches, silently, and a compile without the database could not catch it.
+
 - **No SDK document claims a parity it does not have (#2291).** The Rust SDK's README,
   its crates.io description and its crate docs claimed "100% feature parity" across ten
   languages, two of which are not official SDKs, with a hand-kept table scoring every

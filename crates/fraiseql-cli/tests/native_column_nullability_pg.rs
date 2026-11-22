@@ -73,6 +73,11 @@ fn schema() -> Value {
 
 /// Compile the schema, against the database when `url` is given; the compiled artifact.
 fn compile(url: Option<&str>) -> Value {
+    compile_printing(url).0
+}
+
+/// [`compile`], with what the compiler printed.
+fn compile_printing(url: Option<&str>) -> (Value, String) {
     let dir = TempDir::new().unwrap();
     let input = dir.path().join("schema.json");
     std::fs::write(&input, schema().to_string()).unwrap();
@@ -88,13 +93,13 @@ fn compile(url: Option<&str>) -> Value {
         args.extend(["--database".to_string(), url.to_string()]);
     }
     let output = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli")).args(&args).output().unwrap();
-    assert!(
-        output.status.success(),
-        "compile failed:\n{}\n{}",
+    let printed = format!(
+        "{}{}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    serde_json::from_str(&std::fs::read_to_string(out).unwrap()).unwrap()
+    assert!(output.status.success(), "compile failed:\n{printed}");
+    (serde_json::from_str(&std::fs::read_to_string(out).unwrap()).unwrap(), printed)
 }
 
 /// `query`'s recorded native column `column`.
@@ -141,4 +146,22 @@ async fn a_native_column_inferred_without_a_database_is_recorded_nullable() {
         native(&compiled, "words", "id"),
         json!({ "pg_type": "uuid", "not_null": false })
     );
+}
+
+/// With no database, the compiler says which arguments are read from the document and the
+/// one step that makes them native columns: compiling with `--database`. No authoring path
+/// declares a native column, so the advice names none.
+#[tokio::test]
+async fn an_argument_compiled_without_a_database_is_advised_to_compile_with_one() {
+    let (_, printed) = compile_printing(None);
+    let advice = printed
+        .lines()
+        .find(|line| line.contains("query `words`:"))
+        .unwrap_or_else(|| panic!("no advice for `words`:\n{printed}"));
+
+    assert!(advice.contains(r#"["word", "note"]"#), "names the arguments: {advice}");
+    assert!(advice.contains("--database"), "names --database: {advice}");
+    assert!(advice.contains("build stage"), "says where to compile in a build: {advice}");
+    assert!(!advice.contains("annotate"), "no step that does not exist: {advice}");
+    assert!(!advice.contains("native_columns"), "no key nobody can write: {advice}");
 }

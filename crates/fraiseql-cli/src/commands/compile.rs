@@ -632,10 +632,14 @@ pub async fn compile_to_schema(
                 .collect();
             if !unresolved.is_empty() {
                 let names: Vec<_> = unresolved.iter().map(|a| a.name.as_str()).collect();
+                // Only `--database` makes an argument a native column: no authoring path
+                // declares one (see docs/performance.md, "Use a Native Column").
                 warn!(
-                    "query `{}`: argument(s) {:?} on `{}` could not be resolved to native \
-                     columns — no --database URL provided. These filters will use JSONB \
-                     extraction. Provide --database or annotate with native_columns.",
+                    "query `{}`: argument(s) {:?} on `{}` filter through the JSONB document: \
+                     without --database, compile cannot read which of them are columns of \
+                     the relation (an ID or UUID argument is read as one already). Compile \
+                     with --database <url> to read them as native columns; in a container \
+                     build, compile in a build stage that can reach the database.",
                     query.name,
                     names,
                     query.sql_source.as_deref().unwrap_or("?"),

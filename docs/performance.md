@@ -121,7 +121,13 @@ The fix is to expose the key as a column of the relation and let the query read 
 2. Give the query an argument named after the column (`status`, or `customerId` for
    `customer_id`), and compile with `--database`. The compiler finds the column on the
    relation and records it in the query's `native_columns`. Without `--database` nothing is
-   recorded, and the filter reads the document.
+   recorded (an `ID` or `UUID` argument excepted, read as a `uuid` column from its type),
+   and the filter reads the document. A build that compiles the schema, a container image
+   for one, does so in a stage that can reach the database, a service container in CI.
+
+A native column is never declared by hand, as a deliberate non-goal: a declared column that
+exists but does not hold its document key would change what a filter matches, silently,
+and a compile without the database could not catch it.
 
 A `where:` comparison (`eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `nin`, null tests) on a
 field mapped this way reads the column, if the column's type compares like the field's
