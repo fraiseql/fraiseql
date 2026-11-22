@@ -1215,7 +1215,7 @@ fn build_create_table_ddl(
     // Binary vectors need it too — `bit(N)` is a PostgreSQL type, but `<~>`,
     // `<%>` and the `bit_*_ops` operator classes come from pgvector (#959).
     // The extension comes first: a `vector(N)` column is its type, so a file applied on its
-    // own to a database that has not created it would refuse the table (#1850).
+    // own to a database that has not created it would refuse the table.
     let vector_fields: Vec<_> = type_def
         .fields
         .iter()
@@ -1274,7 +1274,7 @@ fn build_create_table_ddl(
 
     lines.push(");".to_string());
 
-    // Each index in its table's own file, after the table (#1850).
+    // Each index in its table's own file, after the table, so the file applies on its own.
     if !index_lines.is_empty() {
         lines.push(String::new());
         lines.extend(index_lines);
