@@ -94,3 +94,4 @@
 #2301  tests: the admin API and `ActionConfig::from_authored` are pinned to refuse a webhook with both `signing_secret` and `signing_secret_env`, which they already refused; no shipped artifact changes
 #1955  tests: the tviews feed suite waits until the server's feed listens rather than for a fixed time; no shipped artifact changes
 #1849  CI: every `deny.toml` skip and skip-tree names its crate's semver line instead of one release, so a patch bump no longer fails the security leg; no shipped artifact changes
+#2333  CI: two release.yml comments say what the build matrix does (aarch64-linux ships `-full`; musl is the one lean-only target); comment-only, no shipped artifact changes

@@ -254,7 +254,7 @@ jobs:
       # cargo-zigbuild pins the target glibc floor (`.2.28`) using zig as the linker,
       # and produces fully-static musl binaries — the mechanism that keeps the release
       # binaries runnable on Debian 12 / old distros. Only the `zig_target` matrix rows
-      # use it; native macОS/Windows and the aarch64 `cross` build are unchanged.
+      # use it, aarch64-linux included; macOS and Windows build with plain cargo.
       - name: Install zig + cargo-zigbuild
         if: matrix.zig_target
         shell: bash
@@ -319,10 +319,10 @@ jobs:
       # revision (the #507 jsonb_column same-revision contract makes mixing a stock
       # cli with a custom server dangerous).
       #
-      # Native targets only: `functions-runtime-deno` compiles V8, which does not
-      # build under the `cross` Docker images used for aarch64-linux. That target
-      # therefore ships the lean artifact only — a documented gap (docs/releases.md),
-      # never a silent one.
+      # Every row but the `lean_only` one: `functions-runtime-deno` compiles V8, which
+      # does not link against musl, so x86_64-linux-musl ships the lean artifact only
+      # — a documented gap (docs/releases.md), never a silent one. aarch64-linux builds
+      # natively on an arm64 runner and ships `-full` like the other targets.
       - name: Build full binary (cargo)
         if: '!matrix.lean_only && !matrix.zig_target'
         run: cargo build --release --target ${{ matrix.target }} --package fraiseql --features release-full
