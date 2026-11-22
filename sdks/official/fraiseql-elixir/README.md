@@ -155,7 +155,8 @@ A field of an `is_input` type takes `nullable:`, `description:`, `deprecated:` a
 | `:bool` | `Boolean` |
 | `:string` | `String` |
 | `:id` | `ID` |
-| `:datetime` | `DateTime` |
+| `:datetime`, `:utc_datetime` | `DateTime` |
+| `:naive_datetime` | `LocalDateTime` (a date and time with no offset, a PostgreSQL `timestamp`) |
 | `:user_profile` (unknown) | `UserProfile` (PascalCase) |
 
 Any unknown atom is automatically converted to PascalCase and used as-is.

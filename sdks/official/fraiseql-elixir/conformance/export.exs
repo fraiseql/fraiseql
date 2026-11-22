@@ -105,8 +105,6 @@ defmodule Conformance.FullSchema do
     field(:code, :string, nullable: false)
   end
 
-  # Lists (#1586, #1608): Ecto's `{:array, type}` for non-null items, a GraphQL type string
-  # for nullable ones.
   # #2258: a 64-bit integer is Ecto's `:bigint`; `:integer` stays `Int`.
   fraiseql_type "LedgerEntry", sql_source: "v_ledger_entry" do
     field(:id, :id, nullable: false)
@@ -115,6 +113,16 @@ defmodule Conformance.FullSchema do
     field(:transfer_ids, {:array, :bigint}, nullable: false)
   end
 
+  # #2177: a date and time with no offset is Ecto's `:naive_datetime`.
+  fraiseql_type "ShiftSlot", sql_source: "v_shift_slot" do
+    field(:id, :id, nullable: false)
+    field(:starts_at, :naive_datetime, nullable: false)
+    field(:ends_at, :naive_datetime, nullable: true)
+    field(:breaks_at, {:array, :naive_datetime}, nullable: false)
+  end
+
+  # Lists (#1586, #1608): Ecto's `{:array, type}` for non-null items, a GraphQL type string
+  # for nullable ones.
   fraiseql_type "ReadingSeries", sql_source: "v_reading_series" do
     field(:id, :id, nullable: false)
     field(:labels, {:array, :string}, nullable: false)
@@ -213,6 +221,15 @@ defmodule Conformance.FullSchema do
                  sql_source: "v_ledger_entry" do
     argument(:account_number, :bigint, nullable: false)
     argument(:transfer_ids, {:array, :bigint}, nullable: true)
+  end
+
+  fraiseql_query :shift_slots_starting_after,
+                 return_type: "ShiftSlot",
+                 returns_list: true,
+                 nullable: false,
+                 sql_source: "v_shift_slot" do
+    argument(:starts_after, :naive_datetime, nullable: false)
+    argument(:except_at, {:array, :naive_datetime}, nullable: true)
   end
 
   fraiseql_query(:tenant_order_shipments,

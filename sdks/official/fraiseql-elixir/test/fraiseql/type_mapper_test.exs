@@ -67,10 +67,20 @@ defmodule FraiseQL.TypeMapperTest do
 
   # #1530: Ecto's temporal and identifier atoms are the engine's scalars. Their PascalCase
   # spellings (NaiveDatetime, UtcDatetime, Uuid) are names the compiler does not know.
-  test "maps Ecto's date-time atoms to DateTime" do
-    for atom <- [:naive_datetime, :naive_datetime_usec, :utc_datetime, :utc_datetime_usec] do
+  test "maps Ecto's UTC date-time atoms to DateTime" do
+    for atom <- [:utc_datetime, :utc_datetime_usec] do
       assert TypeMapper.to_graphql_type(atom) == "DateTime", inspect(atom)
     end
+  end
+
+  # #2177: a naive date-time has no offset, a PostgreSQL `timestamp` (the column Ecto's
+  # `timestamps()` creates by default): published as `DateTime`, it read as an instant.
+  test "maps Ecto's naive date-time atoms to LocalDateTime, a list's items included" do
+    for atom <- [:naive_datetime, :naive_datetime_usec] do
+      assert TypeMapper.to_graphql_type(atom) == "LocalDateTime", inspect(atom)
+    end
+
+    assert TypeMapper.to_graphql_type({:array, :naive_datetime}) == "[LocalDateTime!]"
   end
 
   test "maps :date to Date and :time to Time" do

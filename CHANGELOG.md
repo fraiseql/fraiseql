@@ -94,6 +94,12 @@ disagreed, and the promise was the part that was wrong.
     `OffsetDateTime`, `ZonedDateTime`, `Instant`, `java.util.Date` and `java.sql.Timestamp`
     are instants and stay `DateTime`. `Scalars.LOCAL_DATE_TIME` names it where a type is
     given.
+  - Elixir: Ecto's `:naive_datetime` and `:naive_datetime_usec` are `LocalDateTime`, a
+    list's items included. Ecto's `timestamps()` declares `inserted_at` and `updated_at`
+    as `:naive_datetime` by default, so an Ecto-shaped schema's `inserted_at` and
+    `updated_at` now publish `LocalDateTime`: that matches the `timestamp` column Ecto
+    creates for them. `:utc_datetime`, `:utc_datetime_usec` and `:datetime` stay
+    `DateTime`.
 
 - **A fact table's 64-bit results are `BigInt` and `Decimal` (#2175).** On an aggregate row,
   `<measure>_sum` of an `int` measure, `<measure>_min` and `<measure>_max` of a `bigint`
@@ -884,6 +890,8 @@ disagreed, and the promise was the part that was wrong.
   - Go: `fraiseql.LocalDateTime`, a field's type (a pointer for a nullable one, a slice
     for a list); an argument names `"LocalDateTime"`. `time.Time` is an instant and stays
     `DateTime`.
+  - Ruby: `:local_datetime`, a field or an argument; `:datetime` stays `DateTime`. The
+    symbol had capitalised to `LocalDatetime`, a name the compiler refuses.
 
 - **`compile --database` warns on a view casting a document's text to a temporal type
   (#2213).** A served view, or with gRPC enabled a row view (`vr_<sql_source>`), whose

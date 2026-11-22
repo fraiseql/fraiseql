@@ -14,6 +14,7 @@ defmodule FraiseQL.TypeMapper do
   | `:string`    | `"String"`  |
   | `:id`        | `"ID"`      |
   | `:datetime`  | `"DateTime"`|
+  | `:naive_datetime` | `"LocalDateTime"` |
 
   Unknown atoms are converted to PascalCase, e.g. `:user_profile` → `"UserProfile"`.
 
@@ -49,8 +50,10 @@ defmodule FraiseQL.TypeMapper do
     datetime: "DateTime",
     # The engine's temporal and identifier scalars under Ecto's own atoms (#1530): their
     # PascalCase spellings (NaiveDatetime, UtcDatetime, Uuid) are names it does not know.
-    naive_datetime: "DateTime",
-    naive_datetime_usec: "DateTime",
+    # A naive date-time has no offset, a PostgreSQL `timestamp` (#2177): the column Ecto's
+    # `timestamps()` creates by default.
+    naive_datetime: "LocalDateTime",
+    naive_datetime_usec: "LocalDateTime",
     utc_datetime: "DateTime",
     utc_datetime_usec: "DateTime",
     time_usec: "Time",

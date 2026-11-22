@@ -42,6 +42,9 @@ module FraiseQL
       bool: "Boolean",
       id: "ID",
       datetime: "DateTime",
+      # A date and time with no offset, a PostgreSQL `timestamp`: PascalCased, the symbol
+      # would be `LocalDatetime`, which the compiler refuses.
+      local_datetime: "LocalDateTime",
       date: "Date",
       time: "Time",
       json: "Json",

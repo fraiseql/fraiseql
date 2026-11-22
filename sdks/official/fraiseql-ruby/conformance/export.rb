@@ -82,7 +82,6 @@ def author_full
     t.field :code, :string, nullable: false
   end
 
-  # Lists (#1586, #1608): the GraphQL type string, every level as written.
   # #2258: a 64-bit integer is `:bigint`; `:int` stays `Int`.
   schema.type "LedgerEntry", sql_source: "v_ledger_entry" do |t|
     t.field :id, :id, nullable: false
@@ -91,6 +90,15 @@ def author_full
     t.field :transfer_ids, "[BigInt!]", nullable: false
   end
 
+  # #2177: a date and time with no offset is `:local_datetime`; `:datetime` stays `DateTime`.
+  schema.type "ShiftSlot", sql_source: "v_shift_slot" do |t|
+    t.field :id, :id, nullable: false
+    t.field :starts_at, :local_datetime, nullable: false
+    t.field :ends_at, :local_datetime, nullable: true
+    t.field :breaks_at, "[LocalDateTime!]", nullable: false
+  end
+
+  # Lists (#1586, #1608): the GraphQL type string, every level as written.
   schema.type "ReadingSeries", sql_source: "v_reading_series" do |t|
     t.field :id, :id, nullable: false
     t.field :labels, "[String!]", nullable: false
@@ -170,6 +178,12 @@ def author_full
                                            nullable: false, sql_source: "v_ledger_entry" do |q|
     q.argument :account_number, :bigint, nullable: false
     q.argument :transfer_ids, "[BigInt!]", nullable: true
+  end
+
+  schema.query :shift_slots_starting_after, return_type: "ShiftSlot", returns_list: true,
+                                            nullable: false, sql_source: "v_shift_slot" do |q|
+    q.argument :starts_after, :local_datetime, nullable: false
+    q.argument :except_at, "[LocalDateTime!]", nullable: true
   end
 
   schema.query :tenant_order_shipments, return_type: "OrderShipment", returns_list: true,
