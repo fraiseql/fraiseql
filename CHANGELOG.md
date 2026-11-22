@@ -957,6 +957,19 @@ disagreed, and the promise was the part that was wrong.
     the backoff strategy are enums too. Retry is an `ObserverRetry` (not `RetryConfig`,
     which `fraiseql_client` already names).
 
+- **A JSON Schema for the server's configuration file (#2048).** The file `--config` or
+  `FRAISEQL_CONFIG` names has a schema, `docs/schemas/fraiseql-server.schema.json`,
+  generated from the type the server reads it into and pinned to the release's tag, as
+  `fraiseql.toml`'s is. It names every key any build reads. A key the server refuses by
+  name is marked deprecated, with the server's refusal as its description.
+  `x-fraiseql-env` names the variable that overrides a key, and `x-fraiseql-feature` the
+  build feature a key needs. The server's loader, and `fraiseql run` with it, now refuses
+  a key no table takes as `E-CONFIG-UNKNOWN-KEY`, naming the nearest spelling. A renamed
+  `[rate_limiting]` key and a flat `[observers]` tuning key are refused as
+  `E-CONFIG-MISPLACED` with their real spelling. The flat `[observers]` refusal names the
+  first such key, not all of them. See
+  [config-vs-settings.md](docs/architecture/config-vs-settings.md#the-servers-configuration-file).
+
 - **`compile --database` warns where an `Int` is wider in the database (#2175).** Sampled
   documents holding an `Int` field outside the signed 32-bit range, at the root or
   embedded, are counted, since a response refuses each as a field error; an `Int` argument

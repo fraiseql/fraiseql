@@ -334,21 +334,22 @@ bump_readme_install_snippet() {
     sed -i -E "s|^(fraiseql = \{ *version *= *)\"[^\"]*\"|\1\"${version}\"|" "$readme"
 }
 
-# Point the fraiseql.toml JSON Schema URL at the release's tag, in the committed schema's
-# `$id` and in every page that gives it.
+# Point the configuration JSON Schema URLs (fraiseql.toml's and the server's file's) at the
+# release's tag, in each committed schema's `$id` and in every page that gives one.
 #
-# The URL is the committed schema at a tag, so it names a version; anchored on the whole URL,
-# never on a bare version shape, like bump_readme_install_snippet. The compiler generates the
-# same `$id` from its own version, so the schema test agrees after the bump.
+# A URL is a committed schema at a tag, so it names a version; anchored on the whole URL,
+# never on a bare version shape, like bump_readme_install_snippet. The compiler and the
+# server generate the same `$id` from their own version, so the schema tests agree after the
+# bump.
 #
-# Usage: bump_toml_schema_urls <version> <file>...
-bump_toml_schema_urls() {
+# Usage: bump_config_schema_urls <version> <file>...
+bump_config_schema_urls() {
     local version="$1"
     shift
     local file
     for file in "$@"; do
         [ -f "$file" ] || continue
-        sed -i -E "s|(https://raw\.githubusercontent\.com/fraiseql/fraiseql/v)[^/\"]+(/docs/schemas/fraiseql\.toml\.schema\.json)|\1${version}\2|g" "$file"
+        sed -i -E "s|(https://raw\.githubusercontent\.com/fraiseql/fraiseql/v)[^/\"]+(/docs/schemas/fraiseql(\.toml\|-server)\.schema\.json)|\1${version}\2|g" "$file"
     done
 }
 

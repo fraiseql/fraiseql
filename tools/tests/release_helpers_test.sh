@@ -525,10 +525,11 @@ check "bump-readme: a historical mention of the SAME version does not skip the b
 bump_readme_install_snippet 2.16.0 "$WORK/no-such-readme.md"
 check "bump-readme: a missing file is skipped, not fatal" "$?" "0"
 
-# ── bump_toml_schema_urls ──────────────────────────────────────────────────────
+# ── bump_config_schema_urls ────────────────────────────────────────────────────
 #
-# The schema's `$id` and every documented URL move to the tag; a version-shaped string that
-# is not that URL (a past release, another file's path) does not.
+# Each configuration schema's `$id` and every documented URL move to the tag; a
+# version-shaped string that is not such a URL (a past release, another file's path) does
+# not.
 
 cat >"$WORK/schema.json" <<'FIXTURE'
 {
@@ -539,9 +540,16 @@ FIXTURE
 cat >"$WORK/page.md" <<'FIXTURE'
 #:schema https://raw.githubusercontent.com/fraiseql/fraiseql/v2.19.1/docs/schemas/fraiseql.toml.schema.json
 See https://raw.githubusercontent.com/fraiseql/fraiseql/v2.19.1/docs/other.json, from v2.19.1.
+#:schema https://raw.githubusercontent.com/fraiseql/fraiseql/v2.19.1/docs/schemas/fraiseql-server.schema.json
+FIXTURE
+cat >"$WORK/server-schema.json" <<'FIXTURE'
+{
+  "$id": "https://raw.githubusercontent.com/fraiseql/fraiseql/v2.19.1/docs/schemas/fraiseql-server.schema.json"
+}
 FIXTURE
 
-bump_toml_schema_urls 2.20.0 "$WORK/schema.json" "$WORK/page.md" "$WORK/no-such-page.md"
+bump_config_schema_urls 2.20.0 "$WORK/schema.json" "$WORK/server-schema.json" "$WORK/page.md" \
+    "$WORK/no-such-page.md"
 check "bump-toml-schema: a missing file is skipped, not fatal" "$?" "0"
 check "bump-toml-schema: the \$id names the release" \
     "$(grep -c 'fraiseql/v2.20.0/docs/schemas/fraiseql.toml.schema.json' "$WORK/schema.json")" "1"
@@ -551,6 +559,10 @@ check "bump-toml-schema: prose naming a past version is untouched" \
     "$(grep -c 'v2.19.1\.' "$WORK/schema.json")" "1"
 check "bump-toml-schema: another file's URL at that tag is untouched" \
     "$(grep -c 'v2.19.1/docs/other.json' "$WORK/page.md")" "1"
+check "bump-server-schema: the server schema's \$id names the release" \
+    "$(grep -c 'fraiseql/v2.20.0/docs/schemas/fraiseql-server.schema.json' "$WORK/server-schema.json")" "1"
+check "bump-server-schema: a page's server schema URL names the release" \
+    "$(grep -c 'fraiseql/v2.20.0/docs/schemas/fraiseql-server.schema.json' "$WORK/page.md")" "1"
 
 # ── rotate_changelog_links ─────────────────────────────────────────────────────
 #

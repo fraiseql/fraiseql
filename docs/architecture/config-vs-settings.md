@@ -219,6 +219,44 @@ compiler's refusal as its description), and a value of the wrong type. The table
 author a schema (`[types]`, `[queries]` and the rest) are accepted: a schema authored in
 TOML takes them, and the compiler refuses them only beside a schema document.
 
+### The Server's Configuration File
+
+The file `--config` or `FRAISEQL_CONFIG` names has a JSON Schema too, generated from the type
+the server reads it into:
+
+```text
+https://raw.githubusercontent.com/fraiseql/fraiseql/v2.19.1/docs/schemas/fraiseql-server.schema.json
+```
+
+It is pinned to the release's tag the same way. The file has no fixed name, so point
+at it with a `#:schema` line, or with a `.taplo.toml` rule naming your file:
+
+```toml
+# .taplo.toml
+[[rule]]
+include = ["deploy/server.toml"]
+
+[rule.schema]
+path = "https://raw.githubusercontent.com/fraiseql/fraiseql/v2.19.1/docs/schemas/fraiseql-server.schema.json"
+```
+
+The schema is generated with every feature on, so it names every key any build of the
+server reads. Beyond the types, it carries what the server does with each key:
+
+- A key no table takes is flagged. The server refuses it as `E-CONFIG-UNKNOWN-KEY`,
+  naming the nearest accepted spelling, and so does `fraiseql run`, which reads the file
+  with the server's loader.
+- A key the server refuses by name is shown as deprecated, with the server's refusal as
+  its description. Examples: a grouping table the file never had (`[server]`, `[cache]`),
+  a `fraiseql.toml` spelling (`[tls] cert_file`), a retired section (`[auth_hs256]`), a
+  renamed key (`[rate_limiting] rps_per_ip`), and a flat `[observers]` tuning key.
+- `x-fraiseql-env` names the environment variable that overrides the key, such as
+  `FRAISEQL_POOL_MAX_SIZE` on `pool_max_size`. Some variables set no key of the file:
+  `FRAISEQL_CONFIG` itself, `FRAISEQL_LOG_FORMAT`, and the `FRAISEQL_RATE_LIMIT*` overrides,
+  which apply over the compiled schema's limits.
+- `x-fraiseql-feature` names the build feature a key needs, such as `observers` on
+  `[observers]`. A binary built without it refuses the key and names the feature.
+
 ## Environment Variable Overrides
 
 Most compiled settings are **immutable at runtime** — that is the point of compiling them.
