@@ -128,6 +128,18 @@ Source-only is a statement about distribution, not quality: conformance scores a
 
 ## Installation
 
+**Prebuilt binaries:** each release publishes two archives per target. Only `-full`
+serves:
+
+| Archive | Contains | Serves? |
+|---------|----------|---------|
+| `fraiseql-<target>` | `fraiseql`, the compiler and CLI tools (`fraiseql compile`, …) | No: no `run` subcommand, no `fraiseql-server` |
+| `fraiseql-full-<target>` | `fraiseql` (with `fraiseql run`) and `fraiseql-server` | Yes |
+
+To serve without an archive, use the `ghcr.io/fraiseql/server` image or
+`cargo install fraiseql-cli fraiseql-server` (which installs the binaries the Quick Start
+names). See [docs/releases.md](docs/releases.md) for targets and feature sets.
+
 **Rust applications:**
 
 ```toml

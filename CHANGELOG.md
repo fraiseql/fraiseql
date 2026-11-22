@@ -1471,6 +1471,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The install docs say which release archive serves (#1875).** Only
+  `fraiseql-full-<target>` can serve: it holds `fraiseql-server` and a `fraiseql` with
+  `run`. The plain `fraiseql-<target>` holds a `fraiseql` with no `run`, so it compiles
+  schemas only. `docs/releases.md` said the plain archive could run a server. The README
+  and the getting-started guide named no archive at all, and now do.
+
 - **The DDL FraiseQL runs at runtime takes one advisory lock (#2312).** Scripts that
   create FraiseQL's own tables are idempotent but were not safe to run concurrently: on a
   database without the table, two callers could both pass `IF NOT EXISTS` and one lose on

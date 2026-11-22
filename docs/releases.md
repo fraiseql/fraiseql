@@ -1,14 +1,22 @@
 # Release artifacts
 
 Each tagged release publishes prebuilt binaries on the GitHub release page. There are
-two variants; pick by whether your deployment uses the opt-in platform features.
+two variants, and only one of them can serve.
+
+## Which one to download
+
+| You want to | Download | You get |
+|-------------|----------|---------|
+| Compile schemas and use the other CLI tools (`compile`, `validate`, `generate-client`, `migrate`, …) | `fraiseql-<target>` | `fraiseql` only. It has no `run` subcommand, and there is no `fraiseql-server`: **this archive cannot serve**. |
+| Serve a schema | `fraiseql-full-<target>` | `fraiseql` (with `fraiseql run`) and `fraiseql-server` |
+| Serve on `x86_64-unknown-linux-musl` | No archive serves there: use the `ghcr.io/fraiseql/server` image, or build `fraiseql-server` from source | — |
 
 ## The two variants
 
 | Artifact | Features | Use it when |
 |----------|----------|-------------|
-| `fraiseql-<target>` (**default**) | `cli,server,postgres` | You compile schemas and/or run a plain GraphQL-over-Postgres server. This is the lean binary — no V8, no extra runtime weight. |
-| `fraiseql-full-<target>` | `release-full`: the `rest` and `arrow` (Arrow Flight) transports, `federation`, `cdc-outbound` (to NATS JetStream), Deno/TypeScript functions (`functions-runtime-deno`), scheduled `sources`, `observers`, `mcp`, `inbound` + `inbound-email`, `metrics`, and `run-server` | Your deployment uses any FraiseQL **transport or platform feature** beyond GraphQL: REST, Arrow Flight, federation, outbound CDC, `after:mutation`/`cron`/`after:capture` functions, scheduled sources, the MCP endpoint, inbound ingestion, or Prometheus metrics. Contains **two** binaries — `fraiseql` and `fraiseql-server` (see below). |
+| `fraiseql-<target>` (**default**) | `cli,server,postgres` | You only compile schemas and run the CLI's other tools. This is the lean binary — no V8, no extra runtime weight. Its `fraiseql run` is compiled out and the archive holds no `fraiseql-server`, so it cannot serve. |
+| `fraiseql-full-<target>` | `release-full`: the `rest` and `arrow` (Arrow Flight) transports, `federation`, `cdc-outbound` (to NATS JetStream), Deno/TypeScript functions (`functions-runtime-deno`), scheduled `sources`, `observers`, `mcp`, `inbound` + `inbound-email`, `metrics`, and `run-server` | You **serve** a schema, with plain GraphQL or with any transport or platform feature beyond it: REST, Arrow Flight, federation, outbound CDC, `after:mutation`/`cron`/`after:capture` functions, scheduled sources, the MCP endpoint, inbound ingestion, or Prometheus metrics. Contains **two** binaries — `fraiseql` and `fraiseql-server` (see below). |
 
 The `-full` tarball contains **two** binaries:
 
@@ -83,8 +91,10 @@ serves a GraphQL query. That job is dispatchable, so the arm64 path can be exerc
 without cutting a release — the alternative is discovering a V8-versus-glibc-floor
 disagreement in the middle of one.
 
-For **ARM Linux with musl** (Alpine, distroless, scratch), use the lean static binary
-or the Docker image with your chosen `CARGO_FEATURES`.
+For **musl** (Alpine, distroless, scratch), the only prebuilt binary is the lean static
+`fraiseql-x86_64-unknown-linux-musl`, which compiles schemas but cannot serve. To serve,
+or on ARM with musl, build the `Dockerfile` with your chosen `CARGO_FEATURES`, or build
+`fraiseql-server` from source.
 
 ## What "compiled in" means at runtime
 

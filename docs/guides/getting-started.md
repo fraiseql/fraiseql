@@ -18,6 +18,12 @@ PostgreSQL (`tools/quickstart-smoke.sh`), so if it is printed here, it works.
 cargo install fraiseql-cli fraiseql-server
 ```
 
+Or download the `fraiseql-full-<target>` archive from a release. It holds `fraiseql-server`
+and the CLI, which it names `fraiseql`, so run `fraiseql compile` where this guide says
+`fraiseql-cli compile`. The plain `fraiseql-<target>` archive compiles schemas but cannot
+serve: it has no `fraiseql-server` and no `fraiseql run`. See
+[Release artifacts](../releases.md).
+
 ## 2. Define Your Schema (Python)
 
 ```bash
