@@ -119,7 +119,7 @@ field or argument is refused.
 | `bool` | `Boolean` |
 | `string` | `String` |
 | `System.Guid` | `ID` |
-| `System.DateTime` | `DateTime` |
+| `System.DateTime` | `DateTime`; a date and time with no offset (a PostgreSQL `timestamp`) is declared `[<GraphQLField(Type = "LocalDateTime")>]` |
 | `System.DateTimeOffset` | `DateTime` |
 | `System.DateOnly` | `Date` |
 | `System.TimeOnly` | `Time` |

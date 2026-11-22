@@ -140,6 +140,22 @@ type ConformanceLedgerEntry() =
     [<GraphQLField>]
     member val TransferIds: int64 list = [] with get, set
 
+// A date and time with no offset (#2177): a `DateTime`'s zone is a runtime `Kind`, so the
+// type string declares it, and wins over inference.
+[<GraphQLType(Name = "ShiftSlot", SqlSource = "v_shift_slot")>]
+type ConformanceShiftSlot() =
+    [<GraphQLField(Type = "ID")>]
+    member val Id = "" with get, set
+
+    [<GraphQLField(Type = "LocalDateTime")>]
+    member val StartsAt = System.DateTime.MinValue with get, set
+
+    [<GraphQLField(Type = "LocalDateTime")>]
+    member val EndsAt: System.DateTime option = None with get, set
+
+    [<GraphQLField(Type = "[LocalDateTime!]")>]
+    member val BreaksAt: System.DateTime list = [] with get, set
+
 // Lists (#1586, #1608), inferred from the F# types: an element is non-null unless it is
 // an `option`, at every level.
 [<GraphQLType(Name = "ReadingSeries", SqlSource = "v_reading_series")>]
@@ -217,6 +233,7 @@ let private authorFull () =
     SchemaRegistry.register typeof<ConformanceReadingSeries>
     SchemaRegistry.register typeof<ConformanceOrderShipment>
     SchemaRegistry.register typeof<ConformanceLedgerEntry>
+    SchemaRegistry.register typeof<ConformanceShiftSlot>
 
     SchemaRegistry.registerInput
         {
@@ -258,6 +275,14 @@ let private authorFull () =
     |> QueryBuilder.sqlSource "v_ledger_entry"
     |> QueryBuilder.withArgument "accountNumber" "BigInt" false
     |> QueryBuilder.withArgument "transferIds" "[BigInt!]" true
+    |> QueryBuilder.register
+
+    QueryBuilder.query "shiftSlotsStartingAfter"
+    |> QueryBuilder.returnType "ShiftSlot"
+    |> QueryBuilder.returnsList true
+    |> QueryBuilder.sqlSource "v_shift_slot"
+    |> QueryBuilder.withArgument "startsAfter" "LocalDateTime" false
+    |> QueryBuilder.withArgument "exceptAt" "[LocalDateTime!]" true
     |> QueryBuilder.register
 
     QueryBuilder.query "tenantOrderShipments"

@@ -97,6 +97,7 @@ public class ConformanceExportTest
         SchemaRegistry.Instance.Register(typeof(ConformanceReadingSeries));
         SchemaRegistry.Instance.Register(typeof(ConformanceOrderShipment));
         SchemaRegistry.Instance.Register(typeof(ConformanceLedgerEntry));
+        SchemaRegistry.Instance.Register(typeof(ConformanceShiftSlot));
         SchemaRegistry.Instance.Register(typeof(ConformanceCreateUserInput));
 
         SchemaRegistry.Instance.RegisterEnum<OrderStatus>();
@@ -123,6 +124,14 @@ public class ConformanceExportTest
             .SqlSource("v_ledger_entry")
             .Argument("accountNumber", "BigInt")
             .Argument("transferIds", "[BigInt!]", nullable: true)
+            .Register();
+
+        QueryBuilder.Query("shiftSlotsStartingAfter")
+            .ReturnType("ShiftSlot")
+            .ReturnsList(true)
+            .SqlSource("v_shift_slot")
+            .Argument("startsAfter", "LocalDateTime")
+            .Argument("exceptAt", "[LocalDateTime!]", nullable: true)
             .Register();
 
         QueryBuilder.Query("tenantOrderShipments")
@@ -295,6 +304,24 @@ public class ConformanceExportTest
 
         [GraphQLField]
         public List<long> TransferIds { get; set; } = new();
+    }
+
+    // A date and time with no offset (#2177): a `DateTime`'s zone is a runtime `Kind`, so
+    // the type string declares it, and wins over inference.
+    [GraphQLType(Name = "ShiftSlot", SqlSource = "v_shift_slot")]
+    private sealed class ConformanceShiftSlot
+    {
+        [GraphQLField(Type = "ID")]
+        public string Id { get; set; } = string.Empty;
+
+        [GraphQLField(Type = "LocalDateTime")]
+        public DateTime StartsAt { get; set; }
+
+        [GraphQLField(Type = "LocalDateTime")]
+        public DateTime? EndsAt { get; set; }
+
+        [GraphQLField(Type = "[LocalDateTime!]")]
+        public List<DateTime> BreaksAt { get; set; } = new();
     }
 
     [GraphQLType(Name = "ReadingSeries", SqlSource = "v_reading_series")]

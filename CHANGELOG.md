@@ -870,6 +870,16 @@ disagreed, and the promise was the part that was wrong.
     as written, a name the compiler refuses; the `BigInt` constructor already exported as
     `BigInt`. `BigInt` is a known scalar name.
 
+- **The SDKs author `LocalDateTime` (#2177).** A date and time with no offset, a PostgreSQL
+  `timestamp`. Where a language's date-time type is an instant, or carries its zone only at
+  run time, a marker declares a field or argument `LocalDateTime` and the type stays
+  `DateTime`. The conformance suite's `localdatetime_field` and `localdatetime_argument`
+  constructs hold every SDK to it (the Rust SDK, which ships no query builder, authors the
+  field only):
+  - C#: `[GraphQLField(Type = "LocalDateTime")]` on a `DateTime` property, which wins over
+    inference; F#: `[<GraphQLField(Type = "LocalDateTime")>]`. A `DateTime`'s zone is its
+    run-time `Kind`, so an undeclared one stays `DateTime`.
+
 - **`compile --database` warns on a view casting a document's text to a temporal type
   (#2213).** A served view, or with gRPC enabled a row view (`vr_<sql_source>`), whose
   definition reads a key as text cast to `timestamptz`, `timestamp`, `date` or `time`

@@ -116,7 +116,7 @@ fraiseql compile schema.json
 | `Guid` | `ID` |
 | `string` | `String` |
 | `string?` | `String` (nullable) |
-| `DateTime`, `DateTimeOffset` | `DateTime` |
+| `DateTime`, `DateTimeOffset` | `DateTime`; a date and time with no offset (a PostgreSQL `timestamp`) is declared `[GraphQLField(Type = "LocalDateTime")]` |
 | `DateOnly` | `Date` |
 | `TimeOnly` | `Time` |
 
