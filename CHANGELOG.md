@@ -1468,6 +1468,9 @@ disagreed, and the promise was the part that was wrong.
   local passwords, OTP, SAML replay and IdP, SCIM, sessions, session state, signing keys,
   TOTP), the webhook delivery ledger, and the saga store's `migrate_schema`, whose fifteen
   statements now run as one script, in one transaction.
+  The storage migration took a key of its own, so it did not exclude the server running
+  the same script at boot, nor any other FraiseQL script on the catalogue; it now takes the
+  workspace's key.
 - **`PostgresSourceCursorStore::init` is safe to run concurrently (#1868).** Two callers
   initialising the store against one database at once could fail: on a database that had
   never held the cursor table, one lost on a catalogue unique index

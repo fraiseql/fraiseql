@@ -4306,6 +4306,7 @@ dependencies = [
  "chrono",
  "criterion",
  "fraiseql-error",
+ "fraiseql-guard",
  "fraiseql-test-support",
  "fraiseql-time",
  "hex",

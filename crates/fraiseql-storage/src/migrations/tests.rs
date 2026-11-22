@@ -197,6 +197,71 @@ async fn concurrent_migrations_against_a_cold_database_all_succeed() {
     );
 }
 
+/// The storage migration and the server's boot runner, which runs the same script under
+/// `lock_prefixed`, exclude each other: they take one key. Each runs on a cold database
+/// alongside the other, four runners each. Two keys would let a storage runner and a
+/// server runner both pass `IF NOT EXISTS`, one losing on a catalogue unique index.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_migration_and_the_servers_runner_exclude_each_other() {
+    /// Cold databases the race runs on.
+    const ROUNDS: usize = 5;
+
+    let Some(svc) = fraiseql_test_support::postgres().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    let base = svc.url();
+    let (prefix, tail) = base.rsplit_once('/').expect("a PostgreSQL URL carries a database path");
+    let query = tail.find('?').map_or("", |i| &tail[i..]);
+    let admin = PgPool::connect(base).await.unwrap();
+
+    // The server's runner, as `fraiseql_server::migration_lock::run_migration` runs it.
+    let servers = |pool: PgPool| async move {
+        // Reason: the crate's own DDL constant, behind the workspace's fixed lock statement.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(fraiseql_guard::ddl::lock_prefixed(
+            super::storage_migration_sql(),
+        )))
+        .execute(&pool)
+        .await
+        .map(|_| ())
+    };
+
+    let mut failures = Vec::new();
+    for round in 0..ROUNDS {
+        let database = format!("fq_storage_keys_{}", uuid::Uuid::new_v4().simple());
+        // Reason: a database name this test generated from a UUID, not caller input.
+        sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {database}")))
+            .execute(&admin)
+            .await
+            .unwrap();
+        let pool = PgPool::connect(&format!("{prefix}/{database}{query}")).await.unwrap();
+        let results: [Result<(), sqlx::Error>; 8] = tokio::join!(
+            super::run_storage_migration(&pool),
+            servers(pool.clone()),
+            super::run_storage_migration(&pool),
+            servers(pool.clone()),
+            super::run_storage_migration(&pool),
+            servers(pool.clone()),
+            super::run_storage_migration(&pool),
+            servers(pool.clone()),
+        )
+        .into();
+        failures.extend(
+            results
+                .iter()
+                .filter_map(|r| r.as_ref().err())
+                .map(|e| format!("round {round}: {e}")),
+        );
+        pool.close().await;
+        // Reason: as above.
+        sqlx::query(sqlx::AssertSqlSafe(format!("DROP DATABASE {database} WITH (FORCE)")))
+            .execute(&admin)
+            .await
+            .unwrap();
+    }
+    assert!(failures.is_empty(), "the two runners raced: {failures:#?}");
+}
+
 /// #2130: the migration clears an etag that is the object's key (`bucket/key`, or `key`
 /// from before v2.6.0) and leaves every other etag alone. A second run changes no row.
 #[tokio::test]

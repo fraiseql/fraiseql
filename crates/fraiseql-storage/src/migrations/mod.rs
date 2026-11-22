@@ -13,18 +13,6 @@
 //! over the admin API — one row per bucket, replacing that bucket's configured
 //! policy wholesale. See [`crate::policy::store`] for the precedence rule.
 
-/// The advisory-lock key the storage migration serializes on.
-///
-/// A fixed `i64`, chosen once: the ASCII bytes of `FSTORAGE`. It must never be derived from a
-/// version string, a table name or anything else a later migration might edit — two runners
-/// queue behind each other only if they pick the **same** number, so a computed key would
-/// silently stop serializing on the day its input changed.
-///
-/// The value is deliberately below `i64::MAX` rather than a pattern with the high bit set:
-/// `pg_advisory_xact_lock` takes a signed `bigint`, and a literal that needs wrapping to fit
-/// is a literal someone will later "correct".
-const STORAGE_MIGRATION_LOCK_KEY: i64 = 0x_4653_544f_5241_4745;
-
 /// Run the storage migration, serialized against every concurrent runner (#1286).
 ///
 /// [`storage_migration_sql`] is idempotent under repetition; it is **not** safe to run
@@ -42,22 +30,24 @@ const STORAGE_MIGRATION_LOCK_KEY: i64 = 0x_4653_544f_5241_4745;
 /// race is not a flaky test but a server that does not start.
 ///
 /// `pg_advisory_xact_lock` taken in the same transaction as the DDL makes concurrent runners
-/// queue. Transaction-scoped deliberately: the commit or rollback releases it, so there is no
-/// unlock to leak on an error path, and no way for a panicking caller to wedge every future
+/// queue: the script runs as one simple query, which is one implicit transaction, with the lock
+/// as its first statement ([`fraiseql_guard::ddl::lock_prefixed`]). The key is the workspace's
+/// one DDL key ([`fraiseql_guard::ddl::MIGRATION_LOCK_KEY`]), which the server takes when it
+/// runs this script at boot: two runners exclude each other only if they take the same number,
+/// and the catalogue indexes the cold race loses on are shared with every other FraiseQL
+/// script. Transaction-scoped deliberately: the commit or rollback releases it, so there is no
+/// unlock to forget on an error path, and no way for a panicking caller to wedge every future
 /// boot behind a lock nobody holds a handle to.
 ///
 /// # Errors
 ///
-/// Returns the underlying [`sqlx::Error`] if the transaction cannot be opened, the lock cannot
-/// be taken, or the DDL fails.
+/// Returns the underlying [`sqlx::Error`] if the lock cannot be taken or the DDL fails.
 pub async fn run_storage_migration(pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {
-    let mut tx = pool.begin().await?;
-    sqlx::query("SELECT pg_advisory_xact_lock($1)")
-        .bind(STORAGE_MIGRATION_LOCK_KEY)
-        .execute(&mut *tx)
-        .await?;
-    sqlx::raw_sql(storage_migration_sql()).execute(&mut *tx).await?;
-    tx.commit().await
+    // Reason: the crate's own DDL constant, behind the workspace's fixed lock statement.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(fraiseql_guard::ddl::lock_prefixed(storage_migration_sql())))
+        .execute(pool)
+        .await
+        .map(|_| ())
 }
 
 #[cfg(test)]
