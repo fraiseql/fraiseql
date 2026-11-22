@@ -119,7 +119,9 @@ disagreed, and the promise was the part that was wrong.
   - F#: `decimal` is `Decimal`, where it had been `Float`. `Guid` is `UUID`, where it had
     been `ID`: a `Guid` property that is not the type's `Id`, a foreign key such as
     `IssuerId`, now publishes `UUID` instead of `ID`, and a list of them `[UUID!]`.
-    `toGraphQLScalar` returns `GqlCustom "Decimal"` and `GqlCustom "UUID"` for them.
+    `toGraphQLScalar` returns `GqlCustom "Decimal"` and `GqlCustom "UUID"` for them. An
+    `obj` member, which had been published as `String`, is refused at registration, naming
+    it: declare `[<GraphQLField(Type = "...")>]`.
 
 - **A fact table's 64-bit results are `BigInt` and `Decimal` (#2175).** On an aggregate row,
   `<measure>_sum` of an `int` measure, `<measure>_min` and `<measure>_max` of a `bigint`

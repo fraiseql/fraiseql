@@ -57,6 +57,14 @@ module TypeMapper =
             )
         )
 
+    /// Refuses an untyped `obj`: it had been published as `String`, hiding the value's type.
+    let private refuseObject (t: System.Type) : 'a =
+        raise (
+            System.NotSupportedException(
+                sprintf "%s maps to no GraphQL type: declare one with [<GraphQLField(Type = \"...\")>]" t.Name
+            )
+        )
+
     /// Recursively converts a .NET type to a GraphQL type string.
     /// List types become <c>[ElementType!]</c>, or <c>[ElementType]</c> when the element is an
     /// <c>option</c> or <c>Nullable&lt;&gt;</c>. Option/Nullable wrappers are stripped
@@ -92,7 +100,7 @@ module TypeMapper =
                     // The engine's Date and Time (#1530); they exported as their class names.
                     | t when t = typeof<System.DateOnly> -> "Date"
                     | t when t = typeof<System.TimeOnly> -> "Time"
-                    | t when t = typeof<System.Object> -> "String"
+                    | t when t = typeof<System.Object> -> refuseObject t
                     | _ -> t.Name
 
     /// Returns true when the type is nullable (i.e., wrapped in <c>option</c> or <c>Nullable&lt;&gt;</c>).
@@ -120,6 +128,7 @@ module TypeMapper =
         | t when t = typeof<System.DateTimeOffset> -> GqlDateTime
         | t when t = typeof<System.DateOnly> -> GqlCustom "Date"
         | t when t = typeof<System.TimeOnly> -> GqlCustom "Time"
+        | t when t = typeof<System.Object> -> refuseObject t
         | t -> GqlCustom t.Name
 
     /// Converts a PascalCase, camelCase or snake_case name to camelCase.

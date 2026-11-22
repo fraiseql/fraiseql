@@ -44,3 +44,34 @@ let ``a type's Guid id registers as ID and any other Guid as UUID`` () =
     (field "issuerId").type_ |> should equal "UUID"
     (field "issuerId").nullable |> should equal true
     SchemaRegistry.reset ()
+
+[<GraphQLType(Name = "ExactUntyped", SqlSource = "v_untyped")>]
+type ExactUntyped() =
+    [<GraphQLField>]
+    member val Anything = obj () with get, set
+
+[<GraphQLType(Name = "ExactDeclared", SqlSource = "v_declared")>]
+type ExactDeclared() =
+    [<GraphQLField(Type = "Json")>]
+    member val Payload = obj () with get, set
+
+/// An untyped `obj` had been published as `String`, the case where a silent default is
+/// most wrong: it is refused, in both mappers, naming the fix.
+[<Fact>]
+let ``obj is refused, pointing to a declared type`` () =
+    for refused in
+        [ Assert.Throws<NotSupportedException>(fun () -> TypeMapper.toGraphQLType typeof<obj> |> ignore)
+          Assert.Throws<NotSupportedException>(fun () -> TypeMapper.toGraphQLScalar typeof<obj> |> ignore) ] do
+        refused.Message |> should haveSubstring "Object"
+        refused.Message |> should haveSubstring "[<GraphQLField(Type = \"...\")>]"
+
+[<Fact>]
+let ``an obj member is refused at registration, naming it, unless it names a type`` () =
+    SchemaRegistry.reset ()
+    let refused =
+        Assert.Throws<NotSupportedException>(fun () -> SchemaRegistry.register typeof<ExactUntyped>)
+    refused.Message |> should haveSubstring "ExactUntyped.Anything"
+    SchemaRegistry.register typeof<ExactDeclared>
+    let field = (SchemaRegistry.getTypeDefinition "ExactDeclared").Value.fields |> List.exactlyOne
+    field.type_ |> should equal "Json"
+    SchemaRegistry.reset ()

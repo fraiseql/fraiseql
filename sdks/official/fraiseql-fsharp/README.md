@@ -126,6 +126,7 @@ field or argument is refused.
 | `T option` | Nullable `T` |
 | `T list`, `T array` | `[T]` |
 | Any other type | Type name (e.g. `MyRecord`) |
+| `obj` | refused at registration, naming the property: declare `[<GraphQLField(Type = "...")>]` |
 
 ## JSON Output Format
 
