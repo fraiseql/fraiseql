@@ -6,7 +6,7 @@ use serde_json::Value;
 use super::{FEATURE_ANNOTATION, SERVER_CONFIG_JSON_SCHEMA_PATH, server_config_json_schema};
 use crate::server_config::{
     build_features::{declared_features, missing_features},
-    methods::{RefusedKey, enrich_parse_error, refused_keys},
+    methods::{RefusedKey, refused_keys},
 };
 
 /// Set by the CI leg that runs the drift test with every feature on. Where it is set, a build
@@ -196,17 +196,32 @@ fn schema_node<'a>(schema: &'a Value, refused: &RefusedKey) -> Option<&'a Value>
     follow(section)["properties"].get(refused.key)
 }
 
-/// Every key the loader refuses by name is refused by the schema, deprecated, and described
-/// in the words the loader's refusal of a file writing it gives.
+/// Every key the loader refuses by name is refused by the loader with its row's diagnostic
+/// (the code, the table, the key and the real spelling, not a guess at the nearest one), and
+/// by the schema, deprecated, described in the loader's words.
 #[test]
 fn every_key_the_loader_refuses_is_refused_by_the_schema_with_its_words() {
     let schema = server_config_json_schema();
     let refused = refused_keys();
     assert!(refused.len() >= 3, "{} refused keys", refused.len());
+    let dir = tempfile::tempdir().unwrap();
     for key in &refused {
-        let (_, diagnostic) = enrich_parse_error(&[], &file_writing(key), String::new());
-        let loader = diagnostic.map(|d| d.message).unwrap_or_default();
-        assert_eq!(loader, key.note, "[{}] {}: the loader's refusal", key.section, key.key);
+        let path = dir.path().join("server.toml");
+        std::fs::write(&path, file_writing(key)).unwrap();
+        let error = crate::server_config::ServerConfig::load_file(&path).err();
+        let mut loader = error.as_ref().and_then(|e| e.diagnostic()).cloned();
+        if let Some(diagnostic) = loader.as_mut() {
+            diagnostic.file = None;
+        }
+        assert_eq!(
+            loader.as_ref(),
+            Some(&key.diagnostic),
+            "[{}] {}: the loader's refusal of {:?}",
+            key.section,
+            key.key,
+            error.map(|e| e.to_string())
+        );
+        assert_eq!(loader.unwrap().message, key.note, "[{}] {}", key.section, key.key);
         let node = schema_node(&schema, key);
         assert!(
             node.is_some_and(is_refused),

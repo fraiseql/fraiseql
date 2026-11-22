@@ -22,7 +22,10 @@ pub use config::{
     CheckResult, RateLimitConfig, RateLimitOverrides, RateLimitingSecurityConfig,
     ServerRateLimitingConfig,
 };
-pub(crate) use config::{DEFAULT_FAILED_LOGIN_LOCKOUT_SECS, DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS};
+pub(crate) use config::{
+    DEFAULT_FAILED_LOGIN_LOCKOUT_SECS, DEFAULT_FAILED_LOGIN_MAX_ATTEMPTS, RENAMED_SERVER_KEYS,
+    renamed_key_note,
+};
 pub use dispatch::RateLimiter;
 pub use identity::VerifiedSubject;
 pub use key::build_rate_limit_key;

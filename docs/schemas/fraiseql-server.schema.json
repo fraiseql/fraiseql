@@ -1779,6 +1779,16 @@
           "format": "uint64",
           "minimum": 0,
           "default": 300
+        },
+        "rps_per_ip": {
+          "not": {},
+          "deprecated": true,
+          "description": "`[rate_limiting] rps_per_ip` is spelled `requests_per_second`: the server's `[rate_limiting]` table takes the keys of `[security.rate_limiting]`"
+        },
+        "rps_per_user": {
+          "not": {},
+          "deprecated": true,
+          "description": "`[rate_limiting] rps_per_user` is spelled `requests_per_second_per_user`: the server's `[rate_limiting]` table takes the keys of `[security.rate_limiting]`"
         }
       },
       "additionalProperties": false
@@ -1830,6 +1840,41 @@
             "log_payloads": false,
             "redis": null
           }
+        },
+        "poll_interval_ms": {
+          "not": {},
+          "deprecated": true,
+          "description": "`[observers] poll_interval_ms` moved to `[observers.runtime]` in v2.5.0: write it under an `[observers.runtime]` table"
+        },
+        "batch_size": {
+          "not": {},
+          "deprecated": true,
+          "description": "`[observers] batch_size` moved to `[observers.runtime]` in v2.5.0: write it under an `[observers.runtime]` table"
+        },
+        "channel_capacity": {
+          "not": {},
+          "deprecated": true,
+          "description": "`[observers] channel_capacity` moved to `[observers.runtime]` in v2.5.0: write it under an `[observers.runtime]` table"
+        },
+        "auto_reload": {
+          "not": {},
+          "deprecated": true,
+          "description": "`[observers] auto_reload` moved to `[observers.runtime]` in v2.5.0: write it under an `[observers.runtime]` table"
+        },
+        "reload_interval_secs": {
+          "not": {},
+          "deprecated": true,
+          "description": "`[observers] reload_interval_secs` moved to `[observers.runtime]` in v2.5.0: write it under an `[observers.runtime]` table"
+        },
+        "max_dlq_size": {
+          "not": {},
+          "deprecated": true,
+          "description": "`[observers] max_dlq_size` moved to `[observers.runtime]` in v2.5.0: write it under an `[observers.runtime]` table"
+        },
+        "pool": {
+          "not": {},
+          "deprecated": true,
+          "description": "`[observers] pool` moved to `[observers.runtime]` in v2.5.0: write it under an `[observers.runtime]` table"
         }
       }
     },

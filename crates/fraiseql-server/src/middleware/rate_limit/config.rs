@@ -19,7 +19,7 @@ pub const DEFAULT_CLEANUP_INTERVAL_SECS: u64 = 300;
 
 /// Keys the server's `[rate_limiting]` table once spelled differently from
 /// `[security.rate_limiting]`, with the shared spelling.
-const RENAMED_SERVER_KEYS: &[(&str, &str)] = &[
+pub const RENAMED_SERVER_KEYS: &[(&str, &str)] = &[
     ("rps_per_ip", "requests_per_second"),
     ("rps_per_user", "requests_per_second_per_user"),
 ];
@@ -51,6 +51,14 @@ pub struct ServerRateLimitingConfig {
     pub cleanup_interval_secs: u64,
 }
 
+/// The refusal of `[rate_limiting] old`, a key of [`RENAMED_SERVER_KEYS`] spelled `new`.
+pub fn renamed_key_note(old: &str, new: &str) -> String {
+    format!(
+        "`[rate_limiting] {old}` is spelled `{new}`: the server's `[rate_limiting]` table takes \
+         the keys of `[security.rate_limiting]`"
+    )
+}
+
 const fn default_cleanup_interval_secs() -> u64 {
     DEFAULT_CLEANUP_INTERVAL_SECS
 }
@@ -74,10 +82,7 @@ impl<'de> Deserialize<'de> for ServerRateLimitingConfig {
         if let Some((old, new)) =
             RENAMED_SERVER_KEYS.iter().find(|(old, _)| table.contains_key(*old))
         {
-            return Err(D::Error::custom(format!(
-                "`[rate_limiting] {old}` is spelled `{new}`: the server's `[rate_limiting]` \
-                 table takes the keys of `[security.rate_limiting]`"
-            )));
+            return Err(D::Error::custom(renamed_key_note(old, new)));
         }
         let cleanup_interval_secs = match table.remove("cleanup_interval_secs") {
             None => DEFAULT_CLEANUP_INTERVAL_SECS,

@@ -98,10 +98,10 @@ const FRAISEQL_TOML_SPELLINGS: &[(&str, &str, &str, Option<&str>)] = &[
 /// A key the server's file refuses by name: where it is written (the section, and the key or
 /// `""` for the section itself), the note its refusal gives, and the diagnostic it carries.
 pub(super) struct RefusedKey {
-    pub(super) section: &'static str,
-    pub(super) key:     &'static str,
-    pub(super) note:    String,
-    diagnostic:         ConfigDiagnostic,
+    pub(super) section:    &'static str,
+    pub(super) key:        &'static str,
+    pub(super) note:       String,
+    pub(super) diagnostic: ConfigDiagnostic,
 }
 
 impl RefusedKey {
@@ -117,9 +117,12 @@ impl RefusedKey {
     }
 }
 
-/// Every row of [`REMOVED_SECTIONS`], [`FRAISEQL_TOML_SPELLINGS`] and [`RETIRED_SECTIONS`], in
-/// that order, with the note and diagnostic its refusal gives. The loader's notes and the
-/// configuration schema's refused keys are both read from here.
+/// Every key the server's file refuses by name, with the note and diagnostic its refusal
+/// gives: the rows of [`REMOVED_SECTIONS`], [`FRAISEQL_TOML_SPELLINGS`] and
+/// [`RETIRED_SECTIONS`], the `[rate_limiting]` keys renamed to `[security.rate_limiting]`'s
+/// spelling, and the flat `[observers]` keys that moved to `[observers.runtime]`, in that
+/// order. The loader's refusals and the configuration schema's refused keys are both read
+/// from here.
 pub(super) fn refused_keys() -> Vec<RefusedKey> {
     let removed = REMOVED_SECTIONS.iter().map(|(key, replacement)| {
         let note = format!(
@@ -161,7 +164,46 @@ pub(super) fn refused_keys() -> Vec<RefusedKey> {
             note,
         }
     });
-    removed.chain(spellings).chain(retired).collect()
+    let renamed = crate::middleware::rate_limit::RENAMED_SERVER_KEYS.iter().map(|(old, new)| {
+        let note = crate::middleware::rate_limit::renamed_key_note(old, new);
+        RefusedKey {
+            section: "rate_limiting",
+            key: old,
+            diagnostic: ConfigDiagnostic::new(
+                DiagnosticCode::Misplaced,
+                "rate_limiting",
+                old,
+                note.clone(),
+            )
+            .with_replacement(&format!("`{new}`")),
+            note,
+        }
+    });
+    let keys: Vec<RefusedKey> = removed.chain(spellings).chain(retired).chain(renamed).collect();
+    #[cfg(feature = "observers")]
+    let keys = {
+        let mut keys = keys;
+        keys.extend(super::observers::LEGACY_RUNTIME_KEYS.iter().map(|key| {
+            let note = format!(
+                "`[observers] {key}` moved to `[observers.runtime]` in v2.5.0: write it under \
+                 an `[observers.runtime]` table"
+            );
+            RefusedKey {
+                section: "observers",
+                key,
+                diagnostic: ConfigDiagnostic::new(
+                    DiagnosticCode::Misplaced,
+                    "observers",
+                    key,
+                    note.clone(),
+                )
+                .with_replacement("`[observers.runtime]`"),
+                note,
+            }
+        }));
+        keys
+    };
+    keys
 }
 
 /// The message for a parse error in the server's file.
@@ -216,7 +258,10 @@ pub(super) fn enrich_parse_error(
         }
         for refused_key in refused_keys() {
             if refused_key.written_in(&table) {
-                let _ = write!(msg, "\nnote: {}", refused_key.note);
+                // A refusal the parser already gave in these words is not repeated.
+                if !msg.contains(&refused_key.note) {
+                    let _ = write!(msg, "\nnote: {}", refused_key.note);
+                }
                 refused(refused_key.diagnostic);
             }
         }
@@ -330,7 +375,8 @@ impl ServerConfig {
         Ok(config)
     }
 
-    /// Refuse the pre-#342 flat `[observers]` server-tuning layout, with a migration message.
+    /// Refuse the pre-#342 flat `[observers]` server-tuning layout, naming the first flat key
+    /// in the words of its [`refused_keys`] row.
     ///
     /// As of v2.5.0 the server's runtime tuning (`poll_interval_ms`, `batch_size`,
     /// `channel_capacity`, `auto_reload`, `reload_interval_secs`, `pool`) lives under
@@ -342,29 +388,21 @@ impl ServerConfig {
         let Some(observers) = &self.observers else {
             return Ok(());
         };
-        let misplaced = observers.misplaced_runtime_keys();
-        match misplaced.first() {
-            Some(first) => {
-                let message = format!(
-                    "the [observers] key(s) `{}` moved to [observers.runtime] in v2.5.0. Move \
-                     them under an `[observers.runtime]` table, e.g.\n\n    \
-                     [observers.runtime]\n    {first} = ...\n",
-                    misplaced.join("`, `"),
-                );
-                let diagnostic = ConfigDiagnostic::new(
-                    DiagnosticCode::Misplaced,
-                    "observers",
-                    first,
-                    message.clone(),
-                )
-                .with_replacement("`[observers.runtime]`");
-                Err(ServerConfigLoadError {
-                    message,
-                    diagnostic: Some(Box::new(diagnostic)),
-                })
-            },
-            None => Ok(()),
-        }
+        let Some(first) = observers.misplaced_runtime_keys().first().copied() else {
+            return Ok(());
+        };
+        // A captured key with no row is still refused: the row only supplies the words.
+        let refusal = refused_keys()
+            .into_iter()
+            .find(|r| r.section == "observers" && r.key == first)
+            .map_or_else(
+                || ServerConfigLoadError::plain(format!("`[observers] {first}` is not read here")),
+                |r| ServerConfigLoadError {
+                    message:    r.note,
+                    diagnostic: Some(Box::new(r.diagnostic)),
+                },
+            );
+        Err(refusal)
     }
 
     /// Check if running in production mode.

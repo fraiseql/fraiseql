@@ -420,6 +420,19 @@ pub struct ObserverConfig {
     pub(crate) legacy_pool:                 Option<toml::Value>,
 }
 
+/// The pre-#342 flat `[observers]` server-tuning keys, which moved to `[observers.runtime]`
+/// in v2.5.0, in declaration order. [`ObserverConfig`] captures each so the loader refuses it.
+#[cfg(feature = "observers")]
+pub(crate) const LEGACY_RUNTIME_KEYS: [&str; 7] = [
+    "poll_interval_ms",
+    "batch_size",
+    "channel_capacity",
+    "auto_reload",
+    "reload_interval_secs",
+    "max_dlq_size",
+    "pool",
+];
+
 #[cfg(feature = "observers")]
 impl ObserverConfig {
     /// Whether the observer runtime runs: the compiled schema's `observers_config.enabled`,

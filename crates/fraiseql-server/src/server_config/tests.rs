@@ -2130,3 +2130,48 @@ fn a_compiled_out_section_is_not_an_unknown_key() {
     assert!(refused.diagnostic().is_none(), "{refused}");
     assert!(refused.to_string().contains("`observers` feature"), "{refused}");
 }
+
+/// A `[rate_limiting]` key renamed to `[security.rate_limiting]`'s spelling, and a flat
+/// `[observers]` key that moved to `[observers.runtime]`, are refused as misplaced with the
+/// real spelling, not as unknown keys with the nearest guess.
+#[test]
+fn a_renamed_or_moved_key_is_refused_with_its_real_spelling() {
+    use fraiseql_core::utils::config_diagnostic::DiagnosticCode;
+
+    let renamed = crate::middleware::rate_limit::RENAMED_SERVER_KEYS.iter().map(|(old, new)| {
+        (
+            format!("[rate_limiting]\n{old} = 50\n"),
+            "rate_limiting",
+            *old,
+            format!("`{new}`"),
+        )
+    });
+    #[cfg(feature = "observers")]
+    let moved = super::observers::LEGACY_RUNTIME_KEYS.iter().map(|key| {
+        (
+            format!("[observers]\n{key} = 1\n"),
+            "observers",
+            *key,
+            "`[observers.runtime]`".into(),
+        )
+    });
+    #[cfg(not(feature = "observers"))]
+    let moved = std::iter::empty();
+    let cases: Vec<(String, &str, &str, String)> = renamed.chain(moved).collect();
+    let dir = tempfile::tempdir().unwrap();
+    for (written, table, key, replacement) in &cases {
+        let path = dir.path().join("server.toml");
+        std::fs::write(&path, written).unwrap();
+        let refused = ServerConfig::load_file(&path).expect_err(written);
+        assert!(refused.diagnostic().is_some(), "{written}: {refused}");
+        let diagnostic = refused.diagnostic().unwrap();
+        assert_eq!(diagnostic.code, DiagnosticCode::Misplaced, "{written}: {refused}");
+        assert_eq!((diagnostic.table.as_str(), diagnostic.key.as_deref()), (*table, Some(*key)));
+        assert_eq!(diagnostic.replacement.as_deref(), Some(replacement.as_str()), "{written}");
+        assert_eq!(
+            refused.to_string().matches(diagnostic.message.as_str()).count(),
+            1,
+            "the refusal is given once: {refused}"
+        );
+    }
+}
