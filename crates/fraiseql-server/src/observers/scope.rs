@@ -87,11 +87,12 @@ impl ObserverScope {
     pub(crate) fn push_owned(
         self,
         query: &mut sqlx::QueryBuilder<sqlx::Postgres>,
-        observer_key: &str,
+        observer_key: &'static str,
     ) {
         if let Self::Organisation(org) = self {
             query
                 .push(" AND ")
+                // Reason: `observer_key` is a `&'static str` column name, a literal at each caller.
                 .push(observer_key)
                 .push(" IN (SELECT pk_observer FROM core.tb_observer WHERE fk_customer_org = ")
                 .push_bind(org)
