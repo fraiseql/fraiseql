@@ -414,6 +414,71 @@ FraiseQLSchema authorFull() {
   // the query, so there is one copy of it.
   schema.function('preview_quote', trigger: 'request:query');
 
+  // #2147: one observer per action kind. Every observer but the last sets its retry;
+  // the last runs on the server's own policy, so it writes no retry block.
+  schema
+    ..observer(
+      'orderPlacedWebhook',
+      entity: 'Order',
+      event: 'INSERT',
+      actions: [
+        ObserverAction.webhook(
+          urlEnv: 'CONFORMANCE_HOOK_URL',
+          method: 'PUT',
+          bodyTemplate: '{"total": {{ total }}}',
+          signingSecretEnv: 'CONFORMANCE_HOOK_KEY',
+          headers: {'X-Source': 'conformance'},
+          headersEnv: {'Authorization': 'CONFORMANCE_HOOK_TOKEN'},
+        ),
+      ],
+      retry: const RetryConfig(
+        maxAttempts: 5,
+        backoffStrategy: 'linear',
+        initialDelayMs: 200,
+        maxDelayMs: 5000,
+      ),
+    )
+    ..observer(
+      'orderShippedSlack',
+      entity: 'Order',
+      event: 'UPDATE',
+      condition: "status == 'shipped'",
+      actions: [
+        ObserverAction.slack('#orders', 'Order {{ id }} shipped',
+            webhookUrlEnv: 'CONFORMANCE_SLACK_URL'),
+      ],
+      retry: const RetryConfig(
+        maxAttempts: 4,
+        backoffStrategy: 'exponential',
+        initialDelayMs: 250,
+        maxDelayMs: 8000,
+      ),
+    )
+    ..observer(
+      'orderDeletedEmail',
+      entity: 'Order',
+      event: 'DELETE',
+      actions: [
+        ObserverAction.email(
+            'ops@example.com', 'Order deleted', 'Order {{ id }} was deleted'),
+      ],
+      retry: const RetryConfig(
+        maxAttempts: 2,
+        backoffStrategy: 'fixed',
+        initialDelayMs: 500,
+        maxDelayMs: 500,
+      ),
+    )
+    ..observer(
+      'orderCreatedDefaultRetry',
+      entity: 'Order',
+      event: 'INSERT',
+      actions: [
+        ObserverAction.email(
+            'ops@example.com', 'Order created', 'Order {{ id }} was created'),
+      ],
+    );
+
   return schema;
 }
 

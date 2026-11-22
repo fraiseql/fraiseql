@@ -197,13 +197,7 @@
         "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
         "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
         "enum_values": "a Dart enum member carries no stored value its serializers write (`enumType` takes the member names), so every member is stored as its name",
-        "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)",
-        "observer_webhook": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
-        "observer_webhook_headers": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
-        "observer_slack": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
-        "observer_email": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
-        "observer_condition": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147).",
-        "observer_retry_default": "the SDK ships no observer authoring surface at all \u2014 no builder, no decorator, no registry entry. Three of the eleven SDKs have one (TypeScript, Go, Java); adding a fourth is a feature, not a key rename, so the gap is declared rather than papered over (#2147)."
+        "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)"
       },
       "container": "dart:stable",
       "container_env": [

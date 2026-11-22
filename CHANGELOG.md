@@ -903,6 +903,10 @@ disagreed, and the promise was the part that was wrong.
     one-destination rule; the name is camelCased as an operation name is, and a duplicate
     fails the module's compile. Retry is a `%FraiseQL.RetryConfig{}` struct and nothing
     else (a keyword list is refused).
+  - Dart: `schema.observer(name, entity:, event:, condition:, actions:, retry:)`, the
+    actions built with `ObserverAction.webhook`, `.slack` and `.email` under the
+    one-destination rule. Retry is a `RetryConfig`, which the parameter's static type
+    already enforces.
 
 - **`compile --database` warns where an `Int` is wider in the database (#2175).** Sampled
   documents holding an `Int` field outside the signed 32-bit range, at the root or

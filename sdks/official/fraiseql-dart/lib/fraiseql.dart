@@ -15,4 +15,5 @@ export 'src/errors.dart';
 // `tools/check-sdk-dead-surface.sh` pins the names so the file cannot come back without
 // a consumer, exactly as #926 pinned this SDK's `SqlSourceDispatch` annotation.
 export 'src/authoring/schema.dart';
+export 'src/authoring/observer.dart';
 export 'src/authoring/crud_generator.dart';

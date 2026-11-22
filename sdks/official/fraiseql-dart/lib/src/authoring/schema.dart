@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'crud_generator.dart';
+import 'observer.dart';
 
 /// Builds the intermediate `schema.json` document consumed by `fraiseql compile`.
 ///
@@ -32,6 +33,7 @@ class FraiseQLSchema {
   final List<Map<String, Object?>> _queries = [];
   final List<Map<String, Object?>> _mutations = [];
   final List<Map<String, Object?>> _functions = [];
+  final List<Map<String, Object?>> _observers = [];
 
   /// Declares a GraphQL object type backed by a SQL view.
   ///
@@ -364,6 +366,46 @@ class FraiseQLSchema {
     return definition;
   }
 
+  /// Declares an observer (#2147): [actions] run when a row of [entity] sees [event]
+  /// (`'INSERT'`, `'UPDATE'` or `'DELETE'`), when [condition], an expression on the
+  /// row, holds. [name] is published as written, as an operation name is. Without
+  /// [retry] the observer runs on the server's own policy and no retry block is
+  /// written.
+  ///
+  /// ```dart
+  /// schema.observer('orderShipped',
+  ///     entity: 'Order',
+  ///     event: 'UPDATE',
+  ///     condition: "status == 'shipped'",
+  ///     actions: [ObserverAction.slack('#orders', 'Order {{ id }} shipped')]);
+  /// ```
+  ///
+  /// Throws [ArgumentError] when an observer of that name is already declared.
+  Map<String, Object?> observer(
+    String name, {
+    required String entity,
+    required String event,
+    String? condition,
+    required List<ObserverAction> actions,
+    RetryConfig? retry,
+  }) {
+    if (_observers.any((existing) => existing['name'] == name)) {
+      throw ArgumentError(
+          "observer '$name' is already declared; each name must be "
+          'unique within a schema');
+    }
+    final definition = <String, Object?>{
+      'name': name,
+      'entity': entity,
+      'event': event,
+      if (condition != null) 'condition': condition,
+      'actions': [for (final action in actions) action.toJson()],
+      if (retry != null) 'retry': retry.toJson(),
+    };
+    _observers.add(definition);
+    return definition;
+  }
+
   /// The schema as a JSON-encodable map, in the intermediate format.
   ///
   /// Empty sections are omitted rather than emitted as `null`: a `null` array is
@@ -375,6 +417,7 @@ class FraiseQLSchema {
     if (_queries.isNotEmpty) document['queries'] = _queries;
     if (_mutations.isNotEmpty) document['mutations'] = _mutations;
     if (_functions.isNotEmpty) document['functions'] = _functions;
+    if (_observers.isNotEmpty) document['observers'] = _observers;
     return document;
   }
 

@@ -77,6 +77,35 @@ A String stored as a locale map (`[locale]` in `fraiseql.toml`) is
 `FieldType.string(localized: true)`, as a field, an input field or a mutation argument.
 Only a String can be localized; declaring any other localized type is refused.
 
+## Observers
+
+An observer runs actions when a row of an entity is inserted, updated or deleted:
+
+```dart
+schema.observer(
+  'orderShipped',
+  entity: 'Order',
+  event: 'UPDATE',
+  condition: "status == 'shipped'",
+  actions: [
+    ObserverAction.webhook(urlEnv: 'ORDER_HOOK_URL', signingSecretEnv: 'ORDER_HOOK_KEY'),
+    ObserverAction.slack('#orders', 'Order {{ id }} shipped'),
+    ObserverAction.email('ops@example.com', 'Order shipped', 'Order {{ id }} shipped'),
+  ],
+  retry: const RetryConfig(
+    maxAttempts: 5,
+    backoffStrategy: 'exponential',
+    initialDelayMs: 200,
+    maxDelayMs: 5000,
+  ),
+);
+```
+
+A webhook takes exactly one of `url` and `urlEnv`. A Slack action posts to the URL in
+`SLACK_WEBHOOK_URL` unless `webhookUrl` or `webhookUrlEnv` names another. The email
+sender is the server's SMTP configuration. An observer with no `retry` runs on the
+server's own policy.
+
 ## Compile and Serve
 
 ```bash
