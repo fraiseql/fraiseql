@@ -52,18 +52,6 @@ target = "fraiseql-server::lib::capability::schema_tests[sources]"
 reason = "never run by any leg (#2273): the sources leg does not filter capability::"
 
 [[exempt]]
-target = "fraiseql-server::lib::server::declared_observer_env_tests"
-reason = "never run by any leg (#2273): needs Postgres, and the observers legs that bind it do not filter it"
-
-[[exempt]]
-target = "fraiseql-server::lib::server::health_capabilities_tests[functions-runtime]"
-reason = "never run by any leg (#2273): the leg filtering it does not enable functions-runtime"
-
-[[exempt]]
-target = "fraiseql-server::lib::server::initialization::tests::functions[functions-runtime]"
-reason = "never run by any leg (#2273): no functions-runtime leg filters server::initialization"
-
-[[exempt]]
 target = "fraiseql-server::lib::server::parity_tests[auth,inbound-email]"
 reason = "never run by any leg (#2273): no leg enables auth and inbound-email on server::parity_tests"
 

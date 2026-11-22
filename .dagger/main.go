@@ -1846,7 +1846,13 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// `server::entry_point_parity_tests::` runs here as well as on the full
 		// feature set below: this build has no `arrow`, and the fixture named an
 		// Arrow-only config field that only such a build refuses.
-		"cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: server::after_mutation_wiring_tests:: server::functions_setup:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: function_dispatch:: server::provision_tests:: server::entry_point_parity_tests:: --test-threads=1",
+		// Three more ran in no leg until the suite-coverage gate found lib test modules
+		// by declaration rather than by a `tests.rs` file name: the functions-runtime
+		// arms of `server::health_capabilities_tests::` (the line below builds without
+		// the feature) and of `server::initialization::tests::static_enriched_fields::functions::`, and
+		// `server::declared_observer_env_tests::`, whose refused-boot case needs this
+		// leg's database and self-skipped in the DB-less `Test` leg.
+		"cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: server::after_mutation_wiring_tests:: server::functions_setup:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: function_dispatch:: server::provision_tests:: server::entry_point_parity_tests:: server::health_capabilities_tests:: server::initialization::tests::static_enriched_fields::functions:: server::declared_observer_env_tests:: --test-threads=1",
 		// The entry-point parity and `/health` capability suites boot a server with the
 		// observer runtime and Flight, through a skip-clean `postgres()` getter. The
 		// `Test` leg compiles them with no database, where they returned early and read
