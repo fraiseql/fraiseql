@@ -120,7 +120,6 @@ FraiseQLSchema authorFull() {
     },
   );
 
-  // Lists (#1586, #1608): the GraphQL type string, every level as written.
   // #2258: a 64-bit integer is `FieldType.bigInt`; `FieldType.int_` stays `Int`.
   schema.type(
     'LedgerEntry',
@@ -133,6 +132,19 @@ FraiseQLSchema authorFull() {
     },
   );
 
+  // #2177: a date and time with no offset is `FieldType.localDateTime`.
+  schema.type(
+    'ShiftSlot',
+    sqlSource: 'v_shift_slot',
+    fields: {
+      'id': const FieldType.id(nullable: false),
+      'startsAt': const FieldType.localDateTime(nullable: false),
+      'endsAt': const FieldType.localDateTime(),
+      'breaksAt': const FieldType.named('[LocalDateTime!]', nullable: false),
+    },
+  );
+
+  // Lists (#1586, #1608): the GraphQL type string, every level as written.
   schema.type(
     'ReadingSeries',
     sqlSource: 'v_reading_series',
@@ -233,6 +245,18 @@ FraiseQLSchema authorFull() {
     arguments: {
       'accountNumber': const FieldType.bigInt(nullable: false),
       'transferIds': const FieldType.named('[BigInt!]'),
+    },
+  );
+
+  schema.query(
+    'shiftSlotsStartingAfter',
+    returnType: 'ShiftSlot',
+    returnsList: true,
+    nullable: false,
+    sqlSource: 'v_shift_slot',
+    arguments: {
+      'startsAfter': const FieldType.localDateTime(nullable: false),
+      'exceptAt': const FieldType.named('[LocalDateTime!]'),
     },
   );
 

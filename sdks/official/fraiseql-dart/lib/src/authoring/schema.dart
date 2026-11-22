@@ -746,6 +746,26 @@ class FieldType {
           computed: computed,
         );
 
+  /// `LocalDateTime`: a date and time with no offset, a PostgreSQL `timestamp`. A Dart
+  /// `DateTime` is local or UTC by its value, not its type: declare a field or argument whose
+  /// values carry no offset with this.
+  const FieldType.localDateTime({
+    bool nullable = true,
+    String? description,
+    String? requiresScope,
+    String? onDeny,
+    String? deprecated,
+    bool computed = false,
+  }) : this.named(
+          'LocalDateTime',
+          nullable: nullable,
+          description: description,
+          requiresScope: requiresScope,
+          onDeny: onDeny,
+          deprecated: deprecated,
+          computed: computed,
+        );
+
   /// GraphQL `Float`.
   const FieldType.float({
     bool nullable = true,

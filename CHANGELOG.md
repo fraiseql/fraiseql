@@ -895,6 +895,7 @@ disagreed, and the promise was the part that was wrong.
   - PHP: `Scalars::LOCAL_DATE_TIME`, named on a date-time field or argument
     (`#[GraphQLField(type: Scalars::LOCAL_DATE_TIME)]`); PHP's date-time classes carry a
     zone and stay `DateTime`. `LocalDateTime` is a known scalar name.
+  - Dart: `FieldType.localDateTime(...)`, for a field or an argument.
 
 - **`compile --database` warns on a view casting a document's text to a temporal type
   (#2213).** A served view, or with gRPC enabled a row view (`vr_<sql_source>`), whose
