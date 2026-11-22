@@ -5,8 +5,8 @@
 2026-07-27 remediation program's retrospective, rule 1. This gate makes it so:
 
 1. **Discover what exists** — every `tests/*.rs` integration binary (with its
-   `[[test]] required-features`) and every feature-gated `tests.rs` unit-test
-   module under `src/`, per workspace crate.
+   `[[test]] required-features`) and every feature-gated lib test module under
+   `src/`, per workspace crate.
 2. **Discover what runs** — every `cargo test` / `cargo nextest` invocation in
    `.dagger/main.go`, attributed to its leg function, with feature lists
    resolved and the leg's bound services (DATABASE_URL etc.) recorded; and
@@ -605,8 +605,29 @@ def _gate_of_attributes(attributes: list[str]) -> DeclGate:
     return DeclGate(frozenset(required), frozenset(forbidden), tuple(groups))
 
 
-def gate_of_file_header(src: str) -> DeclGate:
-    """What a module file's own leading `#![cfg(…)]` attributes demand of a build.
+def _requires_test(tree: tuple) -> bool:
+    """Whether a cfg tree holds only in a test build: `test`, `all(test, …)`, `any(test)`."""
+    kind, body = tree
+    if kind == "atom":
+        return body == "test"
+    if kind == "all":
+        return any(_requires_test(child) for child in body)
+    if kind == "any":
+        return bool(body) and all(_requires_test(child) for child in body)
+    return False
+
+
+def _attributes_require_test(attributes: list[str]) -> bool:
+    """Whether one of the `cfg(…)` attributes among `attributes` holds only under test."""
+    for attr in attributes:
+        cfg = re.fullmatch(r"cfg\s*\((?P<pred>.*)\)", " ".join(attr.split()))
+        if cfg and _requires_test(_parse_cfg(cfg.group("pred"))):
+            return True
+    return False
+
+
+def _file_header_attributes(src: str) -> list[str]:
+    """The leading inner `#![…]` attributes of a file, each without `#![ ]`.
 
     `#![cfg(all(test, feature = "transforms"))]` at the top of a `tests.rs` compiles the
     module to nothing without the feature, whatever its `mod` declaration says, so it is
@@ -632,65 +653,121 @@ def gate_of_file_header(src: str) -> DeclGate:
             k += 1
         attributes.append(keep[i + 3 : k])
         i = k + 1
-    return _gate_of_attributes(attributes)
+    return attributes
 
 
-def gate_of_mod_decl(parent_src: str, mod_name: str) -> DeclGate | None:
-    """What the attributes on `mod <name>;` in parent_src demand, or None if not declared.
+def _attributes_above(keep: str, structural: str, decl_start: int) -> list[str]:
+    """The outer `#[…]` attributes stacked directly above the item at `decl_start`.
 
-    Each `#[cfg(…)]` stacked above the declaration is read whole, however many lines it
-    spans, and as a predicate. Collecting every `feature = "…"` in sight and requiring
-    them all read `any(a, b)` as needing both, `not(feature = "x")` as needing x, and a
-    `cfg_attr` as a gate; and a walk by lines stopped inside a split attribute, which
-    left its module reading as ungated. Inner `#![…]` attributes above the declaration
-    belong to the file, not to it.
+    Each is read whole, however many lines it spans. Inner `#![…]` attributes above it
+    belong to the file, not to the item.
     """
-    keep = scrub_source(parent_src)
-    structural = scrub_source(parent_src, blank_strings=True)
-    for m in re.finditer(rf"^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+{mod_name}\s*;", structural, re.M):
-        attributes: list[str] = []
-        i = m.start() + (len(m.group(0)) - len(m.group(0).lstrip()))
-        while True:
-            j = i
-            while j > 0 and structural[j - 1].isspace():
-                j -= 1
-            if j == 0 or structural[j - 1] != "]":
-                break
-            depth, k = 0, j - 1
-            while k >= 0:
-                if structural[k] == "]":
-                    depth += 1
-                elif structural[k] == "[":
-                    depth -= 1
-                    if depth == 0:
-                        break
-                k -= 1
-            if k <= 0 or structural[k - 1] != "#":
-                break
-            attributes.append(keep[k + 1 : j - 1])
-            i = k - 1
-        return _gate_of_attributes(attributes)
-    return None
+    attributes: list[str] = []
+    i = decl_start
+    while True:
+        j = i
+        while j > 0 and structural[j - 1].isspace():
+            j -= 1
+        if j == 0 or structural[j - 1] != "]":
+            return attributes
+        depth, k = 0, j - 1
+        while k >= 0:
+            if structural[k] == "]":
+                depth += 1
+            elif structural[k] == "[":
+                depth -= 1
+                if depth == 0:
+                    break
+            k -= 1
+        if k <= 0 or structural[k - 1] != "#":
+            return attributes
+        attributes.append(keep[k + 1 : j - 1])
+        i = k - 1
 
 
-def module_file_for(crate_src: Path, components: list[str]) -> Path | None:
-    """The file declaring the module `components` (a.rs or a/mod.rs or lib.rs)."""
-    if not components:
-        for c in ("lib.rs", "main.rs"):
-            if (crate_src / c).exists():
-                return crate_src / c
-        return None
-    as_file = crate_src / (Path(*components[:-1]) / f"{components[-1]}.rs")
-    as_dir = crate_src / Path(*components) / "mod.rs"
-    if as_file.exists():
-        return as_file
-    if as_dir.exists():
-        return as_dir
-    return None
+# An out-of-line `mod NAME;` declaration, at the start of its line.
+_OUT_OF_LINE_MOD = re.compile(
+    r"^[^\S\n]*(?:pub(?:\([^)]*\))?[^\S\n]+)?mod[^\S\n]+([A-Za-z0-9_]+)[^\S\n]*;", re.M
+)
+
+
+class ModuleSite(NamedTuple):
+    """A lib module file reached from the crate root, with the gate its chain sets."""
+
+    path: Path
+    components: tuple[str, ...]
+    required: frozenset[str]
+    forbidden: frozenset[str]
+    groups: tuple[frozenset[str], ...]
+    # Every build that compiles it is a test build: a `cfg(test)` somewhere on the chain.
+    test_only: bool
+
+
+def lib_module_sites(src_root: Path) -> list[ModuleSite]:
+    """Every module file the crate root reaches through `mod NAME;`, `#[path]` included.
+
+    The module's gate is the conjunction of the `#[cfg(…)]` predicates on every `mod`
+    declaration along the chain and the leading `#![cfg(…)]` of every file on it. Read
+    as predicates: collecting every `feature = "…"` in sight and requiring them all read
+    `any(a, b)` as needing both, `not(feature = "x")` as needing x, and a `cfg_attr` as a
+    gate; and a walk by lines stopped inside a split attribute, which left its module
+    reading as ungated. Discovery follows the declarations rather than file names, so a
+    `#[path = "big_int_tests.rs"] mod tests;` is found where a search for `tests.rs` is not.
+    """
+    root = next((src_root / c for c in ("lib.rs", "main.rs") if (src_root / c).is_file()), None)
+    if root is None:
+        return []
+    out: list[ModuleSite] = []
+    seen: set[Path] = set()
+
+    def walk(
+        f: Path,
+        components: tuple[str, ...],
+        required: frozenset[str],
+        forbidden: frozenset[str],
+        groups: tuple[frozenset[str], ...],
+        test_only: bool,
+    ) -> None:
+        if f in seen:
+            return
+        seen.add(f)
+        raw = f.read_text(encoding="utf-8", errors="replace")
+        header = _file_header_attributes(raw)
+        h = _gate_of_attributes(header)
+        required |= h.required
+        forbidden |= h.forbidden
+        groups += h.groups
+        test_only = test_only or _attributes_require_test(header)
+        out.append(ModuleSite(f, components, required, forbidden, groups, test_only))
+        keep = scrub_source(raw)
+        structural = scrub_source(raw, blank_strings=True)
+        for m in _OUT_OF_LINE_MOD.finditer(structural):
+            start = m.start() + (len(m.group(0)) - len(m.group(0).lstrip()))
+            attributes = _attributes_above(keep, structural, start)
+            path_attr = None
+            for attr in attributes:
+                pm = re.fullmatch(r'path\s*=\s*"([^"]+)"', " ".join(attr.split()))
+                if pm:
+                    path_attr = pm.group(1)
+            child = _child_module_file(f, m.group(1), path_attr)
+            if child is None:
+                continue
+            g = _gate_of_attributes(attributes)
+            walk(
+                child,
+                (*components, m.group(1)),
+                required | g.required,
+                forbidden | g.forbidden,
+                groups + g.groups,
+                test_only or _attributes_require_test(attributes),
+            )
+
+    walk(root, (), frozenset(), frozenset(), (), False)
+    return out
 
 
 # A `#[cfg(…)]` attribute whose predicate mentions a feature, anywhere inside a
-# tests.rs. These gate individual test fns and inner blocks, which the module-chain
+# lib test module. These gate individual test fns and inner blocks, which the module-chain
 # scan above cannot see.
 INNER_CFG = re.compile(r"#\[cfg\((?P<pred>[^\]]*feature\s*=[^\]]*)\)\]")
 ANY_GROUP = re.compile(r"any\s*\((?P<body>[^()]*)\)")
@@ -781,7 +858,7 @@ def _gated_item_span(structural: str, cfg_start: int, after_cfg: int) -> tuple[i
 
 
 class InnerGate(NamedTuple):
-    """One distinct `#[cfg(…feature…)]` requirement set found inside a tests.rs."""
+    """One distinct `#[cfg(…feature…)]` requirement set found inside a lib test module."""
 
     submodule: str
     required: frozenset[str]
@@ -835,7 +912,7 @@ def _test_fn_spans(structural: str) -> list[tuple[str, int, int]]:
 
 
 def inner_gate_requirements(text: str) -> list[InnerGate]:
-    """Distinct (submodule, required, forbidden, any-groups) gates inside one tests.rs.
+    """Distinct (submodule, required, forbidden, any-groups) gates inside one test module.
 
     A test fn behind `#[cfg(feature = "parquet")]` inside an UNGATED `mod tests` is
     invisible to the module-chain scan: the module always compiles, so the gate counted
@@ -927,14 +1004,14 @@ def _gate_label(required: frozenset[str], forbidden: frozenset[str], groups: tup
 def discover_lib_modules(crate_dir: Path, crate: str) -> list[LibTestModule]:
     """Feature-gated unit tests under src/ (the #981 class, and #1179's).
 
-    Two kinds of target come out of one `tests.rs`:
+    A test module is a module file the crate root reaches (`lib_module_sites`) that is
+    named `tests.rs`, or that only a test build compiles and that holds a test. Two
+    kinds of target come out of one:
 
-    1. The module itself, when its `mod` chain is feature-gated. For src/a/b/tests.rs
-       the module path is a::b::tests and its gate is the conjunction of the
-       `#[cfg(…)]` predicates on every `mod` declaration along the chain
-       (`gate_of_mod_decl`) and the leading `#![cfg(…)]` of every module file on it,
-       the `tests.rs` included (`gate_of_file_header`). An ungated module always compiles with the lib and
-       needs no target of its own.
+    1. The module itself, when its chain is gated. Its path is the chain of `mod`
+       names that reaches it, and its gate the one `lib_module_sites` reads off that
+       chain. An ungated module always compiles with the lib and needs no target of its
+       own.
     2. One virtual target per distinct `#[cfg(…feature…)]` requirement set found
        INSIDE the file. These gate individual test fns, and they are invisible to
        (1) — an ungated module full of `#[cfg(feature = "x")]` tests was counted as
@@ -944,36 +1021,19 @@ def discover_lib_modules(crate_dir: Path, crate: str) -> list[LibTestModule]:
     if not src_root.is_dir():
         return []
     out = []
-    for tf in sorted(src_root.rglob("tests.rs")):
-        rel = tf.relative_to(src_root)
-        components = list(rel.parts[:-1]) + ["tests"]
-        module_path = "::".join(components)
-        feats: set[str] = set()
-        chain_forbidden: set[str] = set()
-        chain_groups: list[frozenset[str]] = []
-        declared_everywhere = True
-        for i, comp in enumerate(components):
-            parent = module_file_for(src_root, components[:i])
-            if parent is None:
-                declared_everywhere = False
-                break
-            g = gate_of_mod_decl(parent.read_text(encoding="utf-8", errors="replace"), comp)
-            if g is None:
-                declared_everywhere = False
-                break
-            feats |= g.required
-            chain_forbidden |= g.forbidden
-            chain_groups.extend(g.groups)
-            # The declared module's own file can gate it too, with a leading `#![cfg(…)]`.
-            child = tf if i == len(components) - 1 else module_file_for(src_root, components[: i + 1])
-            if child is not None:
-                h = gate_of_file_header(child.read_text(encoding="utf-8", errors="replace"))
-                feats |= h.required
-                chain_forbidden |= h.forbidden
-                chain_groups.extend(h.groups)
-        if not declared_everywhere:
-            continue
+    for site in lib_module_sites(src_root):
+        tf = site.path
         text = tf.read_text(encoding="utf-8", errors="replace")
+        # A test module is a `tests.rs`, or any file only a test build compiles that
+        # holds a test: `#[path = "big_int_tests.rs"] mod tests;`, `mod parity_tests;`.
+        if tf.name != "tests.rs" and not (
+            site.test_only and _TEST_ATTR.search(scrub_source(text, blank_strings=True))
+        ):
+            continue
+        module_path = "::".join(site.components)
+        feats = set(site.required)
+        chain_forbidden = set(site.forbidden)
+        chain_groups = list(site.groups)
         if feats or chain_forbidden or chain_groups:
             whole = LibTestModule(
                 crate,

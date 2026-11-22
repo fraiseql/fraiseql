@@ -487,6 +487,78 @@ expect "a file-level shape the gate cannot model is refused" 2 "$WORK/i_file_nes
     "not modelled"
 
 echo
+echo "── a test module is found by its declaration, not by its file name ──"
+#
+# Discovery searched for files named \`tests.rs\`. A \`#[path = "thing_tests.rs"] mod tests;\`,
+# the layout \`lint-tests-layout\` asks for, or a \`mod parity_tests;\`, was never tracked, so
+# no leg had to run it whatever gated it.
+
+# rename_tests <dir> <new file name>: the module's file, under another name.
+rename_tests() {
+    mv "$1/crates/demo/src/tests.rs" "$1/crates/demo/src/$2"
+}
+
+make_fixture "$WORK/p_path_off" "$FEATS" "$DECL_BODY" "cargo test -p demo --lib" "" \
+    '#[cfg(test)]
+#[cfg(feature = "parquet")]
+#[path = "thing_tests.rs"]'
+rename_tests "$WORK/p_path_off" thing_tests.rs
+expect "a #[path] test module is tracked: a leg without its feature runs nothing" 1 \
+    "$WORK/p_path_off" "demo::lib::tests"
+
+make_fixture "$WORK/p_path_on" "$FEATS" "$DECL_BODY" "cargo test -p demo --lib --features parquet" "" \
+    '#[cfg(test)]
+#[cfg(feature = "parquet")]
+#[path = "thing_tests.rs"]'
+rename_tests "$WORK/p_path_on" thing_tests.rs
+expect "...and a leg enabling it covers it" 0 "$WORK/p_path_on"
+
+make_fixture "$WORK/p_named" "$FEATS" '#![cfg(feature = "parquet")]
+
+#[test]
+fn always_runs() {}' "cargo test -p demo --lib"
+rename_tests "$WORK/p_named" parity_tests.rs
+printf 'pub fn thing() -> u8 { 1 }\n\n#[cfg(test)]\nmod parity_tests;\n' >"$WORK/p_named/crates/demo/src/lib.rs"
+expect "a test module under another name is tracked" 1 "$WORK/p_named" "demo::lib::parity_tests"
+
+make_fixture "$WORK/p_header" "$FEATS" '#![cfg(all(test, feature = "parquet"))]
+
+#[test]
+fn always_runs() {}' "cargo test -p demo --lib"
+rename_tests "$WORK/p_header" x_tests.rs
+printf 'pub fn thing() -> u8 { 1 }\n\nmod x_tests;\n' >"$WORK/p_header/crates/demo/src/lib.rs"
+expect "...and so is one that only its own header makes test-only" 1 "$WORK/p_header" \
+    "demo::lib::x_tests"
+
+make_fixture "$WORK/p_child" "$FEATS" "$DECL_BODY" "cargo test -p demo --lib"
+printf '#[test]\nfn always_runs() {}\n\n#[cfg(feature = "parquet")]\nmod render_tests;\n' \
+    >"$WORK/p_child/crates/demo/src/tests.rs"
+mkdir -p "$WORK/p_child/crates/demo/src/tests"
+printf '#[test]\nfn renders() {}\n' >"$WORK/p_child/crates/demo/src/tests/render_tests.rs"
+expect "a test module declared inside one is tracked with its own gate" 1 "$WORK/p_child" \
+    "demo::lib::tests::render_tests"
+
+make_fixture "$WORK/p_helper" "$FEATS" '#[cfg(test)]
+pub fn a_fixture() -> u8 { 1 }' "cargo test -p demo --lib" "" '#[cfg(feature = "parquet")]'
+rename_tests "$WORK/p_helper" support.rs
+printf 'pub fn thing() -> u8 { 1 }\n\n#[cfg(feature = "parquet")]\nmod support;\n' \
+    >"$WORK/p_helper/crates/demo/src/lib.rs"
+expect "a gated module that is not test-only and holds no test is not a test module" 0 \
+    "$WORK/p_helper"
+
+make_fixture "$WORK/p_fixtures" "$FEATS" 'pub fn a_fixture() -> u8 { 1 }' "cargo test -p demo --lib"
+rename_tests "$WORK/p_fixtures" fixtures.rs
+printf 'pub fn thing() -> u8 { 1 }\n\n#[cfg(test)]\n#[cfg(feature = "parquet")]\nmod fixtures;\n' \
+    >"$WORK/p_fixtures/crates/demo/src/lib.rs"
+expect "a test-only module that holds no test is not a test module" 0 "$WORK/p_fixtures"
+
+make_fixture "$WORK/p_unreached" "$FEATS" "$DECL_BODY" "cargo test -p demo --lib"
+rename_tests "$WORK/p_unreached" orphan_tests.rs
+printf '#![cfg(feature = "parquet")]\n#[test]\nfn never_compiled() {}\n' >"$WORK/p_unreached/crates/demo/src/orphan_tests.rs"
+printf 'pub fn thing() -> u8 { 1 }\n' >"$WORK/p_unreached/crates/demo/src/lib.rs"
+expect "a file no declaration reaches is not a module" 0 "$WORK/p_unreached"
+
+echo
 echo "── a filter naming a test fn runs the gated code inside it, and only that ──"
 #
 # \`covers_module\` matched a filter only as a prefix of the target's module path, so a leg
