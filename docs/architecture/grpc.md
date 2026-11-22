@@ -31,7 +31,12 @@ stream_batch_size = 500                   # the default
 | `descriptor_path` | none | A `FileDescriptorSet` (`protoc --descriptor_set_out`); an empty path is refused at compile time |
 | `reflection` | `true` | The service keeps the descriptor bytes for a reflection service |
 | `stream_batch_size` | `500` | Rows per batch on a server-streaming call; `0` is refused at compile time |
-| `include_types` / `exclude_types` | `[]` | Accepted, but not read: they do not restrict the service today ([#1790](https://github.com/fraiseql/fraiseql/issues/1790)) |
+
+The methods of the descriptor set are the served surface: to leave a type out of gRPC,
+leave its methods out of the `.proto` you build the set from, or gate the operation with
+`requires_role`. The former `include_types` and `exclude_types` keys never restricted the
+service and are refused by name, in `fraiseql.toml`, in a schema document, and in a
+compiled schema a server loads.
 
 A server built without the `grpc` feature refuses a compiled schema whose `grpc_config`
 is enabled, at boot, naming the feature.

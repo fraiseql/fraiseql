@@ -905,7 +905,6 @@ enabled = true
 descriptor_path = "api.binpb"
 reflection = false
 stream_batch_size = 250
-include_types = ["User"]
 "#,
     )
     .unwrap();
@@ -922,7 +921,59 @@ include_types = ["User"]
     assert_eq!(grpc.descriptor_path, "api.binpb", "descriptor_path must survive");
     assert!(!grpc.reflection, "a non-default reflection = false must survive");
     assert_eq!(grpc.stream_batch_size, 250, "a non-default batch size must survive");
-    assert_eq!(grpc.include_types, ["User"], "include_types must survive");
+}
+
+/// `[grpc] include_types` and `exclude_types` restricted nothing: every method of the
+/// descriptor set was served whatever they said. They are refused by name, on each path a
+/// `[grpc]` section reaches the compiler, with the surface that does decide what is served.
+fn assert_grpc_type_filter_refused(err: &str, key: &str) {
+    assert!(err.contains(&format!("`[grpc] {key}` was removed")), "{err}");
+    assert!(err.contains("protoc --descriptor_set_out"), "{err}");
+}
+
+#[test]
+fn a_grpc_type_filter_in_fraiseql_toml_is_refused_by_name() {
+    for key in ["include_types", "exclude_types"] {
+        let dir = TempDir::new().unwrap();
+        fs::write(
+            dir.path().join("fraiseql.toml"),
+            format!(
+                "[project]\nname = \"g\"\nversion = \"1.0.0\"\n\
+                 database_target = \"postgresql\"\n\n[grpc]\nenabled = true\n\
+                 descriptor_path = \"api.binpb\"\n{key} = [\"User\"]\n"
+            ),
+        )
+        .unwrap();
+        let err = SchemaMerger::merge_toml_only(&as_str(&dir.path().join("fraiseql.toml")))
+            .map(|_| ())
+            .expect_err("a removed [grpc] key must not compile");
+        assert_grpc_type_filter_refused(&format!("{err:#}"), key);
+    }
+}
+
+#[test]
+fn a_grpc_type_filter_in_a_schema_document_is_refused_by_name() {
+    use fraiseql_cli::commands::compile::{CompileOptions, compile_to_schema};
+
+    for key in ["include_types", "exclude_types"] {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("schema.json");
+        let document = json!({
+            "grpc_config": { "enabled": true, "descriptor_path": "api.binpb", key: ["User"] }
+        });
+        fs::write(&path, document.to_string()).unwrap();
+        let path = as_str(&path);
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let err = runtime
+            .block_on(compile_to_schema(CompileOptions {
+                skip_hash: true,
+                ..CompileOptions::new(&path)
+            }))
+            .map(|_| ())
+            .map_err(|e| format!("{e:#}"))
+            .expect_err("a removed grpc_config key must not compile");
+        assert_grpc_type_filter_refused(&err, key);
+    }
 }
 
 // ===========================================================================

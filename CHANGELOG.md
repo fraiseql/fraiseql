@@ -40,6 +40,16 @@ disagreed, and the promise was the part that was wrong.
   sqlx 0.9.1 or later. 0.9 takes SQL built at runtime only through `sqlx::AssertSqlSafe`;
   see its changelog for the rest.
 
+- **`[grpc] include_types` and `exclude_types` are refused (#1790).** Neither restricted
+  the gRPC service: every method of the descriptor set was served whatever they said. The
+  descriptor set is the served surface, so leave a type's methods out of the `.proto` you
+  build it from (`protoc --descriptor_set_out`), or gate the operation with
+  `requires_role`. Either key is refused by name in `fraiseql.toml`, in a schema
+  document's `grpc_config`, and in a compiled schema a server loads. gRPC is Preview and in
+  no published build, so this affects source builds only. The gRPC transport's own
+  documentation no longer names a `fraiseql-cli generate-proto` command, which does not
+  exist.
+
 - **A fact table's `native_measures` is replaced by `measures[].column` (#2267).** A
   `native_measures` entry mapped a measure's key to a column and gave no type, so every
   result of it was published as `Float` and read through a double: a `numeric` measure's

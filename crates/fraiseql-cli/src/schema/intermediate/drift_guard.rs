@@ -116,7 +116,23 @@ pub fn reject_drifted_keys(raw: &Value) -> Result<(), String> {
         }
     }
 
+    reject_removed_grpc_keys(raw)?;
     reject_input_validation_rules(raw)
+}
+
+/// Refuse a key `grpc_config` no longer takes, by name rather than as the `unknown field`
+/// the section's own parse would report.
+fn reject_removed_grpc_keys(raw: &Value) -> Result<(), String> {
+    let Some(grpc) = raw.get("grpc_config").and_then(Value::as_object) else {
+        return Ok(());
+    };
+    match fraiseql_core::schema::GRPC_REMOVED_KEYS
+        .iter()
+        .find(|key| grpc.contains_key(**key))
+    {
+        Some(key) => Err(fraiseql_core::schema::grpc_removed_key_refusal(key)),
+        None => Ok(()),
+    }
 }
 
 /// Refuse `validation_rules` on an input value: an input type's field, an `is_input`

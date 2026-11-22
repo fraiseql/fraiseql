@@ -461,6 +461,32 @@ pub(crate) fn refuse_unapplied_keys(table: &toml::Table) -> Result<()> {
     Ok(())
 }
 
+/// Refuse a key `[grpc]` no longer takes, by name rather than as the `unknown field` the
+/// section's `deny_unknown_fields` would report.
+///
+/// # Errors
+///
+/// Returns an error naming the key and what decides the served surface instead.
+pub(crate) fn refuse_removed_grpc_keys(table: &toml::Table) -> Result<()> {
+    let Some(grpc) = table.get("grpc").and_then(toml::Value::as_table) else {
+        return Ok(());
+    };
+    match fraiseql_core::schema::GRPC_REMOVED_KEYS
+        .iter()
+        .find(|key| grpc.contains_key(**key))
+    {
+        Some(key) => Err(ConfigDiagnostic::new(
+            DiagnosticCode::Retired,
+            "grpc",
+            key,
+            fraiseql_core::schema::grpc_removed_key_refusal(key),
+        )
+        .with_replacement("the methods of the descriptor set (`protoc --descriptor_set_out`)")
+        .into()),
+        None => Ok(()),
+    }
+}
+
 /// Refuse a `database_target` other than `postgresql` (compared case-insensitively).
 ///
 /// The rule for `[project] database_target`, which `fraiseql init` writes into every new

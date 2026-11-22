@@ -276,8 +276,6 @@
       "$ref": "#/$defs/GrpcConfig",
       "default": {
         "enabled": false,
-        "include_types": [],
-        "exclude_types": [],
         "descriptor_path": "",
         "reflection": true,
         "stream_batch_size": 500
@@ -3945,22 +3943,6 @@
           "description": "Whether the gRPC transport is enabled.",
           "type": "boolean",
           "default": false
-        },
-        "include_types": {
-          "description": "Whitelist of type names to include (empty = all).",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
-        },
-        "exclude_types": {
-          "description": "Blacklist of type names to exclude.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
         },
         "descriptor_path": {
           "description": "Path to the `FileDescriptorSet` binary (`.binpb`).",

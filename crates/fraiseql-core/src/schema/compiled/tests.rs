@@ -3225,3 +3225,33 @@ fn a_calendar_bucket_and_the_columns_own_bucket_are_one_key() {
     CompiledSchema::from_json(&doc.to_string(), false)
         .expect("a calendar bucket of a filter column is that column's bucket");
 }
+
+/// `grpc_config.include_types` and `exclude_types` restricted nothing; an artifact still
+/// carrying either is refused at load by name, not loaded as if they applied.
+mod removed_grpc_type_filters {
+    use crate::schema::CompiledSchema;
+
+    fn artifact(extra: Option<&str>) -> String {
+        let mut grpc = serde_json::json!({ "enabled": true, "descriptor_path": "api.binpb" });
+        if let Some(key) = extra {
+            grpc[key] = serde_json::json!(["User"]);
+        }
+        serde_json::json!({ "grpc_config": grpc }).to_string()
+    }
+
+    #[test]
+    fn an_artifact_carrying_a_grpc_type_filter_is_refused_by_name() {
+        for key in ["include_types", "exclude_types"] {
+            let err = CompiledSchema::from_json(&artifact(Some(key)), false)
+                .expect_err("a removed key must not load")
+                .to_string();
+            assert!(err.contains(&format!("`[grpc] {key}` was removed")), "{err}");
+            assert!(err.contains("protoc --descriptor_set_out"), "{err}");
+        }
+    }
+
+    #[test]
+    fn the_same_grpc_config_without_them_loads() {
+        CompiledSchema::from_json(&artifact(None), false).expect("a plain grpc_config loads");
+    }
+}

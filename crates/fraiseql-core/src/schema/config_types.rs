@@ -1158,16 +1158,30 @@ impl Default for RestConfig {
     }
 }
 
+/// Keys `[grpc]` no longer takes.
+///
+/// Neither restricted the service: every method of the
+/// descriptor set was served whatever they said. Each is refused by name, wherever a
+/// `[grpc]` section or a `grpc_config` copy of it is read, with [`grpc_removed_key_refusal`].
+pub const GRPC_REMOVED_KEYS: [&str; 2] = ["include_types", "exclude_types"];
+
+/// The refusal of `[grpc] key`, one of [`GRPC_REMOVED_KEYS`].
+#[must_use]
+pub fn grpc_removed_key_refusal(key: &str) -> String {
+    format!(
+        "`[grpc] {key}` was removed: it never restricted the service. The descriptor set \
+         decides which methods are served: leave the type's methods out of the `.proto` you \
+         build with `protoc --descriptor_set_out`, or gate the operation with \
+         `requires_role`. Remove the key and recompile."
+    )
+}
+
 /// gRPC transport configuration (compiled from `[grpc]` in `fraiseql.toml`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct GrpcConfig {
     /// Whether the gRPC transport is enabled.
     pub enabled:           bool,
-    /// Whitelist of type names to include (empty = all).
-    pub include_types:     Vec<String>,
-    /// Blacklist of type names to exclude.
-    pub exclude_types:     Vec<String>,
     /// Path to the `FileDescriptorSet` binary (`.binpb`).
     pub descriptor_path:   String,
     /// Whether to enable gRPC Server Reflection.
@@ -1180,8 +1194,6 @@ impl Default for GrpcConfig {
     fn default() -> Self {
         Self {
             enabled:           false,
-            include_types:     Vec::new(),
-            exclude_types:     Vec::new(),
             descriptor_path:   String::new(),
             reflection:        true,
             stream_batch_size: 500,

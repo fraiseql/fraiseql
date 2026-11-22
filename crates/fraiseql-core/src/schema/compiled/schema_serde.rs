@@ -1026,6 +1026,17 @@ impl CompiledSchema {
 /// loading), so a removed field would otherwise be ignored in silence, and what it configured
 /// would quietly not happen.
 fn refuse_removed_keys(value: &serde_json::Value) -> std::result::Result<(), FraiseQLError> {
+    // `grpc_config` denies unknown fields, so a removed key would be refused anyway, as an
+    // unknown field; named, the refusal says what decides the served surface instead.
+    if let Some(grpc) = value.get("grpc_config").and_then(serde_json::Value::as_object) {
+        if let Some(key) = crate::schema::GRPC_REMOVED_KEYS.iter().find(|k| grpc.contains_key(**k))
+        {
+            return Err(FraiseQLError::Validation {
+                message: crate::schema::grpc_removed_key_refusal(key),
+                path:    Some(format!("grpc_config.{key}")),
+            });
+        }
+    }
     // Each key a fact table may no longer carry, and what replaced it. Ignored, either would
     // load and then read something other than what was declared.
     let removed: [(&str, &str); 2] = [

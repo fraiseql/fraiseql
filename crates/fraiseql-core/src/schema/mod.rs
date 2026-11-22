@@ -83,10 +83,11 @@ pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, CaptureTableConfig, Cardinality, ChangelogConfig,
     CircuitBreakerConfig, ConnectionCap, CrudNamingConfig, CrudNamingPreset,
     DEFAULT_MAX_QUERY_DEPTH, DebugConfig, DeleteResponse, EnterpriseSecurityConfig,
-    EntityCircuitBreakerOverride, FederationConfig, FederationEntity, FieldAuthRule, GrpcConfig,
-    McpConfig, McpTransport, NamingConvention, NativeJoin, ObserversBackend, ObserversConfig,
-    Relationship, RestConfig, SessionVariableMapping, SessionVariableSource,
-    SessionVariablesConfig, SubscriptionHooksConfig, SubscriptionsConfig, ValidationConfig,
+    EntityCircuitBreakerOverride, FederationConfig, FederationEntity, FieldAuthRule,
+    GRPC_REMOVED_KEYS, GrpcConfig, McpConfig, McpTransport, NamingConvention, NativeJoin,
+    ObserversBackend, ObserversConfig, Relationship, RestConfig, SessionVariableMapping,
+    SessionVariableSource, SessionVariablesConfig, SubscriptionHooksConfig, SubscriptionsConfig,
+    ValidationConfig, grpc_removed_key_refusal,
 };
 pub use dependency_graph::{ChangeImpact, CyclePath, SchemaDependencyGraph};
 pub use field_type::{

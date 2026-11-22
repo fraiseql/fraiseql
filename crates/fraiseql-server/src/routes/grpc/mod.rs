@@ -52,8 +52,9 @@ pub struct GrpcServices {
 /// view queries based on the compiled schema and protobuf descriptors.
 ///
 /// Unlike generated tonic services, this service is constructed at runtime from
-/// a [`DescriptorPool`] loaded from the `descriptor.binpb` file produced by
-/// `fraiseql-cli generate-proto`.
+/// a [`DescriptorPool`] loaded from `[grpc] descriptor_path`: a `FileDescriptorSet`
+/// built from the project's `.proto` with `protoc --descriptor_set_out`. Its methods are
+/// the served surface.
 pub struct DynamicGrpcService {
     /// The **configured** executor — every read and every write (#1330, #1351).
     ///
