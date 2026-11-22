@@ -260,6 +260,32 @@
           "nullable": false
         }
       ]
+    },
+    {
+      "name": "ShiftSlot",
+      "sql_source": "v_shift_slot",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "startsAt",
+          "type": "LocalDateTime",
+          "nullable": false
+        },
+        {
+          "name": "endsAt",
+          "type": "LocalDateTime",
+          "nullable": true
+        },
+        {
+          "name": "breaksAt",
+          "type": "[LocalDateTime!]",
+          "nullable": false
+        }
+      ]
     }
   ],
   "enums": [
@@ -523,6 +549,25 @@
         {
           "name": "transferIds",
           "type": "[BigInt!]",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "name": "shiftSlotsStartingAfter",
+      "return_type": "ShiftSlot",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_shift_slot",
+      "arguments": [
+        {
+          "name": "startsAfter",
+          "type": "LocalDateTime",
+          "nullable": false
+        },
+        {
+          "name": "exceptAt",
+          "type": "[LocalDateTime!]",
           "nullable": true
         }
       ]

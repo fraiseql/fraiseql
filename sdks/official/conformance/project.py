@@ -138,6 +138,15 @@ SCOPED_EMBEDDING_QUERY = "tenantOrderShipments"
 BIGINT_TYPE = "LedgerEntry"
 BIGINT_QUERY = "ledgerEntriesByAccount"
 
+# The `localdatetime_field` construct owns `ShiftSlot`, and `localdatetime_argument` the
+# query that takes a `LocalDateTime` (#2177): a date-time with no offset, a PostgreSQL
+# `timestamp`. Published as `DateTime`, such a value reads as an instant it never was, so
+# the scalar an SDK maps its zone-less type (or its marker) to is a fact the author
+# declared: a non-null field, a nullable one and a list's item, and on the query a non-null
+# argument and a nullable list of them. Owned and split for `BIGINT_TYPE`'s reasons.
+LOCALDATETIME_TYPE = "ShiftSlot"
+LOCALDATETIME_QUERY = "shiftSlotsStartingAfter"
+
 # The `function_definition` construct owns its one function (#1325). A function is not
 # a GraphQL surface at all — it is an out-of-band handler the server dispatches from the
 # compiled `functions` section, a *sibling* of the compiled schema rather than a field
@@ -250,6 +259,8 @@ CONSTRUCTS = (
     "list_arguments",
     "bigint_field",
     "bigint_argument",
+    "localdatetime_field",
+    "localdatetime_argument",
     "function_definition",
     "function_backed_query",
     "observer_webhook",
@@ -808,6 +819,29 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
             ],
         }
         if BIGINT_QUERY in queries
+        else {}
+    )
+
+    observations["localdatetime_field"] = (
+        {
+            "sql_source": types[LOCALDATETIME_TYPE].get("sql_source"),
+            "fields": _fields(types[LOCALDATETIME_TYPE]),
+        }
+        if LOCALDATETIME_TYPE in types
+        else {}
+    )
+
+    observations["localdatetime_argument"] = (
+        {
+            "return_type": queries[LOCALDATETIME_QUERY].get("return_type"),
+            "returns_list": queries[LOCALDATETIME_QUERY].get("returns_list"),
+            "arguments": [
+                {"name": a.get("name"), "type": a.get("arg_type"), "nullable": a.get("nullable")}
+                for a in queries[LOCALDATETIME_QUERY].get("arguments", [])
+                if isinstance(a, dict)
+            ],
+        }
+        if LOCALDATETIME_QUERY in queries
         else {}
     )
 

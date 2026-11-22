@@ -331,6 +331,55 @@
     ],
     "sql_source": "v_reading_series"
   },
+  "localdatetime_argument": {
+    "arguments": [
+      {
+        "name": "startsAfter",
+        "nullable": false,
+        "type": "LocalDateTime"
+      },
+      {
+        "name": "exceptAt",
+        "nullable": true,
+        "type": {
+          "List": {
+            "item": "LocalDateTime"
+          }
+        }
+      }
+    ],
+    "return_type": "ShiftSlot",
+    "returns_list": true
+  },
+  "localdatetime_field": {
+    "fields": [
+      {
+        "name": "id",
+        "nullable": false,
+        "type": "ID"
+      },
+      {
+        "name": "startsAt",
+        "nullable": false,
+        "type": "LocalDateTime"
+      },
+      {
+        "name": "endsAt",
+        "nullable": true,
+        "type": "LocalDateTime"
+      },
+      {
+        "name": "breaksAt",
+        "nullable": false,
+        "type": {
+          "List": {
+            "item": "LocalDateTime"
+          }
+        }
+      }
+    ],
+    "sql_source": "v_shift_slot"
+  },
   "mutation_argument_localized": [
     "createUser(displayName)"
   ],
