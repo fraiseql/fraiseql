@@ -267,6 +267,37 @@ def author_full
   # the query, so there is one copy of it.
   schema.function "preview_quote", trigger: "request:query"
 
+  # #2147: one observer per action kind. Every observer but the last sets its retry; the
+  # last runs on the server's own policy, so it writes no retry block.
+  schema.observer :order_placed_webhook, entity: "Order", event: "INSERT",
+                                         retry_: FraiseQL::ObserverRetry.new(
+                                           max_attempts: 5, backoff_strategy: "linear",
+                                           initial_delay_ms: 200, max_delay_ms: 5000
+                                         ) do |o|
+    o.webhook url_env: "CONFORMANCE_HOOK_URL", method: "PUT",
+              body_template: '{"total": {{ total }}}', signing_secret_env: "CONFORMANCE_HOOK_KEY",
+              headers: { "X-Source" => "conformance" },
+              headers_env: { "Authorization" => "CONFORMANCE_HOOK_TOKEN" }
+  end
+  schema.observer :order_shipped_slack, entity: "Order", event: "UPDATE",
+                                        condition: "status == 'shipped'",
+                                        retry_: FraiseQL::ObserverRetry.new(
+                                          max_attempts: 4, backoff_strategy: "exponential",
+                                          initial_delay_ms: 250, max_delay_ms: 8000
+                                        ) do |o|
+    o.slack "#orders", "Order {{ id }} shipped", webhook_url_env: "CONFORMANCE_SLACK_URL"
+  end
+  schema.observer :order_deleted_email, entity: "Order", event: "DELETE",
+                                        retry_: FraiseQL::ObserverRetry.new(
+                                          max_attempts: 2, backoff_strategy: "fixed",
+                                          initial_delay_ms: 500, max_delay_ms: 500
+                                        ) do |o|
+    o.email "ops@example.com", "Order deleted", "Order {{ id }} was deleted"
+  end
+  schema.observer :order_created_default_retry, entity: "Order", event: "INSERT" do |o|
+    o.email "ops@example.com", "Order created", "Order {{ id }} was created"
+  end
+
   schema
 end
 

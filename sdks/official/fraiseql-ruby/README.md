@@ -80,6 +80,30 @@ sources; the compiler checks the claim against every query of that type, and ref
 embedding without it. Anything but `true` or `false` is refused, and so is the option on an
 input type's field.
 
+## Observers
+
+An observer runs actions when a row of an entity is inserted, updated or deleted:
+
+```ruby
+schema.observer :order_shipped, entity: "Order", event: "UPDATE",
+                                condition: "status == 'shipped'",
+                                retry_: FraiseQL::ObserverRetry.new(
+                                  max_attempts: 5, backoff_strategy: "exponential",
+                                  initial_delay_ms: 200, max_delay_ms: 5000
+                                ) do |o|
+  o.webhook url_env: "ORDER_HOOK_URL", signing_secret_env: "ORDER_HOOK_KEY"
+  o.slack "#orders", "Order {{ id }} shipped"
+  o.email "ops@example.com", "Order shipped", "Order {{ id }} shipped"
+end
+```
+
+A webhook takes exactly one of `url:` and `url_env:`. A Slack action posts to the URL in
+`SLACK_WEBHOOK_URL` unless `webhook_url:` or `webhook_url_env:` names another. The email
+sender is the server's SMTP configuration. An observer with no `retry_:` runs on the
+server's own policy. The keyword is `retry_:` because `retry` is a Ruby keyword, as
+`function`'s is `when_:`; `ObserverRetry` is not `FraiseQL::RetryConfig`, the client's
+retry of a request.
+
 ## Compile and Serve
 
 ```bash

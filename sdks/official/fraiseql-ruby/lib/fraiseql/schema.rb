@@ -3,6 +3,7 @@
 require "json"
 
 require_relative "naming"
+require_relative "observer"
 
 module FraiseQL
   # Builds the intermediate `schema.json` document consumed by `fraiseql compile`.
@@ -81,6 +82,41 @@ module FraiseQL
       @queries = []
       @mutations = []
       @functions = []
+      @observers = []
+    end
+
+    # Declares an observer (#2147): the actions the block adds run when a row of `entity`
+    # sees `event` (`"INSERT"`, `"UPDATE"` or `"DELETE"`), when `condition`, an expression
+    # on the row, holds. The name is a snake_case symbol published camelCase, as an
+    # operation name is. `retry_:` (trailing underscore: `retry` is a Ruby keyword, as `when`
+    # is for `function`'s `when_:`) is a `FraiseQL::ObserverRetry`; without one the observer
+    # runs on the server's own policy and no retry block is written.
+    #
+    #   schema.observer :order_shipped, entity: "Order", event: "UPDATE",
+    #                                   condition: "status == 'shipped'" do |o|
+    #     o.slack "#orders", "Order {{ id }} shipped"
+    #   end
+    def observer(name, entity:, event:, condition: nil, retry_: nil)
+      if !retry_.nil? && !retry_.is_a?(ObserverRetry)
+        raise TypeError, "observer #{name.inspect}: retry_: must be a FraiseQL::ObserverRetry " \
+                         "(got #{retry_.class})."
+      end
+
+      published = Naming.snake_to_camel(name)
+      if @observers.any? { |existing| existing["name"] == published }
+        raise ArgumentError,
+              "observer #{published.inspect} is already declared; each name must be unique within a schema"
+      end
+
+      builder = ObserverActionBuilder.new
+      yield builder if block_given?
+
+      definition = { "name" => published, "entity" => entity.to_s, "event" => event.to_s }
+      definition["condition"] = condition.to_s unless condition.nil?
+      definition["actions"] = builder.actions
+      definition["retry"] = retry_.to_h unless retry_.nil?
+      @observers << definition
+      definition
     end
 
     # Declares a GraphQL object type backed by a SQL view.
@@ -424,6 +460,7 @@ module FraiseQL
       document["queries"] = @queries unless @queries.empty?
       document["mutations"] = @mutations unless @mutations.empty?
       document["functions"] = @functions unless @functions.empty?
+      document["observers"] = @observers unless @observers.empty?
       document
     end
 
