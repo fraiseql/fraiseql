@@ -112,6 +112,17 @@ fn full() -> SchemaRegistry {
         ],
         "v_reading_series",
     );
+    // A 64-bit integer is the type string `BigInt`: the SDK's types are strings.
+    registry.register_type_with_source(
+        "LedgerEntry",
+        vec![
+            Field::new("id", "ID").with_nullable(false),
+            Field::new("amount", "BigInt").with_nullable(false),
+            Field::new("balance", "BigInt").with_nullable(true),
+            Field::new("transferIds", "[BigInt!]").with_nullable(false),
+        ],
+        "v_ledger_entry",
+    );
     registry
 }
 
