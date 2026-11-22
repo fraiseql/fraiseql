@@ -44,7 +44,9 @@ criterion = { version = "0.5", features = ["async_tokio"] }
 # fraiseql-observers, so there is no production dependency cycle.
 fraiseql-webhooks = { path = "../fraiseql-webhooks" }
 fraiseql-test-utils = { path = "../fraiseql-test-utils" }
-fraiseql-test-support = { path = "../fraiseql-test-support" }
+fraiseql-test-support = { path = "../fraiseql-test-support", features = [
+  "held-replies",
+] }
 # Captures what the change-log tail logs of a connection handed out inside a transaction.
 tracing-subscriber = { workspace = true }
 proptest = { workspace = true }

@@ -36,6 +36,8 @@
 
 pub mod changelog;
 pub mod db;
+#[cfg(feature = "held-replies")]
+pub mod held_replies;
 #[cfg(feature = "test-issuer")]
 pub mod issuer;
 pub mod sample_schema;

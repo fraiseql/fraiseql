@@ -233,6 +233,7 @@ fraiseql-cli = { workspace = true }
 fraiseql-federation = { workspace = true, features = ["test-utils"] }
 fraiseql-test-utils = { path = "../fraiseql-test-utils" }
 fraiseql-test-support = { path = "../fraiseql-test-support", features = [
+  "held-replies",
   "test-issuer",
 ] }
 # Test-only: the boot refusal for an adapter that cannot apply session variables (#1115) is

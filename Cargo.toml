@@ -440,7 +440,9 @@ fraiseql-secrets = 3_000
 fraiseql-server = 61_500
 fraiseql-storage = 8_500
 fraiseql-time = 500
-fraiseql-test-support = 1_000
+# Raised from 1_000 for held_replies, the BEGIN-holding PostgreSQL relay behind the
+# held-replies feature, which only test suites enable.
+fraiseql-test-support = 1_500
 fraiseql-test-utils = 1_500
 fraiseql-webhooks = 3_000
 fraiseql-wire = 6_500

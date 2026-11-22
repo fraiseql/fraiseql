@@ -1060,3 +1060,66 @@ async fn a_stop_does_not_wait_forever_for_a_batch_that_cannot_finish() {
     assert_the_fan_out_delivers(&pool, &mut received).await;
     runtime.stop().await.expect("stop");
 }
+
+/// A stop that cancels the fan-out while it waits for the reply to its `BEGIN` leaves no
+/// connection of the shared pool inside a transaction, and the runtime starts again.
+///
+/// The reply is held by a relay, so the fan-out's batch cannot finish and the stop
+/// cancels it once its wait runs out; the relay then lets the reply through. While the
+/// runtime is idle, the fan-out's snapshot is the only transaction it starts, so the
+/// `BEGIN` held is the fan-out's.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_stop_that_cancels_the_fan_outs_transaction_start_leaves_the_pool_clean() {
+    use std::str::FromStr;
+
+    use fraiseql_test_support::held_replies::HeldReplies;
+    use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
+
+    let application = "fq-fanout-cancelled-begin";
+    let observer = create_test_pool().await;
+    setup_observer_schema(&observer).await.expect("schema setup");
+    let direct = PgConnectOptions::from_str(&fraiseql_test_support::database_url()).unwrap();
+    let relay = HeldReplies::start(format!("{}:{}", direct.get_host(), direct.get_port())).await;
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect_with(
+            direct
+                .host("127.0.0.1")
+                .port(relay.port())
+                .ssl_mode(PgSslMode::Disable)
+                .application_name(application),
+        )
+        .await
+        .unwrap();
+    let (sender, mut received) = tokio::sync::mpsc::channel(1024);
+    let mut runtime = fanout_runtime(&pool, sender).await;
+
+    relay.arm();
+    relay.wait_until_held(Duration::from_secs(10)).await;
+    tokio::time::timeout(Duration::from_secs(30), runtime.stop())
+        .await
+        .expect("the stop returns while the fan-out waits for its reply")
+        .expect("stop");
+    relay.release();
+    for _ in 0..500 {
+        if pool.num_idle() == pool.size() as usize {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    let inside: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM pg_stat_activity \
+         WHERE application_name = $1 AND state LIKE 'idle in transaction%'",
+    )
+    .bind(application)
+    .fetch_one(&observer)
+    .await
+    .unwrap();
+    assert_eq!(inside, 0, "a connection of the shared pool was left inside a transaction");
+
+    runtime.start().await.expect("the runtime starts again");
+    assert_the_fan_out_delivers(&pool, &mut received).await;
+    runtime.stop().await.expect("stop");
+}

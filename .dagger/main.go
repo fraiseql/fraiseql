@@ -3418,6 +3418,9 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// A connection handed to the change-log tail inside a transaction is refused and
 		// reported by backend, with no other session's statement text. Owns the change log.
 		"cargo test -p fraiseql-observers --test change_log_tail_dirty_connection_pg -- --ignored --test-threads=1",
+		// A transaction start cancelled while its BEGIN's reply is held leaves no pooled
+		// connection inside a transaction. Owns the change log.
+		"cargo test -p fraiseql-observers --test cancelled_transaction_start_pg -- --ignored --test-threads=1",
 		// #573 source coordination primitives: the advisory-lease mutual-exclusion
 		// + crash-safety boundary (Phase 00), and the source cursor store (CAS
 		// advance, in-tx rollback, deny-by-default RLS) + single-firing runner

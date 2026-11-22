@@ -34,6 +34,8 @@ p256 = { version = "0.13", features = [
 rand = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 wiremock = { version = "0.6", optional = true }
+# The `held-replies` proxy: a loopback TCP relay to PostgreSQL.
+tokio = { workspace = true, optional = true }
 
 [features]
 default = []
@@ -52,6 +54,8 @@ test-issuer = [
   "dep:serde_json",
   "dep:wiremock",
 ]
+# A loopback relay to PostgreSQL that can hold back the reply to a transaction start.
+held-replies = ["dep:tokio"]
 
 # tokio is dev-only (doctest/example runtime). The library itself stays runtime-agnostic.
 [dev-dependencies]
