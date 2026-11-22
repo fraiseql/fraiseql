@@ -191,6 +191,38 @@ AuthzPolicyType::Custom       // Custom rules
 AuthzPolicyType::Hybrid       // Combined approach
 ```
 
+## Observers
+
+An observer runs actions when a row of an entity is inserted, updated or deleted:
+
+```rust
+use fraiseql_rust::{
+    BackoffStrategy, EmailAction, Observer, ObserverEvent, ObserverRetry, SchemaRegistry,
+    SlackAction, WebhookAction, WebhookDestination,
+};
+
+let mut registry = SchemaRegistry::new();
+registry.register_observer(
+    Observer::new("orderShipped", "Order", ObserverEvent::Update)
+        .with_condition("status == 'shipped'")
+        .with_action(
+            WebhookAction::new(WebhookDestination::UrlEnv("ORDER_HOOK_URL".to_string()))
+                .with_signing_secret_env("ORDER_HOOK_KEY"),
+        )
+        .with_action(SlackAction::new("#orders", "Order {{ id }} shipped"))
+        .with_action(EmailAction::new("ops@example.com", "Order shipped", "Order {{ id }}"))
+        .with_retry(ObserverRetry::new(5, BackoffStrategy::Exponential, 200, 5000)),
+)?;
+```
+
+A destination is an enum, `WebhookDestination::Url | UrlEnv` and
+`SlackDestination::WebhookUrl | WebhookUrlEnv`, so an action has exactly one. A Slack
+action posts to the URL in `SLACK_WEBHOOK_URL` unless `with_destination` names another.
+The email sender is the server's SMTP configuration. An observer with no retry runs on the
+server's own policy. `register_observer` refuses a second observer of one name with
+`DuplicateObserver`. The retry type is `ObserverRetry`, because
+`fraiseql_client::RetryConfig` is the client's retry of a request.
+
 ## Building & Testing
 
 ### Build the project

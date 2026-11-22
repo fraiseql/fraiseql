@@ -907,6 +907,12 @@ disagreed, and the promise was the part that was wrong.
     actions built with `ObserverAction.webhook`, `.slack` and `.email` under the
     one-destination rule. Retry is a `RetryConfig`, which the parameter's static type
     already enforces.
+  - Rust: `registry.register_observer(Observer::new(name, entity, ObserverEvent::Update)
+    .with_condition(..).with_action(..).with_retry(..))`, returning `DuplicateObserver`
+    for a name already registered. `WebhookAction`, `SlackAction` and `EmailAction` take
+    their destination as an enum, so there is exactly one by construction; the event and
+    the backoff strategy are enums too. Retry is an `ObserverRetry` (not `RetryConfig`,
+    which `fraiseql_client` already names).
 
 - **`compile --database` warns where an `Int` is wider in the database (#2175).** Sampled
   documents holding an `Int` field outside the signed 32-bit range, at the root or

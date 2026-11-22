@@ -13,7 +13,11 @@
 
 use std::{env, fs};
 
-use fraiseql_rust::{Field, SchemaRegistry, VectorConfig, VectorIndex, VectorMetric};
+use fraiseql_rust::{
+    BackoffStrategy, EmailAction, Field, Observer, ObserverEvent, ObserverRetry, SchemaRegistry,
+    SlackAction, SlackDestination, VectorConfig, VectorIndex, VectorMetric, WebhookAction,
+    WebhookDestination,
+};
 
 fn minimal() -> SchemaRegistry {
     let mut registry = SchemaRegistry::new();
@@ -147,6 +151,38 @@ fn full() -> SchemaRegistry {
         ],
         "v_price_quote",
     );
+    // One observer per action kind. Every observer but the last sets its retry; the last
+    // runs on the server's own policy, so it writes no retry block.
+    for observer in [
+        Observer::new("orderPlacedWebhook", "Order", ObserverEvent::Insert)
+            .with_action(
+                WebhookAction::new(WebhookDestination::UrlEnv("CONFORMANCE_HOOK_URL".to_string()))
+                    .with_method("PUT")
+                    .with_body_template(r#"{"total": {{ total }}}"#)
+                    .with_signing_secret_env("CONFORMANCE_HOOK_KEY")
+                    .with_header("X-Source", "conformance")
+                    .with_header_env("Authorization", "CONFORMANCE_HOOK_TOKEN"),
+            )
+            .with_retry(ObserverRetry::new(5, BackoffStrategy::Linear, 200, 5000)),
+        Observer::new("orderShippedSlack", "Order", ObserverEvent::Update)
+            .with_condition("status == 'shipped'")
+            .with_action(SlackAction::new("#orders", "Order {{ id }} shipped").with_destination(
+                SlackDestination::WebhookUrlEnv("CONFORMANCE_SLACK_URL".to_string()),
+            ))
+            .with_retry(ObserverRetry::new(4, BackoffStrategy::Exponential, 250, 8000)),
+        Observer::new("orderDeletedEmail", "Order", ObserverEvent::Delete)
+            .with_action(EmailAction::new(
+                "ops@example.com",
+                "Order deleted",
+                "Order {{ id }} was deleted",
+            ))
+            .with_retry(ObserverRetry::new(2, BackoffStrategy::Fixed, 500, 500)),
+        Observer::new("orderCreatedDefaultRetry", "Order", ObserverEvent::Insert).with_action(
+            EmailAction::new("ops@example.com", "Order created", "Order {{ id }} was created"),
+        ),
+    ] {
+        registry.register_observer(observer).expect("observer names are distinct");
+    }
     registry
 }
 

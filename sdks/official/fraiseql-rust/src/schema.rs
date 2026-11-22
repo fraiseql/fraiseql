@@ -6,6 +6,7 @@
 //! - JSON export of schema with scope metadata
 
 use crate::field::Field;
+use crate::observer::{DuplicateObserver, Observer};
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -130,6 +131,7 @@ fn is_valid_resource(resource: &str) -> bool {
 #[derive(Debug, Clone)]
 pub struct SchemaRegistry {
     types: HashMap<String, RegisteredType>,
+    observers: Vec<Observer>,
 }
 
 /// One registered type: its fields and the SQL relation backing it.
@@ -159,6 +161,9 @@ struct SerializedType<'a> {
 struct SerializedSchema<'a> {
     version: &'a str,
     types: Vec<SerializedType<'a>>,
+    /// Omitted when none is registered, so a schema without observers exports as before.
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    observers: &'a [Observer],
 }
 
 impl SchemaRegistry {
@@ -167,7 +172,24 @@ impl SchemaRegistry {
     pub fn new() -> Self {
         Self {
             types: HashMap::new(),
+            observers: Vec::new(),
         }
+    }
+
+    /// Registers an observer, exported in registration order.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DuplicateObserver`] when an observer of that name is already
+    /// registered; the registry is left as it was.
+    pub fn register_observer(&mut self, observer: Observer) -> Result<(), DuplicateObserver> {
+        if self.observers.iter().any(|existing| existing.name() == observer.name()) {
+            return Err(DuplicateObserver {
+                name: observer.name().to_string(),
+            });
+        }
+        self.observers.push(observer);
+        Ok(())
     }
 
     /// Registers a new type with its fields.
@@ -280,10 +302,11 @@ impl SchemaRegistry {
                     }
                 })
                 .collect(),
+            observers: &self.observers,
         };
 
         serde_json::to_string_pretty(&document)
-            .expect("the schema document contains only strings and bools")
+            .expect("the schema document contains only strings, numbers and bools")
     }
 }
 
