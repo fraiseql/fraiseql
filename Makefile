@@ -209,6 +209,8 @@ test-integration-postgres: export DATABASE_URL := postgresql://fraiseql_test:fra
 test-integration-postgres: export STANDBY_DATABASE_URL := postgresql://fraiseql_test:fraiseql_test_password@localhost:5436/test_fraiseql
 test-integration-postgres: export FAILOVER_STANDBY_DATABASE_URL := postgresql://fraiseql_test:fraiseql_test_password@localhost:5437/test_fraiseql
 test-integration-postgres: export BELOW_FLOOR_DATABASE_URL := postgresql://fraiseql_test:fraiseql_test_password@localhost:5440/test_fraiseql
+# As the leg sets it: a test that finds no database here fails instead of skipping.
+test-integration-postgres: export FRAISEQL_TEST_REQUIRE_POSTGRES := 1
 # Mirrors integrationBase/rustBase: RUST_LOG=debug is what CI's assertions run
 # under, so a test that only fails at that level must fail here too.
 test-integration-postgres: export RUST_LOG := debug
