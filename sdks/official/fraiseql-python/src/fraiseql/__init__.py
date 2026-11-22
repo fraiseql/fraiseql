@@ -80,6 +80,7 @@ from fraiseql.retry import RetryConfig
 from fraiseql.scalars import (
     ID,
     UUID,
+    BigInt,
     BitVector,
     CustomScalar,
     Date,
@@ -115,6 +116,7 @@ __all__ = [
     "UUID",
     "AsyncFraiseQLClient",
     "AuthenticationError",
+    "BigInt",
     "BitVector",
     "ChangelogConsumer",
     "ChangelogEvent",

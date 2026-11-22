@@ -174,6 +174,14 @@ UUID = NewType("UUID", str)
 Decimal = NewType("Decimal", str)
 """Decimal/BigDecimal scalar for precise numeric values."""
 
+BigInt = NewType("BigInt", str)
+"""A signed 64-bit integer, served as the string of its digits.
+
+``int`` stays ``Int``, which is 32 bits: annotate a field or argument whose values pass that
+with ``BigInt``. A value is read and written as its digits (``"9007199254740993"``); an
+integer in range is accepted as an input.
+"""
+
 Vector = NewType("Vector", list)
 """Vector scalar for pgvector embeddings — a `vector(N)` column, `[Float!]!` in GraphQL."""
 
@@ -397,6 +405,7 @@ __all__ = [
     "APIKey",
     # Transportation
     "AirportCode",
+    "BigInt",
     "Color",
     "ContainerNumber",
     "Coordinates",

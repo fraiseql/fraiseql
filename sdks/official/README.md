@@ -22,7 +22,7 @@ reason shown here, and the suite fails if a declared gap is no longer true.
 
 | Directory | Language | Distribution | Conformance | Declared gaps |
 |-----------|----------|--------------|-------------|---------------|
-| `fraiseql-python/` | Python 3.11+ | PyPI | 36/44 | observers: the SDK ships no observer authoring surface (#2147); bigint: the SDK maps no type of its own to `BigInt` yet (#2258) |
+| `fraiseql-python/` | Python 3.11+ | PyPI | 38/44 | observers: the SDK ships no observer authoring surface (#2147) |
 | `fraiseql-typescript/` | TypeScript / Node.js | npm | 42/44 | bigint: the SDK maps no type of its own to `BigInt` yet (#2258) |
 | `fraiseql-go/` | Go 1.23+ | — (source-only) | 42/44 | type_crud: the SDK ships no CRUD generator; subscription_policy: no authoring surface (#1657) |
 | `fraiseql-php/` | PHP 8.2+ | — (source-only) | 34/44 | fact_tables: the SDK has no fact-table authoring; subscription_policy: no authoring surface (#1657); observers: the SDK ships no observer authoring surface (#2147); bigint: the SDK maps no type of its own to `BigInt` yet (#2258) |

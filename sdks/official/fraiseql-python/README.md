@@ -170,6 +170,7 @@ localized; `Localized[int]` raises when the class is decorated.
 | Python Type | GraphQL Type |
 |-------------|--------------|
 | `int` | `Int` |
+| `fraiseql.BigInt` | `BigInt` (a signed 64-bit integer, served as its digits) |
 | `float` | `Float` |
 | `str` | `String` |
 | `bool` | `Boolean` |

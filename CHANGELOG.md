@@ -846,6 +846,13 @@ disagreed, and the promise was the part that was wrong.
     input (`BigIntFilter`), a declared input, and a query's or a mutation's arguments.
   - Arrow: `graphql_type_to_arrow("BigInt")` is `Int64`.
 
+- **The SDKs author `BigInt` (#2258).** Where a language's integer has no width, or is the
+  type for small values, a marker declares a field or argument `BigInt` and the plain
+  integer stays `Int`. The conformance suite's `bigint_field` and `bigint_argument`
+  constructs hold every SDK to it (the Rust SDK, which ships no query builder, authors the
+  field only):
+  - Python: `fraiseql.BigInt`, a field, an argument or a list's item.
+
 - **`compile --database` warns on a view casting a document's text to a temporal type
   (#2213).** A served view, or with gRPC enabled a row view (`vr_<sql_source>`), whose
   definition reads a key as text cast to `timestamptz`, `timestamp`, `date` or `time`

@@ -21,6 +21,7 @@ from typing import Annotated
 import fraiseql
 from fraiseql.scalars import (  # noqa: TC001 — deferred annotations are resolved at runtime
     ID,
+    BigInt,
     BitVector,
     HalfVector,
     SparseVector,
@@ -174,6 +175,15 @@ class ReadingSeries:
     grid: list[list[float | None]]
 
 
+# #2258: a 64-bit integer is `fraiseql.BigInt`; a plain `int` stays `Int`.
+@fraiseql.type(sql_source="v_ledger_entry")
+class LedgerEntry:
+    id: ID
+    amount: BigInt
+    balance: BigInt | None = None
+    transfer_ids: list[BigInt]
+
+
 # #1737: `Order` is scoped by `tenant_orders`, so a type that embeds it says it is scoped
 # alike, and its own query bears that out.
 @fraiseql.type(sql_source="v_order_shipment")
@@ -223,6 +233,13 @@ def user(id: ID) -> User | None:
 
 @fraiseql.query(sql_source="v_order_shipment", inject={"tenant_id": "jwt:tenant_id"})
 def tenant_order_shipments() -> list[OrderShipment]:
+    pass
+
+
+@fraiseql.query(sql_source="v_ledger_entry")
+def ledger_entries_by_account(
+    account_number: BigInt, transfer_ids: list[BigInt] | None = None
+) -> list[LedgerEntry]:
     pass
 
 
