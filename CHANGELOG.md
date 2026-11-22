@@ -862,6 +862,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **Eight more SDKs author observers (#2147).** An observer runs actions when a row of an
+  entity is inserted, updated or deleted: a webhook (`url` or `url_env`, `method`,
+  `body_template`, `signing_secret_env`, `headers`, `headers_env`), a Slack message (to
+  the URL in `SLACK_WEBHOOK_URL` unless `webhook_url` or `webhook_url_env` names
+  another), or an email. It may carry a condition and a retry; one with no retry runs on
+  the server's own policy. TypeScript, Go and Java had observers; now:
+  - Python: `@fraiseql.observer(entity=, event=, actions=[...], condition=, retry=)` on
+    a function, which names it, with `fraiseql.webhook`, `fraiseql.slack`,
+    `fraiseql.email` and `fraiseql.ObserverRetry` (not `fraiseql.RetryConfig`, the
+    client's retry of a request). A webhook takes exactly one of `url=` and `url_env=`,
+    and a Slack action at most one of `webhook_url=` and `webhook_url_env=`.
+
 - **`compile --database` warns where an `Int` is wider in the database (#2175).** Sampled
   documents holding an `Int` field outside the signed 32-bit range, at the root or
   embedded, are counted, since a response refuses each as a field error; an `Int` argument

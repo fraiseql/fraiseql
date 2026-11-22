@@ -75,6 +75,15 @@ from fraiseql.errors import (
     RateLimitError,
     TimeoutError,
 )
+from fraiseql.observers import (
+    DEFAULT_SLACK_WEBHOOK_ENV,
+    ObserverAction,
+    ObserverRetry,
+    email,
+    observer,
+    slack,
+    webhook,
+)
 from fraiseql.registry import SchemaRegistry, generate_schema_json
 from fraiseql.retry import RetryConfig
 from fraiseql.scalars import (
@@ -113,6 +122,7 @@ union = union_decorator
 __version__ = "2.19.1"
 
 __all__ = [
+    "DEFAULT_SLACK_WEBHOOK_ENV",
     "ID",
     "UUID",
     "AsyncFraiseQLClient",
@@ -140,6 +150,8 @@ __all__ = [
     "LocalDateTime",
     "Localized",
     "NetworkError",
+    "ObserverAction",
+    "ObserverRetry",
     "RateLimitError",
     "Relationship",
     "RetryConfig",
@@ -152,6 +164,7 @@ __all__ = [
     "Vector",
     "VectorConfig",
     "describe_scope_format",
+    "email",
     "enum",
     "error",
     "export_schema",
@@ -165,12 +178,15 @@ __all__ = [
     "input",
     "interface",
     "mutation",
+    "observer",
     "query",
     "scalar",
+    "slack",
     "source",
     "subscription",
     "type",
     "union",
     "validate_custom_scalar",
     "validate_scope",
+    "webhook",
 ]

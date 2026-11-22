@@ -106,6 +106,8 @@ class SchemaRegistry:
     _sources: ClassVar[dict[str, SchemaElement]] = {}
     # Serverless function definitions (#1325).
     _functions: ClassVar[dict[str, SchemaElement]] = {}
+    # Observers, by name (#2147): actions run on an entity's row changes.
+    _observers: ClassVar[dict[str, SchemaElement]] = {}
     # Fact tables, by table name (#1797): what `<name>_aggregate` / `<name>_window` read.
     _fact_tables: ClassVar[dict[str, SchemaElement]] = {}
     # Maps scalar name -> (CustomScalar class, optional description)
@@ -524,6 +526,35 @@ class SchemaRegistry:
         cls._subscriptions[camel_name] = subscription
 
     @classmethod
+    def register_observer(  # noqa: PLR0913 — public API; all parameters are meaningful
+        cls,
+        name: str,
+        entity: str,
+        event: str,
+        actions: list[dict[str, Any]],
+        condition: str | None = None,
+        retry: dict[str, Any] | None = None,
+    ) -> None:
+        """Register an observer (#2147); its name is camelCased like other SDK names.
+
+        Metadata only; the runtime is Rust. ``retry`` absent leaves the block out, and
+        the observer runs on the server's own policy.
+        """
+        camel_name = _snake_to_camel(name)
+        if camel_name in cls._observers:
+            raise ValueError(
+                f"Observer {camel_name!r} is already registered. "
+                "Each name must be unique within a schema."
+            )
+        definition: dict[str, Any] = {"name": camel_name, "entity": entity, "event": event}
+        if condition is not None:
+            definition["condition"] = condition
+        definition["actions"] = list(actions)
+        if retry is not None:
+            definition["retry"] = retry
+        cls._observers[camel_name] = definition
+
+    @classmethod
     def register_source(  # noqa: PLR0913 — public API; all parameters are meaningful
         cls,
         name: str,
@@ -753,6 +784,10 @@ class SchemaRegistry:
         if cls._sources:
             schema["sources"] = list(cls._sources.values())
 
+        # Observers only when present, as the other SDKs emit them (#2147).
+        if cls._observers:
+            schema["observers"] = list(cls._observers.values())
+
         # Include function definitions only when present (#1325). The compiler pairs
         # them with the `[functions]` TOML table to emit the compiled section.
         if cls._functions:
@@ -810,6 +845,7 @@ class SchemaRegistry:
         cls._subscriptions.clear()
         cls._sources.clear()
         cls._functions.clear()
+        cls._observers.clear()
         cls._fact_tables.clear()
         cls._custom_scalars.clear()
         cls._inject_defaults.clear()

@@ -165,6 +165,34 @@ A mutation argument or input field marked `Localized` accepts a label for the re
 `{translations: [...]}`, or the map, and the SQL function receives the map. Only `str` can be
 localized; `Localized[int]` raises when the class is decorated.
 
+## Observers
+
+An observer runs actions when a row of an entity is inserted, updated or deleted. The
+decorated function names it:
+
+```python
+@fraiseql.observer(
+    entity="Order",
+    event="UPDATE",
+    condition="status == 'shipped'",
+    actions=[
+        fraiseql.webhook(url_env="ORDER_HOOK_URL", signing_secret_env="ORDER_HOOK_KEY"),
+        fraiseql.slack("#orders", "Order {{ id }} shipped"),
+        fraiseql.email("ops@example.com", "Order shipped", "Order {{ id }} shipped"),
+    ],
+    retry=fraiseql.ObserverRetry(
+        max_attempts=5, backoff_strategy="exponential", initial_delay_ms=200, max_delay_ms=5000
+    ),
+)
+def order_shipped() -> None:
+    pass
+```
+
+A webhook takes exactly one of `url=` and `url_env=`. A Slack action posts to the URL in
+`SLACK_WEBHOOK_URL` unless `webhook_url=` or `webhook_url_env=` names another. The email
+sender is the server's SMTP configuration. An observer given no `retry=` runs on the
+server's own policy.
+
 ## Type Mapping
 
 | Python Type | GraphQL Type |

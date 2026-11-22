@@ -449,3 +449,62 @@ fraiseql.fact_table(
         {"name": "day", "sql_type": "date", "indexed": True},
     ],
 )
+
+
+# #2147: one observer per action kind. Every observer but the last sets its retry; the
+# last runs on the server's own policy, so it writes no retry block.
+@fraiseql.observer(
+    entity="Order",
+    event="INSERT",
+    actions=[
+        fraiseql.webhook(
+            url_env="CONFORMANCE_HOOK_URL",
+            method="PUT",
+            body_template='{"total": {{ total }}}',
+            signing_secret_env="CONFORMANCE_HOOK_KEY",
+            headers={"X-Source": "conformance"},
+            headers_env={"Authorization": "CONFORMANCE_HOOK_TOKEN"},
+        )
+    ],
+    retry=fraiseql.ObserverRetry(
+        max_attempts=5, backoff_strategy="linear", initial_delay_ms=200, max_delay_ms=5000
+    ),
+)
+def order_placed_webhook() -> None:
+    pass
+
+
+@fraiseql.observer(
+    entity="Order",
+    event="UPDATE",
+    condition="status == 'shipped'",
+    actions=[
+        fraiseql.slack("#orders", "Order {{ id }} shipped", webhook_url_env="CONFORMANCE_SLACK_URL")
+    ],
+    retry=fraiseql.ObserverRetry(
+        max_attempts=4, backoff_strategy="exponential", initial_delay_ms=250, max_delay_ms=8000
+    ),
+)
+def order_shipped_slack() -> None:
+    pass
+
+
+@fraiseql.observer(
+    entity="Order",
+    event="DELETE",
+    actions=[fraiseql.email("ops@example.com", "Order deleted", "Order {{ id }} was deleted")],
+    retry=fraiseql.ObserverRetry(
+        max_attempts=2, backoff_strategy="fixed", initial_delay_ms=500, max_delay_ms=500
+    ),
+)
+def order_deleted_email() -> None:
+    pass
+
+
+@fraiseql.observer(
+    entity="Order",
+    event="INSERT",
+    actions=[fraiseql.email("ops@example.com", "Order created", "Order {{ id }} was created")],
+)
+def order_created_default_retry() -> None:
+    pass
