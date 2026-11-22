@@ -7,9 +7,14 @@
 //! A key the loader refuses by name (a table this file never had, a `fraiseql.toml` spelling,
 //! a retired section) is in the schema as `"not": {}`, with `"deprecated": true` and the
 //! loader's own refusal as its description.
+//!
+//! A key an environment variable overrides names it as `x-fraiseql-env`, read from the
+//! server's argument declarations.
 
 use std::sync::OnceLock;
 
+#[cfg(feature = "cli")]
+use fraiseql_core::utils::config_diagnostic::schema::annotate;
 use fraiseql_core::utils::config_diagnostic::schema::mark_refused;
 use serde_json::Value;
 
@@ -17,6 +22,9 @@ use super::ServerConfig;
 
 /// Where the schema is committed, from the repository root.
 pub const SERVER_CONFIG_JSON_SCHEMA_PATH: &str = "docs/schemas/fraiseql-server.schema.json";
+
+/// The schema annotation naming the environment variable that overrides a key.
+pub const ENV_ANNOTATION: &str = "x-fraiseql-env";
 
 /// The schema's URL for this release: the committed file at the release's tag. It is the
 /// schema's `$id`.
@@ -42,6 +50,13 @@ fn schema() -> &'static Value {
             serde_json::to_value(schemars::schema_for!(ServerConfig)).unwrap_or_default();
         for refused in super::methods::refused_keys() {
             mark_refused(&mut schema, refused.section, refused.key, &refused.note);
+        }
+        // The variable that overrides a key, named where the key is described.
+        #[cfg(feature = "cli")]
+        for (env, keys) in crate::cli::ServerArgs::overridden_keys() {
+            for key in keys {
+                annotate(&mut schema, &key, ENV_ANNOTATION, Value::String(env.clone()));
+            }
         }
         schema["$id"] = Value::String(server_config_json_schema_url());
         schema["title"] = Value::String("FraiseQL server configuration".to_owned());

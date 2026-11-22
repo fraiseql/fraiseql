@@ -1304,9 +1304,8 @@ mod observers_tests {
 /// `ServerArgs`, where a malformed value is a hard startup error instead of a
 /// silent fallback to the wildcard.
 ///
-/// The malformed-value case is pinned against `parse_env_opt` under a unique
-/// var name: planting garbage in the real `FRAISEQL_FLIGHT_BIND_ADDR` would
-/// race the parallel tests that parse `Cli` (clap reads that env var).
+/// The malformed-value case is pinned in `cli::env_tests`, which reads the real
+/// `FRAISEQL_FLIGHT_BIND_ADDR` in a child process, racing no test that parses `Cli`.
 #[cfg(feature = "arrow")]
 mod flight_bind_addr_874 {
     use super::*;
@@ -1318,21 +1317,6 @@ mod flight_bind_addr_874 {
             config.flight_bind_addr.to_string(),
             "127.0.0.1:50051",
             "Flight must default to loopback (parity with default_bind_addr)"
-        );
-    }
-
-    #[cfg(feature = "cli")]
-    #[test]
-    fn malformed_env_value_is_a_hard_error() {
-        // Unique var name: race-free under the parallel runner.
-        let var = "FRAISEQL_TEST_874_FLIGHT_ADDR";
-        std::env::set_var(var, "127.0.0.1"); // port missing
-        let parsed = crate::cli::parse_env_opt::<std::net::SocketAddr>(var);
-        std::env::remove_var(var);
-        assert!(
-            parsed.is_err(),
-            "an address missing its port must refuse startup, not silently \
-             fall back: {parsed:?}"
         );
     }
 

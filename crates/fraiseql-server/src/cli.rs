@@ -12,50 +12,77 @@
 
 use std::net::SocketAddr;
 
-use clap::{Args, Parser, builder::BoolishValueParser};
+use clap::{Args, FromArgMatches, Parser, builder::BoolishValueParser};
 
 use crate::ServerConfig;
 
-/// Parse a boolean environment variable, returning `Ok(None)` if unset.
-///
-/// Delegates to the same [`BoolishValueParser`] clap applies to these
-/// variables under `fraiseql-server`, so the two binaries cannot disagree
-/// (#874): `y`/`t`/`on` are true, `n`/`f`/`off` are false, and a
-/// set-but-unrecognised value — a typo like `ture`, or `"true "` with a
-/// trailing space from a hand-edited compose `.env` — is a hard error, never
-/// a silent override to `false`.
-pub(crate) fn parse_bool_env_opt(var: &str) -> Result<Option<bool>, String> {
-    use clap::builder::TypedValueParser;
-    let Some(raw) = std::env::var_os(var) else {
-        return Ok(None);
-    };
-    BoolishValueParser::new()
-        .parse_ref(&clap::Command::new("fraiseql-server"), None, &raw)
-        .map(Some)
-        .map_err(|_| {
-            format!(
-                "{var} must be a boolean (true/false, 1/0, yes/no, on/off, t/f, y/n), got {:?}",
-                raw.to_string_lossy()
-            )
-        })
+/// The dotted keys whose values differ between `a` and `b`, deepest first reached.
+#[must_use]
+pub fn differing_keys(a: &serde_json::Value, b: &serde_json::Value) -> Vec<String> {
+    fn walk(a: &serde_json::Value, b: &serde_json::Value, path: &str, out: &mut Vec<String>) {
+        use serde_json::Value;
+        match (a, b) {
+            (Value::Object(a), Value::Object(b)) => {
+                let mut keys: Vec<&String> = a.keys().chain(b.keys()).collect();
+                keys.sort();
+                keys.dedup();
+                for key in keys {
+                    let child = if path.is_empty() {
+                        key.clone()
+                    } else {
+                        format!("{path}.{key}")
+                    };
+                    walk(
+                        a.get(key).unwrap_or(&Value::Null),
+                        b.get(key).unwrap_or(&Value::Null),
+                        &child,
+                        out,
+                    );
+                }
+            },
+            (a, b) if a != b => out.push(path.to_owned()),
+            _ => {},
+        }
+    }
+    let mut out = Vec::new();
+    walk(a, b, "", &mut out);
+    out
 }
 
-/// Parse an environment variable via `FromStr`, returning `Ok(None)` if unset.
-///
-/// A set-but-unparseable value is a hard error (#874): silently discarding it
-/// would apply a default the operator explicitly tried to override.
-pub(crate) fn parse_env_opt<T: std::str::FromStr>(var: &str) -> Result<Option<T>, String>
-where
-    T::Err: std::fmt::Display,
-{
-    match std::env::var(var) {
-        Err(std::env::VarError::NotPresent) => Ok(None),
-        Err(e) => Err(format!("{var} is not valid UTF-8: {e}")),
-        Ok(raw) => raw
-            .parse()
-            .map(Some)
-            .map_err(|e| format!("{var} has an unparseable value {raw:?}: {e}")),
+/// `error`, from reading `command`'s arguments from the environment alone, as a message that
+/// names the variable an operator set rather than the flag clap spells it as.
+fn env_error(command: &clap::Command, error: &clap::Error) -> String {
+    use clap::error::{ContextKind, ContextValue, ErrorKind};
+    let declared = || command.get_arguments().filter_map(|arg| Some((arg, arg.get_env()?)));
+    // The argument clap names, as `--flag <VALUE>`; a value that is not valid UTF-8 names
+    // none, so the variable holding one is found by reading each.
+    let named = match error.get(ContextKind::InvalidArg) {
+        Some(ContextValue::String(spelled)) => declared().find_map(|(arg, env)| {
+            let long = format!("--{}", arg.get_long()?);
+            (spelled == &long || spelled.starts_with(&format!("{long} "))).then_some(env)
+        }),
+        _ => None,
+    };
+    let variable = named
+        .or_else(|| {
+            declared()
+                .map(|(_, env)| env)
+                .find(|env| matches!(std::env::var(env), Err(std::env::VarError::NotUnicode(_))))
+        })
+        .map(|env| env.to_string_lossy().into_owned());
+    let Some(variable) = variable else {
+        return error.to_string();
+    };
+    if error.kind() == ErrorKind::InvalidUtf8 {
+        return format!("{variable} is not valid UTF-8");
     }
+    let written = std::env::var(&variable).unwrap_or_default();
+    let reason = match error.get(ContextKind::ValidValue) {
+        Some(ContextValue::Strings(valid)) => format!("expected one of {}", valid.join(", ")),
+        _ => std::error::Error::source(error)
+            .map_or_else(|| error.kind().to_string(), ToString::to_string),
+    };
+    format!("{variable} has an invalid value {written:?}: {reason}")
 }
 
 // ── Top-level CLI ────────────────────────────────────────────────────────────
@@ -236,38 +263,63 @@ impl ServerArgs {
     /// operator's explicit override into the built-in default — for the
     /// `*_require_auth` family, the exact opposite of the stated intent.
     pub fn from_env() -> Result<Self, String> {
-        Ok(Self {
-            config: std::env::var("FRAISEQL_CONFIG").ok(),
-            database_url: std::env::var("DATABASE_URL").ok(),
-            bind_addr: parse_env_opt("FRAISEQL_BIND_ADDR")?,
-            schema_path: std::env::var("FRAISEQL_SCHEMA_PATH").ok(),
-            pool_max_size: parse_env_opt("FRAISEQL_POOL_MAX_SIZE")?,
-            transaction_retry_max_attempts: parse_env_opt(
-                "FRAISEQL_TRANSACTION_RETRY_MAX_ATTEMPTS",
-            )?,
-            #[cfg(feature = "arrow")]
-            flight_bind_addr: parse_env_opt("FRAISEQL_FLIGHT_BIND_ADDR")?,
-            validate_sql_sources: parse_bool_env_opt("FRAISEQL_VALIDATE_SQL_SOURCES")?,
-            metrics_enabled: parse_bool_env_opt("FRAISEQL_METRICS_ENABLED")?,
-            metrics_token: std::env::var("FRAISEQL_METRICS_TOKEN").ok(),
-            admin_api_enabled: parse_bool_env_opt("FRAISEQL_ADMIN_API_ENABLED")?,
-            admin_token: std::env::var("FRAISEQL_ADMIN_TOKEN").ok(),
-            introspection_enabled: parse_bool_env_opt("FRAISEQL_INTROSPECTION_ENABLED")?,
-            introspection_require_auth: parse_bool_env_opt("FRAISEQL_INTROSPECTION_REQUIRE_AUTH")?,
-            metadata_require_auth: parse_bool_env_opt("FRAISEQL_METADATA_REQUIRE_AUTH")?,
-            schema_export_require_auth: parse_bool_env_opt("FRAISEQL_SCHEMA_EXPORT_REQUIRE_AUTH")?,
-            service_sdl_require_auth: parse_bool_env_opt("FRAISEQL_SERVICE_SDL_REQUIRE_AUTH")?,
-            suggestions_enabled: parse_bool_env_opt("FRAISEQL_SUGGESTIONS_ENABLED")?,
-            playground_require_auth: parse_bool_env_opt("FRAISEQL_PLAYGROUND_REQUIRE_AUTH")?,
-            subscription_require_auth: parse_bool_env_opt("FRAISEQL_SUBSCRIPTION_REQUIRE_AUTH")?,
-            rate_limiting_enabled: parse_bool_env_opt("FRAISEQL_RATE_LIMITING_ENABLED")?,
-            rate_limit_rps_per_ip: parse_env_opt("FRAISEQL_RATE_LIMIT_RPS_PER_IP")?,
-            rate_limit_rps_per_user: parse_env_opt("FRAISEQL_RATE_LIMIT_RPS_PER_USER")?,
-            rate_limit_burst_size: parse_env_opt("FRAISEQL_RATE_LIMIT_BURST_SIZE")?,
-            rate_limit_max_buckets: parse_env_opt("FRAISEQL_RATE_LIMIT_MAX_BUCKETS")?,
-            log_format: std::env::var("FRAISEQL_LOG_FORMAT").ok(),
-            shutdown_timeout_secs: parse_env_opt("FRAISEQL_SHUTDOWN_TIMEOUT_SECS")?,
-        })
+        let command = Self::augment_args(clap::Command::new("fraiseql-server"));
+        command
+            .clone()
+            .try_get_matches_from(["fraiseql-server"])
+            .and_then(|matches| Self::from_arg_matches(&matches))
+            .map_err(|error| env_error(&command, &error))
+    }
+
+    /// The environment variables these arguments read, as their declarations name them: the
+    /// argument's id and the variable.
+    #[must_use]
+    pub fn env_vars() -> Vec<(String, String)> {
+        Self::augment_args(clap::Command::new("fraiseql-server"))
+            .get_arguments()
+            .filter_map(|arg| {
+                let env = arg.get_env()?.to_string_lossy().into_owned();
+                Some((arg.get_id().to_string(), env))
+            })
+            .collect()
+    }
+
+    /// The configuration file keys each environment variable overrides, found by applying the
+    /// argument alone to a default configuration, with two values, and reading which keys
+    /// differ: the variable, and those keys, dotted. A variable that sets no file key (the
+    /// config file's path, the log format, the rate-limit overrides) has none.
+    #[must_use]
+    pub fn overridden_keys() -> Vec<(String, Vec<String>)> {
+        /// Pairs of values, tried in order until both of a pair parse.
+        const VALUES: [(&str, &str); 4] = [
+            ("true", "false"),
+            ("2", "3"),
+            ("127.0.0.1:1", "127.0.0.1:2"),
+            ("x", "y"),
+        ];
+        let command = Self::augment_args(clap::Command::new("fraiseql-server"));
+        let applied = |long: &str, value: &str| {
+            let matches = command
+                .clone()
+                .try_get_matches_from(["fraiseql-server".to_owned(), format!("--{long}={value}")])
+                .ok()?;
+            let mut config = ServerConfig::default();
+            Self::from_arg_matches(&matches).ok()?.apply_to_config(&mut config);
+            serde_json::to_value(&config).ok()
+        };
+        command
+            .get_arguments()
+            .filter_map(|arg| {
+                let env = arg.get_env()?.to_string_lossy().into_owned();
+                let long = arg.get_long()?;
+                let keys = VALUES
+                    .iter()
+                    .find_map(|(a, b)| Some((applied(long, a)?, applied(long, b)?)))
+                    .map(|(a, b)| differing_keys(&a, &b))
+                    .unwrap_or_default();
+                Some((env, keys))
+            })
+            .collect()
     }
 
     /// Apply CLI/env overrides to a [`ServerConfig`] loaded from file or
@@ -377,3 +429,6 @@ impl ServerArgs {
         self.log_format.as_deref().is_some_and(|v| v.eq_ignore_ascii_case("json"))
     }
 }
+
+#[cfg(test)]
+mod env_tests;

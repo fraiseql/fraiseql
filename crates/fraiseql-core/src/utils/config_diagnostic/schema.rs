@@ -94,5 +94,17 @@ pub fn mark_refused(schema: &mut Value, section: &str, key: &str, message: &str)
     }
 }
 
+/// Set `name` to `value` on the schema of the dotted `path`'s key, through every `$ref` and
+/// `Option` on the way.
+pub fn annotate(schema: &mut Value, path: &str, name: &str, value: Value) {
+    let mut pointer = String::new();
+    for part in path.split('.').filter(|part| !part.is_empty()) {
+        pointer = property(schema, &pointer, part);
+    }
+    if let Some(Value::Object(node)) = schema.pointer_mut(&pointer) {
+        node.insert(name.to_owned(), value);
+    }
+}
+
 #[cfg(test)]
 mod tests;

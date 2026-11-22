@@ -1,6 +1,6 @@
 use serde_json::json;
 
-use super::{is_refused, mark_refused};
+use super::{annotate, is_refused, mark_refused};
 
 fn sample() -> serde_json::Value {
     json!({
@@ -48,4 +48,14 @@ fn a_refused_table_keeps_the_keys_under_it() {
     mark_refused(&mut schema, "old", "", "retired");
     assert!(is_refused(&schema["properties"]["old"]));
     assert_eq!(schema["properties"]["old"]["properties"]["k"]["type"], "string");
+}
+
+#[test]
+fn an_annotation_lands_on_the_key_through_an_optional_section() {
+    let mut schema = sample();
+    annotate(&mut schema, "tls.cert_path", "x-env", json!("TLS_CERT"));
+    annotate(&mut schema, "name", "x-env", json!("NAME"));
+    assert_eq!(schema["$defs"]["Tls"]["properties"]["cert_path"]["x-env"], "TLS_CERT");
+    assert_eq!(schema["$defs"]["Tls"]["properties"]["cert_path"]["type"], "string");
+    assert_eq!(schema["properties"]["name"]["x-env"], "NAME");
 }

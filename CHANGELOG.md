@@ -1369,6 +1369,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`fraiseql run` reads the server's environment variables as `fraiseql-server` does
+  (#2048).** A server setting given a value that is not valid UTF-8 refuses to start, as
+  fraiseql-server already does; `fraiseql run` read it as unset. The variables are read
+  through the server's own argument declarations, so the two binaries cannot disagree on a
+  name or a value, and a refusal names the variable.
+
 - **An input field's type is checked as an object field's is, and a rich scalar is a known
   type as a query or mutation argument (#2175).** An input field naming a type declared
   nowhere compiled, as a reference to an object no input can carry; it is now refused,

@@ -7,12 +7,14 @@
     "schema_path": {
       "description": "Path to compiled schema JSON file.",
       "type": "string",
-      "default": "schema.compiled.json"
+      "default": "schema.compiled.json",
+      "x-fraiseql-env": "FRAISEQL_SCHEMA_PATH"
     },
     "validate_sql_sources": {
       "description": "Fail boot if any declared `sql_source` (query view / mutation function) is\nnot backed by the database (#487), or the server's role may not use it (#1426).\n\nDefault `false` — the boot path is unchanged. Postgres-only. The\n`--validate-sql-sources` CLI flag and the `FRAISEQL_VALIDATE_SQL_SOURCES`\nenvironment variable both override this (env/flag win over the config key).",
       "type": "boolean",
-      "default": false
+      "default": false,
+      "x-fraiseql-env": "FRAISEQL_VALIDATE_SQL_SOURCES"
     },
     "mutation_error_shape_check": {
       "description": "Check a failed mutation's `error_detail.errors[]` (#1425): `\"off\"` (default) or\n`\"warn\"`. With `\"warn\"`, a failure carrying no `errors` array, or an entry whose\n`identifier` is not a translation key, is logged at `warn` and counted in\n`fraiseql_mutation_error_shape_violations_total`. The response is unchanged.",
@@ -27,17 +29,20 @@
     "database_url": {
       "description": "Database connection URL (PostgreSQL — the only supported backend since\nv2.15.0).",
       "type": "string",
-      "default": "postgresql://localhost/fraiseql"
+      "default": "postgresql://localhost/fraiseql",
+      "x-fraiseql-env": "DATABASE_URL"
     },
     "bind_addr": {
       "description": "Server bind address.",
       "type": "string",
-      "default": "127.0.0.1:8000"
+      "default": "127.0.0.1:8000",
+      "x-fraiseql-env": "FRAISEQL_BIND_ADDR"
     },
     "flight_bind_addr": {
       "description": "Arrow Flight gRPC bind address (requires `arrow` feature).\n\nDefaults to loopback `127.0.0.1:50051` (#874 — parity with\n[`bind_addr`](Self::bind_addr); binding other interfaces is an explicit\noperator decision). Override with the `--flight-bind-addr` flag or the\n`FRAISEQL_FLIGHT_BIND_ADDR` environment variable — which follow the\nstandard CLI > env > file > default precedence and refuse startup on a\nmalformed value — or with this field in the config file.",
       "type": "string",
-      "default": "127.0.0.1:50051"
+      "default": "127.0.0.1:50051",
+      "x-fraiseql-env": "FRAISEQL_FLIGHT_BIND_ADDR"
     },
     "flight_upload_tables": {
       "description": "Tables an authenticated Arrow Flight client may `Upload` into (#953).\n\n**Empty (the default) disables `Upload` entirely** — the fail-closed\nposition, and the only safe default: an `Upload` is a raw, client-directed\nINSERT whose target table is named by the *request*, and it does not pass\nthrough the mutation pipeline, so it carries no operation authorizer and no\nfield RBAC. Ungated, any holder of a valid Flight session token could write\nevery table the connection role can write.\n\nAllow-list only tables every `Upload`-capable client is permitted to write.\nNaming an audit, `_system` or outbox table here hands those clients the\nledger.\n\nThe rows and their `core.tb_entity_change_log` outbox rows are written in one\ntransaction, so an allow-listed Upload is visible to the Change Spine and to\nCDC like any other write.\n\n```toml\nflight_upload_tables = [\"ta_measurements\", \"ta_events\"]\n```",
@@ -181,7 +186,8 @@
     "metrics_enabled": {
       "description": "Enable metrics endpoints.\n\n**Security**: Disabled by default for production safety.\nWhen enabled, requires `metrics_token` to be set for authentication.",
       "type": "boolean",
-      "default": false
+      "default": false,
+      "x-fraiseql-env": "FRAISEQL_METRICS_ENABLED"
     },
     "metrics_token": {
       "description": "Bearer token for metrics endpoint authentication.\n\nRequired when `metrics_enabled` is true. Requests must include:\n`Authorization: Bearer <token>`\n\n**Security**: Use a strong, random token (e.g., 32+ characters).",
@@ -189,12 +195,14 @@
         "string",
         "null"
       ],
-      "default": null
+      "default": null,
+      "x-fraiseql-env": "FRAISEQL_METRICS_TOKEN"
     },
     "admin_api_enabled": {
       "description": "Enable admin API endpoints (default: false for production safety).\n\n**Security**: Disabled by default. When enabled, requires `admin_token` to be set.\nAdmin endpoints allow schema reloading, cache management, and config inspection.",
       "type": "boolean",
-      "default": false
+      "default": false,
+      "x-fraiseql-env": "FRAISEQL_ADMIN_API_ENABLED"
     },
     "admin_token": {
       "description": "Bearer token for admin API authentication.\n\nRequired when `admin_api_enabled` is true. Requests must include:\n`Authorization: Bearer <token>`\n\n**Security**: Use a strong, random token (minimum 32 characters).\nThis token grants access to **destructive** admin operations:\n`reload-schema`, `cache/clear`.\n\nIf `admin_readonly_token` is set, this token is restricted to write\noperations only. If `admin_readonly_token` is not set, this token\nalso grants access to read-only endpoints (backwards-compatible).",
@@ -202,7 +210,8 @@
         "string",
         "null"
       ],
-      "default": null
+      "default": null,
+      "x-fraiseql-env": "FRAISEQL_ADMIN_TOKEN"
     },
     "admin_readonly_token": {
       "description": "Optional separate bearer token for read-only admin operations.\n\nWhen set, restricts `admin_token` to destructive operations only\n(`reload-schema`, `cache/clear`) and uses this token for read-only\nendpoints (`config`, `cache/stats`, `explain`, `grafana-dashboard`).\n\nOperators and monitoring tools can use this token without gaining\nthe ability to modify server state or reload the schema.\n\n**Security**: Must be different from `admin_token` and at least 32\ncharacters. Requires `admin_api_enabled = true` and `admin_token` set.",
@@ -215,54 +224,62 @@
     "introspection_enabled": {
       "description": "Enable introspection endpoint (default: false for production safety).\n\n**Security**: Disabled by default. When enabled, the introspection endpoint\nexposes the complete GraphQL schema structure. Combined with `introspection_require_auth`,\nyou can optionally protect it with OIDC authentication.",
       "type": "boolean",
-      "default": false
+      "default": false,
+      "x-fraiseql-env": "FRAISEQL_INTROSPECTION_ENABLED"
     },
     "introspection_require_auth": {
       "description": "Require authentication for introspection endpoint (default: true).\n\nWhen true and OIDC is configured, introspection requires same auth as GraphQL endpoint.\nWhen false, introspection is publicly accessible (use only in development).",
       "type": "boolean",
-      "default": true
+      "default": true,
+      "x-fraiseql-env": "FRAISEQL_INTROSPECTION_REQUIRE_AUTH"
     },
     "metadata_require_auth": {
       "description": "Require authentication for the schema metadata endpoint (default: None).\n\nWhen `Some(true)`, the `/api/v1/schema/metadata` endpoint requires OIDC auth\nindependently of introspection. When `Some(false)`, metadata is publicly\naccessible regardless of introspection auth. When `None` (default), falls\nback to `introspection_require_auth` for backwards compatibility.",
       "type": [
         "boolean",
         "null"
-      ]
+      ],
+      "x-fraiseql-env": "FRAISEQL_METADATA_REQUIRE_AUTH"
     },
     "schema_export_require_auth": {
       "description": "Require authentication for schema export endpoints (default: None).\n\nControls `/api/v1/schema.graphql` and `/api/v1/schema.json` independently of\nintrospection auth. When `Some(true)`, schema export requires OIDC auth. When\n`Some(false)`, schema export is publicly accessible. When `None` (default),\nfalls back to `introspection_require_auth` for backwards compatibility.",
       "type": [
         "boolean",
         "null"
-      ]
+      ],
+      "x-fraiseql-env": "FRAISEQL_SCHEMA_EXPORT_REQUIRE_AUTH"
     },
     "service_sdl_require_auth": {
       "description": "Require authentication for the federation service SDL (default: None).\n\nControls `{ _service { sdl } }` on `/graphql`. The service SDL is not\nintrospection: it is served whether `introspection_enabled` is on or off, because a\ngateway composes it from a subgraph whose introspection is off. When `Some(true)`,\nan anonymous caller is refused it, so the gateway presents a credential. When\n`Some(false)`, it is served to anyone. When `None` (default), falls back to\n`introspection_require_auth`.",
       "type": [
         "boolean",
         "null"
-      ]
+      ],
+      "x-fraiseql-env": "FRAISEQL_SERVICE_SDL_REQUIRE_AUTH"
     },
     "suggestions_enabled": {
       "description": "Whether a refused name carries a \"Did you mean\" hint.\n\nA hint names the declared operations, arguments, variables, types, sort keys and\nfilter fields nearest the one a request misspelt, so a client with introspection\noff can still map the schema by probing. When `Some`, it is honoured as written;\n`Some(true)` in production boots with a warning. When `None` (default), the\ndeployment decides: off in production, on in development (`FRAISEQL_ENV`). It is\nthe one switch whose unset value follows the deployment rather than another key.",
       "type": [
         "boolean",
         "null"
-      ]
+      ],
+      "x-fraiseql-env": "FRAISEQL_SUGGESTIONS_ENABLED"
     },
     "playground_require_auth": {
       "description": "Require authentication for the GraphQL Playground endpoint (default: None).\n\nControls the playground independently of introspection auth. When `Some(true)`,\nthe playground requires OIDC auth. When `Some(false)`, the playground is publicly\naccessible. When `None` (default), falls back to `introspection_require_auth`\nfor backwards compatibility.",
       "type": [
         "boolean",
         "null"
-      ]
+      ],
+      "x-fraiseql-env": "FRAISEQL_PLAYGROUND_REQUIRE_AUTH"
     },
     "subscription_require_auth": {
       "description": "Require authentication for the `WebSocket` subscription endpoint (default: None).\n\nControls the `/subscriptions` endpoint independently of introspection auth. The\nendpoint is authenticated by the deployment's configured authentication either\nway. When `Some(true)`, an upgrade that resolved no principal is\nrefused, and the endpoint is not mounted without configured authentication. When\n`Some(false)`, an upgrade without a principal is served where that authentication\nlets it through. When `None` (default), falls back to `introspection_require_auth`\nfor backwards compatibility.",
       "type": [
         "boolean",
         "null"
-      ]
+      ],
+      "x-fraiseql-env": "FRAISEQL_SUBSCRIPTION_REQUIRE_AUTH"
     },
     "subscription_auth_recheck_secs": {
       "description": "How often (seconds) a live `WebSocket` subscription re-checks its principal's\nauthorization — token expiry and, when a revocation store is configured,\nrevocation (#771). Default: 30.\n\nA JWT is validated once at the upgrade; without this re-check an expired or\nrevoked token would keep receiving policy-scoped events until the client\ndisconnects. The check is cheap (a clock comparison, plus one revocation-store\nlookup per interval — never a round-trip to the `IdP`). Token expiry is\nadditionally enforced on every event delivery regardless of this interval.\n`0` disables the periodic re-check (the per-delivery expiry check remains).",
@@ -288,7 +305,8 @@
       "type": "integer",
       "format": "uint",
       "minimum": 0,
-      "default": 20
+      "default": 20,
+      "x-fraiseql-env": "FRAISEQL_POOL_MAX_SIZE"
     },
     "pool_timeout_secs": {
       "description": "Database connection pool timeout in seconds.",
@@ -638,7 +656,8 @@
       "type": "integer",
       "format": "uint64",
       "minimum": 0,
-      "default": 30
+      "default": 30,
+      "x-fraiseql-env": "FRAISEQL_SHUTDOWN_TIMEOUT_SECS"
     },
     "usage": {
       "description": "Usage counter persistence configuration (optional).\n\nWhen set, mutation usage counters are periodically flushed to PostgreSQL\nand restored on server startup.  Requires a PostgreSQL database URL.\n\n```toml\n[usage]\nflush_interval_secs = 60\n```\n\nWhen absent (default), counters are in-memory only and reset on restart.",
@@ -1526,7 +1545,8 @@
           "type": "integer",
           "format": "uint32",
           "minimum": 0,
-          "default": 3
+          "default": 3,
+          "x-fraiseql-env": "FRAISEQL_TRANSACTION_RETRY_MAX_ATTEMPTS"
         },
         "base_ms": {
           "description": "The first retry waits a random duration up to this many milliseconds; each later\nretry up to twice the one before. Default: 10.",
