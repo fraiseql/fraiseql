@@ -149,6 +149,10 @@ pub(super) fn merge<'r>(
             let entry_key = key(entry);
             !own.contains(&entry_key) && !truncated.contains(&entry_key.0)
         })
+        // A TVIEW no GraphQL type serves: left out, as a derived update of one is (its entity
+        // reads `null`). A deleted entry names its row's type, and serving one that names a
+        // type the schema does not have would be refused and fail the write.
+        .filter(|entry| schema.find_type(&key(entry).0).is_some_and(|ty| !ty.internal))
         .filter(|entry| {
             let type_name = key(entry).0;
             if engine_filtered(&type_name) {

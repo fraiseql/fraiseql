@@ -40,6 +40,15 @@ disagreed, and the promise was the part that was wrong.
   sqlx 0.9.1 or later. 0.9 takes SQL built at runtime only through `sqlx::AssertSqlSafe`;
   see its changelog for the rest.
 
+- **A cascade's `deleted` entry is checked like an `updated` one (#2313).** Its
+  `__typename` now fills the published `typename`, so an entry with none, or naming a type
+  the schema does not have or a framework-internal one, fails the mutation, whatever the
+  client selected. Before, a deleted entry was served with its `id` and `deletedAt` whatever
+  it named. `fraiseql.deleted_entity` always writes the type it is given; a function that
+  builds the JSONB by hand must write the row's GraphQL type. A deletion `pg_tviews` reports
+  of a TVIEW no GraphQL type serves is left out of the cascade, as a reported update of one
+  already was.
+
 - **A declared name is a GraphQL Name, at compile and at load (#1840).** `fraiseql compile`
   wrote a type, field or argument named `a'b` into `schema.compiled.json`; only a field
   that was a sort key was refused, by the check that lists sort keys. Every type,
@@ -930,6 +939,13 @@ disagreed, and the promise was the part that was wrong.
   `BigInt`, `Json`, `Email`.
 
 ### Added
+
+- **Cascade entries name their row's type (#2313).** `UpdatedEntity` and `DeletedEntity`
+  publish `typename: String!`, as the graphql-cascade spec defines them: the row's GraphQL
+  type, from the entry's `__typename` the runtime checks. A deleted entry has no entity, so
+  a client had no way to build the deleted row's cache key; `typename` and `id` are it. The
+  cascade docs and the example's Apollo `applyCascade` read `typename`, and evict deleted
+  rows with it. A server test executes both entries against PostgreSQL.
 
 - **Generated clients call a fact table's roots (#1927).** `fraiseql generate-client`
   emitted a fact table's argument inputs and nothing that calls `<name>_aggregate` or

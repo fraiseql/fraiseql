@@ -5328,6 +5328,85 @@ mod cascade {
         assert_eq!(payload["updatedFields"], json!(["title"]));
     }
 
+    /// Each entry's `typename` is its row's type, as graphql-cascade defines it (#2313): a
+    /// client keys a deleted row on it, since a deleted entry has no entity. The entry's own
+    /// `__typename` stays its envelope's.
+    #[tokio::test]
+    async fn each_cascade_entry_carries_its_rows_typename() {
+        let executor = Executor::new(
+            cascade_schema(),
+            Arc::new(CannedMutationAdapter::new(standard_cascade())),
+        );
+        let q = r"mutation { createPost { cascade {
+            updated { __typename typename id }
+            deleted { __typename typename id }
+        } } }";
+        let res = executor.execute(q, None).await.unwrap();
+        let cascade = &res["data"]["createPost"]["cascade"];
+        assert_eq!(
+            cascade["updated"],
+            json!([{ "__typename": "UpdatedEntity", "typename": "Post", "id": "p2" }]),
+            "{res}"
+        );
+        assert_eq!(
+            cascade["deleted"],
+            json!([{ "__typename": "DeletedEntity", "typename": "Post", "id": "p3" }]),
+            "{res}"
+        );
+    }
+
+    /// A deleted entry with no `__typename` cannot fill its non-null `typename`, and is
+    /// refused like an updated one, whatever the client selected (#2313).
+    #[tokio::test]
+    async fn a_deleted_entry_without_a_typename_is_refused() {
+        let cascade = json!({
+            "updated": [],
+            "deleted": [{ "id": "p3", "deletedAt": "2026-01-01T00:00:00Z" }]
+        });
+        let executor =
+            Executor::new(cascade_schema(), Arc::new(CannedMutationAdapter::new(cascade)));
+        let q = "mutation { createPost { cascade { deleted { id } } } }";
+        let err = executor.execute(q, None).await.expect_err("refused").to_string();
+        assert!(err.contains("cascade.deleted entry is missing __typename"), "{err}");
+    }
+
+    /// A deleted entry naming a type the schema does not have is refused, as an updated one
+    /// is: a client would key a cache entry on a type that does not exist (#2313).
+    #[tokio::test]
+    async fn a_deleted_entry_of_an_unknown_type_is_refused() {
+        let cascade = json!({
+            "updated": [],
+            "deleted": [{ "__typename": "Nope", "id": "p3", "deletedAt": "2026-01-01T00:00:00Z" }]
+        });
+        let executor =
+            Executor::new(cascade_schema(), Arc::new(CannedMutationAdapter::new(cascade)));
+        let q = "mutation { createPost { cascade { deleted { id } } } }";
+        let err = executor.execute(q, None).await.expect_err("refused").to_string();
+        assert!(err.contains("cascade.deleted entry has unknown __typename 'Nope'"), "{err}");
+    }
+
+    /// A deleted entry naming a framework-internal projection is refused, as an updated one
+    /// is: a change-log row never rides in a cascade (#2313).
+    #[tokio::test]
+    async fn a_deleted_entry_of_an_internal_type_is_refused() {
+        let mut schema = cascade_schema();
+        let mut log = TypeDefinition::new("EntityChangeLog", "v_entity_change_log");
+        log.fields = vec![FieldDefinition::new("id", FieldType::Id)];
+        log.internal = true;
+        schema.types.push(log);
+        schema.build_indexes();
+        let cascade = json!({
+            "updated": [],
+            "deleted": [{
+                "__typename": "EntityChangeLog", "id": "p3", "deletedAt": "2026-01-01T00:00:00Z"
+            }]
+        });
+        let executor = Executor::new(schema, Arc::new(CannedMutationAdapter::new(cascade)));
+        let q = "mutation { createPost { cascade { deleted { id } } } }";
+        let err = executor.execute(q, None).await.expect_err("refused").to_string();
+        assert!(err.contains("framework-internal type 'EntityChangeLog'"), "{err}");
+    }
+
     /// Cascade + updatedFields are selection-gated: unselected ⇒ absent (no more
     /// unrequested injection — eval finding 3).
     #[tokio::test]
@@ -8149,5 +8228,43 @@ fn a_type_a_derived_report_omits_is_invalidated_in_the_cascade() {
     assert_eq!(
         merged["cascade"]["invalidations"],
         serde_json::json!([{ "queryName": "comments", "strategy": "INVALIDATE", "scope": "PREFIX" }])
+    );
+}
+
+/// A deletion `pg_tviews` reports of a TVIEW no GraphQL type serves, or of a
+/// framework-internal projection, is left out of the merged cascade, as a derived update of one is
+/// (its entity reads `null`): a deleted entry names its row's type (#2313), and the runtime refuses
+/// one naming a type the schema does not have, so listing it would fail the write instead of
+/// serving it.
+#[test]
+fn a_derived_deletion_of_a_type_the_schema_does_not_have_is_left_out() {
+    use crate::schema::{CompiledSchema, TypeDefinition};
+
+    let mut schema = CompiledSchema::new();
+    schema.types.push(TypeDefinition::new("Post", "v_post"));
+    let mut log = TypeDefinition::new("EntityChangeLog", "v_entity_change_log");
+    log.internal = true;
+    schema.types.push(log);
+    schema.build_indexes();
+    let row: std::collections::HashMap<String, serde_json::Value> = [(
+        crate::backend::DERIVED_CASCADE_KEY.to_string(),
+        serde_json::json!({
+            "updated": [],
+            "deleted": [
+                { "__typename": "Post", "id": "p1", "deletedAt": "2026-01-01T00:00:00Z" },
+                { "__typename": "Audit", "id": "a1", "deletedAt": "2026-01-01T00:00:00Z" },
+                { "__typename": "EntityChangeLog", "id": "l1", "deletedAt": "2026-01-01T00:00:00Z" },
+            ],
+            "invalidated_types": [],
+            "omitted_types": [],
+        }),
+    )]
+    .into();
+    let merged = super::derived_cascade::merge(&schema, &row, |_| false);
+    assert_eq!(
+        merged["cascade"]["deleted"],
+        serde_json::json!([
+            { "__typename": "Post", "id": "p1", "deletedAt": "2026-01-01T00:00:00Z" }
+        ])
     );
 }

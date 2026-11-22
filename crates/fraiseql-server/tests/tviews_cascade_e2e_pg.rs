@@ -371,8 +371,9 @@ async fn the_cascade_lists_the_rows_pg_tviews_refreshed() {
 }
 
 /// A cascade entry's own `__typename` is its envelope's GraphQL type, `UpdatedEntity` or
-/// `DeletedEntity`, whatever the function wrote there (#1816). A row's type is read at
-/// `entity { __typename }`, through `CascadeNode`; a deleted entry has no entity.
+/// `DeletedEntity`, whatever the function wrote there (#1816). The row's type is the
+/// entry's `typename`, as graphql-cascade defines it (#2313), and an updated entry's
+/// `entity { __typename }`; a deleted entry has no entity, so `typename` is its only one.
 #[tokio::test]
 async fn an_entrys_typename_is_its_envelope_and_its_entitys_is_the_rows_type() {
     let Some(server) = serve().await else {
@@ -382,8 +383,8 @@ async fn an_entrys_typename_is_its_envelope_and_its_entitys_is_the_rows_type() {
         &server,
         &format!(
             "mutation {{ updatePost(id: \"{POST}\", title: \"typed\") {{ ... on \
-             UpdatePostPayload {{ cascade {{ updated {{ __typename id entity {{ __typename id }} \
-             }} }} }} }} }}"
+             UpdatePostPayload {{ cascade {{ updated {{ __typename typename id entity {{ __typename \
+             id }} }} }} }} }} }}"
         ),
     )
     .await;
@@ -395,6 +396,7 @@ async fn an_entrys_typename_is_its_envelope_and_its_entitys_is_the_rows_type() {
         .iter()
         .map(|e| {
             assert_eq!(e["__typename"], "UpdatedEntity", "the entry's own type: {body}");
+            assert_eq!(e["typename"], e["entity"]["__typename"], "the row's type: {body}");
             assert_eq!(e["entity"]["id"], e["id"], "{body}");
             (e["entity"]["__typename"].as_str().unwrap().to_string(), e["id"].to_string())
         })
@@ -411,13 +413,35 @@ async fn an_entrys_typename_is_its_envelope_and_its_entitys_is_the_rows_type() {
         &server,
         &format!(
             "mutation {{ deletePostOwn(id: \"{OTHER_POST}\", title: \"x\") {{ ... on \
-             DeletePostOwnPayload {{ cascade {{ deleted {{ __typename id }} }} }} }} }}"
+             DeletePostOwnPayload {{ cascade {{ deleted {{ __typename typename id }} }} }} }} }}"
         ),
     )
     .await;
     assert_eq!(
         body["data"]["deletePostOwn"]["cascade"]["deleted"],
-        json!([{ "__typename": "DeletedEntity", "id": OTHER_POST }]),
+        json!([{ "__typename": "DeletedEntity", "typename": "Post", "id": OTHER_POST }]),
+        "{body}"
+    );
+}
+
+/// A deletion `pg_tviews` reports, which the function did not list, names its row's type
+/// too (#2313).
+#[tokio::test]
+async fn a_derived_deletion_names_its_rows_type() {
+    let Some(server) = serve().await else {
+        return;
+    };
+    let body = post_graphql(
+        &server,
+        &format!(
+            "mutation {{ deletePost(id: \"{OTHER_POST}\", title: \"x\") {{ ... on \
+             DeletePostPayload {{ cascade {{ deleted {{ __typename typename id }} }} }} }} }}"
+        ),
+    )
+    .await;
+    assert_eq!(
+        body["data"]["deletePost"]["cascade"]["deleted"],
+        json!([{ "__typename": "DeletedEntity", "typename": "Post", "id": OTHER_POST }]),
         "{body}"
     );
 }

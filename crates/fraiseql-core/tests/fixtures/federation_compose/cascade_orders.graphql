@@ -31,12 +31,14 @@ type Order @key(fields: "id") {
 }
 
 type UpdatedEntity @shareable {
+  typename: String!
   id: ID!
   operation: CascadeOperation!
   entity: CascadeNode!
 }
 
 type DeletedEntity @shareable {
+  typename: String!
   id: ID!
   deletedAt: DateTime!
 }

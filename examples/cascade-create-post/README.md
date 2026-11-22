@@ -91,7 +91,8 @@ mutation CreatePost($input: CreatePostInput!) {
   createPost(input: $input) {
     entity { id title authorId }
     cascade {
-      updated { __typename id operation entity { __typename ... on Post { title } ... on User { postCount } } }
+      updated { typename id operation entity { ... on Post { title } ... on User { postCount } } }
+      deleted { typename id deletedAt }
       invalidations { queryName strategy scope }
       metadata { affectedCount truncated }
     }
@@ -107,9 +108,10 @@ mutation CreatePost($input: CreatePostInput!) {
       "entity": { "id": "post-123", "title": "My New Post", "authorId": "user-456" },
       "cascade": {
         "updated": [
-          { "__typename": "UpdatedEntity", "id": "post-123", "operation": "CREATED", "entity": { "__typename": "Post", "title": "My New Post" } },
-          { "__typename": "UpdatedEntity", "id": "user-456", "operation": "UPDATED", "entity": { "__typename": "User", "postCount": 5 } }
+          { "typename": "Post", "id": "post-123", "operation": "CREATED", "entity": { "title": "My New Post" } },
+          { "typename": "User", "id": "user-456", "operation": "UPDATED", "entity": { "postCount": 5 } }
         ],
+        "deleted": [],
         "invalidations": [ { "queryName": "posts", "strategy": "INVALIDATE", "scope": "PREFIX" } ],
         "metadata": { "affectedCount": 2, "truncated": false }
       },
@@ -119,24 +121,28 @@ mutation CreatePost($input: CreatePostInput!) {
 }
 ```
 
-Each entry's own `__typename` is `UpdatedEntity`, the GraphQL type of a `cascade.updated`
-entry. The row's type is the entity's `__typename`, which the query selects. The
-`'Post'`/`'User'` the function passes to `fraiseql.cascade_entity` is its input to the
-runtime, which resolves the entity with it; it is not echoed as the entry's `__typename`.
+Each entry's `typename` is its row's type, as the graphql-cascade spec defines it: the
+`'Post'`/`'User'` the function passes to `fraiseql.cascade_entity`, checked against the
+schema. A deleted entry carries it too, and has no entity. An entry's own `__typename` is
+its GraphQL type, `UpdatedEntity` or `DeletedEntity`, not the row's; an updated entry's
+`entity { __typename }` also answers the row's type.
 
 ## Client Integration (Apollo)
 
-Because each `cascade.updated` entry carries `id`, the full `entity` and, in it, the row's
-`__typename`, a normalized cache can write it directly:
+Because each entry carries its row's `typename` and `id`, a normalized cache can write an
+updated row directly and evict a deleted one:
 
 ```typescript
 function applyCascade(cache: ApolloCache<unknown>, cascade: CascadeUpdates) {
   cascade.updated?.forEach(u => {
     cache.writeFragment({
-      id: cache.identify({ __typename: u.entity.__typename, id: u.id }),
-      fragment: gql`fragment _ on ${u.entity.__typename} { id }`,
+      id: cache.identify({ __typename: u.typename, id: u.id }),
+      fragment: gql`fragment _ on ${u.typename} { id }`,
       data: u.entity,
     });
+  });
+  cascade.deleted?.forEach(d => {
+    cache.evict({ id: cache.identify({ __typename: d.typename, id: d.id }) });
   });
   cascade.invalidations?.forEach(inv => {
     if (inv.strategy === 'INVALIDATE') cache.evict({ fieldName: inv.queryName });
@@ -155,7 +161,7 @@ psql -v ON_ERROR_STOP=1 -d cascade_create_example -f schema.sql
 ## Key Learning Points
 
 1. **Opt in with `cascade=True`** — the mutation then returns `<Name>Payload { entity, cascade, updatedFields }`.
-2. **Nested entry shape** — each `updated` entry is an `UpdatedEntity` `{ id, operation, entity }`, the row's type at `entity { __typename }`; `deleted` entries are a `DeletedEntity` `{ id, deletedAt }` (no body). An entry's own `__typename` names that envelope type, not the row's; a deleted row's type does not reach the client yet (#2313).
+2. **Nested entry shape** — each `updated` entry is an `UpdatedEntity` `{ typename, id, operation, entity }`; `deleted` entries are a `DeletedEntity` `{ typename, id, deletedAt }` (no body). `typename` is the row's type; an entry's own `__typename` names its envelope type, not the row's.
 3. **Read from views** — assemble cascade entities from `v_*` (RLS-protected), never `tb_*`.
 4. **Enforced like a query** — cascade entities are projected to camelCase and field-authorized; the response is bounded by `cascade_limits`.
 5. **Cache-clean** — cascade is on the payload, not the entity, so normalized client caches never store a `cascade` key on `Post`.

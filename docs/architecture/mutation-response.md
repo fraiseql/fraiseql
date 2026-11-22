@@ -383,16 +383,21 @@ The function fills the `cascade` column with the spec-nested shape (see the
 graphql-cascade spec): `{ updated: [{__typename, id, operation, entity}],
 deleted: [{__typename, id, deletedAt}], invalidations: [...], metadata: {...} }`.
 This JSONB is the function's input to the runtime, and its `__typename` names the row's
-type (`Post`, `User`): the runtime reads it to resolve each `entity`. It is not what a client
-reads back:
+type (`Post`, `User`): the runtime checks it against the schema (an entry with none, or
+naming a type the schema does not have or a framework-internal one, fails the mutation) and
+resolves each `entity` with it. A client reads it back as the entry's `typename`, the field
+the graphql-cascade spec defines on both entry types:
 
-* An `updated` entry is a GraphQL `UpdatedEntity`, so its own `__typename` answers
-  `"UpdatedEntity"`. The row's type is the entity's: select `entity { __typename }`
-  (resolved through the `CascadeNode` interface), and key a normalized cache on
-  `entity.__typename` and `id`.
-* A `deleted` entry is a `DeletedEntity` (`id`, `deletedAt`), so its `__typename` answers
-  `"DeletedEntity"`. It has no entity, and the deleted row's type does not reach the client
-  yet (#2313).
+* An `updated` entry is a GraphQL `UpdatedEntity` `{ typename, id, operation, entity }`. Its
+  own `__typename` answers `"UpdatedEntity"`; `typename` answers the row's type, as does
+  `entity { __typename }` (resolved through the `CascadeNode` interface). Key a normalized
+  cache on `typename` and `id`.
+* A `deleted` entry is a `DeletedEntity` `{ typename, id, deletedAt }`. Its own `__typename`
+  answers `"DeletedEntity"`; it has no entity, so `typename` and `id` are the deleted row's
+  cache key.
+
+With `cascade_source = "pg_tviews"`, a deletion the extension reports of a TVIEW no GraphQL
+type serves is left out of the cascade, as a reported update of one is.
 
 Author it with the shipped builders (installed by `fraiseql setup`):
 

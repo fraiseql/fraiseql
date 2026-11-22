@@ -12,10 +12,10 @@
 //!   fragment. Deliberately distinct from the relay `Node` interface (which carries global-id
 //!   refetch semantics);
 //! - the `CascadeOperation` enum (`CREATED`/`UPDATED`/`DELETED`);
-//! - `UpdatedEntity` (`id`, `operation`, `entity: CascadeNode!`) for created/updated rows, and
-//!   `DeletedEntity` (`id`, `deletedAt`) for deleted rows — a deleted row has no entity body to
-//!   project, so it is a distinct type (a shared type with a non-null `entity` would be
-//!   unsatisfiable);
+//! - `UpdatedEntity` (`typename`, `id`, `operation`, `entity: CascadeNode!`) for created/updated
+//!   rows, and `DeletedEntity` (`typename`, `id`, `deletedAt`) for deleted rows, `typename` naming
+//!   the row's type as graphql-cascade defines it — a deleted row has no entity body to project, so
+//!   it is a distinct type (a shared type with a non-null `entity` would be unsatisfiable);
 //! - the `CascadeUpdates` envelope (`updated: [UpdatedEntity!]!`, `deleted: [DeletedEntity!]!`).
 //!
 //! Then, per cascade mutation, it synthesizes a `<Mutation>Payload`
@@ -45,9 +45,9 @@ use tracing::warn;
 const CASCADE_NODE: &str = "CascadeNode";
 /// The cascade operation enum (`CREATED`/`UPDATED`/`DELETED`).
 const CASCADE_OPERATION: &str = "CascadeOperation";
-/// A created/updated cascade entry (`id`, `operation`, typed `entity`).
+/// A created/updated cascade entry (`typename`, `id`, `operation`, typed `entity`).
 const UPDATED_ENTITY: &str = "UpdatedEntity";
-/// A deleted cascade entry (`id`, `deletedAt`) — carries no entity body.
+/// A deleted cascade entry (`typename`, `id`, `deletedAt`) — carries no entity body.
 const DELETED_ENTITY: &str = "DeletedEntity";
 /// The cascade envelope carried on a mutation payload.
 const CASCADE_UPDATES: &str = "CascadeUpdates";
@@ -388,6 +388,12 @@ fn updated_entity_type() -> TypeDefinition {
     synth_type(
         UPDATED_ENTITY,
         vec![
+            synth_field(
+                "typename",
+                FieldType::String,
+                false,
+                "The affected entity's GraphQL type name (graphql-cascade).",
+            ),
             synth_field("id", FieldType::Id, false, "The affected entity's global ID."),
             synth_field(
                 "operation",
@@ -406,13 +412,20 @@ fn updated_entity_type() -> TypeDefinition {
     )
 }
 
-/// The `DeletedEntity` type (`id`, `deletedAt`). Carries no `entity` body — the
+/// The `DeletedEntity` type (`typename`, `id`, `deletedAt`). Carries no `entity` body — the
 /// row is gone, so there is nothing to project (a non-null `entity` here would be
 /// unsatisfiable).
 fn deleted_entity_type() -> TypeDefinition {
     synth_type(
         DELETED_ENTITY,
         vec![
+            synth_field(
+                "typename",
+                FieldType::String,
+                false,
+                "The deleted entity's GraphQL type name (graphql-cascade): with `id`, its cache \
+                 key, since a deleted entry has no entity.",
+            ),
             synth_field("id", FieldType::Id, false, "The deleted entity's global ID."),
             synth_field("deletedAt", FieldType::DateTime, false, "When the entity was deleted."),
         ],

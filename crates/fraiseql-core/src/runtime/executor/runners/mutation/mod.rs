@@ -677,6 +677,12 @@ fn build_updated_entities(
                         serde_json::Value::String(UPDATED_ENTITY_TYPE.to_string()),
                     );
                 },
+                "typename" => {
+                    item.insert(
+                        sel.response_key().to_string(),
+                        serde_json::Value::String(typename.to_string()),
+                    );
+                },
                 "id" => {
                     if let Some(id) = entry_obj.get("id") {
                         item.insert(sel.response_key().to_string(), id.clone());
@@ -711,11 +717,13 @@ fn build_updated_entities(
 }
 
 /// Build the `deleted: [DeletedEntity!]!` array. Deleted entries carry no entity
-/// body (the row is gone) — only `id` + `deletedAt` — so there is nothing to
-/// project or field-authorize.
+/// body (the row is gone) — only `typename`, `id` and `deletedAt` — so there is nothing
+/// to project or field-authorize.
 ///
-/// Fail-closed: an entry missing the non-null `id` or
-/// `deletedAt` aborts the response rather than emitting an SDL-invalid violation.
+/// Fail-closed: an entry missing the non-null `id` or `deletedAt`, or a `__typename`
+/// that is missing, unknown or framework-internal, aborts the response rather than
+/// emitting an SDL-invalid violation or a cache key for a type a client cannot hold. The
+/// `__typename` is checked as an updated entry's is, since `typename` serves it (#2313).
 fn build_deleted_entities(
     entries: &[serde_json::Value],
     selections: &[FieldSelection],
@@ -730,6 +738,30 @@ fn build_deleted_entities(
                 path:    Some("cascade.deleted".to_string()),
             });
         };
+        let Some(typename) = entry_obj.get("__typename").and_then(serde_json::Value::as_str) else {
+            return Err(FraiseQLError::Validation {
+                message: "cascade.deleted entry is missing __typename".to_string(),
+                path:    Some("cascade.deleted.__typename".to_string()),
+            });
+        };
+        match schema.find_type(typename) {
+            None => {
+                return Err(FraiseQLError::Validation {
+                    message: format!("cascade.deleted entry has unknown __typename '{typename}'"),
+                    path:    Some("cascade.deleted.__typename".to_string()),
+                });
+            },
+            Some(ty) if ty.internal => {
+                return Err(FraiseQLError::Validation {
+                    message: format!(
+                        "cascade.deleted entry names framework-internal type '{typename}', a \
+                         bookkeeping projection that is not a cascade-deliverable entity"
+                    ),
+                    path:    Some("cascade.deleted.__typename".to_string()),
+                });
+            },
+            Some(_) => {},
+        }
         if !entry_obj.contains_key("id") {
             return Err(FraiseQLError::Validation {
                 message: "cascade.deleted entry is missing id".to_string(),
@@ -750,6 +782,12 @@ fn build_deleted_entities(
                     item.insert(
                         sel.response_key().to_string(),
                         serde_json::Value::String(DELETED_ENTITY_TYPE.to_string()),
+                    );
+                },
+                "typename" => {
+                    item.insert(
+                        sel.response_key().to_string(),
+                        serde_json::Value::String(typename.to_string()),
                     );
                 },
                 "id" => {
