@@ -42,12 +42,16 @@ This example demonstrates how to build a complete GraphQL API using FraiseQL wit
 - Type-safe core functions with JSONB app wrappers
 - See: `db/functions/app_functions.sql` and `core_functions.sql`
 
-### ✅ Unified Audit Logging
+### ✅ Mutation Audit Logging
 
-- **Single `audit_events` table** with CDC + cryptographic chain
-- PostgreSQL-native crypto (no Python overhead)
-- Tamper-proof audit trails with SHA-256 hashing
-- See: `core.log_and_return_mutation()` function and unified audit table
+- `core.log_and_return_mutation()` writes each mutation's before and after state, changed
+  fields and metadata as one row of an `audit_events` table, and returns the standardized
+  mutation result
+- The example does not create `audit_events`: create it, with the columns that function's
+  `INSERT` names, before calling the mutation functions
+- The rows are neither chained nor hashed, so anyone who can write the table can change or
+  delete one unnoticed. FraiseQL has no tamper-evident audit chain yet (#1630)
+- See: `db/functions/core_functions.sql`
 
 ### ❌ Advanced Features
 
@@ -55,7 +59,7 @@ For complete enterprise patterns (identifier management, multi-layer validation)
 
 ## Features
 
-- User management with comprehensive audit trails
+- User management, each mutation logged with its before and after state
 - Blog posts with enterprise-grade change tracking
 - Comments system with nested replies
 - Role-based permissions (user, admin)

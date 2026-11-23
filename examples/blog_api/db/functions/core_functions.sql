@@ -441,8 +441,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Unified audit logging function
--- Logs to audit_events table with automatic crypto chain integrity
+-- Audit logging function: one audit_events row per mutation, with its before and after
+-- state. This example does not create audit_events, and the rows are neither chained nor
+-- hashed.
 CREATE OR REPLACE FUNCTION core.log_and_return_mutation(
     p_tenant_id UUID,
     p_user_id UUID,
@@ -459,8 +460,7 @@ CREATE OR REPLACE FUNCTION core.log_and_return_mutation(
 DECLARE
     v_result app.mutation_result;
 BEGIN
-    -- Insert into unified audit_events table
-    -- Crypto fields auto-populated by populate_crypto_trigger
+    -- One row per mutation
     INSERT INTO audit_events (
         tenant_id, user_id, entity_type, entity_id,
         operation_type, operation_subtype, changed_fields,
