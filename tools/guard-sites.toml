@@ -59,9 +59,9 @@ name = "rls-policy"
 scan = "strings"
 sql = true
 # A row-level-security policy that restricts the rows a role reads or changes: its
-# `USING (...)` clause (a `USING (true)` restricts nothing). Policies are ENABLEd, not
-# FORCEd, except where an example says otherwise, so a killer reads as a NOBYPASSRLS role
-# that owns nothing; a read as the owner proves nothing.
+# `USING (...)` clause (a `USING (true)` restricts nothing: family `rls-open-policy`).
+# Policies are ENABLEd, not FORCEd, except where an example says otherwise, so a killer
+# reads as a NOBYPASSRLS role that owns nothing; a read as the owner proves nothing.
 patterns = [
   'CREATE[\s\\]+POLICY[\s\\]+\w+[\s\\]+ON[\s\\]+[\w.%]+[^;\0]*?\bUSING[\s\\]*\((?![\s\\]*true[\s\\]*\))',
 ]
@@ -74,6 +74,17 @@ sql = true
 # without it a non-owner reads every row.
 patterns = [
   'ALTER[\s\\]+TABLE[\s\\]+[\w.%]+[\s\\]+ENABLE[\s\\]+ROW[\s\\]+LEVEL[\s\\]+SECURITY',
+]
+
+[[family]]
+name = "rls-open-policy"
+scan = "strings"
+sql = true
+# A policy that restricts nothing, `USING (true)` or `WITH CHECK (true)`: the family
+# `rls-policy` does not read it, so it is refused here unless an `[[exempt]]` row says
+# what guards the table instead.
+patterns = [
+  'CREATE[\s\\]+POLICY[\s\\]+\w+[\s\\]+ON[\s\\]+[\w.%]+[^;\0]*?\b(?:USING|WITH[\s\\]+CHECK)[\s\\]*\([\s\\]*true[\s\\]*\)',
 ]
 
 [[family]]
@@ -237,6 +248,67 @@ reason = "an externally captured write has no request and no tenant: the call na
 file = "crates/fraiseql-core/src/security/audit.rs"
 function = "get_recent_logs"
 reason = "no caller and no test; wire it or delete it: #2392"
+
+# An open policy, `USING (true)` or `WITH CHECK (true)` (family `rls-open-policy`): the
+# grants guard its table, and each table's statement taking PUBLIC's privileges away is a
+# `rls-grant` site below.
+
+[[exempt]]
+file = "crates/fraiseql-auth/src/account_linking/postgres.rs"
+function = "SCHEMA_SQL"
+anchor = "CREATE POLICY p_user_insert ON auth.tb_user FOR INSERT WITH CHECK (true)"
+reason = "writes are the owner's, the store's; no grant, to PUBLIC or any other role, lets another role write: killed site rls-grant.auth.account_linking.postgres.tb_user"
+
+[[exempt]]
+file = "crates/fraiseql-auth/src/account_linking/postgres.rs"
+function = "SCHEMA_SQL"
+anchor = "CREATE POLICY p_auth_identity_insert ON auth.tb_auth_identity FOR INSERT WITH CHECK (true)"
+reason = "writes are the owner's, the store's; no grant, to PUBLIC or any other role, lets another role write: killed site rls-grant.auth.account_linking.postgres.tb_auth_identity"
+
+[[exempt]]
+file = "crates/fraiseql-auth/src/local_password/reset.rs"
+function = "PASSWORD_RESET_SCHEMA_SQL"
+anchor = "CREATE POLICY p_password_reset_token_insert ON auth.tb_password_reset_token\n    FOR INSERT WITH CHECK (true)"
+reason = "writes are the owner's, the store's; no grant, to PUBLIC or any other role, lets another role write: killed site rls-grant.auth.local_password.reset.tb_password_reset_token"
+
+[[exempt]]
+file = "crates/fraiseql-auth/src/local_password/verification.rs"
+function = "EMAIL_VERIFICATION_SCHEMA_SQL"
+anchor = "CREATE POLICY p_email_verification_token_insert ON auth.tb_email_verification_token\n    FOR INSERT WITH CHECK (true)"
+reason = "writes are the owner's, the store's; no grant, to PUBLIC or any other role, lets another role write: killed site rls-grant.auth.local_password.verification.tb_email_verification_token"
+
+[[exempt]]
+file = "crates/fraiseql-auth/src/local_password.rs"
+function = "PASSWORD_SCHEMA_SQL"
+anchor = "CREATE POLICY p_password_credential_insert ON auth.tb_password_credential\n    FOR INSERT WITH CHECK (true)"
+reason = "writes are the owner's, the store's; no grant, to PUBLIC or any other role, lets another role write: killed site rls-grant.auth.local_password.tb_password_credential"
+
+[[exempt]]
+file = "crates/fraiseql-auth/src/saml/store.rs"
+function = "PG_SAML_IDP_SCHEMA_SQL"
+anchor = "CREATE POLICY p_saml_idp_insert ON auth.tb_saml_idp FOR INSERT WITH CHECK (true)"
+reason = "writes are the owner's, the store's; no grant, to PUBLIC or any other role, lets another role write: killed site rls-grant.auth.saml.store.tb_saml_idp"
+
+[[exempt]]
+file = "crates/fraiseql-auth/src/scim/store.rs"
+function = "PG_SCIM_SCHEMA_SQL"
+anchor = "CREATE POLICY p_scim_group_insert ON auth.tb_scim_group FOR INSERT WITH CHECK (true)"
+reason = "writes are the owner's, the store's; no grant, to PUBLIC or any other role, lets another role write: killed site rls-grant.auth.scim.store.tb_scim_group"
+
+[[exempt]]
+file = "crates/fraiseql-observers/migrations/12_enable_change_log_rls.sql"
+anchor = "CREATE POLICY p_change_log_insert ON core.tb_entity_change_log\n    FOR INSERT\n    WITH CHECK (true)"
+reason = "writes are the server role's outbox INSERT and the SECURITY DEFINER capture function's (an external-write capture has no tenant); no INSERT grant, to PUBLIC or any other role, lets another role write: killed site rls-grant.observers.migration-12.tb_entity_change_log"
+
+[[exempt]]
+file = "crates/fraiseql-observers/migrations/13_create_source_cursor.sql"
+anchor = "CREATE POLICY p_source_cursor_insert ON core._fraiseql_source_cursor\n    FOR INSERT\n    WITH CHECK (true)"
+reason = "writes are the trusted source scheduler's, which stamps the tenant; no grant, to PUBLIC or any other role, lets another role write: killed site rls-grant.observers.migration-13._fraiseql_source_cursor"
+
+[[exempt]]
+file = "crates/fraiseql-observers/migrations/13_create_source_cursor.sql"
+anchor = "CREATE POLICY p_source_cursor_update ON core._fraiseql_source_cursor\n    FOR UPDATE\n    USING (true)\n    WITH CHECK (true)"
+reason = "writes are the trusted source scheduler's, which stamps the tenant; no grant, to PUBLIC or any other role, lets another role write: killed site rls-grant.observers.migration-13._fraiseql_source_cursor"
 
 # ── Sites ────────────────────────────────────────────────────────────────────────────
 
@@ -1784,3 +1856,89 @@ anchor = "ALTER TABLE tb_account ENABLE ROW LEVEL SECURITY"
 mutant = "ALTER TABLE tb_account DISABLE ROW LEVEL SECURITY"
 killers = ["saas_example_enforces_its_intra_account_write_rules"]
 shard = "examples-rls"
+
+# A table whose writes the grants guard, not row-level security: taking PUBLIC's privileges
+# away is a no-op on a fresh table, so deleting it is an equivalent mutant. The mutant is
+# the regression it stands for, a write grant to every role, killed by a reader granted only
+# SELECT that is refused a write on a row it reads.
+
+[[site]]
+id = "rls-grant.auth.account_linking.postgres.tb_user"
+file = "crates/fraiseql-auth/src/account_linking/postgres.rs"
+function = "SCHEMA_SQL"
+anchor = "REVOKE ALL ON auth.tb_user          FROM PUBLIC;"
+mutant = "GRANT ALL ON auth.tb_user TO PUBLIC;"
+killers = ["rls_denies_by_default_and_scopes_per_tenant"]
+shard = "auth-rls"
+
+[[site]]
+id = "rls-grant.auth.account_linking.postgres.tb_auth_identity"
+file = "crates/fraiseql-auth/src/account_linking/postgres.rs"
+function = "SCHEMA_SQL"
+anchor = "REVOKE ALL ON auth.tb_auth_identity FROM PUBLIC;"
+mutant = "GRANT ALL ON auth.tb_auth_identity TO PUBLIC;"
+killers = ["auth_identities_are_read_through_the_tenant_policy"]
+shard = "auth-rls"
+
+[[site]]
+id = "rls-grant.auth.local_password.reset.tb_password_reset_token"
+file = "crates/fraiseql-auth/src/local_password/reset.rs"
+function = "PASSWORD_RESET_SCHEMA_SQL"
+anchor = "REVOKE ALL ON auth.tb_password_reset_token FROM PUBLIC;"
+mutant = "GRANT ALL ON auth.tb_password_reset_token TO PUBLIC;"
+killers = ["rls_denies_reset_tokens_by_default_and_scopes_per_tenant"]
+shard = "auth-rls"
+
+[[site]]
+id = "rls-grant.auth.local_password.verification.tb_email_verification_token"
+file = "crates/fraiseql-auth/src/local_password/verification.rs"
+function = "EMAIL_VERIFICATION_SCHEMA_SQL"
+anchor = "REVOKE ALL ON auth.tb_email_verification_token FROM PUBLIC;"
+mutant = "GRANT ALL ON auth.tb_email_verification_token TO PUBLIC;"
+killers = ["verification_tokens_are_read_through_the_tenant_policy"]
+shard = "auth-rls"
+
+[[site]]
+id = "rls-grant.auth.local_password.tb_password_credential"
+file = "crates/fraiseql-auth/src/local_password.rs"
+function = "PASSWORD_SCHEMA_SQL"
+anchor = "REVOKE ALL ON auth.tb_password_credential FROM PUBLIC;"
+mutant = "GRANT ALL ON auth.tb_password_credential TO PUBLIC;"
+killers = ["rls_denies_credentials_by_default_and_scopes_per_tenant"]
+shard = "auth-rls"
+
+[[site]]
+id = "rls-grant.auth.saml.store.tb_saml_idp"
+file = "crates/fraiseql-auth/src/saml/store.rs"
+function = "PG_SAML_IDP_SCHEMA_SQL"
+anchor = "REVOKE ALL ON auth.tb_saml_idp FROM PUBLIC;"
+mutant = "GRANT ALL ON auth.tb_saml_idp TO PUBLIC;"
+killers = ["idps_are_read_through_the_tenant_policy"]
+shard = "auth-rls"
+
+[[site]]
+id = "rls-grant.auth.scim.store.tb_scim_group"
+file = "crates/fraiseql-auth/src/scim/store.rs"
+function = "PG_SCIM_SCHEMA_SQL"
+anchor = "REVOKE ALL ON auth.tb_scim_group        FROM PUBLIC;"
+mutant = "GRANT ALL ON auth.tb_scim_group TO PUBLIC;"
+killers = [
+  "groups_are_read_through_the_tenant_policy_and_members_and_tokens_not_at_all",
+]
+shard = "auth-rls"
+
+[[site]]
+id = "rls-grant.observers.migration-12.tb_entity_change_log"
+file = "crates/fraiseql-observers/migrations/12_enable_change_log_rls.sql"
+anchor = "REVOKE ALL ON core.tb_entity_change_log    FROM PUBLIC;"
+mutant = "GRANT ALL ON core.tb_entity_change_log TO PUBLIC;"
+killers = ["tenant_sees_only_its_own_rows_via_table_and_views"]
+shard = "observers-change-log-rls"
+
+[[site]]
+id = "rls-grant.observers.migration-13._fraiseql_source_cursor"
+file = "crates/fraiseql-observers/migrations/13_create_source_cursor.sql"
+anchor = "REVOKE ALL ON core._fraiseql_source_cursor FROM PUBLIC;"
+mutant = "GRANT ALL ON core._fraiseql_source_cursor TO PUBLIC;"
+killers = ["rls_denies_reads_to_a_role_without_the_tenant_guc"]
+shard = "observers-source-cursor"

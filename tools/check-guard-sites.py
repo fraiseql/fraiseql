@@ -18,8 +18,9 @@ its shard; this gate checks the inventory against the tree, on every PR:
    `#[cfg(test)]` modules excluded; comments blanked, and string contents too unless the
    family sets `scan = "strings"`, as an SQL predicate's family does; a function's own
    definition excluded) must lie inside some site's anchor, under a `[[held]]`
-   path, or inside an `[[exempt]]` function. Each other match is reported at its file,
-   line and column: a count would let a new unguarded site pass beside a removed one.
+   path, or inside an `[[exempt]]` function, or only its `anchor` where the row names one
+   (a `.sql` file, having no functions, always does). Each other match is reported at its
+   file, line and column: a count would let a new unguarded site pass beside a removed one.
 3. The scan proves it looked: it fails when a family pattern matches nothing, when no
    site resolves, and when the root holds no `crates/fraiseql-server`.
 4. A held path that no longer exists fails, so a hold cannot outlive its code.
@@ -375,14 +376,29 @@ class Gate:
             held.append(path.rstrip("/"))
         exempt: dict[str, list[tuple[int, int]]] = {}
         for entry in data.get("exempt", []):
-            label = f"exempt {entry.get('file')}::{entry.get('function')}"
+            file = entry.get("file", "")
+            label = f"exempt {file}::{entry.get('function', entry.get('anchor'))}"
             if not entry.get("reason"):
                 self.error(f"{label}: needs a `reason` (and the issue deciding it)")
-            source = self.source(entry.get("file", ""))
-            spans = source.function_spans(entry.get("function", "")) if source else []
+            source = self.source(file)
+            sql = file.endswith(".sql")
+            if not source or sql == ("function" in entry):
+                self.error(f"{label}: names its function, except in a `.sql` file")
+                continue
+            spans = [(0, len(source.raw))] if sql else source.function_spans(entry["function"])
             if len(spans) != 1:
                 self.error(f"{label}: does not resolve to one function")
                 continue
+            if sql or "anchor" in entry:
+                # An anchor narrows the exemption to one statement, so a guard added beside
+                # it is not exempt with it. A `.sql` file has no functions: it needs one.
+                start, end = spans[0]
+                anchor = entry.get("anchor", "")
+                if not anchor or source.raw[start:end].count(anchor) != 1:
+                    self.error(f"{label}: the anchor does not occur exactly once")
+                    continue
+                at = start + source.raw[start:end].index(anchor)
+                spans = [(at, at + len(anchor))]
             exempt.setdefault(entry["file"], []).extend(spans)
 
         files = [

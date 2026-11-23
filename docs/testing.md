@@ -186,7 +186,11 @@ shared SQL predicate), an exact `anchor` of its code, the `mutant` that replaces
 `killers` (tests that must fail on the mutant) and the `shard` (test command) they run
 in. Two sites that each cover the other share a `joint` and are mutated together.
 `[[held]]` paths are not inventoried yet; `[[exempt]]` functions match a guard pattern
-without being one, with the reason and the issue deciding them.
+without being one, with the reason and the issue deciding them. An exempt row that names
+an `anchor` exempts that statement alone, so a guard added beside it is still reported; a
+`.sql` file has no functions, so its exempt rows always name one. A policy that restricts
+nothing (`USING (true)`, `WITH CHECK (true)`) is such a match: it is refused unless an
+exempt row names what guards its table instead, the grants.
 
 Two tools read it:
 

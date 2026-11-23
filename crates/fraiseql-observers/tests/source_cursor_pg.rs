@@ -167,6 +167,40 @@ async fn advance_in_tx_is_atomic_with_the_caller_transaction() {
     assert_eq!(snap.version, 1);
 }
 
+/// Assert `pool`'s role is refused `INSERT` and `UPDATE` on `table` with
+/// `insufficient_privilege` (42501), with `fraiseql.tenant_id` set to `tenant`, the tenant of
+/// a row the role reads. The table's write policies are `true`: the grants, not row-level
+/// security, keep a role other than the trusted writer out, and with the row visible the
+/// refusal can only be the missing grant.
+async fn writes_are_refused(pool: &PgPool, table: &str, tenant: &str) {
+    for statement in [
+        format!("INSERT INTO {table} DEFAULT VALUES"),
+        format!("UPDATE {table} SET tenant_id = tenant_id"),
+    ] {
+        let mut tx = pool.begin().await.unwrap();
+        sqlx::query("SELECT set_config('fraiseql.tenant_id', $1, true)")
+            .bind(tenant)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        // Reason: test SQL built from a table name this test defines.
+        let result = sqlx::query(sqlx::AssertSqlSafe(statement.clone())).execute(&mut *tx).await;
+        let code = result
+            .as_ref()
+            .err()
+            .and_then(|e| e.as_database_error())
+            .and_then(|e| e.code())
+            .map(|code| code.into_owned());
+        assert_eq!(
+            code.as_deref(),
+            Some("42501"),
+            "`{statement}` by a role granted only SELECT must be refused for want of a \
+             privilege: {result:?}"
+        );
+        tx.rollback().await.unwrap();
+    }
+}
+
 #[tokio::test]
 async fn rls_denies_reads_to_a_role_without_the_tenant_guc() {
     let Some((admin, svc)) = connect_pool().await else {
@@ -236,6 +270,31 @@ async fn rls_denies_reads_to_a_role_without_the_tenant_guc() {
             .await
             .unwrap();
     assert_eq!(seen, 1, "the trusted superuser reads the seeded cursor row");
+
+    // A tenant-stamped cursor the reader does read with its tenant set, and still writes
+    // nothing: writes are the trusted scheduler's.
+    let tenant = "7777777a-7777-4777-8777-777777777777";
+    sqlx::query(
+        "INSERT INTO core._fraiseql_source_cursor (source_name, tenant_id) VALUES ($1, $2::uuid)",
+    )
+    .bind(unique_source())
+    .bind(tenant)
+    .execute(&admin)
+    .await
+    .unwrap();
+    let mut tx = reader.begin().await.unwrap();
+    sqlx::query("SELECT set_config('fraiseql.tenant_id', $1, true)")
+        .bind(tenant)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let (own,): (i64,) = sqlx::query_as("SELECT count(*) FROM core._fraiseql_source_cursor")
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    tx.rollback().await.unwrap();
+    assert_eq!(own, 1, "with its tenant set, the reader reads that tenant's cursor");
+    writes_are_refused(&reader, "core._fraiseql_source_cursor", tenant).await;
 }
 
 #[tokio::test]

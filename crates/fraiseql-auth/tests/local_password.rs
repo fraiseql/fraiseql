@@ -14,6 +14,8 @@
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 #![allow(clippy::doc_markdown)] // Reason: technical terms (Argon2id, PostgreSQL, KiB) throughout the docs
 
+mod rls_writes;
+
 use std::{str::FromStr, sync::Arc};
 
 use fraiseql_auth::{AccountStore, AuthError, LocalPasswordAuthenticator, PostgresAccountStore};
@@ -340,6 +342,7 @@ async fn rls_denies_credentials_by_default_and_scopes_per_tenant() {
         1,
         "with the tenant GUC the reader sees exactly that tenant's credential"
     );
+    rls_writes::are_refused(&reader, "auth.tb_password_credential", tenant).await;
     // The owner (admin) bypasses RLS and sees both.
     assert_eq!(reader_credential_count(&admin, None).await, 2, "owner bypasses RLS");
 }

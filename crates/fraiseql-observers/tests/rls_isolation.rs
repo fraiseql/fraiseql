@@ -164,6 +164,40 @@ async fn count_with_guc(pool: &PgPool, guc: Option<&str>, sql: &str) -> i64 {
     count
 }
 
+/// Assert `pool`'s role is refused `INSERT` and `UPDATE` on `table` with
+/// `insufficient_privilege` (42501), with `fraiseql.tenant_id` set to `tenant`, the tenant of
+/// a row the role reads. The table's write policies are `true`: the grants, not row-level
+/// security, keep a role other than the trusted writer out, and with the row visible the
+/// refusal can only be the missing grant.
+async fn writes_are_refused(pool: &PgPool, table: &str, tenant: &str) {
+    for statement in [
+        format!("INSERT INTO {table} DEFAULT VALUES"),
+        format!("UPDATE {table} SET tenant_id = tenant_id"),
+    ] {
+        let mut tx = pool.begin().await.unwrap();
+        sqlx::query("SELECT set_config('fraiseql.tenant_id', $1, true)")
+            .bind(tenant)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        // Reason: test SQL built from a table name this test defines.
+        let result = sqlx::query(sqlx::AssertSqlSafe(statement.clone())).execute(&mut *tx).await;
+        let code = result
+            .as_ref()
+            .err()
+            .and_then(|e| e.as_database_error())
+            .and_then(|e| e.code())
+            .map(|code| code.into_owned());
+        assert_eq!(
+            code.as_deref(),
+            Some("42501"),
+            "`{statement}` by a role granted only SELECT must be refused for want of a \
+             privilege: {result:?}"
+        );
+        tx.rollback().await.unwrap();
+    }
+}
+
 #[tokio::test]
 #[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
 async fn tenant_sees_only_its_own_rows_via_table_and_views() {
@@ -192,6 +226,9 @@ async fn tenant_sees_only_its_own_rows_via_table_and_views() {
         2,
         "switching the GUC to B reveals exactly B's 2 rows"
     );
+
+    // Granted only SELECT, the tenant reads its rows and writes none of them.
+    writes_are_refused(&tenant, "core.tb_entity_change_log", TENANT_A).await;
 }
 
 #[tokio::test]

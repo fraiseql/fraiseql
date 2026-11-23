@@ -283,6 +283,53 @@ mkdir -p "${ws}/examples/demo/sql"; printf 'ALTER TABLE e ENABLE ROW LEVEL SECUR
 expect 1 "examples/demo/sql/01.sql:1:1: rls guard" "38. an example's .sql is scanned; a test fixture's is not"
 if grep -qF "tests/fixtures/rls.sql" "${tmp}/out"; then fail "38b. a test fixture's .sql was scanned"; else pass "38b. a test fixture's .sql was not scanned"; fi
 
+# An open policy family, and exemptions narrowed to one statement by an anchor.
+open_family() {
+  cat >> "${ws}/tools/guard-sites.toml" <<'EOF'
+
+[[family]]
+name     = "open"
+scan     = "strings"
+sql      = true
+patterns = ['CREATE POLICY \w+ ON \w+ [^;]*?\bWITH CHECK \(true\)']
+EOF
+}
+exempt_sql() {
+  cat >> "${ws}/tools/guard-sites.toml" <<EOF
+
+[[exempt]]
+file     = "${migration}"
+${2:-}anchor   = "$1"
+reason   = "writes are the owner's"
+EOF
+}
+open_two=$'CREATE POLICY p_one ON t FOR INSERT WITH CHECK (true);\nCREATE POLICY p_two ON u FOR INSERT WITH CHECK (true);'
+
+tree; open_family; rls_migration "$open_two"; exempt_sql "CREATE POLICY p_one ON t FOR INSERT WITH CHECK (true)"
+expect 1 "${migration}:2:1: open guard \`CREATE POLICY p_two" "39. an exempt statement does not exempt the open policy beside it"
+if grep -qF "${migration}:1:1" "${tmp}/out"; then fail "39b. the exempt statement was reported"; else pass "39b. the exempt statement was not reported"; fi
+
+tree; open_family; rls_migration "$open_two"
+exempt_sql "CREATE POLICY p_one ON t FOR INSERT WITH CHECK (true)"; exempt_sql "CREATE POLICY p_two ON u FOR INSERT WITH CHECK (true)"
+expect 0 "" "40. every open policy exempt by its statement passes"
+
+tree; open_family; rls_migration "$open_two"; exempt_sql "CREATE POLICY p_three ON v FOR INSERT WITH CHECK (true)"
+expect 1 "the anchor does not occur exactly once" "41. an exempt anchor that is not in the file fails"
+
+tree; open_family; rls_migration "$open_two"; exempt_sql "CREATE POLICY p_one ON t FOR INSERT WITH CHECK (true)" $'function = "admit"\n'
+expect 1 "names its function, except in a \`.sql\` file" "42. a .sql exemption that names a function fails"
+
+tree; add "${src}/routes/auth.rs" $'fn legacy(s: &State, u: &User) {\n    let _ = check_revocation(s.revocation.as_ref(), u);\n    let _ = check_revocation(None, u);\n}'
+cat >> "${ws}/tools/guard-sites.toml" <<'EOF'
+
+[[exempt]]
+file     = "crates/fraiseql-server/src/routes/auth.rs"
+function = "legacy"
+anchor   = "check_revocation(s.revocation.as_ref(), u)"
+reason   = "no production caller; deciding issue to be filed"
+EOF
+expect 1 "${src}/routes/auth.rs:11:13: session guard" "43. an anchor narrows a function's exemption to its statement"
+
 if [ "$failures" -ne 0 ]; then
   echo "guard sites gate: ${failures} case(s) FAILED"
   exit 1

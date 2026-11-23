@@ -30,6 +30,7 @@
 #![allow(clippy::doc_markdown)] // Reason: technical terms (PostgreSQL, RLS) throughout the docs
 
 mod rls_reader;
+mod rls_writes;
 
 use std::sync::{Arc, Mutex};
 
@@ -709,5 +710,6 @@ async fn verification_tokens_are_read_through_the_tenant_policy() {
         1,
         "tenant T reads its own token, not tenant U's or the platform's"
     );
+    rls_writes::are_refused(&reader, table, "7777777a-7777-4777-8777-777777777777").await;
     assert_eq!(token_count(&h.admin).await, 3, "control: the owner reads all three");
 }

@@ -17,6 +17,7 @@
 mod common;
 
 mod rls_reader;
+mod rls_writes;
 
 use std::sync::Arc;
 
@@ -551,6 +552,7 @@ async fn groups_are_read_through_the_tenant_policy_and_members_and_tokens_not_at
         1,
         "tenant T reads its own group, not tenant U's or the platform's"
     );
+    rls_writes::are_refused(&reader, groups, "7777777a-7777-4777-8777-777777777777").await;
     for table in [members, tokens] {
         assert_eq!(
             rls_reader::rows(&reader, table, Some("7777777a-7777-4777-8777-777777777777")).await,

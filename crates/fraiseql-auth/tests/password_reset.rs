@@ -20,6 +20,8 @@
 )] // Reason: test code — panics, skip diagnostics, and unreachable mock methods are acceptable
 #![allow(clippy::doc_markdown)] // Reason: technical terms (Argon2id, PostgreSQL, RLS) throughout the docs
 
+mod rls_writes;
+
 use std::{
     str::FromStr,
     sync::{Arc, Mutex},
@@ -533,6 +535,7 @@ async fn rls_denies_reset_tokens_by_default_and_scopes_per_tenant() {
         1,
         "with the tenant GUC the reader sees exactly that tenant's token"
     );
+    rls_writes::are_refused(&reader, "auth.tb_password_reset_token", tenant).await;
     assert_eq!(reader_token_count(&h.admin, None).await, 2, "owner bypasses RLS");
 }
 

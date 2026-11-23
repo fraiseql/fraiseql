@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
 mod rls_reader;
+mod rls_writes;
 
 use std::str::FromStr;
 
@@ -291,6 +292,7 @@ async fn rls_denies_by_default_and_scopes_per_tenant() {
         1,
         "with the tenant GUC, the reader sees exactly that tenant's row (the NULL-tenant row stays hidden)"
     );
+    rls_writes::are_refused(&reader, "auth.tb_user", tenant).await;
 
     // The owner (admin) bypasses RLS and sees everything.
     assert_eq!(count(&admin, None).await, 2, "owner bypasses RLS");
@@ -609,6 +611,7 @@ async fn auth_identities_are_read_through_the_tenant_policy() {
         1,
         "tenant T reads its own identity, not tenant U's or the platform's"
     );
+    rls_writes::are_refused(&reader, table, &TENANT_T.to_string()).await;
     assert_eq!(
         rls_reader::rows(&admin, table, None).await,
         3,
