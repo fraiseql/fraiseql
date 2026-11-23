@@ -18,6 +18,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`SessionStore::get_session` and `SessionStore::revoke_session` are removed from the
+  trait, with `fraiseql_auth::SessionData` (#2398).** No request path called either on any
+  store: refresh and logout run their own queries on `PostgresSessionStore`. A custom
+  `SessionStore` drops its two methods; nothing else returned `SessionData`.
+
 - **`fraiseql_server::middleware::RateLimiter::check_tenant_limit` is removed (#2397),**
   with the in-memory per-tenant buckets only it filled. No request path called it, so no
   tenant was ever limited by it. Per-tenant budgets are set by

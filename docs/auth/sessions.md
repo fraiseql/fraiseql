@@ -184,8 +184,6 @@ one of two things:
 - For a refreshable session, the session's absolute limit, copied unchanged to every row its
   refreshes create. The access token's expiry is in the token, not in the table.
 
-`SessionData::expires_at`, which `SessionStore::get_session` returns, carries the same value.
-
 Rows that share a `family_id` belong to one session; `rotated_at` records when a row's token was
 exchanged. Every server that mints sessions deletes rows past their `expires_at` every five
 minutes. A rotated row is kept until then, so a reused token is still recognised as reuse.

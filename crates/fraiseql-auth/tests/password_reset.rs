@@ -30,7 +30,7 @@ use std::{
 use async_trait::async_trait;
 use fraiseql_auth::{
     AccountStore, AuthError, DenyAccessTokens, LocalPasswordAuthenticator, PostgresAccountStore,
-    ResetEmailSender, SessionData, SessionStore, TokenPair,
+    ResetEmailSender, SessionStore, TokenPair,
 };
 use fraiseql_test_support::try_database_url;
 use sqlx::{
@@ -76,14 +76,6 @@ impl SessionStore for RecordingSessions {
         _user_id: &str,
         _expires_at: u64,
     ) -> Result<TokenPair, AuthError> {
-        unimplemented!("not exercised by the reset flow")
-    }
-
-    async fn get_session(&self, _refresh_token_hash: &str) -> Result<SessionData, AuthError> {
-        unimplemented!("not exercised by the reset flow")
-    }
-
-    async fn revoke_session(&self, _refresh_token_hash: &str) -> Result<(), AuthError> {
         unimplemented!("not exercised by the reset flow")
     }
 

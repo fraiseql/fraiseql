@@ -531,7 +531,7 @@ mod account_linking_tests {
 
 #[cfg(test)]
 mod session_tests {
-    use super::super::{error::AuthError, session::*};
+    use super::super::session::*;
 
     #[test]
     fn test_hash_token() {
@@ -555,40 +555,6 @@ mod session_tests {
         assert!(!token2.is_empty());
     }
 
-    #[test]
-    fn test_session_data_not_expired() {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-
-        let session = SessionData {
-            user_id:            "user123".to_string(),
-            issued_at:          now,
-            expires_at:         now + 3600,
-            refresh_token_hash: "hash".to_string(),
-        };
-
-        assert!(!session.is_expired());
-    }
-
-    #[test]
-    fn test_session_data_expired() {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-
-        let session = SessionData {
-            user_id:            "user123".to_string(),
-            issued_at:          now - 3600,
-            expires_at:         now - 100,
-            refresh_token_hash: "hash".to_string(),
-        };
-
-        assert!(session.is_expired());
-    }
-
     #[tokio::test]
     async fn test_in_memory_store_create_session() {
         let store = InMemorySessionStore::new();
@@ -602,47 +568,6 @@ mod session_tests {
         assert!(!tokens.access_token.is_empty());
         assert!(!tokens.refresh_token.is_empty());
         assert!(tokens.expires_in > 0);
-    }
-
-    #[tokio::test]
-    async fn test_in_memory_store_get_session() {
-        let store = InMemorySessionStore::new();
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-
-        let tokens = store.create_session("user123", now + 3600).await.unwrap();
-        let refresh_token_hash = hash_token(&tokens.refresh_token);
-
-        let session = store
-            .get_session(&refresh_token_hash)
-            .await
-            .unwrap_or_else(|e| panic!("expected Ok from get_session: {e}"));
-        assert_eq!(session.user_id, "user123");
-    }
-
-    #[tokio::test]
-    async fn test_in_memory_store_revoke_session() {
-        let store = InMemorySessionStore::new();
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-
-        let tokens = store.create_session("user123", now + 3600).await.unwrap();
-        let refresh_token_hash = hash_token(&tokens.refresh_token);
-
-        store
-            .revoke_session(&refresh_token_hash)
-            .await
-            .unwrap_or_else(|e| panic!("expected Ok from revoke_session: {e}"));
-
-        let session = store.get_session(&refresh_token_hash).await;
-        assert!(
-            matches!(session, Err(AuthError::TokenNotFound)),
-            "expected TokenNotFound after revocation, got: {session:?}"
-        );
     }
 
     #[tokio::test]
@@ -664,22 +589,9 @@ mod session_tests {
             .await
             .unwrap_or_else(|e| panic!("expected Ok from revoke_all_sessions: {e}"));
 
-        let hash3 = hash_token(&tokens3.refresh_token);
-        store
-            .get_session(&hash3)
-            .await
-            .unwrap_or_else(|e| panic!("expected user456 session to still exist: {e}"));
-
-        let hash1 = hash_token(&tokens1.refresh_token);
-        let hash2 = hash_token(&tokens2.refresh_token);
-        assert!(
-            matches!(store.get_session(&hash1).await, Err(AuthError::TokenNotFound)),
-            "expected user123 session 1 to be revoked"
-        );
-        assert!(
-            matches!(store.get_session(&hash2).await, Err(AuthError::TokenNotFound)),
-            "expected user123 session 2 to be revoked"
-        );
+        assert!(store.holds(&tokens3.refresh_token), "expected user456 session to still exist");
+        assert!(!store.holds(&tokens1.refresh_token), "expected user123 session 1 to be revoked");
+        assert!(!store.holds(&tokens2.refresh_token), "expected user123 session 2 to be revoked");
     }
 }
 

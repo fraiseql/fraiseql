@@ -28,7 +28,7 @@ use fraiseql_auth::{
     scim::{PgScimStore, PgScimTokenStore, ScimStore as _, ScimUserWrite},
 };
 use fraiseql_test_support::try_database_url;
-use sqlx::postgres::PgPoolOptions;
+use sqlx::{PgPool, postgres::PgPoolOptions};
 use uuid::Uuid;
 
 /// A policy-satisfying password.
@@ -42,6 +42,7 @@ struct Rig {
     sessions:  PostgresSessionStore,
     passwords: LocalPasswordAuthenticator,
     accounts:  Arc<dyn AccountStore>,
+    pool:      PgPool,
 }
 
 async fn fresh() -> Option<Rig> {
@@ -75,7 +76,20 @@ async fn fresh() -> Option<Rig> {
         sessions,
         passwords,
         accounts,
+        pool,
     })
+}
+
+/// Whether the session behind `refresh_token` is live: its row exists and is not revoked.
+async fn session_is_live(pool: &PgPool, refresh_token: &str) -> bool {
+    sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM auth.sessions \
+         WHERE refresh_token_hash = $1 AND revoked_at IS NULL)",
+    )
+    .bind(fraiseql_auth::session::hash_token(refresh_token))
+    .fetch_one(pool)
+    .await
+    .expect("read auth.sessions")
 }
 
 macro_rules! skip_if_no_db {
@@ -148,14 +162,16 @@ async fn revoking_sessions_ends_access_already_granted() {
     let user = rig.scim.create_user(&write("bob", true)).await.unwrap();
 
     let tokens = rig.sessions.create_session(&user.id, unix_in(3600)).await.unwrap();
-    let hash = fraiseql_auth::session::hash_token(&tokens.refresh_token);
-    assert!(rig.sessions.get_session(&hash).await.is_ok(), "the session starts usable");
+    assert!(
+        session_is_live(&rig.pool, &tokens.refresh_token).await,
+        "the session starts usable"
+    );
 
     rig.scim.set_user_active(&user.id, false).await.unwrap();
     rig.sessions.revoke_all_sessions(&user.id).await.unwrap();
 
     assert!(
-        rig.sessions.get_session(&hash).await.is_err(),
+        !session_is_live(&rig.pool, &tokens.refresh_token).await,
         "an existing session must not survive deactivation"
     );
 }

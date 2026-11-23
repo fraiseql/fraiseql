@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use super::*;
-use crate::session::{SessionData, SessionStore, TokenPair};
+use crate::session::{SessionStore, TokenPair};
 
 // ── Minimal mock session store ─────────────────────────────────────────
 
@@ -19,14 +19,6 @@ impl SessionStore for MockSessionStore {
             refresh_token: format!("refresh_{user_id}"),
             expires_in:    expires_at.saturating_sub(unix_now().unwrap_or(0)),
         })
-    }
-
-    async fn get_session(&self, _: &str) -> crate::error::Result<SessionData> {
-        Err(crate::error::AuthError::TokenNotFound)
-    }
-
-    async fn revoke_session(&self, _: &str) -> crate::error::Result<()> {
-        Ok(())
     }
 
     async fn revoke_all_sessions(&self, _: &str) -> crate::error::Result<()> {

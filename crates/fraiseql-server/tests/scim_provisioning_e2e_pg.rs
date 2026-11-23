@@ -352,7 +352,6 @@ async fn provisioning_lifecycle_and_deactivation_over_http() {
             .await
             .expect("an active account may hold a session")
     };
-    let hash = fraiseql_auth::session::hash_token(&tokens.refresh_token);
 
     // Offboard. This is the request an IdP sends when someone leaves.
     let resp = rig
@@ -373,7 +372,7 @@ async fn provisioning_lifecycle_and_deactivation_over_http() {
     {
         use fraiseql_auth::SessionStore as _;
         assert!(
-            sessions.get_session(&hash).await.is_err(),
+            !session_is_live(&rig.pool, &tokens.refresh_token).await,
             "the existing session must have been revoked"
         );
         let refused = sessions
@@ -702,14 +701,10 @@ async fn a_tenant_credential_cannot_reach_another_tenants_users() {
         }),
         "a delete of an unknown id keeps its reply"
     );
-    {
-        use fraiseql_auth::SessionStore as _;
-        let hash = fraiseql_auth::session::hash_token(&victim_session.refresh_token);
-        assert!(
-            sessions.get_session(&hash).await.is_ok(),
-            "another tenant's credential must not end the user's session"
-        );
-    }
+    assert!(
+        session_is_live(&rig.pool, &victim_session.refresh_token).await,
+        "another tenant's credential must not end the user's session"
+    );
 
     let resp = as_tenant(&acme, reqwest::Method::POST, "/scim/v2/Groups")
         .json(&json!({
@@ -966,10 +961,19 @@ async fn allow_session_updates(pool: &PgPool) {
 }
 
 async fn assert_session_ended(rig: &Rig, refresh_token: &str) {
-    use fraiseql_auth::SessionStore as _;
-    let sessions = fraiseql_auth::PostgresSessionStore::new(rig.pool.clone());
-    let hash = fraiseql_auth::session::hash_token(refresh_token);
-    assert!(sessions.get_session(&hash).await.is_err(), "the retry ended the session");
+    assert!(!session_is_live(&rig.pool, refresh_token).await, "the retry ended the session");
+}
+
+/// Whether the session behind `refresh_token` is live: its row exists and is not revoked.
+async fn session_is_live(pool: &PgPool, refresh_token: &str) -> bool {
+    sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM auth.sessions \
+         WHERE refresh_token_hash = $1 AND revoked_at IS NULL)",
+    )
+    .bind(fraiseql_auth::session::hash_token(refresh_token))
+    .fetch_one(pool)
+    .await
+    .expect("read auth.sessions")
 }
 
 /// The PUT twin of the retry below: a PUT that left the user inactive but could not end

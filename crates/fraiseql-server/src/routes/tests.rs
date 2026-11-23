@@ -663,21 +663,6 @@ mod revoke_tests {
             })
         }
 
-        async fn get_session(
-            &self,
-            _refresh_token_hash: &str,
-        ) -> fraiseql_auth::Result<fraiseql_auth::SessionData> {
-            Err(fraiseql_auth::AuthError::DatabaseError {
-                message: "revoke-all reads no session".to_string(),
-            })
-        }
-
-        async fn revoke_session(&self, _refresh_token_hash: &str) -> fraiseql_auth::Result<()> {
-            Err(fraiseql_auth::AuthError::DatabaseError {
-                message: "revoke-all ends every session, not one".to_string(),
-            })
-        }
-
         async fn revoke_all_sessions(&self, user_id: &str) -> fraiseql_auth::Result<()> {
             if self.fails {
                 return Err(fraiseql_auth::AuthError::DatabaseError {

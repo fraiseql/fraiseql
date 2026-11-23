@@ -8,44 +8,6 @@ use sha2::{Digest, Sha256};
 
 use crate::error::{AuthError, Result};
 
-/// Session data stored in the backend
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SessionData {
-    /// User ID (unique per user)
-    pub user_id:            String,
-    /// Session issued timestamp (Unix seconds)
-    pub issued_at:          u64,
-    /// When this refresh token stops working (Unix seconds). For a refreshable session
-    /// (`[auth.session] absolute_ttl_secs`) that is the session's absolute limit, which
-    /// outlives every access token it issues; otherwise it is the access token's expiry.
-    /// It is never a statement about an access token already issued.
-    pub expires_at:         u64,
-    /// Hash of the refresh token (stored securely)
-    pub refresh_token_hash: String,
-}
-
-impl SessionData {
-    /// Check if session is expired.
-    ///
-    /// Fail-closed: if the system clock cannot be read, the session is treated as
-    /// expired (rejected) rather than valid — matching the crate's fail-closed rule.
-    #[must_use]
-    pub fn is_expired(&self) -> bool {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .ok()
-            .map(|d| d.as_secs());
-        self.is_expired_at(now)
-    }
-
-    /// Pure expiry decision against an optional clock reading. `None` (clock failure)
-    /// fails closed → expired.
-    #[must_use]
-    fn is_expired_at(&self, now: Option<u64>) -> bool {
-        now.is_none_or(|now| self.expires_at <= now)
-    }
-}
-
 /// Token pair returned after successful authentication
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenPair {
@@ -65,7 +27,7 @@ pub struct TokenPair {
 /// ```no_run
 /// // Requires: sqlx PgPool and live PostgreSQL connection.
 /// use async_trait::async_trait;
-/// use fraiseql_auth::session::{SessionStore, SessionData, TokenPair};
+/// use fraiseql_auth::session::{SessionStore, TokenPair};
 /// use fraiseql_auth::error::Result;
 ///
 /// pub struct PostgresSessionStore {
@@ -75,12 +37,6 @@ pub struct TokenPair {
 /// #[async_trait]
 /// impl SessionStore for PostgresSessionStore {
 ///     async fn create_session(&self, _user_id: &str, _expires_at: u64) -> Result<TokenPair> {
-///         panic!("example stub")
-///     }
-///     async fn get_session(&self, _refresh_token_hash: &str) -> Result<SessionData> {
-///         panic!("example stub")
-///     }
-///     async fn revoke_session(&self, _refresh_token_hash: &str) -> Result<()> {
 ///         panic!("example stub")
 ///     }
 ///     async fn revoke_all_sessions(&self, _user_id: &str) -> Result<()> {
@@ -93,7 +49,7 @@ pub struct TokenPair {
 /// ```no_run
 /// // Requires: redis crate and live Redis connection.
 /// use async_trait::async_trait;
-/// use fraiseql_auth::session::{SessionStore, SessionData, TokenPair};
+/// use fraiseql_auth::session::{SessionStore, TokenPair};
 /// use fraiseql_auth::error::Result;
 ///
 /// pub struct RedisSessionStore {
@@ -103,12 +59,6 @@ pub struct TokenPair {
 /// #[async_trait]
 /// impl SessionStore for RedisSessionStore {
 ///     async fn create_session(&self, _user_id: &str, _expires_at: u64) -> Result<TokenPair> {
-///         panic!("example stub")
-///     }
-///     async fn get_session(&self, _refresh_token_hash: &str) -> Result<SessionData> {
-///         panic!("example stub")
-///     }
-///     async fn revoke_session(&self, _refresh_token_hash: &str) -> Result<()> {
 ///         panic!("example stub")
 ///     }
 ///     async fn revoke_all_sessions(&self, _user_id: &str) -> Result<()> {
@@ -150,27 +100,6 @@ pub trait SessionStore: Send + Sync {
     ) -> Result<TokenPair> {
         self.create_session(passed.user_id(), expires_at).await
     }
-
-    /// Get session data by refresh token hash
-    ///
-    /// # Arguments
-    /// * `refresh_token_hash` - Hash of the refresh token
-    ///
-    /// # Returns
-    /// SessionData if session exists and is not revoked
-    ///
-    /// # Errors
-    /// Returns SessionError if session not found or revoked
-    async fn get_session(&self, refresh_token_hash: &str) -> Result<SessionData>;
-
-    /// Revoke a single session
-    ///
-    /// # Arguments
-    /// * `refresh_token_hash` - Hash of the refresh token to revoke
-    ///
-    /// # Errors
-    /// Returns error if revocation fails
-    async fn revoke_session(&self, refresh_token_hash: &str) -> Result<()>;
 
     /// Revoke all sessions for a user
     ///
@@ -229,7 +158,8 @@ pub fn generate_refresh_token() -> String {
 /// In-memory session store for testing
 #[cfg(test)]
 pub struct InMemorySessionStore {
-    sessions: Arc<dashmap::DashMap<String, SessionData>>,
+    /// Refresh-token hash → the user the session belongs to.
+    sessions: Arc<dashmap::DashMap<String, String>>,
 }
 
 #[cfg(test)]
@@ -251,6 +181,12 @@ impl InMemorySessionStore {
     #[must_use]
     pub fn len(&self) -> usize {
         self.sessions.len()
+    }
+
+    /// Whether the session behind `refresh_token` is still held.
+    #[must_use]
+    pub fn holds(&self, refresh_token: &str) -> bool {
+        self.sessions.contains_key(&hash_token(refresh_token))
     }
 
     /// Check if there are no sessions
@@ -282,14 +218,7 @@ impl SessionStore for InMemorySessionStore {
         // extending sessions and defeating expiry checks.
         let now = unix_now()?;
 
-        let session = SessionData {
-            user_id: user_id.to_string(),
-            issued_at: now,
-            expires_at,
-            refresh_token_hash: refresh_token_hash.clone(),
-        };
-
-        self.sessions.insert(refresh_token_hash, session);
+        self.sessions.insert(refresh_token_hash, user_id.to_string());
 
         let expires_in = expires_at.saturating_sub(now);
 
@@ -303,24 +232,10 @@ impl SessionStore for InMemorySessionStore {
         })
     }
 
-    async fn get_session(&self, refresh_token_hash: &str) -> Result<SessionData> {
-        self.sessions
-            .get(refresh_token_hash)
-            .map(|entry| entry.clone())
-            .ok_or(AuthError::TokenNotFound)
-    }
-
-    async fn revoke_session(&self, refresh_token_hash: &str) -> Result<()> {
-        self.sessions.remove(refresh_token_hash).ok_or(AuthError::SessionError {
-            message: "Session not found".to_string(),
-        })?;
-        Ok(())
-    }
-
     async fn revoke_all_sessions(&self, user_id: &str) -> Result<()> {
         let mut to_remove = Vec::new();
         for entry in self.sessions.iter() {
-            if entry.user_id == user_id {
+            if entry.value() == user_id {
                 to_remove.push(entry.key().clone());
             }
         }
@@ -330,32 +245,5 @@ impl SessionStore for InMemorySessionStore {
         }
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod fail_closed_clock_tests {
-    use super::*;
-
-    fn session(expires_at: u64) -> SessionData {
-        SessionData {
-            user_id: "u".to_string(),
-            issued_at: 0,
-            expires_at,
-            refresh_token_hash: "h".to_string(),
-        }
-    }
-
-    #[test]
-    fn clock_failure_treats_session_as_expired() {
-        // L-clock-failopen: a None clock reading must fail closed → expired.
-        assert!(session(u64::MAX).is_expired_at(None), "clock failure must fail closed");
-    }
-
-    #[test]
-    fn valid_clock_decides_normally() {
-        assert!(session(100).is_expired_at(Some(100)), "expires_at == now → expired");
-        assert!(session(100).is_expired_at(Some(101)), "past expiry → expired");
-        assert!(!session(100).is_expired_at(Some(99)), "before expiry → valid");
     }
 }

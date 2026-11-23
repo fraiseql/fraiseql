@@ -4,7 +4,7 @@ use sqlx::{Row, postgres::PgPool};
 
 use crate::{
     error::{AuthError, Result},
-    session::{SessionData, SessionStore, TokenPair, generate_refresh_token, hash_token, unix_now},
+    session::{SessionStore, TokenPair, generate_refresh_token, hash_token, unix_now},
 };
 
 /// How long after a refresh token is rotated a second use of it is still taken for the
@@ -119,8 +119,8 @@ CREATE INDEX IF NOT EXISTS idx_sessions_revoked_at ON auth.sessions(revoked_at);
 impl PostgresSessionStore {
     /// Create a new PostgreSQL session store **without** JWT signing configured.
     ///
-    /// Refresh-token bookkeeping ([`SessionStore::get_session`],
-    /// [`SessionStore::revoke_session`], [`SessionStore::revoke_all_sessions`]) works,
+    /// Refresh-token bookkeeping ([`Self::refresh`], [`Self::end_session`],
+    /// [`SessionStore::revoke_all_sessions`]) works,
     /// but [`SessionStore::create_session`] will return
     /// [`AuthError::ConfigError`] because there is no key to sign the access token
     /// with. Use [`Self::with_signer`] for a store that can issue sessions.
@@ -620,59 +620,6 @@ impl SessionStore for PostgresSessionStore {
     ) -> Result<TokenPair> {
         let tenant = account_for_session(&self.db, passed.user_id()).await?;
         self.mint(passed.user_id(), tenant, expires_at).await
-    }
-
-    async fn get_session(&self, refresh_token_hash: &str) -> Result<SessionData> {
-        let row = sqlx::query(
-            r"
-            SELECT user_id, issued_at, expires_at, refresh_token_hash
-            FROM auth.sessions
-            WHERE refresh_token_hash = $1 AND revoked_at IS NULL
-            ",
-        )
-        .bind(refresh_token_hash)
-        .fetch_optional(&self.db)
-        .await
-        .map_err(|e| AuthError::DatabaseError {
-            message: format!("Failed to get session: {}", e),
-        })?
-        .ok_or(AuthError::TokenNotFound)?;
-
-        let user_id: String = row.get("user_id");
-        let issued_at: i64 = row.get("issued_at");
-        let expires_at: i64 = row.get("expires_at");
-        let refresh_token_hash: String = row.get("refresh_token_hash");
-
-        Ok(SessionData {
-            user_id,
-            issued_at: issued_at.cast_unsigned(),
-            expires_at: expires_at.cast_unsigned(),
-            refresh_token_hash,
-        })
-    }
-
-    async fn revoke_session(&self, refresh_token_hash: &str) -> Result<()> {
-        let result = sqlx::query(
-            r"
-            UPDATE auth.sessions
-            SET revoked_at = NOW()
-            WHERE refresh_token_hash = $1 AND revoked_at IS NULL
-            ",
-        )
-        .bind(refresh_token_hash)
-        .execute(&self.db)
-        .await
-        .map_err(|e| AuthError::DatabaseError {
-            message: format!("Failed to revoke session: {}", e),
-        })?;
-
-        if result.rows_affected() == 0 {
-            return Err(AuthError::SessionError {
-                message: "Session not found or already revoked".to_string(),
-            });
-        }
-
-        Ok(())
     }
 
     async fn revoke_all_sessions(&self, user_id: &str) -> Result<()> {

@@ -437,17 +437,6 @@ mod router_construction {
             Err(double_error())
         }
 
-        async fn get_session(
-            &self,
-            _refresh_token_hash: &str,
-        ) -> fraiseql_auth::Result<fraiseql_auth::SessionData> {
-            Err(double_error())
-        }
-
-        async fn revoke_session(&self, _refresh_token_hash: &str) -> fraiseql_auth::Result<()> {
-            Ok(())
-        }
-
         async fn revoke_all_sessions(&self, _user_id: &str) -> fraiseql_auth::Result<()> {
             Ok(())
         }

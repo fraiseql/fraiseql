@@ -159,7 +159,7 @@ pub use saml::{
 pub use serde;
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;
-pub use session::{SessionData, SessionStore, TokenPair, unix_now};
+pub use session::{SessionStore, TokenPair, unix_now};
 pub use session_cookies::SessionCookies;
 pub use session_postgres::{PostgresSessionStore, Refresh, SessionLifetime};
 pub use session_routes::{DenyAccessTokens, SessionRouteState, session_routes};
