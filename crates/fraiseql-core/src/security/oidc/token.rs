@@ -456,7 +456,11 @@ impl OidcValidator {
 
         // Set clock skew tolerance — capped to prevent accepting arbitrarily
         // old expired tokens due to misconfiguration.
-        validation.leeway = issuer.config.clock_skew_secs.min(MAX_CLOCK_SKEW_SECS);
+        let leeway = issuer.config.clock_skew_secs.min(MAX_CLOCK_SKEW_SECS);
+        validation.leeway = leeway;
+        // A token is not accepted before its `nbf` (jsonwebtoken does not check it unless
+        // asked), within the same leeway as `exp`.
+        validation.validate_nbf = true;
 
         // Decode and validate token
         let token_data = decode::<JwtClaims>(token, &decoding_key, &validation).map_err(|e| {
@@ -471,6 +475,17 @@ impl OidcValidator {
         })?;
 
         let claims = token_data.claims;
+
+        // A token issued later than now, beyond the leeway, is refused: a revoke-all
+        // refuses the tokens issued before it by their `iat`, and a future `iat` would
+        // read as issued after a revoke-all made before that time.
+        if claims
+            .iat
+            .is_some_and(|iat| iat > Utc::now().timestamp().saturating_add_unsigned(leeway))
+        {
+            tracing::debug!("JWT iat is in the future beyond the clock-skew leeway");
+            return Err(SecurityError::InvalidToken);
+        }
 
         // Validate jti claim if required by configuration.
         if issuer.config.require_jti && claims.jti.is_none() {

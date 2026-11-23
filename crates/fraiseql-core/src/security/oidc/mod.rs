@@ -55,6 +55,8 @@ pub(crate) mod token;
 #[cfg(test)]
 mod in_process_keys_tests;
 #[cfg(test)]
+mod temporal_claims_tests;
+#[cfg(test)]
 mod tests;
 
 // Public re-exports — external callers see no change in paths.

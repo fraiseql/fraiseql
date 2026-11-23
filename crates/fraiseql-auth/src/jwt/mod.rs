@@ -4,22 +4,6 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{AuthError, Result};
-
-/// Maximum age of a JWT token measured from its `iat` (issued-at) claim.
-///
-/// Tokens whose `iat` is more than this many seconds in the past are rejected
-/// as potentially replayed credentials.  24 h is a conservative upper bound —
-/// short-lived access tokens expire via `exp` long before this limit is reached;
-/// this guard targets long-lived or replayed tokens that somehow passed `exp` checks.
-pub const MAX_TOKEN_AGE_SECS: u64 = 86_400;
-
-/// Maximum allowed clock skew for `iat` and `nbf` claim checks.
-///
-/// A 5-minute window accommodates minor time drift between issuer and validator
-/// without opening a meaningful forgery window.
-pub const MAX_CLOCK_SKEW_SECS: u64 = 300;
-
 /// Standard JWT claims with support for custom claims
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Claims {
@@ -30,9 +14,6 @@ pub struct Claims {
     /// Expiration time (Unix timestamp)
     pub exp:   u64,
     /// Not-before time (Unix timestamp) — optional per RFC 7519 §4.1.5.
-    ///
-    /// When present, the token MUST NOT be accepted before this time (plus
-    /// [`MAX_CLOCK_SKEW_SECS`]).  When absent, the not-before check is skipped.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nbf:   Option<u64>,
     /// Issuer
@@ -93,51 +74,6 @@ impl Claims {
             },
         };
         self.exp <= now
-    }
-
-    /// Validate temporal claims: `iat` staleness/skew and `nbf` not-before.
-    ///
-    /// Enforces three RFC 7519 temporal guards beyond `exp`:
-    ///
-    /// - `iat` must not be more than [`MAX_CLOCK_SKEW_SECS`] seconds in the future (forgery guard —
-    ///   a future `iat` is implausible for a legitimately issued token).
-    /// - `iat` must not be more than [`MAX_TOKEN_AGE_SECS`] seconds in the past (replay guard — a
-    ///   stale `iat` indicates a replayed or abnormally long-lived token).
-    /// - `nbf` (if present) must not be more than [`MAX_CLOCK_SKEW_SECS`] seconds in the future
-    ///   (RFC 7519 §4.1.5 not-before enforcement).
-    ///
-    /// # Errors
-    ///
-    /// - [`AuthError::TokenIssuedInFuture`] if `iat > now + MAX_CLOCK_SKEW_SECS`.
-    /// - [`AuthError::TokenTooOld`] if `now - iat > MAX_TOKEN_AGE_SECS`.
-    /// - [`AuthError::TokenNotYetValid`] if `nbf > now + MAX_CLOCK_SKEW_SECS`.
-    /// - [`AuthError::SystemTimeError`] if the system clock cannot be read.
-    pub fn validate_temporal_claims(&self) -> Result<()> {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|e| AuthError::SystemTimeError {
-                message: format!("Cannot determine current time for temporal validation: {e}"),
-            })?
-            .as_secs();
-
-        // iat: must not be substantially in the future (forgery / clock-skew guard).
-        if self.iat > now.saturating_add(MAX_CLOCK_SKEW_SECS) {
-            return Err(AuthError::TokenIssuedInFuture);
-        }
-
-        // iat: must not be older than MAX_TOKEN_AGE_SECS (replay guard).
-        if now.saturating_sub(self.iat) > MAX_TOKEN_AGE_SECS {
-            return Err(AuthError::TokenTooOld);
-        }
-
-        // nbf: not-before — token must not be used before the claim (with clock skew).
-        if let Some(nbf) = self.nbf {
-            if nbf > now.saturating_add(MAX_CLOCK_SKEW_SECS) {
-                return Err(AuthError::TokenNotYetValid);
-            }
-        }
-
-        Ok(())
     }
 }
 

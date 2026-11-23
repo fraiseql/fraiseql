@@ -25,15 +25,12 @@ impl AuthError {
             Self::InvalidToken { .. }
             | Self::MissingClaim { .. }
             | Self::InvalidClaimValue { .. }
-            // OIDC replay-protection errors and JWT temporal guards: return 401 without
+            // OIDC replay-protection errors: return 401 without
             // revealing which specific claim was invalid to avoid oracle attacks.
             | Self::MissingNonce
             | Self::NonceMismatch
             | Self::MissingAuthTime
             | Self::SessionTooOld { .. }
-            | Self::TokenIssuedInFuture
-            | Self::TokenTooOld
-            | Self::TokenNotYetValid
             // Algorithm-substitution attacks: reject with 401 without revealing which algorithm
             // was rejected, to avoid giving an attacker information about the allowed set.
             | Self::ForbiddenAlgorithm { .. } => {
@@ -154,9 +151,6 @@ impl AuthError {
             },
             Self::MissingAuthTime | Self::SessionTooOld { .. } => {
                 warn!("OIDC auth_time validation failed: {self}");
-            },
-            Self::TokenIssuedInFuture | Self::TokenTooOld | Self::TokenNotYetValid => {
-                warn!("JWT temporal claim validation failed: {self}");
             },
             Self::ForbiddenAlgorithm { alg } => {
                 warn!("OIDC algorithm-substitution attack rejected: forbidden algorithm '{alg}'");

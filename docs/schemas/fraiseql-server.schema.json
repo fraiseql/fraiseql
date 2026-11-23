@@ -1066,7 +1066,7 @@
           ]
         },
         "clock_skew_secs": {
-          "description": "Clock skew tolerance in seconds.\n\nAllow this many seconds of clock difference when\nvalidating exp/nbf/iat claims.\nDefault: 60 seconds",
+          "description": "Clock skew tolerance in seconds.\n\nA token is accepted this many seconds past its `exp`, and this many\nseconds before its `nbf` or `iat`. Capped at 300.\nDefault: 60 seconds",
           "type": "integer",
           "format": "uint64",
           "minimum": 0,

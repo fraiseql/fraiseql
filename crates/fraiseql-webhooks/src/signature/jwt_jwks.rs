@@ -619,7 +619,11 @@ fn claim_as_id(value: &Value) -> Option<String> {
 fn map_decode_error(error: &jsonwebtoken::errors::Error) -> SignatureError {
     use jsonwebtoken::errors::ErrorKind;
     match error.kind() {
-        ErrorKind::ExpiredSignature => SignatureError::TimestampExpired,
+        // Outside the token's own validity window, either side: the clock is the
+        // problem, not the key.
+        ErrorKind::ExpiredSignature | ErrorKind::ImmatureSignature => {
+            SignatureError::TimestampExpired
+        },
         // Everything else is a token this route will not accept: a bad signature, a
         // wrong audience, a malformed body. All the sender's, all a 401.
         _ => SignatureError::Mismatch,
@@ -725,6 +729,9 @@ impl SignatureVerifier for JwtJwksVerifier {
         // the delivery ledger is what bounds replay.
         validation.set_required_spec_claims::<&str>(&[]);
         validation.leeway = MAX_CLOCK_SKEW_SECS;
+        // A token is not accepted before its `nbf`, within the same leeway as `exp`;
+        // jsonwebtoken checks it only when asked.
+        validation.validate_nbf = true;
         // `iss` is not validated: #708's issuer-less mode exists because these
         // publishers' tokens do not reliably carry one, and the pinned key set plus
         // the required claims are what establish who signed.

@@ -215,6 +215,17 @@ disagreed, and the promise was the part that was wrong.
   but whose document does not must now pin `jwks_uri`. An issuer with a pinned `jwks_uri`
   performs no discovery and is unaffected.
 
+- **The `[auth]` token validator honours `nbf`, and refuses an `iat` that has not come yet
+  (#2400).** A bearer token is refused before its `nbf` (not before), and when its `iat`
+  (issued at) is later than now, each within the issuer's `clock_skew_secs` (capped at 300),
+  the leeway `exp` already used. A revoke-all for a user judges tokens by `iat`, so a future
+  `iat` would read as issued after a revoke-all made before it. A token carrying neither
+  claim is unaffected. Flight session tokens and JWKS-signed webhook deliveries honour `nbf`
+  too; a webhook token used before its `nbf` is refused as `TimestampExpired`.
+  `fraiseql-auth` drops `jwt::Claims::validate_temporal_claims`, which nothing called, with
+  `jwt::MAX_TOKEN_AGE_SECS`, `jwt::MAX_CLOCK_SKEW_SECS` and the `AuthError` variants
+  `TokenIssuedInFuture`, `TokenTooOld` and `TokenNotYetValid` that only it used.
+
 - **`WindowExecutionPlan` carries the fact table it reads, in `metadata` (#2263).** The
   window generator now lowers its `where` against the table, as an aggregate plan's is.
   A plan built by hand names the table's `FactTableMetadata`; one from `WindowPlanner`

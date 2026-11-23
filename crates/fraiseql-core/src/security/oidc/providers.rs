@@ -115,8 +115,8 @@ pub struct OidcConfig {
 
     /// Clock skew tolerance in seconds.
     ///
-    /// Allow this many seconds of clock difference when
-    /// validating exp/nbf/iat claims.
+    /// A token is accepted this many seconds past its `exp`, and this many
+    /// seconds before its `nbf` or `iat`. Capped at 300.
     /// Default: 60 seconds
     #[serde(default = "default_clock_skew")]
     pub clock_skew_secs: u64,

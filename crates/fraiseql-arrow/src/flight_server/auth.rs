@@ -60,7 +60,7 @@ pub fn create_session_token(
 ///
 /// Decodes and verifies HMAC-SHA256 session token, checking:
 /// - Signature validity
-/// - Expiration timestamp
+/// - Expiration timestamp, and the not-before timestamp when the token carries one
 /// - Session type ("flight")
 ///
 /// # Arguments
@@ -78,6 +78,8 @@ pub fn validate_session_token(
     let key = DecodingKey::from_secret(secret.as_bytes());
     let mut validation = Validation::new(Algorithm::HS256);
     validation.validate_exp = true; // Check expiration
+    // A token is not accepted before its `nbf`; jsonwebtoken checks it only when asked.
+    validation.validate_nbf = true;
 
     // Decode and verify token
     let token_data = decode::<SessionTokenClaims>(token, &key, &validation).map_err(|e| {
@@ -144,3 +146,6 @@ pub fn extract_session_token<T>(request: &Request<T>) -> std::result::Result<Str
         })
         .map(ToOwned::to_owned)
 }
+
+#[cfg(test)]
+mod not_before_tests;

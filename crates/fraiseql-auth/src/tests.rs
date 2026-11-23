@@ -1011,7 +1011,7 @@ mod state_store_tests {
 mod jwt_tests {
     use std::collections::HashMap;
 
-    use super::super::{error::AuthError, jwt::*};
+    use super::super::jwt::*;
 
     fn create_test_claims() -> Claims {
         let now = std::time::SystemTime::now()
@@ -1065,100 +1065,6 @@ mod jwt_tests {
         assert_eq!(claims.get_custom("email"), Some(&serde_json::json!("user@example.com")));
         assert_eq!(claims.get_custom("role"), Some(&serde_json::json!("admin")));
         assert_eq!(claims.get_custom("nonexistent"), None);
-    }
-
-    #[test]
-    fn temporal_check_rejects_claims_with_iat_too_far_in_future() {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        let mut claims = create_test_claims();
-        claims.iat = now + MAX_CLOCK_SKEW_SECS + 60;
-        let result = claims.validate_temporal_claims();
-        assert!(
-            matches!(result, Err(AuthError::TokenIssuedInFuture)),
-            "expected TokenIssuedInFuture, got: {result:?}"
-        );
-    }
-
-    #[test]
-    fn temporal_check_accepts_claims_with_iat_within_clock_skew() {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        let mut claims = create_test_claims();
-        claims.iat = now + 60;
-        claims
-            .validate_temporal_claims()
-            .unwrap_or_else(|e| panic!("expected Ok for iat within clock skew: {e}"));
-    }
-
-    #[test]
-    fn temporal_check_rejects_claims_with_iat_too_old() {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        let mut claims = create_test_claims();
-        claims.iat = now - MAX_TOKEN_AGE_SECS - 60;
-        claims.exp = now + 3600;
-        let result = claims.validate_temporal_claims();
-        assert!(
-            matches!(result, Err(AuthError::TokenTooOld)),
-            "expected TokenTooOld, got: {result:?}"
-        );
-    }
-
-    #[test]
-    fn temporal_check_accepts_claims_at_iat_max_age_boundary() {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        let mut claims = create_test_claims();
-        claims.iat = now - MAX_TOKEN_AGE_SECS;
-        claims.exp = now + 3600;
-        claims
-            .validate_temporal_claims()
-            .unwrap_or_else(|e| panic!("expected Ok for iat exactly at max-age boundary: {e}"));
-    }
-
-    #[test]
-    fn temporal_check_rejects_claims_with_nbf_in_future() {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        let mut claims = create_test_claims();
-        claims.nbf = Some(now + MAX_CLOCK_SKEW_SECS + 60);
-        let result = claims.validate_temporal_claims();
-        assert!(
-            matches!(result, Err(AuthError::TokenNotYetValid)),
-            "expected TokenNotYetValid, got: {result:?}"
-        );
-    }
-
-    #[test]
-    fn temporal_check_accepts_claims_with_nbf_in_past() {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        let mut claims = create_test_claims();
-        claims.nbf = Some(now - 600);
-        claims
-            .validate_temporal_claims()
-            .unwrap_or_else(|e| panic!("expected Ok for nbf in past: {e}"));
-    }
-
-    #[test]
-    fn temporal_check_accepts_claims_without_nbf() {
-        let claims = create_test_claims();
-        claims
-            .validate_temporal_claims()
-            .unwrap_or_else(|e| panic!("expected Ok for token without nbf: {e}"));
     }
 }
 

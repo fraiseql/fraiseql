@@ -23,6 +23,8 @@
 // demand rustdoc and `#[must_use]` on test fixtures.
 #![allow(clippy::unwrap_used, clippy::panic, clippy::redundant_pub_crate)]
 
+mod not_before_tests;
+
 use std::{collections::BTreeMap, sync::Arc};
 
 use fraiseql_jwks::{BoxFuture, Jwk, JwksError, JwksKeys};

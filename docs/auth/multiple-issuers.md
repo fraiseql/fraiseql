@@ -47,7 +47,7 @@ Each `[[auth.additional_issuers]]` table accepts:
 | `audience`, `additional_audiences` | — | Accepted `aud` values; at least one is required |
 | `jwks_uri` | discovered from `issuer` | The issuer's key endpoint |
 | `allowed_algorithms` | `["RS256"]` | Signing algorithms accepted for this issuer |
-| `clock_skew_secs` | `60` | Expiry tolerance (capped, as for `[auth]`) |
+| `clock_skew_secs` | `60` | Tolerance for `exp`, `nbf` and `iat` (capped, as for `[auth]`) |
 | `scope_claim` | `"scope"` | Claim scopes are read from |
 | `require_jti` | `false` | Refuse tokens without a `jti` |
 
