@@ -324,8 +324,12 @@ What the compiler cannot check is that the coarse rows hold the finer rows' tota
 answer is the finer table's answer when each coarse row is the sum of the finer rows in its
 period, as a rollup refreshed from the finer table holds. A `float` measure's sum can differ
 from the finer table's in its last digits, since the additions happen in another order; a
-`bigint` or `numeric` sum is exact. A linked aggregate is a parameterized read, which the
-query cache does not hold, so a change to either table reaches the next answer.
+`bigint` or `numeric` sum is exact.
+
+A linked aggregate is a parameterized read, and the query cache holds no parameterized
+aggregate: it is read from the database every time, so a change to either table reaches the
+next answer. The cover therefore needs no cache tags for the finer table; should
+parameterized aggregates ever be cached, the entry must be invalidated by both tables.
 
 ---
 
