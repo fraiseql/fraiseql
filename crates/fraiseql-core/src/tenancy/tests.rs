@@ -1,9 +1,8 @@
 //! Tests for multi-tenancy data model
 //!
-//! Tests for tenant isolation, filtering, and JWT extraction
+//! Tests for tenant isolation and filtering
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-use serde_json::json;
 
 use crate::tenancy::TenantContext;
 
@@ -134,70 +133,4 @@ fn test_tenant_id_special_chars() {
 fn test_tenant_id_uuid() {
     let uuid_tenant = TenantContext::new("550e8400-e29b-41d4-a716-446655440000");
     assert_eq!(uuid_tenant.id(), "550e8400-e29b-41d4-a716-446655440000");
-}
-
-// ============================================================================
-// Test 7: JWT Extraction
-// ============================================================================
-
-/// Test creating `TenantContext` from JWT claims
-#[test]
-fn test_from_jwt_claims_success() {
-    let claims = json!({
-        "sub": "user123",
-        "tenant_id": "acme-corp",
-        "email": "alice@acme.com"
-    });
-
-    let tenant = TenantContext::from_jwt_claims(&claims).expect("Should create tenant from JWT");
-    assert_eq!(tenant.id(), "acme-corp");
-}
-
-/// Test that missing `tenant_id` in JWT returns error
-#[test]
-fn test_from_jwt_claims_missing_tenant_id() {
-    let claims = json!({
-        "sub": "user123",
-        "email": "alice@example.com"
-    });
-
-    let result = TenantContext::from_jwt_claims(&claims);
-    assert!(result.is_err(), "Should error when tenant_id is missing");
-}
-
-/// Test that non-string `tenant_id` in JWT returns error
-#[test]
-fn test_from_jwt_claims_invalid_tenant_id_type() {
-    let claims = json!({
-        "sub": "user123",
-        "tenant_id": 12345  // Should be string, not number
-    });
-
-    let result = TenantContext::from_jwt_claims(&claims);
-    assert!(result.is_err(), "Should error when tenant_id is not a string");
-}
-
-/// Test creating `TenantContext` from JWT with UUID `tenant_id`
-#[test]
-fn test_from_jwt_claims_uuid_tenant() {
-    let uuid_tenant = "550e8400-e29b-41d4-a716-446655440000";
-    let claims = json!({
-        "sub": "user123",
-        "tenant_id": uuid_tenant
-    });
-
-    let tenant = TenantContext::from_jwt_claims(&claims).expect("Should create tenant from JWT");
-    assert_eq!(tenant.id(), uuid_tenant);
-}
-
-/// Test that a JSON `null` `tenant_id` is rejected, not treated as a tenant
-#[test]
-fn test_from_jwt_claims_null_tenant_id() {
-    let claims = json!({
-        "sub": "user123",
-        "tenant_id": null
-    });
-
-    let result = TenantContext::from_jwt_claims(&claims);
-    assert!(result.is_err(), "Should error when tenant_id is null");
 }

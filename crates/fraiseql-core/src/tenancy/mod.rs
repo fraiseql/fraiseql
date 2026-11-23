@@ -1,7 +1,7 @@
 //! Tenant identity for FraiseQL.
 //!
-//! [`TenantContext`] carries a tenant's identity and metadata — typically
-//! extracted from JWT claims — for use by transports and middleware.
+//! [`TenantContext`] carries a tenant's identity and metadata for use by
+//! transports and middleware.
 //!
 //! This module does **not** enforce isolation. Data-level tenant isolation is
 //! enforced by the runtime's security machinery: `inject_params` tenant
@@ -13,21 +13,14 @@
 //!
 //! ```rust
 //! use fraiseql_core::tenancy::TenantContext;
-//! use serde_json::json;
 //!
-//! // Create tenant context
 //! let tenant = TenantContext::new("acme-corp");
-//!
-//! // Or extract from JWT claims
-//! let claims = json!({"tenant_id": "acme-corp", "sub": "user123"});
-//! let tenant = TenantContext::from_jwt_claims(&claims).unwrap();
 //! assert_eq!(tenant.id(), "acme-corp");
 //! ```
 
 use std::collections::HashMap;
 
 use chrono::Utc;
-use serde_json::Value as JsonValue;
 
 /// A tenant's identity and metadata.
 ///
@@ -101,48 +94,6 @@ impl TenantContext {
     #[must_use]
     pub const fn metadata(&self) -> &HashMap<String, String> {
         &self.metadata
-    }
-
-    /// Create a `TenantContext` from JWT claims.
-    ///
-    /// Extracts the `tenant_id` from JWT claims and creates a new `TenantContext`.
-    ///
-    /// # Arguments
-    ///
-    /// * `claims` - JWT claims as JSON object
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - `tenant_id` claim is missing
-    /// - `tenant_id` is not a string
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use serde_json::json;
-    /// use fraiseql_core::tenancy::TenantContext;
-    ///
-    /// let claims = json!({
-    ///     "sub": "user123",
-    ///     "tenant_id": "acme-corp",
-    ///     "email": "alice@acme.com"
-    /// });
-    ///
-    /// let tenant = TenantContext::from_jwt_claims(&claims).unwrap();
-    /// assert_eq!(tenant.id(), "acme-corp");
-    /// ```
-    /// # Errors
-    ///
-    /// Returns a `String` error if the `tenant_id` claim is missing or not a string.
-    pub fn from_jwt_claims(claims: &JsonValue) -> Result<Self, String> {
-        // Extract tenant_id from claims
-        let tenant_id = claims
-            .get("tenant_id")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| "Missing or invalid 'tenant_id' claim in JWT".to_string())?;
-
-        Ok(Self::new(tenant_id))
     }
 }
 

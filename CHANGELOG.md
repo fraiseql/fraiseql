@@ -18,6 +18,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`TenantContext::from_jwt_claims` is removed (#2395).** Nothing called it: no
+  transport built a tenant from a `tenant_id` claim through it, so the claim rule it
+  carried was never applied. `TenantContext::new` remains.
+
 - **`fraiseql_core::runtime::TenantEnforcer` and its module are removed (#2394).** Nothing
   outside its own tests constructed it, and `enforce_tenant_scope`, the only method that
   did anything, had no caller: no query was ever scoped by it. Tenant isolation is applied
