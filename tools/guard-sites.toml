@@ -244,11 +244,6 @@ file = "crates/fraiseql-server/src/routes/after_mutation/mod.rs"
 function = "record_and_run_capture"
 reason = "an externally captured write has no request and no tenant: the call names the default executor, it does not choose one from the caller"
 
-[[exempt]]
-file = "crates/fraiseql-core/src/security/audit.rs"
-function = "get_recent_logs"
-reason = "no caller and no test; wire it or delete it: #2392"
-
 # An open policy, `USING (true)` or `WITH CHECK (true)` (family `rls-open-policy`): the
 # grants guard its table, and each table's statement taking PUBLIC's privileges away is a
 # `rls-grant` site below.

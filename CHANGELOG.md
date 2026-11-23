@@ -18,6 +18,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql_core::security::AuditLogger::get_recent_logs` is removed (#2392).** Nothing
+  called it, nothing tested it, and it read a `fraiseql_audit_logs` table no migration
+  creates. Read audit entries from the store your exporters write to.
+
 - **The Go SDK requires Go 1.26 (#2278).** Its `go.mod` declares `go 1.26`, the oldest
   release Go still supports, and its suite runs on 1.26 and 1.27; it declared 1.23, was
   tested on 1.23 and 1.24, and its README promised 1.22. The code needs nothing newer than
