@@ -73,6 +73,9 @@ public class SchemaFormatter {
         if (!registry.getAllInterfaces().isEmpty()) {
             root.set("interfaces", formatInterfacesArray(registry.getAllInterfaces()));
         }
+        if (!registry.getAllUnions().isEmpty()) {
+            root.set("unions", formatUnionsArray(registry.getAllUnions()));
+        }
         // Registered subscriptions used to reach no key at all: FraiseQL.subscription()
         // built them and SchemaRegistry stored them, and this method never read them
         // back — so a Java author's subscription was silently absent from the exported
@@ -185,6 +188,9 @@ public class SchemaFormatter {
         }
         if (!registry.getAllInterfaces().isEmpty()) {
             root.set("interfaces", formatInterfacesArray(registry.getAllInterfaces()));
+        }
+        if (!registry.getAllUnions().isEmpty()) {
+            root.set("unions", formatUnionsArray(registry.getAllUnions()));
         }
 
         return root.toString();
@@ -635,6 +641,28 @@ public class SchemaFormatter {
             inputTypesArray.add(inputNode);
         }
         return inputTypesArray;
+    }
+
+    /**
+     * Format the {@code unions} array, ordered by union name: each union's name, its member
+     * types in the order they were registered, and its description when it has one.
+     */
+    private static ArrayNode formatUnionsArray(Map<String, SchemaRegistry.UnionInfo> unions) {
+        ArrayNode unionsArray = mapper.createArrayNode();
+        unions.values().stream()
+            .sorted(java.util.Comparator.comparing(union -> union.name))
+            .forEach(union -> {
+                ObjectNode unionNode = mapper.createObjectNode();
+                unionNode.put("name", union.name);
+                ArrayNode members = mapper.createArrayNode();
+                union.memberTypes.forEach(members::add);
+                unionNode.set("member_types", members);
+                if (union.description != null && !union.description.isEmpty()) {
+                    unionNode.put("description", union.description);
+                }
+                unionsArray.add(unionNode);
+            });
+        return unionsArray;
     }
 
     /** Format all registered interfaces as an array of objects. */

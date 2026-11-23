@@ -1767,6 +1767,12 @@ disagreed, and the promise was the part that was wrong.
   schema that still holds a path in another spelling is refused at load: recompile it
   with this release's CLI.
 
+- **The Java SDK exports the unions it registers (#2410).** A union registered with
+  `SchemaRegistry.registerUnion` reached no key of `schema.json`, so the compiled schema
+  did not have it. `schema.json` and the
+  types-only export now carry a `unions` section, `{name, member_types, description}`
+  ordered by name, which `fraiseql compile` reads.
+
 - **A fragment on a type the schema does not define, or one that can never apply where it
   stands, is refused (#2276).** `{ users { ... on Nosuch { name } } }` was answered with a
   `"...on Nosuch": null` key under a `200`; `fragment F on Nosuch { name }` spread under
