@@ -330,6 +330,10 @@ reason   = "no production caller; deciding issue to be filed"
 EOF
 expect 1 "${src}/routes/auth.rs:11:13: session guard" "43. an anchor narrows a function's exemption to its statement"
 
+tree; shard_block=$(python3 -c "import re,sys; print(re.search(r'\[\[shard\]\][^[]*', open(sys.argv[1]).read()).group(0).rstrip())" "${ws}/tools/guard-sites.toml")
+printf '\n%s\n' "$shard_block" >> "${ws}/tools/guard-sites.toml"
+expect 1 "duplicate name" "44. a shard name defined twice fails"
+
 if [ "$failures" -ne 0 ]; then
   echo "guard sites gate: ${failures} case(s) FAILED"
   exit 1

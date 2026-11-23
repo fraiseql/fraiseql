@@ -88,6 +88,13 @@ patterns = [
 ]
 
 [[family]]
+name = "with-tenant"
+# A value scoped to the tenant a request or write resolved to: a run-as identity narrowed
+# to the writing tenant, a REST handler's idempotency and cache scope, a change event's
+# tenant stamp. Dropped, the value runs or is filed under no tenant.
+patterns = ['\.with_tenant\s*\(']
+
+[[family]]
 name = "executor"
 patterns = ['\bexecutor_for(?:_tenant)?\s*\(']
 
@@ -1937,3 +1944,43 @@ anchor = "REVOKE ALL ON core._fraiseql_source_cursor FROM PUBLIC;"
 mutant = "GRANT ALL ON core._fraiseql_source_cursor TO PUBLIC;"
 killers = ["rls_denies_reads_to_a_role_without_the_tenant_guc"]
 shard = "observers-source-cursor"
+
+# A value scoped to the resolved tenant (family `with-tenant`). The REST read's tenant is
+# what keeps an answer for a tenant resolved from its domain, which carries no tenant
+# header, out of a shared cache.
+
+[[site]]
+id = "with-tenant.function.run-as"
+file = "crates/fraiseql-server/src/routes/after_mutation/mod.rs"
+function = "build_host"
+anchor = "(true, Some(tenant)) => run_as_identity.with_tenant(tenant),"
+mutant = "(true, Some(_)) => run_as_identity,"
+killers = ["an_anonymous_tenant_writes_function_runs_within_that_tenant"]
+shard = "function-tenant"
+
+[[site]]
+id = "with-tenant.rest.get-cache"
+file = "crates/fraiseql-server/src/routes/rest/router/mod.rs"
+function = "rest_get_handler_in_scope"
+anchor = ".with_tenant(scope.tenant.as_deref())"
+mutant = ".with_tenant(None)"
+killers = ["a_tenant_resolved_from_its_domain_is_cached_only_privately"]
+shard = "tenant-rest"
+
+[[site]]
+id = "with-tenant.rest.post-idempotency"
+file = "crates/fraiseql-server/src/routes/rest/router/mod.rs"
+function = "rest_post_handler_in_scope"
+anchor = ".with_tenant(scope.tenant.as_deref())"
+mutant = ".with_tenant(None)"
+killers = ["an_idempotency_key_is_scoped_by_the_resolved_tenant"]
+shard = "tenant-rest"
+
+[[site]]
+id = "with-tenant.cdc.event-stamp"
+file = "crates/fraiseql-cdc-sinks/src/drain.rs"
+function = "to_change_event"
+anchor = "ev = ev.with_tenant(t);"
+mutant = "let _ = t;"
+killers = ["a_published_event_carries_its_rows_tenant"]
+shard = "cdc-drain"

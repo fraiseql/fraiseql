@@ -295,6 +295,9 @@ class Gate:
             if not name or not shard.get("command") or not shard.get("crate"):
                 self.error(f"{self.inventory}: shard {shard!r} needs `name`, `crate` and `command`")
                 continue
+            if name in shards:
+                # A second definition would replace the first: its sites would run another command.
+                self.error(f"shard `{name}`: duplicate name")
             shards[name] = shard
         anchors = []
         seen: set[str] = set()

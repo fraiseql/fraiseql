@@ -230,6 +230,66 @@ async fn a_tenant_scoped_sink_backfills_only_its_tenants_rows() {
     a_tenant_scoped_sink_publishes_only_its_tenants_rows(Some(std::time::Duration::ZERO)).await;
 }
 
+/// A sink that records the tenant each published event carries.
+struct TenantSink {
+    config:    CdcSinkConfig,
+    published: Mutex<Vec<(i64, Option<Uuid>)>>,
+}
+
+impl CdcSink for TenantSink {
+    fn name(&self) -> &str {
+        &self.config.name
+    }
+
+    fn kind(&self) -> SinkKind {
+        SinkKind::NatsJetStream
+    }
+
+    fn matches(&self, ev: &ChangeEvent) -> bool {
+        self.config.matches(ev)
+    }
+
+    // Reason: a stub sink for the drain tests; `CdcSink` is async because real sinks
+    // (Kafka, Kinesis, webhooks) publish over the network.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
+    async fn publish(&self, ev: &ChangeEvent) -> PublishOutcome {
+        self.published.lock().unwrap().push((ev.seq, ev.tenant_id));
+        PublishOutcome::Published
+    }
+}
+
+/// Each published event carries the tenant of the row it was drained from, and an
+/// untenanted row carries none: the stamp is what a `{tenant_id}` subject and a tenant
+/// allow-list route on. The sink has no allow-list, so every row publishes and each stamp
+/// is seen.
+#[tokio::test]
+#[ignore = "requires Postgres (DATABASE_URL)"]
+async fn a_published_event_carries_its_rows_tenant() {
+    let pool = pool().await;
+    setup_schema(&pool).await;
+
+    let table = unique("tbstamp");
+    let (one, two) = (Uuid::new_v4(), Uuid::new_v4());
+    let first = seed(&pool, &table, "INSERT", Some(one), Some(json!({ "v": 1 }))).await;
+    let second = seed(&pool, &table, "INSERT", Some(two), Some(json!({ "v": 2 }))).await;
+    let none = seed(&pool, &table, "INSERT", None, Some(json!({ "v": 3 }))).await;
+
+    let config = CdcSinkConfig::new(unique("sink"), "fraiseql.{tenant_id}.{table}")
+        .with_tables(vec![table.clone()]);
+    let sink = TenantSink {
+        config:    config.clone(),
+        published: Mutex::new(Vec::new()),
+    };
+    let worker = DrainWorker::new(pool.clone(), sink, config);
+    worker.tick().await.unwrap();
+
+    assert_eq!(
+        *worker.sink().published.lock().unwrap(),
+        vec![(first, Some(one)), (second, Some(two)), (none, None)],
+        "each event carries its own row's tenant"
+    );
+}
+
 #[tokio::test]
 #[ignore = "requires Postgres (DATABASE_URL)"]
 async fn broker_outage_retries_then_drains_with_no_loss() {

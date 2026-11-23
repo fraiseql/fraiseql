@@ -76,8 +76,10 @@ fn schema() -> CompiledSchema {
     let mut schema = SchemaConverter::convert_artifact(intermediate, &ConvertOptions::default())
         .unwrap()
         .schema;
+    // A read is cacheable, so who may cache it (`private` or `public`) is decided.
     schema.rest_config = Some(fraiseql_core::schema::RestConfig {
         enabled: true,
+        default_cache_ttl: 60,
         ..fraiseql_core::schema::RestConfig::default()
     });
     schema.build_indexes();
@@ -473,6 +475,40 @@ async fn an_idempotency_key_is_scoped_by_the_resolved_tenant() {
         ["ONCE-EACH", PUBLIC_DECOY],
         "the default's write, performed rather than replayed"
     );
+}
+
+/// A read for a tenant resolved from its domain, which carries no tenant header, is
+/// cacheable only privately: a shared cache must not hold a tenant's rows. The same read
+/// with no tenant is cacheable publicly, so `private` is the tenant's doing.
+#[tokio::test]
+async fn a_tenant_resolved_from_its_domain_is_cached_only_privately() {
+    let Some((_admin, state)) = setup().await else {
+        return;
+    };
+    state.domain_registry().register("p1550rest.example.test", TENANT);
+    let read = |host: &str| {
+        Request::get("/rest/v1/probes")
+            .header("host", host)
+            .body(Body::empty())
+            .unwrap()
+    };
+    for (host, row, cache) in [
+        ("p1550rest.example.test", TENANT_ROW, "private"),
+        ("default.example.test", PUBLIC_DECOY, "public"),
+    ] {
+        let response = router(&state).oneshot(read(host)).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{host}");
+        let control = response
+            .headers()
+            .get("cache-control")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_string();
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = String::from_utf8_lossy(&bytes);
+        assert!(body.contains(row), "{host} is answered from its own schema: {body}");
+        assert!(control.starts_with(cache), "{host}: Cache-Control `{control}`, want {cache}");
+    }
 }
 
 /// `require_auth` is the tenant schema's: a tenant whose REST requires authentication
