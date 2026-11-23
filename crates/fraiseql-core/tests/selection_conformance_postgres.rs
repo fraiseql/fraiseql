@@ -1025,6 +1025,46 @@ const QUERY_MATRIX: &[Case] = &[
         query:  "{ users { id @skip(if: true) } }",
         expect: &[],
     },
+    Case {
+        name:   "inline fragment on the type",
+        query:  "{ users { id ... on User { email } } }",
+        expect: &["id", "email"],
+    },
+    Case {
+        name:   "inline fragment on an interface the type implements",
+        query:  "{ users { ... on Node { id } name } }",
+        expect: &["id", "name"],
+    },
+    Case {
+        name:   "inline-only selection",
+        query:  "{ users { ... on User { name email } } }",
+        expect: &["name", "email"],
+    },
+    Case {
+        name:   "skipped inline fragment",
+        query:  "{ users { id ... on User @skip(if: true) { email } } }",
+        expect: &["id"],
+    },
+    Case {
+        name:   "included inline fragment",
+        query:  "{ users { id ... on User @include(if: true) { email } } }",
+        expect: &["id", "email"],
+    },
+    Case {
+        name:   "inline fragment beside an untyped one",
+        query:  "{ users { ... on User { email } ... { name } } }",
+        expect: &["email", "name"],
+    },
+    Case {
+        name:   "inline fragment inside a named one",
+        query:  "fragment F on User { ... on User { name } } query { users { id ...F } }",
+        expect: &["id", "name"],
+    },
+    Case {
+        name:   "inline fragments nested, at their document position",
+        query:  "{ users { email ... on Node { ... on User { name } id } } }",
+        expect: &["email", "name", "id"],
+    },
 ];
 
 #[tokio::test]
@@ -1037,6 +1077,9 @@ async fn regular_query_returns_exactly_the_requested_fields() {
     let mut failures = Vec::new();
     for case in QUERY_MATRIX {
         match exec.execute(case.query, None).await {
+            Ok(response) if !response["data"]["users"][0].is_object() => {
+                failures.push(format!("{}: no user row\n    response: {response}", case.name));
+            },
             Ok(response) => {
                 let keys = user_keys(&response);
                 if keys != case.expect {
@@ -2854,6 +2897,155 @@ async fn an_interface_field_answers_its_scalars_with_the_stored_text() {
     assert!(
         failures.is_empty(),
         "{} read(s) failed:\n  {}",
+        failures.len(),
+        failures.join("\n  ")
+    );
+}
+
+/// `query`, for `caller`, as the `Value` path answers it and as the body path does, each an
+/// answer or its error's text.
+async fn answers_for(exec: &Executor, query: &str, caller: &SecurityContext) -> [String; 2] {
+    let value = exec
+        .execute_operation_with_security(query, None, caller, None)
+        .await
+        .map_or_else(|e| format!("error: {e}"), |v| v.to_string());
+    let body = exec
+        .execute_operation_with_security_body(query, None, caller, None)
+        .await
+        .map_or_else(
+            |e| format!("error: {e}"),
+            |b| String::from_utf8_lossy(&b.into_bytes().unwrap()).into_owned(),
+        );
+    [value, body]
+}
+
+/// Each `(inline, written)` pair answered alike for `caller`, on both paths: `Err` naming
+/// each pair that is not. `written` must be answered with data, unless `refused`.
+async fn answered_alike(
+    exec: &Executor,
+    pairs: &[(&str, &str)],
+    caller: &SecurityContext,
+    refused: bool,
+) -> Vec<String> {
+    let mut failures = Vec::new();
+    for (inline, written) in pairs {
+        let expected = answers_for(exec, written, caller).await;
+        let data = expected[0].starts_with("{\"data\":{") && !expected[0].contains("\"errors\"");
+        if data == refused {
+            failures.push(format!("{written}: the control answered {}", expected[0]));
+            continue;
+        }
+        let got = answers_for(exec, inline, caller).await;
+        if got != expected {
+            failures.push(format!(
+                "{inline}:\n    got      {got:?}\n    expected {expected:?} ({written})"
+            ));
+        }
+    }
+    failures
+}
+
+/// An inline fragment on the type a position holds, or on an interface that type implements,
+/// selects on it (§ 6.3.2): at every root kind, it is answered as the same fields through a
+/// named fragment are.
+#[tokio::test]
+async fn an_inline_fragment_on_the_type_is_answered_as_its_named_fragment_at_every_root() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let pairs: &[(&str, &str)] = &[
+        (
+            "{ users { id ... on User { email } } }",
+            "fragment F on User { email } query { users { id ...F } }",
+        ),
+        (
+            "{ users { ... on Node { id } name } }",
+            "fragment F on Node { id } query { users { ...F name } }",
+        ),
+        (
+            "{ users { profile { ... on Profile { tier address { ... on Address { city } } } } } }",
+            "fragment P on Profile { tier address { ...A } } fragment A on Address { city } \
+             query { users { profile { ...P } } }",
+        ),
+        (
+            r#"{ user(where: { name: { eq: "Alice" } }) { ... on User { name email } } }"#,
+            r#"fragment F on User { name email } query { user(where: { name: { eq: "Alice" } }) { ...F } }"#,
+        ),
+        (
+            "{ usersConnection(first: 2) { edges { node { id ... on User { email } } } } }",
+            "fragment F on User { email } query { usersConnection(first: 2) { edges { node { id \
+             ...F } } } }",
+        ),
+        (
+            r#"{ users { ... on User { name } } user(where: { name: { eq: "Bob" } }) { ... on Node { id } } }"#,
+            r#"fragment N on User { name } fragment I on Node { id } query { users { ...N } user(where: { name: { eq: "Bob" } }) { ...I } }"#,
+        ),
+        (
+            "{ holdingRows { ... on Holding { label } } }",
+            "fragment F on Holding { label } query { holdingRows { ...F } }",
+        ),
+    ];
+    let failures = answered_alike(&exec, pairs, &principal(), false).await;
+    assert!(
+        failures.is_empty(),
+        "{} pair(s) differ:\n  {}",
+        failures.len(),
+        failures.join("\n  ")
+    );
+}
+
+/// A field inside `... on T` is the field: masked, refused or allowed by its scope and by
+/// the field authorizer exactly as written directly, with the same error.
+#[tokio::test]
+async fn a_gated_field_inside_an_inline_fragment_is_gated_as_written_directly() {
+    let masked = principal();
+    let allowed = SecurityContext {
+        roles: vec!["auditor".to_string()],
+        ..principal()
+    };
+    let scoped: &[(&str, &str)] = &[
+        ("{ users { name ... on User { secret } } }", "{ users { name secret } }"),
+        (
+            "{ users { ... on Node { ... on User { hidden: secret } } } }",
+            "{ users { hidden: secret } }",
+        ),
+        (
+            "{ users { profile { tier ... on Profile { zone } } } }",
+            "{ users { profile { tier zone } } }",
+        ),
+    ];
+    let mut refusing = masked_schema(true);
+    for t in &mut refusing.types {
+        for f in &mut t.fields {
+            if f.requires_scope.is_some() {
+                f.on_deny = FieldDenyPolicy::Reject;
+            }
+        }
+    }
+    let authorized: &[(&str, &str)] =
+        &[("{ holdings { ... on Holding { label } } }", "{ holdings { label } }")];
+
+    let mut failures = Vec::new();
+    for (schema, refuses) in [(masked_schema(true), false), (refusing, true)] {
+        let Some(exec) = executor_for(schema).await else {
+            eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+            return;
+        };
+        failures.extend(answered_alike(&exec, scoped, &allowed, false).await);
+        failures.extend(answered_alike(&exec, scoped, &masked, refuses).await);
+    }
+    let Some(exec) =
+        Box::pin(executor_with_authorizer(gated_party_schema(FieldDenyPolicy::Mask, true))).await
+    else {
+        return;
+    };
+    for caller in [&allowed, &masked] {
+        failures.extend(answered_alike(&exec, authorized, caller, false).await);
+    }
+    assert!(
+        failures.is_empty(),
+        "{} pair(s) differ:\n  {}",
         failures.len(),
         failures.join("\n  ")
     );

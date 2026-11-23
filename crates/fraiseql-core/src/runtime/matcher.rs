@@ -431,8 +431,10 @@ impl QueryMatcher {
         //     see the document as written, while § 5.3.1 and everything after it want the
         //     filtered set. Shared with the multi-root fan-out, `node(id:)` and mutations so no
         //     entry point can answer this question differently (#826, #827).
-        let written_selections =
-            selection_set::resolve(&parsed.selections, &parsed.fragments, self.max_depth)?;
+        let written_selections = crate::graphql::concrete_fragments::splice_query_roots(
+            selection_set::resolve(&parsed.selections, &parsed.fragments, self.max_depth)?,
+            &self.schema,
+        );
         let selections = selection_set::CollectedFields::new(written_selections);
         self.match_resolved_for(Arc::new(parsed), &selections, variables, caller)
     }

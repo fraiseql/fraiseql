@@ -1587,6 +1587,19 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **An inline fragment on the type it stands in is served as the fields it selects (#2369).**
+  `{ users { id ... on User { email } } }` was refused with `Cannot return null for
+  non-nullable field User.email` for every row, and a fragment whose fields are nullable
+  was answered as a `"...on User": null` key no document selected, under a `200`. So was
+  `... on Node { }` on a type that implements `Node`, below a list, a single or a
+  function-backed root, among several roots, and below a nested object. `node(id:)`,
+  Relay connections and aggregates answered it already. A fragment on the type a position
+  holds, or on an interface that type implements, applies to every value there (§ 6.3.2):
+  its fields are now read into the enclosing selection before they are collected, each
+  under the fragment's directives, so field access, scope masks and refusals, the field
+  authorizer, the projection and completion all meet the fields as written out. A
+  fragment at an interface or union position is still decided per value.
+
 - **An inline fragment with no type condition is served as the fields it selects (#2368).**
   `{ users { id ... { name } } }` answered each user as `{"id": …, "...on ": null}`:
   `name` was dropped and a key no document selected was served, under a `200`. So were

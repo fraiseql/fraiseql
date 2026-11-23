@@ -149,8 +149,8 @@ fn pairs() -> Vec<(String, String, Value)> {
             json!({}),
         ),
         (
-            format!("{{ {node} {{ ... on User {{ email }} ... {{ id }} }} }}"),
-            format!("{{ {node} {{ ... on User {{ email }} id }} }}"),
+            "{ users { ... on User { email } ... { name } } }".into(),
+            "{ users { email name } }".into(),
             json!({}),
         ),
         (
@@ -211,4 +211,31 @@ async fn an_untyped_inline_fragment_is_served_as_its_fields_written_out() {
         failures.len(),
         failures.join("\n  ")
     );
+}
+
+/// An aggregate's rows are its row type's: an inline fragment on that type, typed or not,
+/// is answered as the same fields written out.
+#[tokio::test]
+async fn an_inline_fragment_on_an_aggregates_row_type_is_answered_as_written() {
+    let Some(executor) = executor().await else {
+        return;
+    };
+    let root = "uif_sale_aggregate(groupBy: {region: true}, aggregates: [{amount_sum: true}], \
+                orderBy: {region: ASC})";
+    let written = answers(&executor, &format!("{{ {root} {{ region amount_sum }} }}"), None).await;
+    assert_eq!(
+        written[0]["data"]["uif_sale_aggregate"],
+        json!([{"region": "eu", "amount_sum": "5"}, {"region": "us", "amount_sum": "7"}]),
+        "{written:?}"
+    );
+    for fragment in [
+        format!("{{ {root} {{ ... on UifSaleAggregateRow {{ region amount_sum }} }} }}"),
+        format!("{{ {root} {{ region ... {{ amount_sum }} }} }}"),
+        format!(
+            "{{ {root} {{ region ... on UifSaleAggregateRow @include(if: true) {{ amount_sum }} \
+             }} }}"
+        ),
+    ] {
+        assert_eq!(answers(&executor, &fragment, None).await, written, "{fragment}");
+    }
 }

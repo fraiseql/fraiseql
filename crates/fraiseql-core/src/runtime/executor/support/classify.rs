@@ -210,6 +210,12 @@ impl Executor {
             self.max_query_depth(),
         )
         .ok()
+        .map(|selections| match root_type {
+            "Query" => {
+                crate::graphql::concrete_fragments::splice_query_roots(selections, &self.ctx.schema)
+            },
+            _ => selections,
+        })
         .map(|selections| {
             std::sync::Arc::new(CompletionTarget {
                 root_type,

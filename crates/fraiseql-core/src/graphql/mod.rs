@@ -95,6 +95,9 @@ pub mod selection_set;
 
 mod root_fragments;
 
+/// Inline fragments that apply wherever they stand, read into their selection set.
+pub mod concrete_fragments;
+
 /// Field-existence validation for a resolved selection set (GraphQL § 5.3.1).
 pub mod selection_validation;
 
