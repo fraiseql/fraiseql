@@ -721,6 +721,7 @@ func (m *FraiseqlCi) ShellGates(
 		// releases, and no test could see it — a transport that skips the resolve answers
 		// every request reading no enriched field exactly as one that runs it does.
 		"bash tools/check-principal-producers.sh",
+		"bash tools/tests/principal_producers_test.sh",
 		// #1348: the same shape for row filters. Both gRPC read arms constructed
 		// `DefaultRLSPolicy` themselves, so a deployment's own policy was never consulted
 		// and one that configured none got a filter invented — the same query answering

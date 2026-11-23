@@ -29,7 +29,9 @@
 #
 # Mirrors tools/check-mutation-dispatch-sites.sh (#1327), including its staleness check.
 set -euo pipefail
-cd "$(git rev-parse --show-toplevel)"
+# PRINCIPAL_PRODUCERS_ROOT sets the tree to check instead (for
+# tools/tests/principal_producers_test.sh).
+cd "${PRINCIPAL_PRODUCERS_ROOT:-$(git rev-parse --show-toplevel)}"
 
 # A credential becoming a principal. `from_user` is the core constructor, the server's
 # `build_security_context` wraps it and is what a transport should call, and
@@ -63,6 +65,10 @@ PRODUCER='(SecurityContext::(from_user|from_token_claims|service_account)|build_
 #   resolve_identity          `fraiseql-arrow`'s equivalent (#1349). That crate cannot
 #                             depend on fraiseql-server, so it calls the object-safe
 #                             `IdentityEnricher` seam through a helper of its own.
+#   resolved_caller           the schema read surfaces' helper (exports, metadata, REST
+#                             introspection): it runs the seam and maps its refusals to
+#                             the read API's 403 / 503. Accepted only while its body
+#                             still calls the seam (checked below).
 #
 # ⚠ The third name was added *because this gate did not demand its own pruning*. #1349
 # was fixed, both KNOWN entries started resolving, and the staleness check below stayed
@@ -70,7 +76,7 @@ PRODUCER='(SecurityContext::(from_user|from_token_claims|service_account)|build_
 # A staleness check that cannot see the fix it is waiting for is the failure mode it
 # exists to prevent. The non-vacuity checks at the bottom assert each of these three is
 # a real seam, so a name here cannot become a second implementation of the rule.
-RESOLVER='(resolve_request_identity|admission::identify|resolve_identity|stages::admit)\s*\('
+RESOLVER='(resolve_request_identity|admission::identify|resolve_identity|stages::admit|resolved_caller)\s*\('
 
 # Producers that legitimately do not resolve, each for a stated structural reason.
 # This is not a severity ladder — an entry here is a claim that the resolve happens
@@ -83,8 +89,6 @@ RESOLVER='(resolve_request_identity|admission::identify|resolve_identity|stages:
 #   service_account.rs    returns — and that stage resolves before dispatch.
 #   admin_sql.rs          the operator SQL console builds an impersonation context whose
 #                         whole subject is the operator's chosen identity (#962).
-#   introspection.rs      serves the schema document; it executes no user operation and
-#                         reads no row, so there is no identity to scope by.
 #   tenant_admin.rs       the tenant admin API reads the principal to *name* the actor in
 #   observers/handlers.rs an audit record. Admin-token gated, no user data operation.
 #   observers/scope.rs    the observer admin API reads the principal's tenant to choose
@@ -95,7 +99,7 @@ RESOLVER='(resolve_request_identity|admission::identify|resolve_identity|stages:
 # *defines* these constructors, so listing it would have been an allowlist entry that
 # excused a file with nothing to excuse — and would have hidden a real producer added
 # there later.
-DEFERRED='crates/fraiseql-server/src/extractors.rs|crates/fraiseql-server/src/api_key/mod.rs|crates/fraiseql-server/src/service_account.rs|crates/fraiseql-server/src/routes/api/admin_sql.rs|crates/fraiseql-server/src/routes/introspection.rs|crates/fraiseql-server/src/routes/api/tenant_admin.rs|crates/fraiseql-server/src/observers/handlers.rs|crates/fraiseql-server/src/observers/scope.rs'
+DEFERRED='crates/fraiseql-server/src/extractors.rs|crates/fraiseql-server/src/api_key/mod.rs|crates/fraiseql-server/src/service_account.rs|crates/fraiseql-server/src/routes/api/admin_sql.rs|crates/fraiseql-server/src/routes/api/tenant_admin.rs|crates/fraiseql-server/src/observers/handlers.rs|crates/fraiseql-server/src/observers/scope.rs'
 
 # Producers that do NOT resolve and are tracked as defects. Each needs an issue.
 # Empty since #1349: the Flight handlers resolve through the `IdentityEnricher` seam, so
@@ -194,12 +198,15 @@ for entry in $(echo "${DEFERRED}" | tr '|' ' ') $(echo "${KNOWN}" | tr '|' ' ');
   fi
 done
 
-# A KNOWN entry that started resolving is a fixed gap, and leaving it listed would let
-# the next unresolved producer into the same file unnoticed.
-for entry in $(echo "${KNOWN}" | tr '|' ' '); do
-  if grep -qE "$RESOLVER" "$entry"; then
-    echo "ERROR: KNOWN entry $entry now resolves its principal."
-    echo "The gap it tracks is closed: remove it from KNOWN so the file is gated again."
+# An entry that started resolving no longer needs its exemption. For KNOWN it is a fixed
+# gap; for DEFERRED its stated reason ("resolves elsewhere", "no identity to scope by")
+# has become false. Either way, leaving it listed would let the next unresolved producer
+# into the same file unnoticed. DEFERRED was once checked only for still producing, and a
+# file that started resolving stayed listed under prose it had outgrown.
+for entry in $(echo "${DEFERRED}" | tr '|' ' ') $(echo "${KNOWN}" | tr '|' ' '); do
+  if strip_inline_tests "$entry" | grep -cE "$RESOLVER" >/dev/null; then
+    echo "ERROR: allowlist entry $entry now resolves its principal."
+    echo "Its exemption no longer applies: remove it (and its reason) so the file is gated again."
     exit 1
   fi
 done
@@ -237,6 +244,14 @@ fi
 if ! body_of enrich_identity "$admission" | grep -cE "resolve_request_identity\s*\(" >/dev/null; then
   echo "ERROR: enrich_identity in $admission no longer calls resolve_request_identity."
   echo "A second implementation of the rule is what #1336 was."
+  exit 1
+fi
+
+# `resolved_caller` is accepted on the same condition: its body must still run the seam.
+schema='crates/fraiseql-server/src/routes/api/schema.rs'
+if ! body_of resolved_caller "$schema" | grep -cE "resolve_request_identity\s*\(" >/dev/null; then
+  echo "ERROR: resolved_caller in $schema no longer calls resolve_request_identity."
+  echo "RESOLVER accepts resolved_caller only because it runs the enrichment seam."
   exit 1
 fi
 
