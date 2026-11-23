@@ -79,7 +79,6 @@ mod request_locale;
 mod session_headers;
 pub mod sql_logger;
 pub mod subscription;
-pub mod tenant_enforcer;
 /// Variable-definition validation for the executed operation (GraphQL § 5.8.3).
 mod variable_validation;
 pub mod window;
@@ -182,7 +181,6 @@ pub use subscription::{
     SubscriptionOperation, SubscriptionPayload, TransportAdapter, TransportManager, WebhookAdapter,
     WebhookConfig, extract_rls_conditions, protocol,
 };
-pub use tenant_enforcer::TenantEnforcer;
 pub use variable_validation::{
     collect_variable_references, validate_variable_types, validate_variable_uses,
     validate_variables_used,

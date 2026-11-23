@@ -276,8 +276,8 @@ pub struct QueryDefinition {
     /// Keys are SQL column names. Values describe where to source the runtime value.
     /// These params are NOT exposed as GraphQL arguments.
     ///
-    /// For queries: adds a `WHERE key = $value` condition per entry using the same
-    /// `WhereClause` mechanism as `TenantEnforcer`. Works on all adapters.
+    /// For queries: adds a `WHERE key = $value` condition per entry, as a parameterised
+    /// `WhereClause`. Works on all adapters.
     ///
     /// Clients cannot override these values.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]

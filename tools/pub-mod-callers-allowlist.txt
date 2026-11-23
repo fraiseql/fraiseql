@@ -77,7 +77,6 @@ fraiseql_core::graphql::require_permission_directive pending no plan names it; t
 fraiseql_core::utils::opaque_id pending no plan names it; triage #1681
 fraiseql_core::runtime::query_tracing pending no plan names it; triage #1681
 fraiseql_core::runtime::sql_logger pending no plan names it; triage #1681
-fraiseql_core::runtime::tenant_enforcer pending no plan names it; triage #1681
 fraiseql_core::cache::cascade_metadata pending no plan names it; triage #1681
 fraiseql_core::tenancy pending no plan names it; triage #1681
 fraiseql_core::validation::id_policy pending ID-format validation only the input processor called; triage #1681

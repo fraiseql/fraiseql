@@ -132,7 +132,6 @@
   │    explain.rs         EXPLAIN ANALYZE integration
   │    sql_logger.rs      Query audit logging
   │    query_tracing.rs   OpenTelemetry span creation
-  │    tenant_enforcer.rs RLS enforcement
   │    field_filter.rs    Field-level access control
   │    matcher.rs         Pattern matching
   │

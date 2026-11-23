@@ -18,6 +18,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql_core::runtime::TenantEnforcer` and its module are removed (#2394).** Nothing
+  outside its own tests constructed it, and `enforce_tenant_scope`, the only method that
+  did anything, had no caller: no query was ever scoped by it. Tenant isolation is applied
+  by `inject_params` and the database's row-level security.
+
 - **`fraiseql_core::security::AuditLogger::get_recent_logs` is removed (#2392).** Nothing
   called it, nothing tested it, and it read a `fraiseql_audit_logs` table no migration
   creates. Read audit entries from the store your exporters write to.
