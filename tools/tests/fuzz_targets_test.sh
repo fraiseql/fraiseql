@@ -24,6 +24,9 @@ target() {
 }
 
 # workflow <dir> <timeout-minutes> <dispatch-budget> <schedule-budget> <rows...>
+#
+# A row is `crate/target`, `crate/target@<budget>` for a row with its own budget, or
+# `raw:<text>` for a matrix line written as given.
 workflow() {
     local dir="$1" timeout="$2" dispatch="$3" schedule="$4"
     shift 4
@@ -36,7 +39,15 @@ workflow() {
         printf 'jobs:\n  fuzz:\n    timeout-minutes: %s\n    strategy:\n      matrix:\n        include:\n' "$timeout"
         local row
         for row in "$@"; do
-            printf '          - { crate: %s, target: %s }\n' "${row%/*}" "${row#*/}"
+            case "$row" in
+                raw:*) printf '          %s\n' "${row#raw:}" ;;
+                *@*)
+                    local name="${row%@*}"
+                    printf '          - { crate: %s, target: %s, budget: %s }\n' \
+                        "${name%/*}" "${name#*/}" "${row#*@}"
+                    ;;
+                *) printf '          - { crate: %s, target: %s }\n' "${row%/*}" "${row#*/}" ;;
+            esac
         done
     } >"$dir/fuzz.yml"
 }
@@ -78,6 +89,12 @@ target "$d" a two
 workflow "$d" 60 300 900 a/one
 echo 'a/two  needs a database to reach its parser' >"$d/unscheduled.txt"
 check exempted_with_a_reason "$d" 0
+
+d="$(new a_row_with_its_own_budget)"
+target "$d" a one
+target "$d" a two
+workflow "$d" 60 300 900 a/one@600 a/two
+check a_row_with_its_own_budget "$d" 0 "a/one capped at 600s"
 
 # --- refused --------------------------------------------------------------------------
 
@@ -121,6 +138,32 @@ d="$(new a_budget_past_the_timeout)"
 target "$d" a one
 workflow "$d" 30 300 1800 a/one
 check a_budget_past_the_timeout "$d" 1 "cannot finish inside the job timeout"
+
+d="$(new a_budget_row_for_a_missing_target)"
+target "$d" a one
+workflow "$d" 60 300 900 a/one a/two@600
+check a_budget_row_for_a_missing_target "$d" 1 "no [[bin]] named \"two\""
+
+d="$(new a_row_budget_past_the_timeout)"
+target "$d" a one
+workflow "$d" 30 300 900 a/one@600
+check a_row_budget_past_the_timeout "$d" 1 "a/one: its budget 600s + 1500s"
+
+d="$(new a_row_budget_not_below_the_schedule)"
+target "$d" a one
+workflow "$d" 60 300 900 a/one@900
+check a_row_budget_not_below_the_schedule "$d" 1 "a/one: its budget 900s is not below"
+
+d="$(new a_row_budget_not_a_number)"
+target "$d" a one
+workflow "$d" 60 300 900 a/one@10m
+check a_row_budget_not_a_number "$d" 1 "a/one: budget \`10m\` is not a whole number"
+
+d="$(new a_row_the_gate_cannot_read)"
+target "$d" a one
+target "$d" a two
+workflow "$d" 60 300 900 a/one "raw:- { crate: a, target: two, budgt: 600 }"
+check a_row_the_gate_cannot_read "$d" 1 "a matrix row this gate cannot read"
 
 d="$(new no_rows_parsed)"
 target "$d" a one

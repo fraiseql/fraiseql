@@ -45,13 +45,31 @@ fi
 status=0
 checked=0
 scheduled=""
+# `crate/target<TAB>budget` for each row that carries its own budget, checked below.
+row_budgets=""
 
-# Matrix rows are single-line `- { crate: X, target: Y }` entries. Parsed with sed rather
-# than a YAML library because this gate runs in the minimal ShellGates container.
-while IFS=$'\t' read -r crate target; do
+# Matrix rows are single-line `- { crate: X, target: Y }` entries, optionally with a
+# third key, `budget: N`, capping that row's fuzz time below the campaign's (a run gets
+# the smaller of the two). Parsed with sed rather than a YAML library because this gate
+# runs in the minimal ShellGates container.
+row_re='^[[:space:]]*-[[:space:]]*\{[[:space:]]*crate:[[:space:]]*([A-Za-z0-9_-]+),[[:space:]]*target:[[:space:]]*([A-Za-z0-9_-]+)[[:space:]]*(,[[:space:]]*budget:[[:space:]]*([^[:space:],}]+)[[:space:]]*)?\}.*'
+
+# Every line that starts a `crate:` row must be one this gate reads. A row it cannot
+# read is a row nothing checks: an unknown key, or a budget spelled another way, would
+# leave its target unchecked while the workflow still runs it as written.
+while IFS= read -r line; do
+  if ! grep -E -- "$row_re" <<<"$line" >/dev/null; then
+    echo "ERROR: a matrix row this gate cannot read: ${line#"${line%%[![:space:]]*}"}"
+    echo "       Rows are \`- { crate: X, target: Y }\` or \`- { crate: X, target: Y, budget: N }\`."
+    status=1
+  fi
+done < <(grep -E '^[[:space:]]*-[[:space:]]*\{[[:space:]]*crate:' "$workflow" || true)
+
+while IFS=$'\t' read -r crate target budget; do
   [ -z "$crate" ] && continue
   checked=$((checked + 1))
   scheduled="${scheduled}${crate}/${target}"$'\n'
+  [ -n "$budget" ] && row_budgets="${row_budgets}${crate}/${target}"$'\t'"${budget}"$'\n'
 
   manifest="crates/${crate}/fuzz/Cargo.toml"
   source_file="crates/${crate}/fuzz/fuzz_targets/${target}.rs"
@@ -81,7 +99,7 @@ while IFS=$'\t' read -r crate target; do
     echo "ERROR: ${crate} / ${target} — no source at ${source_file}"
     status=1
   fi
-done < <(sed -nE 's/^[[:space:]]*-[[:space:]]*\{[[:space:]]*crate:[[:space:]]*([A-Za-z0-9_-]+),[[:space:]]*target:[[:space:]]*([A-Za-z0-9_-]+)[[:space:]]*\}.*/\1\t\2/p' "$workflow")
+done < <(sed -nE "s/${row_re}/\\1\t\\2\t\\4/p" "$workflow")
 
 if [ "$checked" -eq 0 ]; then
   # A grep-based YAML parser that silently matches nothing would pass forever — the same
@@ -175,7 +193,38 @@ for pair in "workflow_dispatch:${dispatch_budget}" "schedule:${schedule_budget}"
   fi
 done
 
+# ── A row's own budget ───────────────────────────────────────────────────────────────
+#
+# A cap: the row runs for the smaller of it and the campaign's budget, so a dispatch's
+# short verification run stays short. It must be a whole number of seconds, below the
+# scheduled budget (a cap at or above it changes nothing, and reads as if it did), and,
+# on its own, inside the job timeout with the same build headroom as above.
+capped=""
+while IFS=$'\t' read -r row budget; do
+  [ -z "$row" ] && continue
+  case "$budget" in
+    '' | *[!0-9]* | 0*)
+      echo "ERROR: ${row}: budget \`${budget}\` is not a whole number of seconds above 0."
+      status=1
+      continue
+      ;;
+  esac
+  if [ "$budget" -ge "$schedule_budget" ]; then
+    echo "ERROR: ${row}: its budget ${budget}s is not below the scheduled ${schedule_budget}s."
+    echo "       A row's budget caps the campaign's, so this one changes nothing. Lower it,"
+    echo "       or remove it."
+    status=1
+  fi
+  if [ $((budget + BUILD_HEADROOM_SECS)) -gt "$timeout_secs" ]; then
+    echo "ERROR: ${row}: its budget ${budget}s + ${BUILD_HEADROOM_SECS}s of install/build headroom"
+    echo "       = $((budget + BUILD_HEADROOM_SECS))s > timeout-minutes ${timeout_min} (${timeout_secs}s)."
+    status=1
+  fi
+  capped="${capped} ${row} capped at ${budget}s;"
+done <<<"$row_budgets"
+
 if [ "$status" -eq 0 ]; then
+  [ -n "$capped" ] && echo "OK: row budgets:${capped%;}."
   echo "OK: all ${checked} fuzz matrix targets exist in the crate they name, and all"
   echo "    ${on_disk} targets on disk are scheduled or exempted with a reason;"
   echo "    dispatch ${dispatch_budget}s and scheduled ${schedule_budget}s both fit in ${timeout_min}m."

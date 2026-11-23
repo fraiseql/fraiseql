@@ -68,6 +68,13 @@ jobs:
       # Every fuzz target on disk, each (crate, target) build-verified against the current
       # API. tools/check-fuzz-targets.sh fails on a target with no row here and no line in
       # tools/fuzz-unscheduled-targets.txt saying why (#1847).
+      #
+      # A row may carry `budget: N`, a cap on its fuzz time: it runs for the smaller of N
+      # and FUZZ_MAX_TOTAL_TIME. With about 32 legs and 20 hosted jobs at a time, the
+      # campaign runs in two waves, and the loaders of operator-written files (the
+      # authoring IR and fraiseql.toml) take 600 s instead of 900 to shorten the second.
+      # The gate checks each budget is a whole number below the scheduled one that fits
+      # the job timeout.
       matrix:
         include:
           - { crate: fraiseql-core,       target: graphql_parser }
@@ -99,8 +106,8 @@ jobs:
           - { crate: fraiseql-server,     target: ws_client_message }
           - { crate: fraiseql-server,     target: scim_filter }
           - { crate: fraiseql-functions,  target: inbound_email }
-          - { crate: fraiseql-cli,        target: authoring_ir }
-          - { crate: fraiseql-cli,        target: cli_toml }
+          - { crate: fraiseql-cli,        target: authoring_ir, budget: 600 }
+          - { crate: fraiseql-cli,        target: cli_toml, budget: 600 }
           # Lives in fraiseql-server, not fraiseql-core: `5a4a8f86b` (#909) deleted
           # fraiseql_core::config::FraiseQLConfig — the TOML tree nothing read — and its
           # fuzz target with it, while the target fuzzing the config loader that IS live
@@ -137,8 +144,14 @@ jobs:
 
       - name: Run fuzzer
         id: fuzz
+        env:
+          ROW_BUDGET: ${{ matrix.budget }}
         run: |
           cd crates/${{ matrix.crate }}
+          budget="${FUZZ_MAX_TOTAL_TIME}"
+          if [ -n "${ROW_BUDGET}" ] && [ "${ROW_BUDGET}" -lt "${budget}" ]; then
+            budget="${ROW_BUDGET}"
+          fi
           mkdir -p fuzz/corpus/${{ matrix.target }}
           # Only pass a seed corpus when one is committed for this target. Seed corpora
           # are checked into git and carry the regression reproducers, so a fixed crash
@@ -147,7 +160,7 @@ jobs:
           [ -d "$seed" ] || seed=""
           cargo "+${FUZZ_NIGHTLY}" fuzz run ${{ matrix.target }} \
             fuzz/corpus/${{ matrix.target }} $seed \
-            -- -max_total_time="${FUZZ_MAX_TOTAL_TIME}" \
+            -- -max_total_time="${budget}" \
                -max_len=65536 \
                -rss_limit_mb=2048
 
