@@ -38,6 +38,15 @@ disagreed, and the promise was the part that was wrong.
   `Node`, selects on `Node` and is held to the same rule. Move such fields into
   `... on <Type> { … }`.
 
+- **REST `/introspection` resolves its caller as every other surface does (#2371).** With
+  identity enrichment configured, a subject enrichment refuses is answered `403` with the
+  message `/graphql` and the schema exports answer, and a resolver outage `503`; roles
+  enrichment adds are applied to the listing. The listing is the caller view GraphQL
+  introspection and the schema exports answer, so an ungated type that only a hidden
+  operation reaches is left out too. Before, the endpoint filtered with the token's own
+  roles and ran no enrichment. A deployment without enrichment lists what it listed before,
+  apart from those unreachable types.
+
 - **With `[mcp] require_auth = true`, every request to the MCP HTTP endpoint needs a
   credential (#2345).** `initialize`, `tools/list`, `resources/list`, `prompts/list`, the
   event stream and every other request without a Bearer token, static API key or

@@ -1,10 +1,19 @@
 //! Schema introspection endpoint.
 
-use axum::{Json, extract::State, response::IntoResponse};
+#[cfg(all(test, feature = "auth"))]
+mod tests;
+
+use axum::{Json, extract::State};
 use serde::Serialize;
 use tracing::debug;
 
-use crate::{extractors::OptionalSecurityContext, routes::graphql::AppState};
+use crate::{
+    extractors::OptionalSecurityContext,
+    routes::{
+        api::{schema::resolved_caller, types::ApiError},
+        graphql::AppState,
+    },
+};
 
 /// Introspection response.
 #[derive(Debug, Serialize)]
@@ -66,32 +75,31 @@ pub struct MutationInfo {
 
 /// Introspection handler.
 ///
-/// Returns schema structure for debugging and tooling.
-/// Types, queries, and mutations with `requires_role` are filtered based on
-/// the caller's roles — hidden types/queries/mutations never appear in
-/// introspection to prevent role enumeration.
+/// Returns schema structure for debugging and tooling, as the caller may see it: the
+/// same view GraphQL introspection and the schema exports answer, so a type, query or
+/// mutation whose `requires_role` the caller lacks is absent. The caller's identity is
+/// resolved as every transport resolves it, since enrichment can add roles and refuses
+/// a subject it does not know.
 ///
 /// # Security Note
 ///
 /// In production, this endpoint should be disabled or require authentication.
+///
+/// # Errors
+///
+/// Returns `ApiError` when the caller's identity is denied or cannot be resolved.
 pub async fn introspection_handler(
     State(state): State<AppState>,
     OptionalSecurityContext(security_context): OptionalSecurityContext,
-) -> impl IntoResponse {
+) -> Result<Json<IntrospectionResponse>, ApiError> {
     debug!("Introspection requested");
 
-    let executor = state.executor();
-    let schema = executor.schema();
-
-    let user_roles: Vec<&str> = security_context
-        .as_ref()
-        .map(|ctx| ctx.roles.iter().map(String::as_str).collect())
-        .unwrap_or_default();
+    let caller = resolved_caller(&state, security_context).await?;
+    let schema = state.executor().schema_for(caller.as_ref());
 
     let types: Vec<TypeInfo> = schema
         .types
         .iter()
-        .filter(|t| t.requires_role.as_ref().is_none_or(|role| user_roles.contains(&role.as_str())))
         .map(|t| TypeInfo {
             name:        t.name.to_string(),
             description: t.description.clone(),
@@ -102,7 +110,6 @@ pub async fn introspection_handler(
     let queries: Vec<QueryInfo> = schema
         .queries
         .iter()
-        .filter(|q| q.requires_role.as_ref().is_none_or(|role| user_roles.contains(&role.as_str())))
         .map(|q| QueryInfo {
             name:         schema.display_name(&q.name),
             return_type:  q.return_type.clone(),
@@ -114,7 +121,6 @@ pub async fn introspection_handler(
     let mutations: Vec<MutationInfo> = schema
         .mutations
         .iter()
-        .filter(|m| m.requires_role.as_ref().is_none_or(|role| user_roles.contains(&role.as_str())))
         .map(|m| MutationInfo {
             name:        schema.display_name(&m.name),
             return_type: m.return_type.clone(),
@@ -122,9 +128,9 @@ pub async fn introspection_handler(
         })
         .collect();
 
-    Json(IntrospectionResponse {
+    Ok(Json(IntrospectionResponse {
         types,
         queries,
         mutations,
-    })
+    }))
 }

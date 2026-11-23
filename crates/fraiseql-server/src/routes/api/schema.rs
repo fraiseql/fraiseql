@@ -45,7 +45,7 @@ pub struct JsonSchemaResponse {
 /// The caller with its identity resolved, or the refusal every transport answers a
 /// denied subject (403) or a resolver outage (503) with.
 #[cfg_attr(not(feature = "auth"), allow(clippy::unused_async))] // Reason: resolution only exists with `auth`
-async fn resolved_caller(
+pub(crate) async fn resolved_caller(
     state: &AppState,
     caller: Option<SecurityContext>,
 ) -> Result<Option<SecurityContext>, ApiError> {
