@@ -1,0 +1,60 @@
+{
+  "_content_hash": "a2faf669c55f13883267ba85549897e7",
+  "types": [
+    {
+      "name": "Note",
+      "sql_source": "app.v_note",
+      "jsonb_column": "data",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "title",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        }
+      ]
+    }
+  ],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "notes",
+      "return_type": "Note",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "sql_source": "app.v_note",
+      "auto_params": {
+        "has_where": true,
+        "has_order_by": true,
+        "has_limit": true,
+        "has_offset": true
+      },
+      "jsonb_column": "data",
+      "pagination_order": "identity"
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "security": {
+    "enterprise": {
+      "audit_logging_enabled": true
+    }
+  },
+  "session_variables": {
+    "variables": [],
+    "inject_started_at": true
+  },
+  "naming_convention": "camelCase",
+  "project_name": "capability-arrow-flight",
+  "fraiseql_version": "2.19.1"
+}

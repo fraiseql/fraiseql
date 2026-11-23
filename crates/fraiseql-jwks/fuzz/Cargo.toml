@@ -1,0 +1,23 @@
+[package]
+edition = "2021"
+name = "fraiseql-jwks-fuzz"
+publish = false
+version = "2.19.1"
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+members = ["."]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+serde_json = "1"
+
+[dependencies.fraiseql-jwks]
+path = ".."
+
+[[bin]]
+doc = false
+name = "jwks_document"
+path = "fuzz_targets/jwks_document.rs"

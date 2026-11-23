@@ -1,0 +1,367 @@
+{
+  "_content_hash": "441e3db3db8444cb1164a9bddb2b3b61",
+  "types": [
+    {
+      "name": "Event",
+      "sql_source": "v_event",
+      "jsonb_column": "data",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "type",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "timestamp",
+          "field_type": "DateTime",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "data",
+          "field_type": "Json",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "createdAt",
+          "field_type": "DateTime",
+          "nullable": false,
+          "on_deny": "reject"
+        }
+      ],
+      "description": "Something that happened, as recorded on the event stream.",
+      "sql_projection_hint": {
+        "database": "postgresql",
+        "projection_template": "jsonb_build_object('id', data->>'id' ,'type', data->>'type' ,'timestamp', data->>'timestamp' ,'data', data->>'data' ,'createdAt', data->>'createdAt' )",
+        "estimated_reduction_percent": 40,
+        "reads_only_document": false
+      }
+    },
+    {
+      "name": "Message",
+      "sql_source": "v_message",
+      "jsonb_column": "data",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "userId",
+          "field_type": "ID",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "username",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "content",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "timestamp",
+          "field_type": "DateTime",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "reactions",
+          "field_type": "Int",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "createdAt",
+          "field_type": "DateTime",
+          "nullable": false,
+          "on_deny": "reject"
+        }
+      ],
+      "description": "A chat message, denormalized with its author's name.",
+      "sql_projection_hint": {
+        "database": "postgresql",
+        "projection_template": "jsonb_build_object('id', data->>'id' ,'userId', data->>'userId' ,'username', data->>'username' ,'content', data->>'content' ,'timestamp', data->>'timestamp' ,'reactions', data->>'reactions' ,'createdAt', data->>'createdAt' )",
+        "estimated_reduction_percent": 40,
+        "reads_only_document": false
+      }
+    },
+    {
+      "name": "UserActivity",
+      "sql_source": "v_user_activity",
+      "jsonb_column": "data",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "username",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "status",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "lastSeen",
+          "field_type": "DateTime",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "activeNow",
+          "field_type": "Boolean",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "updatedAt",
+          "field_type": "DateTime",
+          "nullable": false,
+          "on_deny": "reject"
+        }
+      ],
+      "description": "A user's presence: where they are and when they were last seen.",
+      "sql_projection_hint": {
+        "database": "postgresql",
+        "projection_template": "jsonb_build_object('id', data->>'id' ,'username', data->>'username' ,'status', data->>'status' ,'lastSeen', data->>'lastSeen' ,'activeNow', data->>'activeNow' ,'updatedAt', data->>'updatedAt' )",
+        "estimated_reduction_percent": 40,
+        "reads_only_document": false
+      }
+    },
+    {
+      "name": "LiveMetrics",
+      "sql_source": "v_metric",
+      "jsonb_column": "data",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "metric",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "value",
+          "field_type": "Decimal",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "timestamp",
+          "field_type": "DateTime",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "source",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "createdAt",
+          "field_type": "DateTime",
+          "nullable": false,
+          "on_deny": "reject"
+        }
+      ],
+      "description": "One sample of a named system metric.",
+      "sql_projection_hint": {
+        "database": "postgresql",
+        "projection_template": "jsonb_build_object('id', data->>'id' ,'metric', data->>'metric' ,'value', data->>'value' ,'timestamp', data->>'timestamp' ,'source', data->>'source' ,'createdAt', data->>'createdAt' )",
+        "estimated_reduction_percent": 40,
+        "reads_only_document": false
+      }
+    }
+  ],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "events",
+      "return_type": "Event",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "type",
+          "arg_type": "String",
+          "nullable": true
+        }
+      ],
+      "sql_source": "v_event",
+      "description": "Get recent events, optionally of one type.",
+      "auto_params": {
+        "has_where": true,
+        "has_order_by": true,
+        "has_limit": true,
+        "has_offset": true
+      },
+      "jsonb_column": "data",
+      "pagination_order": "identity"
+    },
+    {
+      "name": "event",
+      "return_type": "Event",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "arg_type": "ID",
+          "nullable": false
+        }
+      ],
+      "sql_source": "v_event",
+      "description": "Get a specific event by ID.",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      },
+      "jsonb_column": "data",
+      "native_columns": {
+        "id": {
+          "pg_type": "uuid",
+          "not_null": false
+        }
+      }
+    },
+    {
+      "name": "messages",
+      "return_type": "Message",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "sql_source": "v_message",
+      "description": "Get recent messages.",
+      "auto_params": {
+        "has_where": true,
+        "has_order_by": true,
+        "has_limit": true,
+        "has_offset": true
+      },
+      "jsonb_column": "data",
+      "pagination_order": "identity"
+    },
+    {
+      "name": "userActivity",
+      "return_type": "UserActivity",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "arg_type": "ID",
+          "nullable": false
+        }
+      ],
+      "sql_source": "v_user_activity",
+      "description": "Get one user's presence.",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      },
+      "jsonb_column": "data",
+      "native_columns": {
+        "id": {
+          "pg_type": "uuid",
+          "not_null": false
+        }
+      }
+    },
+    {
+      "name": "metrics",
+      "return_type": "LiveMetrics",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "metric",
+          "arg_type": "String",
+          "nullable": true
+        }
+      ],
+      "sql_source": "v_metric",
+      "description": "Get live system metrics, optionally for one metric name.",
+      "auto_params": {
+        "has_where": true,
+        "has_order_by": true,
+        "has_limit": true,
+        "has_offset": true
+      },
+      "jsonb_column": "data",
+      "pagination_order": "identity"
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [
+    {
+      "name": "onEvent",
+      "return_type": "Event",
+      "arguments": [],
+      "description": "Subscribe to new events as they are recorded.",
+      "topic": "event_events"
+    },
+    {
+      "name": "onMessage",
+      "return_type": "Message",
+      "arguments": [],
+      "description": "Subscribe to new messages as they arrive.",
+      "topic": "message_events"
+    },
+    {
+      "name": "onUserStatusChange",
+      "return_type": "UserActivity",
+      "arguments": [],
+      "description": "Subscribe to presence changes.",
+      "topic": "user_activity_events"
+    },
+    {
+      "name": "onMetricUpdate",
+      "return_type": "LiveMetrics",
+      "arguments": [],
+      "description": "Subscribe to metric samples as they land.",
+      "topic": "metric_events"
+    }
+  ],
+  "session_variables": {
+    "variables": [],
+    "inject_started_at": true
+  },
+  "naming_convention": "camelCase",
+  "fraiseql_version": "2.19.1"
+}

@@ -1,0 +1,197 @@
+{
+  "_content_hash": "09ece32cf78fd0d217e7dc000561c108",
+  "types": [
+    {
+      "name": "User",
+      "sql_source": "v_user",
+      "jsonb_column": "data",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "name",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "email",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "createdAt",
+          "field_type": "DateTime",
+          "nullable": false,
+          "on_deny": "reject"
+        }
+      ],
+      "description": "A user in the system."
+    },
+    {
+      "name": "Post",
+      "sql_source": "v_post",
+      "jsonb_column": "data",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "title",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "content",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "authorId",
+          "field_type": "ID",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "authorName",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "authorEmail",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "createdAt",
+          "field_type": "DateTime",
+          "nullable": false,
+          "on_deny": "reject"
+        }
+      ],
+      "description": "A blog post, denormalized with its author's identity.",
+      "sql_projection_hint": {
+        "database": "postgresql",
+        "projection_template": "jsonb_build_object('id', data->>'id' ,'title', data->>'title' ,'content', data->>'content' ,'authorId', data->>'authorId' ,'authorName', data->>'authorName' ,'authorEmail', data->>'authorEmail' ,'createdAt', data->>'createdAt' )",
+        "estimated_reduction_percent": 40,
+        "reads_only_document": false
+      }
+    }
+  ],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "users",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "sql_source": "v_user",
+      "description": "Get all users.",
+      "auto_params": {
+        "has_where": true,
+        "has_order_by": true,
+        "has_limit": true,
+        "has_offset": true
+      },
+      "jsonb_column": "data",
+      "pagination_order": "identity"
+    },
+    {
+      "name": "user",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "arg_type": "ID",
+          "nullable": false
+        }
+      ],
+      "sql_source": "v_user",
+      "description": "Get a user by ID.",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      },
+      "jsonb_column": "data",
+      "native_columns": {
+        "id": {
+          "pg_type": "uuid",
+          "not_null": false
+        }
+      }
+    },
+    {
+      "name": "posts",
+      "return_type": "Post",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "sql_source": "v_post",
+      "description": "Get all posts.",
+      "auto_params": {
+        "has_where": true,
+        "has_order_by": true,
+        "has_limit": true,
+        "has_offset": true
+      },
+      "jsonb_column": "data",
+      "pagination_order": "identity"
+    },
+    {
+      "name": "post",
+      "return_type": "Post",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "arg_type": "ID",
+          "nullable": false
+        }
+      ],
+      "sql_source": "v_post",
+      "description": "Get a post by ID.",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      },
+      "jsonb_column": "data",
+      "native_columns": {
+        "id": {
+          "pg_type": "uuid",
+          "not_null": false
+        }
+      }
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "session_variables": {
+    "variables": [],
+    "inject_started_at": true
+  },
+  "naming_convention": "camelCase",
+  "fraiseql_version": "2.19.1"
+}

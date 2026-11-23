@@ -1,0 +1,69 @@
+{
+  "_content_hash": "285694217397d23c1721531d0ca62011",
+  "types": [
+    {
+      "name": "Order",
+      "sql_source": "app.v_order",
+      "jsonb_column": "data",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false,
+          "on_deny": "reject"
+        }
+      ]
+    }
+  ],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "orders",
+      "return_type": "Order",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "sql_source": "app.v_order",
+      "auto_params": {
+        "has_where": true,
+        "has_order_by": true,
+        "has_limit": true,
+        "has_offset": true
+      },
+      "jsonb_column": "data",
+      "pagination_order": "identity"
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "security": {
+    "enterprise": {
+      "audit_logging_enabled": true
+    }
+  },
+  "observers_config": {
+    "enabled": true,
+    "backend": "postgres",
+    "nats_url": null
+  },
+  "mcp_config": {
+    "enabled": true,
+    "transport": "http",
+    "path": "/mcp",
+    "require_auth": true,
+    "include": [],
+    "exclude": [],
+    "read_only": false,
+    "session_state": false
+  },
+  "session_variables": {
+    "variables": [],
+    "inject_started_at": true
+  },
+  "naming_convention": "camelCase",
+  "project_name": "capability-observers",
+  "fraiseql_version": "2.19.1"
+}

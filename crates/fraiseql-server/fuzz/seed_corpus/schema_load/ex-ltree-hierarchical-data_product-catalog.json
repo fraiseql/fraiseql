@@ -1,0 +1,200 @@
+{
+  "_content_hash": "dd31be954d0d7eb8dbd9f42b0cfe6562",
+  "types": [
+    {
+      "name": "Product",
+      "sql_source": "v_product",
+      "jsonb_column": "data",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "name",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "description",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "price",
+          "field_type": "Decimal",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "categoryPath",
+          "field_type": {
+            "Scalar": "LTree"
+          },
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "sku",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "inStock",
+          "field_type": "Boolean",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "createdAt",
+          "field_type": "DateTime",
+          "nullable": false,
+          "on_deny": "reject"
+        }
+      ],
+      "description": "A product, placed in the category tree by `category_path`.",
+      "sql_projection_hint": {
+        "database": "postgresql",
+        "projection_template": "jsonb_build_object('id', data->>'id' ,'name', data->>'name' ,'description', data->>'description' ,'price', data->>'price' ,'categoryPath', data->>'categoryPath' ,'sku', data->>'sku' ,'inStock', data->>'inStock' ,'createdAt', data->>'createdAt' )",
+        "estimated_reduction_percent": 40,
+        "reads_only_document": false
+      }
+    }
+  ],
+  "enums": [],
+  "input_types": [
+    {
+      "name": "CategoryPathFilter",
+      "fields": [
+        {
+          "name": "eq",
+          "field_type": "LTree",
+          "nullable": true
+        },
+        {
+          "name": "descendantOf",
+          "field_type": "LTree",
+          "nullable": true
+        },
+        {
+          "name": "ancestorOf",
+          "field_type": "LTree",
+          "nullable": true
+        },
+        {
+          "name": "depthEq",
+          "field_type": "Int",
+          "nullable": true
+        }
+      ],
+      "description": "LTREE operators over `category_path`.\n\nThese are declared rather than derived. FraiseQL does not auto-derive the\nltree operator family onto a field: a declared field type cannot say whether\nthe column behind it is really an `ltree`, and deriving a filter advertises\nan operator (#869). Declaring them is the author asserting that it is —\nsetup.sql makes `category_path` an LTREE column, and the generated SQL casts\nthe JSONB value with `::ltree` before applying the operator.\n\nThe ID-valued variants (`descendantOfId`, `ancestorOfId`) are deliberately\nabsent: they resolve a UUID to a path through a `[hierarchies.<name>]`\nsection in fraiseql.toml, which this example does not configure.\n"
+    },
+    {
+      "name": "StringFilter",
+      "fields": [
+        {
+          "name": "eq",
+          "field_type": "String",
+          "nullable": true
+        },
+        {
+          "name": "neq",
+          "field_type": "String",
+          "nullable": true
+        },
+        {
+          "name": "contains",
+          "field_type": "String",
+          "nullable": true
+        }
+      ],
+      "description": "Comparison operators over a text field.\n\nEvery WHERE field is `{operator: value}` — a bare `sku: \"V15-DETECT\"` is\nrefused by the parser, so an ordinary column needs a filter type too.\n"
+    },
+    {
+      "name": "ProductWhere",
+      "fields": [
+        {
+          "name": "categoryPath",
+          "field_type": "CategoryPathFilter",
+          "nullable": true
+        },
+        {
+          "name": "sku",
+          "field_type": "StringFilter",
+          "nullable": true
+        }
+      ],
+      "description": "Filters for the `products` query."
+    }
+  ],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "products",
+      "return_type": "Product",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "where",
+          "arg_type": {
+            "Input": "ProductWhere"
+          },
+          "nullable": true
+        }
+      ],
+      "sql_source": "v_product",
+      "description": "Products, optionally filtered by position in the category tree.\n\n`{ products(where: {categoryPath: {descendantOf: \"electronics\"}}) }`\nreturns every product under Electronics, at any depth.\n",
+      "auto_params": {
+        "has_where": true,
+        "has_order_by": true,
+        "has_limit": true,
+        "has_offset": true
+      },
+      "jsonb_column": "data",
+      "pagination_order": "identity"
+    },
+    {
+      "name": "product",
+      "return_type": "Product",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "arg_type": "ID",
+          "nullable": false
+        }
+      ],
+      "sql_source": "v_product",
+      "description": "One product by id.",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      },
+      "jsonb_column": "data",
+      "native_columns": {
+        "id": {
+          "pg_type": "uuid",
+          "not_null": false
+        }
+      }
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "session_variables": {
+    "variables": [],
+    "inject_started_at": true
+  },
+  "naming_convention": "camelCase",
+  "fraiseql_version": "2.19.1"
+}

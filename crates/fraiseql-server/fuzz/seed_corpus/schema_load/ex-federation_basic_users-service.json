@@ -1,0 +1,111 @@
+{
+  "_content_hash": "ac8880ce7df37e87d5c7a1b57e8afd79",
+  "types": [
+    {
+      "name": "User",
+      "sql_source": "v_user",
+      "jsonb_column": "data",
+      "fields": [
+        {
+          "name": "id",
+          "field_type": "ID",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "name",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "email",
+          "field_type": "String",
+          "nullable": false,
+          "on_deny": "reject"
+        },
+        {
+          "name": "createdAt",
+          "field_type": "DateTime",
+          "nullable": false,
+          "on_deny": "reject"
+        }
+      ],
+      "description": "A user of the platform. Owned by this subgraph."
+    }
+  ],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "users",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "sql_source": "v_user",
+      "description": "Get all users.",
+      "auto_params": {
+        "has_where": true,
+        "has_order_by": true,
+        "has_limit": true,
+        "has_offset": true
+      },
+      "jsonb_column": "data",
+      "pagination_order": "identity"
+    },
+    {
+      "name": "user",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "arg_type": "ID",
+          "nullable": false
+        }
+      ],
+      "sql_source": "v_user",
+      "description": "Get a user by ID.",
+      "auto_params": {
+        "has_where": false,
+        "has_order_by": false,
+        "has_limit": false,
+        "has_offset": false
+      },
+      "jsonb_column": "data",
+      "native_columns": {
+        "id": {
+          "pg_type": "uuid",
+          "not_null": false
+        }
+      }
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "federation": {
+    "enabled": true,
+    "version": "v2",
+    "service_name": "users",
+    "schema_url": null,
+    "entities": [
+      {
+        "name": "User",
+        "key_fields": [
+          "id"
+        ]
+      }
+    ],
+    "circuit_breaker": null
+  },
+  "session_variables": {
+    "variables": [],
+    "inject_started_at": true
+  },
+  "naming_convention": "camelCase",
+  "fraiseql_version": "2.19.1"
+}
