@@ -198,6 +198,12 @@ impl Executor {
         // keeps a two-operation document from answering with the wrong one.
         let parsed = parse_query_with_operation_name(query, operation_name)
             .map_err(|e| operation_selection_error(&e))?;
+        crate::graphql::fragment_conditions::check(
+            &parsed.selections,
+            &parsed.fragments,
+            &parsed.operation_type,
+            &self.ctx.schema,
+        )?;
         let defaults = value_json::variable_defaults(&parsed.variables)?;
         let root_type = match parsed.operation_type.as_str() {
             "mutation" => "Mutation",
@@ -322,8 +328,17 @@ impl Executor {
         {
             let root = &parsed.selections[0];
             super::node_selection::check_node_selection(&self.ctx.schema, root, &parsed.fragments)?;
+            super::node_fragment_fields::check_node_fragment_fields(
+                &self.ctx.schema,
+                root,
+                &parsed.fragments,
+                self.max_query_depth(),
+            )?;
             let resolved = crate::graphql::selection_set::resolve(
-                &root.nested_fields,
+                &super::node_fragment_fields::typed_node_spreads(
+                    &root.nested_fields,
+                    &parsed.fragments,
+                ),
                 &parsed.fragments,
                 self.max_query_depth(),
             )?;
@@ -333,7 +348,7 @@ impl Executor {
                         nested_fields: Vec::new(),
                         ..root.clone()
                     }),
-                    selections: flatten_node_fragments(resolved),
+                    selections: resolved,
                 },
                 None,
             ));
@@ -386,27 +401,4 @@ impl Executor {
         // the multi-root pipeline path.
         Ok((QueryType::Regular, Some(parsed)))
     }
-}
-
-/// A `node` lookup's selection set with its inline fragments flattened:
-/// `node { ... on Booking { id startDate } }` selects `id` and `startDate`.
-///
-/// Only `"...on "` entries carry their selections in `nested_fields`; after expansion no
-/// bare `"...Name"` spread survives. Lifting the children out discards the inline fragment
-/// itself, so its own directives travel with them.
-pub(in super::super) fn flatten_node_fragments(
-    resolved: Vec<FieldSelection>,
-) -> Vec<FieldSelection> {
-    let mut selections = Vec::with_capacity(resolved.len());
-    for sel in resolved {
-        if sel.name.starts_with("...on ") {
-            for mut child in sel.nested_fields {
-                child.inherit_directives(&sel.directives);
-                selections.push(child);
-            }
-        } else {
-            selections.push(sel);
-        }
-    }
-    selections
 }

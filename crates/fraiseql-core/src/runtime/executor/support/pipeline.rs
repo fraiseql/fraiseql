@@ -243,10 +243,31 @@ impl Executor {
                     root,
                     &parsed.fragments,
                 )?;
+                super::node_fragment_fields::check_node_fragment_fields(
+                    &self.ctx.schema,
+                    root,
+                    &parsed.fragments,
+                    self.max_query_depth(),
+                )?;
             }
         }
+        // A `node` root's spreads keep their type conditions until the id names its type.
+        let selections: Vec<crate::graphql::FieldSelection> = parsed
+            .selections
+            .iter()
+            .map(|root| match root.name.as_str() {
+                "node" if self.ctx.schema.publishes_node() => crate::graphql::FieldSelection {
+                    nested_fields: super::node_fragment_fields::typed_node_spreads(
+                        &root.nested_fields,
+                        &parsed.fragments,
+                    ),
+                    ..root.clone()
+                },
+                _ => root.clone(),
+            })
+            .collect();
         let resolved = crate::graphql::selection_set::resolve_and_filter(
-            &parsed.selections,
+            &selections,
             &parsed.fragments,
             &crate::graphql::selection_set::variables_map(variables),
             self.max_query_depth(),
@@ -301,8 +322,9 @@ impl Executor {
             planned.push((index, field, plan));
         }
         for (index, field) in resolved.iter().enumerate().filter(|(_, field)| is_node(field)) {
-            let selections = super::classify::flatten_node_fragments(field.nested_fields.clone());
-            let plan = runner.plan_node(field, &selections, variables, security_context).await?;
+            let plan = runner
+                .plan_node(field, &field.nested_fields, variables, security_context)
+                .await?;
             planned.push((index, field, PlannedRoot::Node(Box::new(plan))));
         }
 

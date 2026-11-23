@@ -425,6 +425,12 @@ impl QueryMatcher {
         // 1. Parse GraphQL query using proper parser
         let parsed = parse_query_with_operation_name(query, operation_name)
             .map_err(|e| crate::graphql::operation_selection_error(&e))?;
+        crate::graphql::fragment_conditions::check(
+            &parsed.selections,
+            &parsed.fragments,
+            &parsed.operation_type,
+            &self.schema,
+        )?;
 
         // 3a. Expand fragment spreads. Kept apart from evaluating `@skip`/`@include` so the
         //     *written* set survives: § 5.3.3 is anti-monotone under field removal and has to

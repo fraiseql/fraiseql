@@ -355,7 +355,8 @@ mod classify {
     #[test]
     fn test_classify_node_query_inline_id() {
         let mut schema = test_schema();
-        declare_node_types(&mut schema, &[]);
+        schema.types.push(crate::schema::TypeDefinition::new("User", "v_user"));
+        declare_node_types(&mut schema, &["User"]);
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
 
@@ -380,19 +381,25 @@ mod classify {
         ));
     }
 
+    /// A fragment under `node` keeps its type condition, named spreads too: which apply is
+    /// decided once the id names the node's type.
     #[test]
-    fn test_classify_node_query_extracts_inline_fragment_selections() {
+    fn test_classify_node_query_keeps_fragments_typed() {
         let mut schema = test_schema();
-        declare_node_types(&mut schema, &[]);
+        schema.types.push(crate::schema::TypeDefinition::new("User", "v_user"));
+        declare_node_types(&mut schema, &["User"]);
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
 
-        let query = r#"{ node(id: "VXNlcjoxMjM=") { ... on User { name email } } }"#;
+        let query = r#"{ node(id: "VXNlcjoxMjM=") { ... on User { name } ...E } }
+                       fragment E on User { email }"#;
         let qt = executor.classify_query(query, None).unwrap();
         match qt {
             QueryType::NodeQuery { selections, .. } => {
                 let names: Vec<&str> = selections.iter().map(|s| s.name.as_str()).collect();
-                assert_eq!(names, vec!["name", "email"]);
+                assert_eq!(names, vec!["...on User", "...on User"]);
+                assert_eq!(selections[0].nested_fields[0].name, "name");
+                assert_eq!(selections[1].nested_fields[0].name, "email");
             },
             other => panic!("expected NodeQuery, got {other:?}"),
         }
@@ -3492,7 +3499,8 @@ mod operation_authz {
     #[tokio::test]
     async fn node_is_gated() {
         let mut schema = test_schema();
-        declare_node_types(&mut schema, &[]);
+        schema.types.push(crate::schema::TypeDefinition::new("User", "v_user"));
+        declare_node_types(&mut schema, &["User"]);
         let executor = Executor::with_config(
             schema,
             Arc::new(MockAdapter::new(vec![])),

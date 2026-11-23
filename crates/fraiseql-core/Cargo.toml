@@ -450,6 +450,10 @@ name = "untyped_inline_fragment_pg"
 required-features = ["postgres"]
 
 [[test]]
+name = "fragment_type_condition_pg"
+required-features = ["postgres"]
+
+[[test]]
 name = "session_variables_integration"
 required-features = ["postgres"]
 

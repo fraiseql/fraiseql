@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use super::splice_query_roots;
+use super::{select_for_object, splice_query_roots};
 use crate::{
     graphql::{FieldSelection, parse_query},
     schema::{CompiledSchema, FieldDefinition, FieldType, QueryDefinition, TypeDefinition},
@@ -97,4 +97,16 @@ fn a_root_that_reads_no_object_set_is_left_as_written() {
     assert_eq!(spliced("{ usersConnection { ... on Node { id } } }"), ["...on Node[]"]);
     assert_eq!(spliced("{ userCount { ... on User { id } } }"), ["...on User[]"]);
     assert_eq!(spliced("{ nothing { ... on User { id } } }"), ["...on User[]"]);
+}
+
+#[test]
+fn once_the_type_is_known_a_fragment_on_another_type_selects_nothing() {
+    let parsed = parse_query(
+        "{ node { ... on Ledger { total } ... on Node { ... on Post { x } id } ... on User \
+         @skip(if: true) { name } partner { ... on Ledger { total } } } }",
+    )
+    .unwrap();
+    let selected = select_for_object(parsed.selections[0].nested_fields.clone(), "User", &schema());
+    assert_eq!(describe(&selected), ["id[]", "name[\"skip\"]", "partner[]"]);
+    assert_eq!(describe(&selected[2].nested_fields), ["...on Ledger[]"]);
 }

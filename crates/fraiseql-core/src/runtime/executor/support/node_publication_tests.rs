@@ -78,6 +78,14 @@ fn typed(type_name: &str) -> String {
     format!(r#"{{ node(id: "{id}") {{ id ... on {type_name} {{ name }} }} }}"#)
 }
 
+/// `node` read by a typed id of `type_name`, selecting `Node`'s own field: a fragment on a
+/// type that is no Node is refused before any id is read.
+fn bare(type_name: &str) -> String {
+    use base64::Engine as _;
+    let id = base64::engine::general_purpose::STANDARD.encode(format!("{type_name}:{ID}"));
+    format!(r#"{{ node(id: "{id}") {{ id }} }}"#)
+}
+
 fn principal(roles: &[&str]) -> SecurityContext {
     SecurityContext {
         user_id:          "user-1".into(),
@@ -125,7 +133,7 @@ async fn an_id_naming_a_type_that_is_no_node_is_null() {
         Arc::clone(&adapter),
         RuntimeConfig::default(),
     );
-    let response = executor.execute(&typed("Plain"), None).await.unwrap();
+    let response = executor.execute(&bare("Plain"), None).await.unwrap();
     assert_eq!(response, json!({"data": {"node": null}}));
     assert_eq!(reads(&adapter), 0, "a lookup was read");
 }

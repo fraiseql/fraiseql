@@ -10,6 +10,7 @@ pub(super) mod explain;
 pub(super) mod federation;
 pub(super) mod hook_reader;
 pub(super) mod introspection_projection;
+pub(super) mod node_fragment_fields;
 pub(super) mod node_selection;
 pub mod pipeline;
 pub(super) mod planning;

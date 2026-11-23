@@ -565,7 +565,16 @@ impl QueryRunner {
             return Ok(PlannedNode::Null);
         };
 
-        // 2b. #939: the selection set is scoped to the type the opaque id resolved,
+        // 2b. The id names the node's type: its fragments on that type, or on an interface
+        //     it implements, select its fields, and those on another Node type select
+        //     nothing (§ 6.3.2).
+        let selections = crate::graphql::concrete_fragments::select_for_object(
+            selections,
+            &type_name,
+            &self.ctx.schema,
+        );
+
+        // 2c. #939: the selection set is scoped to the type the opaque id resolved,
         //     so field-existence can only be checked here — the matcher never sees
         //     this path. An undeclared field would otherwise be projected as
         //     `data->>'name'`, i.e. a `null` under a 200.

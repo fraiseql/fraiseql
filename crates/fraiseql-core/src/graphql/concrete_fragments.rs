@@ -33,17 +33,37 @@ pub fn splice_query_roots(
             continue;
         }
         root.nested_fields =
-            splice(std::mem::take(&mut root.nested_fields), &query.return_type, schema);
+            splice(std::mem::take(&mut root.nested_fields), &query.return_type, schema, false);
     }
     roots
 }
 
+/// `selections`, read as a value found to be of the object type `type_name`.
+///
+/// Every inline fragment that applies to it is read into the set, and every one that does
+/// not is left out: it selects for another type the position could hold.
+///
+/// `node(id:)` holds any Node type, so its fragments on each of them stand side by side;
+/// once the id names one, the fragments on the others select nothing. Below that level,
+/// fragments are read in as [`splice_query_roots`] reads them.
+#[must_use]
+pub fn select_for_object(
+    selections: Vec<FieldSelection>,
+    type_name: &str,
+    schema: &CompiledSchema,
+) -> Vec<FieldSelection> {
+    splice(selections, type_name, schema, true)
+}
+
 /// `selections`, a set at a position holding `type_name`, with every inline fragment that
-/// applies there read into it, at every level below whose type is an object type.
+/// applies there read into it, at every level below whose type is an object type. With
+/// `resolved`, the value at this position is known to be a `type_name`, so a fragment that
+/// does not apply to it is left out; at every level below, it is left as written.
 fn splice(
     selections: Vec<FieldSelection>,
     type_name: &str,
     schema: &CompiledSchema,
+    resolved: bool,
 ) -> Vec<FieldSelection> {
     let Some(object) = schema.find_type(type_name) else {
         return selections;
@@ -56,17 +76,20 @@ fn splice(
                 || object.implements.iter().any(|i| i == condition);
             if applies {
                 let start = fields.len();
-                fields.extend(splice(selection.nested_fields, type_name, schema));
+                fields.extend(splice(selection.nested_fields, type_name, schema, resolved));
                 for field in &mut fields[start..] {
                     field.inherit_directives(&selection.directives);
                 }
+                continue;
+            }
+            if resolved {
                 continue;
             }
         } else if let Some(below) = object
             .find_field(&selection.name)
             .and_then(|field| object_type(&field.field_type))
         {
-            selection.nested_fields = splice(selection.nested_fields, below, schema);
+            selection.nested_fields = splice(selection.nested_fields, below, schema, false);
         }
         fields.push(selection);
     }

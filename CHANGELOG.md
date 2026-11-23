@@ -1607,6 +1607,24 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A fragment on a type the schema does not define, or one that can never apply where it
+  stands, is refused (#2276).** `{ users { ... on Nosuch { name } } }` was answered with a
+  `"...on Nosuch": null` key under a `200`; `fragment F on Nosuch { name }` spread under
+  `users` served `name`; `{ users { ... on Ledger { total } } }`, on a type no user can be,
+  likewise. Under `node(id:)` the same documents were refused only as a side effect, naming
+  a field of the id's type. Each is now refused before the database is read, with a
+  `Validation` error naming the fragment and its type (§ 5.5.1.2, § 5.5.2.3), at every
+  position whose type the schema knows: every root, below object, interface and union
+  fields, and the nodes of a Relay connection. A field a fragment on a Node type selects
+  under `node` is held to that type's fields, with the refusal a root returning it gives.
+
+- **`node(id:)` applies only the fragments on the type its id names (#2276).**
+  `{ node(id: $id) { ... on User { name } ... on Ledger { total } } }`, the usual way to
+  read a node whose type the client does not know, was refused with `Cannot query field
+  'total' on type 'User'` when the id named a `User`: every fragment under `node` was
+  applied to the id's type, named spreads included. A fragment on another Node type now
+  selects nothing for it (§ 6.3.2), alone or beside other roots.
+
 - **An inline fragment on the type it stands in is served as the fields it selects (#2369).**
   `{ users { id ... on User { email } } }` was refused with `Cannot return null for
   non-nullable field User.email` for every row, and a fragment whose fields are nullable
