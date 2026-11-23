@@ -176,8 +176,11 @@ def main() -> int:
                     originals.setdefault(path, raw)
                     saved.setdefault(path, raw)
                     text = path.read_text(encoding="utf-8")
-                    source = gate.Source.of(text)
-                    spans = source.function_spans(site["function"])
+                    if site["file"].endswith(".sql"):
+                        # A `.sql` file has no functions: the anchor is found in the whole file.
+                        spans = [(0, len(text))]
+                    else:
+                        spans = gate.Source.of(text).function_spans(site["function"])
                     body = text[spans[0][0] : spans[0][1]] if len(spans) == 1 else ""
                     if body.count(site["anchor"]) != 1:
                         raise SystemExit(f"{site['id']}: does not resolve; run tools/check-guard-sites.py")

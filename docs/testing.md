@@ -195,12 +195,16 @@ Two tools read it:
   defined as tests), and every call matching a `[[family]]` pattern in production code
   is inside a site's anchor, a held path or an exempt function. An unrowed call is
   reported at its file, line and column. A family scans code by default; `scan =
-  "strings"` scans inside string literals instead, for guards that are SQL predicates.
+  "strings"` scans inside string literals instead, for guards that are SQL predicates,
+  and a strings family with `sql = true` also scans the `.sql` files under `crates/` and
+  `examples/` (migrations, and example schemas a test applies), SQL comments blanked. A
+  site in a `.sql` file names no function: its anchor occurs once in the file.
   Self-test: `make test-guard-sites-gate`.
 - `tools/run-guard-mutants.py`: runs each selected shard once unmutated, then applies
   each mutant, runs its shard and restores the file. A shard that already fails is
   reported BASELINE-RED and none of its mutants run, since a red shard would "kill"
-  every mutant. A mutant is killed only when one of its named killers fails; one that
+  every mutant; one whose test binary runs no test is BASELINE-EMPTY, since it would
+  let every mutant "survive" untested. A mutant is killed only when one of its named killers fails; one that
   survives, is failed only by an unnamed test, or does not build fails the run.
   `--site`, `--shard` and `--changed-since REF` select a subset; `--list` prints the
   selection; `--output DIR` keeps each mutant's test output. Self-test: `make

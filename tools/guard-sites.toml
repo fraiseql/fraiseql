@@ -57,19 +57,23 @@ patterns = ['\bprincipal\s*\.\s*(?:scope|may_see|is_platform)\s*\(']
 [[family]]
 name = "rls-policy"
 scan = "strings"
-# A row-level-security policy's tenant predicate: a row is read only by a session whose
-# `fraiseql.tenant_id` names its tenant. Policies are ENABLEd, not FORCEd, so a killer reads
-# as a NOBYPASSRLS role that owns nothing; a read as the owner proves nothing.
+sql = true
+# A row-level-security policy that restricts the rows a role reads or changes: its
+# `USING (...)` clause (a `USING (true)` restricts nothing). Policies are ENABLEd, not
+# FORCEd, except where an example says otherwise, so a killer reads as a NOBYPASSRLS role
+# that owns nothing; a read as the owner proves nothing.
 patterns = [
-  '\btenant_(?:id|key)(?:::text)?[\s\\]+(?:IS[\s\\]+NOT[\s\\]+DISTINCT[\s\\]+FROM|=)[\s\\]*(?:NULLIF[\s\\]*\([\s\\]*)?current_setting',
+  'CREATE[\s\\]+POLICY[\s\\]+\w+[\s\\]+ON[\s\\]+[\w.%]+[^;\0]*?\bUSING[\s\\]*\((?![\s\\]*true[\s\\]*\))',
 ]
 
 [[family]]
 name = "rls-enable"
 scan = "strings"
-# Row-level security switched on for a table; without it a non-owner reads every row.
+sql = true
+# Row-level security switched on for a table (`%I` where the DDL is built with `format`);
+# without it a non-owner reads every row.
 patterns = [
-  'ALTER[\s\\]+TABLE[\s\\]+[\w.]+[\s\\]+ENABLE[\s\\]+ROW[\s\\]+LEVEL[\s\\]+SECURITY',
+  'ALTER[\s\\]+TABLE[\s\\]+[\w.%]+[\s\\]+ENABLE[\s\\]+ROW[\s\\]+LEVEL[\s\\]+SECURITY',
 ]
 
 [[family]]
@@ -172,6 +176,21 @@ command = "cargo test -p fraiseql-functions --lib migrations::tests -- --test-th
 name = "webhooks-ledger"
 crate = "crates/fraiseql-webhooks"
 command = "cargo test -p fraiseql-webhooks --test inbound_pipeline_pg -- --test-threads=1"
+
+[[shard]]
+name = "observers-change-log-rls"
+crate = "crates/fraiseql-observers"
+command = "cargo test -p fraiseql-observers --test rls_isolation -- --ignored --test-threads=1"
+
+[[shard]]
+name = "observers-source-cursor"
+crate = "crates/fraiseql-observers"
+command = "cargo test -p fraiseql-observers --test source_cursor_pg -- --test-threads=1"
+
+[[shard]]
+name = "examples-rls"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test example_multitenant_rls_e2e_pg -- --test-threads=1"
 
 [[shard]]
 name = "core-cache"
@@ -1627,3 +1646,141 @@ anchor = "ALTER TABLE webhooks.tb_inbound_delivery ENABLE ROW LEVEL SECURITY"
 mutant = "ALTER TABLE webhooks.tb_inbound_delivery DISABLE ROW LEVEL SECURITY"
 killers = ["rls_denies_inbound_delivery_ledger_by_default"]
 shard = "webhooks-ledger"
+
+[[site]]
+id = "rls-policy.observers.migration-12.p_change_log_tenant_read.tb_entity_change_log"
+file = "crates/fraiseql-observers/migrations/12_enable_change_log_rls.sql"
+anchor = "CREATE POLICY p_change_log_tenant_read ON core.tb_entity_change_log\n    FOR SELECT\n    USING (\n        tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid\n    )"
+mutant = "CREATE POLICY p_change_log_tenant_read ON core.tb_entity_change_log\n    FOR SELECT\n    USING ((\n        tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid\n    ) OR TRUE)"
+killers = [
+  "tenant_sees_only_its_own_rows_via_table_and_views",
+  "cross_tenant_hidden_and_unset_guc_is_fail_closed",
+]
+shard = "observers-change-log-rls"
+
+[[site]]
+id = "rls-enable.observers.migration-12.tb_entity_change_log"
+file = "crates/fraiseql-observers/migrations/12_enable_change_log_rls.sql"
+anchor = "ALTER TABLE core.tb_entity_change_log ENABLE ROW LEVEL SECURITY"
+mutant = "ALTER TABLE core.tb_entity_change_log DISABLE ROW LEVEL SECURITY"
+killers = [
+  "tenant_sees_only_its_own_rows_via_table_and_views",
+  "cross_tenant_hidden_and_unset_guc_is_fail_closed",
+]
+shard = "observers-change-log-rls"
+
+[[site]]
+id = "rls-policy.observers.migration-13.p_source_cursor_read._fraiseql_source_cursor"
+file = "crates/fraiseql-observers/migrations/13_create_source_cursor.sql"
+anchor = "CREATE POLICY p_source_cursor_read ON core._fraiseql_source_cursor\n    FOR SELECT\n    USING (\n        tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid\n    )"
+mutant = "CREATE POLICY p_source_cursor_read ON core._fraiseql_source_cursor\n    FOR SELECT\n    USING ((\n        tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid\n    ) OR TRUE)"
+killers = ["rls_denies_reads_to_a_role_without_the_tenant_guc"]
+shard = "observers-source-cursor"
+
+[[site]]
+id = "rls-enable.observers.migration-13._fraiseql_source_cursor"
+file = "crates/fraiseql-observers/migrations/13_create_source_cursor.sql"
+anchor = "ALTER TABLE core._fraiseql_source_cursor ENABLE ROW LEVEL SECURITY"
+mutant = "ALTER TABLE core._fraiseql_source_cursor DISABLE ROW LEVEL SECURITY"
+killers = ["rls_denies_reads_to_a_role_without_the_tenant_guc"]
+shard = "observers-source-cursor"
+
+[[site]]
+id = "rls-policy.multitenant.organization_isolation.tb_organization"
+file = "examples/multitenant/sql/01_schema.sql"
+anchor = "CREATE POLICY organization_isolation ON tb_organization\n    USING (id = NULLIF(current_setting('app.organization_id', true), '')::uuid)"
+mutant = "CREATE POLICY organization_isolation ON tb_organization\n    USING ((id = NULLIF(current_setting('app.organization_id', true), '')::uuid) OR TRUE)"
+killers = ["multitenant_example_isolates_two_tenants"]
+shard = "examples-rls"
+
+[[site]]
+id = "rls-policy.multitenant.tenant_isolation.tb_tenant"
+file = "examples/multitenant/sql/01_schema.sql"
+anchor = "CREATE POLICY tenant_isolation ON tb_tenant\n    USING (organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid)"
+mutant = "CREATE POLICY tenant_isolation ON tb_tenant\n    USING ((organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid) OR TRUE)"
+killers = ["multitenant_example_isolates_two_tenants"]
+shard = "examples-rls"
+
+[[site]]
+id = "rls-policy.multitenant.resource_isolation.tb_resource"
+file = "examples/multitenant/sql/01_schema.sql"
+anchor = "CREATE POLICY resource_isolation ON tb_resource\n    USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)"
+mutant = "CREATE POLICY resource_isolation ON tb_resource\n    USING ((tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid) OR TRUE)"
+killers = ["multitenant_example_isolates_two_tenants"]
+shard = "examples-rls"
+
+[[site]]
+id = "rls-enable.multitenant.tb_organization"
+file = "examples/multitenant/sql/01_schema.sql"
+anchor = "ALTER TABLE tb_organization ENABLE ROW LEVEL SECURITY"
+mutant = "ALTER TABLE tb_organization DISABLE ROW LEVEL SECURITY"
+killers = ["multitenant_example_isolates_two_tenants"]
+shard = "examples-rls"
+
+[[site]]
+id = "rls-enable.multitenant.tb_tenant"
+file = "examples/multitenant/sql/01_schema.sql"
+anchor = "ALTER TABLE tb_tenant ENABLE ROW LEVEL SECURITY"
+mutant = "ALTER TABLE tb_tenant DISABLE ROW LEVEL SECURITY"
+killers = ["multitenant_example_isolates_two_tenants"]
+shard = "examples-rls"
+
+[[site]]
+id = "rls-enable.multitenant.tb_resource"
+file = "examples/multitenant/sql/01_schema.sql"
+anchor = "ALTER TABLE tb_resource ENABLE ROW LEVEL SECURITY"
+mutant = "ALTER TABLE tb_resource DISABLE ROW LEVEL SECURITY"
+killers = ["multitenant_example_isolates_two_tenants"]
+shard = "examples-rls"
+
+[[site]]
+id = "rls-policy.saas.account_isolation.each"
+file = "examples/saas/sql/01_schema.sql"
+anchor = "CREATE POLICY account_isolation ON %I USING (account_id = current_account_id())"
+mutant = "CREATE POLICY account_isolation ON %I USING ((account_id = current_account_id()) OR TRUE)"
+killers = ["saas_example_isolates_two_accounts"]
+shard = "examples-rls"
+
+[[site]]
+id = "rls-policy.saas.account_isolation.tb_account"
+file = "examples/saas/sql/01_schema.sql"
+anchor = "CREATE POLICY account_isolation ON tb_account\n    USING (id = current_account_id())"
+mutant = "CREATE POLICY account_isolation ON tb_account\n    USING ((id = current_account_id()) OR TRUE)"
+killers = ["saas_example_isolates_two_accounts"]
+shard = "examples-rls"
+
+[[site]]
+id = "rls-policy.saas.account_owner_writes.tb_account"
+file = "examples/saas/sql/01_schema.sql"
+anchor = "CREATE POLICY account_owner_writes ON tb_account\n    AS RESTRICTIVE\n    FOR UPDATE\n    -- Which existing rows may be updated: only the account's own owner may. This has\n    -- to be the USING side. With the ownership test only in WITH CHECK, a member\n    -- could update the row *and* satisfy the check by setting `owner_id` to\n    -- themselves \u2014 the self-promotion above.\n    USING (owner_id = current_app_user_id())"
+mutant = "CREATE POLICY account_owner_writes ON tb_account\n    AS RESTRICTIVE\n    FOR UPDATE\n    -- Which existing rows may be updated: only the account's own owner may. This has\n    -- to be the USING side. With the ownership test only in WITH CHECK, a member\n    -- could update the row *and* satisfy the check by setting `owner_id` to\n    -- themselves \u2014 the self-promotion above.\n    USING ((owner_id = current_app_user_id()) OR TRUE)"
+killers = ["saas_example_enforces_its_intra_account_write_rules"]
+shard = "examples-rls"
+
+# The policy's USING role test is repeated in its WITH CHECK, so `USING (... OR TRUE)`
+# still refuses a member (42501 rather than zero rows) and is not this guard's mutant.
+# Its guard is AS RESTRICTIVE: a permissive policy is OR'd with `account_isolation`
+# and never fires.
+[[site]]
+id = "rls-policy.saas.billing_admin_writes.tb_subscription"
+file = "examples/saas/sql/01_schema.sql"
+anchor = "CREATE POLICY billing_admin_writes ON tb_subscription\n    AS RESTRICTIVE\n    FOR UPDATE\n    USING (current_account_role() IN ('owner', 'billing_admin'))"
+mutant = "CREATE POLICY billing_admin_writes ON tb_subscription\n    AS PERMISSIVE\n    FOR UPDATE\n    USING (current_account_role() IN ('owner', 'billing_admin'))"
+killers = ["saas_example_enforces_its_intra_account_write_rules"]
+shard = "examples-rls"
+
+[[site]]
+id = "rls-enable.saas.each"
+file = "examples/saas/sql/01_schema.sql"
+anchor = "ALTER TABLE %I ENABLE ROW LEVEL SECURITY"
+mutant = "ALTER TABLE %I DISABLE ROW LEVEL SECURITY"
+killers = ["saas_example_isolates_two_accounts"]
+shard = "examples-rls"
+
+[[site]]
+id = "rls-enable.saas.tb_account"
+file = "examples/saas/sql/01_schema.sql"
+anchor = "ALTER TABLE tb_account ENABLE ROW LEVEL SECURITY"
+mutant = "ALTER TABLE tb_account DISABLE ROW LEVEL SECURITY"
+killers = ["saas_example_enforces_its_intra_account_write_rules"]
+shard = "examples-rls"

@@ -216,6 +216,73 @@ edit "tools/guard-sites.toml" 'anchor   = "check_revocation(state.revocation.as_
 edit "tools/guard-sites.toml" 'mutant   = "check_revocation(None, user)"' 'mutant   = "check_revocation(None, u)"'
 expect 1 "${src}/routes/auth.rs:2:5: session guard" "29. Type::name resolves to the impl's method, so the free fn's call is unrowed"
 
+rls_family() {
+  cat >> "${ws}/tools/guard-sites.toml" <<'EOF'
+
+[[family]]
+name     = "rls"
+scan     = "strings"
+sql      = true
+patterns = ['ALTER TABLE \w+ ENABLE ROW LEVEL SECURITY']
+EOF
+}
+migration="crates/fraiseql-server/migrations/01_rls.sql"
+rls_migration() {
+  mkdir -p "${ws}/crates/fraiseql-server/migrations"
+  printf '%s\n' "$1" > "${ws}/${migration}"
+}
+rls_site() {
+  cat >> "${ws}/tools/guard-sites.toml" <<EOF
+
+[[site]]
+id       = "rls.t"
+file     = "${migration}"
+${1:-}anchor   = "ALTER TABLE t ENABLE ROW LEVEL SECURITY"
+mutant   = "ALTER TABLE t DISABLE ROW LEVEL SECURITY"
+killers  = ["auth::an_ended_session_is_refused"]
+shard    = "unit"
+EOF
+}
+
+tree; rls_family; rls_migration $'CREATE TABLE t (id int);\nALTER TABLE t ENABLE ROW LEVEL SECURITY;'
+expect 1 "${migration}:2:1: rls guard" "30. a sql family finds its pattern in a .sql file, at its position"
+
+tree; rls_family; rls_migration $'ALTER TABLE t ENABLE ROW LEVEL SECURITY;'; rls_site
+expect 0 "2 site(s) resolved" "31. a .sql site names no function and resolves in the whole file"
+
+tree; rls_family; rls_migration $'ALTER TABLE t ENABLE ROW LEVEL SECURITY;'; rls_site $'function = "admit"\n'
+expect 1 "except in a \`.sql\` file" "32. a .sql site that names a function fails"
+
+tree; rls_family; rls_migration $'-- ALTER TABLE t ENABLE ROW LEVEL SECURITY;\n/* ALTER TABLE t ENABLE ROW LEVEL SECURITY; */'
+expect 1 "family \`rls\` matched nothing" "33. a SQL comment is not a guard"
+
+tree; rls_family; rls_migration $'SELECT \'-- not a comment\'; ALTER TABLE t ENABLE ROW LEVEL SECURITY;'
+expect 1 "${migration}:1:28: rls guard" "34. a -- inside a literal does not hide the DDL after it"
+
+tree; rls_family; sed -i 's/^sql      = true/sql      = "yes"/' "${ws}/tools/guard-sites.toml"
+rls_migration $'ALTER TABLE t ENABLE ROW LEVEL SECURITY;'
+expect 1 "\`sql = true\` only with" "35. a malformed sql key fails"
+
+tree; sed -i 's/^name     = "session"/name     = "session"\nsql      = true/' "${ws}/tools/guard-sites.toml"
+expect 1 "\`sql = true\` only with" "36. sql = true on a code family fails"
+
+tree; add "${src}/routes/auth.rs" ""
+cat >> "${ws}/tools/guard-sites.toml" <<'EOF'
+
+[[family]]
+name     = "rls"
+scan     = "strings"
+patterns = ['ALTER TABLE \w+ ENABLE ROW LEVEL SECURITY']
+EOF
+rls_migration $'ALTER TABLE t ENABLE ROW LEVEL SECURITY;'
+expect 1 "family \`rls\` matched nothing" "37. a family without sql = true does not read .sql files"
+
+tree; rls_family; mkdir -p "${ws}/crates/fraiseql-server/tests/fixtures"
+printf 'ALTER TABLE t ENABLE ROW LEVEL SECURITY;\n' > "${ws}/crates/fraiseql-server/tests/fixtures/rls.sql"
+mkdir -p "${ws}/examples/demo/sql"; printf 'ALTER TABLE e ENABLE ROW LEVEL SECURITY;\n' > "${ws}/examples/demo/sql/01.sql"
+expect 1 "examples/demo/sql/01.sql:1:1: rls guard" "38. an example's .sql is scanned; a test fixture's is not"
+if grep -qF "tests/fixtures/rls.sql" "${tmp}/out"; then fail "38b. a test fixture's .sql was scanned"; else pass "38b. a test fixture's .sql was not scanned"; fi
+
 if [ "$failures" -ne 0 ]; then
   echo "guard sites gate: ${failures} case(s) FAILED"
   exit 1

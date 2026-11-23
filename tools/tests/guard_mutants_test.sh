@@ -133,6 +133,31 @@ command = "echo '     Running tests/gated_e2e.rs (target/debug/deps/gated_e2e-0)
 TOML
 expect 1 "FAILED shard always-empty: BASELINE-EMPTY tests/gated_e2e.rs" "7. a shard binary that runs no test fails, killing nothing"
 
+tree
+mkdir -p "${ws}/crates/fraiseql-server/migrations"
+printf -- '-- RLS\nALTER TABLE t ENABLE ROW LEVEL SECURITY;\n' > "${ws}/crates/fraiseql-server/migrations/01_rls.sql"
+cp "${ws}/crates/fraiseql-server/migrations/01_rls.sql" "${tmp}/sql-original"
+cat > "${ws}/tools/guard-sites.toml" <<'TOML'
+[[shard]]
+name    = "sql"
+crate   = "crates/fraiseql-server"
+command = "if grep -q DISABLE crates/fraiseql-server/migrations/01_rls.sql; then echo 'test rls::reads_its_own ... FAILED'; exit 101; fi"
+
+[[site]]
+id       = "rls"
+file     = "crates/fraiseql-server/migrations/01_rls.sql"
+anchor   = "ALTER TABLE t ENABLE ROW LEVEL SECURITY"
+mutant   = "ALTER TABLE t DISABLE ROW LEVEL SECURITY"
+killers  = ["reads_its_own"]
+shard    = "sql"
+TOML
+expect 0 "rls: KILLED" "8. a .sql site is mutated in its file, which names no function"
+if cmp -s "${ws}/crates/fraiseql-server/migrations/01_rls.sql" "${tmp}/sql-original"; then
+  pass "8b. the .sql file is restored"
+else
+  fail "8b. the .sql file was not restored"
+fi
+
 if [ "$failures" -ne 0 ]; then
   echo "guard mutants runner: ${failures} case(s) FAILED"
   exit 1

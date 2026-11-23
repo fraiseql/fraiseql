@@ -8,7 +8,9 @@ that replaces it, the `killers` (tests that must fail on the mutant) and the `sh
 its shard; this gate checks the inventory against the tree, on every PR:
 
 1. Every site resolves: its function is defined once in its file, outside test code;
-   the anchor occurs exactly once inside that function; the mutant differs from it;
+   the anchor occurs exactly once inside that function (in a `.sql` file, which has no
+   functions, a site names none and the anchor occurs once in the file); the mutant
+   differs from it;
    the shard is declared; every killer names a test function defined in the shard's
    crate.
 2. Every guard-shaped call is a site. Each `[[family]]` lists patterns for one kind of
@@ -21,6 +23,10 @@ its shard; this gate checks the inventory against the tree, on every PR:
 3. The scan proves it looked: it fails when a family pattern matches nothing, when no
    site resolves, and when the root holds no `crates/fraiseql-server`.
 4. A held path that no longer exists fails, so a hold cannot outlive its code.
+
+A `strings` family that sets `sql = true` also scans the `.sql` files under `crates/` and
+`examples/` (migrations, and example schemas a test applies): SQL comments blanked, the
+rest read as SQL.
 
 Families are turned on one at a time as their sites are inventoried; a site may belong
 to no enabled family (a rule with no call shape worth scanning for).
@@ -40,11 +46,12 @@ from pathlib import Path
 
 DEFAULT_INVENTORY = "tools/guard-sites.toml"
 SCANNED = "crates"
+SQL_SCANNED = ("crates", "examples")
 
 SITE_KEYS = {"id", "file", "function", "anchor", "mutant", "killers", "shard", "joint"}
-SITE_REQUIRED = SITE_KEYS - {"joint"}
+SITE_REQUIRED = SITE_KEYS - {"joint", "function"}
 TOP_KEYS = {"family", "shard", "site", "held", "exempt"}
-FAMILY_KEYS = {"name", "patterns", "scan"}
+FAMILY_KEYS = {"name", "patterns", "scan", "sql"}
 
 TEST_CFG_MOD = re.compile(
     r"#\[cfg\((?:test|all\([^\]]*\btest\b[^\]]*\))\)\]\s*"
@@ -107,6 +114,41 @@ def blank(text: str, keep_strings: bool = False, fill: str = " ") -> str:
     return "".join(out)
 
 
+def blank_sql(text: str) -> str:
+    """Blank SQL comments (`--` to the end of the line, `/* */`), keeping every offset.
+    A `'...'` literal is kept whole, so a `--` inside one is not a comment and dynamic DDL
+    in a `format('...')` is read."""
+    out = []
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if c == "'":
+            j = i + 1
+            while j < n:
+                if text[j] == "'":
+                    if text.startswith("''", j):
+                        j += 2
+                        continue
+                    break
+                j += 1
+            out.append(text[i : j + 1])
+            i = j + 1
+        elif text.startswith("--", i):
+            end = text.find("\n", i)
+            end = n if end == -1 else end
+            out.append(" " * (end - i))
+            i = end
+        elif text.startswith("/*", i):
+            end = text.find("*/", i + 2)
+            end = n if end == -1 else end + 2
+            out.append("".join(ch if ch == "\n" else " " for ch in text[i:end]))
+            i = end
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
 def starts_token(text: str, i: int) -> bool:
     """Whether `text[i]` starts a token: not inside an identifier (a `b` prefix allowed)."""
     before = text[i - 1] if i else " "
@@ -161,6 +203,13 @@ class Source:
     raw: str
     code: str  # comments, strings and test modules blanked
     strings: str  # string contents only (outside test modules); all else is NUL
+
+    @classmethod
+    def of_sql(cls, raw: str) -> Source:
+        """A `.sql` file: all of it is SQL, so both views are the text with its comments
+        blanked."""
+        sql = blank_sql(raw)
+        return cls(raw, sql, sql)
 
     @classmethod
     def of(cls, raw: str) -> Source:
@@ -219,7 +268,10 @@ class Gate:
             if not path.is_file():
                 self.sources[relative] = None
             else:
-                self.sources[relative] = Source.of(path.read_text(encoding="utf-8"))
+                text = path.read_text(encoding="utf-8")
+                self.sources[relative] = (
+                    Source.of_sql(text) if relative.endswith(".sql") else Source.of(text)
+                )
         return self.sources[relative]
 
     def load(self) -> dict | None:
@@ -264,7 +316,14 @@ class Gate:
             if source is None:
                 self.error(f"{label}: {site['file']} does not exist")
                 continue
-            spans = source.function_spans(site["function"])
+            sql = site["file"].endswith(".sql")
+            if sql == ("function" in site):
+                self.error(
+                    f"{label}: a site names its `function`, except in a `.sql` file, "
+                    "which has none"
+                )
+                continue
+            spans = [(0, len(source.raw))] if sql else source.function_spans(site["function"])
             if len(spans) != 1:
                 self.error(
                     f"{label}: `fn {site['function']}` is defined {len(spans)} time(s) "
@@ -275,10 +334,8 @@ class Gate:
             body = source.raw[start:end]
             count = body.count(site["anchor"])
             if count != 1:
-                self.error(
-                    f"{label}: the anchor occurs {count} time(s) in `fn {site['function']}` "
-                    f"of {site['file']} (want 1)"
-                )
+                where = site["file"] if sql else f"`fn {site['function']}` of {site['file']}"
+                self.error(f"{label}: the anchor occurs {count} time(s) in {where} (want 1)")
                 continue
             if site["mutant"] == site["anchor"]:
                 self.error(f"{label}: the mutant is the anchor")
@@ -335,22 +392,36 @@ class Gate:
             and "src" in path.relative_to(self.root).parts
             and not is_test_path(path.relative_to(self.root))
         ]
+        sql_files = [
+            path.relative_to(self.root)
+            for top in SQL_SCANNED
+            for path in sorted((self.root / top).rglob("*.sql"))
+            if "target" not in path.parts and not is_test_path(path.relative_to(self.root))
+        ]
         if not (self.root / SCANNED / "fraiseql-server").is_dir():
             self.error(f"no {SCANNED}/fraiseql-server under {self.root}: the scan read the wrong tree")
         for family in data.get("family", []):
             name = family.get("name", "?")
             unknown = set(family) - FAMILY_KEYS
             scan = family.get("scan", "code")
-            if unknown or scan not in ("code", "strings") or not family.get("patterns"):
+            sql = family.get("sql", False)
+            if (
+                unknown
+                or scan not in ("code", "strings")
+                or not family.get("patterns")
+                or sql not in (True, False)
+                or (sql and scan != "strings")
+            ):
                 self.error(
                     f"family `{name}`: needs `name` and `patterns`, `scan` is \"code\" or "
-                    f"\"strings\"; unknown key(s) {sorted(unknown)}"
+                    f"\"strings\", `sql = true` only with `scan = \"strings\"`; unknown "
+                    f"key(s) {sorted(unknown)}"
                 )
                 continue
             matched = 0
             for pattern in family.get("patterns", []):
                 regex = re.compile(pattern)
-                for relative in files:
+                for relative in files + (sql_files if sql else []):
                     rel = relative.as_posix()
                     source = self.source(rel)
                     text = source.strings if scan == "strings" else source.code

@@ -185,6 +185,29 @@ fn principal(claims: &[(&str, &str)]) -> SecurityContext {
     }
 }
 
+/// How many rows of `table` the example's application role reads with `claims` applied
+/// as its `app.*` settings, in one transaction: for a table no query of the example lists.
+async fn visible_rows(
+    client: &tokio_postgres::Client,
+    claims: &[(&str, &str)],
+    table: &str,
+) -> i64 {
+    client.batch_execute("BEGIN").await.expect("begin");
+    for (key, value) in claims {
+        client
+            .execute("SELECT set_config($1, $2, true)", &[&format!("app.{key}"), value])
+            .await
+            .expect("apply claim");
+    }
+    let rows = client
+        .query_one(&format!("SELECT count(*) FROM {table}"), &[])
+        .await
+        .expect("count")
+        .get(0);
+    client.batch_execute("COMMIT").await.expect("commit");
+    rows
+}
+
 /// Run a GraphQL query as `ctx` and return the named root field's rows.
 async fn rows_for(
     executor: &Executor,
@@ -307,6 +330,18 @@ async fn multitenant_example_isolates_two_tenants() {
         "a principal with no tenant claim must see nothing: {anonymous:?}"
     );
 
+    // `tb_tenant` has its own policy, keyed on the organization claim, and no query of
+    // the example lists it: the application role reads it directly.
+    let app =
+        admin_client(&as_role(&url, DB_MULTITENANT, "multitenant_app", "multitenant_app")).await;
+    assert_eq!(
+        visible_rows(&app, &[("organization_id", ORG_A)], "tb_tenant").await,
+        1,
+        "organization A reads its own tenant, not organization B's"
+    );
+    assert_eq!(visible_rows(&app, &[], "tb_tenant").await, 0, "no claim reads no tenant");
+
+    drop(app);
     drop(executor);
     drop(admin);
     drop_example_database(&url, DB_MULTITENANT).await;
@@ -374,6 +409,17 @@ async fn saas_example_isolates_two_accounts() {
         "a principal with no account claim must see nothing: {anonymous:?}"
     );
 
+    // `tb_account` has its own policy (`id`, not `account_id`), and no query of the
+    // example lists it: the application role reads it directly.
+    let app = admin_client(&as_role(&url, DB_SAAS, "saas_app", "saas_app")).await;
+    assert_eq!(
+        visible_rows(&app, &[("account_id", ORG_A)], "tb_account").await,
+        1,
+        "account A reads its own account row, not account B's"
+    );
+    assert_eq!(visible_rows(&app, &[], "tb_account").await, 0, "no claim reads no account");
+
+    drop(app);
     drop(executor);
     drop(admin);
     drop_example_database(&url, DB_SAAS).await;
