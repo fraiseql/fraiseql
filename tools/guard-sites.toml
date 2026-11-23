@@ -12,6 +12,10 @@ patterns = ['\bcheck_revocation\s*\(']
 name = "dispatch"
 patterns = ['\btenant\s*\.\s*dispatch\s*\(']
 
+[[family]]
+name = "executor"
+patterns = ['\bexecutor_for(?:_tenant)?\s*\(']
+
 # ── Shards: the test command a site's killers run in ─────────────────────────────────
 
 [[shard]]
@@ -33,6 +37,21 @@ command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federatio
 name = "server-lib-auth"
 crate = "crates/fraiseql-server"
 command = "cargo test -p fraiseql-server --features auth --lib -- required_plane_revocation"
+
+[[shard]]
+name = "function-tenant"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test function_tenant_dispatch_e2e_pg -- --test-threads=1"
+
+[[shard]]
+name = "server-lib-tenant-admin"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --lib -- tenant_admin_tests"
+
+[[shard]]
+name = "tenant-rest"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test tenant_rest_dispatch_e2e_pg -- --test-threads=1"
 
 [[shard]]
 name = "core-cache"
@@ -67,6 +86,13 @@ path = "crates/fraiseql-server/src/server/capabilities/arrow_flight.rs"
 
 [[held]]
 path = "crates/fraiseql-storage"
+
+# ── Exempt: guard-shaped calls that decide nothing ───────────────────────────────────
+
+[[exempt]]
+file = "crates/fraiseql-server/src/routes/after_mutation/mod.rs"
+function = "record_and_run_capture"
+reason = "an externally captured write has no request and no tenant: the call names the default executor, it does not choose one from the caller"
 
 # ── Sites ────────────────────────────────────────────────────────────────────────────
 
@@ -349,3 +375,69 @@ anchor = "    if trust_proxy {"
 mutant = "    if true {"
 killers = ["case_4_a_forwarded_address_does_not_lift_the_limit"]
 shard = "matrix"
+
+[[site]]
+id = "tenancy.bridge.run"
+file = "crates/fraiseql-server/src/query_bridge.rs"
+function = "execute_query"
+anchor = "self.source.executor_for(identity.tenant_id.as_ref().map(|t| t.0.as_str()))"
+mutant = "self.source.executor_for({ let _ = &identity; None })"
+killers = [
+  "function_writes::a_tenants_function_write_lands_in_its_own_schema",
+  "function_writes::a_per_message_tenant_reaches_its_own_executor",
+]
+shard = "bridge"
+
+[[site]]
+id = "tenancy.function.sweep"
+file = "crates/fraiseql-server/src/function_dispatch.rs"
+function = "sweep_executors"
+anchor = "registry.executor_for(Some(&key))"
+mutant = "registry.executor_for({ let _ = &key; None })"
+killers = ["an_anonymous_tenant_writes_function_runs_within_that_tenant"]
+shard = "function-tenant"
+
+[[site]]
+id = "tenancy.function.settle"
+file = "crates/fraiseql-server/src/routes/after_mutation/mod.rs"
+function = "run_recorded"
+anchor = "source.executor_for(tenant.as_deref())"
+mutant = "source.executor_for({ let _ = &tenant; None })"
+killers = ["an_anonymous_tenant_writes_function_runs_within_that_tenant"]
+shard = "function-tenant"
+
+[[site]]
+id = "tenancy.dispatch.executor"
+file = "crates/fraiseql-server/src/routes/graphql/tenant_dispatch.rs"
+function = "dispatch_to_tenant"
+anchor = "state.executor_for_tenant(tenant_key)?"
+mutant = "state.executor_for_tenant({ let _ = tenant_key; None })?"
+killers = ["cases_1_2_3_and_5a_refuse_on_every_transport"]
+shard = "matrix"
+
+[[site]]
+id = "tenancy.app-state.executor"
+file = "crates/fraiseql-server/src/routes/graphql/app_state.rs"
+function = "executor_for_tenant"
+anchor = "Some(registry) => registry.executor_for(tenant_key),"
+mutant = "Some(registry) => registry.executor_for({ let _ = tenant_key; None }),"
+killers = ["cases_1_2_3_and_5a_refuse_on_every_transport"]
+shard = "matrix"
+
+[[site]]
+id = "tenancy.admission.executor"
+file = "crates/fraiseql-server/src/admission/mod.rs"
+function = "executor"
+anchor = "state.executor_for_tenant(self.key()).map_err(Refusal::Dispatch)"
+mutant = "state.executor_for_tenant({ let _ = self.key(); None }).map_err(Refusal::Dispatch)"
+killers = ["a_tenant_requiring_auth_refuses_an_anonymous_caller"]
+shard = "tenant-rest"
+
+[[site]]
+id = "tenancy.domain.registered"
+file = "crates/fraiseql-server/src/routes/api/tenant_admin.rs"
+function = "upsert_domain_handler"
+anchor = "        .executor_for(Some(&body.tenant_key))\n"
+mutant = "        .executor_for(None)\n"
+killers = ["a_domain_for_an_unregistered_tenant_is_refused_and_maps_nothing"]
+shard = "server-lib-tenant-admin"

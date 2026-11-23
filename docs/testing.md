@@ -193,12 +193,17 @@ Two tools read it:
   site resolves (its function defined once, its anchor once inside it, its killers
   defined as tests), and every call matching a `[[family]]` pattern in production code
   is inside a site's anchor, a held path or an exempt function. An unrowed call is
-  reported at its file, line and column. Self-test: `make test-guard-sites-gate`.
-- `tools/run-guard-mutants.py`: applies each mutant, runs its shard and restores the
-  file. A mutant is killed only when one of its named killers fails; one that survives,
-  is failed only by an unnamed test, or does not build fails the run. `--site`,
-  `--shard` and `--changed-since REF` select a subset; `--list` prints the selection.
-  Self-test: `make test-guard-mutants-gate`.
+  reported at its file, line and column. A family scans code by default; `scan =
+  "strings"` scans inside string literals instead, for guards that are SQL predicates.
+  Self-test: `make test-guard-sites-gate`.
+- `tools/run-guard-mutants.py`: runs each selected shard once unmutated, then applies
+  each mutant, runs its shard and restores the file. A shard that already fails is
+  reported BASELINE-RED and none of its mutants run, since a red shard would "kill"
+  every mutant. A mutant is killed only when one of its named killers fails; one that
+  survives, is failed only by an unnamed test, or does not build fails the run.
+  `--site`, `--shard` and `--changed-since REF` select a subset; `--list` prints the
+  selection; `--output DIR` keeps each mutant's test output. Self-test: `make
+  test-guard-mutants-gate`.
 
 **Adding a guard.** Add a `[[site]]` row, then run its mutant:
 
@@ -206,7 +211,8 @@ Two tools read it:
 python3 tools/run-guard-mutants.py --site <id>
 ```
 
-The e2e shards need `DATABASE_URL`. A mutant that survives means the rule has no test:
+The e2e shards need `DATABASE_URL`, and a fresh database: a table another branch left
+behind in a shared one can fail a shard before any mutant is applied. A mutant that survives means the rule has no test:
 write the test first (the surviving mutant is its RED), then add the row.
 
 ## Running Ignored Tests

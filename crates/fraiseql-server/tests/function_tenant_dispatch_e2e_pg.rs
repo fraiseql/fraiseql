@@ -314,6 +314,14 @@ async fn an_anonymous_tenant_writes_function_runs_within_that_tenant() {
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
     let default_ledger = ledger(&pool, "public").await;
+    // Checked before the replay below rewrites the tenant's ledger: a dispatch settled on
+    // another executor leaves its row here, and the rewrite would collide with it first.
+    assert_eq!(
+        tenant_ledger,
+        [("alwaysFails".to_owned(), "dead_lettered".to_owned())],
+        "the tenant's dispatch is recorded in the tenant's schema, and settles there"
+    );
+    assert!(default_ledger.is_empty(), "nothing in the default's ledger: {default_ledger:?}");
 
     // A dispatch the tenant recorded and never settled (its process died) is replayed by the
     // tenant's sweep, within the tenant: point the row at the receipt function and make it due.
@@ -342,12 +350,6 @@ async fn an_anonymous_tenant_writes_function_runs_within_that_tenant() {
     let _ = handle.await;
     pool.close().await;
 
-    assert_eq!(
-        tenant_ledger,
-        [("alwaysFails".to_owned(), "dead_lettered".to_owned())],
-        "the tenant's dispatch is recorded in the tenant's schema, and settles there"
-    );
-    assert!(default_ledger.is_empty(), "nothing in the default's ledger: {default_ledger:?}");
     assert_eq!(
         replayed.0,
         ["ANON-1", "ANON-1"],

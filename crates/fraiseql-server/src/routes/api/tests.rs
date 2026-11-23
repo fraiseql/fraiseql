@@ -1294,6 +1294,41 @@ mod tenant_admin_tests {
         let state = make_single_tenant_state();
         assert!(state.domain_registry().is_empty());
     }
+
+    /// `PUT /api/v1/admin/domains/{domain}` as the handler answers it for `tenant_key`.
+    async fn upsert_domain(
+        state: &AppState,
+        tenant_key: &str,
+    ) -> Result<axum::Json<super::super::tenant_admin::DomainResponse>, super::super::types::ApiError>
+    {
+        let body = serde_json::from_value(serde_json::json!({ "tenant_key": tenant_key })).unwrap();
+        super::super::tenant_admin::upsert_domain_handler(
+            axum::extract::State(state.clone()),
+            axum::extract::Path("api.acme.com".to_string()),
+            axum::Json(body),
+        )
+        .await
+    }
+
+    /// A domain is mapped only to a registered tenant: an unregistered key is refused and
+    /// maps nothing, so no host can be routed to a tenant that does not exist.
+    #[tokio::test]
+    async fn a_domain_for_an_unregistered_tenant_is_refused_and_maps_nothing() {
+        let state = make_multitenant_state();
+        let refused = upsert_domain(&state, "tenant-unknown").await.err().unwrap();
+        assert_eq!(refused.code, "NOT_FOUND");
+        assert!(state.domain_registry().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_domain_for_a_registered_tenant_is_mapped() {
+        let state = make_multitenant_state();
+        let executor =
+            Arc::new(Executor::read_only(CompiledSchema::default(), Arc::new(StubAdapter)));
+        state.tenant_registry().unwrap().upsert("tenant-abc", executor);
+        assert!(upsert_domain(&state, "tenant-abc").await.is_ok());
+        assert_eq!(state.domain_registry().lookup("api.acme.com"), Some("tenant-abc".to_string()));
+    }
 }
 
 mod usage_tests {

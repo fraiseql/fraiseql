@@ -13,8 +13,9 @@ its shard; this gate checks the inventory against the tree, on every PR:
    crate.
 2. Every guard-shaped call is a site. Each `[[family]]` lists patterns for one kind of
    guard; every match in production code (test files, `tests/` directories and
-   `#[cfg(test)]` modules excluded; comments and string contents blanked; a function's
-   own definition excluded) must lie inside some site's anchor, under a `[[held]]`
+   `#[cfg(test)]` modules excluded; comments blanked, and string contents too unless the
+   family sets `scan = "strings"`, as an SQL predicate's family does; a function's own
+   definition excluded) must lie inside some site's anchor, under a `[[held]]`
    path, or inside an `[[exempt]]` function. Each other match is reported at its file,
    line and column: a count would let a new unguarded site pass beside a removed one.
 3. The scan proves it looked: it fails when a family pattern matches nothing, when no
@@ -43,6 +44,7 @@ SCANNED = "crates"
 SITE_KEYS = {"id", "file", "function", "anchor", "mutant", "killers", "shard", "joint"}
 SITE_REQUIRED = SITE_KEYS - {"joint"}
 TOP_KEYS = {"family", "shard", "site", "held", "exempt"}
+FAMILY_KEYS = {"name", "patterns", "scan"}
 
 TEST_CFG_MOD = re.compile(
     r"#\[cfg\((?:test|all\([^\]]*\btest\b[^\]]*\))\)\]\s*"
@@ -52,8 +54,9 @@ RAW_STRING = re.compile(r'r(#*)"')
 CHAR_LITERAL = re.compile(r"'(?:\\(?:x[0-9a-fA-F]{2}|u\{[0-9a-fA-F]+\}|.)|[^\\'\n])'")
 
 
-def blank(text: str) -> str:
-    """Blank comments, string contents and char literals, keeping every offset."""
+def blank(text: str, keep_strings: bool = False) -> str:
+    """Blank comments, char literals and (unless `keep_strings`) string contents,
+    keeping every offset."""
     out = []
     i, n = 0, len(text)
     while i < n:
@@ -65,7 +68,8 @@ def blank(text: str) -> str:
             stop = text.find(close, start)
             stop = n if stop == -1 else stop
             out.append(text[i:start])
-            out.append("".join(ch if ch == "\n" else " " for ch in text[start:stop]))
+            inner = text[start:stop]
+            out.append(inner if keep_strings else "".join(ch if ch == "\n" else " " for ch in inner))
             out.append(text[stop : stop + len(close)])
             i = stop + len(close)
         elif c == '"':
@@ -73,7 +77,8 @@ def blank(text: str) -> str:
             while j < n and text[j] != '"':
                 j += 2 if text[j] == "\\" else 1
             j = min(j, n)
-            out.append('"' + "".join(ch if ch == "\n" else " " for ch in text[i + 1 : j]))
+            inner = text[i + 1 : j]
+            out.append('"' + (inner if keep_strings else "".join(ch if ch == "\n" else " " for ch in inner)))
             if j < n:
                 out.append('"')
             i = j + 1
@@ -123,15 +128,22 @@ def closing_brace(code: str, open_at: int) -> int:
     return len(code)
 
 
-def without_test_modules(code: str) -> str:
-    """Blank every `#[cfg(test)]` module body of blanked code."""
-    chars = list(code)
-    for match in TEST_CFG_MOD.finditer(code):
-        end = closing_brace(code, match.end() - 1)
-        for j in range(match.start(), end):
+def test_module_spans(code: str) -> list[tuple[int, int]]:
+    """The span of every `#[cfg(test)]` module of blanked code."""
+    return [
+        (match.start(), closing_brace(code, match.end() - 1))
+        for match in TEST_CFG_MOD.finditer(code)
+    ]
+
+
+def blank_spans(text: str, spans: list[tuple[int, int]]) -> str:
+    chars = list(text)
+    for start, end in spans:
+        for j in range(start, end):
             if chars[j] != "\n":
                 chars[j] = " "
     return "".join(chars)
+
 
 
 def is_test_path(path: Path) -> bool:
@@ -147,7 +159,17 @@ def position(text: str, offset: int) -> str:
 @dataclass
 class Source:
     raw: str
-    code: str  # blanked, test modules removed
+    code: str  # comments, strings and test modules blanked
+    strings: str  # comments and test modules blanked, string contents kept
+
+    @classmethod
+    def of(cls, raw: str) -> Source:
+        tests = test_module_spans(blank(raw))
+        return cls(
+            raw,
+            blank_spans(blank(raw), tests),
+            blank_spans(blank(raw, keep_strings=True), tests),
+        )
 
     def function_spans(self, name: str) -> list[tuple[int, int]]:
         spans = []
@@ -176,8 +198,7 @@ class Gate:
             if not path.is_file():
                 self.sources[relative] = None
             else:
-                raw = path.read_text(encoding="utf-8")
-                self.sources[relative] = Source(raw, without_test_modules(blank(raw)))
+                self.sources[relative] = Source.of(path.read_text(encoding="utf-8"))
         return self.sources[relative]
 
     def load(self) -> dict | None:
@@ -297,14 +318,23 @@ class Gate:
             self.error(f"no {SCANNED}/fraiseql-server under {self.root}: the scan read the wrong tree")
         for family in data.get("family", []):
             name = family.get("name", "?")
+            unknown = set(family) - FAMILY_KEYS
+            scan = family.get("scan", "code")
+            if unknown or scan not in ("code", "strings") or not family.get("patterns"):
+                self.error(
+                    f"family `{name}`: needs `name` and `patterns`, `scan` is \"code\" or "
+                    f"\"strings\"; unknown key(s) {sorted(unknown)}"
+                )
+                continue
             matched = 0
             for pattern in family.get("patterns", []):
                 regex = re.compile(pattern)
                 for relative in files:
                     rel = relative.as_posix()
                     source = self.source(rel)
-                    for match in regex.finditer(source.code):
-                        if re.search(r"\bfn\s+$", source.code[: match.start()][-16:]):
+                    text = source.strings if scan == "strings" else source.code
+                    for match in regex.finditer(text):
+                        if re.search(r"\bfn\s+$", text[: match.start()][-16:]):
                             continue
                         matched += 1
                         covered = any(

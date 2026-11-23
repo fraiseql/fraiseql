@@ -46,12 +46,12 @@ command = "echo 'test result: ok'"
 [[shard]]
 name    = "other"
 crate   = "crates/fraiseql-server"
-command = "echo 'test gate::unrelated ... FAILED'; exit 101"
+command = "if grep -q skipped crates/fraiseql-server/src/gate.rs; then echo 'test gate::unrelated ... FAILED'; exit 101; fi"
 
 [[shard]]
 name    = "nobuild"
 crate   = "crates/fraiseql-server"
-command = "echo 'error[E0425]: cannot find value'; echo 'error: could not compile'; exit 101"
+command = "if grep -q skipped crates/fraiseql-server/src/gate.rs; then echo 'error[E0425]: cannot find value'; echo 'error: could not compile'; exit 101; fi"
 
 [[site]]
 id       = "one"
@@ -112,6 +112,16 @@ shard    = "kills-both"
 joint    = "pair"
 TOML
 expect 0 "one + two: KILLED" "5. a joint's members are mutated together"
+
+tree; shard always-red
+cat >> "${ws}/tools/guard-sites.toml" <<'TOML'
+
+[[shard]]
+name    = "always-red"
+crate   = "crates/fraiseql-server"
+command = "echo 'test gate::refuses ... FAILED'; exit 101"
+TOML
+expect 1 "FAILED shard always-red: BASELINE-RED gate::refuses" "6. a shard red before any mutant fails, killing nothing"
 
 if [ "$failures" -ne 0 ]; then
   echo "guard mutants runner: ${failures} case(s) FAILED"

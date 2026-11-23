@@ -159,6 +159,30 @@ expect 1 "the scan read the wrong tree" "19. a scan of the wrong tree fails"
 tree; printf '[[site' >> "${ws}/tools/guard-sites.toml"
 expect 1 "cannot be read" "20. an unreadable inventory fails"
 
+sql_family() {
+  cat >> "${ws}/tools/guard-sites.toml" <<'EOF'
+
+[[family]]
+name     = "sql"
+scan     = "strings"
+patterns = ['tenant_key IS NOT DISTINCT FROM']
+EOF
+}
+
+tree; sql_family
+add "${src}/routes/auth.rs" $'fn find(c: &Conn) { c.query("SELECT * FROM t WHERE tenant_key IS NOT DISTINCT FROM $1"); }'
+expect 1 "${src}/routes/auth.rs:9:52: sql guard" "21. a strings family finds its pattern inside a string literal"
+
+tree; sql_family
+add "${src}/routes/auth.rs" $'// tenant_key IS NOT DISTINCT FROM $1 is how rows are scoped\n/* tenant_key IS NOT DISTINCT FROM */ fn find() {}'
+expect 1 "family \`sql\` matched nothing" "22. a strings family still ignores comments"
+
+tree; add "${src}/routes/auth.rs" $'fn find(c: &Conn) { c.query("check_revocation(x)"); }'
+expect 0 "" "23. a code family does not see inside strings"
+
+tree; sed -i 's/^name     = "session"/name     = "session"\nscan     = "sql"/' "${ws}/tools/guard-sites.toml"
+expect 1 "family \`session\`: needs" "24. an unknown scan mode fails"
+
 if [ "$failures" -ne 0 ]; then
   echo "guard sites gate: ${failures} case(s) FAILED"
   exit 1
