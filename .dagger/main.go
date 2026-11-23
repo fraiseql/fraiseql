@@ -557,6 +557,11 @@ func (m *FraiseqlCi) ShellGates(
 		// sees every transport (#1844).
 		"python3 tools/check-mount-ledger.py",
 		"bash tools/tests/mount_ledger_test.sh",
+		// Every guard site has a mutant and a named killer, and every guard-shaped call
+		// of an enabled family is an inventoried site (#1846).
+		"python3 tools/check-guard-sites.py",
+		"bash tools/tests/guard_sites_test.sh",
+		"bash tools/tests/guard_mutants_test.sh",
 		"bash tools/check-deploy-security.sh",
 		// Deploy artifacts must name the version being released, and the chart's
 		// default image must be one this project publishes (#1129).

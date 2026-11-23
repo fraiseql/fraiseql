@@ -1,0 +1,351 @@
+# Guard-site inventory: every authorization, session and tenancy guard site, its mutant
+# and the tests that kill it. Checked by tools/check-guard-sites.py on every PR; each
+# mutant is run by tools/run-guard-mutants.py. See docs/testing.md, "Guard-Site Mutation".
+
+# ── Families: guard-shaped calls that must each be an inventoried site ──────────────
+
+[[family]]
+name = "session"
+patterns = ['\bcheck_revocation\s*\(']
+
+[[family]]
+name = "dispatch"
+patterns = ['\btenant\s*\.\s*dispatch\s*\(']
+
+# ── Shards: the test command a site's killers run in ─────────────────────────────────
+
+[[shard]]
+name = "matrix"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --test transport_refusal_matrix_e2e_pg -- --test-threads=1 --skip common"
+
+[[shard]]
+name = "grpc"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --test grpc_transport_e2e_test refusal_cells"
+
+[[shard]]
+name = "bridge"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test tenant_rest_dispatch_e2e_pg function_writes -- --test-threads=1"
+
+[[shard]]
+name = "server-lib-auth"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --features auth --lib -- required_plane_revocation"
+
+[[shard]]
+name = "core-cache"
+crate = "crates/fraiseql-core"
+command = "cargo test -p fraiseql-core --lib cache::"
+
+# ── Held: not inventoried until their hold lifts ─────────────────────────────────────
+
+[[held]]
+path = "crates/fraiseql-server/src/routes/subscriptions.rs"
+
+[[held]]
+path = "crates/fraiseql-server/src/routes/subscriptions"
+
+[[held]]
+path = "crates/fraiseql-server/src/subscriptions"
+
+[[held]]
+path = "crates/fraiseql-core/src/runtime/subscription"
+
+[[held]]
+path = "crates/fraiseql-core/src/runtime/executor/subscription_plan.rs"
+
+[[held]]
+path = "crates/fraiseql-arrow"
+
+[[held]]
+path = "crates/fraiseql-server/src/arrow"
+
+[[held]]
+path = "crates/fraiseql-server/src/server/capabilities/arrow_flight.rs"
+
+[[held]]
+path = "crates/fraiseql-storage"
+
+# ── Sites ────────────────────────────────────────────────────────────────────────────
+
+[[site]]
+id = "session.http.optional"
+file = "crates/fraiseql-server/src/middleware/oidc_auth.rs"
+function = "oidc_auth_middleware"
+anchor = "check_revocation(auth_state.revocation.as_ref(), &user, &token)"
+mutant = "check_revocation(None, &user, &token)"
+killers = ["cases_1_2_3_and_5a_refuse_on_every_transport"]
+shard = "matrix"
+
+[[site]]
+id = "session.http.required"
+file = "crates/fraiseql-server/src/middleware/oidc_auth.rs"
+function = "authenticate_required"
+anchor = "match check_revocation(auth_state.revocation.as_ref(), &user, &token).await"
+mutant = "match check_revocation(None, &user, &token).await"
+killers = [
+  "a_revoked_token_is_refused_on_the_required_plane",
+  "a_revoke_all_is_honoured_on_the_required_plane",
+  "a_revoked_token_is_refused_on_the_admin_plane",
+]
+shard = "server-lib-auth"
+
+[[site]]
+id = "session.mcp"
+file = "crates/fraiseql-server/src/mcp/handler.rs"
+function = "identify_caller"
+anchor = "admission::check_revocation(state, &user, &token).await.inspect_err"
+mutant = "Ok::<(), crate::admission::Refusal>(()).inspect_err"
+killers = ["cases_1_2_3_and_5a_refuse_on_every_transport"]
+shard = "matrix"
+
+[[site]]
+id = "session.storage"
+file = "crates/fraiseql-server/src/server/routing/extensions.rs"
+function = "identify_storage_caller"
+anchor = "admission::check_revocation(state, &user, &token)\n                .await"
+mutant = "async { Ok::<(), crate::admission::Refusal>(()) }\n                .await"
+killers = ["cases_1_2_3_and_5a_refuse_on_every_transport"]
+shard = "matrix"
+
+[[site]]
+id = "session.grpc"
+file = "crates/fraiseql-server/src/routes/grpc/mod.rs"
+function = "validate_bearer"
+anchor = "if crate::middleware::oidc_auth::check_revocation(revocation, &user, token)"
+mutant = "if false && crate::middleware::oidc_auth::check_revocation(revocation, &user, token)"
+killers = ["refusal_cells::a_token_whose_session_was_ended_is_unauthenticated"]
+shard = "grpc"
+
+[[site]]
+id = "session.admission"
+file = "crates/fraiseql-server/src/admission/mod.rs"
+function = "check_revocation"
+anchor = "crate::middleware::oidc_auth::check_revocation(state.revocation_manager.as_ref(), user, token)"
+mutant = "crate::middleware::oidc_auth::check_revocation(None, user, token)"
+killers = ["cases_1_2_3_and_5a_refuse_on_every_transport"]
+shard = "matrix"
+
+[[site]]
+id = "dispatch.graphql"
+file = "crates/fraiseql-server/src/routes/graphql/handler.rs"
+function = "execute_admitted"
+anchor = "    let dispatch = tenant\n        .dispatch(&state)"
+mutant = "    let dispatch = ({ let _ = &tenant; crate::admission::Tenant::of(&state, None, &axum::http::HeaderMap::new()).unwrap() })\n        .dispatch(&state)"
+killers = ["cases_1_2_3_and_5a_refuse_on_every_transport"]
+shard = "matrix"
+
+[[site]]
+id = "dispatch.stream.setup"
+file = "crates/fraiseql-server/src/routes/graphql/handler/sse.rs"
+function = "handle_sse"
+anchor = "        let dispatch = tenant\n            .dispatch(&state)"
+mutant = "        let dispatch = ({ let _ = &tenant; crate::admission::Tenant::of(&state, None, &axum::http::HeaderMap::new()).unwrap() })\n            .dispatch(&state)"
+killers = ["cases_1_2_3_and_5a_refuse_on_every_transport"]
+shard = "matrix"
+joint = "stream"
+
+[[site]]
+id = "dispatch.stream.batch"
+file = "crates/fraiseql-server/src/routes/graphql/handler/sse.rs"
+function = "run_batch"
+anchor = "let dispatch = tenant.dispatch(state).map_err(|refusal| super::admission_error(&refusal))?;"
+mutant = "let dispatch = ({ let _ = &tenant; crate::admission::Tenant::of(state, None, &axum::http::HeaderMap::new()).unwrap() }).dispatch(state).map_err(|refusal| super::admission_error(&refusal))?;"
+killers = ["cases_1_2_3_and_5a_refuse_on_every_transport"]
+shard = "matrix"
+joint = "stream"
+
+[[site]]
+id = "dispatch.rest.scope"
+file = "crates/fraiseql-server/src/routes/rest/router/mod.rs"
+function = "scope"
+anchor = "        let dispatch = tenant\n            .dispatch(&self.app)"
+mutant = "        let dispatch = ({ let _ = &tenant; crate::admission::Tenant::of(&self.app, None, &axum::http::HeaderMap::new()).unwrap() })\n            .dispatch(&self.app)"
+killers = ["cases_1_2_3_and_5a_refuse_on_every_transport"]
+shard = "matrix"
+joint = "rest"
+
+[[site]]
+id = "dispatch.rest.executor"
+file = "crates/fraiseql-server/src/routes/rest/router/mod.rs"
+function = "from_request_parts"
+anchor = "            let require_auth = tenant\n                .executor(&state.app)"
+mutant = "            let require_auth = ({ let _ = &tenant; crate::admission::Tenant::of(&state.app, None, &axum::http::HeaderMap::new()).unwrap() })\n                .executor(&state.app)"
+killers = ["cases_1_2_3_and_5a_refuse_on_every_transport"]
+shard = "matrix"
+joint = "rest"
+
+[[site]]
+id = "dispatch.mcp"
+file = "crates/fraiseql-server/src/mcp/handler.rs"
+function = "call_tool_authenticated"
+anchor = "match tenant.dispatch(&self.state) {"
+mutant = "match ({ let _ = &tenant; crate::admission::Tenant::of(&self.state, None, &axum::http::HeaderMap::new()).unwrap() }).dispatch(&self.state) {"
+killers = ["cases_1_2_3_and_5a_refuse_on_every_transport"]
+shard = "matrix"
+
+[[site]]
+id = "dispatch.storage"
+file = "crates/fraiseql-server/src/server/routing/extensions.rs"
+function = "admit_storage_request"
+anchor = "let dispatch = tenant.dispatch(state).map_err(storage_refusal)?;"
+mutant = "let dispatch = ({ let _ = &tenant; crate::admission::Tenant::of(state, None, &axum::http::HeaderMap::new()).unwrap() }).dispatch(state).map_err(storage_refusal)?;"
+killers = ["cases_1_2_3_and_5a_refuse_on_every_transport"]
+shard = "matrix"
+
+[[site]]
+id = "tenancy.async.submit"
+file = "crates/fraiseql-server/src/routes/async_operations.rs"
+function = "submit"
+anchor = "let scope = match state.app.executor_for_tenant(tenant.key()) {"
+mutant = "let scope = match state.app.executor_for_tenant({ let _ = tenant.key(); None }) {"
+killers = ["cases_1_2_3_and_5a_refuse_on_every_transport"]
+shard = "matrix"
+
+[[site]]
+id = "tenancy.async.lookup-tenant"
+file = "crates/fraiseql-server/src/async_operations/store.rs"
+function = "get_scoped"
+anchor = "AND tenant_key IS NOT DISTINCT FROM $3"
+mutant = "AND ($3::text IS NULL OR $3::text IS NOT NULL)"
+killers = ["cases_1_2_3_and_5a_refuse_on_every_transport"]
+shard = "matrix"
+
+[[site]]
+id = "tenancy.async.lookup-owner"
+file = "crates/fraiseql-server/src/async_operations/store.rs"
+function = "get_scoped"
+anchor = "WHERE op_id = $1 AND submitter = $2 AND"
+mutant = "WHERE op_id = $1 AND ($2::text IS NOT NULL) AND"
+killers = ["another_subject_reads_an_owners_resource_as_absent"]
+shard = "matrix"
+
+[[site]]
+id = "tenancy.hint-mismatch"
+file = "crates/fraiseql-server/src/routes/graphql/tenant_key.rs"
+function = "resolve"
+anchor = "hints.iter().find(|(_, named)| Some(named.as_str()) != bound)"
+mutant = "hints.iter().find(|(_, named)| Some(named.as_str()) != bound && false)"
+killers = ["cases_1_2_3_and_5a_refuse_on_every_transport"]
+shard = "matrix"
+
+[[site]]
+id = "tenancy.bridge.executor"
+file = "crates/fraiseql-server/src/query_bridge.rs"
+function = "executor_for"
+anchor = "Source::Tenants(registry) => Ok(Arc::clone(&*registry.executor_for(tenant)?)),"
+mutant = "Source::Tenants(registry) => Ok(Arc::clone(&*registry.executor_for({ let _ = tenant; None })?)),"
+killers = [
+  "function_writes::a_per_message_tenant_reaches_its_own_executor",
+  "function_writes::a_tenant_bound_function_cannot_be_steered_to_another_tenant",
+  "function_writes::a_tenants_function_write_lands_in_its_own_schema",
+  "function_writes::an_unregistered_or_suspended_tenants_function_write_is_refused",
+]
+shard = "bridge"
+
+[[site]]
+id = "tenancy.bridge.steering"
+file = "crates/fraiseql-server/src/query_bridge.rs"
+function = "resolve_identity"
+anchor = "(true, Some(tenant)) => base.clone().with_tenant(tenant),"
+mutant = "(_, Some(tenant)) => base.clone().with_tenant(tenant),"
+killers = [
+  "function_writes::a_tenant_bound_function_cannot_be_steered_to_another_tenant",
+]
+shard = "bridge"
+
+[[site]]
+id = "tenancy.cache.view"
+file = "crates/fraiseql-core/src/cache/key.rs"
+function = "generate_view_query_key"
+anchor = "    hash_session_vars(&mut h, session_vars);"
+mutant = "    let _ = session_vars;"
+killers = [
+  "cache::adapter::tests::session_keyed::a_different_session_value_is_a_different_entry",
+]
+shard = "core-cache"
+
+[[site]]
+id = "tenancy.cache.projection"
+file = "crates/fraiseql-core/src/cache/key.rs"
+function = "generate_projection_query_key"
+anchor = "    hash_session_vars(&mut h, session_vars);"
+mutant = "    let _ = session_vars;"
+killers = ["case_5b_a_cached_read_serves_only_its_own_tenants_rows"]
+shard = "matrix"
+
+[[site]]
+id = "tenancy.cache.composed"
+file = "crates/fraiseql-core/src/cache/key.rs"
+function = "generate_composed_query_key"
+anchor = "    hash_session_vars(&mut h, session_vars);"
+mutant = "    let _ = session_vars;"
+killers = [
+  "cache::key::key_composed_tests::session_variables_split_the_key_in_any_order",
+]
+shard = "core-cache"
+
+[[site]]
+id = "authz.transport.ledger"
+file = "crates/fraiseql-server/src/server/routing/extensions.rs"
+function = "mount_storage_state"
+anchor = "storage_admission(\"storage\")"
+mutant = "storage_admission(\"p1844-unrowed\")"
+killers = ["every_mounted_transport_has_a_row"]
+shard = "matrix"
+
+[[site]]
+id = "authz.mcp.credential"
+file = "crates/fraiseql-server/src/mcp/http.rs"
+function = "require_credential"
+anchor = "        Ok(_) => unauthorized(CREDENTIAL_REQUIRED),"
+mutant = "        Ok(_) => { let _ = CREDENTIAL_REQUIRED; next.run(request).await },"
+killers = ["cases_1_2_3_and_5a_refuse_on_every_transport"]
+shard = "matrix"
+
+[[site]]
+id = "authz.admin.session"
+file = "crates/fraiseql-server/src/api/admin_principal.rs"
+function = "authenticate"
+anchor = "WHERE token_hash = $1 AND revoked_at IS NULL\","
+mutant = "WHERE token_hash = $1\","
+killers = ["the_admin_plane_refuses_its_cases"]
+shard = "matrix"
+
+[[site]]
+id = "authz.admin.foreign-tenant"
+file = "crates/fraiseql-server/src/api/admin_principal.rs"
+function = "scope"
+anchor = "(Self::Tenant(_), Some(_)) => Err(ForeignTenant),"
+mutant = "(Self::Tenant(_), Some(named)) => Ok(Some(named)),"
+killers = ["the_admin_plane_refuses_its_cases"]
+shard = "matrix"
+
+[[site]]
+id = "authz.admin.limiter.bearer"
+file = "crates/fraiseql-server/src/middleware/auth.rs"
+function = "bearer_auth_middleware"
+anchor = "    if auth_state.failure_limiter.is_blocked(&peer_key) {"
+mutant = "    if false && auth_state.failure_limiter.is_blocked(&peer_key) {"
+killers = ["the_admin_plane_refuses_its_cases"]
+shard = "matrix"
+
+[[site]]
+id = "authz.admin.limiter.principal"
+file = "crates/fraiseql-server/src/middleware/auth.rs"
+function = "admin_principal_middleware"
+anchor = "    if state.failure_limiter.is_blocked(&peer_key) {"
+mutant = "    if false && state.failure_limiter.is_blocked(&peer_key) {"
+killers = ["the_admin_plane_refuses_its_cases"]
+shard = "matrix"
+
+[[site]]
+id = "authz.limiter.forwarded"
+file = "crates/fraiseql-server/src/middleware/rate_limit/middleware_fn.rs"
+function = "extract_real_ip"
+anchor = "    if trust_proxy {"
+mutant = "    if true {"
+killers = ["case_4_a_forwarded_address_does_not_lift_the_limit"]
+shard = "matrix"

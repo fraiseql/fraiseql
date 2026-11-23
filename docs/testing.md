@@ -173,6 +173,42 @@ cargo bench --bench sql_generation
 
 ---
 
+## Guard-Site Mutation
+
+Every place an authorization, session or tenancy rule is applied is a *guard site*, and
+each one must have a test that fails when the guard is removed. A guard can be
+reachable only through a second door its suite never opens; a suite that "covers" the
+route then passes with the guard gone. So each site is proven by mutating it.
+
+`tools/guard-sites.toml` is the inventory. A `[[site]]` names the file, the function the
+guard sits in, an exact `anchor` of its code, the `mutant` that replaces it, the
+`killers` (tests that must fail on the mutant) and the `shard` (test command) they run
+in. Two sites that each cover the other share a `joint` and are mutated together.
+`[[held]]` paths are not inventoried yet; `[[exempt]]` functions match a guard pattern
+without being one, with the reason and the issue deciding them.
+
+Two tools read it:
+
+- `make lint-guard-sites` (`tools/check-guard-sites.py`, every PR, in ShellGates): each
+  site resolves (its function defined once, its anchor once inside it, its killers
+  defined as tests), and every call matching a `[[family]]` pattern in production code
+  is inside a site's anchor, a held path or an exempt function. An unrowed call is
+  reported at its file, line and column. Self-test: `make test-guard-sites-gate`.
+- `tools/run-guard-mutants.py`: applies each mutant, runs its shard and restores the
+  file. A mutant is killed only when one of its named killers fails; one that survives,
+  is failed only by an unnamed test, or does not build fails the run. `--site`,
+  `--shard` and `--changed-since REF` select a subset; `--list` prints the selection.
+  Self-test: `make test-guard-mutants-gate`.
+
+**Adding a guard.** Add a `[[site]]` row, then run its mutant:
+
+```bash
+python3 tools/run-guard-mutants.py --site <id>
+```
+
+The e2e shards need `DATABASE_URL`. A mutant that survives means the rule has no test:
+write the test first (the surviving mutant is its RED), then add the row.
+
 ## Running Ignored Tests
 
 Many tests are `#[ignore]` because they require live infrastructure (PostgreSQL,
