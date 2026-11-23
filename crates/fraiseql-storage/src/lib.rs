@@ -55,8 +55,6 @@ pub use backend::{
 };
 /// The `bytes` this crate's public API is built against (#1198).
 pub use bytes;
-/// The `chrono` this crate's public API is built against (#1198).
-pub use chrono;
 pub use config::{BucketAccess, BucketConfig, StorageConfig};
 pub use graphql::{StorageSchemaEntries, StorageSchemaTypes};
 /// The `image` this crate's public API is built against (#1198).

@@ -38,8 +38,7 @@ hex = "0.4"
 tracing = "0.1"
 # `ObjectInfo::last_modified`, and the strict RFC 3339 parser a policy's
 # `not_before`/`not_after` are held to.
-chrono = { workspace = true }
-fraiseql-time = { workspace = true, features = ["chrono", "sqlx"] }
+fraiseql-time = { workspace = true, features = ["sqlx"] }
 uuid = { workspace = true }
 walkdir = "2"
 

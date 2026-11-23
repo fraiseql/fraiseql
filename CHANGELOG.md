@@ -18,6 +18,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql_storage::chrono` is removed, and `fraiseql-storage` no longer depends on
+  chrono (#2026).** The crate's public API names no chrono type any more. A caller that
+  reached chrono through it depends on `chrono` directly.
+
 - **A storage listing's time, and a storage policy's bounds, are read and written
   without chrono (#2026).** Their text is unchanged: `last_modified` is written
   `2025-11-20T12:00:00.120Z` and read in the grammar it was read in before, a local

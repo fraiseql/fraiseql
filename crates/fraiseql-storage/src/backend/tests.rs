@@ -150,7 +150,7 @@ mod backend_tests {
     }
 
     /// A listed object's etag is the FNV-1a hash of `"{size}-{mtime}"`, the mtime as
-    /// chrono's `to_rfc3339` writes it. A client that cached one keeps matching it (#2112).
+    /// `to_rfc3339` writes it. A client that cached one keeps matching it (#2112).
     #[tokio::test]
     async fn test_list_etag_hashes_size_and_rfc3339_mtime() {
         let (backend, tmpdir) = temp_backend();
@@ -498,23 +498,22 @@ mod stored_time_format {
     }
 }
 
-/// The `x-ms-date` header keeps the bytes chrono's `%a, %d %b %Y %H:%M:%S GMT` wrote.
+/// The `x-ms-date` header keeps the bytes chrono's `%a, %d %b %Y %H:%M:%S GMT` wrote,
+/// recorded from chrono 0.4.45: the fraction is dropped.
 #[cfg(feature = "azure-blob")]
 #[test]
 fn the_azure_date_header_is_rfc_1123_in_gmt() {
-    use chrono::{DateTime, Utc};
     use fraiseql_time::Timestamp;
 
-    for second in [
-        0,
-        1_763_640_000,
-        1_767_225_599,
-        1_772_323_200,
-        253_402_207_199,
+    for (second, written) in [
+        (0, "Thu, 01 Jan 1970 00:00:00 GMT"),
+        (1_763_640_000, "Thu, 20 Nov 2025 12:00:00 GMT"),
+        (1_767_225_599, "Wed, 31 Dec 2025 23:59:59 GMT"),
+        (1_772_323_200, "Sun, 01 Mar 2026 00:00:00 GMT"),
+        (253_402_207_199, "Thu, 30 Dec 9999 21:59:59 GMT"),
     ] {
         let instant = Timestamp::new(second, 987_654_321).expect("in range");
-        let chrono = DateTime::<Utc>::from(instant).format("%a, %d %b %Y %H:%M:%S GMT");
-        assert_eq!(super::azure::x_ms_date(instant), chrono.to_string(), "{second}");
+        assert_eq!(super::azure::x_ms_date(instant), written, "{second}");
     }
     let instant = Timestamp::from_second(1_772_323_200).expect("in range");
     assert_eq!(super::azure::x_ms_date(instant), "Sun, 01 Mar 2026 00:00:00 GMT");

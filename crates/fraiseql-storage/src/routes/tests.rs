@@ -3441,22 +3441,21 @@ async fn a_key_shaped_stored_etag_settles_to_the_content_hash_on_read() {
     }
 }
 
-/// `Upload-Expires` keeps the bytes chrono's `to_rfc2822` wrote.
+/// `Upload-Expires` keeps the bytes chrono's `to_rfc2822` wrote, recorded from chrono
+/// 0.4.45: the day unpadded, the fraction dropped.
 #[test]
 fn upload_expires_is_rfc_2822_as_chrono_wrote_it() {
-    use chrono::{DateTime, Utc};
     use fraiseql_time::Timestamp;
 
-    for second in [
-        0,
-        1_763_640_000,
-        1_767_225_599,
-        1_772_323_200,
-        253_402_207_199,
+    for (second, written) in [
+        (0, "Thu, 1 Jan 1970 00:00:00 +0000"),
+        (1_763_640_000, "Thu, 20 Nov 2025 12:00:00 +0000"),
+        (1_767_225_599, "Wed, 31 Dec 2025 23:59:59 +0000"),
+        (1_772_323_200, "Sun, 1 Mar 2026 00:00:00 +0000"),
+        (253_402_207_199, "Thu, 30 Dec 9999 21:59:59 +0000"),
     ] {
         let instant = Timestamp::new(second, 987_654_321).expect("in range");
-        let chrono = DateTime::<Utc>::from(instant).to_rfc2822();
-        assert_eq!(super::uploads::rfc2822(instant), chrono, "{second}");
+        assert_eq!(super::uploads::rfc2822(instant), written, "{second}");
     }
     let instant = Timestamp::from_second(1_772_323_200).expect("in range");
     assert_eq!(super::uploads::rfc2822(instant), "Sun, 1 Mar 2026 00:00:00 +0000");
