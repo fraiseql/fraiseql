@@ -206,7 +206,14 @@ impl CompiledSchema {
         }
         self.derived.fact_rows = surface.row_types;
         self.derived.fact_roots = surface.roots;
+        self.index_operations();
+    }
 
+    /// Index the queries, mutations and subscriptions by name, for the `find_*` lookups.
+    ///
+    /// The part of [`build_indexes`](Self::build_indexes) a copy of this schema with
+    /// operations removed needs: its positions moved, and nothing else is derived again.
+    pub(crate) fn index_operations(&mut self) {
         let camel = matches!(self.naming_convention, NamingConvention::CamelCase);
 
         self.derived.query_index = self

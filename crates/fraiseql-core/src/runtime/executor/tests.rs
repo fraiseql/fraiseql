@@ -2795,12 +2795,13 @@ mod parse_cache {
         let planted = super::super::support::classify::CachedClassification::new(
             other,
             None,
+            None,
             executor.classify_query_with_parse(other, None).unwrap(),
         );
         executor
             .ctx
             .parse_cache
-            .insert(super::super::execution::parse_cache_key(query, None), Arc::new(planted));
+            .insert(super::super::execution::parse_cache_key(query, None, None), Arc::new(planted));
 
         let response = executor.execute(query, None).await.unwrap();
         assert!(
@@ -2821,10 +2822,11 @@ mod parse_cache {
         let planted = super::super::support::classify::CachedClassification::new(
             document,
             Some("B"),
+            None,
             executor.classify_query_with_parse(document, Some("B")).unwrap(),
         );
         executor.ctx.parse_cache.insert(
-            super::super::execution::parse_cache_key(document, Some("A")),
+            super::super::execution::parse_cache_key(document, Some("A"), None),
             Arc::new(planted),
         );
 
@@ -2832,6 +2834,42 @@ mod parse_cache {
         assert!(
             response["data"]["users"].is_array(),
             "operation A is answered, not the entry computed for B: {response}"
+        );
+    }
+
+    /// The same, for one document and two caller views: the entry computed for the whole
+    /// schema does not answer for a caller who sees less of it.
+    #[tokio::test]
+    async fn an_entry_answers_only_for_the_view_it_was_computed_in() {
+        let mut schema = test_schema();
+        schema.types.push(crate::schema::TypeDefinition::new("User", "v_user"));
+        let mut secret = crate::schema::TypeDefinition::new("Secret", "v_secret");
+        secret.requires_role = Some("auditor".to_string());
+        schema.types.push(secret);
+        declare_node_types(&mut schema, &["User", "Secret"]);
+        let executor = Executor::new(schema, Arc::new(MockAdapter::new(vec![])));
+
+        let document = r#"{ node(id: "VXNlcjoxMjM=") { id ... on Secret { id } } }"#;
+        let (view, _) = executor
+            .ctx
+            .introspection
+            .keyed_caller_schema(&executor.ctx.schema, None)
+            .expect("an anonymous caller does not see `Secret`");
+        let planted = super::super::support::classify::CachedClassification::new(
+            document,
+            None,
+            None,
+            executor.classify_query_with_parse(document, None).unwrap(),
+        );
+        executor.ctx.parse_cache.insert(
+            super::super::execution::parse_cache_key(document, None, Some(&view)),
+            Arc::new(planted),
+        );
+
+        let refused = executor.execute(document, None).await.map_err(|e| e.to_string());
+        assert!(
+            refused.as_ref().is_err_and(|e| e.contains("Unknown type `Secret`")),
+            "the anonymous caller is answered in its own view: {refused:?}"
         );
     }
 }

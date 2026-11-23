@@ -356,21 +356,40 @@ impl Executor {
     /// The verdict is shared by `Arc`, not copied out per request (#1562), and a hit
     /// is used only when the entry was computed for this very document and operation
     /// (see [`CachedClassification`](support::classify::CachedClassification)).
+    ///
+    /// A verdict is per view: the document's fragments are judged against the types
+    /// `caller` may see, so two callers seeing different schemas get their own entry.
     fn classify_cached(
         &self,
         query: &str,
         operation_name: Option<&str>,
+        caller: Option<&SecurityContext>,
     ) -> Result<Arc<support::classify::CachedClassification>> {
-        let cache_key = parse_cache_key(query, operation_name);
+        let view = self.ctx.introspection.keyed_caller_schema(&self.ctx.schema, caller);
+        self.classify_cached_in(query, operation_name, view.as_ref())
+    }
+
+    /// [`classify_cached`](Self::classify_cached) in `view`, a caller view and its key;
+    /// `None` for the full schema.
+    fn classify_cached_in(
+        &self,
+        query: &str,
+        operation_name: Option<&str>,
+        view: Option<&(String, Arc<crate::schema::CompiledSchema>)>,
+    ) -> Result<Arc<support::classify::CachedClassification>> {
+        let key = view.map(|(key, _)| key.as_str());
+        let cache_key = parse_cache_key(query, operation_name, key);
         if let Some(entry) = self.ctx.parse_cache.get(&cache_key) {
-            if entry.answers(query, operation_name) {
+            if entry.answers(query, operation_name, key) {
                 return Ok(entry);
             }
         }
+        let visible = view.map_or(&self.ctx.schema, |(_, visible)| &**visible);
         let entry = Arc::new(support::classify::CachedClassification::new(
             query,
             operation_name,
-            self.classify_query_with_parse(query, operation_name)?,
+            key,
+            self.classify_query_in_view(query, operation_name, visible)?,
         ));
         self.ctx.parse_cache.insert(cache_key, Arc::clone(&entry));
         Ok(entry)
@@ -388,7 +407,11 @@ impl Executor {
     /// this says only how long the data may be reused.
     #[must_use]
     pub fn response_cache_ttl(&self, query: &str, operation_name: Option<&str>) -> Option<u64> {
-        let entry = self.classify_cached(query, normalize_operation_name(operation_name)).ok()?;
+        // Asked of a document already answered: its routing is the same in every view, and a
+        // TTL reads nothing else, so the full schema's verdict is the one read.
+        let entry = self
+            .classify_cached_in(query, normalize_operation_name(operation_name), None)
+            .ok()?;
         let (QueryType::Regular, Some(parsed), ..) = &entry.classification else {
             return None;
         };
@@ -452,7 +475,7 @@ impl Executor {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
-        let entry = self.classify_cached(query, None)?;
+        let entry = self.classify_cached(query, None, security_context)?;
         let (query_type, parsed, ..) = &entry.classification;
         if matches!(query_type, QueryType::Mutation { .. }) {
             return Err(FraiseQLError::Authorization {
@@ -545,7 +568,7 @@ impl Executor {
         // GATE-1 itself parses with (`validate_with_variables`, and
         // `parse_graphql_document` again for `max_operation_cost`), so the
         // parser sees nothing it was not already going to see.
-        let entry = self.classify_cached(query, operation_name)?;
+        let entry = self.classify_cached(query, operation_name, security_context)?;
         let (query_type, maybe_parsed, variable_defaults, completion, document_variables) =
             &entry.classification;
 
@@ -896,12 +919,20 @@ pub(super) fn normalize_operation_name(operation_name: Option<&str>) -> Option<&
 /// so keying on the document alone would serve the first request's operation to
 /// every later request naming a different one — the § 6.1 defect, made
 /// permanent by the cache and invisible to the request that triggers it.
-pub(super) fn parse_cache_key(query: &str, operation_name: Option<&str>) -> u64 {
+pub(super) fn parse_cache_key(
+    query: &str,
+    operation_name: Option<&str>,
+    view: Option<&str>,
+) -> u64 {
     let document = xxhash_rust::xxh3::xxh3_64(query.as_bytes());
-    match operation_name {
+    // Each part seeded with the hash so far, so the parts are mixed, not concatenated.
+    let named = match operation_name {
         None => document,
-        // Seeded with the document hash so the pair is mixed, not concatenated.
         Some(name) => xxhash_rust::xxh3::xxh3_64_with_seed(name.as_bytes(), document),
+    };
+    match view {
+        None => named,
+        Some(view) => xxhash_rust::xxh3::xxh3_64_with_seed(view.as_bytes(), named ^ 1),
     }
 }
 

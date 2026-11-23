@@ -4244,7 +4244,12 @@ mod field_authz {
         .await;
 
         let err = res.expect_err("`User` requires `admin`, which the caller does not hold");
-        assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err:?}");
+        // `User` is a type the caller may not see: a fragment on it is refused as one on a
+        // type the schema does not define, before the write.
+        assert!(
+            matches!(&err, FraiseQLError::Validation { message, .. } if message.starts_with("Unknown type `User`")),
+            "{err:?}"
+        );
         assert!(!format!("{err}").contains("Alice"), "the gated value must not appear: {err}");
         assert!(!adapter.committed(), "a refused payload takes its write with it");
     }
@@ -4262,7 +4267,12 @@ mod field_authz {
         .await
         .expect_err("an anonymous caller holds no role");
 
-        assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err:?}");
+        // `User` is a type the caller may not see: a fragment on it is refused as one on a
+        // type the schema does not define, before the write.
+        assert!(
+            matches!(&err, FraiseQLError::Validation { message, .. } if message.starts_with("Unknown type `User`")),
+            "{err:?}"
+        );
         assert!(!adapter.committed(), "a refused payload takes its write with it");
     }
 
@@ -4281,7 +4291,12 @@ mod field_authz {
         .await
         .expect_err("`viewer` is not `admin`");
 
-        assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err:?}");
+        // `User` is a type the caller may not see: a fragment on it is refused as one on a
+        // type the schema does not define, before the write.
+        assert!(
+            matches!(&err, FraiseQLError::Validation { message, .. } if message.starts_with("Unknown type `User`")),
+            "{err:?}"
+        );
         assert!(!adapter.committed(), "a refused payload takes its write with it");
     }
 

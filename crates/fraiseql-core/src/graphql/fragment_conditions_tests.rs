@@ -53,7 +53,8 @@ fn schema() -> CompiledSchema {
 
 fn checked(document: &str) -> Result<(), String> {
     let parsed = parse_query(document).unwrap();
-    match check(&parsed.selections, &parsed.fragments, &parsed.operation_type, &schema()) {
+    let schema = schema();
+    match check(&parsed.selections, &parsed.fragments, &parsed.operation_type, &schema, &schema) {
         Ok(()) => Ok(()),
         Err(FraiseQLError::Validation { message, path }) => {
             Err(format!("{} @ {}", message, path.unwrap_or_default()))

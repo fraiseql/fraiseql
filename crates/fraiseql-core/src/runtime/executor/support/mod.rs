@@ -8,6 +8,7 @@ pub(super) mod classify;
 pub(super) mod explain;
 #[cfg(feature = "federation")]
 pub(super) mod federation;
+mod fragment_view;
 pub(super) mod hook_reader;
 pub(super) mod introspection_projection;
 pub(super) mod node_fragment_fields;

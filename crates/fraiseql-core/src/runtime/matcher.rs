@@ -425,10 +425,15 @@ impl QueryMatcher {
         // 1. Parse GraphQL query using proper parser
         let parsed = parse_query_with_operation_name(query, operation_name)
             .map_err(|e| crate::graphql::operation_selection_error(&e))?;
+        // Against the whole schema: a caller's document reaches the matcher after its
+        // fragments were judged against the types it may see (the executor's
+        // classification, `Executor::check_fragment_conditions` for a transport planning
+        // from the document). Those are a subset, so this refuses nothing that passed.
         crate::graphql::fragment_conditions::check(
             &parsed.selections,
             &parsed.fragments,
             &parsed.operation_type,
+            &self.schema,
             &self.schema,
         )?;
 

@@ -1636,6 +1636,11 @@ disagreed, and the promise was the part that was wrong.
   position whose type the schema knows: every root, below object, interface and union
   fields, and the nodes of a Relay connection. A field a fragment on a Node type selects
   under `node` is held to that type's fields, with the refusal a root returning it gives.
+  A fragment's type condition is resolved against the types the caller can see, the same
+  as variable types: a type outside the caller's view is answered as a type the schema
+  does not define, at every one of these positions and when planning a `@stream`.
+  A fragment on a type the caller cannot see is refused as a validation error, before any
+  read or write; it was refused as an authorization error.
 
 - **`node(id:)` applies only the fragments on the type its id names (#2276).**
   `{ node(id: $id) { ... on User { name } ... on Ledger { total } } }`, the usual way to

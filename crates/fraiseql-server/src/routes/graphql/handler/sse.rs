@@ -91,7 +91,13 @@ pub(in super::super) async fn handle_sse(
     // request.
     let operation_name = request.operation_name.clone();
     let op = operation_name.as_deref();
-    let plan = plan_stream(&state, &admitted.query, request.variables.as_ref(), op)?;
+    let plan = plan_stream(
+        &state,
+        &admitted.query,
+        request.variables.as_ref(),
+        op,
+        admitted.identified.security_context(),
+    )?;
     let max_depth = state.executor.load().max_query_depth();
     let defer_plan = plan_defer(&admitted.query, request.variables.as_ref(), op, max_depth);
     let nested_stream_plan =
@@ -707,6 +713,7 @@ fn plan_stream(
     query: &str,
     variables: Option<&Value>,
     operation_name: Option<&str>,
+    caller: Option<&SecurityContext>,
 ) -> Result<Option<StreamPlan>, ErrorResponse> {
     let bad_request = |msg: &str| {
         ErrorResponse::from_error(GraphQLError::new(
@@ -761,6 +768,9 @@ fn plan_stream(
     // so the plan is built against the same effective document the batches will
     // execute.
     let executor = state.executor.load();
+    executor
+        .check_fragment_conditions(&parsed, caller)
+        .map_err(|e| bad_request(&format!("@stream planning failed: {e}")))?;
     let matched = executor
         .matcher()
         .match_query(query, variables)

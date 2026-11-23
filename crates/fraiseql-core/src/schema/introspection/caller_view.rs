@@ -133,12 +133,25 @@ impl CallerIntrospection {
         schema: &CompiledSchema,
         caller: Option<&SecurityContext>,
     ) -> Option<Arc<CompiledSchema>> {
+        self.keyed_caller_schema(schema, caller).map(|(_, visible)| visible)
+    }
+
+    /// [`caller_schema`](Self::caller_schema) with its view's key, which is equal for two
+    /// callers exactly when they see the same schema.
+    ///
+    /// `schema` must be the schema this was built from.
+    pub fn keyed_caller_schema(
+        &self,
+        schema: &CompiledSchema,
+        caller: Option<&SecurityContext>,
+    ) -> Option<(String, Arc<CompiledSchema>)> {
         let key = self.key_of(caller)?;
         if let Some(visible) = self.schemas.read().get(&key) {
-            return Some(Arc::clone(visible));
+            return Some((key, Arc::clone(visible)));
         }
         let visible = Arc::new(self.visible_schema(schema, caller));
-        Some(Arc::clone(self.schemas.write().entry(key).or_insert(visible)))
+        let visible = Arc::clone(self.schemas.write().entry(key.clone()).or_insert(visible));
+        Some((key, visible))
     }
 
     /// The key of the view `caller` sees, or `None` when it holds every gating role and so

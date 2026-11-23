@@ -259,6 +259,36 @@ async fn a_bounded_stream_whose_last_batch_passes_max_offset_is_refused_before_a
     assert!(message.contains("max_offset") && message.contains("relay = true"), "{body}");
 }
 
+/// Planning a `@stream` judges the document's fragments against the types the caller may
+/// see: a fragment on a type only an `auditor` may see answers an anonymous caller as one
+/// on a type the schema does not define.
+#[tokio::test]
+async fn a_streamed_fragment_on_a_type_the_caller_may_not_see_answers_as_one_on_no_type() {
+    if database_url_or_skip("stream_fragment_caller_view").is_none() {
+        return;
+    }
+    let mut schema = schema();
+    let mut secret = TypeDefinition::new("SseSecret", format!("{SCHEMA}.v_item"));
+    secret.fields = vec![fraiseql_core::schema::FieldDefinition::new(
+        "id",
+        FieldType::Int,
+    )];
+    secret.requires_role = Some("auditor".to_string());
+    schema.types.push(secret);
+    schema.build_indexes();
+    let server = Box::pin(boot_schema(sse_config(1), schema)).await.unwrap();
+    let answer = |on: &str| {
+        let query = format!(
+            "{{ items(orderBy: {{id: ASC}}) @stream(initialCount: 1) {{ id ... on {on} {{ id }} }} }}"
+        );
+        let server = &server;
+        async move { sse_post(server, &json!({ "query": query }), None).await.text().await.unwrap() }
+    };
+    let missing = answer("Nosuch").await;
+    assert!(missing.contains("Unknown type `Nosuch`"), "{missing}");
+    assert_eq!(answer("SseSecret").await.replace("SseSecret", "Nosuch"), missing);
+}
+
 /// Within the ceiling, the stream is served whole.
 #[tokio::test]
 async fn a_bounded_stream_within_max_offset_is_served() {

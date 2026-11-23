@@ -48,31 +48,40 @@ pub(in crate::runtime::executor) struct DocumentVariables {
 pub(in crate::runtime::executor) struct CachedClassification {
     source: Box<str>,
     operation_name: Option<Box<str>>,
+    /// The key of the caller view it was computed for, `None` for the full schema.
+    view: Option<Box<str>>,
     /// The verdict, shared by every request for this document (#1562).
     pub(in crate::runtime::executor) classification: Classification,
 }
 
 impl CachedClassification {
-    /// `classification`, as computed for `source` with `operation_name` selected.
+    /// `classification`, as computed for `source` with `operation_name` selected, by a
+    /// caller seeing the view `view` (`None`: the full schema).
     pub(in crate::runtime::executor) fn new(
         source: &str,
         operation_name: Option<&str>,
+        view: Option<&str>,
         classification: Classification,
     ) -> Self {
         Self {
             source: source.into(),
             operation_name: operation_name.map(Into::into),
+            view: view.map(Into::into),
             classification,
         }
     }
 
-    /// Whether this entry was computed for `source` with `operation_name` selected.
+    /// Whether this entry was computed for `source` with `operation_name` selected, in the
+    /// view `view`.
     pub(in crate::runtime::executor) fn answers(
         &self,
         source: &str,
         operation_name: Option<&str>,
+        view: Option<&str>,
     ) -> bool {
-        *self.source == *source && self.operation_name.as_deref() == operation_name
+        *self.source == *source
+            && self.operation_name.as_deref() == operation_name
+            && self.view.as_deref() == view
     }
 }
 
@@ -188,6 +197,22 @@ impl Executor {
         query: &str,
         operation_name: Option<&str>,
     ) -> Result<Classification> {
+        self.classify_query_in_view(query, operation_name, &self.ctx.schema)
+    }
+
+    /// [`classify_query_with_parse`](Self::classify_query_with_parse) for a caller who sees
+    /// `visible`, the types of the schema it may see: a fragment's type condition resolves
+    /// against them, the same as a variable's type (§ 5.8.2).
+    ///
+    /// # Errors
+    ///
+    /// As [`classify_query_with_parse`](Self::classify_query_with_parse).
+    pub(in crate::runtime::executor) fn classify_query_in_view(
+        &self,
+        query: &str,
+        operation_name: Option<&str>,
+        visible: &crate::schema::CompiledSchema,
+    ) -> Result<Classification> {
         // Parse the query once; the AST is the canonical source of truth.
         // Substring scans on the raw string produce false-positives on aliases,
         // comments, and string argument values (e.g. `{ search(q: "_service") }`
@@ -203,6 +228,7 @@ impl Executor {
             &parsed.fragments,
             &parsed.operation_type,
             &self.ctx.schema,
+            visible,
         )?;
         let defaults = value_json::variable_defaults(&parsed.variables)?;
         let root_type = match parsed.operation_type.as_str() {

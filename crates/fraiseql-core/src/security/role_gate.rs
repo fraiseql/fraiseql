@@ -98,6 +98,8 @@ pub(crate) fn visible_schema_where(
     {
         visible.schema_sdl = None;
     }
+    // The operations left have moved: their lookups index the positions they now hold.
+    visible.index_operations();
     visible
 }
 

@@ -20,11 +20,13 @@ use crate::{
     schema::{CompiledSchema, FieldType},
 };
 
-/// Refuse a fragment whose type condition the schema does not know or that cannot apply.
+/// Refuse a fragment whose type condition the caller's types do not have or that cannot
+/// apply.
 ///
 /// `roots` are the root fields of an operation of `kind` (`query`, `mutation`,
-/// `subscription`); the first fragment among them whose type condition names no type of
-/// the schema, or cannot apply where it stands, is refused.
+/// `subscription`) of `schema`; `visible` holds the types the caller may see, which is
+/// `schema` itself for a caller who sees all of it. The first fragment among them whose
+/// type condition names no type of `visible`, or cannot apply where it stands, is refused.
 ///
 /// # Errors
 ///
@@ -34,8 +36,12 @@ pub fn check(
     fragments: &[FragmentDefinition],
     kind: &str,
     schema: &CompiledSchema,
+    visible: &CompiledSchema,
 ) -> Result<()> {
-    let walk = Walk { schema, fragments };
+    let walk = Walk {
+        schema: visible,
+        fragments,
+    };
     for root in roots {
         let path = root.response_key().to_string();
         let mut spreading = HashSet::new();

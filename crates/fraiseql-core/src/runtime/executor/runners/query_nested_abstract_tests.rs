@@ -313,7 +313,16 @@ async fn a_member_whose_read_requires_a_role_refuses_its_level() {
         let (exec, adapter) = executor(gated.clone());
         for result in both_callers(&exec, document).await {
             let err = result.expect_err(document);
-            assert!(matches!(err, FraiseQLError::Authorization { .. }), "{document}: {err}");
+            // A fragment on `Org`, a type the caller may not see, is refused as one on a
+            // type the schema does not define; the field reaching `Bank` for its read.
+            if document.contains("... on Org") {
+                assert!(
+                    matches!(&err, FraiseQLError::Validation { message, .. } if message.starts_with("Unknown type `Org`")),
+                    "{document}: {err}"
+                );
+            } else {
+                assert!(matches!(err, FraiseQLError::Authorization { .. }), "{document}: {err}");
+            }
         }
         assert!(adapter.captured_where().is_none(), "{document} was read");
     }
