@@ -458,6 +458,10 @@ name = "fragment_type_visibility_pg"
 required-features = ["postgres"]
 
 [[test]]
+name = "mutation_variable_types_pg"
+required-features = ["postgres"]
+
+[[test]]
 name = "session_variables_integration"
 required-features = ["postgres"]
 

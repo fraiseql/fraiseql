@@ -1626,6 +1626,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A mutation document's variables are held to their declarations, as a query's are
+  (#1876).** A variable declared at a type its argument cannot take is refused
+  (§ 5.8.5), as is a value not of its variable's declared type, or a non-null variable
+  with none (§ 6.1.2). Both are refused before the operation's first root runs, so a
+  document whose second root is at fault writes nothing. A mutation sent through the
+  `fraiseql_query` function bridge is held to the same rules.
+
 - **A fragment on a type the schema does not define, or one that can never apply where it
   stands, is refused (#2276).** `{ users { ... on Nosuch { name } } }` was answered with a
   `"...on Nosuch": null` key under a `200`; `fragment F on Nosuch { name }` spread under

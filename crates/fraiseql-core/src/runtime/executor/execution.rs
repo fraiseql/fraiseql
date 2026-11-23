@@ -728,6 +728,7 @@ impl Executor {
                 self.execute_introspection(parsed, variables, security_context)
             },
             QueryType::Mutation { roots } => {
+                self.check_mutation_variable_values(roots, document_variables, variables)?;
                 self.execute_mutation_roots(roots, variables, security_context).await
             },
             QueryType::NodeQuery { root, selections } => {

@@ -11,6 +11,7 @@ pub(super) mod federation;
 mod fragment_view;
 pub(super) mod hook_reader;
 pub(super) mod introspection_projection;
+mod mutation_variables;
 pub(super) mod node_fragment_fields;
 pub(super) mod node_selection;
 pub mod pipeline;

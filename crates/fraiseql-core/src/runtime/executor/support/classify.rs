@@ -37,6 +37,20 @@ pub(in crate::runtime::executor) struct DocumentVariables {
     referenced:     Vec<String>,
 }
 
+impl DocumentVariables {
+    /// The executed operation's name, if it has one.
+    pub(in crate::runtime::executor) fn operation_name(&self) -> Option<&str> {
+        self.operation_name.as_deref()
+    }
+
+    /// The executed operation's variable definitions.
+    pub(in crate::runtime::executor) fn definitions(
+        &self,
+    ) -> &[crate::graphql::types::VariableDefinition] {
+        &self.definitions
+    }
+}
+
 /// A [`Classification`] as the parse cache holds it: with the document and the
 /// operation name it was computed from.
 ///
@@ -390,6 +404,7 @@ impl Executor {
         // *Every* root is carried, not just the first: the spec requires all of a
         // mutation's root fields to execute, serially, in document order (#759).
         if parsed.operation_type == "mutation" {
+            self.check_mutation_variable_usages(&parsed.selections, &parsed.variables)?;
             let roots = parsed
                 .selections
                 .iter()
