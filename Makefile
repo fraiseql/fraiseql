@@ -1128,13 +1128,18 @@ test-bench-require-measured-gate:
 
 # The pg_tviews suites (#1391), locally: builds the pinned image on first use (a pgrx
 # compile, ~2.5 min cold), starts it on 127.0.0.1:5441, and runs them against it. Their
-# runtime-absent case reads DATABASE_URL, a database without pg_tviews.
+# runtime-absent case reads DATABASE_URL, a database without pg_tviews. Its `/metrics` case
+# without the preload reads the database tools/pg-tviews-unpreloaded.sh builds (with the
+# same entrypoint as the leg's pgTviewsUnpreloadedService), required, then removed.
 .PHONY: test-pg-tviews
 test-pg-tviews:
 	docker compose -f docker/docker-compose.test.yml up -d --wait postgres-tviews-test
+	url=$$(bash tools/pg-tviews-unpreloaded.sh up) && \
+	TVIEWS_UNPRELOADED_DATABASE_URL="$$url" FRAISEQL_TEST_REQUIRE_TVIEWS_UNPRELOADED=1 \
 	TVIEWS_DATABASE_URL=postgresql://fraiseql_test:fraiseql_test_password@localhost:5441/test_fraiseql \
 	DATABASE_URL=$${DATABASE_URL:-postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql} \
-	cargo test -p fraiseql-server --features metrics --test tviews_cascade_e2e_pg -- --test-threads=1
+	cargo test -p fraiseql-server --features metrics --test tviews_cascade_e2e_pg -- --test-threads=1; \
+	status=$$?; bash tools/pg-tviews-unpreloaded.sh down; exit $$status
 	TVIEWS_DATABASE_URL=postgresql://fraiseql_test:fraiseql_test_password@localhost:5441/test_fraiseql \
 	cargo test -p fraiseql-server --test cache_embedding_eviction_e2e_pg -- --test-threads=1
 	TVIEWS_DATABASE_URL=postgresql://fraiseql_test:fraiseql_test_password@localhost:5441/test_fraiseql \

@@ -1475,9 +1475,15 @@ const (
 
 	// pgTviewsBindHost — pgImage + pg_tviews (docker/pg-tviews, pinned there), for the
 	// suites that exercise pg_tviews only (#1391). Every other suite keeps pgService.
-	pgTviewsBindHost      = "postgres-tviews"
-	pgReplicationUser     = "fraiseql_repl"
-	pgReplicationPassword = "fraiseql_repl_password"
+	pgTviewsBindHost = "postgres-tviews"
+	// pgTviewsUnpreloadedBindHost — the same image, pg_tviews installed and then restarted
+	// without it preloaded (docker/pg-tviews/unpreloaded-entrypoint.sh), for the /metrics
+	// case that reads TVIEWS_UNPRELOADED_DATABASE_URL (#1551).
+	pgTviewsUnpreloadedBindHost = "postgres-tviews-unpreloaded"
+	// requireTviewsUnpreloadedEnv makes that case fail, not skip, where its URL is unset.
+	requireTviewsUnpreloadedEnv = "FRAISEQL_TEST_REQUIRE_TVIEWS_UNPRELOADED"
+	pgReplicationUser           = "fraiseql_repl"
+	pgReplicationPassword       = "fraiseql_repl_password"
 
 	// pgAuthUser/pgAuthPassword — first-party auth's own role (#1965), which
 	// `postgres-auth-role-init.sh` creates on the primary: no superuser, no BYPASSRLS,
@@ -2200,6 +2206,7 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
 	authURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgAuthUser, pgAuthPassword, pgBindHost, pgDatabase)
 	tviewsURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgTviewsBindHost, pgDatabase)
+	tviewsUnpreloadedURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgTviewsUnpreloadedBindHost, pgDatabase)
 	standbyURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgStandbyBindHost, pgDatabase)
 
 	// Every fraiseql-server suite in this leg runs under ONE feature set (#1885).
@@ -2670,6 +2677,7 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		WithServiceBinding(pgBindHost, primary).
 		WithServiceBinding(pgStandbyBindHost, m.pgStandbyService(source, primary, "fraiseql_standby")).
 		WithServiceBinding(pgTviewsBindHost, m.pgTviewsService(source)).
+		WithServiceBinding(pgTviewsUnpreloadedBindHost, m.pgTviewsUnpreloadedService(source)).
 		WithEnvVariable("DATABASE_URL", dbURL).
 		WithEnvVariable(requirePostgresEnv, "1").
 		WithEnvVariable(requireAllFeaturesEnv, "1").
@@ -2677,6 +2685,8 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		WithEnvVariable("AUTH_DATABASE_URL", authURL).
 		WithEnvVariable("STANDBY_DATABASE_URL", standbyURL).
 		WithEnvVariable("TVIEWS_DATABASE_URL", tviewsURL).
+		WithEnvVariable("TVIEWS_UNPRELOADED_DATABASE_URL", tviewsUnpreloadedURL).
+		WithEnvVariable(requireTviewsUnpreloadedEnv, "1").
 		WithEnvVariable("FRAISEQL_PIPELINE_E2E", "1").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
@@ -3815,6 +3825,28 @@ func (m *FraiseqlCi) pgTviewsService(source *dagger.Directory) *dagger.Service {
 		// permitted). `docker run` always prepends the entrypoint, which is why compose and
 		// a local `docker run` never showed it. pgService sets no CMD of its own.
 		AsService(dagger.ContainerAsServiceOpts{UseEntrypoint: true})
+}
+
+// pgTviewsUnpreloadedService returns pgTviewsService's image with pg_tviews installed and a
+// TVIEW created while preloaded, then restarted without it (#1551): pg_tviews refuses to
+// install unpreloaded, so this is how an operator reaches the state.
+// docker/pg-tviews/unpreloaded-entrypoint.sh does it in one container, no volume, and
+// opens the port only once the unpreloaded server is up; tools/pg-tviews-unpreloaded.sh
+// runs the same script locally.
+func (m *FraiseqlCi) pgTviewsUnpreloadedService(source *dagger.Directory) *dagger.Service {
+	return source.Directory("docker/pg-tviews").
+		DockerBuild(dagger.DirectoryDockerBuildOpts{
+			BuildArgs: []dagger.BuildArg{{Name: "PG_IMAGE", Value: pgImage}},
+		}).
+		WithFile("/unpreloaded-entrypoint.sh", source.File("docker/pg-tviews/unpreloaded-entrypoint.sh")).
+		WithEnvVariable("POSTGRES_USER", pgUser).
+		WithEnvVariable("POSTGRES_PASSWORD", pgPassword).
+		WithEnvVariable("POSTGRES_DB", pgDatabase).
+		WithUser("postgres").
+		WithExposedPort(5432).
+		AsService(dagger.ContainerAsServiceOpts{
+			Args: []string{"/bin/bash", "/unpreloaded-entrypoint.sh"},
+		})
 }
 
 // pgStandbyService returns a REAL PostgreSQL streaming standby of `primary`,

@@ -4,8 +4,11 @@
 //! The unpreloaded case needs a database where `pg_tviews` was installed and a TVIEW
 //! created while the library was preloaded, then restarted without it: the extension
 //! refuses to install without the preload, so that is the only way to reach the state.
-//! `tools/pg-tviews-unpreloaded.sh up` builds one from the pinned image and prints its
-//! URL, for `TVIEWS_UNPRELOADED_DATABASE_URL`. Without it that case skips.
+//! `docker/pg-tviews/unpreloaded-entrypoint.sh` builds it, in the `pg_tviews` leg and
+//! through `tools/pg-tviews-unpreloaded.sh up` locally, for
+//! `TVIEWS_UNPRELOADED_DATABASE_URL`. Without it that case skips, except where
+//! `FRAISEQL_TEST_REQUIRE_TVIEWS_UNPRELOADED` is set (the leg, `make test-pg-tviews`),
+//! where it fails.
 
 use fraiseql_core::schema::{CompiledSchema, TypeDefinition};
 
@@ -51,10 +54,23 @@ async fn a_refresh_counts_on_the_tview_it_wrote() {
 
 #[tokio::test]
 async fn without_the_preload_the_scrape_says_the_counters_are_unavailable() {
-    let Some(url) = std::env::var("TVIEWS_UNPRELOADED_DATABASE_URL").ok().filter(|u| !u.is_empty())
-    else {
+    let Some(url) = fraiseql_test_support::tviews::tviews_unpreloaded_database_url() else {
         return;
     };
+    // The rig's whole point: a change to it that handed back a preloaded server would turn
+    // this case into a second copy of the preloaded one.
+    let (client, connection) = tokio_postgres::connect(&url, tokio_postgres::NoTls).await.unwrap();
+    tokio::spawn(connection);
+    let preloaded: String =
+        client.query_one("SHOW shared_preload_libraries", &[]).await.unwrap().get(0);
+    assert!(!preloaded.contains("pg_tviews"), "the rig preloads pg_tviews: {preloaded}");
+    let installed: bool = client
+        .query_one("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_tviews')", &[])
+        .await
+        .unwrap()
+        .get(0);
+    assert!(installed, "the rig has no pg_tviews installed");
+
     let mut schema = CompiledSchema::new();
     schema.types.push(TypeDefinition::new("Item", "p1551.v_item"));
     let server = serve_schema(url, schema).await;

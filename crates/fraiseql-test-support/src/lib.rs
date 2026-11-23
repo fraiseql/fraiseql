@@ -43,6 +43,7 @@ pub mod issuer;
 pub mod sample_schema;
 pub mod services;
 pub mod tracing_capture;
+pub mod tviews;
 pub mod wire;
 
 pub use db::{
