@@ -575,7 +575,7 @@ impl From<&StorageMetadataRow> for ObjectInfo {
             size,
             content_type: row.content_type.clone(),
             etag: row.etag.clone().unwrap_or_default(),
-            last_modified: Some(row.updated_at.into()),
+            last_modified: Some(row.updated_at),
         }
     }
 }

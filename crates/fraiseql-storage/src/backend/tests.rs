@@ -124,10 +124,10 @@ mod backend_tests {
     async fn test_list_reports_the_files_mtime() {
         let (backend, tmpdir) = temp_backend();
         backend.upload("lm.txt", b"x", "text/plain").await.expect("upload");
-        let mtime: chrono::DateTime<chrono::Utc> = std::fs::metadata(tmpdir.path().join("lm.txt"))
+        let mtime = std::fs::metadata(tmpdir.path().join("lm.txt"))
             .and_then(|m| m.modified())
-            .expect("mtime")
-            .into();
+            .expect("mtime");
+        let mtime = fraiseql_time::jiff::Timestamp::try_from(mtime).expect("in range").into();
         let listed = backend.list("", None, 10).await.expect("list");
         assert_eq!(listed.objects[0].last_modified, Some(mtime));
     }
@@ -145,7 +145,7 @@ mod backend_tests {
         assert_eq!(mtime_instant(Ok(UNIX_EPOCH - Duration::from_secs(1))), None);
         assert_eq!(
             mtime_instant(Ok(UNIX_EPOCH + Duration::new(1_763_640_000, 120_000_000))),
-            chrono::DateTime::from_timestamp(1_763_640_000, 120_000_000)
+            fraiseql_time::Timestamp::new(1_763_640_000, 120_000_000).ok()
         );
     }
 
@@ -155,11 +155,12 @@ mod backend_tests {
     async fn test_list_etag_hashes_size_and_rfc3339_mtime() {
         let (backend, tmpdir) = temp_backend();
         backend.upload("etag.txt", b"hello", "text/plain").await.expect("upload");
-        let mtime: chrono::DateTime<chrono::Utc> =
-            std::fs::metadata(tmpdir.path().join("etag.txt"))
-                .and_then(|m| m.modified())
-                .expect("mtime")
-                .into();
+        let mtime = std::fs::metadata(tmpdir.path().join("etag.txt"))
+            .and_then(|m| m.modified())
+            .expect("mtime");
+        let mtime = fraiseql_time::Timestamp::from(
+            fraiseql_time::jiff::Timestamp::try_from(mtime).expect("in range"),
+        );
         let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
         for byte in format!("5-{}", mtime.to_rfc3339()).bytes() {
             hash ^= u64::from(byte);

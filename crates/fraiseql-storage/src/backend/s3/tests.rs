@@ -494,9 +494,10 @@ fn test_s3_list_reports_the_stored_time() {
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
         // S3 keeps whole milliseconds; allow for that and a little clock skew.
-        let before = chrono::Utc::now() - chrono::Duration::seconds(5);
+        let skew = fraiseql_time::jiff::SignedDuration::from_secs(5);
+        let before = fraiseql_time::Timestamp::now() - skew;
         backend.upload("lm/a.txt", b"x", "text/plain").await.expect("upload");
-        let after = chrono::Utc::now() + chrono::Duration::seconds(5);
+        let after = fraiseql_time::Timestamp::now() + skew;
         let listed = backend.list("lm/", None, 10).await.expect("list");
         let reported = listed.objects[0].last_modified.expect("S3 reported a time");
         assert!(before <= reported && reported <= after, "{reported} outside the upload");

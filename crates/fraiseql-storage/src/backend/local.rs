@@ -514,16 +514,16 @@ impl LocalBackend {
     }
 }
 
-/// A file's modification time as an instant: `None` when the platform reports none or
-/// it lies before the Unix epoch. Never the current time.
+/// A file's modification time as an instant: `None` when the platform reports none, or
+/// it lies before the Unix epoch or past what a [`fraiseql_time::Timestamp`] holds. Never
+/// the current time.
 pub(super) fn mtime_instant(
     modified: std::io::Result<std::time::SystemTime>,
-) -> Option<chrono::DateTime<chrono::Utc>> {
+) -> Option<fraiseql_time::Timestamp> {
     let duration = modified.ok()?.duration_since(std::time::UNIX_EPOCH).ok()?;
-    // Reason: u64→i64 cast for chrono timestamp; only wraps after year 292277026596.
-    #[allow(clippy::cast_possible_wrap)]
-    let secs = duration.as_secs() as i64;
-    chrono::DateTime::from_timestamp(secs, duration.subsec_nanos())
+    let secs = i64::try_from(duration.as_secs()).ok()?;
+    let nanos = i32::try_from(duration.subsec_nanos()).ok()?;
+    fraiseql_time::Timestamp::new(secs, nanos).ok()
 }
 
 /// Simple FNV-1a hash function

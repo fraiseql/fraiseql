@@ -46,7 +46,7 @@ pub struct ObjectInfo {
     /// When the object was last modified, as the backend reports it; `None` when it
     /// reports no time. Never a time the listing made up.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub last_modified: Option<chrono::DateTime<chrono::Utc>>,
+    pub last_modified: Option<fraiseql_time::Timestamp>,
 }
 
 /// Metadata associated with a stored object.

@@ -20,7 +20,6 @@
 
 use std::collections::BTreeMap;
 
-use chrono::{DateTime, Utc};
 use fraiseql_time::Timestamp;
 use serde::{Deserialize, Serialize};
 
@@ -198,9 +197,11 @@ pub fn policy_to_specs(policy: &BucketPolicy) -> Vec<PolicyRuleSpec> {
         .collect()
 }
 
-/// RFC3339 with a `Z` offset — the spelling [`parse_instant`] accepts back.
+/// RFC3339 in whole seconds of UTC with a `Z` offset — the spelling [`parse_instant`]
+/// accepts back. A fraction is dropped toward the earlier second.
 fn render_instant(instant: Timestamp) -> String {
-    DateTime::<Utc>::from(instant).to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+    let utc = instant.as_jiff().to_zoned(fraiseql_time::jiff::tz::TimeZone::UTC);
+    utc.strftime("%Y-%m-%dT%H:%M:%SZ").to_string()
 }
 
 fn parse_instant(
@@ -211,19 +212,18 @@ fn parse_instant(
     let Some(raw) = raw else {
         return Ok(None);
     };
-    // chrono's parser is the strict RFC 3339 grammar a policy has always been held to.
-    let parsed = DateTime::parse_from_rfc3339(raw)
-        .map(|parsed| parsed.with_timezone(&Utc))
-        .map_err(|e| {
-            PolicySpecError::rule(
-                index,
-                format!(
-                    "{field} = {raw:?} is not a valid RFC3339 timestamp ({e}); expected e.g. \
+    // The strict RFC 3339 grammar a policy has always been held to.
+    Timestamp::parse_rfc3339_strict(raw).map(Some).map_err(|_| {
+        PolicySpecError::rule(
+            index,
+            format!(
+                "{field} = {raw:?} is not a valid RFC3339 timestamp; expected e.g. \
                  \"2026-01-31T00:00:00Z\""
-                ),
-            )
-        })?;
-    Timestamp::try_from(parsed)
-        .map(Some)
-        .map_err(|e| PolicySpecError::rule(index, format!("{field} = {raw:?} is not usable: {e}")))
+            ),
+        )
+    })
 }
+
+#[cfg(test)]
+#[path = "instant_tests.rs"]
+mod instant_tests;

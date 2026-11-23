@@ -105,6 +105,8 @@ pub mod azure;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod time_tests;
 
 pub use local::LocalBackend;
 

@@ -18,6 +18,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A storage listing's time, and a storage policy's bounds, are read and written
+  without chrono (#2026).** Their text is unchanged: `last_modified` is written
+  `2025-11-20T12:00:00.120Z` and read in the grammar it was read in before, a local
+  listing's etag hashes the same mtime text, and a policy bound is still held to the
+  strict RFC 3339 grammar and written back in whole UTC seconds. Three edges differ. A
+  listed time past the year 9999 (a local file's mtime, an S3 entry's time) is reported
+  as no time, and one written past 9999 no longer reads back. A `last_modified` of
+  `23:59:60` reads as the first second of the next minute, not as a leap second. And a
+  policy bound refused for its text, for a leap second or for its range now gets one
+  message, `<field> = "<text>" is not a valid RFC3339 timestamp; expected e.g.
+  "2026-01-31T00:00:00Z"`, without the parser's own reason.
+
 - **`fraiseql_functions::chrono` and `fraiseql_functions::chrono_tz` are removed, and
   `fraiseql-functions` no longer depends on chrono or chrono-tz (#2026).** The crate's
   public API names no chrono type any more. A caller that reached chrono or chrono-tz
@@ -577,8 +589,8 @@ disagreed, and the promise was the part that was wrong.
   unchanged. The cron trigger's times move in their own entry.
 - **`fraiseql_saga::chrono` is removed (#2026).** The crate's public API names no chrono
   type any more. A caller that reached chrono through it depends on `chrono` directly.
-- **`fraiseql_storage::ObjectInfo::last_modified` is `Option<chrono::DateTime<Utc>>` (#2112).**
-  It was a `String` in a different format per backend. A listing that reports no time now
+- **`fraiseql_storage::ObjectInfo::last_modified` is `Option<fraiseql_time::Timestamp>`
+  (#2112, #2026).** It was a `String` in a different format per backend. A listing that reports no time now
   gives `None`; serialized, the key is left out. Code that read the text uses the instant,
   or formats it where it is served.
 - **`fraiseql_storage::StorageObject` is removed (#2112).** No backend returned one.
@@ -594,8 +606,8 @@ disagreed, and the promise was the part that was wrong.
   `CheckpointState::last_processed_at` and `ResumePosition::dispatched_at`; in
   `fraiseql-cdc-sinks`, `ChangeEvent::commit_time`; in
   `fraiseql-storage`, the object-metadata, upload-session and policy times,
-  `PresignedUrl::expires_at` and the `now` a `StorageCaller` is evaluated at
-  (`ObjectInfo::last_modified` stays a chrono instant for now); in `fraiseql-auth`, the SCIM user, group
+  `PresignedUrl::expires_at` and the `now` a `StorageCaller` is evaluated at; in
+  `fraiseql-auth`, the SCIM user, group
   and provisioning-token records. Their serde and text forms are unchanged, byte for byte.
   With `fraiseql-time`'s `chrono` feature, a `Timestamp` converts into a
   `chrono::DateTime<Utc>` with `From`, and back with `TryFrom`.
