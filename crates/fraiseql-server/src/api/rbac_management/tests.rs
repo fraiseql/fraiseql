@@ -90,3 +90,25 @@ mod router_construction {
         let _ = rbac_management_router(state);
     }
 }
+
+// ── visibility ────────────────────────────────────────────────────────────────
+
+/// The `tenant_id` columns are `UUID`, so Postgres never returns a stored tenant that is not
+/// one; the rule that such a tenant is no tenant a principal administers holds without a
+/// database to reach it.
+mod visibility {
+    use uuid::Uuid;
+
+    use super::super::visible;
+    use crate::api::admin_principal::AdminPrincipal;
+
+    #[test]
+    fn a_stored_tenant_that_is_not_a_uuid_is_seen_by_no_principal() {
+        let own = Uuid::new_v4();
+
+        for principal in [AdminPrincipal::Tenant(own), AdminPrincipal::Platform] {
+            assert!(!visible(principal, Some("not-a-uuid")), "{principal:?}");
+        }
+        assert!(visible(AdminPrincipal::Tenant(own), Some(&own.to_string())), "control");
+    }
+}

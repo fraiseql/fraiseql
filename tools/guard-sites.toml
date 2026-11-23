@@ -49,6 +49,12 @@ patterns = [
 ]
 
 [[family]]
+name = "principal"
+# An admin-plane handler confining its principal: the tenant a request may act on, the
+# rows it may see, the surfaces only the platform may write.
+patterns = ['\bprincipal\s*\.\s*(?:scope|may_see|is_platform)\s*\(']
+
+[[family]]
 name = "executor"
 patterns = ['\bexecutor_for(?:_tenant)?\s*\(']
 
@@ -128,6 +134,11 @@ command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federatio
 name = "observer-admin-scope"
 crate = "crates/fraiseql-server"
 command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test observer_admin_scope_pg -- --test-threads=1"
+
+[[shard]]
+name = "server-lib-admin-api"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --features auth-saml,auth --lib -- api:: --test-threads=1"
 
 [[shard]]
 name = "core-cache"
@@ -1224,3 +1235,165 @@ anchor = ".bind(scope.organisation())"
 mutant = ".bind(None::<i64>)"
 killers = ["creates_observers_it_owns"]
 shard = "observer-admin-scope"
+
+[[site]]
+id = "principal.api.saml_idp_management.create_idp"
+file = "crates/fraiseql-server/src/api/saml_idp_management.rs"
+function = "create_idp"
+anchor = "principal.scope("
+mutant = "AdminPrincipal::Platform.scope("
+killers = ["a_tenant_administrator_manages_only_its_own_saml_idps"]
+shard = "tenant-admin"
+
+[[site]]
+id = "principal.api.saml_idp_management.list_idps"
+file = "crates/fraiseql-server/src/api/saml_idp_management.rs"
+function = "list_idps"
+anchor = "principal.scope("
+mutant = "AdminPrincipal::Platform.scope("
+killers = ["a_tenant_administrator_manages_only_its_own_saml_idps"]
+shard = "tenant-admin"
+
+[[site]]
+id = "principal.api.saml_idp_management.get_idp"
+file = "crates/fraiseql-server/src/api/saml_idp_management.rs"
+function = "get_idp"
+anchor = "principal.may_see("
+mutant = "AdminPrincipal::Platform.may_see("
+killers = ["a_tenant_administrator_manages_only_its_own_saml_idps"]
+shard = "tenant-admin"
+
+[[site]]
+id = "principal.api.saml_idp_management.update_idp"
+file = "crates/fraiseql-server/src/api/saml_idp_management.rs"
+function = "update_idp"
+anchor = "principal.may_see("
+mutant = "AdminPrincipal::Platform.may_see("
+killers = ["a_tenant_administrator_manages_only_its_own_saml_idps"]
+shard = "tenant-admin"
+
+[[site]]
+id = "principal.api.saml_idp_management.delete_idp"
+file = "crates/fraiseql-server/src/api/saml_idp_management.rs"
+function = "delete_idp"
+anchor = "principal.may_see("
+mutant = "AdminPrincipal::Platform.may_see("
+killers = ["a_tenant_administrator_manages_only_its_own_saml_idps"]
+shard = "tenant-admin"
+
+[[site]]
+id = "principal.api.scim.mint_token"
+file = "crates/fraiseql-server/src/api/scim/mod.rs"
+function = "mint_token"
+anchor = "principal.scope("
+mutant = "AdminPrincipal::Platform.scope("
+killers = ["a_tenant_administrator_manages_only_its_own_scim_tokens"]
+shard = "tenant-admin"
+
+[[site]]
+id = "principal.api.scim.list_tokens"
+file = "crates/fraiseql-server/src/api/scim/mod.rs"
+function = "list_tokens"
+anchor = "principal.may_see("
+mutant = "AdminPrincipal::Platform.may_see("
+killers = ["a_tenant_administrator_manages_only_its_own_scim_tokens"]
+shard = "tenant-admin"
+
+[[site]]
+id = "principal.api.scim.revoke_token"
+file = "crates/fraiseql-server/src/api/scim/mod.rs"
+function = "revoke_token"
+anchor = "principal.may_see("
+mutant = "AdminPrincipal::Platform.may_see("
+killers = ["a_tenant_administrator_manages_only_its_own_scim_tokens"]
+shard = "tenant-admin"
+
+[[site]]
+id = "principal.api.rbac_management.scoped_tenant"
+file = "crates/fraiseql-server/src/api/rbac_management.rs"
+function = "scoped_tenant"
+anchor = "principal\n        .scope("
+mutant = "AdminPrincipal::Platform\n        .scope("
+killers = ["a_tenant_administrator_manages_only_its_own_roles_and_assignments"]
+shard = "tenant-admin"
+
+[[site]]
+id = "principal.api.rbac_management.visible.1"
+file = "crates/fraiseql-server/src/api/rbac_management.rs"
+function = "visible"
+anchor = "principal.may_see(None)"
+mutant = "AdminPrincipal::Platform.may_see(None)"
+killers = ["a_tenant_administrator_manages_only_its_own_roles_and_assignments"]
+shard = "tenant-admin"
+
+[[site]]
+id = "principal.api.rbac_management.visible.2"
+file = "crates/fraiseql-server/src/api/rbac_management.rs"
+function = "visible"
+anchor = "principal.may_see(Some(t))"
+mutant = "AdminPrincipal::Platform.may_see(Some(t))"
+killers = ["a_tenant_administrator_manages_only_its_own_roles_and_assignments"]
+shard = "tenant-admin"
+
+[[site]]
+id = "principal.api.rbac_management.platform_only"
+file = "crates/fraiseql-server/src/api/rbac_management.rs"
+function = "platform_only"
+anchor = "principal.is_platform("
+mutant = "AdminPrincipal::Platform.is_platform("
+killers = ["a_tenant_administrator_manages_only_its_own_roles_and_assignments"]
+shard = "tenant-admin"
+
+[[site]]
+id = "principal.api.rbac_management.revoke_role"
+file = "crates/fraiseql-server/src/api/rbac_management.rs"
+function = "revoke_role"
+anchor = "principal.may_see("
+mutant = "AdminPrincipal::Platform.may_see("
+killers = ["a_tenant_administrator_manages_only_its_own_roles_and_assignments"]
+shard = "tenant-admin"
+
+[[site]]
+id = "authz.admin.own-tenant"
+file = "crates/fraiseql-server/src/api/admin_principal.rs"
+function = "AdminPrincipal::scope"
+anchor = "(Self::Tenant(own), None) => Ok(Some(own)),"
+mutant = "(Self::Tenant(_), None) => Ok(None),"
+killers = ["a_tenant_principal_is_confined_to_its_own_tenant"]
+shard = "server-lib-admin-api"
+
+[[site]]
+id = "authz.admin.own-rows"
+file = "crates/fraiseql-server/src/api/admin_principal.rs"
+function = "AdminPrincipal::may_see"
+anchor = "Self::Tenant(own) => row_tenant == Some(own),"
+mutant = "Self::Tenant(own) => row_tenant.is_none_or(|t| t == own),"
+killers = ["a_tenant_principal_sees_only_its_own_rows"]
+shard = "server-lib-admin-api"
+
+[[site]]
+id = "authz.admin.unparsed-tenant"
+file = "crates/fraiseql-server/src/api/rbac_management.rs"
+function = "visible"
+anchor = "Uuid::parse_str(t).is_ok_and("
+mutant = "Uuid::parse_str(t).map_or(true, "
+killers = ["a_stored_tenant_that_is_not_a_uuid_is_seen_by_no_principal"]
+shard = "server-lib-admin-api"
+
+[[site]]
+id = "authz.admin.idp-list"
+file = "crates/fraiseql-server/src/api/saml_idp_management.rs"
+function = "list_idps"
+anchor = ".filter(|r| tenant.is_none_or(|t| r.tenant_id == Some(t)))"
+mutant = ".filter(|r| tenant.is_none_or(|t| r.tenant_id == Some(t)) || true)"
+killers = ["a_tenant_administrator_manages_only_its_own_saml_idps"]
+shard = "tenant-admin"
+
+[[site]]
+id = "authz.admin.tenant-credential"
+file = "crates/fraiseql-server/src/middleware/auth.rs"
+function = "admin_principal_middleware"
+anchor = "Ok(tenant) => tenant.map(AdminPrincipal::Tenant),"
+mutant = "Ok(tenant) => tenant.map(|_| AdminPrincipal::Platform),"
+killers = ["a_tenant_administrator_manages_only_its_own_roles_and_assignments"]
+shard = "tenant-admin"
