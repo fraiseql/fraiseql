@@ -18,6 +18,10 @@
 //! ```
 //!
 //! Runs in the Dagger `integration: postgres` leg via its `--test '*'` sweep.
+//!
+//! **Parallelism:** no test writes to the fixture, so the tests run in parallel, in one
+//! process (`cargo test`) or one per test (`cargo nextest`). The first to reach the
+//! database provisions it, under an advisory lock; the others find it stamped and read it.
 
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics are acceptable
 #![allow(clippy::print_stderr)] // Reason: skip diagnostic when no backing Postgres
@@ -782,10 +786,76 @@ async fn executor() -> Option<Executor> {
     executor_for(schema()).await
 }
 
-/// [`executor`] over `schema`: the same fixture, provisioned the same way.
+/// The fixture, provisioned once per process: every test reads it, and none writes to it.
+/// Provisioning it per test raced, each test dropping and re-creating the tables the
+/// others were reading.
+static PROVISIONED: tokio::sync::OnceCell<()> = tokio::sync::OnceCell::const_new();
+
+/// Where the fixture's provisioning is stamped with the digest of its statements.
+const STAMP: &str = "selection_conformance_fixture_stamp";
+
+/// [`executor`] over `schema`, reading the one fixture.
 async fn executor_for(schema: CompiledSchema) -> Option<Executor> {
     let pg = fraiseql_test_support::postgres().await?;
+    PROVISIONED.get_or_init(|| provision(pg.url())).await;
     let adapter = PostgresAdapter::new(pg.url()).await.expect("connect to the bound PostgreSQL");
+    Some(Executor::new_with_relay(schema, Arc::new(adapter)))
+}
+
+/// Provisions the fixture unless the database holds it already, stamped with the digest of
+/// these very statements. One transaction under an advisory lock, so of the processes
+/// starting at once the first provisions and the others wait, then find the stamp: no
+/// table is dropped while a test reads it.
+async fn provision(url: &str) {
+    use std::hash::{DefaultHasher, Hash as _, Hasher as _};
+
+    let statements = fixture_statements();
+    let mut hasher = DefaultHasher::new();
+    statements.hash(&mut hasher);
+    let digest = format!("{:016x}", hasher.finish());
+
+    let (mut client, connection) = tokio_postgres::connect(url, tokio_postgres::NoTls)
+        .await
+        .expect("connect to provision");
+    let connection = tokio::spawn(connection);
+    let transaction = client.transaction().await.expect("begin provisioning");
+    transaction
+        .batch_execute(&format!(
+            "SELECT pg_advisory_xact_lock(hashtext('{STAMP}'));
+             CREATE TABLE IF NOT EXISTS {STAMP} (digest text NOT NULL)"
+        ))
+        .await
+        .expect("lock the conformance fixture");
+    let stamped = transaction
+        .query_opt(&format!("SELECT 1 FROM {STAMP} WHERE digest = $1"), &[&digest])
+        .await
+        .expect("read the fixture's stamp")
+        .is_some();
+    if !stamped {
+        for stmt in &statements {
+            transaction
+                .batch_execute(stmt)
+                .await
+                .unwrap_or_else(|e| panic!("provision the conformance fixture: {e}\n{stmt}"));
+        }
+        transaction
+            .execute(&format!("DELETE FROM {STAMP}"), &[])
+            .await
+            .expect("clear the fixture's stamp");
+        transaction
+            .execute(&format!("INSERT INTO {STAMP} (digest) VALUES ($1)"), &[&digest])
+            .await
+            .expect("stamp the fixture");
+    }
+    transaction.commit().await.expect("commit the conformance fixture");
+    drop(client);
+    connection.await.expect("join the provisioning connection").ok();
+}
+
+/// Every statement that creates the tables the suite reads, replacing any a previous run
+/// left.
+fn fixture_statements() -> Vec<String> {
+    let mut statements = Vec::new();
     for stmt in FIXTURE
         .split(";\n")
         .chain(MEASURE_FIXTURE.split(";\n"))
@@ -799,10 +869,7 @@ async fn executor_for(schema: CompiledSchema) -> Option<Executor> {
         if stmt.trim().is_empty() {
             continue;
         }
-        adapter
-            .execute_raw_query(stmt)
-            .await
-            .expect("provision the conformance fixture");
+        statements.push(stmt.to_string());
     }
     let kind_rows = KIND_CASES
         .iter()
@@ -830,7 +897,7 @@ async fn executor_for(schema: CompiledSchema) -> Option<Executor> {
                (2, '{{"id": 2, "int": -2147483648, "float": 2, "string": "", "boolean": false}}'::jsonb)"#
         ),
     ] {
-        adapter.execute_raw_query(&stmt).await.expect("provision the kind fixture");
+        statements.push(stmt);
     }
     let drift_rows = CLOCK_DRIFTS
         .iter()
@@ -849,7 +916,7 @@ async fn executor_for(schema: CompiledSchema) -> Option<Executor> {
              (VALUES {drift_rows}) AS drift (patch)"
         ),
     ] {
-        adapter.execute_raw_query(&stmt).await.expect("provision the clock fixture");
+        statements.push(stmt);
     }
     let wide_document = (0..WIDE_FIELDS)
         .map(|i| format!("'{}', {i}", wide_field(i)))
@@ -864,9 +931,9 @@ async fn executor_for(schema: CompiledSchema) -> Option<Executor> {
         format!("CREATE TABLE {WIDE_VIEW} (data jsonb)"),
         format!("INSERT INTO {WIDE_VIEW} (data) SELECT {wide_document}"),
     ] {
-        adapter.execute_raw_query(&stmt).await.expect("provision the wide fixture");
+        statements.push(stmt);
     }
-    Some(Executor::new_with_relay(schema, Arc::new(adapter)))
+    statements
 }
 
 /// Response keys of `data.node`, in response order.
