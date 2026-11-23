@@ -2030,12 +2030,18 @@ def fact_table(  # noqa: PLR0913 — public API; all parameters are meaningful
             ``half_month``, ``month``, ``quarter``, ``semester`` or ``year``. A request
             that would split a row is refused: a bound on ``column`` that is not on a
             period boundary, or a ``groupBy`` bucket a row does not fall wholly inside.
+            ``"edges_from": <table>`` names a fact table holding the same rows at a finer
+            grain (#2343): a range that would split a row is then answered, for sums of
+            additive measures, from this table's whole periods and that table's rows
+            around them. The two tables must declare the same measures, filters,
+            dimensions and gates, or the schema is refused when it is compiled.
 
     Raises:
         ValueError: A duplicate ``table_name``, a ``row_scope`` other than ``"relation"``,
             a measure whose additivity kind is unknown, an ``inject`` entry that is not
             ``"jwt:<claim>"`` on one of ``denormalized_filters``, or beside ``row_scope``,
-            or a ``grain`` that is not ``{"column", "bucket"}`` with a known bucket.
+            or a ``grain`` that is not ``{"column", "bucket"}`` with a known bucket and an
+            optional non-empty ``edges_from``.
 
     Examples:
         >>> fraiseql.fact_table(
@@ -2052,11 +2058,17 @@ def fact_table(  # noqa: PLR0913 — public API; all parameters are meaningful
         )
     inject_params = _fact_table_inject(table_name, inject, denormalized_filters, row_scope)
     if grain is not None and (
-        set(grain) != {"column", "bucket"} or grain.get("bucket") not in _GRAIN_BUCKETS
+        not {"column", "bucket"} <= set(grain) <= {"column", "bucket", "edges_from"}
+        or grain.get("bucket") not in _GRAIN_BUCKETS
+        or (
+            "edges_from" in grain
+            and not (isinstance(grain["edges_from"], str) and grain["edges_from"])
+        )
     ):
         raise ValueError(
             f"fraiseql.fact_table({table_name!r}): grain={grain!r} is not "
-            '{"column": <date filter>, "bucket": <bucket>}; the buckets are '
+            '{"column": <date filter>, "bucket": <bucket>}, with an optional '
+            '"edges_from": <fact table name>; the buckets are '
             f"{list(_GRAIN_BUCKETS)}"
         )
     for measure in measures:

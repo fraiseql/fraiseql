@@ -71,6 +71,7 @@ use crate::{
 };
 
 mod expressions;
+pub(crate) mod linked_cover;
 mod time_reduction;
 mod where_clause;
 
@@ -281,7 +282,17 @@ impl AggregationSqlGenerator {
             return self.generate_time_reduced(plan, reduction);
         }
         let mut params: Vec<serde_json::Value> = Vec::new();
+        let sql = self.generate_into(plan, &mut params)?;
+        Ok(ParameterizedAggregationSql { sql, params })
+    }
 
+    /// The SQL of `plan`, which reduces nothing over time, binding its values after those
+    /// already in `params`: one of several reads composed into one statement.
+    pub(super) fn generate_into(
+        &self,
+        plan: &AggregationPlan,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
         let select_sql =
             self.build_select_clause(&plan.group_by_expressions, &plan.aggregate_expressions)?;
         // SECURITY (#795): emit the *resolved* fact table, never the request's `table` key.
@@ -290,7 +301,7 @@ impl AggregationSqlGenerator {
         let from_sql = format!("FROM {}", plan.metadata.table_name);
 
         let where_sql = if let Some(ref wc) = plan.request.where_clause {
-            self.build_where_clause_parameterized(wc, &plan.metadata, &mut params)?
+            self.build_where_clause_parameterized(wc, &plan.metadata, params)?
         } else {
             String::new()
         };
@@ -301,8 +312,7 @@ impl AggregationSqlGenerator {
             String::new()
         };
 
-        let having_sql =
-            self.build_having_clause_parameterized(&plan.having_conditions, &mut params)?;
+        let having_sql = self.build_having_clause_parameterized(&plan.having_conditions, params)?;
 
         let native_aliases = plan.native_aliases();
         let order_sql = if !plan.request.order_by.is_empty() {
@@ -334,6 +344,6 @@ impl AggregationSqlGenerator {
             let _ = write!(sql, "\nOFFSET {offset}");
         }
 
-        Ok(ParameterizedAggregationSql { sql, params })
+        Ok(sql)
     }
 }

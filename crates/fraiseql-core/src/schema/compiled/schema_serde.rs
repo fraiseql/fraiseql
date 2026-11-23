@@ -576,6 +576,17 @@ impl CompiledSchema {
                 path:    Some("fact_tables.grain".to_string()),
             });
         }
+        // A linked grain's finer table must be the coarse one at a finer grain.
+        let violations = crate::compiler::fact_table::linked_grain_violations(&self.fact_tables);
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "a fact table's linked grain cannot be answered:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("fact_tables.grain.edges_from".to_string()),
+            });
+        }
         // #1459: a measure's declared additivity must be one the planner can honour.
         let violations: Vec<String> =
             self.fact_tables.values().flat_map(|ft| ft.additivity_violations()).collect();

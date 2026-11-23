@@ -76,6 +76,13 @@ def test_every_declared_key_reaches_the_schema():
     ]
 
 
+def test_a_grain_carries_the_finer_table_its_edges_are_read_from():
+    grain = {"column": "day", "bucket": "month", "edges_from": "tf_sales_day"}
+    fraiseql.fact_table("tf_sales_month", measures=[REVENUE], grain=grain)
+
+    assert SchemaRegistry.get_schema()["fact_tables"][0]["grain"] == grain
+
+
 @pytest.mark.parametrize(
     "grain",
     [
@@ -83,6 +90,9 @@ def test_every_declared_key_reaches_the_schema():
         {"column": "day", "bucket": "halfMonth"},
         {"column": "day"},
         {"column": "day", "bucket": "month", "unit": "month"},
+        {"column": "day", "bucket": "month", "edges_from": ""},
+        {"column": "day", "bucket": "month", "edges_from": ["tf_sales_day"]},
+        {"bucket": "month", "edges_from": "tf_sales_day"},
     ],
 )
 def test_a_grain_other_than_a_column_and_a_known_bucket_is_refused(grain):

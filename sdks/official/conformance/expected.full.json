@@ -165,6 +165,9 @@
       "org_path": "org"
     }
   },
+  "fact_table_linked_grain": {
+    "tf_account_month": "tf_account_day"
+  },
   "fact_table_measure_column": {
     "tf_sale": {
       "total": "order_total"

@@ -7,6 +7,7 @@
   "exact_scalar_field": {},
   "fact_table_grain": {},
   "fact_table_hierarchy": {},
+  "fact_table_linked_grain": {},
   "fact_table_measure_column": {},
   "fact_tables": {},
   "field_deprecated": {},

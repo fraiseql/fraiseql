@@ -78,6 +78,7 @@ fn fact_table(table: &str, grain: Option<GrainBucket>) -> FactTableMetadata {
         grain:                    grain.map(|bucket| FactGrain {
             column: "day".to_string(),
             bucket,
+            edges_from: None,
         }),
         native_dimension_mapping: HashMap::new(),
     }

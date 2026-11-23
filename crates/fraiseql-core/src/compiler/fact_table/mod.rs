@@ -42,6 +42,7 @@ use serde::{Deserialize, Serialize};
 mod detector;
 mod grain;
 mod group_keys;
+mod linked;
 // Re-export from fraiseql-db to avoid duplication
 pub use fraiseql_db::{introspector::DatabaseIntrospector, types::DatabaseType};
 
@@ -49,6 +50,7 @@ pub use self::{
     detector::FactTableDetector,
     grain::{FactGrain, GrainBucket},
     group_keys::{GroupKey, GroupKeySource},
+    linked::{edges_answerable, linked_grain_violations},
 };
 
 #[cfg(test)]

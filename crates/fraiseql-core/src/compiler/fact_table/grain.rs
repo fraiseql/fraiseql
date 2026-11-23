@@ -20,9 +20,14 @@ use crate::{
 #[serde(deny_unknown_fields)]
 pub struct FactGrain {
     /// The `date` denormalized filter each row is dated by: its period's first day.
-    pub column: String,
+    pub column:     String,
     /// The period one row stands for.
-    pub bucket: GrainBucket,
+    pub bucket:     GrainBucket,
+    /// A finer fact table over the same rows, which answers the edges of a range this
+    /// table's rows would split: its aggregate reads the whole periods from this table and
+    /// the days around them from that one. `None`: such a range is refused.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edges_from: Option<String>,
 }
 
 /// A period a fact table's row can stand for: the calendar buckets of a `date` column.
@@ -121,6 +126,17 @@ impl GrainBucket {
             Self::Quarter => first_of((day.month0() / 3) * 3 + 1),
             Self::Semester => first_of(if day.month() <= 6 { 1 } else { 7 }),
             Self::Year => first_of(1),
+        }
+    }
+
+    /// The first day of the first period starting on or after `day`; `None` past the
+    /// calendar.
+    #[must_use]
+    pub fn ceil(self, day: NaiveDate) -> Option<NaiveDate> {
+        if self.start(day) == day {
+            Some(day)
+        } else {
+            self.next_start(day)
         }
     }
 

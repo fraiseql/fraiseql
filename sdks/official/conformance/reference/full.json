@@ -860,6 +860,57 @@
         "column": "day",
         "bucket": "day"
       }
+    },
+    {
+      "table_name": "tf_account_month",
+      "inject_params": {
+        "account_id": {
+          "source": "jwt",
+          "claim": "account_id"
+        }
+      },
+      "measures": [
+        {
+          "name": "closing_balance",
+          "sql_type": "numeric",
+          "nullable": false,
+          "additivity": {
+            "kind": "semi_additive",
+            "over": "day",
+            "using": "last",
+            "entity": [
+              "account_id"
+            ]
+          }
+        }
+      ],
+      "dimensions": {
+        "name": "data",
+        "paths": []
+      },
+      "denormalized_filters": [
+        {
+          "name": "account_id",
+          "sql_type": "bigint",
+          "indexed": true
+        },
+        {
+          "name": "day",
+          "sql_type": "date",
+          "indexed": true
+        },
+        {
+          "name": "org_path",
+          "sql_type": "ltree",
+          "indexed": true,
+          "hierarchy": "org"
+        }
+      ],
+      "grain": {
+        "column": "day",
+        "bucket": "month",
+        "edges_from": "tf_account_day"
+      }
     }
   ],
   "observers": [

@@ -279,8 +279,53 @@ What is answered is answered as the finer rows would answer it, when each row ho
 period's sum (and, for a semi-additive `last`, its closing value). A `day` grain refuses
 nothing. A table without a `grain` is read as before: a row stands for its own date.
 
-Answering a range that splits a period from the table's finer-grained source, as v1 did,
-is not supported (#2343).
+### Linked grains: `edges_from`
+
+A rolled-up table can name a finer table over the same rows, which answers what its own rows
+would split:
+
+```json
+"grain": {"column": "day", "bucket": "month", "edges_from": "tf_sales_day"}
+```
+
+A range bound inside a month is then answered, not refused: the whole months inside the
+range are read from the month table, the days around them from `tf_sales_day`, each under
+the request's filters and grouping, and the two added per group. From 10 January to
+20 May, February to April are read as month rows and 10–31 January and 1–20 May as day
+rows. `having`, `orderBy`, `limit` and `offset` apply to the added groups, once. A range
+with no whole month inside it is read from the finer table alone, and a range on month
+boundaries from the month table alone, as before.
+
+Only a sum of an additive measure recombines: a month's row holds the month's total, so a
+`min`, `max`, `avg`, `count`, `stddev` or `variance` over month rows and day rows together
+is neither table's answer. Over a range that is read from both tables, any other aggregate,
+in `aggregates` or `having`, is refused, as is a semi-additive measure; bound the range on
+month boundaries to read the months alone. Everything else the month table refuses for
+itself it still refuses, in its own words, whatever the day table would accept: a `day_day`
+`groupBy`, `day_eq`, a field it does not declare. A bound the finer table's rows would split
+too (10 January, when the edges are half-months) is refused as an unlinked table refuses
+it. The finer table is never named in an error of the coarse root. A window over a linked
+table refuses a split range as before.
+
+The two tables must be one table at two grains, or the schema is refused when it compiles
+or loads:
+
+- the finer table declares a `grain` on the same column, at a period that nests in the
+  coarse one (`day` or `half_month` under `month`, `month` under `quarter`; not `week`
+  under `month`), and links no edges of its own;
+- the same measures (name, type, nullability, additivity; a measure's stored `column` may
+  differ), denormalized filters, `dimensions`, `calendar_dimensions` and
+  `native_dimension_mapping`;
+- the same read gates: `type_name`, `row_scope` and `inject_params`. The edges are read
+  under the coarse root's gates and filters, so a caller never reads finer rows under rules
+  the coarse root does not hold it to.
+
+What the compiler cannot check is that the coarse rows hold the finer rows' totals: the
+answer is the finer table's answer when each coarse row is the sum of the finer rows in its
+period, as a rollup refreshed from the finer table holds. A `float` measure's sum can differ
+from the finer table's in its last digits, since the additions happen in another order; a
+`bigint` or `numeric` sum is exact. A linked aggregate is a parameterized read, which the
+query cache does not hold, so a change to either table reaches the next answer.
 
 ---
 

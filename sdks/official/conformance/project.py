@@ -266,6 +266,7 @@ CONSTRUCTS = (
     "fact_tables",
     "fact_table_hierarchy",
     "fact_table_grain",
+    "fact_table_linked_grain",
     "fact_table_measure_column",
     "mutation_requires_role",
     "mutation_requires_actor",
@@ -999,7 +1000,24 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
             ],
         }
 
-    fact_tables = compiled.get("fact_tables") or {}
+    # #2343: a table whose edges are read from a finer one, asserted by value, as
+    # `{table: edges_from}`. The linked table is kept out of every other fact-table
+    # observation, so an SDK that cannot link a grain does not author it and declares that
+    # one gap. An SDK that drops the link emits a table that refuses every range splitting
+    # its rows, where the author declared them answerable.
+    all_fact_tables = compiled.get("fact_tables") or {}
+    observations["fact_table_linked_grain"] = {
+        name: table["grain"]["edges_from"]
+        for name, table in sorted(all_fact_tables.items())
+        if isinstance(table, dict)
+        and isinstance(table.get("grain"), dict)
+        and table["grain"].get("edges_from") is not None
+    }
+    fact_tables = {
+        name: table
+        for name, table in all_fact_tables.items()
+        if name not in observations["fact_table_linked_grain"]
+    }
     observations["fact_tables"] = {
         name: _fact_table(table)
         for name, table in sorted(fact_tables.items())

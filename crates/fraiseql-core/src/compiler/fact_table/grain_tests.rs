@@ -17,6 +17,7 @@ fn grain(bucket: GrainBucket) -> FactGrain {
     FactGrain {
         column: "day".to_string(),
         bucket,
+        edges_from: None,
     }
 }
 

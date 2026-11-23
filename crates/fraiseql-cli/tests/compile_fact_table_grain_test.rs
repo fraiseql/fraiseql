@@ -54,8 +54,9 @@ async fn compile_carries_a_grain_and_refuses_one_it_cannot_enforce() {
     assert_eq!(
         compiled.get_fact_table("tf_sales").unwrap().grain,
         Some(FactGrain {
-            column: "day".to_string(),
-            bucket: GrainBucket::HalfMonth,
+            column:     "day".to_string(),
+            bucket:     GrainBucket::HalfMonth,
+            edges_from: None,
         })
     );
 

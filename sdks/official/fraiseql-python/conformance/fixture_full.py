@@ -455,6 +455,33 @@ fraiseql.fact_table(
     grain={"column": "day", "bucket": "day"},
 )
 
+# #2343: the same rows rolled up per month. A range that splits a month is answered from
+# the whole months and `tf_account_day`'s rows around them: the two tables are one table
+# at two grains, so every declaration but the grain is `tf_account_day`'s.
+fraiseql.fact_table(
+    "tf_account_month",
+    inject={"account_id": "jwt:account_id"},
+    measures=[
+        {
+            "name": "closing_balance",
+            "sql_type": "numeric",
+            "nullable": False,
+            "additivity": {
+                "kind": "semi_additive",
+                "over": "day",
+                "using": "last",
+                "entity": ["account_id"],
+            },
+        }
+    ],
+    denormalized_filters=[
+        {"name": "account_id", "sql_type": "bigint", "indexed": True},
+        {"name": "day", "sql_type": "date", "indexed": True},
+        {"name": "org_path", "sql_type": "ltree", "indexed": True, "hierarchy": "org"},
+    ],
+    grain={"column": "day", "bucket": "month", "edges_from": "tf_account_day"},
+)
+
 
 # #2147: one observer per action kind. Every observer but the last sets its retry; the
 # last runs on the server's own policy, so it writes no retry block.

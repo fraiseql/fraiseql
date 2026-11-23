@@ -830,8 +830,13 @@ impl AggregateRunner {
         let native_columns = crate::runtime::native_columns::filter_columns_to_native_map(
             &metadata.denormalized_filters,
         );
-        let mut request =
-            crate::runtime::AggregateQueryParser::parse(query_json, metadata, &native_columns)?;
+        // A linked table reads a range its rows would split with its finer table.
+        let (mut request, cover) = crate::runtime::aggregation::linked_cover::parse(
+            &self.ctx.schema,
+            query_json,
+            metadata,
+            &native_columns,
+        )?;
         // #1532: a page of groups is held to `[validation] max_page_size` as a list's is.
         request.limit = super::query_params::enforce_max_page_size(
             request.limit,
@@ -896,7 +901,12 @@ impl AggregateRunner {
         // 3. Generate parameterized SQL
         let sql_generator =
             crate::runtime::AggregationSqlGenerator::new(self.ctx.adapter.database_type());
-        let parameterized = sql_generator.generate_parameterized(&plan)?;
+        let (plan, parameterized) = if let Some(cover) = cover {
+            cover.prepare(&sql_generator, plan)?
+        } else {
+            let parameterized = sql_generator.generate_parameterized(&plan)?;
+            (plan, parameterized)
+        };
         Ok(PreparedAggregate {
             plan,
             parameterized,

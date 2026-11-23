@@ -1035,6 +1035,20 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **A rolled-up fact table answers a range that splits its rows from a finer table it
+  links (#2343).** `grain: {"column": "day", "bucket": "month", "edges_from":
+  "tf_sales_day"}` (in the intermediate schema, and in the Python SDK's `grain=`) names a
+  fact table holding the same rows a day each. A sum of an additive measure over a range
+  bounded inside a month, refused since #1794, is then answered from the whole months
+  inside the range and the days around them, added per group, with `having`, `orderBy`,
+  `limit` and `offset` applied to the added groups: the day table's answer, reading only
+  the edges from it. Any other aggregate over such a range, and a semi-additive measure,
+  is refused naming the coarse table; ranges on month boundaries read the month table as
+  before. The two tables must declare the same measures, filters, dimensions and read
+  gates (`type_name`, `row_scope`, `inject_params`) at nesting grains, or the schema is
+  refused when it compiles or loads. TypeScript and Go author no grain, and declare the
+  link as one more conformance gap.
+
 - **A rolled-up fact table declares its grain, and refuses a range that splits a row
   (#1794).** A table holding one row per month, dated on the 1st, answered a range from
   10 January to 20 March with January dropped and March counted whole: over a day a row,
