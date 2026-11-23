@@ -403,6 +403,7 @@ impl ComposedPlan {
         if !runner
             .plan_nested_reads(
                 &self.query_match.query_def.return_type,
+                &self.resolved.sql_source,
                 fields,
                 security_context,
                 &self.resolved.selection,

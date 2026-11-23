@@ -681,16 +681,22 @@ impl QueryRunner {
     pub(super) fn plan_nested_reads(
         &self,
         root_type: &str,
+        root_view: &str,
         root_fields: &[FieldSelection],
         security_context: Option<&SecurityContext>,
         access: &SelectionAccess,
     ) -> Result<Vec<ComposedEmbed>> {
-        self.plan_nested_level(root_type, root_fields, security_context, access)
+        self.plan_nested_level(root_type, Some(root_view), root_fields, security_context, access)
     }
 
+    /// The levels below a level of `parent_type`. `parent_view` is the view the parent's
+    /// rows are read from, so a level joined to them can correlate on the columns a
+    /// relationship's `native_join` proves for that pair of views. `None` when the
+    /// parent's rows are elements of its own parent's document, which carry no columns.
     fn plan_nested_level(
         &self,
         parent_type: &str,
+        parent_view: Option<&str>,
         selections: &[FieldSelection],
         security_context: Option<&SecurityContext>,
         access: &SelectionAccess,
@@ -699,6 +705,7 @@ impl QueryRunner {
         if let Some(members) = abstract_members(schema, parent_type) {
             return self.refuse_composed_members(
                 parent_type,
+                parent_view,
                 &members,
                 selections,
                 security_context,
@@ -740,8 +747,14 @@ impl QueryRunner {
                 target,
                 security_context,
             )?;
-            let children = self.plan_nested_level(target, &subs, security_context, access)?;
             let gate = self.ctx.nested_row_gates.get(parent_type, field.name.as_str());
+            // A joined level's rows are its view's; any other level's are documents.
+            let level_view = match gate {
+                Some(NestedRowGate::Join { view, .. }) => Some(view.as_str()),
+                _ => None,
+            };
+            let children =
+                self.plan_nested_level(target, level_view, &subs, security_context, access)?;
 
             let (predicate, source, view) = match gate {
                 None => (None, None, None),
@@ -772,14 +785,12 @@ impl QueryRunner {
                 }) => {
                     let predicate =
                         self.nested_predicate(query, target, Over::Rows, security_context)?;
-                    let source =
-                        // The parent level's relation is not known here: stored keys (#1587).
-                        super::query_composed::correlated_source(
-                            schema,
-                            relationship,
-                            parent_type,
-                            None,
-                        );
+                    let source = super::query_composed::correlated_source(
+                        schema,
+                        relationship,
+                        parent_type,
+                        parent_view.map(|parent| (view.as_str(), parent)),
+                    );
                     (predicate, Some(source), Some(view.clone()))
                 },
                 Some(NestedRowGate::Refuse { query }) => {
@@ -849,13 +860,17 @@ impl QueryRunner {
     fn refuse_composed_members(
         &self,
         parent_type: &str,
+        parent_view: Option<&str>,
         members: &[&str],
         selections: &[FieldSelection],
         security_context: Option<&SecurityContext>,
         access: &SelectionAccess,
     ) -> Result<Vec<ComposedEmbed>> {
         for member in members {
-            if !self.plan_nested_level(member, selections, security_context, access)?.is_empty() {
+            if !self
+                .plan_nested_level(member, parent_view, selections, security_context, access)?
+                .is_empty()
+            {
                 return Err(FraiseQLError::Authorization {
                     message:  format!(
                         "a level of '{parent_type}' read as '{member}' reaches a type whose row \

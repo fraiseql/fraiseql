@@ -2445,6 +2445,10 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// #1587: compile --database proves a relationship's native join from pg_tviews'
 		// registry, and the REST composed read correlates on it.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test rest_embedding_native_join_e2e_pg -- --test-threads=1",
+		// #1887: a GraphQL nested level joined through its relationship correlates on the
+		// native join, read back from pg_stat_statements (preloaded by this image) and
+		// EXPLAINed. Owns its p1887 schema and resets pg_stat_statements → serial.
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test graphql_nested_native_join_e2e_pg -- --test-threads=1",
 		// #1614: a null item at a `[T!]` filter operand is refused over REST (it read as
 		// `NOT IN (NULL, …)`, no rows, under a 200). Owns its p1614_items schema → serial.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test null_list_items_rest_e2e_pg -- --test-threads=1",

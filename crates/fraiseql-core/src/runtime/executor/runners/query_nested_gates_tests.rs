@@ -584,6 +584,126 @@ async fn an_opaque_policy_joins_the_nested_types_view_through_its_relationship()
     assert_eq!(embed.level.where_clause, Some(owner_is("u-alice")));
 }
 
+/// `joinable_schema()`, with `Order.items` declared and readable through its own list,
+/// and both relationships' native joins proven for the views named.
+fn native_joined_schema(orders_proven_under: &str) -> CompiledSchema {
+    let mut schema = joinable_schema();
+    let native = |foreign: &str, child: &str, parent: &str| {
+        Some(crate::schema::NativeJoin {
+            foreign_key:    foreign.to_string(),
+            referenced_key: "id".to_string(),
+            child_view:     child.to_string(),
+            parent_view:    parent.to_string(),
+        })
+    };
+    let user = schema.types.iter_mut().find(|t| t.name == "User").unwrap();
+    user.relationships[0].native_join = native("fk_user", "v_order", orders_proven_under);
+    let order = schema.types.iter_mut().find(|t| t.name == "Order").unwrap();
+    order.relationships.push(Relationship {
+        name:           "items".to_string(),
+        target_type:    "Item".to_string(),
+        cardinality:    Cardinality::OneToMany,
+        foreign_key:    "fk_order".to_string(),
+        referenced_key: "id".to_string(),
+        native_join:    native("fk_order", "v_item", "v_order"),
+    });
+    schema.queries.push(list_query("items", "Item", "v_item"));
+    schema.build_indexes();
+    schema
+}
+
+/// The native columns an embed correlates on, `(target, parent)`, or `None` for the
+/// stored keys.
+fn native_columns(embed: &crate::backend::ComposedEmbed) -> Option<(&str, &str)> {
+    match &embed.source {
+        EmbedSource::Correlated { native, .. } => {
+            native.as_ref().map(|n| (n.target_column.as_str(), n.parent_column.as_str()))
+        },
+        other @ EmbedSource::Materialised { .. } => panic!("not correlated: {other:?}"),
+    }
+}
+
+/// A level joined to the root's rows correlates on the columns the relationship's
+/// `native_join` proves for the root's view and its own, as a REST embed does, so the
+/// target's index serves the join.
+#[tokio::test]
+async fn a_joined_level_correlates_on_the_native_join_proven_for_its_views() {
+    let (result, adapter) = run(
+        native_joined_schema("v_user"),
+        vec![],
+        with_policy(OwnerPolicy::opaque(&["User", "Order"])),
+        "{ users { id orders { id } } }",
+        Some(&principal()),
+    )
+    .await;
+    result.unwrap();
+
+    let read = adapter.captured_composed().expect("a composed read");
+    assert_eq!(native_columns(only_embed(&read)), Some(("fk_user", "id")));
+}
+
+/// A level joined to a joined level's rows reads the columns of that level's view.
+#[tokio::test]
+async fn a_level_joined_below_a_joined_level_correlates_on_its_native_join() {
+    let (result, adapter) = run(
+        native_joined_schema("v_user"),
+        vec![],
+        with_policy(OwnerPolicy::opaque(&["User", "Order", "Item"])),
+        "{ users { id orders { id items { id } } } }",
+        Some(&principal()),
+    )
+    .await;
+    result.unwrap();
+
+    let read = adapter.captured_composed().expect("a composed read");
+    let orders = only_embed(&read);
+    assert_eq!(native_columns(orders), Some(("fk_user", "id")));
+    assert_eq!(orders.level.view, "v_order");
+    assert_eq!(native_columns(only_embed(&orders.level)), Some(("fk_order", "id")));
+}
+
+/// A level joined below a level read from its parent's document keeps the stored keys:
+/// those rows are documents, with no `v_order` column to correlate on, whatever the
+/// relationship proves for `v_order`.
+#[tokio::test]
+async fn a_level_joined_below_an_embedded_level_keeps_the_stored_keys() {
+    let (result, adapter) = run(
+        native_joined_schema("v_user"),
+        vec![],
+        // `Order` publishes `owner`, so its predicate is read over the documents `v_user`
+        // embeds; `Item` does not, so it is joined through `Order.items`.
+        with_policy(OwnerPolicy::declared(&["Order", "Item"])),
+        "{ users { id orders { id items { id } } } }",
+        Some(&principal()),
+    )
+    .await;
+    result.unwrap();
+
+    let read = adapter.captured_composed().expect("a composed read");
+    let orders = only_embed(&read);
+    assert!(matches!(orders.source, EmbedSource::Materialised { .. }), "{:?}", orders.source);
+    let items = only_embed(&orders.level);
+    assert_eq!(items.level.view, "v_item");
+    assert_eq!(native_columns(items), None);
+}
+
+/// A native join proven for another pair of views is not this level's: the stored keys.
+#[tokio::test]
+async fn a_native_join_proven_for_other_views_keeps_the_stored_keys() {
+    let (result, adapter) = run(
+        native_joined_schema("v_user_archive"),
+        vec![],
+        with_policy(OwnerPolicy::opaque(&["User", "Order"])),
+        "{ users { id orders { id } } }",
+        Some(&principal()),
+    )
+    .await;
+    result.unwrap();
+
+    let read = adapter.captured_composed().expect("a composed read");
+    assert_eq!(native_columns(only_embed(&read)), None);
+}
+
 /// A joined level is joined whatever the principal's predicate: which rows it holds does
 /// not depend on who asks.
 #[tokio::test]

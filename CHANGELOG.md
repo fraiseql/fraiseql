@@ -1500,6 +1500,18 @@ disagreed, and the promise was the part that was wrong.
   printed suggestion, and the CLI's suite compiles the entry it registers back to the
   introspected table.
 
+- **A GraphQL nested level read through its relationship correlates on the relationship's
+  `native_join` (#1887).** Such a level is read from its own type's view when that type's
+  row predicate cannot be evaluated over the embedded document: a policy that does not
+  declare the keys it reads, or a predicate on a key the type does not publish. It
+  correlated on the stored `data->>` keys, which no index serves, so PostgreSQL scanned
+  the target table once per parent row. It now correlates on the native columns the
+  `native_join` proves for the two views, as a REST embed of the same relationship has
+  since #1587, so the target's index serves the join. On 1,000 items over 2,000 groups the
+  statement went from a sequential scan per item (2.6 s) to an index scan (8 ms). The same
+  rows are returned. A level below one read from its parent's document keeps the stored
+  keys, because those rows have no columns.
+
 - **The DDL FraiseQL runs at runtime takes one advisory lock (#2312).** Scripts that
   create FraiseQL's own tables are idempotent but were not safe to run concurrently: on a
   database without the table, two callers could both pass `IF NOT EXISTS` and one lose on

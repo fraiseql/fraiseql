@@ -696,7 +696,13 @@ impl QueryRunner {
         // 7. The nested levels whose type scopes its rows, each read with that type's predicate as
         //    a level of a composed statement rooted at this read.
         let nested = if door.plans_nested_levels() {
-            self.plan_nested_reads(&query_def.return_type, root_fields, principal, &selection)?
+            self.plan_nested_reads(
+                &query_def.return_type,
+                sql_source,
+                root_fields,
+                principal,
+                &selection,
+            )?
         } else {
             Vec::new()
         };

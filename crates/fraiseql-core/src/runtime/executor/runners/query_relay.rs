@@ -144,6 +144,7 @@ impl QueryRunner {
         // by the relay adapter, as it always was.
         let nested_reads = self.plan_nested_reads(
             &query_def.return_type,
+            sql_source,
             &node_fields,
             security_context,
             &selection_access,
@@ -651,8 +652,13 @@ impl QueryRunner {
         // 3d. The nested levels whose type scopes its rows, each read with that type's
         //     predicate. The node is one row by id: the same composed document read as the
         //     GraphQL root, rooted at that row.
-        let nested_reads =
-            self.plan_nested_reads(&type_name, &selections, security_context, &selection_access)?;
+        let nested_reads = self.plan_nested_reads(
+            &type_name,
+            &sql_source,
+            &selections,
+            security_context,
+            &selection_access,
+        )?;
 
         // 4. Build WHERE clause: data->>'id' = uuid, AND'd under the security filter (which always
         //    comes first so it cannot be bypassed).
