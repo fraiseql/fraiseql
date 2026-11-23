@@ -21,7 +21,7 @@ use std::{
     },
 };
 
-use chrono::{DateTime, Duration, Utc};
+use fraiseql_time::{Timestamp, jiff::SignedDuration};
 use thiserror::Error;
 
 /// Error type for all credential rotation and key lifecycle operations.
@@ -71,9 +71,9 @@ pub struct KeyVersionMetadata {
     /// Version identifier
     pub version:           KeyVersion,
     /// When this version was issued
-    pub issued_at:         DateTime<Utc>,
+    pub issued_at:         Timestamp,
     /// When this version expires (TTL)
-    pub expires_at:        DateTime<Utc>,
+    pub expires_at:        Timestamp,
     /// Current status in lifecycle
     pub status:            KeyVersionStatus,
     /// Is this the current version for new encryptions?
@@ -85,12 +85,16 @@ pub struct KeyVersionMetadata {
 impl KeyVersionMetadata {
     /// Create new key version metadata
     #[must_use]
+    /// A TTL reaching past the last instant a [`Timestamp`] holds expires at that instant.
     pub fn new(version: KeyVersion, ttl_days: u32) -> Self {
-        let now = Utc::now();
+        let now = Timestamp::now();
+        let ttl = SignedDuration::from_hours(i64::from(ttl_days) * 24);
         Self {
             version,
             issued_at: now,
-            expires_at: now + Duration::days(i64::from(ttl_days)),
+            expires_at: now
+                .checked_add(ttl)
+                .unwrap_or_else(|| Timestamp::from(fraiseql_time::jiff::Timestamp::MAX)),
             status: KeyVersionStatus::Active,
             is_current: false,
             compromise_reason: None,
@@ -100,28 +104,28 @@ impl KeyVersionMetadata {
     /// Check if version is expired
     #[must_use]
     pub fn is_expired(&self) -> bool {
-        Utc::now() > self.expires_at
+        Timestamp::now() > self.expires_at
     }
 
     /// Check if version is expiring soon (< 14 days)
     #[must_use]
     pub fn is_expiring_soon(&self) -> bool {
-        let remaining = self.expires_at - Utc::now();
-        remaining < Duration::days(14) && !self.is_expired()
+        let remaining = self.expires_at - Timestamp::now();
+        remaining < SignedDuration::from_hours(14 * 24) && !self.is_expired()
     }
 
     /// Get time until expiration
     #[must_use]
-    pub fn time_until_expiry(&self) -> Duration {
-        self.expires_at - Utc::now()
+    pub fn time_until_expiry(&self) -> SignedDuration {
+        self.expires_at - Timestamp::now()
     }
 
     /// Get percentage of TTL consumed
     #[must_use]
     pub fn ttl_consumed_percent(&self) -> u32 {
         let total_ttl = self.expires_at - self.issued_at;
-        let elapsed = Utc::now() - self.issued_at;
-        if total_ttl.num_seconds() <= 0 {
+        let elapsed = Timestamp::now() - self.issued_at;
+        if total_ttl.as_secs() <= 0 {
             100
         } else {
             #[allow(
@@ -131,8 +135,8 @@ impl KeyVersionMetadata {
             )]
             // Reason: i64→f64 precision loss negligible for TTL seconds; f64→u32 safe because
             // result clamped to [0, 100]
-            let percent = ((elapsed.num_seconds() as f64 / total_ttl.num_seconds() as f64) * 100.0)
-                .min(100.0) as u32;
+            let percent =
+                ((elapsed.as_secs() as f64 / total_ttl.as_secs() as f64) * 100.0).min(100.0) as u32;
             percent
         }
     }
@@ -253,7 +257,7 @@ pub struct RotationMetrics {
     /// Number of failed rotations
     failed_rotations:          Arc<AtomicU64>,
     /// Last rotation timestamp
-    last_rotation:             Arc<std::sync::Mutex<Option<DateTime<Utc>>>>,
+    last_rotation:             Arc<std::sync::Mutex<Option<Timestamp>>>,
     /// Rotation duration (milliseconds)
     last_rotation_duration_ms: Arc<AtomicU64>,
 }
@@ -275,7 +279,7 @@ impl RotationMetrics {
         self.total_rotations.fetch_add(1, Ordering::Relaxed);
         self.last_rotation_duration_ms.store(duration_ms, Ordering::Relaxed);
         if let Ok(mut last) = self.last_rotation.lock() {
-            *last = Some(Utc::now());
+            *last = Some(Timestamp::now());
         }
     }
 
@@ -320,7 +324,7 @@ impl RotationMetrics {
 
     /// Get last rotation timestamp
     #[must_use]
-    pub fn last_rotation(&self) -> Option<DateTime<Utc>> {
+    pub fn last_rotation(&self) -> Option<Timestamp> {
         if let Ok(last) = self.last_rotation.lock() {
             *last
         } else {
@@ -682,14 +686,14 @@ impl CredentialRotationManager {
 
     /// Get next scheduled rotation time (for manual schedule)
     #[must_use]
-    pub fn last_rotation_time(&self) -> Option<DateTime<Utc>> {
+    pub fn last_rotation_time(&self) -> Option<Timestamp> {
         self.metrics.last_rotation()
     }
 
     /// Get time since last rotation
     #[must_use]
-    pub fn time_since_last_rotation(&self) -> Option<Duration> {
-        self.metrics.last_rotation().map(|last| Utc::now() - last)
+    pub fn time_since_last_rotation(&self) -> Option<SignedDuration> {
+        self.metrics.last_rotation().map(|last| Timestamp::now() - last)
     }
 
     /// Mark specific version as compromised
@@ -746,3 +750,5 @@ impl CredentialRotationManager {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod time_tests;

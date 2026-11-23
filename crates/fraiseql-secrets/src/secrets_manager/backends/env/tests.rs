@@ -56,5 +56,5 @@ async fn get_secret_with_expiry_returns_future_date() {
     let backend = EnvBackend::new();
     let (secret, expiry) = backend.get_secret_with_expiry("PATH").await.unwrap();
     assert!(!secret.is_empty());
-    assert!(expiry > chrono::Utc::now());
+    assert!(expiry > fraiseql_time::Timestamp::now());
 }

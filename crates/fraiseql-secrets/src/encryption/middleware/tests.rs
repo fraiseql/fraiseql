@@ -35,9 +35,12 @@ impl SecretsBackend for TestSecretsBackend {
     async fn get_secret_with_expiry(
         &self,
         name: &str,
-    ) -> Result<(Secret, chrono::DateTime<chrono::Utc>), SmError> {
+    ) -> Result<(Secret, fraiseql_time::Timestamp), SmError> {
         let value = self.get_secret(name).await?;
-        Ok((value, chrono::Utc::now() + chrono::Duration::hours(1)))
+        Ok((
+            value,
+            fraiseql_time::Timestamp::now() + fraiseql_time::jiff::SignedDuration::from_hours(1),
+        ))
     }
 
     async fn rotate_secret(&self, _name: &str) -> Result<Secret, SmError> {

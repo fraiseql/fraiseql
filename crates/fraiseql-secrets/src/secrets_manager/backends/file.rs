@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use chrono::{Duration, Utc};
+use fraiseql_time::{Timestamp, jiff::SignedDuration};
 
 use super::super::{Secret, SecretsBackend, SecretsError};
 
@@ -99,10 +99,10 @@ impl SecretsBackend for FileBackend {
     async fn get_secret_with_expiry(
         &self,
         name: &str,
-    ) -> Result<(Secret, chrono::DateTime<Utc>), SecretsError> {
+    ) -> Result<(Secret, Timestamp), SecretsError> {
         let secret = self.get_secret(name).await?;
         // File-based secrets don't expire; use 1-year TTL
-        let expiry = Utc::now() + Duration::days(365);
+        let expiry = Timestamp::now() + SignedDuration::from_hours(365 * 24);
         Ok((secret, expiry))
     }
 

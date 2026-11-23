@@ -14,28 +14,28 @@ fn test_key_version_metadata_creation() {
 fn test_key_version_is_expiring_soon() {
     let mut metadata = KeyVersionMetadata::new(1, 365);
     // Manually set expires_at to near future for testing
-    metadata.expires_at = Utc::now() + Duration::days(7);
+    metadata.expires_at = Timestamp::now() + SignedDuration::from_hours(7 * 24);
     assert!(metadata.is_expiring_soon());
 }
 
 #[test]
 fn test_key_version_ttl_consumed() {
-    let now = Utc::now();
+    let now = Timestamp::now();
     let mut metadata = KeyVersionMetadata::new(1, 10);
     // Simulate time passage: 8 days out of 10 = 80% consumed
-    metadata.issued_at = now - Duration::days(8);
-    metadata.expires_at = now + Duration::days(2);
+    metadata.issued_at = now - SignedDuration::from_hours(8 * 24);
+    metadata.expires_at = now + SignedDuration::from_hours(2 * 24);
     let percent = metadata.ttl_consumed_percent();
     assert!(percent >= 75);
 }
 
 #[test]
 fn test_key_version_should_refresh() {
-    let now = Utc::now();
+    let now = Timestamp::now();
     let mut metadata = KeyVersionMetadata::new(1, 100);
     // Simulate 81 days out of 100 = 81% consumed
-    metadata.issued_at = now - Duration::days(81);
-    metadata.expires_at = now + Duration::days(19);
+    metadata.issued_at = now - SignedDuration::from_hours(81 * 24);
+    metadata.expires_at = now + SignedDuration::from_hours(19 * 24);
     assert!(metadata.should_refresh());
 }
 

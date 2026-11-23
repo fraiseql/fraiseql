@@ -256,7 +256,7 @@ impl SecretsBackend for FailingBackend {
     async fn get_secret_with_expiry(
         &self,
         _name: &str,
-    ) -> Result<(Secret, chrono::DateTime<chrono::Utc>), SecretsError> {
+    ) -> Result<(Secret, fraiseql_time::Timestamp), SecretsError> {
         Err(SecretsError::ConnectionError("Vault unavailable".to_string()))
     }
 

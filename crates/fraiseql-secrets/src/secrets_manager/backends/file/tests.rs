@@ -60,7 +60,7 @@ async fn test_file_backend_with_expiry() {
     let (secret, expiry) = backend.get_secret_with_expiry("expiry_test").await.unwrap();
 
     assert_eq!(secret, "value");
-    assert!(expiry > Utc::now());
+    assert!(expiry > Timestamp::now());
 }
 
 /// Test `FileBackend` rotate returns error

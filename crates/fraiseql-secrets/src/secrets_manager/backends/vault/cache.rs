@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use chrono::Utc;
+use fraiseql_time::Timestamp;
 use tokio::sync::RwLock;
 use zeroize::Zeroizing;
 
@@ -34,9 +34,9 @@ pub(super) struct VaultResponse {
 #[derive(Debug, Clone)]
 struct CachedSecret {
     value:         Zeroizing<String>,
-    expires_at:    chrono::DateTime<Utc>,
+    expires_at:    Timestamp,
     /// Last access time, used for LRU eviction ordering.
-    last_accessed: chrono::DateTime<Utc>,
+    last_accessed: Timestamp,
 }
 
 /// Secret cache with TTL management and LRU eviction for credential caching.
@@ -60,14 +60,11 @@ impl SecretCache {
     /// The value is handed out wrapped in [`Secret`] so the trait-boundary
     /// zeroization guarantee (#727) holds for cache hits too, not only for
     /// fresh Vault fetches.
-    pub(super) async fn get_with_expiry(
-        &self,
-        key: &str,
-    ) -> Option<(Secret, chrono::DateTime<Utc>)> {
+    pub(super) async fn get_with_expiry(&self, key: &str) -> Option<(Secret, Timestamp)> {
         let mut entries = self.entries.write().await;
         if let Some(cached) = entries.get_mut(key) {
-            if cached.expires_at > Utc::now() {
-                cached.last_accessed = Utc::now();
+            if cached.expires_at > Timestamp::now() {
+                cached.last_accessed = Timestamp::now();
                 return Some((Secret::new((*cached.value).clone()), cached.expires_at));
             }
         }
@@ -83,7 +80,7 @@ impl SecretCache {
     ///
     /// The secret is wrapped in [`Zeroizing`] on insertion so the bytes are
     /// overwritten when the entry is evicted or the cache is dropped.
-    pub(super) async fn set(&self, key: String, secret: Secret, expires_at: chrono::DateTime<Utc>) {
+    pub(super) async fn set(&self, key: String, secret: Secret, expires_at: Timestamp) {
         let mut entries = self.entries.write().await;
 
         // LRU eviction: if at capacity, remove the least-recently-accessed 10% of entries.
@@ -97,7 +94,7 @@ impl SecretCache {
             }
         }
 
-        let now = Utc::now();
+        let now = Timestamp::now();
         entries.insert(
             key,
             CachedSecret {

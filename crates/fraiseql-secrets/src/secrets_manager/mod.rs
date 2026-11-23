@@ -7,8 +7,8 @@
 
 use std::{fmt, path::PathBuf, sync::Arc, time::Duration};
 
-use chrono::{DateTime, Utc};
 use fraiseql_guard::deployment::Deployment;
+use fraiseql_time::{Timestamp, jiff::SignedDuration};
 use tracing::{info, warn};
 use zeroize::Zeroizing;
 
@@ -248,7 +248,7 @@ impl SecretsManager {
     pub async fn get_secret_with_expiry(
         &self,
         name: &str,
-    ) -> Result<(Secret, DateTime<Utc>), SecretsError> {
+    ) -> Result<(Secret, Timestamp), SecretsError> {
         self.backend.get_secret_with_expiry(name).await
     }
 
@@ -327,12 +327,12 @@ impl LeaseRenewalTask {
         for key in &self.tracked_keys {
             match self.manager.get_secret_with_expiry(key).await {
                 Ok((_, expiry)) => {
-                    let remaining = expiry - Utc::now();
+                    let remaining = expiry - Timestamp::now();
                     // Refresh if less than one full check interval remains,
                     // ensuring renewal completes before the next poll would be too late.
                     #[allow(clippy::cast_possible_wrap)]
                     // Reason: check_interval is always small (seconds), never exceeds i64::MAX
-                    if remaining < chrono::Duration::seconds(self.check_interval.as_secs() as i64) {
+                    if remaining < SignedDuration::from_secs(self.check_interval.as_secs() as i64) {
                         match self.manager.rotate_secret(key).await {
                             Ok(_) => info!(key = %key, "Lease renewed"),
                             Err(e) => warn!(key = %key, error = %e, "Lease renewal failed"),

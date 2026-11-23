@@ -18,6 +18,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql-secrets` carries instants as `fraiseql_time::Timestamp` (#2026).** The
+  expiry `SecretsBackend::get_secret_with_expiry` returns, `KeyVersionMetadata::issued_at`
+  and `expires_at`, and `RotationMetrics::last_rotation` and
+  `CredentialRotationManager::last_rotation_time` are `fraiseql_time::Timestamp`.
+  `KeyVersionMetadata::time_until_expiry` and
+  `CredentialRotationManager::time_since_last_rotation` return a
+  `jiff::SignedDuration`. A backend implemented outside the crate returns a `Timestamp`.
+  None of these is serialized, so no stored or served text changes.
+
 - **`fraiseql_storage::chrono` is removed, and `fraiseql-storage` no longer depends on
   chrono (#2026).** The crate's public API names no chrono type any more. A caller that
   reached chrono through it depends on `chrono` directly.
@@ -1539,6 +1548,16 @@ disagreed, and the promise was the part that was wrong.
   did.
 
 ### Fixed
+
+- **A Vault lease too long for the calendar no longer fails the secret read (#2026).** A
+  `lease_duration` reaching past the year 9999, up to the largest a response can carry,
+  now expires at the last instant a time holds, so the secret never expires within the
+  calendar, which is what such a lease asked for. Before, a lease past about 262,000
+  years ended the task reading the secret instead of returning it. The cache
+  holds such a lease for 80% of it, also past the calendar. A lease of `0` or below still
+  expires at or before the read and is not cached. A key-rotation TTL in days
+  (`KeyVersionMetadata::new`, `RotationConfig::with_ttl_days`) past the calendar is
+  held the same way.
 
 - **The install docs say which release archive serves (#1875).** Only
   `fraiseql-full-<target>` can serve: it holds `fraiseql-server` and a `fraiseql` with

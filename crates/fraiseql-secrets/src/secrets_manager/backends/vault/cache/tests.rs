@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use chrono::Duration;
+use fraiseql_time::jiff::SignedDuration;
 
 use super::*;
 use crate::secrets_manager::Secret;
@@ -8,7 +8,7 @@ use crate::secrets_manager::Secret;
 #[tokio::test]
 async fn test_cache_set_and_get() {
     let cache = SecretCache::new(10);
-    let expiry = Utc::now() + Duration::hours(1);
+    let expiry = Timestamp::now() + SignedDuration::from_hours(1);
     cache
         .set("db-creds".to_string(), Secret::new("password123".to_string()), expiry)
         .await;
@@ -30,7 +30,7 @@ async fn test_cache_returns_none_for_missing_key() {
 async fn test_cache_returns_none_for_expired_entry() {
     let cache = SecretCache::new(10);
     // Set entry that expires in the past
-    let expired = Utc::now() - Duration::seconds(1);
+    let expired = Timestamp::now() - SignedDuration::from_secs(1);
     cache
         .set("expired-key".to_string(), Secret::new("stale".to_string()), expired)
         .await;
@@ -42,7 +42,7 @@ async fn test_cache_returns_none_for_expired_entry() {
 #[tokio::test]
 async fn test_cache_invalidate_removes_entry() {
     let cache = SecretCache::new(10);
-    let expiry = Utc::now() + Duration::hours(1);
+    let expiry = Timestamp::now() + SignedDuration::from_hours(1);
     cache
         .set("to-remove".to_string(), Secret::new("secret".to_string()), expiry)
         .await;
@@ -57,7 +57,7 @@ async fn test_cache_invalidate_removes_entry() {
 async fn test_cache_lru_eviction_at_capacity() {
     // Create a cache with max 5 entries
     let cache = SecretCache::new(5);
-    let expiry = Utc::now() + Duration::hours(1);
+    let expiry = Timestamp::now() + SignedDuration::from_hours(1);
 
     // Fill to capacity
     for i in 0..5 {
@@ -77,7 +77,7 @@ async fn test_cache_lru_eviction_at_capacity() {
 #[tokio::test]
 async fn test_cache_overwrite_existing_key() {
     let cache = SecretCache::new(10);
-    let expiry = Utc::now() + Duration::hours(1);
+    let expiry = Timestamp::now() + SignedDuration::from_hours(1);
     cache.set("key".to_string(), Secret::new("old-value".to_string()), expiry).await;
     cache.set("key".to_string(), Secret::new("new-value".to_string()), expiry).await;
 

@@ -1,6 +1,6 @@
 //! Backend for reading secrets from environment variables
 
-use chrono::{Duration, Utc};
+use fraiseql_time::{Timestamp, jiff::SignedDuration};
 
 use super::super::{Secret, SecretsBackend, SecretsError};
 
@@ -49,11 +49,11 @@ impl SecretsBackend for EnvBackend {
     async fn get_secret_with_expiry(
         &self,
         name: &str,
-    ) -> Result<(Secret, chrono::DateTime<Utc>), SecretsError> {
+    ) -> Result<(Secret, Timestamp), SecretsError> {
         let secret = self.get_secret(name).await?;
         // Environment variables don't expire, but we need to return an expiry
         // Use a long TTL (1 year) for env vars
-        let expiry = Utc::now() + Duration::days(365);
+        let expiry = Timestamp::now() + SignedDuration::from_hours(365 * 24);
         Ok((secret, expiry))
     }
 

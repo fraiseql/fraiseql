@@ -1,8 +1,8 @@
 use std::{sync::Arc, time::Duration};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use chrono::Utc;
 use dashmap::DashMap;
+use fraiseql_time::{Timestamp, jiff::SignedDuration};
 use tokio::sync::{Mutex, RwLock};
 use zeroize::Zeroizing;
 
@@ -150,7 +150,7 @@ pub struct VaultBackend {
 struct TokenState {
     token:       Zeroizing<String>,
     /// When the current token was obtained. `None` for static long-lived tokens.
-    obtained_at: Option<chrono::DateTime<Utc>>,
+    obtained_at: Option<Timestamp>,
     /// Token TTL as reported by Vault at login time (seconds).
     /// `None` for static long-lived tokens.
     ttl_secs:    Option<i64>,
@@ -220,7 +220,7 @@ impl SecretsBackend for VaultBackend {
     async fn get_secret_with_expiry(
         &self,
         name: &str,
-    ) -> Result<(Secret, chrono::DateTime<Utc>), SecretsError> {
+    ) -> Result<(Secret, Timestamp), SecretsError> {
         validate_vault_secret_name(name)?;
 
         // Check cache first (outside the rotation lock for hot-path performance).
@@ -356,7 +356,7 @@ impl VaultBackend {
             .to_string();
 
         let token_ttl_secs = response["auth"]["lease_duration"].as_i64();
-        let token_obtained_at = Some(Utc::now());
+        let token_obtained_at = Some(Timestamp::now());
 
         let backend = Self::new(addr, token.as_str())?;
         {
@@ -435,7 +435,7 @@ impl VaultBackend {
             .to_string();
 
         let token_ttl_secs = response["auth"]["lease_duration"].as_i64();
-        let token_obtained_at = Some(chrono::Utc::now());
+        let token_obtained_at = Some(Timestamp::now());
 
         let client_new = build_http_client(false)?;
         Ok(VaultBackend {
@@ -519,7 +519,7 @@ impl VaultBackend {
     async fn fetch_and_cache_locked(
         &self,
         name: &str,
-    ) -> Result<(Secret, chrono::DateTime<Utc>), SecretsError> {
+    ) -> Result<(Secret, Timestamp), SecretsError> {
         // Re-check the cache under the lock — rotation may have populated it while we
         // were waiting (double-checked locking).
         let cache = self.cache.read().await;
@@ -532,13 +532,13 @@ impl VaultBackend {
         let response = self.fetch_secret(name).await?;
 
         // Calculate expiry: now + lease_duration
-        let expiry = Utc::now() + chrono::Duration::seconds(response.lease_duration);
+        let expiry = seconds_from_now(response.lease_duration);
         // Scale lease_duration by CACHE_TTL_PERCENTAGE (0.8) using integer arithmetic.
         #[allow(clippy::cast_possible_truncation)]
         // Reason: CACHE_TTL_PERCENTAGE * 100.0 is 80.0, fits in i64
         let cache_ttl_secs =
             response.lease_duration.saturating_mul((CACHE_TTL_PERCENTAGE * 100.0) as i64) / 100;
-        let cache_expiry = Utc::now() + chrono::Duration::seconds(cache_ttl_secs);
+        let cache_expiry = seconds_from_now(cache_ttl_secs);
 
         // Extract secret from response data
         let secret = Secret::new(Self::extract_secret_from_response(&response, name)?);
@@ -572,7 +572,7 @@ impl VaultBackend {
         };
         drop(state);
 
-        let elapsed_secs = (Utc::now() - obtained_at).num_seconds();
+        let elapsed_secs = (Timestamp::now() - obtained_at).as_secs();
         // Use integer arithmetic to avoid f64 precision loss for large TTL values.
         #[allow(clippy::cast_possible_truncation)]
         // Reason: TOKEN_RENEWAL_THRESHOLD * 100.0 is 80.0, fits in i64
@@ -638,7 +638,7 @@ impl VaultBackend {
 
         let mut state = self.token_state.write().expect("vault token lock poisoned");
         state.token = Zeroizing::new(new_token.to_string());
-        state.obtained_at = Some(Utc::now());
+        state.obtained_at = Some(Timestamp::now());
         if let Some(ttl) = response["auth"]["lease_duration"].as_i64() {
             state.ttl_secs = Some(ttl);
         }
@@ -944,3 +944,22 @@ impl VaultBackend {
             .ok_or_else(|| SecretsError::EncryptionError("Failed to decode plaintext".to_string()))
     }
 }
+
+/// The instant `seconds` from now, a Vault lease being any `i64`: one past the last
+/// instant a [`Timestamp`] holds is that last instant (it never expires within the
+/// calendar), and one before the first is the first.
+fn seconds_from_now(seconds: i64) -> Timestamp {
+    let lease = SignedDuration::from_secs(seconds);
+    Timestamp::now().checked_add(lease).unwrap_or_else(|| {
+        let bound = if seconds < 0 {
+            fraiseql_time::jiff::Timestamp::MIN
+        } else {
+            fraiseql_time::jiff::Timestamp::MAX
+        };
+        Timestamp::from(bound)
+    })
+}
+
+#[cfg(test)]
+#[path = "lease_tests.rs"]
+mod lease_tests;

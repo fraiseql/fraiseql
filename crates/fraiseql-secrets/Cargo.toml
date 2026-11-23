@@ -24,6 +24,7 @@ aes-gcm = { version = "0.10", features = ["zeroize"] }
 async-trait = "0.1"
 base64 = "0.22"
 chrono = { workspace = true }
+fraiseql-time = { workspace = true }
 dashmap = { workspace = true }
 fraiseql-core = { workspace = true }
 rand = "0.9"

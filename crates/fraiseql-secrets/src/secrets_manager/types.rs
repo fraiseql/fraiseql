@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 use zeroize::Zeroize;
 
 use super::SecretsError;
@@ -40,10 +40,8 @@ pub trait SecretsBackend: Send + Sync {
     ///
     /// # Returns
     /// Tuple of (`secret_value`, `expiry_datetime`)
-    async fn get_secret_with_expiry(
-        &self,
-        name: &str,
-    ) -> Result<(Secret, DateTime<Utc>), SecretsError>;
+    async fn get_secret_with_expiry(&self, name: &str)
+    -> Result<(Secret, Timestamp), SecretsError>;
 
     /// Rotate secret to new value
     ///

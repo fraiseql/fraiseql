@@ -5,8 +5,6 @@ use std::{
     time::Duration,
 };
 
-use chrono::Utc;
-
 use super::*;
 
 // ---------------------------------------------------------------------------
@@ -17,7 +15,7 @@ use super::*;
 /// Rotation calls are counted so tests can assert how many renewals occurred.
 struct MockBackend {
     secret:       String,
-    expiry:       DateTime<Utc>,
+    expiry:       Timestamp,
     rotate_count: Arc<AtomicUsize>,
 }
 
@@ -38,7 +36,7 @@ impl SecretsBackend for MockBackend {
     async fn get_secret_with_expiry(
         &self,
         _name: &str,
-    ) -> Result<(Secret, DateTime<Utc>), SecretsError> {
+    ) -> Result<(Secret, Timestamp), SecretsError> {
         Ok((Secret::new(self.secret.clone()), self.expiry))
     }
 
@@ -58,7 +56,7 @@ async fn test_lease_renewal_task_cancels_cleanly() {
     let backend = MockBackend {
         secret:       "s3cret".to_string(),
         // Expiry far in the future — no renewal needed.
-        expiry:       Utc::now() + chrono::Duration::hours(1),
+        expiry:       Timestamp::now() + SignedDuration::from_hours(1),
         rotate_count: Arc::clone(&rotate_count),
     };
     let manager = Arc::new(SecretsManager::new(Arc::new(backend)));
@@ -84,8 +82,8 @@ async fn test_lease_renewal_triggers_rotate_when_expiry_near() {
         // Already-expired credential: remaining is negative, which is always
         // less than the check_interval threshold, so renewal fires on every tick.
         // This works with any sub-second check_interval (where as_secs() == 0)
-        // because negative < zero is true for chrono::Duration.
-        expiry:       Utc::now() - chrono::Duration::seconds(1),
+        // because negative < zero is true for a SignedDuration.
+        expiry:       Timestamp::now() - SignedDuration::from_secs(1),
         rotate_count: Arc::clone(&rotate_count),
     };
     let manager = Arc::new(SecretsManager::new(Arc::new(backend)));
@@ -133,7 +131,7 @@ async fn test_lease_renewal_skips_non_expiring_keys() {
     let backend = MockBackend {
         secret:       "s3cret".to_string(),
         // Expiry 1 hour away — much longer than the check interval (50 ms).
-        expiry:       Utc::now() + chrono::Duration::hours(1),
+        expiry:       Timestamp::now() + SignedDuration::from_hours(1),
         rotate_count: Arc::clone(&rotate_count),
     };
     let manager = Arc::new(SecretsManager::new(Arc::new(backend)));

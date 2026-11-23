@@ -4159,6 +4159,7 @@ dependencies = [
  "dashmap",
  "fraiseql-core",
  "fraiseql-guard",
+ "fraiseql-time",
  "mutants",
  "proptest",
  "rand 0.9.4",
