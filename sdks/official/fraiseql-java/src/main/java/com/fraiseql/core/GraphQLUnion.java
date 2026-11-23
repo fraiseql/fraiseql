@@ -6,13 +6,17 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks a class as a GraphQL union type.
- * Union types can be one of several specified types.
- * The union class itself is abstract and cannot be instantiated.
+ * Marks a class as a GraphQL union type: a value that is one of several object types.
+ * The class only carries the annotation; it is never instantiated.
+ *
+ * <p>The annotation is read when the class is registered with
+ * {@link FraiseQL#registerUnion(Class)}, as {@code @GraphQLType} is read by
+ * {@link FraiseQL#registerType(Class)}. Each member must be a {@code @GraphQLType} class, and
+ * is named in the union by its GraphQL type name.
  *
  * <p>Usage:
  * <pre>
- * &#64;GraphQLUnion(members = {User.class, Bot.class, Guest.class})
+ * &#64;GraphQLUnion(members = {User.class, Bot.class}, description = "Who acted")
  * public abstract class Actor {
  * }
  *
@@ -20,25 +24,20 @@ import java.lang.annotation.Target;
  * public class User {
  *     &#64;GraphQLField
  *     public String id;
- *
- *     &#64;GraphQLField
- *     public String name;
  * }
  *
  * &#64;GraphQLType
  * public class Bot {
  *     &#64;GraphQLField
  *     public String id;
- *
- *     &#64;GraphQLField
- *     public String name;
  * }
+ *
+ * FraiseQL.registerTypes(User.class, Bot.class);
+ * FraiseQL.registerUnion(Actor.class);
  * </pre>
  *
- * <p>Or with builder:
- * <pre>
- * FraiseQL.union("SearchResult", new String[]{"User", "Post", "Comment"});
- * </pre>
+ * <p>A union whose members are known only by name is registered with
+ * {@code FraiseQL.getRegistry().registerUnion("Actor", List.of("User", "Bot"), "Who acted")}.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)

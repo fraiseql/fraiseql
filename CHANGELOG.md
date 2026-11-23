@@ -1778,6 +1778,13 @@ disagreed, and the promise was the part that was wrong.
   schema that still holds a path in another spelling is refused at load: recompile it
   with this release's CLI.
 
+- **The Java SDK reads `@GraphQLUnion` (#2414).** The annotation was never read, and its
+  javadoc named a `FraiseQL.union(...)` builder that does not exist, so an annotated union
+  never reached `schema.json`. `FraiseQL.registerUnion(Actor.class)` now registers it, as
+  `FraiseQL.registerType` reads `@GraphQLType`: named by the annotation or the class, its
+  members named by their `@GraphQLType` names, with its description. A class without the
+  annotation, an empty `members`, and a member that is not a `@GraphQLType` are refused.
+
 - **The Java SDK exports the unions it registers (#2410).** A union registered with
   `SchemaRegistry.registerUnion` reached no key of `schema.json`, so the compiled schema
   did not have it. `schema.json` and the

@@ -69,8 +69,7 @@ public class ConformanceExport {
         FraiseQL.registerType(ConformanceShiftSlot.class);
         FraiseQL.registerType(ConformancePriceQuote.class);
 
-        FraiseQL.getRegistry().registerUnion(
-            "ActivityItem", List.of("User", "Order"), "A user or an order on the activity feed.");
+        FraiseQL.registerUnion(ConformanceActivityItem.class);
         FraiseQL.getRegistry().registerEnum("OrderStatus", enumValues(), "");
         Map<String, Object> priority = new LinkedHashMap<>();
         priority.put("LOW", 1);
@@ -489,6 +488,11 @@ public class ConformanceExport {
 
         @GraphQLField
         public List<List<@Nullable Double>> grid;
+    }
+
+    @GraphQLUnion(name = "ActivityItem", members = {ConformanceUser.class, ConformanceOrder.class},
+        description = "A user or an order on the activity feed.")
+    public abstract static class ConformanceActivityItem {
     }
 
     @GraphQLType(name = "Document", sqlSource = "v_document")

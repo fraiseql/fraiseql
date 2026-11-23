@@ -65,6 +65,43 @@ public class FraiseQL {
     }
 
     /**
+     * Register a GraphQL union from a class annotated with {@code @GraphQLUnion}.
+     *
+     * <p>The union is named by the annotation's {@code name}, or the class's simple name. Each
+     * member is named as {@link #registerType(Class)} names it: its {@code @GraphQLType} name,
+     * or its simple name. Register the members as types too.
+     *
+     * @param unionClass the class annotated with {@code @GraphQLUnion}
+     * @throws IllegalArgumentException if the class is not annotated with {@code @GraphQLUnion},
+     *     its {@code members} is empty, or a member is not annotated with {@code @GraphQLType};
+     *     nothing is registered then
+     */
+    public static void registerUnion(Class<?> unionClass) {
+        GraphQLUnion annotation = unionClass.getAnnotation(GraphQLUnion.class);
+        if (annotation == null) {
+            throw new IllegalArgumentException(
+                "class " + unionClass.getName() + " is not annotated with @GraphQLUnion");
+        }
+        String unionName =
+            annotation.name().isEmpty() ? unionClass.getSimpleName() : annotation.name();
+        if (annotation.members().length == 0) {
+            throw new IllegalArgumentException("Union " + unionName
+                + ": @GraphQLUnion(members) is empty; a union needs a member");
+        }
+        List<String> members = new ArrayList<>();
+        for (Class<?> member : annotation.members()) {
+            GraphQLType type = member.getAnnotation(GraphQLType.class);
+            if (type == null) {
+                throw new IllegalArgumentException("Union " + unionName + ": member "
+                    + member.getName()
+                    + " is not annotated with @GraphQLType; a union's members are object types");
+            }
+            members.add(type.name().isEmpty() ? member.getSimpleName() : type.name());
+        }
+        registry.registerUnion(unionName, members, annotation.description());
+    }
+
+    /**
      * Create a query builder.
      *
      * @param queryName the query name

@@ -157,6 +157,17 @@ public class User { ... }
 public int id;
 ```
 
+**@GraphQLUnion**: Marks a class as a GraphQL union of `@GraphQLType` classes, read by
+`FraiseQL.registerUnion`
+
+```java
+@GraphQLUnion(members = {User.class, Bot.class}, description = "Who acted")
+public abstract class Actor { }
+
+FraiseQL.registerTypes(User.class, Bot.class);
+FraiseQL.registerUnion(Actor.class);
+```
+
 ## Features
 
 - **Type-Safe**: Java types map directly to GraphQL types
