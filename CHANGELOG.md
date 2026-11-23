@@ -1576,6 +1576,19 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A fragment at the root of an operation is served as the fields it selects (#2349).**
+  `{ ... on Query { users { id } } }`, `{ ... { users { id } } }` and
+  `{ ...Q } fragment Q on Query { users { id } }` were refused, `Query '...Q' not found in
+  schema`, when the fragment was the document's only root selection; beside a field root,
+  an untyped inline fragment failed to parse. GraphQL allows a fragment at the root
+  (§ 5.5) and expands it before execution (§ 6.3.2): each is now served as the document
+  with the fragment written out, through every entry, including aggregate roots,
+  `__typename`, and `node`, which keeps the rule that it selects only `Node`'s fields
+  outside a fragment on a type. `@skip` and `@include` on the fragment decide its fields
+  per request. A fragment at the root typed other than the operation's root type, a
+  spread of an undefined fragment, and a cycle of spreads are refused as validation
+  errors naming the fragment.
+
 - **A Vault secret read from the cache reports its lease's expiry (#2348).** The cache
   serves a secret until 80% of its lease has run, and a read it served reported that
   point as the expiry, while the read that fetched the secret reported the lease's own.

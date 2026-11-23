@@ -442,6 +442,10 @@ name = "aggregate_linked_grain_pg"
 required-features = ["postgres"]
 
 [[test]]
+name = "root_fragment_pg"
+required-features = ["postgres"]
+
+[[test]]
 name = "session_variables_integration"
 required-features = ["postgres"]
 

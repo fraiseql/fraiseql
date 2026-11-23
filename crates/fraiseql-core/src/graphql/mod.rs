@@ -93,6 +93,8 @@ pub mod fragments;
 /// The shared selection-resolution routine used by every entry point.
 pub mod selection_set;
 
+mod root_fragments;
+
 /// Field-existence validation for a resolved selection set (GraphQL § 5.3.1).
 pub mod selection_validation;
 

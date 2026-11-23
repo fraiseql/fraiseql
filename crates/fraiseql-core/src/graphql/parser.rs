@@ -37,6 +37,11 @@ pub enum GraphQLParseError {
     /// Selection set has no fields.
     #[error("No fields in selection set")]
     EmptySelection,
+
+    /// A fragment at the root of the operation that cannot be expanded there: typed other
+    /// than the operation's root type, not defined, or spreading itself.
+    #[error("{0}")]
+    RootFragment(String),
 }
 
 impl GraphQLParseError {
@@ -156,9 +161,15 @@ pub fn parse_selected_operation(
     doc: &Document,
     source: &str,
 ) -> Result<ParsedQuery, GraphQLParseError> {
+    // A fragment at the root stands for the fields it selects (§ 6.3.2): every later stage
+    // reads the root by its fields' names, so it meets them, not the spread.
+    let selections = super::root_fragments::expand(
+        &operation.selections,
+        &doc.fragments,
+        operation.kind.as_str(),
+    )?;
     // Get root field name (first field in selection set)
-    let root_field = operation
-        .selections
+    let root_field = selections
         .first()
         .map(|s| s.name.clone())
         .ok_or(GraphQLParseError::EmptySelection)?;
@@ -167,7 +178,7 @@ pub fn parse_selected_operation(
         operation_type: operation.kind.as_str().to_string(),
         operation_name: operation.name.clone(),
         root_field,
-        selections: operation.selections.clone(),
+        selections,
         variables: operation.variables.clone(),
         // Fragments are document-scoped, not operation-scoped: an operation may
         // spread any fragment the document defines, so the whole set travels with
@@ -188,7 +199,13 @@ pub fn parse_selected_operation(
 /// *validation* error: the syntax is fine, the request is wrong.
 #[must_use]
 pub fn operation_selection_error(e: &GraphQLParseError) -> crate::error::FraiseQLError {
-    if e.is_operation_selection() {
+    if let GraphQLParseError::RootFragment(message) = e {
+        // The document parses: it selects what its root cannot hold (§ 5.5.2.3).
+        crate::error::FraiseQLError::Validation {
+            message: message.clone(),
+            path:    None,
+        }
+    } else if e.is_operation_selection() {
         crate::error::FraiseQLError::Validation {
             message: e.to_string(),
             path:    Some("operationName".to_string()),
