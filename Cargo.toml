@@ -79,7 +79,6 @@ base64 = "0.22"
 bytes = "1.0"
 # Time
 chrono = { version = "0.4", features = ["serde"] }
-chrono-tz = "0.10"
 # Time zone data is compiled in, so a binary reads the same zones on every host.
 jiff = { version = "0.2.37", default-features = false, features = [
   "std",

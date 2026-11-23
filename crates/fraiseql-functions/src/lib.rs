@@ -20,10 +20,6 @@ pub mod types;
 
 /// The `bytes` this crate's public API is built against (#1198).
 pub use bytes;
-/// The `chrono` this crate's public API is built against (#1198).
-pub use chrono;
-/// The `chrono-tz` this crate's public API is built against.
-pub use chrono_tz;
 pub use host::{HostContext, NoopHostContext};
 pub use observer::FunctionObserver;
 pub use outbound::{

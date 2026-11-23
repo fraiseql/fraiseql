@@ -4,8 +4,6 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 #![allow(unused_imports)] // Reason: used in test functions that may not be compiled in some configurations
 
-use chrono::Utc;
-
 use crate::{EventPayload, FunctionModule, FunctionRuntime, ResourceLimits, RuntimeType};
 
 /// Helper to create a test event payload

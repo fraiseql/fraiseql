@@ -18,6 +18,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql_functions::chrono` and `fraiseql_functions::chrono_tz` are removed, and
+  `fraiseql-functions` no longer depends on chrono or chrono-tz (#2026).** The crate's
+  public API names no chrono type any more. A caller that reached chrono or chrono-tz
+  through it depends on them directly. chrono-tz leaves the dependency graph, and with
+  it the acceptance of RUSTSEC-2026-0555.
+
 - **`fraiseql-functions`' cron types read time through `fraiseql_time` and jiff, not
   chrono and chrono-tz (#2026).** `CronSchedule::matches` takes a
   `jiff::civil::DateTime` (the wall clock to test), `Schedule::tz` is a
@@ -568,8 +574,7 @@ disagreed, and the promise was the part that was wrong.
   `EntityEvent::timestamp`, and the received time of an inbound message
   (`InboundMessage::received_at`, `RawDelivery::received_at`, the argument of
   `InboundMessage::new` and `normalize_email`). Their serde forms and stored values are
-  unchanged. The cron trigger's times move in their own entry, and
-  `fraiseql_functions::chrono` stays for now.
+  unchanged. The cron trigger's times move in their own entry.
 - **`fraiseql_saga::chrono` is removed (#2026).** The crate's public API names no chrono
   type any more. A caller that reached chrono through it depends on `chrono` directly.
 - **`fraiseql_storage::ObjectInfo::last_modified` is `Option<chrono::DateTime<Utc>>` (#2112).**

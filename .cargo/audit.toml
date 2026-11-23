@@ -37,12 +37,9 @@ ignore = [
   # nothing enables (feature-off:seekable). Fix needs zstd 0.14, blocked by parquet 59 (#1747).
   # deadline: 2027-01-31 — matches deny.toml.
   "RUSTSEC-2026-0398",
-  # chrono / chrono-tz: unmaintained (maintenance advisories, no vulnerability); move to
-  # jiff is #2026.
+  # chrono: unmaintained (maintenance advisory, no vulnerability); move to jiff is #2026.
   # deadline: 2027-05-17 — matches deny.toml.
   "RUSTSEC-2026-0543",
-  # deadline: 2027-05-17 — matches deny.toml.
-  "RUSTSEC-2026-0555",
 ]
 # Surface unsound + unmaintained advisories as warnings so new soundness issues are visible
 # in `cargo audit` output.
