@@ -2257,6 +2257,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **parquet and arrow 59.3.3 (RUSTSEC-2026-0595) (#2401).** The lock moves parquet and the
+  arrow 59 crates from 59.1.0 to 59.3.3, lz4_flex from 0.13.1 to 0.14.2, and adds num-bigint
+  0.5 beside the 0.4 jsonwebtoken uses (a `deny.toml` skip names it). The minimum Rust
+  version stays 1.95.0. parquet is built through `fraiseql-arrow`.
+
 - **wasmtime and wasmtime-wasi 48.0.10 (RUSTSEC-2026-0587) (#2211).** The lock moves
   wasmtime, wasmtime-wasi and their internal crates (pulley, wiggle) from 48.0.9 to 48.0.10,
   and cranelift from 0.135.9 to 0.135.10. Nothing else in the lock moves and the minimum Rust

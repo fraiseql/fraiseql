@@ -105,6 +105,11 @@ reason = "samael (#381 auth-saml) → derive_builder 0.20 → darling_macro 0.20
 version = "^0.20"
 
 [[bans.skip]]
+name = "num-bigint"
+reason = "jsonwebtoken 10 → simple_asn1 0.6 → num-bigint 0.4; arrow-buffer 59.3 is on 0.5"
+version = "^0.4"
+
+[[bans.skip]]
 name = "nom"
 reason = "samael (#381 auth-saml) → bindgen → nom 7; workspace on nom 8"
 version = "^7"
