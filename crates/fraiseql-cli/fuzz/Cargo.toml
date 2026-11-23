@@ -1,0 +1,30 @@
+[package]
+edition = "2021"
+name = "fraiseql-cli-fuzz"
+publish = false
+version = "2.19.1"
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+members = ["."]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.fraiseql-cli]
+path = ".."
+
+[dependencies.fraiseql-core]
+path = "../../fraiseql-core"
+
+[[bin]]
+doc = false
+name = "authoring_ir"
+path = "fuzz_targets/authoring_ir.rs"
+
+[[bin]]
+doc = false
+name = "cli_toml"
+path = "fuzz_targets/cli_toml.rs"

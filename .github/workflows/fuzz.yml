@@ -99,6 +99,8 @@ jobs:
           - { crate: fraiseql-server,     target: ws_client_message }
           - { crate: fraiseql-server,     target: scim_filter }
           - { crate: fraiseql-functions,  target: inbound_email }
+          - { crate: fraiseql-cli,        target: authoring_ir }
+          - { crate: fraiseql-cli,        target: cli_toml }
           # Lives in fraiseql-server, not fraiseql-core: `5a4a8f86b` (#909) deleted
           # fraiseql_core::config::FraiseQLConfig — the TOML tree nothing read — and its
           # fuzz target with it, while the target fuzzing the config loader that IS live

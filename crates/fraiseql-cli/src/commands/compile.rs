@@ -1002,28 +1002,7 @@ pub async fn run(
 
     // Write compiled schema
     info!("Writing compiled schema to: {output}");
-    // One routine assembles the file — schema plus every sibling section — so the
-    // `_content_hash` below covers all of it (#899/#1325).
-    let value = artifact.to_json_value()?;
-
-    let output_json = if skip_hash {
-        serde_json::to_string_pretty(&value).context("Failed to serialize compiled schema")?
-    } else {
-        // One routine, shared with the `from_json` verifier, so writer and reader
-        // cannot drift (#899).
-        let hash_hex = content_hash_of(&value);
-
-        let obj = value.as_object().context("schema must serialise as JSON object")?;
-
-        // Insert _content_hash as the first field (serde_json::Map preserves insertion order)
-        let mut new_obj = serde_json::Map::new();
-        new_obj.insert("_content_hash".to_string(), serde_json::Value::String(hash_hex));
-        for (k, v) in obj {
-            new_obj.insert(k.clone(), v.clone());
-        }
-        serde_json::to_string_pretty(&serde_json::Value::Object(new_obj))?
-    };
-
+    let output_json = render_artifact(&artifact, skip_hash)?;
     fs::write(output, output_json).context("Failed to write compiled schema")?;
 
     // Success message
@@ -1047,6 +1026,57 @@ pub async fn run(
     }
 
     Ok(())
+}
+
+/// The text of `schema.compiled.json` for `artifact`, as `compile` writes it.
+///
+/// One routine assembles the file — schema plus every sibling section — so the
+/// `_content_hash` covers all of it (#899/#1325). The hash comes from the routine the
+/// `from_json` verifier uses, so writer and reader cannot drift (#899), and is the first
+/// field (`serde_json::Map` preserves insertion order).
+///
+/// # Errors
+///
+/// Returns an error if the artifact does not serialize to a JSON object.
+fn render_artifact(artifact: &CompiledArtifact, skip_hash: bool) -> Result<String> {
+    let value = artifact.to_json_value()?;
+    if skip_hash {
+        return serde_json::to_string_pretty(&value).context("Failed to serialize compiled schema");
+    }
+    let hash_hex = content_hash_of(&value);
+    let obj = value.as_object().context("schema must serialise as JSON object")?;
+    let mut new_obj = serde_json::Map::new();
+    new_obj.insert("_content_hash".to_string(), serde_json::Value::String(hash_hex));
+    for (k, v) in obj {
+        new_obj.insert(k.clone(), v.clone());
+    }
+    Ok(serde_json::to_string_pretty(&serde_json::Value::Object(new_obj))?)
+}
+
+/// Compile the schema at `input` as `fraiseql compile` does, with no database, and return
+/// the `schema.compiled.json` it would write.
+///
+/// The compile pipeline's entry for its fuzz targets; it exists only in a fuzzing build.
+///
+/// # Errors
+///
+/// Whatever `fraiseql compile` refuses the input with.
+#[cfg(fuzzing)]
+pub fn compile_for_fuzzing(input: &str) -> Result<String> {
+    static RUNTIME: std::sync::OnceLock<tokio::runtime::Runtime> = std::sync::OnceLock::new();
+    let runtime = if let Some(runtime) = RUNTIME.get() {
+        runtime
+    } else {
+        let built = tokio::runtime::Builder::new_current_thread().build()?;
+        RUNTIME.get_or_init(|| built)
+    };
+    let config = ConfigSource::resolve(Path::new(input), None)?;
+    let opts = CompileOptions {
+        config: Some(config),
+        ..CompileOptions::new(input)
+    };
+    let (artifact, _) = runtime.block_on(compile_to_schema(opts))?;
+    render_artifact(&artifact, false)
 }
 
 /// The expression indexes a filter or sort on a localized field reads (#1513), as printed.

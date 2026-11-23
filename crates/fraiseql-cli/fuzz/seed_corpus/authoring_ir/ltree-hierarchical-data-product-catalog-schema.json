@@ -1,0 +1,164 @@
+{
+  "types": [
+    {
+      "name": "Product",
+      "sql_source": "v_product",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "price",
+          "type": "Decimal",
+          "nullable": false
+        },
+        {
+          "name": "categoryPath",
+          "type": "LTree",
+          "nullable": false
+        },
+        {
+          "name": "sku",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "inStock",
+          "type": "Boolean",
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "nullable": false
+        }
+      ],
+      "description": "A product, placed in the category tree by `category_path`."
+    }
+  ],
+  "enums": [],
+  "input_types": [
+    {
+      "name": "CategoryPathFilter",
+      "fields": [
+        {
+          "name": "eq",
+          "type": "LTree",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "descendantOf",
+          "type": "LTree",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "ancestorOf",
+          "type": "LTree",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "depthEq",
+          "type": "Int",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "description": "LTREE operators over `category_path`.\n\nThese are declared rather than derived. FraiseQL does not auto-derive the\nltree operator family onto a field: a declared field type cannot say whether\nthe column behind it is really an `ltree`, and deriving a filter advertises\nan operator (#869). Declaring them is the author asserting that it is —\nsetup.sql makes `category_path` an LTREE column, and the generated SQL casts\nthe JSONB value with `::ltree` before applying the operator.\n\nThe ID-valued variants (`descendantOfId`, `ancestorOfId`) are deliberately\nabsent: they resolve a UUID to a path through a `[hierarchies.<name>]`\nsection in fraiseql.toml, which this example does not configure.\n"
+    },
+    {
+      "name": "StringFilter",
+      "fields": [
+        {
+          "name": "eq",
+          "type": "String",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "neq",
+          "type": "String",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "contains",
+          "type": "String",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "description": "Comparison operators over a text field.\n\nEvery WHERE field is `{operator: value}` — a bare `sku: \"V15-DETECT\"` is\nrefused by the parser, so an ordinary column needs a filter type too.\n"
+    },
+    {
+      "name": "ProductWhere",
+      "fields": [
+        {
+          "name": "categoryPath",
+          "type": "CategoryPathFilter",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "sku",
+          "type": "StringFilter",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "description": "Filters for the `products` query."
+    }
+  ],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "products",
+      "return_type": "Product",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "where",
+          "type": "ProductWhere",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "description": "Products, optionally filtered by position in the category tree.\n\n`{ products(where: {categoryPath: {descendantOf: \"electronics\"}}) }`\nreturns every product under Electronics, at any depth.\n",
+      "sql_source": "v_product"
+    },
+    {
+      "name": "product",
+      "return_type": "Product",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        }
+      ],
+      "description": "One product by id.",
+      "sql_source": "v_product"
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "naming_convention": "camelCase"
+}

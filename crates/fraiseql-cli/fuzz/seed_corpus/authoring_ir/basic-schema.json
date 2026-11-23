@@ -1,0 +1,130 @@
+{
+  "types": [
+    {
+      "name": "User",
+      "sql_source": "v_user",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "nullable": false
+        }
+      ],
+      "description": "A user in the system."
+    },
+    {
+      "name": "Post",
+      "sql_source": "v_post",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "content",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "authorId",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "authorName",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "authorEmail",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "nullable": false
+        }
+      ],
+      "description": "A blog post, denormalized with its author's identity."
+    }
+  ],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "users",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "description": "Get all users.",
+      "sql_source": "v_user"
+    },
+    {
+      "name": "user",
+      "return_type": "User",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        }
+      ],
+      "description": "Get a user by ID.",
+      "sql_source": "v_user"
+    },
+    {
+      "name": "posts",
+      "return_type": "Post",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "description": "Get all posts.",
+      "sql_source": "v_post"
+    },
+    {
+      "name": "post",
+      "return_type": "Post",
+      "returns_list": false,
+      "nullable": true,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        }
+      ],
+      "description": "Get a post by ID.",
+      "sql_source": "v_post"
+    }
+  ],
+  "mutations": [],
+  "subscriptions": [],
+  "naming_convention": "camelCase"
+}
