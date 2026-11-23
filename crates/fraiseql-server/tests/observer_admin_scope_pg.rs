@@ -31,7 +31,11 @@ use axum::{
     http::{Method, Request, StatusCode},
 };
 use chrono::{Duration, Utc};
-use fraiseql_core::{runtime::Executor, schema::CompiledSchema, security::AuthenticatedUser};
+use fraiseql_core::{
+    runtime::Executor,
+    schema::{CompiledSchema, FieldDefinition, FieldType, TypeDefinition},
+    security::AuthenticatedUser,
+};
 use fraiseql_server::{
     middleware::{AuthUser, TenantClaim},
     observers::{
@@ -96,12 +100,12 @@ fn auth_user(caller: Caller) -> AuthUser {
     })
 }
 
-fn admin_api(pool: &PgPool, caller: Caller) -> Router {
+fn admin_api(pool: &PgPool, caller: Caller, schema: CompiledSchema) -> Router {
     let observers = observer_routes(ObserverState {
         repository: ObserverRepository::new(pool.clone()),
         runtime:    None,
         executor:   Arc::new(ArcSwap::from_pointee(Executor::read_only(
-            CompiledSchema::new(),
+            schema,
             Arc::new(FailingAdapter::new()),
         ))),
     });
@@ -120,6 +124,18 @@ async fn call(
     uri: &str,
     body: Option<Value>,
 ) -> (StatusCode, Value) {
+    call_over(pool, caller, CompiledSchema::new(), method, uri, body).await
+}
+
+/// [`call`] with the executor over `schema`, so the checks that read entity types run.
+async fn call_over(
+    pool: &PgPool,
+    caller: Caller,
+    schema: CompiledSchema,
+    method: Method,
+    uri: &str,
+    body: Option<Value>,
+) -> (StatusCode, Value) {
     let request = Request::builder().method(method).uri(uri);
     let request = match body {
         Some(body) => request
@@ -128,7 +144,7 @@ async fn call(
             .unwrap(),
         None => request.body(Body::empty()).unwrap(),
     };
-    let response = admin_api(pool, caller).oneshot(request).await.unwrap();
+    let response = admin_api(pool, caller, schema).oneshot(request).await.unwrap();
     let status = response.status();
     let bytes = axum::body::to_bytes(response.into_body(), 1 << 20).await.unwrap();
     // A body that is not JSON (a rejected request's reason) is returned as its text.
@@ -214,6 +230,63 @@ fn stats_ids(stats: &Value) -> Vec<String> {
 
 mod another_organisations_observer {
     use super::*;
+
+    /// `Order { total }` and `Customer { email }`: a template naming `total` fills on an
+    /// `Order` and not on a `Customer`.
+    fn order_and_customer() -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        let mut order = TypeDefinition::new("Order", "v_order");
+        order.fields = vec![FieldDefinition::new("total", FieldType::Float)];
+        let mut customer = TypeDefinition::new("Customer", "v_customer");
+        customer.fields = vec![FieldDefinition::new("email", FieldType::String)];
+        schema.types = vec![order, customer];
+        schema.build_indexes();
+        schema
+    }
+
+    /// An update is checked against the stored observer it leaves; another organisation's
+    /// observer is not found before that check, so the answer is the same as for an id
+    /// naming nothing, and says nothing of what the observer holds.
+    #[tokio::test]
+    async fn is_not_found_by_an_update_its_stored_actions_would_refuse() {
+        let (pool, _svc) = setup_pg().await;
+        let (_, theirs) = insert_observer(&pool, "theirs", Some(ORG_B)).await;
+        sqlx::query("UPDATE core.tb_observer SET actions = $2 WHERE id = $1")
+            .bind(theirs)
+            .bind(json!([{"type": "webhook", "url": "https://hooks.example/x",
+                          "body_template": "{\"total\": \"{{ total }}\"}"}]))
+            .execute(&pool)
+            .await
+            .unwrap();
+        let patch = || Some(json!({"entity_type": "Customer"}));
+
+        let (status, body) = call_over(
+            &pool,
+            Caller::Org(ORG_A),
+            order_and_customer(),
+            Method::PATCH,
+            &format!("/api/observers/{theirs}"),
+            patch(),
+        )
+        .await;
+        let (operator, _) = call_over(
+            &pool,
+            Caller::Operator,
+            order_and_customer(),
+            Method::PATCH,
+            &format!("/api/observers/{theirs}"),
+            patch(),
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
+        assert!(!body.to_string().contains("total"), "names nothing it holds: {body}");
+        assert_eq!(
+            operator,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "control: the operator's same update is checked against the stored actions"
+        );
+    }
 
     #[tokio::test]
     async fn is_not_found_by_id() {

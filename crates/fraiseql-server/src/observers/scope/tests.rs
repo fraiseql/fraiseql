@@ -112,15 +112,19 @@ mod operator_surfaces {
         ("POST", "/dlq/00000000-0000-0000-0000-000000000001/retry"),
     ];
 
-    fn routes(tenant: Option<Value>) -> Router {
+    /// The operator surfaces with no principal on the request.
+    fn unauthenticated_routes() -> Router {
         let pool = PgPool::connect_lazy("postgres://test:test@localhost/test").unwrap();
         let runtime = Arc::new(RwLock::new(ObserverRuntime::new(ObserverRuntimeConfig::new(pool))));
         observer_runtime_routes(RuntimeHealthState {
             runtime: runtime.clone(),
         })
         .merge(observer_dlq_routes(DlqState { runtime }))
-        .layer(axum::Extension(AuthUser(admin(tenant))))
         .layer(axum::Extension(TenantClaim(Arc::from("tenant_id"))))
+    }
+
+    fn routes(tenant: Option<Value>) -> Router {
+        unauthenticated_routes().layer(axum::Extension(AuthUser(admin(tenant))))
     }
 
     async fn status(router: Router, method: &str, uri: &str) -> StatusCode {
@@ -149,6 +153,18 @@ mod operator_surfaces {
             assert_eq!(
                 status(routes(Some(json!("acme"))), method, uri).await,
                 StatusCode::FORBIDDEN,
+                "{method} {uri}"
+            );
+        }
+    }
+
+    /// No principal names no tenant either; it is refused, not read as the operator.
+    #[tokio::test]
+    async fn refuse_a_request_with_no_principal() {
+        for (method, uri) in ROUTES {
+            assert_eq!(
+                status(unauthenticated_routes(), method, uri).await,
+                StatusCode::UNAUTHORIZED,
                 "{method} {uri}"
             );
         }

@@ -1,5 +1,37 @@
 use super::*;
 
+/// A request to the DLQ routes as the operator, through the router: each handler is reached
+/// by its extractors, `OperatorOnly` among them, as a server reaches it.
+async fn as_operator(
+    state: DlqState,
+    method: axum::http::Method,
+    uri: &str,
+) -> axum::response::Response {
+    use tower::ServiceExt;
+
+    let operator = fraiseql_core::security::AuthenticatedUser {
+        user_id:      fraiseql_core::types::UserId::new("admin-user"),
+        scopes:       vec!["fraiseql:admin".to_owned()],
+        expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+        email:        None,
+        display_name: None,
+        extra_claims: std::collections::HashMap::new(),
+        provenance:   fraiseql_core::security::Provenance::BearerToken,
+    };
+    crate::observers::observer_dlq_routes(state)
+        .layer(axum::Extension(crate::middleware::AuthUser(operator)))
+        .layer(axum::Extension(crate::middleware::TenantClaim(Arc::from("tenant_id"))))
+        .oneshot(
+            axum::http::Request::builder()
+                .method(method)
+                .uri(uri)
+                .body(axum::body::Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("infallible")
+}
+
 #[test]
 fn delivery_status_summary_serializes() {
     let summary = DeliveryStatusSummary {
@@ -69,10 +101,7 @@ fn default_limit_is_50() {
 async fn concurrent_retry_dispatches_at_most_once() {
     use std::{collections::HashMap, sync::Arc};
 
-    use axum::{
-        extract::{Path, State},
-        response::IntoResponse,
-    };
+    use axum::{http::Method, response::IntoResponse};
     use fraiseql_observers::{
         ActionConfig, DeadLetterQueue, EntityEvent, EventKind, EventMatcher, ObserverExecutor,
     };
@@ -115,9 +144,10 @@ async fn concurrent_retry_dispatches_at_most_once() {
     };
 
     // Fire two concurrent retries on the same id.
+    let retry = format!("/dlq/{id}/retry");
     let (r1, r2) = tokio::join!(
-        dlq_retry_handler(State(state.clone()), OperatorOnly, Path(id)),
-        dlq_retry_handler(State(state.clone()), OperatorOnly, Path(id)),
+        as_operator(state.clone(), Method::POST, &retry),
+        as_operator(state.clone(), Method::POST, &retry),
     );
 
     let mut codes = [
@@ -139,17 +169,13 @@ async fn concurrent_retry_dispatches_at_most_once() {
 mod dlq_endpoints {
     use std::{collections::HashMap, sync::Arc};
 
-    use axum::{
-        extract::{Path, State},
-        http::StatusCode,
-        response::IntoResponse,
-    };
+    use axum::http::{Method, StatusCode};
     use fraiseql_observers::{ActionConfig, DeadLetterQueue, EntityEvent, EventKind};
     use sqlx::PgPool;
     use tokio::sync::RwLock;
     use uuid::Uuid;
 
-    use super::super::{DlqState, OperatorOnly, dlq_delete_handler, dlq_stats_handler};
+    use super::{super::DlqState, as_operator};
     use crate::observers::runtime::{ObserverRuntime, ObserverRuntimeConfig};
 
     fn webhook_action() -> ActionConfig {
@@ -188,9 +214,7 @@ mod dlq_endpoints {
             runtime: Arc::new(RwLock::new(runtime)),
         };
 
-        let resp = dlq_delete_handler(State(state.clone()), OperatorOnly, Path(id))
-            .await
-            .into_response();
+        let resp = as_operator(state.clone(), Method::DELETE, &format!("/dlq/{id}")).await;
         assert_eq!(resp.status(), StatusCode::OK, "deleting a present item returns 200");
         assert_eq!(state.runtime.read().await.dlq().count(), 0, "the item is removed");
     }
@@ -201,9 +225,7 @@ mod dlq_endpoints {
             runtime: Arc::new(RwLock::new(empty_runtime())),
         };
 
-        let resp = dlq_delete_handler(State(state), OperatorOnly, Path(Uuid::new_v4()))
-            .await
-            .into_response();
+        let resp = as_operator(state, Method::DELETE, &format!("/dlq/{}", Uuid::new_v4())).await;
         assert_eq!(resp.status(), StatusCode::NOT_FOUND, "deleting an absent item returns 404");
     }
 
@@ -226,7 +248,7 @@ mod dlq_endpoints {
             runtime: Arc::new(RwLock::new(runtime)),
         };
 
-        let resp = dlq_stats_handler(State(state), OperatorOnly).await.into_response();
+        let resp = as_operator(state, Method::GET, "/dlq/stats").await;
         assert_eq!(resp.status(), StatusCode::OK);
         let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.expect("body");
         let json: serde_json::Value = serde_json::from_slice(&body).expect("json");

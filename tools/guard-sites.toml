@@ -23,6 +23,32 @@ patterns = [
 ]
 
 [[family]]
+name = "observer-scope"
+# The observer admin API's tenant filter: an organisation sees its own and the global
+# observers, changes and reads the executions of its own, and creates observers it owns.
+patterns = ['\bscope\.(?:push_(?:visible|owned)|organisation)\s*\(']
+
+[[family]]
+name = "observer-scope-pass"
+# A handler handing the caller's scope to the repository or to a check that reads it.
+patterns = [
+  '(?<!fn )\b(?:repository\.\w+|check_updated_observer|write_observer)\s*\([^;{]*?\bscope\b',
+]
+
+[[family]]
+name = "operator-only"
+# The extractor that refuses a tenant-scoped token on an observer surface spanning every tenant.
+patterns = ['\b_\s*:\s*OperatorOnly\b']
+
+[[family]]
+name = "observer-refusal"
+# Where the observer scope extractors refuse: no principal, a tenant that is no
+# organisation, a tenant on an operator surface.
+patterns = [
+  '\bScopeRefusal::(?:Unauthenticated|TenantIsNotAnOrganisation|OperatorOnly)\b',
+]
+
+[[family]]
 name = "executor"
 patterns = ['\bexecutor_for(?:_tenant)?\s*\(']
 
@@ -92,6 +118,16 @@ command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federatio
 name = "tenant-admin"
 crate = "crates/fraiseql-server"
 command = "cargo test -p fraiseql-server --features auth-saml,auth,observers --test tenant_admin_e2e_pg -- --test-threads=1"
+
+[[shard]]
+name = "server-lib-observers"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --lib -- observers:: --test-threads=1"
+
+[[shard]]
+name = "observer-admin-scope"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test observer_admin_scope_pg -- --test-threads=1"
 
 [[shard]]
 name = "core-cache"
@@ -846,3 +882,345 @@ anchor = "tenant_id IS NOT DISTINCT FROM $2"
 mutant = "(tenant_id IS NOT DISTINCT FROM $2 OR TRUE)"
 killers = ["one_tenants_delivery_state_is_invisible_and_untouched_by_another"]
 shard = "server-tracking"
+
+[[site]]
+id = "observer-scope.observers.repository.list_on.1"
+file = "crates/fraiseql-server/src/observers/repository.rs"
+function = "list_on"
+anchor = "scope.push_visible(&mut count_qb);"
+mutant = "let _ = scope;"
+killers = ["is_listed_with_an_organisations_own"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope.observers.repository.list_on.2"
+file = "crates/fraiseql-server/src/observers/repository.rs"
+function = "list_on"
+anchor = "scope.push_visible(&mut select_qb);"
+mutant = "let _ = scope;"
+killers = ["is_listed_with_an_organisations_own"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope.observers.repository.get_by_id"
+file = "crates/fraiseql-server/src/observers/repository.rs"
+function = "get_by_id"
+anchor = "scope.push_visible(&mut qb);"
+mutant = "let _ = scope;"
+killers = ["is_not_found_by_id"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope.observers.repository.update"
+file = "crates/fraiseql-server/src/observers/repository.rs"
+function = "update"
+anchor = "scope.push_owned(&mut qb, \"pk_observer\");"
+mutant = "let _ = scope;"
+killers = ["cannot_be_disabled", "cannot_be_enabled"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope.observers.repository.refuse_schema_managed"
+file = "crates/fraiseql-server/src/observers/repository.rs"
+function = "refuse_schema_managed"
+anchor = "scope.push_owned(&mut qb, \"pk_observer\");"
+mutant = "let _ = scope;"
+killers = ["an_organisation_cannot_disable_one"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope.observers.repository.delete"
+file = "crates/fraiseql-server/src/observers/repository.rs"
+function = "delete"
+anchor = "scope.push_owned(&mut qb, \"pk_observer\");"
+mutant = "let _ = scope;"
+killers = ["cannot_be_deleted"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope.observers.repository.get_stats"
+file = "crates/fraiseql-server/src/observers/repository.rs"
+function = "get_stats"
+anchor = "scope.push_owned(&mut qb, \"pk_observer\");"
+mutant = "let _ = scope;"
+killers = ["statistics_are_not_reported"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope.observers.repository.list_logs.1"
+file = "crates/fraiseql-server/src/observers/repository.rs"
+function = "list_logs"
+anchor = "scope.push_owned(&mut count_qb, \"fk_observer\");"
+mutant = "let _ = scope;"
+killers = ["executions_are_not_in_the_log"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope.observers.repository.list_logs.2"
+file = "crates/fraiseql-server/src/observers/repository.rs"
+function = "list_logs"
+anchor = "scope.push_owned(&mut select_qb, \"fk_observer\");"
+mutant = "let _ = scope;"
+killers = ["executions_are_not_in_the_log"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "operator-only.observers.handlers.get_runtime_health"
+file = "crates/fraiseql-server/src/observers/handlers.rs"
+function = "get_runtime_health"
+anchor = "    _: OperatorOnly,\n"
+mutant = ""
+killers = ["refuse_an_organisation"]
+shard = "server-lib-observers"
+
+[[site]]
+id = "operator-only.observers.handlers.reload_observers"
+file = "crates/fraiseql-server/src/observers/handlers.rs"
+function = "reload_observers"
+anchor = "    _: OperatorOnly,\n"
+mutant = ""
+killers = ["refuse_an_organisation"]
+shard = "server-lib-observers"
+
+[[site]]
+id = "operator-only.observers.dlq_handlers.delivery_health_handler"
+file = "crates/fraiseql-server/src/observers/dlq_handlers/mod.rs"
+function = "delivery_health_handler"
+anchor = "    _: OperatorOnly,\n"
+mutant = ""
+killers = ["refuse_an_organisation"]
+shard = "server-lib-observers"
+
+[[site]]
+id = "operator-only.observers.dlq_handlers.dlq_list_handler"
+file = "crates/fraiseql-server/src/observers/dlq_handlers/mod.rs"
+function = "dlq_list_handler"
+anchor = "    _: OperatorOnly,\n"
+mutant = ""
+killers = ["refuse_an_organisation"]
+shard = "server-lib-observers"
+
+[[site]]
+id = "operator-only.observers.dlq_handlers.dlq_get_handler"
+file = "crates/fraiseql-server/src/observers/dlq_handlers/mod.rs"
+function = "dlq_get_handler"
+anchor = "    _: OperatorOnly,\n"
+mutant = ""
+killers = ["refuse_an_organisation"]
+shard = "server-lib-observers"
+
+[[site]]
+id = "operator-only.observers.dlq_handlers.dlq_retry_handler"
+file = "crates/fraiseql-server/src/observers/dlq_handlers/mod.rs"
+function = "dlq_retry_handler"
+anchor = "    _: OperatorOnly,\n"
+mutant = ""
+killers = ["refuse_an_organisation"]
+shard = "server-lib-observers"
+
+[[site]]
+id = "operator-only.observers.dlq_handlers.dlq_retry_all_handler"
+file = "crates/fraiseql-server/src/observers/dlq_handlers/mod.rs"
+function = "dlq_retry_all_handler"
+anchor = "    _: OperatorOnly,\n"
+mutant = ""
+killers = ["refuse_an_organisation"]
+shard = "server-lib-observers"
+
+[[site]]
+id = "operator-only.observers.dlq_handlers.dlq_delete_handler"
+file = "crates/fraiseql-server/src/observers/dlq_handlers/mod.rs"
+function = "dlq_delete_handler"
+anchor = "    _: OperatorOnly,\n"
+mutant = ""
+killers = ["refuse_an_organisation"]
+shard = "server-lib-observers"
+
+[[site]]
+id = "operator-only.observers.dlq_handlers.dlq_stats_handler"
+file = "crates/fraiseql-server/src/observers/dlq_handlers/mod.rs"
+function = "dlq_stats_handler"
+anchor = "    _: OperatorOnly,\n"
+mutant = ""
+killers = ["refuse_an_organisation"]
+shard = "server-lib-observers"
+
+[[site]]
+id = "operator-only.observers.changelog_handlers.changelog_list_handler"
+file = "crates/fraiseql-server/src/observers/changelog_handlers/mod.rs"
+function = "changelog_list_handler"
+anchor = "    _: OperatorOnly,\n"
+mutant = ""
+killers = ["is_refused_the_change_log_and_its_checkpoints"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "operator-only.observers.changelog_handlers.checkpoint_get_handler"
+file = "crates/fraiseql-server/src/observers/changelog_handlers/mod.rs"
+function = "checkpoint_get_handler"
+anchor = "    _: OperatorOnly,\n"
+mutant = ""
+killers = ["is_refused_the_change_log_and_its_checkpoints"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "operator-only.observers.changelog_handlers.checkpoint_save_handler"
+file = "crates/fraiseql-server/src/observers/changelog_handlers/mod.rs"
+function = "checkpoint_save_handler"
+anchor = "    _: OperatorOnly,\n"
+mutant = ""
+killers = ["is_refused_the_change_log_and_its_checkpoints"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-refusal.observers.scope.of.1"
+file = "crates/fraiseql-server/src/observers/scope.rs"
+function = "ObserverScope::of"
+anchor = "let context = context.ok_or(ScopeRefusal::Unauthenticated)?;"
+mutant = "let Some(context) = context else { return Ok(Self::Operator) };"
+killers = ["no_principal_is_refused"]
+shard = "server-lib-observers"
+
+[[site]]
+id = "observer-refusal.observers.scope.of.2"
+file = "crates/fraiseql-server/src/observers/scope.rs"
+function = "ObserverScope::of"
+anchor = "                .map_err(|_| ScopeRefusal::TenantIsNotAnOrganisation),"
+mutant = "                .or(Ok::<Self, ScopeRefusal>(Self::Operator)),"
+killers = ["a_tenant_that_is_not_an_i64_is_refused"]
+shard = "server-lib-observers"
+
+[[site]]
+id = "observer-refusal.observers.scope.from_request_parts.1"
+file = "crates/fraiseql-server/src/observers/scope.rs"
+function = "OperatorOnly::from_request_parts"
+anchor = "let context = context.ok_or_else(|| ScopeRefusal::Unauthenticated.into_response())?;"
+mutant = "let Some(context) = context else { return Ok(Self) };"
+killers = ["refuse_a_request_with_no_principal"]
+shard = "server-lib-observers"
+
+[[site]]
+id = "observer-refusal.observers.scope.from_request_parts.2"
+file = "crates/fraiseql-server/src/observers/scope.rs"
+function = "OperatorOnly::from_request_parts"
+anchor = "        if context.tenant_id.is_some() {\n            return Err(ScopeRefusal::OperatorOnly.into_response());"
+mutant = "        if false {\n            return Err(ScopeRefusal::OperatorOnly.into_response());"
+killers = ["refuse_an_organisation"]
+shard = "server-lib-observers"
+
+[[site]]
+id = "observer-scope-pass.observers.handlers.list_observers"
+file = "crates/fraiseql-server/src/observers/handlers.rs"
+function = "list_observers"
+anchor = "repository.list(&query, scope"
+mutant = "repository.list(&query, ObserverScope::Operator"
+killers = ["is_listed_with_an_organisations_own"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope-pass.observers.handlers.get_observer"
+file = "crates/fraiseql-server/src/observers/handlers.rs"
+function = "get_observer"
+anchor = "repository.get_by_id(id, scope"
+mutant = "repository.get_by_id(id, ObserverScope::Operator"
+killers = ["is_not_found_by_id"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope-pass.observers.handlers.create_observer"
+file = "crates/fraiseql-server/src/observers/handlers.rs"
+function = "create_observer"
+anchor = "repository.create(&request, scope"
+mutant = "repository.create(&request, ObserverScope::Operator"
+killers = ["creates_observers_it_owns"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope-pass.observers.handlers.update_observer.1"
+file = "crates/fraiseql-server/src/observers/handlers.rs"
+function = "update_observer"
+anchor = "check_updated_observer(&state, id, &request, scope"
+mutant = "check_updated_observer(&state, id, &request, ObserverScope::Operator"
+killers = ["is_not_found_by_an_update_its_stored_actions_would_refuse"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope-pass.observers.handlers.update_observer.2"
+file = "crates/fraiseql-server/src/observers/handlers.rs"
+function = "update_observer"
+anchor = "write_observer(&state, id, &request, scope"
+mutant = "write_observer(&state, id, &request, ObserverScope::Operator"
+killers = ["cannot_be_changed_by_an_organisation"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope-pass.observers.handlers.check_updated_observer"
+file = "crates/fraiseql-server/src/observers/handlers.rs"
+function = "check_updated_observer"
+anchor = "repository.get_by_id(id, scope"
+mutant = "repository.get_by_id(id, ObserverScope::Operator"
+killers = ["is_not_found_by_an_update_its_stored_actions_would_refuse"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope-pass.observers.handlers.delete_observer"
+file = "crates/fraiseql-server/src/observers/handlers.rs"
+function = "delete_observer"
+anchor = "repository.delete(id, scope"
+mutant = "repository.delete(id, ObserverScope::Operator"
+killers = ["cannot_be_deleted"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope-pass.observers.handlers.get_observer_stats"
+file = "crates/fraiseql-server/src/observers/handlers.rs"
+function = "get_observer_stats"
+anchor = "repository.get_stats(observer_id.map(|p| p.0), scope"
+mutant = "repository.get_stats(observer_id.map(|p| p.0), ObserverScope::Operator"
+killers = ["statistics_are_not_reported"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope-pass.observers.handlers.list_observer_logs"
+file = "crates/fraiseql-server/src/observers/handlers.rs"
+function = "list_observer_logs"
+anchor = "repository.list_logs(&query, scope"
+mutant = "repository.list_logs(&query, ObserverScope::Operator"
+killers = ["executions_are_not_in_the_log"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope-pass.observers.handlers.enable_observer"
+file = "crates/fraiseql-server/src/observers/handlers.rs"
+function = "enable_observer"
+anchor = "write_observer(&state, id, &request, scope"
+mutant = "write_observer(&state, id, &request, ObserverScope::Operator"
+killers = ["cannot_be_enabled"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope-pass.observers.handlers.disable_observer"
+file = "crates/fraiseql-server/src/observers/handlers.rs"
+function = "disable_observer"
+anchor = "write_observer(&state, id, &request, scope"
+mutant = "write_observer(&state, id, &request, ObserverScope::Operator"
+killers = ["cannot_be_disabled"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope-pass.observers.handlers.write_observer"
+file = "crates/fraiseql-server/src/observers/handlers.rs"
+function = "write_observer"
+anchor = "repository.update(id, request, scope"
+mutant = "repository.update(id, request, ObserverScope::Operator"
+killers = ["cannot_be_disabled", "cannot_be_enabled"]
+shard = "observer-admin-scope"
+
+[[site]]
+id = "observer-scope.observers.repository.create"
+file = "crates/fraiseql-server/src/observers/repository.rs"
+function = "create"
+anchor = ".bind(scope.organisation())"
+mutant = ".bind(None::<i64>)"
+killers = ["creates_observers_it_owns"]
+shard = "observer-admin-scope"
