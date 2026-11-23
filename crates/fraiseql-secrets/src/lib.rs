@@ -31,8 +31,6 @@ pub mod encryption;
 pub mod secrets_manager;
 
 // Re-exports for convenience
-/// The `chrono` this crate's public API is built against (#1198).
-pub use chrono;
 pub use encryption::{FieldEncryption, VersionedFieldEncryption};
 pub use secrets_manager::{
     LeaseRenewalTask, SecretsBackendConfig, SecretsError, SecretsManager, VaultAuth,

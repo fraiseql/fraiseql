@@ -18,6 +18,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql_secrets::chrono` is removed, and `fraiseql-secrets` no longer depends on
+  chrono (#2026).** The crate's public API names no chrono type any more. A caller that
+  reached chrono through it depends on `chrono` directly.
+
 - **`fraiseql-secrets` carries instants as `fraiseql_time::Timestamp` (#2026).** The
   expiry `SecretsBackend::get_secret_with_expiry` returns, `KeyVersionMetadata::issued_at`
   and `expires_at`, and `RotationMetrics::last_rotation` and
