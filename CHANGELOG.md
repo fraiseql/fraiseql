@@ -1709,6 +1709,12 @@ disagreed, and the promise was the part that was wrong.
   compile. A `NULL` column now agrees with a missing or `null` key; a `null` or missing key
   beside a column that holds a value, and the reverse, still fail.
 
+- **Java SDK: a `null` description no longer crashes the schema export (#1619).** Every
+  registration documents its description as optional, but a query, mutation, interface,
+  input type or field registered with `null` made `SchemaFormatter.formatSchema` throw a
+  `NullPointerException`, and nothing was exported. Each registration now stores `null` as no
+  description, as enums already did.
+
 - **A fragment on a type the schema does not define, or one that can never apply where it
   stands, is refused (#2276).** `{ users { ... on Nosuch { name } } }` was answered with a
   `"...on Nosuch": null` key under a `200`; `fragment F on Nosuch { name }` spread under

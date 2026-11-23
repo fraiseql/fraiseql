@@ -932,7 +932,7 @@ public class SchemaRegistry {
             this.name = name;
             this.javaClass = javaClass;
             this.fields = Collections.unmodifiableMap(new LinkedHashMap<>(fields));
-            this.description = description;
+            this.description = description == null ? "" : description;
             this.relay = relay;
             this.isError = isError;
             this.requiresRole = requiresRole;
@@ -1017,7 +1017,7 @@ public class SchemaRegistry {
             this.name = name;
             this.returnType = returnType;
             this.arguments = Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
-            this.description = description;
+            this.description = description == null ? "" : description;
             this.relay = relay;
             this.sqlSource = sqlSource;
             this.cacheTtlSeconds = cacheTtlSeconds;
@@ -1116,7 +1116,7 @@ public class SchemaRegistry {
             this.name = name;
             this.returnType = returnType;
             this.arguments = Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
-            this.description = description;
+            this.description = description == null ? "" : description;
             this.sqlSource = sqlSource;
             this.operation = operation;
             this.injectParams = injectParams != null
@@ -1173,7 +1173,7 @@ public class SchemaRegistry {
             this.name = name;
             this.entityType = entityType;
             this.arguments = Collections.unmodifiableMap(new LinkedHashMap<>(arguments));
-            this.description = description;
+            this.description = description == null ? "" : description;
             this.topic = topic;
             this.filterConditions = filterConditions == null
                 ? Collections.emptyMap()
@@ -1291,7 +1291,7 @@ public class SchemaRegistry {
         public InterfaceInfo(String name, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description) {
             this.name = name;
             this.fields = Collections.unmodifiableMap(new LinkedHashMap<>(fields));
-            this.description = description;
+            this.description = description == null ? "" : description;
         }
 
         @Override
@@ -1317,7 +1317,7 @@ public class SchemaRegistry {
         public UnionInfo(String name, List<String> memberTypes, String description) {
             this.name = name;
             this.memberTypes = Collections.unmodifiableList(new ArrayList<>(memberTypes));
-            this.description = description;
+            this.description = description == null ? "" : description;
         }
 
         @Override
@@ -1343,7 +1343,7 @@ public class SchemaRegistry {
         public InputTypeInfo(String name, Map<String, TypeConverter.GraphQLFieldInfo> fields, String description) {
             this.name = name;
             this.fields = Collections.unmodifiableMap(new LinkedHashMap<>(fields));
-            this.description = description;
+            this.description = description == null ? "" : description;
         }
 
         @Override

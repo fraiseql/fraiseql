@@ -469,7 +469,7 @@ public class TypeConverter {
             this.name = name;
             this.type = type;
             this.nullable = nullable;
-            this.description = description;
+            this.description = description == null ? "" : description;
             this.requiresScope = requiresScope;
             this.requiresScopes = requiresScopes;
             this.computed = computed;

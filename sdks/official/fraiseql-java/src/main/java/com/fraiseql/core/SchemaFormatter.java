@@ -550,7 +550,7 @@ public class SchemaFormatter {
             subscriptionNode.put("return_type", bareType(subscriptionInfo.entityType));
             subscriptionNode.set("arguments", formatArguments(subscriptionInfo.arguments));
 
-            if (subscriptionInfo.description != null && !subscriptionInfo.description.isEmpty()) {
+            if (!subscriptionInfo.description.isEmpty()) {
                 subscriptionNode.put("description", subscriptionInfo.description);
             }
             if (subscriptionInfo.topic != null) {
