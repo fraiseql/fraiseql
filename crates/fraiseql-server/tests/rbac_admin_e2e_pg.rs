@@ -199,6 +199,34 @@ async fn role_names_are_unique_per_tenant_with_null_treated_as_one_tenant() {
     drop_scratch(&url, db).await;
 }
 
+/// A user's role assignments are listed per tenant: the same user holding a role in two
+/// tenants is shown, and counted, only the assignment of the tenant asked about.
+#[tokio::test]
+async fn a_users_role_assignments_are_listed_per_tenant() {
+    let Some(url) = database_url_or_skip("a_users_role_assignments_are_listed_per_tenant") else {
+        return;
+    };
+    let db = "fraiseql_p05_assignment_tenant";
+    let pool = scratch_pool(&url, db).await;
+    let backend = RbacDbBackend::new(pool.clone());
+    backend.ensure_schema().await.expect("ensure_schema");
+
+    let tenant_a = "11111111-1111-1111-1111-111111111111";
+    let tenant_b = "22222222-2222-2222-2222-222222222222";
+    let role_a = backend.create_role("reader", None, vec![], Some(tenant_a)).await.unwrap();
+    let role_b = backend.create_role("reader", None, vec![], Some(tenant_b)).await.unwrap();
+    backend.assign_role_to_user("user-1", &role_a.id, Some(tenant_a)).await.unwrap();
+    backend.assign_role_to_user("user-1", &role_b.id, Some(tenant_b)).await.unwrap();
+
+    let in_a = backend.list_user_roles("user-1", Some(tenant_a), 100, 0).await.unwrap();
+    assert_eq!(in_a.total, 1, "tenant A counts only its own assignment");
+    let listed: Vec<&str> = in_a.items.iter().map(|a| a.role_id.as_str()).collect();
+    assert_eq!(listed, vec![role_a.id.as_str()], "tenant A lists only its own assignment");
+
+    pool.close().await;
+    drop_scratch(&url, db).await;
+}
+
 /// The store round-trip: every method against a real database, asserting the
 /// observable side effect rather than the return value.
 #[tokio::test]
@@ -537,6 +565,7 @@ async fn roles_are_scoped_to_the_tenant_they_were_created_for() {
     let items = page["items"].as_array().expect("items array").clone();
     assert_eq!(items.len(), 1, "tenant A must see exactly its own role; got {page}");
     assert_eq!(items[0]["tenant_id"].as_str(), Some(tenant_a), "tenant_id must round-trip");
+    assert_eq!(page["total"].as_u64(), Some(1), "tenant A's total counts only its own role");
 
     let (_, page_b) =
         RbacServer::send(server.get(&format!("/api/roles?tenant_id={tenant_b}"))).await;
@@ -696,6 +725,40 @@ async fn listing_user_roles_without_a_user_is_a_client_error() {
 
 /// Every permission-changing operation must leave a readable trace.
 ///
+/// The permission audit read filters by tenant: a tenant's trail holds, and counts, only
+/// the changes made in that tenant.
+#[tokio::test]
+async fn the_permission_audit_is_filtered_by_tenant() {
+    let Some(url) = database_url_or_skip("the_permission_audit_is_filtered_by_tenant") else {
+        return;
+    };
+    let server = RbacServer::start(&url, "fraiseql_p05_audit_tenant").await;
+
+    let tenant_a = "11111111-1111-1111-1111-111111111111";
+    let tenant_b = "22222222-2222-2222-2222-222222222222";
+    for tenant in [tenant_a, tenant_b] {
+        create_role(
+            &server,
+            serde_json::json!({"name": "audited", "permissions": [], "tenant_id": tenant}),
+        )
+        .await;
+    }
+
+    let (status, page) =
+        RbacServer::send(server.get(&format!("/api/audit/permissions?tenant_id={tenant_a}"))).await;
+    assert_eq!(status, 200, "{page}");
+    assert_eq!(page["total"].as_u64(), Some(1), "tenant A's trail counts only its own; {page}");
+    let tenants: Vec<&str> = page["items"]
+        .as_array()
+        .expect("items")
+        .iter()
+        .filter_map(|e| e["tenant_id"].as_str())
+        .collect();
+    assert_eq!(tenants, vec![tenant_a], "tenant A's trail holds only its own; {page}");
+
+    server.shutdown().await;
+}
+
 /// Pre-fix `GET /api/audit/permissions` returned a hard-coded `[]` and no handler
 /// recorded anything, so the endpoint asserted "no permission changes occurred"
 /// regardless of activity — the shape that misleads a compliance reviewer.

@@ -630,6 +630,47 @@ async fn cancellation_is_reported_truthfully() {
     assert!(row.cancellation_requested);
 }
 
+/// A cancellation is scoped to the operation's tenant as well as its submitter: the same
+/// submitter name under another tenant cancels nothing and requests nothing.
+#[tokio::test]
+async fn another_tenant_cannot_cancel_an_operation() {
+    let Some(rig) = store_rig().await else {
+        eprintln!("SKIP another_tenant_cannot_cancel_an_operation: no DATABASE_URL");
+        return;
+    };
+    let in_tenant = |state: &'static str| {
+        let rig = &rig;
+        async move {
+            let op_id = rig.plant(state, 0).await;
+            sqlx::query(
+                "UPDATE _system.async_operations SET tenant_key = 'tenant-a' WHERE op_id = $1",
+            )
+            .bind(op_id)
+            .execute(&rig.pool)
+            .await
+            .expect("scope the planted row");
+            op_id
+        }
+    };
+    let queued = in_tenant("queued").await;
+    let running = in_tenant("running").await;
+
+    assert!(!rig.store.cancel_queued(queued, "planter", Some("tenant-b")).await.unwrap());
+    assert_eq!(rig.row_state(queued).await.0, "queued", "another tenant cancelled nothing");
+    assert!(!rig.store.request_cancel(running, "planter", Some("tenant-b")).await.unwrap());
+    let row = rig
+        .store
+        .get_scoped(running, "planter", Some("tenant-a"))
+        .await
+        .unwrap()
+        .expect("row visible in its own tenant");
+    assert!(!row.cancellation_requested, "another tenant requested nothing");
+
+    // Its own tenant can.
+    assert!(rig.store.cancel_queued(queued, "planter", Some("tenant-a")).await.unwrap());
+    assert!(rig.store.request_cancel(running, "planter", Some("tenant-a")).await.unwrap());
+}
+
 /// The recovery tests' rows have no claimer but the test, whatever ran before them. A
 /// server booted by an earlier test is shown claiming a planted row, then its runtime ends
 /// as a `#[tokio::test]`'s does, its shutdown never signalled; a row planted after it

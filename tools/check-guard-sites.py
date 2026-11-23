@@ -54,9 +54,9 @@ RAW_STRING = re.compile(r'r(#*)"')
 CHAR_LITERAL = re.compile(r"'(?:\\(?:x[0-9a-fA-F]{2}|u\{[0-9a-fA-F]+\}|.)|[^\\'\n])'")
 
 
-def blank(text: str, keep_strings: bool = False) -> str:
+def blank(text: str, keep_strings: bool = False, fill: str = " ") -> str:
     """Blank comments, char literals and (unless `keep_strings`) string contents,
-    keeping every offset."""
+    keeping every offset. String contents are blanked with `fill`."""
     out = []
     i, n = 0, len(text)
     while i < n:
@@ -69,7 +69,7 @@ def blank(text: str, keep_strings: bool = False) -> str:
             stop = n if stop == -1 else stop
             out.append(text[i:start])
             inner = text[start:stop]
-            out.append(inner if keep_strings else "".join(ch if ch == "\n" else " " for ch in inner))
+            out.append(inner if keep_strings else "".join(ch if ch == "\n" else fill for ch in inner))
             out.append(text[stop : stop + len(close)])
             i = stop + len(close)
         elif c == '"':
@@ -78,7 +78,7 @@ def blank(text: str, keep_strings: bool = False) -> str:
                 j += 2 if text[j] == "\\" else 1
             j = min(j, n)
             inner = text[i + 1 : j]
-            out.append('"' + (inner if keep_strings else "".join(ch if ch == "\n" else " " for ch in inner)))
+            out.append('"' + (inner if keep_strings else "".join(ch if ch == "\n" else fill for ch in inner)))
             if j < n:
                 out.append('"')
             i = j + 1
@@ -160,18 +160,35 @@ def position(text: str, offset: int) -> str:
 class Source:
     raw: str
     code: str  # comments, strings and test modules blanked
-    strings: str  # comments and test modules blanked, string contents kept
+    strings: str  # string contents only (outside test modules); all else is NUL
 
     @classmethod
     def of(cls, raw: str) -> Source:
-        tests = test_module_spans(blank(raw))
-        return cls(
-            raw,
-            blank_spans(blank(raw), tests),
-            blank_spans(blank(raw, keep_strings=True), tests),
+        code = blank(raw)
+        tests = test_module_spans(code)
+        # Everything outside a string is NUL, not a space, so no `\s` in a pattern can join
+        # the end of one string to the start of the next: `contains("tenant_id") &&
+        # contains("==")` is not a predicate.
+        mask = blank(raw, fill="\1")
+        contents = "".join(
+            r if m == "\1" or r == "\n" else "\0" for r, m in zip(raw, mask, strict=True)
         )
+        return cls(raw, blank_spans(code, tests), blank_spans(contents, tests))
 
     def function_spans(self, name: str) -> list[tuple[int, int]]:
+        """The spans of `fn name` bodies, and of `const name` items (a guard can be a
+        shared SQL predicate held in a const). `Type::name` keeps only those inside an
+        `impl` block for `Type`, for a file that defines `name` more than once."""
+        if "::" in name:
+            owner, _, name = name.rpartition("::")
+            blocks = []
+            for match in re.finditer(r"\bimpl\b[^{;]*?\b" + re.escape(owner) + r"\b[^{;]*\{", self.code):
+                blocks.append((match.start(), closing_brace(self.code, match.end() - 1)))
+            return [
+                span
+                for span in self.function_spans(name)
+                if any(a <= span[0] and span[1] <= b for a, b in blocks)
+            ]
         spans = []
         for match in re.finditer(rf"\bfn\s+{re.escape(name)}\b", self.code):
             brace = self.code.find("{", match.end())
@@ -179,6 +196,10 @@ class Source:
             if brace == -1 or (semi != -1 and semi < brace):
                 continue
             spans.append((match.start(), closing_brace(self.code, brace)))
+        for match in re.finditer(rf"\bconst\s+{re.escape(name)}\s*:", self.code):
+            semi = self.code.find(";", match.end())
+            if semi != -1:
+                spans.append((match.start(), semi + 1))
         return spans
 
 

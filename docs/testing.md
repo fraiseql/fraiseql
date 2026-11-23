@@ -181,7 +181,8 @@ reachable only through a second door its suite never opens; a suite that "covers
 route then passes with the guard gone. So each site is proven by mutating it.
 
 `tools/guard-sites.toml` is the inventory. A `[[site]]` names the file, the function the
-guard sits in, an exact `anchor` of its code, the `mutant` that replaces it, the
+guard sits in (`Type::method` when the file defines the name twice, or a `const` that holds a
+shared SQL predicate), an exact `anchor` of its code, the `mutant` that replaces it, the
 `killers` (tests that must fail on the mutant) and the `shard` (test command) they run
 in. Two sites that each cover the other share a `joint` and are mutated together.
 `[[held]]` paths are not inventoried yet; `[[exempt]]` functions match a guard pattern

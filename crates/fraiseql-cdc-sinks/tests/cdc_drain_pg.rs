@@ -183,6 +183,53 @@ async fn drain_publishes_matching_rows_in_seq_order_and_is_idempotent() {
     assert_eq!(status_count(&pool, &sink_name, "published").await, 3);
 }
 
+/// A sink scoped to one tenant publishes that tenant's rows and nothing else: not another
+/// tenant's, not an untenanted one. `window` picks the enqueue path: the default puts the
+/// rows in the recent window (the per-tick anti-join), zero puts them all past it (the
+/// first tick's sweep), and each path must apply the same scope.
+async fn a_tenant_scoped_sink_publishes_only_its_tenants_rows(window: Option<std::time::Duration>) {
+    let pool = pool().await;
+    setup_schema(&pool).await;
+
+    let table = unique("tbscoped");
+    let mine = Uuid::new_v4();
+    let theirs = Uuid::new_v4();
+    let own = seed(&pool, &table, "INSERT", Some(mine), Some(json!({ "v": "mine" }))).await;
+    seed(&pool, &table, "INSERT", Some(theirs), Some(json!({ "v": "theirs" }))).await;
+    seed(&pool, &table, "INSERT", None, Some(json!({ "v": "untenanted" }))).await;
+
+    let sink_name = unique("sink");
+    let config = CdcSinkConfig::new(sink_name.clone(), "fraiseql.{table}")
+        .with_tables(vec![table.clone()])
+        .with_tenants(vec![mine]);
+    let mut worker =
+        DrainWorker::new(pool.clone(), StubSink::new(config.clone(), Mode::Publish), config);
+    if let Some(window) = window {
+        worker = worker.with_commit_lag_window(window);
+    }
+
+    let stats = worker.tick().await.unwrap();
+    assert_eq!(stats.enqueued, 1, "only the sink's own tenant's row enqueues");
+    assert_eq!(worker.sink().published_seqs(), vec![own], "only its own tenant's row publishes");
+    assert_eq!(
+        status_count(&pool, &sink_name, "published").await,
+        1,
+        "the sink's state tracks only its own tenant's row"
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires Postgres (DATABASE_URL)"]
+async fn a_tenant_scoped_sink_enqueues_only_its_tenants_recent_rows() {
+    a_tenant_scoped_sink_publishes_only_its_tenants_rows(None).await;
+}
+
+#[tokio::test]
+#[ignore = "requires Postgres (DATABASE_URL)"]
+async fn a_tenant_scoped_sink_backfills_only_its_tenants_rows() {
+    a_tenant_scoped_sink_publishes_only_its_tenants_rows(Some(std::time::Duration::ZERO)).await;
+}
+
 #[tokio::test]
 #[ignore = "requires Postgres (DATABASE_URL)"]
 async fn broker_outage_retries_then_drains_with_no_loss() {

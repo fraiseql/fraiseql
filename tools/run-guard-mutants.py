@@ -13,7 +13,10 @@ the other, so neither alone can be killed. A mutant's verdict is:
 - SURVIVED: the shard passed.
 
 Each shard is first run unmutated, and one that fails there is BASELINE-RED and none of
-its mutants run: a red shard would mark every mutant KILLED. Anything but KILLED fails
+its mutants run: a red shard would mark every mutant KILLED. A shard with a test binary
+that runs no test (its target `cfg`'d out under the shard's features, or a filter that
+matches nothing) is BASELINE-EMPTY and none of its mutants run either: every survivor it
+reported would be untested. Anything but KILLED fails
 the run. After the last mutant every touched file is checked
 against its original sha256, and a mismatch fails the run too.
 
@@ -82,6 +85,21 @@ def failed_tests(output: str) -> list[str]:
     ]
 
 
+def empty_binaries(output: str) -> list[str]:
+    """The test binaries a run compiled but that ran no test at all: a binary whose target is
+    `cfg`'d out under the shard's features, or a filter that matches nothing. It can kill no
+    mutant, so a shard holding one would report survivors that were never tested."""
+    empty: list[str] = []
+    binary = "?"
+    for line in output.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("Running "):
+            binary = stripped.split()[1]
+        elif stripped.startswith("test result:") and " 0 passed; 0 failed;" in stripped:
+            empty.append(binary)
+    return empty
+
+
 def names(killer: str, failed: str) -> bool:
     return failed == killer or failed.endswith("::" + killer)
 
@@ -135,7 +153,12 @@ def main() -> int:
                     ["bash", "-c", shards[name]["command"]], cwd=ROOT, capture_output=True, text=True
                 )
                 baselines[name] = run.returncode == 0
-                if not baselines[name]:
+                empty = empty_binaries(run.stdout + run.stderr) if baselines[name] else []
+                if empty:
+                    baselines[name] = False
+                    verdicts.append((f"shard {name}", f"BASELINE-EMPTY {','.join(empty)}", 0.0))
+                    print(f"shard {name}: BASELINE-EMPTY {','.join(empty)} ran no test", flush=True)
+                elif not baselines[name]:
                     failed = ",".join(failed_tests(run.stdout + run.stderr)) or f"rc={run.returncode}"
                     verdicts.append((f"shard {name}", f"BASELINE-RED {failed}", 0.0))
                     print(f"shard {name}: BASELINE-RED {failed}", flush=True)

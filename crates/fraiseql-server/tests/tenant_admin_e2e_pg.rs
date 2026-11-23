@@ -257,6 +257,24 @@ async fn only_the_platform_manages_tenant_admin_tokens() {
         "a tenant admin token without a tenant would be a second platform credential: {body}"
     );
 
+    // The platform's list filtered to one tenant holds only that tenant's credentials.
+    let (status, only_a) = rig
+        .call(
+            ADMIN_TOKEN,
+            Method::GET,
+            &format!("/api/admin-tokens?tenant_id={TENANT_A}"),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{only_a}");
+    let tenants: Vec<&str> = only_a["tokens"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|t| t["tenant_id"].as_str())
+        .collect();
+    assert_eq!(tenants, vec![TENANT_A], "a tenant's filtered list holds only its own: {only_a}");
+
     let (_, listed) = rig.call(ADMIN_TOKEN, Method::GET, "/api/admin-tokens", None).await;
     let a_id = listed["tokens"]
         .as_array()

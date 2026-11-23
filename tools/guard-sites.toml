@@ -13,6 +13,16 @@ name = "dispatch"
 patterns = ['\btenant\s*\.\s*dispatch\s*\(']
 
 [[family]]
+name = "tenant-sql"
+scan = "strings"
+# A tenant predicate in SQL: a column compared to a bound value, a subquery or NULL.
+# Row-level-security policy DDL (compared to `current_setting(...)`) is a different guard,
+# enforced by Postgres for a non-owner role, and is not this family.
+patterns = [
+  '\btenant_(?:id|key)(?:::text)?[\s\\]+(?:IS[\s\\]+NOT[\s\\]+DISTINCT[\s\\]+FROM|IS[\s\\]+NULL\b|=)(?![\s\\]*(?:NULLIF[\s\\]*\([\s\\]*)?current_setting)',
+]
+
+[[family]]
 name = "executor"
 patterns = ['\bexecutor_for(?:_tenant)?\s*\(']
 
@@ -54,6 +64,36 @@ crate = "crates/fraiseql-server"
 command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test tenant_rest_dispatch_e2e_pg -- --test-threads=1"
 
 [[shard]]
+name = "auth-pg"
+crate = "crates/fraiseql-auth"
+command = "cargo test -p fraiseql-auth --no-fail-fast --test postgres_scim_provisioning --test postgres_account_store --test local_password --test password_reset --test email_verification -- --test-threads=1"
+
+[[shard]]
+name = "cdc-drain"
+crate = "crates/fraiseql-cdc-sinks"
+command = "cargo test -p fraiseql-cdc-sinks --test cdc_drain_pg -- --ignored --test-threads=1"
+
+[[shard]]
+name = "observers-replay"
+crate = "crates/fraiseql-observers"
+command = "cargo test -p fraiseql-observers --features 'caching,checkpoint,metrics,nats' --lib -- listener::replay --include-ignored --test-threads=1"
+
+[[shard]]
+name = "server-tracking"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,inbound-email' --lib -- inbound::email::tracking --test-threads=1"
+
+[[shard]]
+name = "server-tenant-admin"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,inbound-email' --no-fail-fast --test rbac_admin_e2e_pg --test async_operations_e2e_pg -- --test-threads=1"
+
+[[shard]]
+name = "tenant-admin"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --features auth-saml,auth,observers --test tenant_admin_e2e_pg -- --test-threads=1"
+
+[[shard]]
 name = "core-cache"
 crate = "crates/fraiseql-core"
 command = "cargo test -p fraiseql-core --lib cache::"
@@ -93,6 +133,11 @@ path = "crates/fraiseql-storage"
 file = "crates/fraiseql-server/src/routes/after_mutation/mod.rs"
 function = "record_and_run_capture"
 reason = "an externally captured write has no request and no tenant: the call names the default executor, it does not choose one from the caller"
+
+[[exempt]]
+file = "crates/fraiseql-core/src/security/audit.rs"
+function = "get_recent_logs"
+reason = "no caller and no test; wire it or delete it: #2392"
 
 # ── Sites ────────────────────────────────────────────────────────────────────────────
 
@@ -441,3 +486,363 @@ anchor = "        .executor_for(Some(&body.tenant_key))\n"
 mutant = "        .executor_for(None)\n"
 killers = ["a_domain_for_an_unregistered_tenant_is_refused_and_maps_nothing"]
 shard = "server-lib-tenant-admin"
+
+[[site]]
+id = "tenant-sql.account_linking.postgres.link_or_create_user.1"
+file = "crates/fraiseql-auth/src/account_linking/postgres.rs"
+function = "link_or_create_user"
+anchor = "tenant_id IS NOT DISTINCT FROM $3"
+mutant = "(tenant_id IS NOT DISTINCT FROM $3 OR TRUE)"
+killers = ["a_provider_identity_is_scoped_to_its_tenant"]
+shard = "auth-pg"
+
+[[site]]
+id = "tenant-sql.account_linking.postgres.link_or_create_user.2"
+file = "crates/fraiseql-auth/src/account_linking/postgres.rs"
+function = "link_or_create_user"
+anchor = "tenant_id IS NOT DISTINCT FROM $2"
+mutant = "(tenant_id IS NOT DISTINCT FROM $2 OR TRUE)"
+killers = ["the_same_verified_email_is_one_account_per_tenant"]
+shard = "auth-pg"
+
+[[site]]
+id = "tenant-sql.local_password.reset.start_password_reset"
+file = "crates/fraiseql-auth/src/local_password/reset.rs"
+function = "start_password_reset"
+anchor = "i.tenant_id IS NULL"
+mutant = "(i.tenant_id IS NULL OR TRUE)"
+killers = ["start_is_a_silent_noop_for_a_tenant_accounts_local_credential"]
+shard = "auth-pg"
+
+[[site]]
+id = "tenant-sql.local_password.verification.confirm_email_verification"
+file = "crates/fraiseql-auth/src/local_password/verification.rs"
+function = "confirm_email_verification"
+anchor = "o.tenant_id IS NOT DISTINCT FROM \\\n                   (SELECT u.tenant_id FROM auth.tb_user u WHERE u.pk_user = $2)"
+mutant = "(o.tenant_id IS NOT DISTINCT FROM \\\n                   (SELECT u.tenant_id FROM auth.tb_user u WHERE u.pk_user = $2) OR TRUE)"
+killers = ["an_address_held_in_a_tenant_does_not_block_a_platform_account"]
+shard = "auth-pg"
+
+[[site]]
+id = "tenant-sql.local_password.login"
+file = "crates/fraiseql-auth/src/local_password.rs"
+function = "login"
+anchor = "i.tenant_id IS NULL"
+mutant = "(i.tenant_id IS NULL OR TRUE)"
+killers = ["a_tenant_accounts_local_credential_is_not_a_platform_login"]
+shard = "auth-pg"
+
+[[site]]
+id = "tenant-sql.scim.store.list_users.1"
+file = "crates/fraiseql-auth/src/scim/store.rs"
+function = "list_users"
+anchor = "tenant_id IS NOT DISTINCT FROM $2"
+mutant = "(tenant_id IS NOT DISTINCT FROM $2 OR TRUE)"
+killers = ["a_tenant_token_cannot_reach_another_tenants_users"]
+shard = "auth-pg"
+
+[[site]]
+id = "tenant-sql.scim.store.list_users.2"
+file = "crates/fraiseql-auth/src/scim/store.rs"
+function = "list_users"
+anchor = "tenant_id IS NOT DISTINCT FROM $4"
+mutant = "(tenant_id IS NOT DISTINCT FROM $4 OR TRUE)"
+killers = ["a_tenant_token_cannot_reach_another_tenants_users"]
+shard = "auth-pg"
+
+[[site]]
+id = "tenant-sql.scim.store.get_user"
+file = "crates/fraiseql-auth/src/scim/store.rs"
+function = "get_user"
+anchor = "tenant_id IS NOT DISTINCT FROM $2"
+mutant = "(tenant_id IS NOT DISTINCT FROM $2 OR TRUE)"
+killers = ["a_tenant_token_cannot_reach_another_tenants_users"]
+shard = "auth-pg"
+
+[[site]]
+id = "tenant-sql.scim.store.replace_user"
+file = "crates/fraiseql-auth/src/scim/store.rs"
+function = "replace_user"
+anchor = "tenant_id IS NOT DISTINCT FROM $9"
+mutant = "(tenant_id IS NOT DISTINCT FROM $9 OR TRUE)"
+killers = ["a_tenant_token_cannot_reach_another_tenants_users"]
+shard = "auth-pg"
+
+[[site]]
+id = "tenant-sql.scim.store.set_user_active"
+file = "crates/fraiseql-auth/src/scim/store.rs"
+function = "set_user_active"
+anchor = "tenant_id IS NOT DISTINCT FROM $3"
+mutant = "(tenant_id IS NOT DISTINCT FROM $3 OR TRUE)"
+killers = ["a_tenant_token_cannot_reach_another_tenants_users"]
+shard = "auth-pg"
+
+[[site]]
+id = "tenant-sql.scim.store.delete_user"
+file = "crates/fraiseql-auth/src/scim/store.rs"
+function = "delete_user"
+anchor = "tenant_id IS NOT DISTINCT FROM $2"
+mutant = "(tenant_id IS NOT DISTINCT FROM $2 OR TRUE)"
+killers = ["a_tenant_token_cannot_reach_another_tenants_users"]
+shard = "auth-pg"
+
+[[site]]
+id = "tenant-sql.scim.store.list_groups.1"
+file = "crates/fraiseql-auth/src/scim/store.rs"
+function = "list_groups"
+anchor = "count(*) FROM auth.tb_scim_group \\\n             WHERE tenant_id IS NOT DISTINCT FROM $1"
+mutant = "count(*) FROM auth.tb_scim_group \\\n             WHERE (tenant_id IS NOT DISTINCT FROM $1 OR TRUE)"
+killers = ["a_tenant_token_cannot_reach_another_tenants_groups"]
+shard = "auth-pg"
+
+[[site]]
+id = "tenant-sql.scim.store.list_groups.2"
+file = "crates/fraiseql-auth/src/scim/store.rs"
+function = "list_groups"
+anchor = "updated_at FROM auth.tb_scim_group \\\n             WHERE tenant_id IS NOT DISTINCT FROM $1"
+mutant = "updated_at FROM auth.tb_scim_group \\\n             WHERE (tenant_id IS NOT DISTINCT FROM $1 OR TRUE)"
+killers = ["a_tenant_token_cannot_reach_another_tenants_groups"]
+shard = "auth-pg"
+
+[[site]]
+id = "tenant-sql.scim.store.get_group"
+file = "crates/fraiseql-auth/src/scim/store.rs"
+function = "get_group"
+anchor = "tenant_id IS NOT DISTINCT FROM $2"
+mutant = "(tenant_id IS NOT DISTINCT FROM $2 OR TRUE)"
+killers = ["a_tenant_token_cannot_reach_another_tenants_groups"]
+shard = "auth-pg"
+
+[[site]]
+id = "tenant-sql.scim.store.replace_group"
+file = "crates/fraiseql-auth/src/scim/store.rs"
+function = "replace_group"
+anchor = "tenant_id IS NOT DISTINCT FROM $2"
+mutant = "(tenant_id IS NOT DISTINCT FROM $2 OR TRUE)"
+killers = ["a_tenant_token_cannot_reach_another_tenants_groups"]
+shard = "auth-pg"
+
+[[site]]
+id = "tenant-sql.scim.store.patch_group_members"
+file = "crates/fraiseql-auth/src/scim/store.rs"
+function = "patch_group_members"
+anchor = "tenant_id IS NOT DISTINCT FROM $2"
+mutant = "(tenant_id IS NOT DISTINCT FROM $2 OR TRUE)"
+killers = ["a_tenant_token_cannot_reach_another_tenants_groups"]
+shard = "auth-pg"
+
+[[site]]
+id = "tenant-sql.scim.store.delete_group"
+file = "crates/fraiseql-auth/src/scim/store.rs"
+function = "delete_group"
+anchor = "tenant_id IS NOT DISTINCT FROM $2"
+mutant = "(tenant_id IS NOT DISTINCT FROM $2 OR TRUE)"
+killers = ["a_tenant_token_cannot_reach_another_tenants_groups"]
+shard = "auth-pg"
+
+[[site]]
+id = "tenant-sql.scim.store.groups_of_user"
+file = "crates/fraiseql-auth/src/scim/store.rs"
+function = "groups_of_user"
+anchor = "g.tenant_id IS NOT DISTINCT FROM $2"
+mutant = "(g.tenant_id IS NOT DISTINCT FROM $2 OR TRUE)"
+killers = ["a_tenant_token_cannot_reach_another_tenants_groups"]
+shard = "auth-pg"
+
+[[site]]
+id = "tenant-sql.scim.store.ensure_members_in_tenant"
+file = "crates/fraiseql-auth/src/scim/store.rs"
+function = "ensure_members_in_tenant"
+anchor = "tenant_id IS NOT DISTINCT FROM $2"
+mutant = "(tenant_id IS NOT DISTINCT FROM $2 OR TRUE)"
+killers = ["a_group_cannot_take_a_member_from_another_tenant"]
+shard = "auth-pg"
+
+[[site]]
+id = "tenant-sql.drain.enqueue_sql"
+file = "crates/fraiseql-cdc-sinks/src/drain.rs"
+function = "enqueue_sql"
+anchor = "e.tenant_id = ANY($3::uuid[])"
+mutant = "(e.tenant_id = ANY($3::uuid[]) OR TRUE)"
+killers = ["a_tenant_scoped_sink_enqueues_only_its_tenants_recent_rows"]
+shard = "cdc-drain"
+
+[[site]]
+id = "tenant-sql.drain.sweep_sql"
+file = "crates/fraiseql-cdc-sinks/src/drain.rs"
+function = "sweep_sql"
+anchor = "e.tenant_id = ANY($3::uuid[])"
+mutant = "(e.tenant_id = ANY($3::uuid[]) OR TRUE)"
+killers = ["a_tenant_scoped_sink_backfills_only_its_tenants_rows"]
+shard = "cdc-drain"
+
+[[site]]
+id = "tenant-sql.listener.replay.anchor"
+file = "crates/fraiseql-observers/src/listener/replay.rs"
+function = "anchor"
+anchor = "e.tenant_id::text = $4"
+mutant = "(e.tenant_id::text = $4 OR TRUE)"
+killers = ["an_anchor_in_another_tenant_is_unknown"]
+shard = "observers-replay"
+
+[[site]]
+id = "tenant-sql.listener.replay.count_in_flight"
+file = "crates/fraiseql-observers/src/listener/replay.rs"
+function = "count_in_flight"
+anchor = "e.tenant_id::text = $3"
+mutant = "(e.tenant_id::text = $3 OR TRUE)"
+killers = ["the_in_flight_tail_carries_only_its_own_scope"]
+shard = "observers-replay"
+
+[[site]]
+id = "tenant-sql.listener.replay.page_in_flight"
+file = "crates/fraiseql-observers/src/listener/replay.rs"
+function = "page_in_flight"
+anchor = "e.tenant_id::text = $3"
+mutant = "(e.tenant_id::text = $3 OR TRUE)"
+killers = ["the_in_flight_tail_carries_only_its_own_scope"]
+shard = "observers-replay"
+
+[[site]]
+id = "tenant-sql.listener.replay.page_rows.1"
+file = "crates/fraiseql-observers/src/listener/replay.rs"
+function = "page_rows"
+anchor = "e.tenant_id::text = $5"
+mutant = "(e.tenant_id::text = $5 OR TRUE)"
+killers = ["a_replay_carries_only_its_own_scope"]
+shard = "observers-replay"
+
+[[site]]
+id = "tenant-sql.listener.replay.page_rows.2"
+file = "crates/fraiseql-observers/src/listener/replay.rs"
+function = "page_rows"
+anchor = "e.tenant_id::text = $3"
+mutant = "(e.tenant_id::text = $3 OR TRUE)"
+killers = ["an_anchor_not_yet_recorded_resumes_only_its_own_scope"]
+shard = "observers-replay"
+
+[[site]]
+id = "tenant-sql.api.admin_principal.list"
+file = "crates/fraiseql-server/src/api/admin_principal.rs"
+function = "PgAdminTokenStore::list"
+anchor = "tenant_id = $1"
+mutant = "(tenant_id = $1 OR TRUE)"
+killers = ["only_the_platform_manages_tenant_admin_tokens"]
+shard = "tenant-admin"
+
+[[site]]
+id = "tenant-sql.api.rbac_management.assigned_roles.of"
+file = "crates/fraiseql-server/src/api/rbac_management/assigned_roles.rs"
+function = "of"
+anchor = "(ur.tenant_id IS NULL OR ur.tenant_id::text = lower($2))"
+mutant = "((ur.tenant_id IS NULL OR ur.tenant_id::text = lower($2)) OR TRUE)"
+killers = ["a_role_assigned_in_another_tenant_does_not_grant"]
+shard = "server-tenant-admin"
+
+[[site]]
+id = "tenant-sql.api.rbac_management.db_backend.AUDIT_PREDICATE"
+file = "crates/fraiseql-server/src/api/rbac_management/db_backend.rs"
+function = "AUDIT_PREDICATE"
+anchor = "tenant_id = $4"
+mutant = "(tenant_id = $4 OR TRUE)"
+killers = ["the_permission_audit_is_filtered_by_tenant"]
+shard = "server-tenant-admin"
+
+[[site]]
+id = "tenant-sql.api.rbac_management.db_backend.list_roles.1"
+file = "crates/fraiseql-server/src/api/rbac_management/db_backend.rs"
+function = "list_roles"
+anchor = "tenant_id = $1\n"
+mutant = "(tenant_id = $1 OR TRUE)\n"
+killers = ["roles_are_scoped_to_the_tenant_they_were_created_for"]
+shard = "server-tenant-admin"
+
+[[site]]
+id = "tenant-sql.api.rbac_management.db_backend.list_roles.2"
+file = "crates/fraiseql-server/src/api/rbac_management/db_backend.rs"
+function = "list_roles"
+anchor = "tenant_id = $1\""
+mutant = "(tenant_id = $1 OR TRUE)\""
+killers = ["roles_are_scoped_to_the_tenant_they_were_created_for"]
+shard = "server-tenant-admin"
+
+[[site]]
+id = "tenant-sql.api.rbac_management.db_backend.list_user_roles.1"
+file = "crates/fraiseql-server/src/api/rbac_management/db_backend.rs"
+function = "list_user_roles"
+anchor = "tenant_id = $2)\n"
+mutant = "(tenant_id = $2 OR TRUE))\n"
+killers = ["a_users_role_assignments_are_listed_per_tenant"]
+shard = "server-tenant-admin"
+
+[[site]]
+id = "tenant-sql.api.rbac_management.db_backend.list_user_roles.2"
+file = "crates/fraiseql-server/src/api/rbac_management/db_backend.rs"
+function = "list_user_roles"
+anchor = "tenant_id = $2)\""
+mutant = "(tenant_id = $2 OR TRUE))\""
+killers = ["a_users_role_assignments_are_listed_per_tenant"]
+shard = "server-tenant-admin"
+
+[[site]]
+id = "tenant-sql.async_operations.store.cancel_queued"
+file = "crates/fraiseql-server/src/async_operations/store.rs"
+function = "cancel_queued"
+anchor = "tenant_key IS NOT DISTINCT FROM $3"
+mutant = "(tenant_key IS NOT DISTINCT FROM $3 OR TRUE)"
+killers = ["another_tenant_cannot_cancel_an_operation"]
+shard = "server-tenant-admin"
+
+[[site]]
+id = "tenant-sql.async_operations.store.request_cancel"
+file = "crates/fraiseql-server/src/async_operations/store.rs"
+function = "request_cancel"
+anchor = "tenant_key IS NOT DISTINCT FROM $3"
+mutant = "(tenant_key IS NOT DISTINCT FROM $3 OR TRUE)"
+killers = ["another_tenant_cannot_cancel_an_operation"]
+shard = "server-tenant-admin"
+
+[[site]]
+id = "tenant-sql.inbound.email.tracking.suppression_reason"
+file = "crates/fraiseql-server/src/inbound/email/tracking.rs"
+function = "suppression_reason"
+anchor = "tenant_id IS NOT DISTINCT FROM $2"
+mutant = "(tenant_id IS NOT DISTINCT FROM $2 OR TRUE)"
+killers = ["one_tenants_delivery_state_is_invisible_and_untouched_by_another"]
+shard = "server-tracking"
+
+[[site]]
+id = "tenant-sql.inbound.email.tracking.recorded_send"
+file = "crates/fraiseql-server/src/inbound/email/tracking.rs"
+function = "recorded_send"
+anchor = "tenant_id IS NOT DISTINCT FROM $2"
+mutant = "(tenant_id IS NOT DISTINCT FROM $2 OR TRUE)"
+killers = ["one_tenants_delivery_state_is_invisible_and_untouched_by_another"]
+shard = "server-tracking"
+
+[[site]]
+id = "tenant-sql.inbound.email.tracking.bump_challenge"
+file = "crates/fraiseql-server/src/inbound/email/tracking.rs"
+function = "bump_challenge"
+anchor = "tenant_id IS NOT DISTINCT FROM $2"
+mutant = "(tenant_id IS NOT DISTINCT FROM $2 OR TRUE)"
+killers = ["one_tenants_delivery_state_is_invisible_and_untouched_by_another"]
+shard = "server-tracking"
+
+[[site]]
+id = "tenant-sql.inbound.email.tracking.mark_replied"
+file = "crates/fraiseql-server/src/inbound/email/tracking.rs"
+function = "mark_replied"
+anchor = "tenant_id IS NOT DISTINCT FROM $2"
+mutant = "(tenant_id IS NOT DISTINCT FROM $2 OR TRUE)"
+killers = ["one_tenants_delivery_state_is_invisible_and_untouched_by_another"]
+shard = "server-tracking"
+
+[[site]]
+id = "tenant-sql.inbound.email.tracking.lift_suppression"
+file = "crates/fraiseql-server/src/inbound/email/tracking.rs"
+function = "lift_suppression"
+anchor = "tenant_id IS NOT DISTINCT FROM $2"
+mutant = "(tenant_id IS NOT DISTINCT FROM $2 OR TRUE)"
+killers = ["one_tenants_delivery_state_is_invisible_and_untouched_by_another"]
+shard = "server-tracking"

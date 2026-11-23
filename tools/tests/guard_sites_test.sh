@@ -180,8 +180,41 @@ expect 1 "family \`sql\` matched nothing" "22. a strings family still ignores co
 tree; add "${src}/routes/auth.rs" $'fn find(c: &Conn) { c.query("check_revocation(x)"); }'
 expect 0 "" "23. a code family does not see inside strings"
 
+tree; sql_family
+add "${src}/routes/auth.rs" $'fn find(tenant_key: &str) { let tenant_key = tenant_key; info!(tenant_key IS NOT DISTINCT FROM); }'
+expect 1 "family \`sql\` matched nothing" "24. a strings family does not see code outside strings"
+
+tree; sql_family
+add "${src}/routes/auth.rs" $'fn split(e: &str) -> bool { e.contains("tenant_key") && e.contains("IS NOT DISTINCT FROM") }'
+expect 1 "family \`sql\` matched nothing" "25. a strings family does not join two strings"
+
 tree; sed -i 's/^name     = "session"/name     = "session"\nscan     = "sql"/' "${ws}/tools/guard-sites.toml"
-expect 1 "family \`session\`: needs" "24. an unknown scan mode fails"
+expect 1 "family \`session\`: needs" "26. an unknown scan mode fails"
+
+tree; sql_family
+add "${src}/routes/auth.rs" $'const SCOPED: &str = "WHERE id = $1 AND tenant_key IS NOT DISTINCT FROM $2";'
+cat >> "${ws}/tools/guard-sites.toml" <<'EOF'
+
+[[site]]
+id       = "sql.scoped"
+file     = "crates/fraiseql-server/src/routes/auth.rs"
+function = "SCOPED"
+anchor   = "tenant_key IS NOT DISTINCT FROM $2"
+mutant   = "(tenant_key IS NOT DISTINCT FROM $2 OR TRUE)"
+killers  = ["auth::an_ended_session_is_refused"]
+shard    = "unit"
+EOF
+expect 0 "2 site(s) resolved" "27. a site can sit in a const item"
+
+tree; add "${src}/routes/auth.rs" $'pub struct Gate;
+impl Gate {
+    pub fn admit(s: &State, u: &User) { let _ = check_revocation(s.revocation.as_ref(), u); }
+}'
+expect 1 "\`fn admit\` is defined 2 time(s)" "28. a function name defined twice in a file is ambiguous"
+edit "tools/guard-sites.toml" 'function = "admit"' 'function = "Gate::admit"'
+edit "tools/guard-sites.toml" 'anchor   = "check_revocation(state.revocation.as_ref(), user)"' 'anchor   = "check_revocation(s.revocation.as_ref(), u)"'
+edit "tools/guard-sites.toml" 'mutant   = "check_revocation(None, user)"' 'mutant   = "check_revocation(None, u)"'
+expect 1 "${src}/routes/auth.rs:2:5: session guard" "29. Type::name resolves to the impl's method, so the free fn's call is unrowed"
 
 if [ "$failures" -ne 0 ]; then
   echo "guard sites gate: ${failures} case(s) FAILED"

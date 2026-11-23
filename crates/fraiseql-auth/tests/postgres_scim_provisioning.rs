@@ -362,6 +362,52 @@ async fn the_untenanted_token_cannot_reach_a_tenants_users() {
     ));
 }
 
+/// Another tenant's group is invisible and immutable: not counted or listed, not fetchable,
+/// not named among a member's groups, and every write to it answers "not found" and leaves it
+/// as it was.
+#[tokio::test]
+async fn a_tenant_token_cannot_reach_another_tenants_groups() {
+    let rig = skip_if_no_db!();
+    let acme = store_for(&rig, Some(TENANT_A));
+    let rival = store_for(&rig, Some(TENANT_B));
+    let member = acme.create_user(&write("member", true)).await.unwrap();
+    let group = acme
+        .create_group("Finance", None, std::slice::from_ref(&member.id))
+        .await
+        .unwrap();
+
+    let listed = rival.list_groups(None, 1, 100).await.unwrap();
+    assert_eq!(listed.total_results, 0, "another tenant's group must not be counted");
+    assert!(listed.resources.is_empty(), "another tenant's group must not be listed");
+    assert!(
+        rival.get_group(group.id).await.unwrap().is_none(),
+        "another tenant's group must not be fetchable by id"
+    );
+    assert!(
+        rival.groups_of_user(&member.id).await.unwrap().is_empty(),
+        "another tenant's group must not be named among a user's groups"
+    );
+    let replaced = rival.replace_group(group.id, "Hijacked", None, &[]).await;
+    assert!(
+        matches!(replaced, Err(AuthError::TokenNotFound)),
+        "another tenant's group must not be replaceable: {replaced:?}"
+    );
+    let patched = rival.patch_group_members(group.id, &[], std::slice::from_ref(&member.id)).await;
+    assert!(
+        matches!(patched, Err(AuthError::TokenNotFound)),
+        "another tenant's group must not be patchable: {patched:?}"
+    );
+    let deleted = rival.delete_group(group.id).await;
+    assert!(
+        matches!(deleted, Err(AuthError::TokenNotFound)),
+        "another tenant's group must not be deletable: {deleted:?}"
+    );
+
+    // Untouched, as its own tenant sees it.
+    let after = acme.get_group(group.id).await.unwrap().expect("the group still exists");
+    assert_eq!(after, group, "no write from another tenant may have landed");
+}
+
 /// A group may only hold its own tenant's users. Every membership write — create, replace,
 /// patch — refuses a foreign user id, the same way it refuses one that does not exist, so the
 /// refusal does not reveal that the id belongs to someone else.

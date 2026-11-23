@@ -331,6 +331,31 @@ async fn an_anchor_not_yet_recorded_resumes_by_insertion_order() {
     assert_eq!(markers(&reader, &scope, &anchor).await, vec!["after".to_string()]);
 }
 
+/// Resuming by insertion order is the same stream as resuming by the ledger, so it obeys
+/// the same scope gates: its own entity type and its own tenant.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn an_anchor_not_yet_recorded_resumes_only_its_own_scope() {
+    let pool = pool().await;
+    let object_type = unique_type("UnrecordedScoped");
+    let other_type = unique_type("UnrecordedOther");
+    let mine = Uuid::new_v4();
+    let theirs = Uuid::new_v4();
+
+    let (_, anchor_seq) = insert_row(&pool, &object_type, Some(mine), "anchor").await;
+    insert_row(&pool, &object_type, Some(mine), "mine").await;
+    insert_row(&pool, &object_type, Some(theirs), "another tenant").await;
+    insert_row(&pool, &object_type, None, "no tenant").await;
+    insert_row(&pool, &other_type, Some(mine), "another type").await;
+
+    let reader = reader(&pool);
+    let scope = scope(&object_type, Some(&mine.to_string()));
+    let anchor = found(&reader, &scope, anchor_seq).await;
+
+    assert_eq!(anchor.dispatched_at, None, "the anchor must take the insertion-order branch");
+    assert_eq!(markers(&reader, &scope, &anchor).await, vec!["mine".to_string()]);
+}
+
 // ---------------------------------------------------------------------------
 // The bound
 // ---------------------------------------------------------------------------
@@ -515,4 +540,9 @@ async fn the_in_flight_tail_carries_only_its_own_scope() {
         .map(|replayed| replayed.event.data["marker"].as_str().unwrap().to_string())
         .collect();
     assert_eq!(tail, vec!["mine".to_string()]);
+    assert_eq!(
+        reader.count_in_flight(&scope, &anchor, 100).await.unwrap(),
+        1,
+        "the tail's count obeys the tail's scope"
+    );
 }

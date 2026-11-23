@@ -123,6 +123,16 @@ command = "echo 'test gate::refuses ... FAILED'; exit 101"
 TOML
 expect 1 "FAILED shard always-red: BASELINE-RED gate::refuses" "6. a shard red before any mutant fails, killing nothing"
 
+tree; shard always-empty
+cat >> "${ws}/tools/guard-sites.toml" <<'TOML'
+
+[[shard]]
+name    = "always-empty"
+crate   = "crates/fraiseql-server"
+command = "echo '     Running tests/gated_e2e.rs (target/debug/deps/gated_e2e-0)'; echo 'test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out'"
+TOML
+expect 1 "FAILED shard always-empty: BASELINE-EMPTY tests/gated_e2e.rs" "7. a shard binary that runs no test fails, killing nothing"
+
 if [ "$failures" -ne 0 ]; then
   echo "guard mutants runner: ${failures} case(s) FAILED"
   exit 1

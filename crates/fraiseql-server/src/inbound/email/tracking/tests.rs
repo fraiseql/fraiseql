@@ -356,3 +356,87 @@ async fn init_moves_the_tracking_keys_to_nulls_not_distinct_and_the_upserts_foll
     .unwrap();
     assert_eq!(suppressed, 1, "one suppression per address for the NULL tenant");
 }
+
+/// Two tenants that mail the same recipient keep separate delivery state: one tenant's
+/// suppression, recorded sends, pending challenges and replies are invisible to the other,
+/// and the other's writes leave them as they were.
+#[tokio::test]
+async fn one_tenants_delivery_state_is_invisible_and_untouched_by_another() {
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!(
+            "SKIP one_tenants_delivery_state_is_invisible_and_untouched_by_another: no postgres (set DATABASE_URL or enable fraiseql-test-support/local-testcontainers)"
+        );
+        return;
+    };
+    let tracker = PgSendTracker::new(pool.clone());
+    tracker.init().await.unwrap();
+
+    // Fresh ids every run: the store is shared with every other run of this suite.
+    let run = uuid::Uuid::new_v4().simple().to_string();
+    let (a, b) = (format!("tenant-a-{run}"), format!("tenant-b-{run}"));
+    let (a, b) = (Some(a.as_str()), Some(b.as_str()));
+    let recipient = format!("carol-{run}@example.com");
+    let hash = format!("hash-{run}");
+    let (sent_a, sent_b) = (format!("send-a-{run}"), format!("send-b-{run}"));
+    for (send_id, tenant) in [(&sent_a, a), (&sent_b, b)] {
+        tracker
+            .record_sent(SentRecord {
+                send_id,
+                tenant,
+                recipient: &recipient,
+                sending_address: "sales@example.com",
+                message_id: None,
+            })
+            .await
+            .unwrap();
+    }
+
+    // A's suppression is A's alone.
+    tracker
+        .suppress(a, &hash, SuppressionReason::ChallengeUnanswered, None)
+        .await
+        .unwrap();
+    assert_eq!(tracker.suppression_reason(b, &hash).await.unwrap(), None);
+
+    // A's recorded send is A's alone.
+    let other_send = format!("send-a-only-{run}");
+    tracker
+        .record_sent(SentRecord {
+            send_id:         &other_send,
+            tenant:          a,
+            recipient:       &recipient,
+            sending_address: "sales@example.com",
+            message_id:      None,
+        })
+        .await
+        .unwrap();
+    assert_eq!(tracker.recorded_send(b, &other_send).await.unwrap(), None);
+
+    // A pending challenge counts only within its own tenant.
+    assert_eq!(tracker.bump_challenge(&sent_a, a, &recipient).await.unwrap(), 1);
+    assert_eq!(
+        tracker.bump_challenge(&sent_b, b, &recipient).await.unwrap(),
+        1,
+        "B's count must not include A's pending challenge"
+    );
+
+    // B's reply resets B's challenges, not A's.
+    tracker.mark_replied(&sent_b, b, &recipient).await.unwrap();
+    let (status,): (String,) =
+        sqlx::query_as("SELECT status FROM _fraiseql_send_status WHERE send_id = $1")
+            .bind(&sent_a)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(status, "ChallengePending", "A's challenge is still unanswered");
+
+    // B lifting the same address leaves A's suppression in place.
+    tracker
+        .lift_suppression(b, &hash, SuppressionReason::ChallengeUnanswered)
+        .await
+        .unwrap();
+    assert_eq!(
+        tracker.suppression_reason(a, &hash).await.unwrap(),
+        Some(SuppressionReason::ChallengeUnanswered)
+    );
+}
