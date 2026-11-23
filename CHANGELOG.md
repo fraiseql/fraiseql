@@ -1657,7 +1657,9 @@ disagreed, and the promise was the part that was wrong.
   (§ 5.8.5), as is a value not of its variable's declared type, or a non-null variable
   with none (§ 6.1.2). Both are refused before the operation's first root runs, so a
   document whose second root is at fault writes nothing. A mutation sent through the
-  `fraiseql_query` function bridge is held to the same rules.
+  `fraiseql_query` function bridge is held to the same rules. An MCP mutation tool's
+  argument of the wrong type is still refused under the argument's own name, not under
+  the variable MCP carries it in.
 
 - **A fragment on a type the schema does not define, or one that can never apply where it
   stands, is refused (#2276).** `{ users { ... on Nosuch { name } } }` was answered with a

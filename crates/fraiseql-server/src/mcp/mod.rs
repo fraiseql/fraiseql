@@ -4,6 +4,7 @@
 //! (e.g., Claude Desktop) to interact with the database through the standard
 //! Model Context Protocol.
 
+pub(crate) mod argument_types;
 pub mod executor;
 pub mod handler;
 pub(crate) mod http;

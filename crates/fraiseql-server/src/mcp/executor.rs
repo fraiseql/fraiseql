@@ -56,6 +56,15 @@ pub async fn call_tool(
         Ok(op) => op,
         Err(e) => return error_result(&e),
     };
+    // A mutation's values are refused under the tool argument's name, not the variable
+    // this transport carried it in.
+    if let Some(exposed) = super::tools::resolve_tool(tool_name, ctx.schema, ctx.config) {
+        if let Err(e) =
+            super::argument_types::check_mutation_arguments(&exposed, arguments, ctx.schema)
+        {
+            return error_result(&super::handler::sanitize(ctx.error_sanitizer, &e));
+        }
+    }
 
     let variables = serde_json::Value::Object(operation.variables);
 
