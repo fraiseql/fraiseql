@@ -38,6 +38,8 @@ const STORAGE_ADMIN: &str = "p2347-storage-token-at-least-32-characters";
 const ACTIVE: &str = "p2347a";
 /// The tenant suspended after registration.
 const SUSPENDED: &str = "p2347s";
+/// A tenant allowed one request in flight at a time.
+const CAPPED: &str = "p2347c";
 /// A key no tenant is registered under.
 const UNREGISTERED: &str = "p2347none";
 const BUCKET: &str = "p2347";
@@ -75,7 +77,7 @@ async fn seed(adapter: &PostgresAdapter) {
         "CREATE VIEW public.v_p2347_item AS SELECT 1 AS id, '{}'::jsonb AS data",
     )
     .await;
-    for key in [ACTIVE, SUSPENDED] {
+    for key in [ACTIVE, SUSPENDED, CAPPED] {
         exec(adapter, &format!("DROP SCHEMA IF EXISTS tenant_{key} CASCADE")).await;
         exec(adapter, &format!("CREATE SCHEMA tenant_{key}")).await;
         exec(
@@ -160,8 +162,8 @@ impl Rig {
     }
 }
 
-/// A server with runtime tenancy and the storage API, `ACTIVE` and `SUSPENDED`
-/// registered, and `SUSPENDED` suspended.
+/// A server with runtime tenancy and the storage API, `ACTIVE`, `SUSPENDED` and `CAPPED`
+/// registered, `SUSPENDED` suspended, and `CAPPED` allowed one request in flight.
 async fn rig() -> Option<Rig> {
     let url = try_database_url()?;
     let admin = PostgresAdapter::new(&url).await.unwrap();
@@ -220,11 +222,16 @@ async fn rig() -> Option<Rig> {
         _dir: dir,
         _stop: stop,
     };
-    for key in [ACTIVE, SUSPENDED] {
+    for key in [ACTIVE, SUSPENDED, CAPPED] {
+        let max_concurrent = (key == CAPPED).then_some(1);
         rig.admin(
             Method::PUT,
             &format!("/api/v1/admin/tenants/{key}"),
-            json!({ "schema": schema_json, "connection": { "connection_string": url } }),
+            json!({
+                "schema": schema_json,
+                "connection": { "connection_string": url },
+                "max_concurrent": max_concurrent,
+            }),
         )
         .await;
     }
@@ -382,4 +389,58 @@ async fn the_storage_admin_is_dispatched_to_the_tenant_its_request_names() {
 async fn the_document_loads_without_a_database() {
     let (schema, _) = compiled().await;
     assert!(schema.find_type("Item").is_some());
+}
+
+/// A storage request holds its tenant's concurrency permit until it has been answered,
+/// not just while it is admitted: with one request of a tenant capped at one in flight,
+/// its next request is refused, and served once the first has answered.
+///
+/// The first request is an upload whose body is sent in two halves over a raw
+/// connection, so it stays in its handler, past admission, until the second half
+/// arrives.
+#[tokio::test]
+async fn a_storage_request_holds_its_tenants_concurrency_permit_until_it_answers() {
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+    let Some(rig) = Box::pin(rig()).await else {
+        return;
+    };
+    let token = rig.token("u-capped", CAPPED);
+    let list = || rig.http.get(rig.url(&format!("/storage/v1/list/{BUCKET}"))).bearer_auth(&token);
+    let (status, body) = send(list()).await;
+    assert_eq!(status, StatusCode::OK, "the capped tenant is served alone: {body}");
+
+    let address = rig.base.trim_start_matches("http://").to_string();
+    let mut held = tokio::net::TcpStream::connect(&address).await.unwrap();
+    let head = format!(
+        "PUT /storage/v1/object/{BUCKET}/held.txt HTTP/1.1\r\nHost: {address}\r\n\
+         Authorization: Bearer {token}\r\nContent-Type: text/plain\r\n\
+         Content-Length: 8\r\nConnection: close\r\n\r\nhalf"
+    );
+    held.write_all(head.as_bytes()).await.unwrap();
+
+    // Bounded wait for the held request to be admitted: until then a request is served.
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+    let refused = loop {
+        let (status, body) = send(list()).await;
+        if status == StatusCode::TOO_MANY_REQUESTS {
+            break body;
+        }
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "a second request was served all along: the held request holds no permit"
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    };
+    assert!(!refused.is_empty());
+
+    held.write_all(b"done").await.unwrap();
+    let mut answer = Vec::new();
+    held.read_to_end(&mut answer).await.unwrap();
+    let answer = String::from_utf8_lossy(&answer);
+    assert!(answer.starts_with("HTTP/1.1 2"), "the held upload: {answer}");
+
+    let (status, body) = send(list()).await;
+    assert_eq!(status, StatusCode::OK, "the permit is released once it answered: {body}");
 }
