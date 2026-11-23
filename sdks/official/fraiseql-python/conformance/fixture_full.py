@@ -217,6 +217,11 @@ class OrderShipment:
     order: Annotated[Order, fraiseql.field(scoped_like_parent=True)]
 
 
+@fraiseql.union(members=[User, Order])
+class ActivityItem:
+    """A user or an order on the activity feed."""
+
+
 @fraiseql.enum
 class OrderStatus(Enum):
     PENDING = "PENDING"

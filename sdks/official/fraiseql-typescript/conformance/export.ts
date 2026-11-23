@@ -21,6 +21,7 @@ import {
   registerMutation,
   registerSubscription,
   enum_,
+  union,
   input,
   exportSchema,
   webhook,
@@ -242,6 +243,10 @@ function authorFull(): void {
     undefined,
     { sqlSource: "v_order_shipment" }
   );
+
+  union("ActivityItem", ["User", "Order"], {
+    description: "A user or an order on the activity feed.",
+  });
 
   enum_("OrderStatus", { PENDING: "PENDING", SHIPPED: "SHIPPED", CANCELLED: "CANCELLED" });
   enum Priority {

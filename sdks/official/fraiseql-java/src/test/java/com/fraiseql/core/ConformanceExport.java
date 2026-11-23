@@ -69,6 +69,8 @@ public class ConformanceExport {
         FraiseQL.registerType(ConformanceShiftSlot.class);
         FraiseQL.registerType(ConformancePriceQuote.class);
 
+        FraiseQL.getRegistry().registerUnion(
+            "ActivityItem", List.of("User", "Order"), "A user or an order on the activity feed.");
         FraiseQL.getRegistry().registerEnum("OrderStatus", enumValues(), "");
         Map<String, Object> priority = new LinkedHashMap<>();
         priority.put("LOW", 1);

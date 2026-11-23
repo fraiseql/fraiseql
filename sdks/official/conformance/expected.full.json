@@ -965,6 +965,15 @@
       "sql_source": "v_user_not_found"
     }
   },
+  "unions": {
+    "ActivityItem": {
+      "description": "A user or an order on the activity feed.",
+      "member_types": [
+        "User",
+        "Order"
+      ]
+    }
+  },
   "vector_fields": {
     "Document": {
       "fields": [

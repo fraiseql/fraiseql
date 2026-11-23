@@ -89,5 +89,6 @@
       "sql_source": "v_user"
     }
   },
+  "unions": {},
   "vector_fields": {}
 }

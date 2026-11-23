@@ -429,6 +429,16 @@
       "description": "Input for updating an existing SupportTicket."
     }
   ],
+  "unions": [
+    {
+      "name": "ActivityItem",
+      "member_types": [
+        "User",
+        "Order"
+      ],
+      "description": "A user or an order on the activity feed."
+    }
+  ],
   "queries": [
     {
       "name": "users",

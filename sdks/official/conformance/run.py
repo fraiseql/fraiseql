@@ -158,6 +158,9 @@ def containerized(spec: dict, fixture: str, out: Path, workdir: Path) -> list[st
     """
     return [
         "docker", "run", "--rm",
+        # Labelled with this run's pid, so a run that is killed leaves containers that can
+        # be found and removed without touching anyone else's.
+        "--label", f"fraiseql-conformance={os.getpid()}",
         "-v", f"{workdir}:/sdk",
         "-v", f"{out.parent}:/out",
         "-v", f"{CACHE_ROOT}:/conformance-cache",

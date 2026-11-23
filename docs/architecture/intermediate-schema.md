@@ -344,7 +344,7 @@ Never present in `schema.json` — populated at compile time.
 | Field | Type | Description |
 |-------|------|-------------|
 | `name` | `string` | Union name |
-| `types` | `string[]` | Member type names |
+| `member_types` | `string[]` | Member type names, in the order authored |
 | `description` | `string?` | Description |
 
 ### `IntermediateInputObject` / `IntermediateInputField`

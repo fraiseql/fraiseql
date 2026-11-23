@@ -34,6 +34,7 @@ AUTHORED_ENUMS = ("OrderStatus", "Priority", "Delivery")
 AUTHORED_QUERIES = ("users", "user", "tenantOrders")
 AUTHORED_MUTATIONS = ("createUser", "placeOrder")
 AUTHORED_SUBSCRIPTIONS = ("orderUpdated",)
+AUTHORED_UNIONS = ("ActivityItem",)
 
 # The pgvector type is kept out of `AUTHORED_TYPES` on purpose: the `vector_fields`
 # construct owns it whole. A `Vector` field without a `vector_config` is a compile
@@ -249,6 +250,7 @@ CONSTRUCTS = (
     "type_subscription_policy",
     "type_crud",
     "input_types",
+    "unions",
     "enums",
     "enum_values",
     "queries",
@@ -397,6 +399,7 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
     queries = _by_name(compiled.get("queries"))
     mutations = _by_name(compiled.get("mutations"))
     subscriptions = _by_name(compiled.get("subscriptions"))
+    unions = _by_name(compiled.get("unions"))
 
     observations: dict[str, Any] = {}
 
@@ -464,6 +467,18 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         "connection_types_synthesized": sorted(
             name for name in ("UserEdge", "UserConnection", "PageInfo") if name in types
         ),
+    }
+
+    # A union reaches the compiled schema with its members in the order authored and its
+    # description. Keyed on the authored name: the compiler synthesizes unions of its own
+    # (a mutation's error union), which no SDK authored.
+    observations["unions"] = {
+        name: {
+            "member_types": unions[name].get("member_types"),
+            "description": unions[name].get("description"),
+        }
+        for name in AUTHORED_UNIONS
+        if name in unions
     }
 
     observations["type_is_error"] = sorted(
