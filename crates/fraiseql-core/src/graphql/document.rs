@@ -286,11 +286,15 @@ impl Reader<'_, '_> {
             }),
             cst::Type::ListType(list) => {
                 let inner = list.ty().ok_or_else(|| self.incomplete(list.syntax(), "list type"))?;
+                let item = self.graphql_type(&inner)?;
+                // The item's own `!` stays in the name: `[ID!]` and `[ID]` are different types,
+                // and every reader of the name (value coercion, § 5.8.5) has to tell them apart.
+                let bang = if item.nullable { "" } else { "!" };
                 Ok(GraphQLType {
-                    name:          format!("[{}]", self.graphql_type(&inner)?.name),
+                    name:          format!("[{}{bang}]", item.name),
                     nullable:      true,
                     list:          true,
-                    list_nullable: true,
+                    list_nullable: item.nullable,
                 })
             },
             cst::Type::NonNullType(non_null) => {
@@ -300,9 +304,6 @@ impl Reader<'_, '_> {
                     (None, None) => return Err(self.incomplete(non_null.syntax(), "type")),
                 };
                 parsed.nullable = false;
-                if parsed.list {
-                    parsed.list_nullable = false;
-                }
                 Ok(parsed)
             },
         }

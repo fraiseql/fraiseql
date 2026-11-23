@@ -48,6 +48,26 @@ async def test_retrieve_returns_text_and_metadata(mock_client):
 
 
 @pytest.mark.anyio
+async def test_a_required_search_argument_is_declared_non_null(mock_client):
+    """A ``search: String!`` argument takes a ``String!`` variable, not the default ``String``.
+
+    The server refuses a nullable variable at a non-null argument for the document alone.
+    The engine's own suite executes this document against such an argument.
+    """
+    from fraiseql.integrations.rag import as_source
+
+    mock_client.execute.return_value = {"data": {"documents": []}}
+    source = as_source(mock_client, "documents", fields=["id", "content"], search_type="String!")
+
+    await source.retrieve("q")
+    (document,) = mock_client.execute.call_args.args
+    assert document == (
+        "query ($search: String!, $limit: Int) "
+        "{ documents(search: $search, limit: $limit) { id content } }"
+    )
+
+
+@pytest.mark.anyio
 async def test_metadata_keys_narrow_the_metadata(mock_client):
     from fraiseql.integrations.rag import as_source
 

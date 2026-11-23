@@ -103,7 +103,7 @@ pub use graphql_type_defs::{
 };
 pub use graphql_value::GraphQLValue;
 pub use hierarchy::{HierarchiesConfig, HierarchyDefinition};
-pub(crate) use introspection::CallerIntrospection;
+pub(crate) use introspection::{CallerIntrospection, arg_type_ref, input_field_type_ref};
 pub use introspection::{
     DirectiveLocation, IntrospectionBuilder, IntrospectionDirective, IntrospectionEnumValue,
     IntrospectionField, IntrospectionInputValue, IntrospectionResponses, IntrospectionSchema,

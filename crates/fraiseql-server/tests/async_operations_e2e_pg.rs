@@ -340,7 +340,7 @@ async fn submit_executes_through_the_real_pipeline_and_succeeds() {
     let (code, body) = rig
         .submit(
             "createItem",
-            "mutation Create($label: String) { createItem(label: $label) { id label } }",
+            "mutation Create($label: String!) { createItem(label: $label) { id label } }",
             json!({ "label": "made-async" }),
             &token,
             None,
@@ -378,7 +378,7 @@ async fn idempotent_submission_returns_the_same_op_id_once() {
         return;
     };
     let token = rig.mint_token("async-user-2");
-    let q = "mutation Create($label: String) { createItem(label: $label) { id } }";
+    let q = "mutation Create($label: String!) { createItem(label: $label) { id } }";
 
     let (c1, b1) = rig
         .submit("createItem", q, json!({"label": "idem"}), &token, Some("key-1"))
@@ -763,7 +763,7 @@ async fn another_submitter_under_the_same_key_gets_its_own_operation() {
     };
     let owner = rig.mint_token("key-owner");
     let other = rig.mint_token("key-other");
-    let q = "mutation Create($label: String) { createItem(label: $label) { id } }";
+    let q = "mutation Create($label: String!) { createItem(label: $label) { id } }";
 
     let (_, first) = rig
         .submit("createItem", q, json!({"label": "shared-key"}), &owner, Some("order-42"))

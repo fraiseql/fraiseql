@@ -5,7 +5,7 @@
 //! the existing `Executor`.
 
 use fraiseql_core::{
-    runtime::Executor,
+    runtime::{Executor, published_argument_type},
     schema::{CompiledSchema, FieldDefinition, FieldType, McpConfig},
     security::SecurityContext,
 };
@@ -56,11 +56,10 @@ pub async fn call_tool(
         Ok(op) => op,
         Err(e) => return error_result(&e),
     };
-    // A mutation's values are refused under the tool argument's name, not the variable
-    // this transport carried it in.
+    // A tool's values are refused under the tool argument's name, not the variable this
+    // transport carried it in.
     if let Some(exposed) = super::tools::resolve_tool(tool_name, ctx.schema, ctx.config) {
-        if let Err(e) =
-            super::argument_types::check_mutation_arguments(&exposed, arguments, ctx.schema)
+        if let Err(e) = super::argument_types::check_tool_arguments(&exposed, arguments, ctx.schema)
         {
             return error_result(&super::handler::sanitize(ctx.error_sanitizer, &e));
         }
@@ -182,7 +181,10 @@ pub(crate) fn build_operation(
                     "Invalid argument name: '{name}'. Only [_A-Za-z][_0-9A-Za-z]* is allowed."
                 ));
             }
-            variable_defs.push(format!("${name}: {}", graphql_type_name(&arg_def.arg_type)));
+            // Declared at the type the argument publishes (§ 5.8.5): a `[T!]` argument
+            // refuses a `[T]` variable, and a required one a nullable variable. Only a
+            // supplied argument is in the document, so a required one is declared `T!`.
+            variable_defs.push(format!("${name}: {}", published_argument_type(arg_def)));
             call_args.push(format!("{name}: ${name}"));
             variables.insert(name.clone(), value.clone());
         }
@@ -219,42 +221,6 @@ fn accepted_argument_list(declared: &[fraiseql_core::schema::ArgumentDefinition]
         "none".to_string()
     } else {
         declared.iter().map(|a| a.name.as_str()).collect::<Vec<_>>().join(", ")
-    }
-}
-
-/// Render a [`FieldType`] as the GraphQL type name used in a variable definition.
-///
-/// Variables are always declared nullable: MCP arguments are optional at the
-/// transport level (the client may omit any of them), and a `!` here would only
-/// describe a constraint this layer does not enforce.
-fn graphql_type_name(field_type: &FieldType) -> String {
-    match field_type {
-        FieldType::Int => "Int".to_string(),
-        FieldType::BigInt => "BigInt".to_string(),
-        FieldType::Float => "Float".to_string(),
-        FieldType::Boolean => "Boolean".to_string(),
-        FieldType::Id => "ID".to_string(),
-        FieldType::DateTime => "DateTime".to_string(),
-        FieldType::LocalDateTime => "LocalDateTime".to_string(),
-        FieldType::Date => "Date".to_string(),
-        FieldType::Time => "Time".to_string(),
-        FieldType::Uuid => "UUID".to_string(),
-        FieldType::Decimal => "Decimal".to_string(),
-        // JSON and Vector are both exposed as JSON, matching introspection.
-        FieldType::Json | FieldType::Vector => "JSON".to_string(),
-        FieldType::Scalar(name)
-        | FieldType::Object(name)
-        | FieldType::Enum(name)
-        | FieldType::Input(name)
-        | FieldType::Interface(name)
-        | FieldType::Union(name) => name.clone(),
-        FieldType::List { item: inner, .. } => format!("[{}]", graphql_type_name(inner)),
-        // Reason: FieldType is #[non_exhaustive]; a future variant carries no known
-        // GraphQL name, and `String` is the same fallback `field_type_to_json_schema`
-        // uses for the advertised input schema. `BitVector` lands here by
-        // agreement rather than by accident: its value IS a string of `0`/`1`
-        // characters, which is how introspection advertises it too (#959).
-        _ => "String".to_string(),
     }
 }
 

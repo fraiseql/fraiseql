@@ -613,6 +613,13 @@ impl QueryMatcher {
                     &root.arguments,
                     &parsed.variables,
                 )?;
+                super::validate_variable_positions(
+                    &self.schema,
+                    &field_label,
+                    &arguments.published,
+                    &root.arguments,
+                    &parsed.variables,
+                )?;
                 //     5e. #1362: and an enum written at one of those names must name a
                 //     member the schema declares. Separate from 5d because that check
                 //     adjudicates the ten built-in scalars and needs no schema, while an

@@ -59,8 +59,16 @@ pub fn subscription_arguments(
     crate::runtime::validate_argument_names(&root.name, &declared, &root.arguments, suggestions)?;
     // A value of the wrong type compares unequal with every event: refuse it, as a query
     // field's is, rather than establish a subscription that matches nothing.
+    let field_label = format!("Subscription.{}", root.name);
     crate::runtime::validate_argument_values(
-        &format!("Subscription.{}", root.name),
+        &field_label,
+        &definition.arguments,
+        &root.arguments,
+        &document.variables,
+    )?;
+    crate::runtime::validate_variable_positions(
+        schema,
+        &field_label,
         &definition.arguments,
         &root.arguments,
         &document.variables,

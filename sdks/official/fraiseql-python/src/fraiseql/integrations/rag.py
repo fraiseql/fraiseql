@@ -50,7 +50,9 @@ class FraiseQLRAGSource:
         metadata_keys: Selected fields copied into metadata (None = all others).
         search_arg: Argument name carrying the query text (``"search"``).
         limit_arg: Argument name carrying ``top_k`` (``"limit"``).
-        search_type: GraphQL type of the search argument (``"String"``).
+        search_type: GraphQL type the search variable is declared at (``"String"``).
+            It must fit the argument: a server refuses a nullable ``String`` variable
+            at a required ``String!`` argument, so pass ``"String!"`` for one.
     """
 
     def __init__(

@@ -38,8 +38,9 @@ mod types;
 // Re-export the complete public API (unchanged from the old flat module).
 pub use caller_view::CallerIntrospection;
 pub use default_literal::{argument_default, input_field_default};
+pub use field_resolver::arg_type_ref;
 pub use schema_builder::{IntrospectionBuilder, IntrospectionResponses};
-pub use type_resolver::published_scalar_names;
+pub use type_resolver::{input_field_type_ref, published_scalar_names};
 pub use types::{
     DirectiveLocation, IntrospectionDirective, IntrospectionEnumValue, IntrospectionField,
     IntrospectionInputValue, IntrospectionSchema, IntrospectionType, IntrospectionTypeRef,

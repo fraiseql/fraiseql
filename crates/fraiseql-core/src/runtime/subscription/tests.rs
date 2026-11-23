@@ -6,6 +6,9 @@ use uuid::Uuid;
 use super::*;
 use crate::schema::{CompiledSchema, SecurityConfig, SubscriptionDefinition};
 
+#[path = "variable_position_tests.rs"]
+mod variable_position;
+
 fn create_test_schema() -> CompiledSchema {
     CompiledSchema {
         subscriptions: vec![
@@ -1659,8 +1662,14 @@ fn a_null_item_at_a_non_null_list_argument_is_refused_at_subscribe() {
         serde_json::json!({}),
     );
     let variable = arguments(
-        "subscription($i: [ID]) { OrdersUpdated(ids: $i) { id } }",
+        "subscription($i: [ID!]) { OrdersUpdated(ids: $i) { id } }",
         serde_json::json!({ "i": [null] }),
+    );
+    // Declared with nullable items, the variable is refused before any value is read
+    // (§ 5.8.5): the document says a null may arrive where none is accepted.
+    let declared_nullable = arguments(
+        "subscription($i: [ID]) { OrdersUpdated(ids: $i) { id } }",
+        serde_json::json!({ "i": ["a"] }),
     );
     let loose =
         arguments("subscription { OrdersUpdated(tags: [null]) { id } }", serde_json::json!({}));
@@ -1674,6 +1683,7 @@ fn a_null_item_at_a_non_null_list_argument_is_refused_at_subscribe() {
     };
     refused(&inline, "ids[1]");
     refused(&variable, "ids[0]");
+    refused(&declared_nullable, "is declared as `[ID]` but is used for argument `ids`");
     assert_eq!(loose.unwrap(), serde_json::json!({ "tags": [null] }));
 }
 

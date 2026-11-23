@@ -50,6 +50,27 @@ disagreed, and the promise was the part that was wrong.
   called it, nothing tested it, and it read a `fraiseql_audit_logs` table no migration
   creates. Read audit entries from the store your exporters write to.
 
+- **A variable whose declared type admits a null is refused where its position does not
+  (#1617).** GraphQL § 5.8.5: `$id: ID` is used only where a null is accepted, unless the
+  variable has a non-null default or the position declares a default of its own, and a
+  list variable's items are compared too, so `$ids: [ID]` does not fit a `[ID!]` argument.
+  The document is refused before any value is read, wherever the variable is used: at an
+  argument of a query, mutation or subscription root, inside an input object written
+  inline (`where: {status: {in: [PENDING, $s]}}`), as an item of a list, and at
+  `__type(name:)`. Before, only the variable's named type was compared, and the parser
+  dropped a list's item nullability, so `[ID]` and `[ID!]` read alike. The refusal names
+  the variable, its declared type, where it is used and the type published there:
+  ``Variable `$ids` is declared as `[ID]` but is used for argument `ids` on Query.orders,
+  which has type `[ID!]` ``, or, inside an input object, ``… but is used at
+  `where.status.in` on Query.orders, which has type `[OrderStatus!]` ``. Declare each
+  variable at the type introspection publishes for its position. A client generated from
+  introspection before #1614, which published every list's items as nullable, declares
+  `[ID]` and is refused: regenerate it. The Python SDK's RAG source declares its search
+  variable `String` by default; pass `search_type="String!"` for a required search
+  argument. MCP declares each tool argument's variable at the argument's published type, and
+  refuses a `null` for a required argument under the argument's own name, e.g. ``Validation
+  error: Argument `email` on Mutation.createUser has type `String!`, and may not be null``.
+
 - **The Go SDK requires Go 1.26 (#2278).** Its `go.mod` declares `go 1.26`, the oldest
   release Go still supports, and its suite runs on 1.26 and 1.27; it declared 1.23, was
   tested on 1.23 and 1.24, and its README promised 1.22. The code needs nothing newer than

@@ -80,6 +80,7 @@ mod session_headers;
 pub mod sql_logger;
 pub mod subscription;
 /// Variable-definition validation for the executed operation (GraphQL § 5.8.3).
+mod variable_position;
 mod variable_validation;
 pub mod window;
 mod window_parser;
@@ -180,6 +181,9 @@ pub use subscription::{
     SubscriptionError, SubscriptionEvent, SubscriptionId, SubscriptionManager,
     SubscriptionOperation, SubscriptionPayload, TransportAdapter, TransportManager, WebhookAdapter,
     WebhookConfig, extract_rls_conditions, protocol,
+};
+pub use variable_position::{
+    published_argument_type, type_name_argument, validate_variable_positions,
 };
 pub use variable_validation::{
     collect_variable_references, validate_variable_types, validate_variable_uses,

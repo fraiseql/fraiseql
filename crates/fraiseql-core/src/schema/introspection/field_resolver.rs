@@ -484,7 +484,7 @@ pub(super) fn build_validation_rule(
 }
 
 /// The type reference an argument publishes.
-pub(super) fn arg_type_ref(arg: &super::super::ArgumentDefinition) -> IntrospectionType {
+pub fn arg_type_ref(arg: &super::super::ArgumentDefinition) -> IntrospectionType {
     // #1513: a localized argument takes `LocalizedInput`.
     if arg.localized {
         field_type_to_introspection(

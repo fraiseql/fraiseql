@@ -294,9 +294,9 @@ pub fn declares_only_builtin_scalars(
 /// before resolution — and the innermost name is what the error reports, since
 /// `'[ID]'` is not a name a client could look up.
 fn innermost_type_name(name: &str) -> &str {
-    let mut inner = name;
+    let mut inner = name.trim_end_matches('!');
     while let Some(stripped) = inner.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
-        inner = stripped;
+        inner = stripped.trim_end_matches('!');
     }
     inner
 }

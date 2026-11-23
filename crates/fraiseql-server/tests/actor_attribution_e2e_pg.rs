@@ -193,7 +193,7 @@ impl Rig {
     /// Run `createItem` over `POST /graphql` with the given Bearer token.
     async fn graphql_create(&self, label: &str, token: Option<&str>) -> (u16, String) {
         let body = json!({
-            "query": "mutation Create($label: String) { createItem(label: $label) { id label } }",
+            "query": "mutation Create($label: String!) { createItem(label: $label) { id label } }",
             "variables": { "label": label },
         });
         let mut req = self

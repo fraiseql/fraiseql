@@ -823,12 +823,28 @@ async fn a_null_item_at_a_non_null_list_argument_is_refused_before_the_function(
     let variable = query(
         &compiled,
         &url,
-        "mutation($n: [String]!) { label(names: $n) { id } }",
+        "mutation($n: [String!]!) { label(names: $n) { id } }",
         Some(&json!({ "n": ["a", null] })),
+    );
+    // Declared with nullable items, the variable is refused for the document alone (§ 5.8.5).
+    let declared_nullable = query(
+        &compiled,
+        &url,
+        "mutation($n: [String]!) { label(names: $n) { id } }",
+        Some(&json!({ "n": ["a"] })),
     );
 
     assert_refused_null_item(&literal, "names[0]");
-    assert_refused_null_item(&variable, "names[1]");
+    // The value of a variable declared `[String!]!` is refused as the variable's (§ 6.1.2).
+    assert_refused_null_item(&variable, "Variable `$n` at `[1]`");
+    let message = declared_nullable["errors"][0]["message"].as_str().unwrap_or_default();
+    assert!(
+        message.contains(
+            "Variable `$n` is declared as `[String]!` but is used for argument `names` on \
+             Mutation.label, which has type `[String!]!`"
+        ),
+        "{declared_nullable}"
+    );
     assert_eq!(stored_labels(&url).await, 0, "the function must not have been called");
 }
 
@@ -872,8 +888,16 @@ async fn a_null_item_in_a_filter_operand_list_is_refused() {
     let nested_variable = query(
         &compiled,
         &url,
-        "query($n: [String]) { labels(where: {name: {nin: $n}}) { name } }",
+        "query($n: [String!]) { labels(where: {name: {nin: $n}}) { name } }",
         Some(&json!({ "n": ["first", null] })),
+    );
+    // Declared with nullable items, the variable is refused for the document alone (§ 5.8.5),
+    // whatever it carries.
+    let declared_nullable = query(
+        &compiled,
+        &url,
+        "query($n: [String]) { labels(where: {name: {nin: $n}}) { name } }",
+        Some(&json!({ "n": ["first"] })),
     );
     let whole_variable = query(
         &compiled,
@@ -885,7 +909,16 @@ async fn a_null_item_in_a_filter_operand_list_is_refused() {
         query(&compiled, &url, r#"{ labels(where: {name: {nin: ["first"]}}) { name } }"#, None);
 
     assert_refused_null_item(&literal, "nin[0]");
-    assert_refused_null_item(&nested_variable, "nin[1]");
+    // The value of a variable declared `[String!]` is refused as the variable's (§ 6.1.2).
+    assert_refused_null_item(&nested_variable, "Variable `$n` at `[1]`");
+    let message = declared_nullable["errors"][0]["message"].as_str().unwrap_or_default();
+    assert!(
+        message.contains(
+            "Variable `$n` is declared as `[String]` but is used at `where.name.nin` on \
+             Query.labels, which has type `[String!]`"
+        ),
+        "{declared_nullable}"
+    );
     assert_refused_null_item(&whole_variable, "nin[0]");
     let mut names: Vec<&str> = served["data"]["labels"]
         .as_array()
@@ -920,7 +953,7 @@ async fn an_enum_operand_passed_as_a_nested_variable_filters_the_rows() {
     let in_list = query(
         &compiled,
         &url,
-        "query($s: OrderStatus) { orders(where: {status: {in: [PENDING, $s]}}) { id } }",
+        "query($s: OrderStatus!) { orders(where: {status: {in: [PENDING, $s]}}) { id } }",
         Some(&json!({ "s": "LOST" })),
     );
     let not_a_member = query(

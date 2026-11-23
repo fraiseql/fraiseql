@@ -263,6 +263,13 @@ impl Executor {
                     parsed,
                 ),
                 "__type" => {
+                    crate::runtime::validate_variable_positions(
+                        &self.ctx.schema,
+                        "Query.__type",
+                        &[crate::runtime::type_name_argument()],
+                        &root.arguments,
+                        &parsed.variables,
+                    )?;
                     let type_name = introspection_type_name(root, &vars)?;
                     let built = Arc::new(view.get_type_response(&type_name));
                     // The type name and the caller's view are part of the memo key:

@@ -31,7 +31,7 @@ use fraiseql_core::{
         types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
         where_clause::WhereClause,
     },
-    error::Result,
+    error::{FraiseQLError, Result},
     runtime::{Executor, relay::encode_node_id},
     schema::{
         CompiledSchema, FieldDenyPolicy, FieldType, InterfaceDefinition, SecurityConfig,
@@ -1940,6 +1940,14 @@ async fn type_introspection_without_a_name_is_refused() {
     let (exec, _) = executor();
     let refused = exec.execute("query T($n: String) { __type(name: $n) { name } }", None).await;
     assert!(refused.is_err(), "a null name must be refused, got {refused:?}");
+    // Refused for the document, before any value is read (§ 5.8.5): `$n` may be null, and
+    // `name` may not.
+    assert!(
+        matches!(&refused, Err(FraiseQLError::Validation { message, .. }) if message
+            == "Variable `$n` is declared as `String` but is used for argument `name` on \
+                Query.__type, which has type `String!`"),
+        "{refused:?}"
+    );
 }
 
 /// The same when the argument is missing altogether.

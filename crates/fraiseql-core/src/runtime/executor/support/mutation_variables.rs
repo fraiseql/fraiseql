@@ -16,7 +16,8 @@ use crate::{
     error::Result,
     graphql::{FieldSelection, GraphQLArgument},
     runtime::{
-        Executor, validate_argument_values, validate_enum_variable_values, validate_variable_values,
+        Executor, validate_argument_values, validate_enum_variable_values,
+        validate_variable_positions, validate_variable_values,
     },
 };
 
@@ -48,10 +49,13 @@ impl Executor {
                 .filter(|arg| arg.value_type == "variable")
                 .cloned()
                 .collect();
-            validate_argument_values(
-                &format!("Mutation.{}", schema.display_name(&mutation.name)),
+            let field_label = format!("Mutation.{}", schema.display_name(&mutation.name));
+            validate_argument_values(&field_label, &mutation.arguments, &variables, definitions)?;
+            validate_variable_positions(
+                schema,
+                &field_label,
                 &mutation.arguments,
-                &variables,
+                &root.arguments,
                 definitions,
             )?;
         }

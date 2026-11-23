@@ -36,6 +36,9 @@ use fraiseql_core::{
 use fraiseql_test_utils::schema_builder::{TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder};
 use serde_json::{Value, json};
 
+#[path = "argument_value_types_postgres/variable_nullability.rs"]
+mod variable_nullability;
+
 /// Uniquely named so it cannot collide with fixtures other suites share in the
 /// same database.
 const VIEW: &str = "v_argument_value_types_thing";

@@ -32,6 +32,9 @@ use fraiseql_server::{mcp::handler::FraiseQLMcpService, routes::graphql::AppStat
 use fraiseql_test_support::try_database_url;
 use serde_json::{Value, json};
 
+#[path = "mcp_abstract_returns_e2e_pg/argument_types.rs"]
+mod argument_types;
+
 const SCHEMA: &str = "p1546_mcp";
 
 async fn provision(adapter: &PostgresAdapter) {

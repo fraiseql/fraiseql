@@ -247,7 +247,7 @@ fn input_type_ref(written: &str, schema: &CompiledSchema) -> IntrospectionType {
 }
 
 /// The type reference an input field publishes.
-pub(super) fn input_field_type_ref(
+pub fn input_field_type_ref(
     f: &InputFieldDefinition,
     schema: &CompiledSchema,
 ) -> IntrospectionType {

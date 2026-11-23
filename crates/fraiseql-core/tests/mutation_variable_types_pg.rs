@@ -23,6 +23,9 @@ use fraiseql_core::{
 };
 use serde_json::{Value, json};
 
+#[path = "mutation_variable_types_pg/nullability.rs"]
+mod nullability;
+
 /// The response contract, the schema, its table and functions; `None` without a database.
 async fn provisioned(schema: &str) -> Option<Arc<PostgresAdapter>> {
     let Some(url) = fraiseql_test_support::try_database_url() else {
