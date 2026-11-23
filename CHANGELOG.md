@@ -1669,6 +1669,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`examples/blog_api` is removed (#1660).** Its README described a Python application the
+  example never shipped and GraphQL the server does not accept (`filters:`,
+  `orderBy: CREATED_AT_DESC`), and no examples gate loaded it, so nothing could catch the
+  drift. `examples/basic` covers the same blog schema and is compiled and queried by the
+  examples gates.
+
 - **`fraiseql run` starts the observer runtime with `fraiseql.toml`'s `[observers.runtime]`
   tuning (#1740).** The table was accepted and ignored, so the runtime ran on its defaults
   (`channel_capacity`, `batch_size`, `poll_interval_ms`, the pool and the transport).
