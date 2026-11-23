@@ -16,6 +16,8 @@
 
 mod common;
 
+mod rls_reader;
+
 use std::sync::Arc;
 
 use common::minting_store;
@@ -498,4 +500,72 @@ async fn the_token_is_never_stored_in_a_replayable_form() {
 
 fn unix_in(secs: u64) -> u64 {
     fraiseql_auth::session::unix_now().unwrap() + secs
+}
+
+/// A group is read only with its tenant set; its members and the provisioning tokens have
+/// no read policy, so a role that does not own them reads none, whatever tenant it sets.
+#[tokio::test]
+async fn groups_are_read_through_the_tenant_policy_and_members_and_tokens_not_at_all() {
+    let _rig = skip_if_no_db!();
+    let url = try_database_url().unwrap();
+    let admin = PgPoolOptions::new().max_connections(2).connect(&url).await.unwrap();
+    for (name, tenant) in [
+        ("t", Some("7777777a-7777-4777-8777-777777777777")),
+        ("u", Some("5555555b-5555-4555-8555-555555555555")),
+        ("p", None),
+    ] {
+        sqlx::query(
+            "WITH g AS (INSERT INTO auth.tb_scim_group (display_name, tenant_id) \
+                        VALUES ($1, $2::uuid) RETURNING pk_scim_group) \
+             INSERT INTO auth.tb_scim_group_member (fk_scim_group, user_id) \
+             SELECT pk_scim_group, $1 FROM g",
+        )
+        .bind(name)
+        .bind(tenant)
+        .execute(&admin)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO auth.tb_scim_token (token_hash, idp_name, tenant_id) \
+             VALUES ($1, 'okta', $2::uuid)",
+        )
+        .bind(format!("hash-{name}"))
+        .bind(tenant)
+        .execute(&admin)
+        .await
+        .unwrap();
+    }
+    let (groups, members, tokens) =
+        ("auth.tb_scim_group", "auth.tb_scim_group_member", "auth.tb_scim_token");
+    let reader = rls_reader::reader(
+        &admin,
+        &url,
+        "fraiseql_auth_scim_reader",
+        &format!("{groups}, {members}, {tokens}"),
+    )
+    .await;
+
+    assert_eq!(rls_reader::rows(&reader, groups, None).await, 0, "no tenant set reads no group");
+    assert_eq!(
+        rls_reader::rows(&reader, groups, Some("7777777a-7777-4777-8777-777777777777")).await,
+        1,
+        "tenant T reads its own group, not tenant U's or the platform's"
+    );
+    for table in [members, tokens] {
+        assert_eq!(
+            rls_reader::rows(&reader, table, Some("7777777a-7777-4777-8777-777777777777")).await,
+            0,
+            "{table} reads nothing"
+        );
+        assert_eq!(
+            rls_reader::rows(&admin, table, None).await,
+            3,
+            "control: the owner reads all three rows of {table}"
+        );
+    }
+    assert_eq!(
+        rls_reader::rows(&admin, groups, None).await,
+        3,
+        "control: the owner reads all three groups"
+    );
 }

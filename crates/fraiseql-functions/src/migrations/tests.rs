@@ -249,6 +249,97 @@ async fn test_send_tracking_migration_creates_tables_idempotently() {
     }
 }
 
+/// The delivery-feedback tables' policies are `ENABLE`d, not `FORCE`d, so their owner skips
+/// them and a read as the owner proves nothing. A `NOBYPASSRLS` role that owns nothing reads
+/// a tenant's rows only with that tenant set, and with none set, only the rows that belong to
+/// no tenant.
+#[tokio::test]
+async fn send_tracking_rows_are_read_through_the_tenant_policy() {
+    use std::str::FromStr;
+
+    use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
+
+    const ROLE: &str = "fraiseql_send_tracking_reader";
+    const PASSWORD: &str = "send_tracking_rls_test_password";
+
+    let Some((pool, svc)) = connect_pool().await else {
+        eprintln!("SKIP send_tracking_rows_are_read_through_the_tenant_policy: no postgres");
+        return;
+    };
+    execute_ddl(&pool, send_tracking_migration_sql()).await;
+    sqlx::query("TRUNCATE _fraiseql_send_status, _fraiseql_suppression")
+        .execute(&pool)
+        .await
+        .unwrap();
+    for tenant in [Some("acme"), Some("globex"), None] {
+        sqlx::query(
+            "INSERT INTO _fraiseql_send_status (send_id, tenant_id, recipient, sending_address, \
+             status) VALUES (gen_random_uuid()::text, $1, 'a@example.com', 'noreply@example.com', \
+             'sent')",
+        )
+        .bind(tenant)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO _fraiseql_suppression (tenant_id, address_hash, reason) \
+             VALUES ($1, 'h', 'bounce')",
+        )
+        .bind(tenant)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    for statement in [
+        format!(
+            "DO $$ BEGIN
+                 IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{ROLE}') THEN
+                     CREATE ROLE {ROLE} LOGIN PASSWORD '{PASSWORD}' NOSUPERUSER NOBYPASSRLS;
+                 END IF;
+             END $$"
+        ),
+        format!("ALTER ROLE {ROLE} NOSUPERUSER NOBYPASSRLS LOGIN PASSWORD '{PASSWORD}'"),
+        format!("GRANT SELECT ON _fraiseql_send_status, _fraiseql_suppression TO {ROLE}"),
+    ] {
+        // Reason: test SQL built from a role name this test defines.
+        sqlx::query(sqlx::AssertSqlSafe(statement)).execute(&pool).await.unwrap();
+    }
+    let options = PgConnectOptions::from_str(svc.url()).unwrap().username(ROLE).password(PASSWORD);
+
+    for table in ["_fraiseql_send_status", "_fraiseql_suppression"] {
+        // A fresh session per table: a transaction-local setting leaves `''` behind, not unset.
+        let reader = PgPoolOptions::new()
+            .max_connections(1)
+            .connect_with(options.clone())
+            .await
+            .unwrap();
+        let count = format!("SELECT count(*) FROM {table}");
+        // Reason: test SQL built from the table names above.
+        let (unset,): (i64,) = sqlx::query_as(sqlx::AssertSqlSafe(count.clone()))
+            .fetch_one(&reader)
+            .await
+            .unwrap();
+        let mut tx = reader.begin().await.unwrap();
+        sqlx::query("SELECT set_config('fraiseql.tenant_id', 'acme', true)")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        // Reason: test SQL built from the table names above.
+        let (acme,): (i64,) = sqlx::query_as(sqlx::AssertSqlSafe(count.clone()))
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        // Reason: test SQL built from the table names above.
+        let (owner,): (i64,) =
+            sqlx::query_as(sqlx::AssertSqlSafe(count)).fetch_one(&pool).await.unwrap();
+
+        assert_eq!(unset, 1, "{table}: no tenant set reads only the row of no tenant");
+        assert_eq!(acme, 1, "{table}: acme reads its own row, not globex's or the unowned one");
+        assert_eq!(owner, 3, "{table}: control, the owner reads all three");
+    }
+}
+
 /// Verify the function-DLQ DDL is syntactically complete and contains the columns,
 /// the stable-id unique key, and the Trinity PK. Runs without a database.
 #[test]

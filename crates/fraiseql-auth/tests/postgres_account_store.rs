@@ -12,6 +12,8 @@
 //! **Parallelism:** truncates the shared `auth` tables on setup → run `--test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
+mod rls_reader;
+
 use std::str::FromStr;
 
 use fraiseql_auth::{AccountStore, PostgresAccountStore};
@@ -579,5 +581,37 @@ async fn init_replaces_the_partial_pairs_of_an_earlier_build() {
             "uq_user_email_per_space",
             "uq_user_user_name_per_space"
         ]
+    );
+}
+
+/// A tenant's provider identities are read only with that tenant set: not with none, and
+/// not another tenant's or the platform's.
+#[tokio::test]
+async fn auth_identities_are_read_through_the_tenant_policy() {
+    let Some(url) = try_database_url() else {
+        eprintln!("skipping RLS identity test: DATABASE_URL not set");
+        return;
+    };
+    let (store, admin) = fresh().await.unwrap();
+    for (tenant, subject) in [
+        (Some(TENANT_T), "t-1"),
+        (Some(TENANT_U), "u-1"),
+        (None, "g-1"),
+    ] {
+        store.link_or_create_user(tenant, None, false, "saml", subject).await.unwrap();
+    }
+    let table = "auth.tb_auth_identity";
+    let reader = rls_reader::reader(&admin, &url, "fraiseql_auth_identity_reader", table).await;
+
+    assert_eq!(rls_reader::rows(&reader, table, None).await, 0, "no tenant set reads nothing");
+    assert_eq!(
+        rls_reader::rows(&reader, table, Some(&TENANT_T.to_string())).await,
+        1,
+        "tenant T reads its own identity, not tenant U's or the platform's"
+    );
+    assert_eq!(
+        rls_reader::rows(&admin, table, None).await,
+        3,
+        "control: the owner reads all three"
     );
 }

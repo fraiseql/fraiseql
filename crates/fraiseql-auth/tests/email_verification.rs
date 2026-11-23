@@ -29,6 +29,8 @@
 #![allow(clippy::unwrap_used, clippy::print_stderr, clippy::panic)] // Reason: test code — panics and skip diagnostics are acceptable
 #![allow(clippy::doc_markdown)] // Reason: technical terms (PostgreSQL, RLS) throughout the docs
 
+mod rls_reader;
+
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
@@ -669,4 +671,43 @@ async fn an_address_held_in_a_tenant_does_not_block_a_platform_account() {
         vec!["saml:acme"],
         "the tenant's is untouched"
     );
+}
+
+/// A verification token is read only with its tenant set: not with none, and not another
+/// tenant's or the platform's.
+#[tokio::test]
+async fn verification_tokens_are_read_through_the_tenant_policy() {
+    let h = skip_if_no_db!();
+    let url = try_database_url().unwrap();
+    for (n, tenant) in [
+        ("t", Some("7777777a-7777-4777-8777-777777777777")),
+        ("u", Some("5555555b-5555-4555-8555-555555555555")),
+        ("p", None),
+    ] {
+        sqlx::query(
+            "WITH u AS (INSERT INTO auth.tb_user (user_id, email, tenant_id) \
+                        VALUES ($1, $1 || '@example.com', $2::uuid) \
+                        RETURNING pk_user, user_id, email) \
+             INSERT INTO auth.tb_email_verification_token \
+                 (fk_user, user_id, email, selector, verifier_hash, expires_at, tenant_id) \
+             SELECT pk_user, user_id, email, $1, decode('00', 'hex'), \
+                    now() + interval '1 hour', $2::uuid FROM u",
+        )
+        .bind(n)
+        .bind(tenant)
+        .execute(&h.admin)
+        .await
+        .unwrap();
+    }
+    let table = "auth.tb_email_verification_token";
+    let reader =
+        rls_reader::reader(&h.admin, &url, "fraiseql_auth_verification_reader", table).await;
+
+    assert_eq!(rls_reader::rows(&reader, table, None).await, 0, "no tenant set reads nothing");
+    assert_eq!(
+        rls_reader::rows(&reader, table, Some("7777777a-7777-4777-8777-777777777777")).await,
+        1,
+        "tenant T reads its own token, not tenant U's or the platform's"
+    );
+    assert_eq!(token_count(&h.admin).await, 3, "control: the owner reads all three");
 }

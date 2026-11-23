@@ -15,6 +15,8 @@
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics/skips are fine
 #![allow(clippy::doc_markdown)] // Reason: technical terms (IdP, NameID, SSO) throughout
 
+mod rls_reader;
+
 use std::sync::Arc;
 
 use chrono::{Duration, Utc};
@@ -349,4 +351,46 @@ async fn expiry_report_names_certificates_before_the_cliff() {
     assert!(registry.expiry_report(Utc::now(), 1).is_empty());
     // And past its expiry it reads as down, not merely imminent.
     assert!(registry.expiry_report(Utc::now() + Duration::days(10), 30)[0].expired);
+}
+
+/// A stored IdP is read only with its tenant set: not with none, and not another tenant's
+/// or the platform's.
+#[tokio::test]
+async fn idps_are_read_through_the_tenant_policy() {
+    let _store = skip_if_no_db!();
+    let url = try_database_url().unwrap();
+    let admin = PgPoolOptions::new().max_connections(2).connect(&url).await.unwrap();
+    for (name, tenant) in [
+        ("t", Some("7777777a-7777-4777-8777-777777777777")),
+        ("u", Some("5555555b-5555-4555-8555-555555555555")),
+        ("p", None),
+    ] {
+        sqlx::query(
+            "INSERT INTO auth.tb_saml_idp \
+                 (idp_name, tenant_id, sp_entity_id, acs_url, metadata_xml, idp_entity_id) \
+             VALUES ($1, $2::uuid, $3, $4, '<md/>', $5)",
+        )
+        .bind(name)
+        .bind(tenant)
+        .bind(SP_ENTITY)
+        .bind(SP_ACS)
+        .bind(IDP_ENTITY)
+        .execute(&admin)
+        .await
+        .unwrap();
+    }
+    let table = "auth.tb_saml_idp";
+    let reader = rls_reader::reader(&admin, &url, "fraiseql_auth_saml_idp_reader", table).await;
+
+    assert_eq!(rls_reader::rows(&reader, table, None).await, 0, "no tenant set reads nothing");
+    assert_eq!(
+        rls_reader::rows(&reader, table, Some("7777777a-7777-4777-8777-777777777777")).await,
+        1,
+        "tenant T reads its own IdP, not tenant U's or the platform's"
+    );
+    assert_eq!(
+        rls_reader::rows(&admin, table, None).await,
+        3,
+        "control: the owner reads all three"
+    );
 }
