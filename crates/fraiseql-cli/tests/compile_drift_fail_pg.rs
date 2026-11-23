@@ -1536,3 +1536,6 @@ async fn an_int_argument_over_a_bigint_column_warns_naming_big_int() {
         }
     }
 }
+
+#[path = "compile_drift_fail_pg/null_native_key.rs"]
+mod null_native_key;

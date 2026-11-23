@@ -1703,6 +1703,12 @@ disagreed, and the promise was the part that was wrong.
   `possibleTypes` when no type implements it, where it answered nothing. Unselected
   members are still not sent.
 
+- **`compile --database` no longer counts a `NULL` native column and a JSON-`null` document
+  key as a disagreement (#1663).** A view that builds its scoping key from the column, over
+  rows with no tenant (written before a tenant claim was configured, say), failed every
+  compile. A `NULL` column now agrees with a missing or `null` key; a `null` or missing key
+  beside a column that holds a value, and the reverse, still fail.
+
 - **A fragment on a type the schema does not define, or one that can never apply where it
   stands, is refused (#2276).** `{ users { ... on Nosuch { name } } }` was answered with a
   `"...on Nosuch": null` key under a `200`; `fragment F on Nosuch { name }` spread under

@@ -126,8 +126,8 @@ pub trait DatabaseIntrospector: Send + Sync {
 
     /// Compare `relation`'s native `column` with the key of the same name in its
     /// `json_column` document, over at most `limit` rows (#1579): `(sampled, disagreeing)`,
-    /// a row disagreeing when `to_jsonb(column)` is distinct from `json_column -> key` (a row
-    /// with neither agrees).
+    /// a row disagreeing when `to_jsonb(column)` is distinct from `json_column -> key`. A
+    /// `NULL` column agrees with a missing key and with a JSON `null` one (#1663).
     ///
     /// A type scoped by an `inject_params` column it also publishes as a field is filtered on
     /// the column at the root and on the document key wherever its document is embedded, so

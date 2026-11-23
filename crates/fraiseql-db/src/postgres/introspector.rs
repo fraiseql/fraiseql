@@ -350,10 +350,12 @@ impl DatabaseIntrospector for PostgresIntrospector {
         let quote = |ident: &str| format!("\"{}\"", ident.replace('"', "\"\""));
         let table = relation.split('.').map(quote).collect::<Vec<_>>().join(".");
         let (column, json_column) = (quote(column), quote(json_column));
+        // A JSON `null` key reads as a missing one, so a `NULL` column agrees with either:
+        // neither the root filter nor the embedded one admits such a row for any tenant.
         let query = format!(
-            "SELECT count(*), count(*) FILTER (WHERE ({json_column} -> $1::text)::jsonb IS \
-             DISTINCT FROM to_jsonb({column})) FROM (SELECT {json_column}, {column} FROM {table} \
-             LIMIT {limit}) sampled"
+            "SELECT count(*), count(*) FILTER (WHERE NULLIF({json_column} -> $1::text, \
+             'null'::jsonb) IS DISTINCT FROM to_jsonb({column})) FROM (SELECT {json_column}, \
+             {column} FROM {table} LIMIT {limit}) sampled"
         );
         let row = client.query_one(&query, &[&key]).await.map_err(|e| {
             crate::postgres::database_error(
