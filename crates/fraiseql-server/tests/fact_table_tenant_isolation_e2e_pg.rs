@@ -138,6 +138,7 @@ fn fact_table(table_name: &str, row_scope: FactRowScope) -> FactTableMetadata {
             hierarchy: None,
         }],
         calendar_dimensions: vec![],
+        grain: None,
         native_dimension_mapping: std::collections::HashMap::new(),
     }
 }

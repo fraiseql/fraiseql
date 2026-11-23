@@ -265,6 +265,7 @@ CONSTRUCTS = (
     "mutation_invalidates_fact_tables",
     "fact_tables",
     "fact_table_hierarchy",
+    "fact_table_grain",
     "fact_table_measure_column",
     "mutation_requires_role",
     "mutation_requires_actor",
@@ -1038,6 +1039,16 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
                 if isinstance(f, dict) and f.get("hierarchy") is not None
             }
         )
+    }
+
+    # #1794: the period a rolled-up fact table's row stands for, asserted by value. It is
+    # kept out of `fact_tables` so an SDK that authors fact tables and cannot declare a
+    # grain declares that one gap. An SDK that drops it emits a table whose aggregates
+    # answer a range that splits a row with whole-period totals, under a `200`.
+    observations["fact_table_grain"] = {
+        name: table["grain"]
+        for name, table in sorted(fact_tables.items())
+        if isinstance(table, dict) and table.get("grain") is not None
     }
 
     observers = _by_name(compiled.get("observers"))

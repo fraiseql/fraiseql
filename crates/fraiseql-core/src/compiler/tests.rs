@@ -28,6 +28,7 @@ mod compiler_tests {
             },
             denormalized_filters:     vec![],
             calendar_dimensions:      vec![],
+            grain:                    None,
             native_dimension_mapping: std::collections::HashMap::new(),
         };
 
@@ -114,6 +115,7 @@ mod window_allowlist_tests {
                 hierarchy: None,
             }],
             calendar_dimensions:      vec![],
+            grain:                    None,
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -252,6 +254,7 @@ mod aggregation_tests {
                 },
             ],
             calendar_dimensions:      vec![],
+            grain:                    None,
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -649,6 +652,7 @@ mod window_order_by_allowlist_tests {
                 hierarchy: None,
             }],
             calendar_dimensions:      vec![],
+            grain:                    None,
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -788,6 +792,7 @@ mod window_order_by_allowlist_tests {
             },
             denormalized_filters:     vec![],
             calendar_dimensions:      vec![],
+            grain:                    None,
             native_dimension_mapping: std::collections::HashMap::new(),
         };
         let mut request = request_ordering_by("anythingAtAll");

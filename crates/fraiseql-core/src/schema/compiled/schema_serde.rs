@@ -564,6 +564,18 @@ impl CompiledSchema {
                 path:    Some("security.requires_role".to_string()),
             });
         }
+        // A declared grain must be one the parser can check requests against.
+        let violations: Vec<String> =
+            self.fact_tables.values().flat_map(|ft| ft.grain_violations()).collect();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "a fact table's grain cannot be enforced:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("fact_tables.grain".to_string()),
+            });
+        }
         // #1459: a measure's declared additivity must be one the planner can honour.
         let violations: Vec<String> =
             self.fact_tables.values().flat_map(|ft| ft.additivity_violations()).collect();

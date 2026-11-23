@@ -1928,6 +1928,8 @@ def source(  # noqa: PLR0913 — public API; all parameters are meaningful
 
 
 _ADDITIVITY_KINDS = frozenset({"additive", "semi_additive", "delta", "non_additive"})
+# The periods a fact table's row can stand for, finest first (#1794).
+_GRAIN_BUCKETS = ("day", "week", "half_month", "month", "quarter", "semester", "year")
 
 
 def _fact_table_inject(
@@ -1987,6 +1989,7 @@ def fact_table(  # noqa: PLR0913 — public API; all parameters are meaningful
     row_scope: str | None = None,
     inject: dict[str, str] | None = None,
     native_dimension_mapping: dict[str, str] | None = None,
+    grain: dict[str, str] | None = None,
 ) -> None:
     """Declare a fact table: what its ``<name>_aggregate`` and ``<name>_window`` roots read (#1797).
 
@@ -2021,11 +2024,18 @@ def fact_table(  # noqa: PLR0913 — public API; all parameters are meaningful
             ``row_scope``.
         native_dimension_mapping: Dimension paths stored as flat columns: ``{path: column}``.
             Each column must be a denormalized filter.
+        grain: The period one row stands for, when the table is rolled up (#1794):
+            ``{"column": "day", "bucket": "month"}``, ``column`` one of the ``date``
+            ``denormalized_filters`` and ``bucket`` one of ``day``, ``week``,
+            ``half_month``, ``month``, ``quarter``, ``semester`` or ``year``. A request
+            that would split a row is refused: a bound on ``column`` that is not on a
+            period boundary, or a ``groupBy`` bucket a row does not fall wholly inside.
 
     Raises:
         ValueError: A duplicate ``table_name``, a ``row_scope`` other than ``"relation"``,
-            a measure whose additivity kind is unknown, or an ``inject`` entry that is not
-            ``"jwt:<claim>"`` on one of ``denormalized_filters``, or beside ``row_scope``.
+            a measure whose additivity kind is unknown, an ``inject`` entry that is not
+            ``"jwt:<claim>"`` on one of ``denormalized_filters``, or beside ``row_scope``,
+            or a ``grain`` that is not ``{"column", "bucket"}`` with a known bucket.
 
     Examples:
         >>> fraiseql.fact_table(
@@ -2041,6 +2051,14 @@ def fact_table(  # noqa: PLR0913 — public API; all parameters are meaningful
             "the only one is 'relation' (omit it to let the server scope the rows)"
         )
     inject_params = _fact_table_inject(table_name, inject, denormalized_filters, row_scope)
+    if grain is not None and (
+        set(grain) != {"column", "bucket"} or grain.get("bucket") not in _GRAIN_BUCKETS
+    ):
+        raise ValueError(
+            f"fraiseql.fact_table({table_name!r}): grain={grain!r} is not "
+            '{"column": <date filter>, "bucket": <bucket>}; the buckets are '
+            f"{list(_GRAIN_BUCKETS)}"
+        )
     for measure in measures:
         additivity = measure.get("additivity")
         if additivity is not None and additivity.get("kind") not in _ADDITIVITY_KINDS:
@@ -2065,6 +2083,8 @@ def fact_table(  # noqa: PLR0913 — public API; all parameters are meaningful
     )
     if native_dimension_mapping is not None:
         definition["native_dimension_mapping"] = native_dimension_mapping
+    if grain is not None:
+        definition["grain"] = dict(grain)
     SchemaRegistry.register_fact_table(definition)
 
 

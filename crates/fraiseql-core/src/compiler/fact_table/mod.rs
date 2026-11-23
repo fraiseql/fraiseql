@@ -40,12 +40,14 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 mod detector;
+mod grain;
 mod group_keys;
 // Re-export from fraiseql-db to avoid duplication
 pub use fraiseql_db::{introspector::DatabaseIntrospector, types::DatabaseType};
 
 pub use self::{
     detector::FactTableDetector,
+    grain::{FactGrain, GrainBucket},
     group_keys::{GroupKey, GroupKeySource},
 };
 
@@ -93,9 +95,44 @@ pub struct FactTableMetadata {
     /// instead of JSONB extraction. Enables btree index usage.
     #[serde(default)]
     pub native_dimension_mapping: HashMap<String, String>,
+    /// The period each row stands for, when the table is rolled up. `None`: a row
+    /// stands for its own time value, and every bound and bucket is answered.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grain:                    Option<FactGrain>,
 }
 
 impl FactTableMetadata {
+    /// The faults in the declared grain: its column must be a declared `date` filter that
+    /// no calendar dimension reads. One message per fault.
+    #[must_use]
+    pub fn grain_violations(&self) -> Vec<String> {
+        let Some(grain) = &self.grain else {
+            return Vec::new();
+        };
+        let table = &self.table_name;
+        let column = &grain.column;
+        let mut violations = Vec::new();
+        match self.denormalized_filters.iter().find(|f| &f.name == column) {
+            None => violations.push(format!(
+                "fact table `{table}`: `grain.column` `{column}` is not one of its \
+                 `denormalized_filters`"
+            )),
+            Some(filter) if filter.sql_type != SqlType::Date => violations.push(format!(
+                "fact table `{table}`: `grain` is for date columns only, and `{column}` is \
+                 {:?}",
+                filter.sql_type
+            )),
+            Some(_) => {},
+        }
+        if self.calendar_dimensions.iter().any(|c| &c.source_column == column) {
+            violations.push(format!(
+                "fact table `{table}`: a calendar dimension reads `{column}`, the `grain` \
+                 column; a rolled-up table's rows have no finer calendar"
+            ));
+        }
+        violations
+    }
+
     /// The measure named `name`.
     #[must_use]
     pub fn measure(&self, name: &str) -> Option<&MeasureColumn> {

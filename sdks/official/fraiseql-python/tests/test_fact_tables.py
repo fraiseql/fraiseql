@@ -59,6 +59,7 @@ def test_every_declared_key_reaches_the_schema():
         type_name="Account",
         row_scope="relation",
         native_dimension_mapping={"status": "status_code"},
+        grain={"column": "day", "bucket": "half_month"},
     )
 
     assert SchemaRegistry.get_schema()["fact_tables"] == [
@@ -70,8 +71,23 @@ def test_every_declared_key_reaches_the_schema():
             "dimensions": dimensions,
             "denormalized_filters": filters,
             "native_dimension_mapping": {"status": "status_code"},
+            "grain": {"column": "day", "bucket": "half_month"},
         }
     ]
+
+
+@pytest.mark.parametrize(
+    "grain",
+    [
+        {"column": "day", "bucket": "fortnight"},
+        {"column": "day", "bucket": "halfMonth"},
+        {"column": "day"},
+        {"column": "day", "bucket": "month", "unit": "month"},
+    ],
+)
+def test_a_grain_other_than_a_column_and_a_known_bucket_is_refused(grain):
+    with pytest.raises(ValueError, match="grain"):
+        fraiseql.fact_table("tf_sales", measures=[REVENUE], grain=grain)
 
 
 def test_native_measures_is_not_a_parameter():

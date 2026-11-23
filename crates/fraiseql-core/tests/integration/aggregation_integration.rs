@@ -96,6 +96,7 @@ fn create_test_metadata() -> FactTableMetadata {
                 ],
             }],
         }],
+        grain:                    None,
         native_dimension_mapping: std::collections::HashMap::new(),
     }
 }

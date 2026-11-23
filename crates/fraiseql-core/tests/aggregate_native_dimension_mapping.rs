@@ -80,6 +80,7 @@ fn metadata(mapping: &[(&str, &str)]) -> FactTableMetadata {
             hierarchy: None,
         }],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: mapping
             .iter()
             .map(|(k, v)| ((*k).to_string(), (*v).to_string()))

@@ -65,6 +65,7 @@ fn fact_table() -> FactTableMetadata {
             filter("label", SqlType::Text),
         ],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: std::collections::HashMap::new(),
     }
 }

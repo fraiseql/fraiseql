@@ -950,6 +950,7 @@ fn create_native_metadata() -> fraiseql_core::compiler::fact_table::FactTableMet
             hierarchy: None,
         }],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: std::collections::HashMap::from([
             ("dimensions.category.id".to_string(), "category_id".to_string()),
             ("dimensions.region.code".to_string(), "region_code".to_string()),

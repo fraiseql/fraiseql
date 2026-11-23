@@ -434,6 +434,10 @@ name = "semi_additive_aggregate_pg"
 required-features = ["postgres"]
 
 [[test]]
+name = "aggregate_grain_pg"
+required-features = ["postgres"]
+
+[[test]]
 name = "session_variables_integration"
 required-features = ["postgres"]
 

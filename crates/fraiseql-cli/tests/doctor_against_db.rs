@@ -589,6 +589,7 @@ async fn doctor_names_a_carried_forward_measure_no_index_serves() {
                 filter("day", SqlType::Date),
             ],
             calendar_dimensions:      vec![],
+            grain:                    None,
             native_dimension_mapping: std::collections::HashMap::new(),
         },
     );

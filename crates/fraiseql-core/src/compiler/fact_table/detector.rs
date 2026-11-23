@@ -207,6 +207,7 @@ impl FactTableDetector {
             }),
             denormalized_filters: filters,
             calendar_dimensions,
+            grain: None,
             native_dimension_mapping: std::collections::HashMap::new(),
         };
 
@@ -685,6 +686,7 @@ impl FactTableDetector {
             dimensions,
             denormalized_filters: filters,
             calendar_dimensions: Vec::new(), // No calendar detection in test helper
+            grain: None,
             native_dimension_mapping: std::collections::HashMap::new(),
         };
 

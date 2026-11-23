@@ -451,6 +451,8 @@ fraiseql.fact_table(
         # #1909: a path column naming its hierarchy.
         {"name": "org_path", "sql_type": "ltree", "indexed": True, "hierarchy": "org"},
     ],
+    # #1794: one row per day of `day`.
+    grain={"column": "day", "bucket": "day"},
 )
 
 

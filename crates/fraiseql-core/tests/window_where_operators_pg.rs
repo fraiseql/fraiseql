@@ -78,6 +78,7 @@ fn metadata() -> FactTableMetadata {
             filter("path", SqlType::Ltree, Some("node")),
         ],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: HashMap::from([("shelf".to_string(), "n".to_string())]),
     }
 }

@@ -48,6 +48,10 @@ pub struct IntermediateFactTable {
     /// Maps deep JSONB dimension paths to flat SQL column names for GROUP BY
     #[serde(default)]
     pub native_dimension_mapping: HashMap<String, String>,
+    /// The period each row stands for, when the table is rolled up:
+    /// `{"column": "day", "bucket": "month"}`. An unknown bucket or key is refused.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grain:                    Option<fraiseql_core::compiler::fact_table::FactGrain>,
 }
 
 /// Measure column definition

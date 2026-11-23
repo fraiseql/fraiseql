@@ -37,7 +37,9 @@
         "-c",
         "{ [ -d node_modules ] || npm ci --no-audit --no-fund --loglevel=error >/dev/null; } && npx --yes tsx conformance/export.ts"
       ],
-      "unsupported": {},
+      "unsupported": {
+        "fact_table_grain": "the SDK authors fact tables but has no `grain` authoring surface (#1794 added it to Python)"
+      },
       "container": "node:22",
       "container_env": [
         "HOME=/conformance-cache/node",
@@ -54,7 +56,8 @@
       ],
       "unsupported": {
         "type_crud": "the SDK ships no CRUD generation at all \u2014 `grep -rn crud sdks/official/fraiseql-go` matches nothing, and its builders expose no flag for it. Nine of the eleven SDKs have a generator; adding a tenth is a feature, not a key rename, so the gap is declared rather than papered over (#1182).",
-        "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)"
+        "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)",
+        "fact_table_grain": "the SDK authors fact tables but has no `grain` authoring surface (#1794 added it to Python)"
       },
       "container": "golang:1.24",
       "container_env": [
@@ -72,6 +75,7 @@
       "unsupported": {
         "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
         "fact_table_hierarchy": "a hierarchy is named on a fact-table filter, and the SDK authors no fact table (see `fact_tables`)",
+        "fact_table_grain": "a grain is declared on a fact table, and the SDK authors no fact table (see `fact_tables`)",
         "fact_table_measure_column": "a measure's column is declared on a fact table, and the SDK authors no fact table (see `fact_tables`)",
         "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)"
       },
@@ -95,6 +99,7 @@
       "unsupported": {
         "fact_tables": "the SDK authors no fact table: `@GraphQLFactTable` registers the annotated class as an ordinary type and emits no `fact_tables` entry, so there is no table to link to its type (AF 1). Fact-table authoring is a feature, not a key rename.",
         "fact_table_hierarchy": "a hierarchy is named on a fact-table filter, and the SDK authors no fact table (see `fact_tables`)",
+        "fact_table_grain": "a grain is declared on a fact table, and the SDK authors no fact table (see `fact_tables`)",
         "fact_table_measure_column": "a measure's column is declared on a fact table, and the SDK authors no fact table (see `fact_tables`)",
         "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)"
       },
@@ -119,6 +124,7 @@
         "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
         "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
         "fact_table_hierarchy": "a hierarchy is named on a fact-table filter, and the SDK authors no fact table (see `fact_tables`)",
+        "fact_table_grain": "a grain is declared on a fact table, and the SDK authors no fact table (see `fact_tables`)",
         "fact_table_measure_column": "a measure's column is declared on a fact table, and the SDK authors no fact table (see `fact_tables`)",
         "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)"
       },
@@ -147,6 +153,7 @@
         "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
         "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
         "fact_table_hierarchy": "a hierarchy is named on a fact-table filter, and the SDK authors no fact table (see `fact_tables`)",
+        "fact_table_grain": "a grain is declared on a fact table, and the SDK authors no fact table (see `fact_tables`)",
         "fact_table_measure_column": "a measure's column is declared on a fact table, and the SDK authors no fact table (see `fact_tables`)",
         "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)"
       },
@@ -171,6 +178,7 @@
         "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
         "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
         "fact_table_hierarchy": "a hierarchy is named on a fact-table filter, and the SDK authors no fact table (see `fact_tables`)",
+        "fact_table_grain": "a grain is declared on a fact table, and the SDK authors no fact table (see `fact_tables`)",
         "fact_table_measure_column": "a measure's column is declared on a fact table, and the SDK authors no fact table (see `fact_tables`)",
         "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)"
       },
@@ -192,6 +200,7 @@
         "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
         "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
         "fact_table_hierarchy": "a hierarchy is named on a fact-table filter, and the SDK authors no fact table (see `fact_tables`)",
+        "fact_table_grain": "a grain is declared on a fact table, and the SDK authors no fact table (see `fact_tables`)",
         "fact_table_measure_column": "a measure's column is declared on a fact table, and the SDK authors no fact table (see `fact_tables`)",
         "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)"
       },
@@ -209,6 +218,7 @@
         "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
         "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
         "fact_table_hierarchy": "a hierarchy is named on a fact-table filter, and the SDK authors no fact table (see `fact_tables`)",
+        "fact_table_grain": "a grain is declared on a fact table, and the SDK authors no fact table (see `fact_tables`)",
         "fact_table_measure_column": "a measure's column is declared on a fact table, and the SDK authors no fact table (see `fact_tables`)",
         "enum_values": "a Dart enum member carries no stored value its serializers write (`enumType` takes the member names), so every member is stored as its name",
         "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)"
@@ -255,6 +265,7 @@
         "function_backed_query": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct. Declared alongside `function_definition` of necessity: a function-backed query and the function it names are one declaration the compiler refuses either half of, so an SDK that cannot author a function cannot author the query either",
         "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
         "fact_table_hierarchy": "a hierarchy is named on a fact-table filter, and the SDK authors no fact table (see `fact_tables`)",
+        "fact_table_grain": "a grain is declared on a fact table, and the SDK authors no fact table (see `fact_tables`)",
         "fact_table_measure_column": "a measure's column is declared on a fact table, and the SDK authors no fact table (see `fact_tables`)",
         "mutation_argument_localized": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
         "list_arguments": "the SDK registers types only and ships no query builder, so it has no argument to declare a list on; `list_fields` holds it to the same rule for a type's fields",

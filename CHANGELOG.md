@@ -974,6 +974,20 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **A rolled-up fact table declares its grain, and refuses a range that splits a row
+  (#1794).** A table holding one row per month, dated on the 1st, answered a range from
+  10 January to 20 March with January dropped and March counted whole: over a day a row,
+  118 where the days sum to 140. `grain: {"column": "day", "bucket": "month"}` (in the
+  intermediate schema, and as `grain=` in the Python SDK's `fact_table`) declares the
+  period a row stands for. An aggregate or a window on such a table then refuses a bound
+  on the column inside a period, naming the period boundaries on either side, and an
+  aggregate refuses a `groupBy` bucket a row does not fall wholly inside (`day_week` on a
+  month). Bounds and buckets on period boundaries are answered as before. The column must
+  be a `date` filter; a `timestamp` or `timestamptz` column, and an unknown bucket or key,
+  are refused at compile. A table without a grain is read as before. TypeScript and Go
+  author fact tables but not their grain yet, and declare that gap in conformance.
+  Answering a split range from the table's finer-grained source, as v1 did, is #2343.
+
 - **Fact-table aggregates group by half-month and by semester (#1793).** Every `date`,
   `timestamp` and `timestamptz` denormalized filter publishes `<column>_half_month` and
   `<column>_semester` `groupBy` keys beside its other buckets. A half-month starts on the

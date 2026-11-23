@@ -313,6 +313,7 @@ fn aggregate_sum_produces_correct_sql() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
@@ -387,6 +388,7 @@ fn aggregate_group_by_produces_correct_sql() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 

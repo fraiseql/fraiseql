@@ -65,6 +65,7 @@ mod aggregate_parser_tests {
                 hierarchy: None,
             }],
             calendar_dimensions:      vec![],
+            grain:                    None,
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -454,6 +455,7 @@ mod aggregate_parser_tests {
             },
             denormalized_filters:     vec![],
             calendar_dimensions:      vec![],
+            grain:                    None,
             native_dimension_mapping: std::collections::HashMap::new(),
         };
         let parse = |key: &str| {
@@ -493,6 +495,7 @@ mod aggregate_parser_tests {
             },
             denormalized_filters:     vec![],
             calendar_dimensions:      vec![],
+            grain:                    None,
             native_dimension_mapping: std::collections::HashMap::from([(
                 "dimensions.category.id".to_string(),
                 "category_id".to_string(),
@@ -537,6 +540,7 @@ mod aggregate_parser_tests {
             },
             denormalized_filters:     vec![],
             calendar_dimensions:      vec![],
+            grain:                    None,
             native_dimension_mapping: std::collections::HashMap::from([(
                 "dimensions.category.id".to_string(),
                 "category_id".to_string(),
@@ -607,6 +611,7 @@ mod aggregate_projector_tests {
                 hierarchy: None,
             }],
             calendar_dimensions:      vec![],
+            grain:                    None,
             native_dimension_mapping: std::collections::HashMap::new(),
         };
 
@@ -4631,6 +4636,7 @@ mod window_tests {
             },
             denormalized_filters:     vec![],
             calendar_dimensions:      vec![],
+            grain:                    None,
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -4990,6 +4996,7 @@ mod window_parser_tests {
                 },
             ],
             calendar_dimensions:      vec![],
+            grain:                    None,
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -5661,6 +5668,7 @@ mod aggregate_argument_forms {
                 filter("org_path", SqlType::Ltree),
             ],
             calendar_dimensions:      vec![],
+            grain:                    None,
             native_dimension_mapping: HashMap::new(),
         }
     }
@@ -5809,6 +5817,7 @@ mod window_argument_forms {
             },
             denormalized_filters:     vec![],
             calendar_dimensions:      vec![],
+            grain:                    None,
             native_dimension_mapping: HashMap::new(),
         }
     }

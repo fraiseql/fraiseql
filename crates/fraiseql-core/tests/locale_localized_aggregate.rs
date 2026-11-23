@@ -51,6 +51,7 @@ fn fact_table() -> FactTableMetadata {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: HashMap::new(),
     }
 }

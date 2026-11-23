@@ -119,6 +119,7 @@ fn fact_table(table: &str) -> FactTableMetadata {
             },
         ],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: HashMap::new(),
     }
 }

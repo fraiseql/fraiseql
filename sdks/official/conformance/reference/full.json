@@ -855,7 +855,11 @@
           "indexed": true,
           "hierarchy": "org"
         }
-      ]
+      ],
+      "grain": {
+        "column": "day",
+        "bucket": "day"
+      }
     }
   ],
   "observers": [

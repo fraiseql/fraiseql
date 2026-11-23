@@ -34,6 +34,7 @@ fn create_aggregation_test_metadata() -> crate::compiler::fact_table::FactTableM
             hierarchy: None,
         }],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: std::collections::HashMap::new(),
     }
 }
@@ -62,6 +63,7 @@ fn create_test_plan() -> AggregationPlan {
             hierarchy: None,
         }],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
@@ -680,6 +682,7 @@ fn make_string_where_plan(_db: DatabaseType) -> AggregationPlan {
             hierarchy: None,
         }],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
@@ -760,6 +763,7 @@ fn test_parameterized_postgres_placeholder_numbering() {
             },
         ],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
@@ -830,6 +834,7 @@ fn test_parameterized_in_array_expands_to_multiple_placeholders() {
             hierarchy: None,
         }],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: std::collections::HashMap::new(),
     };
     let request = AggregationRequest {
@@ -885,6 +890,7 @@ fn column_mapped_metadata() -> FactTableMetadata {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: std::collections::HashMap::new(),
     }
 }
@@ -997,6 +1003,7 @@ fn test_non_native_measure_unchanged() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
@@ -1049,6 +1056,7 @@ fn test_native_dimension_mapping_sql_output() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: std::collections::HashMap::from([(
             "dimensions.category.id".to_string(),
             "category_id".to_string(),

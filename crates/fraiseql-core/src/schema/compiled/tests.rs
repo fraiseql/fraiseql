@@ -864,6 +864,7 @@ fn fact_table_add_and_get() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: std::collections::HashMap::new(),
     };
     schema.add_fact_table("tf_sales".to_string(), meta);
@@ -889,6 +890,7 @@ fn list_fact_tables_returns_all_names() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: std::collections::HashMap::new(),
     };
 
@@ -2629,6 +2631,7 @@ mod fact_table_hierarchy {
                     hierarchy: Some(hierarchy.to_string()),
                 }],
                 calendar_dimensions:      vec![],
+                grain:                    None,
                 native_dimension_mapping: HashMap::new(),
             },
         );

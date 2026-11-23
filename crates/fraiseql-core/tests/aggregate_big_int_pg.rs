@@ -75,6 +75,7 @@ fn fact_table() -> FactTableMetadata {
             filter("shelf", SqlType::Int),
         ],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: HashMap::new(),
     }
 }

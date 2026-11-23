@@ -305,10 +305,16 @@ fraiseql.fact_table(
   naming another source for the same column fails to compile. Not with `row_scope`
 - `native_dimension_mapping` (optional): Dimension paths stored as flat columns,
   `{path: column}`; each column must be a denormalized filter
+- `grain` (optional): The period one row stands for, when the table is rolled up,
+  `{"column": "day", "bucket": "month"}`: `column` a `date` denormalized filter, `bucket`
+  one of `day`, `week`, `half_month`, `month`, `quarter`, `semester`, `year`. A request
+  that would split a row is refused: a bound on `column` inside a period, or a `groupBy`
+  bucket a row does not fall wholly inside
 
 Raises `ValueError` on a duplicate `table_name`, a `row_scope` other than `"relation"`, an
-unknown additivity kind, or an `inject` entry that is not `"jwt:<claim>"` on a denormalized
-filter, or that sits beside `row_scope`.
+unknown additivity kind, an `inject` entry that is not `"jwt:<claim>"` on a denormalized
+filter, or that sits beside `row_scope`, or a `grain` that is not `{"column", "bucket"}`
+with a known bucket.
 
 ### Dimension Path Structure
 

@@ -93,6 +93,7 @@ fn fact_table() -> FactTableMetadata {
             filter("at_tz", SqlType::TimestampTz),
         ],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: HashMap::new(),
     }
 }

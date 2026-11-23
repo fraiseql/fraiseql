@@ -154,6 +154,12 @@
     ],
     "sql_source": "v_price_quote"
   },
+  "fact_table_grain": {
+    "tf_account_day": {
+      "bucket": "day",
+      "column": "day"
+    }
+  },
   "fact_table_hierarchy": {
     "tf_account_day": {
       "org_path": "org"

@@ -47,6 +47,7 @@ fn create_test_metadata() -> FactTableMetadata {
             },
         ],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: std::collections::HashMap::new(),
     }
 }

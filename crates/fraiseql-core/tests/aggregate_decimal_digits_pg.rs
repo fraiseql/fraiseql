@@ -82,6 +82,7 @@ fn fact_table(table: &str) -> FactTableMetadata {
             },
         ],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: HashMap::from([("list_price".to_string(), "price".to_string())]),
     }
 }

@@ -975,6 +975,7 @@ impl SchemaConverter {
                 })
                 .collect(),
             calendar_dimensions: vec![],
+            grain: ft.grain,
             native_dimension_mapping: ft.native_dimension_mapping,
         })
     }

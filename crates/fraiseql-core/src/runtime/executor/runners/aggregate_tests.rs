@@ -90,6 +90,7 @@ pub(super) fn schema_with_fact_table() -> crate::schema::CompiledSchema {
                 },
             ],
             calendar_dimensions:      vec![],
+            grain:                    None,
             native_dimension_mapping: std::collections::HashMap::new(),
         },
     );

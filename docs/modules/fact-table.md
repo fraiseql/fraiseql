@@ -247,6 +247,41 @@ A view that serves a `DateTime` field writes it from a `timestamptz` column:
 `to_jsonb(timestamp)` writes no offset, which `DateTime` does not allow, and the engine
 cannot see the column's type to tell.
 
+### A rolled-up table: `grain`
+
+A table that holds one row per period, dated on the period's first day, cannot answer for
+part of a period. Its row dated 1 January holds all of January, so over 10 January to
+20 March by month it drops January and counts March whole; and a week of it does not exist.
+Declare the period its rows stand for, and such a request is refused instead:
+
+```json
+"grain": {"column": "day", "bucket": "month"}
+```
+
+`column` is one of the table's `date` denormalized filters, and `bucket` is `day`, `week`,
+`half_month`, `month`, `quarter`, `semester` or `year`. A `timestamp` or `timestamptz`
+column, a column that is not a filter, a column a calendar dimension reads, and an unknown
+bucket or key are refused when the schema compiles.
+
+On such a table, an aggregate or a window refuses:
+
+- a bound on `column` inside a period. `_gte` and `_lt` take the day a period starts on, and
+  `_gt` and `_lte` the day one ends on: under `month`, `day_gte: 2026-02-01`,
+  `day_gt: 2026-01-31`, `day_lt: 2026-04-01` and `day_lte: 2026-03-31` are answered, and
+  `day_gte: 2026-01-10` is refused, naming `2026-01-01` and `2026-02-01`. Any other
+  operator on the column (`_eq`, `_neq`, `_in`, …) reads part of a period; `_isnull` reads
+  none and is answered.
+- a `groupBy` bucket of `column` a row does not fall wholly inside: under `month`, `day`,
+  `week` and `half_month` are refused, and `month`, `quarter`, `semester` and `year` are
+  answered. A week straddles months and years, so a `week` grain answers only `week`.
+
+What is answered is answered as the finer rows would answer it, when each row holds its
+period's sum (and, for a semi-additive `last`, its closing value). A `day` grain refuses
+nothing. A table without a `grain` is read as before: a row stands for its own date.
+
+Answering a range that splits a period from the table's finer-grained source, as v1 did,
+is not supported (#2343).
+
 ---
 
 ## Calendar Dimensions (Performance Optimization)

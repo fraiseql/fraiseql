@@ -302,6 +302,14 @@ impl AggregateQueryParser {
         }
         // Priority 2: DATE_TRUNC when no calendar dimension serves the bucket
         if let Some(bucket_sel) = Self::parse_temporal_bucket(key, metadata)? {
+            // A rolled-up table groups only whole rows.
+            if let (Some(grain), GroupBySelection::TemporalBucket { column, bucket, .. }) =
+                (&metadata.grain, &bucket_sel)
+            {
+                if *column == grain.column {
+                    grain.check_bucket(&metadata.table_name, key, *bucket)?;
+                }
+            }
             return Ok(bucket_sel);
         }
         // Priority 3: a deep JSONB path mapped to a native column
@@ -780,6 +788,13 @@ pub(super) fn where_condition(
             Some((column.clone(), native_columns.get(column.as_str()).cloned().unwrap_or_default()))
         },
     );
+    // A rolled-up table refuses a bound that splits one of its rows.
+    if let Some(grain) = &metadata.grain {
+        let column = native.as_ref().map_or(field, |(column, _)| column.as_str());
+        if column == grain.column {
+            grain.check_bound(&metadata.table_name, key, &operator, value)?;
+        }
+    }
     Ok(if let Some((column, pg_cast)) = native {
         // A temporal column's cast reads more than its scalar publishes: an offset-less
         // instant in the session zone, a local value with its offset dropped, words such as

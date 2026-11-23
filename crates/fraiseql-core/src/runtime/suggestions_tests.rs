@@ -62,6 +62,7 @@ fn schema() -> CompiledSchema {
             },
             denormalized_filters:     vec![],
             calendar_dimensions:      vec![],
+            grain:                    None,
             native_dimension_mapping: std::collections::HashMap::new(),
         },
     );

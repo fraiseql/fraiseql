@@ -2440,6 +2440,7 @@ mod introspect_facts_tests {
                     }],
                 }],
             }],
+            grain: None,
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }
@@ -4372,6 +4373,7 @@ mod validate_facts_tests {
             },
             denormalized_filters: filters,
             calendar_dimensions: vec![],
+            grain: None,
             native_dimension_mapping: std::collections::HashMap::new(),
         }
     }

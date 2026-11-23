@@ -513,6 +513,7 @@ OLAP-style fact table for aggregate queries.
 | `dimensions` | `{name, paths: {name, json_path, data_type}[]}` | The JSONB dimensions column |
 | `denormalized_filters` | `{name, sql_type, indexed, hierarchy?}[]` | Filter columns. `hierarchy` names the `[hierarchies.<name>]` an `LTREE` path column belongs to, for node-id filters |
 | `native_dimension_mapping` | `{[path]: column}?` | Dimensions stored as flat columns; each column must be declared in `denormalized_filters` (it gives the column its type) |
+| `grain` | `{column, bucket}?` | The period one row stands for, when the table is rolled up: `column` a `date` denormalized filter, `bucket` one of `day`, `week`, `half_month`, `month`, `quarter`, `semester`, `year`. A request that would split a row is refused ([fact tables](../modules/fact-table.md#a-rolled-up-table-grain)) |
 
 A fact table gives the `<name>_aggregate` root field. There is no `aggregate_queries`
 section: the compiler refuses one. Nor is there a `native_measures` section: a measure

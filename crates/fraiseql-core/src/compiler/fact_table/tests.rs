@@ -34,6 +34,7 @@ fn test_validate_valid_fact_table() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: HashMap::new(),
     };
 
@@ -55,6 +56,7 @@ fn test_validate_missing_measures() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: HashMap::new(),
     };
 
@@ -83,6 +85,7 @@ fn test_validate_non_numeric_measure() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: HashMap::new(),
     };
 
@@ -815,6 +818,7 @@ fn a_measure_column_roundtrips() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: HashMap::new(),
     };
 
@@ -909,6 +913,7 @@ fn test_native_dimension_mapping_roundtrip() {
         },
         denormalized_filters:     vec![],
         calendar_dimensions:      vec![],
+        grain:                    None,
         native_dimension_mapping: HashMap::from([(
             "dimensions.category.id".to_string(),
             "category_id".to_string(),
