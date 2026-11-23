@@ -5,232 +5,507 @@
       {
         "kind": "SCALAR",
         "name": "Int",
-        "description": "Built-in Int scalar"
+        "description": "Built-in Int scalar",
+        "fields": null,
+        "interfaces": null,
+        "possibleTypes": null,
+        "enumValues": null,
+        "inputFields": null,
+        "ofType": null,
+        "specifiedByURL": null
       },
       {
         "kind": "SCALAR",
         "name": "Float",
-        "description": "Built-in Float scalar"
+        "description": "Built-in Float scalar",
+        "fields": null,
+        "interfaces": null,
+        "possibleTypes": null,
+        "enumValues": null,
+        "inputFields": null,
+        "ofType": null,
+        "specifiedByURL": null
       },
       {
         "kind": "SCALAR",
         "name": "String",
-        "description": "Built-in String scalar"
+        "description": "Built-in String scalar",
+        "fields": null,
+        "interfaces": null,
+        "possibleTypes": null,
+        "enumValues": null,
+        "inputFields": null,
+        "ofType": null,
+        "specifiedByURL": null
       },
       {
         "kind": "SCALAR",
         "name": "Boolean",
-        "description": "Built-in Boolean scalar"
+        "description": "Built-in Boolean scalar",
+        "fields": null,
+        "interfaces": null,
+        "possibleTypes": null,
+        "enumValues": null,
+        "inputFields": null,
+        "ofType": null,
+        "specifiedByURL": null
       },
       {
         "kind": "SCALAR",
         "name": "ID",
-        "description": "Built-in ID scalar"
+        "description": "Built-in ID scalar",
+        "fields": null,
+        "interfaces": null,
+        "possibleTypes": null,
+        "enumValues": null,
+        "inputFields": null,
+        "ofType": null,
+        "specifiedByURL": null
       },
       {
         "kind": "SCALAR",
         "name": "DateTime",
         "description": "An instant: a date and a time of day with its offset from UTC (\"2026-07-01T12:00:00Z\", \"2026-07-01T14:00:00+02:00\"): a `T`, optional fractional seconds, then `Z` or `±HH:MM`, which is required and never `-00:00`.",
+        "fields": null,
+        "interfaces": null,
+        "possibleTypes": null,
+        "enumValues": null,
+        "inputFields": null,
+        "ofType": null,
         "specifiedByURL": "https://scalars.graphql.org/chillicream/date-time"
       },
       {
         "kind": "SCALAR",
         "name": "LocalDateTime",
         "description": "A date and a time of day in no time zone (\"2026-07-01T12:00:00\"): a `T`, optional fractional seconds, never an offset. What a `timestamp` column without a time zone holds; not an instant.",
+        "fields": null,
+        "interfaces": null,
+        "possibleTypes": null,
+        "enumValues": null,
+        "inputFields": null,
+        "ofType": null,
         "specifiedByURL": "https://scalars.graphql.org/chillicream/local-date-time"
       },
       {
         "kind": "SCALAR",
         "name": "Date",
         "description": "A calendar date (\"2026-07-01\"), `YYYY-MM-DD`.",
+        "fields": null,
+        "interfaces": null,
+        "possibleTypes": null,
+        "enumValues": null,
+        "inputFields": null,
+        "ofType": null,
         "specifiedByURL": "https://scalars.graphql.org/chillicream/local-date"
       },
       {
         "kind": "SCALAR",
         "name": "Time",
         "description": "A time of day in no time zone (\"09:30:00\"): seconds, optional fractional seconds, never an offset.",
+        "fields": null,
+        "interfaces": null,
+        "possibleTypes": null,
+        "enumValues": null,
+        "inputFields": null,
+        "ofType": null,
         "specifiedByURL": "https://scalars.graphql.org/chillicream/local-time"
       },
       {
         "kind": "SCALAR",
         "name": "UUID",
         "description": "UUID string",
+        "fields": null,
+        "interfaces": null,
+        "possibleTypes": null,
+        "enumValues": null,
+        "inputFields": null,
+        "ofType": null,
         "specifiedByURL": "https://tools.ietf.org/html/rfc4122"
       },
       {
         "kind": "SCALAR",
         "name": "JSON",
         "description": "Arbitrary JSON value",
+        "fields": null,
+        "interfaces": null,
+        "possibleTypes": null,
+        "enumValues": null,
+        "inputFields": null,
+        "ofType": null,
         "specifiedByURL": "https://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf"
       },
       {
         "kind": "SCALAR",
         "name": "BigInt",
-        "description": "A signed 64-bit integer, as a string of its digits (\"9007199254740993\"): a JSON number past 2^53 is not read exactly by every client. Written as such a string, or as an integer."
+        "description": "A signed 64-bit integer, as a string of its digits (\"9007199254740993\"): a JSON number past 2^53 is not read exactly by every client. Written as such a string, or as an integer.",
+        "fields": null,
+        "interfaces": null,
+        "possibleTypes": null,
+        "enumValues": null,
+        "inputFields": null,
+        "ofType": null,
+        "specifiedByURL": null
       },
       {
         "kind": "SCALAR",
         "name": "Decimal",
-        "description": "Exact decimal number, as a string of its digits (\"12.50\"). Written as such a string, or as an integer."
+        "description": "Exact decimal number, as a string of its digits (\"12.50\"). Written as such a string, or as an integer.",
+        "fields": null,
+        "interfaces": null,
+        "possibleTypes": null,
+        "enumValues": null,
+        "inputFields": null,
+        "ofType": null,
+        "specifiedByURL": null
       },
       {
         "kind": "OBJECT",
         "name": "Item",
+        "description": null,
         "fields": [
           {
             "name": "id",
+            "description": null,
             "args": [],
             "type": {
               "kind": "NON_NULL",
+              "name": null,
+              "description": null,
+              "fields": null,
+              "interfaces": null,
+              "possibleTypes": null,
+              "enumValues": null,
+              "inputFields": null,
               "ofType": {
                 "kind": "SCALAR",
-                "name": "ID"
-              }
+                "name": "ID",
+                "description": null,
+                "fields": null,
+                "interfaces": null,
+                "possibleTypes": null,
+                "enumValues": null,
+                "inputFields": null,
+                "ofType": null,
+                "specifiedByURL": null
+              },
+              "specifiedByURL": null
             },
-            "isDeprecated": false
+            "isDeprecated": false,
+            "deprecationReason": null
           }
         ],
-        "interfaces": []
+        "interfaces": [],
+        "possibleTypes": null,
+        "enumValues": null,
+        "inputFields": null,
+        "ofType": null,
+        "specifiedByURL": null
       },
       {
         "kind": "ENUM",
         "name": "Status",
+        "description": null,
+        "fields": null,
+        "interfaces": null,
+        "possibleTypes": null,
         "enumValues": [
           {
             "name": "ACTIVE",
-            "isDeprecated": false
+            "description": null,
+            "isDeprecated": false,
+            "deprecationReason": null
           },
           {
             "name": "ARCHIVED",
-            "isDeprecated": false
+            "description": null,
+            "isDeprecated": false,
+            "deprecationReason": null
           }
-        ]
+        ],
+        "inputFields": null,
+        "ofType": null,
+        "specifiedByURL": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "ItemFilter",
+        "description": null,
+        "fields": null,
+        "interfaces": null,
+        "possibleTypes": null,
+        "enumValues": null,
         "inputFields": [
           {
             "name": "status",
+            "description": null,
             "type": {
               "kind": "ENUM",
-              "name": "Status"
+              "name": "Status",
+              "description": null,
+              "fields": null,
+              "interfaces": null,
+              "possibleTypes": null,
+              "enumValues": null,
+              "inputFields": null,
+              "ofType": null,
+              "specifiedByURL": null
             },
             "defaultValue": "ACTIVE",
             "isDeprecated": false,
+            "deprecationReason": null,
             "validationRules": []
           },
           {
             "name": "tags",
+            "description": null,
             "type": {
               "kind": "LIST",
+              "name": null,
+              "description": null,
+              "fields": null,
+              "interfaces": null,
+              "possibleTypes": null,
+              "enumValues": null,
+              "inputFields": null,
               "ofType": {
                 "kind": "NON_NULL",
+                "name": null,
+                "description": null,
+                "fields": null,
+                "interfaces": null,
+                "possibleTypes": null,
+                "enumValues": null,
+                "inputFields": null,
                 "ofType": {
                   "kind": "ENUM",
-                  "name": "Status"
-                }
-              }
+                  "name": "Status",
+                  "description": null,
+                  "fields": null,
+                  "interfaces": null,
+                  "possibleTypes": null,
+                  "enumValues": null,
+                  "inputFields": null,
+                  "ofType": null,
+                  "specifiedByURL": null
+                },
+                "specifiedByURL": null
+              },
+              "specifiedByURL": null
             },
             "defaultValue": "[ACTIVE]",
             "isDeprecated": false,
+            "deprecationReason": null,
             "validationRules": []
           }
-        ]
+        ],
+        "ofType": null,
+        "specifiedByURL": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "CreateItemInput",
+        "description": null,
+        "fields": null,
+        "interfaces": null,
+        "possibleTypes": null,
+        "enumValues": null,
         "inputFields": [
           {
             "name": "name",
+            "description": null,
             "type": {
               "kind": "NON_NULL",
+              "name": null,
+              "description": null,
+              "fields": null,
+              "interfaces": null,
+              "possibleTypes": null,
+              "enumValues": null,
+              "inputFields": null,
               "ofType": {
                 "kind": "SCALAR",
-                "name": "String"
-              }
+                "name": "String",
+                "description": null,
+                "fields": null,
+                "interfaces": null,
+                "possibleTypes": null,
+                "enumValues": null,
+                "inputFields": null,
+                "ofType": null,
+                "specifiedByURL": null
+              },
+              "specifiedByURL": null
             },
+            "defaultValue": null,
             "isDeprecated": false,
+            "deprecationReason": null,
             "validationRules": []
           },
           {
             "name": "isActive",
+            "description": null,
             "type": {
               "kind": "NON_NULL",
+              "name": null,
+              "description": null,
+              "fields": null,
+              "interfaces": null,
+              "possibleTypes": null,
+              "enumValues": null,
+              "inputFields": null,
               "ofType": {
                 "kind": "SCALAR",
-                "name": "Boolean"
-              }
+                "name": "Boolean",
+                "description": null,
+                "fields": null,
+                "interfaces": null,
+                "possibleTypes": null,
+                "enumValues": null,
+                "inputFields": null,
+                "ofType": null,
+                "specifiedByURL": null
+              },
+              "specifiedByURL": null
             },
             "defaultValue": "false",
             "isDeprecated": false,
+            "deprecationReason": null,
             "validationRules": []
           },
           {
             "name": "count",
+            "description": null,
             "type": {
               "kind": "SCALAR",
-              "name": "Int"
+              "name": "Int",
+              "description": null,
+              "fields": null,
+              "interfaces": null,
+              "possibleTypes": null,
+              "enumValues": null,
+              "inputFields": null,
+              "ofType": null,
+              "specifiedByURL": null
             },
             "defaultValue": "0",
             "isDeprecated": false,
+            "deprecationReason": null,
             "validationRules": []
           },
           {
             "name": "ratio",
+            "description": null,
             "type": {
               "kind": "SCALAR",
-              "name": "Float"
+              "name": "Float",
+              "description": null,
+              "fields": null,
+              "interfaces": null,
+              "possibleTypes": null,
+              "enumValues": null,
+              "inputFields": null,
+              "ofType": null,
+              "specifiedByURL": null
             },
             "defaultValue": "1.5",
             "isDeprecated": false,
+            "deprecationReason": null,
             "validationRules": []
           },
           {
             "name": "label",
+            "description": null,
             "type": {
               "kind": "SCALAR",
-              "name": "String"
+              "name": "String",
+              "description": null,
+              "fields": null,
+              "interfaces": null,
+              "possibleTypes": null,
+              "enumValues": null,
+              "inputFields": null,
+              "ofType": null,
+              "specifiedByURL": null
             },
             "defaultValue": "\"a \\\"quoted\\\"\\nline\"",
             "isDeprecated": false,
+            "deprecationReason": null,
             "validationRules": []
           },
           {
             "name": "status",
+            "description": null,
             "type": {
               "kind": "NON_NULL",
+              "name": null,
+              "description": null,
+              "fields": null,
+              "interfaces": null,
+              "possibleTypes": null,
+              "enumValues": null,
+              "inputFields": null,
               "ofType": {
                 "kind": "ENUM",
-                "name": "Status"
-              }
+                "name": "Status",
+                "description": null,
+                "fields": null,
+                "interfaces": null,
+                "possibleTypes": null,
+                "enumValues": null,
+                "inputFields": null,
+                "ofType": null,
+                "specifiedByURL": null
+              },
+              "specifiedByURL": null
             },
             "defaultValue": "ARCHIVED",
             "isDeprecated": false,
+            "deprecationReason": null,
             "validationRules": []
           },
           {
             "name": "filter",
+            "description": null,
             "type": {
               "kind": "INPUT_OBJECT",
-              "name": "ItemFilter"
+              "name": "ItemFilter",
+              "description": null,
+              "fields": null,
+              "interfaces": null,
+              "possibleTypes": null,
+              "enumValues": null,
+              "inputFields": null,
+              "ofType": null,
+              "specifiedByURL": null
             },
             "defaultValue": "{status: ARCHIVED, tags: [ACTIVE]}",
             "isDeprecated": false,
+            "deprecationReason": null,
             "validationRules": []
           },
           {
             "name": "meta",
+            "description": null,
             "type": {
               "kind": "SCALAR",
-              "name": "JSON"
+              "name": "JSON",
+              "description": null,
+              "fields": null,
+              "interfaces": null,
+              "possibleTypes": null,
+              "enumValues": null,
+              "inputFields": null,
+              "ofType": null,
+              "specifiedByURL": null
             },
             "defaultValue": "{k: 1}",
             "isDeprecated": false,
+            "deprecationReason": null,
             "validationRules": []
           }
-        ]
+        ],
+        "ofType": null,
+        "specifiedByURL": null
       },
       {
         "kind": "OBJECT",
@@ -239,45 +514,104 @@
         "fields": [
           {
             "name": "items",
+            "description": null,
             "args": [
               {
                 "name": "orderStatus",
+                "description": null,
                 "type": {
                   "kind": "ENUM",
-                  "name": "Status"
+                  "name": "Status",
+                  "description": null,
+                  "fields": null,
+                  "interfaces": null,
+                  "possibleTypes": null,
+                  "enumValues": null,
+                  "inputFields": null,
+                  "ofType": null,
+                  "specifiedByURL": null
                 },
                 "defaultValue": "ACTIVE",
                 "isDeprecated": false,
+                "deprecationReason": null,
                 "validationRules": []
               },
               {
                 "name": "limit",
+                "description": null,
                 "type": {
                   "kind": "SCALAR",
-                  "name": "Int"
+                  "name": "Int",
+                  "description": null,
+                  "fields": null,
+                  "interfaces": null,
+                  "possibleTypes": null,
+                  "enumValues": null,
+                  "inputFields": null,
+                  "ofType": null,
+                  "specifiedByURL": null
                 },
                 "defaultValue": "10",
                 "isDeprecated": false,
+                "deprecationReason": null,
                 "validationRules": []
               }
             ],
             "type": {
               "kind": "NON_NULL",
+              "name": null,
+              "description": null,
+              "fields": null,
+              "interfaces": null,
+              "possibleTypes": null,
+              "enumValues": null,
+              "inputFields": null,
               "ofType": {
                 "kind": "LIST",
+                "name": null,
+                "description": null,
+                "fields": null,
+                "interfaces": null,
+                "possibleTypes": null,
+                "enumValues": null,
+                "inputFields": null,
                 "ofType": {
                   "kind": "NON_NULL",
+                  "name": null,
+                  "description": null,
+                  "fields": null,
+                  "interfaces": null,
+                  "possibleTypes": null,
+                  "enumValues": null,
+                  "inputFields": null,
                   "ofType": {
                     "kind": "SCALAR",
-                    "name": "Item"
-                  }
-                }
-              }
+                    "name": "Item",
+                    "description": null,
+                    "fields": null,
+                    "interfaces": null,
+                    "possibleTypes": null,
+                    "enumValues": null,
+                    "inputFields": null,
+                    "ofType": null,
+                    "specifiedByURL": null
+                  },
+                  "specifiedByURL": null
+                },
+                "specifiedByURL": null
+              },
+              "specifiedByURL": null
             },
-            "isDeprecated": false
+            "isDeprecated": false,
+            "deprecationReason": null
           }
         ],
-        "interfaces": []
+        "interfaces": [],
+        "possibleTypes": null,
+        "enumValues": null,
+        "inputFields": null,
+        "ofType": null,
+        "specifiedByURL": null
       },
       {
         "kind": "OBJECT",
@@ -286,28 +620,62 @@
         "fields": [
           {
             "name": "createItem",
+            "description": null,
             "args": [
               {
                 "name": "input",
+                "description": null,
                 "type": {
                   "kind": "NON_NULL",
+                  "name": null,
+                  "description": null,
+                  "fields": null,
+                  "interfaces": null,
+                  "possibleTypes": null,
+                  "enumValues": null,
+                  "inputFields": null,
                   "ofType": {
                     "kind": "INPUT_OBJECT",
-                    "name": "CreateItemInput"
-                  }
+                    "name": "CreateItemInput",
+                    "description": null,
+                    "fields": null,
+                    "interfaces": null,
+                    "possibleTypes": null,
+                    "enumValues": null,
+                    "inputFields": null,
+                    "ofType": null,
+                    "specifiedByURL": null
+                  },
+                  "specifiedByURL": null
                 },
+                "defaultValue": null,
                 "isDeprecated": false,
+                "deprecationReason": null,
                 "validationRules": []
               }
             ],
             "type": {
               "kind": "SCALAR",
-              "name": "Item"
+              "name": "Item",
+              "description": null,
+              "fields": null,
+              "interfaces": null,
+              "possibleTypes": null,
+              "enumValues": null,
+              "inputFields": null,
+              "ofType": null,
+              "specifiedByURL": null
             },
-            "isDeprecated": false
+            "isDeprecated": false,
+            "deprecationReason": null
           }
         ],
-        "interfaces": []
+        "interfaces": [],
+        "possibleTypes": null,
+        "enumValues": null,
+        "inputFields": null,
+        "ofType": null,
+        "specifiedByURL": null
       }
     ],
     "queryType": {
@@ -316,6 +684,7 @@
     "mutationType": {
       "name": "Mutation"
     },
+    "subscriptionType": null,
     "directives": [
       {
         "name": "skip",
@@ -331,12 +700,30 @@
             "description": "Skipped when true.",
             "type": {
               "kind": "NON_NULL",
+              "name": null,
+              "description": null,
+              "fields": null,
+              "interfaces": null,
+              "possibleTypes": null,
+              "enumValues": null,
+              "inputFields": null,
               "ofType": {
                 "kind": "SCALAR",
-                "name": "Boolean"
-              }
+                "name": "Boolean",
+                "description": null,
+                "fields": null,
+                "interfaces": null,
+                "possibleTypes": null,
+                "enumValues": null,
+                "inputFields": null,
+                "ofType": null,
+                "specifiedByURL": null
+              },
+              "specifiedByURL": null
             },
+            "defaultValue": null,
             "isDeprecated": false,
+            "deprecationReason": null,
             "validationRules": []
           }
         ],
@@ -356,12 +743,30 @@
             "description": "Included when true.",
             "type": {
               "kind": "NON_NULL",
+              "name": null,
+              "description": null,
+              "fields": null,
+              "interfaces": null,
+              "possibleTypes": null,
+              "enumValues": null,
+              "inputFields": null,
               "ofType": {
                 "kind": "SCALAR",
-                "name": "Boolean"
-              }
+                "name": "Boolean",
+                "description": null,
+                "fields": null,
+                "interfaces": null,
+                "possibleTypes": null,
+                "enumValues": null,
+                "inputFields": null,
+                "ofType": null,
+                "specifiedByURL": null
+              },
+              "specifiedByURL": null
             },
+            "defaultValue": null,
             "isDeprecated": false,
+            "deprecationReason": null,
             "validationRules": []
           }
         ],
@@ -382,10 +787,19 @@
             "description": "Explains why this element was deprecated.",
             "type": {
               "kind": "SCALAR",
-              "name": "String"
+              "name": "String",
+              "description": null,
+              "fields": null,
+              "interfaces": null,
+              "possibleTypes": null,
+              "enumValues": null,
+              "inputFields": null,
+              "ofType": null,
+              "specifiedByURL": null
             },
             "defaultValue": "\"No longer supported\"",
             "isDeprecated": false,
+            "deprecationReason": null,
             "validationRules": []
           }
         ],

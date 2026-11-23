@@ -19,7 +19,6 @@ use super::super::DirectiveLocationKind;
 #[serde(rename_all = "camelCase")]
 pub struct IntrospectionSchema {
     /// Description of the schema.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 
     /// All types in the schema.
@@ -29,11 +28,9 @@ pub struct IntrospectionSchema {
     pub query_type: IntrospectionTypeRef,
 
     /// The root Mutation type (if any).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub mutation_type: Option<IntrospectionTypeRef>,
 
     /// The root Subscription type (if any).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub subscription_type: Option<IntrospectionTypeRef>,
 
     /// All directives supported by the schema.
@@ -50,39 +47,30 @@ pub struct IntrospectionType {
     pub kind: TypeKind,
 
     /// The name of the type.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
 
     /// Description of the type.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 
     /// Fields (for OBJECT and INTERFACE types).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub fields: Option<Vec<IntrospectionField>>,
 
     /// Interfaces this type implements (for OBJECT types).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub interfaces: Option<Vec<IntrospectionTypeRef>>,
 
     /// Possible types (for INTERFACE and UNION types).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub possible_types: Option<Vec<IntrospectionTypeRef>>,
 
     /// Enum values (for ENUM types).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub enum_values: Option<Vec<IntrospectionEnumValue>>,
 
     /// Input fields (for `INPUT_OBJECT` types).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub input_fields: Option<Vec<IntrospectionInputValue>>,
 
     /// The wrapped type (for `NON_NULL` and LIST types).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub of_type: Option<Box<IntrospectionType>>,
 
     /// Specified by URL (for custom scalars per GraphQL spec §3.5.5).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub specified_by_u_r_l: Option<String>,
 }
 
@@ -147,7 +135,6 @@ pub struct IntrospectionField {
     pub name: String,
 
     /// Field description.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 
     /// Field arguments.
@@ -161,7 +148,6 @@ pub struct IntrospectionField {
     pub is_deprecated: bool,
 
     /// Deprecation reason (if deprecated).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub deprecation_reason: Option<String>,
 }
 
@@ -227,7 +213,6 @@ pub struct IntrospectionInputValue {
     pub name: String,
 
     /// Input description.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 
     /// Input type.
@@ -235,14 +220,12 @@ pub struct IntrospectionInputValue {
     pub input_type: IntrospectionType,
 
     /// Default value (as JSON string).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub default_value: Option<String>,
 
     /// Whether the input value is deprecated.
     pub is_deprecated: bool,
 
     /// Deprecation reason (if deprecated).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub deprecation_reason: Option<String>,
 
     /// Validation rules for this input value.
@@ -258,14 +241,12 @@ pub struct IntrospectionEnumValue {
     pub name: String,
 
     /// Enum value description.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 
     /// Whether the value is deprecated.
     pub is_deprecated: bool,
 
     /// Deprecation reason (if deprecated).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub deprecation_reason: Option<String>,
 }
 
@@ -277,7 +258,6 @@ pub struct IntrospectionDirective {
     pub name: String,
 
     /// Directive description.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 
     /// Valid locations for this directive.

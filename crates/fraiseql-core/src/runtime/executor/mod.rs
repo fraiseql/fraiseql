@@ -221,6 +221,9 @@ pub use support::pipeline;
 pub mod test_support;
 
 #[cfg(test)]
+mod introspection_null_members_tests;
+
+#[cfg(test)]
 mod tests;
 
 #[cfg(test)]

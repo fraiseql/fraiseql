@@ -1661,6 +1661,16 @@ disagreed, and the promise was the part that was wrong.
   argument of the wrong type is still refused under the argument's own name, not under
   the variable MCP carries it in.
 
+- **Introspection answers `null` for a selected member that does not apply, instead of
+  leaving it out (#1720).** `{ __schema { types { fields { name } } } }` returned a scalar
+  with no `fields` key; every selected member is now in the response, `null` where the spec
+  says so: `fields`, `interfaces`, `possibleTypes`, `enumValues`, `inputFields`, `ofType`,
+  `specifiedByURL`, a wrapper type's `name`, a `description`, `deprecationReason` or
+  `defaultValue` that is not set, and `__schema`'s `mutationType` and `subscriptionType`
+  when the schema has none. An interface answers `[]` for `interfaces`, and for
+  `possibleTypes` when no type implements it, where it answered nothing. Unselected
+  members are still not sent.
+
 - **A fragment on a type the schema does not define, or one that can never apply where it
   stands, is refused (#2276).** `{ users { ... on Nosuch { name } } }` was answered with a
   `"...on Nosuch": null` key under a `200`; `fragment F on Nosuch { name }` spread under

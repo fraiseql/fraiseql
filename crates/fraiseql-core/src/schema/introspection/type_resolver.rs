@@ -364,12 +364,9 @@ pub(super) fn build_interface_type(
         name:               Some(interface_def.name.clone()),
         description:        interface_def.description.clone(),
         fields:             Some(fields),
-        interfaces:         None,
-        possible_types:     if possible_types.is_empty() {
-            None
-        } else {
-            Some(possible_types)
-        },
+        // An interface may implement interfaces (none is modelled yet): a list, never null.
+        interfaces:         Some(Vec::new()),
+        possible_types:     Some(possible_types),
         enum_values:        None,
         input_fields:       None,
         of_type:            None,
@@ -392,11 +389,7 @@ pub(super) fn build_union_type(union_def: &UnionDefinition) -> IntrospectionType
         description:        union_def.description.clone(),
         fields:             None, // Unions don't have fields
         interfaces:         None,
-        possible_types:     if possible_types.is_empty() {
-            None
-        } else {
-            Some(possible_types)
-        },
+        possible_types:     Some(possible_types),
         enum_values:        None,
         input_fields:       None,
         of_type:            None,
