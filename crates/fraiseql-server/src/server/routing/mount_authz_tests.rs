@@ -574,3 +574,103 @@ mod schema_metadata_mount {
         assert_eq!(metadata(&app, Some(&auditor(&idp))).await, (StatusCode::OK, Vec::new()));
     }
 }
+
+/// The required and admin auth planes (`required_auth_middleware`, `admin_auth_middleware`)
+/// share one authentication step, and it checks the token's session as the data plane does:
+/// a token whose session was ended is refused on every mount behind either, and the same
+/// token not ended is admitted.
+#[cfg(feature = "auth")]
+mod required_plane_revocation {
+    use super::*;
+    use crate::token_revocation::{
+        InMemoryRevocationStore, RevocationStore, TokenRevocationManager,
+    };
+
+    /// The server's router under `idp`, with introspection behind the required plane, the
+    /// design audit behind the admin plane, and `store` holding the ended sessions.
+    async fn app(idp: &TestIdp, store: Arc<InMemoryRevocationStore>) -> Router {
+        let config = ServerConfig {
+            cors_enabled: false,
+            introspection_require_auth: true,
+            design_api_require_auth: true,
+            ..ServerConfig::default()
+        };
+        let mut server = Box::pin(Server::new(
+            config,
+            CompiledSchema::new(),
+            Arc::new(FailingAdapter::new()),
+            None,
+        ))
+        .await
+        .unwrap()
+        .with_revocation_manager(Arc::new(TokenRevocationManager::new(store, false, false, 3600)));
+        server.config.introspection_enabled = true;
+        server.oidc_validator = Some(idp.validator(false));
+        server.build_router(&server.build_app_state())
+    }
+
+    async fn introspection(app: &Router, bearer: &str) -> StatusCode {
+        let request = Request::builder()
+            .uri("/introspection")
+            .header("authorization", format!("Bearer {bearer}"))
+            .body(Body::empty())
+            .unwrap();
+        app.clone().oneshot(request).await.unwrap().status()
+    }
+
+    async fn design_audit(app: &Router, bearer: &str) -> StatusCode {
+        let request = Request::builder()
+            .method("POST")
+            .uri("/api/v1/design/audit")
+            .header("authorization", format!("Bearer {bearer}"))
+            .header("content-type", "application/json")
+            .body(Body::from("{}"))
+            .unwrap();
+        app.clone().oneshot(request).await.unwrap().status()
+    }
+
+    fn admin_token(idp: &TestIdp, sub: &str, jti: &str) -> String {
+        idp.mint(&idp.claims(sub).set("jti", jti).set("scope", "fraiseql:admin"))
+    }
+
+    #[tokio::test]
+    async fn a_revoked_token_is_refused_on_the_required_plane() {
+        let idp = TestIdp::start().await;
+        let store = Arc::new(InMemoryRevocationStore::new());
+        store.revoke("j-ended", 3600).await.unwrap();
+        let app = app(&idp, store).await;
+        assert_eq!(
+            introspection(&app, &idp.token("alice", "j-ended")).await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(introspection(&app, &idp.token("alice", "j-live")).await, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn a_revoke_all_is_honoured_on_the_required_plane() {
+        let idp = TestIdp::start().await;
+        let token = idp.token("carol", "j-carol");
+        let store = Arc::new(InMemoryRevocationStore::new());
+        store.revoke_all_for_user("carol", 3600).await.unwrap();
+        let app = app(&idp, store).await;
+        assert_eq!(introspection(&app, &token).await, StatusCode::UNAUTHORIZED);
+        assert_eq!(introspection(&app, &idp.token("dave", "j-dave")).await, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn a_revoked_token_is_refused_on_the_admin_plane() {
+        let idp = TestIdp::start().await;
+        let store = Arc::new(InMemoryRevocationStore::new());
+        store.revoke("j-ended", 3600).await.unwrap();
+        let app = app(&idp, store).await;
+        assert_eq!(
+            design_audit(&app, &admin_token(&idp, "alice", "j-ended")).await,
+            StatusCode::UNAUTHORIZED
+        );
+        let live = design_audit(&app, &admin_token(&idp, "alice", "j-live")).await;
+        assert!(
+            live != StatusCode::UNAUTHORIZED && live != StatusCode::FORBIDDEN,
+            "a live admin token passes both checks, got {live}"
+        );
+    }
+}

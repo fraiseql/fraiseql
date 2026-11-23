@@ -595,8 +595,9 @@ mod revocation_tests {
     //! runs — with a real `OidcAuthState` + `TokenRevocationManager` and a crafted token.
     //! Driving the full middleware with a *valid* token needs a live JWKS endpoint
     //! (out of scope here, see `auth_regression_test.rs`), so the enforcement logic is
-    //! tested at this seam; the wiring (both middlewares call it; the server attaches the
-    //! manager to every `OidcAuthState`) is structural.
+    //! tested at this seam. The wiring is driven on the real router: the required and
+    //! admin planes by `server::routing::mount_authz_tests::required_plane_revocation`, the
+    //! data plane by the transport refusal matrix.
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)] // Reason: test code, panics are acceptable
 
     use std::{collections::HashMap, sync::Arc};
