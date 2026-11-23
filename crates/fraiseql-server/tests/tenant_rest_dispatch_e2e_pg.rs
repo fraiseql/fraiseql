@@ -614,10 +614,18 @@ mod function_writes {
         };
         let unknown =
             RunAsQueryExecutor::new(ExecutorSource::of(&state), run_as(Some("p1550nobody")));
-        assert!(unknown.execute_query(WRITE, None).await.is_err(), "unregistered");
+        let refused = unknown.execute_query(WRITE, None).await;
+        assert!(
+            matches!(refused, Err(fraiseql_error::FraiseQLError::Authorization { .. })),
+            "unregistered: {refused:?}"
+        );
         state.tenant_registry().unwrap().suspend(TENANT).unwrap();
         let suspended = RunAsQueryExecutor::new(ExecutorSource::of(&state), run_as(Some(TENANT)));
-        assert!(suspended.execute_query(WRITE, None).await.is_err(), "suspended");
+        let refused = suspended.execute_query(WRITE, None).await;
+        assert!(
+            matches!(refused, Err(fraiseql_error::FraiseQLError::ServiceUnavailable { .. })),
+            "suspended: {refused:?}"
+        );
         assert_eq!(labels_in(&admin, "public").await, [PUBLIC_DECOY], "nothing reached public");
     }
 
@@ -631,6 +639,28 @@ mod function_writes {
         let variables = json!({ fraiseql_server::query_bridge::SOURCE_TENANT_VAR: TENANT });
         bridge.execute_query(WRITE, Some(&variables)).await.expect("the write runs");
         assert_eq!(labels_in(&admin, &format!("tenant_{TENANT}")).await, ["BRIDGED", TENANT_ROW]);
+    }
+
+    /// A tenant-bound function cannot be steered to another tenant by the source variable,
+    /// whether the bridge was built for an event function or for a source: the tenant it
+    /// runs as is its identity's.
+    #[tokio::test]
+    async fn a_tenant_bound_function_cannot_be_steered_to_another_tenant() {
+        let Some((admin, state)) = setup().await else {
+            return;
+        };
+        let variables = json!({ fraiseql_server::query_bridge::SOURCE_TENANT_VAR: "p1550other" });
+        for bridge in [
+            RunAsQueryExecutor::new(ExecutorSource::of(&state), run_as(Some(TENANT))),
+            RunAsQueryExecutor::for_source(ExecutorSource::of(&state), run_as(Some(TENANT))),
+        ] {
+            bridge.execute_query(WRITE, Some(&variables)).await.expect("the write runs");
+        }
+        assert_eq!(
+            labels_in(&admin, &format!("tenant_{TENANT}")).await,
+            ["BRIDGED", "BRIDGED", TENANT_ROW]
+        );
+        assert_eq!(labels_in(&admin, "public").await, [PUBLIC_DECOY]);
     }
 
     /// An event-dispatched function cannot steer its write with the source variable: it is

@@ -43,7 +43,7 @@ use axum::{Router, middleware::from_fn_with_state};
 use fraiseql_core::security::OidcValidator;
 use tracing::info;
 
-use super::{OidcAuthState, Server, oidc_auth_middleware};
+use super::{OidcAuthState, Server, mount_ledger::MountRecord as Mount, oidc_auth_middleware};
 use crate::{middleware::TenantClaim, routes::graphql::AppState};
 
 /// Whether a data-serving transport authenticates its callers.
@@ -197,7 +197,10 @@ impl Server {
 
         // Mount base routes, studio, admin, introspection, metrics, design audit.
         let mut app = Router::new();
-        app = self.mount_base_and_admin_routes(app.merge(graphql_router), state);
+        app = self.mount_base_and_admin_routes(
+            self.mounts.merge(app, Mount::auth_layer("graphql"), graphql_router),
+            state,
+        );
 
         // Mount auth routes (PKCE, social, MFA, /auth/me, revocation).
         #[cfg(feature = "auth")]

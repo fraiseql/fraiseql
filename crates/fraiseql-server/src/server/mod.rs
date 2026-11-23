@@ -40,6 +40,7 @@ mod extensions;
 mod functions_setup;
 pub(crate) mod initialization;
 mod lifecycle;
+pub(crate) mod mount_ledger;
 mod notify_session;
 pub mod pools;
 pub(crate) mod provision;
@@ -421,6 +422,9 @@ pub struct Server {
 
     /// What the start loop started, read by `/health`.
     pub(super) capability_starts: Arc<crate::capability::CapabilityStarts>,
+
+    /// Every router `build_router` mounted, and what admits a caller on it.
+    pub(super) mounts: mount_ledger::MountLedger,
 
     /// The usage flush interval, once provisioning has loaded the persisted counters; the
     /// flush loop starts with the other provisioned tasks.

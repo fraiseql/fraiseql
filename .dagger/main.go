@@ -553,6 +553,10 @@ func (m *FraiseqlCi) ShellGates(
 		// asserting Ok passed with the SSRF guard refusing every address.
 		"python3 tools/check-guard-test-lock.py",
 		"bash tools/tests/guard_test_lock_test.sh",
+		// Every router the server mounts is recorded, so the transport refusal matrix
+		// sees every transport (#1844).
+		"python3 tools/check-mount-ledger.py",
+		"bash tools/tests/mount_ledger_test.sh",
 		"bash tools/check-deploy-security.sh",
 		// Deploy artifacts must name the version being released, and the chart's
 		// default image must be one this project publishes (#1129).
@@ -2435,6 +2439,9 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// #2347: the storage API dispatches to the caller's tenant on every route, so a
 		// suspended or unregistered tenant is refused there too. Owns tenant_p2347* → serial.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test storage_tenant_dispatch_e2e_pg -- --test-threads=1",
+		// #1844: every transport refuses the same five requests the same way, and every
+		// transport the server mounts has a row. Owns tenant_p1844* and p1844rls → serial.
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test transport_refusal_matrix_e2e_pg -- --test-threads=1",
 		// #633: a schema-mode tenant over its storage quota is refused writes until it is back under.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test tenant_storage_quota_e2e_pg -- --test-threads=1",
 		// #1391: a cascade derived from pg_tviews' affected set, against a real pg_tviews

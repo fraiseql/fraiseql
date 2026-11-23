@@ -28,13 +28,17 @@ impl Server {
                     app:     state.clone(),
                 },
             );
-            app = app.merge(self.attach_auth(
-                ops_router,
-                super::AuthPosture::Authenticated,
-                "async-operations",
-                // Submit takes a `JSON` body, status only reads, and cancel is a DELETE.
-                super::AccessCookie::Accepted,
-            ));
+            app = self.mounts.merge(
+                app,
+                super::Mount::auth_layer("async-operations"),
+                self.attach_auth(
+                    ops_router,
+                    super::AuthPosture::Authenticated,
+                    "async-operations",
+                    // Submit takes a `JSON` body, status only reads, and cancel is a DELETE.
+                    super::AccessCookie::Accepted,
+                ),
+            );
             info!("Async-operations endpoints mounted (/operations/v1)");
         }
 
@@ -50,7 +54,7 @@ impl Server {
                     tokens: tokens.clone(),
                 })
                 .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware));
-            app = app.merge(router);
+            app = self.mounts.merge(app, super::Mount::admin_token("admin"), router);
             info!("Tenant admin credentials managed at /api/admin-tokens (admin bearer token)");
         }
 
@@ -73,7 +77,7 @@ impl Server {
                 let mgmt_router = crate::api::api_key_management_router(mgmt_state).route_layer(
                     middleware::from_fn_with_state(auth_state, bearer_auth_middleware),
                 );
-                app = app.merge(mgmt_router);
+                app = self.mounts.merge(app, super::Mount::admin_token("admin"), mgmt_router);
             } else {
                 tracing::error!(
                     "API-key management disabled — [security.api_keys] storage = \"postgres\" \
@@ -106,7 +110,11 @@ impl Server {
                         rbac:          rbac.clone(),
                         base_url:      scim_cfg.base_url.clone(),
                     };
-                    app = app.merge(crate::api::scim_router(scim_state));
+                    app = self.mounts.merge(
+                        app,
+                        super::Mount::admin_token("scim"),
+                        crate::api::scim_router(scim_state),
+                    );
 
                     // Accepts tenant administrators (#1089); the router enforces their tenant.
                     let auth_state = self.admin_principal_state(token);
@@ -117,7 +125,7 @@ impl Server {
                         auth_state,
                         crate::middleware::admin_principal_middleware,
                     ));
-                    app = app.merge(token_router);
+                    app = self.mounts.merge(app, super::Mount::admin_token("admin"), token_router);
                     info!(
                         "SCIM 2.0 provisioning mounted at /scim/v2 (provisioning bearer token); \
                          credentials managed at /api/scim/tokens (admin bearer token)"
@@ -185,7 +193,11 @@ impl Server {
         };
         for registration in REGISTRY.iter().filter(|registration| registration.compiled_in) {
             if let Some(routes) = registration.capability.routes(&cx) {
-                app = app.merge(routes);
+                app = self.mounts.merge(
+                    app,
+                    super::Mount::capability(registration.meta.name),
+                    routes,
+                );
                 self.capability_starts.record_serving(registration.meta.name);
             }
         }
@@ -242,7 +254,11 @@ impl Server {
             routes = self.webhook_routes.len(),
             "Inbound webhook routes mounted at POST /webhooks/{{provider}}"
         );
-        app.merge(crate::inbound::webhook_router(inbound_state))
+        self.mounts.merge(
+            app,
+            super::Mount::signature("webhooks"),
+            crate::inbound::webhook_router(inbound_state),
+        )
     }
 
     #[cfg(feature = "mcp")]
@@ -329,7 +345,7 @@ impl Server {
                     std::sync::Arc::new(LocalSessionManager::default()),
                     auth,
                 );
-                app = app.merge(mcp_router);
+                app = self.mounts.merge(app, super::Mount::mcp_gate("mcp"), mcp_router);
                 info!(path = %mcp_cfg.path, "MCP HTTP endpoint mounted");
             }
         }
@@ -362,7 +378,7 @@ impl Server {
                     crate::middleware::admin_principal_middleware,
                 ),
             );
-            app = app.merge(rbac_router);
+            app = self.mounts.merge(app, super::Mount::admin_token("admin"), rbac_router);
         } else if self.config.admin_token.is_some() {
             tracing::warn!(
                 "RBAC Management API not mounted: admin_token is set but the server has no \
@@ -427,7 +443,7 @@ impl Server {
                     }
                 },
             ));
-        app = app.merge(storage);
+        app = self.mounts.merge(app, super::Mount::storage_admission("storage"), storage);
         info!("Storage API routes mounted at /storage/v1/");
         app
     }

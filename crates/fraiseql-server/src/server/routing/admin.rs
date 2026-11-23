@@ -32,7 +32,7 @@ impl Server {
             .route(&self.config.liveness_path, get(liveness_handler))
             .route(&self.config.readiness_path, get(readiness_handler))
             .with_state(state.clone());
-        app = app.merge(base_routes);
+        app = self.mounts.merge(app, super::Mount::public("health"), base_routes);
 
         // Studio admin dashboard — always mounted at /studio (SPA shell, no auth)
         {
@@ -42,7 +42,7 @@ impl Server {
                 .route("/studio/assets/{file}", get(studio_asset_handler))
                 .route("/studio/{*path}", get(studio_handler));
             info!("Studio admin dashboard mounted at /studio");
-            app = app.merge(studio_router);
+            app = self.mounts.merge(app, super::Mount::public("studio"), studio_router);
         }
 
         // Studio admin API — /admin/v1/* (protected by admin bearer token when configured)
@@ -80,7 +80,7 @@ impl Server {
                     get(crate::routes::well_known::security_txt_handler),
                 )
                 .with_state(contact.clone());
-            app = app.merge(security_router);
+            app = self.mounts.merge(app, super::Mount::public("security-txt"), security_router);
         }
 
         // Conditionally add subscription route (WebSocket).
@@ -140,7 +140,7 @@ impl Server {
             .route_layer(middleware::from_fn_with_state(auth, bearer_auth_middleware))
             .with_state(state.clone());
         info!("Studio admin API mounted at /admin/v1/* (bearer token required)");
-        app.merge(studio_admin_router)
+        self.mounts.merge(app, super::Mount::admin_token("admin"), studio_admin_router)
     }
 
     /// Mount `POST /admin/v1/auth/refresh-jwks` (#361): force an immediate JWKS
@@ -165,7 +165,7 @@ impl Server {
         info!(
             "JWKS refresh endpoint mounted: POST /admin/v1/auth/refresh-jwks (admin token required)"
         );
-        app.merge(router)
+        self.mounts.merge(app, super::Mount::admin_token("admin"), router)
     }
 
     fn mount_playground(&self, mut app: Router, _state: &AppState) -> Router {
@@ -191,7 +191,11 @@ impl Server {
                     .route(&self.config.playground_path, get(playground_handler))
                     .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
                     .with_state(playground_state);
-                app = app.merge(playground_router);
+                app = self.mounts.merge(
+                    app,
+                    super::Mount::auth_layer("playground"),
+                    playground_router,
+                );
             } else {
                 warn!(
                     playground_path = %self.config.playground_path,
@@ -207,7 +211,7 @@ impl Server {
             let playground_router = Router::new()
                 .route(&self.config.playground_path, get(playground_handler))
                 .with_state(playground_state);
-            app = app.merge(playground_router);
+            app = self.mounts.merge(app, super::Mount::public("playground"), playground_router);
         }
         app
     }
@@ -316,7 +320,9 @@ impl Server {
             // A cross-site socket handshake carries cookies, and has no body to check.
             super::AccessCookie::Refused,
         );
-        app.merge(
+        self.mounts.merge(
+            app,
+            super::Mount::auth_layer("subscriptions"),
             subscription_router
                 .with_state(subscription_state.with_require_auth(subscription_require_auth)),
         )
@@ -348,7 +354,11 @@ impl Server {
                         required_auth_middleware,
                     ))
                     .with_state(state.clone());
-                app = app.merge(introspection_router);
+                app = self.mounts.merge(
+                    app,
+                    super::Mount::auth_layer("introspection"),
+                    introspection_router,
+                );
             } else {
                 warn!(
                     "introspection_require_auth is true but no OIDC configured - introspection disabled"
@@ -362,7 +372,9 @@ impl Server {
             let introspection_router = Router::new()
                 .route(&self.config.introspection_path, get(introspection_handler))
                 .with_state(state.clone());
-            app = app.merge(introspection_router);
+            app =
+                self.mounts
+                    .merge(app, super::Mount::public("introspection"), introspection_router);
         }
 
         // Mount schema export endpoints with independent auth control.
@@ -380,7 +392,11 @@ impl Server {
                         required_auth_middleware,
                     ))
                     .with_state(state.clone());
-                app = app.merge(schema_router);
+                app = self.mounts.merge(
+                    app,
+                    super::Mount::auth_layer("schema-export"),
+                    schema_router,
+                );
             } else {
                 warn!(
                     "schema_export_require_auth is true but no OIDC configured - schema export disabled"
@@ -392,7 +408,7 @@ impl Server {
                 .route("/api/v1/schema.graphql", get(api::schema::export_sdl_handler))
                 .route("/api/v1/schema.json", get(api::schema::export_json_handler))
                 .with_state(state.clone());
-            app = app.merge(schema_router);
+            app = self.mounts.merge(app, super::Mount::public("schema-export"), schema_router);
         }
 
         // Mount metadata endpoint with independent auth control
@@ -409,7 +425,11 @@ impl Server {
                         required_auth_middleware,
                     ))
                     .with_state(state.clone());
-                app = app.merge(metadata_router);
+                app = self.mounts.merge(
+                    app,
+                    super::Mount::auth_layer("schema-metadata"),
+                    metadata_router,
+                );
             } else {
                 warn!(
                     "metadata_require_auth is true but no OIDC configured - metadata endpoint disabled"
@@ -420,7 +440,7 @@ impl Server {
             let metadata_router = Router::new()
                 .route("/api/v1/schema/metadata", get(api::metadata::metadata_handler))
                 .with_state(state.clone());
-            app = app.merge(metadata_router);
+            app = self.mounts.merge(app, super::Mount::public("schema-metadata"), metadata_router);
         }
         app
     }
@@ -442,7 +462,7 @@ impl Server {
                 .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware))
                 .with_state(state.clone());
 
-            app = app.merge(metrics_router);
+            app = self.mounts.merge(app, super::Mount::admin_token("metrics"), metrics_router);
         } else {
             warn!(
                 "metrics_enabled is true but metrics_token is not set - metrics endpoints disabled"
@@ -487,7 +507,7 @@ impl Server {
                 )
                 .route_layer(middleware::from_fn_with_state(write_auth, bearer_auth_middleware))
                 .with_state(state.clone());
-            app = app.merge(admin_write_router);
+            app = self.mounts.merge(app, super::Mount::admin_token("admin"), admin_write_router);
 
             // Read-only router
             let read_token = self.config.admin_readonly_token.as_ref().unwrap_or(write_token);
@@ -551,7 +571,7 @@ impl Server {
             let admin_read_router = admin_read_router
                 .route_layer(middleware::from_fn_with_state(read_auth, bearer_auth_middleware))
                 .with_state(state.clone());
-            app = app.merge(admin_read_router);
+            app = self.mounts.merge(app, super::Mount::admin_token("admin"), admin_read_router);
 
             app = self.mount_storage_policy_admin(app, write_token);
             app = self.mount_admin_sql_console(app, state, write_token);
@@ -609,7 +629,8 @@ impl Server {
             .route_layer(middleware::from_fn_with_state(read_auth, bearer_auth_middleware))
             .with_state(storage_state.clone());
 
-        app = app.merge(write_router).merge(read_router);
+        app = self.mounts.merge(app, super::Mount::admin_token("admin"), write_router);
+        app = self.mounts.merge(app, super::Mount::admin_token("admin"), read_router);
         info!(
             path = POLICIES_PATH,
             "Storage bucket policy admin endpoints enabled (GET under the read token, \
@@ -676,7 +697,7 @@ impl Server {
              Statements roll back unless `commit: true` is sent; admin_readonly_token runs \
              READ ONLY. Every execution is written to the audit ledger."
         );
-        app = app.merge(console);
+        app = self.mounts.merge(app, super::Mount::admin_token("admin"), console);
         app
     }
 
@@ -716,7 +737,12 @@ impl Server {
                     .route("/design/audit", post(api::design::overall_design_audit_handler))
                     .route_layer(middleware::from_fn_with_state(auth_state, admin_auth_middleware))
                     .with_state(state.clone());
-                app = app.nest("/api/v1", design_router);
+                app = self.mounts.nest(
+                    app,
+                    super::Mount::auth_layer("design-audit"),
+                    "/api/v1",
+                    design_router,
+                );
             } else {
                 warn!(
                     "SECURITY: design_api_require_auth is true but no OIDC configured — \
@@ -734,7 +760,12 @@ impl Server {
                 .route("/design/compilation-audit", post(api::design::compilation_audit_handler))
                 .route("/design/audit", post(api::design::overall_design_audit_handler))
                 .with_state(state.clone());
-            app = app.nest("/api/v1", design_router);
+            app = self.mounts.nest(
+                app,
+                super::Mount::public("design-audit"),
+                "/api/v1",
+                design_router,
+            );
         }
         app
     }

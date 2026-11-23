@@ -81,12 +81,18 @@ impl Server {
             middleware::from_fn_with_state(auth_state, admin_auth_middleware)
         };
 
-        let app = app
-            .nest("/api/observers", observer_routes(observer_state).route_layer(auth_layer()))
-            .nest(
-                "/api/observers",
-                observer_changelog_routes(changelog_state).route_layer(auth_layer()),
-            );
+        let app = self.mounts.nest(
+            app,
+            super::Mount::auth_layer("observers"),
+            "/api/observers",
+            observer_routes(observer_state).route_layer(auth_layer()),
+        );
+        let app = self.mounts.nest(
+            app,
+            super::Mount::auth_layer("observers"),
+            "/api/observers",
+            observer_changelog_routes(changelog_state).route_layer(auth_layer()),
+        );
 
         if let Some(ref runtime) = self.observer_runtime {
             info!(
@@ -104,6 +110,7 @@ impl Server {
             };
 
             mount_observer_runtime_routes(
+                &self.mounts,
                 app,
                 observer_runtime_routes(runtime_state).route_layer(auth_layer()),
                 observer_dlq_routes(dlq_state).route_layer(auth_layer()),
@@ -128,9 +135,12 @@ impl Server {
 /// constructing a full [`Server`] (issue #340).
 #[cfg(feature = "observers")]
 pub(in crate::server) fn mount_observer_runtime_routes(
+    ledger: &crate::server::mount_ledger::MountLedger,
     app: Router,
     runtime_routes: Router,
     dlq_routes: Router,
 ) -> Router {
-    app.nest("/api/observers", runtime_routes).nest("/api/observers", dlq_routes)
+    let mount = super::Mount::auth_layer("observers");
+    let app = ledger.nest(app, mount, "/api/observers", runtime_routes);
+    ledger.nest(app, mount, "/api/observers", dlq_routes)
 }

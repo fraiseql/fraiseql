@@ -1239,6 +1239,7 @@ impl Server {
             usage: Arc::clone(crate::usage::aggregator::global_aggregator()),
             tasks,
             capability_starts: Arc::default(),
+            mounts: super::mount_ledger::MountLedger::default(),
             usage_flush_interval: None,
         })
     }

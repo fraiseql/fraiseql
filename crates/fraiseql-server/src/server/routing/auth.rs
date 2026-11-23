@@ -97,7 +97,11 @@ impl Server {
         // The first-party issuer publishes its discovery document and keys, so a service
         // beside this server verifies its sessions as it would any OIDC provider's.
         if let Some(ref issuer) = self.first_party {
-            app = app.merge(crate::first_party::routes(Arc::clone(issuer)));
+            app = self.mounts.merge(
+                app,
+                super::Mount::issuance("auth"),
+                crate::first_party::routes(Arc::clone(issuer)),
+            );
             info!(
                 "First-party issuer routes mounted: GET {}, GET {}",
                 crate::first_party::DISCOVERY_PATH,
@@ -122,7 +126,7 @@ impl Server {
                 .route("/auth/start", get(auth_start))
                 .route("/auth/callback", get(auth_callback))
                 .with_state(auth_state);
-            app = app.merge(auth_router);
+            app = self.mounts.merge(app, super::Mount::issuance("auth"), auth_router);
             info!("PKCE auth routes mounted: GET /auth/start, GET /auth/callback");
         }
 
@@ -131,7 +135,11 @@ impl Server {
         // the first-party issuer and every IdP's metadata; this is pure routing.
         #[cfg(feature = "auth-saml")]
         if let Some(ref saml) = self.saml_state {
-            app = app.merge(fraiseql_auth::saml::saml_routes(saml.clone()));
+            app = self.mounts.merge(
+                app,
+                super::Mount::issuance("auth"),
+                fraiseql_auth::saml::saml_routes(saml.clone()),
+            );
             info!("SAML routes mounted: GET /auth/saml/login, POST /auth/saml/acs");
         }
 
@@ -142,7 +150,11 @@ impl Server {
         // derived from `[security.rate_limiting]`'s auth_start/auth_callback
         // settings (#788) — the same limiter that guards /auth/start.
         if let Some(ref social) = self.social_login {
-            app = app.merge(social_router(Arc::clone(social)));
+            app = self.mounts.merge(
+                app,
+                super::Mount::issuance("auth"),
+                social_router(Arc::clone(social)),
+            );
             info!(
                 providers = ?social.provider_names(),
                 "Social login routes mounted: GET /auth/v1/{{providers,authorize,callback}}"
@@ -161,11 +173,15 @@ impl Server {
                      valid until it expires"
                 );
             }
-            app = app.merge(fraiseql_auth::session_routes(fraiseql_auth::SessionRouteState {
-                sessions: Arc::clone(sessions),
-                denial,
-                cookies: self.session_cookies,
-            }));
+            app = self.mounts.merge(
+                app,
+                super::Mount::issuance("auth"),
+                fraiseql_auth::session_routes(fraiseql_auth::SessionRouteState {
+                    sessions: Arc::clone(sessions),
+                    denial,
+                    cookies: self.session_cookies,
+                }),
+            );
             info!("Session routes mounted: POST /auth/v1/session/{{refresh,logout}}");
         }
 
@@ -174,7 +190,7 @@ impl Server {
             let anon_router = Router::new()
                 .route("/auth/v1/signup", post(anon_signup))
                 .with_state(Arc::clone(anon));
-            app = app.merge(anon_router);
+            app = self.mounts.merge(app, super::Mount::issuance("auth"), anon_router);
             info!("Anonymous signup route mounted: POST /auth/v1/signup");
         }
 
@@ -184,7 +200,7 @@ impl Server {
                 .route("/auth/v1/otp", post(crate::auth::otp_send))
                 .route("/auth/v1/verify", post(crate::auth::otp_verify))
                 .with_state(Arc::clone(otp));
-            app = app.merge(otp_router);
+            app = self.mounts.merge(app, super::Mount::issuance("auth"), otp_router);
             info!("Email OTP routes mounted: POST /auth/v1/otp, POST /auth/v1/verify");
         }
 
@@ -195,7 +211,11 @@ impl Server {
             if let Some(denial) = self.access_denial() {
                 pw.authenticator.set_access_denial(denial);
             }
-            app = app.merge(fraiseql_auth::local_password_routes(Arc::clone(pw)));
+            app = self.mounts.merge(
+                app,
+                super::Mount::issuance("auth"),
+                fraiseql_auth::local_password_routes(Arc::clone(pw)),
+            );
             info!(
                 "Local password routes mounted: POST /auth/v1/password/{{signup,login,reset}}, \
                  POST /auth/v1/password/reset/confirm"
@@ -212,7 +232,7 @@ impl Server {
                     AccessCookie::Refused,
                 )
             {
-                app = app.merge(routes);
+                app = self.mounts.merge(app, super::Mount::auth_layer("auth-account"), routes);
                 info!(
                     "Email verification routes mounted: POST \
                      /auth/v1/email/verify/{{start,confirm}}"
@@ -242,7 +262,7 @@ impl Server {
                 AccessCookie::Accepted,
             );
             if let Some(routes) = management {
-                app = app.merge(routes);
+                app = self.mounts.merge(app, super::Mount::auth_layer("auth-account"), routes);
             } else {
                 tracing::warn!(
                     "TOTP MFA enroll/confirm/unenroll not mounted: they act on the signed-in \
@@ -263,7 +283,7 @@ impl Server {
                     client_address,
                 ));
             }
-            app = app.merge(mfa_router);
+            app = self.mounts.merge(app, super::Mount::issuance("auth"), mfa_router);
             info!(
                 "TOTP MFA routes mounted: POST \
                  /auth/v1/mfa/{{enroll,confirm,verify,unenroll}}"
@@ -286,7 +306,7 @@ impl Server {
                 .route("/auth/me", get(auth_me))
                 .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
                 .with_state(me_state);
-            app = app.merge(me_router);
+            app = self.mounts.merge(app, super::Mount::auth_layer("auth-account"), me_router);
             info!(
                 expose_claims = ?me_cfg.expose_claims,
                 "Session identity route mounted: GET /auth/me"
@@ -312,7 +332,7 @@ impl Server {
                     .route("/auth/revoke-all", post(crate::routes::revoke_all_tokens))
                     .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
                     .with_state(rev_state);
-                app = app.merge(rev_router);
+                app = self.mounts.merge(app, super::Mount::auth_layer("auth-account"), rev_router);
                 info!(
                     "Token revocation routes mounted (auth-gated): POST /auth/revoke, POST /auth/revoke-all"
                 );

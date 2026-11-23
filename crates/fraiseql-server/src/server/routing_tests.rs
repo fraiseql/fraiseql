@@ -156,6 +156,7 @@ async fn test_observer_runtime_routes_nested_under_api_prefix() {
         Arc::new(RwLock::new(ObserverRuntime::new(ObserverRuntimeConfig::new(lazy_pool()))));
 
     let router = mount_observer_runtime_routes(
+        &crate::server::mount_ledger::MountLedger::default(),
         Router::new().route("/health", get(|| async { "ok" })),
         observer_runtime_routes(RuntimeHealthState {
             runtime: Arc::clone(&runtime),

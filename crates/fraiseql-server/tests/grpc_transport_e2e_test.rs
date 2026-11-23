@@ -2637,3 +2637,125 @@ async fn a_decimal_reaches_the_client_with_its_digits() {
         assert_eq!(digits, "12345678901234567.89");
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Refusal cells of the transport refusal matrix
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// The embedder seam over tokens from a real issuer and a real store of ended sessions.
+mod refusal_cells {
+    use fraiseql_core::security::{OidcConfig, OidcValidator};
+    use fraiseql_server::token_revocation::{
+        InMemoryRevocationStore, RevocationStore, TokenRevocationManager,
+    };
+    use fraiseql_test_support::issuer::TestIssuer;
+
+    use super::*;
+
+    struct Seam {
+        svc:      DynamicGrpcService,
+        issuer:   TestIssuer,
+        sessions: Arc<TokenRevocationManager>,
+    }
+
+    impl Seam {
+        async fn start() -> Self {
+            let issuer = TestIssuer::start().await;
+            let validator = OidcValidator::new(OidcConfig {
+                issuer: Some(issuer.issuer().to_string()),
+                audience: Some(issuer.audience().to_string()),
+                required: true,
+                allowed_algorithms: vec!["ES256".to_string()],
+                ..OidcConfig::default()
+            })
+            .await
+            .expect("the test issuer is discoverable");
+            let store: Arc<dyn RevocationStore> = Arc::new(InMemoryRevocationStore::new());
+            let sessions = Arc::new(TokenRevocationManager::new(store, false, false, 86_400));
+            let tmp = tempfile::tempdir().unwrap();
+            let schema = Arc::new(build_grpc_schema(&write_descriptor(tmp.path())));
+            let adapter =
+                Arc::new(FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]));
+            let svc = grpc::build_grpc_service(
+                Arc::clone(&schema),
+                Arc::new(Executor::new((*schema).clone(), adapter)),
+                Some(Arc::new(validator)),
+                None,
+                fraiseql_server::identity::RequestIdentity::default(),
+                Some(Arc::clone(&sessions)),
+                Arc::new(fraiseql_server::config::ErrorSanitizer::disabled()),
+            )
+            .unwrap()
+            .unwrap()
+            .service;
+            Self {
+                svc,
+                issuer,
+                sessions,
+            }
+        }
+
+        fn token(&self, sub: &str, tenant: &str) -> String {
+            self.issuer.mint(&self.issuer.claims().set("sub", sub).set("tenant_id", tenant))
+        }
+
+        /// The `grpc-status` of a `GetUser` call with `headers`, and whether the row came back.
+        async fn get_user(&self, headers: &[(&str, String)]) -> (Option<String>, bool) {
+            let fds = build_descriptor_set();
+            let pool =
+                prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+            let request_type = pool.get_message_by_name("fraiseql.v1.GetUserRequest").unwrap();
+            let mut request = grpc_request(
+                "GetUser",
+                &prost_reflect::DynamicMessage::new(request_type).encode_to_vec(),
+            );
+            for (name, value) in headers {
+                request.headers_mut().insert(
+                    http::HeaderName::from_bytes(name.as_bytes()).unwrap(),
+                    http::HeaderValue::from_str(value).unwrap(),
+                );
+            }
+            let response = self.svc.clone().oneshot(request).await.expect("service call");
+            let status = response
+                .headers()
+                .get("grpc-status")
+                .and_then(|v| v.to_str().ok())
+                .map(String::from);
+            let body = response.into_body().collect().await.unwrap().to_bytes();
+            (status, String::from_utf8_lossy(&body).contains("Alice"))
+        }
+    }
+
+    /// Case 2: a token whose session was ended is UNAUTHENTICATED, and the same token was
+    /// served before, so the refusal is the ended session's.
+    #[tokio::test]
+    async fn a_token_whose_session_was_ended_is_unauthenticated() {
+        let seam = Seam::start().await;
+        let token = format!("Bearer {}", seam.token("u-ended", "ta"));
+        let (status, served) = seam.get_user(&[("authorization", token.clone())]).await;
+        assert_eq!((status.as_deref(), served), (Some("0"), true), "served before it ended");
+        seam.sessions.revoke_all_for_user("u-ended").await.unwrap();
+        let (status, served) = seam.get_user(&[("authorization", token)]).await;
+        assert_eq!((status.as_deref(), served), (Some("16"), false));
+    }
+
+    /// Cases 3 and 5, a known gap (#1550): the embedder seam takes no tenant registry, so
+    /// a token's tenant is never dispatched. A token bound to a tenant no registry holds
+    /// is served, and so is one naming another tenant in its request metadata. This test
+    /// fails when gRPC dispatches tenants; then the matrix's gRPC cells 3 and 5 become
+    /// refusals.
+    #[tokio::test]
+    async fn a_tokens_tenant_is_not_dispatched_known_gap_1550() {
+        let seam = Seam::start().await;
+        let unheld = format!("Bearer {}", seam.token("u-gap", "p1844notregistered"));
+        let (status, served) = seam.get_user(&[("authorization", unheld.clone())]).await;
+        assert_eq!((status.as_deref(), served), (Some("0"), true), "#1550 closed? update cell 3");
+        let (status, served) = seam
+            .get_user(&[
+                ("authorization", unheld),
+                ("x-tenant-id", "p1844other".to_string()),
+            ])
+            .await;
+        assert_eq!((status.as_deref(), served), (Some("0"), true), "#1550 closed? update cell 5");
+    }
+}
