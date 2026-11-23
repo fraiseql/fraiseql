@@ -598,6 +598,13 @@ impl AppState {
         .map_err(|e| e.to_string())?;
         crate::server::initialization::static_enriched_fields_check(&schema)
             .map_err(|e| e.to_string())?;
+        // `[session_variables]` is not frozen across a reload, and the adapter is: a reload
+        // must not bring in variables the adapter would refuse on every read.
+        crate::server::initialization::session_variables_applied_check(
+            &schema,
+            current.applies_session_variables(),
+        )
+        .map_err(|e| e.to_string())?;
 
         // Refuse rather than half-apply: everything a boot-time subsystem read
         // once cannot be changed by swapping the executor.

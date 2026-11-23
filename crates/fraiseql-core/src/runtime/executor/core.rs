@@ -463,6 +463,14 @@ impl Executor {
         &self.ctx.schema
     }
 
+    /// Whether this executor's adapter applies session variables to its reads, asked of
+    /// the adapter itself. A rebuild keeps the adapter, so a schema reload is judged by
+    /// the same answer boot was.
+    #[must_use]
+    pub fn applies_session_variables(&self) -> bool {
+        self.ctx.adapter.applies_session_variables()
+    }
+
     /// The compiled schema as `caller` may see it: what its introspection lists, and what
     /// the schema exports serve it.
     ///

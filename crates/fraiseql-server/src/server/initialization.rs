@@ -1937,7 +1937,20 @@ pub fn session_variables_supported_check<A: fraiseql_core::db::DatabaseAdapter +
     schema: &CompiledSchema,
     adapter: &A,
 ) -> crate::Result<()> {
-    if adapter.applies_session_variables() {
+    session_variables_applied_check(schema, adapter.applies_session_variables())
+}
+
+/// [`session_variables_supported_check`]'s rule, given whether the adapter applies session
+/// variables: boot asks the adapter it was handed, a reload the running executor's.
+///
+/// # Errors
+///
+/// `ServerError::ConfigError` naming what needs session variables.
+pub fn session_variables_applied_check(
+    schema: &CompiledSchema,
+    applies_session_variables: bool,
+) -> crate::Result<()> {
+    if applies_session_variables {
         return Ok(());
     }
     let mut needs = Vec::new();

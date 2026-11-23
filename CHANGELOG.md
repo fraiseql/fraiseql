@@ -1645,6 +1645,13 @@ disagreed, and the promise was the part that was wrong.
   build without the `observers` feature refuses it. Every other section of `fraiseql.toml`
   already refuses a key it does not declare, so no other table is dropped this way.
 
+- **A schema hot reload is refused when it adds session variables the database adapter
+  cannot apply (#1667).** Boot already refuses `[session_variables]` on an adapter that
+  applies none (the `fraiseql-wire` backend); a reload could bring them in, after which
+  every read carrying them failed. The reload is now refused with boot's message and the
+  running schema stays in place. `fraiseql_core::runtime::Executor` gains
+  `applies_session_variables()`, asked of its adapter.
+
 - **A mutation document's variables are held to their declarations, as a query's are
   (#1876).** A variable declared at a type its argument cannot take is refused
   (§ 5.8.5), as is a value not of its variable's declared type, or a non-null variable
