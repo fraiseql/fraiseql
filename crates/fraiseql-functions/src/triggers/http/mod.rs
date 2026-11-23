@@ -110,8 +110,6 @@ pub struct HttpTriggerRoute {
     pub method:        String,
     /// Path pattern (e.g., "/users/:id").
     pub path:          String,
-    /// Whether authentication is required.
-    pub requires_auth: bool,
 }
 
 impl HttpTriggerRoute {
@@ -122,22 +120,7 @@ impl HttpTriggerRoute {
             function_name: function_name.to_string(),
             method:        method.to_string(),
             path:          path.to_string(),
-            requires_auth: false,
         }
-    }
-
-    /// Builder method to require authentication.
-    #[must_use = "builder method returns modified builder"]
-    pub const fn with_auth(mut self) -> Self {
-        self.requires_auth = true;
-        self
-    }
-
-    /// Builder method to not require authentication.
-    #[must_use = "builder method returns modified builder"]
-    pub const fn without_auth(mut self) -> Self {
-        self.requires_auth = false;
-        self
     }
 
     /// Check if this route matches the given method and path.

@@ -14,7 +14,6 @@ fn test_http_route_exact_match() {
         function_name: "hello".to_string(),
         method:        "GET".to_string(),
         path:          "/hello".to_string(),
-        requires_auth: false,
     };
 
     assert!(route.matches("GET", "/hello"));
@@ -28,7 +27,6 @@ fn test_http_route_pattern_match() {
         function_name: "getUser".to_string(),
         method:        "GET".to_string(),
         path:          "/users/:id".to_string(),
-        requires_auth: false,
     };
 
     assert!(route.pattern_matches("/users/123"));
@@ -43,7 +41,6 @@ fn test_http_route_extract_params() {
         function_name: "getUser".to_string(),
         method:        "GET".to_string(),
         path:          "/users/:id/posts/:post_id".to_string(),
-        requires_auth: false,
     };
 
     let params = route.extract_params("/users/123/posts/456");
@@ -59,14 +56,12 @@ fn test_http_trigger_matcher() {
         function_name: "getUser".to_string(),
         method:        "GET".to_string(),
         path:          "/users/:id".to_string(),
-        requires_auth: true,
     });
 
     matcher.add(HttpTriggerRoute {
         function_name: "createUser".to_string(),
         method:        "POST".to_string(),
         path:          "/users".to_string(),
-        requires_auth: true,
     });
 
     // GET /users/:id should match

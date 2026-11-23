@@ -1276,30 +1276,11 @@ fn test_http_trigger_get_route() {
         function_name: "helloWorld".to_string(),
         method:        "GET".to_string(),
         path:          "/functions/v1/hello".to_string(),
-        requires_auth: false,
     };
 
     assert_eq!(route.function_name, "helloWorld");
     assert_eq!(route.method, "GET");
     assert_eq!(route.path, "/functions/v1/hello");
-    assert!(!route.requires_auth);
-}
-
-/// Test: HTTP trigger POST route with auth required
-#[test]
-fn test_http_trigger_post_route_with_auth() {
-    use crate::triggers::http::HttpTriggerRoute;
-
-    let route = HttpTriggerRoute {
-        function_name: "processData".to_string(),
-        method:        "POST".to_string(),
-        path:          "/functions/v1/process".to_string(),
-        requires_auth: true,
-    };
-
-    assert_eq!(route.function_name, "processData");
-    assert_eq!(route.method, "POST");
-    assert!(route.requires_auth);
 }
 
 /// Test: HTTP trigger request body handling
@@ -1395,7 +1376,6 @@ fn test_http_trigger_method_parsing() {
             function_name: "test".to_string(),
             method:        method.to_string(),
             path:          "/test".to_string(),
-            requires_auth: false,
         };
         assert_eq!(route.method, *method);
     }
@@ -1411,14 +1391,12 @@ fn test_http_trigger_route_matching() {
         function_name: "getUser".to_string(),
         method:        "GET".to_string(),
         path:          "/users/:id".to_string(),
-        requires_auth: true,
     });
 
     matcher.add(HttpTriggerRoute {
         function_name: "createUser".to_string(),
         method:        "POST".to_string(),
         path:          "/users".to_string(),
-        requires_auth: true,
     });
 
     // GET /users/:id should match
@@ -1466,7 +1444,6 @@ fn test_http_trigger_event_payload() {
         function_name: "handleRequest".to_string(),
         method:        "POST".to_string(),
         path:          "/functions/v1/webhook".to_string(),
-        requires_auth: false,
     };
 
     let http_payload = serde_json::json!({

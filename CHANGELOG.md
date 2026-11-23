@@ -18,6 +18,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`HttpTriggerRoute::requires_auth`, `with_auth` and `without_auth` are removed
+  (#2399).** The field was set and never read: matching ignored it and no HTTP trigger route
+  is mounted, so marking a route as requiring authentication enforced nothing.
+
 - **`SessionStore::get_session` and `SessionStore::revoke_session` are removed from the
   trait, with `fraiseql_auth::SessionData` (#2398).** No request path called either on any
   store: refresh and logout run their own queries on `PostgresSessionStore`. A custom
