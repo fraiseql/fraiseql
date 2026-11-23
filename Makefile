@@ -1228,9 +1228,10 @@ test-doc-image-refs-gate:
 check-fuzz:
 	@bash tools/check-fuzz-compiles.sh
 
-# Unit tests for the gate above. Both halves have to be able to go red: a fuzz crate
-# that does not compile, and a target file with no [[bin]] — the second is the gate's
-# own blind spot, since `cargo check` only builds the bins the manifest declares.
+# Unit tests for the gate above. Every half has to be able to go red: a fuzz crate
+# that does not compile, a target file with no [[bin]] — the gate's own blind spot,
+# since `cargo check` only builds the bins the manifest declares — and a Cargo.lock
+# that is stale or missing.
 .PHONY: test-fuzz-compiles-gate
 test-fuzz-compiles-gate:
 	@bash tools/tests/fuzz_compiles_test.sh

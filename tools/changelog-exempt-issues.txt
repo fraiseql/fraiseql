@@ -95,3 +95,4 @@
 #1955  tests: the tviews feed suite waits until the server's feed listens rather than for a fixed time; no shipped artifact changes
 #1849  CI: every `deny.toml` skip and skip-tree names its crate's semver line instead of one release, so a patch bump no longer fails the security leg; no shipped artifact changes
 #2333  CI: two release.yml comments say what the build matrix does (aarch64-linux ships `-full`; musl is the one lean-only target); comment-only, no shipped artifact changes
+#2344  tools and CI: every fuzz crate commits a Cargo.lock that matches its manifest (wire's had been ignored, three had gone stale), and the fuzz compile gate refuses a stale or missing one and builds `--locked`; no shipped artifact changes

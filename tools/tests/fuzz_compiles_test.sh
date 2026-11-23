@@ -34,6 +34,8 @@ make_fixture() {
     printf '[workspace]\nmembers = ["."]\n'
   } > "${dir}/Cargo.toml"
   printf '%s\n' "$body" > "${dir}/fuzz_targets/${target}.rs"
+  # The lock a fuzz crate commits. No dependencies, so this resolves offline.
+  cargo generate-lockfile --offline --quiet --manifest-path "${dir}/Cargo.toml"
 }
 
 run_gate() {
@@ -97,8 +99,52 @@ else
   sed 's/^/       /' "${tmp}/out"
 fi
 
+# ── 5. A lock that is not what the manifest resolves to is a failure ──────────────────
+# Each fuzz crate is its own workspace with its own Cargo.lock, which nothing else
+# resolves. When a crate it depends on by path gains a dependency, the lock goes stale,
+# and every `cargo fuzz build` rewrites it: the campaign then builds versions nobody
+# committed. The fixture's fuzz crate depends on a sibling by path, the lock is written,
+# and then the sibling gains a dependency of its own.
+root="${tmp}/stale"
+make_fixture "$root" "demo" "fine" 'fn main() {}' yes
+for lib in base extra; do
+  mkdir -p "${root}/crates/${lib}/src"
+  printf '[package]\nedition = "2021"\nname = "%s"\npublish = false\nversion = "0.0.0"\n' "$lib" \
+    > "${root}/crates/${lib}/Cargo.toml"
+  : > "${root}/crates/${lib}/src/lib.rs"
+done
+printf '\n[dependencies]\nbase = { path = "../../base" }\n' >> "${root}/crates/demo/fuzz/Cargo.toml"
+cargo generate-lockfile --offline --quiet --manifest-path "${root}/crates/demo/fuzz/Cargo.toml"
+printf '\n[dependencies]\nextra = { path = "../extra" }\n' >> "${root}/crates/base/Cargo.toml"
+lock="${root}/crates/demo/fuzz/Cargo.lock"
+before="$(cksum < "$lock")"
+run_gate "$root"
+rc="$(cat "${tmp}/rc")"
+if [ "$rc" = "1" ] && grep -F "its Cargo.lock is not what its manifest resolves to" "${tmp}/out" >/dev/null \
+  && [ "$(cksum < "$lock")" = "$before" ]; then
+  pass "a stale fuzz-crate lock fails the gate, and the gate leaves it as it was"
+else
+  fail "a stale fuzz-crate lock should fail the gate without rewriting it (rc=${rc})"
+  sed 's/^/       /' "${tmp}/out"
+fi
+
+# ── 6. A fuzz crate with no lock is a failure ─────────────────────────────────────────
+# With no Cargo.lock committed, each build resolves afresh, which is the same drift.
+root="${tmp}/unlocked"
+make_fixture "$root" "demo" "fine" 'fn main() {}' yes
+rm "${root}/crates/demo/fuzz/Cargo.lock"
+run_gate "$root"
+rc="$(cat "${tmp}/rc")"
+if [ "$rc" = "1" ] && grep -F "its Cargo.lock is not what its manifest resolves to" "${tmp}/out" >/dev/null; then
+  pass "a fuzz crate with no Cargo.lock fails the gate"
+else
+  fail "a fuzz crate with no Cargo.lock should fail the gate (rc=${rc})"
+  sed 's/^/       /' "${tmp}/out"
+fi
+
 if [ "$failures" -ne 0 ]; then
   echo "FAIL: ${failures} check-fuzz-compiles.sh assertion(s) failed"
   exit 1
 fi
-echo "OK: check-fuzz-compiles.sh can go red on a broken crate, an undeclared target and an empty tree."
+echo "OK: check-fuzz-compiles.sh can go red on a broken crate, an undeclared target, an empty tree,"
+echo "    a stale lock and a missing one."

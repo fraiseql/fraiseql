@@ -91,12 +91,26 @@ for manifest in "${manifests[@]}"; do
     continue
   fi
 
+  # Each fuzz crate is its own workspace, so its Cargo.lock is resolved by nothing else.
+  # When a crate it depends on by path gains a dependency the lock goes stale, and every
+  # `cargo fuzz build` rewrites it: the campaign then builds versions nobody committed,
+  # and the next local build leaves a diff in a file the change never touched. Checked
+  # apart from compiling, and without writing the lock, so the refusal names the cause.
+  checked=$((checked + 1))
+  if [ ! -f "${fuzz_dir}/Cargo.lock" ] \
+    || ! cargo metadata --locked --format-version 1 --manifest-path "$manifest" >/dev/null; then
+    echo "ERROR: ${crate} — its Cargo.lock is not what its manifest resolves to."
+    echo "       Regenerate it (cargo metadata --format-version 1 --manifest-path ${manifest})"
+    echo "       and commit the result."
+    status=1
+    continue
+  fi
+
   # --keep-going: without it cargo stops scheduling after the first failing unit, so a
   # crate with several broken targets reports one and the next run reports the next.
   echo "=== cargo check ${manifest} ==="
-  cargo check --keep-going --manifest-path "$manifest"
+  cargo check --locked --keep-going --manifest-path "$manifest"
   rc=$?
-  checked=$((checked + 1))
   if [ "$rc" -ne 0 ]; then
     echo "ERROR: ${crate} — the fuzz crate does not compile (cargo exit ${rc})."
     status=1
