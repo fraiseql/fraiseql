@@ -34,6 +34,9 @@ pub(super) struct VaultResponse {
 #[derive(Debug, Clone)]
 struct CachedSecret {
     value:         Zeroizing<String>,
+    /// When the cache stops serving the entry and the next read asks Vault again.
+    refresh_at:    Timestamp,
+    /// When the lease the entry was read under expires: what every read of it reports.
     expires_at:    Timestamp,
     /// Last access time, used for LRU eviction ordering.
     last_accessed: Timestamp,
@@ -55,7 +58,8 @@ impl SecretCache {
         }
     }
 
-    /// Get cached secret with expiry information, updating last-access time for LRU.
+    /// Get cached secret with its lease's expiry, updating last-access time for LRU. An
+    /// entry past its refresh point is not served.
     ///
     /// The value is handed out wrapped in [`Secret`] so the trait-boundary
     /// zeroization guarantee (#727) holds for cache hits too, not only for
@@ -63,7 +67,7 @@ impl SecretCache {
     pub(super) async fn get_with_expiry(&self, key: &str) -> Option<(Secret, Timestamp)> {
         let mut entries = self.entries.write().await;
         if let Some(cached) = entries.get_mut(key) {
-            if cached.expires_at > Timestamp::now() {
+            if cached.refresh_at > Timestamp::now() {
                 cached.last_accessed = Timestamp::now();
                 return Some((Secret::new((*cached.value).clone()), cached.expires_at));
             }
@@ -76,11 +80,18 @@ impl SecretCache {
         self.entries.write().await.remove(key);
     }
 
-    /// Store secret in cache with expiry.
+    /// Store a secret, served until `refresh_at` and reported as expiring at
+    /// `expires_at`, its lease's expiry.
     ///
     /// The secret is wrapped in [`Zeroizing`] on insertion so the bytes are
     /// overwritten when the entry is evicted or the cache is dropped.
-    pub(super) async fn set(&self, key: String, secret: Secret, expires_at: Timestamp) {
+    pub(super) async fn set(
+        &self,
+        key: String,
+        secret: Secret,
+        refresh_at: Timestamp,
+        expires_at: Timestamp,
+    ) {
         let mut entries = self.entries.write().await;
 
         // LRU eviction: if at capacity, remove the least-recently-accessed 10% of entries.
@@ -99,6 +110,7 @@ impl SecretCache {
             key,
             CachedSecret {
                 value: Zeroizing::new(secret.into_exposed()),
+                refresh_at,
                 expires_at,
                 last_accessed: now,
             },

@@ -1553,6 +1553,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A Vault secret read from the cache reports its lease's expiry (#2348).** The cache
+  serves a secret until 80% of its lease has run, and a read it served reported that
+  point as the expiry, while the read that fetched the secret reported the lease's own.
+  Every read of one secret now reports the lease's expiry; the cache still refreshes at
+  80%. The lease-renewal task reads that expiry, so it renews a cached secret one check
+  interval before its lease ends, not before its cache refresh point.
+
 - **A Vault lease too long for the calendar no longer fails the secret read (#2026).** A
   `lease_duration` reaching past the year 9999, up to the largest a response can carry,
   now expires at the last instant a time holds, so the secret never expires within the

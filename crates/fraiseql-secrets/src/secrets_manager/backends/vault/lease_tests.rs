@@ -70,22 +70,15 @@ async fn a_lease_past_the_calendar_never_expires_within_it() {
     }
 }
 
-/// The cache serves a lease without asking Vault again, until 80% of it has run, and a
-/// read it serves reports that point as the expiry. Its share of a far lease stays past
-/// the calendar, so it is served too.
+/// A read the cache serves reports the expiry the lease set, as the read that fetched it
+/// did: one secret has one expiry, however it is read. Vault is asked once.
 #[tokio::test]
-async fn a_lease_is_served_from_the_cache_for_80_percent_of_it() {
-    let (backend, mock) = vault(3600, 1).await;
-    let before = now();
-    expiry(&backend).await;
-    let cached = expiry(&backend).await;
-    let after = now();
-    assert!(plus_seconds(before, 2880) <= cached && cached <= plus_seconds(after, 2880));
-    mock.verify().await;
-    for lease in [400_000_000_000, i64::MAX] {
-        let (vault, mock) = vault(lease, 1).await;
-        expiry(&vault).await;
-        assert!(expiry(&vault).await >= last_day(), "{lease}");
+async fn a_cached_read_reports_the_expiry_the_fresh_read_did() {
+    for lease in [3600, 400_000_000_000, i64::MAX] {
+        let (backend, mock) = vault(lease, 1).await;
+        let fresh = expiry(&backend).await;
+        let cached = expiry(&backend).await;
+        assert_eq!(cached, fresh, "{lease}");
         mock.verify().await;
     }
 }
@@ -99,4 +92,37 @@ async fn a_lapsed_lease_is_read_again() {
         expiry(&vault).await;
         mock.verify().await;
     }
+}
+
+/// The cache serves an entry until its refresh point, reporting the lease's expiry, and
+/// not after it, whatever the lease still has to run.
+#[tokio::test]
+async fn the_cache_serves_until_its_refresh_point_and_reports_the_lease() {
+    use super::super::cache::SecretCache;
+    use crate::secrets_manager::Secret;
+
+    let cache = SecretCache::new(10);
+    let at = now();
+    let (refresh, lease) = (plus_seconds(at, 2880), plus_seconds(at, 3600));
+    cache
+        .set("served".to_string(), Secret::new("v".to_string()), refresh, lease)
+        .await;
+    let (_, reported) = cache.get_with_expiry("served").await.expect("before its refresh point");
+    assert_eq!(reported, lease);
+
+    let (refresh, lease) = (plus_seconds(at, -1), plus_seconds(at, 3600));
+    cache.set("due".to_string(), Secret::new("v".to_string()), refresh, lease).await;
+    assert!(cache.get_with_expiry("due").await.is_none(), "past its refresh point");
+}
+
+/// The cache refreshes a lease once 80% of it has run, before it expires: a 2-second
+/// lease is read from Vault again 1.1 seconds later.
+#[tokio::test]
+async fn a_lease_is_read_again_once_80_percent_of_it_has_run() {
+    let (backend, mock) = vault(2, 2).await;
+    let first = expiry(&backend).await;
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    assert!(now() < first, "the lease has not expired yet");
+    expiry(&backend).await;
+    mock.verify().await;
 }

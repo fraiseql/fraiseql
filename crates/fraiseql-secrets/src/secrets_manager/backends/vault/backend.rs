@@ -545,7 +545,7 @@ impl VaultBackend {
 
         // Store in cache
         let cache = self.cache.read().await;
-        cache.set(name.to_string(), secret.clone(), cache_expiry).await;
+        cache.set(name.to_string(), secret.clone(), cache_expiry, expiry).await;
 
         Ok((secret, expiry))
     }

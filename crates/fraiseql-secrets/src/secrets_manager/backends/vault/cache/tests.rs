@@ -10,7 +10,7 @@ async fn test_cache_set_and_get() {
     let cache = SecretCache::new(10);
     let expiry = Timestamp::now() + SignedDuration::from_hours(1);
     cache
-        .set("db-creds".to_string(), Secret::new("password123".to_string()), expiry)
+        .set("db-creds".to_string(), Secret::new("password123".to_string()), expiry, expiry)
         .await;
 
     let result = cache.get_with_expiry("db-creds").await;
@@ -32,7 +32,7 @@ async fn test_cache_returns_none_for_expired_entry() {
     // Set entry that expires in the past
     let expired = Timestamp::now() - SignedDuration::from_secs(1);
     cache
-        .set("expired-key".to_string(), Secret::new("stale".to_string()), expired)
+        .set("expired-key".to_string(), Secret::new("stale".to_string()), expired, expired)
         .await;
 
     let result = cache.get_with_expiry("expired-key").await;
@@ -44,7 +44,7 @@ async fn test_cache_invalidate_removes_entry() {
     let cache = SecretCache::new(10);
     let expiry = Timestamp::now() + SignedDuration::from_hours(1);
     cache
-        .set("to-remove".to_string(), Secret::new("secret".to_string()), expiry)
+        .set("to-remove".to_string(), Secret::new("secret".to_string()), expiry, expiry)
         .await;
 
     cache.invalidate("to-remove").await;
@@ -61,12 +61,14 @@ async fn test_cache_lru_eviction_at_capacity() {
 
     // Fill to capacity
     for i in 0..5 {
-        cache.set(format!("key-{i}"), Secret::new(format!("val-{i}")), expiry).await;
+        cache
+            .set(format!("key-{i}"), Secret::new(format!("val-{i}")), expiry, expiry)
+            .await;
     }
 
     // Adding a 6th entry should trigger LRU eviction of 10% = 1 entry
     cache
-        .set("key-new".to_string(), Secret::new("val-new".to_string()), expiry)
+        .set("key-new".to_string(), Secret::new("val-new".to_string()), expiry, expiry)
         .await;
 
     // The new key must be present
@@ -78,8 +80,12 @@ async fn test_cache_lru_eviction_at_capacity() {
 async fn test_cache_overwrite_existing_key() {
     let cache = SecretCache::new(10);
     let expiry = Timestamp::now() + SignedDuration::from_hours(1);
-    cache.set("key".to_string(), Secret::new("old-value".to_string()), expiry).await;
-    cache.set("key".to_string(), Secret::new("new-value".to_string()), expiry).await;
+    cache
+        .set("key".to_string(), Secret::new("old-value".to_string()), expiry, expiry)
+        .await;
+    cache
+        .set("key".to_string(), Secret::new("new-value".to_string()), expiry, expiry)
+        .await;
 
     let (value, _) = cache.get_with_expiry("key").await.expect("key must exist");
     assert_eq!(value, "new-value", "overwritten key must return new value");
