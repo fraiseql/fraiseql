@@ -20,7 +20,7 @@ pub const REDIS_URL_REFUSED: &str = "observers `redis_url` configures nothing: t
 /// `ObserverRuntimeSettings` / issue #342). The [`runtime`](Self::runtime)
 /// field is declared-and-ignored here so a shared config carrying the server's
 /// `[observers.runtime]` sub-table still compiles — the compiler does not
-/// validate its contents.
+/// validate its contents; `fraiseql run` hands them to the server, which does.
 #[derive(Debug, Clone, Default, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct ObserversConfig {
@@ -43,9 +43,10 @@ pub struct ObserversConfig {
     pub handlers:  Vec<EventHandler>,
     /// Server-runtime tuning sub-table (`[observers.runtime]`).
     ///
-    /// Declared-and-ignored: owned and validated by `fraiseql-server`, not the
-    /// compiler. Captured as an opaque value so a shared `fraiseql.toml` that
-    /// carries server runtime tuning still passes `fraiseql compile` (#342).
+    /// Not read by the compiler: owned and validated by `fraiseql-server`, and
+    /// handed to it by `fraiseql run`. Captured as an opaque value so a shared
+    /// `fraiseql.toml` that carries server runtime tuning still passes
+    /// `fraiseql compile`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<serde_json::Value>")]
     pub runtime:   Option<toml::Value>,

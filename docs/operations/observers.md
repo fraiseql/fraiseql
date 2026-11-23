@@ -32,6 +32,10 @@ disagreement and names the key. The server's own tuning lives under
 sub-tables `[observers.runtime.transport]`, `[observers.runtime.email]`,
 `[observers.runtime.pool]` and `[observers.runtime.redis]`. `[observers.runtime]`
 rejects unknown keys, so a typo stops the server at boot instead of being ignored.
+`fraiseql run` reads the table from the project's `fraiseql.toml` as the server reads it
+from its own file. Setting it in both `fraiseql.toml` and the file `FRAISEQL_CONFIG` names
+is refused, and a build without the `observers` feature refuses the table instead of
+ignoring it.
 `batch_size` (default 100) must be between 1 and 10000: 0 would read no change-log
 row, and an observer checkpoint records at most 10000 rows per batch. A value outside
 that range stops the server at boot.

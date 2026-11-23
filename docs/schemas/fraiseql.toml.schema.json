@@ -2366,7 +2366,7 @@
       ]
     },
     "ObserversConfig": {
-      "description": "Observers/event system configuration — the **declarative compile-time**\nshape of the `[observers]` table.\n\nThis is NOT the server's runtime schema. The same `fraiseql.toml` is fed to\nboth `fraiseql compile` (this struct) and `fraiseql-server`; the server's\nruntime tuning lives under `[observers.runtime]` (see the server's\n`ObserverRuntimeSettings` / issue #342). The [`runtime`](Self::runtime)\nfield is declared-and-ignored here so a shared config carrying the server's\n`[observers.runtime]` sub-table still compiles — the compiler does not\nvalidate its contents.",
+      "description": "Observers/event system configuration — the **declarative compile-time**\nshape of the `[observers]` table.\n\nThis is NOT the server's runtime schema. The same `fraiseql.toml` is fed to\nboth `fraiseql compile` (this struct) and `fraiseql-server`; the server's\nruntime tuning lives under `[observers.runtime]` (see the server's\n`ObserverRuntimeSettings` / issue #342). The [`runtime`](Self::runtime)\nfield is declared-and-ignored here so a shared config carrying the server's\n`[observers.runtime]` sub-table still compiles — the compiler does not\nvalidate its contents; `fraiseql run` hands them to the server, which does.",
       "type": "object",
       "properties": {
         "enabled": {
@@ -2401,7 +2401,7 @@
           "default": []
         },
         "runtime": {
-          "description": "Server-runtime tuning sub-table (`[observers.runtime]`).\n\nDeclared-and-ignored: owned and validated by `fraiseql-server`, not the\ncompiler. Captured as an opaque value so a shared `fraiseql.toml` that\ncarries server runtime tuning still passes `fraiseql compile` (#342)."
+          "description": "Server-runtime tuning sub-table (`[observers.runtime]`).\n\nNot read by the compiler: owned and validated by `fraiseql-server`, and\nhanded to it by `fraiseql run`. Captured as an opaque value so a shared\n`fraiseql.toml` that carries server runtime tuning still passes\n`fraiseql compile`."
         }
       },
       "additionalProperties": false

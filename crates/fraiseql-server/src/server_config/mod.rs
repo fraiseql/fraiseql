@@ -22,6 +22,7 @@ pub mod json_schema;
 mod methods;
 pub mod observers;
 mod postgres_pool;
+mod project_tuning;
 #[cfg(feature = "auth-saml")]
 pub mod saml;
 pub mod scim;

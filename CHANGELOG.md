@@ -1626,6 +1626,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`fraiseql run` starts the observer runtime with `fraiseql.toml`'s `[observers.runtime]`
+  tuning (#1740).** The table was accepted and ignored, so the runtime ran on its defaults
+  (`channel_capacity`, `batch_size`, `poll_interval_ms`, the pool and the transport).
+  It is now read as the server reads it from its own file: an unknown key refuses, a table
+  set in both `fraiseql.toml` and the `FRAISEQL_CONFIG` file is refused as set twice, and a
+  build without the `observers` feature refuses it. Every other section of `fraiseql.toml`
+  already refuses a key it does not declare, so no other table is dropped this way.
+
 - **A mutation document's variables are held to their declarations, as a query's are
   (#1876).** A variable declared at a type its argument cannot take is refused
   (§ 5.8.5), as is a value not of its variable's declared type, or a non-null variable

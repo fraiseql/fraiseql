@@ -87,6 +87,7 @@ pub async fn run(
 
     let (db_url, bind_addr, server_cfg, db_cfg) =
         resolve_runtime_config(&input_path, database, port, bind, server_file.as_ref())?;
+    let tuning = project_tuning::ProjectTuning::read(&input_path)?;
 
     println!("FraiseQL");
     println!("   Schema: {}", input_path.display());
@@ -105,6 +106,7 @@ pub async fn run(
         db_cfg: &db_cfg,
         server_file: server_file.as_ref(),
         admin_url: admin_url.as_deref(),
+        tuning: &tuning,
     };
     if watch {
         Box::pin(run_watch_loop(&serving)).await
@@ -127,6 +129,24 @@ struct Serving<'a> {
     server_file:   Option<&'a ServerFile>,
     /// `--admin-database-url`: create the server's roles before each serve.
     admin_url:     Option<&'a str>,
+    /// The project file's tuning for the server beyond `[server]` and `[database]`.
+    tuning:        &'a project_tuning::ProjectTuning,
+}
+
+impl Serving<'_> {
+    /// The configuration each serve starts the server with.
+    fn config(&self) -> Result<ServerConfig> {
+        let mut config = build_config_from(
+            self.db_url,
+            self.bind_addr,
+            self.server_cfg,
+            self.db_cfg,
+            self.introspection,
+            self.server_file,
+        )?;
+        self.tuning.apply(&mut config, self.server_file)?;
+        Ok(config)
+    }
 }
 
 /// Compile the schema and start the server once (no watch).
@@ -135,17 +155,13 @@ async fn run_once(serving: &Serving<'_>) -> Result<()> {
         input_path,
         db_url,
         bind_addr,
-        introspection,
-        server_cfg,
-        db_cfg,
-        server_file,
         admin_url,
+        ..
     } = *serving;
     let scheme = parse_database_url(db_url)?;
     let compiled = compile_schema(input_path).await?;
     provision_if_asked(admin_url, db_url, &compiled).await?;
-    let config =
-        build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection, server_file)?;
+    let config = serving.config()?;
 
     println!("Server ready at http://{bind_addr}/graphql");
     println!("   Press Ctrl+C to stop");
@@ -160,11 +176,8 @@ async fn run_watch_loop(serving: &Serving<'_>) -> Result<()> {
         input_path,
         db_url,
         bind_addr,
-        introspection,
-        server_cfg,
-        db_cfg,
-        server_file,
         admin_url,
+        ..
     } = *serving;
     let scheme = parse_database_url(db_url)?;
 
@@ -172,8 +185,7 @@ async fn run_watch_loop(serving: &Serving<'_>) -> Result<()> {
         let compiled = compile_schema(input_path).await?;
         // Each time: a recompiled schema may have gained `[auth.database]`.
         provision_if_asked(admin_url, db_url, &compiled).await?;
-        let config =
-            build_config_from(db_url, bind_addr, server_cfg, db_cfg, introspection, server_file)?;
+        let config = serving.config()?;
 
         println!("Server ready at http://{bind_addr}/graphql");
         println!("   Watching {} for changes...  (Ctrl+C to stop)", input_path.display());
@@ -442,7 +454,7 @@ fn settings_made(toml_path: &Path) -> Result<BTreeSet<String>> {
 /// binary loads it (#1803): every section the server reads reaches `fraiseql run` too.
 pub(crate) struct ServerFile {
     path:   String,
-    /// The keys it sets at its top level.
+    /// The keys it sets at its top level, and `observers.runtime` when it sets that table.
     keys:   BTreeSet<String>,
     config: ServerConfig,
 }
@@ -482,9 +494,13 @@ impl ServerFile {
             anyhow::Error::new(e).context(format!("failed to parse config file `{path}`"))
         })?;
         let table: toml::Table = std::fs::read_to_string(path)?.parse()?;
+        let mut keys: BTreeSet<String> = table.keys().cloned().collect();
+        if table.get("observers").and_then(|observers| observers.get("runtime")).is_some() {
+            keys.insert(project_tuning::OBSERVER_RUNTIME_KEY.to_owned());
+        }
         Ok(Self {
             path: path.to_owned(),
-            keys: table.keys().cloned().collect(),
+            keys,
             config,
         })
     }
@@ -720,3 +736,10 @@ pub(crate) fn auto_detect_input(base: &Path) -> Result<PathBuf> {
          directory, or pass an explicit path: fraiseql run <INPUT>"
     )
 }
+
+#[path = "run_project_tuning.rs"]
+mod project_tuning;
+
+#[cfg(test)]
+#[path = "run_project_tuning_tests.rs"]
+mod project_tuning_tests;
