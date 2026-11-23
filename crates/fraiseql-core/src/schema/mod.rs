@@ -51,6 +51,7 @@ pub mod derived_inputs;
 pub mod domain_types;
 pub mod fact_table_surface;
 mod field_type;
+pub mod filter_path;
 mod graphql_name;
 mod graphql_type_defs;
 pub mod graphql_value;

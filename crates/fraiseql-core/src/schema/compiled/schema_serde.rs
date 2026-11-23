@@ -982,7 +982,8 @@ impl CompiledSchema {
         inputs.chain(args).collect()
     }
 
-    /// Subscriptions whose filter names an argument they do not declare (#1262).
+    /// Subscriptions whose filter names an argument they do not declare (#1262), or reads a
+    /// path that is not a JSON pointer.
     ///
     /// `fraiseql compile` refuses to emit such a document, which leaves the hand-edited
     /// artifact — the case a compile-time check cannot reach, and the reason this is

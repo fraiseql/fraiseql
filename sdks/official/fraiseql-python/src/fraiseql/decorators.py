@@ -1824,7 +1824,7 @@ def subscription(  # noqa: PLR0913 — public API; all parameters are meaningful
         }
 
         >>> @fraiseql.subscription(
-        ...     filter={"conditions": [{"argument": "user_id", "path": "$.user_id"}]},
+        ...     filter={"conditions": [{"argument": "userId", "path": "$.id"}]},
         ... )
         ... def user_updated(user_id: str | None = None) -> User:
         ...     '''Subscribe to updates for one user.'''

@@ -29,7 +29,7 @@ pub struct SubscriptionDefinition {
 
     /// Compiled filter expression for event matching.
     /// Maps argument names to JSONB paths in event data.
-    /// Example: `{"orderId": "$.id", "status": "$.order_status"}`
+    /// Example: `{"orderId": "/id", "status": "/order_status"}`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub filter: Option<SubscriptionFilter>,
 
@@ -164,7 +164,8 @@ impl SubscriptionDefinition {
         self
     }
 
-    /// Describe this subscription's unresolvable filter references, or `None` (#1262).
+    /// Describe this subscription's unresolvable filter references or unreadable filter
+    /// paths, or `None` (#1262).
     ///
     /// A client sends its variables under the **declared** GraphQL argument names, so a
     /// filter keyed by any other name can never be matched. The delivery loop cannot tell
@@ -175,6 +176,9 @@ impl SubscriptionDefinition {
     ///
     /// Checked against the **post-expansion** key set, since `filter_fields` entries
     /// become `argument_paths` entries at subscribe time and dangle the same way.
+    ///
+    /// A filter whose references all resolve is then held to its paths: each is the JSON
+    /// pointer the compiler writes, or the filter is refused.
     ///
     /// One function so the compiler, the schema load and the subscribe path all refuse
     /// the same documents and say the same thing about them.
@@ -211,7 +215,7 @@ impl SubscriptionDefinition {
             .filter(|reference| !declared.contains(reference))
             .collect();
         if dangling.is_empty() {
-            return None;
+            return self.filter_path_violation();
         }
         dangling.sort_unstable();
         dangling.dedup();
@@ -230,6 +234,34 @@ impl SubscriptionDefinition {
              its topic",
             self.name,
             dangling.iter().map(|d| format!("'{d}'")).collect::<Vec<_>>().join(", "),
+        ))
+    }
+
+    /// Describe this subscription's filter paths that are not JSON pointers, or `None`.
+    ///
+    /// The compiler writes every filter path as the pointer
+    /// [`filter_path::to_pointer`](super::filter_path::to_pointer) produces, the one spelling
+    /// every reader of a path reads alike. Any other is refused rather than read: a `$.id`
+    /// is the key `$`, then `id`, to delivery, and so matches no event.
+    fn filter_path_violation(&self) -> Option<String> {
+        let filter = self.filter.as_ref()?;
+        let mut offending: Vec<String> = filter
+            .argument_paths
+            .iter()
+            .map(|(argument, path)| (format!("argument '{argument}'"), path))
+            .chain(filter.static_filters.iter().map(|c| ("a static filter".to_string(), &c.path)))
+            .filter(|(_, path)| !super::filter_path::is_pointer(path))
+            .map(|(by, path)| format!("{by} on '{path}'"))
+            .collect();
+        if offending.is_empty() {
+            return None;
+        }
+        offending.sort_unstable();
+        Some(format!(
+            "subscription '{}' filters by {}, which is not a JSON pointer such as '/id'; a \
+             compiled filter path is one, so recompile the schema with this release's CLI",
+            self.name,
+            offending.join(", "),
         ))
     }
 

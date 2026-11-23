@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use fraiseql_core::schema::{SubscriptionDefinition, SubscriptionFilter};
+use fraiseql_core::schema::{SubscriptionDefinition, SubscriptionFilter, filter_path};
 
 use super::{DeclaredTypeNames, SchemaConverter};
 use crate::schema::intermediate::IntermediateSubscription;
@@ -17,14 +17,31 @@ impl SchemaConverter {
             .collect::<Result<Vec<_>>>()
             .context(format!("Failed to convert subscription '{name}'"))?;
 
-        // Convert filter conditions to SubscriptionFilter
-        let filter = intermediate.filter.map(|f| {
-            let argument_paths = f.conditions.into_iter().map(|c| (c.argument, c.path)).collect();
-            SubscriptionFilter {
-                argument_paths,
-                static_filters: Vec::new(),
-            }
-        });
+        // Convert filter conditions to SubscriptionFilter. Each path is written as the JSON
+        // pointer every runtime reader reads alike, whichever spelling the author used
+        // (`$.id`, `id`, `/id`).
+        let filter = intermediate
+            .filter
+            .map(|f| {
+                let argument_paths = f
+                    .conditions
+                    .into_iter()
+                    .map(|c| {
+                        let path = filter_path::to_pointer(&c.path).map_err(|e| {
+                            anyhow::anyhow!(
+                                "subscription '{name}' filters argument '{}' by {e}",
+                                c.argument
+                            )
+                        })?;
+                        Ok((c.argument, path))
+                    })
+                    .collect::<Result<_>>()?;
+                Ok::<_, anyhow::Error>(SubscriptionFilter {
+                    argument_paths,
+                    static_filters: Vec::new(),
+                })
+            })
+            .transpose()?;
 
         // Convert deprecation
         let deprecation = intermediate

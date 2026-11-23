@@ -21,6 +21,9 @@ use std::{fs, process::Command};
 use fraiseql_core::schema::CompiledSchema;
 use tempfile::TempDir;
 
+#[path = "subscription_filter_contract_test/paths.rs"]
+mod paths;
+
 fn run_compile(types_json: &str) -> (bool, String, TempDir) {
     let temp_dir = TempDir::new().unwrap();
     let types_path = temp_dir.path().join("types.json");
@@ -140,7 +143,8 @@ fn a_filter_naming_a_declared_argument_compiles_and_reaches_the_artifact() {
         .find(|s| s.name == "orderUpdated")
         .expect("orderUpdated subscription");
     let filter = sub.filter.as_ref().expect("filter must reach the compiled artifact");
-    assert_eq!(filter.argument_paths.get("orderId"), Some(&"$.id".to_string()));
+    // The authored `$.id`, as the JSON pointer every runtime reader reads (#1665).
+    assert_eq!(filter.argument_paths.get("orderId"), Some(&"/id".to_string()));
 }
 
 /// A subscription with several arguments resolves each condition independently —

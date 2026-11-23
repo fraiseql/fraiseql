@@ -1737,6 +1737,15 @@ disagreed, and the promise was the part that was wrong.
   selects `_entities`. Configured breakers now open after their failure threshold and
   answer 503, with `Retry-After`, until they recover.
 
+- **A subscription filter path written `$.field`, as every SDK documents it, filters
+  (#1665).** The compiler carried the authored path verbatim, and delivery read `$.id` as
+  the key `$`, then `id`: a subscriber who bound the argument received no event at all,
+  and the subscription's read gate checked a field named `$`. The compiler now writes every
+  accepted spelling (`$.parent.field`, `parent.field`, `/parent/field`) as the JSON
+  pointer `/parent/field`, and refuses any other, naming the forms it accepts. A compiled
+  schema that still holds a path in another spelling is refused at load: recompile it
+  with this release's CLI.
+
 - **A fragment on a type the schema does not define, or one that can never apply where it
   stands, is refused (#2276).** `{ users { ... on Nosuch { name } } }` was answered with a
   `"...on Nosuch": null` key under a `200`; `fragment F on Nosuch { name }` spread under
