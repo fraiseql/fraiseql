@@ -27,14 +27,6 @@ fn ip_bucket_count(limiter: &RateLimiter) -> usize {
     }
 }
 
-fn tenant_bucket_count(limiter: &RateLimiter) -> usize {
-    match limiter {
-        RateLimiter::InMemory(rl) => rl.tenant_buckets.len(),
-        #[cfg(feature = "redis-rate-limiting")]
-        RateLimiter::Redis(_) => panic!("bucket counts are in-memory only"),
-    }
-}
-
 // ── token_bucket_tests ──────────────────────────────────────────────────────
 
 mod token_bucket_tests {
@@ -978,61 +970,6 @@ async fn test_path_ip_bucket_cap_evicts_rather_than_denying_when_full() {
     assert!(
         limiter.check_path_limit("/auth/start", "2.2.2.2").await.allowed,
         "an unseen (path, ip) combination must be SERVED when path_ip_buckets is full"
-    );
-}
-
-#[tokio::test]
-async fn test_tenant_rate_limit_allows_within_burst() {
-    let config = RateLimitConfig::default();
-    let limiter = RateLimiter::new(config);
-
-    for _ in 0..5 {
-        assert!(
-            limiter.check_tenant_limit("tenant-abc", 5, 5).await.allowed,
-            "should allow within burst"
-        );
-    }
-    assert!(
-        !limiter.check_tenant_limit("tenant-abc", 5, 5).await.allowed,
-        "should deny when burst exhausted"
-    );
-}
-
-#[tokio::test]
-async fn test_tenant_rate_limit_independent_buckets() {
-    let config = RateLimitConfig::default();
-    let limiter = RateLimiter::new(config);
-
-    assert!(limiter.check_tenant_limit("tenant-a", 1, 1).await.allowed);
-    assert!(!limiter.check_tenant_limit("tenant-a", 1, 1).await.allowed);
-
-    assert!(limiter.check_tenant_limit("tenant-b", 1, 1).await.allowed);
-}
-
-/// Tenant buckets are swept on the IP threshold too — asserted, not assumed.
-///
-/// The previous version of this test was named `..._does_not_panic` and did exactly that:
-/// it called `cleanup()` and checked nothing. Honest about its own weakness, but it left
-/// the tenant map's participation in the sweep unpinned.
-#[tokio::test]
-async fn cleanup_evicts_a_stale_tenant_bucket() {
-    let config = RateLimitConfig {
-        rps_per_ip: 1000,
-        burst_size: 1,
-        ..RateLimitConfig::default()
-    };
-    let limiter = RateLimiter::new(config);
-
-    limiter.check_tenant_limit("tenant-abc", 10, 10).await;
-    assert_eq!(tenant_bucket_count(&limiter), 1, "precondition: the check must mint a bucket");
-
-    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    limiter.cleanup().await;
-
-    assert_eq!(
-        tenant_bucket_count(&limiter),
-        0,
-        "cleanup must evict a stale tenant bucket, not only IP and user buckets"
     );
 }
 

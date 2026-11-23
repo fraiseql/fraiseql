@@ -4,7 +4,6 @@
 //! - Per-IP rate limiting
 //! - Per-user rate limiting, on a signature-verified subject (#1171)
 //! - Per-path rate limiting (for auth endpoints)
-//! - Per-tenant rate limiting (multi-tenant quota enforcement)
 //! - Token bucket algorithm
 //! - Configurable burst capacity
 //! - X-RateLimit headers

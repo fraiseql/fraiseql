@@ -18,6 +18,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql_server::middleware::RateLimiter::check_tenant_limit` is removed (#2397),**
+  with the in-memory per-tenant buckets only it filled. No request path called it, so no
+  tenant was ever limited by it. Per-tenant budgets are set by
+  `[security.cost_budget] per_tenant_per_minute_default`.
+
 - **`fraiseql_server::middleware::admin_scope::{require_admin_scope, has_admin_scope}` are
   removed (#2393).** No request path called them: the admin plane checks the scope inline in
   `admin_auth_middleware`, and the tests that pinned the rule on this unused copy now drive

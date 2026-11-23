@@ -84,8 +84,6 @@ pub struct InMemoryRateLimiter {
     pub(super) path_rules:      Vec<PathRateLimit>,
     // (path_prefix, ip) -> TokenBucket
     pub(super) path_ip_buckets: Arc<DashMap<(String, String), TokenBucket>>,
-    // tenant_key -> TokenBucket (per-tenant rate limit)
-    pub(super) tenant_buckets:  Arc<DashMap<String, TokenBucket>>,
 }
 
 // Reason: mirrors the Redis-backed limiter's awaited surface so the call sites
@@ -101,7 +99,6 @@ impl InMemoryRateLimiter {
             user_buckets: Arc::new(DashMap::new()),
             path_rules: Vec::new(),
             path_ip_buckets: Arc::new(DashMap::new()),
-            tenant_buckets: Arc::new(DashMap::new()),
         }
     }
 
@@ -287,59 +284,6 @@ impl InMemoryRateLimiter {
         }
     }
 
-    /// Check if a request is allowed for a given tenant key.
-    ///
-    /// Each tenant gets its own token bucket keyed by `tenant:{key}`.
-    /// The `rps` and `burst` values come from the tenant's quota configuration
-    /// (not the global rate-limit config).
-    ///
-    /// Returns an allowed [`CheckResult`] when the tenant bucket has tokens.
-    #[allow(clippy::cast_precision_loss)] // Reason: precision loss is acceptable for rate-limit token calculations
-    pub(super) async fn check_tenant_limit(
-        &self,
-        tenant_key: &str,
-        rps: u32,
-        burst: u32,
-    ) -> CheckResult {
-        let bucket_key = format!("tenant:{tenant_key}");
-
-        // Best-effort capacity check; see `check_path_limit` for why this races safely.
-        if !self.tenant_buckets.contains_key(&bucket_key)
-            && self.tenant_buckets.len() >= self.config.max_buckets
-        {
-            debug!(
-                tenant_key = tenant_key,
-                "Tenant bucket capacity reached — denying unseen tenant"
-            );
-            return CheckResult::deny(1);
-        }
-
-        let (allowed, remaining) = {
-            let mut bucket_ref = self
-                .tenant_buckets
-                .entry(bucket_key)
-                .or_insert_with(|| TokenBucket::new(f64::from(burst), f64::from(rps)));
-            let bucket = bucket_ref.value_mut();
-            let allowed = bucket.try_consume(1.0);
-            let remaining = bucket.token_count();
-            (allowed, remaining)
-        };
-
-        if allowed {
-            CheckResult::allow(remaining)
-        } else {
-            debug!(tenant_key = tenant_key, "Per-tenant rate limit exceeded");
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            // Reason: ceil(1/rps) is always a small positive integer
-            let retry = if rps == 0 {
-                1
-            } else {
-                ((1.0_f64 / f64::from(rps)).ceil() as u32).max(1)
-            };
-            CheckResult::deny(retry)
-        }
-    }
-
     /// Evict stale in-memory buckets.
     ///
     /// Called by the sweep `Server::spawn_rate_limit_cleanup` puts on the server's
@@ -383,21 +327,17 @@ impl InMemoryRateLimiter {
         let evicted_user = before_user.saturating_sub(self.user_buckets.len());
 
         self.path_ip_buckets.retain(|_, b| b.last_refill >= ip_threshold);
-        self.tenant_buckets.retain(|_, b| b.last_refill >= ip_threshold);
 
         debug!(evicted_ip, evicted_user, "Rate limiter cleanup complete");
     }
 
-    /// Live buckets across all four maps.
+    /// Live buckets across all three maps.
     ///
     /// Summed rather than reported per-map: the caller outside this module is asking
     /// "did the sweep run", and any map shrinking answers it. The per-map view stays
     /// with the unit tests, which can read the maps directly.
     pub(super) fn live_bucket_count(&self) -> usize {
-        self.ip_buckets.len()
-            + self.user_buckets.len()
-            + self.path_ip_buckets.len()
-            + self.tenant_buckets.len()
+        self.ip_buckets.len() + self.user_buckets.len() + self.path_ip_buckets.len()
     }
 
     /// Number of per-path rate limit rules registered.

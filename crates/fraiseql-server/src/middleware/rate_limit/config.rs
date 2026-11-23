@@ -149,7 +149,7 @@ pub struct RateLimitConfig {
     /// Maximum tracked buckets per map — a memory ceiling, not a security control.
     ///
     /// One token bucket per key in each map (`ip_buckets`, `user_buckets`,
-    /// `path_ip_buckets`, `tenant_buckets`). At ~200 bytes a bucket the default
+    /// `path_ip_buckets`). At ~200 bytes a bucket the default
     /// `100_000` is about 20 `MiB` per map.
     ///
     /// Reaching the cap evicts the least-recently-used of a sample; it does **not**

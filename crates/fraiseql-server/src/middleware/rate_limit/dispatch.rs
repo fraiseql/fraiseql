@@ -129,22 +129,6 @@ impl RateLimiter {
         }
     }
 
-    /// Check the per-tenant rate limit for a request to tenant `key`.
-    ///
-    /// Each tenant gets its own token bucket with the specified `rps` and `burst`
-    /// from the tenant's quota configuration.
-    ///
-    /// # Note
-    ///
-    /// Redis backend does not support per-tenant limits (falls back to allow-all).
-    pub async fn check_tenant_limit(&self, tenant_key: &str, rps: u32, burst: u32) -> CheckResult {
-        match self {
-            Self::InMemory(rl) => rl.check_tenant_limit(tenant_key, rps, burst).await,
-            #[cfg(feature = "redis-rate-limiting")]
-            Self::Redis(_) => CheckResult::allow(f64::from(burst)),
-        }
-    }
-
     /// Evict stale in-memory buckets.
     ///
     /// No-op for the Redis backend — Redis handles expiry via `PEXPIRE`.
@@ -156,7 +140,7 @@ impl RateLimiter {
         }
     }
 
-    /// How many live buckets the in-memory backend is holding, across all four maps.
+    /// How many live buckets the in-memory backend is holding, across all three maps.
     ///
     /// `None` for the Redis backend, which keeps no local map — deliberately not `0`,
     /// so a caller cannot mistake "no map here" for "the map is empty".
