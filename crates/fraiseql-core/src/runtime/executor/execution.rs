@@ -707,8 +707,14 @@ impl Executor {
             QueryType::Federation(query_name) => {
                 // The `_entities` path fails closed for RLS-/inject-/role-gated
                 // types when `security_context` is `None` (C1b).
-                self.execute_federation_query(query_name, query, variables, security_context)
-                    .await
+                self.execute_federation_query(
+                    query_name,
+                    query,
+                    operation_name,
+                    variables,
+                    security_context,
+                )
+                .await
             },
             #[cfg(not(feature = "federation"))]
             QueryType::Federation(_) => {

@@ -23,12 +23,16 @@ impl Executor {
         &self,
         query_name: &str,
         query: &str,
+        operation_name: Option<&str>,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
         match query_name {
             "_service" => self.execute_service_query().await,
-            "_entities" => self.execute_entities_query(query, variables, security_context).await,
+            "_entities" => {
+                self.execute_entities_query(query, operation_name, variables, security_context)
+                    .await
+            },
             _ => Err(FraiseQLError::Validation {
                 message: format!("Unknown federation query: {}", query_name),
                 path:    None,
@@ -60,6 +64,7 @@ impl Executor {
     async fn execute_entities_query(
         &self,
         query: &str,
+        operation_name: Option<&str>,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
@@ -81,18 +86,15 @@ impl Executor {
                 path:    None,
             })?;
 
-        // Extract representations from variables
-        let representations_value =
-            variables.and_then(|v| v.get("representations")).ok_or_else(|| {
-                FraiseQLError::Validation {
-                    message: "_entities query requires 'representations' variable".to_string(),
-                    path:    None,
-                }
-            })?;
-
-        // Parse representations
+        // The list the selected operation's `representations` argument is bound to, whatever
+        // its variable is called: the one list authorization and resolution both read.
+        let representations_value = crate::graphql::entities_argument::entities_representations(
+            query,
+            operation_name,
+            variables,
+        )?;
         let representations =
-            crate::federation::parse_representations(representations_value, &fed_metadata)?;
+            crate::federation::parse_representations(&representations_value, &fed_metadata)?;
 
         // Phase 03 (C1b): fail-closed authorization for RLS-/inject-/role-gated entity
         // types. Returns before any SQL runs when the request is not allowed to resolve
@@ -173,7 +175,8 @@ impl Executor {
         // the caller's role or actor type may not read — and a nested level whose type
         // scopes its rows is refused: the resolver's lookup is built in
         // `fraiseql-federation` and cannot carry a composed level. Before the read.
-        let mut entity_fields = entities_selection(query, variables, self.max_query_depth())?;
+        let mut entity_fields =
+            entities_selection(query, operation_name, variables, self.max_query_depth())?;
         // #1513: a localized field's `locale:` is checked, and canonicalised, before the read.
         let variables_map = crate::graphql::selection_set::variables_map(variables);
         for typename in representations.iter().map(|r| r.typename.as_str()) {
@@ -668,7 +671,7 @@ impl Executor {
 /// keeps *depth* can tell `orders { id }` from a request for `orders` and `id` side by
 /// side. Fragment spreads are expanded and `@skip`/`@include` evaluated first, so a router
 /// that sends its selection as a named fragment is read identically to one that inlines
-/// it.
+/// it. The operation read is the one the request selects (GraphQL § 6.1).
 ///
 /// # Errors
 ///
@@ -677,13 +680,17 @@ impl Executor {
 /// selection, so an unparsed one is refused rather than served ungated.
 fn entities_selection(
     query: &str,
+    operation_name: Option<&str>,
     variables: Option<&serde_json::Value>,
     max_depth: u32,
 ) -> Result<Vec<crate::graphql::FieldSelection>> {
-    let parsed = crate::graphql::parse_query(query).map_err(|e| FraiseQLError::Validation {
-        message: format!("_entities: the selection could not be parsed: {e}"),
-        path:    None,
-    })?;
+    let parsed =
+        crate::graphql::parse_query_with_operation_name(query, operation_name).map_err(|e| {
+            FraiseQLError::Validation {
+                message: format!("_entities: the selection could not be parsed: {e}"),
+                path:    None,
+            }
+        })?;
     let vars = crate::graphql::selection_set::variables_map(variables);
     let resolved = crate::graphql::selection_set::resolve_and_filter(
         &parsed.selections,

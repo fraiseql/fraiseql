@@ -512,19 +512,32 @@ impl FederationCircuitBreakerManager {
 // Helper: entity-type extraction from GraphQL variables
 // ────────────────────────────────────────────────────────────────────────────
 
-/// Extract unique `__typename` values from the `representations` variable.
+/// The unique `__typename` values of the representations an `_entities` request resolves.
 ///
-/// The returned list is sorted for deterministic ordering. Representations that
-/// are missing a `__typename` field are skipped with a `warn`-level diagnostic.
+/// The list is the one the selected operation's `representations` argument is bound to, read
+/// through [`entities_representations`], the reader the executor resolves from: a variable
+/// of any name, a literal, or a variable's declared default. A variable that is merely named
+/// `representations` is not read.
 ///
-/// Used to identify which entity types are being resolved in an `_entities` query
-/// so the circuit breaker can be checked and recorded per entity.
+/// Empty when the operation selects no `_entities` field, or its list cannot be read (the
+/// executor refuses that request with the same error). The returned list is sorted for
+/// deterministic ordering. Representations that are missing a `__typename` field are
+/// skipped with a `warn`-level diagnostic.
+///
+/// [`entities_representations`]: fraiseql_core::graphql::entities_argument::entities_representations
 #[must_use]
-pub fn extract_entity_types(variables: Option<&serde_json::Value>) -> Vec<String> {
-    let Some(vars) = variables else {
-        return vec![];
-    };
-    let Some(representations) = vars.get("representations").and_then(|r| r.as_array()) else {
+pub fn extract_entity_types(
+    query: &str,
+    operation_name: Option<&str>,
+    variables: Option<&serde_json::Value>,
+) -> Vec<String> {
+    let Ok(serde_json::Value::Array(representations)) =
+        fraiseql_core::graphql::entities_argument::entities_representations(
+            query,
+            operation_name,
+            variables,
+        )
+    else {
         return vec![];
     };
 

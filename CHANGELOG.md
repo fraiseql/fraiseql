@@ -1721,6 +1721,15 @@ disagreed, and the promise was the part that was wrong.
   `NullPointerException`, and nothing was exported. Each registration now stores `null` as no
   description, as enums already did.
 
+- **`_entities` reads the list its `representations` argument is bound to (#1724).** The
+  executor read a variable named `representations` whatever the document bound the argument
+  to, so `query($r: [_Any!]!) { _entities(representations: $r) { … } }`, an inline list, or
+  a variable's declared default was refused, and a `representations` variable the argument
+  was not bound to decided what was authorized and read. The executor, its authorization
+  and the per-entity circuit breaker now read one list, through one function, from the
+  operation `operationName` selects. A document of several operations, one of them
+  `_entities`, is no longer refused when `operationName` selects it.
+
 - **The federation circuit breaker is consulted for `_entities` requests over HTTP (#2411).**
   Its gate compared the whole request document with the string `"_entities"`, so it held for
   no real document: an open breaker refused nothing, and no `_entities` outcome was recorded,

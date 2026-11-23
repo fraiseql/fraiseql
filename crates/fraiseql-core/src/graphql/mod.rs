@@ -113,6 +113,9 @@ pub mod require_permission_directive;
 /// `@defer`: splitting a resolved response into immediate and deferred payloads.
 pub mod defer;
 
+/// The list an `_entities` field's `representations` argument is bound to.
+pub mod entities_argument;
+
 /// Nested `@stream`: splitting an already-resolved list into delivery chunks.
 pub mod stream_split;
 

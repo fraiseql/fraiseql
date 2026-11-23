@@ -189,16 +189,20 @@ mod circuit_breaker_tests {
         assert!(breaker.check().is_none()); // second probe now allowed
     }
 
+    /// An `_entities` operation binding its `representations` argument to `$reps`.
+    const ENTITIES_BY_REPS: &str =
+        "query($reps: [_Any!]!) { _entities(representations: $reps) { __typename } }";
+
     #[test]
     fn test_extract_entity_types_from_representations() {
         let vars = serde_json::json!({
-            "representations": [
+            "reps": [
                 {"__typename": "Product", "id": "1"},
                 {"__typename": "User", "id": "2"},
                 {"__typename": "Product", "id": "3"},
             ]
         });
-        let types = extract_entity_types(Some(&vars));
+        let types = extract_entity_types(ENTITIES_BY_REPS, None, Some(&vars));
         // Must be sorted and deduplicated
         assert_eq!(types, vec!["Product", "User"]);
     }
@@ -206,24 +210,30 @@ mod circuit_breaker_tests {
     #[test]
     fn test_extract_entity_types_missing_representations() {
         let vars = serde_json::json!({ "other": "data" });
-        assert!(extract_entity_types(Some(&vars)).is_empty());
+        assert!(extract_entity_types(ENTITIES_BY_REPS, None, Some(&vars)).is_empty());
     }
 
     #[test]
     fn test_extract_entity_types_no_variables() {
-        assert!(extract_entity_types(None).is_empty());
+        assert!(extract_entity_types(ENTITIES_BY_REPS, None, None).is_empty());
+    }
+
+    #[test]
+    fn test_extract_entity_types_not_an_entities_operation() {
+        let vars = serde_json::json!({ "representations": [{"__typename": "User", "id": "2"}] });
+        assert!(extract_entity_types("{ users { id } }", None, Some(&vars)).is_empty());
     }
 
     #[test]
     fn test_extract_entity_types_missing_typename_skipped() {
         // Representations without __typename are skipped (a warning is emitted).
         let vars = serde_json::json!({
-            "representations": [
+            "reps": [
                 {"id": "1"},               // missing __typename
                 {"__typename": "User", "id": "2"},
             ]
         });
-        let types = extract_entity_types(Some(&vars));
+        let types = extract_entity_types(ENTITIES_BY_REPS, None, Some(&vars));
         assert_eq!(types, vec!["User"]);
     }
 

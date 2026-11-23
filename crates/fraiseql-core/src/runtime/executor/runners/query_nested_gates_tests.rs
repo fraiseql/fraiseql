@@ -1258,6 +1258,10 @@ async fn an_enum_at_the_leaf_expansions_depth_is_a_value_not_a_level() {
 // resolver's lookup cannot carry a composed level.
 
 #[cfg(feature = "federation")]
+#[path = "query_nested_gates_tests/entities_argument.rs"]
+mod entities_argument;
+
+#[cfg(feature = "federation")]
 mod federation {
     use std::collections::HashMap;
 
@@ -1265,7 +1269,7 @@ mod federation {
     use crate::schema::{FederationConfig, FederationEntity};
 
     /// `schema()`, federated: `User` and `Order` are entities keyed by `id`.
-    fn federated(mut schema: CompiledSchema) -> CompiledSchema {
+    pub(super) fn federated(mut schema: CompiledSchema) -> CompiledSchema {
         let entity = |name: &str| FederationEntity {
             name: name.to_string(),
             key_fields: vec!["id".to_string()],
@@ -1282,7 +1286,7 @@ mod federation {
     }
 
     /// The rows the resolver reads, keyed by field name as its projection aliases them.
-    fn entity_rows(rows: Vec<Value>) -> Vec<HashMap<String, Value>> {
+    pub(super) fn entity_rows(rows: Vec<Value>) -> Vec<HashMap<String, Value>> {
         rows.into_iter().map(|row| serde_json::from_value(row).unwrap()).collect()
     }
 

@@ -362,16 +362,11 @@ pub(super) fn check_federation_circuit_breakers(
     let Some(ref cb_manager) = state.circuit_breaker else {
         return Ok(vec![]);
     };
-    // The operation the request selects, as the executor dispatches it: an `_entities`
-    // request is one whose selected operation selects `_entities`. A document that does not
-    // parse, or names no operation, is refused by the executor with that error.
-    let selects_entities =
-        fraiseql_core::graphql::parse_query_with_operation_name(query, operation_name)
-            .is_ok_and(|parsed| parsed.selections.iter().any(|s| s.name == "_entities"));
-    if !selects_entities {
-        return Ok(vec![]);
-    }
-    let entity_types = crate::federation::circuit_breaker::extract_entity_types(variables);
+    // The list the executor resolves, read by the same function from the operation the
+    // request selects: none for an operation that does not select `_entities`, or one the
+    // executor refuses.
+    let entity_types =
+        crate::federation::circuit_breaker::extract_entity_types(query, operation_name, variables);
     for entity_type in &entity_types {
         if let Some(retry_after) = cb_manager.check(entity_type) {
             warn!(
