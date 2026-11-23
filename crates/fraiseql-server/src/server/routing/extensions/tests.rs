@@ -93,7 +93,7 @@ mod storage_admission {
         pairs: &[(&str, &str)],
     ) -> Result<Option<String>, (StatusCode, String)> {
         match identify_storage_caller(state, Some(STORAGE_TOKEN), None, &headers(pairs)).await {
-            Ok(user) => Ok(user.and_then(|user| user.user_id)),
+            Ok((user, _)) => Ok(user.and_then(|user| user.user_id)),
             Err(response) => {
                 let status = response.status();
                 let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
@@ -177,7 +177,7 @@ mod storage_admission {
             )
             .await
             {
-                Ok(user) => Ok(user.and_then(|user| user.user_id)),
+                Ok((user, _)) => Ok(user.and_then(|user| user.user_id)),
                 Err(response) => {
                     let status = response.status();
                     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();

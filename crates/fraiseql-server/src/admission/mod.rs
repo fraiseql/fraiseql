@@ -91,8 +91,9 @@ impl AdmissionPolicy {
         stamp_trace: false,
         enrich:      true,
     };
-    /// A request to the storage API. Storage resolves no tenant: its buckets and their
-    /// policies are not tenant-scoped, so it has no tenant step to take.
+    /// A request to the storage API. Its buckets and their policies are not tenant-scoped,
+    /// but the request is still dispatched to its tenant, so a suspended or unregistered
+    /// tenant is refused as on every other transport.
     pub const STORAGE: Self = Self {
         api_key:     true,
         stamp_trace: false,

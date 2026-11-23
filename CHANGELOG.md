@@ -48,6 +48,16 @@ disagreed, and the promise was the part that was wrong.
   `/graphql` uses. A client that sent its credential only on tool calls sends it on every
   request. `require_auth = false` (development only) is unchanged.
 
+- **The storage API dispatches every request to its tenant (#2347).** A token's tenant
+  claim, else the tenant the request names, is resolved and dispatched before any
+  storage route runs, as on `/graphql`. A suspended tenant is refused with `503` and an
+  unregistered one with `403` on every route (objects, list, metadata, presign and
+  uploads), and a storage request counts against the tenant's request-rate and
+  concurrency quotas. Before, the storage API resolved no tenant, so a suspended or
+  unregistered tenant's users kept reading and writing objects. The `storage_token`
+  admin goes to the tenant its request names, or the default one when it names none.
+  Object access rules are unchanged: objects are still scoped by owner, not tenant.
+
 - **`fraiseql_secrets::chrono` is removed, and `fraiseql-secrets` no longer depends on
   chrono (#2026).** The crate's public API names no chrono type any more. A caller that
   reached chrono through it depends on `chrono` directly.

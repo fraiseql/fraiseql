@@ -154,6 +154,15 @@ readable by unauthenticated callers regardless of tenant. If you need
 tenant-level rather than user-level sharing, put it in the key space and treat
 this document's model as the floor, not the ceiling.
 
+Objects are not tenant-scoped, but requests are. Before any of the rules above
+runs, a storage request is dispatched to its tenant exactly as a `/graphql`
+request is: the tenant claim of the caller's token, else the tenant the request
+names (`X-Tenant-ID`, or its domain). A suspended tenant is refused with `503`
+and an unregistered one with `403`, on every storage route, and a dispatched
+request counts against the tenant's request-rate and concurrency quotas. The
+`storage_token` admin is no tenant's principal, so it goes to the tenant its
+request names, or to the default one when it names none.
+
 The admin role is the explicit `fraiseql:storage:admin`, never a generic
 `admin` scope, so an unrelated application scope of that name cannot
 accidentally grant full storage access.

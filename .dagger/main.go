@@ -2432,6 +2432,9 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// #1989: a function's and a source's run_as.static_enriched answer session variables
 		// mapped from the enriched identity, through the bridge. Owns its p1989 schema → serial.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test run_as_static_enriched_e2e_pg -- --test-threads=1",
+		// #2347: the storage API dispatches to the caller's tenant on every route, so a
+		// suspended or unregistered tenant is refused there too. Owns tenant_p2347* → serial.
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test storage_tenant_dispatch_e2e_pg -- --test-threads=1",
 		// #633: a schema-mode tenant over its storage quota is refused writes until it is back under.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test tenant_storage_quota_e2e_pg -- --test-threads=1",
 		// #1391: a cascade derived from pg_tviews' affected set, against a real pg_tviews

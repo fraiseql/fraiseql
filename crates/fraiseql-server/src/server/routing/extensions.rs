@@ -406,7 +406,7 @@ impl Server {
                     let validator = validator.clone();
                     let state = admission_state.clone();
                     async move {
-                        match identify_storage_caller(
+                        let (user, dispatch) = match admit_storage_request(
                             &state,
                             storage_token.as_deref(),
                             validator.as_deref(),
@@ -414,13 +414,16 @@ impl Server {
                         )
                         .await
                         {
-                            Ok(Some(user)) => {
-                                request.extensions_mut().insert(user);
-                            },
-                            Ok(None) => {},
+                            Ok(admitted) => admitted,
                             Err(refused) => return refused,
+                        };
+                        if let Some(user) = user {
+                            request.extensions_mut().insert(user);
                         }
-                        next.run(request).await
+                        let response = next.run(request).await;
+                        // The tenant's concurrency permit is held until the handler is done.
+                        drop(dispatch);
+                        response
                     }
                 },
             ));
@@ -428,6 +431,41 @@ impl Server {
         info!("Storage API routes mounted at /storage/v1/");
         app
     }
+}
+
+/// Admit a storage request: identify its caller, then resolve its tenant and dispatch to
+/// it, as every other transport does.
+///
+/// Buckets are not tenant-scoped, but a tenant is: a suspended or unregistered tenant's
+/// users, and a request naming such a tenant, are refused here as on `/graphql`. The
+/// storage admin carries no principal, so its tenant is whatever the request's hints name.
+/// The returned dispatch holds the tenant's concurrency permit and must live until the
+/// handler has answered.
+///
+/// # Errors
+///
+/// The refusal response, as [`identify_storage_caller`] and [`storage_refusal`] word it.
+async fn admit_storage_request(
+    state: &AppState,
+    storage_token: Option<&str>,
+    validator: Option<&fraiseql_core::security::OidcValidator>,
+    headers: &axum::http::HeaderMap,
+) -> Result<
+    (
+        Option<fraiseql_storage::StorageUser>,
+        crate::routes::graphql::tenant_dispatch::TenantDispatch,
+    ),
+    axum::response::Response,
+> {
+    let (user, identified) =
+        identify_storage_caller(state, storage_token, validator, headers).await?;
+    let tenant = match identified {
+        Some(identified) => identified.tenant(state, headers),
+        None => admission::Tenant::of(state, None, headers),
+    }
+    .map_err(storage_refusal)?;
+    let dispatch = tenant.dispatch(state).map_err(storage_refusal)?;
+    Ok((user, dispatch))
 }
 
 /// Identify a storage request's caller.
@@ -439,6 +477,9 @@ impl Server {
 /// (a static API key, enrichment). Without an OIDC validator, a token that is not the
 /// `storage_token` is a rejected admin attempt.
 ///
+/// Returns the storage user, and the admission result the tenant is resolved from: `None`
+/// for the storage admin, which is not an admission principal.
+///
 /// # Errors
 ///
 /// The refusal response: 401 for a credential, with `WWW-Authenticate`, and 403 or 503 for
@@ -448,7 +489,10 @@ async fn identify_storage_caller(
     storage_token: Option<&str>,
     validator: Option<&fraiseql_core::security::OidcValidator>,
     headers: &axum::http::HeaderMap,
-) -> Result<Option<fraiseql_storage::StorageUser>, axum::response::Response> {
+) -> Result<
+    (Option<fraiseql_storage::StorageUser>, Option<admission::Identified>),
+    axum::response::Response,
+> {
     use axum::{
         http::{StatusCode, header},
         response::IntoResponse,
@@ -462,7 +506,7 @@ async fn identify_storage_caller(
         .or_else(|| crate::middleware::oidc_auth::extract_access_token_cookie(headers));
     if let Some(admin) = token.as_deref().and_then(|token| storage_admin_user(token, storage_token))
     {
-        return Ok(Some(admin));
+        return Ok((Some(admin), None));
     }
 
     let principal =
@@ -481,9 +525,14 @@ async fn identify_storage_caller(
             // a `require_claims` rule can match.
             let claims = fraiseql_storage::normalise_claims(&user.extra_claims);
             let request_id = uuid::Uuid::new_v4().to_string();
+            // The schema's tenant claim, as `/graphql` reads it: the tenant step dispatches
+            // on it.
+            let tenant_claim = state.executor().schema().tenant_claim().to_owned();
             (
                 Some(fraiseql_core::security::SecurityContext::from_token_claims(
-                    &user, request_id, None,
+                    &user,
+                    request_id,
+                    Some(&tenant_claim),
                 )),
                 claims,
             )
@@ -497,11 +546,12 @@ async fn identify_storage_caller(
     let identified = admission::identify(state, headers, principal, &AdmissionPolicy::STORAGE)
         .await
         .map_err(storage_refusal)?;
-    Ok(identified.into_security_context().map(|ctx| fraiseql_storage::StorageUser {
+    let user = identified.security_context().map(|ctx| fraiseql_storage::StorageUser {
         user_id: Some(ctx.user_id.to_string()),
-        roles: ctx.scopes,
+        roles: ctx.scopes.clone(),
         claims,
-    }))
+    });
+    Ok((user, Some(identified)))
 }
 
 /// The storage answer to an admission refusal.
