@@ -642,3 +642,78 @@ mod shared_limiter_tests {
         spends_the_shared_budget(&state.failure_limiter, &shared);
     }
 }
+
+#[cfg(test)]
+mod failure_budget_tests {
+    //! An admin plane stops a peer once its failure budget is spent: the failure that spends
+    //! it is refused as too many, and so is every request after it, a right token included,
+    //! until the window ends. Each plane counts its own failures: these drive one plane alone.
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use axum::{
+        Router,
+        body::Body,
+        http::{Request, StatusCode},
+        middleware,
+        routing::get,
+    };
+    use tower::ServiceExt as _;
+
+    use super::{
+        AdminDualAuthState, AdminPrincipalState, admin_dual_auth_middleware,
+        admin_principal_middleware,
+    };
+
+    async fn admin() -> &'static str {
+        "ok"
+    }
+
+    /// The right token, a failure, the failure that spends a budget of two, then the right
+    /// token from the blocked peer.
+    async fn assert_spends_its_budget(app: Router) {
+        let mut statuses = Vec::new();
+        for token in ["right-token", "wrong-token", "wrong-token", "right-token"] {
+            let request = Request::builder()
+                .uri("/")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap();
+            statuses.push(app.clone().oneshot(request).await.unwrap().status());
+        }
+        assert_eq!(
+            statuses,
+            [
+                StatusCode::OK,
+                StatusCode::FORBIDDEN,
+                StatusCode::TOO_MANY_REQUESTS,
+                StatusCode::TOO_MANY_REQUESTS,
+            ],
+            "the right token, a failure, the failure that spends the budget of two, then the \
+             right token from the blocked peer"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_sql_console_refuses_a_peer_that_spent_its_budget_even_with_the_right_token() {
+        let state =
+            AdminDualAuthState::new("right-token".to_owned(), Some("read-token".to_owned()), 2);
+        assert_spends_its_budget(
+            Router::new()
+                .route("/", get(admin))
+                .layer(middleware::from_fn_with_state(state, admin_dual_auth_middleware)),
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn the_admin_principal_plane_refuses_a_peer_that_spent_its_budget_even_with_the_right_token()
+     {
+        let state = AdminPrincipalState::new("right-token".to_owned(), None, 2);
+        assert_spends_its_budget(
+            Router::new()
+                .route("/", get(admin))
+                .layer(middleware::from_fn_with_state(state, admin_principal_middleware)),
+        )
+        .await;
+    }
+}

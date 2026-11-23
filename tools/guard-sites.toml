@@ -95,6 +95,12 @@ name = "with-tenant"
 patterns = ['\.with_tenant\s*\(']
 
 [[family]]
+name = "admin-failure-limiter"
+# The admin planes' per-peer failure budget: a failure is counted, and a peer whose budget
+# is spent is refused before its token is read.
+patterns = ['\bfailure_limiter\.(?:is_blocked|record_failure)\s*\(']
+
+[[family]]
 name = "executor"
 patterns = ['\bexecutor_for(?:_tenant)?\s*\(']
 
@@ -209,6 +215,16 @@ command = "cargo test -p fraiseql-observers --test source_cursor_pg -- --test-th
 name = "examples-rls"
 crate = "crates/fraiseql-server"
 command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test example_multitenant_rls_e2e_pg -- --test-threads=1"
+
+[[shard]]
+name = "server-lib-admin-limiter"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --features auth --lib -- middleware:: --test-threads=1"
+
+[[shard]]
+name = "admin-sql-console"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test admin_sql_console_e2e_pg -- --test-threads=1"
 
 [[shard]]
 name = "core-cache"
@@ -1984,3 +2000,59 @@ anchor = "ev = ev.with_tenant(t);"
 mutant = "let _ = t;"
 killers = ["a_published_event_carries_its_rows_tenant"]
 shard = "cdc-drain"
+
+# The admin planes' failure budget (family `admin-failure-limiter`): `record_failure` is the
+# count, whose mutant drops it; turning only the spending failure's 429 into a 403 changes
+# no attempt the peer gets, so it is not this guard's mutant. The SQL console's read-only
+# token maps to the read-only privilege.
+
+[[site]]
+id = "authz.admin.limiter.bearer-count"
+file = "crates/fraiseql-server/src/middleware/auth.rs"
+function = "bearer_auth_middleware"
+anchor = "if auth_state.failure_limiter.record_failure(&peer_key) {"
+mutant = "if false {"
+killers = ["test_middleware_returns_429_after_max_failures"]
+shard = "server-lib-admin-limiter"
+
+[[site]]
+id = "authz.admin.limiter.principal-count"
+file = "crates/fraiseql-server/src/middleware/auth.rs"
+function = "admin_principal_middleware"
+anchor = "if state.failure_limiter.record_failure(&peer_key) {"
+mutant = "if false {"
+killers = [
+  "the_admin_principal_plane_refuses_a_peer_that_spent_its_budget_even_with_the_right_token",
+]
+shard = "server-lib-admin-limiter"
+
+[[site]]
+id = "authz.admin.limiter.sql-console"
+file = "crates/fraiseql-server/src/middleware/auth.rs"
+function = "admin_dual_auth_middleware"
+anchor = "if auth_state.failure_limiter.is_blocked(&peer_key) {"
+mutant = "if false {"
+killers = [
+  "the_sql_console_refuses_a_peer_that_spent_its_budget_even_with_the_right_token",
+]
+shard = "server-lib-admin-limiter"
+
+[[site]]
+id = "authz.admin.limiter.sql-console-count"
+file = "crates/fraiseql-server/src/middleware/auth.rs"
+function = "admin_dual_auth_middleware"
+anchor = "if auth_state.failure_limiter.record_failure(&peer_key) {"
+mutant = "if false {"
+killers = [
+  "the_sql_console_refuses_a_peer_that_spent_its_budget_even_with_the_right_token",
+]
+shard = "server-lib-admin-limiter"
+
+[[site]]
+id = "authz.admin.sql-console.readonly"
+file = "crates/fraiseql-server/src/middleware/auth.rs"
+function = "AdminDualAuthState::classify"
+anchor = "(false, true) => Some(AdminPrivilege::ReadOnly),"
+mutant = "(false, true) => Some(AdminPrivilege::ReadWrite),"
+killers = ["a_readonly_token_cannot_update"]
+shard = "admin-sql-console"
