@@ -30,4 +30,6 @@ pub use rate_limit::{
 pub use trace::trace_layer;
 
 #[cfg(test)]
+mod admin_scope_tests;
+#[cfg(test)]
 mod tests;

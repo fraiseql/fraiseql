@@ -18,6 +18,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql_server::middleware::admin_scope::{require_admin_scope, has_admin_scope}` are
+  removed (#2393).** No request path called them: the admin plane checks the scope inline in
+  `admin_auth_middleware`, and the tests that pinned the rule on this unused copy now drive
+  that middleware with real tokens. `ADMIN_SCOPE` remains.
+
 - **`TenantContext::from_jwt_claims` is removed (#2395).** Nothing called it: no
   transport built a tenant from a `tenant_id` claim through it, so the claim rule it
   carried was never applied. `TenantContext::new` remains.

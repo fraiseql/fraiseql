@@ -6,10 +6,9 @@
 //! the H5 fix — `oidc_auth_middleware` defers to that global flag and so silently
 //! un-auths admin routers whenever a deployment allows anonymous data queries.
 //!
-//! The valid-token paths (admin scope → 200, non-admin scope → 403) require a signed
-//! token validated against an injected JWKS, whose cache is private to `fraiseql-core`;
-//! that scope decision is covered by the `admin_scope` unit tests (`has_admin_scope` /
-//! `require_admin_scope`). Here we lock down the always-mandatory behavior that no other
+//! The valid-token paths (admin scope → 200, non-admin scope → 403) are covered by
+//! `middleware::admin_scope_tests`, which drive `admin_auth_middleware` with tokens from
+//! an in-process issuer. Here we lock down the always-mandatory behavior that no other
 //! test exercises.
 #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
 
