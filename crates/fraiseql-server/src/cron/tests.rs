@@ -75,18 +75,16 @@ async fn cron_state_read_back_after_restart_suppresses_refire_in_same_window() {
     let resumed = state.resume_state(&function, expr).await.expect("resume state");
 
     // A tick later in the SAME window must be suppressed by the window guard…
-    let same_window = chrono::DateTime::parse_from_rfc3339("2026-03-01T02:00:41.900+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let same_window: fraiseql_time::Timestamp =
+        "2026-03-01T02:00:41.900+00:00".parse().expect("parse");
     assert!(
         matches!(resumed.decide(&schedule, &same_window), CronDecision::AlreadyFired { .. }),
         "restart inside an already-fired window must not re-fire it"
     );
 
     // …and the NEXT window must fire.
-    let next_window = chrono::DateTime::parse_from_rfc3339("2026-03-02T02:00:11.500+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let next_window: fraiseql_time::Timestamp =
+        "2026-03-02T02:00:11.500+00:00".parse().expect("parse");
     assert!(
         matches!(resumed.decide(&schedule, &next_window), CronDecision::Fire),
         "the next day's window fires normally after a restart"
@@ -262,6 +260,36 @@ async fn two_replicas_ticking_one_after_the_other_fire_a_window_once() {
         super::Tick::AlreadyFired,
         "the window fires once across both replicas"
     );
+    let _ = sqlx::query("DELETE FROM _fraiseql_cron_state WHERE function_name = $1")
+        .bind(&function)
+        .execute(&pool)
+        .await;
+}
+
+/// A replica resumed from a stored firing at 02:00:07.312 treats the rest of that minute as
+/// fired and fires again at the next one, wherever in it the tick lands: the stored
+/// instant crosses from the state table into the schedule with its fraction.
+#[tokio::test]
+async fn a_replica_resumed_from_a_stored_firing_fires_at_the_next_minute() {
+    let Some(pool) = pool().await else {
+        eprintln!("skipping cron resume test: no DATABASE_URL");
+        return;
+    };
+    PgCronState::new(pool.clone()).init().await.unwrap();
+    let function = format!("resume_next_{}", uuid::Uuid::new_v4().simple());
+    let at = |text: &str| text.parse::<fraiseql_time::Timestamp>().unwrap();
+    PgCronState::new(pool.clone())
+        .record_fire(&function, "* * * * *", at("2026-03-01T02:00:07.312Z").into())
+        .await
+        .unwrap();
+    for (tick, expected) in [
+        ("2026-03-01T02:00:07.312Z", super::Tick::AlreadyFired),
+        ("2026-03-01T02:00:59.999Z", super::Tick::AlreadyFired),
+    ] {
+        assert_eq!(replica(&pool, &function).await.tick(at(tick)).await, expected, "{tick}");
+    }
+    let next = replica(&pool, &function).await.tick(at("2026-03-01T02:01:00.500Z")).await;
+    assert!(matches!(next, super::Tick::Ran { .. }), "{next:?}");
     let _ = sqlx::query("DELETE FROM _fraiseql_cron_state WHERE function_name = $1")
         .bind(&function)
         .execute(&pool)

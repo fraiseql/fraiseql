@@ -18,6 +18,24 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql-functions`' cron types read time through `fraiseql_time` and jiff, not
+  chrono and chrono-tz (#2026).** `CronSchedule::matches` takes a
+  `jiff::civil::DateTime` (the wall clock to test), `Schedule::tz` is a
+  `jiff::tz::TimeZone`, and every instant `Schedule::decide`, `CronExecutionState`,
+  `CronDecision` and `CronTrigger::build_payload` take or return is a
+  `fraiseql_time::Timestamp`. The new `Schedule::zone_name()` gives the zone's IANA name.
+  What a schedule does is unchanged: the same 597 zone names are accepted, named exactly
+  as before (another case is still refused), a clock change skips or repeats a fixed time
+  as before, and the stored `last_executed` and the payload's `executed_at` keep their
+  text. A zone's rules are now those of IANA 2026c, not 2025b: a schedule in British
+  Columbia (`America/Vancouver`, `America/Edmonton` and their links) follows its
+  permanent daylight time from 2026-11-01, and Morocco's (`Africa/Casablanca`,
+  `Africa/El_Aaiun`) its UTC+00:00 from 2026-09-20: such a schedule fires an hour away
+  from where it fired on 2025b. In Moldova (`Europe/Chisinau`, `Europe/Tiraspol`) the
+  clocks change an hour away from where they changed on 2025b, each spring and autumn,
+  so only a schedule in that hour moves. A firing time computed for a date before 1976 in `America/Tijuana`
+  and its links can differ too.
+
 - **`schema_gen::graphql_type_to_arrow` and `schema_gen::generate_arrow_schema` are removed
   from `fraiseql-arrow`, and so from `fraiseql::arrow` (#1821).** No Flight path called
   them, and the mapping they published disagreed with what Flight streams: a GraphQL
@@ -550,8 +568,8 @@ disagreed, and the promise was the part that was wrong.
   `EntityEvent::timestamp`, and the received time of an inbound message
   (`InboundMessage::received_at`, `RawDelivery::received_at`, the argument of
   `InboundMessage::new` and `normalize_email`). Their serde forms and stored values are
-  unchanged. The cron trigger's times stay `chrono::DateTime<Utc>`, and
-  `fraiseql_functions::chrono` stays with them.
+  unchanged. The cron trigger's times move in their own entry, and
+  `fraiseql_functions::chrono` stays for now.
 - **`fraiseql_saga::chrono` is removed (#2026).** The crate's public API names no chrono
   type any more. A caller that reached chrono through it depends on `chrono` directly.
 - **`fraiseql_storage::ObjectInfo::last_modified` is `Option<chrono::DateTime<Utc>>` (#2112).**

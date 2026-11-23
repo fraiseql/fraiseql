@@ -104,14 +104,14 @@ impl ScheduledPoller {
             ScheduledKind::Cron { .. } => CronTrigger {
                 function_name: self.name.clone(),
                 schedule:      self.schedule.expr.expression.clone(),
-                timezone:      self.schedule.tz.name().to_owned(),
+                timezone:      self.schedule.zone_name().to_owned(),
             }
-            .build_payload(&DateTime::<Utc>::from(now)),
+            .build_payload(&now),
             #[cfg(feature = "sources")]
             ScheduledKind::Source { .. } => crate::sources::build_source_payload(
                 &self.name,
                 &self.schedule.expr.expression,
-                self.schedule.tz.name(),
+                self.schedule.zone_name(),
                 now,
             ),
         }
@@ -169,7 +169,11 @@ impl ScheduledPoller {
 
     /// Under the lease, on the session holding it: whether another process already fired
     /// the window `now` falls in. `Ok(false)` without a PostgreSQL lease (one process).
-    async fn window_fired_elsewhere(&self, key: &str, now: DateTime<Utc>) -> Result<bool, String> {
+    async fn window_fired_elsewhere(
+        &self,
+        key: &str,
+        now: fraiseql_time::Timestamp,
+    ) -> Result<bool, String> {
         let expression = self.schedule.expr.expression.clone();
         let key = key.to_string();
         let last = self
@@ -179,7 +183,12 @@ impl ScheduledPoller {
             })
             .await
             .map_err(|e| e.to_string())?;
-        Ok(last.flatten().is_some_and(|last| {
+        let last = last
+            .flatten()
+            .map(fraiseql_time::Timestamp::try_from)
+            .transpose()
+            .map_err(|e| e.to_string())?;
+        Ok(last.is_some_and(|last| {
             matches!(
                 self.schedule.decide(&CronExecutionState::resuming_from(last), &now),
                 CronDecision::AlreadyFired { .. }
@@ -249,7 +258,7 @@ impl ScheduledPoller {
         let attempt = self
             .runner
             .run(|| async {
-                match self.window_fired_elsewhere(&key, now).await {
+                match self.window_fired_elsewhere(&key, at).await {
                     Ok(false) => {},
                     Ok(true) => return Window::FiredElsewhere,
                     Err(error) => return Window::Unread(error),
@@ -395,7 +404,7 @@ impl ScheduledPoller {
             kind = self.kind_label(),
             name = %self.name,
             schedule = %self.schedule.expr.expression,
-            timezone = %self.schedule.tz.name(),
+            timezone = %self.schedule.zone_name(),
             "scheduler started"
         );
         loop {
@@ -406,9 +415,7 @@ impl ScheduledPoller {
 
     /// One tick at `at`: fire when the schedule opens a window that has not fired.
     pub(crate) async fn tick(&mut self, at: fraiseql_time::Timestamp) -> Tick {
-        // The schedule's calendar is chrono's.
-        let now = DateTime::<Utc>::from(at);
-        match self.schedule.decide(&self.state, &now) {
+        match self.schedule.decide(&self.state, &at) {
             CronDecision::Fire => {},
             // The normal idle tick.
             CronDecision::NotDue => return Tick::NotDue,
@@ -429,7 +436,7 @@ impl ScheduledPoller {
                 return Tick::AlreadyFired;
             },
         }
-        self.state.record_execution(now);
+        self.state.record_execution(at);
         self.fire_once(at).await
     }
 }

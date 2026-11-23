@@ -803,11 +803,11 @@ fn test_cron_schedule_matches_exact_time() {
     let schedule = CronSchedule::parse("0 2 * * *").expect("parse cron");
 
     // 2024-03-15 02:00:00 UTC should match "0 2 * * *"
-    let matching_time = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:00:00+00:00")
-        .expect("parse datetime")
-        .with_timezone(&chrono::Utc);
+    let matching_time = "2024-03-15T02:00:00+00:00"
+        .parse::<fraiseql_time::Timestamp>()
+        .expect("parse datetime");
 
-    assert!(schedule.matches(&matching_time));
+    assert!(schedule.matches(wall(matching_time)));
 }
 
 /// Test: cron schedule does not match non-matching time
@@ -816,11 +816,11 @@ fn test_cron_schedule_does_not_match_wrong_hour() {
     let schedule = CronSchedule::parse("0 2 * * *").expect("parse cron");
 
     // 2024-03-15 03:00:00 UTC should NOT match "0 2 * * *"
-    let non_matching_time = chrono::DateTime::parse_from_rfc3339("2024-03-15T03:00:00+00:00")
-        .expect("parse datetime")
-        .with_timezone(&chrono::Utc);
+    let non_matching_time = "2024-03-15T03:00:00+00:00"
+        .parse::<fraiseql_time::Timestamp>()
+        .expect("parse datetime");
 
-    assert!(!schedule.matches(&non_matching_time));
+    assert!(!schedule.matches(wall(non_matching_time)));
 }
 
 /// Test: cron schedule matches on specific minutes
@@ -829,19 +829,13 @@ fn test_cron_schedule_matches_every_5_minutes() {
     let schedule = CronSchedule::parse("*/5 * * * *").expect("parse cron");
 
     // Should match at :00, :05, :10, :15, :20, etc.
-    let time_00 = chrono::DateTime::parse_from_rfc3339("2024-03-15T10:00:00+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
-    let time_05 = chrono::DateTime::parse_from_rfc3339("2024-03-15T10:05:00+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
-    let time_03 = chrono::DateTime::parse_from_rfc3339("2024-03-15T10:03:00+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let time_00 = "2024-03-15T10:00:00+00:00".parse::<fraiseql_time::Timestamp>().expect("parse");
+    let time_05 = "2024-03-15T10:05:00+00:00".parse::<fraiseql_time::Timestamp>().expect("parse");
+    let time_03 = "2024-03-15T10:03:00+00:00".parse::<fraiseql_time::Timestamp>().expect("parse");
 
-    assert!(schedule.matches(&time_00));
-    assert!(schedule.matches(&time_05));
-    assert!(!schedule.matches(&time_03));
+    assert!(schedule.matches(wall(time_00)));
+    assert!(schedule.matches(wall(time_05)));
+    assert!(!schedule.matches(wall(time_03)));
 }
 
 /// Test: cron trigger tracks last execution time
@@ -853,7 +847,7 @@ fn test_cron_trigger_tracks_last_execution() {
     assert!(state.last_executed.is_none());
 
     // Record an execution
-    let now = chrono::Utc::now();
+    let now = fraiseql_time::Timestamp::now();
     state.record_execution(now);
 
     assert_eq!(state.last_executed, Some(now));
@@ -866,9 +860,7 @@ fn test_cron_trigger_should_execute_first_time() {
     let state = CronExecutionState::new();
 
     // First execution time
-    let exec_time = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:00:00+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let exec_time = "2024-03-15T02:00:00+00:00".parse::<fraiseql_time::Timestamp>().expect("parse");
 
     // Should execute if no prior execution
     assert!(state.should_execute(&schedule, &exec_time));
@@ -889,9 +881,7 @@ fn test_cron_trigger_prevents_duplicate_in_window() {
     let schedule = CronSchedule::parse("0 2 * * *").expect("parse cron");
     let mut state = CronExecutionState::new();
 
-    let exec_time = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:00:03+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let exec_time = "2024-03-15T02:00:03+00:00".parse::<fraiseql_time::Timestamp>().expect("parse");
 
     // First execution succeeds
     assert!(state.should_execute(&schedule, &exec_time));
@@ -899,9 +889,8 @@ fn test_cron_trigger_prevents_duplicate_in_window() {
 
     // A second tick inside the same 02:00 window must be suppressed BY THE
     // WINDOW GUARD (not by the schedule simply not matching).
-    let within_window = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:00:52+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let within_window =
+        "2024-03-15T02:00:52+00:00".parse::<fraiseql_time::Timestamp>().expect("parse");
 
     match state.decide(&schedule, &within_window) {
         CronDecision::AlreadyFired {
@@ -916,9 +905,7 @@ fn test_cron_trigger_prevents_duplicate_in_window() {
 
     // 02:05 is NOT a duplicate-in-window case: the schedule does not match it
     // at all (this is the early return the pre-fix test mistook for the guard).
-    let not_due = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:05:00+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let not_due = "2024-03-15T02:05:00+00:00".parse::<fraiseql_time::Timestamp>().expect("parse");
     assert_eq!(state.decide(&schedule, &not_due), CronDecision::NotDue);
 }
 
@@ -929,17 +916,18 @@ fn test_cron_trigger_allows_next_window() {
     let mut state = CronExecutionState::new();
 
     // Execute at 2:00
-    let time_200 = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:00:00+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let time_200 = "2024-03-15T02:00:00+00:00".parse::<fraiseql_time::Timestamp>().expect("parse");
     assert!(state.should_execute(&schedule, &time_200));
     state.record_execution(time_200);
 
     // Execute at 3:00 (next hour)
-    let time_300 = chrono::DateTime::parse_from_rfc3339("2024-03-15T03:00:00+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let time_300 = "2024-03-15T03:00:00+00:00".parse::<fraiseql_time::Timestamp>().expect("parse");
     assert!(state.should_execute(&schedule, &time_300));
+}
+
+/// `at` on the UTC wall clock, as a schedule without a zone reads it.
+fn wall(at: fraiseql_time::Timestamp) -> fraiseql_time::jiff::civil::DateTime {
+    at.as_jiff().to_zoned(fraiseql_time::jiff::tz::TimeZone::UTC).datetime()
 }
 
 // ── #796: the fire-window guard under wall-clock-shaped timestamps ────────────
@@ -965,7 +953,7 @@ fn next_jitter_micros(rng: &mut u64) -> i64 {
 /// the jitter-free minute, so this measures ONLY the window logic).
 fn simulate_cron_fires(
     expr: &str,
-    start: chrono::DateTime<chrono::Utc>,
+    start: fraiseql_time::Timestamp,
     ticks: usize,
     seed: u64,
 ) -> (usize, usize) {
@@ -975,11 +963,15 @@ fn simulate_cron_fires(
     let mut fires = 0;
     let mut expected = 0;
     for n in 0..ticks {
-        let minute = start + chrono::Duration::minutes(i64::try_from(n).expect("tick fits i64"));
-        if schedule.matches(&minute) {
+        let minute = start
+            + fraiseql_time::jiff::SignedDuration::from_mins(
+                i64::try_from(n).expect("tick fits i64"),
+            );
+        if schedule.matches(wall(minute)) {
             expected += 1;
         }
-        let now = minute + chrono::Duration::microseconds(next_jitter_micros(&mut rng));
+        let now =
+            minute + fraiseql_time::jiff::SignedDuration::from_micros(next_jitter_micros(&mut rng));
         if state.should_execute(&schedule, &now) {
             state.record_execution(now);
             fires += 1;
@@ -992,9 +984,7 @@ fn simulate_cron_fires(
 /// across thousands of jittered ticks (the issue's simulator, ported).
 #[test]
 fn test_cron_fires_exactly_once_per_window_under_wall_clock_jitter() {
-    let start = chrono::DateTime::parse_from_rfc3339("2026-01-01T00:00:00+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let start = "2026-01-01T00:00:00+00:00".parse::<fraiseql_time::Timestamp>().expect("parse");
     // 20 000 minutes ≈ 13.9 days: enough for 14 daily windows and 2 weekly ones.
     for expr in [
         "* * * * *",
@@ -1023,15 +1013,15 @@ fn test_cron_daily_schedule_fires_on_consecutive_days_with_jitter() {
     let schedule = CronSchedule::parse("0 2 * * *").expect("parse cron");
     let mut state = CronExecutionState::new();
 
-    let day1 = chrono::DateTime::parse_from_rfc3339("2026-03-01T02:00:07.312+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let day1 = "2026-03-01T02:00:07.312+00:00"
+        .parse::<fraiseql_time::Timestamp>()
+        .expect("parse");
     assert!(state.should_execute(&schedule, &day1), "first firing");
     state.record_execution(day1);
 
-    let day2 = chrono::DateTime::parse_from_rfc3339("2026-03-02T02:00:07.905+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let day2 = "2026-03-02T02:00:07.905+00:00"
+        .parse::<fraiseql_time::Timestamp>()
+        .expect("parse");
     assert!(
         state.should_execute(&schedule, &day2),
         "a new day is a new window: yesterday's firing must not suppress today's"
@@ -1046,15 +1036,15 @@ fn test_cron_minutely_schedule_fires_next_minute_when_jitter_increases() {
     let schedule = CronSchedule::parse("* * * * *").expect("parse cron");
     let mut state = CronExecutionState::new();
 
-    let tick1 = chrono::DateTime::parse_from_rfc3339("2026-03-01T12:00:00.100+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let tick1 = "2026-03-01T12:00:00.100+00:00"
+        .parse::<fraiseql_time::Timestamp>()
+        .expect("parse");
     assert!(state.should_execute(&schedule, &tick1));
     state.record_execution(tick1);
 
-    let tick2 = chrono::DateTime::parse_from_rfc3339("2026-03-01T12:01:00.900+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let tick2 = "2026-03-01T12:01:00.900+00:00"
+        .parse::<fraiseql_time::Timestamp>()
+        .expect("parse");
     assert!(
         state.should_execute(&schedule, &tick2),
         "12:01 is a new window regardless of sub-second jitter ordering"
@@ -1073,15 +1063,15 @@ fn test_cron_does_not_double_fire_within_one_window_with_nonzero_seconds() {
     let schedule = CronSchedule::parse("0 2 * * *").expect("parse cron");
     let mut state = CronExecutionState::new();
 
-    let first = chrono::DateTime::parse_from_rfc3339("2026-03-01T02:00:07.300+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let first = "2026-03-01T02:00:07.300+00:00"
+        .parse::<fraiseql_time::Timestamp>()
+        .expect("parse");
     assert!(state.should_execute(&schedule, &first));
     state.record_execution(first);
 
-    let again = chrono::DateTime::parse_from_rfc3339("2026-03-01T02:00:41.900+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let again = "2026-03-01T02:00:41.900+00:00"
+        .parse::<fraiseql_time::Timestamp>()
+        .expect("parse");
     assert!(
         !state.should_execute(&schedule, &again),
         "02:00:41 is the same 02:00 window — already fired"
@@ -1096,15 +1086,15 @@ fn test_cron_fires_after_gap_longer_than_an_hour() {
     let schedule = CronSchedule::parse("0 */3 * * *").expect("parse cron");
     let mut state = CronExecutionState::new();
 
-    let first = chrono::DateTime::parse_from_rfc3339("2026-03-01T03:00:30.500+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let first = "2026-03-01T03:00:30.500+00:00"
+        .parse::<fraiseql_time::Timestamp>()
+        .expect("parse");
     assert!(state.should_execute(&schedule, &first));
     state.record_execution(first);
 
-    let three_hours_later = chrono::DateTime::parse_from_rfc3339("2026-03-01T06:00:10.200+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let three_hours_later = "2026-03-01T06:00:10.200+00:00"
+        .parse::<fraiseql_time::Timestamp>()
+        .expect("parse");
     assert!(
         state.should_execute(&schedule, &three_hours_later),
         "06:00 is a new window three hours after the 03:00 firing"
@@ -1119,10 +1109,10 @@ fn test_cron_fires_after_gap_longer_than_an_hour() {
 // day early and making `0` unmatchable.
 
 /// 09:00 UTC on 2026-08-`day` (2..=8 spans Sunday..Saturday).
-fn august_2026_at_nine(day: u32) -> chrono::DateTime<chrono::Utc> {
-    chrono::DateTime::parse_from_rfc3339(&format!("2026-08-{day:02}T09:00:00+00:00"))
+fn august_2026_at_nine(day: u32) -> fraiseql_time::Timestamp {
+    format!("2026-08-{day:02}T09:00:00+00:00")
+        .parse::<fraiseql_time::Timestamp>()
         .expect("parse")
-        .with_timezone(&chrono::Utc)
 }
 
 /// Test: #841 — each weekday token 0..=6 matches exactly its own POSIX day.
@@ -1135,10 +1125,10 @@ fn test_cron_weekday_tokens_match_posix_days() {
         for day in 2..=8_u32 {
             let time = august_2026_at_nine(day);
             assert_eq!(
-                schedule.matches(&time),
+                schedule.matches(wall(time)),
                 day == matching_day,
-                "`0 9 * * {token}` on 2026-08-{day:02} ({})",
-                time.format("%A")
+                "`0 9 * * {token}` on 2026-08-{day:02} ({:?})",
+                wall(time).weekday()
             );
         }
     }
@@ -1148,9 +1138,9 @@ fn test_cron_weekday_tokens_match_posix_days() {
 #[test]
 fn test_cron_weekday_seven_is_sunday() {
     let schedule = CronSchedule::parse("0 9 * * 7").expect("parse weekday cron");
-    assert!(schedule.matches(&august_2026_at_nine(2)), "7 must match Sunday");
+    assert!(schedule.matches(wall(august_2026_at_nine(2))), "7 must match Sunday");
     for day in 3..=8_u32 {
-        assert!(!schedule.matches(&august_2026_at_nine(day)), "7 must match only Sunday");
+        assert!(!schedule.matches(wall(august_2026_at_nine(day))), "7 must match only Sunday");
     }
 }
 
@@ -1171,10 +1161,10 @@ fn test_cron_weekday_range_mon_to_fri() {
     for (day, expected) in expectations {
         let time = august_2026_at_nine(day);
         assert_eq!(
-            schedule.matches(&time),
+            schedule.matches(wall(time)),
             expected,
-            "`0 9 * * 1-5` on 2026-08-{day:02} ({})",
-            time.format("%A")
+            "`0 9 * * 1-5` on 2026-08-{day:02} ({:?})",
+            wall(time).weekday()
         );
     }
 }
@@ -1186,13 +1176,10 @@ fn test_cron_trigger_catches_up_missed_executions() {
     let state = CronExecutionState::new();
 
     // Server was down from 2:00 to 3:00, now it's 3:30
-    let last_known = chrono::DateTime::parse_from_rfc3339("2024-03-15T01:00:00+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let last_known =
+        "2024-03-15T01:00:00+00:00".parse::<fraiseql_time::Timestamp>().expect("parse");
 
-    let now = chrono::DateTime::parse_from_rfc3339("2024-03-15T03:30:00+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let now = "2024-03-15T03:30:00+00:00".parse::<fraiseql_time::Timestamp>().expect("parse");
 
     let missed = state.find_missed_executions(&schedule, &last_known, &now);
 
@@ -1209,9 +1196,7 @@ fn test_cron_trigger_payload_includes_schedule_info() {
         timezone:      "UTC".to_string(),
     };
 
-    let exec_time = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:00:00+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let exec_time = "2024-03-15T02:00:00+00:00".parse::<fraiseql_time::Timestamp>().expect("parse");
 
     let payload = trigger.build_payload(&exec_time);
 
@@ -1231,9 +1216,7 @@ fn test_cron_trigger_payload_includes_execution_time() {
         timezone:      "UTC".to_string(),
     };
 
-    let exec_time = chrono::DateTime::parse_from_rfc3339("2024-03-15T14:00:00+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let exec_time = "2024-03-15T14:00:00+00:00".parse::<fraiseql_time::Timestamp>().expect("parse");
 
     let payload = trigger.build_payload(&exec_time);
 
@@ -1275,9 +1258,7 @@ fn test_cron_trigger_serialization() {
 #[test]
 fn test_cron_execution_state_serialization() {
     let mut state = CronExecutionState::new();
-    let exec_time = chrono::DateTime::parse_from_rfc3339("2024-03-15T02:00:00+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let exec_time = "2024-03-15T02:00:00+00:00".parse::<fraiseql_time::Timestamp>().expect("parse");
     state.record_execution(exec_time);
 
     let json = serde_json::to_string(&state).expect("serialize");
@@ -1739,12 +1720,16 @@ fn test_cron_accepts_every_field_at_its_bounds() {
 // ── Cron in a timezone (#1658) ───────────────────────────────────────────────
 
 mod cron_in_a_timezone {
-    use chrono::{DateTime, TimeZone as _, Utc};
+    use fraiseql_time::{
+        Timestamp,
+        jiff::{civil::date, tz::TimeZone},
+    };
 
     use crate::triggers::cron::{CronDecision, CronExecutionState, Schedule};
 
-    fn utc(y: i32, mo: u32, d: u32, h: u32, mi: u32) -> DateTime<Utc> {
-        Utc.with_ymd_and_hms(y, mo, d, h, mi, 0).single().expect("a valid UTC instant")
+    fn utc(y: i16, mo: i8, d: i8, h: i8, mi: i8) -> Timestamp {
+        let at = date(y, mo, d).at(h, mi, 0, 0).to_zoned(TimeZone::UTC);
+        Timestamp::from(at.expect("a valid UTC instant").timestamp())
     }
 
     fn paris(expression: &str) -> Schedule {
@@ -1752,7 +1737,7 @@ mod cron_in_a_timezone {
     }
 
     /// The minutes in `[from, to)` at which `schedule` fires, recording each fire.
-    fn fires(schedule: &Schedule, from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<DateTime<Utc>> {
+    fn fires(schedule: &Schedule, from: Timestamp, to: Timestamp) -> Vec<Timestamp> {
         let mut state = CronExecutionState::new();
         let mut fired = Vec::new();
         let mut now = from;
@@ -1761,7 +1746,7 @@ mod cron_in_a_timezone {
                 state.record_execution(now);
                 fired.push(now);
             }
-            now += chrono::Duration::minutes(1);
+            now += fraiseql_time::jiff::SignedDuration::from_mins(1);
         }
         fired
     }

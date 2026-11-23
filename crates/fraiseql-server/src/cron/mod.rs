@@ -138,10 +138,13 @@ impl PgCronState {
         function_name: &str,
         cron_expr: &str,
     ) -> Result<CronExecutionState, sqlx::Error> {
-        Ok(self
+        let last = self
             .load_last_fired(function_name, cron_expr)
             .await?
-            .map_or_else(CronExecutionState::new, CronExecutionState::resuming_from))
+            .map(fraiseql_time::Timestamp::try_from)
+            .transpose()
+            .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+        Ok(last.map_or_else(CronExecutionState::new, CronExecutionState::resuming_from))
     }
 
     /// Record one firing: upsert `last_fired_at` and bump `fire_count`.

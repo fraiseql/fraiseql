@@ -15,7 +15,14 @@
 //! - `*/5 * * * *` - Every 5 minutes
 //! - `0 0 1 * *` - First day of every month
 
-use chrono::{Datelike, Timelike};
+use fraiseql_time::{
+    Timestamp,
+    jiff::{
+        SignedDuration,
+        civil::DateTime,
+        tz::{AmbiguousOffset, TimeZone},
+    },
+};
 use serde::{Deserialize, Serialize};
 
 use crate::types::EventPayload;
@@ -206,19 +213,20 @@ impl CronSchedule {
         !self.minute.is_wildcard() && !self.hour.is_wildcard()
     }
 
-    /// Check if a given date and time (in whatever zone it is expressed) matches this
+    /// Check if a wall-clock date and time (in whatever zone it is read) matches this
     /// cron schedule.
     #[must_use]
-    pub fn matches<T: Datelike + Timelike>(&self, datetime: &T) -> bool {
-        let minute = datetime.minute();
-        let hour = datetime.hour();
-        let day = datetime.day();
-        let month = datetime.month();
+    pub fn matches(&self, datetime: DateTime) -> bool {
+        let field = |value: i8| u32::try_from(value).unwrap_or(u32::MAX);
+        let minute = field(datetime.minute());
+        let hour = field(datetime.hour());
+        let day = field(datetime.day());
+        let month = field(datetime.month());
         // POSIX cron weekdays are 0=Sunday..6=Saturday (#841 shipped
         // `number_from_sunday()`, which is 1..=7, firing everything a day
         // early and making `0` unmatchable). `7` is the POSIX alternate
         // Sunday encoding, so a Sunday also matches a field containing 7.
-        let weekday = datetime.weekday().num_days_from_sunday();
+        let weekday = field(datetime.weekday().to_sunday_zero_offset());
         let weekday_matches =
             self.weekday.matches(weekday) || (weekday == 0 && self.weekday.matches(7));
 
@@ -246,7 +254,12 @@ pub struct Schedule {
     /// The cron expression.
     pub expr: CronSchedule,
     /// The timezone whose wall clock the expression is read on.
-    pub tz:   chrono_tz::Tz,
+    pub tz:   TimeZone,
+}
+
+/// `at` on the UTC wall clock.
+fn utc_wall_clock(at: Timestamp) -> DateTime {
+    at.as_jiff().to_zoned(TimeZone::UTC).datetime()
 }
 
 impl Schedule {
@@ -258,10 +271,18 @@ impl Schedule {
     /// name.
     pub fn parse(expression: &str, timezone: Option<&str>) -> Result<Self, String> {
         let tz = match timezone {
-            None => chrono_tz::Tz::UTC,
-            Some(name) => name.parse().map_err(|_| {
-                format!("unknown timezone {name:?}: expected an IANA name such as \"Europe/Paris\"")
-            })?,
+            None => TimeZone::UTC,
+            // Named exactly, as the IANA database spells it: the lookup alone also takes
+            // another case. `Factory` is the database's placeholder for a host whose zone
+            // was never set, not a place, and is refused with the unknown names.
+            Some(name) => TimeZone::get(name)
+                .ok()
+                .filter(|tz| tz.iana_name() == Some(name) && name != "Factory")
+                .ok_or_else(|| {
+                    format!(
+                        "unknown timezone {name:?}: expected an IANA name such as \"Europe/Paris\""
+                    )
+                })?,
         };
         Ok(Self {
             expr: CronSchedule::parse(expression)?,
@@ -269,13 +290,15 @@ impl Schedule {
         })
     }
 
+    /// The IANA name of the zone the expression is read in, as it was given.
+    #[must_use]
+    pub fn zone_name(&self) -> &str {
+        self.tz.iana_name().unwrap_or("UTC")
+    }
+
     /// Decide whether the tick at `now` fires, given what `state` last fired.
     #[must_use]
-    pub fn decide(
-        &self,
-        state: &CronExecutionState,
-        now: &chrono::DateTime<chrono::Utc>,
-    ) -> CronDecision {
+    pub fn decide(&self, state: &CronExecutionState, now: &Timestamp) -> CronDecision {
         if self.is_due(now) {
             state.decide_window(now)
         } else {
@@ -283,41 +306,39 @@ impl Schedule {
         }
     }
 
-    fn is_due(&self, now: &chrono::DateTime<chrono::Utc>) -> bool {
-        let local = now.with_timezone(&self.tz).naive_local();
+    fn is_due(&self, now: &Timestamp) -> bool {
+        let local = self.wall_clock(*now);
         if !self.expr.is_fixed_time() {
-            return self.expr.matches(&local);
+            return self.expr.matches(local);
         }
-        if self.is_second_pass(now, &local) {
+        if self.is_second_pass(*now, local) {
             return false;
         }
-        self.expr.matches(&local)
-            || self.skipped_minutes(now, &local).any(|m| self.expr.matches(&m))
+        self.expr.matches(local) || self.skipped_minutes(*now, local).any(|m| self.expr.matches(m))
+    }
+
+    /// `at` on the zone's wall clock.
+    fn wall_clock(&self, at: Timestamp) -> DateTime {
+        at.as_jiff().to_zoned(self.tz.clone()).datetime()
     }
 
     /// Whether `now` is the second occurrence of the local time `local`.
-    fn is_second_pass(
-        &self,
-        now: &chrono::DateTime<chrono::Utc>,
-        local: &chrono::NaiveDateTime,
-    ) -> bool {
-        use chrono::TimeZone as _;
-        match self.tz.from_local_datetime(local) {
-            chrono::LocalResult::Ambiguous(first, _) => first < *now,
-            chrono::LocalResult::Single(_) | chrono::LocalResult::None => false,
+    fn is_second_pass(&self, now: Timestamp, local: DateTime) -> bool {
+        let ambiguous = self.tz.to_ambiguous_timestamp(local);
+        match ambiguous.offset() {
+            AmbiguousOffset::Fold { .. } => {
+                ambiguous.earlier().is_ok_and(|first| first < now.as_jiff())
+            },
+            AmbiguousOffset::Unambiguous { .. } | AmbiguousOffset::Gap { .. } => false,
         }
     }
 
     /// The local minutes the clocks skipped since the previous tick, a minute ago.
-    fn skipped_minutes(
-        &self,
-        now: &chrono::DateTime<chrono::Utc>,
-        local: &chrono::NaiveDateTime,
-    ) -> impl Iterator<Item = chrono::NaiveDateTime> {
-        let minute = chrono::Duration::minutes(1);
-        let previous = (*now - minute).with_timezone(&self.tz).naive_local();
-        let local = *local;
-        std::iter::successors(Some(previous + minute), move |m| Some(*m + minute))
+    fn skipped_minutes(&self, now: Timestamp, local: DateTime) -> impl Iterator<Item = DateTime> {
+        let minute = SignedDuration::from_mins(1);
+        let previous = now.checked_sub(minute).map(|p| self.wall_clock(p));
+        let next = move |m: &DateTime| m.checked_add(minute).ok();
+        std::iter::successors(previous.as_ref().and_then(next), next)
             .take_while(move |m| *m < local)
     }
 }
@@ -338,9 +359,9 @@ pub enum CronDecision {
     /// (e.g. after a restart restores persisted state mid-window).
     AlreadyFired {
         /// Start of the window containing the tick (its minute, truncated).
-        window_start:  chrono::DateTime<chrono::Utc>,
+        window_start:  Timestamp,
         /// When the window fired.
-        last_executed: chrono::DateTime<chrono::Utc>,
+        last_executed: Timestamp,
     },
 }
 
@@ -348,7 +369,7 @@ pub enum CronDecision {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CronExecutionState {
     /// Last time this trigger was executed.
-    pub last_executed: Option<chrono::DateTime<chrono::Utc>>,
+    pub last_executed: Option<Timestamp>,
 }
 
 impl CronExecutionState {
@@ -362,7 +383,7 @@ impl CronExecutionState {
     /// `_fraiseql_cron_state` cross-restart guard): a restart inside an
     /// already-fired window must not re-fire it.
     #[must_use]
-    pub const fn resuming_from(last_executed: chrono::DateTime<chrono::Utc>) -> Self {
+    pub const fn resuming_from(last_executed: Timestamp) -> Self {
         Self {
             last_executed: Some(last_executed),
         }
@@ -374,11 +395,7 @@ impl CronExecutionState {
     /// the schedule matches `exec_time` and no execution has occurred in the
     /// window containing it.
     #[must_use]
-    pub fn should_execute(
-        &self,
-        schedule: &CronSchedule,
-        exec_time: &chrono::DateTime<chrono::Utc>,
-    ) -> bool {
+    pub fn should_execute(&self, schedule: &CronSchedule, exec_time: &Timestamp) -> bool {
         self.decide(schedule, exec_time) == CronDecision::Fire
     }
 
@@ -391,20 +408,16 @@ impl CronExecutionState {
     /// never the reverse (#796 shipped the negation and every schedule fired
     /// once, then never again).
     #[must_use]
-    pub fn decide(
-        &self,
-        schedule: &CronSchedule,
-        exec_time: &chrono::DateTime<chrono::Utc>,
-    ) -> CronDecision {
+    pub fn decide(&self, schedule: &CronSchedule, exec_time: &Timestamp) -> CronDecision {
         // Schedule must match the execution time
-        if !schedule.matches(exec_time) {
+        if !schedule.matches(utc_wall_clock(*exec_time)) {
             return CronDecision::NotDue;
         }
         self.decide_window(exec_time)
     }
 
     /// Decide a tick the schedule is due at: it fires unless its window already did.
-    fn decide_window(&self, exec_time: &chrono::DateTime<chrono::Utc>) -> CronDecision {
+    fn decide_window(&self, exec_time: &Timestamp) -> CronDecision {
         // If no prior execution, always execute
         let Some(last_executed) = self.last_executed else {
             return CronDecision::Fire;
@@ -431,14 +444,21 @@ impl CronExecutionState {
     ///
     /// Truncation never moves the instant across a minute boundary, so the window
     /// start is due exactly when the tick is.
-    fn find_schedule_window(time: &chrono::DateTime<chrono::Utc>) -> chrono::DateTime<chrono::Utc> {
-        // Truncating seconds + nanos to zero cannot fail.
-        time.with_second(0).and_then(|t| t.with_nanosecond(0)).unwrap_or(*time)
+    fn find_schedule_window(time: &Timestamp) -> Timestamp {
+        // On the UTC wall clock, so an instant before 1970 starts its own minute too.
+        // Truncating seconds and their fraction to zero cannot fail.
+        utc_wall_clock(*time)
+            .with()
+            .second(0)
+            .subsec_nanosecond(0)
+            .build()
+            .and_then(|start| start.to_zoned(TimeZone::UTC))
+            .map_or(*time, |start| Timestamp::from(start.timestamp()))
     }
 
     /// Record an execution at the given time.
     #[allow(clippy::missing_const_for_fn)] // Reason: takes &mut self, cannot be const
-    pub fn record_execution(&mut self, time: chrono::DateTime<chrono::Utc>) {
+    pub fn record_execution(&mut self, time: Timestamp) {
         self.last_executed = Some(time);
     }
 
@@ -449,25 +469,45 @@ impl CronExecutionState {
     pub fn find_missed_executions(
         &self,
         schedule: &CronSchedule,
-        since: &chrono::DateTime<chrono::Utc>,
-        until: &chrono::DateTime<chrono::Utc>,
-    ) -> Vec<chrono::DateTime<chrono::Utc>> {
+        since: &Timestamp,
+        until: &Timestamp,
+    ) -> Vec<Timestamp> {
         let mut missed = Vec::new();
         // Start scanning from the minute AFTER since
-        let mut current = *since + chrono::Duration::minutes(1);
+        let minute = SignedDuration::from_mins(1);
+        let mut current = *since + minute;
 
         // Scan minute by minute (more fine-grained to catch all matches)
         while current < *until {
-            if schedule.matches(&current) {
+            if schedule.matches(utc_wall_clock(current)) {
                 missed.push(current);
             }
 
             // Always advance to next minute
-            current += chrono::Duration::minutes(1);
+            current += minute;
         }
 
         missed
     }
+}
+
+/// `at`'s whole second in UTC, `2024-03-15T02:00:59Z`: a fraction is dropped, not rounded.
+fn whole_second_utc(at: Timestamp) -> String {
+    let t = utc_wall_clock(at);
+    let year = t.year();
+    let year = if year < 0 {
+        format!("-{:04}", -year)
+    } else {
+        format!("{year:04}")
+    };
+    format!(
+        "{year}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        t.month(),
+        t.day(),
+        t.hour(),
+        t.minute(),
+        t.second()
+    )
 }
 
 /// A trigger that fires on a cron schedule.
@@ -484,13 +524,13 @@ pub struct CronTrigger {
 impl CronTrigger {
     /// Build an `EventPayload` from a cron execution.
     #[must_use]
-    pub fn build_payload(&self, exec_time: &chrono::DateTime<chrono::Utc>) -> EventPayload {
+    pub fn build_payload(&self, exec_time: &Timestamp) -> EventPayload {
         let trigger_type = format!("cron:{}", self.function_name);
 
         let data = serde_json::json!({
             "schedule": self.schedule,
             "timezone": self.timezone,
-            "executed_at": exec_time.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            "executed_at": whole_second_utc(*exec_time),
         });
 
         EventPayload {
@@ -502,3 +542,7 @@ impl CronTrigger {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "cron_time_tests.rs"]
+mod time_tests;
