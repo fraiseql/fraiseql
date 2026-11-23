@@ -2643,6 +2643,10 @@ async fn a_decimal_reaches_the_client_with_its_digits() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// The embedder seam over tokens from a real issuer and a real store of ended sessions.
+///
+/// Auth-only: the seam takes a validator, a session store and the identity argument,
+/// none of which a build without `auth` has.
+#[cfg(feature = "auth")]
 mod refusal_cells {
     use fraiseql_core::security::{OidcConfig, OidcValidator};
     use fraiseql_server::token_revocation::{
