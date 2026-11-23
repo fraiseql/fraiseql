@@ -7,6 +7,7 @@ mod introspector;
 mod notify;
 mod server_version;
 mod tls;
+mod tview_stats;
 mod where_generator;
 
 #[cfg(feature = "test-postgres")]

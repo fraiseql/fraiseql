@@ -2313,6 +2313,11 @@ impl DatabaseAdapter for PostgresAdapter {
         crate::postgres::introspector::query_tview_profiles(&client, sources).await
     }
 
+    async fn tview_stats(&self, sources: &[String]) -> Result<crate::traits::TviewStatsReading> {
+        let client = self.acquire_connection_with_retry().await?;
+        crate::postgres::tview_stats::query_tview_stats(&client, sources).await
+    }
+
     async fn schema_storage_bytes(&self, schema: &str) -> Result<Option<u64>> {
         let client = self.acquire_connection_with_retry().await?;
         // Tables and materialized views only: `pg_total_relation_size` already counts a

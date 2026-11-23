@@ -974,6 +974,21 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
         Ok(Vec::new())
     }
 
+    /// The refresh counters of every TVIEW one of `sources` reads, from
+    /// `tviews.stats`, selected as [`Self::tview_profiles`] selects them.
+    /// [`TviewStatsReading::Unavailable`] when the database cannot serve the view: no
+    /// `pg_tviews`, one older than the view, or a library not preloaded.
+    ///
+    /// The default reads none. **A wrapping adapter must forward this**, or `/metrics`
+    /// loses the TVIEW counters in silence.
+    ///
+    /// # Errors
+    ///
+    /// The database errors of the read, other than the view being unavailable.
+    async fn tview_stats(&self, _sources: &[String]) -> Result<TviewStatsReading> {
+        Ok(TviewStatsReading::Read(Vec::new()))
+    }
+
     /// The bytes schema `schema` occupies (#633): every table and materialized view in it,
     /// their indexes and TOAST included. `None` from an adapter that cannot measure it.
     ///
@@ -1626,4 +1641,49 @@ pub struct TviewProfile {
     pub n_tup_hot_upd: Option<i64>,
     /// `pg_tviews`' advice for it; empty when it has none.
     pub warnings:      Vec<String>,
+}
+
+/// One TVIEW's refresh counters, from `tviews.stats`.
+///
+/// Cumulative since the server started or the TVIEW's counters were reset. Every counter
+/// is `None` when the TVIEW is [`untracked`](Self::untracked).
+#[derive(Debug, Clone, PartialEq)]
+pub struct TviewStats {
+    /// The schema-qualified `tv_*` table, as [`TviewProfile::tview`] names it.
+    pub tview:              String,
+    /// Rows recomputed from the backing view.
+    pub view_recomputes:    Option<i64>,
+    /// Refreshes skipped because the row already held the result.
+    pub noop_skipped:       Option<i64>,
+    /// Direct patches captured.
+    pub patch_captured:     Option<i64>,
+    /// Direct patches applied.
+    pub patch_applied:      Option<i64>,
+    /// Direct patches that fell back to a recompute.
+    pub patch_fallbacks:    Option<i64>,
+    /// Parent lookups skipped because the child row did not change.
+    pub propagation_pruned: Option<i64>,
+    /// TVIEW rows inserted or updated by a refresh.
+    pub rows_written:       Option<i64>,
+    /// TVIEW rows deleted by a refresh.
+    pub rows_deleted:       Option<i64>,
+    /// Whole-TVIEW refreshes.
+    pub full_refreshes:     Option<i64>,
+    /// Milliseconds spent refreshing the TVIEW.
+    pub refresh_ms:         Option<f64>,
+    /// When the counters started, in seconds since the Unix epoch.
+    pub stats_reset:        Option<f64>,
+    /// `pg_tviews`' shared table was full when the TVIEW first refreshed: nothing is
+    /// counted for it.
+    pub untracked:          bool,
+}
+
+/// What reading `tviews.stats` gave.
+#[derive(Debug, Clone, PartialEq)]
+pub enum TviewStatsReading {
+    /// The counters of each TVIEW the sources read; empty when they read none.
+    Read(Vec<TviewStats>),
+    /// The database cannot serve `tviews.stats`: no `pg_tviews`, one older than the view,
+    /// or a library not preloaded.
+    Unavailable,
 }

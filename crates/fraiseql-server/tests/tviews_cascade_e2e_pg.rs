@@ -27,6 +27,9 @@ const AUTHOR: &str = "00000000-0000-0000-0000-0000000013a1";
 /// A second author's post: deleted by `deletePost`, renamed with the first by `renamePosts`.
 const OTHER_POST: &str = "00000000-0000-0000-0000-000000001392";
 
+#[path = "tviews_cascade_e2e_pg/stats_metrics.rs"]
+mod stats_metrics;
+
 fn tviews_database_url() -> Option<String> {
     std::env::var("TVIEWS_DATABASE_URL").ok().filter(|u| !u.is_empty())
 }

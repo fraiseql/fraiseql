@@ -165,9 +165,30 @@ and the alternative is a structural column of the TVIEW.
 The server reports the same TVIEWs on `/metrics`, labelled by TVIEW:
 `fraiseql_tview_hot_ratio`, `fraiseql_tview_dead_tuples`, `fraiseql_tview_updates`,
 `fraiseql_tview_hot_updates` and `fraiseql_tview_warnings` (the number of pieces of advice).
-The profile reads catalogs only (about 5 ms for two TVIEWs on PostgreSQL 18). pg_tviews'
-per-refresh counters (`view_recomputes`, `refresh_noop_skipped`, direct patches) are kept
-per database session, so a pooled server cannot report them per TVIEW and does not.
+The profile reads catalogs only (about 5 ms for two TVIEWs on PostgreSQL 18).
+
+The same TVIEWs report their refresh counters from `tviews.stats` (#1551), with the same
+label, so the two series join on `tview`. Each is a counter, cumulative since the database
+server started or the TVIEW's counters were reset (`tviews.pg_tviews_reset_stats`):
+
+| Metric | `tviews.stats` column |
+|---|---|
+| `fraiseql_tview_view_recomputes_total` | `view_recomputes` |
+| `fraiseql_tview_noop_skipped_total` | `noop_skipped` |
+| `fraiseql_tview_patch_captured_total`, `_patch_applied_total`, `_patch_fallbacks_total` | the direct-patch columns |
+| `fraiseql_tview_propagation_pruned_total` | `propagation_pruned` |
+| `fraiseql_tview_rows_written_total`, `fraiseql_tview_rows_deleted_total` | `rows_written`, `rows_deleted` |
+| `fraiseql_tview_full_refreshes_total` | `full_refreshes` |
+| `fraiseql_tview_refresh_seconds_total` | `refresh_ms`, in seconds |
+
+`fraiseql_tview_stats_reset_timestamp_seconds` says when a TVIEW's counters started, and
+`fraiseql_tview_stats_untracked` is 1 for a TVIEW pg_tviews counts nothing for (its
+statistics table was full); such a TVIEW reports no counter rather than zeros.
+
+`tviews.stats` needs `shared_preload_libraries = 'pg_tviews'`. When the schema reads a
+TVIEW, `fraiseql_tview_stats_available` is 1 when the database serves the view and 0 when
+it does not (pg_tviews not preloaded, or a release older than the view); with 0 the health
+series above are still reported, and no counter is.
 
 ## Suggested CI usage
 

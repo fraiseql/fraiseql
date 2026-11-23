@@ -1010,6 +1010,10 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.adapter.tview_profiles(sources).await
     }
 
+    async fn tview_stats(&self, sources: &[String]) -> Result<fraiseql_db::TviewStatsReading> {
+        self.adapter.tview_stats(sources).await
+    }
+
     async fn schema_storage_bytes(&self, schema: &str) -> Result<Option<u64>> {
         self.adapter.schema_storage_bytes(schema).await
     }

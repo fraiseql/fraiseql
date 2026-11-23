@@ -1025,6 +1025,16 @@ impl Executor {
         self.ctx.adapter.tview_profiles(&self.ctx.schema.read_sources()).await
     }
 
+    /// The refresh counters of every TVIEW this schema reads, from `tviews.stats`,
+    /// for the server's `/metrics`: the TVIEWs [`Self::tview_profiles`] reports.
+    ///
+    /// # Errors
+    ///
+    /// The database errors of the read, other than the view being unavailable.
+    pub async fn tview_stats(&self) -> Result<crate::backend::TviewStatsReading> {
+        self.ctx.adapter.tview_stats(&self.ctx.schema.read_sources()).await
+    }
+
     /// The bytes `schema_name` occupies on this executor's database (#633), for a tenant's
     /// storage quota. `None` when the backend cannot measure it.
     ///

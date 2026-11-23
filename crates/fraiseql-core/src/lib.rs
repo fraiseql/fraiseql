@@ -135,10 +135,12 @@ pub mod db {
         // The traits a transport bounds on, and the types that appear in those bounds.
         // `ResultCacheStats` is here as the return type of `Executor::result_cache_stats`,
         // not as a way to reach the cache: the executor mediates every operation on it.
-        // `TviewProfile` likewise, the return type of `Executor::tview_profiles` (#1392).
+        // `TviewProfile` likewise, the return type of `Executor::tview_profiles` (#1392), and
+        // `TviewStatsReading` with its rows, of `Executor::tview_stats`.
         traits::{
             self, ArcDatabaseAdapter, CursorValue, DatabaseAdapter, RelayCursor,
-            RelayDatabaseAdapter, ResultCacheStats, TviewProfile, WriteMode, WriteRequest, Writer,
+            RelayDatabaseAdapter, ResultCacheStats, TviewProfile, TviewStats, TviewStatsReading,
+            WriteMode, WriteRequest, Writer,
         },
         // The function-dispatch ledger's values: what an after-mutation observer
         // stages, and what the executor's sweep methods hand back; its DDL is what the

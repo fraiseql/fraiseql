@@ -96,8 +96,8 @@ pub use traits::{
     DueDispatch, EmbedShape, EmbedSource, FUNCTION_DISPATCH_LEDGER_DDL, FUNCTION_DISPATCH_TABLE,
     JsonTally, JsonbRowStream, LevelKeys, MutationRowGate, NativeCorrelation, PendingDispatch,
     ProjectionRequest, RawRow, RawRows, RelayCursor, RelayDatabaseAdapter, RelayPageResult,
-    ResultCacheStats, ScalarKind, TviewProfile, WriteMode, WriteRequest, Writer, compact_json,
-    composed_read_unsupported, dispatch_ledger_unsupported,
+    ResultCacheStats, ScalarKind, TviewProfile, TviewStats, TviewStatsReading, WriteMode,
+    WriteRequest, Writer, compact_json, composed_read_unsupported, dispatch_ledger_unsupported,
 };
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,

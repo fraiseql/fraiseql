@@ -1149,6 +1149,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`/metrics` reports the refresh counters of each TVIEW the schema reads (#1551).**
+  From pg_tviews' `tviews.stats`, for the TVIEWs the #1392 health gauges report and with
+  their `tview` label: `fraiseql_tview_view_recomputes_total`, `_noop_skipped_total`,
+  `_patch_captured_total`, `_patch_applied_total`, `_patch_fallbacks_total`,
+  `_propagation_pruned_total`, `_rows_written_total`, `_rows_deleted_total`,
+  `_full_refreshes_total` and `fraiseql_tview_refresh_seconds_total` (counters), with
+  `fraiseql_tview_stats_reset_timestamp_seconds` and `fraiseql_tview_stats_untracked`.
+  `tviews.stats` needs pg_tviews preloaded; `fraiseql_tview_stats_available` is 0 when the
+  database does not serve it, and the health gauges are reported as before. A TVIEW label
+  with a newline is escaped (the health gauges' was not).
+
 - **A rolled-up fact table answers a range that splits its rows from a finer table it
   links (#2343).** `grain: {"column": "day", "bucket": "month", "edges_from":
   "tf_sales_day"}` (in the intermediate schema, and in the Python SDK's `grain=`) names a

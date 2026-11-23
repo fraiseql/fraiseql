@@ -764,27 +764,12 @@ pub async fn query_tview_profiles(
     if !installed || sources.is_empty() {
         return Ok(Vec::new());
     }
-    // A TVIEW in a schema this role cannot use matches no source.
-    let query = format!(
-        r"
-        WITH src AS (
-            SELECT to_regclass(s) AS oid FROM unnest($1::text[]) AS s
-        ), rel AS (
-            SELECT oid FROM src WHERE oid IS NOT NULL
-            UNION
-            SELECT d.refobjid
-            FROM src
-            JOIN pg_rewrite r ON r.ev_class = src.oid
-            JOIN pg_depend d ON d.objid = r.oid AND d.refclassid = 'pg_class'::regclass
-        )
-        SELECT p.entity, format('%I.%I', p.schema, p.name) AS tview, p.hot_ratio,
-               p.n_dead_tup, p.n_tup_upd, p.n_tup_hot_upd,
-               coalesce(p.warnings, '{{}}') AS warnings
-        FROM tviews.pg_tviews_profile() AS p
-        WHERE {} IN (SELECT oid FROM rel)
-        ORDER BY p.entity
-    ",
-        crate::usable_relation("p.schema", "p.name")
+    let query = crate::postgres::tview_stats::tviews_read_query(
+        "p.entity, format('%I.%I', p.schema, p.name) AS tview, p.hot_ratio, p.n_dead_tup, \
+         p.n_tup_upd, p.n_tup_hot_upd, coalesce(p.warnings, '{}') AS warnings",
+        "tviews.pg_tviews_profile() AS p",
+        "p.schema",
+        "p.name",
     );
     let rows = client.query(&query, &[&sources]).await.map_err(|e| {
         crate::postgres::database_error(format!("pg_tviews_profile() failed: {e}"), &e)

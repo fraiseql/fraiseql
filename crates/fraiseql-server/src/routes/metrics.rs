@@ -19,6 +19,8 @@ use tracing::debug;
 
 use crate::{metrics_server::PrometheusMetrics, routes::graphql::AppState};
 
+mod tview_stats;
+
 /// Metrics response containing summary statistics.
 #[derive(Debug, Serialize)]
 pub struct MetricsResponse {
@@ -489,9 +491,21 @@ pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse
 
     // #1392: the physical health of every TVIEW the schema reads (`pg_tviews_profile()`,
     // catalogs only). Nothing when the schema reads none.
-    match state.executor().tview_profiles().await {
-        Ok(profiles) => append_tview_health(&mut output, &profiles),
-        Err(e) => tracing::warn!(error = %e, "could not read pg_tviews_profile() for /metrics"),
+    let reads_a_tview = match state.executor().tview_profiles().await {
+        Ok(profiles) => {
+            append_tview_health(&mut output, &profiles);
+            !profiles.is_empty()
+        },
+        Err(e) => {
+            tracing::warn!(error = %e, "could not read pg_tviews_profile() for /metrics");
+            false
+        },
+    };
+    // Their refresh counters (`tviews.stats`), or `fraiseql_tview_stats_available 0` when
+    // the database cannot serve the view.
+    match state.executor().tview_stats().await {
+        Ok(reading) => tview_stats::append_tview_stats(&mut output, &reading, reads_a_tview),
+        Err(e) => tracing::warn!(error = %e, "could not read tviews.stats for /metrics"),
     }
 
     // Append `metrics`-facade emissions captured by the Prometheus recorder
@@ -513,17 +527,20 @@ pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse
     )
 }
 
-/// Truncate a string for use as a Prometheus label value.
-///
-/// Escapes backslashes, double-quotes, and newlines per the Prometheus
-/// exposition format, then truncates to `max_chars`.
+/// Truncate a string for use as a Prometheus label value, then escape it.
 fn truncate_label(s: &str, max_chars: usize) -> String {
     let truncated = if s.len() > max_chars {
         &s[..max_chars]
     } else {
         s
     };
-    truncated.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n")
+    escape_label_value(truncated)
+}
+
+/// A string as a Prometheus label value: the exposition format escapes exactly
+/// backslash, double-quote and newline. Not JSON's escaping, which is `serde_json`'s.
+fn escape_label_value(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n")
 }
 
 /// JSON metrics handler - returns metrics in JSON format.
@@ -563,7 +580,6 @@ fn append_tview_health(output: &mut String, profiles: &[fraiseql_core::db::Tview
     if profiles.is_empty() {
         return;
     }
-    let label = |tview: &str| tview.replace('\\', "\\\\").replace('"', "\\\"");
     #[allow(clippy::cast_precision_loss)]
     // Reason: tuple counts as Prometheus floats; exact far past any table's row count.
     let series: [(&str, &str, TviewReading); 5] = [
@@ -595,7 +611,11 @@ fn append_tview_health(output: &mut String, profiles: &[fraiseql_core::db::Tview
         let _ = write!(output, "\n# HELP {name} {help}\n# TYPE {name} gauge\n");
         for profile in profiles {
             if let Some(v) = value(profile) {
-                let _ = writeln!(output, "{name}{{tview=\"{}\"}} {v}", label(&profile.tview));
+                let _ = writeln!(
+                    output,
+                    "{name}{{tview=\"{}\"}} {v}",
+                    escape_label_value(&profile.tview)
+                );
             }
         }
     }
