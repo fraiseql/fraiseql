@@ -38,6 +38,16 @@ disagreed, and the promise was the part that was wrong.
   `Node`, selects on `Node` and is held to the same rule. Move such fields into
   `... on <Type> { … }`.
 
+- **With `[mcp] require_auth = true`, every request to the MCP HTTP endpoint needs a
+  credential (#2345).** `initialize`, `tools/list`, `resources/list`, `prompts/list`, the
+  event stream and every other request without a Bearer token, static API key or
+  service-account secret that resolves are answered `401` with `WWW-Authenticate: Bearer`,
+  before a session is opened. Before, only a tool call was authenticated: a caller with
+  no credential could open a session and read the tool, resource and prompt lists. An
+  expired, invalid or ended token, or an unknown API key, is refused with the words
+  `/graphql` uses. A client that sent its credential only on tool calls sends it on every
+  request. `require_auth = false` (development only) is unchanged.
+
 - **`fraiseql_secrets::chrono` is removed, and `fraiseql-secrets` no longer depends on
   chrono (#2026).** The crate's public API names no chrono type any more. A caller that
   reached chrono through it depends on `chrono` directly.

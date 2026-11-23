@@ -77,6 +77,14 @@ impl AdmissionPolicy {
         stamp_trace: false,
         enrich:      true,
     };
+    /// Any request to the MCP HTTP endpoint under `[mcp] require_auth`, before the transport
+    /// reads it: whether its credential resolves to a principal at all. Identity is
+    /// resolved again, enriched, on the tool call itself.
+    pub const MCP_ENDPOINT: Self = Self {
+        api_key:     true,
+        stamp_trace: false,
+        enrich:      false,
+    };
     /// A REST route.
     pub const REST: Self = Self {
         api_key:     true,

@@ -330,6 +330,14 @@ claims feed RLS session variables, and the #390
 actor classification is derived — so an MCP call is authorized exactly like a
 GraphQL request, by construction.
 
+With `require_auth = true` every request to the endpoint needs a credential that
+resolves (a Bearer token, a static API key or a service-account secret), whatever its
+method: `initialize`, `tools/list`, `resources/list`, the event stream and the rest are
+answered `401` with `WWW-Authenticate: Bearer` without one, before any session is
+opened. An expired, invalid or ended token, or an unknown API key, is refused with the
+same words `/graphql` uses. The tool call itself still resolves the caller in full,
+subject enrichment included.
+
 The `Host` header follows the same switch. With `require_auth = true` the endpoint
 answers any `Host`, so it works behind the deployment's own hostname and a tenant's
 domain. With `require_auth = false` (development only) it answers only `localhost`,

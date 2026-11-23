@@ -30,6 +30,58 @@ use crate::{
     routes::graphql::AppState,
 };
 
+/// Identify an MCP caller: a service-account secret, else a validated Bearer token whose
+/// session is live, then admission's steps under `policy` (a static API key, enrichment).
+///
+/// The one resolution both MCP doors use: the HTTP gate in front of the transport, which
+/// only needs to know that a credential resolves, and a tool call, which also needs the
+/// principal. No credential, or no validator configured, is anonymous (`Ok` with no
+/// security context).
+///
+/// # Errors
+///
+/// The refusal: an ambiguous credential, an expired, invalid or ended token, an invalid
+/// API key, or a subject enrichment denies or cannot resolve.
+pub(crate) async fn identify_caller(
+    state: &AppState,
+    validator: Option<&McpTokenValidator>,
+    tenant_claim: &str,
+    token: Option<String>,
+    request_id: String,
+    headers: &axum::http::HeaderMap,
+    policy: &AdmissionPolicy,
+) -> Result<admission::Identified, Refusal> {
+    // A service-account secret is decided before any bearer token is validated, and
+    // one beside a bearer token is refused as ambiguous.
+    let principal = admission::service_account(state, headers, token.is_some())?;
+    let principal = match (principal, validator, token) {
+        (Some(principal), _, _) => Some(principal),
+        (None, Some(validator), Some(token)) => {
+            let user = validator.validate(&token).await.map_err(|e| {
+                tracing::warn!(error = %e, "MCP token validation failed");
+                Refusal::from_token_error(&e)
+            })?;
+            // GHSA-7482-9g53-rj7f: a valid signature is not a live session.
+            admission::check_revocation(state, &user, &token).await.inspect_err(|_| {
+                tracing::debug!(user_id = %user.user_id, "MCP Bearer token is revoked");
+            })?;
+            Some(fraiseql_core::security::SecurityContext::from_token_claims(
+                &user,
+                request_id,
+                Some(tenant_claim),
+            ))
+        },
+        // Auth not configured, or no credential: anonymous, and the gate decides.
+        _ => None,
+    };
+    // The transport stamp (#376) rides the framework-reserved `fraiseql.` attribute
+    // namespace, which the shared builder strips from token claims, so it is set here,
+    // by the transport itself, and cannot be forged by a caller. The mutation runner
+    // records it into the change-log row's `extra_metadata.transport`.
+    let principal = principal.map(|ctx| ctx.with_transport("mcp"));
+    admission::identify(state, headers, principal, policy).await
+}
+
 /// Extract a Bearer token from an HTTP `Authorization` header.
 ///
 /// Returns the credential following `"Bearer "` for a well-formed
@@ -57,6 +109,7 @@ pub fn mcp_tool_errors_total() -> u64 {
 
 /// The token validator MCP authenticates Bearer credentials against — the one
 /// `/graphql` uses (#376 auth parity).
+#[derive(Clone)]
 pub enum McpTokenValidator {
     /// OIDC validation against an external provider (`[auth]`) or the server's own
     /// issuer (`[auth_issuer]`), as on `/graphql`.
@@ -188,43 +241,17 @@ impl FraiseQLMcpService {
         request_id: String,
         headers: &axum::http::HeaderMap,
     ) -> Result<admission::Identified, CallToolResult> {
-        let refuse = |refusal: Refusal| error_result(refusal.message().unwrap_or_default());
-
-        // A service-account secret is decided before any bearer token is validated, and
-        // one beside a bearer token is refused as ambiguous.
-        let principal =
-            admission::service_account(&self.state, headers, token.is_some()).map_err(refuse)?;
-        let principal = match (principal, self.validator.as_ref(), token) {
-            (Some(principal), _, _) => Some(principal),
-            (None, Some(validator), Some(token)) => {
-                let user = validator.validate(&token).await.map_err(|e| {
-                    tracing::warn!(error = %e, "MCP token validation failed");
-                    refuse(Refusal::from_token_error(&e))
-                })?;
-                // GHSA-7482-9g53-rj7f: a valid signature is not a live session.
-                admission::check_revocation(&self.state, &user, &token).await.map_err(
-                    |refusal| {
-                        tracing::debug!(user_id = %user.user_id, "MCP Bearer token is revoked");
-                        refuse(refusal)
-                    },
-                )?;
-                Some(fraiseql_core::security::SecurityContext::from_token_claims(
-                    &user,
-                    request_id,
-                    Some(self.schema.tenant_claim()),
-                ))
-            },
-            // Auth not configured, or no credential: anonymous, and the gate decides.
-            _ => None,
-        };
-        // The transport stamp (#376) rides the framework-reserved `fraiseql.` attribute
-        // namespace, which the shared builder strips from token claims, so it is set here,
-        // by the transport itself, and cannot be forged by a caller. The mutation runner
-        // records it into the change-log row's `extra_metadata.transport`.
-        let principal = principal.map(|ctx| ctx.with_transport("mcp"));
-        admission::identify(&self.state, headers, principal, &AdmissionPolicy::MCP)
-            .await
-            .map_err(refuse)
+        identify_caller(
+            &self.state,
+            self.validator.as_ref(),
+            self.schema.tenant_claim(),
+            token,
+            request_id,
+            headers,
+            &AdmissionPolicy::MCP,
+        )
+        .await
+        .map_err(|refusal| error_result(refusal.message().unwrap_or_default()))
     }
 
     /// Authenticate, resolve the tenant, and run the tool call on that tenant's

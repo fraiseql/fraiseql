@@ -265,8 +265,8 @@ impl Server {
                         path = %mcp_cfg.path,
                         validator = ?v,
                         "MCP HTTP endpoint: require_auth=true, token validator present. \
-                         Per-request Bearer tokens are validated and tool calls fail closed \
-                         without a valid security context."
+                         Every request to the endpoint needs a credential that resolves, and \
+                         tool calls fail closed without a valid security context."
                     );
                     true
                 } else {
@@ -287,6 +287,15 @@ impl Server {
                 true
             };
 
+            // `validator` is `Some` whenever `require_auth` mounts at all (above).
+            let auth = match (mcp_cfg.require_auth, validator) {
+                (true, Some(validator)) => {
+                    crate::mcp::http::McpAuth::Required(std::sync::Arc::new(
+                        crate::mcp::http::McpCredentialGate::new(state.clone(), validator),
+                    ))
+                },
+                _ => crate::mcp::http::McpAuth::Open,
+            };
             if mount_mcp {
                 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 
@@ -303,7 +312,8 @@ impl Server {
                 // operator's.
                 #[cfg(feature = "auth")]
                 let session_store = self.session_state.clone();
-                let mcp_service = crate::mcp::http::streamable_http_service(
+                let mcp_router = crate::mcp::http::mcp_router(
+                    &mcp_cfg.path,
                     move || {
                         let validator =
                             oidc.clone().map(crate::mcp::handler::McpTokenValidator::Oidc);
@@ -317,9 +327,9 @@ impl Server {
                         service
                     },
                     std::sync::Arc::new(LocalSessionManager::default()),
-                    mcp_cfg.require_auth,
+                    auth,
                 );
-                app = app.nest_service(&mcp_cfg.path, mcp_service);
+                app = app.merge(mcp_router);
                 info!(path = %mcp_cfg.path, "MCP HTTP endpoint mounted");
             }
         }

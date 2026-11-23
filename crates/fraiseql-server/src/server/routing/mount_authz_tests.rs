@@ -132,7 +132,8 @@ async fn storage_state_is_mounted_with_a_storage_token() {
 /// default `Host` allowlist is loopback only, so every request to a deployment's own
 /// name was refused with 403; with `require_auth` the check is off, without it the
 /// loopback allowlist still guards an unauthenticated local server against DNS
-/// rebinding.
+/// rebinding. With `require_auth` the mount refuses a request with no credential before
+/// the transport reads it.
 #[cfg(feature = "mcp")]
 mod mcp_host_check {
     use super::*;
@@ -160,31 +161,45 @@ mod mcp_host_check {
         server.mount_extensions(Router::new(), &state)
     }
 
-    async fn initialize_status(app: Router, host: &str) -> StatusCode {
-        let request = Request::post("/mcp")
+    async fn initialize_status(app: Router, host: &str, token: Option<&str>) -> StatusCode {
+        let mut request = Request::post("/mcp")
             .header("host", host)
             .header("content-type", "application/json")
-            .header("accept", "application/json, text/event-stream")
-            .body(Body::from(INITIALIZE))
-            .unwrap();
+            .header("accept", "application/json, text/event-stream");
+        if let Some(token) = token {
+            request = request.header("authorization", format!("Bearer {token}"));
+        }
+        let request = request.body(Body::from(INITIALIZE)).unwrap();
         app.oneshot(request).await.unwrap().status()
     }
 
     #[tokio::test]
     async fn with_require_auth_the_deployments_hostname_is_served() {
         let idp = TestIdp::start().await;
+        let token = idp.mint(&idp.claims("alice"));
         let app = mounted_mcp(&idp, true).await;
         for host in ["api.example.com", "tenant-a.example.com:8443"] {
-            assert_eq!(initialize_status(app.clone(), host).await, StatusCode::OK, "{host}");
+            assert_eq!(
+                initialize_status(app.clone(), host, Some(&token)).await,
+                StatusCode::OK,
+                "{host}"
+            );
         }
+    }
+
+    #[tokio::test]
+    async fn with_require_auth_a_request_without_a_credential_is_refused() {
+        let idp = TestIdp::start().await;
+        let app = mounted_mcp(&idp, true).await;
+        assert_eq!(initialize_status(app, "api.example.com", None).await, StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]
     async fn without_require_auth_a_foreign_host_is_refused() {
         let idp = TestIdp::start().await;
         let app = mounted_mcp(&idp, false).await;
-        assert_eq!(initialize_status(app.clone(), "localhost").await, StatusCode::OK);
-        assert_eq!(initialize_status(app, "attacker.example").await, StatusCode::FORBIDDEN);
+        assert_eq!(initialize_status(app.clone(), "localhost", None).await, StatusCode::OK);
+        assert_eq!(initialize_status(app, "attacker.example", None).await, StatusCode::FORBIDDEN);
     }
 }
 

@@ -880,76 +880,245 @@ mod http_transport_tests {
     use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
     use tower::ServiceExt;
 
-    use super::super::{McpConfig, handler::FraiseQLMcpService, http::streamable_http_service};
-    use crate::routes::graphql::AppState;
+    use super::super::{
+        McpConfig,
+        handler::{FraiseQLMcpService, McpTokenValidator},
+        http::{CREDENTIAL_REQUIRED, McpAuth, McpCredentialGate, mcp_router},
+    };
+    use crate::{
+        admission::{INVALID_API_KEY, TOKEN_EXPIRED, TOKEN_INVALID, TOKEN_REVOKED},
+        routes::graphql::AppState,
+        testing::idp::TestIdp,
+        token_revocation::{InMemoryRevocationStore, RevocationStore, TokenRevocationManager},
+    };
 
-    fn service(sessions: &Arc<LocalSessionManager>) -> super::super::http::McpHttpService {
-        service_with(sessions, true)
+    const PATH: &str = "/mcp";
+    const STATIC_KEY: &str = "mcp-endpoint-static-key";
+    const ACCOUNT_SECRET: &str = "mcp-endpoint-account-secret";
+    const INITIALIZE: &str = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}"#;
+
+    /// What a deployment's endpoint resolves credentials against: an API key, a service
+    /// account, and a store of ended sessions the test can end one in.
+    struct Endpoint {
+        state:      AppState,
+        revocation: Arc<TokenRevocationManager>,
     }
 
-    fn service_with(
-        sessions: &Arc<LocalSessionManager>,
-        require_auth: bool,
-    ) -> super::super::http::McpHttpService {
+    fn endpoint() -> Endpoint {
         let executor = Arc::new(Executor::read_only(
             CompiledSchema::default(),
             Arc::new(FailingAdapter::new()),
         ));
-        let state = AppState::new(executor);
-        streamable_http_service(
+        let store: Arc<dyn RevocationStore> = Arc::new(InMemoryRevocationStore::new());
+        let revocation = Arc::new(TokenRevocationManager::new(store, false, false, 86_400));
+        let mut state = AppState::new(executor).with_api_key_authenticator(Arc::new(
+            crate::api_key::static_key_authenticator(STATIC_KEY),
+        ));
+        state.service_account_authenticator =
+            Some(crate::service_account::one_account_authenticator(ACCOUNT_SECRET));
+        state.revocation_manager = Some(Arc::clone(&revocation));
+        Endpoint { state, revocation }
+    }
+
+    /// The router `mount_mcp` mounts, under `auth`.
+    fn router(
+        endpoint: &Endpoint,
+        sessions: &Arc<LocalSessionManager>,
+        auth: McpAuth,
+    ) -> axum::Router {
+        let state = endpoint.state.clone();
+        mcp_router(
+            PATH,
             move || FraiseQLMcpService::new(state.clone(), McpConfig::default()),
             Arc::clone(sessions),
-            require_auth,
+            auth,
         )
     }
 
-    fn post(body: &str) -> Request<Body> {
-        post_to("localhost", body)
+    /// The router of a deployment with `require_auth`, its bearer tokens issued by `idp`.
+    fn required(
+        endpoint: &Endpoint,
+        idp: &TestIdp,
+        sessions: &Arc<LocalSessionManager>,
+    ) -> axum::Router {
+        router(
+            endpoint,
+            sessions,
+            McpAuth::Required(Arc::new(McpCredentialGate::new(
+                endpoint.state.clone(),
+                McpTokenValidator::Oidc(idp.validator(true)),
+            ))),
+        )
     }
 
-    fn post_to(host: &str, body: &str) -> Request<Body> {
-        Request::post("/")
+    fn post(host: &str, body: &str, credential: Option<(&str, String)>) -> Request<Body> {
+        let mut request = Request::post(PATH)
             .header("host", host)
             .header("content-type", "application/json")
-            .header("accept", "application/json, text/event-stream")
-            .body(Body::from(body.to_owned()))
-            .unwrap()
+            .header("accept", "application/json, text/event-stream");
+        if let Some((name, value)) = credential {
+            request = request.header(name, value);
+        }
+        request.body(Body::from(body.to_owned())).unwrap()
+    }
+
+    fn bearer(token: &str) -> Option<(&'static str, String)> {
+        Some(("authorization", format!("Bearer {token}")))
     }
 
     async fn session_count(sessions: &LocalSessionManager) -> usize {
         sessions.sessions.read().await.len()
     }
 
-    /// The counter below sees sessions: a real `initialize` opens exactly one. Without this,
-    /// a transport that refused every request before allocating would pass the leak test.
-    #[tokio::test]
-    async fn an_initialize_request_opens_one_session() {
-        let sessions = Arc::new(LocalSessionManager::default());
-        let response = service(&sessions)
-            .oneshot(post(
-                r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}"#,
-            ))
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(session_count(&sessions).await, 1);
+    /// Status, `WWW-Authenticate` and body of `request` sent to `router`.
+    async fn send(
+        router: axum::Router,
+        request: Request<Body>,
+    ) -> (StatusCode, Option<String>, String) {
+        let response = router.oneshot(request).await.unwrap();
+        let status = response.status();
+        let challenge = response
+            .headers()
+            .get(http::header::WWW_AUTHENTICATE)
+            .map(|v| v.to_str().unwrap().to_owned());
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        (status, challenge, String::from_utf8_lossy(&body).into_owned())
     }
 
-    const INITIALIZE: &str = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}"#;
+    /// Every method a client can send, and the transport's two other requests (the event
+    /// stream and the end of a session). Each is refused without a credential, before
+    /// the transport reads it: an `initialize` opened a session, and a `tools/list`
+    /// named every tool, to a caller with no credential at all.
+    #[tokio::test]
+    async fn every_request_without_a_credential_is_refused_and_opens_nothing() {
+        let idp = TestIdp::start().await;
+        let endpoint = endpoint();
+        let sessions = Arc::new(LocalSessionManager::default());
+        let methods = [
+            "initialize",
+            "notifications/initialized",
+            "ping",
+            "tools/list",
+            "tools/call",
+            "resources/list",
+            "resources/templates/list",
+            "resources/read",
+            "prompts/list",
+            "prompts/get",
+            "completion/complete",
+            "logging/setLevel",
+        ];
+        for method in methods {
+            let body = if method == "initialize" {
+                INITIALIZE.to_owned()
+            } else {
+                format!(r#"{{"jsonrpc":"2.0","id":1,"method":"{method}","params":{{}}}}"#)
+            };
+            let (status, challenge, text) =
+                send(required(&endpoint, &idp, &sessions), post("localhost", &body, None)).await;
+            assert_eq!(status, StatusCode::UNAUTHORIZED, "{method}: {text}");
+            assert_eq!(challenge.as_deref(), Some("Bearer"), "{method}");
+            assert_eq!(text, CREDENTIAL_REQUIRED, "{method}");
+        }
+        for request in [
+            Request::get(PATH)
+                .header("accept", "text/event-stream")
+                .body(Body::empty())
+                .unwrap(),
+            Request::delete(PATH)
+                .header("mcp-session-id", "any")
+                .body(Body::empty())
+                .unwrap(),
+        ] {
+            let method = request.method().clone();
+            let (status, _, text) = send(required(&endpoint, &idp, &sessions), request).await;
+            assert_eq!(status, StatusCode::UNAUTHORIZED, "{method}: {text}");
+        }
+        assert_eq!(session_count(&sessions).await, 0, "a refused request opened a session");
+    }
+
+    /// A credential that does not resolve is refused with the words every transport uses.
+    #[tokio::test]
+    async fn a_credential_that_does_not_resolve_is_refused_by_its_class() {
+        let idp = TestIdp::start().await;
+        let endpoint = endpoint();
+        let sessions = Arc::new(LocalSessionManager::default());
+        let now = chrono::Utc::now().timestamp();
+        let expired = idp.mint(&idp.claims("alice").set("iat", now - 7200).set("exp", now - 3600));
+        let ended = idp.mint(&idp.claims("bob"));
+        endpoint.revocation.revoke_all_for_user("bob").await.unwrap();
+        let cases = [
+            ("garbage bearer", bearer("not-a-token"), TOKEN_INVALID),
+            ("expired bearer", bearer(&expired), TOKEN_EXPIRED),
+            ("ended session", bearer(&ended), TOKEN_REVOKED),
+            ("unknown API key", Some(("x-api-key", "wrong-key".to_owned())), INVALID_API_KEY),
+        ];
+        for (what, credential, words) in cases {
+            let (status, challenge, text) = send(
+                required(&endpoint, &idp, &sessions),
+                post("localhost", INITIALIZE, credential),
+            )
+            .await;
+            assert_eq!(status, StatusCode::UNAUTHORIZED, "{what}: {text}");
+            assert_eq!(challenge.as_deref(), Some("Bearer"), "{what}");
+            assert_eq!(text, words, "{what}");
+        }
+        assert_eq!(session_count(&sessions).await, 0);
+    }
+
+    /// The refusal does not touch a caller that has a credential: a bearer token, a static
+    /// API key and a service-account secret each open exactly one session.
+    #[tokio::test]
+    async fn a_credential_that_resolves_reaches_the_transport() {
+        let idp = TestIdp::start().await;
+        let endpoint = endpoint();
+        let token = idp.mint(&idp.claims("alice"));
+        for (what, credential) in [
+            ("bearer token", bearer(&token)),
+            ("static API key", Some(("x-api-key", STATIC_KEY.to_owned()))),
+            ("service account", Some(("x-api-key", ACCOUNT_SECRET.to_owned()))),
+        ] {
+            let sessions = Arc::new(LocalSessionManager::default());
+            let (status, _, text) = send(
+                required(&endpoint, &idp, &sessions),
+                post("localhost", INITIALIZE, credential),
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK, "{what}: {text}");
+            assert_eq!(session_count(&sessions).await, 1, "{what}");
+        }
+    }
+
+    /// Without `require_auth` (development only) the endpoint asks for no credential.
+    #[tokio::test]
+    async fn without_require_auth_no_credential_is_asked_for() {
+        let endpoint = endpoint();
+        let sessions = Arc::new(LocalSessionManager::default());
+        let (status, _, text) =
+            send(router(&endpoint, &sessions, McpAuth::Open), post("localhost", INITIALIZE, None))
+                .await;
+        assert_eq!(status, StatusCode::OK, "{text}");
+        assert_eq!(session_count(&sessions).await, 1);
+    }
 
     /// A deployment is reached by its own hostname, and a tenant by its domain (the `Host`
     /// tenant resolution in docs/mcp.md). rmcp's default `allowed_hosts` is loopback only,
     /// so every such request was refused with 403 before reaching FraiseQL.
     #[tokio::test]
     async fn a_request_addressed_to_the_deployments_hostname_is_served() {
+        let idp = TestIdp::start().await;
+        let endpoint = endpoint();
         let sessions = Arc::new(LocalSessionManager::default());
+        let token = idp.mint(&idp.claims("alice"));
         for host in [
             "api.example.com",
             "tenant-a.example.com:8443",
             "10.0.0.5:8000",
         ] {
-            let response = service(&sessions).oneshot(post_to(host, INITIALIZE)).await.unwrap();
-            assert_eq!(response.status(), StatusCode::OK, "Host: {host}");
+            let (status, _, text) =
+                send(required(&endpoint, &idp, &sessions), post(host, INITIALIZE, bearer(&token)))
+                    .await;
+            assert_eq!(status, StatusCode::OK, "Host: {host}: {text}");
         }
     }
 
@@ -957,30 +1126,36 @@ mod http_transport_tests {
     /// a DNS-rebinding page and the endpoint, so it keeps rmcp's loopback allowlist.
     #[tokio::test]
     async fn without_require_auth_only_a_loopback_host_is_served() {
+        let endpoint = endpoint();
         let sessions = Arc::new(LocalSessionManager::default());
-        let svc = service_with(&sessions, false);
-        let local = svc.clone().oneshot(post_to("localhost", INITIALIZE)).await.unwrap();
-        assert_eq!(local.status(), StatusCode::OK);
-        let rebound = svc.oneshot(post_to("attacker.example", INITIALIZE)).await.unwrap();
-        assert_eq!(rebound.status(), StatusCode::FORBIDDEN);
+        let open = router(&endpoint, &sessions, McpAuth::Open);
+        let (local, _, _) = send(open.clone(), post("localhost", INITIALIZE, None)).await;
+        assert_eq!(local, StatusCode::OK);
+        let (rebound, _, _) = send(open, post("attacker.example", INITIALIZE, None)).await;
+        assert_eq!(rebound, StatusCode::FORBIDDEN);
     }
 
+    /// A request that passes the credential check and is then refused by the transport's
+    /// body validation allocates nothing. Authenticated, so that it reaches that validation.
     #[tokio::test]
     async fn a_non_initialize_request_without_a_session_leaves_no_session_behind() {
+        let idp = TestIdp::start().await;
+        let endpoint = endpoint();
         let sessions = Arc::new(LocalSessionManager::default());
-        let svc = service(&sessions);
+        let token = idp.mint(&idp.claims("alice"));
         for id in 0..50 {
-            let response = svc
-                .clone()
-                .oneshot(post(&format!(r#"{{"jsonrpc":"2.0","id":{id},"method":"tools/list"}}"#)))
-                .await
-                .unwrap();
-            // Refused by the transport's body validation, not before it: a request stopped
-            // earlier (Host check, content type) never reaches the allocation at all.
+            let (status, _, _) = send(
+                required(&endpoint, &idp, &sessions),
+                post(
+                    "localhost",
+                    &format!(r#"{{"jsonrpc":"2.0","id":{id},"method":"tools/list"}}"#),
+                    bearer(&token),
+                ),
+            )
+            .await;
             assert!(
-                response.status().is_client_error(),
-                "expected a 4xx refusal, got {}",
-                response.status()
+                status.is_client_error() && status != StatusCode::UNAUTHORIZED,
+                "expected the transport's own 4xx refusal, got {status}"
             );
         }
         assert_eq!(
