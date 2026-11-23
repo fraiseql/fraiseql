@@ -938,7 +938,7 @@ const NODE_MATRIX: &[Case] = &[
     },
     Case {
         name:   "node with a skipped field",
-        query:  "{ node(id: \"@ID@\") { id name @skip(if: true) } }",
+        query:  "{ node(id: \"@ID@\") { id ... on User { name @skip(if: true) } } }",
         expect: &["id"],
     },
     Case {
@@ -1085,10 +1085,60 @@ async fn an_unselected_field_never_reaches_the_response() {
     // …and it *is* served when the client asks for it, so the assertion above is
     // not passing because the column is unreachable.
     let response = exec
-        .execute(&format!("{{ node(id: \"{node_id}\") {{ secret }} }}"), None)
+        .execute(&format!("{{ node(id: \"{node_id}\") {{ ... on User {{ secret }} }} }}"), None)
         .await
         .expect("query must run");
     assert_eq!(response["data"]["node"]["secret"], json!("SECRET-VALUE"), "{response}");
+}
+
+/// GraphQL § 5.3.1: a field selected on `node` is a field of `Node`, which declares
+/// `id` alone (and `__typename`, as every type does). Any other field is selected through
+/// a fragment on the type that has it. Written on `node` itself — directly, under an
+/// alias, under a `@skip` that drops it, inside a fragment with no type or one on `Node`,
+/// alone or beside another root — it is refused, naming the field and `Node`.
+#[tokio::test]
+async fn a_field_node_does_not_declare_is_refused_outside_a_fragment() {
+    let Some(exec) = executor().await else {
+        eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
+        return;
+    };
+    let node_id = encode_node_id("User", ALICE_UUID);
+    let node = |selection: &str| format!("node(id: \"{node_id}\") {{ {selection} }}");
+
+    for (query, field) in [
+        (format!("{{ {} }}", node("id name")), "name"),
+        (format!("{{ {} }}", node("nm: name")), "name"),
+        (format!("{{ {} }}", node("id name @skip(if: true)")), "name"),
+        (format!("{{ {} }}", node("... { email }")), "email"),
+        (format!("{{ {} }}", node("... on Node { email }")), "email"),
+        (format!("fragment N on Node {{ id name }} {{ {} }}", node("...N")), "name"),
+        (format!("{{ {} users {{ id }} }}", node("id name")), "name"),
+    ] {
+        let error = exec.execute(&query, None).await.expect_err(&query).to_string();
+        assert!(
+            error.contains(&format!("`{field}`")) && error.contains("`Node`"),
+            "{query}: {error}"
+        );
+        assert!(error.contains(&format!("... on User {{ {field} }}")), "{query}: {error}");
+    }
+
+    for (query, keys) in [
+        (
+            format!("{{ {} }}", node("id __typename ... on User { name }")),
+            vec!["id", "__typename", "name"],
+        ),
+        (
+            format!("fragment F on User {{ email }} {{ {} }}", node("id ...F")),
+            vec!["id", "email"],
+        ),
+        (
+            format!("fragment N on Node {{ id }} {{ {} }}", node("...N ... on User { name }")),
+            vec!["id", "name"],
+        ),
+    ] {
+        let response = exec.execute(&query, None).await.expect(&query);
+        assert_eq!(node_keys(&response), keys, "{query}: {response}");
+    }
 }
 
 /// A multi-root query fans out into one synthetic sub-query per root. Fragment

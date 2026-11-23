@@ -971,7 +971,7 @@ mod session_variables {
 
         let node_id =
             crate::runtime::relay::encode_node_id("User", "11111111-1111-1111-1111-111111111111");
-        let query = format!("{{ node(id: \"{node_id}\") {{ id name }} }}");
+        let query = format!("{{ node(id: \"{node_id}\") {{ id ... on User {{ name }} }} }}");
 
         let ctx = security_ctx_with_tenant(); // tenant-abc
         executor.execute_with_security(&query, None, &ctx).await.unwrap();
@@ -1373,11 +1373,11 @@ mod node_authz {
         schema
     }
 
-    /// A `{ node(id: <encoded "User:uuid">) { id name } }` query string.
+    /// A `{ node(id: <encoded "User:uuid">) { id ... on User { name } } }` query string.
     fn node_query() -> String {
         let id =
             crate::runtime::relay::encode_node_id("User", "11111111-1111-1111-1111-111111111111");
-        format!("{{ node(id: \"{id}\") {{ id name }} }}")
+        format!("{{ node(id: \"{id}\") {{ id ... on User {{ name }} }} }}")
     }
 
     fn ctx_with_roles(roles: &[&str]) -> SecurityContext {

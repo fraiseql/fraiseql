@@ -234,7 +234,17 @@ impl Executor {
         //     silently had no effect.
         //
         // Resolving here means the synthetic strings contain no spreads at all,
-        // and every directive has already been decided.
+        // and every directive has already been decided. A `node` root's selection is checked
+        // against `Node` first, while its fragments can still be told from its own fields.
+        if self.ctx.schema.publishes_node() {
+            for root in parsed.selections.iter().filter(|root| root.name == "node") {
+                super::node_selection::check_node_selection(
+                    &self.ctx.schema,
+                    root,
+                    &parsed.fragments,
+                )?;
+            }
+        }
         let resolved = crate::graphql::selection_set::resolve_and_filter(
             &parsed.selections,
             &parsed.fragments,

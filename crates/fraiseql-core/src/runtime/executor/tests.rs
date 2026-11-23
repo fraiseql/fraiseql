@@ -399,21 +399,19 @@ mod classify {
     }
 
     #[test]
-    fn test_classify_node_query_direct_fields_without_fragment() {
+    fn test_classify_node_query_refuses_a_field_node_does_not_declare() {
         let mut schema = test_schema();
         declare_node_types(&mut schema, &[]);
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
 
         let query = r"query GetNode($id: ID!) { node(id: $id) { id name } }";
-        let qt = executor.classify_query(query, None).unwrap();
-        match qt {
-            QueryType::NodeQuery { selections, .. } => {
-                let names: Vec<&str> = selections.iter().map(|s| s.name.as_str()).collect();
-                assert_eq!(names, vec!["id", "name"]);
-            },
-            other => panic!("expected NodeQuery, got {other:?}"),
-        }
+        let error = executor.classify_query(query, None).unwrap_err();
+        assert!(
+            matches!(&error, FraiseQLError::Validation { path: Some(path), .. } if path == "node.name"),
+            "{error:?}"
+        );
+        assert!(error.to_string().contains("`name` on `node`"), "{error}");
     }
 
     #[test]

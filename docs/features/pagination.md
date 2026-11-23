@@ -289,6 +289,10 @@ A relay connection never accepts `limit`/`offset`, and never carries a
 { node(id: "6f1c…") { ... on User { id name } } }
 ```
 
+`node`'s type is the `Node` interface, which declares only `id`, so every other field is
+selected in a fragment on the type that has it. `{ node(id: "6f1c…") { id name } }` is
+refused at `node.name`, with the fragment to write instead.
+
 The id's type is found among the `relay` types, each probed with the scoping its own query
 applies (`requires_role`, `requires_actor`, the authorizer, RLS, `inject_params`). An id
 the caller may not read under any of them is `null`. Some schemas expose one entity as two

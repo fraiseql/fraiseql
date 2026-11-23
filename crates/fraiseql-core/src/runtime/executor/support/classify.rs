@@ -315,6 +315,7 @@ impl Executor {
             && self.ctx.schema.publishes_node()
         {
             let root = &parsed.selections[0];
+            super::node_selection::check_node_selection(&self.ctx.schema, root, &parsed.fragments)?;
             let resolved = crate::graphql::selection_set::resolve(
                 &root.nested_fields,
                 &parsed.fragments,

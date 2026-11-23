@@ -650,7 +650,8 @@ async fn node_query_resolves_a_spread_only_selection() {
 async fn node_query_honours_a_field_directive() {
     let (exec, adapter) = executor();
     let node_id = encode_node_id("User", ALICE_UUID);
-    let query = format!("{{ node(id: \"{node_id}\") {{ id name @skip(if: true) }} }}");
+    let query =
+        format!("{{ node(id: \"{node_id}\") {{ id ... on User {{ name @skip(if: true) }} }} }}");
     exec.execute(&query, None).await.expect("node query must run");
 
     let projection = node_projection(&adapter).expect("node(id:) must project");

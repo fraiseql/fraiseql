@@ -18,6 +18,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A field selected on `node` itself must be one the `Node` interface declares (#2277).**
+  `Node` declares `id`, and `__typename` is answered everywhere; any other field is selected
+  through a fragment on the type that has it (GraphQL § 5.3.1), as graphql-js and client
+  codegen require. `{ node(id: $id) { id name } }` was served when the id named a type with
+  `name`; it is now refused at `node.name`, naming the field and `Node` and suggesting the
+  fragment, e.g. `... on User { name }`. A fragment with no type condition, or one on
+  `Node`, selects on `Node` and is held to the same rule. Move such fields into
+  `... on <Type> { … }`.
+
 - **`fraiseql_secrets::chrono` is removed, and `fraiseql-secrets` no longer depends on
   chrono (#2026).** The crate's public API names no chrono type any more. A caller that
   reached chrono through it depends on `chrono` directly.
