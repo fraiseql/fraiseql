@@ -312,10 +312,25 @@ impl Reader<'_, '_> {
         &self,
         set: Option<cst::SelectionSet>,
     ) -> Result<Vec<FieldSelection>, DocumentError> {
-        set.into_iter()
-            .flat_map(|set| set.selections())
-            .map(|selection| self.selection(&selection))
-            .collect()
+        let mut fields = Vec::new();
+        for selection in set.into_iter().flat_map(|set| set.selections()) {
+            // An inline fragment with no type condition selects on the enclosing type, always
+            // (§ 2.8.2): its fields are the set's own, under its directives. Spliced here, every
+            // reader of the document meets them as fields, as it would written out.
+            if let cst::Selection::InlineFragment(inline) = &selection {
+                if inline.type_condition().is_none() {
+                    let directives = self.directives(inline.directives())?;
+                    let start = fields.len();
+                    fields.extend(self.selection_set(inline.selection_set())?);
+                    for field in &mut fields[start..] {
+                        field.inherit_directives(&directives);
+                    }
+                    continue;
+                }
+            }
+            fields.push(self.selection(&selection)?);
+        }
+        Ok(fields)
     }
 
     fn selection(&self, selection: &cst::Selection) -> Result<FieldSelection, DocumentError> {
@@ -342,7 +357,8 @@ impl Reader<'_, '_> {
                 nested_fields: Vec::new(),
                 directives:    self.directives(spread.directives())?,
             },
-            // An inline fragment is a field named `...on <type>` (`...on ` with no type).
+            // A typed inline fragment is a field named `...on <type>`; an untyped one never
+            // reaches here, spliced into its set by `selection_set`.
             cst::Selection::InlineFragment(inline) => FieldSelection {
                 name:          format!(
                     "...on {}",
@@ -432,3 +448,7 @@ fn spreads(selections: &[FieldSelection]) -> Vec<String> {
     }
     names
 }
+
+#[cfg(test)]
+#[path = "untyped_inline_fragment_tests.rs"]
+mod untyped_inline_fragment_tests;

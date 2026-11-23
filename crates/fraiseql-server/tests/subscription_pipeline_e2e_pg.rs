@@ -921,3 +921,56 @@ async fn a_captured_row_lacking_a_selected_field_reports_it_on_the_event() {
     );
     assert_eq!(payload["errors"][0]["path"], json!(["orderChanged", "customer"]));
 }
+
+/// An inline fragment with no type condition selects on the subscription's type: its
+/// fields are delivered as if written out, under the fragment's directives. Planned, as a
+/// server serving a type with fields plans it: unplanned, the row is delivered whole.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn an_untyped_inline_fragment_is_delivered_as_its_fields_written_out() {
+    use fraiseql_core::schema::{FieldDefinition, FieldType, TypeDefinition};
+
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("schema setup");
+    let entity_type = format!("Order_{test_id}");
+
+    let mut schema = CompiledSchema::new();
+    let mut order = TypeDefinition::new(entity_type.as_str(), "v_order");
+    order.fields = vec![
+        FieldDefinition::new("id", FieldType::Id),
+        FieldDefinition::nullable("status", FieldType::String),
+        FieldDefinition::nullable("amount", FieldType::Decimal),
+    ];
+    schema.types.push(order);
+    schema
+        .subscriptions
+        .push(SubscriptionDefinition::new("orderChanged", &entity_type));
+    let pipeline = Pipeline::start_on(&pool, schema, true).await;
+    let (_sink, mut stream) = subscribe(
+        &pipeline,
+        "subscription { orderChanged { id ... { status } ... @skip(if: true) { amount } } }",
+    )
+    .await;
+
+    let id = Uuid::new_v4().to_string();
+    insert_change_log_entry(
+        &pool,
+        "INSERT",
+        &entity_type,
+        &id,
+        json!({"id": id, "status": "created", "amount": "1.00"}),
+        None,
+    )
+    .await
+    .expect("insert INSERT row");
+
+    let frame = recv_next(&mut stream, std::time::Duration::from_secs(10)).await;
+    pipeline.stop().await;
+    cleanup_test_data(&pool, &test_id).await.ok();
+    assert_eq!(
+        frame.pointer("/payload/data/orderChanged"),
+        Some(&json!({"id": id, "status": "created"})),
+        "{frame}"
+    );
+}

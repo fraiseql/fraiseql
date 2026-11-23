@@ -67,9 +67,8 @@ impl Root<'_> {
             };
             let start = expanded.len();
             if let Some(condition) = spread.strip_prefix("on ") {
-                if !condition.is_empty() {
-                    self.check_type(condition, || format!("an inline fragment on `{condition}`"))?;
-                }
+                // An untyped inline fragment was spliced into the root as it was parsed.
+                self.check_type(condition, || format!("an inline fragment on `{condition}`"))?;
                 self.expand_into(&selection.nested_fields, spreading, expanded)?;
             } else {
                 let fragment =

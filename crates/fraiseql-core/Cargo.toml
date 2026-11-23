@@ -446,6 +446,10 @@ name = "root_fragment_pg"
 required-features = ["postgres"]
 
 [[test]]
+name = "untyped_inline_fragment_pg"
+required-features = ["postgres"]
+
+[[test]]
 name = "session_variables_integration"
 required-features = ["postgres"]
 

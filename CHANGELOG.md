@@ -1576,6 +1576,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **An inline fragment with no type condition is served as the fields it selects (#2368).**
+  `{ users { id ... { name } } }` answered each user as `{"id": …, "...on ": null}`:
+  `name` was dropped and a key no document selected was served, under a `200`. So were
+  `... @include(if: …) { }`, `... @skip(if: …) { }` and nested forms, over GraphQL and SSE,
+  and a subscription dropped the fields. `... @defer { name }`, the canonical
+  deferred fragment, delivered the `...on ` key instead of the deferred fields. An
+  untyped inline fragment selects on the enclosing type (§ 2.8.2): its fields are now
+  read into the enclosing selection as the document is built, each under the fragment's
+  directives, so every transport serves them as the document with the fragment written
+  out.
+
 - **A fragment at the root of an operation is served as the fields it selects (#2349).**
   `{ ... on Query { users { id } } }`, `{ ... { users { id } } }` and
   `{ ...Q } fragment Q on Query { users { id } }` were refused, `Query '...Q' not found in

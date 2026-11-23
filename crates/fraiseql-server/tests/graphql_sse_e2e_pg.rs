@@ -1336,3 +1336,75 @@ async fn nested_stream_combined_with_defer_is_refused() {
         "the combination must be refused with the reason: {body}"
     );
 }
+
+/// An inline fragment with no type condition selects on the enclosing type: over SSE, each
+/// form is delivered as the same document with the fragment written out.
+#[tokio::test]
+async fn an_untyped_inline_fragment_is_delivered_as_its_fields_written_out() {
+    if database_url_or_skip("sse_untyped_inline_fragment").is_none() {
+        return;
+    }
+    let server = Box::pin(boot(sse_config(10))).await.unwrap();
+    for (fragment, written, variables) in [
+        (
+            "{ items(limit: 2) { id ... { label } } }",
+            "{ items(limit: 2) { id label } }",
+            json!({}),
+        ),
+        (
+            "{ items(limit: 2) { ... { ... { label } } } }",
+            "{ items(limit: 2) { label } }",
+            json!({}),
+        ),
+        (
+            "{ items(limit: 2) { id ... @skip(if: true) { label } } }",
+            "{ items(limit: 2) { id } }",
+            json!({}),
+        ),
+        (
+            "query($on: Boolean!) { items(limit: 2) { id ... @include(if: $on) { label } } }",
+            "query($on: Boolean!) { items(limit: 2) { id label @include(if: $on) } }",
+            json!({"on": false}),
+        ),
+    ] {
+        let delivered = |query: &str| {
+            let body = json!({"query": query, "variables": variables});
+            let server = &server;
+            async move {
+                let resp = sse_post(server, &body, None).await;
+                next_payloads(&parse_sse(&resp.text().await.unwrap()))
+            }
+        };
+        let expected = delivered(written).await;
+        assert!(expected[0]["data"]["items"].is_array(), "{written}: {expected:?}");
+        assert_eq!(delivered(fragment).await, expected, "{fragment}");
+    }
+}
+
+/// `... @defer { }` is the canonical deferred fragment: delivered as `...F @defer` with
+/// `F` holding the same fields is.
+#[tokio::test]
+async fn an_untyped_deferred_fragment_splits_as_a_named_one_does() {
+    if database_url_or_skip("sse_untyped_defer").is_none() {
+        return;
+    }
+    let server = Box::pin(boot(sse_config(10))).await.unwrap();
+    let delivered = |query: &'static str| {
+        let server = &server;
+        async move {
+            let resp = sse_post(server, &json!({"query": query}), None).await;
+            next_payloads(&parse_sse(&resp.text().await.unwrap()))
+        }
+    };
+    let named = delivered(
+        r#"{ items(limit: 2, orderBy: {id: ASC}) { id ...Detail @defer(label: "detail") } }
+           fragment Detail on SseItem { label }"#,
+    )
+    .await;
+    assert_eq!(named[0]["hasNext"], json!(true), "{named:?}");
+    let untyped = delivered(
+        r#"{ items(limit: 2, orderBy: {id: ASC}) { id ... @defer(label: "detail") { label } } }"#,
+    )
+    .await;
+    assert_eq!(untyped, named);
+}
