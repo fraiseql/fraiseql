@@ -5,7 +5,11 @@
 //! `BTreeMap` keyed by `"TypeName"` (type-level) or `"TypeName.fieldName"`
 //! (field-level).
 //!
-//! The `metadata_handler` exposes this map at `GET /api/v1/schema/metadata`.
+//! The `metadata_handler` exposes this map at `GET /api/v1/schema/metadata`, for the
+//! schema as the caller may see it: the view GraphQL introspection and the schema exports
+//! answer, so a type whose `requires_role` the caller lacks is absent with its fields. The
+//! caller is the one the authentication layer admitted, so without `metadata_require_auth`
+//! every caller is anonymous and is answered the types no role gates.
 
 use std::collections::BTreeMap;
 
@@ -13,7 +17,16 @@ use axum::{Json, extract::State};
 use fraiseql_core::schema::{CompiledSchema, FieldDenyPolicy};
 use serde::Serialize;
 
-use crate::routes::{api::types::ApiResponse, graphql::AppState};
+use crate::{
+    extractors::OptionalSecurityContext,
+    routes::{
+        api::{
+            schema::resolved_caller,
+            types::{ApiError, ApiResponse},
+        },
+        graphql::AppState,
+    },
+};
 
 /// Security metadata for a single field or type in the compiled schema.
 ///
@@ -73,21 +86,27 @@ pub struct MetadataResponse {
     pub metadata: BTreeMap<String, FieldSecurityMetadata>,
 }
 
-/// Return field-level security metadata for the compiled schema.
+/// Return field-level security metadata for the schema as the caller may see it.
 ///
-/// Walks all types and fields, collecting non-default security annotations
-/// (encryption, scope requirements, deny policies, role guards) into a flat
-/// map and returns it as a JSON object.
+/// Walks the types and fields of the caller's view, collecting non-default security
+/// annotations (encryption, scope requirements, deny policies, role guards) into a flat
+/// map and returns it as a JSON object. The caller's identity is resolved as every
+/// transport resolves it, since enrichment can add roles and refuses a subject it does
+/// not know.
 ///
-/// The handler is infallible — the schema is always present in `AppState`.
+/// # Errors
+///
+/// Returns `ApiError` when the caller's identity is denied or cannot be resolved.
 pub async fn metadata_handler(
     State(state): State<AppState>,
-) -> Json<ApiResponse<MetadataResponse>> {
-    let metadata = flatten_field_metadata(state.executor().schema());
-    Json(ApiResponse {
+    OptionalSecurityContext(caller): OptionalSecurityContext,
+) -> Result<Json<ApiResponse<MetadataResponse>>, ApiError> {
+    let caller = resolved_caller(&state, caller).await?;
+    let metadata = flatten_field_metadata(&state.executor().schema_for(caller.as_ref()));
+    Ok(Json(ApiResponse {
         status: "success".to_string(),
         data:   MetadataResponse { metadata },
-    })
+    }))
 }
 
 /// Flatten all non-default security annotations from a compiled schema into a map.

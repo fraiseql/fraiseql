@@ -38,6 +38,16 @@ disagreed, and the promise was the part that was wrong.
   `Node`, selects on `Node` and is held to the same rule. Move such fields into
   `... on <Type> { … }`.
 
+- **`GET /api/v1/schema/metadata` answers the schema as the caller may see it (#2370).**
+  A type whose `requires_role` the caller lacks is absent, with its fields' annotations, as
+  in GraphQL introspection and the schema exports; the caller is resolved through identity
+  enrichment, so a subject enrichment refuses is answered `403` and a resolver outage `503`.
+  Before, every caller the mount admitted received the whole schema's annotations. Mounted
+  without `metadata_require_auth`, the endpoint reads no credential, so every caller is
+  answered the anonymous view, including one presenting a token. A tool that read the full
+  map now calls it with a token holding the gating roles; `fraiseql schema metadata
+  --token` lists what that token's caller sees.
+
 - **REST `/introspection` resolves its caller as every other surface does (#2371).** With
   identity enrichment configured, a subject enrichment refuses is answered `403` with the
   message `/graphql` and the schema exports answer, and a resolver outage `503`; roles

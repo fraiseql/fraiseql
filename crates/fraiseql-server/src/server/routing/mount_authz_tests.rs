@@ -491,3 +491,86 @@ mod rate_limit_subject_wiring {
         );
     }
 }
+
+/// `/api/v1/schema/metadata` as the server mounts it under OIDC: behind the auth layer it
+/// answers the token's view of the schema; mounted public, it reads no credential and
+/// answers every caller the anonymous view, even one presenting a token.
+#[cfg(feature = "auth")]
+mod schema_metadata_mount {
+    use super::*;
+
+    /// The server's router under `idp` with `metadata_require_auth`, over a schema whose
+    /// type `Ledger` is gated by `auditor`.
+    async fn app(idp: &TestIdp, require_auth: bool) -> Router {
+        let schema = CompiledSchema::from_json(
+            &serde_json::json!({
+                "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION,
+                "types": [{"name": "Ledger", "sql_source": "v_ledger", "requires_role": "auditor",
+                           "fields": [{"name": "note", "field_type": "String", "nullable": true,
+                                       "requires_scope": "read:notes"}]}],
+                "queries": [{"name": "ledgers", "return_type": "Ledger", "returns_list": true,
+                             "nullable": false, "sql_source": "v_ledger", "arguments": [],
+                             "requires_role": "auditor"}],
+                "security": {"role_definitions": [{"name": "auditor", "scopes": ["read:notes"]}]}
+            })
+            .to_string(),
+            false,
+        )
+        .unwrap();
+        let config = ServerConfig {
+            cors_enabled: false,
+            metadata_require_auth: Some(require_auth),
+            ..ServerConfig::default()
+        };
+        let mut server =
+            Box::pin(Server::new(config, schema, Arc::new(FailingAdapter::new()), None))
+                .await
+                .unwrap();
+        // The metadata endpoint is mounted with introspection; this is the mount tested.
+        server.config.introspection_enabled = true;
+        server.oidc_validator = Some(idp.validator(false));
+        server.build_router(&server.build_app_state())
+    }
+
+    /// The status and metadata keys answered to a request carrying `bearer`.
+    async fn metadata(app: &Router, bearer: Option<&str>) -> (StatusCode, Vec<String>) {
+        let mut request = Request::builder().uri("/api/v1/schema/metadata");
+        if let Some(bearer) = bearer {
+            request = request.header("authorization", format!("Bearer {bearer}"));
+        }
+        let response = app.clone().oneshot(request.body(Body::empty()).unwrap()).await.unwrap();
+        let status = response.status();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&body).unwrap_or_default();
+        let keys = body["data"]["metadata"]
+            .as_object()
+            .map(|map| map.keys().cloned().collect())
+            .unwrap_or_default();
+        (status, keys)
+    }
+
+    fn auditor(idp: &TestIdp) -> String {
+        idp.mint(&idp.claims("alice").set("roles", serde_json::json!(["auditor"])))
+    }
+
+    #[tokio::test]
+    async fn behind_the_auth_layer_it_answers_the_tokens_view() {
+        let idp = TestIdp::start().await;
+        let app = app(&idp, true).await;
+        assert_eq!(metadata(&app, None).await.0, StatusCode::UNAUTHORIZED);
+        assert_eq!(
+            metadata(&app, Some(&auditor(&idp))).await,
+            (StatusCode::OK, vec!["Ledger".to_string(), "Ledger.note".to_string()])
+        );
+        let plain = idp.mint(&idp.claims("bob"));
+        assert_eq!(metadata(&app, Some(&plain)).await, (StatusCode::OK, Vec::new()));
+    }
+
+    #[tokio::test]
+    async fn mounted_public_it_answers_the_anonymous_view_to_every_caller() {
+        let idp = TestIdp::start().await;
+        let app = app(&idp, false).await;
+        assert_eq!(metadata(&app, None).await, (StatusCode::OK, Vec::new()));
+        assert_eq!(metadata(&app, Some(&auditor(&idp))).await, (StatusCode::OK, Vec::new()));
+    }
+}

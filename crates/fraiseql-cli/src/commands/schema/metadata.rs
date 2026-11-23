@@ -1,6 +1,8 @@
 //! `fraiseql schema metadata` — display field-level security metadata from a running server.
 //!
-//! Fetches `GET /api/v1/schema/metadata` and renders the result as an aligned table:
+//! Fetches `GET /api/v1/schema/metadata` and renders the result as an aligned table. The
+//! server answers the schema as the token's caller may see it, so a type gated by a role the
+//! caller lacks is not listed; without a token, only the types no role gates are.
 //!
 //! ```text
 //! Field       Encrypted  Scope     On Deny

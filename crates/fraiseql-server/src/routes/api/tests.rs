@@ -496,7 +496,7 @@ mod metadata_tests {
     };
 
     use super::super::metadata::{FieldSecurityMetadata, flatten_field_metadata, metadata_handler};
-    use crate::routes::graphql::AppState;
+    use crate::{extractors::OptionalSecurityContext, routes::graphql::AppState};
 
     #[derive(Debug, Clone)]
     struct StubAdapter;
@@ -584,7 +584,8 @@ mod metadata_tests {
         let executor = Arc::new(Executor::read_only(schema, Arc::new(StubAdapter)));
         let state = AppState::new(executor);
 
-        let axum::Json(resp) = metadata_handler(State(state)).await;
+        let axum::Json(resp) =
+            metadata_handler(State(state), OptionalSecurityContext(None)).await.unwrap();
 
         assert_eq!(resp.status, "success");
 
@@ -608,7 +609,8 @@ mod metadata_tests {
         let executor = Arc::new(Executor::read_only(schema, Arc::new(StubAdapter)));
         let state = AppState::new(executor);
 
-        let axum::Json(resp) = metadata_handler(State(state)).await;
+        let axum::Json(resp) =
+            metadata_handler(State(state), OptionalSecurityContext(None)).await.unwrap();
         let json = serde_json::to_value(&resp).unwrap();
 
         assert_eq!(
@@ -935,6 +937,8 @@ mod schema_tests {
 /// token's roles.
 #[cfg(feature = "auth")]
 mod schema_identity_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable assertions
+
     use std::sync::Arc;
 
     use axum::{Extension, Router, body::Body, http::Request, routing::get};
@@ -945,7 +949,10 @@ mod schema_identity_tests {
     use http::StatusCode;
     use tower::ServiceExt;
 
-    use super::super::schema::{export_json_handler, export_sdl_handler};
+    use super::super::{
+        metadata::metadata_handler,
+        schema::{export_json_handler, export_sdl_handler},
+    };
     use crate::{
         identity::{IdentityResolver, tests as identity_fixtures},
         middleware::oidc_auth::AuthUser,
@@ -955,10 +962,21 @@ mod schema_identity_tests {
     fn router(resolver: IdentityResolver) -> Router {
         let schema = CompiledSchema::from_json(
             &serde_json::json!({
-                "types": [{"name": "Order", "sql_source": "v_order",
-                           "fields": [{"name": "id", "field_type": "ID", "nullable": false}]}],
-                "queries": [{"name": "orders", "return_type": "Order", "returns_list": true,
-                             "nullable": false, "sql_source": "v_order", "arguments": []}]
+                "types": [
+                    {"name": "Order", "sql_source": "v_order",
+                     "fields": [{"name": "id", "field_type": "ID", "nullable": false}]},
+                    {"name": "Ledger", "sql_source": "v_ledger", "requires_role": "auditor",
+                     "fields": [{"name": "note", "field_type": "String", "nullable": true,
+                                 "requires_scope": "read:notes"}]}
+                ],
+                "queries": [
+                    {"name": "orders", "return_type": "Order", "returns_list": true,
+                     "nullable": false, "sql_source": "v_order", "arguments": []},
+                    {"name": "ledgers", "return_type": "Ledger", "returns_list": true,
+                     "nullable": false, "sql_source": "v_ledger", "arguments": [],
+                     "requires_role": "auditor"}
+                ],
+                "security": {"role_definitions": [{"name": "auditor", "scopes": ["read:notes"]}]}
             })
             .to_string(),
             false,
@@ -969,6 +987,7 @@ mod schema_identity_tests {
         Router::new()
             .route("/api/v1/schema.graphql", get(export_sdl_handler))
             .route("/api/v1/schema.json", get(export_json_handler))
+            .route("/api/v1/schema/metadata", get(metadata_handler))
             .with_state(state)
             .layer(Extension(AuthUser(AuthenticatedUser {
                 user_id:      UserId("u1".to_string()),
@@ -986,7 +1005,11 @@ mod schema_identity_tests {
         router.clone().oneshot(request).await.expect("the router answers").status()
     }
 
-    const EXPORTS: [&str; 2] = ["/api/v1/schema.graphql", "/api/v1/schema.json"];
+    const EXPORTS: [&str; 3] = [
+        "/api/v1/schema.graphql",
+        "/api/v1/schema.json",
+        "/api/v1/schema/metadata",
+    ];
 
     #[tokio::test]
     async fn an_unknown_subject_is_refused_the_exports() {
@@ -1013,6 +1036,37 @@ mod schema_identity_tests {
         for uri in EXPORTS {
             assert_eq!(status(&router, uri).await, StatusCode::OK, "{uri}");
         }
+    }
+
+    /// The keys of the metadata `router` answers.
+    async fn metadata_keys(router: &Router) -> Vec<String> {
+        let request =
+            Request::builder().uri("/api/v1/schema/metadata").body(Body::empty()).unwrap();
+        let response = router.clone().oneshot(request).await.expect("the router answers");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        body["data"]["metadata"]
+            .as_object()
+            .expect("metadata is an object")
+            .keys()
+            .cloned()
+            .collect()
+    }
+
+    /// The metadata describes the schema the caller may see: a type whose role it lacks is
+    /// absent with its fields, and a role enrichment adds brings them back.
+    #[tokio::test]
+    async fn the_metadata_answers_the_callers_view() {
+        let without_role = router(identity_fixtures::resolver_returning(&[
+            ("actor_id", serde_json::json!("a-1")),
+            ("actor_role", serde_json::json!("manager")),
+        ]));
+        assert!(metadata_keys(&without_role).await.is_empty());
+
+        let with_role =
+            router(identity_fixtures::resolver_granting_roles(serde_json::json!("auditor")));
+        assert_eq!(metadata_keys(&with_role).await, ["Ledger", "Ledger.note"]);
     }
 }
 
