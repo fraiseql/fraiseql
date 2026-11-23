@@ -233,7 +233,7 @@ test-integration-postgres: db-up db-failover-reset
 	@cargo test -p fraiseql-time --all-features --test timestamptz_pg -- --ignored --test-threads=1
 	@echo ""
 	@echo "### live-PostgreSQL lib tests"
-	@cargo test -p fraiseql-functions --lib migrations::tests -- --test-threads=1
+	@cargo test -p fraiseql-functions --features 'runtime-deno,runtime-wasm,host-live' --lib migrations::tests -- --test-threads=1
 	@cargo test -p fraiseql-functions --features 'runtime-deno,runtime-wasm,host-live' --lib runtime::deno::cursor_tests:: -- --test-threads=1
 	@echo ""
 	@echo "### auth: durable identity store, password, reset, verification, linking, single-use, sweeps"
@@ -248,24 +248,25 @@ test-integration-postgres: db-up db-failover-reset
 	@cargo test -p fraiseql-auth --test postgres_single_use_consume -- --test-threads=1
 	@cargo test -p fraiseql-auth --test postgres_expiry_sweep -- --test-threads=1
 	@cargo test -p fraiseql-auth --test postgres_otp_guess_budget -- --test-threads=1
-	@cargo test -p fraiseql-server --features auth --test integration -- --test-threads=1
+	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,functions-runtime-deno,observers-nats' --test integration -- --test-threads=1
 	@cargo test -p fraiseql-auth --test session_state_integration -- --test-threads=1
 	@echo ""
 	@echo "### inbound spine, storage policy admin, sources, functions runtime"
 	@cargo test -p fraiseql-webhooks --test inbound_pipeline_pg -- --test-threads=1
-	@cargo test -p fraiseql-server --features inbound,inbound-email,auth --lib -- inbound:: server::provision_tests:: server::parity_tests::
-	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --lib server::routing::storage_policy_admin_tests -- --test-threads=1
-	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --lib tenancy::tests::runtime_config_drift -- --test-threads=1
-	@cargo test -p fraiseql-server --features inbound-email --test inbound_email_dedup_scope_pg -- --test-threads=1
-	@cargo test -p fraiseql-server --features sources,inbound-email --lib -- sources:: stranded_tables:: server_config::egress:: server::provision_tests::each_configured_capability_plans_its_own_tables capability::schema_tests:: --test-threads=1
-	@cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: server::after_mutation_wiring_tests:: server::functions_setup:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: function_dispatch:: server::provision_tests:: server::entry_point_parity_tests:: server::health_capabilities_tests:: server::initialization::tests::static_enriched_fields::functions:: server::declared_observer_env_tests:: --test-threads=1
-	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --lib -- server::entry_point_parity_tests:: server::health_capabilities_tests:: --test-threads=1
-	@cargo test -p fraiseql-cli --features run-server,fraiseql-server/observers --lib commands::run_serve_tests:: -- --test-threads=1
-	@cargo test -p fraiseql-cli --features test-postgres,run-server,fraiseql-server/observers --test run_admin_provisioning_pg -- --test-threads=1
-	@cargo test -p fraiseql-cli --features test-postgres,run-server,fraiseql-server/observers --test auth_rotate_signing_key_pg -- --test-threads=1
-	@cargo test -p fraiseql-saga --lib saga_store::tests -- --test-threads=1
-	@cargo test -p fraiseql-server --features functions-runtime,mcp --test functions_schema_seam_test
-	@cargo test -p fraiseql-server --features functions-runtime --test functions_query_bridge_pin_test
+	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,functions-runtime-deno,observers-nats' --lib -- inbound:: server::provision_tests:: server::parity_tests::
+	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,functions-runtime-deno,observers-nats' --lib server::routing::storage_policy_admin_tests -- --test-threads=1
+	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,functions-runtime-deno,observers-nats' --lib tenancy::tests::runtime_config_drift -- --test-threads=1
+	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,functions-runtime-deno,observers-nats' --test inbound_email_dedup_scope_pg -- --test-threads=1
+	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,functions-runtime-deno,observers-nats' --lib -- sources:: stranded_tables:: server_config::egress:: server::provision_tests::each_configured_capability_plans_its_own_tables capability::schema_tests:: --test-threads=1
+	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,functions-runtime-deno,observers-nats' --lib -- cron:: routes::after_mutation:: server::after_mutation_wiring_tests:: server::functions_setup:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: function_dispatch:: server::provision_tests:: server::entry_point_parity_tests:: server::health_capabilities_tests:: server::initialization::tests::static_enriched_fields::functions:: server::declared_observer_env_tests:: --test-threads=1
+	@cargo test -p fraiseql-server --features 'auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,observers-nats' --lib -- server::entry_point_parity_tests:: subsystems::loader:: --test-threads=1
+	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,observers-nats' --lib -- server::entry_point_parity_tests:: server::health_capabilities_tests:: --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --lib commands::run_serve_tests:: -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test run_admin_provisioning_pg -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test auth_rotate_signing_key_pg -- --test-threads=1
+	@cargo test -p fraiseql-saga --features test-utils --lib saga_store::tests -- --test-threads=1
+	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,functions-runtime-deno,observers-nats' --test functions_schema_seam_test
+	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,functions-runtime-deno,observers-nats' --test functions_query_bridge_pin_test
 	@echo ""
 	@echo "### saga: forward execution, compensation, recovery, remote dispatch"
 	@cargo test -p fraiseql-saga --features test-utils --test saga_integration -- --include-ignored --test-threads=1
@@ -275,27 +276,27 @@ test-integration-postgres: db-up db-failover-reset
 	@cargo test -p fraiseql-saga --features test-utils --test mutation_http -- --test-threads=1
 	@echo ""
 	@echo "### fraiseql-cli against-db suites (each self-skips without DATABASE_URL)"
-	@cargo test -p fraiseql-cli --features test-postgres --test init_first_run_pg -- --test-threads=1
-	@cargo test -p fraiseql-cli --features test-postgres --test generate_views_validate_pg -- --test-threads=1
-	@cargo test -p fraiseql-cli --features test-postgres --test validate_facts_pg -- --test-threads=1
-	@cargo test -p fraiseql-cli --features test-postgres --test compile_drift_fail_pg -- --test-threads=1
-	@cargo test -p fraiseql-cli --features test-postgres --test native_column_nullability_pg -- --test-threads=1
-	@cargo test -p fraiseql-cli --features test-postgres --test authored_contract_pg -- --test-threads=1
-	@cargo test -p fraiseql-cli --features test-postgres --test mutation_contract_against_db -- --test-threads=1
-	@cargo test -p fraiseql-cli --features test-postgres --test doctor_against_db -- --test-threads=1
-	@cargo test -p fraiseql-cli --features test-postgres --test source_probe_against_db -- --test-threads=1
-	@cargo test -p fraiseql-cli --features test-postgres --test function_root_against_db -- --test-threads=1
-	@cargo test -p fraiseql-cli --features test-postgres --test cascade_rls_against_db -- --test-threads=1
-	@cargo test -p fraiseql-cli --features test-postgres --test setup_against_db -- --test-threads=1
-	@cargo test -p fraiseql-cli --features test-postgres,federation --test federation_sdl_against_db -- --test-threads=1
-	@cargo test -p fraiseql-cli --features test-postgres --test sources_against_db -- --test-threads=1
-	@cargo test -p fraiseql-cli --features test-postgres --test validate_sql_sources_gate -- --test-threads=1
-	@cargo test -p fraiseql-cli --features test-postgres --test runtime_smoke -- --test-threads=1
-	@cargo test -p fraiseql-cli --features test-postgres --test perf_against_db -- --test-threads=1
-	@cargo test -p fraiseql-cli --features test-postgres --test server_version_floor_pg -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test init_first_run_pg -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test generate_views_validate_pg -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test validate_facts_pg -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test compile_drift_fail_pg -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test native_column_nullability_pg -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test authored_contract_pg -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test mutation_contract_against_db -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test doctor_against_db -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test source_probe_against_db -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test function_root_against_db -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test cascade_rls_against_db -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test setup_against_db -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test federation_sdl_against_db -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test sources_against_db -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test validate_sql_sources_gate -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test runtime_smoke -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test perf_against_db -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test server_version_floor_pg -- --test-threads=1
 	@echo ""
 	@echo "### fraiseql migrate against the confiture on PATH (CI pins it: tools/confiture-requirements.txt)"
-	@cargo test -p fraiseql-cli --features test-postgres --test migrate_against_confiture -- --test-threads=1
+	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test migrate_against_confiture -- --test-threads=1
 	@echo ""
 	@echo "### seed-fixture integrity (runs last: names any clobber a suite above left)"
 	@cargo test -p fraiseql-db --features postgres,wire-backend,test-postgres --test seed_fixture_integrity -- --test-threads=1
@@ -1895,6 +1896,21 @@ lint-shard-parity:
 test-shard-parity:
 	@bash tools/tests/shard_parity_test.sh
 
+# The postgres and observers integration legs build each package with one feature
+# list; a line that needs features OFF names the flag and the suite it keeps running
+# (`// feature-off:`). Every extra list rebuilt fraiseql-server and fraiseql-core under
+# it (#1886, #1902).
+.PHONY: lint-leg-feature-sets
+lint-leg-feature-sets:
+	@python3 tools/check-leg-feature-sets.py
+
+# Red-capability pin for the leg feature-set gate: a second list, a stale, misplaced or
+# dangling annotation, a vanished suite, and a flag still on through another feature
+# must each be rejected, for its own reason.
+.PHONY: test-leg-feature-sets-gate
+test-leg-feature-sets-gate:
+	@bash tools/tests/leg_feature_sets_test.sh
+
 # Red-capability pin for the bare-DATABASE_URL gate. It ran in preflight and in the
 # required CI leg for its whole life without ever rejecting anything (#1075), so every
 # assertion here is a shape it must reject — starting with the literal text its
@@ -1947,7 +1963,7 @@ lint-required-checks:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: lint-fmt-toolchain fmt-check lint-not-implemented test-not-implemented-gate lint-sdk-dead-surface test-e2e-documents-gate lint-e2e-documents test-e2e-documents lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-audit-ledger lint-doc-claims lint-release-validation lint-rustc-wrapper lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets test-fuzz-targets-gate lint-compose-references lint-no-first-party-hs256 lint-dagger-apt lint-pg-tviews-pin lint-doc-image-refs lint-ci-install-pins lint-phases-citations lint-image-context lint-publish-secrets lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-mount-ledger test-mount-ledger-gate lint-guard-sites test-guard-sites-gate test-guard-mutants-gate lint-internal-flag lint-value-json lint-graphql-parse lint-mutation-dispatch lint-write-selections lint-auth-schema lint-sql-safe lint-ddl-lock lint-principal-producers test-principal-producers-gate lint-rls-policy-construction lint-config-deny-unknown test-config-deny-unknown-gate lint-config-refusals test-config-refusals-gate lint-docs-env-vars lint-docs-version test-docs-version-gate lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-ignored-lines test-ignored-lines-gate lint-grep-q-pipefail test-grep-q-pipefail-gate lint-doctest-skip test-doctest-skip-gate lint-snapshot-pairing lint-empty-tests lint-test-subject lint-module-reachability lint-pub-mod-callers lint-prose-ratchet lint-docs-rust-examples lint-query-variables lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-go-floor lint-workflow-reachability lint-already-passed-guard lint-image-mirror lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-artifact-features lint-delivery-coverage lint-sdk-lockfile-freshness lint-cargo-lock-path-versions test-release-tooling test-changelog-gate test-deadline-gate test-audit-ledger-gate test-docs-env-vars-gate test-doc-claims-gate test-release-validation-gate test-rustc-wrapper-gate test-write-selections-gate test-auth-schema-gate test-sql-safe-gate test-ddl-lock-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-already-passed-guard-gate test-image-mirror-gate test-sdk-workflows-gate test-go-floor-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-artifact-features-gate test-publish-secrets-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-cargo-lock-path-versions-gate test-feature-matrix-gate lint-feature-combo-features test-feature-combo-features-gate test-test-subject-gate test-module-reachability-gate test-pub-mod-callers-gate test-prose-ratchet-gate test-perf-instructions-gate test-docs-rust-examples-gate test-query-variables-gate test-crate-sizes-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-no-first-party-hs256-gate test-dagger-apt-gate test-pg-tviews-pin-gate test-bench-quiet-window-gate test-detect-regression-host-gate test-bench-require-measured-gate test-doc-image-refs-gate test-ci-install-pins-gate test-ci-stale-artifacts-gate lint-ci-source-stamp test-ci-source-stamp-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
+preflight: lint-fmt-toolchain fmt-check lint-not-implemented test-not-implemented-gate lint-sdk-dead-surface test-e2e-documents-gate lint-e2e-documents test-e2e-documents lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-audit-ledger lint-doc-claims lint-release-validation lint-rustc-wrapper lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets test-fuzz-targets-gate lint-compose-references lint-no-first-party-hs256 lint-dagger-apt lint-pg-tviews-pin lint-doc-image-refs lint-ci-install-pins lint-phases-citations lint-image-context lint-publish-secrets lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-mount-ledger test-mount-ledger-gate lint-guard-sites test-guard-sites-gate test-guard-mutants-gate lint-internal-flag lint-value-json lint-graphql-parse lint-mutation-dispatch lint-write-selections lint-auth-schema lint-sql-safe lint-ddl-lock lint-principal-producers test-principal-producers-gate lint-rls-policy-construction lint-config-deny-unknown test-config-deny-unknown-gate lint-config-refusals test-config-refusals-gate lint-docs-env-vars lint-docs-version test-docs-version-gate lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-ignored-lines test-ignored-lines-gate lint-grep-q-pipefail test-grep-q-pipefail-gate lint-doctest-skip test-doctest-skip-gate lint-snapshot-pairing lint-empty-tests lint-test-subject lint-module-reachability lint-pub-mod-callers lint-prose-ratchet lint-docs-rust-examples lint-query-variables lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-go-floor lint-workflow-reachability lint-already-passed-guard lint-image-mirror lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-leg-feature-sets lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-artifact-features lint-delivery-coverage lint-sdk-lockfile-freshness lint-cargo-lock-path-versions test-release-tooling test-changelog-gate test-deadline-gate test-audit-ledger-gate test-docs-env-vars-gate test-doc-claims-gate test-release-validation-gate test-rustc-wrapper-gate test-write-selections-gate test-auth-schema-gate test-sql-safe-gate test-ddl-lock-gate test-preflight-parity test-shard-parity test-leg-feature-sets-gate test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-already-passed-guard-gate test-image-mirror-gate test-sdk-workflows-gate test-go-floor-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-artifact-features-gate test-publish-secrets-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-cargo-lock-path-versions-gate test-feature-matrix-gate lint-feature-combo-features test-feature-combo-features-gate test-test-subject-gate test-module-reachability-gate test-pub-mod-callers-gate test-prose-ratchet-gate test-perf-instructions-gate test-docs-rust-examples-gate test-query-variables-gate test-crate-sizes-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-no-first-party-hs256-gate test-dagger-apt-gate test-pg-tviews-pin-gate test-bench-quiet-window-gate test-detect-regression-host-gate test-bench-require-measured-gate test-doc-image-refs-gate test-ci-install-pins-gate test-ci-stale-artifacts-gate lint-ci-source-stamp test-ci-source-stamp-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

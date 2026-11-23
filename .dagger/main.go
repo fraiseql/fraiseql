@@ -73,6 +73,23 @@ const (
 	// serverTestFeatures, every Stable capability. The observers leg builds the
 	// `fraiseql-cli` binary their `run` entry point serves through with the same set.
 	capabilityFixtureExtraFeatures = "export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli"
+	// serverUnifiedFeatures: the one fraiseql-server feature set of the postgres and observers
+	// integration legs (#1886, #1902). Every list a suite of those legs needs is a subset,
+	// and each distinct list rebuilt fraiseql-server and, under it, fraiseql-core and
+	// fraiseql-db. It is serverTestFeatures and capabilityFixtureExtraFeatures, plus
+	// admin-sql, functions-runtime-deno and observers-nats; tools/check-leg-feature-sets.py
+	// holds it to both lists. A line that needs a feature OFF says so with a
+	// `// feature-off:` annotation that the same gate checks.
+	serverUnifiedFeatures = "arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,functions-runtime-deno,observers-nats"
+	// The two feature-OFF builds of serverUnifiedFeatures, for suites whose OFF arms need
+	// the database: each drops a flag and every feature that turns it on.
+	// serverWithoutArrowOrDenoFeatures: no `arrow`, no `functions-runtime-deno`
+	// (`functions-runtime` stays on).
+	serverWithoutArrowOrDenoFeatures = "auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,observers-nats"
+	// serverWithoutFunctionsFeatures: no `functions-runtime`.
+	serverWithoutFunctionsFeatures = "arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,observers-nats"
+	// cliPostgresFeatures: the one fraiseql-cli feature set of the postgres integration leg.
+	cliPostgresFeatures = "test-postgres,federation,run-server,fraiseql-server/observers"
 	// testWorkspaceSkip: the skip patterns the `Test` shard's workspace sweep
 	// carries — the testcontainers lib tests (storage + functions); wire's
 	// container tests live in tests/*, so only its lib unit tests run.
@@ -906,6 +923,12 @@ func (m *FraiseqlCi) ShellGates(
 		// Bidirectional — a local-only extra line falsifies the target's claim in
 		// the other direction.
 		"python3 tools/check-shard-parity.py",
+		// The postgres and observers integration legs build each package with one
+		// feature list; each extra list rebuilt fraiseql-server and fraiseql-core under
+		// it, and a cold runner could not finish the postgres leg (#1886, #1906). A line
+		// that needs a feature OFF names the flag and the suite it keeps running.
+		"python3 tools/check-leg-feature-sets.py",
+		"bash tools/tests/leg_feature_sets_test.sh",
 		// cargo-deny's unmatched-skip lints default to WARN, so a stale
 		// [[bans.skip-tree]] pin covers NOTHING while `cargo deny check` still exits 0.
 		// The level cannot be set in deny.toml, so `-D` lives on three command lines;
@@ -1761,7 +1784,7 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// fraiseql-db keeps every database-backed test in tests/ (#1370): the line above
 		// runs them, and `--lib` can never reach one, whatever features it enables.
 		// Tier-C migrated: fraiseql-functions cron-state migration (lib tests; harness postgres()).
-		"cargo test -p fraiseql-functions --lib migrations::tests -- --test-threads=1",
+		"cargo test -p fraiseql-functions --features 'runtime-deno,runtime-wasm,host-live' --lib migrations::tests -- --test-threads=1",
 		// The Model B cursor ops through the Deno runtime need this leg's database: in the
 		// `Test` leg's deno run they self-skip, having none. V8 runs here as it does there.
 		"cargo test -p fraiseql-functions --features 'runtime-deno,runtime-wasm,host-live' --lib runtime::deno::cursor_tests:: -- --test-threads=1",
@@ -1800,7 +1823,7 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// only its entry file, scored it zero tests and dropped it from every check,
 		// so its 36 tests — several of which self-skip without DATABASE_URL — ran
 		// nowhere while the gate printed OK over them.
-		"cargo test -p fraiseql-server --features auth --test integration -- --test-threads=1",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --test integration -- --test-threads=1",
 		// #389 session-state store (_system.session_state: TTL visibility, upsert, atomic
 		// summary collapse, eviction sweep vs real PG).
 		"cargo test -p fraiseql-auth --test session_state_integration -- --test-threads=1",
@@ -1825,36 +1848,35 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// that needs `auth` with `inbound-email` (a local-auth OTP naming an unknown
 		// mailbox), compiled in no leg until the suite-coverage gate followed `mod`
 		// declarations.
-		"cargo test -p fraiseql-server --features inbound,inbound-email,auth --lib -- inbound:: server::provision_tests:: server::parity_tests::",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --lib -- inbound:: server::provision_tests:: server::parity_tests::",
 		// #974: the storage bucket-policy admin API (PUT/GET/DELETE) against a
 		// real policy store — the split-token separation, the request-time
 		// refusal that leaves the running policy in place, and the wholesale
 		// store-over-config precedence. The DB-less test leg skips it by name.
-		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --lib server::routing::storage_policy_admin_tests -- --test-threads=1",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --lib server::routing::storage_policy_admin_tests -- --test-threads=1",
 		// #1333: the tenant-executor RuntimeConfig pins. These build a real tenant pool,
 		// so in the DB-less `test` leg they self-skip and report `ok` while asserting
 		// nothing — a skip reads as passing. They are the drift comparison against a
 		// factory-built executor, the Authorizer actually binding on one, and the proof
 		// the config is read per registration rather than captured. Serial: each
 		// registration provisions its own pool.
-		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --lib tenancy::tests::runtime_config_drift -- --test-threads=1",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --lib tenancy::tests::runtime_config_drift -- --test-threads=1",
 		// #775: per-mailbox spine scoping + content-digest dedup key. Drives
 		// EmailIngestSink against real PG (no IMAP, no real mailbox): the same
 		// Message-ID to two mailboxes lands twice; a pre-claimed Message-ID cannot
 		// suppress a genuine, differently-bodied message.
-		"cargo test -p fraiseql-server --features inbound-email --test inbound_email_dedup_scope_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --test inbound_email_dedup_scope_pg -- --test-threads=1",
 		// #573 source scheduler (Model B): the SourceQueryExecutor identity/tenant
 		// seam, the source poller build_host composition (cursor round-trip vs PG +
 		// executor reachable via host.query), and the scheduler's schedulable/config
-		// resolution. `--features sources` pulls the Deno path (compiled only). The
+		// resolution. `sources` pulls the Deno path (compiled only). The
 		// fires_a_model_b_connector_end_to_end name-skip is lifted (#971):
 		// the "V8 SIGSEGVs in the exec sandbox" diagnosis was #969's
 		// second-isolate-per-process crash, fixed there — this run is the
-		// sandbox re-test the issue asked for. `inbound-email` compiles
-		// stranded_tables:: as both of its callers do; its gate is
-		// any(observers, sources, inbound-email), which `sources` alone satisfies.
+		// sandbox re-test the issue asked for. stranded_tables:: is gated on
+		// any(observers, sources, inbound-email).
 		// `capability::schema_tests::` holds a sources-gated arm that ran in no leg.
-		"cargo test -p fraiseql-server --features sources,inbound-email --lib -- sources:: stranded_tables:: server_config::egress:: server::provision_tests::each_configured_capability_plans_its_own_tables capability::schema_tests:: --test-threads=1",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --lib -- sources:: stranded_tables:: server_config::egress:: server::provision_tests::each_configured_capability_plans_its_own_tables capability::schema_tests:: --test-threads=1",
 		// P16 functions-runtime gate (#796/#803/#840/#841/#842): the cron
 		// fire-window + cross-restart guard vs real PG (`cron::tests` reads
 		// back `_fraiseql_cron_state`), and the dispatched host's identity /
@@ -1865,9 +1887,9 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// embedded V8 SIGSEGVs in the exec sandbox, see docs/contributing/dagger-parity-notes.md.)
 		// `schema::tests::` (#1326): the loader's feature-ON arm — a `functions`
 		// section LOADS in a build that can serve one, where a lean build refuses it.
-		// Both arms have to run somewhere, and this filtered line is the only
-		// functions-runtime `--lib` invocation, so without the filter entry the ON
-		// arm compiles nowhere and reads as passing. check-suite-coverage.py caught it.
+		// Both arms have to run somewhere, and a filtered `--lib` line runs only what its
+		// filter names, so without the filter entry the ON arm runs nowhere and reads
+		// as passing. check-suite-coverage.py caught it.
 		// #992: widened beyond the original P16 cron/after_mutation filters —
 		// query_bridge, subsystems::loader, function_metrics and the
 		// pg_function_dlq observers module are functions-runtime-gated too and
@@ -1880,47 +1902,56 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// `function_dispatch::` and `server::provision_tests::` joined in #1628:
 		// the dispatch ledger's caller replay and its boot provisioning are
 		// functions-runtime-gated, and no other `--lib` line compiled them.
-		// `server::entry_point_parity_tests::` runs here as well as on the full
-		// feature set below: this build has no `arrow`, and the fixture named an
-		// Arrow-only config field that only such a build refuses.
+		// `server::entry_point_parity_tests::`, `server::health_capabilities_tests::` and
+		// `subsystems::loader::` run here with every feature ON, and below with the
+		// features their OFF arms need turned off.
 		// Three more ran in no leg until the suite-coverage gate found lib test modules
 		// by declaration rather than by a `tests.rs` file name: the functions-runtime
-		// arms of `server::health_capabilities_tests::` (the line below builds without
-		// the feature) and of `server::initialization::tests::static_enriched_fields::functions::`, and
+		// arms of `server::health_capabilities_tests::` and of
+		// `server::initialization::tests::static_enriched_fields::functions::`, and
 		// `server::declared_observer_env_tests::`, whose refused-boot case needs this
 		// leg's database and self-skipped in the DB-less `Test` leg.
-		"cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: server::after_mutation_wiring_tests:: server::functions_setup:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: function_dispatch:: server::provision_tests:: server::entry_point_parity_tests:: server::health_capabilities_tests:: server::initialization::tests::static_enriched_fields::functions:: server::declared_observer_env_tests:: --test-threads=1",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --lib -- cron:: routes::after_mutation:: server::after_mutation_wiring_tests:: server::functions_setup:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: function_dispatch:: server::provision_tests:: server::entry_point_parity_tests:: server::health_capabilities_tests:: server::initialization::tests::static_enriched_fields::functions:: server::declared_observer_env_tests:: --test-threads=1",
 		// The entry-point parity and `/health` capability suites boot a server with the
-		// observer runtime and Flight, through a skip-clean `postgres()` getter. The
-		// `Test` leg compiles them with no database, where they returned early and read
-		// as a pass. The feature set is the `Test` leg's, already built here.
-		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --lib -- server::entry_point_parity_tests:: server::health_capabilities_tests:: --test-threads=1",
+		// observer runtime, through a skip-clean `postgres()` getter. The `Test` leg
+		// compiles them with no database, where they returned early and read as a pass.
+		// Their feature-OFF arms need a build without the feature, against the database.
+		// Without `arrow`: the parity fixture names an Arrow-only config field that only
+		// such a build refuses. The same build keeps `functions-runtime` without Deno,
+		// the arm in which the function loader refuses a Deno function loud.
+		// feature-off: arrow — server::entry_point_parity_tests
+		// feature-off: functions-runtime-deno — subsystems::loader::tests
+		"cargo test -p fraiseql-server --features '" + serverWithoutArrowOrDenoFeatures + "' --lib -- server::entry_point_parity_tests:: subsystems::loader:: --test-threads=1",
+		// Without `functions-runtime`, as the default server build ships: the parity
+		// fixture's functions capability is absent, and `/health` reports it so.
+		// feature-off: functions-runtime — server::entry_point_parity_tests
+		"cargo test -p fraiseql-server --features '" + serverWithoutFunctionsFeatures + "' --lib -- server::entry_point_parity_tests:: server::health_capabilities_tests:: --test-threads=1",
 		// `fraiseql run` boots through the binary's assembly; the observer runtime is
 		// what proves it holds the pool, so the server's `observers` is switched on.
-		"cargo test -p fraiseql-cli --features run-server,fraiseql-server/observers --lib commands::run_serve_tests:: -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --lib commands::run_serve_tests:: -- --test-threads=1",
 		// `fraiseql run --admin-database-url` creates and grants the engine's and auth's roles in
 		// development. The suite runs the binary, so it needs `run-server`; the features match
 		// the line above, which has built the server already.
 		"echo '### cargo test -p fraiseql-cli --test run_admin_provisioning_pg (development role provisioning)'",
-		"cargo test -p fraiseql-cli --features test-postgres,run-server,fraiseql-server/observers --test run_admin_provisioning_pg -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test run_admin_provisioning_pg -- --test-threads=1",
 		// `fraiseql auth rotate-signing-key` retires the first-party issuer's active key in a
 		// database of its own per case; same features, so the binary is already built.
 		"echo '### cargo test -p fraiseql-cli --test auth_rotate_signing_key_pg (signing-key rotation)'",
-		"cargo test -p fraiseql-cli --features test-postgres,run-server,fraiseql-server/observers --test auth_rotate_signing_key_pg -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test auth_rotate_signing_key_pg -- --test-threads=1",
 		// #1297: saga_store's Postgres orchestration proof, same shape — skip-clean
 		// on `try_database_url()`, compiled only by the DB-less `Test` leg.
-		"cargo test -p fraiseql-saga --lib saga_store::tests -- --test-threads=1",
+		"cargo test -p fraiseql-saga --features test-utils --lib saga_store::tests -- --test-threads=1",
 		// #896: the functions subsystem is configured from the schema the server was
 		// built with, on BOTH serving entry points. Its own binary, and
 		// functions-runtime-gated, so it belongs on this line rather than in
 		// serverInProcessTests — which omits the feature and would run zero tests.
 		// `mcp` adds the third entry point, serve_mcp_stdio (#1332).
-		"cargo test -p fraiseql-server --features functions-runtime,mcp --test functions_schema_seam_test",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --test functions_schema_seam_test",
 		// #1082: same argument as the line above, and the case that proved the gate
 		// blind. This binary is `#![cfg(feature = "functions-runtime")]` at file level,
 		// which cargo cannot see, so naming it in serverInProcessTests built an EMPTY
 		// binary that reported "test result: ok. 0 passed" and read as covered.
-		"cargo test -p fraiseql-server --features functions-runtime --test functions_query_bridge_pin_test",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --test functions_query_bridge_pin_test",
 		// #429 wired saga forward execution + compensation + recovery + coordinator
 		// + remote dispatch (saga): orchestration, rollback, and crash
 		// recovery against the real Postgres saga store + entity mutations, plus the
@@ -1943,57 +1974,57 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// printed next step is executed, the scaffold's DDL is applied, and a
 		// query + a mutation run through the real executor against PostgreSQL.
 		"echo '### cargo test -p fraiseql-cli --test init_first_run_pg (#823/#822 first-run e2e)'",
-		"cargo test -p fraiseql-cli --features test-postgres --test init_first_run_pg -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test init_first_run_pg -- --test-threads=1",
 		// #821 — `generate-views --validate` executes the DDL against PostgreSQL
 		// in a rolled-back transaction; this suite proves it can PASS and FAIL.
 		"echo '### cargo test -p fraiseql-cli --test generate_views_validate_pg (#821 validate can fail)'",
-		"cargo test -p fraiseql-cli --features test-postgres --test generate_views_validate_pg -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test generate_views_validate_pg -- --test-threads=1",
 		// #1626: validate facts reads an authoring schema.json, so a declared fact table the
 		// database lacks fails the command instead of "no fact tables declared".
 		"echo '### cargo test -p fraiseql-cli --test validate_facts_pg (#1626 validate facts can fail)'",
-		"cargo test -p fraiseql-cli --features test-postgres --test validate_facts_pg -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test validate_facts_pg -- --test-threads=1",
 		// #384 — `compile --database` is a drift linter that can FAIL: error-severity
 		// schema↔database drift exits non-zero and writes no artifact; doctor
 		// reports the same drift as structured JSON. Proves both directions.
 		"echo '### cargo test -p fraiseql-cli --test compile_drift_fail_pg (#384 drift linter can fail)'",
-		"cargo test -p fraiseql-cli --features test-postgres --test compile_drift_fail_pg -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test compile_drift_fail_pg -- --test-threads=1",
 		"echo '### cargo test -p fraiseql-cli --test native_column_nullability_pg (#1533 NOT NULL recorded where proven)'",
-		"cargo test -p fraiseql-cli --features test-postgres --test native_column_nullability_pg -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test native_column_nullability_pg -- --test-threads=1",
 		// What an author declares in schema.json is what the runtime serves, compiled with the
 		// real CLI and read through the real executor (#1586).
 		"echo '### cargo test -p fraiseql-cli --test authored_contract_pg (declaration = served contract)'",
-		"cargo test -p fraiseql-cli --features test-postgres --test authored_contract_pg -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test authored_contract_pg -- --test-threads=1",
 		// #384 verification suites that had NEVER run with a database in any leg:
 		// each self-skips without DATABASE_URL, and the workspace test leg (which
 		// compiles them under --all-features) binds no Postgres — so all three read
 		// green while running zero tests. The remaining self-skipping -cli suite
 		// (cascade_rls_against_db) is tracked in its own issue.
 		"echo '### cargo test -p fraiseql-cli --test mutation_contract_against_db --test doctor_against_db --test source_probe_against_db (#384 against-db gates)'",
-		"cargo test -p fraiseql-cli --features test-postgres --test mutation_contract_against_db -- --test-threads=1",
-		"cargo test -p fraiseql-cli --features test-postgres --test doctor_against_db -- --test-threads=1",
-		"cargo test -p fraiseql-cli --features test-postgres --test source_probe_against_db -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test mutation_contract_against_db -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test doctor_against_db -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test source_probe_against_db -- --test-threads=1",
 		// #1690 — a function root's function is checked against pg_proc: it binds the
 		// query's parameters, returns a set, and is not VOLATILE.
 		"echo '### cargo test -p fraiseql-cli --test function_root_against_db (#1690 function-root contract)'",
-		"cargo test -p fraiseql-cli --features test-postgres --test function_root_against_db -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test function_root_against_db -- --test-threads=1",
 		// #960 — the cascade RLS conformance proof (2-tenant isolation incl. the
 		// default-privilege-view LEAK proof) had never executed its assertions in
 		// CI: it self-skips without DATABASE_URL and only the DB-less test leg
 		// compiled it. One consolidated test — expect `1 passed, 0 skipped` here.
 		"echo '### cargo test -p fraiseql-cli --test cascade_rls_against_db (#960 cascade RLS boundary proof)'",
-		"cargo test -p fraiseql-cli --features test-postgres --test cascade_rls_against_db -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test cascade_rls_against_db -- --test-threads=1",
 		// #992: the remaining self-skipping fraiseql-cli against-db suites, same
 		// shape as #960/#384 — green-while-running-zero-tests until named here.
 		"echo '### cargo test -p fraiseql-cli remaining against-db suites (#992)'",
-		"cargo test -p fraiseql-cli --features test-postgres --test setup_against_db -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test setup_against_db -- --test-threads=1",
 		// #1427: `federation sdl` and `_service { sdl }` agree on one artifact.
-		"cargo test -p fraiseql-cli --features test-postgres,federation --test federation_sdl_against_db -- --test-threads=1",
-		"cargo test -p fraiseql-cli --features test-postgres --test sources_against_db -- --test-threads=1",
-		"cargo test -p fraiseql-cli --features test-postgres --test validate_sql_sources_gate -- --test-threads=1",
-		"cargo test -p fraiseql-cli --features test-postgres --test runtime_smoke -- --test-threads=1",
-		"cargo test -p fraiseql-cli --features test-postgres --test perf_against_db -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test federation_sdl_against_db -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test sources_against_db -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test validate_sql_sources_gate -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test runtime_smoke -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test perf_against_db -- --test-threads=1",
 		// #1452: the CLI's own connections refuse PostgreSQL 17 (BELOW_FLOOR_DATABASE_URL).
-		"cargo test -p fraiseql-cli --features test-postgres --test server_version_floor_pg -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test server_version_floor_pg -- --test-threads=1",
 		// `fraiseql migrate` is a wrapper around confiture, and for two releases every verb it
 		// shelled (`confiture status --source DIR`) was a command and an option no confiture
 		// release has had. Its only tests self-skipped whenever confiture was present, so the
@@ -2010,7 +2041,7 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"export PATH=/tmp/confiture/bin:$PATH",
 		"echo \"### confiture: $(confiture --version)\"",
 		"echo '### cargo test -p fraiseql-cli --test migrate_against_confiture (fraiseql migrate → confiture call shape)'",
-		"cargo test -p fraiseql-cli --features test-postgres --test migrate_against_confiture -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test migrate_against_confiture -- --test-threads=1",
 		// #936: the seed-fixture integrity gate runs LAST — any clobber a suite
 		// above introduced fails here, naming the fixture.
 		"echo '### cargo test -p fraiseql-db --test seed_fixture_integrity (#936 gate, runs last)'",
@@ -3385,10 +3416,10 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 	redisURL := fmt.Sprintf("redis://%s:6379", redisBindHost)
 	natsURL := fmt.Sprintf("nats://%s:4222", natsBindHost)
 
-	// The capability fixtures' server features, on fraiseql-server for the `fraiseql-cli`
-	// binary their `run` entry point serves through.
+	// The leg's server features, on fraiseql-server for the `fraiseql-cli` binary the
+	// capability fixtures' `run` entry point serves through.
 	capabilityRunServerFeatures := "run-server"
-	for _, f := range strings.Split(serverTestFeatures+","+capabilityFixtureExtraFeatures, ",") {
+	for _, f := range strings.Split(serverUnifiedFeatures, ",") {
 		capabilityRunServerFeatures += ",fraiseql-server/" + f
 	}
 
@@ -3398,8 +3429,8 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		"echo '### integration: observers (Dagger-bound postgres+redis+nats)'",
 		// postgres_notify lib tests are skip-on-None (not #[ignore]d); run name-filtered
 		// (no --ignored) so the NOTIFY transport tests exercise the bound Postgres.
-		"bash tools/ci-target-canary.sh -- test -p fraiseql-observers --lib postgres_notify", // #880 canary
-		"cargo test -p fraiseql-observers --lib postgres_notify -- --test-threads=1",
+		"bash tools/ci-target-canary.sh -- test -p fraiseql-observers --features 'caching,redis-lease' --lib postgres_notify", // #880 canary
+		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --lib postgres_notify -- --test-threads=1",
 		// The crate's `#[ignore]`d lib tests, 14 against the bound Postgres:
 		// `listener::replay`'s and the `database` action's. Not a plain `--lib` run:
 		// that pulls in the SSRF-guard unit tests, which assert the guard is ON and so
@@ -3411,17 +3442,17 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// unit tests that fail under this suite's FRAISEQL_OBSERVERS_ALLOW_INSECURE.
 		// This leg binds both Postgres and Redis, so both halves execute here.
 		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --lib listener::tests -- --test-threads=1",
-		"cargo test -p fraiseql-server --features observers-nats --test observer_runtime_integration_test -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --test observer_runtime_integration_test -- --ignored --test-threads=1",
 		// #928: the observer E2E suite. It had never run in any leg — none of its
 		// tests constructed a runtime, so all 8 waited for webhooks nothing could
 		// send. Repaired in P17 (each test drives a real ObserverRuntime); gated
 		// here so it can never silently die again.
-		"cargo test -p fraiseql-server --features observers --test observer_e2e_test -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --test observer_e2e_test -- --ignored --test-threads=1",
 		// #2040: a webhook header value read from the environment at delivery, end to end
 		// through the compiler, the admin API and a real runtime. It needs this leg's
 		// private-webhook allowance (FRAISEQL_ALLOW_PRIVATE_WEBHOOKS) for the loopback
 		// receiver; `auth` for the admin principal.
-		"cargo test -p fraiseql-server --features observers,auth --test observer_headers_env_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --test observer_headers_env_e2e_pg -- --test-threads=1",
 		// #1309: the REST /{resource}/stream fan-out, and the one assertion the issue
 		// made mandatory — open a stream AND assert the observer still fires for the
 		// same event. It lives in THIS leg rather than `integration (server)` because
@@ -3432,59 +3463,59 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// to assert on a log row written by a REFUSED dispatch — an assertion about the
 		// SSRF guard rather than about the fan-out.
 		"echo '### #1309: REST /{resource}/stream fan-out (stream delivers AND observers still fire)'",
-		"cargo test -p fraiseql-server --features 'observers,rest' --test rest_stream_fanout_e2e_pg -- --include-ignored --test-threads=1",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --test rest_stream_fanout_e2e_pg -- --include-ignored --test-threads=1",
 		// #349 email happy-path: send through lettre to the bound MailHog sink and
 		// assert the message arrived (real SMTP wire format, not a stub).
-		"cargo test -p fraiseql-observers --test smtp_integration -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --test smtp_integration -- --ignored --test-threads=1",
 		// #443 / #437 F6: change-log RLS isolation under a NOBYPASSRLS role (the
 		// superuser DATABASE_URL would mask the policy). The test creates its own
 		// tenant/consumer roles off the superuser connection — no extra env needed.
-		"cargo test -p fraiseql-observers --test rls_isolation -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --test rls_isolation -- --ignored --test-threads=1",
 		// #390 (P29): the change-log contract suite — including the actor_type CHECK
 		// constraint tests — plus the views + capture-trigger suites. All three binaries
 		// had run in NO leg since they were written (the #[ignore]-with-no---ignored-leg
 		// form of the skip-green pattern); capture_trigger is order-independent since it
 		// drops the ambient table (an ambient NOT-NULL object_data red-flagged it).
-		"cargo test -p fraiseql-observers --test entity_change_log_contract -- --ignored --test-threads=1",
-		"cargo test -p fraiseql-observers --test changelog_views -- --ignored --test-threads=1",
-		"cargo test -p fraiseql-observers --test capture_trigger -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --test entity_change_log_contract -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --test changelog_views -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --test capture_trigger -- --ignored --test-threads=1",
 		// #935: the two-session commit-order repro. Identity pks are allocated in
 		// statement order but become visible in commit order, so the old
 		// `pk > watermark` cursor permanently skipped late-committing rows and
 		// their observers never fired. Needs a real Postgres — a mock cannot
 		// produce the divergence — and its own binary, since it owns
 		// core.tb_entity_change_log and the dispatch ledger.
-		"cargo test -p fraiseql-observers --test change_log_commit_order_pg -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --test change_log_commit_order_pg -- --ignored --test-threads=1",
 		// A change-log row a reader cannot read is reported and passed over, and the
 		// rows after it are delivered: by the poller (whose loop gave up after ten
 		// failed polls), the per-process tail and a resume. Owns the change log too.
-		"cargo test -p fraiseql-observers --test change_log_unreadable_row_pg -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --test change_log_unreadable_row_pg -- --ignored --test-threads=1",
 		// A connection handed to the change-log tail inside a transaction is refused and
 		// reported by backend, with no other session's statement text. Owns the change log.
-		"cargo test -p fraiseql-observers --test change_log_tail_dirty_connection_pg -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --test change_log_tail_dirty_connection_pg -- --ignored --test-threads=1",
 		// A transaction start cancelled while its BEGIN's reply is held leaves no pooled
 		// connection inside a transaction. Owns the change log.
-		"cargo test -p fraiseql-observers --test cancelled_transaction_start_pg -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --test cancelled_transaction_start_pg -- --ignored --test-threads=1",
 		// #573 source coordination primitives: the advisory-lease mutual-exclusion
 		// + crash-safety boundary (Phase 00), and the source cursor store (CAS
 		// advance, in-tx rollback, deny-by-default RLS) + single-firing runner
 		// (Phase 01), all vs the bound Postgres. Self-skip on no DATABASE_URL (not
 		// #[ignore]d) → run WITHOUT --ignored, as separate binaries so they never
 		// pull in the SSRF-guard unit tests this suite disables.
-		"cargo test -p fraiseql-observers --test advisory_lease_pg -- --test-threads=1",
-		"cargo test -p fraiseql-observers --test source_cursor_pg -- --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --test advisory_lease_pg -- --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --test source_cursor_pg -- --test-threads=1",
 		// The DDL the change-log listener runs on its first poll, raced by eight listeners.
-		"cargo test -p fraiseql-observers --test ddl_lock_pg -- --test-threads=1",
+		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --test ddl_lock_pg -- --test-threads=1",
 		// #382 outbound CDC: the drain-worker state machine vs the bound Postgres
 		// (stub sink, no broker) + the NATS JetStream sink end-to-end vs the bound
 		// JetStream (DATABASE_URL + NATS_URL + FRAISEQL_NATS_ALLOW_PLAINTEXT below).
-		"cargo test -p fraiseql-cdc-sinks --test cdc_drain_pg -- --ignored --test-threads=1",
-		"cargo test -p fraiseql-cdc-sinks --features cdc-nats-jetstream --test cdc_nats_e2e -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-cdc-sinks --features 'cdc-nats-jetstream,cdc-kafka,cdc-kinesis' --test cdc_drain_pg -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-cdc-sinks --features 'cdc-nats-jetstream,cdc-kafka,cdc-kinesis' --test cdc_nats_e2e -- --ignored --test-threads=1",
 		// #975: the same drain-through assertions against the bound Kafka broker
 		// (DATABASE_URL + KAFKA_BOOTSTRAP + FRAISEQL_KAFKA_ALLOW_PLAINTEXT below).
 		// Asserted THROUGH the drain, and the entity-keyed partition affinity is
 		// only meaningful because the suite creates its topic with 6 partitions.
-		"cargo test -p fraiseql-cdc-sinks --features cdc-kafka --test cdc_kafka_e2e -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-cdc-sinks --features 'cdc-nats-jetstream,cdc-kafka,cdc-kinesis' --test cdc_kafka_e2e -- --ignored --test-threads=1",
 		// #1102: the SERVER's [subscription_kafka] mount against the same broker. The
 		// whole issue was a transport no configuration could reach, so an adapter-level
 		// test does not close it — this one writes the section, mounts it the way the
@@ -3495,21 +3526,21 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		//
 		// --test-threads=1 because both tests scope FRAISEQL_ENV /
 		// FRAISEQL_KAFKA_ALLOW_PLAINTEXT with temp_env, which is process-global.
-		"cargo test -p fraiseql-server --features subscription-kafka --test subscription_kafka_mirror_e2e -- --test-threads=1",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --test subscription_kafka_mirror_e2e -- --test-threads=1",
 		// #975: the same drain-through assertions against the bound LocalStack
 		// Kinesis (DATABASE_URL + KINESIS_ENDPOINT + FRAISEQL_KINESIS_ALLOW_PLAINTEXT
 		// below). The entity-keyed shard affinity is only meaningful because the
 		// suite creates its stream with 4 shards — on a single-shard stream the
 		// assertion passes with any partition key at all, including a per-message one.
-		"cargo test -p fraiseql-cdc-sinks --features cdc-kinesis --test cdc_kinesis_e2e -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-cdc-sinks --features 'cdc-nats-jetstream,cdc-kafka,cdc-kinesis' --test cdc_kinesis_e2e -- --ignored --test-threads=1",
 		// #382: the SERVER's outbound-CDC mount — [cdc_outbound] built through
 		// the real path drains the outbox to the bound JetStream, and an
 		// unreachable broker refuses to boot. Before this the drain engine was
 		// library-only: nothing in the shipped server constructed a DrainWorker.
-		"cargo test -p fraiseql-server --features cdc-outbound --test cdc_outbound_mount_pg -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --test cdc_outbound_mount_pg -- --ignored --test-threads=1",
 		// 04c: every capability fixture boots the `fraiseql-server` binary (`cli`) on a database
 		// of its own and must reach its effect. It runs here because this leg binds every
-		// service a fixture names (NATS for CDC). The feature set is every Stable capability.
+		// service a fixture names (NATS for CDC). serverUnifiedFeatures holds every Stable capability.
 		//
 		// The `run` entry point is `fraiseql run` from the `fraiseql-cli` binary, built here
 		// with `run-server` and the same server features, into this leg's target directory.
@@ -3518,7 +3549,7 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// crate (#2096). Unset, every fixture driven through `run` fails, naming the variable.
 		"cargo build -p fraiseql-cli --features '" + capabilityRunServerFeatures + "'",
 		"export FRAISEQL_CAPABILITY_RUN_BIN=\"${CARGO_TARGET_DIR:-$PWD/target}/debug/fraiseql-cli\"",
-		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "," + capabilityFixtureExtraFeatures + "' --test capability_fixtures_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --test capability_fixtures_e2e_pg -- --test-threads=1",
 		// #715/#717 arrow executed-SQL suite: the generated INSERT (every Arrow
 		// type, specials, pre-epoch timestamps, NULLs) EXECUTED vs the bound
 		// Postgres, and the batched-queries schema-mismatch guard. This is the
@@ -3533,10 +3564,10 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// reachable in the shipped binary, so both drive the mounted path.
 		"echo '### #953: Flight Upload gate + Change Spine outbox (against the bound Postgres)'",
 		"cargo test -p fraiseql-arrow --all-features --test flight_upload_gate_pg -- --ignored --test-threads=1",
-		// `--features arrow` named on the line: the suite is `#![cfg(feature = "arrow")]`,
+		// `arrow` (in serverUnifiedFeatures) on the line: the suite is `#![cfg(feature = "arrow")]`,
 		// so a leg built without it would run zero tests while reading green — the
 		// #940-class trap.
-		"cargo test -p fraiseql-server --features arrow --test flight_upload_outbox_pg -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --test flight_upload_outbox_pg -- --ignored --test-threads=1",
 		// #1355: the SECOND upload verb. #953 reached DoExchange only, so every DoPut
 		// upload committed unrecorded and the Change Spine saw the same rows in the same
 		// table appear or not appear depending on which Flight verb wrote them. Asserts on
@@ -3545,13 +3576,13 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// #953 fixed: it is what makes a DoPut failure a statement about DoPut rather than
 		// about the fixture, and if both ever go red it is the harness that broke.
 		// `--features arrow` for the same #940-class reason as the line above.
-		"cargo test -p fraiseql-server --features arrow --test flight_do_put_outbox_pg -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --test flight_do_put_outbox_pg -- --ignored --test-threads=1",
 		// Flight `OptimizedView` serves exactly the operator's `flight_views` (the registry the
 		// library pre-fills is emptied by the server). `--features arrow` named on the line
 		// for the same #940-class reason as the two lines above.
-		"cargo test -p fraiseql-server --features arrow --test flight_views_pg -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --test flight_views_pg -- --ignored --test-threads=1",
 		// Flight serves a `numeric` with its digits on every ticket that reads rows (#1766).
-		"cargo test -p fraiseql-server --features arrow --test flight_decimal_pg -- --ignored --test-threads=1",
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --test flight_decimal_pg -- --ignored --test-threads=1",
 		// #908/#1001: the three DB-backed Flight suites. They self-skipped on a
 		// missing DATABASE_URL and the test leg has none, so all 31 tests read as
 		// passing while running nothing — and two of the three asserted a
