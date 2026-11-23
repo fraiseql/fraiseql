@@ -6,7 +6,7 @@ Thank you for considering contributing to the FraiseQL Go authoring library! Thi
 
 ### Prerequisites
 
-- Go 1.22 or later
+- Go 1.26 or later (the releases Go supports)
 - Make (for running build tasks)
 - Git
 

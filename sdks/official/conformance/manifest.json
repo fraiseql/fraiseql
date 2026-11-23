@@ -61,7 +61,7 @@
         "fact_table_grain": "the SDK authors fact tables but has no `grain` authoring surface (#1794 added it to Python)",
         "fact_table_linked_grain": "the SDK authors fact tables but has no `grain` authoring surface, so no grain to link (#2343 added it to Python)"
       },
-      "container": "golang:1.24",
+      "container": "golang:1.26",
       "container_env": [
         "HOME=/conformance-cache/go"
       ]

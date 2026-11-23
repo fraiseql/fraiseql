@@ -841,6 +841,11 @@ func (m *FraiseqlCi) ShellGates(
 		// cannot be, so they gated nothing (#1467).
 		"python3 tools/check-sdk-workflow-coverage.py",
 		"bash tools/tests/sdk_workflow_coverage_test.sh",
+		// The Go SDK's floor is go.mod's `go` line, and the matrix, the setup-go pins,
+		// the conformance container and the docs all say the same. Four files pinned Go
+		// independently, and the README promised 1.22 against go.mod's 1.23 (#2278).
+		"python3 tools/check-go-floor.py",
+		"bash tools/tests/go_floor_test.sh",
 		// A job `if:` may not name an event or a ref its own workflow cannot
 		// receive. The 2026-05-31 migration stripped triggers and left the
 		// conditions: docker-build.yml kept two jobs that read as image coverage

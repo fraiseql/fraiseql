@@ -18,6 +18,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **The Go SDK requires Go 1.26 (#2278).** Its `go.mod` declares `go 1.26`, the oldest
+  release Go still supports, and its suite runs on 1.26 and 1.27; it declared 1.23, was
+  tested on 1.23 and 1.24, and its README promised 1.22. The code needs nothing newer than
+  1.22: the floor follows upstream support, and moves with it. On Go 1.21 to 1.25 under the
+  default `GOTOOLCHAIN=auto`, `go get` raises the requiring module's `go` line to 1.26 and
+  the go command downloads and runs a go1.26 toolchain for it; under `GOTOOLCHAIN=local`
+  the build is refused, naming the version it needs (`requires go >= 1.26`). Go 1.20 and
+  older could not build the SDK before this change and still cannot. A floor stated in
+  `go.mod`, the SDK matrix, a workflow, the conformance container or the docs that
+  disagrees with the others is now refused by `make lint-go-floor`.
+
 - **A field selected on `node` itself must be one the `Node` interface declares (#2277).**
   `Node` declares `id`, and `__typename` is answered everywhere; any other field is selected
   through a fragment on the type that has it (GraphQL § 5.3.1), as graphql-js and client

@@ -211,7 +211,7 @@ Production-like schema combining:
 
 ### Standards
 
-- Go 1.22+ compatibility
+- Go 1.26+ compatibility
 - No external dependencies (uses only standard library)
 - Thread-safe registry with RWMutex
 - Comprehensive error handling
@@ -327,7 +327,7 @@ make clean        # Clean artifacts
 
 ```
 Module: github.com/fraiseql/fraiseql-go
-Go Version: 1.22+
+Go Version: 1.26+
 License: Apache 2.0
 Status: Production Ready
 Version: 1.0.0

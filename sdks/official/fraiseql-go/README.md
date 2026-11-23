@@ -39,7 +39,7 @@ Go Code (struct tags + builders)
 > [ADR-0019](../../../docs/adr/0019-sdk-publication-boundary.md) for why this SDK, and
 > seven others, are source-only.
 
-**Requirements**: Go 1.22+
+**Requirements**: Go 1.26+ (the releases Go supports)
 
 ## Quick Start
 
