@@ -441,7 +441,9 @@ fraiseql-saga = 3_500
 fraiseql-secrets = 3_000
 fraiseql-server = 61_500
 fraiseql-storage = 8_500
-fraiseql-time = 500
+# Raised from 500 for the strict RFC 3339 grammar (`parse_rfc3339_strict`): a second
+# parser the crate owns, the one storage policy bounds are read with.
+fraiseql-time = 1_000
 # Raised from 1_000 for held_replies, the BEGIN-holding PostgreSQL relay behind the
 # held-replies feature, which only test suites enable.
 fraiseql-test-support = 1_500
