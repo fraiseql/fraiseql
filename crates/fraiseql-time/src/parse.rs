@@ -9,6 +9,11 @@
 //! - the offset is `Z`, `z`, `UTC` in any case, or a sign (`+`, `-`, or U+2212) with two-digit
 //!   hours and two-digit minutes, separated by any run of `:` and whitespace;
 //! - whitespace may follow.
+//!
+//! The strict grammar is the one chrono's `DateTime::parse_from_rfc3339` held text to:
+//! `YYYY-MM-DD (T|t|space) hh:mm:ss[.fraction] (Z|z|±hh:mm)`, every number its full
+//! width, no other whitespace, the sign `+`, `-` or U+2212. A leap second (`:60`) is
+//! refused: chrono read it, and no instant it read that way converted to a `Timestamp`.
 
 use jiff::{SignedDuration, civil, tz::Offset};
 
@@ -17,6 +22,28 @@ use crate::Timestamp;
 /// The instant `text` names, or `None` when it is not one a [`Timestamp`] holds.
 pub fn parse(text: &str) -> Option<Timestamp> {
     read(text, false)
+}
+
+/// The instant `text` names in the strict RFC 3339 grammar, or `None`.
+pub fn parse_strict(text: &str) -> Option<Timestamp> {
+    let mut s = Cursor(text);
+    let year = s.exact(4)?;
+    s.literal('-')?;
+    let month = s.exact(2)?;
+    s.literal('-')?;
+    let day = s.exact(2)?;
+    s.separator()?;
+    let hour = s.exact(2)?;
+    s.literal(':')?;
+    let minute = s.exact(2)?;
+    s.literal(':')?;
+    let second = s.exact(2)?;
+    let nanosecond = s.fraction()?;
+    let offset = s.strict_offset()?;
+    if !s.0.is_empty() || second > 59 {
+        return None;
+    }
+    instant(year, month, day, hour, minute, second, nanosecond, offset)
 }
 
 /// PostgreSQL's text form of a `timestamptz` (`2025-11-20 17:30:00.12+05:30`), whose
@@ -50,7 +77,21 @@ fn read(text: &str, hours_only_offset: bool) -> Option<Timestamp> {
     if !s.0.is_empty() || second > 60 {
         return None;
     }
+    instant(year, month, day, hour, minute, second, nanosecond, offset)
+}
 
+/// The instant the fields name; a `second` of 60 is the first second of the next minute.
+#[allow(clippy::too_many_arguments)] // Reason: the fields of one date-time, read in order
+fn instant(
+    year: i64,
+    month: i64,
+    day: i64,
+    hour: i64,
+    minute: i64,
+    second: i64,
+    nanosecond: i64,
+    offset: i32,
+) -> Option<Timestamp> {
     let date = civil::Date::new(
         i16::try_from(year).ok()?,
         i8::try_from(month).ok()?,
@@ -98,6 +139,13 @@ impl Cursor<'_> {
         }
         let (digits, rest) = self.0.split_at(len);
         self.0 = rest;
+        digits.parse().ok()
+    }
+
+    /// Exactly `width` ASCII digits.
+    fn exact(&mut self, width: usize) -> Option<i64> {
+        let digits = self.0.get(..width).filter(|d| d.bytes().all(|b| b.is_ascii_digit()))?;
+        self.0 = &self.0[width..];
         digits.parse().ok()
     }
 
@@ -160,6 +208,31 @@ impl Cursor<'_> {
         } else {
             self.two_digits(b'5')?
         };
+        let seconds = hours * 3600 + minutes * 60;
+        if seconds >= 86_400 {
+            return None;
+        }
+        Some(if negative { -seconds } else { seconds })
+    }
+
+    /// `Z`, `z`, or a sign and `hh:mm`, as seconds east of UTC.
+    fn strict_offset(&mut self) -> Option<i32> {
+        if let Some(rest) = self.0.strip_prefix(['Z', 'z']) {
+            self.0 = rest;
+            return Some(0);
+        }
+        let negative = if let Some(rest) = self.0.strip_prefix('+') {
+            self.0 = rest;
+            false
+        } else if let Some(rest) = self.0.strip_prefix(['-', '\u{2212}']) {
+            self.0 = rest;
+            true
+        } else {
+            return None;
+        };
+        let hours = self.two_digits(b'9')?;
+        self.literal(':')?;
+        let minutes = self.two_digits(b'5')?;
         let seconds = hours * 3600 + minutes * 60;
         if seconds >= 86_400 {
             return None;

@@ -197,6 +197,21 @@ impl Timestamp {
     pub fn parse_rfc3339(text: &str) -> Result<Self, Error> {
         text.parse()
     }
+
+    /// Read an RFC 3339 timestamp in the strict grammar chrono's
+    /// `DateTime::parse_from_rfc3339` held text to: `2025-11-20T12:00:00.12+02:00`, every
+    /// field its full width, `T`, `t` or a space before the time, `Z`, `z` or `±hh:mm` for
+    /// the offset, and nothing around it. A leap second is refused.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Parse`] when `text` is not such a timestamp or names an instant
+    /// outside the range a [`Timestamp`] holds.
+    pub fn parse_rfc3339_strict(text: &str) -> Result<Self, Error> {
+        parse::parse_strict(text).ok_or_else(|| Error::Parse {
+            input: text.to_owned(),
+        })
+    }
 }
 
 impl FromStr for Timestamp {

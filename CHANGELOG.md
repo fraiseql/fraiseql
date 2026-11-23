@@ -1244,6 +1244,10 @@ disagreed, and the promise was the part that was wrong.
   crates above now share: chrono's text forms byte for byte, a microsecond `timestamptz`
   with the `sqlx` or `postgres` feature, and conversions to and from chrono with the
   `chrono` feature. It re-exports the `jiff` its API is built on.
+  `Timestamp::parse_rfc3339` reads the relaxed grammar chrono's `DateTime` parser read,
+  and `Timestamp::parse_rfc3339_strict` the strict one its `parse_from_rfc3339` held text
+  to (every field its full width, `Z` or `±hh:mm`, nothing around it); the strict one
+  refuses a leap second.
 - **A webhook header value can come from the environment: `headers_env` (#2040).** A
   webhook action's `headers_env` maps a header name to the name of an environment
   variable, read each time the webhook is delivered, so only the variable's name is

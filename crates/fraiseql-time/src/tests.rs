@@ -181,6 +181,63 @@ const PARSED: &[(&str, Option<i64>)] = &[
     ("", None),
 ];
 
+/// Text and the instant chrono 0.4.45's `parse_from_rfc3339` read from it, converted to
+/// a `Timestamp`, in microseconds from the Unix epoch; `None` where either refused it.
+const STRICT: &[(&str, Option<i64>)] = &[
+    ("2025-11-20T12:00:00Z", Some(1_763_640_000_000_000)),
+    ("2025-11-20t12:00:00z", Some(1_763_640_000_000_000)),
+    ("2025-11-20 12:00:00Z", Some(1_763_640_000_000_000)),
+    ("2025-11-20T12:00:00.12Z", Some(1_763_640_000_120_000)),
+    ("2025-11-20T12:00:00.1234567891Z", Some(1_763_640_000_123_456)),
+    ("2025-11-20T12:00:00+02:00", Some(1_763_632_800_000_000)),
+    ("2025-11-20T12:00:00-00:00", Some(1_763_640_000_000_000)),
+    ("2025-11-20T12:00:00−05:30", Some(1_763_659_800_000_000)),
+    ("2025-11-20T12:00:00+23:59", Some(1_763_553_660_000_000)),
+    ("0000-01-01T00:00:00Z", Some(-62_167_219_200_000_000)),
+    ("9999-12-30T22:00:00.999999999Z", Some(253_402_207_200_999_999)),
+    ("2025-11-20T12:00:60Z", None),
+    ("2025-11-20T23:59:60.5Z", None),
+    ("2025-11-20T12:00:00 UTC", None),
+    ("2025-11-20T12:00:00UTC", None),
+    ("2025-11-20T12:00:00+0530", None),
+    ("2025-11-20T12:00:00 +00:00", None),
+    ("2025-11-20T12:00:00+05", None),
+    ("2025-11-20T12:00:00+5:30", None),
+    ("2025-11-20T12:00:00+24:00", None),
+    ("2025-11-20T12:00:00+05:60", None),
+    (" 2025-11-20T12:00:00Z", None),
+    ("2025-11-20T12:00:00Z ", None),
+    ("2025-11-20  12:00:00Z", None),
+    ("2025-11-20 T12:00:00Z", None),
+    ("2025-1-2T03:04:05Z", None),
+    ("2025-11-20T3:04:05Z", None),
+    ("+2025-11-20T12:00:00Z", None),
+    ("-0001-01-01T00:00:00Z", None),
+    ("02025-11-20T12:00:00Z", None),
+    ("2025-11-20T12:00Z", None),
+    ("2025-11-20T12:00:00,5Z", None),
+    ("2025-11-20T12:00:00.Z", None),
+    ("2025-02-29T12:00:00Z", None),
+    ("2025-11-20T24:00:00Z", None),
+    ("2025-11-20T12:00:00", None),
+    ("9999-12-31T23:59:59Z", None),
+    ("", None),
+];
+
+#[test]
+fn strict_text_reads_as_chrono_read_it() {
+    for &(text, micros) in STRICT {
+        let read = Timestamp::parse_rfc3339_strict(text).ok().map(Timestamp::as_microsecond);
+        assert_eq!(read, micros, "{text:?}");
+    }
+    assert_eq!(
+        Timestamp::parse_rfc3339_strict("2025-11-20T12:00:60Z"),
+        Err(Error::Parse {
+            input: "2025-11-20T12:00:60Z".to_owned(),
+        })
+    );
+}
+
 #[test]
 fn text_reads_as_chrono_read_it() {
     for &(text, micros) in PARSED {
@@ -305,6 +362,55 @@ mod against_chrono {
                 .ok()
                 .map(|t| t.with_timezone(&Utc).timestamp_micros());
             assert_eq!(ours, theirs, "{text:?}");
+        }
+    }
+
+    /// What chrono's `parse_from_rfc3339` read, as a `Timestamp`: a leap second, which
+    /// chrono holds as a nanosecond past 999 999 999, is none.
+    fn chrono_strict(text: &str) -> Option<i64> {
+        let read = DateTime::parse_from_rfc3339(text).ok()?.with_timezone(&Utc);
+        let nanosecond = i32::try_from(read.timestamp_subsec_nanos()).ok()?;
+        let read = super::Timestamp::new(read.timestamp(), nanosecond).ok()?;
+        Some(read.as_microsecond())
+    }
+
+    /// Text chrono's strict parser read, or refused, the strict reader reads or refuses
+    /// alike: every table text, and each with one character replaced, inserted or removed
+    /// at every position.
+    #[test]
+    fn strict_parsing_matches_chrono() {
+        const ALPHABET: &[char] = &[
+            '0', '1', '2', '5', '6', '9', '-', '+', '−', ':', '.', ',', 'T', 't', ' ', 'Z', 'z',
+            'U', 'C',
+        ];
+        let mut texts: Vec<String> = Vec::new();
+        for &(text, _) in super::STRICT.iter().chain(super::PARSED) {
+            let chars: Vec<char> = text.chars().collect();
+            texts.push(text.to_owned());
+            for i in 0..=chars.len() {
+                for &c in ALPHABET {
+                    let mut inserted = chars.clone();
+                    inserted.insert(i, c);
+                    texts.push(inserted.into_iter().collect());
+                    if i < chars.len() {
+                        let mut replaced = chars.clone();
+                        replaced[i] = c;
+                        texts.push(replaced.into_iter().collect());
+                    }
+                }
+                if i < chars.len() {
+                    let mut removed = chars.clone();
+                    removed.remove(i);
+                    texts.push(removed.into_iter().collect());
+                }
+            }
+        }
+        assert!(texts.len() > 50_000, "{}", texts.len());
+        for text in &texts {
+            let ours = super::Timestamp::parse_rfc3339_strict(text)
+                .ok()
+                .map(super::Timestamp::as_microsecond);
+            assert_eq!(ours, chrono_strict(text), "{text:?}");
         }
     }
 }
