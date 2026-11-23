@@ -414,6 +414,95 @@ async fn each_reduction_answers_its_own_measure() {
     }
 }
 
+/// A bucket the range's low bound cuts opens at the bound, as if it began there: its first
+/// row in range, else the last row before the bound, carried in. On 15 January account 1
+/// opens at its 25 January 260, not at the 10 January 200 before the range; account 2,
+/// with no row in range, carries its 5 January 50; account 3 its 1000. Each spelling of
+/// the bound opens the same day.
+#[tokio::test]
+async fn a_first_bucket_the_range_cuts_opens_at_its_low_bound() {
+    let Some(executor) = executor(1_000).await else {
+        return;
+    };
+    for (bound, day) in [("day_gte", "2026-01-15"), ("day_gt", "2026-01-14")] {
+        let mut request = quarter(&["bal_first_sum"]);
+        request["where"] = json!({ bound: day, "day_lt": "2026-04-01" });
+        let groups = aggregate(&executor, TABLE, &request).await.unwrap();
+        assert_eq!(column(&groups, "bal_first_sum"), [1310.0, 1290.0, 1150.0], "{bound}");
+    }
+}
+
+/// A half-month has no fixed step, so its bucket ends at the next 1st or 16th: account 1,
+/// with no row from 16 to 28 February, carries its 25 January 260 into that bucket rather
+/// than reading its 5 March 120.
+#[tokio::test]
+async fn a_first_half_month_bucket_reads_only_its_own_days() {
+    let Some(executor) = executor(1_000).await else {
+        return;
+    };
+    let mut request = quarter(&["bal_first_sum"]);
+    request["groupBy"] = json!({ "day_half_month": true });
+    request["orderBy"] = json!({ "day_half_month": "ASC" });
+    let groups = aggregate(&executor, TABLE, &request).await.unwrap();
+    assert_eq!(
+        column(&groups, "bal_first_sum"),
+        [1250.0, 1310.0, 1290.0, 1290.0, 1150.0, 1150.0]
+    );
+}
+
+const DAILY: &str = "tf_sa_daily";
+
+/// `tf_sa_daily`: a row every day of the first quarter of 2026 for accounts 1 and 2, each
+/// balance its day of the year times the account, so a bucket's sum across the two is the
+/// day of the year it was read on, times 3.
+async fn daily_executor() -> Option<Executor> {
+    let url = fraiseql_test_support::try_database_url()?;
+    let adapter = PostgresAdapter::new(&url).await.unwrap();
+    let columns = MEASURES.map(|m| format!("{m} bigint")).join(", ");
+    let balances = MEASURES.map(|_| "EXTRACT(DOY FROM d)::bigint * a").join(", ");
+    for ddl in [
+        format!("DROP TABLE IF EXISTS {DAILY}"),
+        format!(
+            "CREATE TABLE {DAILY} (account_id bigint, day date, {columns}, data jsonb, booked_on date)"
+        ),
+        format!(
+            "INSERT INTO {DAILY} SELECT a, d::date, {balances}, '{{}}', d::date FROM \
+             generate_series(1, 2) a, generate_series('2026-01-01'::date, '2026-03-31'::date, \
+             interval '1 day') d"
+        ),
+        format!("CREATE INDEX ON {DAILY} (account_id, day)"),
+    ] {
+        adapter.execute_raw_query(&ddl).await.unwrap();
+    }
+    let mut schema = CompiledSchema::new();
+    schema.add_fact_table(DAILY.to_string(), fact_table(DAILY));
+    Some(Executor::new(schema, Arc::new(adapter)))
+}
+
+/// Over 10 January to 20 March, by month, a daily balance's buckets read only days in
+/// range. January opens on the 10th (30), not the 1st (3), and March closes on the 20th
+/// (237); `delta` is each bucket's last day in range less its first (January 93 − 30).
+#[tokio::test]
+async fn a_daily_balance_is_read_only_on_the_days_in_range() {
+    let Some(executor) = daily_executor().await else {
+        return;
+    };
+    for (aggregate_name, expected) in [
+        ("bal_first_sum", [30.0, 96.0, 180.0]),
+        ("closing_balance_sum", [93.0, 177.0, 237.0]),
+        ("bal_delta_sum", [63.0, 81.0, 57.0]),
+    ] {
+        let request = json!({
+            "where": { "day_gte": "2026-01-10", "day_lte": "2026-03-20" },
+            "groupBy": { "day_month": true },
+            "aggregates": [{ aggregate_name: true }],
+            "orderBy": { "day_month": "ASC" },
+        });
+        let groups = aggregate(&executor, DAILY, &request).await.unwrap();
+        assert_eq!(column(&groups, aggregate_name), expected, "{aggregate_name}");
+    }
+}
+
 /// The requested function runs across entities: the largest carried balance.
 #[tokio::test]
 async fn the_requested_function_runs_across_entities() {

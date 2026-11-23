@@ -332,6 +332,10 @@ account's balance as it stood at the end of each month, whether or not the accou
 - **The range** is the request's bounds on `over` (`eq`, `gt`, `gte`, `lt`, `lte`, joined
   by and), or the data's first and last `over` when unbounded. The lower bound limits the
   buckets, not the lookup: the value carried into the first bucket was recorded before it.
+  A first bucket the lower bound cuts opens at the bound, as if it began there: over
+  10 January to 20 March by month, `first` reads January's first row from the 10th on,
+  else the last row before the 10th, never a row from the 1st to the 9th. `last` closes
+  the last bucket at the upper bound the same way.
   `over` filtered any other way (`neq`, or under `or` / `not` in a row policy) is refused.
 - **Other groupings** are read from the row each (entity, bucket) carries.
 - **Bounded work.** Each (bucket, entity) cell is one index seek. Before running, the

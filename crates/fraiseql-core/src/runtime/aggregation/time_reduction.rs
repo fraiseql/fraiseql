@@ -8,7 +8,8 @@
 //! A carried-forward reduction (`last`, `first`) crosses the buckets of the requested range
 //! with the entities and reads each cell's row by an index seek on `(entity…, over)`. The
 //! seek applies the request's upper bounds on `over` but never its lower ones: the value
-//! carried into the first bucket was recorded before it.
+//! carried into the first bucket was recorded before it. A `first` bucket the lower bound
+//! cuts opens at the bound, as if it began there.
 
 use std::fmt::Write as _;
 
@@ -296,15 +297,20 @@ impl AggregationSqlGenerator {
             };
             let lateral = match reduction.reduction {
                 Reduction::Last => last_by(&end),
-                // The bucket's first row; else the last row before it, carried in. The
-                // priority orders the two: a (parallel) append may return either first.
-                Reduction::First => format!(
-                    "(SELECT {columns}, 0 AS {PRIORITY} FROM {table} WHERE {common} AND {over} \
-                     >= {bucket} AND {over} < {end} ORDER BY {over} ASC LIMIT 1)\n    \
-                     UNION ALL\n    (SELECT {columns}, 1 AS {PRIORITY} FROM {table} WHERE \
-                     {common} AND {over} < {bucket} ORDER BY {over} DESC LIMIT 1)\n    ORDER BY \
-                     {PRIORITY} LIMIT 1"
-                ),
+                // The bucket's first row in range; else the last row before that, carried
+                // in. A bucket the range's low bound cuts opens at the bound, as if it began
+                // there. The priority orders the two: a (parallel) append may return either
+                // first.
+                Reduction::First => {
+                    let opens = format!("GREATEST({bucket}, {})", filter.lo);
+                    format!(
+                        "(SELECT {columns}, 0 AS {PRIORITY} FROM {table} WHERE {common} AND \
+                         {over} >= {opens} AND {over} < {end} ORDER BY {over} ASC LIMIT 1)\n    \
+                         UNION ALL\n    (SELECT {columns}, 1 AS {PRIORITY} FROM {table} WHERE \
+                         {common} AND {over} < {opens} ORDER BY {over} DESC LIMIT 1)\n    ORDER \
+                         BY {PRIORITY} LIMIT 1"
+                    )
+                },
                 Reduction::Avg | Reduction::Min | Reduction::Max | Reduction::Delta => {
                     return Err(FraiseQLError::validation("not a carried-forward reduction"));
                 },

@@ -1500,6 +1500,13 @@ disagreed, and the promise was the part that was wrong.
   printed suggestion, and the CLI's suite compiles the entry it registers back to the
   introspected table.
 
+- **A semi-additive `first` measure opens a range's first bucket at the range's lower bound
+  (#2342).** A bucket the lower bound cuts read its first row from the bucket's start, before
+  the range: over 10 January to 20 March by month, January opened at 1 January's value. It
+  now opens at the bound, as if the bucket began there: its first row from the 10th on, else
+  the last row before the 10th, carried in. Interior buckets, `last` and `delta` are
+  unchanged. `delta` already read only the rows in range.
+
 - **A GraphQL nested level read through its relationship correlates on the relationship's
   `native_join` (#1887).** Such a level is read from its own type's view when that type's
   row predicate cannot be evaluated over the embedded document: a policy that does not
