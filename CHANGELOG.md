@@ -1721,6 +1721,13 @@ disagreed, and the promise was the part that was wrong.
   `NullPointerException`, and nothing was exported. Each registration now stores `null` as no
   description, as enums already did.
 
+- **The federation circuit breaker is consulted for `_entities` requests over HTTP (#2411).**
+  Its gate compared the whole request document with the string `"_entities"`, so it held for
+  no real document: an open breaker refused nothing, and no `_entities` outcome was recorded,
+  so a breaker never opened. The gate now asks whether the operation `operationName`
+  selects `_entities`. Configured breakers now open after their failure threshold and
+  answer 503, with `Retry-After`, until they recover.
+
 - **A fragment on a type the schema does not define, or one that can never apply where it
   stands, is refused (#2276).** `{ users { ... on Nosuch { name } } }` was answered with a
   `"...on Nosuch": null` key under a `200`; `fragment F on Nosuch { name }` spread under

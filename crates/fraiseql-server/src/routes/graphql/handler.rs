@@ -612,8 +612,12 @@ async fn execute_admitted(
     stages::validate_request(&state, &query, &request, peer_ip)?;
 
     #[cfg(feature = "federation")]
-    let cb_entity_types =
-        stages::check_federation_circuit_breakers(&state, &query, request.variables.as_ref())?;
+    let cb_entity_types = stages::check_federation_circuit_breakers(
+        &state,
+        &query,
+        request.operation_name.as_deref(),
+        request.variables.as_ref(),
+    )?;
 
     // The tenant: the token's for an authenticated caller, the client hints otherwise. A
     // refusal keeps its own class: a header naming a tenant the token is not bound to

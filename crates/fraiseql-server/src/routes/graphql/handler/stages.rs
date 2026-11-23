@@ -356,14 +356,21 @@ const fn validation_error_budget_spent(_state: &AppState, _peer_ip: &str) -> boo
 pub(super) fn check_federation_circuit_breakers(
     state: &AppState,
     query: &str,
+    operation_name: Option<&str>,
     variables: Option<&serde_json::Value>,
 ) -> Result<Vec<String>, ErrorResponse> {
-    if !fraiseql_core::federation::is_federation_query(query) {
-        return Ok(vec![]);
-    }
     let Some(ref cb_manager) = state.circuit_breaker else {
         return Ok(vec![]);
     };
+    // The operation the request selects, as the executor dispatches it: an `_entities`
+    // request is one whose selected operation selects `_entities`. A document that does not
+    // parse, or names no operation, is refused by the executor with that error.
+    let selects_entities =
+        fraiseql_core::graphql::parse_query_with_operation_name(query, operation_name)
+            .is_ok_and(|parsed| parsed.selections.iter().any(|s| s.name == "_entities"));
+    if !selects_entities {
+        return Ok(vec![]);
+    }
     let entity_types = crate::federation::circuit_breaker::extract_entity_types(variables);
     for entity_type in &entity_types {
         if let Some(retry_after) = cb_manager.check(entity_type) {

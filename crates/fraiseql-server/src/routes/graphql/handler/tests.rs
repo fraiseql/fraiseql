@@ -94,6 +94,10 @@ fn detect_mutation_name_reliably_flags_mutations() {
 }
 
 // #1562: a request's document is parsed once, and every stage reads that parse.
+#[cfg(feature = "federation")]
+#[path = "entities_breaker_tests.rs"]
+mod entities_breaker;
+
 mod parse_once {
     use std::sync::Arc;
 
@@ -269,7 +273,7 @@ mod http_cache {
     }
 
     /// [`router`], with its schema and its state adjusted.
-    fn router_with(
+    pub(super) fn router_with(
         adjust: impl FnOnce(&mut fraiseql_core::schema::CompiledSchema),
         adjust_state: impl FnOnce(AppState) -> AppState,
     ) -> (Router, Arc<FailingAdapter>) {
@@ -316,7 +320,7 @@ mod http_cache {
         (Router::new().route("/graphql", route).with_state(state), adapter)
     }
 
-    fn principal() -> AuthUser {
+    pub(super) fn principal() -> AuthUser {
         AuthUser(AuthenticatedUser {
             user_id:      UserId::new("u-1"),
             scopes:       Vec::new(),
@@ -328,10 +332,10 @@ mod http_cache {
         })
     }
 
-    struct Sent {
-        status:  StatusCode,
-        headers: HeaderMap,
-        body:    Value,
+    pub(super) struct Sent {
+        pub(super) status: StatusCode,
+        headers:           HeaderMap,
+        pub(super) body:   Value,
     }
 
     impl Sent {
@@ -343,7 +347,7 @@ mod http_cache {
         }
     }
 
-    async fn send(
+    pub(super) async fn send(
         router: &Router,
         method: &str,
         uri: &str,
