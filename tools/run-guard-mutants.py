@@ -27,7 +27,10 @@ which is the per-PR run. `--list` prints the selection without running it; `--ou
 keeps each mutant's test output, to read why a mutant was killed.
 
 Run from the repository root; the shard commands inherit this environment (a database
-URL for the e2e shards, the cargo build dir). `GUARD_SITES_ROOT` and `GUARD_SITES_INVENTORY`
+URL for the e2e shards, the cargo build dir). A `DATABASE_URL` must reach a server that
+ships the `vector` extension, as the `PG_IMAGE` CI uses does: on one that does not, a
+shard testing a pgvector column goes red unmutated, which is the rig's fault and not a
+verdict, so the run stops before any shard with a RIG error (exit 2). `GUARD_SITES_ROOT` and `GUARD_SITES_INVENTORY`
 set the root and inventory as for the gate (for tools/tests/guard_mutants_test.sh).
 """
 
@@ -46,6 +49,34 @@ from pathlib import Path
 TOOLS = Path(__file__).resolve().parent
 ROOT = Path(os.environ.get("GUARD_SITES_ROOT", TOOLS.parent))
 INVENTORY = ROOT / os.environ.get("GUARD_SITES_INVENTORY", "tools/guard-sites.toml")
+
+
+# The Postgres image the e2e shards run against in CI; it ships the `vector` extension.
+PG_IMAGE = "ghcr.io/fraiseql/pgvector:pg18"
+
+
+def rig_problem() -> str | None:
+    """Why the database the shards would use cannot give a verdict, or `None`. A server
+    without the `vector` extension fails a shard unmutated, and BASELINE-RED would then
+    report a fault of the rig as one of the code."""
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        return None
+    query = "SELECT count(*) FROM pg_available_extensions WHERE name = 'vector'"
+    try:
+        run = subprocess.run(
+            ["psql", url, "-tAc", query], capture_output=True, text=True, timeout=30, check=False
+        )
+    except FileNotFoundError:
+        return "psql is not installed, so DATABASE_URL cannot be checked for the `vector` extension"
+    except subprocess.TimeoutExpired:
+        return "DATABASE_URL did not answer within 30s"
+    if run.returncode != 0:
+        lines = run.stderr.strip().splitlines()
+        return f"DATABASE_URL cannot be queried: {lines[-1] if lines else f'psql rc={run.returncode}'}"
+    if run.stdout.strip() != "1":
+        return f"DATABASE_URL has no `vector` extension available; run the shards against {PG_IMAGE}"
+    return None
 
 
 def load_gate():
@@ -153,6 +184,11 @@ def main() -> int:
     print(f"{len(units)} mutant(s) selected")
     if args.list or not units:
         return 0
+    problem = rig_problem()
+    if problem:
+        print(f"RIG: {problem}")
+        print("no shard was run: a fault of the rig is not a verdict")
+        return 2
 
     originals: dict[Path, bytes] = {}
     before = untracked()

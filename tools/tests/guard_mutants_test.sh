@@ -19,6 +19,15 @@ fail() { echo "  FAIL $1"; failures=$((failures + 1)); sed 's/^/       /' "${tmp
 
 file="crates/fraiseql-server/src/gate.rs"
 
+# The rig check reads DATABASE_URL: the cases run without one unless they set it.
+unset DATABASE_URL
+# A stand-in psql answering how many `vector` extensions the server has: `$1`.
+stub_psql() {
+  mkdir -p "${tmp}/bin"
+  printf '#!/bin/sh\necho %s\n' "$1" > "${tmp}/bin/psql"
+  chmod +x "${tmp}/bin/psql"
+}
+
 # A tree with two guarded functions and a shard per behaviour a test run can have.
 tree() {
   rm -rf "$ws"
@@ -162,6 +171,13 @@ fi
 tree; shard kills
 sed -i 's|^command = "if grep -q skipped crates/fraiseql-server/src/gate.rs; then echo .test gate::refuses ... FAILED.; exit 101; fi"|command = "if grep -q skipped crates/fraiseql-server/src/gate.rs; then mkdir -p proptest-regressions; echo seed > proptest-regressions/gate.txt; echo '"'"'test gate::refuses ... FAILED'"'"'; exit 101; fi"|' "${ws}/tools/guard-sites.toml"
 expect 1 "FAILED proptest-regressions/gate.txt: LEFT-BEHIND" "9. a file a shard run writes under a mutant fails the run"
+
+tree; shard kills; stub_psql 0
+DATABASE_URL=postgres://rig/db PATH="${tmp}/bin:${PATH}" expect 2 "RIG: DATABASE_URL has no \`vector\` extension" "10. a database without pgvector stops the run as a rig fault"
+if grep -qF "shard kills:" "${tmp}/out"; then fail "10b. a shard ran on the rig at fault"; else pass "10b. no shard ran on the rig at fault"; fi
+
+tree; shard kills; stub_psql 1
+DATABASE_URL=postgres://rig/db PATH="${tmp}/bin:${PATH}" expect 0 "one: KILLED" "11. a database with pgvector runs the shards"
 
 if [ "$failures" -ne 0 ]; then
   echo "guard mutants runner: ${failures} case(s) FAILED"

@@ -181,8 +181,8 @@ reachable only through a second door its suite never opens; a suite that "covers
 route then passes with the guard gone. So each site is proven by mutating it.
 
 `tools/guard-sites.toml` is the inventory. A `[[site]]` names the file, the function the
-guard sits in (`Type::method` when the file defines the name twice, or a `const` that holds a
-shared SQL predicate), an exact `anchor` of its code, the `mutant` that replaces it, the
+guard sits in (`Type::method`, or `::name` for the free fn, when the file defines the name
+twice; or a `const` that holds a shared SQL predicate), an exact `anchor` of its code, the `mutant` that replaces it, the
 `killers` (tests that must fail on the mutant) and the `shard` (test command) they run
 in. Two sites that each cover the other share a `joint` and are mutated together.
 `[[held]]` paths are not inventoried yet; `[[exempt]]` functions match a guard pattern
@@ -222,8 +222,11 @@ Two tools read it:
 python3 tools/run-guard-mutants.py --site <id>
 ```
 
-The e2e shards need `DATABASE_URL`, and a fresh database: a table another branch left
-behind in a shared one can fail a shard before any mutant is applied. Every shard command
+The e2e shards need `DATABASE_URL` on the image CI uses, `ghcr.io/fraiseql/pgvector:pg18`,
+and a fresh database. A server without the `vector` extension fails a shard unmutated, so
+the runner checks for it first and stops with a RIG error (exit 2) rather than report
+BASELINE-RED. The database is fresh because a table another branch left behind in a
+shared one can fail a shard before any mutant is applied. Every shard command
 sets `FRAISEQL_TEST_REQUIRE_POSTGRES=1`, and the gate refuses one that does not: a killer
 that finds no database would skip and pass, so its baseline would read green and its
 mutant as survived, and the variable makes a missing database fail the baseline instead. The observer

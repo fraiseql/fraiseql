@@ -240,17 +240,25 @@ class Source:
 
     def function_spans(self, name: str) -> list[tuple[int, int]]:
         """The spans of `fn name` bodies, and of `const name` items (a guard can be a
-        shared SQL predicate held in a const). `Type::name` keeps only those inside an
-        `impl` block for `Type`, for a file that defines `name` more than once."""
+        shared SQL predicate held in a const). For a file that defines `name` more than
+        once, `Type::name` keeps only those inside an `impl` block for `Type`, and `::name`
+        only those outside every `impl` and `trait` block: the free fn."""
         if "::" in name:
             owner, _, name = name.rpartition("::")
-            blocks = []
-            for match in re.finditer(r"\bimpl\b[^{;]*?\b" + re.escape(owner) + r"\b[^{;]*\{", self.code):
-                blocks.append((match.start(), closing_brace(self.code, match.end() - 1)))
+            # An empty owner would match every `impl` block as if it were one for `Type`.
+            opener = (
+                r"\b(?:impl|trait)\b[^{;]*\{"
+                if not owner
+                else r"\bimpl\b[^{;]*?\b" + re.escape(owner) + r"\b[^{;]*\{"
+            )
+            blocks = [
+                (match.start(), closing_brace(self.code, match.end() - 1))
+                for match in re.finditer(opener, self.code)
+            ]
             return [
                 span
                 for span in self.function_spans(name)
-                if any(a <= span[0] and span[1] <= b for a, b in blocks)
+                if any(a <= span[0] and span[1] <= b for a, b in blocks) != (not owner)
             ]
         spans = []
         for match in re.finditer(rf"\bfn\s+{re.escape(name)}\b", self.code):

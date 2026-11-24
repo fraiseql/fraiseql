@@ -215,6 +215,12 @@ edit "tools/guard-sites.toml" 'function = "admit"' 'function = "Gate::admit"'
 edit "tools/guard-sites.toml" 'anchor   = "check_revocation(state.revocation.as_ref(), user)"' 'anchor   = "check_revocation(s.revocation.as_ref(), u)"'
 edit "tools/guard-sites.toml" 'mutant   = "check_revocation(None, user)"' 'mutant   = "check_revocation(None, u)"'
 expect 1 "${src}/routes/auth.rs:2:5: session guard" "29. Type::name resolves to the impl's method, so the free fn's call is unrowed"
+edit "tools/guard-sites.toml" 'function = "Gate::admit"' 'function = "::admit"'
+expect 1 "the anchor occurs 0 time(s) in \`fn ::admit\`" "29b. ::name is the free fn alone, and the method's anchor is not in it"
+edit "tools/guard-sites.toml" 'anchor   = "check_revocation(s.revocation.as_ref(), u)"' 'anchor   = "check_revocation(state.revocation.as_ref(), user)"'
+edit "tools/guard-sites.toml" 'mutant   = "check_revocation(None, u)"' 'mutant   = "check_revocation(None, user)"'
+expect 1 "${src}/routes/auth.rs:11:49: session guard" "29c. ::name resolves to the free fn, so the impl method's call is unrowed"
+if grep -qF "${src}/routes/auth.rs:2:5" "${tmp}/out"; then fail "29d. the free fn's rowed call was reported"; else pass "29d. the free fn's rowed call was not reported"; fi
 
 rls_family() {
   cat >> "${ws}/tools/guard-sites.toml" <<'EOF'

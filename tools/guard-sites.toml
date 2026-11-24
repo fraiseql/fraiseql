@@ -3049,6 +3049,33 @@ killers = ["the_current_deployment_is_the_one_the_environment_declares"]
 shard = "guard-lib"
 
 [[site]]
+id = "deployment.decide-kubernetes"
+file = "crates/fraiseql-guard/src/deployment.rs"
+function = "::is_production"
+anchor = 'std::env::var_os("KUBERNETES_SERVICE_HOST").is_some()'
+mutant = '(std::env::var_os("KUBERNETES_SERVICE_HOST").is_some() && false)'
+killers = ["kubernetes_and_profile_can_only_force_production_on"]
+shard = "guard-lib"
+
+[[site]]
+id = "deployment.decide-profile"
+file = "crates/fraiseql-guard/src/deployment.rs"
+function = "::is_production"
+anchor = "declares_production(&std::env::var(PROFILE_VAR).unwrap_or_default())"
+mutant = "(declares_production(&std::env::var(PROFILE_VAR).unwrap_or_default()) && false)"
+killers = ["kubernetes_and_profile_can_only_force_production_on"]
+shard = "guard-lib"
+
+[[site]]
+id = "deployment.decide-default"
+file = "crates/fraiseql-guard/src/deployment.rs"
+function = "::is_production"
+anchor = "!declares_development(&std::env::var(ENV_VAR).unwrap_or_default())"
+mutant = "(!declares_development(&std::env::var(ENV_VAR).unwrap_or_default()) && false)"
+killers = ["unset_means_production", "unrecognised_values_stay_production"]
+shard = "guard-lib"
+
+[[site]]
 id = "deployment.insecure-hatch-allowed"
 file = "crates/fraiseql-guard/src/deployment.rs"
 function = "insecure_bypass_allowed"
