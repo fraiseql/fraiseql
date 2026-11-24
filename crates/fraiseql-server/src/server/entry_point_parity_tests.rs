@@ -65,6 +65,71 @@ async fn serve_on_listener_starts_the_observer_runtime() {
 }
 
 /// What `entry` declares for a capability, read straight off its metadata.
+/// A NATS observer transport that fails to start refuses the boot of a server nothing
+/// declares the deployment of, and a declared development server serves on without it.
+///
+/// The loopback broker URL is refused by the transport's own address check at start, a
+/// failure that needs no broker. Construction accepts it: the build has `observers-nats`
+/// and the URL is set, so the refusal is the start's.
+#[cfg(feature = "observers-nats")]
+#[tokio::test]
+#[allow(clippy::future_not_send)] // Reason: `temp_env`'s lock guard is not `Send`.
+async fn a_nats_observer_transport_that_fails_to_start_refuses_a_production_boot() {
+    let Some(svc) = fraiseql_test_support::postgres().await else {
+        eprintln!("SKIP a_nats_observer_transport_that_fails_to_start: no postgres");
+        return;
+    };
+    let pool = sqlx::PgPool::connect(svc.url()).await.unwrap();
+    crate::observers::install_runtime_schema_for_tests(&pool).await;
+    let serve = |pool: sqlx::PgPool| async move {
+        let mut schema = CompiledSchema::new();
+        schema.observers_config = Some(fraiseql_core::schema::ObserversConfig {
+            enabled:  true,
+            backend:  fraiseql_core::schema::ObserversBackend::Nats,
+            nats_url: Some("nats://127.0.0.1:4222".to_string()),
+        });
+        let config = ServerConfig {
+            cors_enabled: false,
+            ..ServerConfig::default()
+        };
+        let server =
+            Box::pin(Server::new(config, schema, Arc::new(FailingAdapter::new()), Some(pool)))
+                .await
+                .expect("construction accepts a NATS transport this build can run");
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        tokio::time::timeout(
+            Duration::from_secs(10),
+            server.serve_on_listener(listener, tokio::time::sleep(Duration::from_secs(1))),
+        )
+        .await
+    };
+    let unset = [
+        "FRAISEQL_PROFILE",
+        "KUBERNETES_SERVICE_HOST",
+        "FRAISEQL_NATS_URL",
+        "FRAISEQL_OBSERVER_TRANSPORT",
+        "FRAISEQL_OBSERVERS_ALLOW_INSECURE",
+        "FRAISEQL_NATS_ALLOW_PLAINTEXT",
+    ];
+    let with_env = |env: Option<&'static str>| {
+        let mut vars: Vec<(&str, Option<&str>)> = unset.iter().map(|v| (*v, None)).collect();
+        vars.push(("FRAISEQL_ENV", env));
+        vars
+    };
+
+    let production = Box::pin(temp_env::async_with_vars(with_env(None), serve(pool.clone()))).await;
+    assert!(
+        matches!(production, Ok(Err(_))),
+        "a production boot whose NATS transport fails to start must refuse, got: {production:?}"
+    );
+    let development =
+        Box::pin(temp_env::async_with_vars(with_env(Some("development")), serve(pool))).await;
+    assert!(
+        matches!(development, Ok(Ok(()))),
+        "a development boot serves on without observers, got: {development:?}"
+    );
+}
+
 const fn declared(entry: EntryPoint, entry_points: EntryPoints) -> bool {
     match entry {
         EntryPoint::Http => entry_points.binary,

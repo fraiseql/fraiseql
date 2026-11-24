@@ -197,6 +197,43 @@ fn vault_tls_verify_off_is_refused_in_production() {
     );
 }
 
+/// The entry point reads the deployment itself: with nothing declaring it, a Vault backend
+/// with `tls_verify = false` is refused before any connection, and a declared development
+/// environment goes on to build it.
+#[tokio::test]
+async fn create_secrets_manager_refuses_vault_tls_verify_off_when_nothing_declares_the_deployment()
+{
+    let vault = || SecretsBackendConfig::Vault {
+        addr:       "https://127.0.0.1:1".to_string(),
+        auth:       VaultAuth::Token(Zeroizing::new("token".to_string())),
+        namespace:  None,
+        tls_verify: false,
+    };
+    let undeclared: [(&str, Option<&str>); 3] = [
+        ("FRAISEQL_ENV", None),
+        ("FRAISEQL_PROFILE", None),
+        ("KUBERNETES_SERVICE_HOST", None),
+    ];
+    let refused = temp_env::async_with_vars(undeclared, create_secrets_manager(vault())).await;
+    let err = refused.err().map(|e| e.to_string());
+    assert!(
+        err.as_deref().is_some_and(|e| e.contains("tls_verify")),
+        "production must refuse tls_verify = false; got: {err:?}"
+    );
+
+    let development: [(&str, Option<&str>); 3] = [
+        ("FRAISEQL_ENV", Some("development")),
+        ("FRAISEQL_PROFILE", None),
+        ("KUBERNETES_SERVICE_HOST", None),
+    ];
+    let built = temp_env::async_with_vars(development, create_secrets_manager(vault())).await;
+    let err = built.err().map(|e| e.to_string());
+    assert!(
+        !err.as_deref().is_some_and(|e| e.contains("tls_verify")),
+        "development passes the TLS check; got: {err:?}"
+    );
+}
+
 #[test]
 fn vault_tls_verify_off_is_a_warning_in_development() {
     assert!(vault_tls_verify_check(false, Deployment::Development).is_ok());

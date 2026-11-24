@@ -1611,6 +1611,114 @@ async fn every_boot_guard_judges_the_deployment_the_server_was_built_for() {
     }
 }
 
+/// A server nothing declares the deployment of boots as production, through every
+/// public constructor.
+///
+/// `FRAISEQL_ENV`, `FRAISEQL_PROFILE` and `KUBERNETES_SERVICE_HOST` unset is the shape of an
+/// operator who sets none of them. Each constructor reads the deployment itself, so each is
+/// driven: a configuration only production refuses (proxy headers trusted with no trusted
+/// proxy) is refused through every one by that guard, and boots once `FRAISEQL_ENV`
+/// declares development.
+#[tokio::test]
+#[allow(clippy::future_not_send)] // Reason: `temp_env`'s lock guard is not `Send`.
+async fn every_constructor_boots_as_production_when_nothing_declares_the_deployment() {
+    let schema = schema_with_security(
+        "rate_limiting",
+        serde_json::json!({
+            "enabled": true,
+            "requests_per_second": 100,
+            "burst_size": 50,
+            "trust_proxy_headers": true,
+            "trusted_proxy_cidrs": [],
+        }),
+    );
+    let config = fully_configured_server_config();
+    let adapter = NoopRelayAdapter::default();
+    let refusal = "trusted_proxy_cidrs\n  is empty or unset";
+
+    let undeclared: [(&str, Option<&str>); 3] = [
+        ("FRAISEQL_ENV", None),
+        ("FRAISEQL_PROFILE", None),
+        ("KUBERNETES_SERVICE_HOST", None),
+    ];
+    temp_env::async_with_vars(undeclared, async {
+        Box::pin(assert_every_constructor_refuses(
+            &schema,
+            &config,
+            &adapter,
+            "the proxy trust guard",
+            refusal,
+        ))
+        .await;
+        let read_only = Box::pin(Server::new_read_only(
+            config.clone(),
+            schema.clone(),
+            Arc::new(adapter.clone()),
+            None,
+        ))
+        .await;
+        let err = read_only.err().map(|e| e.to_string());
+        assert!(
+            err.as_deref().is_some_and(|e| e.contains(refusal)),
+            "Server::new_read_only must refuse through the proxy trust guard, got: {err:?}"
+        );
+    })
+    .await;
+
+    let development: [(&str, Option<&str>); 3] = [
+        ("FRAISEQL_ENV", Some("development")),
+        ("FRAISEQL_PROFILE", None),
+        ("KUBERNETES_SERVICE_HOST", None),
+    ];
+    temp_env::async_with_vars(development, async {
+        let booted =
+            Box::pin(Server::new(config.clone(), schema.clone(), Arc::new(adapter.clone()), None))
+                .await;
+        assert!(booted.is_ok(), "declared development boots: {:?}", booted.err());
+    })
+    .await;
+}
+
+/// The server configuration's own production checks judge the same undeclared
+/// deployment: a playground left on is refused by `Server::new`, and boots once
+/// `FRAISEQL_ENV` declares development.
+#[tokio::test]
+#[allow(clippy::future_not_send)] // Reason: `temp_env`'s lock guard is not `Send`.
+async fn a_playground_left_on_is_refused_when_nothing_declares_the_deployment() {
+    let config = ServerConfig {
+        playground_enabled: true,
+        ..fully_configured_server_config()
+    };
+    let boot = |env: Option<&'static str>| {
+        let config = config.clone();
+        let vars: [(&str, Option<&str>); 3] = [
+            ("FRAISEQL_ENV", env),
+            ("FRAISEQL_PROFILE", None),
+            ("KUBERNETES_SERVICE_HOST", None),
+        ];
+        temp_env::async_with_vars(vars, async move {
+            Box::pin(Server::new(
+                config,
+                fully_configured_schema(),
+                Arc::new(NoopRelayAdapter::default()),
+                None,
+            ))
+            .await
+            .err()
+            .map(|e| e.to_string())
+        })
+    };
+    let refused = boot(None).await;
+    assert!(
+        refused
+            .as_deref()
+            .is_some_and(|e| e.contains("playground_enabled is true in production")),
+        "production must refuse the playground, got: {refused:?}"
+    );
+    let booted = boot(Some("development")).await;
+    assert!(booted.is_none(), "declared development boots: {booted:?}");
+}
+
 /// #2005: a reload is checked against the configuration boot was checked against. With
 /// `[identity.enrichment]` enabled and no auth pool the server attaches no resolver, so
 /// only the recorded setting tells a reload that boot accepted enriched readers.

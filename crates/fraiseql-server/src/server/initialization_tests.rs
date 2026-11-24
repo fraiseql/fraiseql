@@ -714,3 +714,45 @@ fn scim_left_off_boots_whatever_the_build_lacks() {
 fn scim_enabled_with_auth_and_a_database_pool_boots() {
     assert!(super::refuse_scim_it_cannot_mount(&config_with_scim(true), true, true).is_ok());
 }
+
+/// A failing root of a multi-root mutation is rendered inside a `200` body by the
+/// executor's root renderer, with the sanitizer of the deployment the environment
+/// declares: with nothing declaring it, the database's text is withheld; a declared
+/// development environment shows it.
+#[test]
+fn a_failed_mutation_root_withholds_database_text_when_nothing_declares_the_deployment() {
+    use fraiseql_guard::deployment::Deployment;
+    let detail = "relation \"tb_internal_ledger\" does not exist";
+    let rendered = |env: Option<&str>, deployment: Deployment| {
+        let vars: [(&str, Option<&str>); 3] = [
+            ("FRAISEQL_ENV", env),
+            ("FRAISEQL_PROFILE", None),
+            ("KUBERNETES_SERVICE_HOST", None),
+        ];
+        temp_env::with_vars(vars, || {
+            let rt = super::executor_runtime_config(
+                &CompiledSchema::default(),
+                &crate::server_config::ServerConfig::default(),
+                deployment,
+            )
+            .unwrap();
+            let render = rt.root_error_renderer.expect("the server installs a root renderer");
+            render(&fraiseql_core::error::FraiseQLError::Database {
+                message:    detail.to_string(),
+                sql_state:  None,
+                constraint: None,
+            })
+            .to_string()
+        })
+    };
+    let production = rendered(None, Deployment::Production);
+    assert!(
+        !production.contains("tb_internal_ledger"),
+        "production withholds it: {production}"
+    );
+    let development = rendered(Some("development"), Deployment::Development);
+    assert!(
+        development.contains("tb_internal_ledger"),
+        "development shows it: {development}"
+    );
+}

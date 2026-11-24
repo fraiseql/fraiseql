@@ -168,6 +168,31 @@ async fn the_undocumented_env_backend_alias_is_rejected() {
     );
 }
 
+/// The entry point reads the deployment itself: with nothing declaring it, a malformed
+/// Redis URL is refused, and a declared development environment downgrades it.
+#[cfg(feature = "redis-rate-limiting")]
+#[tokio::test]
+async fn the_entry_point_refuses_a_malformed_redis_url_when_nothing_declares_the_deployment() {
+    let schema = schema_with_revocation(json!({
+        "enabled": true,
+        "backend": "redis",
+        "redis_url": "rediss//cache:6379",
+    }));
+    let build = |env: Option<&'static str>| {
+        let schema = schema.clone();
+        let vars: [(&str, Option<&str>); 3] = [
+            ("FRAISEQL_ENV", env),
+            ("FRAISEQL_PROFILE", None),
+            ("KUBERNETES_SERVICE_HOST", None),
+        ];
+        temp_env::async_with_vars(vars, async move {
+            super::revocation_manager_from_schema(&schema, DEFAULT_SECS).await.is_err()
+        })
+    };
+    assert!(build(None).await, "production must refuse a malformed redis_url");
+    assert!(!build(Some("development")).await, "declared development downgrades it");
+}
+
 #[cfg(feature = "redis-rate-limiting")]
 #[tokio::test]
 async fn a_malformed_redis_url_refuses_to_boot_in_production() {

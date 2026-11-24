@@ -155,6 +155,16 @@ patterns = [
 ]
 
 [[family]]
+name = "deployment-decision"
+# Whether this process runs in production: where it is resolved from the environment
+# (unset is production), and each check whose answer differs between the two.
+patterns = [
+  'Deployment::current\(\)',
+  '(?<!fn )\bis_production\(\)',
+  '!= Deployment::Production',
+]
+
+[[family]]
 name = "executor"
 patterns = ['\bexecutor_for(?:_tenant)?\s*\(']
 
@@ -334,6 +344,26 @@ command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-core --featur
 name = "actor-predicate"
 crate = "crates/fraiseql-server"
 command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test actor_predicate_e2e_pg -- --test-threads=1"
+
+[[shard]]
+name = "server-lib-boot"
+crate = "crates/fraiseql-server"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --lib -- server:: token_revocation:: inbound::webhook::"
+
+[[shard]]
+name = "server-lib-observers-nats"
+crate = "crates/fraiseql-server"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email,observers-nats' --lib -- entry_point_parity_tests::"
+
+[[shard]]
+name = "secrets-lib"
+crate = "crates/fraiseql-secrets"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-secrets --all-features --lib -- secrets_manager::"
+
+[[shard]]
+name = "guard-lib"
+crate = "crates/fraiseql-guard"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-guard --all-features --lib"
 
 [[shard]]
 name = "core-cache"
@@ -2806,3 +2836,233 @@ anchor = "selection_set_selects_gated_field(schema, child_type, &sel.nested_fiel
 mutant = "{ let _ = selection_set_selects_gated_field(schema, child_type, &sel.nested_fields); false }"
 killers = ["a_gated_field_on_a_nested_object_is_seen"]
 shard = "core-lib-gates"
+
+# Deployment decisions (family `deployment-decision`). Each mutant answers "development"
+# where production was the answer, so a production-only refusal lets the boot through.
+
+[[site]]
+id = "deployment.ctor.new"
+file = "crates/fraiseql-server/src/server/builder.rs"
+function = "new"
+anchor = "Deployment::current()"
+mutant = "Deployment::Development"
+killers = [
+  "every_constructor_boots_as_production_when_nothing_declares_the_deployment",
+]
+shard = "server-lib-boot"
+
+[[site]]
+id = "deployment.ctor.read-only"
+file = "crates/fraiseql-server/src/server/builder.rs"
+function = "new_read_only"
+anchor = "Deployment::current()"
+mutant = "Deployment::Development"
+killers = [
+  "every_constructor_boots_as_production_when_nothing_declares_the_deployment",
+]
+shard = "server-lib-boot"
+
+[[site]]
+id = "deployment.ctor.relay"
+file = "crates/fraiseql-server/src/server/extensions.rs"
+function = "with_relay_pagination"
+anchor = "Deployment::current()"
+mutant = "Deployment::Development"
+killers = [
+  "every_constructor_boots_as_production_when_nothing_declares_the_deployment",
+]
+shard = "server-lib-boot"
+
+[[site]]
+id = "deployment.ctor.flight"
+file = "crates/fraiseql-server/src/server/extensions.rs"
+function = "with_flight_service"
+anchor = "Deployment::current()"
+mutant = "Deployment::Development"
+killers = [
+  "every_constructor_boots_as_production_when_nothing_declares_the_deployment",
+]
+shard = "server-lib-boot"
+
+[[site]]
+id = "deployment.root-error-sanitizer"
+file = "crates/fraiseql-server/src/server/initialization.rs"
+function = "schema_error_sanitizer"
+anchor = "Deployment::current()"
+mutant = "Deployment::Development"
+killers = [
+  "a_failed_mutation_root_withholds_database_text_when_nothing_declares_the_deployment",
+]
+shard = "server-lib-boot"
+
+[[site]]
+id = "deployment.error-sanitizer-default"
+file = "crates/fraiseql-server/src/server/initialization.rs"
+function = "build_error_sanitizer"
+anchor = "None if deployment.is_production() =>"
+mutant = "None if false =>"
+killers = ["every_boot_guard_judges_the_deployment_the_server_was_built_for"]
+shard = "server-lib-boot"
+
+[[site]]
+id = "deployment.pkce-state-encryption"
+file = "crates/fraiseql-server/src/server/initialization.rs"
+function = "pkce_state_encryption_check"
+anchor = "if deployment.is_production() {"
+mutant = "if false {"
+killers = ["every_boot_guard_judges_the_deployment_the_server_was_built_for"]
+shard = "server-lib-boot"
+
+[[site]]
+id = "deployment.failed-login-lockout"
+file = "crates/fraiseql-server/src/server/initialization.rs"
+function = "failed_login_lockout_check"
+anchor = "if deployment.is_production() {"
+mutant = "if false {"
+killers = ["failed_login_tuned_value_is_fatal_in_production"]
+shard = "server-lib-boot"
+
+[[site]]
+id = "deployment.proxy-trust"
+file = "crates/fraiseql-server/src/server/initialization.rs"
+function = "proxy_trust_check"
+anchor = "if deployment.is_production() {"
+mutant = "if false {"
+killers = ["every_boot_guard_judges_the_deployment_the_server_was_built_for"]
+shard = "server-lib-boot"
+
+[[site]]
+id = "deployment.redis-unavailable"
+file = "crates/fraiseql-server/src/server/initialization.rs"
+function = "redis_backend_unavailable_check"
+anchor = "if deployment.is_production() {"
+mutant = "if false {"
+killers = ["an_unreachable_redis_pkce_store_refuses_to_boot_in_production"]
+shard = "server-lib-boot"
+
+[[site]]
+id = "deployment.observer-transport"
+file = "crates/fraiseql-server/src/server/initialization.rs"
+function = "refuse_or_warn_transport"
+anchor = "if deployment.is_production() {"
+mutant = "if false {"
+killers = ["nats_without_url_is_fatal_in_production"]
+shard = "server-lib-boot"
+
+[[site]]
+id = "deployment.suggestions-warning"
+file = "crates/fraiseql-server/src/server/initialization.rs"
+function = "warn_when_production_gives_suggestions"
+anchor = "deployment != Deployment::Production"
+mutant = "true"
+killers = ["a_production_server_told_to_give_suggestions_is_warned"]
+shard = "server-lib-boot"
+
+[[site]]
+id = "deployment.webhook-secret"
+file = "crates/fraiseql-server/src/inbound/webhook.rs"
+function = "webhook_routes_check"
+anchor = "if !deployment.is_production() {"
+mutant = "if true {"
+killers = ["production_refuses_a_route_whose_secret_env_is_empty"]
+shard = "server-lib-boot"
+
+[[site]]
+id = "deployment.observer-declared-env"
+file = "crates/fraiseql-server/src/observers/declared_env.rs"
+function = "check_declared_variables"
+anchor = "if deployment.is_production() {"
+mutant = "if false {"
+killers = ["production_refuses_a_headers_env_variable_that_is_not_set"]
+shard = "server-lib-boot"
+
+[[site]]
+id = "deployment.observer-start"
+file = "crates/fraiseql-server/src/server/capabilities/observers.rs"
+function = "start"
+anchor = "&& server.deployment.is_production()"
+mutant = "&& (server.deployment.is_production() && false)"
+killers = [
+  "a_nats_observer_transport_that_fails_to_start_refuses_a_production_boot",
+]
+shard = "server-lib-observers-nats"
+
+[[site]]
+id = "deployment.server-config"
+file = "crates/fraiseql-server/src/server_config/methods.rs"
+function = "is_production_mode"
+anchor = "fraiseql_guard::deployment::is_production()"
+mutant = "false"
+killers = [
+  "a_playground_left_on_is_refused_when_nothing_declares_the_deployment",
+]
+shard = "server-lib-boot"
+
+[[site]]
+id = "deployment.session-store-redis"
+file = "crates/fraiseql-server/src/token_revocation.rs"
+function = "redis_revocation_unavailable_check"
+anchor = "if deployment.is_production() {"
+mutant = "if false {"
+killers = ["every_boot_guard_judges_the_deployment_the_server_was_built_for"]
+shard = "server-lib-boot"
+
+[[site]]
+id = "deployment.session-store-entry"
+file = "crates/fraiseql-server/src/token_revocation.rs"
+function = "revocation_manager_from_schema"
+anchor = "Deployment::current()"
+mutant = "Deployment::Development"
+killers = [
+  "the_entry_point_refuses_a_malformed_redis_url_when_nothing_declares_the_deployment",
+]
+shard = "server-lib-boot"
+
+[[site]]
+id = "deployment.secrets-entry"
+file = "crates/fraiseql-secrets/src/secrets_manager/mod.rs"
+function = "create_secrets_manager"
+anchor = "Deployment::current()"
+mutant = "Deployment::Development"
+killers = [
+  "create_secrets_manager_refuses_vault_tls_verify_off_when_nothing_declares_the_deployment",
+]
+shard = "secrets-lib"
+
+[[site]]
+id = "deployment.vault-tls-verify"
+file = "crates/fraiseql-secrets/src/secrets_manager/mod.rs"
+function = "vault_tls_verify_check"
+anchor = "if deployment.is_production() {"
+mutant = "if false {"
+killers = ["vault_tls_verify_off_is_refused_in_production"]
+shard = "secrets-lib"
+
+[[site]]
+id = "deployment.resolve"
+file = "crates/fraiseql-guard/src/deployment.rs"
+function = "Deployment::current"
+anchor = "if is_production() {"
+mutant = "if false {"
+killers = ["the_current_deployment_is_the_one_the_environment_declares"]
+shard = "guard-lib"
+
+[[site]]
+id = "deployment.insecure-hatch-allowed"
+file = "crates/fraiseql-guard/src/deployment.rs"
+function = "insecure_bypass_allowed"
+anchor = "requested && !is_production()"
+mutant = "requested"
+killers = ["a_bypass_is_inert_unless_development_is_declared"]
+shard = "guard-lib"
+
+[[site]]
+id = "deployment.insecure-hatch"
+file = "crates/fraiseql-guard/src/deployment.rs"
+function = "insecure_bypass"
+anchor = "if is_production() {"
+mutant = "if false {"
+killers = [
+  "a_requested_bypass_is_honoured_only_in_a_declared_development_environment",
+]
+shard = "guard-lib"

@@ -590,8 +590,12 @@ async fn anonymous_refusal(schema: CompiledSchema, document: &str) -> Option<Str
     Some(err.to_string())
 }
 
+/// An anonymous caller is refused before the read's abstract type is judged: the refusal
+/// is the one for a gated field with no principal, naming the member's type. A principal
+/// reaches the abstract read's own refusal
+/// (`a_gated_field_of_a_member_is_refused_to_a_principal_with_an_authorizer`).
 #[tokio::test]
-async fn a_root_of_a_union_or_an_interface_refuses_a_gated_field_naming_the_member_that_holds_it() {
+async fn an_anonymous_read_of_a_union_or_an_interface_is_refused_naming_the_gated_members_type() {
     for (gated, document, member) in [
         ("Org", "{ parties { ... on Org { name } } }", "Org"),
         ("Bank", "{ holders { ... on Bank { name } } }", "Bank"),
