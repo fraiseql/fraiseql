@@ -439,6 +439,54 @@ async fn an_oversized_key_set_is_refused_before_it_is_parsed() {
     );
 }
 
+/// A key set naming `kid`, as a publisher serves it.
+fn key_set_naming(kid: &str) -> serde_json::Value {
+    json!({ "keys": [{ "kty": "RSA", "kid": kid, "n": RSA_N, "e": "AQAB" }] })
+}
+
+#[tokio::test]
+async fn a_redirect_from_the_publisher_is_not_followed() {
+    let mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(JWKS_PATH))
+        .respond_with(ResponseTemplate::new(302).insert_header("location", "/elsewhere"))
+        .mount(&mock)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/elsewhere"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(key_set_naming("k")))
+        .mount(&mock)
+        .await;
+    let source = JwksSource::new(&format!("{}{JWKS_PATH}", mock.uri()), LONG_TTL).unwrap();
+
+    let error = source.key("k").await.expect_err("the redirect is not followed");
+
+    assert!(matches!(error, JwksError::Unreachable { .. }), "got {error}");
+    let followed = mock
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|request| request.url.path() == "/elsewhere")
+        .count();
+    assert_eq!(followed, 0, "nothing was asked of the redirect's target");
+}
+
+#[tokio::test]
+async fn a_key_set_served_with_an_error_status_is_refused() {
+    let mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(JWKS_PATH))
+        .respond_with(ResponseTemplate::new(500).set_body_json(key_set_naming("k")))
+        .mount(&mock)
+        .await;
+    let source = JwksSource::new(&format!("{}{JWKS_PATH}", mock.uri()), LONG_TTL).unwrap();
+
+    let error = source.key("k").await.expect_err("an error status is not a key set");
+
+    assert!(matches!(error, JwksError::Unreachable { .. }), "got {error}");
+}
+
 #[tokio::test]
 async fn a_response_that_is_not_a_key_set_is_refused_as_malformed() {
     let mock = MockServer::start().await;

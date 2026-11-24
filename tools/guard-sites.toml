@@ -3161,6 +3161,9 @@ mutant = ".and_then(|data| data.claims.iss)\n            .or_else(|| self.issuer
 killers = ["a_token_naming_no_issuer_is_refused_without_consulting_the_keys"]
 shard = "core-lib-oidc"
 
+# The required-claims layer has no single row: `issuer_for` refuses a token without `iss`
+# first, so that layer is reached only with `issuer_for`'s check gone, and a single row
+# for it would survive forever. The pair below is its row; `issuer_for` keeps its own.
 [[site]]
 id = "jwt.oidc.iss-layers.present"
 file = "crates/fraiseql-core/src/security/oidc/token.rs"
@@ -3270,3 +3273,101 @@ anchor = "key.kid.as_deref() == Some(kid)"
 mutant = "key.kid.as_deref().is_none_or(|own| own == kid)"
 killers = ["a_key_is_found_only_by_the_kid_it_publishes"]
 shard = "jwks-lib"
+
+[[family]]
+name = "jwks-fetch"
+patterns = [
+    '(?<!fn )\bresolve_and_guard\s*\(',
+    '\.resolve_to_addrs\s*\(',
+    '> MAX_(?:DISCOVERY_)?RESPONSE_BYTES',
+]
+
+[[site]]
+id = "jwks.parse.scheme"
+file = "crates/fraiseql-jwks/src/fetch.rs"
+function = "parse"
+anchor = '"http" => is_loopback,'
+mutant = '"http" => true,'
+killers = ["a_non_https_jwks_uri_is_refused_unless_it_is_loopback"]
+shard = "jwks-lib"
+
+[[site]]
+id = "jwks.fetch.resolve-guard"
+file = "crates/fraiseql-jwks/src/fetch.rs"
+function = "client"
+anchor = 'resolve_and_guard(&self.host, self.port).await.map_err(client_error)?'
+mutant = "{\n                let _ = (&self.host, self.port);\n                Vec::new()\n            }"
+killers = ["an_address_the_shared_guard_blocks_is_refused_at_fetch"]
+shard = "jwks-lib"
+
+[[site]]
+id = "jwks.fetch.pin"
+file = "crates/fraiseql-jwks/src/fetch.rs"
+function = "pinned_client"
+anchor = 'builder = builder.resolve_to_addrs(host, addrs);'
+mutant = "builder = builder.timeout(timeout);\n        let _ = addrs;"
+killers = ["the_pinned_client_connects_to_the_validated_address_and_not_through_dns"]
+shard = "jwks-lib"
+
+[[site]]
+id = "jwks.fetch.redirect"
+file = "crates/fraiseql-jwks/src/fetch.rs"
+function = "pinned_client"
+anchor = '.redirect(reqwest::redirect::Policy::none());'
+mutant = '.redirect(reqwest::redirect::Policy::limited(10));'
+killers = ["a_redirect_from_the_publisher_is_not_followed"]
+shard = "jwks-lib"
+
+[[site]]
+id = "jwks.fetch.status"
+file = "crates/fraiseql-jwks/src/fetch.rs"
+function = "fetch"
+anchor = 'if !response.status().is_success() {'
+mutant = 'if false && !response.status().is_success() {'
+killers = ["a_key_set_served_with_an_error_status_is_refused"]
+shard = "jwks-lib"
+
+[[site]]
+id = "jwks.fetch.size"
+file = "crates/fraiseql-jwks/src/fetch.rs"
+function = "fetch"
+anchor = 'if body.len() > MAX_RESPONSE_BYTES {'
+mutant = 'if false && body.len() > MAX_RESPONSE_BYTES {'
+killers = ["an_oversized_key_set_is_refused_before_it_is_parsed"]
+shard = "jwks-lib"
+
+[[site]]
+id = "jwks.source.fresh"
+file = "crates/fraiseql-jwks/src/source.rs"
+function = "find_fresh"
+anchor = 'if self.clock.now().duration_since(held.fetched_at) > self.ttl {'
+mutant = 'if false && self.clock.now().duration_since(held.fetched_at) > self.ttl {'
+killers = ["an_expired_set_is_not_served_even_while_the_cooldown_holds"]
+shard = "jwks-lib"
+
+[[site]]
+id = "jwt.discovery.redirect"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "new"
+anchor = '.redirect(reqwest::redirect::Policy::none())'
+mutant = '.redirect(reqwest::redirect::Policy::limited(10))'
+killers = ["a_redirected_discovery_document_is_not_followed"]
+shard = "core-lib-oidc"
+
+[[site]]
+id = "jwt.discovery.status"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "jwks_uri_for"
+anchor = 'if !response.status().is_success() {'
+mutant = 'if false && !response.status().is_success() {'
+killers = ["a_discovery_answered_with_an_error_status_refuses_the_validator"]
+shard = "core-lib-oidc"
+
+[[site]]
+id = "jwt.discovery.size"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "jwks_uri_for"
+anchor = 'if body_bytes.len() > MAX_DISCOVERY_RESPONSE_BYTES {'
+mutant = 'if false && body_bytes.len() > MAX_DISCOVERY_RESPONSE_BYTES {'
+killers = ["oidc_discovery_oversized_response_is_rejected"]
+shard = "core-lib-oidc"

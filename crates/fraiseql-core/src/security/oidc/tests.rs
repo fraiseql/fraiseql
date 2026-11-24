@@ -430,6 +430,62 @@ async fn a_discovery_document_naming_the_configured_issuer_is_accepted() {
     assert!(validator.is_ok(), "{:?}", validator.err());
 }
 
+#[tokio::test]
+async fn a_discovery_answered_with_an_error_status_refuses_the_validator() {
+    use wiremock::{
+        Mock, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    let mock = wiremock::MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/.well-known/openid-configuration"))
+        .respond_with(ResponseTemplate::new(500).set_body_json(serde_json::json!({
+            "issuer": mock.uri(),
+            "jwks_uri": format!("{}/jwks", mock.uri()),
+        })))
+        .mount(&mock)
+        .await;
+
+    let refused = OidcValidator::new(discovering(&mock.uri())).await.err();
+
+    assert!(
+        matches!(refused, Some(SecurityError::SecurityConfigError(ref message)) if message.contains("status")),
+        "an error status is not a discovery document: {refused:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_redirected_discovery_document_is_not_followed() {
+    use wiremock::{
+        Mock, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    let mock = wiremock::MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/.well-known/openid-configuration"))
+        .respond_with(ResponseTemplate::new(302).insert_header("location", "/elsewhere"))
+        .mount(&mock)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/elsewhere"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "issuer": mock.uri(),
+            "jwks_uri": format!("{}/jwks", mock.uri()),
+        })))
+        .expect(0)
+        .mount(&mock)
+        .await;
+
+    let refused = OidcValidator::new(discovering(&mock.uri())).await.err();
+
+    assert!(
+        matches!(refused, Some(SecurityError::SecurityConfigError(_))),
+        "the redirect is not followed: {refused:?}"
+    );
+}
+
 /// `OpenID` Connect Discovery 1.0 §4.3: the document's `issuer` is the issuer it was
 /// requested for. Another host, another path on the same host (another tenant or
 /// realm), or a trailing slash on either side: a token's `iss` is compared with the
