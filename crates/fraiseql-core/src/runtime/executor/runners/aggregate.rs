@@ -587,8 +587,9 @@ impl AggregateRunner {
     ///
     /// # Errors
     ///
-    /// Returns [`FraiseQLError::Validation`] for a value of another type, and for a table whose
-    /// keys no root can publish (a loaded schema refuses one).
+    /// Returns [`FraiseQLError::Validation`] for a value of another type, an enum value that
+    /// is not one of the members a published root's enum declares, and a table whose keys no
+    /// root can publish (a loaded schema refuses one).
     fn validate_root_arguments(
         &self,
         query_name: &str,
@@ -603,30 +604,38 @@ impl AggregateRunner {
             .strip_prefix("tf_")
             .filter(|_| schema.get_fact_table(&metadata.table_name) == Some(metadata))
             .and_then(|name| schema.fact_root(&format!("{name}{suffix}")));
-        if let Some(root) = published {
-            return crate::runtime::validate_resolved_arguments(
+        let derived;
+        let (schema, root) = if let Some(root) = published {
+            // The enums the root publishes. An embedder's request has none: the root below is
+            // derived under a name of its own, which no schema publishes, so its enums would
+            // name types no caller can see.
+            crate::runtime::argument_value_validation::validate_fact_root_enums(
                 schema,
                 label,
                 &root.arguments,
                 |name| request.get(name),
-            );
-        }
-        let mut table = metadata.clone();
-        table.table_name = "tf_request".to_string();
-        let mut derived = crate::schema::CompiledSchema::new();
-        derived.add_fact_table(table.table_name.clone(), table);
-        derived.build_indexes();
-        let root = derived.fact_root(&format!("request{suffix}")).ok_or_else(|| {
-            FraiseQLError::Validation {
-                message: format!(
-                    "`{query_name}` reads fact table `{}`, whose keys no root can publish, so \
-                     its request cannot be held to their types",
-                    metadata.table_name
-                ),
-                path:    Some(query_name.to_string()),
-            }
-        })?;
-        crate::runtime::validate_resolved_arguments(&derived, label, &root.arguments, |name| {
+            )?;
+            (schema, root)
+        } else {
+            let mut table = metadata.clone();
+            table.table_name = "tf_request".to_string();
+            let mut request_schema = crate::schema::CompiledSchema::new();
+            request_schema.add_fact_table(table.table_name.clone(), table);
+            request_schema.build_indexes();
+            derived = request_schema;
+            let root = derived.fact_root(&format!("request{suffix}")).ok_or_else(|| {
+                FraiseQLError::Validation {
+                    message: format!(
+                        "`{query_name}` reads fact table `{}`, whose keys no root can publish, \
+                         so its request cannot be held to their types",
+                        metadata.table_name
+                    ),
+                    path:    Some(query_name.to_string()),
+                }
+            })?;
+            (&derived, root)
+        };
+        crate::runtime::validate_resolved_arguments(schema, label, &root.arguments, |name| {
             request.get(name)
         })
     }

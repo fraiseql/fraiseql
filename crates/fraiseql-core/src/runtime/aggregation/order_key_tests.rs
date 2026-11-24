@@ -64,7 +64,8 @@ fn a_scalar_aggregate_sorts() {
     }
 }
 
-/// A document naming one is refused before any statement; the aggregate is still computed.
+/// A document naming one is refused, as no member of the published enum, before any
+/// statement; the aggregate is still computed.
 #[tokio::test]
 async fn a_document_sorting_by_a_collection_aggregate_is_refused() {
     let mut schema = CompiledSchema::new();
@@ -80,8 +81,10 @@ async fn a_document_sorting_by_a_collection_aggregate_is_refused() {
         .await
         .expect_err("not a sort key")
         .to_string();
+    // The published enum, which does not offer it, refuses it first; the planner's own
+    // refusal is the test above.
     assert!(
-        message.contains("orderBy `revenue_json_agg` is a JSON document or an array"),
+        message.contains("at `orderBy[0].field` has enum type `SalesAggregateOrderByField`"),
         "{message}"
     );
     executor

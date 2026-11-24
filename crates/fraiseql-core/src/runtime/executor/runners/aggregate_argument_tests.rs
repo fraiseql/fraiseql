@@ -96,16 +96,24 @@ impl Root {
 /// The outcome of one request and the statement it sent, if any.
 type Outcome = (Result<Value>, Option<String>);
 
+/// The fixture's fact table with its roots published, as every loaded schema has them: a
+/// schema without them is one no server serves.
+fn published() -> crate::schema::CompiledSchema {
+    let mut schema = schema_with_fact_table();
+    schema.build_indexes();
+    schema
+}
+
 async fn by_document(document: &str, variables: &Value) -> Outcome {
     let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
-    let res = Executor::new(schema_with_fact_table(), adapter.clone())
+    let res = Executor::new(published(), adapter.clone())
         .execute_with_security(document, Some(variables), &tenant_security_context("tenant-abc"))
         .await;
     (res, adapter.captured_aggregate_sql())
 }
 
 async fn by_embedder(root: Root, request: &Value) -> Outcome {
-    let schema = schema_with_fact_table();
+    let schema = published();
     let metadata = schema.get_fact_table("tf_sales").unwrap().clone();
     let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
     let executor = Executor::new(schema, adapter.clone());
@@ -429,7 +437,8 @@ async fn a_list_argument_of_one_object_is_a_one_item_list() {
 // ── Key level: a key the parser cannot place ─────────────────────────────────
 
 /// A key of the right container that names nothing the root can read is refused, naming
-/// the key, rather than skipped.
+/// the key, rather than skipped. A value at an enum position is the published enum's to
+/// refuse, as a list root's is, never quoting it: `enum_tests`.
 #[tokio::test]
 async fn a_key_the_root_cannot_read_is_refused_naming_it() {
     let mut failures = Vec::new();
@@ -458,45 +467,17 @@ async fn a_key_the_root_cannot_read_is_refused_naming_it() {
             "bogus",
         ),
         (
-            Root::Aggregate,
-            "orderBy",
-            r#"[{field: "bogus"}]"#,
-            json!([{"field": "bogus"}]),
-            "bogus",
-        ),
-        (
-            Root::Aggregate,
-            "orderBy",
-            r#"[{field: "tenant_id", direction: "UP"}]"#,
-            json!([{"field": "tenant_id", "direction": "UP"}]),
-            "tenant_id",
-        ),
-        (
             Root::Window,
             "orderBy",
             r#"[{field: "bogus"}]"#,
             json!([{"field": "bogus"}]),
             "bogus",
-        ),
-        (
-            Root::Window,
-            "orderBy",
-            r#"[{field: "tenant_id", direction: "UP"}]"#,
-            json!([{"field": "tenant_id", "direction": "UP"}]),
-            "tenant_id",
         ),
         (
             Root::Window,
             "select",
             r#"[{type: "measure", name: "bogus", alias: "b"}]"#,
             json!([{"type": "measure", "name": "bogus", "alias": "b"}]),
-            "bogus",
-        ),
-        (
-            Root::Window,
-            "windows",
-            r#"[{function: {type: "bogus"}, alias: "rank"}]"#,
-            json!([{"function": {"type": "bogus"}, "alias": "rank"}]),
             "bogus",
         ),
         (
@@ -517,3 +498,6 @@ async fn a_key_the_root_cannot_read_is_refused_naming_it() {
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
+
+#[path = "aggregate_argument_enum_tests.rs"]
+mod enum_tests;

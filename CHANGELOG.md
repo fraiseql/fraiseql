@@ -106,11 +106,11 @@ disagreed, and the promise was the part that was wrong.
   `orderBy` do: `field` is one of the new `<Name>AggregateOrderByField` enum, the row's group
   keys and scalar aggregates, and `direction` a `SortDirection`, `ASC` when omitted. A
   `json_agg`, `jsonb_agg` or `array_agg` is not a sort key, as a list query's JSON and list
-  fields are not: an `orderBy` naming one is refused as "orderBy `units_json_agg` is a JSON
-  document or an array, which does not sort" (#2446). Write
+  fields are not: the enum does not offer one, so an `orderBy` naming one is refused as no
+  member of it (#2446, #2449). Write
   `orderBy: [{field: revenue_sum, direction: DESC}, {field: category}]`. The object is refused
   as "orderBy item takes `field` and `direction`, got `revenue_sum`". A direction outside the
-  six, `desc` or `1`, is refused naming the key as before. One item may be written without
+  six, `desc` or `1`, is refused as no member of `SortDirection` (#2449). One item may be written without
   the list. A rolled-up table answering a split range orders its recombined groups by the
   same items. Code generated from the schema sees the new item type and enum.
 
@@ -1782,6 +1782,18 @@ disagreed, and the promise was the part that was wrong.
   did.
 
 ### Fixed
+
+- **A fact-table root refuses an unknown enum value as one of its published enum (#2449).**
+  The `_aggregate` and `_window` roots did not hold a document's enum values to the enums
+  they publish: `orderBy: [{field: nosuch}]` was refused by the planner ("neither a grouped
+  key nor a computed aggregate"), `direction: SIDEWAYS` and a window function's
+  `type: nosuch` by their parsers. Nothing wrong was served, but the refusal was not the
+  one introspection promises. Every enum under a published root's arguments
+  (`<Name>AggregateOrderByField`, `SortDirection`, `WindowColumnKind`, `WindowFunctionKind`,
+  `WindowFrameType`, `WindowFrameBoundaryKind`, `WindowFrameExclusion`) is now checked before
+  any statement, with the list roots' message: the path, the enum and its members, never the
+  value. A request an embedder passes with table metadata that the schema does not publish
+  has no published enums and is read as before.
 
 - **Arrow Flight is reported started only once it has bound its port (#2450).** The Flight
   listener was bound in a background task after the start was recorded, so a

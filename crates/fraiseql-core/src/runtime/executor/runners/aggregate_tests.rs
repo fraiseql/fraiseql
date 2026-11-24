@@ -396,7 +396,7 @@ mod gated_fact_tables {
             serde_json::json!({
                 "groupBy": {"category": true},
                 "aggregates": [{"count": true}],
-                "orderBy": [{ "field": "margin", "direction": "DESC" }]
+                "orderBy": [{ "field": "segment", "direction": "DESC" }]
             }),
             "{ sales_aggregate { count } }",
             "an order by a masked measure ranks by it",
@@ -1519,3 +1519,6 @@ mod row_projection {
         assert!(sql.is_none(), "reached the database: {sql:?}");
     }
 }
+
+#[path = "fact_root_enum_tests.rs"]
+mod fact_root_enum_tests;

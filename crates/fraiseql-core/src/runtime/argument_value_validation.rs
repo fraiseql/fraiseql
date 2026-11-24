@@ -759,6 +759,33 @@ pub fn validate_resolved_arguments<'a>(
     Ok(())
 }
 
+/// Hold every enum in a fact-table root's request to the enum its published argument type
+/// declares, as [`validate_enum_argument_literals`] holds a list root's document.
+///
+/// A fact-table root is dispatched by its name's suffix, before the matcher's argument
+/// passes, and reads one map in which the document's literals and the variables' values are
+/// already merged, so the walk cannot name the variable a value came from; it names the
+/// path to it, which is what a list root's literal refusal names.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] naming the field, the path, the enum and its
+/// members, never the value.
+pub fn validate_fact_root_enums<'a>(
+    schema: &CompiledSchema,
+    field_label: impl Fn() -> String,
+    declared: &[ArgumentDefinition],
+    argument: impl Fn(&str) -> Option<&'a Value>,
+) -> Result<()> {
+    for arg in declared {
+        let Some(value) = argument(&arg.name) else {
+            continue;
+        };
+        walk_field_type(schema, Rules::READ, &field_label(), &arg.name, &arg.arg_type, value, 0)?;
+    }
+    Ok(())
+}
+
 /// Walk a compiled [`FieldType`] against `value`, adjudicating every enum under it
 /// (and, under [`Rules::WRITE`], every built-in scalar and input key).
 fn walk_field_type(

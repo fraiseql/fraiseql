@@ -553,7 +553,9 @@ The arguments decide what is computed, and the selection set decides what is ret
   `SalesAggregateOrderByField`, the row's group keys and scalar aggregates, and must name a
   grouped key or a computed aggregate. A `json_agg`, `jsonb_agg` or `array_agg` is a JSON
   document or an array, which does not sort: it is computed but is not a sort key, and an
-  `orderBy` naming it is refused (#2446). `direction` is a `SortDirection`, `ASC` when omitted, `DESC`, or either with the
+  `orderBy` naming it is refused (#2446). A value at any enum position of the aggregate and
+  window roots is held to its published enum, and refused as no member of it, as a list
+  query's is (#2449). `direction` is a `SortDirection`, `ASC` when omitted, `DESC`, or either with the
   placement of the key's NULLs (`DESC_NULLS_LAST`, #2415), so a group whose key or aggregate
   is NULL sorts first or last. The key-to-direction object (`orderBy: {revenue_sum: DESC}`) is
   refused, naming its key.
