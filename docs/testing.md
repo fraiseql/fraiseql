@@ -183,7 +183,9 @@ route then passes with the guard gone. So each site is proven by mutating it.
 `tools/guard-sites.toml` is the inventory. A `[[site]]` names the file, the function the
 guard sits in (`Type::method`, or `::name` for the free fn, when the file defines the name
 twice; `impl Type::method` or `impl Trait for Type::method` when the type has both; or a
-`const` that holds a shared SQL predicate), an exact `anchor` of its code, the `mutant` that replaces it, the
+`const` that holds a shared SQL predicate), with `cfg` naming the build when the function
+is defined once per build (`cfg = 'feature = "admin-sql"'` picks the definition under
+`#[cfg(feature = "admin-sql")]`), an exact `anchor` of its code, the `mutant` that replaces it, the
 `killers` (tests that must fail on the mutant) and the `shard` (test command) they run
 in. Two sites that each cover the other share a `joint` and are mutated together.
 `[[held]]` paths are not inventoried yet; `[[exempt]]` functions match a guard pattern

@@ -243,6 +243,33 @@ edit "tools/guard-sites.toml" 'mutant   = "check_revocation(None, u)"' 'mutant  
 expect 1 "${src}/routes/auth.rs:11:49: session guard" "29g. impl Trait for Type::name is the trait's method, so the inherent call is unrowed"
 if grep -qF "${src}/routes/auth.rs:14:45" "${tmp}/out"; then fail "29g2. the trait method's rowed call was reported"; else pass "29g2. the trait method's rowed call was not reported"; fi
 
+# A function defined once per build: `cfg` names the build, and a doc comment naming a
+# cfg is not an attribute.
+tree; cat > "${ws}/${src}/routes/auth.rs" <<'EOF'
+#[cfg(feature = "x")]
+pub fn admit(state: &State, user: &User) -> Result<(), Refusal> {
+    check_revocation(state.revocation.as_ref(), user)?;
+    Ok(())
+}
+
+/// The build without `x`; unlike #[cfg(feature = "x")] it checks nothing.
+#[cfg(not(feature = "x"))]
+pub fn admit(_state: &State, _user: &User) -> Result<(), Refusal> {
+    Ok(())
+}
+
+pub fn check_revocation(store: Option<&Store>, user: &User) -> Result<(), Refusal> {
+    store.map_or(Ok(()), |s| s.check(user))
+}
+EOF
+expect 1 "\`fn admit\` is defined 2 time(s) outside" "29h. a name defined once per build is refused without its cfg"
+edit "tools/guard-sites.toml" 'function = "admit"' $'function = "admit"\ncfg      = \'feature = "x"\''
+expect 0 "" "29i. cfg names the build's definition, and the comment naming it is no attribute"
+edit "tools/guard-sites.toml" "'feature = \"x\"'" "'not(feature = \"x\")'"
+expect 1 "the anchor occurs 0 time(s) in \`fn admit\`" "29j. cfg names the other build's definition, which lacks the anchor"
+edit "tools/guard-sites.toml" "'not(feature = \"x\")'" "'feature = \"y\"'"
+expect 1 "is defined 0 time(s) under #[cfg(feature = \"y\")]" "29k. a cfg no definition carries resolves nothing"
+
 rls_family() {
   cat >> "${ws}/tools/guard-sites.toml" <<'EOF'
 

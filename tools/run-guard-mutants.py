@@ -231,7 +231,7 @@ def main() -> int:
                         # A `.sql` file has no functions: the anchor is found in the whole file.
                         spans = [(0, len(text))]
                     else:
-                        spans = gate.Source.of(text).function_spans(site["function"])
+                        spans = gate.Source.of(text).site_spans(site["function"], site.get("cfg"))
                     body = text[spans[0][0] : spans[0][1]] if len(spans) == 1 else ""
                     if body.count(site["anchor"]) != 1:
                         raise SystemExit(f"{site['id']}: does not resolve; run tools/check-guard-sites.py")

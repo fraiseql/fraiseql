@@ -7,7 +7,8 @@ that replaces it, the `killers` (tests that must fail on the mutant) and the `sh
 (test command) they run in. `tools/run-guard-mutants.py` applies each mutant and runs
 its shard; this gate checks the inventory against the tree, on every PR:
 
-1. Every site resolves: its function is defined once in its file, outside test code;
+1. Every site resolves: its function is defined once in its file, outside test code
+   (once under its `cfg`, where the row names the build);
    the anchor occurs exactly once inside that function (in a `.sql` file, which has no
    functions, a site names none and the anchor occurs once in the file); the mutant
    differs from it;
@@ -49,8 +50,8 @@ DEFAULT_INVENTORY = "tools/guard-sites.toml"
 SCANNED = "crates"
 SQL_SCANNED = ("crates", "examples")
 
-SITE_KEYS = {"id", "file", "function", "anchor", "mutant", "killers", "shard", "joint"}
-SITE_REQUIRED = SITE_KEYS - {"joint", "function"}
+SITE_KEYS = {"id", "file", "function", "cfg", "anchor", "mutant", "killers", "shard", "joint"}
+SITE_REQUIRED = SITE_KEYS - {"joint", "function", "cfg"}
 TOP_KEYS = {"family", "shard", "site", "held", "exempt"}
 FAMILY_KEYS = {"name", "patterns", "scan", "sql"}
 
@@ -285,6 +286,29 @@ class Source:
                 spans.append((match.start(), semi + 1))
         return spans
 
+    def site_spans(self, name: str, cfg: str | None = None) -> list[tuple[int, int]]:
+        """The spans `function_spans(name)` finds, and with `cfg` only those of a definition
+        carrying `#[cfg(<cfg>)]` among its attributes: a function defined once per build
+        (`#[cfg(feature = "x")]` beside `#[cfg(not(feature = "x"))]`) is named per build."""
+        spans = self.function_spans(name)
+        if cfg is None:
+            return spans
+        wanted = " ".join(cfg.split())
+        kept = []
+        for start, end in spans:
+            # The item's attributes run back to the previous item's `}` or `;`, or to the
+            # `{` opening its block, so an enclosing block's own attributes are not its.
+            head = max(self.code.rfind(c, 0, start) for c in "{};") + 1
+            # Found in the code, so a comment naming a cfg is no attribute; read in the
+            # source, where the code has the string contents blanked.
+            attributes = [
+                self.raw[head + match.start(1) : head + match.end(1)]
+                for match in re.finditer(r"#\[\s*cfg\s*\((.*)\)\s*\]", self.code[head:start])
+            ]
+            if any(" ".join(found.split()) == wanted for found in attributes):
+                kept.append((start, end))
+        return kept
+
 
 class Gate:
     def __init__(self, root: Path, inventory: str) -> None:
@@ -364,10 +388,18 @@ class Gate:
                     "which has none"
                 )
                 continue
-            spans = [(0, len(source.raw))] if sql else source.function_spans(site["function"])
+            if sql and "cfg" in site:
+                self.error(f"{label}: `cfg` names a function's build; a `.sql` file has none")
+                continue
+            spans = (
+                [(0, len(source.raw))]
+                if sql
+                else source.site_spans(site["function"], site.get("cfg"))
+            )
             if len(spans) != 1:
+                build = f" under #[cfg({site['cfg']})]" if "cfg" in site else ""
                 self.error(
-                    f"{label}: `fn {site['function']}` is defined {len(spans)} time(s) "
+                    f"{label}: `fn {site['function']}` is defined {len(spans)} time(s){build} "
                     f"outside test code in {site['file']} (want 1)"
                 )
                 continue
