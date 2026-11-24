@@ -18,6 +18,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **The C# SDK's `FederationConfig` is removed (#2474).** Nothing read it: `SchemaExporter`
+  has no overload that takes it and writes no `federation` key, so a schema exported with
+  one configured carried no federation block, although its documentation said it emitted
+  one. The SDK has no federation surface; declare entities and shareable types in
+  `fraiseql.toml`'s `[federation]` section.
+
 - **The Python and TypeScript SDKs refuse federation markers the compiled schema cannot
   carry (#1713).** `@requires`, `@provides` and `@override` have no carrier in the compiled
   schema: Python's `field(requires=..., provides=..., override_from=...)` recorded them

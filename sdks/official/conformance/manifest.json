@@ -158,7 +158,7 @@
         "fact_table_measure_column": "a measure's column is declared on a fact table, and the SDK authors no fact table (see `fact_tables`)",
         "type_subscription_policy": "the SDK has no `subscription_policy` authoring surface (#1657 added it to Python and TypeScript)",
         "unions": "the SDK has no GraphQL union authoring surface: `fraiseql-csharp/src/FraiseQL/Models/IntermediateSchema.cs`, the exported record, has no `unions` property, so a union cannot be authored (#2413; Python, TypeScript and Java author one)",
-        "federation_entities": "the SDK has no federation authoring surface: `fraiseql-csharp/src/FraiseQL/Export/FederationConfig.cs` is defined but never read: `SchemaExporter.cs` writes no `federation` key (#2474); entities and shareable types can be declared in `fraiseql.toml`'s `[federation]` section instead (#1713)",
+        "federation_entities": "the SDK has no federation surface: `fraiseql-csharp/src/FraiseQL/Export/SchemaExporter.cs` writes no `federation` key (#2474); entities and shareable types can be declared in `fraiseql.toml`'s `[federation]` section instead (#1713)",
         "federation_composite_key": "no federation authoring surface, so no entity key to compose (#1713)",
         "federation_markers": "no federation authoring surface, so no field or type markers (#1713)",
         "federation_refuses_requires": "no federation markers, so no `@requires` to refuse (#1713)",
