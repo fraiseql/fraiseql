@@ -115,7 +115,7 @@ pub(super) async fn handshake(
     let validator = svc.oidc_validator.as_ref().ok_or_else(|| {
         error!(
             "OIDC validator not configured - authentication is mandatory. \
-             Set FLIGHT_OIDC_* environment variables."
+             Configure the server's `[auth]` section."
         );
         Status::internal("Authentication not configured. Contact system administrator.")
     })?;
@@ -161,11 +161,26 @@ pub(super) async fn list_flights(
 
     let mut flight_infos = Vec::new();
 
-    for view_name in &["va_orders", "va_users", "ta_orders", "ta_users"] {
-        if let Ok(schema) = svc.schema_registry.get(view_name) {
+    // Every view the registry holds: on `fraiseql-server`, exactly the declared `flight_views`.
+    // A view removed between the listing and the lookup is skipped. The descriptor's path is
+    // the view's `OptimizedView` ticket, as `GetFlightInfo` and `GetSchema` read it, so a
+    // listed descriptor can be passed back unchanged.
+    for view_name in svc.schema_registry.view_names() {
+        if let Ok(schema) = svc.schema_registry.get(&view_name) {
+            let ticket = FlightTicket::OptimizedView {
+                view:     view_name,
+                filter:   None,
+                order_by: None,
+                limit:    None,
+                offset:   None,
+            }
+            .encode()
+            .map_err(|e| Status::internal(format!("cannot encode a view's ticket: {e}")))?;
+            let path = String::from_utf8(ticket)
+                .map_err(|e| Status::internal(format!("a view's ticket is not UTF-8: {e}")))?;
             let descriptor = FlightDescriptor {
                 r#type: 1, // PATH
-                path:   vec![(*view_name).to_string()],
+                path:   vec![path],
                 cmd:    b"".to_vec().into(),
             };
 
@@ -265,3 +280,7 @@ pub(super) async fn poll_flight_info(
         expiration_time:   None,
     }))
 }
+
+#[cfg(test)]
+#[path = "list_flights_tests.rs"]
+mod list_flights_tests;

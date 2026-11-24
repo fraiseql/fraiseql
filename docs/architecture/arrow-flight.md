@@ -86,9 +86,10 @@ A ticket is a JSON object tagged by `type`:
 - **`DoExchange`** carries queries and uploads.
 - **`DoAction`** offers `HealthCheck`, plus `ClearCache` and `RefreshSchemaRegistry`,
   which need the `admin` scope.
-- **`ListFlights`** does not list the declared `flight_views` today
-  ([#1789](https://github.com/fraiseql/fraiseql/issues/1789)). A client has to know the
-  view's name.
+- **`ListFlights`** lists the declared `flight_views` the server serves, by name, sorted,
+  each with its Arrow schema. A view that could not be read at boot is not served, and not
+  listed. Each descriptor's path is the view's `OptimizedView` ticket, so a listed
+  descriptor can be passed back to `GetFlightInfo` or `GetSchema` unchanged.
 
 How a column is typed depends on where its rows come from.
 

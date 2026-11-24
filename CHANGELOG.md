@@ -1783,6 +1783,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Arrow Flight's `ListFlights` lists the declared `flight_views` (#1789).** It looked up
+  four demo view names that the server clears at boot, so its stream was always empty and
+  no served view was ever listed. It now lists every view the server serves, sorted, with
+  its schema. The "no validator" log line of the Flight handshake names the server's
+  `[auth]` section instead of `FLIGHT_OIDC_*` variables nothing reads.
+
 - **The audit docs describe what the server records, and where (#1630).** The deployment
   security guide recommended the webhook audit exporter and mapped stores to it, though the
   `fraiseql-server` binary cannot configure that exporter; the admin SQL console told

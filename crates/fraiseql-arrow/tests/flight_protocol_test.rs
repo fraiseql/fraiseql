@@ -129,6 +129,14 @@ fn authenticated_ticket_request(ticket: &FlightTicket) -> Request<Ticket> {
 // Tests: list_flights
 // ---------------------------------------------------------------------------
 
+/// The view a listed descriptor's path names: its `OptimizedView` ticket.
+fn listed_view(path: &str) -> String {
+    match FlightTicket::decode(path.as_bytes()).expect("a listed path is a ticket") {
+        FlightTicket::OptimizedView { view, .. } => view,
+        other => panic!("a listed path is a view's ticket, got {other:?}"),
+    }
+}
+
 /// `list_flights` enumerates the four built-in views without authentication.
 #[tokio::test]
 async fn test_list_flights_enumerates_four_default_views() {
@@ -146,7 +154,7 @@ async fn test_list_flights_enumerates_four_default_views() {
     while let Some(Ok(info)) = stream.next().await {
         if let Some(desc) = &info.flight_descriptor {
             if let Some(path) = desc.path.first() {
-                names.push(path.clone());
+                names.push(listed_view(path));
             }
         }
     }
@@ -489,8 +497,12 @@ async fn every_metadata_call_sends_a_schema_the_reference_decoder_reads() {
     let mut decoded = None;
     while let Some(info) = listed.next().await {
         let info = info.unwrap();
-        let path = info.flight_descriptor.as_ref().and_then(|d| d.path.first().cloned());
-        if path.as_deref() == Some("va_orders") {
+        let view = info
+            .flight_descriptor
+            .as_ref()
+            .and_then(|d| d.path.first())
+            .map(|p| listed_view(p));
+        if view.as_deref() == Some("va_orders") {
             decoded = Some(info.try_decode_schema().unwrap());
         }
     }

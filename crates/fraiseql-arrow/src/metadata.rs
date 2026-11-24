@@ -297,6 +297,14 @@ impl SchemaRegistry {
         outcome
     }
 
+    /// The names of the registered views, sorted.
+    #[must_use]
+    pub fn view_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = self.schemas.iter().map(|entry| entry.key().clone()).collect();
+        names.sort_unstable();
+        names
+    }
+
     /// Check if a view has a registered schema.
     #[must_use]
     pub fn contains(&self, view_name: &str) -> bool {

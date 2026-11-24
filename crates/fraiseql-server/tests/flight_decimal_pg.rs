@@ -321,3 +321,6 @@ async fn a_registered_schema_that_narrows_a_numeric_is_refused() {
         "the refusal must name the view, the column and the fix: {refused:?}"
     );
 }
+
+#[path = "flight_decimal_pg/list_flights.rs"]
+mod list_flights;
