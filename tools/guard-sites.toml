@@ -3098,16 +3098,16 @@ shard = "guard-lib"
 [[family]]
 name = "jwt-validation"
 patterns = [
-    '(?<!\.)\bheader\.kid\.as_(?:ref|deref)\(\)\.ok_or_else',
-    '\.min\(MAX_CLOCK_SKEW_SECS\)',
-    '\.require_jti && claims\.jti',
-    'set_required_spec_claims\(&\["exp", "iss"\]\)',
-    '\bvalidation\.set_audience\s*\(',
-    '\bvalidation\.validate_nbf = true',
-    'allowed_algorithms\.contains\(',
-    '\.find\(\|issuer\| issuer\.config\.issuer',
-    'saturating_add_unsigned\(leeway\)',
-    '\.kid\.as_deref\(\) == Some\(kid\)',
+  '(?<!\.)\bheader\.kid\.as_(?:ref|deref)\(\)\.ok_or_else',
+  '\.min\(MAX_CLOCK_SKEW_SECS\)',
+  '\.require_jti && claims\.jti',
+  'set_required_spec_claims\(&\["exp", "iss"\]\)',
+  '\bvalidation\.set_audience\s*\(',
+  '\bvalidation\.validate_nbf = true',
+  'allowed_algorithms\.contains\(',
+  '\.find\(\|issuer\| issuer\.config\.issuer',
+  'saturating_add_unsigned\(leeway\)',
+  '\.kid\.as_deref\(\) == Some\(kid\)',
 ]
 
 [[shard]]
@@ -3190,7 +3190,10 @@ file = "crates/fraiseql-core/src/security/oidc/token.rs"
 function = "validate_token"
 anchor = "validation.set_audience(&audiences);"
 mutant = "let _ = &audiences;\n            validation.validate_aud = false;"
-killers = ["validate_token_rejects_wrong_audience", "each_issuer_checks_its_own_audience"]
+killers = [
+  "validate_token_rejects_wrong_audience",
+  "each_issuer_checks_its_own_audience",
+]
 shard = "core-lib-oidc"
 
 [[site]]
@@ -3199,7 +3202,9 @@ file = "crates/fraiseql-core/src/security/oidc/token.rs"
 function = "validate_token"
 anchor = "validation.set_audience(&issuer.config.additional_audiences);"
 mutant = "validation.validate_aud = false;"
-killers = ["an_issuer_with_only_additional_audiences_refuses_a_token_for_another"]
+killers = [
+  "an_issuer_with_only_additional_audiences_refuses_a_token_for_another",
+]
 shard = "core-lib-oidc"
 
 [[site]]
@@ -3217,7 +3222,10 @@ file = "crates/fraiseql-core/src/security/oidc/token.rs"
 function = "validate_token"
 anchor = "validation.validate_nbf = true;"
 mutant = "validation.validate_nbf = false;"
-killers = ["a_token_used_before_its_nbf_is_refused", "the_nbf_leeway_is_the_issuers_configured_clock_skew"]
+killers = [
+  "a_token_used_before_its_nbf_is_refused",
+  "the_nbf_leeway_is_the_issuers_configured_clock_skew",
+]
 shard = "core-lib-oidc"
 
 [[site]]
@@ -3226,7 +3234,10 @@ file = "crates/fraiseql-core/src/security/oidc/token.rs"
 function = "validate_token"
 anchor = ".is_some_and(|iat| iat > Utc::now().timestamp().saturating_add_unsigned(leeway))"
 mutant = ".is_some_and(|iat| false && iat > Utc::now().timestamp().saturating_add_unsigned(leeway))"
-killers = ["a_token_issued_in_the_future_is_refused", "the_iat_leeway_is_the_issuers_configured_clock_skew"]
+killers = [
+  "a_token_issued_in_the_future_is_refused",
+  "the_iat_leeway_is_the_issuers_configured_clock_skew",
+]
 shard = "core-lib-oidc"
 
 [[site]]
@@ -3277,9 +3288,9 @@ shard = "jwks-lib"
 [[family]]
 name = "jwks-fetch"
 patterns = [
-    '(?<!fn )\bresolve_and_guard\s*\(',
-    '\.resolve_to_addrs\s*\(',
-    '> MAX_(?:DISCOVERY_)?RESPONSE_BYTES',
+  '(?<!fn )\bresolve_and_guard\s*\(',
+  '\.resolve_to_addrs\s*\(',
+  '> MAX_(?:DISCOVERY_)?RESPONSE_BYTES',
 ]
 
 [[site]]
@@ -3306,7 +3317,9 @@ file = "crates/fraiseql-jwks/src/fetch.rs"
 function = "pinned_client"
 anchor = 'builder = builder.resolve_to_addrs(host, addrs);'
 mutant = "builder = builder.timeout(timeout);\n        let _ = addrs;"
-killers = ["the_pinned_client_connects_to_the_validated_address_and_not_through_dns"]
+killers = [
+  "the_pinned_client_connects_to_the_validated_address_and_not_through_dns",
+]
 shard = "jwks-lib"
 
 [[site]]
