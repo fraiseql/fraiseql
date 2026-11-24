@@ -18,6 +18,7 @@ use fraiseql_db::{PostgresAdapter, Writer as _};
 use fraiseql_error::FraiseQLError;
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn prepare_failure_surfaces_postgres_diagnostic() {
     let svc = fraiseql_test_support::postgres()
         .await

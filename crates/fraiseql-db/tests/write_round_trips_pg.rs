@@ -83,6 +83,7 @@ async fn proxied_adapter() -> (PostgresAdapter, CountingProxy) {
 
 /// Run `request` `times` times after one warm-up call (which prepares what the connection
 /// caches), and return the round trips and parses per call.
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn cost_of(
     adapter: &PostgresAdapter,
     wire: &Wire,
@@ -129,6 +130,7 @@ async fn a_mutation_with_session_variables_and_timing_takes_three_round_trips() 
 }
 
 /// What the function body reads, by column.
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn echo(
     adapter: &PostgresAdapter,
     session: &[(&str, &str)],
@@ -193,6 +195,7 @@ async fn an_outbox_mutation_takes_three_round_trips() {
 
 /// The outbox computes the mutation's duration from `started_at`, so the adapter stamps it
 /// when the session does not carry one, and only then.
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn started_at_seen_by_an_outbox_mutation(session: &[(&str, &str)]) -> String {
     let (adapter, _proxy) = proxied_adapter().await;
     let args = [serde_json::json!(uuid::Uuid::new_v4().to_string())];
@@ -225,6 +228,7 @@ async fn a_started_at_the_session_carries_is_not_stamped_over() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn a_configuration_that_fails_returns_its_own_error_and_writes_nothing() {
     let (adapter, _proxy) = proxied_adapter().await;
     let tag = uuid::Uuid::new_v4().to_string();
@@ -272,6 +276,7 @@ fn inserts(prefix: &str, n: usize) -> Vec<[serde_json::Value; 1]> {
 }
 
 #[tokio::test(flavor = "current_thread")]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn a_batch_takes_three_round_trips_whatever_its_size() {
     let (adapter, proxy) = proxied_adapter().await;
     let prefix = uuid::Uuid::new_v4().to_string();
@@ -295,6 +300,7 @@ async fn a_batch_takes_three_round_trips_whatever_its_size() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn each_call_of_a_batch_runs_under_its_own_configuration_in_order() {
     let (adapter, _proxy) = proxied_adapter().await;
     let tenants = [
@@ -316,6 +322,7 @@ async fn each_call_of_a_batch_runs_under_its_own_configuration_in_order() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn a_batch_whose_call_fails_writes_nothing_and_names_the_call() {
     let (adapter, _proxy) = proxied_adapter().await;
     let prefix = uuid::Uuid::new_v4().to_string();
@@ -346,6 +353,7 @@ async fn a_batch_whose_call_fails_writes_nothing_and_names_the_call() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn a_gate_refusing_a_call_rolls_back_every_call() {
     let (adapter, _proxy) = proxied_adapter().await;
     let prefix = uuid::Uuid::new_v4().to_string();
@@ -380,6 +388,7 @@ async fn a_gate_refusing_a_call_rolls_back_every_call() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn a_batch_adjudicates_every_call_before_it_commits() {
     let (adapter, _proxy) = proxied_adapter().await;
     let prefix = uuid::Uuid::new_v4().to_string();
@@ -402,6 +411,7 @@ async fn a_batch_adjudicates_every_call_before_it_commits() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn a_batch_that_mixes_a_dry_run_and_a_commit_is_refused() {
     let (adapter, _proxy) = proxied_adapter().await;
     let prefix = uuid::Uuid::new_v4().to_string();

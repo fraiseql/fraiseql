@@ -1319,11 +1319,12 @@ gen-matrix:
 lint-graphql-parse:
 	@bash tools/check-graphql-parse-sites.sh
 
-# Gate: a mutation reaches the database only from the engine chokepoint (#1327). Every
-# gate on a write — the Authorizer, requires_role, requires_actor, argument and
-# selection validation, the change-log write and the before:mutation chain — is enforced
-# in `execute_mutation_impl`; a route that calls the adapter itself skips all of them,
-# which is what the gRPC arm did until #1330. The KNOWN list is empty — an entry there is
+# Gate: no production file builds a write statement and hands it to `execute_raw_query`
+# (#1327). Every gate on a write — the Authorizer, requires_role, requires_actor, argument
+# and selection validation, the change-log write and the before:mutation chain — is
+# enforced in `execute_mutation_impl`; a raw write skips all of them. A call to the
+# adapter's write itself, what the gRPC arm did until #1330, is banned by clippy
+# (`disallowed-methods` in .clippy.toml). The KNOWN_RAW list is empty — an entry there is
 # a named defect with an issue, never a resting place. See tools/check-mutation-dispatch-sites.sh.
 .PHONY: lint-mutation-dispatch
 lint-mutation-dispatch:

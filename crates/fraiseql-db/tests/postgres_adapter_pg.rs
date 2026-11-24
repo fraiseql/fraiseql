@@ -612,6 +612,7 @@ async fn test_mutation_timing_custom_variable() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn test_execute_function_call_with_timing_disabled() {
     let adapter = create_test_adapter().await;
 
@@ -627,6 +628,7 @@ async fn test_execute_function_call_with_timing_disabled() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn test_execute_function_call_with_timing_enabled() {
     let adapter = create_test_adapter().await.with_mutation_timing("fraiseql.started_at");
 
@@ -1446,6 +1448,7 @@ async fn a_null_of_a_type_not_decoded_is_null() {
 /// A write function whose result row holds a cell of a type not decoded is refused, and its
 /// transaction rolls back: the row it wrote is not there afterwards.
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn a_write_whose_result_is_not_decoded_is_refused_and_rolled_back() {
     let adapter = create_test_adapter().await;
     for statement in [
@@ -1929,6 +1932,7 @@ async fn reads_route_to_replica_when_no_recent_write() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn writes_route_to_primary_with_replicas_configured() {
     let (primary_url, replica_url) = rr_fixture("writes").await;
     let adapter = rr_adapter(&primary_url, &replica_url, std::time::Duration::from_secs(30)).await;
@@ -1963,6 +1967,7 @@ async fn writes_route_to_primary_with_replicas_configured() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn read_after_write_cannot_serve_the_stale_replica_row() {
     let (primary_url, replica_url) = rr_fixture("raw").await;
     let adapter = rr_adapter(&primary_url, &replica_url, std::time::Duration::from_secs(30)).await;
@@ -2010,6 +2015,7 @@ async fn read_after_write_cannot_serve_the_stale_replica_row() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn reads_return_to_the_replica_after_the_pin_expires() {
     let (primary_url, replica_url) = rr_fixture("expiry").await;
     let adapter =

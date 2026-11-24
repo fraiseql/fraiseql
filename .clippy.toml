@@ -52,7 +52,19 @@ verbose-bit-mask-threshold = 1
 # with an empty capture, at random, only in a shared-process `cargo test` run. The
 # wrappers keep a second dispatcher alive for the life of the process, so the registered
 # dispatchers, the capture among them, are always the ones asked.
+#
+# A mutation reaches the database through the engine's chokepoint, `execute_mutation_impl`,
+# where every gate on a write runs (#1327): the Authorizer, requires_role, requires_actor,
+# argument and selection validation, the change-log write and the before:mutation chain.
+# So nothing else calls the adapter's write. The lint resolves the call, so an import
+# alias, a `Writer::execute_write(..)` spelling or a function pointer is caught as a method
+# call is (#1780). The chokepoint and the cache wrapper below it carry the production
+# `#[allow]`s; tests that drive an adapter's write carry one per function.
+# `fraiseql-db`'s `traits/write_ban_tests.rs` keeps these two paths resolving: a path that
+# stops resolving is only a configuration warning, and the ban would be silently gone.
 disallowed-methods = [
+  { path = "fraiseql_db::traits::Writer::execute_write", reason = "a write goes through the engine (Executor::execute*, which reaches execute_mutation_impl), where every gate on a mutation runs" },
+  { path = "fraiseql_db::traits::Writer::execute_writes", reason = "a write goes through the engine (Executor::execute*, which reaches execute_mutation_impl), where every gate on a mutation runs" },
   { path = "tracing::subscriber::with_default", reason = "use fraiseql_test_support::tracing_capture::with_default, which a parallel test cannot blind" },
   { path = "tracing::subscriber::set_default", reason = "use fraiseql_test_support::tracing_capture::set_default, which a parallel test cannot blind" },
 ]

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# check-mutation-dispatch-sites.sh — pin the set of production sites that dispatch a
-# mutation to the database, so a new transport cannot execute a write past the engine's
-# gates (#1327).
+# check-mutation-dispatch-sites.sh — no production file both builds a write statement and
+# hands it to `execute_raw_query`, so a new transport cannot execute a write past the
+# engine's gates (#1327).
 #
 # WHY THIS GATE EXISTS
 # --------------------
@@ -11,31 +11,23 @@
 # argument-name validation (#1154), the inline-argument merge (#719), the change-log
 # write, and the `before:mutation` chain (#1327). Its doc comment calls itself "the
 # universal mutation chokepoint", and that claim is only true while nothing reaches the
-# adapter's mutation methods on its own.
+# database's write path on its own.
 #
-# #1327 is what happens when enforcement lives anywhere else. The `before:mutation`
-# chain ran in the GraphQL handler, so three request shapes executed a mutation without
-# it — a second root field, inline arguments, and the REST write route. Moving the chain
-# to the chokepoint fixes those three; this gate is what keeps a FOURTH from appearing,
-# because a new route that calls the adapter directly would be invisible to every test
-# the three bypasses have.
+# There are two ways to. The first is to call the adapter's write, `Writer::execute_write`
+# or `execute_writes`, as the gRPC mutation arm did until #1330. That one is banned by
+# clippy (`disallowed-methods` in .clippy.toml, #1780): unlike the pattern this gate used
+# to match, the lint resolves the call, so an import alias, a `Writer::execute_write(..)`
+# spelling or a function pointer is caught as surely as a method call. The chokepoint and
+# the cache wrapper below it carry the only production `#[allow]`s.
 #
-# It was not hypothetical. The gRPC mutation arm did exactly that until #1330: it built
-# its arguments from the protobuf message and called `execute_function_call` itself, so
-# every gate above was skipped on that transport. It is fixed, and the KNOWN list is now
-# EMPTY — which is the state this gate exists to hold. An entry here is a named defect
-# with an issue, never a resting place.
+# The second is what this gate matches, because clippy cannot: a file that builds an
+# INSERT/UPDATE/DELETE itself and hands it to `execute_raw_query`, a general query method
+# with ~20 legitimate production callers (Arrow analytics, tenancy DDL, the fact-table
+# cache, the sql_source probe). Banning that method would be 19 allowlist entries and one
+# defect, an allowlist nobody reads. So this gate matches the PAIR: a file that both builds
+# write SQL and dispatches raw.
 #
-# TWO RULES, because one pattern could not see the second shape.
-#
-# Rule 1 matches the adapter's named write methods. Rule 2 exists because a bypass does not
-# have to call one: it can build an INSERT/UPDATE/DELETE itself and hand it to
-# `execute_raw_query`, which is a general query method with ~20 legitimate production callers
-# (Arrow analytics, tenancy DDL, the fact-table cache, the sql_source probe). Matching that
-# method alone would have been 19 allowlist entries and one defect — an allowlist nobody
-# reads. So rule 2 matches the PAIR: a file that both builds write SQL and dispatches raw.
-#
-# That pair is precise in the way that matters — it discriminates a fixed path from an
+# That pair is precise in the way that matters: it discriminates a fixed path from an
 # unfixed one. `flight_server/handlers/do_exchange.rs` moved off `execute_raw_query` in #953
 # so the rows and their change-log outbox rows commit together; it names the method only in
 # the comment explaining that, so it does not match. `handlers/do_put.rs` matched until
@@ -43,41 +35,17 @@
 # useless here, and the pair is what tells them apart: both files still build write SQL, and
 # only the unfixed one also dispatched it raw.
 #
-# ⚠ Both bypasses rule 2 was written for were invisible to this gate while it printed "no
+# ⚠ Both bypasses this rule was written for were invisible while the gate printed "no
 # known bypasses". That sentence is the reason the gate exists; it must not be able to be
-# false. Both are now fixed — the saga's local write (#1354), whose orchestrator moved above
+# false. Both are now fixed: the saga's local write (#1354), whose orchestrator moved above
 # the engine so its local arm calls the chokepoint, and the Flight DoPut upload (#1355),
 # which moved onto `execute_gated_upload`. The staleness loop below is what said so each
 # time, by refusing to keep listing a file that had stopped matching. KNOWN_RAW is empty,
 # which is the state this gate exists to hold.
-#
-# Mirrors the established shell-gate pattern (lint-graphql-parse, lint-internal-flag).
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-# The adapter layer IMPLEMENTS the write, so it necessarily calls it: the caching adapter
-# wraps another adapter and forwards. None of it is a route — it sits BELOW the
-# chokepoint, not around it. `cache/adapter/mutation.rs` additionally writes
-# `bump_tf_version`, a cache-invalidation function, which is not a user mutation.
-ALLOWED_DIRS='crates/fraiseql-db/src/|crates/fraiseql-core/src/cache/adapter/'
-
-# The one engine seam every transport must converge on.
-CHOKEPOINT='crates/fraiseql-core/src/runtime/executor/runners/mutation/mod.rs'
-
-# Sites that bypass the chokepoint and are tracked as defects. Each needs an issue.
-# Empty since #1330: every transport converges on the chokepoint.
-KNOWN=''
-
-# The adapter's one write method: `Writer::execute_write` (ruling AA 6), which replaced the
-# `execute_function_call*` family. That family's pattern had stopped at the three variants
-# it was written against and never matched `_gated`, the one every write took by then — a
-# pattern that reads as coverage and matches nothing. With one method there is one name to
-# match, and the old ones cannot come back: they no longer exist. Its batch form,
-# `Writer::execute_writes` (#1574), is the same capability over several calls, so the
-# pattern takes both.
-PATTERN='\.execute_writes?\s*\('
-
-# Rule 2's two halves. A file matching BOTH constructs a write statement and dispatches it
+# The pair's two halves. A file matching BOTH constructs a write statement and dispatches it
 # outside the chokepoint. Deliberately not keyed on the builder function names alone: a raw
 # `"INSERT INTO ..."` literal counts too, so renaming a helper does not slip past.
 RAW_DISPATCH='\.execute_raw_query\s*\('
@@ -89,44 +57,6 @@ WRITE_SQL='build_(insert|update|delete)_query|"[[:space:]]*(INSERT INTO|UPDATE |
 # `execute_raw_query`. An entry here is a named defect with an issue, never a resting place.
 KNOWN_RAW=''
 
-# Production code only: a test may drive an adapter directly, and a bench must. The
-# executor's `test_support.rs` is a `#[cfg(test)]` module of doubles, excluded as rule 2
-# excludes it.
-violations=$(
-  grep -rEn "$PATTERN" crates/*/src --include='*.rs' \
-    | grep -vE '/(tests|[a-z_]+_tests)\.rs:' \
-    | grep -vE '^[^:]*/tests/' \
-    | grep -vE '/test_support\.rs:' \
-    | grep -vE "^($ALLOWED_DIRS)" \
-    | grep -vE "^($CHOKEPOINT):" \
-    | { if [ -n "$KNOWN" ]; then grep -vE "^($KNOWN):"; else cat; fi } \
-    | grep -vE ':[0-9]+:\s*(//|///|//!)' \
-    || true
-)
-
-if [ -n "$violations" ]; then
-  echo "ERROR: a mutation is dispatched to the database outside the engine chokepoint (#1327):"
-  echo "$violations"
-  echo
-  echo "Every gate on a write — the Authorizer (#422), requires_role, requires_actor"
-  echo "(#966), selection-set (#1005) and argument-name (#1154) validation, the"
-  echo "inline-argument merge, the change-log write and the before:mutation chain —"
-  echo "is enforced in execute_mutation_impl. A site that calls the adapter itself"
-  echo "skips all of them, silently."
-  echo
-  echo "Route this through the executor instead:"
-  echo "  Executor::execute / execute_with_security   (a GraphQL document)"
-  echo "  Executor::execute_mutation                  (typed, SupportsMutations)"
-  echo "  Executor::execute_mutation_as               (structured args + a principal)"
-  echo "  Executor::execute_mutation_with_security    (a REST write with a principal)"
-  echo "  Executor::execute_mutation_batch            (REST bulk: one transaction)"
-  echo
-  echo "If a site genuinely cannot, add it to KNOWN in"
-  echo "tools/check-mutation-dispatch-sites.sh with the issue that tracks the gap."
-  exit 1
-fi
-
-# ── Rule 2 ────────────────────────────────────────────────────────────────────────────
 # Production files only, and comment lines stripped before either half is counted: the very
 # file this rule must NOT match explains #953 by naming `execute_raw_query` in prose. A gate
 # that counted that comment would report the fixed path as the defect.
@@ -180,7 +110,7 @@ if [ -n "$raw_violations" ]; then
   exit 1
 fi
 
-# Non-vacuity for rule 2, checked BEFORE the staleness loop and not after — proven by
+# Non-vacuity, checked BEFORE the staleness loop and not after — proven by
 # blinding each pattern in turn and watching which branch fires. A renamed pattern makes
 # every file fall out at the `continue` above, so `raw_seen` empties and *every* KNOWN_RAW
 # entry then looks fixed. Reported in that order the reader is told to delete the entries
@@ -209,18 +139,18 @@ raw_live=$(production_files_matching "$RAW_DISPATCH" | wc -l || true)
 write_live=$(production_files_matching "$WRITE_SQL" | wc -l || true)
 
 if [ "$raw_live" -eq 0 ]; then
-  echo "ERROR: rule 2's dispatch half matched no production file at all."
+  echo "ERROR: the dispatch half matched no production file at all."
   echo "\`execute_raw_query\` was renamed or removed — update RAW_DISPATCH — or this half"
-  echo "is now vacuous and rule 2 cannot see a raw write dispatch."
+  echo "is now vacuous and it cannot see a raw write dispatch."
   echo "Do NOT prune KNOWN_RAW on the strength of this run: a blind pattern makes every"
   echo "entry look fixed."
   exit 1
 fi
 
 if [ "$write_live" -eq 0 ]; then
-  echo "ERROR: rule 2's write-SQL half matched no production file at all."
+  echo "ERROR: the write-SQL half matched no production file at all."
   echo "The INSERT/UPDATE/DELETE builders were renamed — update WRITE_SQL — or this half"
-  echo "is now vacuous and rule 2 cannot tell a write from a read."
+  echo "is now vacuous and it cannot tell a write from a read."
   echo "Do NOT prune KNOWN_RAW on the strength of this run: a blind pattern makes every"
   echo "entry look fixed."
   exit 1
@@ -241,35 +171,9 @@ for known in $(echo "${KNOWN_RAW:-}" | tr '|' ' '); do
   fi
 done
 
-# The allowlists are only safe while they are exact. A chokepoint that stopped
-# dispatching, or a KNOWN entry that was fixed, must not stay listed: the first means
-# the gate is pinning nothing, the second means the gate is excusing a file that no
-# longer needs it and would hide a NEW bypass added to that same file.
-chokepoint_calls=$(grep -rEc "$PATTERN" "$CHOKEPOINT" || true)
-if [ "${chokepoint_calls:-0}" -eq 0 ]; then
-  echo "ERROR: $CHOKEPOINT no longer dispatches any mutation."
-  echo "Either the chokepoint moved (update CHOKEPOINT) or this gate is now vacuous."
-  exit 1
-fi
-
-for known in $(echo "${KNOWN:-}" | tr '|' ' '); do
-  if [ ! -f "$known" ]; then
-    echo "ERROR: KNOWN entry $known does not exist — remove it from this gate."
-    exit 1
-  fi
-  if ! grep -rEq "$PATTERN" "$known"; then
-    echo "ERROR: KNOWN entry $known no longer dispatches a mutation directly."
-    echo "The bypass it tracks is fixed: remove it from KNOWN so the file is gated again."
-    exit 1
-  fi
-done
-
-# The report names every tracked bypass. "no known bypasses" is a claim about the tree, and
-# it was false for two releases while two of them sat outside this gate's only pattern.
-all_known=$(echo "${KNOWN}|${KNOWN_RAW}" | tr '|' ' ' | tr -s ' ' | sed 's/^ //;s/ $//')
-if [ -n "$all_known" ]; then
-  echo "OK: every mutation dispatch outside the engine chokepoint is tracked."
-  echo "    known bypasses: $all_known"
+if [ -n "$KNOWN_RAW" ]; then
+  echo "OK: every raw write dispatch outside the engine chokepoint is tracked."
+  echo "    known bypasses: $(echo "$KNOWN_RAW" | tr '|' ' ')"
 else
-  echo "OK: mutations are dispatched only from the engine chokepoint (no known bypasses)"
+  echo "OK: no production file builds a write statement and dispatches it raw (no known bypasses)"
 fi

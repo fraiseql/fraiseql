@@ -59,6 +59,7 @@ async fn duration_ms_full_wallclock_over_one_minute() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn started_at_directive_stamps_the_db_clock_through_the_adapter() {
     // Prove the full clock-unification path: resolve_session_variables emits the
     // directive, the adapter's apply_session_vars resolves it to clock_timestamp()

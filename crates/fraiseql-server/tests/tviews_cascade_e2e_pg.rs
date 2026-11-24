@@ -1087,6 +1087,7 @@ async fn each_derived_row_is_matched_to_its_entry_by_id() {
 /// after its own call and before the next one; read after every call, the first would list
 /// both authors and the second none.
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: tests what the adapter's batch reports, below the engine
 async fn each_call_of_a_batch_reports_what_it_changed() {
     use fraiseql_core::db::traits::{DERIVED_CASCADE_KEY, DerivedCascade, WriteMode, WriteRequest};
     let Some(url) = tviews_database_url() else {

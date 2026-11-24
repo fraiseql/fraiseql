@@ -170,6 +170,7 @@ fn call(function: &str) -> String {
     format!("{SCHEMA}.{function}")
 }
 
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn write(adapter: &PostgresAdapter, function: &str) -> fraiseql_error::Result<()> {
     adapter
         .execute_write(&WriteRequest::new(&call(function), &[]), &|_| Ok(()))
@@ -223,6 +224,7 @@ async fn a_write_that_succeeds_runs_once() {
 
 /// A dry run is retried like a commit, and still persists nothing.
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn a_dry_run_is_retried_and_persists_nothing() {
     let client = setup().await;
     retrying(3)
@@ -240,6 +242,7 @@ async fn a_dry_run_is_retried_and_persists_nothing() {
 /// A batch commits all of its calls or none, so the whole batch runs again from its first
 /// call, and every call commits exactly once.
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn a_batch_runs_again_from_its_first_call() {
     let client = setup().await;
     let requests = ["fn_item_1", "fn_item_2", "fn_item_3"].map(call);
@@ -255,6 +258,7 @@ async fn a_batch_runs_again_from_its_first_call() {
 /// A call that opts out of retry runs once under a policy that would retry it: its
 /// function's effect outside the transaction (here the sequence) happens once.
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn a_call_that_opts_out_runs_once_under_a_retrying_policy() {
     let client = setup().await;
     let err = retrying(3)
@@ -272,6 +276,7 @@ async fn a_call_that_opts_out_runs_once_under_a_retrying_policy() {
 
 /// The opt-out holds when the abort arrives at `COMMIT` too.
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn a_call_that_opts_out_is_not_run_again_after_a_refused_commit() {
     let client = setup().await;
     let err = retrying(3)
@@ -290,6 +295,7 @@ async fn a_call_that_opts_out_is_not_run_again_after_a_refused_commit() {
 /// A batch commits all of its calls or none, so one call that opts out makes the whole
 /// batch run once: here the last call, after the one that aborts.
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn a_batch_holding_a_call_that_opts_out_runs_once() {
     let client = setup().await;
     let functions = ["fn_item_1", "fn_item_2", "fn_item_3"].map(call);
@@ -328,6 +334,7 @@ async fn another_sqlstate_runs_once() {
 
 /// A refusal is a decision, not a failure.
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn a_gate_refusal_runs_once() {
     let client = setup().await;
     let err = retrying(3)
@@ -401,6 +408,7 @@ async fn an_exhausted_write_returns_the_error_it_returns_without_a_policy() {
 
 /// An exhausted batch names the call that failed, as without a policy.
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn an_exhausted_batch_names_the_failed_call_as_without_a_policy() {
     let client = setup().await;
     let requests = ["fn_item_1", "fn_always_deadlocked", "fn_item_3"].map(call);

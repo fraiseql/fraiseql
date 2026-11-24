@@ -1581,6 +1581,9 @@ pub fn row_to_column_values<S: std::hash::BuildHasher>(
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod write_ban_tests;
+
 /// Refuse `session_vars` on an adapter that cannot apply them (#1115): reading without
 /// them would read unscoped.
 pub(crate) fn refuse_session_variables<A: DatabaseAdapter + ?Sized>(

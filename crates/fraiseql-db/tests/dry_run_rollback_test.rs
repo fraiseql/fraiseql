@@ -72,6 +72,7 @@ async fn probe_count(client: &tokio_postgres::Client, id: uuid::Uuid) -> i64 {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn dry_run_executes_function_but_rolls_back() {
     let (client, adapter, _svc) = connect().await;
     provision(&client).await;
@@ -98,6 +99,7 @@ async fn dry_run_executes_function_but_rolls_back() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn committing_call_persists_for_contrast() {
     let (client, adapter, _svc) = connect().await;
     provision(&client).await;

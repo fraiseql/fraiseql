@@ -1739,6 +1739,17 @@ disagreed, and the promise was the part that was wrong.
   direct dependencies only, as it does for the other unmaintained crates under
   third-party ones.
 
+- **A call to the adapter's write outside the engine is refused by clippy (#1780).**
+  `Writer::execute_write` and `execute_writes` are `disallowed-methods` in `.clippy.toml`.
+  The lint resolves the call, so it also refuses an import alias, a
+  `Writer::execute_write(..)` spelling and a function pointer, which
+  `tools/check-mutation-dispatch-sites.sh` matched only as a method call. That script keeps
+  its other rule, a file that builds write SQL and hands it to `execute_raw_query`, which
+  clippy cannot express. The chokepoint and the cache wrapper carry the production
+  `#[allow]`s, and each test that drives an adapter's write carries one. A fraiseql-db test
+  keeps the banned paths resolving, since a path that stops resolving disables a ban with
+  only a configuration warning.
+
 - **An API key whose `expires_in_secs` reaches past 9999-12-30T22:00:00Z is refused
   (#2026).** `POST /api/v1/admin/api-keys` answers 400 `invalid_input`, "expires_in_secs
   reaches past the last instant this server holds", as a key that never expires is not

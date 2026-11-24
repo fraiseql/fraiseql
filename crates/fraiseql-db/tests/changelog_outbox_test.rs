@@ -82,6 +82,7 @@ async fn count_rows(client: &tokio_postgres::Client, object_type: &str) -> i64 {
 const STARTED_AT: &[(&str, &str)] = &[(STARTED_AT_VAR, CLOCK_TIMESTAMP_DIRECTIVE)];
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn executor_writes_changelog_in_txn() {
     let (client, adapter, _svc) = connect().await;
     provision(&client).await;
@@ -140,6 +141,7 @@ async fn executor_writes_changelog_in_txn() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn changelog_row_atomic_with_mutation() {
     let (client, adapter, _svc) = connect().await;
     provision(&client).await;
@@ -171,6 +173,7 @@ async fn changelog_row_atomic_with_mutation() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn started_at_visible_to_outbox_insert() {
     let (client, adapter, _svc) = connect().await;
     provision(&client).await;
@@ -216,6 +219,7 @@ async fn started_at_visible_to_outbox_insert() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn started_at_guaranteed_without_injected_session_var() {
     let (client, adapter, _svc) = connect().await;
     provision(&client).await;
@@ -259,6 +263,7 @@ async fn started_at_guaranteed_without_injected_session_var() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn noop_and_failed_mutations_write_no_changelog_row() {
     let (client, adapter, _svc) = connect().await;
     provision(&client).await;
@@ -310,6 +315,7 @@ async fn noop_and_failed_mutations_write_no_changelog_row() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn object_type_falls_back_to_return_type_when_entity_type_is_null() {
     let (client, adapter, _svc) = connect().await;
     provision(&client).await;
@@ -364,6 +370,7 @@ async fn create_ok_fn(client: &tokio_postgres::Client, fn_name: &str, etype: &st
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn tenant_id_stamped_explicitly_from_the_envelope() {
     let (client, adapter, _svc) = connect().await;
     provision(&client).await;
@@ -395,6 +402,7 @@ async fn tenant_id_stamped_explicitly_from_the_envelope() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn actor_type_and_acting_for_stamped_explicitly_from_the_envelope() {
     let (client, adapter, _svc) = connect().await;
     provision(&client).await;
@@ -439,6 +447,7 @@ async fn actor_type_and_acting_for_stamped_explicitly_from_the_envelope() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn trace_id_stamped_explicitly_from_the_envelope() {
     let (client, adapter, _svc) = connect().await;
     provision(&client).await;
@@ -470,6 +479,7 @@ async fn trace_id_stamped_explicitly_from_the_envelope() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn schema_version_stamped_explicitly_from_the_envelope() {
     let (client, adapter, _svc) = connect().await;
     provision(&client).await;
@@ -508,6 +518,7 @@ async fn schema_version_stamped_explicitly_from_the_envelope() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn trace_context_stamped_explicitly_from_the_envelope() {
     let (client, adapter, _svc) = connect().await;
     provision(&client).await;
@@ -553,6 +564,7 @@ async fn trace_context_stamped_explicitly_from_the_envelope() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn tenant_id_is_null_when_unset() {
     let (client, adapter, _svc) = connect().await;
     provision(&client).await;
@@ -583,6 +595,7 @@ async fn tenant_id_is_null_when_unset() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn seq_is_monotonic_and_distinct_from_the_sequence_default() {
     let (client, adapter, _svc) = connect().await;
     provision(&client).await;
@@ -634,6 +647,7 @@ async fn seq_is_monotonic_and_distinct_from_the_sequence_default() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn commit_time_stamped_and_deferred_envelope_columns_left_null() {
     let (client, adapter, _svc) = connect().await;
     provision(&client).await;

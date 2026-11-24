@@ -100,6 +100,7 @@ fn refusal() -> FraiseQLError {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn refusing_gate_rolls_the_write_back() {
     let (client, adapter, _svc) = connect().await;
     provision(&client, "refuse").await;
@@ -135,6 +136,7 @@ async fn refusing_gate_rolls_the_write_back() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn allowing_gate_commits_the_write() {
     let (client, adapter, _svc) = connect().await;
     provision(&client, "allow").await;
@@ -165,6 +167,7 @@ async fn allowing_gate_commits_the_write() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn refusing_gate_rolls_back_the_outbox_row_too() {
     let (client, adapter, _svc) = connect().await;
     provision(&client, "outbox").await;

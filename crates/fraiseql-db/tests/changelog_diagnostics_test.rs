@@ -42,6 +42,7 @@ fn contract_table_sql() -> String {
 
 /// Missing outbox table → the error must point at `fraiseql setup` (#569.1).
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn missing_changelog_table_error_points_at_setup() {
     let (client, adapter, _svc) = connect().await;
 
@@ -86,6 +87,7 @@ async fn missing_changelog_table_error_points_at_setup() {
 /// A `RETURNS SETOF v_*` mutation function → the error must explain the v2.2
 /// `mutation_response` contract, not leak `column r.entity_type` (#569.2).
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn setof_view_function_error_explains_the_response_contract() {
     let (client, adapter, _svc) = connect().await;
     client.batch_execute(&contract_table_sql()).await.unwrap();

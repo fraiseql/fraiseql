@@ -37,6 +37,8 @@ impl<A: Writer> CachedDatabaseAdapter<A> {
             // `MutationDefinition.invalidates_fact_tables`, which the CLI compiler
             // validates as a safe SQL identifier — no string interpolation needed.
             let args = [serde_json::json!(table)];
+            #[allow(clippy::disallowed_methods)]
+            // Reason: a cache-version bump, not a user mutation: no mutation gate applies to it
             let rows = self
                 .adapter
                 .execute_write(&WriteRequest::new("bump_tf_version", &args), &|_| Ok(()))

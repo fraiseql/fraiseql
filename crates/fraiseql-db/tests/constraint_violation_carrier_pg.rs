@@ -50,6 +50,7 @@ async fn setup() -> PostgresAdapter {
     PostgresAdapter::new(&url).await.unwrap()
 }
 
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn violation(adapter: &PostgresAdapter, function: &str) -> FraiseQLError {
     adapter
         .execute_write(&WriteRequest::new(&format!("{SCHEMA}.{function}"), &[]), &|_| Ok(()))

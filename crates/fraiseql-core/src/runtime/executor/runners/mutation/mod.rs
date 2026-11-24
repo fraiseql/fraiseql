@@ -1475,6 +1475,8 @@ pub(in super::super) async fn execute_mutation_impl(
     // landed — so a refusal, a failed rollback and a failed commit all surface
     // here, and a failed rollback surfaces as itself rather than as the error
     // it was trying to honour.
+    #[allow(clippy::disallowed_methods)]
+    // Reason: the engine's mutation chokepoint, where every gate on a write runs
     let adjudicated = match writer.execute_write(&request, &gate).await {
         Ok(_) => built.into_inner().ok_or_else(|| FraiseQLError::Internal {
             message: format!(
@@ -1600,8 +1602,10 @@ async fn prepare_write<'a>(
     //     above is why it read as true: gRPC was simply not in the list, because it
     //     reached `execute_function_call` on the adapter and never arrived here at
     //     all. A claim of universality is only worth the audit that produced its
-    //     list — `tools/check-mutation-dispatch-sites.sh` is now that audit, run on
-    //     every push, and its exemption list is empty.
+    //     list — clippy's `disallowed-methods` ban on the adapter's write
+    //     (`.clippy.toml`) and `tools/check-mutation-dispatch-sites.sh`'s raw-write
+    //     rule are now that audit, run on every push, and this function holds the
+    //     only production exemptions above the cache wrapper.
     crate::security::actor_type::enforce_requires_actor(
         "Mutation",
         mutation_name,
@@ -2711,6 +2715,8 @@ pub(in super::super) async fn execute_mutation_batch_impl(
         drop(built[index].set(adjudicated));
         Ok(())
     };
+    #[allow(clippy::disallowed_methods)]
+    // Reason: the engine's mutation chokepoint, where every gate on a write runs
     writer.execute_writes(&requests, &gate).await?;
     let built: Vec<Adjudicated> = built
         .into_iter()

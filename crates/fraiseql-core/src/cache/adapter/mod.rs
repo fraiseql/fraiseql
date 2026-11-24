@@ -1363,6 +1363,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl<A: Writer> Writer for CachedDatabaseAdapter<A> {
+    #[allow(clippy::disallowed_methods)] // Reason: below the engine: a cache-wrapped adapter forwards each write to the adapter it wraps
     async fn execute_write(
         &self,
         request: &WriteRequest<'_>,
@@ -1371,6 +1372,7 @@ impl<A: Writer> Writer for CachedDatabaseAdapter<A> {
         self.adapter.execute_write(request, gate).await
     }
 
+    #[allow(clippy::disallowed_methods)] // Reason: below the engine: a cache-wrapped adapter forwards each write to the adapter it wraps
     async fn execute_writes(
         &self,
         requests: &[WriteRequest<'_>],

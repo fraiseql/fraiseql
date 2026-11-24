@@ -132,6 +132,7 @@ fn call(function: &str) -> String {
 }
 
 /// Run `function` with `sink` staged, as the engine's commit gate stages it.
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn write_with(
     adapter: &PostgresAdapter,
     function: &str,
@@ -244,6 +245,7 @@ async fn a_non_durable_dispatch_records_no_row() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn each_batch_item_records_its_own_dispatches_with_the_batch() {
     let client = setup().await;
     let tenant = tenant();
@@ -262,6 +264,7 @@ async fn each_batch_item_records_its_own_dispatches_with_the_batch() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn a_batch_refused_at_any_item_records_no_dispatch() {
     let client = setup().await;
     let tenant = tenant();

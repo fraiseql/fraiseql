@@ -111,6 +111,7 @@ fn argument(raw: &str) -> [Value; 1] {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn each_parameter_type_binds_through_a_single_call() {
     let adapter = install().await;
     let mut wrong = Vec::new();
@@ -135,6 +136,7 @@ async fn each_parameter_type_binds_through_a_single_call() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn each_parameter_type_binds_through_a_batch() {
     let adapter = install().await;
     let functions: Vec<String> = (0..CASES.len()).map(|n| format!("p1547.fn_{n}")).collect();
@@ -154,6 +156,7 @@ async fn each_parameter_type_binds_through_a_batch() {
 
 /// The six types the binding encoded in binary before keep binding, beside text.
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
 async fn the_types_that_bound_before_still_bind() {
     let url = fraiseql_test_support::database_url();
     let (client, connection) = tokio_postgres::connect(&url, tokio_postgres::NoTls).await.unwrap();

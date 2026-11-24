@@ -8082,6 +8082,7 @@ mod dry_run {
     }
 
     #[tokio::test]
+    #[allow(clippy::disallowed_methods)] // Reason: tests the cache wrapper's forward of a write, below the engine
     async fn the_cache_wrapper_passes_a_dry_run_through() {
         let cached = crate::cache::CachedDatabaseAdapter::new(
             DryRunAdapter::default(),

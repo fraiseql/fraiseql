@@ -50,6 +50,7 @@ async fn adapter_with_echo_fn(key: &str) -> PostgresAdapter {
 /// #329 — the connection-affine method applies the GUC on the same connection /
 /// transaction as the function call, so the function body sees it.
 #[tokio::test]
+#[allow(clippy::disallowed_methods)] // Reason: tests the adapter's write itself, below the engine
 async fn function_call_with_session_sees_set_config() {
     let adapter = adapter_with_echo_fn("fncall").await;
 

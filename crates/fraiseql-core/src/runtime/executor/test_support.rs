@@ -29,6 +29,7 @@ use crate::{
 /// Only for doubles: they hold no transaction for a batch to share, so this is their
 /// `execute_writes` minus atomicity, which `crates/fraiseql-core/tests/atomic_batch_pg.rs`
 /// proves on PostgreSQL. A real adapter must never answer a batch this way (#1574).
+#[allow(clippy::disallowed_methods)] // Reason: a test double's batch, below the engine
 pub async fn each_write<W: Writer + ?Sized>(
     writer: &W,
     requests: &[WriteRequest<'_>],
