@@ -19,13 +19,14 @@ impl OpenApiGenerator<'_> {
                     if self.schema.queries.iter()
                         .find(|q| q.name == *name)
                         .is_some_and(|q| q.returns_list));
+                let is_relay = matches!(&route.source, RouteSource::Query { name }
+                    if self.schema.queries.iter()
+                        .find(|q| q.name == *name)
+                        .is_some_and(|q| q.relay));
 
                 if is_list {
                     let mut content = Map::new();
-                    content.insert(
-                        "application/json".to_string(),
-                        json!({
-                            "schema": {
+                    let offset_envelope = json!({
                                 "type": "object",
                                 "properties": {
                                     "data": {
@@ -46,11 +47,16 @@ impl OpenApiGenerator<'_> {
                                     // would populate it belong to `RestResponseFormatter`,
                                     // which has no production caller. Documenting a member
                                     // that is never present is what sent clients looking for
-                                    // it. Restore this alongside the links themselves.
+                                    // it. A relay route's page does carry them: see
+                                    // `relay_page::envelope`.
                                 }
-                            }
-                        }),
-                    );
+                    });
+                    let envelope = if is_relay {
+                        super::relay_page::envelope(&type_ref)
+                    } else {
+                        offset_envelope
+                    };
+                    content.insert("application/json".to_string(), json!({ "schema": envelope }));
                     // #1268: every export representation says, in its own description,
                     // that it does not carry `?select=` embeds or counts — nor, since
                     // #1275, the `?rel.field=value` filters on them. The schema

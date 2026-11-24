@@ -1114,3 +1114,6 @@ fn an_id_is_a_plain_string_and_only_a_uuid_carries_the_uuid_format() {
         "{properties}"
     );
 }
+
+#[path = "relay_page_tests.rs"]
+mod relay_page;

@@ -43,7 +43,7 @@
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** creates and drops its own `tf_p18_page` fixture (and `nulls_order` its own
-//! `tf_rest_nulls`) → run `--test-threads=1`.
+//! `tf_rest_nulls`, `relay_paging` its own `tf_rest_relay`) → run `--test-threads=1`.
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
@@ -67,6 +67,8 @@ use crate::common::server_harness::TestServer;
 
 #[path = "rest_pagination_stability_e2e_pg/nulls_order.rs"]
 mod nulls_order;
+#[path = "rest_pagination_stability_e2e_pg/relay_paging.rs"]
+mod relay_paging;
 
 const TABLE: &str = "tf_p18_page";
 const VIEW: &str = "v_p18_page";

@@ -15,6 +15,7 @@ pub mod bulk;
 pub mod format;
 pub mod parameters;
 pub mod paths;
+mod relay_page;
 pub mod responses;
 pub mod schemas;
 pub mod security;

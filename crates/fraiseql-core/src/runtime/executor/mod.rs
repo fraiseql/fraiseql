@@ -186,6 +186,7 @@ pub type JsonRowStream =
 
 mod execution;
 pub mod mutation;
+mod relay_direct;
 mod response_body;
 pub use response_body::ResponseBody;
 mod runners;

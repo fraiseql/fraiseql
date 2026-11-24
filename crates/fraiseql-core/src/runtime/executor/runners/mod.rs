@@ -18,5 +18,6 @@ pub(super) mod query_projection;
 mod query_raw;
 pub(super) mod query_regular;
 pub(super) mod query_relay;
+mod query_relay_direct;
 pub(super) mod read_plan;
 pub(super) mod root_read;

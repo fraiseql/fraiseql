@@ -310,6 +310,30 @@ seeks on its cursor column.
 A relay connection never accepts `limit`/`offset`, and never carries a
 `pagination_order`.
 
+### Over REST
+
+A relay query's REST route pages the same way: `?first=`/`?after=` walk forward,
+`?last=`/`?before=` backward, under the route's `?sort=`. A request naming none of them
+gets the first `default_page_size` rows. The body is the page's rows, its page info and
+the links that resume it:
+
+```json
+{
+  "data": [{ "id": "1", "note": "b" }, { "id": "2", "note": null }],
+  "meta": { "hasNextPage": true, "hasPreviousPage": false,
+            "startCursor": "…", "endCursor": "…", "first": 2 },
+  "links": { "next": "/rest/v1/items?sort=note.nullslast&first=2&after=…", "prev": null }
+}
+```
+
+`links.next` and `links.prev` keep every parameter of the request other than the window,
+the `?sort=` above all, since a cursor resumes only the ordering it was issued under: the
+same cursor under another `?sort=` is refused, as over GraphQL. A link is `null` when there
+is no such page. `Prefer: count=exact` adds `meta.total`.
+
+A relay route does not embed: `?select=` naming a relationship is refused, since the page
+composes no embedded read. Read the relationship from its own route.
+
 ### Refetching a node
 
 `node(id:)` takes the `id` an object returned, its UUID, so `node(id: x.id)` gives `x` back:

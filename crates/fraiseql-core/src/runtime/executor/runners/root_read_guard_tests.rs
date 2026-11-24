@@ -601,3 +601,6 @@ async fn a_direct_read_and_a_count_refuse_an_expired_principal() {
     assert!(count.is_err_and(|e| e.to_string().contains("expired")));
     assert!(adapter.captured_where().is_none() && adapter.captured_limit().is_none());
 }
+
+#[path = "relay_direct_guard_tests.rs"]
+mod relay_direct;

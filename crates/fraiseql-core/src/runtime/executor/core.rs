@@ -958,7 +958,7 @@ impl Executor {
     /// § 6.4.4 for a read with no response document of its own to carry errors (REST, its
     /// bulk reads): completed as the same read through GraphQL would be (#1522), a value
     /// that cannot be completed refuses the read, naming the field and where it was.
-    fn complete_direct(
+    pub(super) fn complete_direct(
         &self,
         response: serde_json::Value,
         query_match: &QueryMatch,

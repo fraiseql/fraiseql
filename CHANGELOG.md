@@ -111,6 +111,13 @@ disagreed, and the promise was the part that was wrong.
   the list. A rolled-up table answering a split range orders its recombined groups by the
   same items. Code generated from the schema sees the new item type and enum.
 
+- **A relay query's REST route refuses `?select=` naming a relationship (#2418).** Such a
+  request was answered `200` with the embedded rows, from an unpaged read that ignored the
+  route's cursor parameters. The route now pages by keyset, and the page composes no embed,
+  so the request is answered `400`: "`?select=` cannot embed a relationship on a relay
+  (cursor) route; select the route's own fields, and read the relationship from its own
+  route". Read the relationship from its own route. An offset route embeds as before.
+
 - **The Go SDK requires Go 1.26 (#2278).** Its `go.mod` declares `go 1.26`, the oldest
   release Go still supports, and its suite runs on 1.26 and 1.27; it declared 1.23, was
   tested on 1.23 and 1.24, and its README promised 1.22. The code needs nothing newer than
@@ -1778,6 +1785,14 @@ disagreed, and the promise was the part that was wrong.
   `orderBy: CREATED_AT_DESC`), and no examples gate loaded it, so nothing could catch the
   drift. `examples/basic` covers the same blog schema and is compiled and queried by the
   examples gates.
+
+- **A relay query's REST route pages (#2418).** `?first=`, `?after=`, `?last=` and
+  `?before=` were accepted and published in the OpenAPI document, then ignored: every request
+  answered the whole filtered relation, with no cursor to resume from. The route now pages by
+  keyset as the GraphQL connection does, under the same gates and ceilings. Its body carries
+  `meta.hasNextPage`, `hasPreviousPage`, `startCursor` and `endCursor`, and
+  `links.next`/`links.prev` keep the request's `?sort=`. A cursor is refused under another
+  `?sort=`, and the OpenAPI document publishes the relay body.
 
 - **`fraiseql run` starts the observer runtime with `fraiseql.toml`'s `[observers.runtime]`
   tuning (#1740).** The table was accepted and ignored, so the runtime ran on its defaults

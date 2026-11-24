@@ -655,6 +655,27 @@ impl RestHandler<'_> {
         if let Some(relevance) = relevance {
             query_match = query_match.with_search_relevance(relevance);
         }
+        // A relay route's cursor window is read by the relay runner from the match's
+        // arguments, as a GraphQL connection's is. Carried here, after the client arguments
+        // were checked: the window is the transport's, not a published argument.
+        if let PaginationParams::Cursor {
+            first,
+            after,
+            last,
+            before,
+        } = &params.pagination
+        {
+            for (name, value) in [
+                ("first", first.map(|f| json!(f))),
+                ("after", after.as_ref().map(|a| json!(a))),
+                ("last", last.map(|l| json!(l))),
+                ("before", before.as_ref().map(|b| json!(b))),
+            ] {
+                if let Some(value) = value {
+                    query_match.arguments.insert(name.to_string(), value);
+                }
+            }
+        }
 
         Ok(ResolvedGetQuery {
             query_name: query_name.to_string(),
@@ -717,6 +738,15 @@ impl RestHandler<'_> {
         // statement by the engine, which gates every embedded level as a read of its own
         // target — see `embedding` for the fan-out this replaces.
         let has_embeddings = !params.embeddings.is_empty() || !params.embedding_counts.is_empty();
+        // A relay route pages by keyset through the relay runner, which composes no embed: an
+        // embed on it is refused rather than served on a page it does not bound.
+        let relay = query_match.query_def.relay;
+        if relay && has_embeddings {
+            return Err(RestError::bad_request(
+                "`?select=` cannot embed a relationship on a relay (cursor) route; select the \
+                 route's own fields, and read the relationship from its own route",
+            ));
+        }
         let (embeds, counts) = super::super::embedding::selections(
             &params.embeddings,
             &params.embedding_counts,
@@ -725,7 +755,11 @@ impl RestHandler<'_> {
             super::super::embedding::default_embed_page(self.config),
         );
         let read = async {
-            if has_embeddings {
+            if relay {
+                self.executor
+                    .execute_relay_direct(query_match, security_context, Some(&request_budget))
+                    .await
+            } else if has_embeddings {
                 self.executor
                     .execute_query_composed(
                         query_match,
@@ -789,7 +823,18 @@ impl RestHandler<'_> {
                 .insert("x-preference-fallback", HeaderValue::from_static("count=exact"));
         }
 
-        let body = build_query_response(&result, total, &params.pagination)?;
+        let body = if relay {
+            let route = format!("{}{relative_path}", self.config.path.trim_end_matches('/'));
+            super::relay_page::body(
+                &result["data"][query_match.response_key()],
+                total,
+                &params.pagination,
+                &route,
+                query_pairs,
+            )
+        } else {
+            build_query_response(&result, total, &params.pagination)?
+        };
 
         // GHSA-8x5r-mxp4-3xfh: the same decision `/graphql` makes. A read produced for a
         // principal, addressed to a tenant, or selected by a header the schema reads a

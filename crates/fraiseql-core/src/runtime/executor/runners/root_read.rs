@@ -102,6 +102,10 @@ pub(super) enum Door<'a> {
     /// The cardinality of the rows a read would return: REST `count=exact`, a REST count
     /// embed and the GraphQL `<name>Count` sibling (#938).
     Count,
+    /// A page of a Relay query read without a document: a REST relay route. The
+    /// authorizer is asked now, as for any direct read; the page is the Relay runner's,
+    /// which pages by keyset and issues the cursors.
+    Connection,
 }
 
 impl Door<'_> {
@@ -552,7 +556,7 @@ impl QueryRunner {
                 &query_def.return_type,
                 nesting.clone(),
             )),
-            Door::Direct { .. } | Door::Count => Ask::Now(AuthzOperation::root(
+            Door::Direct { .. } | Door::Count | Door::Connection => Ask::Now(AuthzOperation::root(
                 OperationKind::Query,
                 &query_def.name,
                 Some(query_def.return_type.as_str()),
@@ -575,12 +579,28 @@ impl QueryRunner {
                     gated: GatedFieldHandling::AdjudicatePerRow,
                     ..
                 } => Some("a row-shaped read"),
-                Door::Document if query_def.relay => Some("a Relay connection"),
-                Door::Document | Door::Direct { .. } => None,
+                Door::Document | Door::Connection if query_def.relay => Some("a Relay connection"),
+                Door::Document | Door::Direct { .. } | Door::Connection => None,
             };
             if let Some(what) = refused {
                 return Err(refuse_function_root(&query_def.name, what));
             }
+        }
+        // A connection page leaves here as a document's does: the Relay runner refuses a type
+        // with a policy-gated field, scopes the page's rows and checks field-level RBAC over
+        // what each node selects, so none of the steps below is asked twice.
+        if matches!(door, Door::Connection) {
+            return if query_def.relay {
+                Ok(RootRoute::Relay)
+            } else {
+                Err(FraiseQLError::Internal {
+                    message: format!(
+                        "'{}' is not a Relay query, so it has no connection to page; this is a bug",
+                        query_def.name
+                    ),
+                    source:  None,
+                })
+            };
         }
         if matches!(door, Door::Document) {
             if query_def.function.is_some() {
@@ -632,14 +652,15 @@ impl QueryRunner {
                 gated: GatedFieldHandling::AdjudicatePerRow,
                 ..
             }
-            | Door::Count => false,
+            | Door::Count
+            | Door::Connection => false,
         };
 
         // 4. #1612: a document read typed as an interface or a union is a read of each object type
         //    its rows may be (`query_abstract`).
         let abstract_read = match door {
             Door::Document => super::query_abstract::AbstractRead::of(schema, query_def),
-            Door::Direct { .. } | Door::Count => None,
+            Door::Direct { .. } | Door::Count | Door::Connection => None,
         };
         if let Some(read) = &abstract_read {
             read.refuse_gated_fields(schema, root_fields)?;
@@ -666,7 +687,9 @@ impl QueryRunner {
         // A count reads no field, so it has no projection to plan.
         let plan = match door {
             Door::Count => None,
-            Door::Document | Door::Direct { .. } => Some(self.ctx.planner.projection(query_match)),
+            Door::Document | Door::Direct { .. } | Door::Connection => {
+                Some(self.ctx.planner.projection(query_match))
+            },
         };
 
         // 6. Field-level RBAC at every level of the selection, each against its own type and by
@@ -861,7 +884,7 @@ impl QueryRunner {
         //     reads the stored document whole.
         let full_row = match door {
             Door::Document => gated_present || !nested.is_empty() || abstract_read.is_some(),
-            Door::Direct { .. } | Door::Count => true,
+            Door::Direct { .. } | Door::Count | Door::Connection => true,
         };
         let projection = self.build_projection_hint(
             query_match,
