@@ -1,6 +1,6 @@
 //! The session-state entry type and shared limits.
 
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 use uuid::Uuid;
 
 /// Hard cap on a single entry's serialized JSON value, in bytes.
@@ -37,8 +37,8 @@ pub struct SessionStateEntry {
     /// The stored JSON value (≤ [`MAX_SESSION_VALUE_BYTES`] serialized).
     pub value:      serde_json::Value,
     /// Last write time.
-    pub updated_at: DateTime<Utc>,
+    pub updated_at: Timestamp,
     /// Expiry: the entry is invisible to reads from this instant and removed by
     /// the eviction sweep.
-    pub expires_at: DateTime<Utc>,
+    pub expires_at: Timestamp,
 }

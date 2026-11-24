@@ -23,7 +23,7 @@
 //! once used, is never reissued.
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 use sqlx::{Row, postgres::PgPool};
 use uuid::Uuid;
 
@@ -98,11 +98,11 @@ pub struct SamlIdpRecord {
     /// confined to its tenant (#1088).
     pub trust_asserted_email:   bool,
     /// Earliest `NotAfter` among the IdP's signing certificates, parsed from the metadata.
-    pub certificate_expires_at: Option<DateTime<Utc>>,
+    pub certificate_expires_at: Option<Timestamp>,
     /// Row creation time.
-    pub created_at:             DateTime<Utc>,
+    pub created_at:             Timestamp,
     /// Last update time.
-    pub updated_at:             DateTime<Utc>,
+    pub updated_at:             Timestamp,
 }
 
 /// What an operator supplies to create or update an IdP. The parsed fields
@@ -217,7 +217,7 @@ impl PgSamlIdpStore {
             metadata_xml:           row.get("metadata_xml"),
             idp_entity_id:          row.get("idp_entity_id"),
             trust_asserted_email:   row.get("trust_asserted_email"),
-            certificate_expires_at: row.get("certificate_expires_at"),
+            certificate_expires_at: super::time::stored_certificate_expiry(row),
             created_at:             row.get("created_at"),
             updated_at:             row.get("updated_at"),
         }
@@ -229,7 +229,7 @@ impl PgSamlIdpStore {
 /// This is the fail-loud gate: metadata that boot would refuse (unparseable, or with no
 /// HTTP-Redirect SSO binding) is refused here too, so no write can land a row whose only
 /// possible behaviour is a 500 at login.
-fn derive(spec: &SamlIdpSpec) -> Result<(String, Option<DateTime<Utc>>), SamlError> {
+fn derive(spec: &SamlIdpSpec) -> Result<(String, Option<Timestamp>), SamlError> {
     let config = super::SamlIdpConfig::builder(
         spec.idp_name.clone(),
         spec.sp_entity_id.clone(),

@@ -60,11 +60,11 @@ pub struct SamlIdpDto {
     /// confined to its tenant (#1088).
     pub trust_asserted_email:   bool,
     /// Earliest signing-certificate expiry, parsed from the metadata.
-    pub certificate_expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub certificate_expires_at: Option<fraiseql_time::Timestamp>,
     /// Row creation time.
-    pub created_at:             chrono::DateTime<chrono::Utc>,
+    pub created_at:             fraiseql_time::Timestamp,
     /// Last update time.
-    pub updated_at:             chrono::DateTime<chrono::Utc>,
+    pub updated_at:             fraiseql_time::Timestamp,
 }
 
 impl From<SamlIdpRecord> for SamlIdpDto {

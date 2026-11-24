@@ -9,6 +9,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
+use fraiseql_time::{Timestamp, jiff::SignedDuration};
 use uuid::Uuid;
 
 use super::*;
@@ -77,8 +78,8 @@ async fn get_respects_expiry() {
             thread_id:  "t1".to_string(),
             key:        "old".to_string(),
             value:      serde_json::json!(1),
-            updated_at: chrono::Utc::now() - chrono::Duration::hours(2),
-            expires_at: chrono::Utc::now() - chrono::Duration::hours(1),
+            updated_at: Timestamp::now() - SignedDuration::from_hours(2),
+            expires_at: Timestamp::now() - SignedDuration::from_hours(1),
         })
         .unwrap();
     let s = SessionState::new(SessionStateBackend::InMemory(backend), 3600);
@@ -198,15 +199,15 @@ async fn summarizer_failure_leaves_thread_intact() {
 async fn evict_expired_removes_only_expired() {
     let backend = InMemorySessionStateStore::new();
     let session = sid();
-    let now = chrono::Utc::now();
+    let now = Timestamp::now();
     backend
         .set(SessionStateEntry {
             session_id: session,
             thread_id:  "t1".to_string(),
             key:        "dead".to_string(),
             value:      serde_json::json!(1),
-            updated_at: now - chrono::Duration::hours(2),
-            expires_at: now - chrono::Duration::hours(1),
+            updated_at: now - SignedDuration::from_hours(2),
+            expires_at: now - SignedDuration::from_hours(1),
         })
         .unwrap();
     backend
@@ -216,7 +217,7 @@ async fn evict_expired_removes_only_expired() {
             key:        "live".to_string(),
             value:      serde_json::json!(2),
             updated_at: now,
-            expires_at: now + chrono::Duration::hours(1),
+            expires_at: now + SignedDuration::from_hours(1),
         })
         .unwrap();
     let s = SessionState::new(SessionStateBackend::InMemory(backend), 3600);

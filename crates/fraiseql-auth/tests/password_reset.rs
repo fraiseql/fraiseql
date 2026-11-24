@@ -30,7 +30,7 @@ use std::{
 use async_trait::async_trait;
 use fraiseql_auth::{
     AccountStore, AuthError, DenyAccessTokens, LocalPasswordAuthenticator, PostgresAccountStore,
-    ResetEmailSender, SessionStore, TokenPair,
+    ResetEmailSender, SessionStore, TokenPair, fraiseql_time::Timestamp,
 };
 use fraiseql_test_support::try_database_url;
 use sqlx::{
@@ -212,7 +212,7 @@ async fn start_issues_and_delivers_a_token_for_a_known_local_account() {
     .unwrap();
     let selector: String = row.get("selector");
     let verifier_hash: Vec<u8> = row.get("verifier_hash");
-    let used_at: Option<chrono::DateTime<chrono::Utc>> = row.get("used_at");
+    let used_at: Option<Timestamp> = row.get("used_at");
     let live: bool = row.get("live");
     assert_eq!(selector, token.split_once('.').unwrap().0, "selector matches the token");
     assert_eq!(verifier_hash.len(), 32, "verifier stored as a SHA-256 hash");
@@ -271,12 +271,11 @@ async fn reset_changes_the_password_and_revokes_sessions() {
     );
 
     // The token is now spent.
-    let used: Option<chrono::DateTime<chrono::Utc>> =
-        sqlx::query("SELECT used_at FROM auth.tb_password_reset_token")
-            .fetch_one(&h.admin)
-            .await
-            .unwrap()
-            .get("used_at");
+    let used: Option<Timestamp> = sqlx::query("SELECT used_at FROM auth.tb_password_reset_token")
+        .fetch_one(&h.admin)
+        .await
+        .unwrap()
+        .get("used_at");
     assert!(used.is_some(), "the redeemed token is marked used");
 }
 

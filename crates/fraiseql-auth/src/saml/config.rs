@@ -7,7 +7,7 @@
 //! `trust_asserted_email` flag (see [`super::effective_saml_email_verified`]).
 
 use base64::Engine as _;
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 use samael::{
     crypto::AllowedSignatureAlgorithm,
     metadata::EntityDescriptor,
@@ -234,7 +234,7 @@ impl SamlIdpConfig {
     /// operator when SSO stops. `None` when the metadata carries no parseable certificate;
     /// the *earliest* is taken because the first to expire is the one that breaks SSO.
     #[must_use]
-    pub fn signing_certificate_expiry(&self) -> Option<DateTime<Utc>> {
+    pub fn signing_certificate_expiry(&self) -> Option<Timestamp> {
         let certs = self.sp.idp_signing_certs().ok().flatten()?;
         certs.iter().filter_map(|cert| certificate_not_after(cert.der_data())).min()
     }
@@ -344,15 +344,11 @@ fn xml_escape(raw: &str) -> String {
 /// openssl exposes `notAfter` only as an ASN.1 time, whose textual forms (UTCTime vs
 /// GeneralizedTime, `Z` vs offset) are a parsing trap; `Asn1Time::diff` against "now" is the
 /// library's own comparison path, so the conversion inherits its handling of every form.
-fn certificate_not_after(der: &[u8]) -> Option<DateTime<Utc>> {
+fn certificate_not_after(der: &[u8]) -> Option<Timestamp> {
     let cert = openssl::x509::X509::from_der(der).ok()?;
     let now = openssl::asn1::Asn1Time::days_from_now(0).ok()?;
     let diff = now.diff(cert.not_after()).ok()?;
-    Some(
-        Utc::now()
-            + chrono::Duration::days(i64::from(diff.days))
-            + chrono::Duration::seconds(i64::from(diff.secs)),
-    )
+    super::time::certificate_not_after(diff.days, diff.secs)
 }
 
 /// Builder for [`SamlIdpConfig`]. Obtain via [`SamlIdpConfig::builder`].

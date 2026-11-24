@@ -27,7 +27,7 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use arc_swap::ArcSwap;
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 use uuid::Uuid;
 
 use super::{
@@ -61,7 +61,7 @@ pub struct CertExpiryWarning {
     /// Tenant binding, if any.
     pub tenant_id:  Option<Uuid>,
     /// When the earliest signing certificate expires.
-    pub expires_at: DateTime<Utc>,
+    pub expires_at: Timestamp,
     /// Whether SSO is already broken or about to be.
     pub expired:    bool,
 }
@@ -339,8 +339,8 @@ impl SamlIdpRegistry {
     /// Pure over the currently-registered IdPs so it can be asserted on directly and served
     /// by the admin API; the periodic refresher logs whatever it returns.
     #[must_use]
-    pub fn expiry_report(&self, now: DateTime<Utc>, threshold_days: i64) -> Vec<CertExpiryWarning> {
-        let horizon = now + chrono::Duration::days(threshold_days);
+    pub fn expiry_report(&self, now: Timestamp, threshold_days: i64) -> Vec<CertExpiryWarning> {
+        let horizon = super::time::warning_horizon(now, threshold_days);
         let stored = self.cached.load();
         let mut warnings: Vec<CertExpiryWarning> = self
             .config_idps
@@ -363,7 +363,7 @@ impl SamlIdpRegistry {
     /// Log the current [`expiry_report`](Self::expiry_report) — expired certificates at
     /// `error`, imminent ones at `warn`.
     pub fn log_expiry_report(&self, threshold_days: i64) {
-        for warning in self.expiry_report(Utc::now(), threshold_days) {
+        for warning in self.expiry_report(Timestamp::now(), threshold_days) {
             if warning.expired {
                 tracing::error!(
                     idp = %warning.idp_name, expired_at = %warning.expires_at,

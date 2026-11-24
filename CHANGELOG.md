@@ -233,6 +233,19 @@ disagreed, and the promise was the part that was wrong.
   message, `<field> = "<text>" is not a valid RFC3339 timestamp; expected e.g.
   "2026-01-31T00:00:00Z"`, without the parser's own reason.
 
+- **`fraiseql_auth::chrono` is removed, and `fraiseql-auth` no longer depends on chrono
+  (#2026).** The crate re-exports `fraiseql_time` in its place. A caller that reached
+  chrono through it depends on `chrono` directly.
+
+- **`fraiseql-auth` carries instants as `fraiseql_time::Timestamp` (#2026).**
+  `SessionStateEntry::updated_at` and `expires_at`, `SamlIdpRecord::certificate_expires_at`,
+  `created_at` and `updated_at`, `CertExpiryWarning::expires_at`,
+  `VerifiedAssertion::not_on_or_after`, `SamlIdpConfig::signing_certificate_expiry`, and
+  the instants `verify_saml_response`, `SamlReplayStore::check_and_record`,
+  `PgSamlReplayStore::sweep_expired` and `SamlIdpRegistry::expiry_report` take are
+  `fraiseql_time::Timestamp`. A `SamlReplayStore` implemented outside the crate takes a
+  `Timestamp`. Their text is unchanged: the admin API writes an IdP's times as before.
+
 - **`fraiseql_core::chrono` is removed, and `fraiseql-core` no longer depends on chrono
   (#2026).** The crate's public API names no chrono type any more. A caller that reached
   chrono through it depends on `chrono` directly.
@@ -1689,6 +1702,17 @@ disagreed, and the promise was the part that was wrong.
   see "Roles from the actor row" in `docs/architecture/enriched-identity-rls.md`.
 
 ### Changed
+
+- **A SAML IdP signing certificate with no well-defined expiry reports none (#2026).** A
+  certificate whose `NotAfter` is past 9999-12-30T22:00:00Z, such as RFC 5280's
+  `99991231235959Z` for a certificate with no well-defined expiry, now has no expiry: the
+  admin API reports `certificate_expires_at: null` for an IdP signed only by such
+  certificates, where it reported an instant late in 9999, and no expiry warning names
+  it. An IdP stored with such an expiry loads as before and reads as none.
+
+- **A SAML assertion valid past 9999-12-30T22:00:00Z is refused (#2026).** An assertion
+  whose `Conditions/NotOnOrAfter` is later never expires, and is refused as malformed,
+  as a bearer token that never expires is.
 
 - **A bound on a fact table's grain column that is not written `YYYY-MM-DD` is refused as
   not a date (#2026).** The grain check read the bound more loosely than the column's own

@@ -9,7 +9,7 @@
 use std::sync::Arc;
 
 use base64::Engine as _;
-use chrono::{Duration, Utc};
+use fraiseql_time::{Timestamp, jiff::SignedDuration};
 use samael::{
     crypto::{CertificateDer, Crypto, CryptoProvider as _},
     idp::{
@@ -117,7 +117,8 @@ fn signed_response(
         .and_then(|c| c.first_mut())
         .and_then(|c| c.subject_confirmation_data.as_mut())
     {
-        data.not_on_or_after = Some(Utc::now() + Duration::minutes(5));
+        data.not_on_or_after =
+            Some((std::time::SystemTime::now() + std::time::Duration::from_mins(5)).into());
     }
 
     let xml = response.to_string().unwrap();
@@ -149,7 +150,7 @@ async fn valid_response_verifies_and_extracts_identity() {
     assert!(xml.contains("<saml2:Assertion"), "expected saml2-prefixed Assertion: {xml}");
     assert!(xml.contains("Signature"), "expected an XML signature: {xml}");
 
-    let verified = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now())
+    let verified = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Timestamp::now())
         .await
         .expect("should verify");
     assert_eq!(verified.name_id, "nameid-123");
@@ -167,7 +168,7 @@ async fn wrong_idp_certificate_is_rejected() {
     let replay = SamlReplayCache::new();
     let b64 = signed_response(&signer, "nameid-123", SP_ENTITY, SP_ACS, REQ_ID, &[]);
 
-    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now()).await;
+    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Timestamp::now()).await;
     assert!(matches!(result, Err(SamlError::Verification(_))), "got {result:?}");
 }
 
@@ -182,7 +183,8 @@ async fn tampered_attribute_breaks_signature() {
     // Flip the signed email value — the digest no longer matches.
     let tampered = decode(&b64).replace("user@example.com", "attacker@evil.test");
     let result =
-        verify_saml_response(&config, &encode(&tampered), &[REQ_ID], &replay, Utc::now()).await;
+        verify_saml_response(&config, &encode(&tampered), &[REQ_ID], &replay, Timestamp::now())
+            .await;
     assert!(matches!(result, Err(SamlError::Verification(_))), "got {result:?}");
 }
 
@@ -204,7 +206,7 @@ async fn unsigned_response_is_rejected() {
     );
     let b64 = encode(&unsigned.to_string().unwrap());
 
-    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now()).await;
+    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Timestamp::now()).await;
     assert!(matches!(result, Err(SamlError::Verification(_))), "got {result:?}");
 }
 
@@ -221,7 +223,8 @@ async fn strict_algorithm_allowlist_rejects_weak_digest() {
         .unwrap()
         .build()
         .unwrap();
-    let strict_result = verify_saml_response(&strict, &b64, &[REQ_ID], &replay, Utc::now()).await;
+    let strict_result =
+        verify_saml_response(&strict, &b64, &[REQ_ID], &replay, Timestamp::now()).await;
     assert!(
         matches!(strict_result, Err(SamlError::Verification(_))),
         "strict allow-list must reject the weak SHA-1 digest: {strict_result:?}"
@@ -232,7 +235,7 @@ async fn strict_algorithm_allowlist_rejects_weak_digest() {
     let lenient = config_with_cert(&test_idp.cert);
     let replay2 = SamlReplayCache::new();
     assert!(
-        verify_saml_response(&lenient, &b64, &[REQ_ID], &replay2, Utc::now())
+        verify_saml_response(&lenient, &b64, &[REQ_ID], &replay2, Timestamp::now())
             .await
             .is_ok(),
         "relaxed allow-list should accept the same fixture"
@@ -248,7 +251,7 @@ async fn wrong_audience_is_rejected() {
     let replay = SamlReplayCache::new();
     let b64 = signed_response(&test_idp, "nameid-123", "https://evil.example", SP_ACS, REQ_ID, &[]);
 
-    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now()).await;
+    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Timestamp::now()).await;
     assert!(matches!(result, Err(SamlError::Verification(_))), "got {result:?}");
 }
 
@@ -267,7 +270,7 @@ async fn wrong_recipient_is_rejected() {
         &[],
     );
 
-    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now()).await;
+    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Timestamp::now()).await;
     assert!(matches!(result, Err(SamlError::Verification(_))), "got {result:?}");
 }
 
@@ -279,7 +282,8 @@ async fn unsolicited_in_response_to_is_rejected() {
     // Assertion is bound to a request ID we never issued.
     let b64 = signed_response(&test_idp, "nameid-123", SP_ENTITY, SP_ACS, "id-attacker", &[]);
 
-    let result = verify_saml_response(&config, &b64, &["id-legit"], &replay, Utc::now()).await;
+    let result =
+        verify_saml_response(&config, &b64, &["id-legit"], &replay, Timestamp::now()).await;
     assert!(matches!(result, Err(SamlError::Verification(_))), "got {result:?}");
 }
 
@@ -288,11 +292,11 @@ async fn expired_response_is_rejected() {
     let test_idp = new_idp();
     let mut config = config_with_cert(&test_idp.cert);
     // Make the SP intolerant: a just-issued response is past max_issue_delay.
-    config.sp.max_issue_delay = Duration::seconds(-300);
+    config.sp.max_issue_delay = -config.sp.max_issue_delay.abs();
     let replay = SamlReplayCache::new();
     let b64 = signed_response(&test_idp, "nameid-123", SP_ENTITY, SP_ACS, REQ_ID, &[]);
 
-    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now()).await;
+    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Timestamp::now()).await;
     assert!(matches!(result, Err(SamlError::Verification(_))), "got {result:?}");
 }
 
@@ -305,18 +309,18 @@ async fn replayed_assertion_is_rejected() {
     let replay = SamlReplayCache::new();
     let b64 = signed_response(&test_idp, "nameid-123", SP_ENTITY, SP_ACS, REQ_ID, &[]);
 
-    let first = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now()).await;
+    let first = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Timestamp::now()).await;
     assert!(first.is_ok(), "first presentation should verify: {first:?}");
 
-    let second = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now()).await;
+    let second = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Timestamp::now()).await;
     assert!(matches!(second, Err(SamlError::Replay)), "replay must be rejected: {second:?}");
 }
 
 #[tokio::test]
 async fn replay_cache_detects_duplicate_and_prunes_expired() {
     let cache = SamlReplayCache::new();
-    let now = Utc::now();
-    let exp = now + Duration::minutes(5);
+    let now = Timestamp::now();
+    let exp = now + SignedDuration::from_mins(5);
 
     assert!(cache.check_and_record("a1", exp, now).await.unwrap(), "first record is fresh");
     assert!(!cache.check_and_record("a1", exp, now).await.unwrap(), "duplicate is a replay");
@@ -324,8 +328,13 @@ async fn replay_cache_detects_duplicate_and_prunes_expired() {
 
     // After the window closes the entry is pruned, so the same id is fresh again — by then
     // the signature's own time-check would already reject it.
-    let later = exp + Duration::seconds(1);
-    assert!(cache.check_and_record("a1", later + Duration::minutes(5), later).await.unwrap());
+    let later = exp + SignedDuration::from_secs(1);
+    assert!(
+        cache
+            .check_and_record("a1", later + SignedDuration::from_mins(5), later)
+            .await
+            .unwrap()
+    );
 }
 
 // ─── XXE ─────────────────────────────────────────────────────────────────────
@@ -339,7 +348,8 @@ async fn doctype_entity_is_rejected_before_parsing() {
     let xxe = r#"<?xml version="1.0"?>
 <!DOCTYPE Response [ <!ENTITY xxe SYSTEM "file:///etc/passwd"> ]>
 <Response>&xxe;</Response>"#;
-    let result = verify_saml_response(&config, &encode(xxe), &[REQ_ID], &replay, Utc::now()).await;
+    let result =
+        verify_saml_response(&config, &encode(xxe), &[REQ_ID], &replay, Timestamp::now()).await;
     assert!(matches!(result, Err(SamlError::DocTypeForbidden)), "got {result:?}");
 }
 
@@ -368,13 +378,14 @@ async fn signature_wrapping_never_yields_forged_identity() {
     let xml = decode(&b64);
     let forged = format!(
         r#"<saml2:Assertion xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" ID="forged" Version="2.0" IssueInstant="{}"><saml2:Issuer>{IDP_ENTITY}</saml2:Issuer><saml2:Subject><saml2:NameID>attacker</saml2:NameID></saml2:Subject></saml2:Assertion>"#,
-        Utc::now().to_rfc3339()
+        Timestamp::now().to_rfc3339()
     );
     let idx = xml.find("<saml2:Assertion").expect("assertion marker");
     let wrapped = format!("{}{forged}{}", &xml[..idx], &xml[idx..]);
 
     let result =
-        verify_saml_response(&config, &encode(&wrapped), &[REQ_ID], &replay, Utc::now()).await;
+        verify_saml_response(&config, &encode(&wrapped), &[REQ_ID], &replay, Timestamp::now())
+            .await;
     // Either rejected outright, or the *signed* identity is returned — never the attacker's.
     match result {
         Err(_) => {},
@@ -396,7 +407,8 @@ async fn comment_truncation_never_truncates_nameid() {
     // XML comments are excluded from C14N, so injecting one does not break the signature.
     // A vulnerable parser would split the text node and return "victim@example.com".
     let xml = decode(&b64).replace(signed_name_id, "victim@example.com<!---->.attacker.test");
-    let result = verify_saml_response(&config, &encode(&xml), &[REQ_ID], &replay, Utc::now()).await;
+    let result =
+        verify_saml_response(&config, &encode(&xml), &[REQ_ID], &replay, Timestamp::now()).await;
     match result {
         Err(_) => {},
         Ok(v) => {
@@ -895,7 +907,8 @@ fn encrypted_response(
         .and_then(|c| c.first_mut())
         .and_then(|c| c.subject_confirmation_data.as_mut())
     {
-        data.not_on_or_after = Some(Utc::now() + Duration::minutes(5));
+        data.not_on_or_after =
+            Some((std::time::SystemTime::now() + std::time::Duration::from_mins(5)).into());
     }
     let xml = template.to_string().unwrap();
 
@@ -940,7 +953,7 @@ async fn encrypted_assertion_decrypts_and_runs_the_existing_verification_path() 
     let replay = SamlReplayCache::new();
     let b64 = encrypted_response(&test_idp, &sp.cert_der, true, OAEP, AES_GCM);
 
-    let verified = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now())
+    let verified = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Timestamp::now())
         .await
         .expect("a signed, encrypted assertion should verify");
     assert_eq!(verified.name_id, "nameid-enc");
@@ -948,7 +961,7 @@ async fn encrypted_assertion_decrypts_and_runs_the_existing_verification_path() 
 
     // Decryption did not become a bypass: the same response is still single-use, so the
     // replay guard downstream of the decrypt runs exactly as on the plaintext path.
-    let again = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now()).await;
+    let again = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Timestamp::now()).await;
     assert!(matches!(again, Err(SamlError::Replay)), "got {again:?}");
 }
 
@@ -962,7 +975,7 @@ async fn encrypted_assertion_still_enforces_the_request_binding() {
 
     // An InResponseTo we never issued must fail after decryption exactly as before it.
     let result =
-        verify_saml_response(&config, &b64, &["id-never-issued"], &replay, Utc::now()).await;
+        verify_saml_response(&config, &b64, &["id-never-issued"], &replay, Timestamp::now()).await;
     assert!(matches!(result, Err(SamlError::Verification(_))), "got {result:?}");
 }
 
@@ -984,7 +997,8 @@ async fn tampered_encrypted_assertion_does_not_verify_after_decryption() {
     let tampered = String::from_utf8(bytes).unwrap();
 
     let result =
-        verify_saml_response(&config, &encode(&tampered), &[REQ_ID], &replay, Utc::now()).await;
+        verify_saml_response(&config, &encode(&tampered), &[REQ_ID], &replay, Timestamp::now())
+            .await;
     assert!(
         matches!(result, Err(SamlError::Verification(_))),
         "a tampered encrypted assertion must not verify: {result:?}"
@@ -1003,7 +1017,7 @@ async fn unsigned_response_carrying_an_encrypted_assertion_is_refused() {
     // only integrity there is. Without it, an attacker who knows the SP's public key can
     // mint any assertion they like.
     let b64 = encrypted_response(&test_idp, &sp.cert_der, false, OAEP, AES_GCM);
-    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now()).await;
+    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Timestamp::now()).await;
     assert!(
         matches!(result, Err(SamlError::Verification(_))),
         "an unsigned encrypted response must be refused: {result:?}"
@@ -1019,7 +1033,7 @@ async fn encrypted_assertion_without_an_sp_key_is_refused_not_ignored() {
     let replay = SamlReplayCache::new();
     let b64 = encrypted_response(&test_idp, &sp.cert_der, true, OAEP, AES_GCM);
 
-    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Utc::now()).await;
+    let result = verify_saml_response(&config, &b64, &[REQ_ID], &replay, Timestamp::now()).await;
     assert!(matches!(result, Err(SamlError::Verification(_))), "got {result:?}");
 }
 
@@ -1038,7 +1052,8 @@ async fn weak_encryption_algorithms_are_refused() {
         AES_GCM,
     );
     let result =
-        verify_saml_response(&config, &rsa15, &[REQ_ID], &SamlReplayCache::new(), Utc::now()).await;
+        verify_saml_response(&config, &rsa15, &[REQ_ID], &SamlReplayCache::new(), Timestamp::now())
+            .await;
     assert!(
         matches!(&result, Err(SamlError::Verification(m)) if m.contains("key-transport")),
         "rsa-1_5 must be refused by name: {result:?}"
@@ -1053,7 +1068,8 @@ async fn weak_encryption_algorithms_are_refused() {
         "http://www.w3.org/2001/04/xmlenc#aes128-cbc",
     );
     let result =
-        verify_saml_response(&config, &cbc, &[REQ_ID], &SamlReplayCache::new(), Utc::now()).await;
+        verify_saml_response(&config, &cbc, &[REQ_ID], &SamlReplayCache::new(), Timestamp::now())
+            .await;
     assert!(
         matches!(&result, Err(SamlError::Verification(m)) if m.contains("content-encryption")),
         "aes-cbc must be refused by name: {result:?}"
@@ -1080,7 +1096,7 @@ async fn the_previous_sp_key_decrypts_during_a_rotation_window() {
 
     let b64 = encrypted_response(&test_idp, &old.cert_der, true, OAEP, AES_GCM);
     let verified =
-        verify_saml_response(&config, &b64, &[REQ_ID], &SamlReplayCache::new(), Utc::now())
+        verify_saml_response(&config, &b64, &[REQ_ID], &SamlReplayCache::new(), Timestamp::now())
             .await
             .expect("the previous key must still decrypt during the rollover window");
     assert_eq!(verified.name_id, "nameid-enc");
@@ -1088,9 +1104,15 @@ async fn the_previous_sp_key_decrypts_during_a_rotation_window() {
     // And the new key works too, so the window is genuinely two-key.
     let b64_new = encrypted_response(&test_idp, &new.cert_der, true, OAEP, AES_GCM);
     assert!(
-        verify_saml_response(&config, &b64_new, &[REQ_ID], &SamlReplayCache::new(), Utc::now())
-            .await
-            .is_ok()
+        verify_saml_response(
+            &config,
+            &b64_new,
+            &[REQ_ID],
+            &SamlReplayCache::new(),
+            Timestamp::now()
+        )
+        .await
+        .is_ok()
     );
 }
 
@@ -1104,7 +1126,8 @@ async fn an_unrelated_key_never_decrypts() {
     // Encrypted to a key this SP has never held — rotation must not become "try anything".
     let b64 = encrypted_response(&test_idp, &stranger.cert_der, true, OAEP, AES_GCM);
     let result =
-        verify_saml_response(&config, &b64, &[REQ_ID], &SamlReplayCache::new(), Utc::now()).await;
+        verify_saml_response(&config, &b64, &[REQ_ID], &SamlReplayCache::new(), Timestamp::now())
+            .await;
     assert!(matches!(result, Err(SamlError::Verification(_))), "got {result:?}");
 }
 
@@ -1330,4 +1353,69 @@ async fn acs_for_an_mfa_user_yields_a_challenge() {
     );
     assert_eq!(status, axum::http::StatusCode::UNAUTHORIZED, "{json}");
     assert_eq!(json["error"], "mfa_required", "{json}");
+}
+
+/// A signed response whose assertion's `Conditions/NotOnOrAfter` is `seconds` from the
+/// Unix epoch.
+fn signed_response_valid_until(test_idp: &TestIdp, seconds: u64) -> String {
+    let mut response = build_response_template(
+        &test_idp.cert,
+        "nameid-123",
+        SP_ENTITY,
+        IDP_ENTITY,
+        SP_ACS,
+        REQ_ID,
+        &[],
+    );
+    let assertion = response.assertion.as_mut().unwrap();
+    if let Some(data) = assertion
+        .subject
+        .as_mut()
+        .and_then(|s| s.subject_confirmations.as_mut())
+        .and_then(|c| c.first_mut())
+        .and_then(|c| c.subject_confirmation_data.as_mut())
+    {
+        data.not_on_or_after =
+            Some((std::time::SystemTime::now() + std::time::Duration::from_mins(5)).into());
+    }
+    assertion.conditions.as_mut().unwrap().not_on_or_after =
+        Some((std::time::UNIX_EPOCH + std::time::Duration::from_secs(seconds)).into());
+    let xml = response.to_string().unwrap();
+    let signed = Crypto::sign_xml(xml, &test_idp.idp.export_private_key_der().unwrap()).unwrap();
+    base64::engine::general_purpose::STANDARD.encode(signed)
+}
+
+/// An assertion valid past the last instant this server holds, 9999-12-30T22:00:00Z, never
+/// expires, and is refused as malformed, as a token that never expires is; one valid until
+/// that instant is accepted.
+#[tokio::test]
+async fn an_assertion_valid_past_the_calendar_is_refused() {
+    let test_idp = new_idp();
+    let config = config_with_cert(&test_idp.cert);
+
+    let until_last = signed_response_valid_until(&test_idp, 253_402_207_200);
+    let verified = verify_saml_response(
+        &config,
+        &until_last,
+        &[REQ_ID],
+        &SamlReplayCache::new(),
+        Timestamp::now(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        verified.not_on_or_after.map(Timestamp::to_rfc3339).as_deref(),
+        Some("9999-12-30T22:00:00+00:00")
+    );
+
+    let until_end = signed_response_valid_until(&test_idp, 253_402_300_799);
+    let result = verify_saml_response(
+        &config,
+        &until_end,
+        &[REQ_ID],
+        &SamlReplayCache::new(),
+        Timestamp::now(),
+    )
+    .await;
+    assert!(matches!(result, Err(SamlError::Malformed(_))), "got {result:?}");
 }

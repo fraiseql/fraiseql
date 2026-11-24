@@ -105,10 +105,10 @@ pub use audit::logger::{
 };
 /// The `axum` this crate's public API is built against (#1198).
 pub use axum;
-/// The `chrono` this crate's public API is built against (#1198).
-pub use chrono;
 pub use constant_time::ConstantTimeOps;
 pub use error::{AuthError, Result};
+/// The instant type this crate's public API is built against (#1198).
+pub use fraiseql_time;
 pub use handlers::{AuthCallbackQuery, AuthStartRequest, AuthState, auth_callback, auth_start};
 pub use jwt::Claims;
 pub use local_password::{

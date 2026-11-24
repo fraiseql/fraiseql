@@ -48,6 +48,7 @@ mod linking;
 mod registry;
 mod replay;
 mod store;
+mod time;
 mod verify;
 
 pub use config::{

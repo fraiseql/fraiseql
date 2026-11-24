@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use chrono::{DateTime, Utc};
+use fraiseql_time::{Timestamp, jiff::SignedDuration};
 
 use super::{SamlError, SamlIdpConfig, replay::SamlReplayStore};
 
@@ -34,7 +34,7 @@ pub struct VerifiedAssertion {
     /// All assertion attributes, keyed by SAML attribute `Name`.
     pub attributes:      HashMap<String, Vec<String>>,
     /// The assertion's `Conditions/NotOnOrAfter`, if present.
-    pub not_on_or_after: Option<DateTime<Utc>>,
+    pub not_on_or_after: Option<Timestamp>,
 }
 
 /// Reject a `SAMLResponse` carrying a `DOCTYPE` or entity declaration before any XML
@@ -82,7 +82,7 @@ pub async fn verify_saml_response(
     response_b64: &str,
     possible_request_ids: &[&str],
     replay: &dyn SamlReplayStore,
-    now: DateTime<Utc>,
+    now: Timestamp,
 ) -> Result<VerifiedAssertion, SamlError> {
     use base64::Engine as _;
 
@@ -108,9 +108,14 @@ pub async fn verify_saml_response(
     if assertion.id.trim().is_empty() {
         return Err(SamlError::MissingField("assertion ID"));
     }
-    let not_on_or_after = assertion.conditions.as_ref().and_then(|c| c.not_on_or_after);
+    let not_on_or_after = assertion
+        .conditions
+        .as_ref()
+        .and_then(|c| c.not_on_or_after)
+        .map(|t| super::time::not_on_or_after(t.timestamp(), t.timestamp_subsec_nanos()))
+        .transpose()?;
     let replay_expiry = not_on_or_after
-        .unwrap_or_else(|| now + chrono::Duration::seconds(FALLBACK_REPLAY_WINDOW_SECS));
+        .unwrap_or_else(|| now + SignedDuration::from_secs(FALLBACK_REPLAY_WINDOW_SECS));
     if !replay.check_and_record(&assertion.id, replay_expiry, now).await? {
         return Err(SamlError::Replay);
     }

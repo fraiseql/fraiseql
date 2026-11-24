@@ -57,7 +57,7 @@ type EveryThirdPartyTypeInThePublicApi = (
     fraiseql_auth::axum::Router,
     fraiseql_auth::axum::extract::State<()>,
     fraiseql_auth::axum::http::StatusCode,
-    fraiseql_auth::chrono::DateTime<fraiseql_auth::chrono::Utc>,
+    fraiseql_auth::fraiseql_time::Timestamp,
     fraiseql_auth::reqwest::Client,
     fraiseql_auth::serde_json::Value,
     fraiseql_auth::sqlx::PgPool,

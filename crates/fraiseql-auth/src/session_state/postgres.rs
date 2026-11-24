@@ -1,6 +1,5 @@
 //! PostgreSQL session-state backend (`_system.session_state`).
 
-use chrono::{DateTime, Utc};
 use sqlx::{Row, postgres::PgPool};
 use uuid::Uuid;
 
@@ -263,7 +262,7 @@ fn entry_from_row(row: &sqlx::postgres::PgRow) -> SessionStateEntry {
         thread_id:  row.get("thread_id"),
         key:        row.get("key"),
         value:      row.get("value"),
-        updated_at: row.get::<DateTime<Utc>, _>("updated_at"),
-        expires_at: row.get::<DateTime<Utc>, _>("expires_at"),
+        updated_at: row.get("updated_at"),
+        expires_at: super::expiry::stored_expiry(row),
     }
 }

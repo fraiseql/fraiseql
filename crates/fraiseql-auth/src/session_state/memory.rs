@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, sync::RwLock};
 
-use chrono::Utc;
+use fraiseql_time::Timestamp;
 use uuid::Uuid;
 
 use crate::{
@@ -50,7 +50,7 @@ impl InMemorySessionStateStore {
         let map = self.entries.read().map_err(|_| Self::lock_err())?;
         Ok(map
             .get(&(session_id, thread_id.to_string(), key.to_string()))
-            .filter(|e| e.expires_at > Utc::now())
+            .filter(|e| e.expires_at > Timestamp::now())
             .cloned())
     }
 
@@ -83,7 +83,7 @@ impl InMemorySessionStateStore {
     /// Returns [`AuthError::Internal`] if the lock is poisoned.
     pub fn list_thread(&self, session_id: Uuid, thread_id: &str) -> Result<Vec<SessionStateEntry>> {
         let map = self.entries.read().map_err(|_| Self::lock_err())?;
-        let now = Utc::now();
+        let now = Timestamp::now();
         let mut entries: Vec<SessionStateEntry> = map
             .values()
             .filter(|e| {
@@ -118,7 +118,7 @@ impl InMemorySessionStateStore {
         exclude_key: &str,
     ) -> Result<usize> {
         let map = self.entries.read().map_err(|_| Self::lock_err())?;
-        let now = Utc::now();
+        let now = Timestamp::now();
         Ok(map
             .values()
             .filter(|e| {
@@ -149,7 +149,7 @@ impl InMemorySessionStateStore {
     /// Returns [`AuthError::Internal`] if the lock is poisoned.
     pub fn evict_expired(&self) -> Result<u64> {
         let mut map = self.entries.write().map_err(|_| Self::lock_err())?;
-        let now = Utc::now();
+        let now = Timestamp::now();
         let before = map.len();
         map.retain(|_, e| e.expires_at > now);
         Ok((before - map.len()) as u64)

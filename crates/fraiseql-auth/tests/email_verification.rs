@@ -37,7 +37,7 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use fraiseql_auth::{
     AccountStore, AuthError, LocalPasswordAuthenticator, PostgresAccountStore,
-    VerificationEmailSender,
+    VerificationEmailSender, fraiseql_time::Timestamp,
 };
 use fraiseql_test_support::try_database_url;
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
@@ -255,10 +255,7 @@ async fn start_mails_the_address_the_account_itself_claims() {
         VICTIM_EMAIL,
         "the token binds the mailed address"
     );
-    assert!(
-        row.get::<Option<chrono::DateTime<chrono::Utc>>, _>("used_at").is_none(),
-        "unused"
-    );
+    assert!(row.get::<Option<Timestamp>, _>("used_at").is_none(), "unused");
     assert!(row.get::<bool, _>("live"), "the token is within its TTL");
     let (selector, _) = sent[0].1.split_once('.').unwrap();
     assert_eq!(

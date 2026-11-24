@@ -20,10 +20,12 @@ mod rls_writes;
 
 use std::sync::Arc;
 
-use chrono::{Duration, Utc};
-use fraiseql_auth::saml::{
-    PgSamlIdpStore, SamlError, SamlIdpConfig, SamlIdpRegistry, SamlIdpSpec, SamlIdpStore,
-    effective_saml_email_verified,
+use fraiseql_auth::{
+    fraiseql_time::{Timestamp, jiff::SignedDuration},
+    saml::{
+        PgSamlIdpStore, SamlError, SamlIdpConfig, SamlIdpRegistry, SamlIdpSpec, SamlIdpStore,
+        effective_saml_email_verified,
+    },
 };
 use fraiseql_test_support::try_database_url;
 use samael::idp::{CertificateParams, IdentityProvider, KeyType, Rsa};
@@ -122,7 +124,7 @@ async fn create_persists_and_derives_metadata_facts() {
     assert_eq!(record.idp_entity_id, IDP_ENTITY);
     let expires = record.certificate_expires_at.expect("certificate expiry must be parsed");
     assert!(
-        expires > Utc::now() + Duration::days(3600),
+        expires > Timestamp::now() + SignedDuration::from_hours(24 * 3600),
         "a 3650-day certificate should expire far out, got {expires}"
     );
 
@@ -197,7 +199,10 @@ async fn update_replaces_metadata_and_refuses_unknown_names() {
     assert_eq!(updated.id, created.id, "update must not rehome the row");
     assert!(updated.trust_asserted_email);
     let expires = updated.certificate_expires_at.unwrap();
-    assert!(expires < Utc::now() + Duration::days(90), "rotated expiry must be re-derived");
+    assert!(
+        expires < Timestamp::now() + SignedDuration::from_hours(24 * 90),
+        "rotated expiry must be re-derived"
+    );
 
     assert!(matches!(
         store.update(&spec("never-existed", None)).await,
@@ -341,17 +346,20 @@ async fn expiry_report_names_certificates_before_the_cliff() {
     registry.create(&soon).await.unwrap();
     registry.create(&spec("healthy", Some(tenant_a()))).await.unwrap();
 
-    let report = registry.expiry_report(Utc::now(), 30);
+    let report = registry.expiry_report(Timestamp::now(), 30);
     assert_eq!(report.len(), 1, "only the imminent one is reported: {report:?}");
     assert_eq!(report[0].idp_name, "expires-soon");
     assert!(!report[0].expired, "5 days out is a warning, not an outage");
 
     // Widening the horizon past the healthy certificate's expiry catches both.
-    assert_eq!(registry.expiry_report(Utc::now(), 4000).len(), 2);
+    assert_eq!(registry.expiry_report(Timestamp::now(), 4000).len(), 2);
     // A horizon shorter than the imminent certificate's life reports nothing.
-    assert!(registry.expiry_report(Utc::now(), 1).is_empty());
+    assert!(registry.expiry_report(Timestamp::now(), 1).is_empty());
     // And past its expiry it reads as down, not merely imminent.
-    assert!(registry.expiry_report(Utc::now() + Duration::days(10), 30)[0].expired);
+    assert!(
+        registry.expiry_report(Timestamp::now() + SignedDuration::from_hours(24 * 10), 30)[0]
+            .expired
+    );
 }
 
 /// A stored IdP is read only with its tenant set: not with none, and not another tenant's
@@ -395,4 +403,26 @@ async fn idps_are_read_through_the_tenant_policy() {
         3,
         "control: the owner reads all three"
     );
+}
+
+/// A row stored with a certificate expiry past the last instant a `Timestamp` holds (a
+/// certificate with RFC 5280's `99991231235959Z`, written when an expiry could reach that
+/// far) still loads, and reads as no expiry.
+#[tokio::test]
+async fn a_stored_certificate_expiry_past_the_calendar_reads_as_none() {
+    let store = skip_if_no_db!();
+    let url = try_database_url().unwrap();
+    let pool = PgPoolOptions::new().max_connections(1).connect(&url).await.unwrap();
+    store.create(&spec("never-expires", None)).await.unwrap();
+    sqlx::query(
+        "UPDATE auth.tb_saml_idp SET certificate_expires_at = '9999-12-31 23:59:59+00' \
+         WHERE idp_name = 'never-expires'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let records = store.list().await.unwrap();
+    let record = records.iter().find(|r| r.idp_name == "never-expires").unwrap();
+    assert_eq!(record.certificate_expires_at, None);
 }

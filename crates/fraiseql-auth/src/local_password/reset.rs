@@ -43,7 +43,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use chrono::{DateTime, Duration, Utc};
+use fraiseql_time::{Timestamp, jiff::SignedDuration};
 use sqlx::Row;
 
 use super::{
@@ -211,7 +211,7 @@ impl LocalPasswordAuthenticator {
         let user_id: String = row.get("user_id");
 
         let token = OpaqueToken::generate();
-        let expires_at = Utc::now() + Duration::seconds(RESET_TOKEN_TTL_SECS);
+        let expires_at = Timestamp::now() + SignedDuration::from_secs(RESET_TOKEN_TTL_SECS);
 
         sqlx::query(
             "INSERT INTO auth.tb_password_reset_token \
@@ -307,8 +307,8 @@ impl LocalPasswordAuthenticator {
         let fk_user: i64 = row.get("fk_user");
         let user_id: String = row.get("user_id");
         let stored_hash: Vec<u8> = row.get("verifier_hash");
-        let expires_at: DateTime<Utc> = row.get("expires_at");
-        let used_at: Option<DateTime<Utc>> = row.get("used_at");
+        let expires_at: Timestamp = row.get("expires_at");
+        let used_at: Option<Timestamp> = row.get("used_at");
 
         // Constant-time verifier comparison. The selector is high-entropy and known to the
         // holder, so an early return on a missing row leaks nothing; the secret check is
@@ -334,7 +334,7 @@ impl LocalPasswordAuthenticator {
             );
             return Err(invalid_reset_token());
         }
-        if expires_at <= Utc::now() {
+        if expires_at <= Timestamp::now() {
             logger.log_failure(
                 AuditEventType::AuthFailure,
                 SecretType::SessionToken,

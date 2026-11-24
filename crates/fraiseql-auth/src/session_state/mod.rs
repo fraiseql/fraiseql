@@ -17,6 +17,7 @@
 //! `session_id` comes from the authenticated context (an MCP session, a user
 //! session), never from a client-named field.
 
+mod expiry;
 mod memory;
 mod postgres;
 mod store;
@@ -24,7 +25,7 @@ mod summarizer;
 
 use std::sync::Arc;
 
-use chrono::{Duration as ChronoDuration, Utc};
+use fraiseql_time::{Timestamp, jiff::SignedDuration};
 pub use memory::InMemorySessionStateStore;
 pub use postgres::{PostgresSessionStateStore, SESSION_STATE_SCHEMA_SQL};
 pub use store::{MAX_SESSION_VALUE_BYTES, SUMMARY_KEY, SessionStateEntry};
@@ -142,7 +143,7 @@ impl SessionStateBackend {
 /// cannot drift on policy.
 pub struct SessionState {
     backend:         SessionStateBackend,
-    default_ttl:     ChronoDuration,
+    default_ttl:     SignedDuration,
     /// Collapse a thread once its ordinary-entry count exceeds this.
     summarize_after: Option<usize>,
     summarizer:      Option<Arc<dyn Summarizer>>,
@@ -170,7 +171,7 @@ impl SessionState {
         let secs = i64::try_from(default_ttl_secs.max(1)).unwrap_or(i64::MAX);
         Self {
             backend,
-            default_ttl: ChronoDuration::seconds(secs),
+            default_ttl: SignedDuration::from_secs(secs),
             summarize_after: None,
             summarizer: None,
         }
@@ -238,7 +239,7 @@ impl SessionState {
             });
         }
 
-        let now = Utc::now();
+        let now = Timestamp::now();
         self.backend
             .set(&SessionStateEntry {
                 session_id,
@@ -246,7 +247,7 @@ impl SessionState {
                 key: key.to_string(),
                 value,
                 updated_at: now,
-                expires_at: now + self.default_ttl,
+                expires_at: expiry::expiry(now, self.default_ttl),
             })
             .await?;
 
@@ -304,7 +305,7 @@ impl SessionState {
 
         let entries = self.backend.list_thread(session_id, thread_id).await?;
         let summary_value = summarizer.summarize(entries).await?;
-        let now = Utc::now();
+        let now = Timestamp::now();
         self.backend
             .replace_thread(&SessionStateEntry {
                 session_id,
@@ -312,7 +313,7 @@ impl SessionState {
                 key: SUMMARY_KEY.to_string(),
                 value: summary_value,
                 updated_at: now,
-                expires_at: now + self.default_ttl,
+                expires_at: expiry::expiry(now, self.default_ttl),
             })
             .await
     }

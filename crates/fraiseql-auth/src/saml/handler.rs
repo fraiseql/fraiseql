@@ -344,7 +344,7 @@ pub async fn saml_acs(State(state): State<SamlAuthState>, Form(form): Form<AcsFo
         &form.saml_response,
         &[request_id.as_str()],
         state.replay.as_ref(),
-        chrono::Utc::now(),
+        fraiseql_time::Timestamp::now(),
     )
     .await
     {

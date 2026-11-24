@@ -23,8 +23,10 @@
 //! **Parallelism:** truncates `auth.tb_saml_replay` on setup → run `--test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
-use chrono::{Duration, Utc};
-use fraiseql_auth::{PgSamlReplayStore, SamlReplayCache, SamlReplayStore};
+use fraiseql_auth::{
+    PgSamlReplayStore, SamlReplayCache, SamlReplayStore,
+    fraiseql_time::{Timestamp, jiff::SignedDuration},
+};
 use fraiseql_test_support::try_database_url;
 use sqlx::postgres::PgPoolOptions;
 
@@ -53,8 +55,8 @@ async fn an_assertion_accepted_by_one_replica_is_refused_by_another() {
     };
     let (first, second) = (&stores[0], &stores[1]);
 
-    let now = Utc::now();
-    let expires = now + Duration::minutes(5);
+    let now = Timestamp::now();
+    let expires = now + SignedDuration::from_mins(5);
 
     assert!(
         first.check_and_record("assertion-1", expires, now).await.unwrap(),
@@ -75,8 +77,8 @@ async fn the_in_process_cache_does_not_hold_across_instances() {
     let one = SamlReplayCache::new();
     let two = SamlReplayCache::new();
 
-    let now = Utc::now();
-    let expires = now + Duration::minutes(5);
+    let now = Timestamp::now();
+    let expires = now + SignedDuration::from_mins(5);
 
     assert!(one.check_and_record("assertion-1", expires, now).await.unwrap());
     assert!(
@@ -93,8 +95,8 @@ async fn a_replica_refuses_an_assertion_it_consumed_itself() {
     };
     let store = &stores[0];
 
-    let now = Utc::now();
-    let expires = now + Duration::minutes(5);
+    let now = Timestamp::now();
+    let expires = now + SignedDuration::from_mins(5);
 
     assert!(store.check_and_record("assertion-2", expires, now).await.unwrap());
     assert!(
@@ -111,10 +113,10 @@ async fn an_id_becomes_reusable_once_its_window_has_closed() {
     };
     let store = &stores[0];
 
-    let then = Utc::now() - Duration::hours(2);
+    let then = Timestamp::now() - SignedDuration::from_hours(2);
     assert!(
         store
-            .check_and_record("assertion-3", then + Duration::minutes(5), then)
+            .check_and_record("assertion-3", then + SignedDuration::from_mins(5), then)
             .await
             .unwrap()
     );
@@ -122,10 +124,10 @@ async fn an_id_becomes_reusable_once_its_window_has_closed() {
     // Past its `NotOnOrAfter` the assertion is refused by the signature time-check, so
     // treating the ID as fresh again cannot enable a replay — and it stops a stale row
     // from rejecting a legitimately new assertion that happens to reuse the ID.
-    let now = Utc::now();
+    let now = Timestamp::now();
     assert!(
         store
-            .check_and_record("assertion-3", now + Duration::minutes(5), now)
+            .check_and_record("assertion-3", now + SignedDuration::from_mins(5), now)
             .await
             .unwrap(),
         "an expired entry must not permanently burn its assertion ID"
@@ -140,20 +142,28 @@ async fn the_sweep_removes_closed_windows_and_keeps_live_ones() {
     };
     let store = &stores[0];
 
-    let then = Utc::now() - Duration::hours(2);
+    let then = Timestamp::now() - SignedDuration::from_hours(2);
     assert!(
         store
-            .check_and_record("stale", then + Duration::minutes(5), then)
+            .check_and_record("stale", then + SignedDuration::from_mins(5), then)
             .await
             .unwrap()
     );
 
-    let now = Utc::now();
-    assert!(store.check_and_record("live", now + Duration::minutes(5), now).await.unwrap());
+    let now = Timestamp::now();
+    assert!(
+        store
+            .check_and_record("live", now + SignedDuration::from_mins(5), now)
+            .await
+            .unwrap()
+    );
 
     assert_eq!(store.sweep_expired(now).await.unwrap(), 1, "only the closed window is swept");
     assert!(
-        !store.check_and_record("live", now + Duration::minutes(5), now).await.unwrap(),
+        !store
+            .check_and_record("live", now + SignedDuration::from_mins(5), now)
+            .await
+            .unwrap(),
         "a live entry must survive the sweep and still refuse a replay"
     );
 }

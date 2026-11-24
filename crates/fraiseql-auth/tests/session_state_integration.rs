@@ -174,3 +174,30 @@ async fn expire_thread_scopes_to_one_thread() {
     assert!(state.list_thread(session, "t1").await.unwrap().is_empty());
     assert_eq!(state.list_thread(session, "t2").await.unwrap().len(), 1);
 }
+
+/// An entry stored with an expiry past the last instant a `Timestamp` holds (written when a
+/// TTL could reach that far) still reads, and expires at that last instant.
+#[tokio::test]
+async fn an_entry_stored_with_an_expiry_past_the_calendar_reads_as_its_last_instant() {
+    let Some((state, pool)) = fresh().await else {
+        eprintln!("SKIP session_state stored expiry: no DATABASE_URL");
+        return;
+    };
+    let session = Uuid::new_v4();
+    state
+        .set(session, "t1", "context", serde_json::json!({"step": 1}))
+        .await
+        .unwrap();
+    sqlx::query(
+        "UPDATE _system.session_state SET expires_at = '20000-01-01 00:00:00+00' \
+         WHERE session_id = $1",
+    )
+    .bind(session)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let entries = state.list_thread(session, "t1").await.unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].expires_at.to_rfc3339(), "9999-12-30T22:00:00.999999999+00:00");
+}

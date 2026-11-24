@@ -33,8 +33,8 @@
 //! anyway — and accepting an assertion we cannot prove is fresh is the whole defect.
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use dashmap::{DashMap, mapref::entry::Entry};
+use fraiseql_time::Timestamp;
 use sqlx::PgPool;
 
 use super::SamlError;
@@ -58,8 +58,8 @@ pub trait SamlReplayStore: Send + Sync + std::fmt::Debug {
     async fn check_and_record(
         &self,
         assertion_id: &str,
-        expires_at: DateTime<Utc>,
-        now: DateTime<Utc>,
+        expires_at: Timestamp,
+        now: Timestamp,
     ) -> Result<bool, SamlError>;
 
     /// Whether this store is shared across processes.
@@ -76,7 +76,7 @@ pub struct SamlReplayCache {
     /// assertion `ID` → instant after which the entry may be pruned (the assertion's
     /// `NotOnOrAfter`). Once pruned the ID can no longer be replayed anyway because the
     /// signature's own time-window has closed.
-    seen: DashMap<String, DateTime<Utc>>,
+    seen: DashMap<String, Timestamp>,
 }
 
 impl SamlReplayCache {
@@ -104,8 +104,8 @@ impl SamlReplayStore for SamlReplayCache {
     async fn check_and_record(
         &self,
         assertion_id: &str,
-        expires_at: DateTime<Utc>,
-        now: DateTime<Utc>,
+        expires_at: Timestamp,
+        now: Timestamp,
     ) -> Result<bool, SamlError> {
         // Prune expired entries. An assertion whose window has closed is rejected by the
         // signature time-check anyway, so forgetting it cannot enable a replay.
@@ -178,7 +178,7 @@ impl PgSamlReplayStore {
     /// # Errors
     ///
     /// Returns [`SamlError::Verification`] if the delete fails.
-    pub async fn sweep_expired(&self, now: DateTime<Utc>) -> Result<u64, SamlError> {
+    pub async fn sweep_expired(&self, now: Timestamp) -> Result<u64, SamlError> {
         sqlx::query("DELETE FROM auth.tb_saml_replay WHERE expires_at <= $1")
             .bind(now)
             .execute(&self.db)
@@ -193,8 +193,8 @@ impl SamlReplayStore for PgSamlReplayStore {
     async fn check_and_record(
         &self,
         assertion_id: &str,
-        expires_at: DateTime<Utc>,
-        now: DateTime<Utc>,
+        expires_at: Timestamp,
+        now: Timestamp,
     ) -> Result<bool, SamlError> {
         // One statement does the whole check. `ON CONFLICT DO NOTHING` reports zero rows
         // affected when the ID is already present, so "have I seen this?" is answered by
