@@ -1166,6 +1166,11 @@ disagreed, and the promise was the part that was wrong.
   database does not serve it, and the health gauges are reported as before. A TVIEW label
   with a newline is escaped (the health gauges' was not).
 
+- **REST `?sort=` puts a key's NULLs first or last (#2415).** A sort item takes the suffix
+  `.nullsfirst` or `.nullslast`, PostgREST's spelling: `?sort=-discontinuedAt.nullslast`
+  sorts as `ORDER BY … DESC NULLS LAST`. Any other suffix is refused naming the two. The
+  OpenAPI `sort` parameter describes it.
+
 - **A window's `orderBy` puts its key's NULLs first or last (#2415).** `WindowOrderBy`, the
   item of a window's `orderBy` and of the window root's, reads the same `SortDirection` a
   list query's `orderBy` does, `DESC_NULLS_LAST` and the like included, rendered as `NULLS

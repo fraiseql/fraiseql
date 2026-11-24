@@ -75,7 +75,8 @@ and refuse every request.
   counts against `[security.cost_budget] per_request_max` (see
   [GraphQL complexity limits](../security/graphql-complexity-limits.md)).
 - **Pagination:** `limit`/`offset`, or `first`/`after` and `last`/`before` cursors.
-- **Ordering and search:** `?sort=` and `?search=`.
+- **Ordering and search:** `?sort=` (`-` for descending, `.nullsfirst`/`.nullslast` to place
+  NULLs) and `?search=`.
 - **`Prefer`:** `count=`, `return=`, `resolution=`, `tx=`, `handling=`,
   `max-affected=`.
 

@@ -876,15 +876,30 @@ impl<'a> RestParamExtractor<'a> {
         let mut order_parts = Vec::new();
         for part in raw.split(',') {
             let part = part.trim();
-            let (field, direction) = if let Some(stripped) = part.strip_prefix('-') {
+            let (key, direction) = if let Some(stripped) = part.strip_prefix('-') {
                 (stripped, "DESC")
             } else {
                 (part, "ASC")
             };
+            // A sort field is an identifier, so a `.` can only open the NULL placement:
+            // `-discontinuedAt.nullslast`, PostgREST's spelling.
+            let (field, placement) = match key.split_once('.') {
+                None => (key, ""),
+                Some((field, "nullsfirst")) => (field, "_NULLS_FIRST"),
+                Some((field, "nullslast")) => (field, "_NULLS_LAST"),
+                Some((_, suffix)) => {
+                    return Err(validation_error(format!(
+                        "`sort` item `{part}`: `.{suffix}` is not a NULL placement; a sort \
+                         field takes `.nullsfirst` or `.nullslast`"
+                    )));
+                },
+            };
             self.validate_field_name(field)?;
+            // The item a GraphQL `orderBy` takes: the placement is the `SortDirection` value
+            // that names it, `DESC_NULLS_LAST` for `-field.nullslast`.
             order_parts.push(serde_json::json!({
                 "field": field,
-                "direction": direction,
+                "direction": format!("{direction}{placement}"),
             }));
         }
 

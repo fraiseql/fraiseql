@@ -219,6 +219,10 @@ NULLS LAST`. A direction's own default spelled out (`ASC_NULLS_LAST`, `DESC_NULL
 the same ordering as `ASC` or `DESC`, and renders the same SQL. The object form takes the
 same values: `orderBy: {discontinuedAt: DESC_NULLS_LAST}`.
 
+REST spells the placement as a suffix on the `?sort=` item, as PostgREST does (#2415):
+`?sort=-discontinuedAt.nullslast` is the ordering above, and `.nullsfirst` the other one. Any
+other suffix is refused, naming the two.
+
 An index serves such an ordering only when it was declared with the same placement:
 `CREATE INDEX … (discontinued_at DESC NULLS LAST)`. An index declared `DESC` alone has its
 NULLs first, and PostgreSQL sorts instead of reading it.

@@ -122,7 +122,8 @@ impl OpenApiGenerator<'_> {
             "name": "sort",
             "in": "query",
             "required": false,
-            "description": "Sort order. Prefix with - for descending. Example: -created_at,name",
+            "description": "Sort order. Prefix with - for descending; suffix .nullsfirst or \
+                            .nullslast to place NULLs. Example: -created_at.nullslast,name",
             "schema": { "type": "string" },
         }));
 

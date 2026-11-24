@@ -1791,3 +1791,6 @@ fn a_temporal_filter_outside_its_format_is_refused() {
         Some(serde_json::json!({ "at": { "lt": "2026-07-01T12:00:00+02:00" } }))
     );
 }
+
+#[path = "sort_nulls_tests.rs"]
+mod sort_nulls;

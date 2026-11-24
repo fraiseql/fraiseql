@@ -42,8 +42,8 @@
 //! database-free `test` leg and runs in the Dagger `integration: server` suite.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** creates and drops its own `tf_p18_page` fixture → run
-//! `--test-threads=1`.
+//! **Parallelism:** creates and drops its own `tf_p18_page` fixture (and `nulls_order` its own
+//! `tf_rest_nulls`) → run `--test-threads=1`.
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
@@ -64,6 +64,9 @@ use serde_json::Value;
 mod common;
 
 use crate::common::server_harness::TestServer;
+
+#[path = "rest_pagination_stability_e2e_pg/nulls_order.rs"]
+mod nulls_order;
 
 const TABLE: &str = "tf_p18_page";
 const VIEW: &str = "v_p18_page";
