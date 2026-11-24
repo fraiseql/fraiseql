@@ -48,12 +48,14 @@ THREE RULES
 
 WHAT THIS GATE DELIBERATELY DOES NOT REACH
 ------------------------------------------
-* `fraiseql-federation` is a GraphQL *client*: `HttpMutationClient::execute_mutation`
-  must emit a document as text to a remote subgraph, and its own
-  `execute_local_mutation` builds SQL and calls `execute_raw_query` without entering
-  the engine at all. That path is outside every rule here, and outside
-  check-mutation-dispatch-sites.sh's pattern too. Stated so a reader does not read
-  silence as coverage.
+* `fraiseql-saga`'s `HttpMutationClient::execute_mutation` is a GraphQL *client*: it
+  must emit a document as text to a remote subgraph, so it is outside rule 3's scope,
+  and its calls are told apart from the engine entry of the same name by arity
+  (`NAMESAKES`). The saga's local arm, `execute_local_mutation`, enters the engine
+  through `Executor::execute_mutation_with_security` (#1354), which takes no
+  selections and derives them from `mutation_return_selections` itself, so no rule
+  here has a slot to check at that call. Stated so a reader does not read silence as
+  coverage.
 * `fraiseql-cli`'s `doctor` builds argument-less probe documents out of schema-declared
   names, under `dry_run_mutations: true`. No caller value is formatted into it, so
   #1331's defect cannot occur there; it is outside rule 3's scope by construction
