@@ -8,7 +8,8 @@
 //! `heartbeat_at`, and a live worker polls the same `claim` and takes the rows they plant.
 //! Multi-tenant execution routing rides the same `tenant_dispatch` seam as `/graphql` and MCP
 //! (#858's two-tenant e2e pins that seam); here the recorded `tenant_key` is asserted through
-//! submission and the single-tenant dispatch path.
+//! submission and the single-tenant dispatch path, and the worker is driven under a tenant
+//! registry to show it dispatches to the stored tenant.
 //!
 //! Self-skips when no `DATABASE_URL` is set (no `#[ignore]`), so it is inert in
 //! the database-free `test` leg and runs in the Dagger `integration: server`
@@ -24,17 +25,22 @@ mod common;
 
 use std::{sync::Arc, time::Duration};
 
+use chrono::Utc;
 use fraiseql_core::{
     db::postgres::PostgresAdapter,
-    prelude::DatabaseAdapter as _,
+    prelude::{DatabaseAdapter as _, UserId},
+    runtime::Executor,
     schema::{
         ArgumentDefinition, CompiledSchema, ErrorSanitizationConfig, FieldDefinition, FieldType,
         MutationDefinition, MutationOperation, QueryDefinition, SecurityConfig, TypeDefinition,
     },
+    security::SecurityContext,
 };
 use fraiseql_server::{
     Server,
-    async_operations::AsyncOperationStore,
+    async_operations::{AsyncOperationStore, AsyncOperationsRuntime, worker},
+    request_scope::RequestScope,
+    routes::graphql::{AppState, tenant_registry::TenantExecutorRegistry},
     server_config::{AsyncOperationsConfig, ServerConfig},
 };
 use fraiseql_test_support::{issuer::TestIssuer, try_database_url};
@@ -675,6 +681,101 @@ async fn another_tenant_cannot_cancel_an_operation() {
 /// server booted by an earlier test is shown claiming a planted row, then its runtime ends
 /// as a `#[tokio::test]`'s does, its shutdown never signalled; a row planted after it
 /// through [`store_rig`] is still `queued` after three of that worker's polls.
+/// The worker runs an operation in the tenant it was submitted under, never the default
+/// one. Under a tenant registry, an operation whose stored tenant is no longer registered
+/// fails at dispatch; one submitted with no tenant runs on the default executor.
+#[tokio::test]
+async fn the_worker_runs_an_operation_in_its_stored_tenant() {
+    let Some(url) = try_database_url() else {
+        eprintln!("SKIP the_worker_runs_an_operation_in_its_stored_tenant: no DATABASE_URL");
+        return;
+    };
+    let adapter = PostgresAdapter::new(&url).await.expect("adapter");
+    provision(&adapter).await;
+    let Some(rig) = store_rig().await else { return };
+
+    let principal = SecurityContext {
+        user_id:          UserId::from("submitter"),
+        roles:            vec![],
+        tenant_id:        None,
+        scopes:           vec![],
+        attributes:       std::collections::HashMap::new(),
+        request_id:       "req-stored-tenant".to_string(),
+        ip_address:       None,
+        authenticated_at: Utc::now(),
+        expires_at:       Utc::now() + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
+        email:            None,
+        display_name:     None,
+    };
+    let context = serde_json::to_value(&principal).unwrap();
+    let submit = |tenant: Option<&'static str>| {
+        let (store, context) = (&rig.store, &context);
+        async move {
+            store
+                .submit(
+                    tenant,
+                    "submitter",
+                    "createItem",
+                    r#"mutation { createItem(label: "x") { id } }"#,
+                    None,
+                    context,
+                    &RequestScope::default(),
+                    1,
+                )
+                .await
+                .unwrap()
+        }
+    };
+    let unregistered = submit(Some("tenant-never-registered")).await;
+    let untenanted = submit(None).await;
+
+    let default = Arc::new(Executor::new(schema(), Arc::new(adapter)));
+    let registry =
+        Arc::new(TenantExecutorRegistry::new(Arc::new(arc_swap::ArcSwap::from(default.clone()))));
+    let state = AppState::new(default).with_tenant_registry(registry);
+    let runtime = AsyncOperationsRuntime {
+        store:  Arc::new(AsyncOperationStore::new(rig.pool.clone())),
+        config: Arc::new(AsyncOperationsConfig {
+            operations: vec!["createItem".to_string()],
+            poll_interval_ms: 20,
+            ..AsyncOperationsConfig::default()
+        }),
+    };
+    let worker = tokio::spawn(worker::run(runtime, state));
+
+    let mut states = (String::new(), String::new());
+    for _ in 0..250 {
+        states = (rig.row_state(unregistered).await.0, rig.row_state(untenanted).await.0);
+        if states.0 != "queued"
+            && states.0 != "running"
+            && states.1 != "queued"
+            && states.1 != "running"
+        {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    worker.abort();
+
+    assert_eq!(
+        states.1, "succeeded",
+        "an operation with no tenant runs on the default executor"
+    );
+    assert_eq!(states.0, "failed", "an operation is never run outside its stored tenant");
+    let error: Option<String> =
+        sqlx::query_scalar("SELECT error FROM _system.async_operations WHERE op_id = $1")
+            .bind(unregistered)
+            .fetch_one(&rig.pool)
+            .await
+            .unwrap();
+    assert!(
+        error.as_deref().is_some_and(|e| e.starts_with("tenant dispatch:")),
+        "refused at dispatch, got {error:?}"
+    );
+}
+
 #[test]
 fn a_store_rig_row_has_no_claimer_but_the_test() {
     let runtime = || {

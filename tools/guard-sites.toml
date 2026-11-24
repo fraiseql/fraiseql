@@ -107,6 +107,22 @@ name = "scope-check"
 patterns = ['\.has_scope\s*\(']
 
 [[family]]
+name = "admin-principal-call"
+# Each RBAC handler hands its caller's principal to the check that scopes it: a handler
+# passing another principal, or none, would serve a tenant administrator another tenant's
+# roles. The `principal` family covers the checks; this one covers every handler's call.
+patterns = [
+  '\b(?:visible_role|platform_only|scoped_tenant)\s*\(\s*(?:&state\s*,\s*)?principal\b(?!\s*:)',
+]
+
+[[family]]
+name = "tenant-dispatch"
+# A call that picks a tenant's executor and charges its quotas: an admission, a Flight
+# session, a queued operation. Handed no tenant, it runs on the default executor, which
+# serves another tenant's data.
+patterns = ['(?<!fn )\bdispatch_to_tenant\s*\(']
+
+[[family]]
 name = "executor"
 patterns = ['\bexecutor_for(?:_tenant)?\s*\(']
 
@@ -246,6 +262,16 @@ command = "cargo test -p fraiseql-core --lib -- field_filter_tests field_rbac fi
 name = "server-lib-session-store"
 crate = "crates/fraiseql-server"
 command = "cargo test -p fraiseql-server --features auth --lib -- token_revocation_tests"
+
+[[shard]]
+name = "async-operations"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test async_operations_e2e_pg -- --test-threads=1"
+
+[[shard]]
+name = "server-lib-flight-seam"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --lib -- arrow::policy_seam_tests"
 
 [[shard]]
 name = "core-cache"
@@ -2161,3 +2187,137 @@ killers = [
   "an_unreadable_store_refuses_a_token_by_its_users_epoch_unless_failing_open",
 ]
 shard = "server-lib-session-store"
+
+# Each RBAC handler's call to the check that scopes it (family `admin-principal-call`).
+# The mutant hands the check the platform principal, which sees every tenant.
+
+[[site]]
+id = "admin-principal.rbac.create_role"
+file = "crates/fraiseql-server/src/api/rbac_management.rs"
+function = "create_role"
+anchor = "scoped_tenant(principal,"
+mutant = "scoped_tenant(AdminPrincipal::Platform,"
+killers = ["a_tenant_administrator_manages_only_its_own_roles_and_assignments"]
+shard = "tenant-admin"
+
+[[site]]
+id = "admin-principal.rbac.list_roles"
+file = "crates/fraiseql-server/src/api/rbac_management.rs"
+function = "list_roles"
+anchor = "scoped_tenant(principal,"
+mutant = "scoped_tenant(AdminPrincipal::Platform,"
+killers = ["a_tenant_administrator_manages_only_its_own_roles_and_assignments"]
+shard = "tenant-admin"
+
+[[site]]
+id = "admin-principal.rbac.get_role"
+file = "crates/fraiseql-server/src/api/rbac_management.rs"
+function = "get_role"
+anchor = "visible_role(&state, principal,"
+mutant = "visible_role(&state, AdminPrincipal::Platform,"
+killers = ["a_tenant_administrator_manages_only_its_own_roles_and_assignments"]
+shard = "tenant-admin"
+
+[[site]]
+id = "admin-principal.rbac.update_role"
+file = "crates/fraiseql-server/src/api/rbac_management.rs"
+function = "update_role"
+anchor = "visible_role(&state, principal,"
+mutant = "visible_role(&state, AdminPrincipal::Platform,"
+killers = ["a_tenant_administrator_manages_only_its_own_roles_and_assignments"]
+shard = "tenant-admin"
+
+[[site]]
+id = "admin-principal.rbac.delete_role"
+file = "crates/fraiseql-server/src/api/rbac_management.rs"
+function = "delete_role"
+anchor = "visible_role(&state, principal,"
+mutant = "visible_role(&state, AdminPrincipal::Platform,"
+killers = ["a_tenant_administrator_manages_only_its_own_roles_and_assignments"]
+shard = "tenant-admin"
+
+[[site]]
+id = "admin-principal.rbac.create_permission"
+file = "crates/fraiseql-server/src/api/rbac_management.rs"
+function = "create_permission"
+anchor = "platform_only(principal)"
+mutant = "platform_only(AdminPrincipal::Platform)"
+killers = ["a_tenant_administrator_manages_only_its_own_roles_and_assignments"]
+shard = "tenant-admin"
+
+[[site]]
+id = "admin-principal.rbac.delete_permission"
+file = "crates/fraiseql-server/src/api/rbac_management.rs"
+function = "delete_permission"
+anchor = "platform_only(principal)"
+mutant = "platform_only(AdminPrincipal::Platform)"
+killers = ["a_tenant_administrator_manages_only_its_own_roles_and_assignments"]
+shard = "tenant-admin"
+
+[[site]]
+id = "admin-principal.rbac.assign_role.scoped_tenant"
+file = "crates/fraiseql-server/src/api/rbac_management.rs"
+function = "assign_role"
+anchor = "scoped_tenant(principal,"
+mutant = "scoped_tenant(AdminPrincipal::Platform,"
+killers = ["a_tenant_administrator_manages_only_its_own_roles_and_assignments"]
+shard = "tenant-admin"
+
+[[site]]
+id = "admin-principal.rbac.assign_role.visible_role"
+file = "crates/fraiseql-server/src/api/rbac_management.rs"
+function = "assign_role"
+anchor = "visible_role(&state, principal,"
+mutant = "visible_role(&state, AdminPrincipal::Platform,"
+killers = ["a_tenant_administrator_manages_only_its_own_roles_and_assignments"]
+shard = "tenant-admin"
+
+[[site]]
+id = "admin-principal.rbac.list_user_roles"
+file = "crates/fraiseql-server/src/api/rbac_management.rs"
+function = "list_user_roles"
+anchor = "scoped_tenant(principal,"
+mutant = "scoped_tenant(AdminPrincipal::Platform,"
+killers = ["a_tenant_administrator_manages_only_its_own_roles_and_assignments"]
+shard = "tenant-admin"
+
+[[site]]
+id = "admin-principal.rbac.query_permission_audit"
+file = "crates/fraiseql-server/src/api/rbac_management.rs"
+function = "query_permission_audit"
+anchor = "scoped_tenant(principal,"
+mutant = "scoped_tenant(AdminPrincipal::Platform,"
+killers = ["a_tenant_administrator_manages_only_its_own_roles_and_assignments"]
+shard = "tenant-admin"
+
+# Each call that dispatches to a tenant's executor (family `tenant-dispatch`). The mutant
+# hands it no tenant: the default executor.
+
+[[site]]
+id = "tenant-dispatch.admission"
+file = "crates/fraiseql-server/src/admission/mod.rs"
+function = "dispatch"
+anchor = "dispatch_to_tenant(state, self.key())"
+mutant = "dispatch_to_tenant(state, { let _ = self.key(); None })"
+killers = ["a_tenants_rest_read_runs_on_its_own_executor"]
+shard = "tenant-rest"
+
+[[site]]
+id = "tenant-dispatch.flight"
+file = "crates/fraiseql-server/src/arrow/policy_seam.rs"
+function = "PolicyGatedExecutor::execute_with_security"
+anchor = "dispatch_to_tenant(&self.state, tenant_key.as_deref())"
+mutant = "dispatch_to_tenant(&self.state, { let _ = tenant_key.as_deref(); None })"
+killers = [
+  "a_session_bound_to_an_unregistered_tenant_is_refused_not_served_by_default",
+]
+shard = "server-lib-flight-seam"
+
+[[site]]
+id = "tenant-dispatch.async-worker"
+file = "crates/fraiseql-server/src/async_operations/worker.rs"
+function = "execute_claimed"
+anchor = "dispatch_to_tenant(state, op.tenant_key.as_deref())"
+mutant = "dispatch_to_tenant(state, None)"
+killers = ["the_worker_runs_an_operation_in_its_stored_tenant"]
+shard = "async-operations"

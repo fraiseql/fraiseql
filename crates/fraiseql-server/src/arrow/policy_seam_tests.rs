@@ -275,3 +275,32 @@ async fn an_unsanitised_database_error_over_flight_keeps_its_text() {
         .expect_err("the adapter fails");
     assert!(error.to_string().contains("internal_audit_shadow"), "{error}");
 }
+
+/// A Flight session bound to a tenant runs on that tenant's executor, never the default
+/// one: under a tenant registry, a session whose tenant is not registered is refused at
+/// dispatch, while a session with no tenant reaches the default executor's adapter.
+#[tokio::test]
+async fn a_session_bound_to_an_unregistered_tenant_is_refused_not_served_by_default() {
+    let state = failing_server(false).await.build_app_state();
+    let registry = Arc::new(crate::routes::graphql::tenant_registry::TenantExecutorRegistry::new(
+        state.executor.clone(),
+    ));
+    let seam = PolicyGatedExecutor::new(state.with_tenant_registry(registry));
+
+    let mut bound = flight_session_context();
+    bound.tenant_id = Some(fraiseql_core::prelude::TenantId::from("tenant-never-registered"));
+    let refused = seam
+        .execute_with_security("{ users { id } }", None, &bound)
+        .await
+        .expect_err("an unregistered tenant is refused");
+    assert!(
+        matches!(refused, fraiseql_core::error::FraiseQLError::Authorization { .. }),
+        "refused at dispatch, not run on the default executor: {refused:?}"
+    );
+
+    let unbound = seam
+        .execute_with_security("{ users { id } }", None, &flight_session_context())
+        .await
+        .expect_err("the default executor's adapter fails");
+    assert!(unbound.to_string().contains("internal_audit_shadow"), "{unbound}");
+}
