@@ -12,6 +12,9 @@
 
 use std::{collections::HashMap, sync::Arc};
 
+#[allow(clippy::disallowed_types)]
+// Reason: the test builds the policy it passes in, which is the assertion, not a production
+// construction
 use fraiseql_core::{
     db::postgres::PostgresAdapter,
     error::Result,
@@ -181,6 +184,7 @@ fn schema(native: bool) -> CompiledSchema {
 }
 
 /// Tenant isolation on every type, as a schema author declares it.
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 fn tenant_rule() -> CompiledRLSPolicy {
     CompiledRLSPolicy::new(
         HashMap::new(),

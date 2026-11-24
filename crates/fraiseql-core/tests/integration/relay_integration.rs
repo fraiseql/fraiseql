@@ -297,6 +297,7 @@ fn executor() -> Executor {
 }
 
 /// Executor with relay support AND an RLS policy configured.
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 fn rls_executor() -> Executor {
     let config = fraiseql_core::runtime::RuntimeConfig::default()
         .with_rls_policy(Arc::new(fraiseql_core::security::DefaultRLSPolicy::new()));
@@ -1198,6 +1199,9 @@ async fn relay_cursor_column_is_pk_user_not_id() {
 mod relay_security {
     use std::sync::Mutex;
 
+    #[allow(clippy::disallowed_types)]
+    // Reason: the test builds the policy it passes in, which is the assertion, not a
+    // production construction
     use fraiseql_core::{
         runtime::RuntimeConfig,
         schema::InjectedParamSource,
@@ -1485,6 +1489,7 @@ mod relay_security {
     }
 
     /// Build an executor with RLS policy and a recording adapter.
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     fn rls_executor() -> (Executor, Arc<RecordingRelayAdapter>) {
         let adapter = Arc::new(RecordingRelayAdapter::new());
         let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
@@ -1493,6 +1498,7 @@ mod relay_security {
     }
 
     /// Build an executor with both RLS policy and `inject_params` on the relay query.
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     fn rls_inject_executor() -> (Executor, Arc<RecordingRelayAdapter>) {
         let adapter = Arc::new(RecordingRelayAdapter::new());
         let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));

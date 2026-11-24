@@ -6444,6 +6444,9 @@ mod before_mutation_read_bridge {
     use async_trait::async_trait;
 
     use super::*;
+    #[allow(clippy::disallowed_types)]
+    // Reason: the test builds the policy it passes in, which is the assertion, not a
+    // production construction
     use crate::{
         backend::WhereClause,
         schema::{
@@ -6706,6 +6709,7 @@ mod before_mutation_read_bridge {
         }
     }
 
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     fn executor_reading(document: &'static str) -> (Executor, Arc<ReadEchoAdapter>) {
         let adapter = Arc::new(ReadEchoAdapter::new());
         let gate: Arc<dyn BeforeMutationGate> = Arc::new(ReadsThroughTheBridge { document });

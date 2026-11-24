@@ -739,11 +739,6 @@ func (m *FraiseqlCi) ShellGates(
 		// every request reading no enriched field exactly as one that runs it does.
 		"bash tools/check-principal-producers.sh",
 		"bash tools/tests/principal_producers_test.sh",
-		// #1348: the same shape for row filters. Both gRPC read arms constructed
-		// `DefaultRLSPolicy` themselves, so a deployment's own policy was never consulted
-		// and one that configured none got a filter invented — the same query answering
-		// differently depending on which transport asked.
-		"bash tools/check-rls-policy-construction.sh",
 		// #1337: `deny_unknown_fields` stops at the top level. Every section struct needs
 		// its own, or a mistyped key is discarded and the setting stays at its default
 		// without a word — `[auth] require_jti`, `[tls] require_client_cert` and

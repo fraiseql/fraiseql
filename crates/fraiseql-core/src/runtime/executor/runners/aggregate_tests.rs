@@ -4,6 +4,9 @@
 
 use std::{collections::HashMap, sync::Arc};
 
+#[allow(clippy::disallowed_types)]
+// Reason: the test builds the policy it passes in, which is the assertion, not a production
+// construction
 use crate::{
     compiler::fact_table::{
         DimensionColumn, FactRowScope, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
@@ -100,6 +103,7 @@ pub(super) fn schema_with_fact_table() -> crate::schema::CompiledSchema {
 // ── Aggregate RLS tests ─────────────────────────────────────────────────────
 
 #[tokio::test]
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 async fn aggregate_query_with_rls_includes_tenant_filter_in_sql() {
     let schema = schema_with_fact_table();
     let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
@@ -121,6 +125,7 @@ async fn aggregate_query_with_rls_includes_tenant_filter_in_sql() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 async fn aggregate_query_admin_bypasses_rls() {
     let schema = schema_with_fact_table();
     let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
@@ -165,6 +170,7 @@ async fn aggregate_query_no_rls_policy_returns_unfiltered() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 async fn aggregate_rls_composes_with_user_where() {
     let schema = schema_with_fact_table();
     let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
@@ -197,6 +203,7 @@ async fn aggregate_rls_composes_with_user_where() {
 // ── Window RLS tests ────────────────────────────────────────────────────────
 
 #[tokio::test]
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 async fn window_query_with_rls_includes_tenant_filter_in_sql() {
     let schema = schema_with_fact_table();
     let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
@@ -225,6 +232,7 @@ async fn window_query_with_rls_includes_tenant_filter_in_sql() {
 }
 
 #[tokio::test]
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 async fn window_query_admin_bypasses_rls() {
     let schema = schema_with_fact_table();
     let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
@@ -784,6 +792,7 @@ mod gated_fact_tables {
 mod anonymous_under_a_row_policy {
     use super::*;
 
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     fn executor(adapter: &Arc<CapturingMockAdapter>) -> Executor {
         let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
         Executor::with_config(schema_with_fact_table(), Arc::clone(adapter), config)
@@ -1073,6 +1082,7 @@ mod tenant_scoped_fact_tables {
 
     /// A row policy scopes the roots: the read is served, under the policy's predicate.
     #[tokio::test]
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     async fn a_row_policy_scopes_the_roots_instead() {
         let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
         let (res, sql) = graphql(

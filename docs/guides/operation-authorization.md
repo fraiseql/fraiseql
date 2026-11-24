@@ -203,8 +203,9 @@ A PEP is only as strong as its least-guarded entry path. The authorizer is enfor
 > read arms used to build `DefaultRLSPolicy` themselves, so a deployment's own policy was
 > never applied there and a deployment with none got a filter GraphQL and REST did not —
 > the same query answering differently depending on which transport asked.
-> `tools/check-rls-policy-construction.sh` keeps that closed: no production code outside
-> `fraiseql-core` may name a concrete policy.
+> Clippy keeps that closed in this repository: `.clippy.toml` bans the three concrete
+> policies outside the module that defines them, and each is built only through a
+> constructor that names it (`NoRLSPolicy::new()`, `DefaultRLSPolicy::new()`).
 
 - **No TOML/env surface.** Like `FieldAuthorizer`, the `Authorizer` is a library-config
   plug today (`with_authorizer`); the server binary installs one only if an embedder sets it

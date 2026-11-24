@@ -81,4 +81,15 @@ disallowed-methods = [
 # `fraiseql-core`'s `graphql/parse_ban_tests.rs` keeps these paths resolving.
 disallowed-types = [
   { path = "apollo_parser::Parser", reason = "read a document through fraiseql_core::graphql::parse_graphql_document and walk its graphql::document::Document" },
+  # A read consults the policy the deployment configured, `RuntimeConfig.rls_policy`, and
+  # never builds one (#1348): both gRPC read arms built `DefaultRLSPolicy` themselves, so a
+  # configured policy was never applied there and a deployment with none got a filter no
+  # other transport applied. Every construction names its type, since `NoRLSPolicy` is not a
+  # unit value and `DefaultRLSPolicy` admits no literal outside its module, so the ban sees
+  # them all, inside fraiseql-core too. `rls_policy.rs` defines them; each test that builds
+  # one to pass in carries an `#[allow]`. `security/rls_policy_ban_tests.rs` keeps the paths
+  # resolving.
+  { path = "fraiseql_core::security::DefaultRLSPolicy", reason = "consult the policy the deployment configured, RuntimeConfig.rls_policy, with None meaning no row filter; a policy built here is not the one in force" },
+  { path = "fraiseql_core::security::NoRLSPolicy", reason = "consult the policy the deployment configured, RuntimeConfig.rls_policy, with None meaning no row filter; a policy built here is not the one in force" },
+  { path = "fraiseql_core::security::CompiledRLSPolicy", reason = "consult the policy the deployment configured, RuntimeConfig.rls_policy, with None meaning no row filter; a policy built here is not the one in force" },
 ]

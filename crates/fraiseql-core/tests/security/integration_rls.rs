@@ -7,6 +7,9 @@
 #![allow(clippy::map_unwrap_or)] // Reason: test readability preferred over method chain refactoring
 use std::collections::HashMap;
 
+#[allow(clippy::disallowed_types)]
+// Reason: the test builds the policy it passes in, which is the assertion, not a production
+// construction
 use fraiseql_core::{
     db::WhereClause,
     runtime::RuntimeConfig,
@@ -18,6 +21,7 @@ use fraiseql_core::{
 /// - Admin users bypass RLS (see all records)
 /// - Non-admin users see only their own records (`author_id` == `user_id`)
 #[test]
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 fn test_rls_policy_evaluates_correctly_for_non_admins() {
     let policy = DefaultRLSPolicy::new();
 
@@ -84,6 +88,7 @@ fn test_rls_policy_evaluates_correctly_for_non_admins() {
 
 /// Test that multi-tenant RLS enforces tenant isolation
 #[test]
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 fn test_rls_policy_enforces_multi_tenant_isolation() {
     let policy = DefaultRLSPolicy::new();
 
@@ -125,6 +130,7 @@ fn test_rls_policy_enforces_multi_tenant_isolation() {
 
 /// Test that non-existent policies don't block access (graceful degradation)
 #[test]
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 fn test_rls_allows_access_when_no_policy_matches() {
     let policy = DefaultRLSPolicy::new();
 
@@ -212,6 +218,7 @@ fn test_security_context_carries_all_metadata() {
 ///
 /// This verifies that the executor can be configured with an RLS policy
 #[test]
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 fn test_runtime_config_accepts_rls_policy_configuration() {
     use std::sync::Arc;
 
@@ -230,6 +237,7 @@ fn test_runtime_config_accepts_rls_policy_configuration() {
 
 /// Test RLS policy evaluation produces correct WHERE clauses
 #[test]
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 fn test_rls_policy_produces_correct_where_clauses() {
     use fraiseql_core::db::WhereOperator;
 
@@ -275,6 +283,7 @@ fn test_rls_policy_produces_correct_where_clauses() {
 
 /// Test RLS filter composition for multi-tenant systems
 #[test]
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 fn test_rls_compose_with_tenant_and_owner_filters() {
     let policy = DefaultRLSPolicy::new();
 

@@ -28,6 +28,8 @@
 //! `crates/fraiseql-core/src/runtime/executor/support/security.rs`). That path is
 //! real and load-bearing; a compiled `[[security.rules]]` block is not.
 
+#![allow(clippy::disallowed_types)] // Reason: the module that defines the policies, and derives on them
+
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -292,6 +294,7 @@ pub trait RLSPolicy: Send + Sync {
 /// 2. Admin bypass: Admins can access all rows in their tenant
 /// 3. Owner-based: Regular users can only access their own rows (`author_id` == `user_id`)
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::manual_non_exhaustive)] // Reason: `#[non_exhaustive]` would still admit a literal inside fraiseql-core; the private field refuses one outside this module
 pub struct DefaultRLSPolicy {
     /// Enable multi-tenant isolation
     pub enable_tenant_isolation: bool,
@@ -299,6 +302,10 @@ pub struct DefaultRLSPolicy {
     pub tenant_field:            String,
     /// Field name for owner-based access (default: "`author_id`")
     pub owner_field:             String,
+    /// Keeps a struct literal out of every other module: a policy is built with
+    /// [`DefaultRLSPolicy::new`], which names the type `.clippy.toml` bans outside this one.
+    #[serde(skip)]
+    _private:                    (),
 }
 
 impl DefaultRLSPolicy {
@@ -309,6 +316,7 @@ impl DefaultRLSPolicy {
             enable_tenant_isolation: true,
             tenant_field:            "tenant_id".to_string(),
             owner_field:             "author_id".to_string(),
+            _private:                (),
         }
     }
 
@@ -393,8 +401,23 @@ impl RLSPolicy for DefaultRLSPolicy {
 }
 
 /// No-op RLS policy that allows all access (for testing or fully open APIs).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NoRLSPolicy;
+///
+/// Built with [`NoRLSPolicy::new`] or `Default`, never as a bare value: the private field
+/// makes every construction name the type, which is what `.clippy.toml`'s ban on building
+/// a policy outside `fraiseql-core`'s policy module matches.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct NoRLSPolicy {
+    #[serde(skip)]
+    _private: (),
+}
+
+impl NoRLSPolicy {
+    /// A policy that applies no row filter.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self { _private: () }
+    }
+}
 
 impl RLSPolicy for NoRLSPolicy {
     fn constrained_paths(&self, _target: &RlsTarget<'_>) -> ConstrainedPaths {

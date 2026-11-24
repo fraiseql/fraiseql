@@ -80,6 +80,8 @@ pub use provenance::Provenance;
 pub use query_validator::{QueryValidator, QueryValidatorConfig};
 pub use request_budget::{CostBudget, RequestBudget};
 pub use response_budget::{ResponseBudget, column_bytes, json_bytes};
+#[allow(clippy::disallowed_types)]
+// Reason: the policies' public names; naming one is still refused at its use
 pub use rls_policy::{
     CompiledRLSPolicy, ConstrainedPaths, DefaultRLSPolicy, NoRLSPolicy, RLSPolicy, RlsWhereClause,
 };
@@ -92,3 +94,6 @@ pub use crate::graphql::complexity::QueryMetrics;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod rls_policy_ban_tests;

@@ -36,6 +36,9 @@
 
 use std::{collections::HashMap, sync::Arc};
 
+#[allow(clippy::disallowed_types)]
+// Reason: the test builds the policy it passes in, which is the assertion, not a production
+// construction
 use fraiseql_core::{
     db::postgres::PostgresAdapter,
     error::FraiseQLError,
@@ -185,6 +188,7 @@ struct Rig {
     schema:   CompiledSchema,
 }
 
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 async fn rig() -> Option<Rig> {
     let url = try_database_url()?;
     let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));

@@ -5,6 +5,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use indexmap::IndexMap;
 
+#[allow(clippy::disallowed_types)]
+// Reason: the test builds the policy it passes in, which is the assertion, not a production
+// construction
 use crate::{
     backend::{types::JsonbValue, where_clause::WhereClause},
     runtime::{
@@ -487,6 +490,7 @@ mod rls_composition {
     }
 
     #[tokio::test]
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     async fn test_rls_only_produces_where_clause() {
         let schema = schema_with_inject_params(IndexMap::new());
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
@@ -523,6 +527,7 @@ mod rls_composition {
 
     /// C13: Verify RLS + `inject_params` compose into AND(rls, inject)
     #[tokio::test]
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     async fn test_rls_and_inject_params_compose_into_and() {
         let mut inject = IndexMap::new();
         inject.insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
@@ -555,6 +560,7 @@ mod rls_composition {
 
     /// C19: Verify three-way composition: RLS + inject + user WHERE
     #[tokio::test]
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     async fn test_three_way_where_composition_rls_inject_user() {
         let mut inject = IndexMap::new();
         inject.insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
@@ -1444,6 +1450,7 @@ mod node_authz {
     }
 
     #[tokio::test]
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     async fn node_rls_anonymous_fails_closed() {
         let schema = node_user_schema(None, IndexMap::new());
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
@@ -1460,6 +1467,7 @@ mod node_authz {
     }
 
     #[tokio::test]
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     async fn node_rls_authenticated_applies_rls_filter() {
         let schema = node_user_schema(None, IndexMap::new());
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));

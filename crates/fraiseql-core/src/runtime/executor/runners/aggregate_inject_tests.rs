@@ -10,6 +10,9 @@
 use std::sync::Arc;
 
 use super::aggregate_rls_tests::{schema_with_fact_table, tenant_security_context};
+#[allow(clippy::disallowed_types)]
+// Reason: the test builds the policy it passes in, which is the assertion, not a production
+// construction
 use crate::{
     compiler::fact_table::{FactRowScope, FactTableMetadata},
     error::{FraiseQLError, Result},
@@ -203,6 +206,7 @@ async fn the_callers_filter_is_composed_with_the_scope() {
 /// root's `inject_params` do. The policy binds the principal's tenant (`tenant-abc`), so
 /// `org-7` is bound by the scope alone.
 #[tokio::test]
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 async fn a_declared_scope_composes_with_a_row_policy() {
     let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
     let principal = principal_with(&[("org", serde_json::json!("org-7"))]);
@@ -282,6 +286,7 @@ async fn an_anonymous_caller_is_refused_an_inherited_scope() {
 /// `inject_params`, as before: inheritance replaces #1799's refusal and changes no read a
 /// policy already served.
 #[tokio::test]
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 async fn under_a_row_policy_an_inherited_scope_adds_nothing() {
     let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
     let principal = principal_with(&[("org", serde_json::json!("org-7"))]);

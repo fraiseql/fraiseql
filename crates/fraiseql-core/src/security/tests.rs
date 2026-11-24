@@ -1816,12 +1816,14 @@ mod rls_policy_tests {
         }
     }
 
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     fn policy_with_rule(rule: RLSRule) -> CompiledRLSPolicy {
         let mut rules_by_type = std::collections::HashMap::new();
         rules_by_type.insert("Post".to_string(), vec![rule]);
         CompiledRLSPolicy::new(rules_by_type, None)
     }
 
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     fn policy_with_rule_and_clock(
         rule: RLSRule,
         clock: std::sync::Arc<dyn crate::utils::clock::Clock>,
@@ -1888,6 +1890,7 @@ mod rls_policy_tests {
     }
 
     #[test]
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     fn a_default_rule_still_answers_for_an_unmatched_target() {
         // Deny applies only when there is nothing at all to apply — a policy with a
         // default rule keeps its previous behaviour.
@@ -1904,6 +1907,7 @@ mod rls_policy_tests {
     }
 
     #[test]
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     fn a_rule_resolves_under_whichever_name_the_deployment_keyed_it_by() {
         // The three kinds of key that were in use across the seven call sites. All
         // three must resolve, or upgrading silently unfilters one transport.
@@ -1927,6 +1931,7 @@ mod rls_policy_tests {
     }
 
     #[test]
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     fn the_cache_is_keyed_by_the_name_that_selected_the_rule() {
         // Two targets that resolve different rules must not share a cache entry.
         // Keying the cache on the query name while the type name selected the rule
@@ -1963,6 +1968,7 @@ mod rls_policy_tests {
     // ── DefaultRLSPolicy ─────────────────────────────────────────────────────
 
     #[test]
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     fn test_with_tenant_field_sets_field_name() {
         // Kills mutation: with_tenant_field → Default::default() (line 225).
         // Default::default() returns a policy with tenant_field = "tenant_id";
@@ -1982,6 +1988,7 @@ mod rls_policy_tests {
     }
 
     #[test]
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     fn test_with_owner_field_sets_field_name() {
         // Kills mutation: with_owner_field → Default::default() (line 231).
         // Default::default() returns a policy with owner_field = "author_id".
@@ -2003,6 +2010,7 @@ mod rls_policy_tests {
     }
 
     #[test]
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     fn test_default_rls_policy_admin_bypass() {
         let policy = DefaultRLSPolicy::new();
         let context = make_context("user123", vec!["admin"], Some("tenant1"));
@@ -2013,6 +2021,7 @@ mod rls_policy_tests {
     }
 
     #[test]
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     fn test_default_rls_policy_tenant_isolation() {
         let policy = DefaultRLSPolicy::new();
         let context = make_context("user123", vec!["user"], Some("tenant1"));
@@ -2023,8 +2032,9 @@ mod rls_policy_tests {
     }
 
     #[test]
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     fn test_no_rls_policy() {
-        let policy = NoRLSPolicy;
+        let policy = NoRLSPolicy::new();
         let context = make_context("user123", vec![], None);
         let result = policy
             .evaluate(&context, &crate::security::rls_policy::RlsTarget::query("posts", "Post"))
@@ -2155,6 +2165,7 @@ mod rls_policy_tests {
     // ── cache_result (kills line 432) ─────────────────────────────────────────
 
     #[test]
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     fn test_cache_result_stores_with_300s_default_ttl() {
         // Verifies: cache_result uses 300s TTL (line 432: +).
         // Mutation `+ → -` gives expires_at already past; `+ → *` gives huge value.
@@ -2181,6 +2192,7 @@ mod rls_policy_tests {
     }
 
     #[test]
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     fn test_cache_result_stores_none_result() {
         // Verifies cache_result stores None (bypass) results correctly.
         use crate::utils::clock::ManualClock;

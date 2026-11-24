@@ -555,6 +555,7 @@ fn bound_values(clause: &crate::backend::WhereClause) -> Vec<String> {
 /// the widening failure this guards against (a function reading under a `run_as`
 /// ceiling instead of as its caller) produces exactly that.
 #[tokio::test]
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 async fn the_functions_read_runs_as_the_caller_and_differs_per_caller() {
     use crate::{
         runtime::executor::test_support::CapturingMockAdapter, security::DefaultRLSPolicy,
@@ -599,7 +600,11 @@ async fn the_functions_read_runs_as_the_caller_and_differs_per_caller() {
 /// computation-only field usable by an unauthenticated visitor, which is the
 /// case the exemption exists for.
 #[tokio::test]
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 async fn an_anonymous_function_read_fails_closed_while_the_field_still_answers() {
+    #[allow(clippy::disallowed_types)]
+    // Reason: the test builds the policy it passes in, which is the assertion, not a
+    // production construction
     use crate::security::DefaultRLSPolicy;
 
     let reading = Executor::with_config(

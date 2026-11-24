@@ -233,6 +233,14 @@ disagreed, and the promise was the part that was wrong.
   message, `<field> = "<text>" is not a valid RFC3339 timestamp; expected e.g.
   "2026-01-31T00:00:00Z"`, without the parser's own reason.
 
+- **`NoRLSPolicy` is built with `NoRLSPolicy::new()` or `default()`, and
+  `DefaultRLSPolicy` admits no struct literal (#1780).** `NoRLSPolicy` was a unit struct;
+  it now has a private field, so `NoRLSPolicy` alone is no longer a value, and its serde
+  form is `{}` where it was `null` (nothing in FraiseQL reads it). `DefaultRLSPolicy` keeps
+  its public fields and its serde form, byte for byte; build it with `new()` and the
+  `with_*` builders. Every construction now names its type, which is what lets clippy
+  refuse a policy built outside the module that defines it.
+
 - **`fraiseql-time`'s `chrono` feature is removed (#2026).** No FraiseQL crate depends on
   chrono, so the `From`/`TryFrom` conversions between `Timestamp` and
   `chrono::DateTime<Utc>` are gone. Code that still holds a chrono value converts through
@@ -1758,6 +1766,14 @@ disagreed, and the promise was the part that was wrong.
   removed. `graphql-parser`, `cynic-parser` and `async-graphql-parser` are banned crates
   in deny.toml, which the script refused by name and clippy cannot see while they are not
   dependencies. A fraiseql-core test keeps the banned paths resolving.
+
+- **Building an RLS policy outside `fraiseql-core`'s policy module is refused by clippy
+  (#1780).** `DefaultRLSPolicy`, `NoRLSPolicy` and `CompiledRLSPolicy` are
+  `disallowed-types` entries: a read consults the configured `RuntimeConfig.rls_policy`
+  and never builds its own (#1348). `tools/check-rls-policy-construction.sh` matched their
+  names outside fraiseql-core only, so a core read path building its own policy passed it;
+  the lint covers fraiseql-core too. The script is removed. A fraiseql-core test keeps the
+  banned paths resolving.
 
 - **An API key whose `expires_in_secs` reaches past 9999-12-30T22:00:00Z is refused
   (#2026).** `POST /api/v1/admin/api-keys` answers 400 `invalid_input`, "expires_in_secs

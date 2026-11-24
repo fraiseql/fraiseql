@@ -1142,6 +1142,7 @@ async fn request_with_bad_auth_scheme_returns_unauthenticated() {
 /// Test that when a `SecurityContext` is provided, the gRPC read generates
 /// RLS WHERE clauses (`DefaultRLSPolicy`: owner-based filtering).
 #[tokio::test]
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 async fn query_with_security_context_applies_rls_where_clause() {
     use std::collections::HashMap;
 
@@ -1531,6 +1532,7 @@ async fn reflection_service_accepts_tonic_add_service() {
 /// `type_name` gets no filtering on **any** transport. It is not fixed here — renaming
 /// the parameter or changing the key is a behaviour change for existing policies, and
 /// belongs in its own change.
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 fn marker_policy() -> fraiseql_core::security::rls_policy::CompiledRLSPolicy {
     // Pattern 1 of `evaluate_rls_expression`: `user.{field} == object.{field}`. The
     // object field name is what reaches the SQL, so `p1348_marker` in the WHERE clause
@@ -1662,6 +1664,7 @@ async fn an_unconfigured_policy_is_not_invented_for_a_grpc_read() {
 /// `CompiledRLSPolicy` refuses an expression it cannot parse — "Unrecognised RLS
 /// expression … fail closed to prevent silent cross-tenant access" — so this is a real
 /// evaluation error rather than a mock of one.
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 fn failing_policy() -> fraiseql_core::security::rls_policy::CompiledRLSPolicy {
     let mut rules = std::collections::HashMap::new();
     // Keyed by query name — see `marker_policy` for why.

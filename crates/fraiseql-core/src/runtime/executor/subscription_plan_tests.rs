@@ -273,6 +273,7 @@ fn the_manager_delivers_nothing_for_a_suppressed_event() {
 
 /// `schema()` with `Order` carrying the keys the default policy reads (`tenant_id`,
 /// `author_id`), under that policy.
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 fn row_policy_executor() -> Executor {
     let mut schema = schema();
     let order = schema.types.iter_mut().find(|t| t.name == "Order").unwrap();
@@ -324,6 +325,7 @@ fn an_anonymous_subscription_under_a_row_policy_is_refused() {
 // The same refusal for a type with a read of its own, whose predicate the plan composes
 // from that read (`query_nested::row_predicate`) rather than from the subscription's name.
 #[test]
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 fn an_anonymous_subscription_to_a_type_with_its_own_read_under_a_row_policy_is_refused() {
     let mut schema = schema();
     schema.queries.push(
@@ -342,6 +344,7 @@ fn an_anonymous_subscription_to_a_type_with_its_own_read_under_a_row_policy_is_r
 // A policy that reads a key the type does not declare cannot be evaluated over the
 // after-image: refused at subscribe, never delivered unfiltered.
 #[test]
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 fn a_root_policy_the_after_image_cannot_answer_refuses_the_plan() {
     let config = RuntimeConfig::default()
         .with_rls_policy(Arc::new(crate::security::DefaultRLSPolicy::new()));

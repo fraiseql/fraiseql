@@ -519,6 +519,9 @@ mod classify {
 #[cfg(feature = "federation")]
 mod entities_authz {
     use super::*;
+    #[allow(clippy::disallowed_types)]
+    // Reason: the test builds the policy it passes in, which is the assertion, not a
+    // production construction
     use crate::{
         schema::{FederationConfig, FederationEntity},
         security::DefaultRLSPolicy,
@@ -651,6 +654,7 @@ mod entities_authz {
     }
 
     #[tokio::test]
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     async fn entities_rls_anonymous_fails_closed() {
         let schema = entities_user_schema(None, IndexMap::new());
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
@@ -752,6 +756,7 @@ mod entities_authz {
     }
 
     #[tokio::test]
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     async fn entities_rls_authenticated_resolves_trusted_gateway() {
         // Authenticated request: an app-level `rls_policy` (JSONB-shaped, targeting the
         // `data->>` view) cannot be composed onto the columnar federation entity table, so
@@ -3861,8 +3866,12 @@ mod operation_authz {
 // *unfiltered* rows.
 mod rls_fail_closed {
     use super::*;
+    #[allow(clippy::disallowed_types)]
+    // Reason: the test builds the policy it passes in, which is the assertion, not a
+    // production construction
     use crate::security::DefaultRLSPolicy;
 
+    #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
     fn rls_executor() -> Executor {
         Executor::with_config(
             test_schema(),
