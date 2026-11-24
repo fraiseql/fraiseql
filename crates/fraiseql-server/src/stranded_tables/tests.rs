@@ -50,10 +50,53 @@ mod source_cursor {
     use super::*;
     use crate::stranded_tables::{refuse_stranded_source_cursor, stranded_moves};
 
-    async fn connect_pool() -> Option<(PgPool, fraiseql_test_support::Service)> {
+    /// A database of the test's own. The check reads `core._fraiseql_source_cursor` and
+    /// every schema's copy of it, one table per database: on the shared database, a test
+    /// running beside another sees the rows it inserts and the copies it strands.
+    struct Scratch {
+        pool:  PgPool,
+        admin: PgPool,
+        name:  String,
+        _svc:  fraiseql_test_support::Service,
+    }
+
+    impl Scratch {
+        async fn drop(self) {
+            self.pool.close().await;
+            // Reason: test SQL built from names this test defines.
+            sqlx::query(sqlx::AssertSqlSafe(format!(
+                "DROP DATABASE IF EXISTS {} WITH (FORCE)",
+                self.name
+            )))
+            .execute(&self.admin)
+            .await
+            .unwrap();
+        }
+    }
+
+    /// A fresh database named for `test`, replacing any a failed run left.
+    async fn scratch(test: &str) -> Option<Scratch> {
         let svc = fraiseql_test_support::postgres().await?;
-        let pool = PgPool::connect(svc.url()).await.unwrap();
-        Some((pool, svc))
+        let base = svc.url();
+        let (prefix, tail) =
+            base.rsplit_once('/').expect("a PostgreSQL URL carries a database path");
+        let query = tail.find('?').map_or("", |i| &tail[i..]);
+        let name = format!("stranded_{test}");
+        let admin = PgPool::connect(base).await.unwrap();
+        for statement in [
+            format!("DROP DATABASE IF EXISTS {name} WITH (FORCE)"),
+            format!("CREATE DATABASE {name}"),
+        ] {
+            // Reason: test SQL built from names this test defines.
+            sqlx::query(sqlx::AssertSqlSafe(statement)).execute(&admin).await.unwrap();
+        }
+        let pool = PgPool::connect(&format!("{prefix}/{name}{query}")).await.unwrap();
+        Some(Scratch {
+            pool,
+            admin,
+            name,
+            _svc: svc,
+        })
     }
 
     /// The cursor table boot creates, emptied, and `schema` holding a populated copy of
@@ -78,30 +121,23 @@ mod source_cursor {
         .unwrap();
     }
 
-    async fn drop_schema(pool: &PgPool, schema: &str) {
-        // Reason: test SQL built from names and values this test defines.
-        sqlx::raw_sql(sqlx::AssertSqlSafe(format!("DROP SCHEMA IF EXISTS {schema} CASCADE")))
-            .execute(pool)
-            .await
-            .unwrap();
-    }
-
     /// The boot that wrote a cursor ran with another schema first on its search path,
     /// one today's path need not include: the check finds it anywhere outside `core`, and
     /// its refusal names the statements that move it.
     #[tokio::test]
     async fn a_populated_cursor_outside_core_beside_an_empty_core_one_is_refused() {
         const OLD_HOME: &str = "old_home_cursor";
-        let Some((pool, _svc)) = connect_pool().await else {
+        let Some(db) = scratch(OLD_HOME).await else {
             eprintln!("SKIP a_populated_cursor_outside_core_beside_an_empty_core_one: no postgres");
             return;
         };
+        let pool = db.pool.clone();
         strand_a_cursor_in(&pool, OLD_HOME).await;
 
         let outcome = refuse_stranded_source_cursor(&pool).await;
 
         let Err(crate::ServerError::ConfigError(message)) = outcome else {
-            drop_schema(&pool, OLD_HOME).await;
+            db.drop().await;
             panic!("expected the refusal, got {outcome:?}");
         };
         let statements = format!(
@@ -124,11 +160,7 @@ mod source_cursor {
         .await
         .unwrap();
         let after = refuse_stranded_source_cursor(&pool).await;
-        sqlx::raw_sql("DELETE FROM core._fraiseql_source_cursor WHERE source_name = 'left-behind'")
-            .execute(&pool)
-            .await
-            .unwrap();
-        drop_schema(&pool, OLD_HOME).await;
+        db.drop().await;
         assert_eq!(moved.0, 3, "the moved cursor keeps its version");
         assert!(after.is_ok(), "{after:?}");
     }
@@ -137,10 +169,11 @@ mod source_cursor {
     #[tokio::test]
     async fn a_populated_core_cursor_table_starts_whatever_copy_is_left_elsewhere() {
         const OLD_HOME: &str = "stale_copy_cursor";
-        let Some((pool, _svc)) = connect_pool().await else {
+        let Some(db) = scratch(OLD_HOME).await else {
             eprintln!("SKIP a_populated_core_cursor_table_starts: no postgres");
             return;
         };
+        let pool = db.pool.clone();
         strand_a_cursor_in(&pool, OLD_HOME).await;
         sqlx::query(
             "INSERT INTO core._fraiseql_source_cursor (source_name, cursor_value, version) \
@@ -151,13 +184,7 @@ mod source_cursor {
         .unwrap();
 
         let outcome = refuse_stranded_source_cursor(&pool).await;
-        sqlx::raw_sql(
-            "DELETE FROM core._fraiseql_source_cursor WHERE source_name = 'lives-in-core'",
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
-        drop_schema(&pool, OLD_HOME).await;
+        db.drop().await;
 
         assert!(outcome.is_ok(), "{outcome:?}");
     }
@@ -166,10 +193,11 @@ mod source_cursor {
     #[tokio::test]
     async fn an_empty_copy_outside_core_is_not_stranded() {
         const OLD_HOME: &str = "empty_copy_cursor";
-        let Some((pool, _svc)) = connect_pool().await else {
+        let Some(db) = scratch(OLD_HOME).await else {
             eprintln!("SKIP an_empty_copy_outside_core_is_not_stranded: no postgres");
             return;
         };
+        let pool = db.pool.clone();
         strand_a_cursor_in(&pool, OLD_HOME).await;
         // Reason: test SQL built from names and values this test defines.
         sqlx::raw_sql(sqlx::AssertSqlSafe(format!("TRUNCATE {OLD_HOME}._fraiseql_source_cursor")))
@@ -185,7 +213,7 @@ mod source_cursor {
             }],
         )
         .await;
-        drop_schema(&pool, OLD_HOME).await;
+        db.drop().await;
 
         assert!(!moves.unwrap().iter().any(|m| m.contains(OLD_HOME)));
     }

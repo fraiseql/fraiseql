@@ -104,3 +104,4 @@
 #2416  tests: the keyset seek-plan suite gives each of its two tests its own schema, so a parallel run no longer collides creating one; no shipped artifact changes
 #2445  tests: the unreachable-URL tests of fraiseql-test-support probe port 0, which no socket listens on, instead of an ephemeral port they bound and released, which a concurrent test could take; no shipped artifact changes
 #2444  docs: the real_time_chat example README filters with `eq` and orders by a list of `{field, direction}`, the spellings the engine accepts, and says the example ships only its database layer, so its operations are illustrative and no CI job runs them; no shipped artifact changes
+#2485  tests: each stranded-tables source-cursor test reads a database of its own, so a parallel server lib run no longer collides on one; no shipped artifact changes
