@@ -7,7 +7,11 @@
 //! from the handshake phase, and that scope-based access control works.
 
 use arrow_flight::{Action, Ticket, flight_service_server::FlightService};
-use fraiseql_arrow::{flight_server::FraiseQLFlightService, ticket::FlightTicket};
+use fraiseql_arrow::{
+    flight_server::FraiseQLFlightService,
+    fraiseql_time::{Timestamp, jiff::SignedDuration},
+    ticket::FlightTicket,
+};
 use fraiseql_core::security::auth_middleware::AuthenticatedUser;
 use tonic::Request;
 
@@ -49,13 +53,13 @@ fn create_test_session_token(user: &AuthenticatedUser) -> String {
         session_type: String,
     }
 
-    let now = chrono::Utc::now();
-    let exp = now + chrono::Duration::minutes(5);
+    let now = Timestamp::now();
+    let exp = now + SignedDuration::from_mins(5);
 
     let claims = TestSessionTokenClaims {
         sub:          user.user_id.0.clone(),
-        exp:          exp.timestamp(),
-        iat:          now.timestamp(),
+        exp:          exp.as_second(),
+        iat:          now.as_second(),
         scopes:       user.scopes.clone(),
         session_type: "flight".to_string(),
     };
@@ -183,13 +187,13 @@ async fn test_do_get_with_expired_session_token() {
             session_type: String,
         }
 
-        let now = chrono::Utc::now();
-        let exp = now - chrono::Duration::minutes(5); // EXPIRED 5 minutes ago
+        let now = Timestamp::now();
+        let exp = now - SignedDuration::from_mins(5); // EXPIRED 5 minutes ago
 
         let claims = ExpiredTokenClaims {
             sub:          "user-1".to_string(),
-            exp:          exp.timestamp(),
-            iat:          (now - chrono::Duration::hours(1)).timestamp(),
+            exp:          exp.as_second(),
+            iat:          (now - SignedDuration::from_hours(1)).as_second(),
             scopes:       vec!["user".to_string()],
             session_type: "flight".to_string(),
         };

@@ -22,8 +22,8 @@ use std::sync::{
 };
 
 use arrow::datatypes::Schema;
-use chrono::{DateTime, Utc};
 use dashmap::DashMap;
+use fraiseql_time::Timestamp;
 
 use crate::{
     db::{ArrowDatabaseAdapter, DescribedRows},
@@ -43,7 +43,7 @@ struct VersionedSchema {
     /// Monotonically increasing version number
     version:    u64,
     /// When this schema version was created
-    created_at: DateTime<Utc>,
+    created_at: Timestamp,
 }
 
 /// Infer a view's Arrow schema from a sample of its rows.
@@ -152,7 +152,7 @@ impl SchemaRegistry {
         let versioned = VersionedSchema {
             schema,
             version,
-            created_at: Utc::now(),
+            created_at: Timestamp::now(),
         };
         self.schemas.insert(view_name.into(), versioned);
     }
@@ -178,7 +178,7 @@ impl SchemaRegistry {
     /// # Errors
     ///
     /// Returns error if schema not found for the view.
-    pub fn get_version_info(&self, view_name: &str) -> Result<(u64, DateTime<Utc>)> {
+    pub fn get_version_info(&self, view_name: &str) -> Result<(u64, Timestamp)> {
         self.schemas
             .get(view_name)
             .map(|entry| (entry.version, entry.created_at))
@@ -191,7 +191,7 @@ impl SchemaRegistry {
 
     /// Get all registered schemas with their versions.
     #[must_use]
-    pub fn get_all_versions(&self) -> Vec<(String, u64, DateTime<Utc>)> {
+    pub fn get_all_versions(&self) -> Vec<(String, u64, Timestamp)> {
         self.schemas
             .iter()
             .map(|entry| (entry.key().clone(), entry.version, entry.created_at))
@@ -242,7 +242,7 @@ impl SchemaRegistry {
             let versioned = VersionedSchema {
                 schema:     new_schema,
                 version:    new_version,
-                created_at: Utc::now(),
+                created_at: Timestamp::now(),
             };
 
             self.schemas.insert(view_name.to_string(), versioned);

@@ -233,6 +233,13 @@ disagreed, and the promise was the part that was wrong.
   message, `<field> = "<text>" is not a valid RFC3339 timestamp; expected e.g.
   "2026-01-31T00:00:00Z"`, without the parser's own reason.
 
+- **`fraiseql_arrow::chrono` is removed, and `fraiseql-arrow` no longer depends on chrono
+  (#2026).** The crate re-exports `fraiseql_time` in its place.
+  `HistoricalEvent::timestamp`, the date range `ArrowEventStorage::query_events` and
+  `count_events` take, and the creation time `SchemaRegistry::get_version_info` and
+  `get_all_versions` return are `fraiseql_time::Timestamp`. An `ArrowEventStorage`
+  implemented outside the crate takes `Option<Timestamp>`. The text is unchanged.
+
 - **`fraiseql_auth::chrono` is removed, and `fraiseql-auth` no longer depends on chrono
   (#2026).** The crate re-exports `fraiseql_time` in its place. A caller that reached
   chrono through it depends on `chrono` directly.
@@ -1264,6 +1271,13 @@ disagreed, and the promise was the part that was wrong.
   hold. `fraiseql-db` renders `timestamptz`, `timestamp` and `date` cells through it, and
   no longer depends on chrono; the response text is unchanged.
 
+- **`fraiseql_time::calendar` reads the date and date-time text chrono read (#2026).**
+  `calendar::read_date`, `calendar::read_date_time` and `calendar::read_rfc3339` take the
+  grammars of chrono's `%Y-%m-%d`, `%Y-%m-%dT%H:%M:%S` and `parse_from_rfc3339`, leap
+  second included, over the years -262143 to 262142, and return days or seconds from the
+  Unix epoch. Arrow's conversion of a row's date and timestamp text reads through them,
+  so it accepts the same text, to the same value, as before.
+
 - **TypeScript's `exportSchema` writes a federation subgraph's schema (#1713).**
   `exportSchema(path, { federation: { types, serviceName } })` exports the registry with the
   `federation` block built from the decorated classes, validated like any other export.
@@ -1702,6 +1716,12 @@ disagreed, and the promise was the part that was wrong.
   see "Roles from the actor row" in `docs/architecture/enriched-identity-rls.md`.
 
 ### Changed
+
+- **A session-state TTL reaching past 9999-12-30T22:00:00Z keeps an entry until that
+  instant (#2026).** `[session_state] default_ttl_secs` has no upper bound. A TTL reaching
+  past year 262142 panicked on every write, and one reaching past 9999 kept the entry into
+  that later year; both now keep it until 9999-12-30T22:00:00Z. An entry stored with a
+  later expiry reads as expiring at that instant.
 
 - **A SAML IdP signing certificate with no well-defined expiry reports none (#2026).** A
   certificate whose `NotAfter` is past 9999-12-30T22:00:00Z, such as RFC 5280's

@@ -25,7 +25,11 @@ use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
 use arrow_flight::{Ticket, flight_service_client::FlightServiceClient};
-use fraiseql_arrow::{FlightTicket, flight_server::FraiseQLFlightService};
+use fraiseql_arrow::{
+    FlightTicket,
+    flight_server::FraiseQLFlightService,
+    fraiseql_time::{Timestamp, jiff::SignedDuration},
+};
 use sqlx::postgres::PgPoolOptions;
 use tonic::transport::{Endpoint, Server};
 
@@ -214,13 +218,13 @@ fn session_token() -> String {
         session_type: String,
     }
 
-    let now = chrono::Utc::now();
+    let now = Timestamp::now();
     encode(
         &Header::new(Algorithm::HS256),
         &Claims {
             sub:          "e2e-user".to_string(),
-            exp:          (now + chrono::Duration::minutes(5)).timestamp(),
-            iat:          now.timestamp(),
+            exp:          (now + SignedDuration::from_mins(5)).as_second(),
+            iat:          now.as_second(),
             scopes:       vec!["user".to_string()],
             session_type: "flight".to_string(),
         },

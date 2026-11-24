@@ -11,6 +11,7 @@
 //! - a fraction of a second in 3, 6 or 9 digits, and none at a whole second.
 //!
 //! Outside chrono's range every function returns `None`, as chrono refused those values.
+//! The readers take the text chrono's parsers took, over the same years.
 //! The calendar is the proleptic Gregorian one, with a year 0 (1 BC).
 
 use std::fmt::Write as _;
@@ -126,6 +127,10 @@ pub fn rfc3339(second: i64, nanosecond: u32) -> Option<String> {
         text
     })
 }
+
+#[path = "calendar_read.rs"]
+mod read;
+pub use self::read::{read_date, read_date_time, read_rfc3339};
 
 #[cfg(test)]
 #[path = "calendar_tests.rs"]

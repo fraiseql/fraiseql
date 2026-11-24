@@ -580,15 +580,15 @@ impl FraiseQLFlightService {
     /// ```no_run
     /// // Requires: an ArrowEventStorage implementation (e.g., backed by a database or Redis).
     /// use fraiseql_arrow::event_storage::{ArrowEventStorage, HistoricalEvent};
-    /// use chrono::{DateTime, Utc};
+    /// use fraiseql_arrow::fraiseql_time::Timestamp;
     /// use std::sync::Arc;
     ///
     /// # fn example(service: &mut fraiseql_arrow::flight_server::FraiseQLFlightService) {
     /// # struct MyEventStorage;
     /// # #[async_trait::async_trait]
     /// # impl ArrowEventStorage for MyEventStorage {
-    /// #     async fn query_events(&self, _entity_type: &str, _start: Option<DateTime<Utc>>, _end: Option<DateTime<Utc>>, _limit: Option<usize>) -> Result<Vec<HistoricalEvent>, String> { panic!("example stub") }
-    /// #     async fn count_events(&self, _entity_type: &str, _start: Option<DateTime<Utc>>, _end: Option<DateTime<Utc>>) -> Result<usize, String> { panic!("example stub") }
+    /// #     async fn query_events(&self, _entity_type: &str, _start: Option<Timestamp>, _end: Option<Timestamp>, _limit: Option<usize>) -> Result<Vec<HistoricalEvent>, String> { panic!("example stub") }
+    /// #     async fn count_events(&self, _entity_type: &str, _start: Option<Timestamp>, _end: Option<Timestamp>) -> Result<usize, String> { panic!("example stub") }
     /// # }
     /// // Provide your ArrowEventStorage implementation (e.g., backed by a database or Redis)
     /// let storage: Arc<dyn ArrowEventStorage> = Arc::new(MyEventStorage);

@@ -10,7 +10,7 @@ fn test_historical_event_creation() {
         data:        serde_json::json!({"total": 100.50}),
         user_id:     Some("user123".to_string()),
         tenant_id:   Some("tenant1".to_string()),
-        timestamp:   Utc::now(),
+        timestamp:   Timestamp::now(),
     };
 
     assert_eq!(event.event_type, "INSERT");

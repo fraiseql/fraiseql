@@ -36,6 +36,7 @@ use fraiseql_arrow::{
     db::{ArrowDatabaseAdapter, DatabaseError, DatabaseResult, DescribedRows},
     exchange_protocol::{ExchangeMessage, RequestType},
     flight_server::FraiseQLFlightService,
+    fraiseql_time::{Timestamp, jiff::SignedDuration},
 };
 use sqlx::{
     Row,
@@ -146,12 +147,12 @@ fn session_token() -> String {
         session_type: String,
     }
 
-    let now = chrono::Utc::now();
+    let now = Timestamp::now();
     let claims = Claims {
         // An ordinary user, deliberately: no admin scope, nothing privileged.
         sub:          "upload-gate-user".to_string(),
-        exp:          (now + chrono::Duration::minutes(5)).timestamp(),
-        iat:          now.timestamp(),
+        exp:          (now + SignedDuration::from_mins(5)).as_second(),
+        iat:          now.as_second(),
         scopes:       vec!["user".to_string()],
         session_type: "flight".to_string(),
     };

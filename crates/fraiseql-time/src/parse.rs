@@ -26,6 +26,29 @@ pub fn parse(text: &str) -> Option<Timestamp> {
 
 /// The instant `text` names in the strict RFC 3339 grammar, or `None`.
 pub fn parse_strict(text: &str) -> Option<Timestamp> {
+    let f = strict_fields(text)?;
+    if f.second > 59 {
+        return None;
+    }
+    instant(f.year, f.month, f.day, f.hour, f.minute, f.second, f.nanosecond, f.offset)
+}
+
+/// The fields of a date and time as text spells them, not yet checked against the
+/// calendar.
+pub struct Fields {
+    pub year:       i64,
+    pub month:      i64,
+    pub day:        i64,
+    pub hour:       i64,
+    pub minute:     i64,
+    pub second:     i64,
+    pub nanosecond: i64,
+    /// Seconds east of UTC.
+    pub offset:     i32,
+}
+
+/// The fields of `text` in the strict RFC 3339 grammar, whose second may be 60.
+pub fn strict_fields(text: &str) -> Option<Fields> {
     let mut s = Cursor(text);
     let year = s.exact(4)?;
     s.literal('-')?;
@@ -40,10 +63,49 @@ pub fn parse_strict(text: &str) -> Option<Timestamp> {
     let second = s.exact(2)?;
     let nanosecond = s.fraction()?;
     let offset = s.strict_offset()?;
-    if !s.0.is_empty() || second > 59 {
-        return None;
-    }
-    instant(year, month, day, hour, minute, second, nanosecond, offset)
+    s.0.is_empty().then_some(Fields {
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        second,
+        nanosecond,
+        offset,
+    })
+}
+
+/// `(year, month, day)` in chrono's `%Y-%m-%d` format grammar: a year as
+/// [`Cursor::year`] reads it, a month and a day of one or two digits, whitespace before
+/// each number and nowhere else.
+pub fn format_date(text: &str) -> Option<(i64, i64, i64)> {
+    let mut s = Cursor(text);
+    let date = s.format_date()?;
+    s.0.is_empty().then_some(date)
+}
+
+/// The fields of `text` in chrono's `%Y-%m-%dT%H:%M:%S` format grammar: [`format_date`],
+/// an upper-case `T`, and an hour, minute and second of one or two digits, whitespace
+/// before each. No fraction and no offset.
+pub fn format_date_time(text: &str) -> Option<Fields> {
+    let mut s = Cursor(text);
+    let (year, month, day) = s.format_date()?;
+    s.literal('T')?;
+    let hour = s.number(2)?;
+    s.literal(':')?;
+    let minute = s.number(2)?;
+    s.literal(':')?;
+    let second = s.number(2)?;
+    s.0.is_empty().then_some(Fields {
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        second,
+        nanosecond: 0,
+        offset: 0,
+    })
 }
 
 /// PostgreSQL's text form of a `timestamptz` (`2025-11-20 17:30:00.12+05:30`), whose
@@ -160,6 +222,15 @@ impl Cursor<'_> {
         } else {
             self.digits(4)
         }
+    }
+
+    fn format_date(&mut self) -> Option<(i64, i64, i64)> {
+        let year = self.year()?;
+        self.literal('-')?;
+        let month = self.number(2)?;
+        self.literal('-')?;
+        let day = self.number(2)?;
+        Some((year, month, day))
     }
 
     fn separator(&mut self) -> Option<()> {

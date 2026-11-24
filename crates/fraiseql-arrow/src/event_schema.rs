@@ -17,7 +17,7 @@ use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 ///     pub event_type: String,            // Event type (e.g., "Order.Created")
 ///     pub entity_type: String,           // Entity type (e.g., "Order")
 ///     pub entity_id: String,             // Entity ID
-///     pub timestamp: DateTime<Utc>,      // Event timestamp
+///     pub timestamp: Timestamp,          // Event timestamp
 ///     pub data: serde_json::Value,       // Event payload
 ///     pub user_id: Option<String>,       // User who triggered event
 ///     pub tenant_id: Option<String>,     // Tenant for multi-tenant isolation

@@ -5,7 +5,7 @@
 //! provided by the application (e.g., wrapping fraiseql-observers' storage).
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -30,7 +30,7 @@ pub struct HistoricalEvent {
     /// Tenant ID for multi-tenant systems (if applicable)
     pub tenant_id:   Option<String>,
     /// When the event occurred
-    pub timestamp:   DateTime<Utc>,
+    pub timestamp:   Timestamp,
 }
 
 /// Arrow Flight-specific trait for querying historical observer events from storage.
@@ -70,8 +70,8 @@ pub trait ArrowEventStorage: Send + Sync {
     async fn query_events(
         &self,
         entity_type: &str,
-        start_date: Option<DateTime<Utc>>,
-        end_date: Option<DateTime<Utc>>,
+        start_date: Option<Timestamp>,
+        end_date: Option<Timestamp>,
         limit: Option<usize>,
     ) -> Result<Vec<HistoricalEvent>, String>;
 
@@ -81,8 +81,8 @@ pub trait ArrowEventStorage: Send + Sync {
     async fn count_events(
         &self,
         entity_type: &str,
-        start_date: Option<DateTime<Utc>>,
-        end_date: Option<DateTime<Utc>>,
+        start_date: Option<Timestamp>,
+        end_date: Option<Timestamp>,
     ) -> Result<usize, String>;
 }
 

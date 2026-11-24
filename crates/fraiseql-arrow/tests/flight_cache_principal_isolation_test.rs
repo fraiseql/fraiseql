@@ -17,9 +17,10 @@ use std::sync::{
 
 use arrow_flight::{Ticket, flight_service_server::FlightService as _};
 use async_trait::async_trait;
-use chrono::Utc;
 use fraiseql_arrow::{
-    ArrowDatabaseAdapter, DatabaseResult, FlightTicket, FraiseQLFlightService, db::DescribedRows,
+    ArrowDatabaseAdapter, DatabaseResult, FlightTicket, FraiseQLFlightService,
+    db::DescribedRows,
+    fraiseql_time::{Timestamp, jiff::SignedDuration},
 };
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use serde::Serialize;
@@ -59,11 +60,11 @@ struct TestClaims {
 }
 
 fn session_token_for(user: &str) -> String {
-    let now = Utc::now();
+    let now = Timestamp::now();
     let claims = TestClaims {
         sub:          user.to_string(),
-        exp:          (now + chrono::Duration::minutes(5)).timestamp(),
-        iat:          now.timestamp(),
+        exp:          (now + SignedDuration::from_mins(5)).as_second(),
+        iat:          now.as_second(),
         scopes:       vec!["user".to_string()],
         session_type: "flight".to_string(),
     };

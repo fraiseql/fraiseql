@@ -17,9 +17,10 @@ use arrow_flight::{
     Criteria, Empty, FlightDescriptor, Ticket, flight_service_server::FlightService as _,
 };
 use async_trait::async_trait;
-use chrono::Utc;
 use fraiseql_arrow::{
-    ArrowDatabaseAdapter, DatabaseResult, FlightTicket, FraiseQLFlightService, db::DescribedRows,
+    ArrowDatabaseAdapter, DatabaseResult, FlightTicket, FraiseQLFlightService,
+    db::DescribedRows,
+    fraiseql_time::{Timestamp, jiff::SignedDuration},
 };
 use futures::StreamExt as _;
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
@@ -83,12 +84,12 @@ struct TestClaims {
 
 /// Create a valid HS256 session token signed with the test secret.
 fn make_session_token() -> String {
-    let now = Utc::now();
-    let exp = now + chrono::Duration::minutes(5);
+    let now = Timestamp::now();
+    let exp = now + SignedDuration::from_mins(5);
     let claims = TestClaims {
         sub:          "protocol-test-user".to_string(),
-        exp:          exp.timestamp(),
-        iat:          now.timestamp(),
+        exp:          exp.as_second(),
+        iat:          now.as_second(),
         scopes:       vec!["user".to_string()],
         session_type: "flight".to_string(),
     };

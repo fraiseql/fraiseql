@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use arrow_flight::{Action, Empty, FlightDescriptor, flight_service_server::FlightService};
 use async_trait::async_trait;
-use chrono::Utc;
+use fraiseql_time::{Timestamp, jiff::SignedDuration};
 use futures::StreamExt;
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use tonic::Request;
@@ -273,13 +273,13 @@ async fn test_do_action_health_check() {
         };
 
         // Create a test user and session token
-        let now = Utc::now();
-        let exp = now + chrono::Duration::minutes(5);
+        let now = Timestamp::now();
+        let exp = now + SignedDuration::from_mins(5);
 
         let claims = SessionTokenClaims {
             sub:          "test-user".to_string(),
-            exp:          exp.timestamp(),
-            iat:          now.timestamp(),
+            exp:          exp.as_second(),
+            iat:          now.as_second(),
             scopes:       vec!["user".to_string()],
             session_type: "flight".to_string(),
             claims:       std::collections::HashMap::new(),
@@ -325,13 +325,13 @@ async fn test_do_action_unknown_action() {
         };
 
         // Must include authentication
-        let now = Utc::now();
-        let exp = now + chrono::Duration::minutes(5);
+        let now = Timestamp::now();
+        let exp = now + SignedDuration::from_mins(5);
 
         let claims = SessionTokenClaims {
             sub:          "test-user".to_string(),
-            exp:          exp.timestamp(),
-            iat:          now.timestamp(),
+            exp:          exp.as_second(),
+            iat:          now.as_second(),
             scopes:       vec!["user".to_string()],
             session_type: "flight".to_string(),
             claims:       std::collections::HashMap::new(),

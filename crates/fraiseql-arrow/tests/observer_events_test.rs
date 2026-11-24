@@ -2,8 +2,9 @@
 
 use std::sync::Arc;
 
-use chrono::Utc;
-use fraiseql_arrow::{ArrowEventStorage as EventStorage, HistoricalEvent};
+use fraiseql_arrow::{
+    ArrowEventStorage as EventStorage, HistoricalEvent, fraiseql_time::Timestamp,
+};
 use uuid::Uuid;
 
 /// Mock event storage for testing
@@ -13,7 +14,7 @@ struct MockEventStorage {
 
 impl MockEventStorage {
     fn new() -> Self {
-        let now = Utc::now();
+        let now = Timestamp::now();
         let events = vec![
             HistoricalEvent {
                 id:          Uuid::new_v4(),
@@ -45,8 +46,8 @@ impl EventStorage for MockEventStorage {
     async fn query_events(
         &self,
         entity_type: &str,
-        _start_date: Option<chrono::DateTime<Utc>>,
-        _end_date: Option<chrono::DateTime<Utc>>,
+        _start_date: Option<Timestamp>,
+        _end_date: Option<Timestamp>,
         _limit: Option<usize>,
     ) -> Result<Vec<HistoricalEvent>, String> {
         Ok(self.events.iter().filter(|e| e.entity_type == entity_type).cloned().collect())
@@ -55,8 +56,8 @@ impl EventStorage for MockEventStorage {
     async fn count_events(
         &self,
         entity_type: &str,
-        _start_date: Option<chrono::DateTime<Utc>>,
-        _end_date: Option<chrono::DateTime<Utc>>,
+        _start_date: Option<Timestamp>,
+        _end_date: Option<Timestamp>,
     ) -> Result<usize, String> {
         Ok(self.events.iter().filter(|e| e.entity_type == entity_type).count())
     }
@@ -108,7 +109,7 @@ fn test_historical_event_serialization() {
         data:        serde_json::json!({"total": 100.50}),
         user_id:     Some("user123".to_string()),
         tenant_id:   Some("tenant1".to_string()),
-        timestamp:   Utc::now(),
+        timestamp:   Timestamp::now(),
     };
 
     // Should serialize to JSON without errors
@@ -127,7 +128,7 @@ fn test_historical_event_with_nulls() {
         data:        serde_json::json!({"id": "user123"}),
         user_id:     None,
         tenant_id:   None,
-        timestamp:   Utc::now(),
+        timestamp:   Timestamp::now(),
     };
 
     assert_eq!(event.event_type, "DELETE");

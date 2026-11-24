@@ -1,4 +1,4 @@
-use chrono::Utc;
+use fraiseql_time::Timestamp;
 use uuid::Uuid;
 
 use super::*;
@@ -51,7 +51,7 @@ fn test_broadcast_event_filters_by_entity_type() {
         data:        serde_json::json!({"total": 100}),
         user_id:     None,
         tenant_id:   None,
-        timestamp:   Utc::now(),
+        timestamp:   Timestamp::now(),
     };
 
     manager.broadcast_event(&event);
@@ -80,7 +80,7 @@ fn test_multiple_subscriptions_same_type() {
         data:        serde_json::json!({"total": 100}),
         user_id:     None,
         tenant_id:   None,
-        timestamp:   Utc::now(),
+        timestamp:   Timestamp::now(),
     };
 
     manager.broadcast_event(&event);
@@ -187,7 +187,7 @@ fn make_event(data: serde_json::Value) -> HistoricalEvent {
         data,
         user_id: None,
         tenant_id: None,
-        timestamp: Utc::now(),
+        timestamp: Timestamp::now(),
     }
 }
 

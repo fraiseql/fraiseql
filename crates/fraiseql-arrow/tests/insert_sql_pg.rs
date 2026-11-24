@@ -29,8 +29,10 @@ use arrow::{
     datatypes::{DataType, Field, Schema, TimeUnit},
     record_batch::RecordBatch,
 };
-use chrono::{DateTime, Utc};
-use fraiseql_arrow::flight_server::build_insert_query;
+use fraiseql_arrow::{
+    flight_server::build_insert_query,
+    fraiseql_time::{Timestamp, jiff::SignedDuration},
+};
 use sqlx::{
     Row,
     postgres::{PgPool, PgPoolOptions},
@@ -119,8 +121,8 @@ const CREATE_COLUMNS: &str = "\
     c_ts_s TIMESTAMPTZ, c_ts_ms TIMESTAMPTZ, c_ts_us TIMESTAMPTZ, c_ts_ns TIMESTAMPTZ, \
     c_date DATE";
 
-fn utc(secs: i64, nanos: u32) -> DateTime<Utc> {
-    DateTime::from_timestamp(secs, nanos).unwrap()
+fn utc(secs: i64, nanos: i32) -> Timestamp {
+    Timestamp::new(secs, nanos).unwrap()
 }
 
 /// #715: the generated INSERT must execute — every type, every precision,
@@ -151,7 +153,7 @@ async fn generated_insert_executes_and_round_trips_every_type() {
 
     // Reason: the table name is one the test made, and the column list a constant.
     let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
-        "SELECT *, c_u64::text AS c_u64_text FROM {table} ORDER BY c_i8 DESC NULLS LAST"
+        "SELECT *, c_u64::text AS c_u64_text, c_date::text AS c_date_text FROM {table} ORDER BY c_i8 DESC NULLS LAST"
     )))
     .fetch_all(&pool)
     .await
@@ -166,14 +168,11 @@ async fn generated_insert_executes_and_round_trips_every_type() {
     assert!((r.get::<f32, _>("c_f32") - 1.5).abs() < f32::EPSILON);
     assert_eq!(r.get::<String, _>("c_text"), "plain");
     assert!(r.get::<bool, _>("c_bool"));
-    assert_eq!(r.get::<DateTime<Utc>, _>("c_ts_s"), utc(1_700_000_000, 0));
-    assert_eq!(r.get::<DateTime<Utc>, _>("c_ts_ms"), utc(1_700_000_000, 123_000_000));
-    assert_eq!(r.get::<DateTime<Utc>, _>("c_ts_us"), utc(1_700_000_000, 123_456_000));
-    assert_eq!(r.get::<DateTime<Utc>, _>("c_ts_ns"), utc(1_700_000_000, 123_456_000));
-    assert_eq!(
-        r.get::<chrono::NaiveDate, _>("c_date"),
-        chrono::NaiveDate::from_ymd_opt(2023, 12, 9).unwrap()
-    );
+    assert_eq!(r.get::<Timestamp, _>("c_ts_s"), utc(1_700_000_000, 0));
+    assert_eq!(r.get::<Timestamp, _>("c_ts_ms"), utc(1_700_000_000, 123_000_000));
+    assert_eq!(r.get::<Timestamp, _>("c_ts_us"), utc(1_700_000_000, 123_456_000));
+    assert_eq!(r.get::<Timestamp, _>("c_ts_ns"), utc(1_700_000_000, 123_456_000));
+    assert_eq!(r.get::<String, _>("c_date_text"), "2023-12-09");
 
     // Row 1: extremes, float specials, injection-shaped text, pre-epoch
     // timestamps (a negative epoch used to render `to_timestamp(-2, -500000)`).
@@ -188,14 +187,11 @@ async fn generated_insert_executes_and_round_trips_every_type() {
     assert!(neg_inf.is_infinite() && neg_inf.is_sign_negative(), "-Infinity must round-trip");
     assert_eq!(r.get::<String, _>("c_text"), "O'Reilly; DROP TABLE x; --");
     assert_eq!(r.get::<String, _>("c_large"), "it's");
-    assert_eq!(r.get::<DateTime<Utc>, _>("c_ts_s"), utc(-1, 0));
-    assert_eq!(r.get::<DateTime<Utc>, _>("c_ts_ms"), utc(-2, 500_000_000));
-    assert_eq!(r.get::<DateTime<Utc>, _>("c_ts_us"), utc(-2, 500_000_000));
-    assert_eq!(r.get::<DateTime<Utc>, _>("c_ts_ns"), utc(-2, 500_000_000));
-    assert_eq!(
-        r.get::<chrono::NaiveDate, _>("c_date"),
-        chrono::NaiveDate::from_ymd_opt(1969, 1, 1).unwrap()
-    );
+    assert_eq!(r.get::<Timestamp, _>("c_ts_s"), utc(-1, 0));
+    assert_eq!(r.get::<Timestamp, _>("c_ts_ms"), utc(-2, 500_000_000));
+    assert_eq!(r.get::<Timestamp, _>("c_ts_us"), utc(-2, 500_000_000));
+    assert_eq!(r.get::<Timestamp, _>("c_ts_ns"), utc(-2, 500_000_000));
+    assert_eq!(r.get::<String, _>("c_date_text"), "1969-01-01");
 
     // Row 2: a NULL slot must be SQL NULL — not a garbage default value.
     let r = &rows[2];
@@ -209,11 +205,11 @@ async fn generated_insert_executes_and_round_trips_every_type() {
     }
     assert!(r.get::<Option<bool>, _>("c_bool").is_none(), "NULL bool rendered as a value");
     assert!(
-        r.get::<Option<DateTime<Utc>>, _>("c_ts_us").is_none(),
+        r.get::<Option<Timestamp>, _>("c_ts_us").is_none(),
         "NULL timestamp rendered as a value"
     );
     assert!(
-        r.get::<Option<chrono::NaiveDate>, _>("c_date").is_none(),
+        r.get::<Option<String>, _>("c_date_text").is_none(),
         "NULL date rendered as a value"
     );
 
@@ -264,11 +260,11 @@ async fn batched_queries_with_heterogeneous_schemas_error_loudly() {
             scopes:       Vec<String>,
             session_type: String,
         }
-        let now = chrono::Utc::now();
+        let now = Timestamp::now();
         let claims = Claims {
             sub:          "schema-mismatch-tester".to_string(),
-            exp:          (now + chrono::Duration::minutes(5)).timestamp(),
-            iat:          now.timestamp(),
+            exp:          (now + SignedDuration::from_mins(5)).as_second(),
+            iat:          now.as_second(),
             scopes:       vec!["read".to_string()],
             session_type: "flight".to_string(),
         };

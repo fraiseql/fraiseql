@@ -1,7 +1,6 @@
 //! Tests for real-time event subscription (`do_exchange`)
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
-use chrono::Utc;
-use fraiseql_arrow::{HistoricalEvent, SubscriptionManager};
+use fraiseql_arrow::{HistoricalEvent, SubscriptionManager, fraiseql_time::Timestamp};
 use uuid::Uuid;
 
 #[tokio::test]
@@ -22,7 +21,7 @@ async fn test_subscribe_and_broadcast() {
         data:        serde_json::json!({"total": 100.50}),
         user_id:     Some("user123".to_string()),
         tenant_id:   Some("tenant1".to_string()),
-        timestamp:   Utc::now(),
+        timestamp:   Timestamp::now(),
     };
 
     manager.broadcast_event(&event);
@@ -52,7 +51,7 @@ async fn test_multiple_subscribers_same_type() {
         data:        serde_json::json!({"total": 200.00}),
         user_id:     None,
         tenant_id:   None,
-        timestamp:   Utc::now(),
+        timestamp:   Timestamp::now(),
     };
 
     manager.broadcast_event(&event);
@@ -84,7 +83,7 @@ async fn test_type_filtering() {
         data:        serde_json::json!({"total": 100}),
         user_id:     None,
         tenant_id:   None,
-        timestamp:   Utc::now(),
+        timestamp:   Timestamp::now(),
     };
 
     manager.broadcast_event(&order_event);
@@ -130,7 +129,7 @@ async fn test_sequential_events() {
             data:        serde_json::json!({"order_num": i}),
             user_id:     None,
             tenant_id:   None,
-            timestamp:   Utc::now(),
+            timestamp:   Timestamp::now(),
         };
 
         manager.broadcast_event(&event);
@@ -166,7 +165,7 @@ fn test_event_serialization() {
         data:        serde_json::json!({"total": 100.50, "status": "shipped"}),
         user_id:     Some("user123".to_string()),
         tenant_id:   Some("tenant1".to_string()),
-        timestamp:   Utc::now(),
+        timestamp:   Timestamp::now(),
     };
 
     // Should serialize to JSON without errors

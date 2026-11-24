@@ -519,9 +519,9 @@ fn arrow_value_to_sql(
             };
             let nanos = u32::try_from(nanos)
                 .map_err(|_| format!("sub-second component out of range: {nanos}"))?;
-            let dt = chrono::DateTime::from_timestamp(secs, nanos)
+            let text = fraiseql_time::calendar::rfc3339(secs, nanos)
                 .ok_or_else(|| format!("timestamp out of PostgreSQL range: {secs}s {nanos}ns"))?;
-            Ok(format!("'{}'::timestamptz", dt.to_rfc3339()))
+            Ok(format!("'{text}'::timestamptz"))
         },
         DataType::Date32 => {
             let arr = array
@@ -529,19 +529,15 @@ fn arrow_value_to_sql(
                 .downcast_ref::<Date32Array>()
                 .ok_or("Failed to cast to Date32Array")?;
             let days_since_epoch = arr.value(row);
-            // Calculate date from days since epoch (1970-01-01).
-            let epoch_date =
-                chrono::NaiveDate::from_ymd_opt(1970, 1, 1).ok_or("Failed to create epoch date")?;
-            // `NaiveDate + TimeDelta` is `checked_add_signed(..).expect(..)`, and most
-            // of the legal Date32 range runs past `NaiveDate::MAX` — about 95 million
-            // days from the epoch. These bytes are client-supplied, so an out-of-range
-            // value is refused here rather than unwinding the spawned upload task and
-            // ending the RPC with grpc-status OK and nothing written (#1040). The
-            // Timestamp arm above was hardened the same way under #715.
-            let target_date = epoch_date
-                .checked_add_signed(chrono::Duration::days(i64::from(days_since_epoch)))
+            // Most of the legal Date32 range runs past the last year a date is written
+            // for, 262142: about 95 million days from the epoch. These bytes are
+            // client-supplied, so an out-of-range value is refused here rather than
+            // unwinding the spawned upload task and ending the RPC with grpc-status OK and
+            // nothing written (#1040). The Timestamp arm above was hardened the same way
+            // under #715.
+            let target_date = fraiseql_time::calendar::date(i64::from(days_since_epoch))
                 .ok_or_else(|| format!("date out of range: {days_since_epoch} days since epoch"))?;
-            Ok(format!("'{}'::date", target_date))
+            Ok(format!("'{target_date}'::date"))
         },
         _ => Err(format!("Unsupported Arrow type for SQL conversion: {:?}", array.data_type())),
     }

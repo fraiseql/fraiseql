@@ -9,7 +9,11 @@
 
 use arrow::datatypes::Schema;
 use arrow_flight::{FlightDescriptor, Ticket, flight_service_client::FlightServiceClient};
-use fraiseql_arrow::{FlightTicket, flight_server::FraiseQLFlightService};
+use fraiseql_arrow::{
+    FlightTicket,
+    flight_server::FraiseQLFlightService,
+    fraiseql_time::{Timestamp, jiff::SignedDuration},
+};
 use tonic::transport::{Endpoint, Server};
 
 const TEST_FLIGHT_SECRET: &str = "flight-test-session-secret-for-integration-tests";
@@ -30,13 +34,13 @@ fn create_test_session_token() -> String {
         session_type: String,
     }
 
-    let now = chrono::Utc::now();
-    let exp = now + chrono::Duration::minutes(5);
+    let now = Timestamp::now();
+    let exp = now + SignedDuration::from_mins(5);
 
     let claims = SessionTokenClaims {
         sub:          "test-user".to_string(),
-        exp:          exp.timestamp(),
-        iat:          now.timestamp(),
+        exp:          exp.as_second(),
+        iat:          now.as_second(),
         scopes:       vec!["user".to_string()],
         session_type: "flight".to_string(),
     };

@@ -92,3 +92,30 @@ fn a_date_outside_the_grammar_is_refused() {
         assert_eq!(date(text), None, "{text:?}");
     }
 }
+
+/// Text chrono read that a `Timestamp` cannot hold or its own parser refuses: a leap
+/// second, the last day of 9999 with any offset, and years past 9999 or before year 0.
+#[test]
+fn the_values_past_a_timestamps_range_convert_as_they_did() {
+    let cases = [
+        ("2024-01-15T10:30:60Z", (AT + 60) * 1_000_000),
+        ("9999-12-31T23:59:59Z", 253_402_300_799_000_000),
+        ("9999-12-31T23:59:59-23:59", 253_402_387_139_000_000),
+        ("+10000-01-01T00:00:00", 253_402_300_800_000_000),
+        ("-262143-01-01T00:00:00", -8_334_601_228_800_000_000),
+    ];
+    for (text, want) in cases {
+        assert_eq!(timestamp(text), Some(want), "{text:?}");
+    }
+    let cases = [
+        ("2024-1-5", 19_727),
+        (" 2024-01- 15", 19_737),
+        ("-0044-03-15", -735_525),
+        ("+10000-01-01", 2_932_897),
+        ("+262142-12-31", 95_026_236),
+    ];
+    for (text, want) in cases {
+        assert_eq!(date(text), Some(want), "{text:?}");
+    }
+    assert_eq!(date("+262143-01-01"), None);
+}

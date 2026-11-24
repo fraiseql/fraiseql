@@ -19,7 +19,7 @@ pub fn service() -> FraiseQLFlightService {
 pub fn session_token() -> String {
     use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 
-    let now = chrono::Utc::now().timestamp();
+    let now = fraiseql_time::Timestamp::now().as_second();
     encode(
         &Header::new(Algorithm::HS256),
         &serde_json::json!({

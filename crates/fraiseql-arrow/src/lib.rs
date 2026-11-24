@@ -102,8 +102,6 @@ pub use arrow;
 /// version of the same crate.
 pub use arrow_flight;
 pub use cache::QueryCache;
-/// The `chrono` this crate's public API is built against (#1198).
-pub use chrono;
 #[cfg(feature = "clickhouse")]
 pub use clickhouse_sink::{ClickHouseSink, ClickHouseSinkConfig, EventRow};
 pub use db::{ArrowDatabaseAdapter, DatabaseError, DatabaseResult};
@@ -112,6 +110,8 @@ pub use event_storage::{ArrowEventStorage, HistoricalEvent};
 pub use exchange_protocol::{ExchangeMessage, RequestType};
 pub use export::{BatchExportWriter, BatchStats, BulkExporter, ExportFormat};
 pub use flight_server::{FraiseQLFlightService, QueryExecutor};
+/// The instant type this crate's public API is built against (#1198).
+pub use fraiseql_time;
 pub use metadata::SchemaRegistry;
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;

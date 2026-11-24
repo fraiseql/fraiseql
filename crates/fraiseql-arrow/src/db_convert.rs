@@ -6,7 +6,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use arrow::datatypes::{DataType, Schema};
-use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
+use fraiseql_time::calendar;
 
 use crate::{
     convert::Value,
@@ -142,23 +142,17 @@ fn json_to_arrow_value(json_val: &serde_json::Value, data_type: &DataType) -> Re
             // Expect ISO 8601 string or Unix timestamp (microseconds)
             match json_val {
                 JsonValue::String(s) => {
-                    // Parse ISO 8601 timestamp using chrono
-                    // Try RFC3339 format first (with timezone)
-                    if let Ok(dt) = DateTime::parse_from_rfc3339(s) {
-                        Ok(Value::Timestamp(dt.with_timezone(&Utc).timestamp_micros()))
-                    } else {
-                        // Try parsing without timezone (assume UTC)
-                        NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S")
-                            .map(|naive| {
-                                let dt = DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc);
-                                Value::Timestamp(dt.timestamp_micros())
-                            })
-                            .map_err(|_| {
-                                ArrowFlightError::Conversion(format!(
-                                    "Cannot parse ISO 8601 timestamp: {s}"
-                                ))
-                            })
-                    }
+                    // RFC 3339 first; then without an offset, read as UTC.
+                    calendar::read_rfc3339(s)
+                        .or_else(|| calendar::read_date_time(s))
+                        .map(|(second, nanosecond)| {
+                            Value::Timestamp(second * 1_000_000 + i64::from(nanosecond / 1_000))
+                        })
+                        .ok_or_else(|| {
+                            ArrowFlightError::Conversion(format!(
+                                "Cannot parse ISO 8601 timestamp: {s}"
+                            ))
+                        })
                 },
                 JsonValue::Number(n) => n.as_i64().map(Value::Timestamp).ok_or_else(|| {
                     ArrowFlightError::Conversion(format!("Cannot convert {n} to Timestamp"))
@@ -172,14 +166,10 @@ fn json_to_arrow_value(json_val: &serde_json::Value, data_type: &DataType) -> Re
             JsonValue::String(s) => {
                 // Parse ISO 8601 date string (YYYY-MM-DD) to Date32
                 // Date32 is days since Unix epoch (1970-01-01)
-                NaiveDate::parse_from_str(s, "%Y-%m-%d")
-                    .map(|date| {
-                        let epoch = NaiveDate::from_ymd_opt(1970, 1, 1)
-                            .expect("1970-01-01 is a valid Gregorian calendar date");
-                        let days = (date - epoch).num_days() as i32;
-                        Value::Date(days)
-                    })
-                    .map_err(|_| {
+                calendar::read_date(s)
+                    .and_then(|days| i32::try_from(days).ok())
+                    .map(Value::Date)
+                    .ok_or_else(|| {
                         ArrowFlightError::Conversion(format!(
                             "Cannot parse ISO 8601 date (YYYY-MM-DD): {s}"
                         ))
