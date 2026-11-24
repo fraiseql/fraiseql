@@ -43,6 +43,8 @@ pub mod issuer;
 pub mod sample_schema;
 pub mod services;
 pub mod tracing_capture;
+#[cfg(test)]
+mod tracing_capture_ban_tests;
 pub mod tviews;
 pub mod wire;
 
