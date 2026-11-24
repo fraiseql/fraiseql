@@ -219,9 +219,16 @@ Two tools read it:
   An interrupted run leaves no mutant: a signal restores each file, and a run killed
   outright is repaired by the next start, from saved bytes recorded under the git dir,
   which then refuses to run until each recorded file matches HEAD.
-  `--site`, `--shard` and `--changed-since REF` select a subset; `--list` prints the
-  selection; `--output DIR` keeps each mutant's test output. Self-test: `make
-  test-guard-mutants-gate`.
+  `--site`, `--shard` and `--changed-since REF` (or `--changed-files PATH`, a list of
+  the changed paths) select a subset; `--list` prints the selection; `--output DIR`
+  keeps each mutant's test output. Self-test: `make test-guard-mutants-gate`.
+- `dagger call guard-mutants --source=.` runs the runner in CI shape: every site, in
+  `--lanes` lanes side by side (2 by default). `--lane I/N` gives each lane the shards of
+  the cargo builds it compiles, so a build is compiled in one lane; each lane has its own
+  target volume and its own Postgres (pgvector), Redis and NATS, and the call fails unless
+  every mutant is killed by a test its site names. `--changed="<paths>"` runs only the
+  sites in those files (the per-change run: `git diff --name-only` against the merge
+  base), and `--shard NAME` one shard's.
 
 **Adding a guard.** Add a `[[site]]` row, then run its mutant:
 
