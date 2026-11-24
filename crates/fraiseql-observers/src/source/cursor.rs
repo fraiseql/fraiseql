@@ -18,7 +18,6 @@
 
 use serde_json::Value;
 use sqlx::{PgConnection, PgPool, Postgres, Transaction};
-use uuid::Uuid;
 
 use crate::error::{ObserverError, Result};
 
@@ -84,32 +83,19 @@ pub trait SourceCursorStore {
 
 /// PostgreSQL-backed cursor store over a connection pool.
 ///
-/// Stamps `tenant_id` on every write (default: `None` = a global/system source),
-/// so the deny-by-default RLS on `_fraiseql_source_cursor` applies uniformly.
+/// A source's cursor is server bookkeeping, keyed by the source's name: its row carries no
+/// tenant stamp (`tenant_id` is NULL), so under the deny-by-default RLS on
+/// `_fraiseql_source_cursor` only the owner or a `BYPASSRLS` role, as the store runs, reads it.
 #[derive(Clone)]
 pub struct PostgresSourceCursorStore {
-    pool:      PgPool,
-    tenant_id: Option<Uuid>,
+    pool: PgPool,
 }
 
 impl PostgresSourceCursorStore {
-    /// Create a store for global (untenanted) sources over an existing pool.
+    /// Create a store over an existing pool.
     #[must_use]
     pub const fn new(pool: PgPool) -> Self {
-        Self {
-            pool,
-            tenant_id: None,
-        }
-    }
-
-    /// Create a store that stamps every cursor row with `tenant_id` (the RLS
-    /// partition stamp — Trinity: a tenant stamp, never a business FK).
-    #[must_use]
-    pub const fn with_tenant(pool: PgPool, tenant_id: Uuid) -> Self {
-        Self {
-            pool,
-            tenant_id: Some(tenant_id),
-        }
+        Self { pool }
     }
 
     /// Create the `core._fraiseql_source_cursor` table and its RLS policies
@@ -149,7 +135,7 @@ impl PostgresSourceCursorStore {
         from: &CursorSnapshot,
         value: Value,
     ) -> Result<bool> {
-        cas_advance(tx, source, from.version, &value, self.tenant_id).await
+        cas_advance(tx, source, from.version, &value).await
     }
 }
 
@@ -185,7 +171,7 @@ impl SourceCursorStore for PostgresSourceCursorStore {
 
     async fn advance(&self, source: &str, from: &CursorSnapshot, value: Value) -> Result<bool> {
         let mut conn = self.pool.acquire().await.map_err(|error| db_err("acquire", &error))?;
-        cas_advance(&mut conn, source, from.version, &value, self.tenant_id).await
+        cas_advance(&mut conn, source, from.version, &value).await
     }
 }
 
@@ -201,7 +187,6 @@ async fn cas_advance(
     source: &str,
     from_version: i64,
     value: &Value,
-    tenant_id: Option<Uuid>,
 ) -> Result<bool> {
     // Serialize to text and cast `$2::jsonb`, so binding needs only the text codec.
     let json = serde_json::to_string(value).map_err(|error| ObserverError::DatabaseError {
@@ -211,12 +196,11 @@ async fn cas_advance(
     let affected = if from_version == 0 {
         sqlx::query(
             "INSERT INTO core._fraiseql_source_cursor (source_name, cursor_value, version, tenant_id, updated_at) \
-             VALUES ($1, $2::jsonb, 1, $3, NOW()) \
+             VALUES ($1, $2::jsonb, 1, NULL, NOW()) \
              ON CONFLICT (source_name) DO NOTHING",
         )
         .bind(source)
         .bind(&json)
-        .bind(tenant_id)
         .execute(&mut *conn)
         .await
         .map_err(|error| db_err("insert", &error))?

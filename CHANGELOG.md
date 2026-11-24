@@ -71,6 +71,12 @@ disagreed, and the promise was the part that was wrong.
   refuses a `null` for a required argument under the argument's own name, e.g. ``Validation
   error: Argument `email` on Mutation.createUser has type `String!`, and may not be null``.
 
+- **`PostgresSourceCursorStore::with_tenant` is removed (#2417).** Nothing called it: every
+  source's cursor store is built with `new`, and a source's cursor row is server
+  bookkeeping keyed by the source's name, written unstamped and read by the server's owner
+  or `BYPASSRLS` role. A stamp would only have made a watermark readable by that tenant's
+  own role, which no path does. Build the store with `PostgresSourceCursorStore::new`.
+
 - **The Go SDK requires Go 1.26 (#2278).** Its `go.mod` declares `go 1.26`, the oldest
   release Go still supports, and its suite runs on 1.26 and 1.27; it declared 1.23, was
   tested on 1.23 and 1.24, and its README promised 1.22. The code needs nothing newer than
