@@ -615,3 +615,35 @@ async fn a_refusal_names_the_first_member_in_schema_order_that_the_selection_rea
     // A gated member the selection does not reach is neither named nor refused.
     assert_eq!(anonymous_refusal(with_gated_names(&["Org"]), PERSONS_ONLY).await, None);
 }
+
+/// A caller with a field authorizer to ask is refused a policy-gated field of a member all
+/// the same: the authorizer decides on rows of one declared type, and the read is of several.
+/// Asked, this authorizer would mask the field; the row's value is never served.
+#[tokio::test]
+async fn a_gated_field_of_a_member_is_refused_to_a_principal_with_an_authorizer() {
+    struct MaskAll;
+    impl crate::security::FieldAuthorizer for MaskAll {
+        fn authorize_field(
+            &self,
+            _req: &crate::security::FieldAuthzRequest<'_>,
+        ) -> Result<crate::security::FieldAuthzDecision> {
+            Ok(crate::security::FieldAuthzDecision::Deny {
+                code:    "masked".to_string(),
+                on_deny: FieldDenyPolicy::Mask,
+            })
+        }
+    }
+    let adapter = Arc::new(CapturingMockAdapter::new(vec![JsonbValue::new(serde_json::json!(
+        {"__typename": "Person", "name": "p"}
+    ))]));
+    let exec = Executor::with_config(
+        with_gated_names(&["Person"]),
+        adapter.clone(),
+        RuntimeConfig::default().with_field_authorizer(Arc::new(MaskAll)),
+    );
+    let result = exec.execute_with_security(PERSONS_ONLY, None, &unscoped()).await;
+    let err = result.expect_err("a gated field of a member is refused");
+    assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err}");
+    assert!(err.to_string().contains("field of 'Person'"), "{err}");
+    assert!(adapter.captured_where().is_none(), "the read ran");
+}

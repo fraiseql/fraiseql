@@ -145,6 +145,16 @@ patterns = [
 ]
 
 [[family]]
+name = "field-authorizer-gate"
+# A policy-gated field: each read and write path asks whether its selection reaches one
+# (at the root, or below it, where the authorizer cannot decide), and refuses or puts the
+# rows to the field authorizer.
+patterns = [
+  '(?<!fn )\bselection_set_(?:selects|has_nested)_gated_field\s*\(',
+  '(?<!fn )\bdeny_if_gated_field_selected\s*\(',
+]
+
+[[family]]
 name = "executor"
 patterns = ['\bexecutor_for(?:_tenant)?\s*\(']
 
@@ -2657,4 +2667,142 @@ function = "caller_holds"
 anchor = ".is_none_or(|role| security_context.is_some_and(|ctx| ctx.roles.iter().any(|r| r == role)))"
 mutant = ".is_none_or(|_role| security_context.is_some())"
 killers = ["mutation_denied_without_role_reports_not_found"]
+shard = "core-lib-gates"
+
+# The bare-id `node` read's two role layers, mutated together: each single row above is
+# killed only because the other layer still refuses; removed together, the row is served.
+
+[[site]]
+id = "role-actor.node.bare-id-read.probe"
+file = "crates/fraiseql-core/src/runtime/executor/runners/query_relay.rs"
+function = "resolve_bare_node_type"
+anchor = "crate::security::role_gate::enforce_requires_role(\n                \"Query\",\n                &node_qdef.name,\n                node_qdef.requires_role.as_deref(),\n                security_context,\n            )"
+mutant = "crate::security::role_gate::enforce_requires_role(\n                \"Query\",\n                &node_qdef.name,\n                None,\n                security_context,\n            )"
+killers = ["an_id_only_a_role_gated_type_holds_is_null_without_the_role"]
+shard = "core-node-bare-id"
+joint = "node-bare-id-role-layers"
+
+[[site]]
+id = "role-actor.node.bare-id-read.lookup"
+file = "crates/fraiseql-core/src/runtime/executor/runners/root_read.rs"
+function = "check"
+anchor = "crate::security::role_gate::enforce_requires_role(\n            \"Query\",\n            &query.name,\n            query.requires_role.as_deref(),\n            principal,\n        )"
+mutant = "crate::security::role_gate::enforce_requires_role(\n            \"Query\",\n            &query.name,\n            None,\n            principal,\n        )"
+killers = ["an_id_only_a_role_gated_type_holds_is_null_without_the_role"]
+shard = "core-node-bare-id"
+joint = "node-bare-id-role-layers"
+
+# Field-authorizer gates (family `field-authorizer-gate`). A predicate's mutant answers
+# "no gated field" and a refusal's mutant admits, so the read or write goes on unasked.
+
+[[site]]
+id = "field-authz.abstract.selects"
+file = "crates/fraiseql-core/src/runtime/executor/runners/query_abstract.rs"
+function = "refuse_gated_fields"
+anchor = "crate::security::field_authorizer::selection_set_selects_gated_field(\n                schema,\n                t,\n                root_fields,\n            )"
+mutant = "{ let _ = crate::security::field_authorizer::selection_set_selects_gated_field(\n                schema,\n                t,\n                root_fields,\n            ); false }"
+killers = [
+  "a_gated_field_of_a_member_is_refused_to_a_principal_with_an_authorizer",
+]
+shard = "core-lib-gates"
+
+[[site]]
+id = "field-authz.function.selects"
+file = "crates/fraiseql-core/src/runtime/executor/runners/query_function.rs"
+function = "execute_function_backed_query"
+anchor = "crate::security::field_authorizer::selection_set_selects_gated_field(\n            &self.ctx.schema,\n            &query_def.return_type,\n            root_fields,\n        )"
+mutant = "{ let _ = crate::security::field_authorizer::selection_set_selects_gated_field(\n            &self.ctx.schema,\n            &query_def.return_type,\n            root_fields,\n        ); false }"
+killers = ["a_gated_field_with_no_authorizer_configured_is_refused"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "field-authz.function.anonymous"
+file = "crates/fraiseql-core/src/runtime/executor/runners/query_function.rs"
+function = "execute_function_backed_query"
+anchor = "crate::security::field_authorizer::deny_if_gated_field_selected(\n                &self.ctx.schema,\n                &query_def.return_type,\n                root_fields,\n                \"unauthenticated function-backed query\",\n            )"
+mutant = "{ let _ = crate::security::field_authorizer::deny_if_gated_field_selected(\n                &self.ctx.schema,\n                &query_def.return_type,\n                root_fields,\n                \"unauthenticated function-backed query\",\n            ); Ok::<(), crate::error::FraiseQLError>(()) }"
+killers = [
+  "an_anonymous_caller_selecting_a_gated_field_is_refused_before_the_invocation",
+]
+shard = "core-lib-gates"
+
+[[site]]
+id = "field-authz.document.nested"
+file = "crates/fraiseql-core/src/runtime/executor/runners/query_regular.rs"
+function = "apply_dynamic_field_authorizer"
+anchor = "authz::selection_set_has_nested_gated_field(&self.ctx.schema, return_type, root_fields)"
+mutant = "{ let _ = authz::selection_set_has_nested_gated_field(&self.ctx.schema, return_type, root_fields); false }"
+killers = ["a_nested_gated_field_is_refused_on_the_document_read"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "field-authz.row.selects"
+file = "crates/fraiseql-core/src/runtime/executor/runners/query_regular.rs"
+function = "row_field_gate"
+anchor = "authz::selection_set_selects_gated_field(&self.ctx.schema, return_type, root_fields)"
+mutant = "{ let _ = authz::selection_set_selects_gated_field(&self.ctx.schema, return_type, root_fields); false }"
+killers = ["a_gated_field_the_authorizer_rejects_comes_back_null"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "field-authz.row.nested"
+file = "crates/fraiseql-core/src/runtime/executor/runners/query_regular.rs"
+function = "row_field_gate"
+anchor = "authz::selection_set_has_nested_gated_field(&self.ctx.schema, return_type, root_fields)"
+mutant = "{ let _ = authz::selection_set_has_nested_gated_field(&self.ctx.schema, return_type, root_fields); false }"
+killers = ["a_nested_gated_field_is_refused_on_the_row_read"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "field-authz.write.selects"
+file = "crates/fraiseql-core/src/runtime/executor/runners/read_plan.rs"
+function = "field_authz_inputs"
+anchor = "authz::selection_set_selects_gated_field(&ctx.schema, type_name, selections)"
+mutant = "{ let _ = authz::selection_set_selects_gated_field(&ctx.schema, type_name, selections); false }"
+killers = ["mutation_deny_mask_nulls_field"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "field-authz.write.nested"
+file = "crates/fraiseql-core/src/runtime/executor/runners/read_plan.rs"
+function = "field_authz_inputs"
+anchor = "authz::selection_set_has_nested_gated_field(&ctx.schema, type_name, selections)"
+mutant = "{ let _ = authz::selection_set_has_nested_gated_field(&ctx.schema, type_name, selections); false }"
+killers = ["a_nested_gated_field_is_refused_before_the_write"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "field-authz.root.selects"
+file = "crates/fraiseql-core/src/runtime/executor/runners/root_read.rs"
+function = "resolve_root_read"
+anchor = "crate::security::field_authorizer::selection_set_selects_gated_field(\n                    schema,\n                    &query_def.return_type,\n                    root_fields,\n                )"
+mutant = "{ let _ = crate::security::field_authorizer::selection_set_selects_gated_field(\n                    schema,\n                    &query_def.return_type,\n                    root_fields,\n                ); false }"
+killers = ["owner_only_masks_non_owner_rows"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "field-authz.root.anonymous"
+file = "crates/fraiseql-core/src/runtime/executor/runners/root_read.rs"
+function = "resolve_root_read"
+anchor = "crate::security::field_authorizer::deny_if_gated_field_selected(\n                    schema,\n                    &query_def.return_type,\n                    root_fields,\n                    \"unauthenticated query\",\n                )"
+mutant = "{ let _ = crate::security::field_authorizer::deny_if_gated_field_selected(\n                    schema,\n                    &query_def.return_type,\n                    root_fields,\n                    \"unauthenticated query\",\n                ); Ok::<(), crate::error::FraiseQLError>(()) }"
+killers = ["anonymous_query_with_gated_field_fails_closed"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "field-authz.root.direct"
+file = "crates/fraiseql-core/src/runtime/executor/runners/root_read.rs"
+function = "resolve_root_read"
+anchor = "crate::security::field_authorizer::deny_if_gated_field_selected(\n                    schema,\n                    &query_def.return_type,\n                    root_fields,\n                    \"REST\",\n                )"
+mutant = "{ let _ = crate::security::field_authorizer::deny_if_gated_field_selected(\n                    schema,\n                    &query_def.return_type,\n                    root_fields,\n                    \"REST\",\n                ); Ok::<(), crate::error::FraiseQLError>(()) }"
+killers = ["a_direct_read_selecting_a_policy_gated_field_is_refused"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "field-authz.rule.descendant"
+file = "crates/fraiseql-core/src/security/field_authorizer.rs"
+function = "selection_field_has_gated_descendant"
+anchor = "selection_set_selects_gated_field(schema, child_type, &sel.nested_fields)"
+mutant = "{ let _ = selection_set_selects_gated_field(schema, child_type, &sel.nested_fields); false }"
+killers = ["a_gated_field_on_a_nested_object_is_seen"]
 shard = "core-lib-gates"

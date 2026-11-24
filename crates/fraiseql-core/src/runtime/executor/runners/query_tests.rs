@@ -2536,6 +2536,65 @@ mod row_read {
         assert_eq!(shown(&out.rows[0][2]), "Null", "the gated slot is masked");
     }
 
+    /// `gated_schema` with `User.manager`, a `User`: `salary` reachable one level down.
+    fn gated_below_schema() -> CompiledSchema {
+        let mut schema = gated_schema();
+        let user = schema.types.iter_mut().find(|t| t.name == "User").unwrap();
+        user.fields
+            .push(FieldDefinition::new("manager", FieldType::Object("User".to_string())));
+        schema.build_indexes();
+        schema
+    }
+
+    /// A gated field below the root is refused on the row-shaped read, to a principal with
+    /// an authorizer to ask: the authorizer decides on the root rows only. The selection is
+    /// judged, not the columns: the transport names only the leaf `id`, which the shape
+    /// check passes.
+    #[tokio::test]
+    async fn a_nested_gated_field_is_refused_on_the_row_read() {
+        let schema = gated_below_schema();
+        let qm = match_on(&schema, "{ users { id manager { salary } } }");
+        let adapter = Arc::new(
+            CapturingMockAdapter::new(vec![])
+                .with_row_results(vec![vec![ColumnValue::Text("1".into())]]),
+        );
+        let executor = Executor::with_config(
+            schema,
+            adapter.clone(),
+            with_field_authorizer(Arc::new(SalaryForOwnerOnly)),
+        );
+
+        let ctx = principal_named("stranger");
+        let result = executor.execute_row_read(&qm, None, Some(&ctx), &cols(&["id"])).await;
+        let err = result.expect_err("a nested gated field is refused");
+        assert!(
+            matches!(&err, crate::FraiseQLError::Authorization { message, .. } if message.contains("nested fields")),
+            "{err:?}"
+        );
+    }
+
+    /// The same on the document read.
+    #[tokio::test]
+    async fn a_nested_gated_field_is_refused_on_the_document_read() {
+        let adapter =
+            Arc::new(CapturingMockAdapter::new(vec![crate::backend::types::JsonbValue::new(
+                serde_json::json!({"id": "1", "manager": {"salary": 90000}}),
+            )]));
+        let executor = Executor::with_config(
+            gated_below_schema(),
+            adapter.clone(),
+            with_field_authorizer(Arc::new(SalaryForOwnerOnly)),
+        );
+
+        let ctx = principal_named("stranger");
+        let result = executor
+            .execute_with_security("{ users { id manager { salary } } }", None, &ctx)
+            .await;
+        let err = result.expect_err("a nested gated field is refused");
+        assert!(matches!(err, crate::FraiseQLError::Authorization { .. }), "{err:?}");
+        assert!(!err.to_string().contains("90000"), "{err}");
+    }
+
     /// Accepted principal: the same read, the same schema, the value present.
     ///
     /// This is the half #1351 calls for and the placeholder could never satisfy.
