@@ -300,6 +300,12 @@ pub struct Server {
     #[cfg(feature = "arrow")]
     pub(super) flight_service: Option<FraiseQLFlightService>,
 
+    /// The address the Arrow Flight service bound, set once when it starts; empty while it
+    /// has not, and on an entry point that serves no Flight. Shared, so a caller holding it
+    /// reads what the running server bound rather than probing a port.
+    #[cfg(feature = "arrow")]
+    pub(super) flight_bound_addr: Arc<std::sync::OnceLock<std::net::SocketAddr>>,
+
     /// The deployment this server's boot guards were judged against, read once at
     /// construction so a later guard cannot answer differently.
     // Reason: read after construction only by the observer runtime's start.

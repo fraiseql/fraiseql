@@ -1783,6 +1783,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Arrow Flight is reported started only once it has bound its port (#2450).** The Flight
+  listener was bound in a background task after the start was recorded, so a
+  `flight_bind_addr` another socket held left `/health` reporting Flight running while the
+  server served none, with only an error line saying so. Flight now binds before its start
+  is recorded; on an address in use the server still serves without it, and `/health`
+  reports it not started.
+
 - **A multi-root mutation's failing entry is sanitized for the deployment the server was
   built for (#2447).** The renderer of that entry read the deployment from the process
   environment, while the handler's sanitizer used the one the server was constructed with,

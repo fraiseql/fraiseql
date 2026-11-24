@@ -86,8 +86,8 @@ pub(crate) enum Started {
     Running,
     /// The server serves on without it: `/health` reports it not started.
     #[cfg_attr(
-        not(any(feature = "observers", feature = "sources")),
-        allow(dead_code) // Reason: only those two capabilities can serve on without starting
+        not(any(feature = "observers", feature = "sources", feature = "arrow")),
+        allow(dead_code) // Reason: only those three capabilities can serve on without starting
     )]
     Degraded,
 }

@@ -1229,6 +1229,8 @@ impl Server {
             rest_router_builder: None,
             #[cfg(feature = "arrow")]
             flight_service,
+            #[cfg(feature = "arrow")]
+            flight_bound_addr: Arc::default(),
             #[cfg(feature = "mcp")]
             mcp_config: None,
             pool_tuning_config: None,

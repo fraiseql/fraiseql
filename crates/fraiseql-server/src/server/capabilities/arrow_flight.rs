@@ -9,7 +9,7 @@ use crate::capability::Capability;
 #[cfg(feature = "arrow")]
 use crate::capability::Started;
 
-/// Every `arrow` build serves Flight on `flight_bind_addr`.
+/// Every `arrow` build serves Flight on `flight_bind_addr`, bound when the capability starts.
 #[derive(Debug)]
 pub struct ArrowFlight;
 
@@ -26,7 +26,27 @@ impl Capability for ArrowFlight {
         let Some(mut flight_service) = server.flight_service.take() else {
             return Ok(Started::Running);
         };
-        let flight_addr = server.config.flight_bind_addr;
+        // Bound here, before the start is reported, so the report is what happened: a port
+        // another socket holds leaves the server serving without Flight, reported not started
+        // (`/health`), where it was reported running while a background task logged that it
+        // never served. `TCP_NODELAY` as `Server::serve` sets it.
+        let bound = tonic::transport::server::TcpIncoming::bind(server.config.flight_bind_addr)
+            .and_then(|incoming| {
+                let addr = incoming.local_addr()?;
+                Ok((incoming.with_nodelay(Some(true)), addr))
+            });
+        let (incoming, flight_addr) = match bound {
+            Ok(bound) => bound,
+            Err(e) => {
+                error!(
+                    error = %e,
+                    addr = %server.config.flight_bind_addr,
+                    "Arrow Flight could not bind its address; serving without it"
+                );
+                return Ok(Started::Degraded);
+            },
+        };
+        let _ = server.flight_bound_addr.set(flight_addr);
 
         wire_policy(&mut flight_service, cx.app.clone());
 
@@ -38,7 +58,7 @@ impl Capability for ArrowFlight {
         server.tasks.spawn(async move {
             if let Err(e) = tonic::transport::Server::builder()
                 .add_service(flight_service.into_server())
-                .serve(flight_addr)
+                .serve_with_incoming(incoming)
                 .await
             {
                 error!(error = %e, "Arrow Flight server terminated with error");

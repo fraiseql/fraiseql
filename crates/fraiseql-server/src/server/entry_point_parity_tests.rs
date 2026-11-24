@@ -228,10 +228,17 @@ async fn every_entry_point_starts_what_the_registry_declares() {
         let modules = tempfile::tempdir().unwrap();
         let pool = sqlx::PgPool::connect(svc.url()).await.unwrap();
         crate::observers::install_runtime_schema_for_tests(&pool).await;
-        let flight_addr = free_port().await;
-        let mut server =
-            server_configuring_every_in_process_capability(pool, modules.path(), flight_addr).await;
+        // Port 0: whichever port Flight binds, if it binds one, is the server's own, and no
+        // other test can hold it.
+        let mut server = server_configuring_every_in_process_capability(
+            pool,
+            modules.path(),
+            "127.0.0.1:0".parse().unwrap(),
+        )
+        .await;
         let starts = Arc::clone(&server.capability_starts);
+        #[cfg(feature = "arrow")]
+        let flight_bound = Arc::clone(&server.flight_bound_addr);
         #[cfg(feature = "observers")]
         let observers = server.observer_runtime.clone().expect("observers are configured");
         let mut effects = BTreeMap::new();
@@ -251,9 +258,8 @@ async fn every_entry_point_starts_what_the_registry_declares() {
                 let recorded = recorded_starts(&starts).await;
                 #[cfg(feature = "observers")]
                 effects.insert("observers", observers.read().await.health().running);
-                if cfg!(feature = "arrow") {
-                    effects.insert("arrow_flight", flight_is_listening(flight_addr).await);
-                }
+                #[cfg(feature = "arrow")]
+                effects.insert("arrow_flight", flight_serves(flight_bound.get().copied()).await);
                 let _ = stop.send(());
                 serving.await.unwrap().unwrap();
                 recorded
@@ -267,9 +273,8 @@ async fn every_entry_point_starts_what_the_registry_declares() {
                 let recorded = recorded_starts(&starts).await;
                 #[cfg(feature = "observers")]
                 effects.insert("observers", observers.read().await.health().running);
-                if cfg!(feature = "arrow") {
-                    effects.insert("arrow_flight", flight_is_listening(flight_addr).await);
-                }
+                #[cfg(feature = "arrow")]
+                effects.insert("arrow_flight", flight_serves(flight_bound.get().copied()).await);
                 server.stop_capabilities().await;
                 recorded
             },
@@ -309,18 +314,17 @@ async fn every_entry_point_starts_what_the_registry_declares() {
     }
 }
 
-async fn free_port() -> std::net::SocketAddr {
-    TcpListener::bind("127.0.0.1:0").await.unwrap().local_addr().unwrap()
+/// Whether the server bound Arrow Flight, and accepts connections on what it bound. `None`
+/// is an entry point that bound none.
+#[cfg(feature = "arrow")]
+async fn flight_serves(bound: Option<std::net::SocketAddr>) -> bool {
+    match bound {
+        // Recorded once bound, so the listener already accepts.
+        Some(addr) => tokio::net::TcpStream::connect(addr).await.is_ok(),
+        None => false,
+    }
 }
 
-/// Whether something accepts connections on `addr`, allowing the spawned server a moment
-/// to bind.
-async fn flight_is_listening(addr: std::net::SocketAddr) -> bool {
-    for _ in 0..20 {
-        if tokio::net::TcpStream::connect(addr).await.is_ok() {
-            return true;
-        }
-        tokio::time::sleep(Duration::from_millis(50)).await;
-    }
-    false
-}
+#[cfg(feature = "arrow")]
+#[path = "flight_bind_tests.rs"]
+mod flight_bind_tests;

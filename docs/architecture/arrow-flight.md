@@ -25,7 +25,7 @@ audience = "analytics"
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `flight_bind_addr` | `127.0.0.1:50051` | Address of the Flight listener. Binding another interface is an explicit choice. `--flight-bind-addr` and `FRAISEQL_FLIGHT_BIND_ADDR` override it; a malformed value stops startup. |
+| `flight_bind_addr` | `127.0.0.1:50051` | Address of the Flight listener. Binding another interface is an explicit choice. `--flight-bind-addr` and `FRAISEQL_FLIGHT_BIND_ADDR` override it; a malformed value stops startup. On an address another socket holds, the server serves without Flight and `/health` reports it not started. |
 | `flight_views` | `[]` | Views an `OptimizedView` ticket may read. Each must be a plain identifier, or boot fails. Each is typed from one of its rows at boot, so a view that is empty or unreadable then is not served (a warning says so). |
 | `flight_upload_tables` | `[]` | Tables a client may `DoPut` into. Empty disables uploads. |
 
