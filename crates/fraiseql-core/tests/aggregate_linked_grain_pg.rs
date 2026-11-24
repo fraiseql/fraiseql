@@ -24,7 +24,8 @@
 //! and runs in the Dagger `integration: postgres` leg (`--test '*'`).
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** creates and drops its own `tf_lg_*` fixtures → run `--test-threads=1`.
+//! **Parallelism:** creates and drops its own `tf_lg_*` fixtures (and `nulls_order` its own
+//! `tf_lgn_*`) → run `--test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
 use std::{
@@ -55,6 +56,9 @@ use fraiseql_core::{
     security::SecurityContext,
 };
 use serde_json::{Value, json};
+
+#[path = "aggregate_linked_grain_pg/nulls_order.rs"]
+mod nulls_order;
 
 const DAY: &str = "tf_lg_day";
 const MONTH: &str = "tf_lg_month";

@@ -61,7 +61,7 @@ use crate::{
     compiler::{
         aggregate_types::{AggregateFunction, TemporalBucket},
         aggregation::{
-            AggregateExpression, AggregationPlan, GroupByExpression, OrderByClause, OrderDirection,
+            AggregateExpression, AggregationPlan, GroupByExpression, OrderByClause,
             ValidatedHavingCondition,
         },
         fact_table::FactTableMetadata,

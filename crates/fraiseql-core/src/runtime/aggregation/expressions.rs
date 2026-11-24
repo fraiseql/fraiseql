@@ -2,7 +2,7 @@
 
 use super::{
     AggregateExpression, AggregateFunction, AggregationSqlGenerator, DatabaseType,
-    GroupByExpression, OrderByClause, OrderDirection, Result, TemporalBucket,
+    GroupByExpression, OrderByClause, Result, TemporalBucket,
 };
 use crate::compiler::aggregation::TreeGrouping;
 
@@ -283,14 +283,7 @@ impl AggregationSqlGenerator {
         order_by
             .iter()
             .map(|clause| {
-                #[allow(clippy::match_same_arms)]
-                // Reason: non_exhaustive enum requires catch-all; explicit Asc arm documents intent
-                let direction = match clause.direction {
-                    OrderDirection::Asc => "ASC",
-                    OrderDirection::Desc => "DESC",
-                    _ => "ASC",
-                };
-                format!("{} {}", self.quote_identifier(&clause.field), direction)
+                format!("{} {}", self.quote_identifier(&clause.field), clause.direction_sql())
             })
             .collect::<Vec<_>>()
             .join(", ")
@@ -381,13 +374,6 @@ impl AggregationSqlGenerator {
         let clauses: Vec<String> = order_by
             .iter()
             .map(|clause| {
-                #[allow(clippy::match_same_arms)]
-                // Reason: non_exhaustive enum requires catch-all; explicit Asc arm documents intent
-                let direction = match clause.direction {
-                    OrderDirection::Asc => "ASC",
-                    OrderDirection::Desc => "DESC",
-                    _ => "ASC",
-                };
                 // A text group-by key carries the request locale's collation (#1512). An
                 // output alias may not appear inside an expression (`"word" COLLATE …` reads
                 // an input column `word`), so a collated key orders by the group-by
@@ -410,7 +396,7 @@ impl AggregationSqlGenerator {
                     },
                     None => self.quote_identifier(&clause.field),
                 };
-                Ok(format!("{key} {direction}"))
+                Ok(format!("{key} {}", clause.direction_sql()))
             })
             .collect::<Result<_>>()?;
 

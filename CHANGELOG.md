@@ -1171,6 +1171,12 @@ disagreed, and the promise was the part that was wrong.
   sorts as `ORDER BY … DESC NULLS LAST`. Any other suffix is refused naming the two. The
   OpenAPI `sort` parameter describes it.
 
+- **An aggregate's `orderBy` puts a key's NULLs first or last (#2415).** Each key of an
+  aggregate root's `orderBy` takes the same `SortDirection`: `{revenue_sum:
+  DESC_NULLS_LAST}` lists the groups whose sum is NULL last, and `{team: ASC_NULLS_FIRST}`
+  the group with no team first. A rolled-up table answering a split range orders its
+  recombined groups the same way. Under `ASC` and `DESC` the SQL is unchanged.
+
 - **A window's `orderBy` puts its key's NULLs first or last (#2415).** `WindowOrderBy`, the
   item of a window's `orderBy` and of the window root's, reads the same `SortDirection` a
   list query's `orderBy` does, `DESC_NULLS_LAST` and the like included, rendered as `NULLS

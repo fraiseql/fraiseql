@@ -2,7 +2,7 @@
 use super::*;
 use crate::compiler::{
     aggregate_types::HavingOperator,
-    aggregation::{AggregateSelection, AggregationRequest, GroupBySelection},
+    aggregation::{AggregateSelection, AggregationRequest, GroupBySelection, OrderDirection},
     fact_table::{
         DimensionColumn, FactRowScope, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
     },
@@ -1304,3 +1304,6 @@ mod fail_closed_filters {
         assert!(err.to_string().contains("ambiguous"), "{err}");
     }
 }
+
+#[path = "nulls_order_tests.rs"]
+mod nulls_order;

@@ -54,7 +54,7 @@ use crate::{
         aggregate_types::{AggregateFunction, HavingOperator, TemporalBucket},
         aggregation::{
             AggregateSelection, AggregationRequest, GroupBySelection, HavingCondition,
-            OrderByClause, OrderDirection, TreeGrouping,
+            OrderByClause, TreeGrouping,
         },
         fact_table::FactTableMetadata,
     },
@@ -744,24 +744,27 @@ impl AggregateQueryParser {
     }
 
     /// Parse ORDER BY clauses: the published `…OrderBy` is an object, not a list, and each
-    /// key takes the published `SortDirection`, `ASC` or `DESC` (#1800). Any other value is
-    /// refused rather than read as `ASC`, or as no order.
+    /// key takes the published `SortDirection` (#1800): a direction, and where the key puts
+    /// its NULLs when the value names a placement (#2415). Any other value is refused rather
+    /// than read as `ASC`, or as no order.
     fn parse_order_by(order_obj: &Value) -> Result<Vec<OrderByClause>> {
         let mut clauses = Vec::new();
 
         for (field, value) in object_argument(order_obj, "orderBy")? {
-            let direction = match value.as_str() {
-                Some("ASC") => OrderDirection::Asc,
-                Some("DESC") => OrderDirection::Desc,
-                _ => {
-                    return Err(FraiseQLError::Validation {
-                        message: format!("orderBy `{field}` takes `ASC` or `DESC`, got {value}"),
-                        path:    None,
-                    });
-                },
-            };
+            let (direction, nulls) = value
+                .as_str()
+                .and_then(crate::backend::types::nulls_order::parse_sort_direction)
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: format!(
+                        "orderBy `{field}` takes one of {}, got {value}",
+                        crate::backend::types::nulls_order::sort_directions_listed()
+                    ),
+                    path:    None,
+                })?;
 
-            clauses.push(OrderByClause::new(field.clone(), direction));
+            let mut clause = OrderByClause::new(field.clone(), direction);
+            clause.nulls = nulls;
+            clauses.push(clause);
         }
 
         Ok(clauses)

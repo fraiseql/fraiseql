@@ -392,18 +392,7 @@ fn split_sql(
                 Some(collation) => crate::backend::order_by::collated(&key, Some(collation))?,
                 None => key,
             };
-            let direction = match clause.direction {
-                crate::compiler::aggregation::OrderDirection::Desc => "DESC",
-                crate::compiler::aggregation::OrderDirection::Asc => "ASC",
-                // A direction this reader does not know is refused, not read as another.
-                _ => {
-                    return Err(FraiseQLError::Validation {
-                        message: format!("`orderBy` `{}`: unknown direction", clause.field),
-                        path:    Some("orderBy".to_string()),
-                    });
-                },
-            };
-            order.push(format!("{key} {direction}"));
+            order.push(format!("{key} {}", clause.direction_sql()));
         }
         let _ = write!(sql, "\nORDER BY {}", order.join(", "));
     }

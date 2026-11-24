@@ -548,8 +548,10 @@ The arguments decide what is computed, and the selection set decides what is ret
 ```
 
 - `groupBy` takes `true` (grouped) or `false` per key, and `<column>_level: n` for an `LTREE`
-  roll-up. `aggregates` is a list of `{<alias>: true}`. `orderBy` takes `ASC` or `DESC`, per
-  key that names a grouped key or a computed aggregate.
+  roll-up. `aggregates` is a list of `{<alias>: true}`. `orderBy` takes a `SortDirection` per
+  key that names a grouped key or a computed aggregate: `ASC`, `DESC`, or either with the
+  placement of the key's NULLs (`DESC_NULLS_LAST`, #2415), so a group whose key or aggregate
+  is NULL sorts first or last.
 - Every argument is read as a list query's is. An explicit `null` is the argument's absence.
   An argument published as a list (`aggregates`, `select`, `windows`, a window's `orderBy` and
   `partitionBy`) takes one object as a one-item list. Any other value of another shape is

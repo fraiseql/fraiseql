@@ -12,7 +12,8 @@
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** the suite creates and drops its own `tf_window_ops` and `tb_window_ops_node`
-//! (and `nulls_order` its own `tf_window_nulls`).
+//! (and `nulls_order` its own `tf_window_nulls`, `aggregate_nulls_order` its own
+//! `tf_aggregate_nulls`).
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -27,6 +28,8 @@ use fraiseql_core::{
 };
 use serde_json::{Value, json};
 
+#[path = "window_where_operators_pg/aggregate_nulls_order.rs"]
+mod aggregate_nulls_order;
 #[path = "window_where_operators_pg/nulls_order.rs"]
 mod nulls_order;
 
