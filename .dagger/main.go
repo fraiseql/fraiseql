@@ -3780,6 +3780,12 @@ func (m *FraiseqlCi) vaultService() *dagger.Service {
 // exposed port before bound callers proceed, so Postgres is accepting connections
 // by the time the tests run.
 func (m *FraiseqlCi) pgService(source *dagger.Directory) *dagger.Service {
+	return m.pgContainer(source).AsService()
+}
+
+// pgContainer is pgService's container before it is started, for a caller that needs a
+// service of its own: two bindings of one definition are one server.
+func (m *FraiseqlCi) pgContainer(source *dagger.Directory) *dagger.Container {
 	initDir := dag.Directory().
 		WithFile("00-init.sql", source.File("tests/sql/postgres/init.sql")).
 		WithFile("01-init-analytics.sql", source.File("tests/sql/postgres/init-analytics.sql")).
@@ -3797,8 +3803,7 @@ func (m *FraiseqlCi) pgService(source *dagger.Directory) *dagger.Service {
 		WithEnvVariable("POSTGRES_PASSWORD", pgPassword).
 		WithEnvVariable("POSTGRES_DB", pgDatabase).
 		WithDirectory("/docker-entrypoint-initdb.d", initDir).
-		WithExposedPort(5432).
-		AsService()
+		WithExposedPort(5432)
 }
 
 // pgTviewsService returns pgImage with pg_tviews built in from source and preloaded

@@ -267,6 +267,68 @@ else
   fi
 fi
 
+# Lanes. Listing only: no shard runs, so the commands need only name their builds. `a1`
+# and `a2` compile one build (package `a`, the same features in another order).
+tree
+cat > "${ws}/tools/guard-sites.toml" <<'TOML'
+[[shard]]
+name    = "a1"
+crate   = "crates/a"
+command = "cargo test -p a --features 'x,y' --lib -- first"
+
+[[shard]]
+name    = "a2"
+crate   = "crates/a"
+command = "cargo test -p a --features 'y,x' --test second"
+
+[[shard]]
+name    = "b"
+crate   = "crates/b"
+command = "cargo test -p b --lib"
+
+[[site]]
+id = "s1"
+file = "crates/fraiseql-server/src/gate.rs"
+function = "one"
+anchor = "guard_one();"
+mutant = "skipped();"
+killers = ["refuses"]
+shard = "a1"
+
+[[site]]
+id = "s2"
+file = "crates/fraiseql-server/src/gate.rs"
+function = "two"
+anchor = "guard_two();"
+mutant = "skipped();"
+killers = ["refuses"]
+shard = "a2"
+
+[[site]]
+id = "s3"
+file = "crates/fraiseql-server/src/gate.rs"
+function = "one"
+anchor = "guard_one();"
+mutant = "skipped();"
+killers = ["refuses"]
+shard = "b"
+TOML
+lane_ids() { GUARD_SITES_ROOT="$ws" python3 "$runner" --list --lane "$1" | grep -oE '^s[0-9]' | tr '\n' ' '; }
+first="$(lane_ids 1/2)"; second="$(lane_ids 2/2)"
+if [ "$first" != "s1 s2 " ] || [ "$second" != "s3 " ]; then
+  echo "lane 1/2: '${first}', lane 2/2: '${second}'" > "${tmp}/out"
+  fail "15. each build runs in one lane, and each lane runs a share"
+else
+  pass "15. each build runs in one lane, and each lane runs a share"
+fi
+if [ "$(lane_ids 1/1)" != "s1 s2 s3 " ]; then
+  lane_ids 1/1 > "${tmp}/out"
+  fail "15b. one lane runs the whole selection"
+else
+  pass "15b. one lane runs the whole selection"
+fi
+expect 2 "--lane takes I/N" "15c. a lane outside its count is refused" --list --lane 3/2
+
 if [ "$failures" -ne 0 ]; then
   echo "guard mutants runner: ${failures} case(s) FAILED"
   exit 1

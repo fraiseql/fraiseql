@@ -29,7 +29,10 @@ refuses to start (exit 2) until every recorded file matches HEAD.
 
 Selection: every site (the weekly sweep), `--site ID` (repeatable), `--shard NAME`, or
 `--changed-since REF`: the sites whose `file` differs between REF and the working tree,
-which is the per-PR run. A selected site brings every member of its joint, so a joint is
+which is the per-PR run. `--lane I/N` keeps the selection's share for lane I of N: the
+shards are grouped by the cargo build they compile, every shard of one build runs in one
+lane, and the builds are balanced across lanes by mutant count, so lanes on their own
+target volumes run side by side. A selected site brings every member of its joint, so a joint is
 never mutated in part. `--list` prints the selection without running it; `--output DIR`
 keeps each mutant's test output, to read why a mutant was killed.
 
@@ -48,6 +51,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -207,6 +211,36 @@ def groups(sites: list[dict]) -> list[list[dict]]:
     return units
 
 
+def build_key(command: str) -> str:
+    """The cargo build a shard command compiles: its package and feature set. Shards with
+    one key share their dependency artifacts, so a lane that runs them builds them once."""
+    package = re.search(r"\bcargo test\b.*?-p (\S+)", command)
+    if not package:
+        return command
+    features = re.search(r"--features (?:'([^']*)'|(\S+))", command)
+    named = sorted((features.group(1) or features.group(2)).split(",")) if features else []
+    flags = [flag for flag in ("--all-features", "--no-default-features") if flag in command]
+    return " ".join([package.group(1), ",".join(named), *flags])
+
+
+def lane_units(
+    units: list[list[dict]], shards: dict[str, dict], index: int, count: int
+) -> list[list[dict]]:
+    """The units lane `index` of `count` runs. Every unit of one build lands in one lane;
+    builds go to the lane with the fewest units so far, the largest first."""
+    by_build: dict[str, list[list[dict]]] = {}
+    for unit in units:
+        by_build.setdefault(build_key(shards[unit[0]["shard"]]["command"]), []).append(unit)
+    loads = [0] * count
+    mine: set[str] = set()
+    for key in sorted(by_build, key=lambda key: (-len(by_build[key]), key)):
+        lane = min(range(count), key=lambda lane: (loads[lane], lane))
+        loads[lane] += len(by_build[key])
+        if lane == index - 1:
+            mine.add(key)
+    return [unit for unit in units if build_key(shards[unit[0]["shard"]]["command"]) in mine]
+
+
 def failed_tests(output: str) -> list[str]:
     return [
         line.split()[1]
@@ -239,6 +273,7 @@ def main() -> int:
     parser.add_argument("--site", action="append", default=[])
     parser.add_argument("--shard")
     parser.add_argument("--changed-since")
+    parser.add_argument("--lane", help="I/N: run lane I of N, each build in one lane")
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--output", type=Path, help="write each mutant's test output here")
     args = parser.parse_args()
@@ -273,6 +308,12 @@ def main() -> int:
     sites = [site for site in inventory if site in sites or site.get("joint") in joint_names]
 
     units = groups(sites)
+    if args.lane:
+        lane = re.fullmatch(r"([1-9][0-9]*)/([1-9][0-9]*)", args.lane)
+        if not lane or int(lane.group(1)) > int(lane.group(2)):
+            print(f"--lane takes I/N with 1 <= I <= N, got {args.lane!r}")
+            return 2
+        units = lane_units(units, shards, int(lane.group(1)), int(lane.group(2)))
     for unit in units:
         print(f"{' + '.join(site['id'] for site in unit)}  [{unit[0]['shard']}]")
     print(f"{len(units)} mutant(s) selected")
