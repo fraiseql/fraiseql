@@ -24,6 +24,12 @@ A comprehensive real-time chat API built with FraiseQL, demonstrating WebSocket 
 - `../admin-panel/` - Administrative interfaces
 - Custom real-time features for your domain
 
+> **This example ships the database layer only** (`db/`: tables, views and
+> functions). It has no compiled schema and no application, so the GraphQL
+> operations and the client snippets below are illustrative: no CI job runs them.
+> The Setup steps that start a Python application describe code this directory
+> does not contain.
+
 ## Features
 
 - **Real-time Messaging**: WebSocket-based instant messaging
@@ -189,7 +195,7 @@ mutation SendMessage {
 ```graphql
 query GetMessages($roomId: UUID!, $limit: Int!) {
   messageThread(
-    where: { roomId: { _eq: $roomId } }
+    where: { roomId: { eq: $roomId } }
     orderBy: [{ field: createdAt, direction: DESC }]
     limit: $limit
   ) {
@@ -255,11 +261,15 @@ mutation UpdatePresence {
 
 ### Get User Conversations
 
+`orderBy` takes a list of `{field, direction}` over the type's own sortable keys.
+`latestMessage` is a JSON object, which does not sort: to show the most recently
+active conversation first, sort the rows by `latestMessage.createdAt` in the client.
+
 ```graphql
 query GetConversations($userId: UUID!) {
   userConversations(
-    where: { userId: { _eq: $userId } }
-    orderBy: { latestMessage: { createdAt: DESC } }
+    where: { userId: { eq: $userId } }
+    orderBy: [{ field: name, direction: ASC }]
   ) {
     roomId
     name
