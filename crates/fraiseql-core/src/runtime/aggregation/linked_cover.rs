@@ -23,7 +23,7 @@
 
 use std::{collections::HashMap, fmt::Write as _};
 
-use chrono::NaiveDate;
+use fraiseql_time::jiff::civil::Date;
 use serde_json::{Value, json};
 
 use super::{AggregationSqlGenerator, ParameterizedAggregationSql};
@@ -34,7 +34,9 @@ use crate::{
         aggregation::{
             AggregateSelection, AggregationPlan, AggregationPlanner, AggregationRequest,
         },
-        fact_table::{Additivity, FactGrain, FactTableMetadata, edges_answerable},
+        fact_table::{
+            Additivity, FactGrain, FactTableMetadata, date_text, edges_answerable, read_date,
+        },
     },
     error::{FraiseQLError, Result},
     runtime::{AggregateQueryParser, aggregate_parser::where_condition},
@@ -107,12 +109,10 @@ fn parse_linked(
         }
     }
     let mut request = AggregateQueryParser::parse(&rest, coarse, native_columns)?;
-    let (mut from, mut until): (Option<NaiveDate>, Option<NaiveDate>) = (None, None);
+    let (mut from, mut until): (Option<Date>, Option<Date>) = (None, None);
     let mut conditions = Vec::with_capacity(bounds.len());
     for (key, value, op) in bounds {
-        let Some(day) =
-            value.as_str().and_then(|text| NaiveDate::parse_from_str(text, "%Y-%m-%d").ok())
-        else {
+        let Some(day) = read_date(value) else {
             return Ok(None);
         };
         // Read as the finer table reads it, which refuses a bound splitting its own rows.
@@ -123,10 +123,10 @@ fn parse_linked(
         // The range as `[from, until)`.
         match op {
             WhereOperator::Gte => from = from.max(Some(day)),
-            WhereOperator::Gt => from = from.max(day.succ_opt()),
+            WhereOperator::Gt => from = from.max(day.tomorrow().ok()),
             WhereOperator::Lt => until = Some(until.map_or(day, |u| u.min(day))),
             _ => {
-                let Some(next) = day.succ_opt() else {
+                let Some(next) = day.tomorrow().ok() else {
                     return Ok(None);
                 };
                 until = Some(until.map_or(next, |u| u.min(next)));
@@ -156,10 +156,10 @@ fn parse_linked(
             return Ok(Some((request, Some(Cover::Fine(Box::new(fine.clone()))))));
         }
     }
-    let condition = |op: &str, day: NaiveDate| {
+    let condition = |op: &str, day: Date| {
         where_condition(
             &format!("{}_{op}", grain.column),
-            &json!(day.format("%Y-%m-%d").to_string()),
+            &json!(date_text(day)),
             fine,
             native_columns,
         )

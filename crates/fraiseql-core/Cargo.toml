@@ -56,7 +56,6 @@ fraiseql-jwks = { workspace = true }
 ahash = { workspace = true }
 base64 = { workspace = true }
 # Utilities
-chrono = { workspace = true }
 dashmap = { workspace = true }
 dhat = { version = "0.3", optional = true }
 # Database abstraction layer (adapters, collation, introspector, filters)

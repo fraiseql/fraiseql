@@ -87,8 +87,6 @@ pub mod graphql;
 pub mod apq;
 pub mod cache;
 
-/// The `chrono` this crate's public API is built against (#1198).
-pub use chrono;
 /// The `deadpool_postgres` this crate's public API is built against (#1198).
 pub use deadpool_postgres;
 /// Core's own handle on the database layer.

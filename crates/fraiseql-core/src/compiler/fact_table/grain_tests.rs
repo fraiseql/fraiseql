@@ -1,7 +1,7 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 use std::collections::HashMap;
 
-use chrono::NaiveDate;
+use fraiseql_time::jiff::civil::Date;
 use serde_json::json;
 
 use super::*;
@@ -9,8 +9,8 @@ use crate::compiler::fact_table::{
     CalendarDimension, DimensionColumn, FactRowScope, FactTableMetadata, FilterColumn, SqlType,
 };
 
-fn day(text: &str) -> NaiveDate {
-    NaiveDate::parse_from_str(text, "%Y-%m-%d").unwrap()
+fn day(text: &str) -> Date {
+    text.parse().unwrap()
 }
 
 fn grain(bucket: GrainBucket) -> FactGrain {

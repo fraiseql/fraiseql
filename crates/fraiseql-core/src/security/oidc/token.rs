@@ -11,8 +11,8 @@ pub(super) const MAX_DISCOVERY_RESPONSE_BYTES: usize = 64 * 1024; // 64 KiB
 
 use std::{sync::Arc, time::Duration};
 
-use chrono::Utc;
 use fraiseql_jwks::{JwksKeys, JwksSource};
+use fraiseql_time::Timestamp;
 use jsonwebtoken::{Algorithm, Validation, decode, decode_header};
 
 use crate::security::{
@@ -468,7 +468,7 @@ impl OidcValidator {
             tracing::debug!(error = %e, "JWT validation failed");
             match e.kind() {
                 jsonwebtoken::errors::ErrorKind::ExpiredSignature => SecurityError::TokenExpired {
-                    expired_at: Utc::now(), // Approximate
+                    expired_at: Timestamp::now(), // Approximate
                 },
                 // Invalid issuer, audience, signature, and all other errors map to InvalidToken
                 _ => SecurityError::InvalidToken,
@@ -482,7 +482,7 @@ impl OidcValidator {
         // read as issued after a revoke-all made before that time.
         if claims
             .iat
-            .is_some_and(|iat| iat > Utc::now().timestamp().saturating_add_unsigned(leeway))
+            .is_some_and(|iat| iat > Timestamp::now().as_second().saturating_add_unsigned(leeway))
         {
             tracing::debug!("JWT iat is in the future beyond the clock-skew leeway");
             return Err(SecurityError::InvalidToken);
@@ -504,7 +504,7 @@ impl OidcValidator {
             let ttl = claims
                 .exp
                 .and_then(|exp| {
-                    let remaining = exp - chrono::Utc::now().timestamp();
+                    let remaining = exp - Timestamp::now().as_second();
                     if remaining > 0 {
                         Some(Duration::from_secs(remaining.cast_unsigned()))
                     } else {

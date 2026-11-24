@@ -539,10 +539,9 @@ fn build_cascade_metadata(
                 // `affectedCount`): prefer the function's transaction timestamp,
                 // else stamp the current server time so a function that omits it
                 // still yields an SDL-valid response rather than a null violation.
-                let ts = db
-                    .and_then(|m| m.get("timestamp"))
-                    .cloned()
-                    .unwrap_or_else(|| serde_json::Value::String(chrono::Utc::now().to_rfc3339()));
+                let ts = db.and_then(|m| m.get("timestamp")).cloned().unwrap_or_else(|| {
+                    serde_json::Value::String(fraiseql_time::Timestamp::now().to_rfc3339())
+                });
                 out.insert(key, ts);
             },
             "transactionId" => {

@@ -691,9 +691,9 @@ mod errors_tests {
 
     #[test]
     fn test_token_expired_error_display() {
-        use chrono::{Duration, Utc};
+        use fraiseql_time::{Timestamp, jiff::SignedDuration};
 
-        let expired_at = Utc::now() - Duration::hours(1);
+        let expired_at = Timestamp::now() - SignedDuration::from_hours(1);
         let err = SecurityError::TokenExpired { expired_at };
 
         assert!(err.to_string().contains("Token expired"));

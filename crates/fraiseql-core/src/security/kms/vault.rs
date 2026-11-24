@@ -400,7 +400,7 @@ impl BaseKmsProvider for VaultKmsProvider {
         let alias = key_data["name"].as_str().map(|s| s.to_string());
         let created_at = key_data["creation_time"]
             .as_i64()
-            .unwrap_or_else(|| chrono::Utc::now().timestamp());
+            .unwrap_or_else(|| fraiseql_time::Timestamp::now().as_second());
 
         Ok(KeyInfo { alias, created_at })
     }

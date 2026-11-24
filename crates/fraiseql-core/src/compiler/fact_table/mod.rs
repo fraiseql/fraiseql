@@ -46,6 +46,7 @@ mod linked;
 // Re-export from fraiseql-db to avoid duplication
 pub use fraiseql_db::{introspector::DatabaseIntrospector, types::DatabaseType};
 
+pub(crate) use self::grain::{date_text, read_date};
 pub use self::{
     detector::FactTableDetector,
     grain::{FactGrain, GrainBucket},

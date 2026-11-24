@@ -1278,8 +1278,6 @@ mod custom_scalar_tests {
 mod date_validators_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-    use chrono::Datelike;
-
     use super::super::*;
     #[allow(unused_imports)]
     // Reason: nested test mod re-imports may not all be used by every test
@@ -1290,16 +1288,23 @@ mod date_validators_tests {
 
     // ── Helpers for time-independent tests ──────────────────────────────────
 
+    /// Today's date in UTC.
+    fn today() -> fraiseql_time::jiff::civil::Date {
+        fraiseql_time::jiff::tz::Offset::UTC
+            .to_datetime(fraiseql_time::Timestamp::now().as_jiff())
+            .date()
+    }
+
     /// Returns "YYYY-MM-DD" for `years` years before today.
     fn years_ago(years: u32) -> String {
-        let today = chrono::Utc::now().date_naive();
-        let y = today.year() - i32::try_from(years).unwrap_or(0);
+        let today = today();
+        let y = i32::from(today.year()) - i32::try_from(years).unwrap_or(0);
         format!("{y}-{:02}-{:02}", today.month(), today.day())
     }
 
     /// Returns "YYYY-MM-DD" for today.
     fn today_str() -> String {
-        chrono::Utc::now().date_naive().format("%Y-%m-%d").to_string()
+        today().to_string()
     }
 
     // ── parse_date ───────────────────────────────────────────────────────────

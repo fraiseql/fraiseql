@@ -16,7 +16,6 @@ use std::{
 };
 
 use async_trait::async_trait;
-use chrono::Utc;
 use parking_lot::Mutex;
 
 use super::audit::{AuditEntry, AuditError, AuditExporter, AuditLevel, SyslogExportConfig};
@@ -101,7 +100,7 @@ impl SyslogAuditExporter {
         let severity = Self::severity(entry.level);
         // Facility 10 (authpriv) * 8 + severity
         let priority = 80 + u16::from(severity);
-        let timestamp = Utc::now().to_rfc3339();
+        let timestamp = fraiseql_time::Timestamp::now().to_rfc3339();
 
         let error_part = entry
             .error

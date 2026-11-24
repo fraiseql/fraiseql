@@ -233,6 +233,18 @@ disagreed, and the promise was the part that was wrong.
   message, `<field> = "<text>" is not a valid RFC3339 timestamp; expected e.g.
   "2026-01-31T00:00:00Z"`, without the parser's own reason.
 
+- **`fraiseql_core::chrono` is removed, and `fraiseql-core` no longer depends on chrono
+  (#2026).** The crate's public API names no chrono type any more. A caller that reached
+  chrono through it depends on `chrono` directly.
+
+- **`fraiseql-core`'s remaining chrono types are `fraiseql_time` and jiff types (#2026).**
+  `SubscriptionEvent::timestamp`, `ActiveSubscription::created_at` and
+  `SecurityError::TokenExpired`'s `expired_at` are `fraiseql_time::Timestamp`, and
+  `GrainBucket::start` and `GrainBucket::ceil` take and return a `jiff::civil::Date`. Their
+  text is unchanged: an event delivered by webhook or Kafka writes its time as before,
+  `2025-11-20T12:00:00.120+00:00`, and an expired token's error still reads
+  `Token expired at 2025-11-20 12:00:00.120 UTC`.
+
 - **`SecurityContext`, `AuthenticatedUser` and `AuditEntry` carry instants as
   `fraiseql_time::Timestamp` (#2026).** `SecurityContext::authenticated_at` and
   `expires_at`, `AuthenticatedUser::expires_at` and `AuditEntry::timestamp` were
@@ -1677,6 +1689,14 @@ disagreed, and the promise was the part that was wrong.
   see "Roles from the actor row" in `docs/architecture/enriched-identity-rls.md`.
 
 ### Changed
+
+- **A bound on a fact table's grain column that is not written `YYYY-MM-DD` is refused as
+  not a date (#2026).** The grain check read the bound more loosely than the column's own
+  operand check, so `2024-1-5`, `+2024-01-15`, ` 2024-01-15` or `+10000-01-01` reached that
+  check and was refused there, or was refused for splitting a period. Each is now refused
+  as `` `day_gte` takes a date (`YYYY-MM-DD`) ``, the refusal any other non-date gets. No
+  bound that was answered is refused. A refusal near the end of the calendar no longer
+  suggests a bound past 9999-12-31, which the column would refuse.
 
 - **A bearer token whose `exp` is after 9999-12-30T22:00:00Z is refused as invalid
   (#2026).** That is the last whole second a principal's expiry holds; a token expiring

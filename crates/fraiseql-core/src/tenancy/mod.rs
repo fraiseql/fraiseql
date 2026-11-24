@@ -20,8 +20,6 @@
 
 use std::collections::HashMap;
 
-use chrono::Utc;
-
 /// A tenant's identity and metadata.
 ///
 /// Represents a single tenant in a multi-tenant system. This type carries
@@ -58,7 +56,7 @@ impl TenantContext {
     pub fn new(id: impl Into<String>) -> Self {
         Self {
             id:         id.into(),
-            created_at: Utc::now().to_rfc3339(),
+            created_at: fraiseql_time::Timestamp::now().to_rfc3339(),
             metadata:   HashMap::new(),
         }
     }

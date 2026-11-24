@@ -3232,8 +3232,8 @@ shard = "core-lib-oidc"
 id = "jwt.oidc.iat-future"
 file = "crates/fraiseql-core/src/security/oidc/token.rs"
 function = "validate_token"
-anchor = ".is_some_and(|iat| iat > Utc::now().timestamp().saturating_add_unsigned(leeway))"
-mutant = ".is_some_and(|iat| false && iat > Utc::now().timestamp().saturating_add_unsigned(leeway))"
+anchor = ".is_some_and(|iat| iat > Timestamp::now().as_second().saturating_add_unsigned(leeway))"
+mutant = ".is_some_and(|iat| false && iat > Timestamp::now().as_second().saturating_add_unsigned(leeway))"
 killers = [
   "a_token_issued_in_the_future_is_refused",
   "the_iat_leeway_is_the_issuers_configured_clock_skew",

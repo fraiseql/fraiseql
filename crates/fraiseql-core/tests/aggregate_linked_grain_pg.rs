@@ -58,6 +58,8 @@ use serde_json::{Value, json};
 
 #[path = "aggregate_linked_grain_pg/nulls_order.rs"]
 mod nulls_order;
+#[path = "aggregate_linked_grain_pg/period_start_bounds.rs"]
+mod period_start_bounds;
 
 const DAY: &str = "tf_lg_day";
 const MONTH: &str = "tf_lg_month";

@@ -22,8 +22,6 @@
 
 use std::cmp::Ordering;
 
-use chrono::Datelike;
-
 use crate::error::{FraiseQLError, Result};
 
 /// Parse a date string in ISO 8601 format (YYYY-MM-DD).
@@ -92,8 +90,15 @@ pub(crate) const fn get_days_in_month(month: u32, year: u32) -> u32 {
 
 /// Get today's date as (year, month, day) in UTC.
 fn get_today() -> (u32, u32, u32) {
-    let today = chrono::Utc::now().date_naive();
-    (today.year_ce().1, today.month(), today.day())
+    let today = fraiseql_time::jiff::tz::Offset::UTC
+        .to_datetime(fraiseql_time::Timestamp::now().as_jiff())
+        .date();
+    // The clock reads a year of the common era: never below 1.
+    (
+        u32::try_from(today.year()).unwrap_or(1),
+        u32::try_from(today.month()).unwrap_or(1),
+        u32::try_from(today.day()).unwrap_or(1),
+    )
 }
 
 /// Compare two dates: -1 if left < right, 0 if equal, 1 if left > right.

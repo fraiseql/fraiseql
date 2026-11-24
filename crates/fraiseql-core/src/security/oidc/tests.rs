@@ -654,7 +654,7 @@ async fn validate_token_with_real_rsa_keypair_and_wiremock_jwks() {
         .await;
 
     // ── 3. Sign a JWT with the test private key ──────────────────────
-    let now = chrono::Utc::now().timestamp();
+    let now = fraiseql_time::Timestamp::now().as_second();
     let claims = json!({
         "sub":   "user-42",
         "iss":   issuer,
@@ -727,7 +727,7 @@ async fn validate_token_rejects_wrong_signing_key() {
         .mount(&mock)
         .await;
 
-    let now = chrono::Utc::now().timestamp();
+    let now = fraiseql_time::Timestamp::now().as_second();
     let claims = json!({
         "sub": "user-42",
         "iss": issuer,
@@ -795,7 +795,7 @@ async fn validate_token_rejects_expired_jwt() {
         .await;
 
     // Sign a JWT that is already expired (exp in the past, beyond clock skew)
-    let now = chrono::Utc::now().timestamp();
+    let now = fraiseql_time::Timestamp::now().as_second();
     let claims = json!({
         "sub": "user-42",
         "iss": issuer,
@@ -860,7 +860,7 @@ async fn validate_token_rejects_wrong_audience() {
         .await;
 
     // Sign a JWT with a WRONG audience
-    let now = chrono::Utc::now().timestamp();
+    let now = fraiseql_time::Timestamp::now().as_second();
     let claims = json!({
         "sub": "user-42",
         "iss": issuer,
@@ -932,7 +932,7 @@ async fn validate_token_refuses_an_iat_that_is_not_an_integer() {
     let mut header = Header::new(Algorithm::RS256);
     header.kid = Some("test-key-c14".to_string());
 
-    let now = chrono::Utc::now().timestamp();
+    let now = fraiseql_time::Timestamp::now().as_second();
     for (iat, accepted) in [
         (json!(now), true),
         (json!(1000.5), false),
@@ -983,7 +983,7 @@ async fn validate_token_without_iss_claim_accepted_when_issuer_unset() {
         .await;
 
     // Hanko 2.x access-token shape: sub/aud/exp/iat (+ session_id, email); no `iss`.
-    let now = chrono::Utc::now().timestamp();
+    let now = fraiseql_time::Timestamp::now().as_second();
     let claims = json!({
         "sub":        "hanko-user-1",
         "aud":        ["relying-party-id"],
@@ -1052,7 +1052,7 @@ async fn validate_token_missing_iss_rejected_when_issuer_set() {
         .await;
 
     // Token omits `iss`.
-    let now = chrono::Utc::now().timestamp();
+    let now = fraiseql_time::Timestamp::now().as_second();
     let claims = json!({
         "sub": "user-42",
         "aud": "fraiseql-test-api",
@@ -1401,7 +1401,7 @@ mod jwks_refetch_bound {
     /// Claims good enough to reach the key lookup: the point of every token here
     /// is its *header*, so the body only has to decode.
     fn claims() -> serde_json::Value {
-        let now = chrono::Utc::now().timestamp();
+        let now = fraiseql_time::Timestamp::now().as_second();
         json!({ "sub": "anonymous-caller", "aud": "fraiseql-1335", "exp": now + 3600 })
     }
 
@@ -1575,7 +1575,7 @@ mod additional_issuers {
     }
 
     fn token(kid: &str, iss: &str, aud: &str) -> String {
-        let now = chrono::Utc::now().timestamp();
+        let now = fraiseql_time::Timestamp::now().as_second();
         let mut header = Header::new(Algorithm::RS256);
         header.kid = Some(kid.to_string());
         jsonwebtoken::encode(

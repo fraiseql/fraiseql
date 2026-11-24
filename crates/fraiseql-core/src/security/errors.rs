@@ -106,7 +106,7 @@ pub enum SecurityError {
     /// has passed. The user needs to re-authenticate.
     TokenExpired {
         /// The time when the token expired
-        expired_at: chrono::DateTime<chrono::Utc>,
+        expired_at: fraiseql_time::Timestamp,
     },
 
     /// Authentication token is missing a required claim.
@@ -340,3 +340,7 @@ impl PartialEq for SecurityError {
 }
 
 impl Eq for SecurityError {}
+
+#[cfg(test)]
+#[path = "errors_time_text_tests.rs"]
+mod time_text_tests;

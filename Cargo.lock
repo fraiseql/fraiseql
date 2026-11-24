@@ -3829,7 +3829,6 @@ dependencies = [
  "apollo-parser",
  "async-trait",
  "base64 0.22.1",
- "chrono",
  "criterion",
  "dashmap",
  "deadpool-postgres",

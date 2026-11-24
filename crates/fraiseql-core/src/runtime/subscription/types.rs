@@ -170,7 +170,7 @@ pub struct SubscriptionEvent {
     pub operation: SubscriptionOperation,
 
     /// Event timestamp (from database).
-    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub timestamp: fraiseql_time::Timestamp,
 
     /// Monotonic sequence number for ordering: the manager's global counter as published,
     /// and, in a delivered payload, the subscription's own delivery position (ruling AA 5).
@@ -272,7 +272,7 @@ impl SubscriptionEvent {
             entity_type: entity_type.into(),
             entity_id: entity_id.into(),
             operation,
-            timestamp: chrono::Utc::now(),
+            timestamp: fraiseql_time::Timestamp::now(),
             sequence_number: 0, // Set by manager
             data,
             old_data: None,
@@ -339,7 +339,7 @@ pub struct ActiveSubscription {
     pub variables: serde_json::Value,
 
     /// When the subscription was created.
-    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub created_at: fraiseql_time::Timestamp,
 
     /// Connection/client identifier (for routing).
     pub connection_id: String,
@@ -397,7 +397,7 @@ impl ActiveSubscription {
             definition,
             user_context,
             variables,
-            created_at: chrono::Utc::now(),
+            created_at: fraiseql_time::Timestamp::now(),
             connection_id: connection_id.into(),
             rls_conditions: Vec::new(),
             tenant_id,
@@ -442,3 +442,7 @@ pub struct SubscriptionPayload {
     /// Projected data (filtered/transformed for this subscription).
     pub data: serde_json::Value,
 }
+
+#[cfg(test)]
+#[path = "types_time_text_tests.rs"]
+mod time_text_tests;

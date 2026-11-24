@@ -6,7 +6,8 @@
 //! such a request, naming the bounds and buckets it can answer. A table without one is
 //! read as it always was: a row stands for its own `over` value.
 
-use chrono::{Datelike, Months, NaiveDate, Weekday};
+use fraiseql_db::types::temporal::Temporal;
+use fraiseql_time::jiff::{ToSpan as _, civil::Date};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -116,14 +117,18 @@ impl GrainBucket {
 
     /// The first day of the period holding `day`, as PostgreSQL's bucket start is.
     #[must_use]
-    pub fn start(self, day: NaiveDate) -> NaiveDate {
-        let first_of = |month: u32| NaiveDate::from_ymd_opt(day.year(), month, 1).unwrap_or(day);
+    pub fn start(self, day: Date) -> Date {
+        let first_of = |month: i8| Date::new(day.year(), month, 1).unwrap_or(day);
         match self {
             Self::Day => day,
-            Self::Week => day.week(Weekday::Mon).first_day(),
-            Self::HalfMonth => day.with_day(if day.day() < 16 { 1 } else { 16 }).unwrap_or(day),
+            Self::Week => day
+                .checked_sub(i64::from(day.weekday().to_monday_zero_offset()).days())
+                .unwrap_or(day),
+            Self::HalfMonth => first_of(day.month())
+                .checked_add(if day.day() < 16 { 0 } else { 15 }.days())
+                .unwrap_or(day),
             Self::Month => first_of(day.month()),
-            Self::Quarter => first_of((day.month0() / 3) * 3 + 1),
+            Self::Quarter => first_of(((day.month() - 1) / 3) * 3 + 1),
             Self::Semester => first_of(if day.month() <= 6 { 1 } else { 7 }),
             Self::Year => first_of(1),
         }
@@ -132,7 +137,7 @@ impl GrainBucket {
     /// The first day of the first period starting on or after `day`; `None` past the
     /// calendar.
     #[must_use]
-    pub fn ceil(self, day: NaiveDate) -> Option<NaiveDate> {
+    pub fn ceil(self, day: Date) -> Option<Date> {
         if self.start(day) == day {
             Some(day)
         } else {
@@ -141,17 +146,24 @@ impl GrainBucket {
     }
 
     /// The first day of the period after the one holding `day`; `None` past the calendar.
-    fn next_start(self, day: NaiveDate) -> Option<NaiveDate> {
+    fn next_start(self, day: Date) -> Option<Date> {
         let start = self.start(day);
+        let first = Date::new(start.year(), start.month(), 1).ok()?;
         match self {
-            Self::Day => start.succ_opt(),
-            Self::Week => start.checked_add_days(chrono::Days::new(7)),
-            Self::HalfMonth if start.day() == 1 => start.with_day(16),
-            Self::HalfMonth | Self::Month => start.with_day(1)?.checked_add_months(Months::new(1)),
-            Self::Quarter => start.checked_add_months(Months::new(3)),
-            Self::Semester => start.checked_add_months(Months::new(6)),
-            Self::Year => start.checked_add_months(Months::new(12)),
+            Self::Day => start.tomorrow().ok(),
+            Self::Week => start.checked_add(7.days()).ok(),
+            Self::HalfMonth if start.day() == 1 => start.checked_add(15.days()).ok(),
+            Self::HalfMonth | Self::Month => first.checked_add(1.month()).ok(),
+            Self::Quarter => first.checked_add(3.months()).ok(),
+            Self::Semester => first.checked_add(6.months()).ok(),
+            Self::Year => first.checked_add(1.year()).ok(),
         }
+    }
+
+    /// Whether a bound ending on the calendar's last day, 9999-12-31, ends a period: the
+    /// day after it, 10000-01-01, would start every period but a week, as it is a Saturday.
+    const fn ends_with_the_calendar(self) -> bool {
+        !matches!(self, Self::Week)
     }
 }
 
@@ -195,34 +207,35 @@ impl FactGrain {
                 ));
             },
         };
-        let day = value
-            .as_str()
-            .and_then(|text| NaiveDate::parse_from_str(text, "%Y-%m-%d").ok())
-            .ok_or_else(|| {
-                self.refusal(
-                    table,
-                    "where",
-                    &format!("`{key}` takes a date (`YYYY-MM-DD`), got {value}"),
-                )
-            })?;
+        let day = read_date(value).ok_or_else(|| {
+            self.refusal(
+                table,
+                "where",
+                &format!("`{key}` takes a date (`YYYY-MM-DD`), got {value}"),
+            )
+        })?;
         // A bound that ends a period is aligned when the day after it starts one.
-        let first = if ends { day.succ_opt() } else { Some(day) };
-        if first.is_some_and(|first| bucket.start(first) == first) {
+        let first = if ends { day.tomorrow().ok() } else { Some(day) };
+        let aligned =
+            first.map_or(bucket.ends_with_the_calendar(), |first| bucket.start(first) == first);
+        if aligned {
             return Ok(());
         }
         let period = bucket.name().replace('_', "-");
-        let (before, after) = first
-            .map_or((None, None), |first| (Some(bucket.start(first)), bucket.next_start(first)));
-        let shown = |start: Option<NaiveDate>| {
+        // Past the calendar there is no day after `day`: the period holding it is the one.
+        let first = first.unwrap_or(day);
+        let (before, after) = (Some(bucket.start(first)), bucket.next_start(first));
+        let shown = |start: Option<Date>| {
             let day = if ends {
-                start.and_then(|d| d.pred_opt())
+                start.and_then(|d| d.yesterday().ok())
             } else {
                 start
             };
-            day.map(|d| format!("`{key}: {d}`"))
+            day.map(|d| format!("`{key}: {}`", date_text(d)))
         };
         let nearest: Vec<String> = [shown(before), shown(after)].into_iter().flatten().collect();
         let verb = if ends { "end" } else { "start" };
+        let day = date_text(day);
         Err(self.refusal(
             table,
             "where",
@@ -276,6 +289,31 @@ impl FactGrain {
     }
 }
 
+/// A bound on a `date` column, read as the `Date` scalar publishes it: `YYYY-MM-DD`, a
+/// date that exists, in the years 0000 to 9999. `None` for anything else, which the column's
+/// operand check refuses too.
+pub fn read_date(value: &serde_json::Value) -> Option<Date> {
+    let text = value.as_str()?;
+    if Temporal::Date.refusal(text).is_some() {
+        return None;
+    }
+    text.parse().ok()
+}
+
+/// `day` as `YYYY-MM-DD`, with a signed year of at least four digits outside 0000 to 9999.
+pub fn date_text(day: Date) -> String {
+    let year = day.year();
+    if (0..=9999).contains(&year) {
+        format!("{year:04}-{:02}-{:02}", day.month(), day.day())
+    } else {
+        format!("{year:+05}-{:02}-{:02}", day.month(), day.day())
+    }
+}
+
 #[cfg(test)]
 #[path = "grain_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "grain_date_tests.rs"]
+mod date_tests;
