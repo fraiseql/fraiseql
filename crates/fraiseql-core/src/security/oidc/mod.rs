@@ -58,6 +58,8 @@ mod in_process_keys_tests;
 mod temporal_claims_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod token_rules_tests;
 
 // Public re-exports — external callers see no change in paths.
 pub use audience::{Audience, JwtClaims};

@@ -129,6 +129,19 @@ async fn a_kid_the_held_keys_do_not_publish_is_an_invalid_token() {
 }
 
 #[tokio::test]
+async fn a_token_naming_no_issuer_is_refused_without_consulting_the_keys() {
+    let issuer = TestIssuer::start().await;
+    let keys = HeldKeys::of(&issuer);
+    let validator =
+        OidcValidator::from_issuer_keys(held_issuer_config(&issuer), keys.clone()).unwrap();
+
+    let result = validator.validate_token(&issuer.mint(&issuer.claims().without("iss"))).await;
+
+    assert!(matches!(result, Err(SecurityError::InvalidToken)), "got {result:?}");
+    assert_eq!(keys.lookups.load(Ordering::SeqCst), 0, "no key set was consulted");
+}
+
+#[tokio::test]
 async fn a_signature_by_a_key_the_issuer_never_published_is_refused() {
     let issuer = TestIssuer::start().await;
     let validator =

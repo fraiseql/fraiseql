@@ -468,6 +468,21 @@ fn jwk(kty: &str, fields: serde_json::Value) -> Jwk {
 }
 
 #[test]
+fn a_key_is_found_only_by_the_kid_it_publishes() {
+    let set: JwkSet = serde_json::from_value(json!({
+        "keys": [
+            { "kty": "RSA", "n": RSA_N, "e": "AQAB" },
+            { "kty": "RSA", "kid": "named", "n": RSA_N, "e": "AQAB" },
+        ]
+    }))
+    .expect("a key set deserialises");
+
+    assert_eq!(set.find("named").and_then(|key| key.kid.as_deref()), Some("named"));
+    assert!(set.find("another").is_none(), "a key that names no kid answers no kid");
+    assert!(set.find("").is_none(), "nor the empty one");
+}
+
+#[test]
 fn rsa_and_ec_keys_are_both_usable() {
     jwk("RSA", json!({ "n": RSA_N, "e": "AQAB" }))
         .decoding_key()

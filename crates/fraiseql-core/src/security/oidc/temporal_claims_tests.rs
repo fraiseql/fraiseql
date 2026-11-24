@@ -136,3 +136,26 @@ async fn a_token_carrying_neither_nbf_nor_iat_is_accepted() {
     let token = issuer.mint(&issuer.claims().without("nbf").without("iat"));
     assert_accepted(validator(&issuer, LEEWAY_SECS).validate_token(&token).await);
 }
+
+// ============================================================================
+// exp: the leeway is capped
+//
+// A configured clock skew above the validator's cap is honoured only up to the cap, so a
+// misconfigured issuer cannot make a long-expired token valid again.
+// ============================================================================
+
+/// A clock skew far above the validator's cap.
+const SKEW_ABOVE_THE_CAP_SECS: u64 = 10_000;
+
+#[tokio::test]
+async fn a_clock_skew_above_the_cap_does_not_revive_a_long_expired_token() {
+    let issuer = TestIssuer::start().await;
+    let result = validate_with(&issuer, SKEW_ABOVE_THE_CAP_SECS, "exp", now() - 1_200).await;
+    assert!(matches!(result, Err(SecurityError::TokenExpired { .. })), "got {result:?}");
+}
+
+#[tokio::test]
+async fn a_clock_skew_above_the_cap_still_allows_up_to_the_cap() {
+    let issuer = TestIssuer::start().await;
+    assert_accepted(validate_with(&issuer, SKEW_ABOVE_THE_CAP_SECS, "exp", now() - 120).await);
+}

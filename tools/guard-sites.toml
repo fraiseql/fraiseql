@@ -3094,3 +3094,179 @@ killers = [
   "a_requested_bypass_is_honoured_only_in_a_declared_development_environment",
 ]
 shard = "guard-lib"
+
+[[family]]
+name = "jwt-validation"
+patterns = [
+    '(?<!\.)\bheader\.kid\.as_(?:ref|deref)\(\)\.ok_or_else',
+    '\.min\(MAX_CLOCK_SKEW_SECS\)',
+    '\.require_jti && claims\.jti',
+    'set_required_spec_claims\(&\["exp", "iss"\]\)',
+    '\bvalidation\.set_audience\s*\(',
+    '\bvalidation\.validate_nbf = true',
+    'allowed_algorithms\.contains\(',
+    '\.find\(\|issuer\| issuer\.config\.issuer',
+    'saturating_add_unsigned\(leeway\)',
+    '\.kid\.as_deref\(\) == Some\(kid\)',
+]
+
+[[shard]]
+name = "core-lib-oidc"
+crate = "crates/fraiseql-core"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-core --lib -- security::oidc::"
+
+[[shard]]
+name = "webhooks-lib-jwt"
+crate = "crates/fraiseql-webhooks"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-webhooks --lib -- signature::jwt_jwks::"
+
+[[shard]]
+name = "jwks-lib"
+crate = "crates/fraiseql-jwks"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-jwks --lib"
+
+[[site]]
+id = "jwt.oidc.kid"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "validate_token"
+anchor = "let kid = header.kid.as_ref().ok_or_else(|| {"
+mutant = "let kid_or_empty = header.kid.clone().unwrap_or_default();\n        let kid = Some(&kid_or_empty).ok_or_else(|| {"
+killers = ["a_token_naming_no_kid_is_refused_even_by_a_set_with_an_empty_kid"]
+shard = "core-lib-oidc"
+
+[[site]]
+id = "jwt.oidc.algorithm"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "get_algorithm"
+anchor = "if !self.config.allowed_algorithms.contains(&alg_str) {"
+mutant = "if false && !self.config.allowed_algorithms.contains(&alg_str) {"
+killers = ["a_disallowed_algorithm_never_reaches_the_jwks_endpoint"]
+shard = "core-lib-oidc"
+
+[[site]]
+id = "jwt.oidc.issuer-trusted"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "issuer_for"
+anchor = ".find(|issuer| issuer.config.issuer.as_deref() == Some(iss.as_str()))"
+mutant = ".find(|issuer| issuer.config.issuer.as_deref() == Some(iss.as_str()) || true)"
+killers = ["an_untrusted_issuer_is_refused_without_consulting_any_key_set"]
+shard = "core-lib-oidc"
+
+[[site]]
+id = "jwt.oidc.issuer-present"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "issuer_for"
+anchor = '.and_then(|data| data.claims.iss);'
+mutant = ".and_then(|data| data.claims.iss)\n            .or_else(|| self.issuers.first().and_then(|first| first.config.issuer.clone()));"
+killers = ["a_token_naming_no_issuer_is_refused_without_consulting_the_keys"]
+shard = "core-lib-oidc"
+
+[[site]]
+id = "jwt.oidc.iss-layers.present"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "issuer_for"
+anchor = '.and_then(|data| data.claims.iss);'
+mutant = ".and_then(|data| data.claims.iss)\n            .or_else(|| self.issuers.first().and_then(|first| first.config.issuer.clone()));"
+killers = ["validate_token_missing_iss_rejected_when_issuer_set"]
+shard = "core-lib-oidc"
+joint = "oidc-iss-required-layers"
+
+[[site]]
+id = "jwt.oidc.iss-layers.required"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "validate_token"
+anchor = 'validation.set_required_spec_claims(&["exp", "iss"]);'
+mutant = 'validation.set_required_spec_claims(&["exp"]);'
+killers = ["validate_token_missing_iss_rejected_when_issuer_set"]
+shard = "core-lib-oidc"
+joint = "oidc-iss-required-layers"
+
+[[site]]
+id = "jwt.oidc.audience"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "validate_token"
+anchor = "validation.set_audience(&audiences);"
+mutant = "let _ = &audiences;\n            validation.validate_aud = false;"
+killers = ["validate_token_rejects_wrong_audience", "each_issuer_checks_its_own_audience"]
+shard = "core-lib-oidc"
+
+[[site]]
+id = "jwt.oidc.audience-additional"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "validate_token"
+anchor = "validation.set_audience(&issuer.config.additional_audiences);"
+mutant = "validation.validate_aud = false;"
+killers = ["an_issuer_with_only_additional_audiences_refuses_a_token_for_another"]
+shard = "core-lib-oidc"
+
+[[site]]
+id = "jwt.oidc.leeway-cap"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "validate_token"
+anchor = "issuer.config.clock_skew_secs.min(MAX_CLOCK_SKEW_SECS)"
+mutant = "issuer.config.clock_skew_secs.min(MAX_CLOCK_SKEW_SECS.saturating_mul(1000))"
+killers = ["a_clock_skew_above_the_cap_does_not_revive_a_long_expired_token"]
+shard = "core-lib-oidc"
+
+[[site]]
+id = "jwt.oidc.nbf"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "validate_token"
+anchor = "validation.validate_nbf = true;"
+mutant = "validation.validate_nbf = false;"
+killers = ["a_token_used_before_its_nbf_is_refused", "the_nbf_leeway_is_the_issuers_configured_clock_skew"]
+shard = "core-lib-oidc"
+
+[[site]]
+id = "jwt.oidc.iat-future"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "validate_token"
+anchor = ".is_some_and(|iat| iat > Utc::now().timestamp().saturating_add_unsigned(leeway))"
+mutant = ".is_some_and(|iat| false && iat > Utc::now().timestamp().saturating_add_unsigned(leeway))"
+killers = ["a_token_issued_in_the_future_is_refused", "the_iat_leeway_is_the_issuers_configured_clock_skew"]
+shard = "core-lib-oidc"
+
+[[site]]
+id = "jwt.oidc.require-jti"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "validate_token"
+anchor = "if issuer.config.require_jti && claims.jti.is_none() {"
+mutant = "if false && issuer.config.require_jti && claims.jti.is_none() {"
+killers = ["a_token_without_a_jti_is_refused_when_the_issuer_requires_one"]
+shard = "core-lib-oidc"
+
+[[site]]
+id = "jwt.webhook.kid"
+file = "crates/fraiseql-webhooks/src/signature/jwt_jwks.rs"
+function = "resolve_key"
+anchor = "let kid = header.kid.as_deref().ok_or_else(|| {"
+mutant = "let kid = Some(header.kid.as_deref().unwrap_or_default()).ok_or_else(|| {"
+killers = ["a_token_with_no_kid_is_refused_without_a_lookup"]
+shard = "webhooks-lib-jwt"
+
+[[site]]
+id = "jwt.webhook.nbf"
+file = "crates/fraiseql-webhooks/src/signature/jwt_jwks.rs"
+function = "verify"
+anchor = "validation.validate_nbf = true;"
+mutant = "validation.validate_nbf = false;"
+killers = ["a_token_delivered_before_its_nbf_is_refused_as_outside_its_window"]
+shard = "webhooks-lib-jwt"
+
+[[site]]
+id = "jwt.webhook.audience"
+file = "crates/fraiseql-webhooks/src/signature/jwt_jwks.rs"
+function = "verify"
+anchor = "Some(audience) => validation.set_audience(&[audience]),"
+mutant = "Some(audience) => {\n                let _ = audience;\n                validation.validate_aud = false;\n            },"
+killers = ["a_webhook_shaped_token_for_a_different_audience_is_refused"]
+shard = "webhooks-lib-jwt"
+
+[[site]]
+id = "jwt.jwks.find-exact"
+file = "crates/fraiseql-jwks/src/lib.rs"
+function = "JwkSet::find"
+anchor = "key.kid.as_deref() == Some(kid)"
+mutant = "key.kid.as_deref().is_none_or(|own| own == kid)"
+killers = ["a_key_is_found_only_by_the_kid_it_publishes"]
+shard = "jwks-lib"

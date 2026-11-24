@@ -99,10 +99,10 @@ impl SigningKey {
         }
     }
 
-    fn sign(&self, kid: &str, claims: &Claims) -> String {
+    fn sign(&self, kid: Option<&str>, claims: &Claims) -> String {
         let mut header = Header::new(Algorithm::ES256);
         header.typ = Some("at+jwt".to_string());
-        header.kid = Some(kid.to_string());
+        header.kid = kid.map(str::to_string);
         jsonwebtoken::encode(&header, &claims.0, &self.encoding).expect("ES256 signing")
     }
 }
@@ -297,7 +297,14 @@ impl TestIssuer {
     pub fn mint(&self, claims: &Claims) -> String {
         let ring = lock(&self.ring);
         let key = ring.active();
-        key.sign(&key.kid, claims)
+        key.sign(Some(&key.kid), claims)
+    }
+
+    /// A token carrying `claims`, signed by the active key, whose header names `kid`
+    /// whatever key signed it, or names no `kid` at all for `None`.
+    #[must_use]
+    pub fn mint_naming(&self, kid: Option<&str>, claims: &Claims) -> String {
+        lock(&self.ring).active().sign(kid, claims)
     }
 
     /// A token carrying the default [`claims`](Self::claims).
@@ -312,7 +319,7 @@ impl TestIssuer {
     #[must_use]
     pub fn foreign_token(&self, claims: &Claims) -> String {
         let kid = self.active_kid();
-        SigningKey::generate(format!("{kid}-foreign")).sign(&kid, claims)
+        SigningKey::generate(format!("{kid}-foreign")).sign(Some(&kid), claims)
     }
 
     /// Add a key, publish it and make it the signing key. Earlier keys stay
