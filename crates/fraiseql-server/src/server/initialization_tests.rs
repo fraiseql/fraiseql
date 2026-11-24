@@ -716,9 +716,9 @@ fn scim_enabled_with_auth_and_a_database_pool_boots() {
 }
 
 /// A failing root of a multi-root mutation is rendered inside a `200` body by the
-/// executor's root renderer, with the sanitizer of the deployment the environment
-/// declares: with nothing declaring it, the database's text is withheld; a declared
-/// development environment shows it.
+/// executor's root renderer, with the sanitizer of the deployment the server was built
+/// for: a production server, with nothing declaring the deployment, withholds the
+/// database's text; a development server shows it.
 #[test]
 fn a_failed_mutation_root_withholds_database_text_when_nothing_declares_the_deployment() {
     use fraiseql_guard::deployment::Deployment;

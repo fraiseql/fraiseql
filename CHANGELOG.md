@@ -1783,6 +1783,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A multi-root mutation's failing entry is sanitized for the deployment the server was
+  built for (#2447).** The renderer of that entry read the deployment from the process
+  environment, while the handler's sanitizer used the one the server was constructed with,
+  so a server embedded for development in a process that declared production (or the
+  reverse) sanitized a failed root as the environment said and a failed request as the
+  server did. Both now follow the constructed deployment. A server started by the binary
+  constructs it from the environment, so the two already agreed there.
+
 - **`examples/blog_api` is removed (#1660).** Its README described a Python application the
   example never shipped and GraphQL the server does not accept (`filters:`,
   `orderBy: CREATED_AT_DESC`), and no examples gate loaded it, so nothing could catch the

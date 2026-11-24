@@ -111,7 +111,7 @@ pub(super) fn executor_runtime_config(
     // the handler's sanitizer never sees: render that entry with the sanitizer the
     // handler applies to a failed request, so it carries the same code and withholds
     // the same database text.
-    let sanitizer = schema_error_sanitizer(schema);
+    let sanitizer = schema_error_sanitizer(schema, deployment);
     rt.root_error_renderer = Some(std::sync::Arc::new(move |error| {
         let rendered = sanitizer.sanitize(crate::error::GraphQLError::from_fraiseql_error(error));
         serde_json::to_value(rendered)
@@ -121,13 +121,15 @@ pub(super) fn executor_runtime_config(
     Ok(rt)
 }
 
-/// The deployment's error sanitizer, from the compiled schema's
-/// `security.error_sanitization` and the environment (see [`build_error_sanitizer`]).
+/// The error sanitizer of the server built for `deployment`, from the compiled schema's
+/// `security.error_sanitization` (see [`build_error_sanitizer`]). The deployment is the one
+/// the server was constructed for, never read again from the environment.
 fn schema_error_sanitizer(
     schema: &CompiledSchema,
+    deployment: Deployment,
 ) -> crate::config::error_sanitization::ErrorSanitizer {
     let compiled = schema.security.as_ref().and_then(|s| s.error_sanitization.clone());
-    build_error_sanitizer(compiled, Deployment::current())
+    build_error_sanitizer(compiled, deployment)
 }
 
 /// Which per-replica-capable subsystems are running on per-process state (#874).
@@ -2216,3 +2218,7 @@ pub fn enrichment_readers_resolved_check(
 #[cfg(test)]
 #[path = "initialization_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "sanitizer_deployment_tests.rs"]
+mod sanitizer_deployment_tests;

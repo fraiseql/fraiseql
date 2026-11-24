@@ -2888,10 +2888,11 @@ shard = "server-lib-boot"
 id = "deployment.root-error-sanitizer"
 file = "crates/fraiseql-server/src/server/initialization.rs"
 function = "schema_error_sanitizer"
-anchor = "Deployment::current()"
-mutant = "Deployment::Development"
+anchor = "build_error_sanitizer(compiled, deployment)"
+mutant = "build_error_sanitizer(compiled, Deployment::Development)"
 killers = [
   "a_failed_mutation_root_withholds_database_text_when_nothing_declares_the_deployment",
+  "a_production_server_withholds_database_text_in_a_development_environment",
 ]
 shard = "server-lib-boot"
 
