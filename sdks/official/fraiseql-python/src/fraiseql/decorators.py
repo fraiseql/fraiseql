@@ -691,11 +691,8 @@ class FieldConfig(Generic[T]):
     scoped_like_parent: bool = False
     # Federation field-level directives
     external: bool = False
-    requires: str | None = None
-    provides: str | None = None
     shareable: bool = False
     inaccessible: bool = False
-    override_from: str | None = None
 
 
 def _validate_vector(vector_config: VectorConfig | None, vector_distance: str | None) -> None:
@@ -763,13 +760,22 @@ def field(  # noqa: PLR0913 — public API; all parameters are meaningful
             ``inject``, declares that the type holding the field is scoped by the same
             columns from the same sources. Without it such an embedding does not
             compile; with it the compiler checks every query of the holding type.
+        external: federation ``@external``: the field is owned by another subgraph.
+        shareable: federation ``@shareable``: more than one subgraph resolves the field.
+        inaccessible: federation ``@inaccessible``: the field is hidden from the
+            supergraph's public schema.
+        requires: federation ``@requires``. Refused: the compiled schema has no carrier
+            for it, so it would not reach the subgraph's SDL.
+        provides: federation ``@provides``. Refused, for the same reason.
+        override_from: federation ``@override(from: ...)``. Refused, for the same reason.
 
     Returns:
         FieldConfig instance for use with Annotated[T, field(...)]
 
     Raises:
         ScopeValidationError: If requires_scope format is invalid
-        ValueError: If on_deny is not "reject" or "mask"
+        ValueError: If on_deny is not "reject" or "mask", or if requires, provides or
+            override_from is set
 
     Examples:
         >>> from typing import Annotated
@@ -810,15 +816,20 @@ def field(  # noqa: PLR0913 — public API; all parameters are meaningful
             msg = "on_deny has no effect without requires_scope"
             raise ValueError(msg)
 
-    # Validate federation directives
-    if override_from is not None and override_from == "":
-        msg = "override_from must be a non-empty subgraph name"
-        raise ValueError(msg)
-    if external and override_from is not None:
-        msg = (
-            "@external fields cannot use @override — external fields are owned by another subgraph"
-        )
-        raise ValueError(msg)
+    # Federation markers the compiled schema has no carrier for: refused by name rather
+    # than recorded and dropped on the way to the compiler.
+    for name, value in (
+        ("requires", requires),
+        ("provides", provides),
+        ("override_from", override_from),
+    ):
+        if value is not None:
+            msg = (
+                f"field({name}=...): federation @{name.removesuffix('_from')} has no carrier "
+                "in the compiled schema, so it would not reach the subgraph's SDL. Remove it; "
+                "the supported field markers are external, shareable and inaccessible."
+            )
+            raise ValueError(msg)
 
     _validate_vector(vector_config, vector_distance)
 
@@ -829,11 +840,8 @@ def field(  # noqa: PLR0913 — public API; all parameters are meaningful
         description=description,
         computed=computed,
         external=external,
-        requires=requires,
-        provides=provides,
         shareable=shareable,
         inaccessible=inaccessible,
-        override_from=override_from,
         vector_config=vector_config,
         vector_distance=vector_distance,
         scoped_like_parent=scoped_like_parent,

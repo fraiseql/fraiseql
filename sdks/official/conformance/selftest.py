@@ -34,7 +34,9 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 import project  # noqa: E402
+import refusals  # noqa: E402
 import run  # noqa: E402
+from selftest_refusals import RefusalsAreGated  # noqa: E402, F401 — run by unittest.main()
 
 
 class NewConstructFailsEverySdk(unittest.TestCase):
@@ -350,7 +352,7 @@ class SupportMatrixMatchesTheManifest(unittest.TestCase):
             "the support matrix and the manifest list different SDKs",
         )
 
-        total = len(project.CONSTRUCTS)
+        total = len(project.CONSTRUCTS) + len(refusals.REFUSALS)
         for sdk, spec in manifest.items():
             expected = total - len(spec.get("unsupported", {}))
             row = rows[sdk]

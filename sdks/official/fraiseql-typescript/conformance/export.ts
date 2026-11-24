@@ -28,6 +28,16 @@ import {
   slack,
   email,
   extractFieldInfo,
+  Type,
+  Key,
+  Extends,
+  External,
+  Shareable,
+  Inaccessible,
+  Requires,
+  Provides,
+  Override,
+  type FederatedClass,
 } from "../src/index";
 
 /** `extractFieldInfo`'s map as the `{name, type, nullable}` list the registry takes. */
@@ -52,6 +62,100 @@ function authorMinimal(): void {
 
   registerQuery("users", "User", true, false, [], undefined, { sql_source: "v_user" });
 }
+
+/**
+ * The federation constructs' four types (`project.AUTHORED_FEDERATION_TYPES`): an entity
+ * with a shareable field and a hidden one, an extended entity whose key is owned
+ * elsewhere, an entity on a composite key, and a keyless shareable value type. Returns
+ * the classes, which the export is given as the subgraph's federated types.
+ */
+function authorFederation(): FederatedClass[] {
+  @Key("id")
+  @Type({ sqlSource: "v_product" })
+  class Product {
+    id = "";
+    @Shareable() name = "";
+    @Inaccessible() internalCode = "";
+  }
+  registerTypeFields(
+    "Product",
+    [
+      { name: "id", type: "ID", nullable: false },
+      { name: "name", type: "String", nullable: false },
+      { name: "internalCode", type: "String", nullable: false },
+    ],
+    undefined,
+    { sqlSource: "v_product" }
+  );
+
+  @Extends()
+  @Key("id")
+  @Type({ sqlSource: "v_warehouse" })
+  class Warehouse {
+    @External() id = "";
+    stock = 0;
+  }
+  registerTypeFields(
+    "Warehouse",
+    [
+      { name: "id", type: "ID", nullable: false },
+      { name: "stock", type: "Int", nullable: false },
+    ],
+    undefined,
+    { sqlSource: "v_warehouse" }
+  );
+
+  @Key("tenantId id")
+  @Type({ sqlSource: "v_shipment" })
+  class Shipment {
+    tenantId = "";
+    id = "";
+    carrier = "";
+  }
+  registerTypeFields(
+    "Shipment",
+    [
+      { name: "tenantId", type: "ID", nullable: false },
+      { name: "id", type: "ID", nullable: false },
+      { name: "carrier", type: "String", nullable: false },
+    ],
+    undefined,
+    { sqlSource: "v_shipment" }
+  );
+
+  @Shareable()
+  @Type()
+  class Money {
+    amount = 0;
+    currency = "";
+  }
+  registerTypeFields("Money", [
+    { name: "amount", type: "Float", nullable: false },
+    { name: "currency", type: "String", nullable: false },
+  ]);
+
+  return [Product, Warehouse, Shipment, Money];
+}
+
+/**
+ * The conformance refusals (`sdks/official/conformance/refusals.py`): each declares one
+ * thing the compiled schema has no carrier for, which the SDK must refuse by name.
+ */
+const REFUSALS: Record<string, () => unknown> = {
+  federation_refuses_requires: () => Requires("weight"),
+  federation_refuses_provides: () => Provides("name"),
+  federation_refuses_override: () => Override("legacy-pricing"),
+  federation_refuses_second_key: () => {
+    @Key("email")
+    @Key("id")
+    @Type()
+    class Account {
+      id = "";
+      email = "";
+    }
+    return Account;
+  },
+};
 
 function authorFull(): void {
   registerTypeFields(
@@ -583,13 +687,22 @@ if (!fixture || !out) {
 }
 
 SchemaRegistry.clear();
+let federated: FederatedClass[] | undefined;
 if (fixture === "minimal") {
   authorMinimal();
 } else if (fixture === "full") {
   authorFull();
+  federated = authorFederation();
+} else if (fixture in REFUSALS) {
+  // A refusal: declaring it must throw, naming what was refused. Reaching the export
+  // below would write a schema, which the harness reports as not refused.
+  REFUSALS[fixture]();
 } else {
   console.error(`unknown fixture ${fixture}`);
   process.exit(2);
 }
 
-exportSchema(out);
+exportSchema(
+  out,
+  federated ? { federation: { types: federated, serviceName: "conformance" } } : {}
+);

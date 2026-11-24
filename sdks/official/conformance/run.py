@@ -42,6 +42,7 @@ from pathlib import Path
 
 from project import CONSTRUCTS, project
 from project_toml import project_toml
+from refusals import REFUSALS, check_refusals
 
 HERE = Path(__file__).resolve().parent
 SDK_ROOT = HERE.parent
@@ -314,11 +315,12 @@ def check_undeclared_support(expected: dict, actual: dict, unsupported: dict[str
 def check_sdk(sdk: str, spec: dict, cli: Path, expected: dict[str, dict]) -> list[str]:
     """Run both fixtures through one SDK. Returns a list of failure reports."""
     unsupported = spec.get("unsupported", {})
-    unknown = set(unsupported) - set(CONSTRUCTS)
+    unknown = set(unsupported) - set(CONSTRUCTS) - set(REFUSALS)
     if unknown:
         return [
             f"manifest declares unsupported construct(s) {sorted(unknown)} that are not in "
-            f"project.CONSTRUCTS — a typo here silently disables a real gate."
+            f"project.CONSTRUCTS or refusals.REFUSALS — a typo here silently disables a "
+            f"real gate."
         ]
 
     failures = []
@@ -339,6 +341,13 @@ def check_sdk(sdk: str, spec: dict, cli: Path, expected: dict[str, dict]) -> lis
             problems += check_undeclared_support(expected[fixture], project(compiled), unsupported)
             if problems:
                 failures.append(f"[{fixture}] observations differ:\n" + "\n".join(problems))
+
+    def export(name: str, out: Path) -> object:
+        return run_exporter(sdk, spec, name, out)
+
+    refused = check_refusals(unsupported, export, ConformanceFailure)
+    if refused:
+        failures.append("[refusals]\n" + "\n".join(refused))
     return failures
 
 

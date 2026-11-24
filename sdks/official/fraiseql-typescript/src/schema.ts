@@ -7,6 +7,7 @@
 
 import * as fs from "fs";
 import { SchemaRegistry, Schema } from "./registry";
+import { generateSchemaJson, type FederatedClass } from "./federation";
 
 const BUILTIN_SCALARS = new Set(["String", "Int", "Float", "Boolean", "ID"]);
 
@@ -73,13 +74,17 @@ function validateSchemaBeforeExport(schema: Schema): void {
  * (typically at the end of the schema definition file).
  *
  * @param outputPath - Path to output schema.json file
- * @param options - Export options
+ * @param options - Export options. `federation` names the classes carrying federation
+ *   decorators (and the subgraph's service name): the export then carries the
+ *   `federation` block `generateSchemaJson` builds from them.
  *
  * @example
  * ```ts
  * // At end of schema.ts
  * if (require.main === module) {
  *   exportSchema("schema.json");
+ *   // or, for a federation subgraph:
+ *   exportSchema("schema.json", { federation: { types: [User, Product], serviceName: "users" } });
  * }
  * ```
  *
@@ -88,10 +93,20 @@ function validateSchemaBeforeExport(schema: Schema): void {
  * - The output schema.json is consumed by fraiseql-cli
  * - Pretty formatting is recommended for version control
  */
-export function exportSchema(outputPath: string, options: { pretty?: boolean } = {}): void {
-  const { pretty = true } = options;
+export function exportSchema(
+  outputPath: string,
+  options: {
+    pretty?: boolean;
+    federation?: { types: FederatedClass[]; serviceName?: string };
+  } = {}
+): void {
+  const { pretty = true, federation } = options;
 
-  const schema = SchemaRegistry.getSchema();
+  const schema = federation
+    ? (generateSchemaJson(federation.types, {
+        serviceName: federation.serviceName,
+      }) as unknown as Schema)
+    : SchemaRegistry.getSchema();
 
   validateSchemaBeforeExport(schema);
 

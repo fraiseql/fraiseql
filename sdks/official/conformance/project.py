@@ -36,6 +36,19 @@ AUTHORED_MUTATIONS = ("createUser", "placeOrder")
 AUTHORED_SUBSCRIPTIONS = ("orderUpdated",)
 AUTHORED_UNIONS = ("ActivityItem",)
 
+# The federation constructs own these types whole, the way `vector_fields` owns
+# `Document`: an SDK with no federation surface does not author them, and declaring the
+# three federation constructs unsupported is then its whole gap. `Shipment` carries the
+# composite key; `Money` is the keyless shareable value type.
+AUTHORED_FEDERATION_ENTITIES = ("Product", "Warehouse")
+AUTHORED_FEDERATION_COMPOSITE_KEYS = ("Shipment",)
+AUTHORED_FEDERATION_SHAREABLE_TYPES = ("Money",)
+AUTHORED_FEDERATION_TYPES = (
+    *AUTHORED_FEDERATION_ENTITIES,
+    *AUTHORED_FEDERATION_COMPOSITE_KEYS,
+    *AUTHORED_FEDERATION_SHAREABLE_TYPES,
+)
+
 # The pgvector type is kept out of `AUTHORED_TYPES` on purpose: the `vector_fields`
 # construct owns it whole. A `Vector` field without a `vector_config` is a compile
 # error, so an SDK that cannot author the config cannot author the type either —
@@ -251,6 +264,9 @@ CONSTRUCTS = (
     "type_crud",
     "input_types",
     "unions",
+    "federation_entities",
+    "federation_composite_key",
+    "federation_markers",
     "enums",
     "enum_values",
     "queries",
@@ -385,6 +401,59 @@ def _observer_actions(
     return projected
 
 
+def _federation_key(entity: dict[str, Any]) -> str:
+    """An entity's key as one field set, whitespace-normalized.
+
+    The compiler joins `key_fields` with spaces into the one `@key` it renders, so
+    `["tenantId", "id"]` and `["tenantId id"]` are the same key; only the field set the
+    router sees is observed.
+    """
+    return " ".join(" ".join(entity.get("key_fields") or []).split())
+
+
+def _federation(federation: dict[str, Any]) -> dict[str, Any]:
+    """The three federation observations, from the compiled `federation` block.
+
+    Keyed on the authored names: an SDK may make entities of other types too (Python
+    keys every type that has an `id` on the default key), which no construct asserts.
+    """
+    entities = _by_name(federation.get("entities"))
+    hidden = federation.get("inaccessible_fields") or {}
+    return {
+        "federation_entities": {
+            name: _federation_key(entities[name])
+            for name in AUTHORED_FEDERATION_ENTITIES
+            if name in entities
+        },
+        "federation_composite_key": {
+            name: _federation_key(entities[name])
+            for name in AUTHORED_FEDERATION_COMPOSITE_KEYS
+            if name in entities
+        },
+        "federation_markers": {
+            "entities": {
+                name: {
+                    "extends": bool(entities[name].get("extends")),
+                    "external_fields": sorted(entities[name].get("external_fields") or []),
+                    "shareable_fields": sorted(entities[name].get("shareable_fields") or []),
+                }
+                for name in AUTHORED_FEDERATION_ENTITIES
+                if name in entities
+            },
+            "shareable_types": sorted(
+                name
+                for name in federation.get("shareable_types") or []
+                if name in AUTHORED_FEDERATION_SHAREABLE_TYPES
+            ),
+            "inaccessible_fields": {
+                name: sorted(fields)
+                for name, fields in hidden.items()
+                if name in AUTHORED_FEDERATION_TYPES
+            },
+        },
+    }
+
+
 def project(compiled: dict[str, Any]) -> dict[str, Any]:
     """Reduce a compiled schema to the canonical observations, keyed by construct.
 
@@ -480,6 +549,8 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         for name in AUTHORED_UNIONS
         if name in unions
     }
+
+    observations.update(_federation(compiled.get("federation") or {}))
 
     observations["type_is_error"] = sorted(
         name for name in AUTHORED_TYPES if types.get(name, {}).get("is_error")

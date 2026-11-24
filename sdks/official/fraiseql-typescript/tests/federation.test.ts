@@ -1,8 +1,9 @@
 /**
  * Federation decorator tests for federation decorators.
  *
- * Tests TypeScript federation decorators: @Key, @Extends, @External, @Requires, @Provides.
- * All tests expected to FAIL initially (RED phase).
+ * Tests TypeScript federation decorators: @Key, @Extends, @External, @Shareable,
+ * @Inaccessible. The refusal of @Requires, @Provides and @Override is pinned in
+ * federation-compiler-shape.test.ts.
  */
 
 import {
@@ -10,11 +11,8 @@ import {
   Key,
   Extends,
   External,
-  Requires,
-  Provides,
   Shareable,
   Inaccessible,
-  Override,
   ID,
   generateSchemaJson,
   validateFederation,
@@ -37,23 +35,7 @@ describe("TypeScript Federation Decorators", () => {
         email: string;
       }
 
-      expect(User.__fraiseqlFederation__.keys).toEqual([{ fields: ["id"] }]);
-    });
-
-    it("supports multiple keys", () => {
-      @Key("tenant_id")
-      @Key("id")
-      @Type()
-      class Account {
-        tenant_id: string;
-        id: string;
-        name: string;
-      }
-
-      const keys = Account.__fraiseqlFederation__.keys;
-      expect(keys).toHaveLength(2);
-      expect(keys).toContainEqual({ fields: ["tenant_id"] });
-      expect(keys).toContainEqual({ fields: ["id"] });
+      expect(User.__fraiseqlFederation__.key).toBe("id");
     });
 
     it("rejects non-existent fields", () => {
@@ -154,108 +136,6 @@ describe("TypeScript Federation Decorators", () => {
     });
   });
 
-  describe("@Requires decorator", () => {
-    it("marks field dependencies", () => {
-      @Extends()
-      @Key("id")
-      @Type()
-      class User {
-        @External() id: string;
-        @External() email: string;
-
-        @Requires("email")
-        profile: string;
-      }
-
-      expect(User.__fraiseqlFederation__.requires.profile).toBe("email");
-    });
-
-    it("rejects non-existent fields", () => {
-      @Extends()
-      @Key("id")
-      @Type()
-      class User {
-        @External() id: string;
-
-        @Requires("nonexistent")
-        profile: string;
-      }
-
-      expect(() => {
-        validateFederation([User]);
-      }).toThrow("Field 'nonexistent' not found");
-    });
-
-    it("supports multiple @Requires on different fields", () => {
-      @Extends()
-      @Key("id")
-      @Type()
-      class User {
-        @External() id: string;
-        @External() email: string;
-        @External() phone: string;
-
-        @Requires("email")
-        contact_email: string;
-
-        @Requires("phone")
-        contact_phone: string;
-      }
-
-      const requires = User.__fraiseqlFederation__.requires;
-      expect(requires.contact_email).toBe("email");
-      expect(requires.contact_phone).toBe("phone");
-    });
-
-    it("works on locally-owned type for reference resolution", () => {
-      @Type()
-      @Key("id")
-      class Order {
-        id: string;
-        user_id: string;
-
-        @Requires("user_id")
-        user: string;
-      }
-
-      const requires = Order.__fraiseqlFederation__.requires;
-      expect(requires.user).toBe("user_id");
-    });
-  });
-
-  describe("@Provides decorator", () => {
-    it("marks field as providing data", () => {
-      @Type()
-      @Key("id")
-      class User {
-        id: string;
-        email: string;
-
-        @Provides("Order.owner_email")
-        email_field: string;
-      }
-
-      const provides = User.__fraiseqlFederation__.provides_data;
-      expect(provides).toContain("Order.owner_email");
-    });
-
-    it("supports multiple targets", () => {
-      @Type()
-      @Key("id")
-      class User {
-        id: string;
-        email: string;
-
-        @Provides("Order.owner_email", "Invoice.owner_email")
-        email_reference: string;
-      }
-
-      const provides = User.__fraiseqlFederation__.provides_data;
-      expect(provides).toContain("Order.owner_email");
-      expect(provides).toContain("Invoice.owner_email");
-    });
-  });
-
   describe("Schema JSON Generation", () => {
     it("includes federation metadata", () => {
       @Type()
@@ -272,7 +152,7 @@ describe("TypeScript Federation Decorators", () => {
       expect(schema.federation.version).toBe("v2");
     });
 
-    it("includes type-level federation metadata", () => {
+    it("emits a keyed type as an entity, not as type-level metadata", () => {
       @Type()
       @Key("id")
       class User {
@@ -283,9 +163,8 @@ describe("TypeScript Federation Decorators", () => {
       const schema = generateSchemaJson([User]);
       const userType = schema.types.find((t: any) => t.name === "User");
 
-      expect(userType.federation).toBeDefined();
-      expect(userType.federation.keys).toEqual([{ fields: ["id"] }]);
-      expect(userType.federation.extend).toBe(false);
+      expect(userType.federation).toBeUndefined();
+      expect(schema.federation.entities).toEqual([{ name: "User", key_fields: ["id"] }]);
     });
 
     it("includes extended type metadata", () => {
@@ -298,50 +177,10 @@ describe("TypeScript Federation Decorators", () => {
       }
 
       const schema = generateSchemaJson([User]);
-      const userType = schema.types.find((t: any) => t.name === "User");
 
-      expect(userType.federation.extend).toBe(true);
-      expect(userType.federation.external_fields).toContain("id");
-      expect(userType.federation.external_fields).toContain("email");
-    });
-
-    it("includes field-level federation metadata", () => {
-      @Extends()
-      @Key("id")
-      @Type()
-      class User {
-        @External() id: string;
-        @External() email: string;
-
-        @Requires("email")
-        profile: string;
-      }
-
-      const schema = generateSchemaJson([User]);
-      const userType = schema.types.find((t: any) => t.name === "User");
-
-      const idField = userType.fields.find((f: any) => f.name === "id");
-      expect(idField.federation.external).toBe(true);
-
-      const profileField = userType.fields.find((f: any) => f.name === "profile");
-      expect(profileField.federation.requires).toBe("email");
-    });
-
-    it("includes provides metadata", () => {
-      @Type()
-      @Key("id")
-      class User {
-        id: string;
-
-        @Provides("Order.owner_email")
-        email: string;
-      }
-
-      const schema = generateSchemaJson([User]);
-      const userType = schema.types.find((t: any) => t.name === "User");
-      const emailField = userType.fields.find((f: any) => f.name === "email");
-
-      expect(emailField.federation.provides).toContain("Order.owner_email");
+      expect(schema.federation.entities).toEqual([
+        { name: "User", key_fields: ["id"], extends: true, external_fields: ["id", "email"] },
+      ]);
     });
   });
 
@@ -369,22 +208,7 @@ describe("TypeScript Federation Decorators", () => {
       }).toThrow("@external requires @extends");
     });
 
-    it("rejects @Requires with non-existent field", () => {
-      @Type()
-      @Key("id")
-      class Order {
-        id: string;
-
-        @Requires("nonexistent")
-        user: string;
-      }
-
-      expect(() => {
-        validateFederation([Order]);
-      }).toThrow("Field 'nonexistent' not found");
-    });
-
-    it("rejects duplicate keys", () => {
+    it("rejects a second key", () => {
       expect(() => {
         @Key("id")
         @Key("id")
@@ -392,7 +216,7 @@ describe("TypeScript Federation Decorators", () => {
         class User {
           id: string;
         }
-      }).toThrow("Duplicate key field");
+      }).toThrow("one key per entity");
     });
   });
 
@@ -431,8 +255,7 @@ describe("TypeScript Federation Decorators", () => {
     });
 
     it("validates composite keys", () => {
-      @Key("tenant_id")
-      @Key("id")
+      @Key("tenant_id id")
       @Type()
       class Account {
         tenant_id: string;
@@ -440,10 +263,18 @@ describe("TypeScript Federation Decorators", () => {
         name: string;
       }
 
-      const keys = Account.__fraiseqlFederation__.keys;
-      expect(keys).toHaveLength(2);
-      expect(keys).toContainEqual({ fields: ["tenant_id"] });
-      expect(keys).toContainEqual({ fields: ["id"] });
+      expect(Account.__fraiseqlFederation__.key).toBe("tenant_id id");
+      expect(() => validateFederation([Account])).not.toThrow();
+    });
+
+    it("rejects a composite key naming a field the type lacks", () => {
+      @Key("tenant_id id")
+      @Type()
+      class Account {
+        id: string;
+      }
+
+      expect(() => validateFederation([Account])).toThrow("Field 'tenant_id' not found");
     });
   });
 
@@ -461,9 +292,6 @@ describe("TypeScript Federation Decorators", () => {
       class Order {
         id: string;
         user_id: string;
-
-        @Requires("user_id")
-        user: string;
       }
 
       @Type()
@@ -476,6 +304,11 @@ describe("TypeScript Federation Decorators", () => {
       const schema = generateSchemaJson([User, Order, Product]);
       expect(schema.types).toHaveLength(3);
       expect(schema.federation.enabled).toBe(true);
+      expect(schema.federation.entities.map((e: any) => e.name)).toEqual([
+        "User",
+        "Order",
+        "Product",
+      ]);
     });
 
     it("handles mixed local and extended entities", () => {
@@ -496,11 +329,10 @@ describe("TypeScript Federation Decorators", () => {
       }
 
       const schema = generateSchemaJson([User, UserExtended]);
-      const localUser = schema.types.find((t: any) => t.name === "User");
-      const extendedUser = schema.types.find((t: any) => t.name === "UserExtended");
+      const entity = (name: string) => schema.federation.entities.find((e: any) => e.name === name);
 
-      expect(localUser.federation.extend).toBe(false);
-      expect(extendedUser.federation.extend).toBe(true);
+      expect(entity("User").extends).toBeUndefined();
+      expect(entity("UserExtended").extends).toBe(true);
     });
 
     it("preserves metadata through schema generation", () => {
@@ -510,27 +342,20 @@ describe("TypeScript Federation Decorators", () => {
       class User {
         @External() id: string;
         @External() email: string;
-
-        @Requires("email")
-        profile: string;
-
-        @Provides("Order.user_email")
-        email_ref: string;
+        @Shareable() profile: string;
       }
 
       const schema = generateSchemaJson([User]);
-      const userType = schema.types.find((t: any) => t.name === "User");
 
-      // Verify all metadata preserved
-      expect(userType.federation.extend).toBe(true);
-      expect(userType.federation.external_fields).toContain("id");
-      expect(userType.federation.external_fields).toContain("email");
-
-      const profileField = userType.fields.find((f: any) => f.name === "profile");
-      expect(profileField.federation.requires).toBe("email");
-
-      const emailRefField = userType.fields.find((f: any) => f.name === "email_ref");
-      expect(emailRefField.federation.provides).toContain("Order.user_email");
+      expect(schema.federation.entities).toEqual([
+        {
+          name: "User",
+          key_fields: ["id"],
+          extends: true,
+          external_fields: ["id", "email"],
+          shareable_fields: ["profile"],
+        },
+      ]);
     });
   });
 
@@ -544,9 +369,9 @@ describe("TypeScript Federation Decorators", () => {
       }
 
       const schema = generateSchemaJson([Product] as any);
-      const product = schema.types.find((t: any) => t.name === "Product");
-      const nameField = product.fields.find((f: any) => f.name === "name");
-      expect(nameField.federation.shareable).toBe(true);
+      expect(schema.federation.entities).toEqual([
+        { name: "Product", key_fields: ["id"], shareable_fields: ["name"] },
+      ]);
     });
   });
 
@@ -562,71 +387,24 @@ describe("TypeScript Federation Decorators", () => {
       const schema = generateSchemaJson([User] as any);
       const user = schema.types.find((t: any) => t.name === "User");
       const internalField = user.fields.find((f: any) => f.name === "internalId");
-      expect(internalField.federation.inaccessible).toBe(true);
-    });
-
-    it("combines with @Requires (valid per spec)", () => {
-      @Key("id")
-      @Type()
-      class User {
-        id: string = "";
-        @Inaccessible() @Requires("id") ssn: string = "";
-      }
-
-      const schema = generateSchemaJson([User] as any);
-      const user = schema.types.find((t: any) => t.name === "User");
-      const ssnField = user.fields.find((f: any) => f.name === "ssn");
-      expect(ssnField.federation.inaccessible).toBe(true);
-      expect(ssnField.federation.requires).toBe("id");
+      expect(internalField.directives).toEqual([{ name: "inaccessible" }]);
     });
   });
 
-  describe("@Override decorator", () => {
-    it("marks field with override_from in schema JSON", () => {
-      @Key("id")
-      @Type()
-      class Product {
-        id: string = "";
-        @Override("old-pricing") price: number = 0;
-      }
-
-      const schema = generateSchemaJson([Product] as any);
-      const product = schema.types.find((t: any) => t.name === "Product");
-      const priceField = product.fields.find((f: any) => f.name === "price");
-      expect(priceField.federation.override_from).toBe("old-pricing");
-    });
-
-    it("throws on empty subgraph name", () => {
-      expect(() => Override("")).toThrow("non-empty");
-    });
-
-    it("validateFederation rejects @External + @Override on same field", () => {
-      @Extends()
-      @Key("id")
-      @Type()
-      class Product {
-        @External() @Override("old") id: string = "";
-      }
-
-      expect(() => validateFederation([Product] as any)).toThrow("@External and @Override");
-    });
-  });
-
-  describe("All three new decorators stacked", () => {
-    it("includes shareable, inaccessible, and override_from on same field", () => {
+  describe("Field markers stacked", () => {
+    it("includes shareable and inaccessible on the same field", () => {
       @Key("id")
       @Type()
       class Item {
         id: string = "";
-        @Shareable() @Inaccessible() @Override("legacy") tag: string = "";
+        @Shareable() @Inaccessible() tag: string = "";
       }
 
       const schema = generateSchemaJson([Item] as any);
       const item = schema.types.find((t: any) => t.name === "Item");
       const tagField = item.fields.find((f: any) => f.name === "tag");
-      expect(tagField.federation.shareable).toBe(true);
-      expect(tagField.federation.inaccessible).toBe(true);
-      expect(tagField.federation.override_from).toBe("legacy");
+      expect(tagField.directives).toEqual([{ name: "inaccessible" }]);
+      expect(schema.federation.entities[0].shareable_fields).toEqual(["tag"]);
     });
   });
 });

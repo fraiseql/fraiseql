@@ -243,10 +243,6 @@ def _extract_federation_directives(
     for key in ("external", "shareable", "inaccessible"):
         if getattr(config, key):
             fed[key] = True
-    for key in ("requires", "provides", "override_from"):
-        val = getattr(config, key)
-        if val:
-            fed[key] = val
     return fed
 
 

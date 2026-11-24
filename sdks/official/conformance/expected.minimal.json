@@ -10,6 +10,13 @@
   "fact_table_linked_grain": {},
   "fact_table_measure_column": {},
   "fact_tables": {},
+  "federation_composite_key": {},
+  "federation_entities": {},
+  "federation_markers": {
+    "entities": {},
+    "inaccessible_fields": {},
+    "shareable_types": []
+  },
   "field_deprecated": {},
   "field_description": {},
   "field_localized": [],

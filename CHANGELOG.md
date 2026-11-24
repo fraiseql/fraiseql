@@ -18,6 +18,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **The Python and TypeScript SDKs refuse federation markers the compiled schema cannot
+  carry (#1713).** `@requires`, `@provides` and `@override` have no carrier in the compiled
+  schema: Python's `field(requires=..., provides=..., override_from=...)` recorded them
+  and the export dropped them, and TypeScript's `@Requires`, `@Provides` and `@Override`
+  wrote keys the compiler refuses. Each is now refused by name where it is declared. A
+  TypeScript type takes one `@Key`, because the compiled schema carries one key per
+  entity: a second `@Key` is refused rather than merged into a key the author did not
+  write, and a composite key is one field set, `@Key("tenant_id id")`. TypeScript's
+  `generateSchemaJson` writes the compiled schema's own shapes, so its types and fields no
+  longer carry a `federation` key.
+
 - **Arrow Flight's metadata calls require a session (#2473).** `GetSchema`, `GetFlightInfo`,
   `PollFlightInfo` and `ListFlights` answered without one, so a caller with no session could
   list the served views and read each one's Arrow schema, while `DoGet` refused it. They now
@@ -1206,6 +1217,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **TypeScript's `exportSchema` writes a federation subgraph's schema (#1713).**
+  `exportSchema(path, { federation: { types, serviceName } })` exports the registry with the
+  `federation` block built from the decorated classes, validated like any other export.
+
 - **`/metrics` reports the refresh counters of each TVIEW the schema reads (#1551).**
   From pg_tviews' `tviews.stats`, for the TVIEWs the #1392 health gauges report and with
   their `tview` label: `fraiseql_tview_view_recomputes_total`, `_noop_skipped_total`,
@@ -1789,6 +1804,19 @@ disagreed, and the promise was the part that was wrong.
   did.
 
 ### Fixed
+
+- **Federation markers authored in Python and TypeScript reach the compiled schema
+  (#1713).** Python's `field(inaccessible=True)` was dropped at export; it is now the field
+  directive the compiler lifts into the compiled `federation` block. TypeScript's
+  federation decorators wrote a type-level and a field-level `federation` key the compiler
+  refuses; `generateSchemaJson` now writes the entities to `federation.entities`, a
+  type-level `@Shareable()` (new: it also decorates a class) to `federation.shareable_types`,
+  and `@Inaccessible()` as a field directive. The decorators are exported from the
+  package, where they were not reachable, and work under the TC39 decorator protocol
+  `tsx` and esbuild emit as well as under `experimentalDecorators`. A subclass's federation
+  decorators are recorded on the subclass, not on its parent. A cross-SDK conformance case
+  compiles a federated type with each supported marker and checks each unsupported one is
+  refused; the SDKs with no federation surface declare the gap.
 
 - **Arrow Flight's `ListFlights` lists the declared `flight_views` (#1789).** It looked up
   four demo view names that the server clears at boot, so its stream was always empty and

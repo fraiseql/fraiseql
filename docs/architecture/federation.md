@@ -77,8 +77,10 @@ When a request selects `_entities`, the executor
 5. Resolves each group from this subgraph's database, through the executor's adapter
 6. Returns results in input order and projects each entity against the requested selection
 
-Every entity is resolved locally. Fields marked `@override(from: …)` are owned by this
-subgraph and resolved here too; routing across subgraphs is the router's job.
+Every entity is resolved locally; routing across subgraphs is the router's job. The
+compiled schema has no carrier for `@override`, `@requires` or `@provides`, so no subgraph
+SDL carries them: the Python and TypeScript SDKs, the two that offer these markers,
+refuse each by name where it is declared.
 
 ```text
 _entities(representations: [...])

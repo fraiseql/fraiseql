@@ -322,6 +322,84 @@
           "nullable": true
         }
       ]
+    },
+    {
+      "name": "Product",
+      "sql_source": "v_product",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "internalCode",
+          "type": "String",
+          "nullable": false,
+          "directives": [
+            {
+              "name": "inaccessible"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Warehouse",
+      "sql_source": "v_warehouse",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "stock",
+          "type": "Int",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "Shipment",
+      "sql_source": "v_shipment",
+      "fields": [
+        {
+          "name": "tenantId",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "carrier",
+          "type": "String",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "Money",
+      "fields": [
+        {
+          "name": "amount",
+          "type": "Float",
+          "nullable": false
+        },
+        {
+          "name": "currency",
+          "type": "String",
+          "nullable": false
+        }
+      ]
     }
   ],
   "enums": [
@@ -1020,5 +1098,40 @@
         }
       ]
     }
-  ]
+  ],
+  "federation": {
+    "enabled": true,
+    "version": "v2",
+    "service_name": "conformance",
+    "entities": [
+      {
+        "name": "Product",
+        "key_fields": [
+          "id"
+        ],
+        "shareable_fields": [
+          "name"
+        ]
+      },
+      {
+        "name": "Warehouse",
+        "key_fields": [
+          "id"
+        ],
+        "extends": true,
+        "external_fields": [
+          "id"
+        ]
+      },
+      {
+        "name": "Shipment",
+        "key_fields": [
+          "tenantId id"
+        ]
+      }
+    ],
+    "shareable_types": [
+      "Money"
+    ]
+  }
 }

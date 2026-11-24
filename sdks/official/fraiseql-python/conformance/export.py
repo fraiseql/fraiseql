@@ -28,12 +28,19 @@ def main() -> None:
     out = os.environ["FRAISEQL_CONFORMANCE_OUT"]
 
     SchemaRegistry.clear()
-    # The fixtures are separate modules because Python's decorators resolve return-type
-    # annotations against the *module* namespace: a type declared inside a function is
-    # invisible to `list[User]`, and the SDK's pre-export validation rejects it. Module
-    # scope is also how a user's own `schema.py` is written.
-    importlib.import_module(f"conformance.fixture_{fixture}")
-    fraiseql.export_schema(out)
+    if fixture.startswith("federation_refuses_"):
+        # A refusal: declaring it must raise, naming what was refused. Reaching the export
+        # below would write a schema, which the harness reports as not refused.
+        getattr(importlib.import_module("conformance.refusal_fixtures"), fixture)()
+    else:
+        # The fixtures are separate modules because Python's decorators resolve
+        # return-type annotations against the *module* namespace: a type declared inside
+        # a function is invisible to `list[User]`, and the SDK's pre-export validation
+        # rejects it. Module scope is also how a user's own `schema.py` is written.
+        importlib.import_module(f"conformance.fixture_{fixture}")
+    # The `full` fixture declares federated types; `minimal` declares none.
+    federation = fraiseql.Federation(service_name="conformance") if fixture == "full" else None
+    fraiseql.export_schema(out, federation=federation)
 
 
 if __name__ == "__main__":

@@ -59,12 +59,22 @@ def _strip_federation_authoring_keys(types: list[dict[str, Any]]) -> list[dict[s
     cleaned: list[dict[str, Any]] = []
     for type_def in types:
         copy = {k: v for k, v in type_def.items() if k not in _FEDERATION_ONLY_TYPE_KEYS}
-        copy["fields"] = [
-            {k: v for k, v in field.items() if k != "federation"}
-            for field in type_def.get("fields", [])
-        ]
+        copy["fields"] = [_field_for_the_compiler(field) for field in type_def.get("fields", [])]
         cleaned.append(copy)
     return cleaned
+
+
+def _field_for_the_compiler(field: dict[str, Any]) -> dict[str, Any]:
+    """`field` without its `federation` sub-dict, `@inaccessible` kept as a directive.
+
+    `@external` and `@shareable` reach the compiler through the federation block's
+    entities; `@inaccessible` is a field `directives` entry, which the compiler lifts into
+    the compiled federation block.
+    """
+    copy = {k: v for k, v in field.items() if k != "federation"}
+    if field.get("federation", {}).get("inaccessible"):
+        copy["directives"] = [*copy.get("directives", []), {"name": "inaccessible"}]
+    return copy
 
 
 def _build_federation_block(federation: Federation, schema: dict[str, Any]) -> dict[str, Any]:
@@ -307,15 +317,6 @@ class CompiledSchema:
                 # Add @external directive
                 if field_fed.get("external"):
                     directives.append("@external")
-
-                # Add @requires directive
-                if field_fed.get("requires"):
-                    directives.append(f'@requires(fields: "{field_fed["requires"]}")')
-
-                # Add @provides directive
-                if field_fed.get("provides"):
-                    targets = " ".join(field_fed["provides"])
-                    directives.append(f'@provides(fields: "{targets}")')
 
                 directive_str = " " + " ".join(directives) if directives else ""
                 lines.append(f"  {field['name']}: {type_str}{directive_str}")

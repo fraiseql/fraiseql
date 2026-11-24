@@ -217,6 +217,35 @@ class OrderShipment:
     order: Annotated[Order, fraiseql.field(scoped_like_parent=True)]
 
 
+# The federation constructs own these four types (`project.AUTHORED_FEDERATION_TYPES`):
+# an entity with a shareable field and a hidden one, an extended entity whose key is
+# owned elsewhere, an entity on a composite key, and a keyless shareable value type.
+@fraiseql.type(sql_source="v_product", key_fields=["id"])
+class Product:
+    id: ID
+    name: Annotated[str, fraiseql.field(shareable=True)]
+    internal_code: Annotated[str, fraiseql.field(inaccessible=True)]
+
+
+@fraiseql.type(sql_source="v_warehouse", key_fields=["id"], extends=True)
+class Warehouse:
+    id: Annotated[ID, fraiseql.field(external=True)]
+    stock: int
+
+
+@fraiseql.type(sql_source="v_shipment", key_fields=["tenant_id", "id"])
+class Shipment:
+    tenant_id: ID
+    id: ID
+    carrier: str
+
+
+@fraiseql.type(shareable=True)
+class Money:
+    amount: float
+    currency: str
+
+
 @fraiseql.union(members=[User, Order])
 class ActivityItem:
     """A user or an order on the activity feed."""

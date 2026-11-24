@@ -209,6 +209,21 @@ export type { RetryConfig } from "./observers";
 export { FraiseFunction } from "./functions";
 export { Source } from "./sources";
 
+// Export Apollo Federation authoring API
+export {
+  Key,
+  Extends,
+  External,
+  Shareable,
+  Inaccessible,
+  Requires,
+  Provides,
+  Override,
+  generateSchemaJson,
+  validateFederation,
+} from "./federation";
+export type { FederatedClass, FederationOptions } from "./federation";
+
 // Export HTTP client
 export { FraiseQLClient } from "./client";
 export type { FraiseQLClientConfig, HttpRetryConfig, RequestOptions } from "./client";

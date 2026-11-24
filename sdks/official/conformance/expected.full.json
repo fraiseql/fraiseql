@@ -251,6 +251,39 @@
       "type_name": "Order"
     }
   },
+  "federation_composite_key": {
+    "Shipment": "tenantId id"
+  },
+  "federation_entities": {
+    "Product": "id",
+    "Warehouse": "id"
+  },
+  "federation_markers": {
+    "entities": {
+      "Product": {
+        "extends": false,
+        "external_fields": [],
+        "shareable_fields": [
+          "name"
+        ]
+      },
+      "Warehouse": {
+        "extends": true,
+        "external_fields": [
+          "id"
+        ],
+        "shareable_fields": []
+      }
+    },
+    "inaccessible_fields": {
+      "Product": [
+        "internalCode"
+      ]
+    },
+    "shareable_types": [
+      "Money"
+    ]
+  },
   "field_deprecated": {
     "User.name": {
       "reason": "use displayName"
