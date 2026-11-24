@@ -54,6 +54,10 @@ enum WindowFrameExclusion {
 enum SortDirection {
   ASC
   DESC
+  ASC_NULLS_FIRST
+  ASC_NULLS_LAST
+  DESC_NULLS_FIRST
+  DESC_NULLS_LAST
 }
 
 enum EntityChangeLogOrderByField {

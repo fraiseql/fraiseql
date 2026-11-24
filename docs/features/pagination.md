@@ -204,8 +204,24 @@ A query with `orderBy` (a list or a relay connection) takes a list of
 
 ```graphql
 enum ItemOrderByField { id name rank label }
+enum SortDirection {
+  ASC DESC
+  ASC_NULLS_FIRST ASC_NULLS_LAST DESC_NULLS_FIRST DESC_NULLS_LAST
+}
 input ItemOrderByInput { field: ItemOrderByField!, direction: SortDirection = ASC }
 ```
+
+A direction can also say where the key puts its NULLs, before or after every value (#1606).
+`ASC` and `DESC` put them where PostgreSQL does: last for `ASC`, first for `DESC`. So
+`{field: discontinuedAt, direction: DESC_NULLS_LAST}` lists the most recently discontinued
+first and the products never discontinued after them, as `ORDER BY discontinued_at DESC
+NULLS LAST`. A direction's own default spelled out (`ASC_NULLS_LAST`, `DESC_NULLS_FIRST`) is
+the same ordering as `ASC` or `DESC`, and renders the same SQL. The object form takes the
+same values: `orderBy: {discontinuedAt: DESC_NULLS_LAST}`.
+
+An index serves such an ordering only when it was declared with the same placement:
+`CREATE INDEX … (discontinued_at DESC NULLS LAST)`. An index declared `DESC` alone has its
+NULLs first, and PostgreSQL sorts instead of reading it.
 
 An object written inline is applied in the order its keys were written, as the same object
 passed as a variable is: `orderBy: {ratio: ASC, isCurrent: DESC}` sorts by `ratio` first.
@@ -243,14 +259,18 @@ types (`{Entity}WhereInput`, `[{Entity}OrderByInput!]`), when the query enables 
 A connection with an `orderBy` is ordered by its keys, then by the cursor column, which
 makes the order total. A page after (or before) a cursor resumes past the cursor row's
 key values, key by key in each key's direction, then past its cursor column. NULLs sit
-where PostgreSQL puts them: last for `ASC`, first for `DESC`. Each key compares as the
+where the key's direction puts them, by default last for `ASC` and first for `DESC`, on a
+page read forward or backward. Each key compares as the
 `ORDER BY` sorts it: by its native column and type, by its typed JSON value, under the
 request locale's collation, and by a localized field's label.
 
 Such a cursor carries the row's key values and a fingerprint of the ordering, so it
 resumes only the ordering it came from. Under another `orderBy`, another direction,
-another locale, or none, it is refused with a message saying to request the first page
-again. An unordered connection's cursor is the cursor column alone.
+another NULL placement, another locale, or none, it is refused with a message saying to
+request the first page again. A placement that is its direction's default is the ordering
+that omits it, so a cursor issued under `ASC` resumes under `ASC_NULLS_LAST` too, and one
+issued under `DESC` under `DESC_NULLS_FIRST`. An unordered connection's cursor is the cursor
+column alone.
 
 The resume predicate is spelled out key by key (an `OR` per key), which is what lets keys
 mix directions and hold NULLs. PostgreSQL cannot seek an index with it, though: at best it

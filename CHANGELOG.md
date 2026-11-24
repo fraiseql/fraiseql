@@ -1166,6 +1166,15 @@ disagreed, and the promise was the part that was wrong.
   database does not serve it, and the health gauges are reported as before. A TVIEW label
   with a newline is escaped (the health gauges' was not).
 
+- **An `orderBy` direction puts its key's NULLs first or last (#1606).** `{field:
+  discontinuedAt, direction: DESC_NULLS_LAST}` (or `{discontinuedAt: DESC_NULLS_LAST}`)
+  sorts as `ORDER BY discontinued_at DESC NULLS LAST`, so a newest-first list no longer opens
+  on every row without a date. `ASC` and `DESC` keep their meaning and their SQL. A relay
+  connection keeps the placement on every page, forward and backward, and its cursor records
+  it: a cursor issued under `ASC_NULLS_LAST` is refused under `ASC_NULLS_FIRST`. Cursors
+  issued before this release still resume, under `ASC` or `DESC` and under the direction's
+  default spelled out. The result cache keeps the two placements apart.
+
 - **A rolled-up fact table answers a range that splits its rows from a finer table it
   links (#2343).** `grain: {"column": "day", "bucket": "month", "edges_from":
   "tf_sales_day"}` (in the intermediate schema, and in the Python SDK's `grain=`) names a
@@ -1563,6 +1572,13 @@ disagreed, and the promise was the part that was wrong.
   see "Roles from the actor row" in `docs/architecture/enriched-identity-rls.md`.
 
 ### Changed
+
+- **`SortDirection` has four more values (#1606):** `ASC_NULLS_FIRST`, `ASC_NULLS_LAST`,
+  `DESC_NULLS_FIRST` and `DESC_NULLS_LAST`, after `ASC` and `DESC`. Every document that
+  names `ASC` or `DESC` is still valid and sorts as before. Code generated from the schema,
+  and an exhaustive match over a typed `SortDirection` variable, sees the four new members.
+  A schema that declares its own `SortDirection` keeps it, and with fact tables it must hold
+  `ASC` and `DESC`, or the six.
 
 - **A query with several roots answers the roots it can (#1925).** One root failing failed
   the whole document, and the errors a root's runner reported inside its answer were

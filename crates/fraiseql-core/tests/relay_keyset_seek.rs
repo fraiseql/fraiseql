@@ -27,6 +27,9 @@ use fraiseql_core::{
 use fraiseql_test_utils::schema_builder::{TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder};
 use serde_json::{Value, json};
 
+#[path = "relay_keyset_seek/nulls_order.rs"]
+mod nulls_order;
+
 const TABLE: &str = "tv_seek_item";
 const VIEW: &str = "v_seek_item";
 

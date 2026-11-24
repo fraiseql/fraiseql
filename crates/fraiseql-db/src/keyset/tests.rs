@@ -6,6 +6,7 @@ fn key(expr: &str, direction: OrderDirection) -> KeysetKey {
     KeysetKey {
         expr: expr.to_string(),
         direction,
+        nulls_last: matches!(direction, OrderDirection::Asc),
         cast: Cast::Text,
         seekable: false,
     }
@@ -69,6 +70,7 @@ fn every_bound_value_is_resolved_as_text_before_its_cast() {
     let cast = |cast| KeysetKey {
         expr: "k".to_string(),
         direction: OrderDirection::Asc,
+        nulls_last: true,
         cast,
         seekable: false,
     };
@@ -87,6 +89,7 @@ fn the_cursor_probe_asks_about_each_cast_value_with_its_bound_type() {
     let key = |cast| KeysetKey {
         expr: "k".to_string(),
         direction: OrderDirection::Asc,
+        nulls_last: true,
         cast,
         seekable: false,
     };

@@ -101,6 +101,7 @@ pub use traits::{
 };
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,
+    nulls_order::NullsOrder,
     sql_hints::{
         OrderByClause, OrderDirection, RelevanceOrder, ScalarFieldType, SqlProjectionHint,
         VectorDistanceOrder, VectorOperandKind, argument_shape_refusal,

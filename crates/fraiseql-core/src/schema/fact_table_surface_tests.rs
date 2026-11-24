@@ -506,3 +506,6 @@ fn a_timestamp_column_is_a_local_date_time_and_a_timestamptz_one_a_date_time() {
         Some("https://scalars.graphql.org/chillicream/local-date-time")
     );
 }
+
+#[path = "fact_table_surface_sort_direction_tests.rs"]
+mod sort_direction;

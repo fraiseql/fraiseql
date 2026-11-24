@@ -27,7 +27,9 @@
 use super::{
     ArgumentDefinition, CompiledSchema, EnumDefinition, EnumValueDefinition, FieldDefinition,
     FieldType, InputFieldDefinition, InputObjectDefinition, TypeDefinition,
-    derived_inputs::{COMPARISON_OPERATORS, NULL_OPERATORS, SORT_DIRECTION_ENUM, pascal_case},
+    derived_inputs::{
+        COMPARISON_OPERATORS, NULL_OPERATORS, SORT_DIRECTION_ENUM, pascal_case, sort_direction_enum,
+    },
     is_graphql_name,
 };
 use crate::compiler::fact_table::{
@@ -328,7 +330,7 @@ pub fn derive(schema: &CompiledSchema) -> FactTableSurface {
         let (inputs, enums) = window_inputs();
         surface.input_types.extend(inputs);
         surface.enums.extend(enums);
-        surface.enums.push(sort_direction());
+        surface.enums.push(sort_direction_enum());
     }
     surface
 }
@@ -343,14 +345,6 @@ pub fn derived_names(surface: &FactTableSurface) -> Vec<(&str, &'static str)> {
         .chain(surface.input_types.iter().map(|i| (i.name.as_str(), "input")))
         .chain(surface.enums.iter().map(|e| (e.name.as_str(), "enum")))
         .collect()
-}
-
-/// The `SortDirection` enum, as the derived `orderBy` inputs publish it.
-fn sort_direction() -> EnumDefinition {
-    EnumDefinition::new(SORT_DIRECTION_ENUM)
-        .with_value(EnumValueDefinition::new("ASC"))
-        .with_value(EnumValueDefinition::new("DESC"))
-        .with_description("Sort direction.")
 }
 
 fn optional(name: &str, arg_type: FieldType) -> ArgumentDefinition {

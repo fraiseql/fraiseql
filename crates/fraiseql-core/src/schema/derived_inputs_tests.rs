@@ -294,7 +294,7 @@ fn an_order_by_enabled_query_derives_an_order_by_input_and_the_direction_enum() 
         .find(|e| e.name == "SortDirection")
         .expect("the direction enum is part of the sort surface");
     let values: Vec<&str> = direction.values.iter().map(|v| v.name.as_str()).collect();
-    assert_eq!(values, ["ASC", "DESC"]);
+    assert_eq!(values, crate::types::SORT_DIRECTIONS);
 }
 
 /// `orderBy` never nests, so the sort surface follows queries, not the relation
@@ -544,3 +544,6 @@ fn a_vector_distance_takes_its_threshold_object_on_every_vector_leaf() {
         }
     }
 }
+
+#[path = "derived_inputs_nulls_tests.rs"]
+mod nulls;

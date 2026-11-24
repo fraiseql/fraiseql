@@ -8,6 +8,7 @@
 use fraiseql_error::{FraiseQLError, Result};
 use serde::{Deserialize, Serialize};
 
+use super::nulls_order::{NullsOrder, parse_sort_direction, sort_directions_listed};
 use crate::{types::db_types::DatabaseType, utils::to_snake_case};
 
 /// Declared scalar type of a JSON field, used to pick the SQL cast.
@@ -157,6 +158,11 @@ pub struct OrderByClause {
     /// map. Set by the runtime from the request locale.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub localized:       Option<Vec<String>>,
+    /// Where the key puts its NULLs, as its direction named it; `None` for PostgreSQL.s
+    /// default for [`direction`](Self::direction). Read through
+    /// [`nulls_last`](Self::nulls_last).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nulls:           Option<NullsOrder>,
 }
 
 /// The full-text operand of an ORDER BY clause (#1284).
@@ -272,6 +278,13 @@ impl OrderDirection {
 }
 
 impl OrderByClause {
+    /// Whether the key puts its NULLs last: as requested, or PostgreSQL's default for its
+    /// direction.
+    #[must_use]
+    pub const fn nulls_last(&self) -> bool {
+        super::nulls_order::nulls_last(self.direction, self.nulls)
+    }
+
     /// Create a new `OrderByClause` with default field type (text) and no native column.
     #[must_use]
     pub fn new(field: String, direction: OrderDirection) -> Self {
@@ -287,6 +300,7 @@ impl OrderByClause {
             identity: false,
             collation: None,
             localized: None,
+            nulls: None,
         }
     }
 
@@ -314,6 +328,7 @@ impl OrderByClause {
             identity: true,
             collation: None,
             localized: None,
+            nulls: None,
         }
     }
 
@@ -340,6 +355,7 @@ impl OrderByClause {
             identity:        false,
             collation:       None,
             localized:       None,
+            nulls:           None,
         }
     }
 
@@ -389,13 +405,14 @@ impl OrderByClause {
     ///
     /// Accepts two formats:
     /// - Object: `{ "name": "DESC", "created_at": "ASC" }`
-    /// - Array:  `[{ "field": "name", "direction": "DESC" }]`
+    /// - Array:  `[{ "field": "name", "direction": "DESC_NULLS_LAST" }]`
     ///
-    /// Direction strings are case-insensitive.
+    /// A direction is a [`SORT_DIRECTIONS`](super::nulls_order::SORT_DIRECTIONS) value, in any
+    /// case: `ASC`, `DESC`, or either with the placement of its NULLs.
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Validation` for invalid structure or direction values.
+    /// Returns `FraiseQLError::Validation` for an invalid structure or direction.
     pub fn from_graphql_json(value: &serde_json::Value) -> Result<Vec<Self>> {
         if let Some(obj) = value.as_object() {
             // Object format: { "name": "DESC", "created_at": "ASC" }
@@ -405,20 +422,11 @@ impl OrderByClause {
                         message: format!("orderBy direction for '{field}' must be a string"),
                         path:    None,
                     })?;
-                    let direction = match dir_str.to_ascii_uppercase().as_str() {
-                        "ASC" => OrderDirection::Asc,
-                        "DESC" => OrderDirection::Desc,
-                        _ => {
-                            return Err(FraiseQLError::Validation {
-                                message: format!(
-                                    "orderBy direction '{dir_str}' must be ASC or DESC"
-                                ),
-                                path:    None,
-                            });
-                        },
-                    };
+                    let (direction, nulls) = parse_direction(dir_str)?;
                     Self::validate_field_name(field)?;
-                    Ok(Self::new(field.clone(), direction))
+                    let mut clause = Self::new(field.clone(), direction);
+                    clause.nulls = nulls;
+                    Ok(clause)
                 })
                 .collect()
         } else if let Some(arr) = value.as_array() {
@@ -438,26 +446,28 @@ impl OrderByClause {
                         })?
                         .to_string();
                     let dir_str = obj.get("direction").and_then(|v| v.as_str()).unwrap_or("ASC");
-                    let direction = match dir_str.to_ascii_uppercase().as_str() {
-                        "ASC" => OrderDirection::Asc,
-                        "DESC" => OrderDirection::Desc,
-                        _ => {
-                            return Err(FraiseQLError::Validation {
-                                message: format!(
-                                    "orderBy direction '{dir_str}' must be ASC or DESC"
-                                ),
-                                path:    None,
-                            });
-                        },
-                    };
+                    let (direction, nulls) = parse_direction(dir_str)?;
                     Self::validate_field_name(&field)?;
-                    Ok(Self::new(field, direction))
+                    let mut clause = Self::new(field, direction);
+                    clause.nulls = nulls;
+                    Ok(clause)
                 })
                 .collect()
         } else {
             Err(argument_shape_refusal("orderBy", "an object or array"))
         }
     }
+}
+
+/// A list query's `orderBy` direction, in any case.
+fn parse_direction(direction: &str) -> Result<(OrderDirection, Option<NullsOrder>)> {
+    parse_sort_direction(&direction.to_ascii_uppercase()).ok_or_else(|| FraiseQLError::Validation {
+        message: format!(
+            "orderBy direction '{direction}' must be one of {}",
+            sort_directions_listed()
+        ),
+        path:    None,
+    })
 }
 
 /// The refusal of a root argument whose value is not of its published shape.

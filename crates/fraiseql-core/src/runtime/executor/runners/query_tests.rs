@@ -3355,7 +3355,18 @@ mod enum_membership {
         let schema = schema();
         let def = schema.find_enum("SortDirection").expect("derived alongside OrderByInput");
         let members: Vec<&str> = def.values.iter().map(|v| v.name.as_str()).collect();
-        assert_eq!(members, ["ASC", "DESC"], "the published members are upper case");
+        assert_eq!(
+            members,
+            [
+                "ASC",
+                "DESC",
+                "ASC_NULLS_FIRST",
+                "ASC_NULLS_LAST",
+                "DESC_NULLS_FIRST",
+                "DESC_NULLS_LAST"
+            ],
+            "the published members are upper case"
+        );
         assert!(
             schema.find_input_type("UserOrderByInput").is_some(),
             "the derived item type must exist or the orderBy cases below prove nothing"

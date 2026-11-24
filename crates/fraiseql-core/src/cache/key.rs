@@ -723,8 +723,9 @@ fn hash_where_operator(h: &mut impl Hasher, op: &WhereOperator) {
 
 /// Hash an optional `OrderByClause` slice into the given hasher.
 ///
-/// Hashes each clause's `storage_key()` (`snake_case`) and `direction` discriminant,
-/// ensuring that different orderings produce different cache keys.
+/// Hashes each clause's `storage_key()` (`snake_case`), `direction` discriminant and NULL
+/// placement, ensuring that different orderings produce different cache keys. The placement
+/// is the effective one, so an omitted placement and its direction's default share a key.
 fn hash_order_by(h: &mut impl Hasher, order_by: Option<&[OrderByClause]>) {
     match order_by.filter(|c| !c.is_empty()) {
         Some(clauses) => {
@@ -734,6 +735,7 @@ fn hash_order_by(h: &mut impl Hasher, order_by: Option<&[OrderByClause]>) {
                 let key = clause.storage_key();
                 h.write(key.as_bytes());
                 h.write_u8(clause.direction as u8);
+                h.write_u8(u8::from(clause.nulls_last()));
             }
         },
         None => h.write_u8(0),
@@ -859,3 +861,7 @@ fn hash_session_vars(h: &mut impl std::hash::Hasher, session_vars: &[(&str, &str
 #[cfg(test)]
 #[path = "key_composed_tests.rs"]
 mod key_composed_tests;
+
+#[cfg(test)]
+#[path = "key_nulls_tests.rs"]
+mod key_nulls_tests;

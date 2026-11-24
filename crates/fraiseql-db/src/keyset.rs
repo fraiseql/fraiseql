@@ -29,6 +29,7 @@ use crate::{
     dialect::{PostgresDialect, SqlDialect},
     types::{
         DatabaseType,
+        nulls_order::nulls_sql,
         sql_hints::{OrderByClause, OrderDirection, ScalarFieldType},
     },
 };
@@ -58,14 +59,17 @@ pub fn with_sort_keys(document: &str, keys: &[KeysetKey]) -> String {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeysetKey {
     /// The key as the `ORDER BY` renders it, collation included.
-    pub expr:      String,
+    pub expr:       String,
     /// The requested direction.
-    pub direction: OrderDirection,
+    pub direction:  OrderDirection,
+    /// Whether the key puts its NULLs last in the requested order: as the `orderBy` item
+    /// asked, or PostgreSQL's default for the direction.
+    pub nulls_last: bool,
     /// The cast a bound value takes, applied to a text placeholder.
-    cast:          Cast,
+    cast:           Cast,
     /// Whether the key is a native column PostgreSQL proves `NOT NULL` (#1533): the only
     /// kind a row comparison may read, since a NULL in one drops the row.
-    seekable:      bool,
+    seekable:       bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -173,6 +177,7 @@ pub fn keyset_keys(order_by: Option<&[OrderByClause]>) -> crate::Result<Vec<Keys
             Ok(KeysetKey {
                 expr,
                 direction: clause.direction,
+                nulls_last: clause.nulls_last(),
                 cast,
                 seekable,
             })
@@ -180,11 +185,14 @@ pub fn keyset_keys(order_by: Option<&[OrderByClause]>) -> crate::Result<Vec<Keys
         .collect()
 }
 
-/// The ordering `keys` sort by, as text: each key's SQL expression and direction.
+/// The ordering `keys` sort by, as text: each key's SQL expression, direction and NULL
+/// placement, as the `ORDER BY` renders them.
 ///
 /// Two orderings that page alike have the same signature, and a cursor records the signature
-/// of the ordering it was issued under, so it is never resumed under another: another field or
-/// direction, another locale's label or collation, another vector operand.
+/// of the ordering it was issued under, so it is never resumed under another: another field,
+/// direction or NULL placement, another locale's label or collation, another vector operand.
+/// A placement that is the direction's default adds nothing, so an ordering that names it
+/// pages as, and resumes the cursors of, one that does not.
 #[must_use]
 pub fn keyset_signature(keys: &[KeysetKey]) -> String {
     keys.iter()
@@ -193,7 +201,7 @@ pub fn keyset_signature(keys: &[KeysetKey]) -> String {
                 OrderDirection::Asc => "ASC",
                 OrderDirection::Desc => "DESC",
             };
-            format!("{} {direction}", key.expr)
+            format!("{} {direction}{}", key.expr, nulls_sql(key.direction, key.nulls_last))
         })
         .collect::<Vec<_>>()
         .join(", ")
@@ -241,18 +249,25 @@ pub fn keyset_predicate(
             params.push(v.clone());
             key.param(&dialect.placeholder(first_param + params.len() - 1))
         });
-        // Past this key in the direction the page reads it. The ORDER BY puts NULLs last for
-        // ASC and first for DESC, so a page reading the key ascending (ASC forward, DESC
-        // backward) meets every value, then the NULLs; one reading it descending meets the
-        // NULLs first, so they are behind any value.
+        // Past this key in the order the page reads it. Values are past a value above it when
+        // the page reads the key ascending (ASC forward, DESC backward), below it otherwise.
+        // Where the NULLs are is the key's placement, read in the page's order: a forward
+        // page meets them where the ordering puts them, a backward page at the other end.
         let ascending_page = matches!(key.direction, OrderDirection::Asc) == forward;
-        let beyond = match (&bound, ascending_page) {
-            (Some(v), true) => Some(format!("({expr} > {v} OR {expr} IS NULL)")),
-            (Some(v), false) => Some(format!("{expr} < {v}")),
-            // From a NULL: read ascending, nothing is beyond the NULLs; read descending,
-            // every value is.
-            (None, true) => None,
-            (None, false) => Some(format!("{expr} IS NOT NULL")),
+        let nulls_at_end = key.nulls_last == forward;
+        let beyond = match &bound {
+            Some(v) => {
+                let comparison = if ascending_page { ">" } else { "<" };
+                Some(if nulls_at_end {
+                    format!("({expr} {comparison} {v} OR {expr} IS NULL)")
+                } else {
+                    format!("{expr} {comparison} {v}")
+                })
+            },
+            // From a NULL: with the NULLs at the end, nothing is beyond them; with them at the
+            // start, every value is.
+            None if nulls_at_end => None,
+            None => Some(format!("{expr} IS NOT NULL")),
         };
         if let Some(beyond) = beyond {
             disjuncts.push(conjunction(&equal_so_far, beyond));
@@ -332,11 +347,14 @@ pub fn keyset_order(keys: &[KeysetKey], position: &str, forward: bool) -> String
     let mut terms: Vec<String> = keys
         .iter()
         .map(|key| {
+            // A backward page reads the requested order in reverse: the direction and the
+            // NULLs' placement both flip.
             let direction = match (key.direction, forward) {
-                (OrderDirection::Asc, true) | (OrderDirection::Desc, false) => "ASC",
-                _ => "DESC",
+                (OrderDirection::Asc, true) | (OrderDirection::Desc, false) => OrderDirection::Asc,
+                _ => OrderDirection::Desc,
             };
-            format!("{} {direction}", key.expr)
+            let last = key.nulls_last == forward;
+            format!("{} {}{}", key.expr, direction.as_sql(), nulls_sql(direction, last))
         })
         .collect();
     terms.push(format!("{position} {}", if forward { "ASC" } else { "DESC" }));
@@ -384,3 +402,6 @@ pub fn position_param(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod nulls_order_tests;

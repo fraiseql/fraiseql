@@ -60,6 +60,26 @@ use super::{
 /// The enum a derived `orderBy` item's `direction` is typed with.
 pub const SORT_DIRECTION_ENUM: &str = "SortDirection";
 
+/// The [`SORT_DIRECTION_ENUM`] enum, as every sort surface publishes it: one definition, so a
+/// schema whose list queries and fact tables both sort publishes it once.
+///
+/// `ASC` and `DESC` put a key's NULLs where PostgreSQL does, last ascending and first
+/// descending; the other four name the placement.
+#[must_use]
+pub fn sort_direction_enum() -> EnumDefinition {
+    let value = |name: &str, description: &str| {
+        EnumValueDefinition::new(name).with_description(description)
+    };
+    EnumDefinition::new(SORT_DIRECTION_ENUM)
+        .with_value(value("ASC", "Ascending, nulls last."))
+        .with_value(value("DESC", "Descending, nulls first."))
+        .with_value(value("ASC_NULLS_FIRST", "Ascending, nulls first."))
+        .with_value(value("ASC_NULLS_LAST", "Ascending, nulls last."))
+        .with_value(value("DESC_NULLS_FIRST", "Descending, nulls first."))
+        .with_value(value("DESC_NULLS_LAST", "Descending, nulls last."))
+        .with_description("Sort direction, and where the key puts its nulls.")
+}
+
 /// Comparison operators, advertised on every leaf.
 pub const COMPARISON_OPERATORS: &[&str] = &["eq", "neq", "gt", "gte", "lt", "lte", "in", "nin"];
 
@@ -227,12 +247,7 @@ pub fn derive(schema: &CompiledSchema) -> DerivedInputs {
     if input_types.iter().any(|i| i.name.ends_with("OrderByInput"))
         && schema.find_enum(SORT_DIRECTION_ENUM).is_none()
     {
-        enums.push(
-            EnumDefinition::new(SORT_DIRECTION_ENUM)
-                .with_value(EnumValueDefinition::new("ASC"))
-                .with_value(EnumValueDefinition::new("DESC"))
-                .with_description("Sort direction."),
-        );
+        enums.push(sort_direction_enum());
     }
 
     DerivedInputs { input_types, enums }

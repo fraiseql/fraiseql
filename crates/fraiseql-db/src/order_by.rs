@@ -10,6 +10,7 @@ use crate::{
     projection_generator::ComputedExpr,
     types::{
         DatabaseType,
+        nulls_order::nulls_sql,
         sql_hints::{OrderByClause, RelevanceOrder, ScalarFieldType, VectorOperandKind},
     },
 };
@@ -203,14 +204,24 @@ pub fn render_order_by_columns(
             let rank = relevance_rank_expr(relevance, db_type, &placeholder)?;
             params.push(relevance.query.clone());
             // Reason: fmt::Write for String is infallible
-            write!(columns, "{rank} {}", clause.direction.as_sql())
-                .expect("write to String is infallible");
+            write!(
+                columns,
+                "{rank} {}{}",
+                clause.direction.as_sql(),
+                nulls_sql(clause.direction, clause.nulls_last())
+            )
+            .expect("write to String is infallible");
             continue;
         }
         let key = sort_expr(clause, db_type)?;
         // Reason: fmt::Write for String is infallible
-        write!(columns, "{key} {}", clause.direction.as_sql())
-            .expect("write to String is infallible");
+        write!(
+            columns,
+            "{key} {}{}",
+            clause.direction.as_sql(),
+            nulls_sql(clause.direction, clause.nulls_last())
+        )
+        .expect("write to String is infallible");
     }
     if tiebreak == Tiebreak::Identity && !orders_by_identity(clauses) {
         // ASC unconditionally: a tie-breaker only has to make the order TOTAL,
