@@ -524,3 +524,6 @@ fn a_timestamp_column_is_a_local_date_time_and_a_timestamptz_one_a_date_time() {
 
 #[path = "fact_table_surface_sort_direction_tests.rs"]
 mod sort_direction;
+
+#[path = "aggregate_order_key_tests.rs"]
+mod aggregate_order_keys;

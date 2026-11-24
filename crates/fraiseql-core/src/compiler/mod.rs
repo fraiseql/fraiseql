@@ -2,6 +2,7 @@
 //! tables and window functions, consumed by the runtime executor. Schema compilation
 //! itself is `fraiseql-cli`'s.
 
+mod aggregate_order_key;
 pub mod aggregate_types;
 pub mod aggregation;
 pub mod fact_table;

@@ -550,8 +550,10 @@ The arguments decide what is computed, and the selection set decides what is ret
 - `groupBy` takes `true` (grouped) or `false` per key, and `<column>_level: n` for an `LTREE`
   roll-up. `aggregates` is a list of `{<alias>: true}`. `orderBy` is a list of `{field,
   direction}` items applied in order, as a list query's and a window's are: `field` is one of
-  `SalesAggregateOrderByField`, the row's keys, and must name a grouped key or a computed
-  aggregate; `direction` is a `SortDirection`, `ASC` when omitted, `DESC`, or either with the
+  `SalesAggregateOrderByField`, the row's group keys and scalar aggregates, and must name a
+  grouped key or a computed aggregate. A `json_agg`, `jsonb_agg` or `array_agg` is a JSON
+  document or an array, which does not sort: it is computed but is not a sort key, and an
+  `orderBy` naming it is refused (#2446). `direction` is a `SortDirection`, `ASC` when omitted, `DESC`, or either with the
   placement of the key's NULLs (`DESC_NULLS_LAST`, #2415), so a group whose key or aggregate
   is NULL sorts first or last. The key-to-direction object (`orderBy: {revenue_sum: DESC}`) is
   refused, naming its key.

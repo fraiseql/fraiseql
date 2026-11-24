@@ -104,7 +104,10 @@ disagreed, and the promise was the part that was wrong.
   was the order its keys were written in, which a JSON client does not reliably keep. It now
   takes `[<Name>AggregateOrderBy!]`, applied in order, as a list query's and a window's
   `orderBy` do: `field` is one of the new `<Name>AggregateOrderByField` enum, the row's group
-  keys and aggregates, and `direction` a `SortDirection`, `ASC` when omitted. Write
+  keys and scalar aggregates, and `direction` a `SortDirection`, `ASC` when omitted. A
+  `json_agg`, `jsonb_agg` or `array_agg` is not a sort key, as a list query's JSON and list
+  fields are not: an `orderBy` naming one is refused as "orderBy `units_json_agg` is a JSON
+  document or an array, which does not sort" (#2446). Write
   `orderBy: [{field: revenue_sum, direction: DESC}, {field: category}]`. The object is refused
   as "orderBy item takes `field` and `direction`, got `revenue_sum`". A direction outside the
   six, `desc` or `1`, is refused naming the key as before. One item may be written without

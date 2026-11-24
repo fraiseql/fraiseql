@@ -263,7 +263,7 @@ pub fn derive(schema: &CompiledSchema) -> FactTableSurface {
         let fields = row_fields(table);
         let where_input = where_input(table, &stem);
         let where_name = where_input.as_ref().map(|i| i.name.clone());
-        let inputs = aggregate_inputs(&stem, &fields);
+        let inputs = aggregate_inputs(schema, &stem, &fields);
         let mut arguments = Vec::new();
         if let Some(name) = &where_name {
             arguments.push(optional("where", FieldType::Input(name.clone())));
@@ -571,7 +571,7 @@ struct AggregateInputs {
     order_by_field: Option<EnumDefinition>,
 }
 
-fn aggregate_inputs(stem: &str, fields: &[RowField]) -> AggregateInputs {
+fn aggregate_inputs(schema: &CompiledSchema, stem: &str, fields: &[RowField]) -> AggregateInputs {
     let input = |suffix: &str, description: String, fields: Vec<InputFieldDefinition>| {
         (!fields.is_empty()).then(|| {
             InputObjectDefinition::new(format!("{stem}Aggregate{suffix}"))
@@ -607,10 +607,17 @@ fn aggregate_inputs(stem: &str, fields: &[RowField]) -> AggregateInputs {
             having.push(InputFieldDefinition::new(format!("{}_{op}", field.name), operand.clone()));
         }
     }
-    let order_by_field = (!fields.is_empty()).then(|| {
+    // The keys the groups sort by, by the rule a list query's keys follow: a `json_agg`,
+    // `jsonb_agg` or `array_agg` is computed but not offered (the planner refuses it).
+    let sort_keys: Vec<EnumValueDefinition> = fields
+        .iter()
+        .filter(|f| super::derived_inputs::orders_meaningfully(schema, &f.field_type))
+        .map(|f| EnumValueDefinition::new(f.name.as_str()))
+        .collect();
+    let order_by_field = (!sort_keys.is_empty()).then(|| {
         EnumDefinition::new(format!("{stem}AggregateOrderByField"))
-            .with_values(fields.iter().map(|f| EnumValueDefinition::new(f.name.as_str())).collect())
-            .with_description("A key of the aggregate rows: a group key or an aggregate.")
+            .with_values(sort_keys)
+            .with_description("A key of the aggregate rows: a group key or a scalar aggregate.")
     });
     let order_by = order_by_field.as_ref().map_or_else(Vec::new, |keys| {
         vec![

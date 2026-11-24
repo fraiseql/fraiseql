@@ -1310,3 +1310,6 @@ mod nulls_order;
 
 #[path = "order_by_list_tests.rs"]
 mod order_by_list_tests;
+
+#[path = "order_key_tests.rs"]
+mod order_key_tests;

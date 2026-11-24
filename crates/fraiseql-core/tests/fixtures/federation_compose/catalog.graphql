@@ -34,12 +34,7 @@ enum ProductCostAggregateOrderByField {
   units_stddev
   units_variance
   units_count_distinct
-  units_json_agg
-  units_jsonb_agg
-  region_array_agg
   region_string_agg
-  region_json_agg
-  region_jsonb_agg
 }
 
 enum ProductSaleAggregateOrderByField {
@@ -52,12 +47,7 @@ enum ProductSaleAggregateOrderByField {
   units_stddev
   units_variance
   units_count_distinct
-  units_json_agg
-  units_jsonb_agg
-  region_array_agg
   region_string_agg
-  region_json_agg
-  region_jsonb_agg
 }
 
 enum WindowColumnKind {

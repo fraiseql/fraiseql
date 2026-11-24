@@ -304,7 +304,7 @@ pub fn sortable_keys<S: std::hash::BuildHasher>(
 /// (a vector is ranked by `nearest`, not sorted). An `Object` no type declares cannot come
 /// from the compiler or a loaded artifact (#1530 refuses both); a hand-built schema's is read
 /// as text, as [`classify`] reads it.
-fn orders_meaningfully(schema: &CompiledSchema, field_type: &FieldType) -> bool {
+pub(super) fn orders_meaningfully(schema: &CompiledSchema, field_type: &FieldType) -> bool {
     match field_type {
         FieldType::Object(name) => adjudicable_type(schema, name).is_none(),
         FieldType::String

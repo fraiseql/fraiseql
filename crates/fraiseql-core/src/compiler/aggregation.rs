@@ -522,9 +522,13 @@ impl AggregationPlanner {
 
     /// Validate GROUP BY selections
     /// Refuse an `orderBy` key that names neither a grouped key nor a computed aggregate of
-    /// the request: the groups have no other column to sort by.
+    /// the request: the groups have no other column to sort by. An aggregate whose value does
+    /// not sort (`json_agg`, `jsonb_agg`, `array_agg`) is refused too.
     fn validate_order_by(request: &AggregationRequest) -> Result<()> {
         for clause in &request.order_by {
+            if let Some(selection) = request.aggregates.iter().find(|a| a.alias() == clause.field) {
+                super::aggregate_order_key::refuse_unsortable(selection)?;
+            }
             let output = request
                 .group_by
                 .iter()

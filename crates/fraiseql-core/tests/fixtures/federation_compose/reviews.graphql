@@ -12,12 +12,7 @@ enum ReviewVoteAggregateOrderByField {
   score_stddev
   score_variance
   score_count_distinct
-  score_json_agg
-  score_jsonb_agg
-  region_array_agg
   region_string_agg
-  region_json_agg
-  region_jsonb_agg
 }
 
 enum WindowColumnKind {
