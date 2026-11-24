@@ -2674,6 +2674,7 @@ mod fact_table_hierarchy {
 /// type `__type` gives it: `!` on a non-null field, `[T!]` items, a masked field nullable,
 /// a relay root as its connection, a mutation nullable.
 #[test]
+#[allow(clippy::disallowed_types)] // Reason: the test reads the parser's own tree, which a request never does
 fn the_sdl_and_introspection_publish_the_same_field_types() {
     use apollo_parser::cst::{self, CstNode as _};
 

@@ -8,6 +8,8 @@
 
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics are acceptable
 
+#[allow(clippy::disallowed_types)]
+// Reason: the test reads the parser's own tree, which a request never does
 use apollo_parser::{Parser, cst};
 
 use super::CompiledSchema;
@@ -113,6 +115,7 @@ fn introspected_query_args(schema: &CompiledSchema, query: &str) -> Vec<Introspe
 }
 
 /// The CST kind of `literal` parsed as an argument value, or the parser's errors.
+#[allow(clippy::disallowed_types)] // Reason: the test reads the parser's own tree, which a request never does
 fn literal_kind(literal: &str) -> Result<&'static str, String> {
     let source = format!("{{ f(a: {literal}) }}");
     let tree = Parser::new(&source).parse();
@@ -188,6 +191,7 @@ fn an_enum_argument_default_prints_bare() {
 }
 
 #[test]
+#[allow(clippy::disallowed_types)] // Reason: the test reads the parser's own tree, which a request never does
 fn the_generated_sdl_parses() {
     let sdl = valid().raw_schema();
     let tree = Parser::new(&sdl).parse();

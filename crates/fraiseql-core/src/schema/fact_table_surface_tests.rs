@@ -328,6 +328,7 @@ fn the_selection_having_and_order_by_inputs_follow_the_row() {
 
 /// The SDL publishes what introspection does: the roots, the row and the inputs.
 #[test]
+#[allow(clippy::disallowed_types)] // Reason: the test reads the parser's own tree, which a request never does
 fn the_sdl_publishes_the_roots_and_their_types() {
     let schema = load(&fixture());
     let sdl = schema.raw_schema();

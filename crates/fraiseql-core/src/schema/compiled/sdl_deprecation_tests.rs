@@ -9,6 +9,8 @@
 
 use std::collections::BTreeMap;
 
+#[allow(clippy::disallowed_types)]
+// Reason: the test reads the parser's own tree, which a request never does
 use apollo_parser::{Parser, cst};
 
 use super::CompiledSchema;
@@ -124,6 +126,7 @@ fn reason_of(directive: &cst::Directive) -> Option<String> {
 }
 
 /// Every member `sdl` marks `@deprecated`, by path, as a GraphQL parser reads it back.
+#[allow(clippy::disallowed_types)] // Reason: the test reads the parser's own tree, which a request never does
 fn sdl_deprecations(sdl: &str) -> BTreeMap<String, Option<String>> {
     let tree = Parser::new(sdl).parse();
     let errors: Vec<String> = tree.errors().map(|e| e.message().to_string()).collect();

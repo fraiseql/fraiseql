@@ -156,3 +156,6 @@ pub use types::{
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod parse_ban_tests;

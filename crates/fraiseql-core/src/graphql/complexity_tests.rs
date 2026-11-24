@@ -240,6 +240,7 @@ fn validator_with_depth(max_depth: usize) -> RequestValidator {
 /// variable-valued page is the request's: each one scores what it supplied, not what
 /// the first request sharing the document did.
 #[test]
+#[allow(clippy::disallowed_methods)] // Reason: the test drives the converter beneath the guarded seam
 fn a_shared_document_scores_each_requests_pagination_variable() {
     let validator = RequestValidator::new();
     let document =
@@ -255,6 +256,7 @@ fn a_shared_document_scores_each_requests_pagination_variable() {
 /// A shared document scored under one validator's limits is scored again under
 /// another's: a refused spread scores relative to the limit it is refused by.
 #[test]
+#[allow(clippy::disallowed_methods)] // Reason: the test drives the converter beneath the guarded seam
 fn a_shared_document_scores_again_under_other_limits() {
     let document = crate::graphql::document::parse("{ items { ...Missing } }").unwrap();
     let wide = validator_with_depth(10).document_metrics(&document, None);

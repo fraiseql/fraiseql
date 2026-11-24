@@ -96,6 +96,7 @@ impl std::fmt::Display for DocumentError {
 /// value nesting deeper than [`value_json::MAX_DEPTH`]), or of a node the parser left
 /// incomplete.
 pub fn parse(source: &str) -> Result<Document, DocumentError> {
+    #[allow(clippy::disallowed_types)] // Reason: the workspace's one GraphQL parse site
     let tree = apollo_parser::Parser::new(source).recursion_limit(RECURSION_LIMIT).parse();
     let at = Locator::new(source);
     if let Some(error) = tree.errors().next() {

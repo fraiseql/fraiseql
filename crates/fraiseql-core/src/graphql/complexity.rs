@@ -22,8 +22,8 @@ pub type DocumentParse = Result<SharedDocument, ComplexityValidationError>;
 /// This is the **only** entry point to the parser in the workspace. Every parse — the
 /// validator, the analyzer, the subscription root, the REST `validate` endpoint, the
 /// matcher — comes through here, so a guard on the parser is one guard, and the parse is
-/// shared (below). `tools/check-graphql-parse-sites.sh` fails the build if a second call
-/// site appears.
+/// shared (below). Clippy refuses a second call site (`disallowed-methods` and
+/// `disallowed-types` in `.clippy.toml`).
 ///
 /// # Parsed once per request (#1562), and once per executor
 ///
@@ -200,6 +200,7 @@ impl std::fmt::Debug for DocumentCache {
 }
 
 /// The parse itself, behind the guard [`parse_graphql_document`] documents.
+#[allow(clippy::disallowed_methods)] // Reason: the guarded, shared seam: the one caller of `document::parse`
 fn parse_uncached(query: &str) -> Result<Document, ComplexityValidationError> {
     #[cfg(any(test, feature = "test-utils"))]
     PARSES_ON_THIS_THREAD.with(|n| n.set(n.get() + 1));

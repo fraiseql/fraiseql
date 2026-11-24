@@ -707,11 +707,11 @@ func (m *FraiseqlCi) ShellGates(
 		"make test-feature-combo-features-gate",
 		"bash tools/check-internal-flag-sites.sh",
 		"bash tools/check-value-json-seam.sh",
-		"bash tools/check-graphql-parse-sites.sh",
 		// The mutation chokepoint is only a chokepoint while nothing reaches the
-		// adapter's write methods on its own (#1327). A route that does skips every
-		// gate on a write at once, and is invisible to the tests the known bypasses
-		// have — which is how the gRPC arm did it until #1330 routed it through the engine.
+		// database's write path on its own (#1327). Clippy refuses a call to the
+		// adapter's write (.clippy.toml), which is how the gRPC arm did it until #1330;
+		// this gate refuses the other way, write SQL handed to `execute_raw_query`.
+		// Either skips every gate on a write at once, invisibly to the transport's tests.
 		"bash tools/check-mutation-dispatch-sites.sh",
 		// One layer in from the chokepoint (#1331, #1352): the selection set a write is
 		// projected through. `&[]` is the PERMISSIVE shape — project_entity returns the

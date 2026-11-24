@@ -71,6 +71,16 @@ unmaintained = "workspace"
 multiple-versions = "deny"
 wildcards = "allow"
 
+# One GraphQL parser, read in one place (#976, #1780): `apollo-parser`, which only
+# `fraiseql-core`'s `graphql/document.rs` constructs, as `.clippy.toml` holds. A clippy ban
+# on a crate that is not a dependency is inert, so a second parser crate is refused here,
+# before it is one.
+deny = [
+  { crate = "graphql-parser", reason = "the GraphQL parser is apollo-parser, read only through fraiseql_core::graphql::parse_graphql_document" },
+  { crate = "cynic-parser", reason = "the GraphQL parser is apollo-parser, read only through fraiseql_core::graphql::parse_graphql_document" },
+  { crate = "async-graphql-parser", reason = "the GraphQL parser is apollo-parser, read only through fraiseql_core::graphql::parse_graphql_document" },
+]
+
 # Every `[[bans.skip]]` and `[[bans.skip-tree]]` names its crate's semver-compatible line
 # (`^48`, `^0.52`), not one release. Cargo holds at most one version per line of a
 # registry crate, so the line names exactly the copy an exact pin would, and a patch or

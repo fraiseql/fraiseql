@@ -63,8 +63,22 @@ verbose-bit-mask-threshold = 1
 # `fraiseql-db`'s `traits/write_ban_tests.rs` keeps these two paths resolving: a path that
 # stops resolving is only a configuration warning, and the ban would be silently gone.
 disallowed-methods = [
+  { path = "fraiseql_core::graphql::document::parse", reason = "call fraiseql_core::graphql::parse_graphql_document: it guards the parser and shares one parse per request" },
   { path = "fraiseql_db::traits::Writer::execute_write", reason = "a write goes through the engine (Executor::execute*, which reaches execute_mutation_impl), where every gate on a mutation runs" },
   { path = "fraiseql_db::traits::Writer::execute_writes", reason = "a write goes through the engine (Executor::execute*, which reaches execute_mutation_impl), where every gate on a mutation runs" },
   { path = "tracing::subscriber::with_default", reason = "use fraiseql_test_support::tracing_capture::with_default, which a parallel test cannot blind" },
   { path = "tracing::subscriber::set_default", reason = "use fraiseql_test_support::tracing_capture::set_default, which a parallel test cannot blind" },
+]
+
+# A client controls the GraphQL document, so the parser is attack surface: graphql-parser
+# 0.4 panicked on a 27-byte document (#976), and six sites parsed then, one through a
+# module import the obvious grep missed. One site parses now. `graphql/document.rs`
+# builds the only `apollo_parser::Parser` and converts its tree into fraiseql's own
+# `Document`, and `complexity.rs`'s `parse_graphql_document`, the panic guard and the
+# request's shared parse, is the only caller of `document::parse` (banned above). Tests
+# that parse directly carry an `#[allow]` per function. The other GraphQL parser crates
+# are refused in deny.toml, since a ban on a crate that is not a dependency is inert here.
+# `fraiseql-core`'s `graphql/parse_ban_tests.rs` keeps these paths resolving.
+disallowed-types = [
+  { path = "apollo_parser::Parser", reason = "read a document through fraiseql_core::graphql::parse_graphql_document and walk its graphql::document::Document" },
 ]

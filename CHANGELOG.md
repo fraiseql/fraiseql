@@ -1750,6 +1750,15 @@ disagreed, and the promise was the part that was wrong.
   keeps the banned paths resolving, since a path that stops resolving disables a ban with
   only a configuration warning.
 
+- **A second GraphQL parse site is refused by clippy and cargo-deny (#1780).**
+  `apollo_parser::Parser` is a `disallowed-types` entry outside `graphql/document.rs`, and
+  `graphql::document::parse` a `disallowed-methods` entry outside `parse_graphql_document`.
+  The lint resolves the path, so a crate alias, a module alias, a renamed import or a
+  function pointer is refused; `tools/check-graphql-parse-sites.sh` passed all four and is
+  removed. `graphql-parser`, `cynic-parser` and `async-graphql-parser` are banned crates
+  in deny.toml, which the script refused by name and clippy cannot see while they are not
+  dependencies. A fraiseql-core test keeps the banned paths resolving.
+
 - **An API key whose `expires_in_secs` reaches past 9999-12-30T22:00:00Z is refused
   (#2026).** `POST /api/v1/admin/api-keys` answers 400 `invalid_input`, "expires_in_secs
   reaches past the last instant this server holds", as a key that never expires is not

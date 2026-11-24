@@ -157,6 +157,7 @@ mod executor_tests {
 
     /// Parse a document and return its root field names, so an assertion can be made
     /// about the shape of the operation rather than about the text of it.
+    #[allow(clippy::disallowed_methods)] // Reason: the test drives the converter beneath the guarded seam
     fn root_fields(document: &str) -> Vec<String> {
         let doc = fraiseql_core::graphql::document::parse(document)
             .map_err(|e| format!("built document must parse: {e}\n{document}"))
