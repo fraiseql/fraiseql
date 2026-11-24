@@ -22,11 +22,11 @@ fn parsed(order: &serde_json::Value) -> crate::error::Result<Vec<OrderByClause>>
 
 #[test]
 fn a_key_carries_the_placement_its_direction_names_and_a_bare_direction_none() {
-    let read: Vec<_> = parsed(&serde_json::json!({
-        "revenue_sum": "DESC_NULLS_LAST",
-        "category": "ASC_NULLS_FIRST",
-        "count": "DESC",
-    }))
+    let read: Vec<_> = parsed(&serde_json::json!([
+        { "field": "revenue_sum", "direction": "DESC_NULLS_LAST" },
+        { "field": "category", "direction": "ASC_NULLS_FIRST" },
+        { "field": "count", "direction": "DESC" },
+    ]))
     .unwrap()
     .iter()
     .map(|c| (c.field.clone(), c.direction, c.nulls))
@@ -43,9 +43,10 @@ fn a_key_carries_the_placement_its_direction_names_and_a_bare_direction_none() {
 
 #[test]
 fn any_other_direction_is_refused_listing_the_six() {
-    let message = parsed(&serde_json::json!({ "revenue_sum": "DESC_NULLS" }))
-        .unwrap_err()
-        .to_string();
+    let message =
+        parsed(&serde_json::json!([{ "field": "revenue_sum", "direction": "DESC_NULLS" }]))
+            .unwrap_err()
+            .to_string();
     assert!(
         message.contains("orderBy `revenue_sum` takes one of `ASC`, `DESC`, `ASC_NULLS_FIRST`"),
         "{message}"

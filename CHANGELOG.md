@@ -99,6 +99,18 @@ disagreed, and the promise was the part that was wrong.
   so every cursor issued under the old forms resumes under the list that names the same
   ordering.
 
+- **An aggregate root's `orderBy` is a list of `{field, direction}` items (#2415).** It took
+  one object of key to direction, `orderBy: {revenue_sum: DESC, category: ASC}`, whose order
+  was the order its keys were written in, which a JSON client does not reliably keep. It now
+  takes `[<Name>AggregateOrderBy!]`, applied in order, as a list query's and a window's
+  `orderBy` do: `field` is one of the new `<Name>AggregateOrderByField` enum, the row's group
+  keys and aggregates, and `direction` a `SortDirection`, `ASC` when omitted. Write
+  `orderBy: [{field: revenue_sum, direction: DESC}, {field: category}]`. The object is refused
+  as "orderBy item takes `field` and `direction`, got `revenue_sum`". A direction outside the
+  six, `desc` or `1`, is refused naming the key as before. One item may be written without
+  the list. A rolled-up table answering a split range orders its recombined groups by the
+  same items. Code generated from the schema sees the new item type and enum.
+
 - **The Go SDK requires Go 1.26 (#2278).** Its `go.mod` declares `go 1.26`, the oldest
   release Go still supports, and its suite runs on 1.26 and 1.27; it declared 1.23, was
   tested on 1.23 and 1.24, and its README promised 1.22. The code needs nothing newer than
@@ -1193,10 +1205,10 @@ disagreed, and the promise was the part that was wrong.
   sorts as `ORDER BY … DESC NULLS LAST`. Any other suffix is refused naming the two. The
   OpenAPI `sort` parameter describes it.
 
-- **An aggregate's `orderBy` puts a key's NULLs first or last (#2415).** Each key of an
-  aggregate root's `orderBy` takes the same `SortDirection`: `{revenue_sum:
-  DESC_NULLS_LAST}` lists the groups whose sum is NULL last, and `{team: ASC_NULLS_FIRST}`
-  the group with no team first. A rolled-up table answering a split range orders its
+- **An aggregate's `orderBy` puts a key's NULLs first or last (#2415).** Each item of an
+  aggregate root's `orderBy` takes the same `SortDirection`: `{field: revenue_sum,
+  direction: DESC_NULLS_LAST}` lists the groups whose sum is NULL last, and `{field: team,
+  direction: ASC_NULLS_FIRST}` the group with no team first. A rolled-up table answering a split range orders its
   recombined groups the same way. Under `ASC` and `DESC` the SQL is unchanged.
 
 - **A window's `orderBy` puts its key's NULLs first or last (#2415).** `WindowOrderBy`, the

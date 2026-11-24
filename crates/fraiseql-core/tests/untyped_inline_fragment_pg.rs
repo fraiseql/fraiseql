@@ -221,7 +221,7 @@ async fn an_inline_fragment_on_an_aggregates_row_type_is_answered_as_written() {
         return;
     };
     let root = "uif_sale_aggregate(groupBy: {region: true}, aggregates: [{amount_sum: true}], \
-                orderBy: {region: ASC})";
+                orderBy: [{field: region, direction: ASC}])";
     let written = answers(&executor, &format!("{{ {root} {{ region amount_sum }} }}"), None).await;
     assert_eq!(
         written[0]["data"]["uif_sale_aggregate"],

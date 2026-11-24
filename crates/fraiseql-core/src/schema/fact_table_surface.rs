@@ -272,7 +272,7 @@ pub fn derive(schema: &CompiledSchema) -> FactTableSurface {
             ("groupBy", &inputs.group_by, false),
             ("aggregates", &inputs.selection, true),
             ("having", &inputs.having, false),
-            ("orderBy", &inputs.order_by, false),
+            ("orderBy", &inputs.order_by, true),
         ] {
             if let Some(input) = input {
                 let input_type = FieldType::Input(input.name.clone());
@@ -325,6 +325,7 @@ pub fn derive(schema: &CompiledSchema) -> FactTableSurface {
             .into_iter()
             .flatten(),
         );
+        surface.enums.extend(inputs.order_by_field);
     }
     if !surface.roots.is_empty() {
         let (inputs, enums) = window_inputs();
@@ -560,12 +561,14 @@ fn where_input(table: &FactTableMetadata, stem: &str) -> Option<InputObjectDefin
     })
 }
 
-/// The aggregate root's `groupBy`, `aggregates`, `having` and `orderBy` inputs.
+/// The aggregate root's `groupBy`, `aggregates`, `having` and `orderBy` inputs, and the enum
+/// of the keys an `orderBy` item names.
 struct AggregateInputs {
-    group_by:  Option<InputObjectDefinition>,
-    selection: Option<InputObjectDefinition>,
-    having:    Option<InputObjectDefinition>,
-    order_by:  Option<InputObjectDefinition>,
+    group_by:       Option<InputObjectDefinition>,
+    selection:      Option<InputObjectDefinition>,
+    having:         Option<InputObjectDefinition>,
+    order_by:       Option<InputObjectDefinition>,
+    order_by_field: Option<EnumDefinition>,
 }
 
 fn aggregate_inputs(stem: &str, fields: &[RowField]) -> AggregateInputs {
@@ -604,12 +607,23 @@ fn aggregate_inputs(stem: &str, fields: &[RowField]) -> AggregateInputs {
             having.push(InputFieldDefinition::new(format!("{}_{op}", field.name), operand.clone()));
         }
     }
-    let order_by = fields
-        .iter()
-        .map(|f| InputFieldDefinition::new(f.name.as_str(), SORT_DIRECTION_ENUM))
-        .collect();
+    let order_by_field = (!fields.is_empty()).then(|| {
+        EnumDefinition::new(format!("{stem}AggregateOrderByField"))
+            .with_values(fields.iter().map(|f| EnumValueDefinition::new(f.name.as_str())).collect())
+            .with_description("A key of the aggregate rows: a group key or an aggregate.")
+    });
+    let order_by = order_by_field.as_ref().map_or_else(Vec::new, |keys| {
+        vec![
+            InputFieldDefinition::new("field", keys.name.as_str())
+                .with_nullable(false)
+                .with_description("The key to sort by."),
+            InputFieldDefinition::new("direction", SORT_DIRECTION_ENUM)
+                .with_default_value("\"ASC\"")
+                .with_description("Sort direction; ascending when omitted."),
+        ]
+    });
     AggregateInputs {
-        group_by:  input(
+        group_by: input(
             "GroupBy",
             "The keys to group rows by; `true` groups by the key.".to_string(),
             group_by,
@@ -619,12 +633,17 @@ fn aggregate_inputs(stem: &str, fields: &[RowField]) -> AggregateInputs {
             "One aggregate to compute; `true` computes it.".to_string(),
             selection,
         ),
-        having:    input(
+        having: input(
             "Having",
             "Keep only the groups whose aggregates compare as stated, all ANDed.".to_string(),
             having,
         ),
-        order_by:  input("OrderBy", "The row fields to sort by.".to_string(), order_by),
+        order_by: input(
+            "OrderBy",
+            "One sort key of the aggregate rows; the items apply in order.".to_string(),
+            order_by,
+        ),
+        order_by_field,
     }
 }
 

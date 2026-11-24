@@ -10,7 +10,7 @@
 //!     where: { customer_id: { _eq: "uuid-123" } }
 //!     groupBy: { category: true, occurred_at_day: true }
 //!     having: { revenue_sum_gt: 1000 }
-//!     orderBy: { revenue_sum: DESC }
+//!     orderBy: [{ field: revenue_sum, direction: DESC }]
 //!     limit: 10
 //!   ) {
 //!     category
@@ -142,9 +142,9 @@ impl AggregateQueryParser {
     ///   "having": {
     ///     "revenue_sum_gt": 1000
     ///   },
-    ///   "orderBy": {
-    ///     "revenue_sum": "DESC"
-    ///   },
+    ///   "orderBy": [
+    ///     {"field": "revenue_sum", "direction": "DESC"}
+    ///   ],
     ///   "limit": 10
     /// }
     /// ```
@@ -747,27 +747,53 @@ impl AggregateQueryParser {
     /// key takes the published `SortDirection` (#1800): a direction, and where the key puts
     /// its NULLs when the value names a placement (#2415). Any other value is refused rather
     /// than read as `ASC`, or as no order.
-    fn parse_order_by(order_obj: &Value) -> Result<Vec<OrderByClause>> {
-        let mut clauses = Vec::new();
-
-        for (field, value) in object_argument(order_obj, "orderBy")? {
-            let (direction, nulls) = value
-                .as_str()
-                .and_then(crate::backend::types::nulls_order::parse_sort_direction)
-                .ok_or_else(|| FraiseQLError::Validation {
-                    message: format!(
-                        "orderBy `{field}` takes one of {}, got {value}",
-                        crate::backend::types::nulls_order::sort_directions_listed()
-                    ),
-                    path:    None,
+    /// Parse `orderBy`: a list of `{field, direction}` items applied in order, or one item as a
+    /// one-item list (GraphQL input coercion). `direction` is a published `SortDirection` value,
+    /// `ASC` when absent.
+    fn parse_order_by(order: &Value) -> Result<Vec<OrderByClause>> {
+        list_argument(order, "orderBy")?
+            .iter()
+            .map(|item| {
+                let item = item.as_object().ok_or_else(|| {
+                    fraiseql_db::argument_shape_refusal(
+                        "orderBy",
+                        "a list of `{field, direction}` keys",
+                    )
                 })?;
-
-            let mut clause = OrderByClause::new(field.clone(), direction);
-            clause.nulls = nulls;
-            clauses.push(clause);
-        }
-
-        Ok(clauses)
+                if let Some(key) =
+                    item.keys().find(|key| !matches!(key.as_str(), "field" | "direction"))
+                {
+                    return Err(FraiseQLError::Validation {
+                        message: format!("orderBy item takes `field` and `direction`, got `{key}`"),
+                        path:    Some("orderBy".to_string()),
+                    });
+                }
+                let field = item.get("field").and_then(Value::as_str).ok_or_else(|| {
+                    FraiseQLError::Validation {
+                        message: "orderBy item missing 'field' string".to_string(),
+                        path:    Some("orderBy".to_string()),
+                    }
+                })?;
+                let (direction, nulls) = match item.get("direction") {
+                    None | Some(Value::Null) => {
+                        (crate::compiler::aggregation::OrderDirection::Asc, None)
+                    },
+                    Some(value) => value
+                        .as_str()
+                        .and_then(crate::backend::types::nulls_order::parse_sort_direction)
+                        .ok_or_else(|| FraiseQLError::Validation {
+                            message: format!(
+                                "orderBy `{field}` takes one of {}, got {value}",
+                                crate::backend::types::nulls_order::sort_directions_listed()
+                            ),
+                            path:    None,
+                        })?,
+                };
+                let mut clause = OrderByClause::new(field.to_string(), direction);
+                clause.nulls = nulls;
+                Ok(clause)
+            })
+            .collect()
     }
 }
 

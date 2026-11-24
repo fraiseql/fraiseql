@@ -246,9 +246,7 @@ mod aggregate_parser_tests {
             "aggregates": [
                 {"revenue_sum": true}
             ],
-            "orderBy": {
-                "revenue_sum": "DESC"
-            }
+            "orderBy": [{ "field": "revenue_sum", "direction": "DESC" }]
         });
 
         let request =
@@ -297,10 +295,7 @@ mod aggregate_parser_tests {
                 "revenue_sum_gt": 1000,
                 "count_gte": 5
             },
-            "orderBy": {
-                "revenue_sum": "DESC",
-                "count": "ASC"
-            },
+            "orderBy": [{ "field": "revenue_sum", "direction": "DESC" }, { "field": "count", "direction": "ASC" }],
             "limit": 20
         });
 
@@ -5670,7 +5665,7 @@ mod aggregate_argument_forms {
         for direction in [json!("asc"), json!("desc"), json!("sideways"), json!(1)] {
             let message = refusal(&json!({
                 "aggregates": [{"revenue_sum": true}],
-                "orderBy": {"revenue_sum": direction},
+                "orderBy": [{"field": "revenue_sum", "direction": direction}],
             }));
             assert!(
                 message.contains("`revenue_sum`") && message.contains("`ASC`"),

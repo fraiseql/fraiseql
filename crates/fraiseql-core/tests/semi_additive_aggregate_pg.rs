@@ -181,7 +181,7 @@ fn quarter(aggregates: &[&str]) -> Value {
         "where": { "day_gte": "2026-01-01", "day_lt": "2026-04-01" },
         "groupBy": { "day_month": true },
         "aggregates": aggregates.iter().map(|a| json!({ *a: true })).collect::<Vec<_>>(),
-        "orderBy": { "day_month": "ASC" },
+        "orderBy": [{ "field": "day_month", "direction": "ASC" }],
     })
 }
 
@@ -295,7 +295,7 @@ async fn each_grain_steps_one_bucket_at_a_time() {
         let request = json!({
             "groupBy": { &key: true },
             "aggregates": [{ "closing_balance_sum": true }],
-            "orderBy": { &key: "ASC" },
+            "orderBy": [{ "field": &key, "direction": "ASC" }],
         });
         let groups = aggregate(&executor, TABLE, &request).await.unwrap();
         let sums = column(&groups, "closing_balance_sum");
@@ -306,7 +306,7 @@ async fn each_grain_steps_one_bucket_at_a_time() {
     let request = json!({
         "groupBy": { "day_quarter": true },
         "aggregates": [{ "closing_balance_sum": true }],
-        "orderBy": { "day_quarter": "ASC" },
+        "orderBy": [{ "field": "day_quarter", "direction": "ASC" }],
     });
     let groups = aggregate(&executor, TABLE, &request).await.unwrap();
     assert_eq!(column(&groups, "closing_balance_sum"), vec![1100.0, 1150.0]);
@@ -369,7 +369,7 @@ async fn a_timestamp_column_steps_by_second_minute_and_hour() {
             "where": { "at_gte": from, "at_lt": to },
             "groupBy": { &key: true },
             "aggregates": [{ "reading_sum": true }],
-            "orderBy": { &key: "ASC" },
+            "orderBy": [{ "field": &key, "direction": "ASC" }],
         });
         let response = meter
             .execute(&format!("{{ sa_meter_aggregate {{ {key} reading_sum }} }}"), Some(&request))
@@ -443,7 +443,7 @@ async fn a_first_half_month_bucket_reads_only_its_own_days() {
     };
     let mut request = quarter(&["bal_first_sum"]);
     request["groupBy"] = json!({ "day_half_month": true });
-    request["orderBy"] = json!({ "day_half_month": "ASC" });
+    request["orderBy"] = json!([{ "field": "day_half_month", "direction": "ASC" }]);
     let groups = aggregate(&executor, TABLE, &request).await.unwrap();
     assert_eq!(
         column(&groups, "bal_first_sum"),
@@ -497,7 +497,7 @@ async fn a_daily_balance_is_read_only_on_the_days_in_range() {
             "where": { "day_gte": "2026-01-10", "day_lte": "2026-03-20" },
             "groupBy": { "day_month": true },
             "aggregates": [{ aggregate_name: true }],
-            "orderBy": { "day_month": "ASC" },
+            "orderBy": [{ "field": "day_month", "direction": "ASC" }],
         });
         let groups = aggregate(&executor, DAILY, &request).await.unwrap();
         assert_eq!(column(&groups, aggregate_name), expected, "{aggregate_name}");
@@ -521,7 +521,10 @@ async fn another_grouping_is_read_from_the_carried_row() {
     };
     let mut request = quarter(&["closing_balance_sum"]);
     request["groupBy"]["region"] = json!(true);
-    request["orderBy"] = json!({ "day_month": "ASC", "region": "ASC" });
+    request["orderBy"] = json!([
+        { "field": "day_month", "direction": "ASC" },
+        { "field": "region", "direction": "ASC" },
+    ]);
     let groups = aggregate(&executor, TABLE, &request).await.unwrap();
     let cells: Vec<(String, f64)> = groups
         .iter()
@@ -556,7 +559,7 @@ async fn a_request_the_reduction_cannot_answer_is_refused() {
     let no_time_grouping = {
         let mut r = quarter(&["closing_balance_sum"]);
         r["groupBy"] = json!({ "region": true });
-        r["orderBy"] = json!({ "region": "ASC" });
+        r["orderBy"] = json!([{ "field": "region", "direction": "ASC" }]);
         r
     };
     let two_time_groupings = {
@@ -567,7 +570,7 @@ async fn a_request_the_reduction_cannot_answer_is_refused() {
     let another_time_column = {
         let mut r = quarter(&["closing_balance_sum"]);
         r["groupBy"] = json!({ "booked_on_month": true });
-        r["orderBy"] = json!({ "booked_on_month": "ASC" });
+        r["orderBy"] = json!([{ "field": "booked_on_month", "direction": "ASC" }]);
         r
     };
     let a_time_inequality = {

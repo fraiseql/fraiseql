@@ -141,7 +141,7 @@ async fn by(
         "where": range,
         "groupBy": { group: true },
         "aggregates": [{ measure: true }],
-        "orderBy": { group: "ASC" },
+        "orderBy": [{ "field": group, "direction": "ASC" }],
     });
     let root = root(table);
     let response = executor

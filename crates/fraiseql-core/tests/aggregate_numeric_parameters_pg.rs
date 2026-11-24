@@ -76,7 +76,7 @@ async fn a_having_bound_against_a_sum_of_integers_keeps_the_groups_over_it() {
                 "groupBy": { "region": true },
                 "aggregates": [{ "qty_sum": true }],
                 "having": { "qty_sum_gt": 1 },
-                "orderBy": { "region": "ASC" }
+                "orderBy": [{ "field": "region", "direction": "ASC" }]
             }),
             "numeric_param_sales_aggregate",
             &fact_table(),

@@ -1307,3 +1307,6 @@ mod fail_closed_filters {
 
 #[path = "nulls_order_tests.rs"]
 mod nulls_order;
+
+#[path = "order_by_list_tests.rs"]
+mod order_by_list_tests;

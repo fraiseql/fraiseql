@@ -227,7 +227,7 @@ async fn ordering_by_a_decimal_aggregate_sorts_its_value_not_its_text() {
             "groupBy": { "region": true },
             "aggregates": [{ "amount_sum": true }],
             "having": { "amount_sum_lt": 100 },
-            "orderBy": { "amount_sum": "DESC" }
+            "orderBy": [{ "field": "amount_sum", "direction": "DESC" }]
         }),
     )
     .await;
@@ -359,7 +359,7 @@ async fn a_carried_forward_decimal_balance_keeps_every_digit() {
                 "where": { "day_gte": "2026-01-01", "day_lt": "2026-03-01" },
                 "groupBy": { "day_month": true },
                 "aggregates": [{ "balance_sum": true }, { "closing_sum": true }],
-                "orderBy": { "day_month": "ASC" }
+                "orderBy": [{ "field": "day_month", "direction": "ASC" }]
             }),
             "decimal_digits_balances_aggregate",
             &metadata,
@@ -411,7 +411,7 @@ async fn a_numeric_filter_column_is_its_digits_as_a_key_and_as_an_operand() {
         let grouped = run(json!({
             "groupBy": { key: true },
             "aggregates": [{ "count": true }],
-            "orderBy": { key: "ASC" }
+            "orderBy": [{ "field": key, "direction": "ASC" }]
         }))
         .await
         .unwrap();
@@ -443,7 +443,7 @@ async fn a_numeric_filter_column_is_its_digits_as_a_key_and_as_an_operand() {
     let rated = run(json!({
         "groupBy": { "rate": true },
         "aggregates": [{ "count": true }],
-        "orderBy": { "rate": "ASC" }
+        "orderBy": [{ "field": "rate", "direction": "ASC" }]
     }))
     .await
     .unwrap();

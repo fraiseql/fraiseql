@@ -72,7 +72,7 @@ async fn a_split_range_orders_its_null_group_where_the_direction_asks() {
             "where": { "day_gte": "2026-01-10", "day_lte": "2026-03-20" },
             "groupBy": { "category": true },
             "aggregates": [{ "amount_sum": true }],
-            "orderBy": { "category": direction },
+            "orderBy": [{ "field": "category", "direction": direction }],
         });
         let fine = answer(&executor, DAY, &request, None).await.unwrap();
         let expected: Vec<Option<String>> = adapter

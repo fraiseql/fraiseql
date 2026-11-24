@@ -126,7 +126,7 @@ impl Kind {
             Self::Aggregate => json!({
                 "groupBy": { "region": true },
                 "aggregates": [{ "count": true }],
-                "orderBy": { "region": "ASC" },
+                "orderBy": [{ "field": "region", "direction": "ASC" }],
             }),
             Self::Window => json!({
                 "select": [{ "type": "dimension", "path": "region", "alias": "region" }],

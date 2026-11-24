@@ -103,7 +103,7 @@ async fn a_deep_declared_path_groups_at_its_location() {
         &executor,
         json!({ "groupBy": { "machine_model_category": true },
                 "aggregates": [{ "revenue_sum": true }],
-                "orderBy": { "machine_model_category": "ASC" } }),
+                "orderBy": [{ "field": "machine_model_category", "direction": "ASC" }] }),
     )
     .await;
     let groups: Vec<(Value, f64)> =

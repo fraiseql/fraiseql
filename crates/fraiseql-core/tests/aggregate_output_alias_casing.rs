@@ -153,7 +153,7 @@ async fn a_camel_case_dimension_can_be_ordered_by_its_alias() {
             &metadata(&[]),
             json!({ "groupBy": { "itemCategory": true },
                     "aggregates": [{ "revenue_sum": true }],
-                    "orderBy": { "itemCategory": direction } }),
+                    "orderBy": [{ "field": "itemCategory", "direction": direction }] }),
         )
         .await;
         assert_keys(&rows, &["itemCategory", "revenue_sum"], "ordered by alias");

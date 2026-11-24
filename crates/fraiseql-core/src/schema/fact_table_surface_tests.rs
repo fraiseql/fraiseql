@@ -107,7 +107,7 @@ fn the_aggregate_root_is_published_with_typed_arguments() {
         ("groupBy", "SalesAggregateGroupBy"),
         ("aggregates", "[SalesAggregateSelection!]"),
         ("having", "SalesAggregateHaving"),
-        ("orderBy", "SalesAggregateOrderBy"),
+        ("orderBy", "[SalesAggregateOrderBy!]"),
         ("limit", "Int"),
         ("offset", "Int"),
     ]
@@ -307,8 +307,23 @@ fn the_selection_having_and_order_by_inputs_follow_the_row() {
     assert_eq!(field_type(&having, "quantity_sum_gt").as_deref(), Some("BigInt"));
     assert_eq!(field_type(&having, "units_sum_lt").as_deref(), Some("Decimal"));
     let order_by = introspected(&schema, "SalesAggregateOrderBy");
-    assert_eq!(field_type(&order_by, "revenue_sum").as_deref(), Some("SortDirection"));
-    assert_eq!(field_type(&order_by, "category").as_deref(), Some("SortDirection"));
+    assert_eq!(
+        field_types(&order_by),
+        [
+            ("field".to_string(), "SalesAggregateOrderByField!".to_string()),
+            ("direction".to_string(), "SortDirection".to_string()),
+        ],
+        "an `orderBy` item names a key and its direction"
+    );
+    let keys: Vec<String> = introspected(&schema, "SalesAggregateOrderByField")
+        .enum_values
+        .unwrap()
+        .into_iter()
+        .map(|v| v.name)
+        .collect();
+    for key in ["category", "revenue_sum", "count"] {
+        assert!(keys.iter().any(|k| k == key), "`{key}` is a key: {keys:?}");
+    }
 }
 
 /// The SDL publishes what introspection does: the roots, the row and the inputs.
@@ -321,7 +336,7 @@ fn the_sdl_publishes_the_roots_and_their_types() {
     for needle in [
         "sales_aggregate(where: SalesAggregateWhere, groupBy: SalesAggregateGroupBy, \
          aggregates: [SalesAggregateSelection!], having: SalesAggregateHaving, orderBy: \
-         SalesAggregateOrderBy, limit: Int, offset: Int): [SalesAggregateRow!]!",
+         [SalesAggregateOrderBy!], limit: Int, offset: Int): [SalesAggregateRow!]!",
         "type SalesAggregateRow {",
         "input SalesAggregateWhere {",
         "input WindowSpec {",

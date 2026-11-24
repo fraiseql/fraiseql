@@ -527,7 +527,7 @@ under their literal names (they are not camel-cased):
 ```graphql
 sales_aggregate(where: SalesAggregateWhere, groupBy: SalesAggregateGroupBy,
                 aggregates: [SalesAggregateSelection!], having: SalesAggregateHaving,
-                orderBy: SalesAggregateOrderBy, limit: Int, offset: Int): [SalesAggregateRow!]!
+                orderBy: [SalesAggregateOrderBy!], limit: Int, offset: Int): [SalesAggregateRow!]!
 sales_window(select: [WindowColumn!], windows: [WindowSpec!], where: SalesAggregateWhere,
              orderBy: [WindowOrderBy!], limit: Int, offset: Int): [JSON!]!
 ```
@@ -541,20 +541,23 @@ The arguments decide what is computed, and the selection set decides what is ret
 {
   sales_aggregate(groupBy: {category: true, occurred_at_month: true},
                   aggregates: [{revenue_sum: true}, {count: true}],
-                  orderBy: {revenue_sum: DESC}) {
+                  orderBy: [{field: revenue_sum, direction: DESC}]) {
     category occurred_at_month revenue_sum count
   }
 }
 ```
 
 - `groupBy` takes `true` (grouped) or `false` per key, and `<column>_level: n` for an `LTREE`
-  roll-up. `aggregates` is a list of `{<alias>: true}`. `orderBy` takes a `SortDirection` per
-  key that names a grouped key or a computed aggregate: `ASC`, `DESC`, or either with the
+  roll-up. `aggregates` is a list of `{<alias>: true}`. `orderBy` is a list of `{field,
+  direction}` items applied in order, as a list query's and a window's are: `field` is one of
+  `SalesAggregateOrderByField`, the row's keys, and must name a grouped key or a computed
+  aggregate; `direction` is a `SortDirection`, `ASC` when omitted, `DESC`, or either with the
   placement of the key's NULLs (`DESC_NULLS_LAST`, #2415), so a group whose key or aggregate
-  is NULL sorts first or last.
+  is NULL sorts first or last. The key-to-direction object (`orderBy: {revenue_sum: DESC}`) is
+  refused, naming its key.
 - Every argument is read as a list query's is. An explicit `null` is the argument's absence.
-  An argument published as a list (`aggregates`, `select`, `windows`, a window's `orderBy` and
-  `partitionBy`) takes one object as a one-item list. Any other value of another shape is
+  An argument published as a list (`aggregates`, `orderBy`, `select`, `windows`, a window's
+  `orderBy` and `partitionBy`) takes one object as a one-item list. Any other value of another shape is
   refused, naming the argument: `where clause must be a JSON object`, `groupBy must be an
   object`, `orderBy must be an object or array`. So is a `having` key that is not an
   aggregate and a comparison (`count_gt`).

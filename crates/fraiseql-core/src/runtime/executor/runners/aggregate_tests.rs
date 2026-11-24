@@ -396,7 +396,7 @@ mod gated_fact_tables {
             serde_json::json!({
                 "groupBy": {"category": true},
                 "aggregates": [{"count": true}],
-                "orderBy": {"margin": "DESC"}
+                "orderBy": [{ "field": "margin", "direction": "DESC" }]
             }),
             "{ sales_aggregate { count } }",
             "an order by a masked measure ranks by it",
@@ -755,7 +755,7 @@ mod gated_fact_tables {
             "where": {"tenant_id_eq": "tenant-abc"},
             "groupBy": {"category": true},
             "aggregates": [{"revenue_sum": true}, {"count": true}],
-            "orderBy": {"revenue_sum": "DESC"}
+            "orderBy": [{ "field": "revenue_sum", "direction": "DESC" }]
         });
         let (res, sql) = run(schema(), "{ sales_aggregate { count } }", &vars, &principal()).await;
         res.expect("an ungated aggregate is served");

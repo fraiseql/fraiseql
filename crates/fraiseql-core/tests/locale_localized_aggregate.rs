@@ -123,7 +123,7 @@ async fn a_localized_dimension_groups_by_its_label_in_the_request_locale() {
     let query = json!({
         "groupBy": { "name": true },
         "aggregates": [{ "count": true }],
-        "orderBy": { "name": "ASC" }
+        "orderBy": [{ "field": "name", "direction": "ASC" }]
     });
     assert_eq!(
         groups(&executor, "fr-FR", &query).await,

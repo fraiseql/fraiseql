@@ -101,7 +101,7 @@ async fn an_aggregate_takes_its_arguments_inline_or_as_variables_alike() {
         .execute(
             r"{ inline_sale_aggregate(groupBy: {region: true},
                  aggregates: [{qty_sum: true}], having: {qty_sum_gt: 1},
-                 orderBy: {qty_sum: DESC, region: DESC}, limit: 2) { region qty_sum } }",
+                 orderBy: [{field: qty_sum, direction: DESC}, {field: region, direction: DESC}], limit: 2) { region qty_sum } }",
             None,
         )
         .await
@@ -111,7 +111,7 @@ async fn an_aggregate_takes_its_arguments_inline_or_as_variables_alike() {
             "{ inline_sale_aggregate { region qty_sum } }",
             Some(&json!({
                 "groupBy": {"region": true}, "aggregates": [{"qty_sum": true}],
-                "having": {"qty_sum_gt": 1}, "orderBy": {"qty_sum": "DESC", "region": "DESC"},
+                "having": {"qty_sum_gt": 1}, "orderBy": [{ "field": "qty_sum", "direction": "DESC" }, { "field": "region", "direction": "DESC" }],
                 "limit": 2
             })),
         )
@@ -121,7 +121,7 @@ async fn an_aggregate_takes_its_arguments_inline_or_as_variables_alike() {
     let region_first = executor
         .execute(
             r"{ inline_sale_aggregate(groupBy: {region: true},
-                 aggregates: [{qty_sum: true}], orderBy: {region: ASC, qty_sum: DESC}) { region } }",
+                 aggregates: [{qty_sum: true}], orderBy: [{field: region, direction: ASC}, {field: qty_sum, direction: DESC}]) { region } }",
             None,
         )
         .await
@@ -153,7 +153,7 @@ async fn a_variable_wins_over_the_same_argument_written_inline() {
     let response = executor
         .execute(
             r"{ inline_sale_aggregate(groupBy: {region: true},
-                 aggregates: [{count: true}], orderBy: {region: ASC}, limit: 3) { region } }",
+                 aggregates: [{count: true}], orderBy: [{field: region, direction: ASC}], limit: 3) { region } }",
             Some(&json!({ "limit": 1 })),
         )
         .await
@@ -293,7 +293,7 @@ async fn an_argument_of_another_shape_is_refused_where_it_answered_unfiltered() 
     let kept = executor
         .execute(
             r"{ inline_sale_aggregate(groupBy: {region: true}, aggregates: [{qty_sum: true}],
-                 having: {qty_sum_gt: 4}, orderBy: {region: ASC}) { region } }",
+                 having: {qty_sum_gt: 4}, orderBy: [{field: region, direction: ASC}]) { region } }",
             None,
         )
         .await

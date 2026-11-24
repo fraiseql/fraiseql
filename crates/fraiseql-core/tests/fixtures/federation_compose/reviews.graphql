@@ -2,6 +2,24 @@ extend schema @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@
 scalar BigInt
 scalar JSON
 
+enum ReviewVoteAggregateOrderByField {
+  region
+  count
+  score_sum
+  score_avg
+  score_min
+  score_max
+  score_stddev
+  score_variance
+  score_count_distinct
+  score_json_agg
+  score_jsonb_agg
+  region_array_agg
+  region_string_agg
+  region_json_agg
+  region_jsonb_agg
+}
+
 enum WindowColumnKind {
   measure
   dimension
@@ -189,21 +207,8 @@ input ReviewVoteAggregateHaving {
 }
 
 input ReviewVoteAggregateOrderBy {
-  region: SortDirection
-  count: SortDirection
-  score_sum: SortDirection
-  score_avg: SortDirection
-  score_min: SortDirection
-  score_max: SortDirection
-  score_stddev: SortDirection
-  score_variance: SortDirection
-  score_count_distinct: SortDirection
-  score_json_agg: SortDirection
-  score_jsonb_agg: SortDirection
-  region_array_agg: SortDirection
-  region_string_agg: SortDirection
-  region_json_agg: SortDirection
-  region_jsonb_agg: SortDirection
+  field: ReviewVoteAggregateOrderByField!
+  direction: SortDirection = ASC
 }
 
 input WindowColumn {
@@ -289,7 +294,7 @@ type ReviewVoteAggregateRow {
 
 type Query {
   reviews: [Review!]!
-  review_vote_aggregate(where: ReviewVoteAggregateWhere, groupBy: ReviewVoteAggregateGroupBy, aggregates: [ReviewVoteAggregateSelection!], having: ReviewVoteAggregateHaving, orderBy: ReviewVoteAggregateOrderBy, limit: Int, offset: Int): [ReviewVoteAggregateRow!]!
+  review_vote_aggregate(where: ReviewVoteAggregateWhere, groupBy: ReviewVoteAggregateGroupBy, aggregates: [ReviewVoteAggregateSelection!], having: ReviewVoteAggregateHaving, orderBy: [ReviewVoteAggregateOrderBy!], limit: Int, offset: Int): [ReviewVoteAggregateRow!]!
   review_vote_window(select: [WindowColumn!], windows: [WindowSpec!], where: ReviewVoteAggregateWhere, orderBy: [WindowOrderBy!], limit: Int, offset: Int): [JSON!]!
 }
 

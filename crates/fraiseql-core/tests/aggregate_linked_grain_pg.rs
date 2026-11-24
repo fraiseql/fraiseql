@@ -228,7 +228,7 @@ fn request(range: &Value, group: &[&str], aggregates: &[&str]) -> Value {
         "where": range,
         "groupBy": group.iter().map(|g| ((*g).to_string(), json!(true))).collect::<serde_json::Map<_, _>>(),
         "aggregates": aggregates.iter().map(|a| json!({ *a: true })).collect::<Vec<_>>(),
-        "orderBy": group.iter().map(|g| ((*g).to_string(), json!("ASC"))).collect::<serde_json::Map<_, _>>(),
+        "orderBy": group.iter().map(|g| json!({ "field": g, "direction": "ASC" })).collect::<Vec<_>>(),
     })
 }
 
@@ -304,9 +304,9 @@ async fn having_order_and_page_apply_to_the_recombined_groups() {
     };
     let range = split_range();
     for extra in [
-        json!({ "having": { "amount_sum_gt": 900 }, "orderBy": { "amount_sum": "DESC" } }),
-        json!({ "orderBy": { "amount_sum": "DESC" }, "limit": 2, "offset": 1 }),
-        json!({ "having": { "amount_sum_lt": 1400 }, "orderBy": { "day_month": "ASC" } }),
+        json!({ "having": { "amount_sum_gt": 900 }, "orderBy": [{ "field": "amount_sum", "direction": "DESC" }] }),
+        json!({ "orderBy": [{ "field": "amount_sum", "direction": "DESC" }], "limit": 2, "offset": 1 }),
+        json!({ "having": { "amount_sum_lt": 1400 }, "orderBy": [{ "field": "day_month", "direction": "ASC" }] }),
     ] {
         let mut request = request(&range, &["day_month"], &["amount_sum"]);
         for (key, value) in extra.as_object().unwrap() {

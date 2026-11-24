@@ -145,7 +145,7 @@ async fn buckets(
     let mut request = json!({
         "groupBy": { alias.clone(): true },
         "aggregates": [{ measure: true }],
-        "orderBy": { alias.clone(): "ASC" },
+        "orderBy": [{ "field": alias.clone(), "direction": "ASC" }],
     });
     if let Some(filter) = filter {
         request["where"] = filter;

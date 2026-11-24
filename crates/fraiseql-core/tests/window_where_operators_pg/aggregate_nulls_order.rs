@@ -106,10 +106,22 @@ async fn an_aggregate_puts_its_null_aggregates_and_null_keys_where_the_direction
         return;
     };
     for (order, sql_order) in [
-        (json!({ "revenue_sum": "DESC_NULLS_LAST" }), "2 DESC NULLS LAST"),
-        (json!({ "revenue_sum": "ASC_NULLS_FIRST" }), "2 ASC NULLS FIRST"),
-        (json!({ "team": "ASC_NULLS_FIRST" }), "1 ASC NULLS FIRST"),
-        (json!({ "team": "DESC_NULLS_LAST" }), "1 DESC NULLS LAST"),
+        (
+            json!([{ "field": "revenue_sum", "direction": "DESC_NULLS_LAST" }]),
+            "2 DESC NULLS LAST",
+        ),
+        (
+            json!([{ "field": "revenue_sum", "direction": "ASC_NULLS_FIRST" }]),
+            "2 ASC NULLS FIRST",
+        ),
+        (
+            json!([{ "field": "team", "direction": "ASC_NULLS_FIRST" }]),
+            "1 ASC NULLS FIRST",
+        ),
+        (
+            json!([{ "field": "team", "direction": "DESC_NULLS_LAST" }]),
+            "1 DESC NULLS LAST",
+        ),
     ] {
         let query = json!({ "groupBy": { "team": true },
                             "aggregates": [{ "revenue_sum": true }],

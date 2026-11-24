@@ -182,11 +182,7 @@ fn wrong_shapes() -> Vec<(Root, &'static str, &'static str, Vec<(&'static str, V
             scalars(),
         ),
         (Root::Aggregate, "having", "having must be an object", scalars_and_list()),
-        (Root::Aggregate, "orderBy", "orderBy must be an object", {
-            let mut shapes = scalars_and_list();
-            shapes.push(("[{tenant_id: ASC}]", json!([{"tenant_id": "ASC"}])));
-            shapes
-        }),
+        (Root::Aggregate, "orderBy", "orderBy must be an object or array", scalars()),
         (Root::Window, "select", "select must be an object or array", scalars()),
         (Root::Window, "windows", "windows must be an object or array", scalars()),
         (Root::Window, "where", "where clause must be a JSON object", scalars_and_list()),
@@ -461,12 +457,18 @@ async fn a_key_the_root_cannot_read_is_refused_naming_it() {
             json!([{"bogus": true}]),
             "bogus",
         ),
-        (Root::Aggregate, "orderBy", "{bogus: ASC}", json!({"bogus": "ASC"}), "bogus"),
         (
             Root::Aggregate,
             "orderBy",
-            r#"{tenant_id: "UP"}"#,
-            json!({"tenant_id": "UP"}),
+            r#"[{field: "bogus"}]"#,
+            json!([{"field": "bogus"}]),
+            "bogus",
+        ),
+        (
+            Root::Aggregate,
+            "orderBy",
+            r#"[{field: "tenant_id", direction: "UP"}]"#,
+            json!([{"field": "tenant_id", "direction": "UP"}]),
             "tenant_id",
         ),
         (

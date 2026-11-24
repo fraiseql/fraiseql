@@ -146,7 +146,7 @@ async fn column_keys(executor: &Executor, column: &str) -> Vec<Value> {
     let request = json!({
         "groupBy": { column: true },
         "aggregates": [{ "amount_sum": true }],
-        "orderBy": { column: "ASC" },
+        "orderBy": [{ "field": column, "direction": "ASC" }],
     });
     let response = executor
         .execute(&format!("{{ {ROOT} {{ {column} }} }}"), Some(&request))
@@ -170,7 +170,7 @@ async fn keys(executor: &Executor, column: &str, grain: &str, measure: &str) -> 
     let request = json!({
         "groupBy": { alias.clone(): true },
         "aggregates": [{ measure: true }],
-        "orderBy": { alias.clone(): "ASC" },
+        "orderBy": [{ "field": alias.clone(), "direction": "ASC" }],
     });
     let response = executor
         .execute(&format!("{{ {ROOT} {{ {alias} }} }}"), Some(&request))

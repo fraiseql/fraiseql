@@ -524,8 +524,8 @@ The `<name>_aggregate` and `<name>_window` root fields read the fact table `tf_<
 take their request (`groupBy` or `select`, `aggregates` or `windows`, `where`, `having`,
 `orderBy`, `limit`, `offset`) as arguments, written inline or passed as variables, as every
 root field does: a variable named like an argument wins over the argument written inline,
-and an object literal keeps its written key order (`orderBy: {revenue_sum: DESC, region:
-ASC}`). An argument the planner does not read is refused, naming the ones it does, never
+and an `orderBy` list applies its items in the order written (`orderBy: [{field: revenue_sum,
+direction: DESC}, {field: region}]`). An argument the planner does not read is refused, naming the ones it does, never
 ignored (#1609). `limit` and `offset` are read as a list's: a value that is not a
 non-negative `Int` is refused, `limit` is held to `[validation] max_page_size` and `offset`
 to `max_offset`, all before any statement (#1532, #1306).

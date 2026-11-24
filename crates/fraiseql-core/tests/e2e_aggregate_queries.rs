@@ -209,9 +209,7 @@ fn test_order_by_aggregate_desc() {
             {"count": true},
             {"revenue_sum": true}
         ],
-        "orderBy": {
-            "revenue_sum": "DESC"
-        }
+        "orderBy": [{ "field": "revenue_sum", "direction": "DESC" }]
     });
 
     let sql = parse_plan_generate(&query);
@@ -224,9 +222,7 @@ fn test_order_by_dimension_asc() {
     let query = json!({
         "groupBy": {"category": true},
         "aggregates": [{"count": true}],
-        "orderBy": {
-            "category": "ASC"
-        }
+        "orderBy": [{ "field": "category", "direction": "ASC" }]
     });
 
     let sql = parse_plan_generate(&query);
@@ -280,9 +276,7 @@ fn test_complex_query_all_clauses() {
             {"revenue_sum": true},
             {"revenue_avg": true}
         ],
-        "orderBy": {
-            "revenue_sum": "DESC"
-        },
+        "orderBy": [{ "field": "revenue_sum", "direction": "DESC" }],
         "limit": 10
     });
 
@@ -506,7 +500,7 @@ fn test_sql_clause_order_with_having() {
         "groupBy": {"category": true},
         "aggregates": [{"count": true}, {"revenue_sum": true}],
         "having": {"count_gt": 5},
-        "orderBy": {"revenue_sum": "DESC"},
+        "orderBy": [{ "field": "revenue_sum", "direction": "DESC" }],
         "limit": 10
     });
 
@@ -668,7 +662,7 @@ fn test_temporal_bucket_with_where_having() {
         "having": {
             "revenue_sum_gt": 1000.0
         },
-        "orderBy": {"revenue_sum": "DESC"},
+        "orderBy": [{ "field": "revenue_sum", "direction": "DESC" }],
         "limit": 5
     });
 

@@ -24,6 +24,42 @@ enum SortDirection {
   DESC_NULLS_LAST
 }
 
+enum ProductCostAggregateOrderByField {
+  region
+  count
+  units_sum
+  units_avg
+  units_min
+  units_max
+  units_stddev
+  units_variance
+  units_count_distinct
+  units_json_agg
+  units_jsonb_agg
+  region_array_agg
+  region_string_agg
+  region_json_agg
+  region_jsonb_agg
+}
+
+enum ProductSaleAggregateOrderByField {
+  region
+  count
+  units_sum
+  units_avg
+  units_min
+  units_max
+  units_stddev
+  units_variance
+  units_count_distinct
+  units_json_agg
+  units_jsonb_agg
+  region_array_agg
+  region_string_agg
+  region_json_agg
+  region_jsonb_agg
+}
+
 enum WindowColumnKind {
   measure
   dimension
@@ -313,21 +349,8 @@ input ProductCostAggregateHaving {
 }
 
 input ProductCostAggregateOrderBy {
-  region: SortDirection
-  count: SortDirection
-  units_sum: SortDirection
-  units_avg: SortDirection
-  units_min: SortDirection
-  units_max: SortDirection
-  units_stddev: SortDirection
-  units_variance: SortDirection
-  units_count_distinct: SortDirection
-  units_json_agg: SortDirection
-  units_jsonb_agg: SortDirection
-  region_array_agg: SortDirection
-  region_string_agg: SortDirection
-  region_json_agg: SortDirection
-  region_jsonb_agg: SortDirection
+  field: ProductCostAggregateOrderByField!
+  direction: SortDirection = ASC
 }
 
 input ProductSaleAggregateWhere {
@@ -460,21 +483,8 @@ input ProductSaleAggregateHaving {
 }
 
 input ProductSaleAggregateOrderBy {
-  region: SortDirection
-  count: SortDirection
-  units_sum: SortDirection
-  units_avg: SortDirection
-  units_min: SortDirection
-  units_max: SortDirection
-  units_stddev: SortDirection
-  units_variance: SortDirection
-  units_count_distinct: SortDirection
-  units_json_agg: SortDirection
-  units_jsonb_agg: SortDirection
-  region_array_agg: SortDirection
-  region_string_agg: SortDirection
-  region_json_agg: SortDirection
-  region_jsonb_agg: SortDirection
+  field: ProductSaleAggregateOrderByField!
+  direction: SortDirection = ASC
 }
 
 input WindowColumn {
@@ -603,9 +613,9 @@ type Query {
   productCosts: [ProductCost!]! @tag(name: "requires-role/catalog-admin")
   entityChangeLogs(where: EntityChangeLogWhereInput, orderBy: [EntityChangeLogOrderByInput!], limit: Int): [EntityChangeLog!]! @tag(name: "requires-role/changelog_reader")
   transportCheckpoint(transportName: String!): TransportCheckpoint @tag(name: "requires-role/changelog_reader")
-  product_cost_aggregate(where: ProductCostAggregateWhere, groupBy: ProductCostAggregateGroupBy, aggregates: [ProductCostAggregateSelection!], having: ProductCostAggregateHaving, orderBy: ProductCostAggregateOrderBy, limit: Int, offset: Int): [ProductCostAggregateRow!]! @tag(name: "requires-role/catalog-admin")
+  product_cost_aggregate(where: ProductCostAggregateWhere, groupBy: ProductCostAggregateGroupBy, aggregates: [ProductCostAggregateSelection!], having: ProductCostAggregateHaving, orderBy: [ProductCostAggregateOrderBy!], limit: Int, offset: Int): [ProductCostAggregateRow!]! @tag(name: "requires-role/catalog-admin")
   product_cost_window(select: [WindowColumn!], windows: [WindowSpec!], where: ProductCostAggregateWhere, orderBy: [WindowOrderBy!], limit: Int, offset: Int): [JSON!]! @tag(name: "requires-role/catalog-admin")
-  product_sale_aggregate(where: ProductSaleAggregateWhere, groupBy: ProductSaleAggregateGroupBy, aggregates: [ProductSaleAggregateSelection!], having: ProductSaleAggregateHaving, orderBy: ProductSaleAggregateOrderBy, limit: Int, offset: Int): [ProductSaleAggregateRow!]!
+  product_sale_aggregate(where: ProductSaleAggregateWhere, groupBy: ProductSaleAggregateGroupBy, aggregates: [ProductSaleAggregateSelection!], having: ProductSaleAggregateHaving, orderBy: [ProductSaleAggregateOrderBy!], limit: Int, offset: Int): [ProductSaleAggregateRow!]!
   product_sale_window(select: [WindowColumn!], windows: [WindowSpec!], where: ProductSaleAggregateWhere, orderBy: [WindowOrderBy!], limit: Int, offset: Int): [JSON!]!
 }
 
