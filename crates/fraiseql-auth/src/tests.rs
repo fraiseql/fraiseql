@@ -917,6 +917,34 @@ mod state_store_tests {
         let (p2, _) = store.retrieve("redis_state_b").await.unwrap();
         assert_eq!(p2, "okta");
     }
+
+    #[cfg(feature = "redis-rate-limiting")]
+    #[tokio::test]
+    #[ignore = "requires Redis — runs in the `integration (redis)` suite, which sets REDIS_URL"]
+    async fn test_redis_state_is_stored_to_expire_at_its_expiry() {
+        let url = required_redis_url();
+        let store = RedisStateStore::new(&url).await.expect("Redis connection failed");
+        let expiry = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            + 600;
+
+        store
+            .store("redis_state_ttl".to_string(), "google".to_string(), expiry)
+            .await
+            .unwrap();
+
+        let client = redis::Client::open(url.as_str()).unwrap();
+        let mut conn = client.get_multiplexed_async_connection().await.unwrap();
+        let ttl: i64 = redis::cmd("TTL")
+            .arg("oauth:state:redis_state_ttl")
+            .query_async(&mut conn)
+            .await
+            .unwrap();
+        assert!((1..=600).contains(&ttl), "the state expires at its expiry, got {ttl}");
+        store.retrieve("redis_state_ttl").await.unwrap();
+    }
 }
 
 #[cfg(test)]
@@ -2681,6 +2709,66 @@ mod pkce_tests {
             matches!(result, Err(PkceError::StateNotFound)),
             "tampered token must be rejected"
         );
+    }
+
+    /// The Redis the `integration (redis)` leg binds; these cases are `#[ignore]`d.
+    #[cfg(feature = "redis-pkce")]
+    fn bound_redis_url() -> String {
+        std::env::var("REDIS_URL").expect("REDIS_URL must be set to run the Redis PKCE cases")
+    }
+
+    #[cfg(feature = "redis-pkce")]
+    #[tokio::test]
+    #[ignore = "requires Redis — runs in the `integration (redis)` suite, which sets REDIS_URL"]
+    async fn test_redis_pkce_state_is_stored_with_its_ttl() {
+        let url = bound_redis_url();
+        let store = PkceStateStore::new_redis(&url, 300, None)
+            .await
+            .expect("Redis connection failed");
+
+        // Without an encryptor the outbound token is the stored key.
+        let (token, _) = store.create_state("https://example.com/cb").await.unwrap();
+
+        let client = redis::Client::open(url.as_str()).unwrap();
+        let mut conn = client.get_multiplexed_async_connection().await.unwrap();
+        let ttl: i64 = redis::cmd("TTL")
+            .arg(format!("fraiseql:pkce:{token}"))
+            .query_async(&mut conn)
+            .await
+            .unwrap();
+        assert!((1..=300).contains(&ttl), "the state expires within its TTL, got {ttl}");
+    }
+
+    #[cfg(feature = "redis-pkce")]
+    #[tokio::test]
+    #[ignore = "requires Redis — runs in the `integration (redis)` suite, which sets REDIS_URL"]
+    async fn test_redis_pkce_refuses_the_stored_key_in_place_of_its_encrypted_token() {
+        let enc = enc_service();
+        let store = PkceStateStore::new_redis(&bound_redis_url(), 300, Some(enc.clone()))
+            .await
+            .expect("Redis connection failed");
+        let (token, verifier) = store.create_state("https://example.com/cb").await.unwrap();
+        let stored_key = String::from_utf8(enc.decrypt(&token).unwrap()).unwrap();
+
+        let refused = store.consume_state(&stored_key).await;
+        assert!(matches!(refused, Err(PkceError::StateNotFound)), "got {refused:?}");
+
+        // Control: the encrypted token still consumes the same state.
+        assert_eq!(store.consume_state(&token).await.unwrap().verifier, verifier);
+    }
+
+    #[tokio::test]
+    async fn test_in_memory_pkce_refuses_the_stored_key_in_place_of_its_encrypted_token() {
+        let enc = enc_service();
+        let store = PkceStateStore::new(300, Some(enc.clone()));
+        let (token, verifier) = store.create_state("https://example.com/cb").await.unwrap();
+        let stored_key = String::from_utf8(enc.decrypt(&token).unwrap()).unwrap();
+
+        let refused = store.consume_state(&stored_key).await;
+        assert!(matches!(refused, Err(PkceError::StateNotFound)), "got {refused:?}");
+
+        // Control: the encrypted token still consumes the same state.
+        assert_eq!(store.consume_state(&token).await.unwrap().verifier, verifier);
     }
 }
 

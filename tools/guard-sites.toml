@@ -3380,3 +3380,101 @@ anchor = "None => Err(self.unavailable()),"
 mutant = "None => {\n                let _ = self.unavailable();\n                Ok(None)\n            },"
 killers = ["an_unreachable_publisher_is_asked_once_per_cooldown_too"]
 shard = "jwks-lib"
+
+[[family]]
+name = "auth-state-store"
+patterns = [
+    '"GETDEL"|\bget_del\s*\(',
+    '\.decrypt\(outbound_token\)',
+]
+
+[[shard]]
+name = "auth-lib-pkce"
+crate = "crates/fraiseql-auth"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-auth --features redis-pkce --lib -- --include-ignored --test-threads=1 tests::pkce_tests::"
+
+[[shard]]
+name = "auth-lib-state-store"
+crate = "crates/fraiseql-auth"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-auth --features redis-rate-limiting --lib -- --include-ignored --test-threads=1 tests::state_store_tests:: state_store::"
+
+[[site]]
+id = "pkce.redis.single-use"
+file = "crates/fraiseql-auth/src/pkce.rs"
+function = "consume_state_impl"
+anchor = "redis::cmd(\"GETDEL\")"
+mutant = "redis::cmd(\"GET\")"
+killers = ["test_redis_pkce_one_shot_consumption"]
+shard = "auth-lib-pkce"
+
+[[site]]
+id = "pkce.redis.ttl"
+file = "crates/fraiseql-auth/src/pkce.rs"
+function = "create_state_impl"
+anchor = ".arg(self.state_ttl_secs)"
+mutant = ".arg(self.state_ttl_secs.saturating_mul(1000))"
+killers = ["test_redis_pkce_state_is_stored_with_its_ttl"]
+shard = "auth-lib-pkce"
+
+[[site]]
+id = "pkce.redis.encrypted-token"
+file = "crates/fraiseql-auth/src/pkce.rs"
+function = "consume_state_impl"
+anchor = "let bytes = enc.decrypt(outbound_token).map_err(|_| PkceError::StateNotFound)?;"
+mutant = "let bytes = enc.decrypt(outbound_token).unwrap_or_else(|_| outbound_token.as_bytes().to_vec());"
+killers = ["test_redis_pkce_refuses_the_stored_key_in_place_of_its_encrypted_token"]
+shard = "auth-lib-pkce"
+
+[[site]]
+id = "pkce.memory.encrypted-token"
+file = "crates/fraiseql-auth/src/pkce.rs"
+function = "consume_state_sync"
+anchor = "let bytes = enc.decrypt(outbound_token).map_err(|_| PkceError::StateNotFound)?;"
+mutant = "let bytes = enc.decrypt(outbound_token).unwrap_or_else(|_| outbound_token.as_bytes().to_vec());"
+killers = ["test_in_memory_pkce_refuses_the_stored_key_in_place_of_its_encrypted_token"]
+shard = "auth-lib-pkce"
+
+[[site]]
+id = "pkce.memory.expiry"
+file = "crates/fraiseql-auth/src/pkce.rs"
+function = "consume_state_sync"
+anchor = "if entry.created_at.elapsed() > entry.ttl {"
+mutant = "if false && entry.created_at.elapsed() > entry.ttl {"
+killers = ["test_expired_state_returns_state_expired_not_not_found"]
+shard = "auth-lib-pkce"
+
+[[site]]
+id = "state.redis.single-use"
+file = "crates/fraiseql-auth/src/state_store.rs"
+function = "RedisStateStore::retrieve"
+anchor = "conn.get_del(&key)"
+mutant = "conn.get(&key)"
+killers = ["test_redis_state_replay_prevention"]
+shard = "auth-lib-state-store"
+
+[[site]]
+id = "state.redis.ttl"
+file = "crates/fraiseql-auth/src/state_store.rs"
+function = "RedisStateStore::store"
+anchor = "conn.set_ex(&key, &value, ttl)"
+mutant = "conn.set_ex(&key, &value, ttl.saturating_mul(1000))"
+killers = ["test_redis_state_is_stored_to_expire_at_its_expiry"]
+shard = "auth-lib-state-store"
+
+[[site]]
+id = "state.memory.single-use"
+file = "crates/fraiseql-auth/src/state_store.rs"
+function = "InMemoryStateStore::retrieve"
+anchor = "self.states.remove(state)"
+mutant = "self.states.get(state).map(|entry| (entry.key().clone(), entry.value().clone()))"
+killers = ["test_in_memory_state_replay_prevention"]
+shard = "auth-lib-state-store"
+
+[[site]]
+id = "state.memory.expiry"
+file = "crates/fraiseql-auth/src/state_store.rs"
+function = "InMemoryStateStore::retrieve"
+anchor = "if now > expiry {"
+mutant = "if false && now > expiry {"
+killers = ["retrieve_rejects_an_expired_entry"]
+shard = "auth-lib-state-store"
