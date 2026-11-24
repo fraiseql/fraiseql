@@ -2025,6 +2025,17 @@ disagreed, and the promise was the part that was wrong.
   server did. Both now follow the constructed deployment. A server started by the binary
   constructs it from the environment, so the two already agreed there.
 
+- **With read replicas, a write pins only its writer's reads to the primary (#1633).** The
+  read-your-writes pin was one watermark for the whole process, so any client's write sent
+  every client's reads to the primary for `pin_after_write`, and a steady trickle of writes
+  kept every read off the replicas. The pin is now kept per principal (tenant and subject):
+  a request's reads go to the primary only after that principal's own write. A read with no
+  principal is still pinned by any write, a write with no principal still pins every read,
+  and up to 10 000 principals' pins are held at once; past that, expired pins are dropped
+  first, and a write with no room left pins every read with a principal until its window
+  passes. Embedders running work outside the executor can open the same scope with
+  `fraiseql_db::with_write_pin_principal`.
+
 - **`playground_require_auth = true` requires a credential (#2486).** The playground's mount
   deferred to the OIDC validator's own `required` flag, so under an `[auth]` section that does
   not set `required`, a request with no credential was served the playground. It now takes the

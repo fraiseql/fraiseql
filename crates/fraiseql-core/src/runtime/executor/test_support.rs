@@ -96,6 +96,8 @@ pub struct CapturingMockAdapter {
     /// Holds each projected read until this many are in flight, when set by
     /// [`with_rendezvous`](Self::with_rendezvous).
     pub rendezvous:                Option<tokio::sync::Barrier>,
+    /// The read-your-writes principal each read ran in the scope of, in call order.
+    pub pin_principals:            std::sync::Mutex<Vec<Option<u64>>>,
 }
 
 /// The arguments a row-shaped read reached the adapter with (#1351).
@@ -137,6 +139,7 @@ impl CapturingMockAdapter {
             composes_reads: true,
             projection_addresses: std::sync::Mutex::new(Vec::new()),
             rendezvous: None,
+            pin_principals: std::sync::Mutex::new(Vec::new()),
         }
     }
 
@@ -268,6 +271,10 @@ impl DatabaseAdapter for CapturingMockAdapter {
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
+        self.pin_principals
+            .lock()
+            .unwrap()
+            .push(fraiseql_db::scoped_write_pin_principal());
         *self.captured_where.lock().unwrap() = where_clause.cloned();
         *self.captured_limit.lock().unwrap() = limit;
         *self.captured_offset.lock().unwrap() = offset;

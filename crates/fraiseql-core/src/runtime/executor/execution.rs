@@ -135,37 +135,52 @@ impl Executor {
         // document, inside the transport's scope when it opened one, and a document this
         // executor parsed before is not parsed again.
         // Boxed: the scope holds the whole dispatch, and every caller awaits this future.
-        let (response, notices) = self
-            .ctx
-            .documents
-            .scope(crate::runtime::notices::collect_notices(Box::pin(async {
-                if self.ctx.config.query_timeout_ms > 0 {
-                    let timeout_duration = Duration::from_millis(self.ctx.config.query_timeout_ms);
-                    tokio::time::timeout(
-                        timeout_duration,
+        let run =
+            self.ctx
+                .documents
+                .scope(crate::runtime::notices::collect_notices(Box::pin(async {
+                    if self.ctx.config.query_timeout_ms > 0 {
+                        let timeout_duration =
+                            Duration::from_millis(self.ctx.config.query_timeout_ms);
+                        tokio::time::timeout(
+                            timeout_duration,
+                            self.execute_dispatch(
+                                query,
+                                variables,
+                                security_context,
+                                operation_name,
+                                raw,
+                            ),
+                        )
+                        .await
+                        .map_err(|_| {
+                            // Truncate query (char-boundary-safe) for error reporting.
+                            let query_snippet =
+                                crate::utils::text::truncate_for_display(query, 100);
+                            FraiseQLError::Timeout {
+                                timeout_ms: self.ctx.config.query_timeout_ms,
+                                query:      Some(query_snippet),
+                            }
+                        })?
+                    } else {
                         self.execute_dispatch(
                             query,
                             variables,
                             security_context,
                             operation_name,
                             raw,
-                        ),
-                    )
-                    .await
-                    .map_err(|_| {
-                        // Truncate query (char-boundary-safe) for error reporting.
-                        let query_snippet = crate::utils::text::truncate_for_display(query, 100);
-                        FraiseQLError::Timeout {
-                            timeout_ms: self.ctx.config.query_timeout_ms,
-                            query:      Some(query_snippet),
-                        }
-                    })?
-                } else {
-                    self.execute_dispatch(query, variables, security_context, operation_name, raw)
+                        )
                         .await
-                }
-            })))
-            .await;
+                    }
+                })));
+        // With read replicas, this principal's writes pin only its own reads to the
+        // primary. A request with no principal keeps the pin every write sets.
+        let (response, notices) = match security_context {
+            Some(context) => {
+                fraiseql_db::with_write_pin_principal(&write_pin_principal(context), run).await
+            },
+            None => run.await,
+        };
         // Notices ride in the body, so a response that carries any is built as a tree.
         let response = response?;
         if notices.is_empty() {
@@ -981,4 +996,14 @@ fn introspection_type_name(
         .as_str()
         .map(str::to_string)
         .ok_or_else(|| refuse("it was null or not a string"))
+}
+
+/// Who a request's writes pin reads for: its tenant and its subject. Requests of one
+/// subject in one tenant share a pin, so a client reads its own writes from any of them.
+fn write_pin_principal(context: &SecurityContext) -> String {
+    format!(
+        "{}\u{0}{}",
+        context.tenant_id.as_ref().map_or("", |tenant| tenant.as_str()),
+        context.user_id.as_str()
+    )
 }

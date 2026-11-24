@@ -55,6 +55,7 @@ pub mod traits;
 pub mod view_name;
 pub mod where_clause;
 pub mod where_sql_generator;
+mod write_pin_scope;
 
 #[cfg(feature = "postgres")]
 pub mod postgres;
@@ -113,3 +114,4 @@ pub use view_name::ViewName;
 pub use where_clause::{HavingClause, WhereClause, WhereOperator};
 pub use where_generator::GenericWhereGenerator;
 pub use where_sql_generator::WhereSqlGenerator;
+pub use write_pin_scope::{scoped_write_pin_principal, with_write_pin_principal};

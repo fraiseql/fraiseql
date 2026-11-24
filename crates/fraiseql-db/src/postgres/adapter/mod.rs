@@ -12,6 +12,7 @@ mod temporal_cell;
 #[cfg(feature = "test-postgres")]
 pub mod test_hooks;
 pub mod transaction_retry;
+pub mod write_pins;
 
 #[cfg(test)]
 mod composed_tests;
@@ -1025,7 +1026,7 @@ async fn build_read_replica_set(
         pin_after_write_ms,
         max_lag_ms,
         probe_interval: rc.health_probe_interval,
-        last_write_unix_ms: AtomicU64::new(0),
+        write_pins: write_pins::WritePins::new(),
     })
 }
 
@@ -1077,11 +1078,11 @@ pub struct PostgresAdapter {
     transaction_retry:       TransactionRetry,
 }
 
-/// The built replica pools plus the shared read-your-writes watermark.
+/// The built replica pools plus the shared read-your-writes pins.
 ///
 /// Held behind one `Arc` so adapter clones share a single round-robin cursor and
-/// a single write watermark — a clone that kept its own watermark would let a
-/// write through one clone go unseen by reads through another.
+/// one set of pins — a clone that kept its own would let a write through one clone
+/// go unseen by reads through another.
 struct ReadReplicaSet {
     pools:              Vec<Pool>,
     /// Per-replica probe results, parallel to [`pools`](Self::pools).
@@ -1094,9 +1095,8 @@ struct ReadReplicaSet {
     max_lag_ms:         Option<u64>,
     /// [`ReadReplicaConfig::health_probe_interval`].
     probe_interval:     Duration,
-    /// Unix-epoch milliseconds of the most recent mutation-pipeline write;
-    /// `0` = never written.
-    last_write_unix_ms: AtomicU64,
+    /// The mutation-pipeline writes inside the pin window, per principal.
+    write_pins:         write_pins::WritePins,
 }
 
 /// What the last health probe observed about one replica (#957).
@@ -1671,10 +1671,16 @@ impl PostgresAdapter {
     ///
     /// Called at both entry and successful exit of every mutation-pipeline
     /// method: entry so a read racing a slow write already pins, exit because
-    /// replication lag is measured from commit. A no-op without replicas.
+    /// replication lag is measured from commit. The write pins the reads of the
+    /// principal whose scope it runs in ([`write_pins::with_write_pin_principal`]),
+    /// or every read outside one. A no-op without replicas.
     pub(super) fn mark_write(&self) {
         if let Some(replicas) = &self.read_replicas {
-            replicas.last_write_unix_ms.store(now_unix_ms(), Ordering::Relaxed);
+            replicas.write_pins.record(
+                write_pins::scoped_principal(),
+                now_unix_ms(),
+                replicas.pin_after_write_ms,
+            );
         }
     }
 
@@ -1682,7 +1688,8 @@ impl PostgresAdapter {
     ///
     /// Routing, in order:
     /// 1. no replicas configured → primary;
-    /// 2. inside the post-write pin window → primary (read-your-writes);
+    /// 2. inside the post-write pin window of a write this read must see → primary
+    ///    (read-your-writes; see [`write_pins`]);
     /// 3. otherwise round-robin over the replicas, skipping any outside the bounded-staleness
     ///    budget and any whose acquisition fails, falling back to the primary when none is left.
     ///
@@ -1712,9 +1719,9 @@ impl PostgresAdapter {
         // `replica` opts out of the pin: the pin exists so a client reads its own
         // writes, and this query has said that is not what it is for.
         if routing.honours_write_pin()
-            && pin_active(
+            && replicas.write_pins.pinned(
+                write_pins::scoped_principal(),
                 now_ms,
-                replicas.last_write_unix_ms.load(Ordering::Relaxed),
                 replicas.pin_after_write_ms,
             )
         {

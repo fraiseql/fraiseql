@@ -19,6 +19,7 @@ pub use adapter::{
     transaction_retry::{
         MAX_BACKOFF_MS, RetryEvent, RetryObserver, TransactionRetry, TransactionRetryConfig,
     },
+    write_pins::PRINCIPAL_PIN_CAPACITY,
 };
 pub use introspector::{IndexInfo, PostgresIntrospector};
 pub use notify::{NOTIFY_APPLICATION_NAME, Notification, NotifyConnector, NotifySession};

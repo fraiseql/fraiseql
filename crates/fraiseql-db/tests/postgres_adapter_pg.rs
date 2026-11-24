@@ -2045,6 +2045,76 @@ async fn reads_return_to_the_replica_after_the_pin_expires() {
     );
 }
 
+/// A write through the replica-routed adapter, made in `principal`'s scope.
+#[allow(clippy::disallowed_methods)] // Reason: the adapter's own test, which drives its write directly
+async fn rr_write_as(adapter: &PostgresAdapter, principal: &str, id: i32) {
+    fraiseql_db::with_write_pin_principal(principal, async {
+        adapter
+            .execute_write(
+                &fraiseql_db::WriteRequest::new(
+                    "fn_rr_insert",
+                    &[json!({"id": id, "label": "written"})],
+                ),
+                &|_| Ok(()),
+            )
+            .await
+            .expect("mutation")
+    })
+    .await;
+}
+
+/// The read-your-writes pin is kept per principal: while A writes, B's reads stay
+/// on the replica. Before, one write by anyone pinned every read to the primary.
+#[tokio::test]
+async fn another_principals_writes_leave_reads_on_the_replica() {
+    const READS: i32 = 20;
+    let (primary_url, replica_url) = rr_fixture("principal").await;
+    let adapter = rr_adapter(&primary_url, &replica_url, std::time::Duration::from_secs(30)).await;
+
+    let mut from_replica = 0;
+    for id in 0..READS {
+        rr_write_as(&adapter, "tenant\u{0}alice", 100 + id).await;
+        let marker =
+            fraiseql_db::with_write_pin_principal("tenant\u{0}bob", rr_read_marker(&adapter)).await;
+        if marker == "from-replica" {
+            from_replica += 1;
+        }
+    }
+    assert_eq!(
+        from_replica, READS,
+        "B's reads must not be pinned by A's writes: {from_replica}/{READS} served by the replica"
+    );
+}
+
+/// The property the pin exists for holds per principal: A reads its own write.
+#[tokio::test]
+async fn a_principals_read_after_its_own_write_is_served_by_the_primary() {
+    let (primary_url, replica_url) = rr_fixture("ownread").await;
+    let adapter = rr_adapter(&primary_url, &replica_url, std::time::Duration::from_secs(30)).await;
+
+    assert_eq!(
+        fraiseql_db::with_write_pin_principal("tenant\u{0}alice", rr_read_marker(&adapter)).await,
+        "from-replica",
+        "routing is live before the write"
+    );
+    rr_write_as(&adapter, "tenant\u{0}alice", 2).await;
+    assert_eq!(
+        fraiseql_db::with_write_pin_principal("tenant\u{0}alice", rr_read_marker(&adapter)).await,
+        "from-primary",
+        "a principal's read right after its own write must be served by the primary"
+    );
+}
+
+/// A read with no principal cannot tell whose write it would miss: any write pins it.
+#[tokio::test]
+async fn a_read_with_no_principal_is_pinned_by_any_principals_write() {
+    let (primary_url, replica_url) = rr_fixture("unscoped").await;
+    let adapter = rr_adapter(&primary_url, &replica_url, std::time::Duration::from_secs(30)).await;
+
+    rr_write_as(&adapter, "tenant\u{0}alice", 2).await;
+    assert_eq!(rr_read_marker(&adapter).await, "from-primary");
+}
+
 #[tokio::test]
 async fn replica_pool_carries_the_tenant_search_path() {
     let (primary_url, replica_url) = rr_fixture("sp").await;

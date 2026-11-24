@@ -229,6 +229,8 @@ mod tests;
 
 #[cfg(test)]
 mod variable_visibility_tests;
+#[cfg(test)]
+mod write_pin_scope_tests;
 
 #[cfg(test)]
 mod where_operand_tests;
