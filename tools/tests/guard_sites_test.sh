@@ -46,7 +46,7 @@ patterns = ['\bcheck_revocation\s*\(']
 [[shard]]
 name    = "unit"
 crate   = "crates/fraiseql-server"
-command = "cargo test"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test"
 
 [[held]]
 path = "crates/fraiseql-server/src/held"
@@ -333,6 +333,12 @@ expect 1 "${src}/routes/auth.rs:11:13: session guard" "43. an anchor narrows a f
 tree; shard_block=$(python3 -c "import re,sys; print(re.search(r'\[\[shard\]\][^[]*', open(sys.argv[1]).read()).group(0).rstrip())" "${ws}/tools/guard-sites.toml")
 printf '\n%s\n' "$shard_block" >> "${ws}/tools/guard-sites.toml"
 expect 1 "duplicate name" "44. a shard name defined twice fails"
+
+tree; sed -i 's/command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test"/command = "cargo test"/' "${ws}/tools/guard-sites.toml"
+expect 1 "must set FRAISEQL_TEST_REQUIRE_POSTGRES=1" "45. a shard whose missing database would skip, not fail, fails"
+
+tree; sed -i 's/command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test"/command = "cargo test -- FRAISEQL_TEST_REQUIRE_POSTGRES=1"/' "${ws}/tools/guard-sites.toml"
+expect 1 "must set FRAISEQL_TEST_REQUIRE_POSTGRES=1" "46. the variable as a test argument, not the environment, fails"
 
 if [ "$failures" -ne 0 ]; then
   echo "guard sites gate: ${failures} case(s) FAILED"

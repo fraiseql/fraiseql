@@ -833,4 +833,42 @@ mod enrichment_entry_point_tests {
 
         assert!(is_refusal(&err), "expected an authorization refusal, got: {err}");
     }
+    /// The remaining direct-read entries: a capped REST read, a REST read composed with
+    /// embeds and counts, and gRPC's buffered and streamed row reads each enter the engine
+    /// below the GraphQL document path, so each refuses an unresolved principal itself.
+    #[tokio::test]
+    async fn the_bounded_composed_and_row_read_entries_refuse_an_unresolved_principal() {
+        let executor = executor();
+        let query_match = crate::runtime::QueryMatcher::new(schema())
+            .match_query("{ orders { id } }", None)
+            .expect("the fixture query matches");
+        let principal = unresolved();
+
+        let bounded =
+            executor.execute_query_direct_bounded(&query_match, Some(&principal), 10).await;
+        assert!(
+            bounded.as_ref().err().is_some_and(is_refusal),
+            "execute_query_direct_bounded must refuse; got: {bounded:?}"
+        );
+
+        let composed = executor
+            .execute_query_composed(&query_match, &[], &[], None, Some(&principal), None)
+            .await;
+        assert!(
+            composed.as_ref().err().is_some_and(is_refusal),
+            "execute_query_composed must refuse; got: {composed:?}"
+        );
+
+        let row = executor.execute_row_read(&query_match, None, Some(&principal), &[]).await;
+        assert!(
+            matches!(row, Err(ref e) if is_refusal(e)),
+            "execute_row_read must refuse an unresolved principal"
+        );
+
+        let streamed = executor.stream_row_read(&query_match, None, Some(&principal), &[]).await;
+        assert!(
+            matches!(streamed, Err(ref e) if is_refusal(e)),
+            "stream_row_read must refuse an unresolved principal"
+        );
+    }
 }

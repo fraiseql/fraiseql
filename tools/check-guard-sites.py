@@ -199,6 +199,19 @@ def position(text: str, offset: int) -> str:
     return f"{line}:{column}"
 
 
+REQUIRE_POSTGRES = "FRAISEQL_TEST_REQUIRE_POSTGRES=1"
+
+
+def shell_assignments(command: str) -> list[str]:
+    """The `NAME=value` words that open `command`: the environment it runs under."""
+    words = []
+    for word in command.split():
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=\S*", word):
+            break
+        words.append(word)
+    return words
+
+
 @dataclass
 class Source:
     raw: str
@@ -298,6 +311,10 @@ class Gate:
             if name in shards:
                 # A second definition would replace the first: its sites would run another command.
                 self.error(f"shard `{name}`: duplicate name")
+            if REQUIRE_POSTGRES not in shell_assignments(shard["command"]):
+                # A killer that finds no database skips and passes, so its mutant reads as
+                # survived and its baseline as green: the command must make a missing one fail.
+                self.error(f"shard `{name}`: command must set {REQUIRE_POSTGRES} before it runs")
             shards[name] = shard
         anchors = []
         seen: set[str] = set()

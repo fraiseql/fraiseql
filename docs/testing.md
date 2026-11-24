@@ -223,7 +223,10 @@ python3 tools/run-guard-mutants.py --site <id>
 ```
 
 The e2e shards need `DATABASE_URL`, and a fresh database: a table another branch left
-behind in a shared one can fail a shard before any mutant is applied. The observer
+behind in a shared one can fail a shard before any mutant is applied. Every shard command
+sets `FRAISEQL_TEST_REQUIRE_POSTGRES=1`, and the gate refuses one that does not: a killer
+that finds no database would skip and pass, so its baseline would read green and its
+mutant as survived, and the variable makes a missing database fail the baseline instead. The observer
 transport shard also reads `TEST_DATABASE_URL`, and the NATS shard `NATS_URL` (a
 JetStream broker); the NATS shard's command sets the development flags the CI leg sets,
 since a plaintext local broker is refused in production. A mutant that survives means the rule has no test:

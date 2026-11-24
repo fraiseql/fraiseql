@@ -214,9 +214,13 @@ mod postgres_notify_tests {
     };
     use crate::listener::ChangeLogListenerConfig;
 
-    /// Returns `None` if `TEST_DATABASE_URL` is not set, allowing tests to skip gracefully.
+    /// The pool at `TEST_DATABASE_URL`, else `DATABASE_URL`; `None` lets a test skip, except
+    /// where `FRAISEQL_TEST_REQUIRE_POSTGRES` says the run binds a database: there a missing
+    /// one fails rather than reading as a pass.
     async fn try_test_pool() -> Option<PgPool> {
-        let database_url = env::var("TEST_DATABASE_URL").ok()?;
+        let database_url = env::var("TEST_DATABASE_URL")
+            .ok()
+            .or_else(fraiseql_test_support::try_database_url)?;
         Some(
             PgPool::connect(&database_url)
                 .await

@@ -129,6 +129,13 @@ name = "event-filter"
 patterns = ['\b[a-z_]*filter\.matches\s*\(', 'TenantScope::Tenant\s*\(\s*ref']
 
 [[family]]
+name = "enrichment-backstop"
+# Each engine entry refuses a principal that never passed a transport's identity
+# enrichment, when the schema declares an enriched-identity consumer: a transport that
+# skipped the seam would otherwise reach the engine with an unresolved identity.
+patterns = ['(?<!fn )\benforce_enrichment_resolved\s*\(']
+
+[[family]]
 name = "executor"
 patterns = ['\bexecutor_for(?:_tenant)?\s*\(']
 
@@ -137,162 +144,167 @@ patterns = ['\bexecutor_for(?:_tenant)?\s*\(']
 [[shard]]
 name = "matrix"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --test transport_refusal_matrix_e2e_pg -- --test-threads=1 --skip common"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --test transport_refusal_matrix_e2e_pg -- --test-threads=1 --skip common"
 
 [[shard]]
 name = "grpc"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --test grpc_transport_e2e_test refusal_cells"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --test grpc_transport_e2e_test refusal_cells"
 
 [[shard]]
 name = "bridge"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test tenant_rest_dispatch_e2e_pg function_writes -- --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test tenant_rest_dispatch_e2e_pg function_writes -- --test-threads=1"
 
 [[shard]]
 name = "server-lib-auth"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --features auth --lib -- required_plane_revocation"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features auth --lib -- required_plane_revocation"
 
 [[shard]]
 name = "function-tenant"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test function_tenant_dispatch_e2e_pg -- --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test function_tenant_dispatch_e2e_pg -- --test-threads=1"
 
 [[shard]]
 name = "server-lib-tenant-admin"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --lib -- tenant_admin_tests"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --lib -- tenant_admin_tests"
 
 [[shard]]
 name = "tenant-rest"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test tenant_rest_dispatch_e2e_pg -- --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test tenant_rest_dispatch_e2e_pg -- --test-threads=1"
 
 [[shard]]
 name = "auth-pg"
 crate = "crates/fraiseql-auth"
-command = "cargo test -p fraiseql-auth --no-fail-fast --test postgres_scim_provisioning --test postgres_account_store --test local_password --test password_reset --test email_verification -- --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-auth --no-fail-fast --test postgres_scim_provisioning --test postgres_account_store --test local_password --test password_reset --test email_verification -- --test-threads=1"
 
 [[shard]]
 name = "cdc-drain"
 crate = "crates/fraiseql-cdc-sinks"
-command = "cargo test -p fraiseql-cdc-sinks --test cdc_drain_pg -- --ignored --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-cdc-sinks --test cdc_drain_pg -- --ignored --test-threads=1"
 
 [[shard]]
 name = "observers-replay"
 crate = "crates/fraiseql-observers"
-command = "cargo test -p fraiseql-observers --features 'caching,checkpoint,metrics,nats' --lib -- listener::replay --include-ignored --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-observers --features 'caching,checkpoint,metrics,nats' --lib -- listener::replay --include-ignored --test-threads=1"
 
 [[shard]]
 name = "server-tracking"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,inbound-email' --lib -- inbound::email::tracking --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,inbound-email' --lib -- inbound::email::tracking --test-threads=1"
 
 [[shard]]
 name = "server-tenant-admin"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,inbound-email' --no-fail-fast --test rbac_admin_e2e_pg --test async_operations_e2e_pg -- --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,inbound-email' --no-fail-fast --test rbac_admin_e2e_pg --test async_operations_e2e_pg -- --test-threads=1"
 
 [[shard]]
 name = "tenant-admin"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --features auth-saml,auth,observers --test tenant_admin_e2e_pg -- --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features auth-saml,auth,observers --test tenant_admin_e2e_pg -- --test-threads=1"
 
 [[shard]]
 name = "server-lib-observers"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --lib -- observers:: --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --lib -- observers:: --test-threads=1"
 
 [[shard]]
 name = "observer-admin-scope"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test observer_admin_scope_pg -- --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test observer_admin_scope_pg -- --test-threads=1"
 
 [[shard]]
 name = "server-lib-admin-api"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --features auth-saml,auth --lib -- api:: --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features auth-saml,auth --lib -- api:: --test-threads=1"
 
 [[shard]]
 name = "auth-rls"
 crate = "crates/fraiseql-auth"
-command = "cargo test -p fraiseql-auth --features auth-saml --no-fail-fast --test postgres_account_store --test local_password --test password_reset --test email_verification --test postgres_scim_provisioning --test postgres_saml_idp_store -- --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-auth --features auth-saml --no-fail-fast --test postgres_account_store --test local_password --test password_reset --test email_verification --test postgres_scim_provisioning --test postgres_saml_idp_store -- --test-threads=1"
 
 [[shard]]
 name = "functions-migrations"
 crate = "crates/fraiseql-functions"
-command = "cargo test -p fraiseql-functions --lib migrations::tests -- --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-functions --lib migrations::tests -- --test-threads=1"
 
 [[shard]]
 name = "webhooks-ledger"
 crate = "crates/fraiseql-webhooks"
-command = "cargo test -p fraiseql-webhooks --test inbound_pipeline_pg -- --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-webhooks --test inbound_pipeline_pg -- --test-threads=1"
 
 [[shard]]
 name = "observers-change-log-rls"
 crate = "crates/fraiseql-observers"
-command = "cargo test -p fraiseql-observers --test rls_isolation -- --ignored --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-observers --test rls_isolation -- --ignored --test-threads=1"
 
 [[shard]]
 name = "observers-source-cursor"
 crate = "crates/fraiseql-observers"
-command = "cargo test -p fraiseql-observers --test source_cursor_pg -- --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-observers --test source_cursor_pg -- --test-threads=1"
 
 [[shard]]
 name = "examples-rls"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test example_multitenant_rls_e2e_pg -- --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test example_multitenant_rls_e2e_pg -- --test-threads=1"
 
 [[shard]]
 name = "server-lib-admin-limiter"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --features auth --lib -- middleware:: --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features auth --lib -- middleware:: --test-threads=1"
 
 [[shard]]
 name = "admin-sql-console"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test admin_sql_console_e2e_pg -- --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test admin_sql_console_e2e_pg -- --test-threads=1"
 
 [[shard]]
 name = "server-lib-routes"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --features auth --lib -- routes::tests:: --test-threads=4"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features auth --lib -- routes::tests:: --test-threads=4"
 
 [[shard]]
 name = "core-lib-field-access"
 crate = "crates/fraiseql-core"
-command = "cargo test -p fraiseql-core --lib -- field_filter_tests field_rbac field_authz"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-core --lib -- field_filter_tests field_rbac field_authz"
 
 [[shard]]
 name = "server-lib-session-store"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --features auth --lib -- token_revocation_tests"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features auth --lib -- token_revocation_tests"
 
 [[shard]]
 name = "async-operations"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test async_operations_e2e_pg -- --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test async_operations_e2e_pg -- --test-threads=1"
 
 [[shard]]
 name = "server-lib-flight-seam"
 crate = "crates/fraiseql-server"
-command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --lib -- arrow::policy_seam_tests"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --lib -- arrow::policy_seam_tests"
 
 [[shard]]
 name = "observers-transport"
 crate = "crates/fraiseql-observers"
-command = "cargo test -p fraiseql-observers --features 'caching,checkpoint,metrics,nats' --lib -- transport:: --include-ignored --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-observers --features 'caching,checkpoint,metrics,nats' --lib -- transport:: --include-ignored --test-threads=1"
 
 [[shard]]
 name = "observers-nats"
 crate = "crates/fraiseql-observers"
-command = "FRAISEQL_ENV=development FRAISEQL_OBSERVERS_ALLOW_INSECURE=true FRAISEQL_NATS_ALLOW_PLAINTEXT=true cargo test -p fraiseql-observers --features nats --test nats_integration -- --ignored --test-threads=1"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 FRAISEQL_ENV=development FRAISEQL_OBSERVERS_ALLOW_INSECURE=true FRAISEQL_NATS_ALLOW_PLAINTEXT=true cargo test -p fraiseql-observers --features nats --test nats_integration -- --ignored --test-threads=1"
+
+[[shard]]
+name = "core-lib-enrichment"
+crate = "crates/fraiseql-core"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-core --lib -- enrichment_entry_point_tests"
 
 [[shard]]
 name = "core-cache"
 crate = "crates/fraiseql-core"
-command = "cargo test -p fraiseql-core --lib cache::"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-core --lib cache::"
 
 # ── Held: not inventoried until their hold lifts ─────────────────────────────────────
 
@@ -2387,3 +2399,95 @@ anchor = "Ok(event) if filter.matches(&event) =>"
 mutant = "Ok(event) if { let _ = &filter; true } =>"
 killers = ["a_tenant_broadcast_receives_only_its_tenants_events"]
 shard = "observers-nats"
+
+# The enrichment backstop at each engine entry (family `enrichment-backstop`). The mutant
+# hands the check no principal, which it admits.
+
+[[site]]
+id = "enrichment.count_rows"
+file = "crates/fraiseql-core/src/runtime/executor/core.rs"
+function = "Executor::count_rows"
+anchor = "enforce_enrichment_resolved(\n            &self.ctx.schema,\n            security_context,"
+mutant = "enforce_enrichment_resolved(\n            &self.ctx.schema,\n            { let _ = &security_context; None },"
+killers = ["the_direct_read_entries_refuse_an_unresolved_principal"]
+shard = "core-lib-enrichment"
+
+[[site]]
+id = "enrichment.execute_query_direct"
+file = "crates/fraiseql-core/src/runtime/executor/core.rs"
+function = "Executor::execute_query_direct"
+anchor = "enforce_enrichment_resolved(\n            &self.ctx.schema,\n            security_context,"
+mutant = "enforce_enrichment_resolved(\n            &self.ctx.schema,\n            { let _ = &security_context; None },"
+killers = ["the_direct_read_entries_refuse_an_unresolved_principal"]
+shard = "core-lib-enrichment"
+
+[[site]]
+id = "enrichment.execute_query_direct_bounded"
+file = "crates/fraiseql-core/src/runtime/executor/core.rs"
+function = "Executor::execute_query_direct_bounded"
+anchor = "enforce_enrichment_resolved(\n            &self.ctx.schema,\n            security_context,"
+mutant = "enforce_enrichment_resolved(\n            &self.ctx.schema,\n            { let _ = &security_context; None },"
+killers = [
+  "the_bounded_composed_and_row_read_entries_refuse_an_unresolved_principal",
+]
+shard = "core-lib-enrichment"
+
+[[site]]
+id = "enrichment.execute_query_composed"
+file = "crates/fraiseql-core/src/runtime/executor/core.rs"
+function = "Executor::execute_query_composed"
+anchor = "enforce_enrichment_resolved(\n            &self.ctx.schema,\n            security_context,"
+mutant = "enforce_enrichment_resolved(\n            &self.ctx.schema,\n            { let _ = &security_context; None },"
+killers = [
+  "the_bounded_composed_and_row_read_entries_refuse_an_unresolved_principal",
+]
+shard = "core-lib-enrichment"
+
+[[site]]
+id = "enrichment.execute_row_read"
+file = "crates/fraiseql-core/src/runtime/executor/core.rs"
+function = "Executor::execute_row_read"
+anchor = "enforce_enrichment_resolved(\n            &self.ctx.schema,\n            security_context,"
+mutant = "enforce_enrichment_resolved(\n            &self.ctx.schema,\n            { let _ = &security_context; None },"
+killers = [
+  "the_bounded_composed_and_row_read_entries_refuse_an_unresolved_principal",
+]
+shard = "core-lib-enrichment"
+
+[[site]]
+id = "enrichment.stream_row_read"
+file = "crates/fraiseql-core/src/runtime/executor/core.rs"
+function = "Executor::stream_row_read"
+anchor = "enforce_enrichment_resolved(\n            &self.ctx.schema,\n            security_context,"
+mutant = "enforce_enrichment_resolved(\n            &self.ctx.schema,\n            { let _ = &security_context; None },"
+killers = [
+  "the_bounded_composed_and_row_read_entries_refuse_an_unresolved_principal",
+]
+shard = "core-lib-enrichment"
+
+[[site]]
+id = "enrichment.stream_query_direct"
+file = "crates/fraiseql-core/src/runtime/executor/core.rs"
+function = "Executor::stream_query_direct"
+anchor = "enforce_enrichment_resolved(\n            &self.ctx.schema,\n            security_context.as_ref(),"
+mutant = "enforce_enrichment_resolved(\n            &self.ctx.schema,\n            { let _ = &security_context; None },"
+killers = ["the_streaming_read_entry_refuses_an_unresolved_principal"]
+shard = "core-lib-enrichment"
+
+[[site]]
+id = "enrichment.execute_with_timeout_body"
+file = "crates/fraiseql-core/src/runtime/executor/execution.rs"
+function = "Executor::execute_with_timeout_body"
+anchor = "enforce_enrichment_resolved(\n            &self.ctx.schema,\n            security_context,"
+mutant = "enforce_enrichment_resolved(\n            &self.ctx.schema,\n            { let _ = &security_context; None },"
+killers = ["the_graphql_document_entry_refuses_an_unresolved_principal"]
+shard = "core-lib-enrichment"
+
+[[site]]
+id = "enrichment.prepare_write"
+file = "crates/fraiseql-core/src/runtime/executor/runners/mutation/mod.rs"
+function = "prepare_write"
+anchor = "enforce_enrichment_resolved(\n        &ctx.schema,\n        security_ctx,"
+mutant = "enforce_enrichment_resolved(\n        &ctx.schema,\n        { let _ = &security_ctx; None },"
+killers = ["the_mutation_chokepoint_refuses_an_unresolved_principal"]
+shard = "core-lib-enrichment"
