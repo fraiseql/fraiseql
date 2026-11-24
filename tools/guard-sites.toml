@@ -123,6 +123,12 @@ name = "tenant-dispatch"
 patterns = ['(?<!fn )\bdispatch_to_tenant\s*\(']
 
 [[family]]
+name = "event-filter"
+# The rule that keeps a tenant-scoped observer subscription to its tenant's events, and
+# each transport's use of it: a transport that skipped it delivered every tenant's events.
+patterns = ['\b[a-z_]*filter\.matches\s*\(', 'TenantScope::Tenant\s*\(\s*ref']
+
+[[family]]
 name = "executor"
 patterns = ['\bexecutor_for(?:_tenant)?\s*\(']
 
@@ -272,6 +278,16 @@ command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federatio
 name = "server-lib-flight-seam"
 crate = "crates/fraiseql-server"
 command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --lib -- arrow::policy_seam_tests"
+
+[[shard]]
+name = "observers-transport"
+crate = "crates/fraiseql-observers"
+command = "cargo test -p fraiseql-observers --features 'caching,checkpoint,metrics,nats' --lib -- transport:: --include-ignored --test-threads=1"
+
+[[shard]]
+name = "observers-nats"
+crate = "crates/fraiseql-observers"
+command = "FRAISEQL_ENV=development FRAISEQL_OBSERVERS_ALLOW_INSECURE=true FRAISEQL_NATS_ALLOW_PLAINTEXT=true cargo test -p fraiseql-observers --features nats --test nats_integration -- --ignored --test-threads=1"
 
 [[shard]]
 name = "core-cache"
@@ -2321,3 +2337,53 @@ anchor = "dispatch_to_tenant(state, op.tenant_key.as_deref())"
 mutant = "dispatch_to_tenant(state, None)"
 killers = ["the_worker_runs_an_operation_in_its_stored_tenant"]
 shard = "async-operations"
+
+# The observer event filter (family `event-filter`): the tenant arm of the rule, and each
+# transport's call to it. The mutant admits every event.
+
+[[site]]
+id = "event-filter.rule"
+file = "crates/fraiseql-observers/src/transport/mod.rs"
+function = "EventFilter::matches"
+anchor = "TenantScope::Tenant(ref wanted) => event.tenant_id.as_deref() == Some(wanted.as_str()),"
+mutant = "TenantScope::Tenant(ref _wanted) => true,"
+killers = ["a_tenant_scope_matches_only_that_tenant"]
+shard = "observers-transport"
+
+[[site]]
+id = "event-filter.in-memory"
+file = "crates/fraiseql-observers/src/transport/in_memory.rs"
+function = "InMemoryTransport::subscribe"
+anchor = "Some(event) if filter.matches(&event) =>"
+mutant = "Some(event) if { let _ = &filter; true } =>"
+killers = ["in_memory_delivers_only_the_subscribed_tenant"]
+shard = "observers-transport"
+
+[[site]]
+id = "event-filter.postgres-notify"
+file = "crates/fraiseql-observers/src/transport/postgres_notify.rs"
+function = "PostgresNotifyTransport::subscribe"
+anchor = "if filter.matches(&event) {"
+mutant = "if { let _ = &filter; true } {"
+killers = [
+  "postgres_notify_delivers_only_the_subscribed_tenant_and_entity_type",
+]
+shard = "observers-transport"
+
+[[site]]
+id = "event-filter.nats-durable"
+file = "crates/fraiseql-observers/src/transport/nats.rs"
+function = "NatsTransport::subscribe_with_ack"
+anchor = "if !subscription_filter.matches(&event) {"
+mutant = "if { let _ = &subscription_filter; false } {"
+killers = ["a_tenant_subscription_receives_only_its_tenants_events"]
+shard = "observers-nats"
+
+[[site]]
+id = "event-filter.nats-broadcast"
+file = "crates/fraiseql-observers/src/transport/nats.rs"
+function = "NatsTransport::subscribe_broadcast"
+anchor = "Ok(event) if filter.matches(&event) =>"
+mutant = "Ok(event) if { let _ = &filter; true } =>"
+killers = ["a_tenant_broadcast_receives_only_its_tenants_events"]
+shard = "observers-nats"

@@ -242,6 +242,76 @@ mod nats_tests {
         assert_eq!(after, 0, "the caller's ack acknowledges it");
     }
 
+    /// A transport over a stream of its own, so a test reads only what it published.
+    async fn tenant_transport(name: &str) -> NatsTransport {
+        let test_id = Uuid::new_v4();
+        let config = NatsConfig {
+            stream_name: format!("test-{name}-stream-{test_id}"),
+            consumer_name: format!("test-{name}-consumer-{test_id}"),
+            subject_prefix: format!("test.{name}.{test_id}"),
+            ..Default::default()
+        };
+        NatsTransport::new(with_nats_url(config))
+            .await
+            .expect("Should connect to NATS server")
+    }
+
+    /// Publish another tenant's event, then an untenanted one, then the subscribed tenant's,
+    /// and return the first event `stream` yields: the subscribed tenant's, if neither of
+    /// the others got through.
+    async fn first_through_a_tenant_filter(
+        transport: &NatsTransport,
+        mut stream: fraiseql_observers::transport::EventStream,
+    ) -> EntityEvent {
+        let event = |tenant: Option<&str>| {
+            let event = EntityEvent::new(
+                EventKind::Created,
+                "Order".to_string(),
+                Uuid::new_v4(),
+                json!({}),
+            );
+            match tenant {
+                Some(tenant) => event.with_tenant_id(tenant),
+                None => event,
+            }
+        };
+        transport.publish(event(Some("tenant-b"))).await.expect("publish");
+        transport.publish(event(None)).await.expect("publish");
+        transport.publish(event(Some("tenant-a"))).await.expect("publish");
+        tokio::time::timeout(Duration::from_secs(5), stream.next())
+            .await
+            .expect("the subscribed tenant's event arrives within the timeout")
+            .expect("stream open")
+            .expect("event decodes")
+    }
+
+    /// A tenant-scoped subscription on the shared durable consumer yields only its
+    /// tenant's events: neither another tenant's nor an untenanted one.
+    #[tokio::test]
+    #[ignore = "requires NATS server - run with: cargo test --test nats_integration --features nats -- --ignored"]
+    async fn a_tenant_subscription_receives_only_its_tenants_events() {
+        let transport = tenant_transport("tenant-sub").await;
+        let stream = transport
+            .subscribe(EventFilter::for_tenant("tenant-a"))
+            .await
+            .expect("Subscribe should succeed");
+        let received = first_through_a_tenant_filter(&transport, stream).await;
+        assert_eq!(received.tenant_id.as_deref(), Some("tenant-a"));
+    }
+
+    /// The per-process broadcast consumer applies the same tenant scope.
+    #[tokio::test]
+    #[ignore = "requires NATS server - run with: cargo test --test nats_integration --features nats -- --ignored"]
+    async fn a_tenant_broadcast_receives_only_its_tenants_events() {
+        let transport = tenant_transport("tenant-bcast").await;
+        let stream = transport
+            .subscribe_broadcast(EventFilter::for_tenant("tenant-a"))
+            .await
+            .expect("Subscribe should succeed");
+        let received = first_through_a_tenant_filter(&transport, stream).await;
+        assert_eq!(received.tenant_id.as_deref(), Some("tenant-a"));
+    }
+
     /// Test NATS filtering by entity type
     ///
     /// Requires: NATS server running on localhost:4222
