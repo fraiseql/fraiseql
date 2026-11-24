@@ -565,6 +565,13 @@ The arguments decide what is computed, and the selection set decides what is ret
 - An aggregate row holds exactly the fields its selection set selects, under their response
   keys (aliases and `__typename` included). A selected field the arguments did not compute
   is `null`. Every row field is nullable, and the root must select at least one.
+- A window `orderBy` item, in a window's `orderBy` (its `OVER (ORDER BY …)`) and in the
+  root's, is `{field, direction}`, and its direction takes the `SortDirection` a list query's
+  does (#2415): `DESC_NULLS_LAST`, `ASC_NULLS_FIRST` and the like put the key's NULLs after
+  or before every value, and `ASC` and `DESC` leave them where PostgreSQL puts them, last
+  ascending and first descending. Inside `OVER` the placement
+  changes the answers, not only their order: `rank` numbers the NULL rows first or last, and
+  `lag` and `lead` read across them in that order.
 - A window row is `JSON` keyed by the `select` and `windows` aliases. The window root takes no
   selection set. A `numeric` measure or filter column in it, selected or read through a
   window function, is the string of its digits.

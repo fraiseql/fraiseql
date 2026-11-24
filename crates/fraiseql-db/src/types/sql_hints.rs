@@ -285,6 +285,18 @@ impl OrderByClause {
         super::nulls_order::nulls_last(self.direction, self.nulls)
     }
 
+    /// The key's direction as an `ORDER BY` term renders it after the key: `ASC`, `DESC`, and
+    /// the `NULLS` clause when the placement is not the direction's default. Every renderer of
+    /// a clause reads it here, so none can drop the placement.
+    #[must_use]
+    pub fn direction_sql(&self) -> String {
+        format!(
+            "{}{}",
+            self.direction.as_sql(),
+            super::nulls_order::nulls_sql(self.direction, self.nulls_last())
+        )
+    }
+
     /// Create a new `OrderByClause` with default field type (text) and no native column.
     #[must_use]
     pub fn new(field: String, direction: OrderDirection) -> Self {

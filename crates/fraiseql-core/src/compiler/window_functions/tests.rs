@@ -188,6 +188,7 @@ fn test_window_planner_basic_request() {
             order_by:     vec![WindowOrderBy {
                 field:     "revenue".to_string(),
                 direction: OrderDirection::Desc,
+                nulls:     None,
             }],
             frame:        None,
         }],
@@ -235,6 +236,7 @@ fn test_window_planner_running_sum() {
             order_by:     vec![WindowOrderBy {
                 field:     "occurred_at".to_string(),
                 direction: OrderDirection::Asc,
+                nulls:     None,
             }],
             frame:        Some(WindowFrame {
                 frame_type: FrameType::Rows,
@@ -287,6 +289,7 @@ fn a_window_reads_a_measure_from_its_declared_column() {
                 order_by:     vec![WindowOrderBy {
                     field:     "revenue".to_string(),
                     direction: OrderDirection::Asc,
+                    nulls:     None,
                 }],
                 frame:        None,
             },
@@ -407,6 +410,7 @@ fn test_window_planner_lag_function() {
             order_by:     vec![WindowOrderBy {
                 field:     "occurred_at".to_string(),
                 direction: OrderDirection::Asc,
+                nulls:     None,
             }],
             frame:        None,
         }],
@@ -449,6 +453,7 @@ fn test_window_planner_dimension_field_in_lag() {
             order_by:     vec![WindowOrderBy {
                 field:     "occurred_at".to_string(),
                 direction: OrderDirection::Asc,
+                nulls:     None,
             }],
             frame:        None,
         }],
@@ -507,10 +512,12 @@ fn test_window_planner_final_order_by() {
             WindowOrderBy {
                 field:     "revenue".to_string(),
                 direction: OrderDirection::Desc,
+                nulls:     None,
             },
             WindowOrderBy {
                 field:     "category".to_string(), // dimension
                 direction: OrderDirection::Asc,
+                nulls:     None,
             },
         ],
         limit:        None,
@@ -589,6 +596,7 @@ fn test_resolve_field_rejects_injection_in_order_by() {
             // Contains a single quote — must be rejected.
             field:     "x'; DROP TABLE t; --".to_string(),
             direction: OrderDirection::Asc,
+            nulls:     None,
         }],
         limit:        None,
         offset:       None,
@@ -788,3 +796,6 @@ mod live_path_injection {
         assert!(sql.contains("ROW_NUMBER()"), "expected the window function: {sql}");
     }
 }
+
+#[path = "nulls_tests.rs"]
+mod nulls;

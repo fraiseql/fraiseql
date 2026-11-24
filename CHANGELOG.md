@@ -1166,6 +1166,13 @@ disagreed, and the promise was the part that was wrong.
   database does not serve it, and the health gauges are reported as before. A TVIEW label
   with a newline is escaped (the health gauges' was not).
 
+- **A window's `orderBy` puts its key's NULLs first or last (#2415).** `WindowOrderBy`, the
+  item of a window's `orderBy` and of the window root's, reads the same `SortDirection` a
+  list query's `orderBy` does, `DESC_NULLS_LAST` and the like included, rendered as `NULLS
+  FIRST`/`NULLS LAST` inside `OVER (ORDER BY …)` and in the rows' `ORDER BY`. A NULL score
+  now ranks last under `rank()` over `score` with `DESC_NULLS_LAST`, and `lag`/`lead` read
+  across the NULLs in the order asked. Under `ASC` and `DESC` the SQL is unchanged.
+
 - **An `orderBy` direction puts its key's NULLs first or last (#1606).** `{field:
   discontinuedAt, direction: DESC_NULLS_LAST}` (or `{discontinuedAt: DESC_NULLS_LAST}`)
   sorts as `ORDER BY discontinued_at DESC NULLS LAST`, so a newest-first list no longer opens

@@ -120,7 +120,7 @@ use crate::{
 ///         function: WindowFunctionSpec::RunningSum { measure: "revenue".to_string() },
 ///         alias: "running_total".to_string(),
 ///         partition_by: vec![],
-///         order_by: vec![WindowOrderBy { field: "occurred_at".to_string(), direction: OrderDirection::Asc }],
+///         order_by: vec![WindowOrderBy { field: "occurred_at".to_string(), direction: OrderDirection::Asc, nulls: None }],
 ///         frame: Some(WindowFrame { ... }),
 ///     }],
 ///     where_clause: None,
@@ -419,6 +419,11 @@ pub struct WindowOrderBy {
 
     /// Sort direction
     pub direction: OrderDirection,
+
+    /// Where the key puts its NULLs, as its direction named it; `None` for PostgreSQL's
+    /// default for the direction.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nulls: Option<crate::types::NullsOrder>,
 }
 
 // =============================================================================

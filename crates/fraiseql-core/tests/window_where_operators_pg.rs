@@ -11,7 +11,8 @@
 //! the aggregate root counts.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** the suite creates and drops its own `tf_window_ops` and `tb_window_ops_node`.
+//! **Parallelism:** the suite creates and drops its own `tf_window_ops` and `tb_window_ops_node`
+//! (and `nulls_order` its own `tf_window_nulls`).
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -25,6 +26,9 @@ use fraiseql_core::{
     schema::{CompiledSchema, HierarchyDefinition},
 };
 use serde_json::{Value, json};
+
+#[path = "window_where_operators_pg/nulls_order.rs"]
+mod nulls_order;
 
 const TABLE: &str = "tf_window_ops";
 const NODES: &str = "tb_window_ops_node";

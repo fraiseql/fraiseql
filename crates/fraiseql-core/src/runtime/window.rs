@@ -13,12 +13,9 @@ use std::fmt::Write as _;
 
 use crate::{
     backend::{identifier::quote_postgres_identifier, types::DatabaseType},
-    compiler::{
-        aggregation::OrderDirection,
-        window_functions::{
-            FrameBoundary, FrameExclusion, FrameType, WindowExecutionPlan, WindowFrame,
-            WindowFunction, WindowFunctionType,
-        },
+    compiler::window_functions::{
+        FrameBoundary, FrameExclusion, FrameType, WindowExecutionPlan, WindowFrame, WindowFunction,
+        WindowFunctionType,
     },
     error::{FraiseQLError, Result},
 };
@@ -120,20 +117,13 @@ impl WindowSqlGenerator {
                 if i > 0 {
                     sql.push_str(", ");
                 }
-                #[allow(clippy::match_same_arms)]
-                // Reason: non_exhaustive enum requires catch-all; explicit Asc arm documents intent
-                let dir = match order.direction {
-                    OrderDirection::Asc => "ASC",
-                    OrderDirection::Desc => "DESC",
-                    _ => "ASC",
-                };
                 // Fields in the outer ORDER BY may be JSONB path expressions
                 // (e.g. `data->>'category'`) or window aliases (`"rank"`, quoted by the
                 // planner); they are validated at planner parse time and rendered there.
                 // A text key carries the request locale's collation (#1512).
                 let key =
                     crate::backend::order_by::collated(&order.field, order.collation.as_deref())?;
-                let _ = write!(sql, "{key} {dir}");
+                let _ = write!(sql, "{key} {}", order.direction_sql());
             }
         }
 
@@ -173,16 +163,9 @@ impl WindowSqlGenerator {
                 if i > 0 {
                     sql.push_str(", ");
                 }
-                #[allow(clippy::match_same_arms)]
-                // Reason: non_exhaustive enum requires catch-all; explicit Asc arm documents intent
-                let dir = match order.direction {
-                    OrderDirection::Asc => "ASC",
-                    OrderDirection::Desc => "DESC",
-                    _ => "ASC",
-                };
                 let key =
                     crate::backend::order_by::collated(&order.field, order.collation.as_deref())?;
-                let _ = write!(sql, "{key} {dir}");
+                let _ = write!(sql, "{key} {}", order.direction_sql());
             }
         }
 

@@ -448,25 +448,27 @@ impl WindowQueryParser {
                     })?
                     .to_string();
 
-                // The published `SortDirection`, `ASC` when absent.
-                let direction = match item.get("direction") {
-                    None => OrderDirection::Asc,
-                    Some(value) => match value.as_str() {
-                        Some("ASC") => OrderDirection::Asc,
-                        Some("DESC") => OrderDirection::Desc,
-                        _ => {
-                            return Err(FraiseQLError::Validation {
-                                message: format!(
-                                    "orderBy `{field}` direction takes `ASC` or `DESC`, got \
-                                     {value}"
-                                ),
-                                path:    None,
-                            });
-                        },
-                    },
+                // The published `SortDirection`, `ASC` when absent: a direction, and where the
+                // key puts its NULLs when the value names a placement.
+                let (direction, nulls) = match item.get("direction") {
+                    None => (OrderDirection::Asc, None),
+                    Some(value) => value
+                        .as_str()
+                        .and_then(crate::backend::types::nulls_order::parse_sort_direction)
+                        .ok_or_else(|| FraiseQLError::Validation {
+                            message: format!(
+                                "orderBy `{field}` direction takes one of {}, got {value}",
+                                crate::backend::types::nulls_order::sort_directions_listed()
+                            ),
+                            path:    None,
+                        })?,
                 };
 
-                Ok(WindowOrderBy { field, direction })
+                Ok(WindowOrderBy {
+                    field,
+                    direction,
+                    nulls,
+                })
             })
             .collect()
     }

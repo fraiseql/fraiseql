@@ -75,6 +75,7 @@ impl OrderKeys<'_> {
             true
         };
         let mut clause = OrderByClause::new(field, order.direction);
+        clause.nulls = order.nulls;
         if is_text {
             clause.collation = self.locale.collation.map(str::to_string);
         }

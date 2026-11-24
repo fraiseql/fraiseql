@@ -677,6 +677,7 @@ mod window_order_by_allowlist_tests {
             order_by:     vec![WindowOrderBy {
                 field:     field.to_string(),
                 direction: OrderDirection::Desc,
+                nulls:     None,
             }],
             limit:        None,
             offset:       None,
@@ -744,6 +745,7 @@ mod window_order_by_allowlist_tests {
         request.windows[0].order_by = vec![WindowOrderBy {
             field:     "rank".to_string(),
             direction: OrderDirection::Desc,
+            nulls:     None,
         }];
         let err = WindowPlanner::plan(request, &metadata())
             .expect_err("`rank` is not a column inside the OVER(...) that produces it");
@@ -757,6 +759,7 @@ mod window_order_by_allowlist_tests {
             request.windows[0].order_by = vec![WindowOrderBy {
                 field:     field.to_string(),
                 direction: OrderDirection::Desc,
+                nulls:     None,
             }];
             WindowPlanner::plan(request, &metadata())
                 .unwrap_or_else(|e| panic!("'{field}' is valid inside OVER(...): {e}"));
@@ -769,6 +772,7 @@ mod window_order_by_allowlist_tests {
         request.windows[0].order_by = vec![WindowOrderBy {
             field:     "totallyBogusField".to_string(),
             direction: OrderDirection::Desc,
+            nulls:     None,
         }];
         WindowPlanner::plan(request, &metadata())
             .expect_err("an unknown in-window sort key must be refused");
