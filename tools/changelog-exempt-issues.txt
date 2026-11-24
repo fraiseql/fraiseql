@@ -102,3 +102,4 @@
 #1754  tests: the selection conformance suite provisions its fixture once, under an advisory lock and a digest stamp, so its tests run in parallel under `cargo test` and `cargo nextest`; no shipped artifact changes
 #2413  tests: the SDK conformance suite gains a `unions` construct, authored by the Python, TypeScript and Java exporters and declared unsupported, with the file checked, by the other eight; the SDK support matrix counts it; no shipped artifact changes
 #2416  tests: the keyset seek-plan suite gives each of its two tests its own schema, so a parallel run no longer collides creating one; no shipped artifact changes
+#2445  tests: the unreachable-URL tests of fraiseql-test-support probe port 0, which no socket listens on, instead of an ephemeral port they bound and released, which a concurrent test could take; no shipped artifact changes

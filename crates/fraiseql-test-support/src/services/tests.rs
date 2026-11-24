@@ -38,10 +38,12 @@ impl Drop for EnvGuard {
     }
 }
 
-/// A 127.0.0.1 port that was just observed closed (bound then released).
-fn closed_port() -> u16 {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    listener.local_addr().unwrap().port()
+/// The port the unreachable-URL tests probe: port 0, which no socket listens on, because
+/// binding it binds an ephemeral port instead. A connection to it is refused on every run,
+/// whatever other tests bind meanwhile. A port bound and released is not: the next ephemeral
+/// bind anywhere may take it.
+const fn unreachable_port() -> u16 {
+    0
 }
 
 /// #879: "available" must mean *reachable*, not merely *configured*. A
@@ -50,7 +52,7 @@ fn closed_port() -> u16 {
 #[tokio::test]
 async fn postgres_with_unreachable_url_reads_as_unavailable() {
     let _lock = env_lock();
-    let url = format!("postgresql://u:p@127.0.0.1:{}/db", closed_port());
+    let url = format!("postgresql://u:p@127.0.0.1:{}/db", unreachable_port());
     let _guard = EnvGuard::set("DATABASE_URL", &url);
     assert!(
         postgres().await.is_none(),
@@ -74,7 +76,7 @@ async fn postgres_with_reachable_url_is_returned() {
 #[tokio::test]
 async fn redis_with_unreachable_url_reads_as_unavailable() {
     let _lock = env_lock();
-    let url = format!("redis://127.0.0.1:{}", closed_port());
+    let url = format!("redis://127.0.0.1:{}", unreachable_port());
     let _guard = EnvGuard::set("REDIS_URL", &url);
     assert!(redis().await.is_none(), "redis() returned Some for an unreachable REDIS_URL");
 }
@@ -143,3 +145,6 @@ fn normalize_keeps_real_value() {
 fn normalize_passes_through_none() {
     assert_eq!(normalize(None), None);
 }
+
+#[path = "unreachable_port_tests.rs"]
+mod unreachable_port;
