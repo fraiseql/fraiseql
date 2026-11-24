@@ -1351,6 +1351,8 @@ mod tls_tests {
 mod token_revocation_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
+    use async_trait::async_trait;
+
     use crate::token_revocation::*;
 
     fn memory_store() -> std::sync::Arc<dyn RevocationStore> {
@@ -1403,6 +1405,75 @@ mod token_revocation_tests {
         mgr.check_token(Some("jti-ok"), "alice", Some(1000))
             .await
             .unwrap_or_else(|e| panic!("expected Ok for non-revoked token: {e:?}"));
+    }
+
+    /// A session store that cannot be read: every check errors, as an unreachable
+    /// Redis or Postgres does.
+    struct UnreadableStore;
+
+    // Reason: RevocationStore is defined with #[async_trait]; all implementations must match
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait]
+    impl RevocationStore for UnreadableStore {
+        async fn is_revoked(&self, _jti: &str) -> Result<bool, RevocationError> {
+            Err(RevocationError::Backend("unreachable".to_owned()))
+        }
+
+        async fn revoke(&self, _jti: &str, _ttl_secs: u64) -> Result<(), RevocationError> {
+            Err(RevocationError::Backend("unreachable".to_owned()))
+        }
+
+        async fn revoke_all_for_user(
+            &self,
+            _sub: &str,
+            _ttl_secs: u64,
+        ) -> Result<(), RevocationError> {
+            Err(RevocationError::Backend("unreachable".to_owned()))
+        }
+
+        async fn user_revoked_after(&self, _sub: &str) -> Result<Option<i64>, RevocationError> {
+            Err(RevocationError::Backend("unreachable".to_owned()))
+        }
+    }
+
+    /// A manager over the unreadable store, failing open or closed as `fail_open` says.
+    fn unreadable(require_jti: bool, fail_open: bool) -> TokenRevocationManager {
+        TokenRevocationManager::new(
+            std::sync::Arc::new(UnreadableStore),
+            require_jti,
+            fail_open,
+            3600,
+        )
+    }
+
+    /// A store that cannot say whether a token's `jti` was ended refuses the token, unless
+    /// the deployment chose to fail open.
+    #[tokio::test]
+    async fn an_unreadable_store_refuses_a_token_by_its_jti_unless_failing_open() {
+        assert_eq!(
+            unreadable(true, false).check_token(Some("jti-x"), "alice", Some(1000)).await,
+            Err(TokenRejection::StoreUnavailable)
+        );
+        assert_eq!(
+            unreadable(true, true).check_token(Some("jti-x"), "alice", Some(1000)).await,
+            Ok(()),
+            "failing open is the deployment's choice, and the only way through"
+        );
+    }
+
+    /// A store that cannot say whether the user ended all sessions refuses a token with no
+    /// `jti` (checked by that alone), unless the deployment chose to fail open.
+    #[tokio::test]
+    async fn an_unreadable_store_refuses_a_token_by_its_users_epoch_unless_failing_open() {
+        assert_eq!(
+            unreadable(false, false).check_token(None, "alice", Some(1000)).await,
+            Err(TokenRejection::StoreUnavailable)
+        );
+        assert_eq!(
+            unreadable(false, true).check_token(None, "alice", Some(1000)).await,
+            Ok(()),
+            "failing open is the deployment's choice, and the only way through"
+        );
     }
 
     #[tokio::test]

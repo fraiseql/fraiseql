@@ -243,6 +243,11 @@ crate = "crates/fraiseql-core"
 command = "cargo test -p fraiseql-core --lib -- field_filter_tests field_rbac field_authz"
 
 [[shard]]
+name = "server-lib-session-store"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --features auth --lib -- token_revocation_tests"
+
+[[shard]]
 name = "core-cache"
 crate = "crates/fraiseql-core"
 command = "cargo test -p fraiseql-core --lib cache::"
@@ -2104,3 +2109,55 @@ anchor = ".is_some_and(|role| role.has_scope(scope))"
 mutant = ".is_some()"
 killers = ["test_cannot_access_scoped_field_without_role"]
 shard = "core-lib-field-access"
+
+# The session store's check of a token (`TokenRevocationManager::check_token`): an ended
+# `jti`, a required `jti`, the user's end-all epoch, and a store that cannot be read, which
+# refuses unless the deployment set `fail_open` (default false). The two `fail_open` arms
+# read alike, so each anchor carries the lines after it.
+
+[[site]]
+id = "session.store.jti-ended"
+file = "crates/fraiseql-server/src/token_revocation.rs"
+function = "TokenRevocationManager::check_token"
+anchor = "Ok(true) => return Err(TokenRejection::Revoked),"
+mutant = "Ok(true) => {},"
+killers = ["manager_rejects_revoked_token"]
+shard = "server-lib-session-store"
+
+[[site]]
+id = "session.store.jti-unreadable"
+file = "crates/fraiseql-server/src/token_revocation.rs"
+function = "TokenRevocationManager::check_token"
+anchor = "if self.fail_open {\n                        debug!(\"fail_open=true \u2014 allowing request despite store error\");\n                        return Ok(());"
+mutant = "if true {\n                        debug!(\"fail_open=true \u2014 allowing request despite store error\");\n                        return Ok(());"
+killers = ["an_unreadable_store_refuses_a_token_by_its_jti_unless_failing_open"]
+shard = "server-lib-session-store"
+
+[[site]]
+id = "session.store.jti-required"
+file = "crates/fraiseql-server/src/token_revocation.rs"
+function = "TokenRevocationManager::check_token"
+anchor = "if self.require_jti {"
+mutant = "if false {"
+killers = ["manager_rejects_missing_jti_when_required"]
+shard = "server-lib-session-store"
+
+[[site]]
+id = "session.store.epoch"
+file = "crates/fraiseql-server/src/token_revocation.rs"
+function = "TokenRevocationManager::check_token"
+anchor = "if iat.is_none_or(|issued| issued <= epoch) {"
+mutant = "if false {"
+killers = ["revoke_all_revokes_tokens_by_epoch_not_individual_jti"]
+shard = "server-lib-session-store"
+
+[[site]]
+id = "session.store.epoch-unreadable"
+file = "crates/fraiseql-server/src/token_revocation.rs"
+function = "TokenRevocationManager::check_token"
+anchor = "if self.fail_open {\n                    debug!(\"fail_open=true \u2014 allowing request despite store error\");\n                    Ok(())"
+mutant = "if true {\n                    debug!(\"fail_open=true \u2014 allowing request despite store error\");\n                    Ok(())"
+killers = [
+  "an_unreadable_store_refuses_a_token_by_its_users_epoch_unless_failing_open",
+]
+shard = "server-lib-session-store"
