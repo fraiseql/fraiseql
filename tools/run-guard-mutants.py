@@ -21,6 +21,12 @@ touched file is checked against its original sha256, and a mismatch fails the ru
 does an untracked file a shard run wrote (LEFT-BEHIND: a proptest seed of a failure the
 mutant caused, which committed would pin it).
 
+An interrupted run leaves no mutant behind. SIGINT, SIGTERM and SIGHUP end it through the
+blocks that restore each file. Before a mutant is written, its file's saved bytes are
+recorded under the git dir, so a run that could not restore (SIGKILL, a crash) is repaired
+by the next start: a file still holding its mutant gets its bytes back, and the run then
+refuses to start (exit 2) until every recorded file matches HEAD.
+
 Selection: every site (the weekly sweep), `--site ID` (repeatable), `--shard NAME`, or
 `--changed-since REF`: the sites whose `file` differs between REF and the working tree,
 which is the per-PR run. A selected site brings every member of its joint, so a joint is
@@ -40,7 +46,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import importlib.util
+import json
 import os
+import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -86,6 +95,81 @@ def load_gate():
     sys.modules["check_guard_sites"] = module
     spec.loader.exec_module(module)
     return module
+
+
+def sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def restore_dir() -> Path:
+    """Where a mutant in place is recorded: under the git dir, so never in the tree."""
+    out = subprocess.run(
+        ["git", "rev-parse", "--absolute-git-dir"], cwd=ROOT, check=True, capture_output=True, text=True
+    )
+    return Path(out.stdout.strip()) / "guard-mutants"
+
+
+def record(mutated: dict[Path, tuple[bytes, bytes]]) -> None:
+    """Record each file about to hold a mutant, with its saved bytes, before it is written:
+    a run killed with the mutant in place leaves this for the next start to restore."""
+    where = restore_dir()
+    where.mkdir(parents=True, exist_ok=True)
+    entries = []
+    for path, (saved, mutant) in mutated.items():
+        file = str(path.relative_to(ROOT))
+        name = f"{sha256(file.encode('utf-8'))[:16]}.saved"
+        (where / name).write_bytes(saved)
+        entries.append(
+            {
+                "file": file,
+                "saved": name,
+                "saved_sha256": sha256(saved),
+                "mutant_sha256": sha256(mutant),
+            }
+        )
+    staged = where / "marker.json.tmp"
+    staged.write_text(json.dumps(entries, indent=2), encoding="utf-8")
+    staged.replace(where / "marker.json")
+
+
+def clear_record() -> None:
+    shutil.rmtree(restore_dir(), ignore_errors=True)
+
+
+def matches_head(file: str) -> bool:
+    run = subprocess.run(["git", "diff", "--quiet", "HEAD", "--", file], cwd=ROOT, check=False)
+    return run.returncode == 0
+
+
+def recover() -> str | None:
+    """Restore what an interrupted run left mutated, and why a run cannot start, if so.
+
+    A file still holding its recorded mutant gets its saved bytes back. A file the record
+    names that differs from HEAD stops the run until it matches: the record is kept so the
+    next start checks it again, as a mutant restored over a change, or a change written
+    since, is for a person to look at."""
+    marker = restore_dir() / "marker.json"
+    if not marker.exists():
+        return None
+    entries = json.loads(marker.read_text(encoding="utf-8"))
+    for entry in entries:
+        path = ROOT / entry["file"]
+        if path.exists() and sha256(path.read_bytes()) == entry["mutant_sha256"]:
+            path.write_bytes((restore_dir() / entry["saved"]).read_bytes())
+            print(f"RESTORED {entry['file']}: an interrupted run left a mutant in it")
+    differ = [entry["file"] for entry in entries if not matches_head(entry["file"])]
+    if differ:
+        return (
+            f"{', '.join(differ)} differs from HEAD after an interrupted run; check it, then "
+            "commit or restore it: no mutant runs until each matches HEAD"
+        )
+    clear_record()
+    return None
+
+
+def interrupted(signum: int, _frame: object) -> None:
+    """A signal ends the run through its `finally` blocks, which restore every file."""
+    raise SystemExit(128 + signum)
 
 
 def changed_files(ref: str) -> set[str]:
@@ -159,6 +243,13 @@ def main() -> int:
     parser.add_argument("--output", type=Path, help="write each mutant's test output here")
     args = parser.parse_args()
 
+    for signum in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(signum, interrupted)
+    problem = recover()
+    if problem:
+        print(f"INTERRUPTED: {problem}")
+        return 2
+
     gate = load_gate()
     with INVENTORY.open("rb") as handle:
         data = tomllib.load(handle)
@@ -222,26 +313,33 @@ def main() -> int:
                 continue
             label = " + ".join(site["id"] for site in unit)
             shard = shards[unit[0]["shard"]]
+            # Every member of the unit is applied in memory first, so the record names each
+            # file's saved bytes and the exact mutant written over them.
             saved: dict[Path, bytes] = {}
-            try:
-                for site in unit:
-                    path = ROOT / site["file"]
+            texts: dict[Path, str] = {}
+            for site in unit:
+                path = ROOT / site["file"]
+                if path not in saved:
                     raw = path.read_bytes()
                     originals.setdefault(path, raw)
-                    saved.setdefault(path, raw)
-                    text = path.read_text(encoding="utf-8")
-                    if site["file"].endswith(".sql"):
-                        # A `.sql` file has no functions: the anchor is found in the whole file.
-                        spans = [(0, len(text))]
-                    else:
-                        spans = gate.Source.of(text).site_spans(site["function"], site.get("cfg"))
-                    body = text[spans[0][0] : spans[0][1]] if len(spans) == 1 else ""
-                    if body.count(site["anchor"]) != 1:
-                        raise SystemExit(f"{site['id']}: does not resolve; run tools/check-guard-sites.py")
-                    at = spans[0][0] + body.index(site["anchor"])
-                    path.write_text(
-                        text[:at] + site["mutant"] + text[at + len(site["anchor"]) :], encoding="utf-8"
-                    )
+                    saved[path] = raw
+                    texts[path] = raw.decode("utf-8")
+                text = texts[path]
+                if site["file"].endswith(".sql"):
+                    # A `.sql` file has no functions: the anchor is found in the whole file.
+                    spans = [(0, len(text))]
+                else:
+                    spans = gate.Source.of(text).site_spans(site["function"], site.get("cfg"))
+                body = text[spans[0][0] : spans[0][1]] if len(spans) == 1 else ""
+                if body.count(site["anchor"]) != 1:
+                    raise SystemExit(f"{site['id']}: does not resolve; run tools/check-guard-sites.py")
+                at = spans[0][0] + body.index(site["anchor"])
+                texts[path] = text[:at] + site["mutant"] + text[at + len(site["anchor"]) :]
+            mutated = {path: (saved[path], texts[path].encode("utf-8")) for path in saved}
+            record(mutated)
+            try:
+                for path, (_, mutant) in mutated.items():
+                    path.write_bytes(mutant)
                 started = time.monotonic()
                 run = subprocess.run(
                     ["bash", "-c", shard["command"]], cwd=ROOT, capture_output=True, text=True
@@ -250,6 +348,7 @@ def main() -> int:
             finally:
                 for path, raw in saved.items():
                     path.write_bytes(raw)
+                clear_record()
             output = run.stdout + run.stderr
             if args.output:
                 args.output.mkdir(parents=True, exist_ok=True)

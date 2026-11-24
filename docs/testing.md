@@ -216,6 +216,9 @@ Two tools read it:
   proptest seed of a failure a mutant caused) fails the run as LEFT-BEHIND: committed, it
   would pin the mutant's failure as a case to re-run. A mutant is killed only when one of its named killers fails; one that
   survives, is failed only by an unnamed test, or does not build fails the run.
+  An interrupted run leaves no mutant: a signal restores each file, and a run killed
+  outright is repaired by the next start, from saved bytes recorded under the git dir,
+  which then refuses to run until each recorded file matches HEAD.
   `--site`, `--shard` and `--changed-since REF` select a subset; `--list` prints the
   selection; `--output DIR` keeps each mutant's test output. Self-test: `make
   test-guard-mutants-gate`.

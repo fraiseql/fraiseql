@@ -182,6 +182,91 @@ if grep -qF "shard kills:" "${tmp}/out"; then fail "10b. a shard ran on the rig 
 tree; shard kills; stub_psql 1
 DATABASE_URL=postgres://rig/db PATH="${tmp}/bin:${PATH}" expect 0 "one: KILLED" "11. a database with pgvector runs the shards"
 
+# An interrupted run. The `blocks` shard stops with the mutant in place: it writes its pid
+# to the sentinel and becomes a sleep the case then ends.
+blocking_tree() {
+  tree; shard blocks
+  cat >> "${ws}/tools/guard-sites.toml" <<'TOML'
+
+[[shard]]
+name    = "blocks"
+crate   = "crates/fraiseql-server"
+command = "if grep -q skipped crates/fraiseql-server/src/gate.rs; then echo $$ > ${GUARD_TEST_SENTINEL}; exec sleep 20; fi"
+TOML
+  git -C "$ws" add -A
+  git -C "$ws" -c user.name=guard -c user.email=guard@example.invalid commit -qm tree
+}
+
+# Start a run and wait until its mutant is in place; `run_pid` is the runner's.
+start_blocked() {
+  rm -f "${tmp}/sentinel"
+  GUARD_TEST_SENTINEL="${tmp}/sentinel" GUARD_SITES_ROOT="$ws" python3 "$runner" > "${tmp}/out" 2>&1 &
+  run_pid=$!
+  for _ in $(seq 300); do
+    [ -s "${tmp}/sentinel" ] && return 0
+    sleep 0.1
+  done
+  return 1
+}
+
+# End the run with signal `$1`, then the shard's sleep should the runner not have.
+interrupt() {
+  kill "-$1" "$run_pid"
+  wait "$run_pid" 2> /dev/null
+  kill -9 "$(cat "${tmp}/sentinel")" 2> /dev/null
+}
+
+blocking_tree
+if ! start_blocked; then
+  fail "12. a run ended by SIGTERM restores its mutant — the mutant never ran"
+else
+  interrupt TERM
+  if ! cmp -s "${ws}/${file}" "${tmp}/original"; then
+    fail "12. a run ended by SIGTERM restores its mutant — the mutant was left in place"
+  elif [ -e "${ws}/.git/guard-mutants" ]; then
+    fail "12. a run ended by SIGTERM restores its mutant — its record was left behind"
+  else
+    pass "12. a run ended by SIGTERM restores its mutant"
+  fi
+fi
+
+blocking_tree
+if ! start_blocked; then
+  fail "13. a mutant left by a killed run is restored by the next start — the mutant never ran"
+else
+  interrupt KILL
+  if cmp -s "${ws}/${file}" "${tmp}/original"; then
+    fail "13. precondition: SIGKILL leaves the mutant in place"
+  else
+    expect 0 "RESTORED ${file}: an interrupted run left a mutant in it" \
+      "13. a mutant left by a killed run is restored by the next start" --list
+  fi
+fi
+
+blocking_tree
+if ! start_blocked; then
+  fail "14. a file changed since the killed run stops the next — the mutant never ran"
+else
+  interrupt KILL
+  echo "// written after the run was killed" >> "${ws}/${file}"
+  GUARD_SITES_ROOT="$ws" python3 "$runner" --list > "${tmp}/out" 2>&1
+  rc=$?
+  if [ "$rc" -ne 2 ] || ! grep -qF "${file} differs from HEAD" "${tmp}/out"; then
+    fail "14. a file changed since the killed run stops the next — rc=${rc}"
+  elif ! grep -qF "// written after" "${ws}/${file}"; then
+    fail "14. a file changed since the killed run stops the next — the change was overwritten"
+  else
+    pass "14. a file changed since the killed run stops the next"
+  fi
+  cp "${tmp}/original" "${ws}/${file}"
+  expect 0 "1 mutant(s) selected" "14b. the run starts once the file matches HEAD" --list
+  if [ -e "${ws}/.git/guard-mutants" ]; then
+    fail "14c. the record is cleared once the file matches HEAD"
+  else
+    pass "14c. the record is cleared once the file matches HEAD"
+  fi
+fi
+
 if [ "$failures" -ne 0 ]; then
   echo "guard mutants runner: ${failures} case(s) FAILED"
   exit 1
