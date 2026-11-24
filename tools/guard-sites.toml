@@ -3416,6 +3416,21 @@ crate = "crates/fraiseql-server"
 command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,auth-saml,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,inbound-email' --no-fail-fast --test saml_mount_e2e_pg --test first_party_issuer_e2e_pg --test tenant_admin_e2e_pg --test api_key_postgres_e2e_pg --test service_account_auth_layers_e2e_pg --test admin_sql_console_e2e_pg -- --test-threads=1"
 
 [[shard]]
+name = "server-lib-config-refusals"
+crate = "crates/fraiseql-server"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features auth-saml,auth --lib -- server_config:: server::initialization:: server::parity_tests:: server::tests::initialization_tests server::scim_mount_tests routes::graphql::tests::reload_enrichment_readers"
+
+[[shard]]
+name = "server-lib-admin-sql-config"
+crate = "crates/fraiseql-server"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features auth,admin-sql --lib -- server_config::tests::admin_sql_console::"
+
+[[shard]]
+name = "server-it-constructor-drift"
+crate = "crates/fraiseql-server"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features auth-saml,auth --test constructor_drift_test"
+
+[[shard]]
 name = "auth-lib-pkce"
 crate = "crates/fraiseql-auth"
 command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-auth --features redis-pkce --lib -- --include-ignored --test-threads=1 tests::pkce_tests::"
@@ -3931,3 +3946,309 @@ mutant = ""
 killers = ["the_dead_letter_routes_take_an_operators_token"]
 shard = "server-lib-mount"
 joint = "observer-dlq-unauthenticated-layers"
+
+# Boot refusals: a configuration or schema whose guard could not work, or whose credential
+# could not be issued or checked, is refused at boot. Each mutant lets it boot.
+
+[[site]]
+id = "boot.metrics-token-required"
+file = "crates/fraiseql-server/src/server_config/methods.rs"
+function = "validate"
+anchor = "if self.metrics_enabled {"
+mutant = "if false && self.metrics_enabled {"
+killers = ["test_validate_metrics_enabled_without_token_fails"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.metrics-token-length"
+file = "crates/fraiseql-server/src/server_config/methods.rs"
+function = "validate"
+anchor = "Some(token) if token.len() < 16 =>"
+mutant = "Some(token) if token.len() < 1 =>"
+killers = ["test_validate_metrics_enabled_with_short_token_fails"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.admin-api-token-required"
+file = "crates/fraiseql-server/src/server_config/methods.rs"
+function = "validate"
+anchor = "if self.admin_api_enabled && self.admin_token.is_none() {"
+mutant = "if false && self.admin_api_enabled && self.admin_token.is_none() {"
+killers = ["test_validate_admin_api_enabled_without_token_fails"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.admin-token-length"
+file = "crates/fraiseql-server/src/server_config/methods.rs"
+function = "validate"
+anchor = ".is_some_and(|token| token.len() < 32)"
+mutant = ".is_some_and(|token| token.len() < 1)"
+killers = ["a_short_admin_token_is_refused_even_with_the_admin_api_off"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.readonly-token-length"
+file = "crates/fraiseql-server/src/server_config/methods.rs"
+function = "validate"
+anchor = "if ro_token.len() < 32 {"
+mutant = "if ro_token.len() < 1 {"
+killers = ["test_validate_admin_readonly_token_short_fails"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.readonly-token-distinct"
+file = "crates/fraiseql-server/src/server_config/methods.rs"
+function = "validate"
+anchor = "if Some(ro_token) == self.admin_token.as_ref() {"
+mutant = "if false && Some(ro_token) == self.admin_token.as_ref() {"
+killers = ["test_validate_admin_readonly_token_same_as_admin_token_fails"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.tls-cert-exists"
+file = "crates/fraiseql-server/src/server_config/methods.rs"
+function = "validate"
+anchor = "if !tls.cert_path.exists() {"
+mutant = "if false && !tls.cert_path.exists() {"
+killers = ["test_validate_tls_enabled_without_cert"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.tls-key-exists"
+file = "crates/fraiseql-server/src/server_config/methods.rs"
+function = "validate"
+anchor = "if !tls.key_path.exists() {"
+mutant = "if false && !tls.key_path.exists() {"
+killers = ["a_tls_key_file_that_does_not_exist_is_refused"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.tls-min-version"
+file = "crates/fraiseql-server/src/server_config/methods.rs"
+function = "validate"
+anchor = "if ![\"1.2\", \"1.3\"].contains(&tls.min_version.as_str()) {"
+mutant = "if ![\"1.0\", \"1.1\", \"1.2\", \"1.3\"].contains(&tls.min_version.as_str()) {"
+killers = ["test_validate_tls_invalid_min_version"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.tls-client-ca-exists"
+file = "crates/fraiseql-server/src/server_config/methods.rs"
+function = "validate"
+anchor = "if !ca_path.exists() {\n                            return Err(format!(\"Client CA"
+mutant = "if false && !ca_path.exists() {\n                            return Err(format!(\"Client CA"
+killers = ["a_client_ca_file_that_does_not_exist_is_refused"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.tls-client-ca-required"
+file = "crates/fraiseql-server/src/server_config/methods.rs"
+function = "validate"
+anchor = "} else {\n                        return Err(\n                            \"require_client_cert is true but client_ca_path is not set\".to_string()\n                        );\n                    }"
+mutant = "} else {\n                    }"
+killers = ["test_validate_tls_requires_client_ca"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.database-tls-ca-exists"
+file = "crates/fraiseql-server/src/server_config/methods.rs"
+function = "validate"
+anchor = "if !ca_path.exists() {\n                    return Err(format!(\"CA bundle"
+mutant = "if false && !ca_path.exists() {\n                    return Err(format!(\"CA bundle"
+killers = ["a_database_ca_bundle_that_does_not_exist_is_refused"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.saml-requires-auth-issuer"
+file = "crates/fraiseql-server/src/server_config/methods.rs"
+function = "validate"
+anchor = "if self.auth_issuer.is_none() {\n                return Err(\"[saml]"
+mutant = "if false && self.auth_issuer.is_none() {\n                return Err(\"[saml]"
+killers = ["saml_without_an_auth_issuer_is_refused"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.scim-requires-admin-token"
+file = "crates/fraiseql-server/src/server_config/methods.rs"
+function = "validate"
+anchor = "if scim.enabled && self.admin_token.is_none() {"
+mutant = "if false && scim.enabled && self.admin_token.is_none() {"
+killers = ["scim_enabled_without_an_admin_token_is_refused"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.admin-sql-requires-feature"
+file = "crates/fraiseql-server/src/server_config/methods.rs"
+function = "validate"
+anchor = "if !cfg!(feature = \"admin-sql\") {"
+mutant = "if false && !cfg!(feature = \"admin-sql\") {"
+killers = ["the_cargo_feature_is_the_outer_gate"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.admin-sql-requires-admin-api"
+file = "crates/fraiseql-server/src/server_config/methods.rs"
+function = "validate"
+anchor = "if !self.admin_api_enabled {"
+mutant = "if false && !self.admin_api_enabled {"
+killers = ["enabled_without_the_admin_api_is_refused"]
+shard = "server-lib-admin-sql-config"
+
+[[site]]
+id = "boot.production-playground"
+file = "crates/fraiseql-server/src/server_config/methods.rs"
+function = "validate"
+anchor = "if self.playground_enabled {\n                return Err(\"playground_enabled is true in production mode."
+mutant = "if false && self.playground_enabled {\n                return Err(\"playground_enabled is true in production mode."
+killers = [
+  "a_playground_left_on_is_refused_when_nothing_declares_the_deployment",
+]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.production-cors-origins"
+file = "crates/fraiseql-server/src/server_config/methods.rs"
+function = "validate"
+anchor = "if self.cors_enabled && self.cors_origins.is_empty() {"
+mutant = "if false && self.cors_enabled && self.cors_origins.is_empty() {"
+killers = ["empty_cors_origins_are_refused_in_production"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.tenant-isolation-declared"
+file = "crates/fraiseql-server/src/server/initialization.rs"
+function = "tenant_isolation_declaration_check"
+anchor = "if schema.is_multi_tenant() {"
+mutant = "if false && schema.is_multi_tenant() {"
+killers = ["server_new_refuses_multi_tenant_caching_without_rls"]
+shard = "server-it-constructor-drift"
+
+[[site]]
+id = "boot.unattributable-mutations"
+file = "crates/fraiseql-server/src/server/initialization.rs"
+function = "unattributable_mutation_check"
+anchor = "if unattributable.is_empty() {"
+mutant = "if true || unattributable.is_empty() {"
+killers = ["an_unattributable_mutation_refuses_to_boot_with_the_cache_on"]
+shard = "server-it-constructor-drift"
+
+[[site]]
+id = "boot.declared-rls-present"
+file = "crates/fraiseql-server/src/server/initialization.rs"
+function = "verify_declared_rls"
+anchor = "if !schema.is_multi_tenant() || !schema.has_rls_configured() {"
+mutant = "if true || !schema.is_multi_tenant() || !schema.has_rls_configured() {"
+killers = ["declared_rls_is_checked_against_each_source_the_schema_reads"]
+shard = "server-it-constructor-drift"
+
+[[site]]
+id = "boot.scim-auth-built"
+file = "crates/fraiseql-server/src/server/initialization.rs"
+function = "refuse_scim_it_cannot_mount"
+anchor = "if !auth_built {"
+mutant = "if false && !auth_built {"
+killers = ["scim_enabled_on_a_build_without_auth_is_refused_naming_the_feature"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.scim-database-pool"
+file = "crates/fraiseql-server/src/server/initialization.rs"
+function = "refuse_scim_it_cannot_mount"
+anchor = "if !has_db_pool {"
+mutant = "if false && !has_db_pool {"
+killers = ["scim_enabled_without_a_database_pool_is_refused_naming_the_pool"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.strict-documents-under-federation"
+file = "crates/fraiseql-server/src/server/initialization.rs"
+function = "refuse_strict_trusted_documents_under_federation"
+anchor = "if !federation_enabled || !strict {"
+mutant = "if true || !federation_enabled || !strict {"
+killers = [
+  "a_federated_server_with_strict_trusted_documents_is_refused_naming_both_ways_out",
+]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.field-encryption-unsupported"
+file = "crates/fraiseql-server/src/server/initialization.rs"
+function = "field_encryption_unsupported_check"
+anchor = "if encrypted.is_empty() {"
+mutant = "if true || encrypted.is_empty() {"
+killers = ["field_encryption_marker_refuses_boot"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.static-enriched-read"
+file = "crates/fraiseql-server/src/server/initialization.rs"
+function = "refuse_unread_static_enriched"
+anchor = "if unread.is_empty() {"
+mutant = "if true || unread.is_empty() {"
+killers = ["a_reload_leaving_a_static_enriched_field_unread_is_refused"]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.enrichment-readers-resolved"
+file = "crates/fraiseql-server/src/server/initialization.rs"
+function = "enrichment_readers_resolved_check"
+anchor = "if enabled || !schema.declares_enrichment_consumer() {"
+mutant = "if true || enabled || !schema.declares_enrichment_consumer() {"
+killers = [
+  "a_reload_adding_a_reader_without_enrichment_is_refused_and_the_schema_keeps_serving",
+]
+shard = "server-lib-config-refusals"
+
+[[site]]
+id = "boot.held-issuer-names-issuer"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "check_held_issuer"
+anchor = "if config.issuer.is_none() {"
+mutant = "if false && config.issuer.is_none() {"
+killers = ["from_issuer_keys_refuses_a_profile_that_names_no_issuer"]
+shard = "core-lib-oidc"
+
+[[site]]
+id = "boot.held-issuer-no-jwks-uri"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "check_held_issuer"
+anchor = "if config.jwks_uri.is_some() {"
+mutant = "if false && config.jwks_uri.is_some() {"
+killers = ["from_issuer_keys_refuses_a_jwks_uri_it_would_never_fetch"]
+shard = "core-lib-oidc"
+
+[[site]]
+id = "boot.held-issuer-no-additional-issuers"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "check_held_issuer"
+anchor = "if !config.additional_issuers.is_empty() {"
+mutant = "if false && !config.additional_issuers.is_empty() {"
+killers = ["from_issuer_keys_refuses_additional_issuers_it_would_never_trust"]
+shard = "core-lib-oidc"
+
+[[site]]
+id = "boot.added-issuer-no-me"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "and_issuer_keys"
+anchor = "if config.me.is_some() {"
+mutant = "if false && config.me.is_some() {"
+killers = ["and_issuer_keys_refuses_a_me_endpoint_it_would_never_mount"]
+shard = "core-lib-oidc"
+
+[[site]]
+id = "boot.added-issuer-beside-an-issuer"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "and_issuer_keys"
+anchor = "if self.config.issuer.is_none() {"
+mutant = "if false && self.config.issuer.is_none() {"
+killers = ["and_issuer_keys_refuses_to_join_an_issuer_less_validator"]
+shard = "core-lib-oidc"
+
+[[site]]
+id = "boot.added-issuer-once"
+file = "crates/fraiseql-core/src/security/oidc/token.rs"
+function = "and_issuer_keys"
+anchor = "if self.issuers.iter().any(|trusted| trusted.config.issuer == config.issuer) {"
+mutant = "if false && self.issuers.iter().any(|trusted| trusted.config.issuer == config.issuer) {"
+killers = ["and_issuer_keys_refuses_an_issuer_it_already_holds_keys_for"]
+shard = "core-lib-oidc"

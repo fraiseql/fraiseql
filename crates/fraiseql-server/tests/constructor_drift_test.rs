@@ -332,6 +332,33 @@ async fn declaring_rls_changes_the_outcome() {
     );
 }
 
+/// Declared RLS is a claim the boot checks against the catalog, not a switch that turns
+/// the check off. This adapter finds no relation, so the one source the schema reads is
+/// not shown to be protected, and the server must refuse to cache over it.
+#[tokio::test]
+async fn declared_rls_is_checked_against_each_source_the_schema_reads() {
+    use fraiseql_core::schema::{QueryDefinition, TypeDefinition};
+
+    let mut schema = multi_tenant_schema_without_rls();
+    if let Some(security) = schema.security.as_mut() {
+        security.rls.enabled = true;
+    }
+    schema.types.push(TypeDefinition::new("Item", "v_item"));
+    let mut query = QueryDefinition::new("items", "Item");
+    query.sql_source = Some("v_item".to_string());
+    schema.queries.push(query);
+
+    let err = Server::new(caching_config(), schema, Arc::new(NoopRelayAdapter), None)
+        .await
+        .err()
+        .expect("a declared RLS posture the catalog does not show must refuse to boot");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("Row-Level Security is declared") && msg.contains("v_item"),
+        "the refusal must name the claim and the source; got: {msg}"
+    );
+}
+
 // ── #910: an unattributable mutation must not boot beside a cacheable view ────
 //
 // `fraiseql compile` refuses this shape, so this is the backstop for a

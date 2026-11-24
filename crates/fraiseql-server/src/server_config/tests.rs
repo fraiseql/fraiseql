@@ -2175,3 +2175,147 @@ fn a_renamed_or_moved_key_is_refused_with_its_real_spelling() {
         );
     }
 }
+
+/// Refusals `validate` gives in every deployment: a file a TLS setting names must exist,
+/// and a section whose credential could not be issued or checked does not boot.
+mod refused_in_every_deployment {
+    use super::*;
+
+    /// A config with nothing switched on but the setting under test. CORS is off so the
+    /// production check on its origins cannot be the refusal a test reads.
+    fn quiet(config: ServerConfig) -> ServerConfig {
+        ServerConfig {
+            cors_enabled: false,
+            ..config
+        }
+    }
+
+    fn tls(dir: &std::path::Path, key: &str, client_ca: Option<&str>) -> TlsServerConfig {
+        let cert_path = dir.join("cert.pem");
+        std::fs::write(&cert_path, "cert").expect("the cert file is written");
+        std::fs::write(dir.join("key.pem"), "key").expect("the key file is written");
+        std::fs::write(dir.join("ca.pem"), "ca").expect("the CA file is written");
+        TlsServerConfig {
+            enabled: true,
+            cert_path,
+            key_path: dir.join(key),
+            require_client_cert: client_ca.is_some(),
+            client_ca_path: client_ca.map(|name| dir.join(name)),
+            min_version: "1.2".to_string(),
+        }
+    }
+
+    #[test]
+    fn a_tls_key_file_that_does_not_exist_is_refused() {
+        let dir = tempfile::tempdir().expect("a temp dir");
+        let present = quiet(ServerConfig {
+            tls: Some(tls(dir.path(), "key.pem", None)),
+            ..ServerConfig::default()
+        });
+        assert!(present.validate().is_ok(), "{:?}", present.validate());
+        let missing = quiet(ServerConfig {
+            tls: Some(tls(dir.path(), "missing-key.pem", None)),
+            ..ServerConfig::default()
+        });
+        let err = missing.validate().expect_err("a missing key file must be refused");
+        assert!(err.contains("key file not found"), "got: {err}");
+    }
+
+    #[test]
+    fn a_client_ca_file_that_does_not_exist_is_refused() {
+        let dir = tempfile::tempdir().expect("a temp dir");
+        let present = quiet(ServerConfig {
+            tls: Some(tls(dir.path(), "key.pem", Some("ca.pem"))),
+            ..ServerConfig::default()
+        });
+        assert!(present.validate().is_ok(), "{:?}", present.validate());
+        let missing = quiet(ServerConfig {
+            tls: Some(tls(dir.path(), "key.pem", Some("missing-ca.pem"))),
+            ..ServerConfig::default()
+        });
+        let err = missing.validate().expect_err("a missing client CA file must be refused");
+        assert!(err.contains("Client CA file not found"), "got: {err}");
+    }
+
+    #[test]
+    fn a_database_ca_bundle_that_does_not_exist_is_refused() {
+        let dir = tempfile::tempdir().expect("a temp dir");
+        std::fs::write(dir.path().join("bundle.pem"), "ca").expect("the bundle is written");
+        let with_bundle = |name: &str| {
+            quiet(ServerConfig {
+                database_tls: Some(DatabaseTlsConfig {
+                    postgres_ssl_mode:   Some("verify-full".to_string()),
+                    verify_certificates: true,
+                    ca_bundle_path:      Some(dir.path().join(name)),
+                    redis_ssl:           None,
+                    clickhouse_https:    None,
+                    elasticsearch_https: None,
+                }),
+                ..ServerConfig::default()
+            })
+        };
+        let present = with_bundle("bundle.pem");
+        assert!(present.validate().is_ok(), "{:?}", present.validate());
+        let err = with_bundle("missing-bundle.pem")
+            .validate()
+            .expect_err("a missing CA bundle must be refused");
+        assert!(err.contains("CA bundle file not found"), "got: {err}");
+    }
+
+    #[cfg(feature = "auth-saml")]
+    #[test]
+    fn saml_without_an_auth_issuer_is_refused() {
+        let config: ServerConfig =
+            toml::from_str("cors_enabled = false\n[saml]\nstore_enabled = true\n")
+                .expect("config parses");
+        assert!(config.saml.is_some() && config.auth_issuer.is_none());
+        let err = config.validate().expect_err("[saml] without [auth_issuer] must be refused");
+        assert!(err.contains("[saml] requires [auth_issuer]"), "got: {err}");
+    }
+
+    #[test]
+    fn scim_enabled_without_an_admin_token_is_refused() {
+        let scim = |enabled: bool| {
+            quiet(ServerConfig {
+                scim: Some(ScimServerConfig {
+                    enabled,
+                    ..ScimServerConfig::default()
+                }),
+                ..ServerConfig::default()
+            })
+        };
+        assert!(scim(false).validate().is_ok(), "{:?}", scim(false).validate());
+        let err = scim(true).validate().expect_err("SCIM without an admin token must be refused");
+        assert!(err.contains("[scim] enabled = true requires admin_token"), "got: {err}");
+    }
+
+    /// Empty CORS origins are refused in production and allowed in development: the
+    /// deployment, not the setting alone, decides.
+    #[test]
+    fn empty_cors_origins_are_refused_in_production() {
+        let config = ServerConfig {
+            cors_enabled: true,
+            cors_origins: Vec::new(),
+            playground_enabled: false,
+            ..ServerConfig::default()
+        };
+        let validate_in = |env: Option<&str>| {
+            temp_env::with_vars(
+                [
+                    ("FRAISEQL_ENV", env),
+                    ("FRAISEQL_PROFILE", None),
+                    ("KUBERNETES_SERVICE_HOST", None),
+                ],
+                || config.validate(),
+            )
+        };
+        assert!(
+            validate_in(Some("development")).is_ok(),
+            "{:?}",
+            validate_in(Some("development"))
+        );
+        let err = validate_in(Some("production"))
+            .expect_err("empty CORS origins must be refused in production");
+        assert!(err.contains("cors_origins is empty in production mode"), "got: {err}");
+    }
+}
