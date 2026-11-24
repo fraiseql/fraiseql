@@ -46,10 +46,10 @@ mod scope;
 mod tests;
 
 pub use changelog_handlers::ChangelogState;
-use chrono::{DateTime, Utc};
 pub use config::ObserverManagementConfig;
 pub use dlq_handlers::DlqState;
 use fraiseql_observers::ActionConfig;
+use fraiseql_time::Timestamp;
 pub use handlers::{ObserverState, RuntimeHealthState};
 pub use repository::{ObserverRepository, Reconciled};
 pub use routes::{
@@ -104,10 +104,10 @@ pub struct Observer {
     pub fk_customer_org: Option<i64>,
 
     /// When the observer was created
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
 
     /// When the observer was last updated
-    pub updated_at: DateTime<Utc>,
+    pub updated_at: Timestamp,
 
     /// Who created the observer
     pub created_by: Option<String>,
@@ -116,7 +116,7 @@ pub struct Observer {
     pub updated_by: Option<String>,
 
     /// Soft delete timestamp (None = not deleted)
-    pub deleted_at: Option<DateTime<Utc>>,
+    pub deleted_at: Option<Timestamp>,
 
     /// Who owns the row: `None` for the admin API, the owner a schema's declared observers
     /// are stored under ([`declared_owner`]) otherwise.
@@ -543,10 +543,10 @@ pub struct ObserverLog {
     pub action_type: Option<String>,
 
     /// When execution started
-    pub started_at: Option<DateTime<Utc>>,
+    pub started_at: Option<Timestamp>,
 
     /// When execution completed
-    pub completed_at: Option<DateTime<Utc>>,
+    pub completed_at: Option<Timestamp>,
 
     /// Duration in milliseconds
     pub duration_ms: Option<i32>,
@@ -564,7 +564,7 @@ pub struct ObserverLog {
     pub trace_id: Option<String>,
 
     /// When the log entry was created
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
 }
 
 /// Observer statistics from `vw_observer_stats` view.
@@ -601,7 +601,7 @@ pub struct ObserverStats {
     /// Minimum execution duration in milliseconds.
     pub min_duration_ms:       Option<i32>,
     /// Timestamp of the most recent execution.
-    pub last_execution_at:     Option<DateTime<Utc>>,
+    pub last_execution_at:     Option<Timestamp>,
 }
 
 /// Query parameters for listing observers.

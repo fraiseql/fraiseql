@@ -214,11 +214,10 @@ fn resolve_limit(limit: Option<u32>) -> Result<u32, String> {
 fn parse_time(
     field: &str,
     raw: Option<&String>,
-) -> Result<Option<chrono::DateTime<chrono::Utc>>, String> {
+) -> Result<Option<fraiseql_time::Timestamp>, String> {
     raw.map(|s| {
-        chrono::DateTime::parse_from_rfc3339(s)
-            .map(|dt| dt.with_timezone(&chrono::Utc))
-            .map_err(|e| format!("Invalid {field} '{s}': {e}"))
+        crate::time_text::rfc3339_bound(s)
+            .ok_or_else(|| format!("Invalid {field} '{s}': not an RFC 3339 timestamp"))
     })
     .transpose()
 }

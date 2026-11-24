@@ -23,10 +23,8 @@ use crate::inbound::email::tracking::{CorrelatedSend, SendCorrelator, Suppressio
 
 const SEND_ID: &str = "0123456789abcdef0123456789abcdef"; // 32 hex
 
-fn now() -> chrono::DateTime<chrono::Utc> {
-    chrono::DateTime::parse_from_rfc3339("2026-07-05T12:00:00Z")
-        .unwrap()
-        .with_timezone(&chrono::Utc)
+fn now() -> fraiseql_time::Timestamp {
+    fraiseql_time::Timestamp::parse_rfc3339("2026-07-05T12:00:00Z").unwrap()
 }
 
 /// Build an email `InboundMessage` with the given recipients, headers, and
@@ -183,7 +181,7 @@ impl SendCorrelator for FakeCorrelator {
         _tenant: Option<&'a str>,
         _address_hash: &'a str,
         reason: SuppressionReason,
-        _ttl: Option<chrono::DateTime<chrono::Utc>>,
+        _ttl: Option<fraiseql_time::Timestamp>,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
         self.record(format!("suppress:{}", reason.as_str()));
         Box::pin(async { Ok(()) })

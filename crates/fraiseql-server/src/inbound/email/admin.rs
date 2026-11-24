@@ -93,7 +93,7 @@ async fn suppress(
         );
     };
     let hash = fraiseql_observers::hash_address(&state.address_hash_key, &request.address);
-    let ttl = reason.default_ttl(chrono::Utc::now());
+    let ttl = reason.default_ttl(fraiseql_time::Timestamp::now());
     match state.tracker.suppress(request.tenant.as_deref(), &hash, reason, ttl).await {
         Ok(()) => (
             StatusCode::OK,

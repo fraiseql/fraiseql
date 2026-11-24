@@ -361,14 +361,14 @@ mod aggregator_tests {
 mod layer_tests {
     use std::sync::Arc;
 
-    use chrono::Utc;
+    use fraiseql_time::Timestamp;
     use tracing_subscriber::{Registry, layer::SubscriberExt as _};
 
     use super::super::layer::*;
     use crate::usage::aggregator::UsageAggregator;
 
     fn current_period() -> String {
-        Utc::now().format("%Y-%m").to_string()
+        crate::time_text::year_month(Timestamp::now())
     }
 
     /// Emit a synthetic `fraiseql::mutation_audit` event and verify the aggregator

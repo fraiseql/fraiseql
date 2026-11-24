@@ -136,7 +136,7 @@ pub async fn record_call(
     calls.push(json!({
         "tool": tool_name,
         "arguments": argument_names,
-        "at": chrono::Utc::now().to_rfc3339(),
+        "at": fraiseql_time::Timestamp::now().to_rfc3339(),
     }));
     // Keep the most recent window.
     if calls.len() > MAX_REMEMBERED_CALLS {

@@ -154,7 +154,7 @@ pub async fn correlate(
     correlator: &dyn SendCorrelator,
     address_hash_key: Option<&[u8]>,
     challenge_suppress_after: u32,
-    now: chrono::DateTime<chrono::Utc>,
+    now: fraiseql_time::Timestamp,
     message: &InboundMessage,
 ) -> fraiseql_error::Result<CorrelationOutcome> {
     let Some(send) = resolve_send(correlator, message).await? else {

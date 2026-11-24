@@ -159,7 +159,13 @@ async fn revoked_expired_and_wrong_verifier_keys_are_rejected() {
 
     // Expiry: created already-expired.
     let (expired_key, _) = store
-        .create_key("expired", &[], Some(chrono::Utc::now() - chrono::Duration::seconds(5)))
+        .create_key(
+            "expired",
+            &[],
+            Some(
+                fraiseql_time::Timestamp::now() - fraiseql_time::jiff::SignedDuration::from_secs(5),
+            ),
+        )
         .await
         .expect("create expired");
 
@@ -414,4 +420,84 @@ fn api_keys_schema() -> fraiseql_core::schema::CompiledSchema {
 #[test]
 fn the_document_loads_without_a_database() {
     api_keys_schema();
+}
+
+/// The last whole second a `Timestamp` holds, 9999-12-30T22:00:00Z.
+const LAST_SECOND: i64 = 253_402_207_200;
+
+/// `POST /api/v1/admin/api-keys` with `expires_in_secs`: the status and the body.
+async fn create_expiring(
+    router: &axum::Router,
+    name: &str,
+    expires_in_secs: i64,
+) -> (u16, serde_json::Value) {
+    use tower::ServiceExt as _;
+    let request = axum::http::Request::post("/api/v1/admin/api-keys")
+        .header("content-type", "application/json")
+        .body(axum::body::Body::from(
+            serde_json::json!({ "name": name, "expires_in_secs": expires_in_secs }).to_string(),
+        ))
+        .unwrap();
+    let response = router.clone().oneshot(request).await.unwrap();
+    let status = response.status().as_u16();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    (status, serde_json::from_slice(&body).unwrap_or_default())
+}
+
+/// A key's expiry is held to the last instant the server holds: `expires_in_secs` reaching
+/// past it is refused, as a never-expiring key is not created silently (a value past
+/// chrono's year 262142 used to panic the handler), and a key stored with a later expiry
+/// (written when one could reach that far) is read, listed and authenticated as expiring
+/// at that instant.
+#[tokio::test]
+async fn an_expiry_is_held_to_the_last_instant_the_server_holds() {
+    let Some(url) = database_url_or_skip("an_expiry_is_held_to_the_last_instant") else {
+        return;
+    };
+    let db = "fraiseql_p26_calendar_end";
+    let pool = scratch_pool(&url, db).await;
+    let store = PgApiKeyStore::new(pool.clone());
+    store.ensure_schema().await.expect("DDL");
+    let router = fraiseql_server::api::api_key_management_router(
+        fraiseql_server::api::ApiKeyManagementState {
+            store: std::sync::Arc::new(PgApiKeyStore::new(pool.clone())),
+        },
+    );
+
+    let to_last = LAST_SECOND - fraiseql_time::Timestamp::now().as_second();
+    let (status, body) = create_expiring(&router, "until-the-last-second", to_last - 1).await;
+    assert_eq!(status, 201, "an expiry within the calendar is created: {body}");
+    for secs in [to_last + 1, 9_000_000_000_000] {
+        let (status, body) = create_expiring(&router, "past-the-calendar", secs).await;
+        assert_eq!(status, 400, "{secs}: {body}");
+        assert_eq!(body["error"], "invalid_input", "{body}");
+        assert_eq!(
+            body["message"], "expires_in_secs reaches past the last instant this server holds",
+            "{body}"
+        );
+    }
+
+    let (full_key, record) = store.create_key("stored-past", &[], None).await.expect("create");
+    sqlx::query(
+        "UPDATE core.tb_api_key SET expires_at = '20000-01-01 00:00:00+00' WHERE selector = $1",
+    )
+    .bind(&record.selector)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let listed = store.list_keys().await.expect("a stored expiry past the calendar lists");
+    let listed = listed.iter().find(|k| k.selector == record.selector).unwrap();
+    assert_eq!(
+        listed.expires_at.map(fraiseql_time::Timestamp::to_rfc3339).as_deref(),
+        Some("9999-12-30T22:00:00.999999999+00:00")
+    );
+    assert!(
+        matches!(
+            authenticator(store).authenticate(&headers_with_key(&full_key)).await,
+            ApiKeyResult::Authenticated(_)
+        ),
+        "the key is valid until that instant"
+    );
+
+    drop_scratch(&url, db).await;
 }

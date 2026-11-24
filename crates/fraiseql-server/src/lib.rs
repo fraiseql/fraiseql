@@ -190,8 +190,6 @@ pub use arc_swap;
 pub use axum;
 /// The `bytes` this crate's public API is built against (#1198).
 pub use bytes;
-/// The `chrono` this crate's public API is built against (#1198).
-pub use chrono;
 // Authentication (extracted to fraiseql-auth crate) — optional, enable with `features =
 // ["auth"]`
 #[cfg(feature = "auth")]
@@ -326,6 +324,9 @@ pub mod tenancy;
 
 // Usage aggregation: in-memory mutation counters fed by tracing events
 pub mod usage;
+
+// Instants written as text, or computed from a length, as chrono wrote them
+pub(crate) mod time_text;
 
 // Testing utilities
 #[cfg(any(test, feature = "testing"))]

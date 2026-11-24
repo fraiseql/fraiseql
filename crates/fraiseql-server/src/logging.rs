@@ -203,7 +203,7 @@ impl StructuredLogEntry {
     #[must_use]
     pub fn new(level: LogLevel, message: String) -> Self {
         Self {
-            timestamp: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+            timestamp: crate::time_text::rfc3339_millis_z(fraiseql_time::Timestamp::now()),
             level,
             message,
             request_context: None,

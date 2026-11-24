@@ -15,7 +15,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use chrono::{DateTime, Utc};
 use fraiseql_functions::{
     EventPayload, FunctionModule, FunctionObserver, FunctionResult, ResourceLimits,
     host::{
@@ -27,6 +26,7 @@ use fraiseql_functions::{
 use fraiseql_observers::{
     DispatchSource, LeaseGuardedRunner, RunOutcome, derive_idempotency_token,
 };
+use fraiseql_time::Timestamp;
 use tracing::{debug, info, warn};
 
 use super::PgCronState;
@@ -199,7 +199,7 @@ impl ScheduledPoller {
     /// Record, on the session holding the lease, that the window `now` falls in fired: what
     /// tells another process ticking later in the window not to fire it again. A cron
     /// function without a PostgreSQL lease records through its pool, for its restarts.
-    async fn record_window(&self, key: &str, now: DateTime<Utc>) {
+    async fn record_window(&self, key: &str, now: Timestamp) {
         let expression = self.schedule.expr.expression.clone();
         let owned_key = key.to_string();
         let recorded = self
@@ -239,7 +239,7 @@ impl ScheduledPoller {
     /// logged here, with the firing's idempotency token.
     pub(crate) async fn fire_once(&self, at: fraiseql_time::Timestamp) -> Tick {
         let payload = self.payload(at);
-        let now = DateTime::<Utc>::from(at);
+        let now = at;
         let token = self.idempotency_token(&payload);
         #[cfg(feature = "sources")]
         if let ScheduledKind::Source {

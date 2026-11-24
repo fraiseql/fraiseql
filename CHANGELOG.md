@@ -233,6 +233,15 @@ disagreed, and the promise was the part that was wrong.
   message, `<field> = "<text>" is not a valid RFC3339 timestamp; expected e.g.
   "2026-01-31T00:00:00Z"`, without the parser's own reason.
 
+- **`fraiseql_server::chrono` is removed, and `fraiseql-server` no longer depends on
+  chrono (#2026).** The instants in its public API are `fraiseql_time::Timestamp`:
+  `ApiKeyRecord`'s times, `AdminTokenRecord::created_at` and `last_used_at`,
+  `AsyncOperation`'s times, `Observer`, `ObserverLog` and `ObserverStats` times,
+  `AuditFilter::start_time` and `end_time`, `PgCronState::load_last_fired` and
+  `record_fire`, `SuppressionReason::default_ttl`, the suppression TTL
+  `SendCorrelator::suppress` takes, and the instant `correlate` reads. A correlator
+  implemented outside the crate takes a `Timestamp`. Their text is unchanged.
+
 - **`fraiseql_arrow::chrono` is removed, and `fraiseql-arrow` no longer depends on chrono
   (#2026).** The crate re-exports `fraiseql_time` in its place.
   `HistoricalEvent::timestamp`, the date range `ArrowEventStorage::query_events` and
@@ -1716,6 +1725,19 @@ disagreed, and the promise was the part that was wrong.
   see "Roles from the actor row" in `docs/architecture/enriched-identity-rls.md`.
 
 ### Changed
+
+- **An API key whose `expires_in_secs` reaches past 9999-12-30T22:00:00Z is refused
+  (#2026).** `POST /api/v1/admin/api-keys` answers 400 `invalid_input`, "expires_in_secs
+  reaches past the last instant this server holds", as a key that never expires is not
+  created by accident. Such a value up to year 262142 was stored, and a larger one
+  panicked the handler. A key stored with an expiry past that instant is listed and
+  authenticated as expiring at it.
+
+- **A malformed `start_time` or `end_time` on `GET /api/audit/permissions` gives one
+  reason (#2026).** The 400 reads `Invalid start_time '<value>': not an RFC 3339
+  timestamp`, where the reason was the parser's own. The text accepted is unchanged; a
+  bound past 9999-12-30T22:00:00Z reads as that instant, so `end_time=9999-12-31T23:59:59Z`
+  bounds nothing.
 
 - **A session-state TTL reaching past 9999-12-30T22:00:00Z keeps an entry until that
   instant (#2026).** `[session_state] default_ttl_secs` has no upper bound. A TTL reaching

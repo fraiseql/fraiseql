@@ -25,7 +25,7 @@ async fn pg_cron_state_records_and_increments_fire_count() {
 
     // A unique function name so parallel runs / prior runs do not collide.
     let function = format!("purge_test_{}", std::process::id());
-    let now = chrono::Utc::now();
+    let now = fraiseql_time::Timestamp::now();
 
     state.record_fire(&function, "0 2 * * *", now).await.expect("first fire");
     state.record_fire(&function, "0 2 * * *", now).await.expect("second fire");
@@ -64,9 +64,8 @@ async fn cron_state_read_back_after_restart_suppresses_refire_in_same_window() {
     let schedule = CronSchedule::parse(expr).expect("parse cron");
 
     // The process fired at 02:00:07.312 and recorded it durably.
-    let fired_at = chrono::DateTime::parse_from_rfc3339("2026-03-01T02:00:07.312+00:00")
-        .expect("parse")
-        .with_timezone(&chrono::Utc);
+    let fired_at =
+        fraiseql_time::Timestamp::parse_rfc3339("2026-03-01T02:00:07.312+00:00").expect("parse");
     state.record_fire(&function, expr, fired_at).await.expect("record fire");
 
     // A restart rebuilds its in-memory window state from `_fraiseql_cron_state`
@@ -279,7 +278,7 @@ async fn a_replica_resumed_from_a_stored_firing_fires_at_the_next_minute() {
     let function = format!("resume_next_{}", uuid::Uuid::new_v4().simple());
     let at = |text: &str| text.parse::<fraiseql_time::Timestamp>().unwrap();
     PgCronState::new(pool.clone())
-        .record_fire(&function, "* * * * *", at("2026-03-01T02:00:07.312Z").into())
+        .record_fire(&function, "* * * * *", at("2026-03-01T02:00:07.312Z"))
         .await
         .unwrap();
     for (tick, expected) in [
@@ -370,7 +369,7 @@ async fn a_replica_killed_before_recording_hands_its_window_to_the_next() {
     let at_a = fraiseql_time::Timestamp::from_second(minute + 10).unwrap();
     let at_b = fraiseql_time::Timestamp::from_second(minute + 40).unwrap();
     // An earlier window fired, so the record exists for the test to lock.
-    let earlier = chrono::DateTime::from_timestamp(minute - 86_400, 0).unwrap();
+    let earlier = fraiseql_time::Timestamp::from_second(minute - 86_400).unwrap();
     PgCronState::new(pool.clone())
         .record_fire(&function, "* * * * *", earlier)
         .await

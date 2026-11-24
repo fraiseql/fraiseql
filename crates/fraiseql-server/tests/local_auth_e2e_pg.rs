@@ -286,7 +286,7 @@ async fn post_json(
 
 /// A session access token for `user_id`, signed as this server signs its own.
 async fn session_for(pool: &PgPool, user_id: &str) -> String {
-    let now = chrono::Utc::now().timestamp();
+    let now = fraiseql_time::Timestamp::now().as_second();
     FIRST_PARTY
         .sign(
             pool,
@@ -1791,7 +1791,7 @@ async fn a_session_replaces_a_confirmed_enrollment_only_with_a_current_code() {
             &pool,
             &serde_json::json!({
                 "sub": user, "iss": ISSUER, "aud": [AUDIENCE],
-                "exp": chrono::Utc::now().timestamp() + 3600,
+                "exp": fraiseql_time::Timestamp::now().as_second() + 3600,
             }),
         )
         .await;

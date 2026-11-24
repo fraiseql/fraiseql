@@ -29,7 +29,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 use serde::Deserialize;
 use serde_json::json;
 use sqlx::{PgPool, Row as _};
@@ -139,9 +139,9 @@ pub struct AdminTokenRecord {
     /// Operator note.
     pub description:  Option<String>,
     /// Creation time.
-    pub created_at:   DateTime<Utc>,
+    pub created_at:   Timestamp,
     /// Last successful authentication.
-    pub last_used_at: Option<DateTime<Utc>>,
+    pub last_used_at: Option<Timestamp>,
 }
 
 /// Postgres-backed tenant admin credential store.

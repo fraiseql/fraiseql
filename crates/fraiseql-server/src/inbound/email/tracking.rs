@@ -75,13 +75,12 @@ impl SuppressionReason {
     /// domain, short enough that a since-fixed mailbox is not muted forever (and it
     /// lifts immediately on a genuine reply, well before the TTL).
     #[must_use]
-    pub fn default_ttl(
-        self,
-        now: chrono::DateTime<chrono::Utc>,
-    ) -> Option<chrono::DateTime<chrono::Utc>> {
+    pub fn default_ttl(self, now: fraiseql_time::Timestamp) -> Option<fraiseql_time::Timestamp> {
         match self {
             SuppressionReason::HardBounce | SuppressionReason::Unsubscribe => None,
-            SuppressionReason::ChallengeUnanswered => Some(now + chrono::Duration::days(30)),
+            SuppressionReason::ChallengeUnanswered => {
+                Some(now + fraiseql_time::jiff::SignedDuration::from_hours(24 * 30))
+            },
         }
     }
 }
@@ -227,7 +226,7 @@ pub trait SendCorrelator: Send + Sync {
         tenant: Option<&'a str>,
         address_hash: &'a str,
         reason: SuppressionReason,
-        ttl: Option<chrono::DateTime<chrono::Utc>>,
+        ttl: Option<fraiseql_time::Timestamp>,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
 
     /// Lift a suppression of a specific reason for a recipient (by keyed hash) — a
@@ -503,7 +502,7 @@ impl SendCorrelator for PgSendTracker {
         tenant: Option<&'a str>,
         address_hash: &'a str,
         reason: SuppressionReason,
-        ttl: Option<chrono::DateTime<chrono::Utc>>,
+        ttl: Option<fraiseql_time::Timestamp>,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
         Box::pin(async move {
             // Never downgrade a permanent suppression (ttl IS NULL, e.g. a hard

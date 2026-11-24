@@ -16,7 +16,6 @@
 pub mod postgres;
 
 use axum::http::{HeaderMap, HeaderName};
-use chrono::Utc;
 // ───────────────────────────────────────────────────────────────
 // Configuration (deserialized from compiled schema JSON)
 // ───────────────────────────────────────────────────────────────
@@ -28,6 +27,7 @@ pub use fraiseql_core::schema::ApiKeySecurityConfig as ApiKeyConfig;
 /// A single static API key entry (`[[security.api_keys.static]]`).
 pub use fraiseql_core::schema::StaticApiKeyEntry as StaticApiKeyConfig;
 use fraiseql_core::security::{AuthenticatedUser, SecurityContext};
+use fraiseql_time::Timestamp;
 use postgres::PgApiKeyStore;
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
@@ -189,7 +189,7 @@ impl ApiKeyAuthenticator {
         {
             match store.resolve(selector).await {
                 Ok(Some(row)) => {
-                    let now = Utc::now();
+                    let now = Timestamp::now();
                     let revoked = row.revoked_at.is_some();
                     let expired = row.expires_at.is_some_and(|t| t <= now);
                     let verifier_hash = sha256_hash(verifier.as_bytes());

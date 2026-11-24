@@ -602,8 +602,8 @@ mod revocation_tests {
 
     use std::{collections::HashMap, sync::Arc};
 
-    use chrono::Utc;
     use fraiseql_core::security::{AuthenticatedUser, OidcConfig, OidcValidator};
+    use fraiseql_time::Timestamp;
 
     use super::{OidcAuthState, StatusCode, check_revocation};
     use crate::token_revocation::{
@@ -699,7 +699,7 @@ mod revocation_tests {
         let store = Arc::new(InMemoryRevocationStore::new());
         store.revoke_all_for_user("alice", 3600).await.unwrap();
         let revocation = Some(jti_optional_manager(store));
-        let now = Utc::now().timestamp();
+        let now = Timestamp::now().as_second();
 
         let before = token_with(&serde_json::json!({ "jti": 42, "iat": now - 100 }));
         let response = check_revocation(revocation.as_ref(), &user("alice"), &before)
@@ -751,7 +751,7 @@ mod revocation_tests {
     async fn revoke_all_epoch_rejects_pre_epoch_token_accepts_post_epoch() {
         let store = Arc::new(InMemoryRevocationStore::new());
         store.revoke_all_for_user("alice", 3600).await.unwrap();
-        let now = Utc::now().timestamp();
+        let now = Timestamp::now().as_second();
         let state = OidcAuthState::new(validator(), super::TenantClaim(Arc::from("tenant_id")))
             .with_revocation(Some(manager(Arc::clone(&store) as Arc<dyn RevocationStore>)));
 

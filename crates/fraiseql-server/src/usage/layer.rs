@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 
-use chrono::Utc;
+use fraiseql_time::Timestamp;
 use tracing::{
     Event, Subscriber,
     field::{Field, Visit},
@@ -116,7 +116,7 @@ impl<S: Subscriber> Layer<S> for MutationAuditLayer {
         let mut visitor = AuditFieldVisitor::new();
         event.record(&mut visitor);
 
-        let period = Utc::now().format("%Y-%m").to_string();
+        let period = crate::time_text::year_month(Timestamp::now());
 
         let audit_event = MutationAuditEvent {
             mutation_name: visitor.mutation_name,

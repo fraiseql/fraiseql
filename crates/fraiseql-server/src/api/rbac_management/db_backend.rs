@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use chrono::Utc;
+use fraiseql_time::Timestamp;
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row, postgres::PgRow};
 use tracing::debug;
@@ -240,7 +240,7 @@ impl RbacDbBackend {
         tenant_id: Option<&str>,
     ) -> Result<RoleDto, RbacDbError> {
         let role_id = Uuid::new_v4();
-        let now = Utc::now();
+        let now = Timestamp::now();
         let tenant_uuid = parse_opt_uuid("tenant ID", tenant_id)?;
 
         let mut tx = self
@@ -403,7 +403,7 @@ impl RbacDbBackend {
         permissions: Vec<String>,
     ) -> Result<RoleDto, RbacDbError> {
         let role_uuid = parse_uuid("role ID", role_id)?;
-        let now = Utc::now();
+        let now = Timestamp::now();
 
         let mut tx = self
             .pool
@@ -552,7 +552,7 @@ impl RbacDbBackend {
         description: Option<&str>,
     ) -> Result<PermissionDto, RbacDbError> {
         let perm_id = Uuid::new_v4();
-        let now = Utc::now();
+        let now = Timestamp::now();
 
         let mut tx = self
             .pool
@@ -737,7 +737,7 @@ impl RbacDbBackend {
     ) -> Result<UserRoleDto, RbacDbError> {
         let role_uuid = parse_uuid("role ID", role_id)?;
         let tenant_uuid = parse_opt_uuid("tenant ID", tenant_id)?;
-        let now = Utc::now();
+        let now = Timestamp::now();
 
         let mut tx = self
             .pool
@@ -848,7 +848,7 @@ impl RbacDbBackend {
             .map(|row| {
                 let role_id: Uuid = row.get("role_id");
                 let tenant_id: Option<Uuid> = row.get("tenant_id");
-                let assigned_at: chrono::DateTime<Utc> = row.get("assigned_at");
+                let assigned_at: fraiseql_time::Timestamp = row.get("assigned_at");
                 UserRoleDto {
                     user_id:     row.get::<String, _>("user_id"),
                     role_id:     role_id.to_string(),
@@ -1229,9 +1229,9 @@ pub struct AuditFilter<'a> {
     /// Restrict to one tenant.
     pub tenant_id:  Option<&'a str>,
     /// Inclusive lower bound on `occurred_at`.
-    pub start_time: Option<chrono::DateTime<Utc>>,
+    pub start_time: Option<fraiseql_time::Timestamp>,
     /// Inclusive upper bound on `occurred_at`.
-    pub end_time:   Option<chrono::DateTime<Utc>>,
+    pub end_time:   Option<fraiseql_time::Timestamp>,
     /// Page size.
     pub limit:      u32,
     /// Page offset.
@@ -1264,7 +1264,7 @@ pub struct AuditEventDto {
 /// Convert a database row to an [`AuditEventDto`].
 fn audit_dto_from_row(row: &PgRow) -> AuditEventDto {
     let id: Uuid = row.get("id");
-    let occurred_at: chrono::DateTime<Utc> = row.get("occurred_at");
+    let occurred_at: fraiseql_time::Timestamp = row.get("occurred_at");
     let role_id: Option<Uuid> = row.get("role_id");
     let permission_id: Option<Uuid> = row.get("permission_id");
     let tenant_id: Option<Uuid> = row.get("tenant_id");
@@ -1294,8 +1294,8 @@ fn is_unique_violation(e: &sqlx::Error) -> bool {
 fn role_dto_from_row(row: &PgRow, permissions: Vec<String>) -> RoleDto {
     let id: Uuid = row.get("id");
     let tenant_id: Option<Uuid> = row.get("tenant_id");
-    let created_at: chrono::DateTime<Utc> = row.get("created_at");
-    let updated_at: chrono::DateTime<Utc> = row.get("updated_at");
+    let created_at: fraiseql_time::Timestamp = row.get("created_at");
+    let updated_at: fraiseql_time::Timestamp = row.get("updated_at");
     RoleDto {
         id: id.to_string(),
         name: row.get("name"),
@@ -1310,7 +1310,7 @@ fn role_dto_from_row(row: &PgRow, permissions: Vec<String>) -> RoleDto {
 /// Convert a database row to a `PermissionDto`.
 fn permission_dto_from_row(row: &PgRow) -> PermissionDto {
     let id: Uuid = row.get("id");
-    let created_at: chrono::DateTime<Utc> = row.get("created_at");
+    let created_at: fraiseql_time::Timestamp = row.get("created_at");
     PermissionDto {
         id:          id.to_string(),
         resource:    row.get("resource"),

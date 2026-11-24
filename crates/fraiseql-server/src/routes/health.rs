@@ -374,7 +374,7 @@ pub async fn federation_health_handler(State(state): State<AppState>) -> impl In
                     name: entry.subgraph,
                     available,
                     latency_ms: 0.0,
-                    last_check: chrono::Utc::now().to_rfc3339(),
+                    last_check: fraiseql_time::Timestamp::now().to_rfc3339(),
                     error_count_last_60s: 0,
                     error_rate_percent: 0.0,
                 }
@@ -385,7 +385,7 @@ pub async fn federation_health_handler(State(state): State<AppState>) -> impl In
     let response = FederationHealthResponse {
         status: status.to_string(),
         subgraphs,
-        timestamp: chrono::Utc::now().to_rfc3339(),
+        timestamp: fraiseql_time::Timestamp::now().to_rfc3339(),
     };
 
     (status_code, Json(response))

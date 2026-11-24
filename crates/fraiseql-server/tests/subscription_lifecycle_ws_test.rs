@@ -403,7 +403,7 @@ async fn revoked_token_terminates_live_subscription_with_4401() {
     let user = user_expiring_in(fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1));
     let claims = SessionTokenClaims {
         jti: Some("jti-771".to_string()),
-        iat: Some(chrono::Utc::now().timestamp() - 60),
+        iat: Some(fraiseql_time::Timestamp::now().as_second() - 60),
     };
 
     use fraiseql_server::middleware::oidc_auth::AuthUser;

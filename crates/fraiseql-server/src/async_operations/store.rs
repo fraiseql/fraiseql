@@ -7,7 +7,7 @@
 //! the work, so a worker presumed dead that finishes anyway cannot clobber the
 //! outcome of the retry that superseded it.
 
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 use serde_json::Value;
 use sqlx::{Row, postgres::PgPool};
 use uuid::Uuid;
@@ -52,11 +52,11 @@ pub struct AsyncOperation {
     /// Failure detail, for `failed`.
     pub error:                  Option<String>,
     /// Submission time.
-    pub created_at:             DateTime<Utc>,
+    pub created_at:             Timestamp,
     /// First claim of the latest attempt.
-    pub started_at:             Option<DateTime<Utc>>,
+    pub started_at:             Option<Timestamp>,
     /// Terminal-state time.
-    pub finished_at:            Option<DateTime<Utc>>,
+    pub finished_at:            Option<Timestamp>,
 }
 
 fn row_to_op(row: &sqlx::postgres::PgRow) -> AsyncOperation {

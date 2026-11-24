@@ -157,7 +157,7 @@ impl TenantAuditLog for InMemoryAuditLog {
             actor_type: actor.and_then(|a| a.actor_type.clone()),
             acting_for_user_id: actor.and_then(|a| a.acting_for),
             payload,
-            occurred_at: chrono::Utc::now().to_rfc3339(),
+            occurred_at: fraiseql_time::Timestamp::now().to_rfc3339(),
         };
         self.events.write().await.push(entry);
         Ok(())

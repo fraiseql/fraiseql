@@ -17,7 +17,7 @@ use std::{
 /// Kept short so a slow subgraph doesn't block the health-check loop.
 pub(crate) const HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(10);
 
-use chrono::Utc;
+use fraiseql_time::Timestamp;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
@@ -260,7 +260,7 @@ impl SubgraphHealthChecker {
             name: config.name.clone(),
             available,
             latency_ms,
-            last_check: Utc::now().to_rfc3339(),
+            last_check: Timestamp::now().to_rfc3339(),
             error_count_last_60s: error_count,
             error_rate_percent: error_rate,
         }

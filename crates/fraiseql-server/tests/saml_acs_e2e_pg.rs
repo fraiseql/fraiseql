@@ -22,7 +22,6 @@ mod common;
 use std::{io::Read as _, sync::Arc};
 
 use base64::Engine as _;
-use chrono::{Duration, Utc};
 use common::first_party::FirstPartyAuth;
 use fraiseql_core::{
     db::postgres::PostgresAdapter,
@@ -175,7 +174,8 @@ impl SigningIdp {
             .and_then(|c| c.first_mut())
             .and_then(|c| c.subject_confirmation_data.as_mut())
         {
-            data.not_on_or_after = Some(Utc::now() + Duration::minutes(5));
+            data.not_on_or_after =
+                Some((std::time::SystemTime::now() + std::time::Duration::from_mins(5)).into());
         }
         let signature = response.signature.as_mut().expect("samael's template signs the response");
         for reference in &mut signature.signed_info.reference {

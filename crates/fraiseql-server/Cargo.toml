@@ -52,7 +52,6 @@ rust_xlsxwriter = { version = "0.100", features = [
 # Temp-file management for XLSX response buffering (gated by `export-xlsx`).
 tempfile = { workspace = true, optional = true }
 # Date/time handling
-chrono = { workspace = true }
 dashmap = { workspace = true }
 fraiseql-arrow = { workspace = true, optional = true }
 # Authentication
@@ -71,8 +70,8 @@ fraiseql-cdc-sinks = { workspace = true, features = [
 ], optional = true }
 # FraiseQL observers (optional)
 fraiseql-observers = { workspace = true, optional = true }
-# The observers' instant type; `From` to chrono where server code still uses chrono.
-fraiseql-time = { workspace = true, features = ["chrono", "sqlx"] }
+# The instant type, with its sqlx encoding.
+fraiseql-time = { workspace = true, features = ["sqlx"] }
 # Secrets management and encryption
 fraiseql-secrets = { workspace = true, optional = true }
 # Webhooks
@@ -165,7 +164,6 @@ sqlx = { version = "0.9.1", features = [
   # left to another crate's features.
   "tls-rustls-ring",
   "uuid",
-  "chrono",
   "json",
 ] }
 # Constant-time comparison (timing attack prevention)
@@ -223,9 +221,6 @@ totp-rs = { version = "5", features = ["gen_secret", "otpauth"] }
 # Performance testing
 criterion = { version = "0.5", features = ["async_tokio"] }
 iai-callgrind = "=0.16.1"
-# Test-only: construct an AuthenticatedUser (expires_at) for the introspection
-# gate e2e (#453). chrono is already a normal dependency; pinned by the workspace.
-chrono = { workspace = true }
 fraiseql-auth = { workspace = true }
 # Without `run-server`: that feature depends on this crate with its default features, and
 # a dev-dependency's features apply to every test build, so a `--no-default-features`

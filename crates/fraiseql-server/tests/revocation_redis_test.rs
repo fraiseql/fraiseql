@@ -75,7 +75,7 @@ async fn a_token_revoked_on_one_replica_is_rejected_on_every_replica() {
 
     let jti = unique("jti");
     let sub = unique("sub");
-    let now = chrono::Utc::now().timestamp();
+    let now = fraiseql_time::Timestamp::now().as_second();
 
     // A fresh token passes on both replicas.
     replica_a
@@ -128,7 +128,7 @@ async fn a_revoke_all_epoch_recorded_on_one_replica_holds_on_every_replica() {
     .expect("manager built");
 
     let sub = unique("sub-all");
-    let issued_before_revocation = chrono::Utc::now().timestamp() - 10;
+    let issued_before_revocation = fraiseql_time::Timestamp::now().as_second() - 10;
 
     replica_a.revoke_all_for_user(&sub).await.expect("revoke-all on replica A");
 

@@ -823,11 +823,23 @@ async fn permission_changes_are_recorded_and_readable() {
             .await;
     assert_eq!(none["total"].as_u64(), Some(0), "a future window is empty; got {none}");
 
+    // A bound past the last instant the server holds, a natural "until forever", reads as
+    // that instant: it is accepted and bounds nothing.
+    let (_, all) = RbacServer::send(server.get("/api/audit/permissions")).await;
+    let (status, until_end) =
+        RbacServer::send(server.get("/api/audit/permissions?end_time=9999-12-31T23:59:59Z")).await;
+    assert_eq!(status, 200, "an end bound past the calendar is accepted; got {until_end}");
+    assert_eq!(until_end, all, "and returns what no end bound returns");
+
     // A malformed timestamp must be refused, not silently ignored — an ignored
     // filter turns a narrow query into an unnoticed full read.
     let (status, body) =
         RbacServer::send(server.get("/api/audit/permissions?start_time=yesterday")).await;
     assert_eq!(status, 400, "a malformed time filter must be refused; got {body}");
+    assert_eq!(
+        body["message"], "Invalid start_time 'yesterday': not an RFC 3339 timestamp",
+        "{body}"
+    );
 
     server.shutdown().await;
 }

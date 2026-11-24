@@ -5,12 +5,12 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use chrono::Utc;
 use fraiseql_core::{
     fraiseql_time::jiff::SignedDuration,
     schema::ServiceAccountConfig,
     security::{EnrichmentMark, Provenance, SecurityContext, auth_middleware::AuthenticatedUser},
 };
+use fraiseql_time::Timestamp;
 use http::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 
@@ -78,7 +78,7 @@ fn with_revocation(revocation: &TokenRevocationManager) -> CallerChecks<'_> {
 }
 
 fn issued_ago(secs: i64) -> i64 {
-    (Utc::now() - chrono::Duration::seconds(secs)).timestamp()
+    (Timestamp::now() - fraiseql_time::jiff::SignedDuration::from_secs(secs)).as_second()
 }
 
 fn live_token() -> SecurityContext {

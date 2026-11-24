@@ -348,7 +348,7 @@ async fn rotate(pool: &PgPool) -> String {
 
 /// A token for `sub` signed with the ring's active key, as the server would sign it.
 async fn signed_now(pool: &PgPool, sub: &str) -> String {
-    let now = chrono::Utc::now().timestamp();
+    let now = fraiseql_time::Timestamp::now().as_second();
     FIRST_PARTY
         .sign(
             pool,
@@ -399,7 +399,7 @@ async fn an_hs256_token_is_refused() {
     let Some((url, _pool, server)) = start("an_hs256_token_is_refused", db).await else {
         return;
     };
-    let now = chrono::Utc::now().timestamp();
+    let now = fraiseql_time::Timestamp::now().as_second();
     let hs256 = jsonwebtoken::encode(
         &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
         &json!({

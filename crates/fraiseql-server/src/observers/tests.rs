@@ -88,7 +88,7 @@ mod redaction_tests {
 
     #[test]
     fn with_redacted_secrets_redacts_observer_actions() {
-        use chrono::Utc;
+        use fraiseql_time::Timestamp;
 
         use super::super::Observer;
 
@@ -108,8 +108,8 @@ mod redaction_tests {
             retry_config:         serde_json::json!({}),
             timeout_ms:           30_000,
             fk_customer_org:      None,
-            created_at:           Utc::now(),
-            updated_at:           Utc::now(),
+            created_at:           Timestamp::now(),
+            updated_at:           Timestamp::now(),
             created_by:           None,
             updated_by:           None,
             deleted_at:           None,

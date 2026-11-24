@@ -22,7 +22,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use chrono::{DateTime, Duration, Utc};
+use fraiseql_time::{Timestamp, jiff::SignedDuration};
 use serde::Deserialize;
 use serde_json::json;
 
@@ -87,12 +87,20 @@ async fn create_key(
     State(state): State<ApiKeyManagementState>,
     Json(req): Json<CreateKeyRequest>,
 ) -> Response {
-    let expires_at: Option<DateTime<Utc>> = match req.expires_in_secs {
+    let expires_at: Option<Timestamp> = match req.expires_in_secs {
         Some(secs) if secs <= 0 => {
             return ApiKeyStoreError::InvalidInput("expires_in_secs must be positive".to_string())
                 .into_response();
         },
-        Some(secs) => Some(Utc::now() + Duration::seconds(secs)),
+        Some(secs) => match Timestamp::now().checked_add(SignedDuration::from_secs(secs)) {
+            Some(expires_at) => Some(expires_at),
+            None => {
+                return ApiKeyStoreError::InvalidInput(
+                    "expires_in_secs reaches past the last instant this server holds".to_string(),
+                )
+                .into_response();
+            },
+        },
         None => None,
     };
     match state.store.create_key(&req.name, &req.scopes, expires_at).await {

@@ -11,7 +11,7 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
@@ -125,7 +125,7 @@ type ChangelogRow = (
     Option<String>,            // change_status
     serde_json::Value,         // object_data
     Option<serde_json::Value>, // extra_metadata
-    Option<DateTime<Utc>>,     // created_at
+    Option<Timestamp>,         // created_at
 );
 
 // ── Handlers ─────────────────────────────────────────────────────────────────
@@ -251,7 +251,7 @@ pub async fn checkpoint_get_handler(
     _: OperatorOnly,
     Path(listener_id): Path<String>,
 ) -> impl IntoResponse {
-    let result = sqlx::query_as::<_, (String, i64, Option<DateTime<Utc>>)>(
+    let result = sqlx::query_as::<_, (String, i64, Option<Timestamp>)>(
         r"
         SELECT listener_id, last_processed_id, updated_at
         FROM core.observer_checkpoints

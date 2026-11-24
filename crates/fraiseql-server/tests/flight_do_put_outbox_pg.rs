@@ -185,11 +185,11 @@ fn session_token() -> String {
         session_type: String,
     }
 
-    let now = chrono::Utc::now();
+    let now = fraiseql_time::Timestamp::now();
     let claims = Claims {
         sub:          UPLOAD_SUBJECT.to_string(),
-        exp:          (now + chrono::Duration::minutes(5)).timestamp(),
-        iat:          now.timestamp(),
+        exp:          (now + fraiseql_time::jiff::SignedDuration::from_mins(5)).as_second(),
+        iat:          now.as_second(),
         scopes:       vec!["user".to_string()],
         session_type: "flight".to_string(),
     };

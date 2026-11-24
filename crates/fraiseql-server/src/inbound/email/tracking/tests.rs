@@ -133,14 +133,14 @@ const KEY: &[u8] = b"correlation-e2e-key";
 fn inbound_to_verp(
     send_id: &str,
     classification: Classification,
-    now: chrono::DateTime<chrono::Utc>,
+    now: fraiseql_time::Timestamp,
 ) -> InboundMessage {
     let mut message = InboundMessage::new(
         IngestSource::Email {
             mailbox: "test-mailbox".to_string(),
         },
         "mid-e2e",
-        fraiseql_time::Timestamp::try_from(now).expect("the test clock is in range"),
+        now,
     );
     message.to = vec![format!("bounces+{send_id}@sales.example.com")];
     message.classification = Some(classification);
@@ -173,7 +173,7 @@ async fn a_bounce_correlates_to_bounced_and_suppresses_through_postgres() {
         .await
         .unwrap();
 
-    let now = chrono::Utc::now();
+    let now = fraiseql_time::Timestamp::now();
     let outcome = correlate(
         &tracker,
         Some(KEY),
@@ -217,7 +217,7 @@ async fn challenge_then_reply_suppresses_then_lifts_through_postgres() {
     let send_id = "fedcba9876543210fedcba9876543210";
     let recipient = "carol@challenge-e2e.example.com";
     let hash = fraiseql_observers::hash_address(KEY, recipient);
-    let now = chrono::Utc::now();
+    let now = fraiseql_time::Timestamp::now();
     tracker
         .record_sent(SentRecord {
             send_id,
@@ -341,7 +341,8 @@ async fn init_moves_the_tracking_keys_to_nulls_not_distinct_and_the_upserts_foll
             .unwrap();
     assert_eq!(sent, 1, "exactly-once holds for the NULL tenant");
 
-    let later = chrono::Utc::now() + chrono::Duration::days(7);
+    let later =
+        fraiseql_time::Timestamp::now() + fraiseql_time::jiff::SignedDuration::from_hours(24 * 7);
     for _ in 0..2 {
         tracker
             .suppress(None, "hash-nnd", SuppressionReason::ChallengeUnanswered, Some(later))

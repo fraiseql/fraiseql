@@ -561,3 +561,14 @@ async fn two_replicas_ticking_one_after_the_other_fire_a_source_window_once() {
         .execute(&pool)
         .await;
 }
+
+/// A firing's `scheduled_at` is written as chrono's `to_rfc3339_opts(Secs, true)` wrote
+/// it: whole seconds, truncated, and `Z`.
+#[test]
+fn scheduled_at_is_whole_seconds_with_z() {
+    use crate::time_text::rfc3339_seconds_z;
+
+    let at = |second, nanosecond| fraiseql_time::Timestamp::new(second, nanosecond).unwrap();
+    assert_eq!(rfc3339_seconds_z(at(1_705_314_600, 999_999_999)), "2024-01-15T10:30:00Z");
+    assert_eq!(rfc3339_seconds_z(at(-1, 500_000_000)), "1969-12-31T23:59:59Z");
+}

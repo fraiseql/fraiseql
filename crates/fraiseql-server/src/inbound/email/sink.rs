@@ -126,7 +126,7 @@ impl EmailIngestSink {
             correlator.as_ref(),
             self.address_hash_key.as_deref(),
             self.challenge_suppress_after,
-            chrono::Utc::now(),
+            fraiseql_time::Timestamp::now(),
             message,
         )
         .await;

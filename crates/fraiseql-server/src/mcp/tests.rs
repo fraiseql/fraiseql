@@ -1043,7 +1043,7 @@ mod http_transport_tests {
         let idp = TestIdp::start().await;
         let endpoint = endpoint();
         let sessions = Arc::new(LocalSessionManager::default());
-        let now = chrono::Utc::now().timestamp();
+        let now = fraiseql_time::Timestamp::now().as_second();
         let expired = idp.mint(&idp.claims("alice").set("iat", now - 7200).set("exp", now - 3600));
         let ended = idp.mint(&idp.claims("bob"));
         endpoint.revocation.revoke_all_for_user("bob").await.unwrap();
@@ -1237,7 +1237,7 @@ mod credential_tests {
 
     /// A token from `idp` that expired an hour ago.
     fn expired_token(idp: &TestIdp) -> String {
-        let now = chrono::Utc::now().timestamp();
+        let now = fraiseql_time::Timestamp::now().as_second();
         idp.mint(&idp.claims("alice").set("iat", now - 7200).set("exp", now - 3600))
     }
 

@@ -24,7 +24,7 @@ mod auth_tests {
         http::{Request, StatusCode, header},
         routing::get,
     };
-    use chrono::Utc;
+    use fraiseql_time::Timestamp;
     use tower::ServiceExt as _;
 
     use super::super::auth::*;
@@ -437,7 +437,7 @@ mod revoke_tests {
         http::{Request, StatusCode, header},
         routing::post,
     };
-    use chrono::Utc;
+    use fraiseql_time::Timestamp;
     use tower::ServiceExt as _;
 
     use super::super::auth::{RevocationRouteState, revoke_all_tokens, revoke_token};

@@ -122,7 +122,7 @@ async fn test_auth_me_returns_core_fields() {
     assert!(json["expires_at"].is_string());
     // Should parse as ISO-8601
     let expires_str = json["expires_at"].as_str().unwrap();
-    assert!(chrono::DateTime::parse_from_rfc3339(expires_str).is_ok());
+    assert!(fraiseql_time::Timestamp::parse_rfc3339_strict(expires_str).is_ok());
 }
 
 /// Extra claims present in token and in expose_claims → included in response.

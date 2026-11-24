@@ -19,13 +19,13 @@ mod scheduled;
 
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
 use fraiseql_functions::{
     FunctionModule, FunctionObserver, ResourceLimits,
     host::live::{HostContextConfig, QueryExecutor},
     triggers::{CronExecutionState, CronTrigger, Schedule},
 };
 use fraiseql_observers::LeaseGuardedRunner;
+use fraiseql_time::Timestamp;
 use tracing::warn;
 
 #[cfg(test)]
@@ -38,7 +38,7 @@ pub(crate) async fn load_last_fired_on(
     conn: &mut sqlx::PgConnection,
     function_name: &str,
     cron_expr: &str,
-) -> Result<Option<DateTime<Utc>>, sqlx::Error> {
+) -> Result<Option<Timestamp>, sqlx::Error> {
     sqlx::query_scalar(
         "SELECT last_fired_at FROM _fraiseql_cron_state \
          WHERE function_name = $1 AND cron_expr = $2",
@@ -55,7 +55,7 @@ pub(crate) async fn record_fire_on(
     conn: &mut sqlx::PgConnection,
     function_name: &str,
     cron_expr: &str,
-    fired_at: DateTime<Utc>,
+    fired_at: Timestamp,
 ) -> Result<(), sqlx::Error> {
     sqlx::query(RECORD_FIRE_SQL)
         .bind(function_name)
@@ -113,7 +113,7 @@ impl PgCronState {
         &self,
         function_name: &str,
         cron_expr: &str,
-    ) -> Result<Option<DateTime<Utc>>, sqlx::Error> {
+    ) -> Result<Option<Timestamp>, sqlx::Error> {
         sqlx::query_scalar(
             "SELECT last_fired_at FROM _fraiseql_cron_state \
              WHERE function_name = $1 AND cron_expr = $2",
@@ -156,7 +156,7 @@ impl PgCronState {
         &self,
         function_name: &str,
         cron_expr: &str,
-        fired_at: DateTime<Utc>,
+        fired_at: Timestamp,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(RECORD_FIRE_SQL)
             .bind(function_name)

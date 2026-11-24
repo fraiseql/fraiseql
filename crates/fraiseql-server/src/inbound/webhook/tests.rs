@@ -441,7 +441,10 @@ mod key_material_is_not_the_senders_fault {
             .method("POST")
             .uri("/webhooks/discord")
             .header("X-Signature-Ed25519", signature)
-            .header("X-Signature-Timestamp", chrono::Utc::now().timestamp().to_string())
+            .header(
+                "X-Signature-Timestamp",
+                fraiseql_time::Timestamp::now().as_second().to_string(),
+            )
             .body(Body::from(r#"{"id":"evt_1","type":1}"#))
             .unwrap()
     }

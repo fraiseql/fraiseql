@@ -1532,7 +1532,7 @@ mod token_revocation_tests {
         );
 
         // … but bob is unaffected, and a token alice obtains *after* the epoch works.
-        let future_iat = chrono::Utc::now().timestamp() + 100;
+        let future_iat = fraiseql_time::Timestamp::now().as_second() + 100;
         mgr.check_token(Some("alice-new"), "alice", Some(future_iat))
             .await
             .expect("a token issued after revoke-all must be accepted");

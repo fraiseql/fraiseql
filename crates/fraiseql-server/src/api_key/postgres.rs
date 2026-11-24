@@ -14,7 +14,7 @@
 //! atomically replacing the verifier hash so the key identity (selector, name,
 //! scopes) survives while every copy of the old secret stops working.
 
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 use rand::RngCore;
 use sqlx::{PgPool, Row};
 
@@ -91,13 +91,13 @@ pub struct ApiKeyRecord {
     /// OAuth-style scopes granted by this key.
     pub scopes:       Vec<String>,
     /// Creation time.
-    pub created_at:   DateTime<Utc>,
+    pub created_at:   Timestamp,
     /// Optional expiry; a key past this instant is rejected.
-    pub expires_at:   Option<DateTime<Utc>>,
+    pub expires_at:   Option<Timestamp>,
     /// Revocation time; a revoked key is rejected. Rows are never deleted.
-    pub revoked_at:   Option<DateTime<Utc>>,
+    pub revoked_at:   Option<Timestamp>,
     /// Last successful authentication with this key.
-    pub last_used_at: Option<DateTime<Utc>>,
+    pub last_used_at: Option<Timestamp>,
 }
 
 /// A resolved row for authentication: verifier hash plus the gate fields.
@@ -105,8 +105,8 @@ pub(super) struct ResolvedDbKey {
     pub verifier_hash: Vec<u8>,
     pub name:          String,
     pub scopes:        Vec<String>,
-    pub expires_at:    Option<DateTime<Utc>>,
-    pub revoked_at:    Option<DateTime<Utc>>,
+    pub expires_at:    Option<Timestamp>,
+    pub revoked_at:    Option<Timestamp>,
 }
 
 /// Split a raw header value into `(selector, verifier)` when it has the
@@ -160,7 +160,7 @@ impl PgApiKeyStore {
         &self,
         name: &str,
         scopes: &[String],
-        expires_at: Option<DateTime<Utc>>,
+        expires_at: Option<Timestamp>,
     ) -> Result<(String, ApiKeyRecord), ApiKeyStoreError> {
         if name.trim().is_empty() {
             return Err(ApiKeyStoreError::InvalidInput("key name must not be empty".into()));
@@ -207,16 +207,18 @@ impl PgApiKeyStore {
         .await?;
         Ok(rows
             .into_iter()
-            .map(|r| ApiKeyRecord {
-                selector:     r.get("selector"),
-                name:         r.get("name"),
-                scopes:       r.get("scopes"),
-                created_at:   r.get("created_at"),
-                expires_at:   r.get("expires_at"),
-                revoked_at:   r.get("revoked_at"),
-                last_used_at: r.get("last_used_at"),
+            .map(|r| {
+                Ok(ApiKeyRecord {
+                    selector:     r.get("selector"),
+                    name:         r.get("name"),
+                    scopes:       r.get("scopes"),
+                    created_at:   r.get("created_at"),
+                    expires_at:   crate::time_text::stored_expiry(&r, "expires_at")?,
+                    revoked_at:   r.get("revoked_at"),
+                    last_used_at: r.get("last_used_at"),
+                })
             })
-            .collect())
+            .collect::<Result<_, sqlx::Error>>()?)
     }
 
     /// Revoke a key by selector. Idempotent on already-revoked keys.
@@ -281,13 +283,17 @@ impl PgApiKeyStore {
         .bind(selector)
         .fetch_optional(&self.pool)
         .await?;
-        Ok(row.map(|r| ResolvedDbKey {
-            verifier_hash: r.get("verifier_hash"),
-            name:          r.get("name"),
-            scopes:        r.get("scopes"),
-            expires_at:    r.get("expires_at"),
-            revoked_at:    r.get("revoked_at"),
-        }))
+        row.map(|r| {
+            Ok::<_, sqlx::Error>(ResolvedDbKey {
+                verifier_hash: r.get("verifier_hash"),
+                name:          r.get("name"),
+                scopes:        r.get("scopes"),
+                expires_at:    crate::time_text::stored_expiry(&r, "expires_at")?,
+                revoked_at:    r.get("revoked_at"),
+            })
+        })
+        .transpose()
+        .map_err(ApiKeyStoreError::from)
     }
 
     /// Stamp a successful use. Best-effort: an error here must not fail the

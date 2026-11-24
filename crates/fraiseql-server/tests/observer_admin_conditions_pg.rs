@@ -34,7 +34,6 @@ use axum::{
     body::Body,
     http::{Method, Request, StatusCode},
 };
-use chrono::{DateTime, Utc};
 use fraiseql_core::{
     db::postgres::PostgresAdapter,
     runtime::Executor,
@@ -46,6 +45,7 @@ use fraiseql_server::{
     middleware::{AuthUser, TenantClaim},
     observers::{ObserverRepository, ObserverState, observer_routes},
 };
+use fraiseql_time::Timestamp;
 use observer_test_helpers::setup_observer_schema;
 use serde_json::{Value, json};
 use sqlx::PgPool;
@@ -158,7 +158,7 @@ impl Rig {
     }
 
     /// The stored condition and when the row was last written.
-    async fn stored(&self, id: &str) -> (Option<String>, DateTime<Utc>) {
+    async fn stored(&self, id: &str) -> (Option<String>, Timestamp) {
         sqlx::query_as(
             "SELECT condition_expression, updated_at FROM core.tb_observer WHERE id = $1::uuid",
         )
@@ -183,7 +183,7 @@ impl Rig {
     }
 
     /// The stored description, retry config and timeout, and when the row was last written.
-    async fn settings(&self, id: &str) -> (Option<String>, Value, i32, DateTime<Utc>) {
+    async fn settings(&self, id: &str) -> (Option<String>, Value, i32, Timestamp) {
         sqlx::query_as(
             "SELECT description, retry_config, timeout_ms, updated_at FROM core.tb_observer \
              WHERE id = $1::uuid",

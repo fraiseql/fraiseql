@@ -3,12 +3,12 @@
 /// Timestamps are written as clients read them today: the fraction padded to `.120` /
 /// `.500`, none at a whole second, and a `Z` suffix.
 mod stored_time_format {
-    use chrono::{DateTime, Utc};
+    use fraiseql_time::Timestamp;
 
     use crate::api_key::postgres::ApiKeyRecord;
 
-    fn at(text: &str) -> DateTime<Utc> {
-        DateTime::parse_from_rfc3339(text).expect("a valid instant").with_timezone(&Utc)
+    fn at(text: &str) -> Timestamp {
+        Timestamp::parse_rfc3339_strict(text).expect("a valid instant")
     }
 
     #[test]

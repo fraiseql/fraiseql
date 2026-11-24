@@ -16,7 +16,6 @@ mod tests;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 // ───────────────────────────────────────────────────────────────
 // Configuration
@@ -27,6 +26,7 @@ use dashmap::DashMap;
 /// (#977), so the CLI, the compiled artefact and this server share one type.
 pub use fraiseql_core::schema::TokenRevocationSecurityConfig as TokenRevocationConfig;
 use fraiseql_guard::deployment::Deployment;
+use fraiseql_time::Timestamp;
 use tracing::{debug, info, warn};
 
 // ───────────────────────────────────────────────────────────────
@@ -85,9 +85,9 @@ pub enum RevocationError {
 /// In-memory revocation store for testing and single-instance dev.
 pub struct InMemoryRevocationStore {
     /// Map of JTI → (sub, `expires_at`).
-    pub(crate) entries:     DashMap<String, (String, DateTime<Utc>)>,
+    pub(crate) entries:     DashMap<String, (String, Timestamp)>,
     /// Per-user `revoke-all` epochs: `sub` → (`revoked_after` unix seconds, entry expiry).
-    pub(crate) user_epochs: DashMap<String, (i64, DateTime<Utc>)>,
+    pub(crate) user_epochs: DashMap<String, (i64, Timestamp)>,
 }
 
 impl InMemoryRevocationStore {
@@ -102,7 +102,7 @@ impl InMemoryRevocationStore {
 
     /// Remove expired entries (single-JTI revocations and per-user epochs).
     pub fn cleanup_expired(&self) {
-        let now = Utc::now();
+        let now = Timestamp::now();
         self.entries.retain(|_, (_, exp)| *exp > now);
         self.user_epochs.retain(|_, (_, exp)| *exp > now);
     }
@@ -122,7 +122,7 @@ impl RevocationStore for InMemoryRevocationStore {
     async fn is_revoked(&self, jti: &str) -> Result<bool, RevocationError> {
         if let Some(entry) = self.entries.get(jti) {
             let (_, expires_at) = entry.value();
-            if *expires_at > Utc::now() {
+            if *expires_at > Timestamp::now() {
                 return Ok(true);
             }
             // Expired — remove lazily.
@@ -133,7 +133,7 @@ impl RevocationStore for InMemoryRevocationStore {
     }
 
     async fn revoke(&self, jti: &str, ttl_secs: u64) -> Result<(), RevocationError> {
-        let expires_at = Utc::now() + chrono::Duration::seconds(ttl_secs.cast_signed());
+        let expires_at = crate::time_text::later_by(Timestamp::now(), ttl_secs);
         // We store an empty sub — single-JTI revocation doesn't need sub.
         self.entries.insert(jti.to_string(), (String::new(), expires_at));
         Ok(())
@@ -144,16 +144,16 @@ impl RevocationStore for InMemoryRevocationStore {
         // This catches tokens that were never individually revoked (and tokens with no
         // jti) — unlike the previous sub-keyed delete, which only ever matched the empty
         // sub written by `revoke`, so it removed nothing.
-        let now = Utc::now();
-        let expires_at = now + chrono::Duration::seconds(ttl_secs.cast_signed());
-        self.user_epochs.insert(sub.to_string(), (now.timestamp(), expires_at));
+        let now = Timestamp::now();
+        let expires_at = crate::time_text::later_by(now, ttl_secs);
+        self.user_epochs.insert(sub.to_string(), (now.as_second(), expires_at));
         Ok(())
     }
 
     async fn user_revoked_after(&self, sub: &str) -> Result<Option<i64>, RevocationError> {
         if let Some(entry) = self.user_epochs.get(sub) {
             let (revoked_after, expires_at) = *entry.value();
-            if expires_at > Utc::now() {
+            if expires_at > Timestamp::now() {
                 return Ok(Some(revoked_after));
             }
             // Expired — remove lazily.
@@ -245,7 +245,7 @@ impl RevocationStore for RedisRevocationStore {
         // implementation SCANned `…:user:{sub}:*`, a namespace `revoke` never wrote, so it
         // always matched nothing. The epoch is checked against each token's `iat`.
         let key = format!("{}user:{sub}", self.key_prefix);
-        let now = Utc::now().timestamp();
+        let now = Timestamp::now().as_second();
         let _: () = conn
             .set_ex(&key, now, ttl_secs)
             .await
@@ -367,7 +367,7 @@ impl RevocationStore for PostgresRevocationStore {
     }
 
     async fn revoke(&self, jti: &str, ttl_secs: u64) -> Result<(), RevocationError> {
-        let expires_at = Utc::now() + chrono::Duration::seconds(ttl_secs.cast_signed());
+        let expires_at = crate::time_text::later_by(Timestamp::now(), ttl_secs);
         // Single-JTI revocation does not carry a `sub` (the trait signature has none);
         // it is recorded NULL, matching the in-memory backend.
         sqlx::query(
@@ -387,7 +387,7 @@ impl RevocationStore for PostgresRevocationStore {
         // Upsert a per-user epoch. The previous `DELETE … WHERE sub = $1` removed nothing
         // because `revoke` records sub = NULL; this records "all of sub's tokens issued at
         // or before now are revoked", checked against each token's `iat`.
-        let expires_at = Utc::now() + chrono::Duration::seconds(ttl_secs.cast_signed());
+        let expires_at = crate::time_text::later_by(Timestamp::now(), ttl_secs);
         sqlx::query(
             "INSERT INTO fraiseql_revoked_users (sub, revoked_after, expires_at)
              VALUES ($1, EXTRACT(EPOCH FROM NOW())::BIGINT, $2)

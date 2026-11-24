@@ -403,7 +403,7 @@ mod health_checker_tests {
     #![allow(missing_docs)] // Reason: test code
     #![allow(clippy::items_after_statements)] // Reason: test helpers defined near use site
 
-    use chrono::Utc;
+    use fraiseql_time::Timestamp;
 
     use super::super::health_checker::{
         HEALTH_CHECK_TIMEOUT, RollingErrorWindow, SubgraphConfig, SubgraphHealthChecker,
@@ -444,7 +444,7 @@ mod health_checker_tests {
             name:                 "test-subgraph".to_string(),
             available:            true,
             latency_ms:           25.5,
-            last_check:           Utc::now().to_rfc3339(),
+            last_check:           Timestamp::now().to_rfc3339(),
             error_count_last_60s: 0,
             error_rate_percent:   0.0,
         };

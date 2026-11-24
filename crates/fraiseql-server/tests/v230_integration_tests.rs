@@ -225,7 +225,7 @@ async fn test_audit_layer_records_tracing_events() {
     });
 
     // Verify the aggregator recorded the event under the current period.
-    let period = chrono::Utc::now().format("%Y-%m").to_string();
+    let period = fraiseql_time::Timestamp::now().as_jiff().strftime("%Y-%m").to_string();
     let summary = aggregator.query("audit_tenant", &period);
     assert_eq!(
         summary.mutations.get("User").copied(),
@@ -288,7 +288,7 @@ async fn test_audit_pipeline_emit_then_query_via_http() {
     });
 
     // Query via the HTTP endpoint, using the current period.
-    let period = chrono::Utc::now().format("%Y-%m").to_string();
+    let period = fraiseql_time::Timestamp::now().as_jiff().strftime("%Y-%m").to_string();
     let router = make_usage_router(Arc::clone(&aggregator));
     let (status, body) =
         get_json(&router, &format!("/api/v1/admin/usage?tenant_id=shop&period={period}")).await;

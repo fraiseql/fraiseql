@@ -7,7 +7,6 @@
 
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
 use fraiseql_functions::{
     EventPayload, FunctionModule, FunctionObserver, ResourceLimits,
     host::live::{HostContextConfig, QueryExecutor},
@@ -79,7 +78,7 @@ pub fn build_source_payload(
             "source": source_name,
             "schedule": schedule,
             "timezone": timezone,
-            "scheduled_at": DateTime::<Utc>::from(now).to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            "scheduled_at": crate::time_text::rfc3339_seconds_z(now),
         }),
         timestamp:    now,
     }

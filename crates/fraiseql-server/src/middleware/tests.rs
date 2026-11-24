@@ -685,8 +685,8 @@ mod oidc_auth_tests {
 
     #[test]
     fn test_auth_user_clone() {
-        use chrono::Utc;
         use fraiseql_core::security::AuthenticatedUser;
+        use fraiseql_time::Timestamp;
 
         let user = AuthenticatedUser {
             user_id:      fraiseql_core::types::UserId::new("user123"),
