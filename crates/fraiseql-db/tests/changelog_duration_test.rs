@@ -97,11 +97,7 @@ async fn started_at_directive_stamps_the_db_clock_through_the_adapter() {
     assert!(!value.is_empty(), "started_at must be set on the function's connection");
     // It parses as a timestamp on the DB clock.
     value
-        .parse::<chrono::DateTime<chrono::Utc>>()
-        .or_else(|_| {
-            chrono::NaiveDateTime::parse_from_str(&value, "%Y-%m-%d %H:%M:%S%.f%#z")
-                .map(|n| n.and_utc())
-        })
+        .parse::<fraiseql_time::jiff::Timestamp>()
         .unwrap_or_else(|_| panic!("started_at `{value}` should parse as a DB timestamp"));
 }
 

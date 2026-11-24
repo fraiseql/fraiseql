@@ -3889,12 +3889,12 @@ version = "2.19.1"
 dependencies = [
  "async-trait",
  "bytes",
- "chrono",
  "criterion",
  "deadpool-postgres",
  "fraiseql-error",
  "fraiseql-guard",
  "fraiseql-test-support",
+ "fraiseql-time",
  "fraiseql-wire",
  "futures",
  "insta",

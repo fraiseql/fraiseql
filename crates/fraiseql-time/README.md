@@ -22,3 +22,8 @@ decode error naming the value.
 
 With the `chrono` feature, a `Timestamp` converts into a `chrono::DateTime<Utc>`, and one
 converts back with `TryFrom`, which fails outside the range a `Timestamp` holds.
+
+`calendar` writes the same text for dates and date-times past year 9999, which a
+`Timestamp` does not hold but PostgreSQL stores: `calendar::date(days)`,
+`calendar::date_time(second, nanosecond)` and `calendar::rfc3339(second, nanosecond)`,
+over the years -262143 to 262142 that chrono held (`-0044-03-15`, `+10000-01-01`).

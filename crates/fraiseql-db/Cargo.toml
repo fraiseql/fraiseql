@@ -2,12 +2,14 @@
 # Async runtime
 async-trait = { workspace = true }
 bytes = { workspace = true }
-chrono = { workspace = true }
 deadpool-postgres = { workspace = true, optional = true }
 # Error types
 fraiseql-error = { workspace = true }
 # The workspace's one DDL advisory lock, for the dispatch ledger's provisioning script.
 fraiseql-guard = { workspace = true, optional = true }
+# The calendar text of `timestamptz`, `timestamp` and `date` cells; dates and times of day
+# checked on jiff's calendar.
+fraiseql-time = { workspace = true }
 # Wire protocol (optional)
 fraiseql-wire = { workspace = true, optional = true }
 futures = { workspace = true }
@@ -134,6 +136,10 @@ required-features = ["postgres"]
 
 [[test]]
 name = "postgres_column_decode_test"
+required-features = ["postgres"]
+
+[[test]]
+name = "temporal_text_against_postgres_pg"
 required-features = ["postgres"]
 
 [[test]]

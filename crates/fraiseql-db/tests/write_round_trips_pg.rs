@@ -156,8 +156,7 @@ async fn the_function_sees_the_timing_variable_stamped_by_the_database() {
 
     let timer = seen["timer"].as_str().expect("the timing variable is set");
     timer
-        .parse::<chrono::DateTime<chrono::FixedOffset>>()
-        .or_else(|_| chrono::DateTime::parse_from_str(timer, "%Y-%m-%d %H:%M:%S%.f%#z"))
+        .parse::<fraiseql_time::jiff::Timestamp>()
         .unwrap_or_else(|_| panic!("the timing variable `{timer}` is a database timestamp"));
     assert_eq!(seen["tenant"], "t-1", "and the session variables beside it");
 }
@@ -215,9 +214,10 @@ async fn an_outbox_mutation_stamps_started_at_when_the_session_has_none() {
 #[tokio::test(flavor = "current_thread")]
 async fn a_started_at_the_session_carries_is_not_stamped_over() {
     // A second ago on this machine, which the duration computation accepts.
-    let carried = (chrono::Utc::now() - chrono::Duration::seconds(1))
-        .format("%Y-%m-%d %H:%M:%S%.6f+00")
-        .to_string();
+    let carried = (fraiseql_time::jiff::Timestamp::now()
+        - fraiseql_time::jiff::SignedDuration::from_secs(1))
+    .strftime("%Y-%m-%d %H:%M:%S%.6f+00")
+    .to_string();
 
     let started_at = started_at_seen_by_an_outbox_mutation(&[(STARTED_AT_VAR, &carried)]).await;
 

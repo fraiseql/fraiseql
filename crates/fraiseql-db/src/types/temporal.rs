@@ -17,6 +17,7 @@
 //! those compares a value other than the one sent, so it is refused here instead.
 
 use fraiseql_error::{FraiseQLError, Result};
+use fraiseql_time::jiff::civil;
 
 /// A temporal scalar whose value space this module knows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,7 +130,8 @@ fn date(b: &[u8]) -> Option<usize> {
     if b.get(4) != Some(&b'-') || b.get(7) != Some(&b'-') {
         return None;
     }
-    chrono::NaiveDate::from_ymd_opt(i32::try_from(year).ok()?, month, day)?;
+    civil::Date::new(i16::try_from(year).ok()?, i8::try_from(month).ok()?, i8::try_from(day).ok()?)
+        .ok()?;
     Some(10)
 }
 
@@ -140,7 +142,13 @@ fn time(b: &[u8], at: usize) -> Option<usize> {
     if b.get(at + 2) != Some(&b':') || b.get(at + 5) != Some(&b':') {
         return None;
     }
-    chrono::NaiveTime::from_hms_opt(hour, minute, second)?;
+    civil::Time::new(
+        i8::try_from(hour).ok()?,
+        i8::try_from(minute).ok()?,
+        i8::try_from(second).ok()?,
+        0,
+    )
+    .ok()?;
     let mut end = at + 8;
     if b.get(end) == Some(&b'.') {
         let fraction = b[end + 1..].iter().take_while(|d| d.is_ascii_digit()).count();
@@ -179,5 +187,8 @@ fn offset(tail: &[u8]) -> Offset {
     }
 }
 
+#[cfg(test)]
+#[path = "temporal/calendar_tests.rs"]
+mod calendar_tests;
 #[cfg(test)]
 mod tests;

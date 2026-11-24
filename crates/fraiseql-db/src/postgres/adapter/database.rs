@@ -16,6 +16,7 @@ use super::{
     composed::build_composed_select_sql,
     document_cell,
     numeric::PgNumericText,
+    temporal_cell::{PgDateText, PgTimestampText, PgTimestamptzText},
     transaction_retry::{RetryEvent, TransactionRetry},
 };
 use crate::{
@@ -1047,9 +1048,9 @@ impl<'a> FromSql<'a> for RawCell<'a> {
 
 /// Decodes a PostgreSQL `time` as the text PostgreSQL writes for it ([`time_text`]).
 ///
-/// Not through `chrono::NaiveTime`: its `FromSql` adds the stored microseconds to midnight,
-/// which wraps, so a stored `24:00:00` would be read as `00:00:00`; and its `Display` pads a
-/// fraction to 3, 6 or 9 digits, where PostgreSQL trims it.
+/// Not through a time-of-day type: chrono's `NaiveTime` `FromSql` adds the stored microseconds to
+/// midnight, which wraps, so a stored `24:00:00` would be read as `00:00:00`; and its `Display`
+/// pads a fraction to 3, 6 or 9 digits, where PostgreSQL trims it.
 struct PgTimeText(String);
 
 impl<'a> FromSql<'a> for PgTimeText {
@@ -1464,17 +1465,17 @@ fn decode_value(ty: &Type, raw: &[u8]) -> std::result::Result<serde_json::Value,
     } else if let Some(v) = read::<uuid::Uuid>(ty, raw) {
         // UUID columns (e.g. `app.mutation_response.entity_id`): the hyphenated text (H35).
         serde_json::Value::String(v.to_string())
-    } else if let Some(v) = read::<chrono::DateTime<chrono::Utc>>(ty, raw) {
-        // `timestamptz` → RFC 3339 / ISO 8601 text (H35).
-        serde_json::Value::String(v.to_rfc3339())
-    } else if let Some(v) = read::<chrono::NaiveDateTime>(ty, raw) {
+    } else if let Some(PgTimestamptzText(v)) = read::<PgTimestamptzText>(ty, raw) {
+        // `timestamptz` → RFC 3339 / ISO 8601 text with `+00:00` (H35).
+        serde_json::Value::String(v)
+    } else if let Some(PgTimestampText(v)) = read::<PgTimestampText>(ty, raw) {
         // `timestamp` (no tz) → a local date-time: `T`, no offset, the fraction in 3, 6 or
-        // 9 digits as `to_rfc3339` writes the `timestamptz` one. `to_string` wrote a space,
-        // which no date-time reader accepts.
-        serde_json::Value::String(v.format("%Y-%m-%dT%H:%M:%S%.f").to_string())
-    } else if let Some(v) = read::<chrono::NaiveDate>(ty, raw) {
+        // 9 digits as the `timestamptz` one. A space before the time is accepted by no
+        // date-time reader.
+        serde_json::Value::String(v)
+    } else if let Some(PgDateText(v)) = read::<PgDateText>(ty, raw) {
         // `date` → ISO 8601 date text (H35).
-        serde_json::Value::String(v.to_string())
+        serde_json::Value::String(v)
     } else if let Some(v) = read::<PgTimeText>(ty, raw) {
         // `time` → PostgreSQL's own text, as the document path carries it.
         serde_json::Value::String(v.0)

@@ -22,6 +22,10 @@
 //!   toward 2000-01-01. Reading a value outside the range a [`Timestamp`] holds (`infinity`,
 //!   `-infinity`, or a year past 9999) is a decode error naming the value.
 //!
+//! - **Wide dates.** [`calendar`] writes the same text for dates and date-times past year 9999,
+//!   which PostgreSQL stores and a [`Timestamp`] does not hold, over the years chrono held:
+//!   `-0044-03-15`, `+10000-01-01T00:00:00+00:00`.
+//!
 //! - **chrono.** With the `chrono` feature, a [`Timestamp`] converts into a
 //!   `chrono::DateTime<Utc>`, and one converts back with `TryFrom`, which fails outside the range a
 //!   [`Timestamp`] holds.
@@ -37,6 +41,7 @@ use std::{
 
 use jiff::{SignedDuration, tz::Offset};
 
+pub mod calendar;
 #[cfg(feature = "chrono")]
 mod chrono;
 mod parse;

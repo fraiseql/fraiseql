@@ -1223,6 +1223,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`fraiseql_time::calendar` writes dates and date-times past year 9999 (#2026).**
+  `calendar::date`, `calendar::date_time` and `calendar::rfc3339` write the text chrono
+  wrote (`-0044-03-15`, `+10000-01-01T00:00:00+00:00`, the fraction in 3, 6 or 9 digits)
+  over the years -262143 to 262142, which PostgreSQL stores and a `Timestamp` does not
+  hold. `fraiseql-db` renders `timestamptz`, `timestamp` and `date` cells through it, and
+  no longer depends on chrono; the response text is unchanged.
+
 - **TypeScript's `exportSchema` writes a federation subgraph's schema (#1713).**
   `exportSchema(path, { federation: { types, serviceName } })` exports the registry with the
   `federation` block built from the decorated classes, validated like any other export.

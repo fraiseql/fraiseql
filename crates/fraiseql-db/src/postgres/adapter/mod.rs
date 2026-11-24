@@ -8,6 +8,7 @@ mod numeric;
 mod query_stats;
 mod relay;
 mod streaming;
+mod temporal_cell;
 #[cfg(feature = "test-postgres")]
 pub mod test_hooks;
 pub mod transaction_retry;
