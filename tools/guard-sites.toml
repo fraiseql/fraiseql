@@ -136,6 +136,15 @@ name = "enrichment-backstop"
 patterns = ['(?<!fn )\benforce_enrichment_resolved\s*\(']
 
 [[family]]
+name = "role-actor-gate"
+# A read or write restricted to a role or to actor classes: each call to the shared
+# gates, each inline role check, and the rule the role gate applies.
+patterns = [
+  '(?<!fn )\benforce_requires_(?:role|actor)\s*\(',
+  'ctx\.roles\.iter\(\)\.any\(\|r\| r == role\)',
+]
+
+[[family]]
 name = "executor"
 patterns = ['\bexecutor_for(?:_tenant)?\s*\(']
 
@@ -300,6 +309,21 @@ command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 FRAISEQL_ENV=development FRAISEQL_OB
 name = "core-lib-enrichment"
 crate = "crates/fraiseql-core"
 command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-core --lib -- enrichment_entry_point_tests"
+
+[[shard]]
+name = "core-lib-gates"
+crate = "crates/fraiseql-core"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-core --features federation --lib"
+
+[[shard]]
+name = "core-node-bare-id"
+crate = "crates/fraiseql-core"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-core --features 'audit-syslog,audit-webhook,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend,test-postgres' --test query_node_bare_uuid -- --test-threads=1"
+
+[[shard]]
+name = "actor-predicate"
+crate = "crates/fraiseql-server"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test actor_predicate_e2e_pg -- --test-threads=1"
 
 [[shard]]
 name = "core-cache"
@@ -2491,3 +2515,143 @@ anchor = "enforce_enrichment_resolved(\n        &ctx.schema,\n        security_c
 mutant = "enforce_enrichment_resolved(\n        &ctx.schema,\n        { let _ = &security_ctx; None },"
 killers = ["the_mutation_chokepoint_refuses_an_unresolved_principal"]
 shard = "core-lib-enrichment"
+
+# Role and actor gates (family `role-actor-gate`). A call's mutant drops its requirement
+# (`None` role, empty actor list), which the gate admits; an inline check's admits all.
+
+[[site]]
+id = "role-actor.mutation.role"
+file = "crates/fraiseql-core/src/runtime/executor/runners/mutation/mod.rs"
+function = "prepare_write"
+anchor = "crate::security::role_gate::enforce_requires_role(\n        \"Mutation\",\n        mutation_name,\n        mutation_def.requires_role.as_deref(),\n        security_ctx,\n    )"
+mutant = "crate::security::role_gate::enforce_requires_role(\n        \"Mutation\",\n        mutation_name,\n        None,\n        security_ctx,\n    )"
+killers = ["mutation_denied_without_role_reports_not_found"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "role-actor.mutation.actor"
+file = "crates/fraiseql-core/src/runtime/executor/runners/mutation/mod.rs"
+function = "prepare_write"
+anchor = "crate::security::actor_type::enforce_requires_actor(\n        \"Mutation\",\n        mutation_name,\n        &mutation_def.requires_actor,\n        security_ctx,\n    )"
+mutant = "crate::security::actor_type::enforce_requires_actor(\n        \"Mutation\",\n        mutation_name,\n        &[],\n        security_ctx,\n    )"
+killers = ["graphql_refuses_a_restricted_mutation_to_an_agent"]
+shard = "actor-predicate"
+
+[[site]]
+id = "role-actor.nested.actor"
+file = "crates/fraiseql-core/src/runtime/executor/runners/query_nested.rs"
+function = "type_read_refusal"
+anchor = "crate::security::actor_type::enforce_requires_actor(\n            \"Query\",\n            &read.name,\n            &read.requires_actor,\n            security_context,\n        )"
+mutant = "crate::security::actor_type::enforce_requires_actor(\n            \"Query\",\n            &read.name,\n            &[],\n            security_context,\n        )"
+killers = ["a_nested_level_of_an_actor_restricted_type_refuses"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "role-actor.node.hidden-role"
+file = "crates/fraiseql-core/src/runtime/executor/runners/query_relay.rs"
+function = "hidden_by_role"
+anchor = "crate::security::role_gate::enforce_requires_role(\n                \"Query\",\n                &query.name,\n                query.requires_role.as_deref(),\n                principal,\n            )"
+mutant = "crate::security::role_gate::enforce_requires_role(\n                \"Query\",\n                &query.name,\n                None,\n                principal,\n            )"
+killers = ["a_node_hidden_by_its_querys_role_is_null"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "role-actor.node.bare-id-role"
+file = "crates/fraiseql-core/src/runtime/executor/runners/query_relay.rs"
+function = "resolve_bare_node_type"
+anchor = "crate::security::role_gate::enforce_requires_role(\n                \"Query\",\n                &node_qdef.name,\n                node_qdef.requires_role.as_deref(),\n                security_context,\n            )"
+mutant = "crate::security::role_gate::enforce_requires_role(\n                \"Query\",\n                &node_qdef.name,\n                None,\n                security_context,\n            )"
+killers = ["a_type_whose_role_the_caller_lacks_is_not_a_candidate"]
+shard = "core-node-bare-id"
+
+[[site]]
+id = "role-actor.node.bare-id-actor"
+file = "crates/fraiseql-core/src/runtime/executor/runners/query_relay.rs"
+function = "resolve_bare_node_type"
+anchor = "crate::security::actor_type::enforce_requires_actor(\n                    \"Query\",\n                    &node_qdef.name,\n                    &node_qdef.requires_actor,\n                    security_context,\n                )"
+mutant = "crate::security::actor_type::enforce_requires_actor(\n                    \"Query\",\n                    &node_qdef.name,\n                    &[],\n                    security_context,\n                )"
+killers = ["a_type_restricted_to_another_actor_class_is_not_a_candidate"]
+shard = "core-node-bare-id"
+
+[[site]]
+id = "role-actor.root.role"
+file = "crates/fraiseql-core/src/runtime/executor/runners/root_read.rs"
+function = "check"
+anchor = "crate::security::role_gate::enforce_requires_role(\n            \"Query\",\n            &query.name,\n            query.requires_role.as_deref(),\n            principal,\n        )"
+mutant = "crate::security::role_gate::enforce_requires_role(\n            \"Query\",\n            &query.name,\n            None,\n            principal,\n        )"
+killers = ["a_count_is_hidden_from_a_principal_without_the_role"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "role-actor.root.actor"
+file = "crates/fraiseql-core/src/runtime/executor/runners/root_read.rs"
+function = "check"
+anchor = "crate::security::actor_type::enforce_requires_actor(\n            \"Query\",\n            &query.name,\n            &query.requires_actor,\n            principal,\n        )"
+mutant = "crate::security::actor_type::enforce_requires_actor(\n            \"Query\",\n            &query.name,\n            &[],\n            principal,\n        )"
+killers = ["a_count_refuses_a_principal_of_the_wrong_actor_type"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "role-actor.root.member-role"
+file = "crates/fraiseql-core/src/runtime/executor/runners/root_read.rs"
+function = "check"
+anchor = "crate::security::role_gate::enforce_requires_role(\n                \"Query\",\n                &query.name,\n                role,\n                principal,\n            )"
+mutant = "crate::security::role_gate::enforce_requires_role(\n                \"Query\",\n                &query.name,\n                None,\n                principal,\n            )"
+killers = ["a_root_of_a_union_is_refused_when_a_type_it_can_be_requires_a_role"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "role-actor.root.member-actor"
+file = "crates/fraiseql-core/src/runtime/executor/runners/root_read.rs"
+function = "check"
+anchor = "crate::security::actor_type::enforce_requires_actor(\n                    \"Query\",\n                    &query.name,\n                    &read.requires_actor,\n                    principal,\n                )"
+mutant = "crate::security::actor_type::enforce_requires_actor(\n                    \"Query\",\n                    &query.name,\n                    &[],\n                    principal,\n                )"
+killers = [
+  "a_root_of_a_union_is_refused_when_a_type_it_can_be_is_read_by_another_actor",
+]
+shard = "core-lib-gates"
+
+[[site]]
+id = "role-actor.entities.actor"
+file = "crates/fraiseql-core/src/runtime/executor/support/federation.rs"
+function = "enforce_entities_authz"
+anchor = "crate::security::actor_type::enforce_requires_actor(\n                    \"Query\",\n                    &q.name,\n                    &q.requires_actor,\n                    security_context,\n                )"
+mutant = "crate::security::actor_type::enforce_requires_actor(\n                    \"Query\",\n                    &q.name,\n                    &[],\n                    security_context,\n                )"
+killers = ["entities_requires_actor_refuses_another_actor_class"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "role-actor.fact-table.role"
+file = "crates/fraiseql-core/src/runtime/executor/runners/aggregate_gates.rs"
+function = "refuse"
+anchor = "if !security_context.is_some_and(|ctx| ctx.roles.iter().any(|r| r == role)) {"
+mutant = "if false {"
+killers = ["the_embedder_entry_refuses_a_fact_table_of_a_role_gated_type"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "role-actor.nested.role"
+file = "crates/fraiseql-core/src/runtime/executor/runners/query_nested.rs"
+function = "type_read_refusal"
+anchor = "if !security_context.is_some_and(|ctx| ctx.roles.iter().any(|r| r == role)) {"
+mutant = "if false {"
+killers = ["a_nested_level_of_a_role_gated_type_refuses"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "role-actor.filter-path.role"
+file = "crates/fraiseql-core/src/runtime/executor/support/security.rs"
+function = "refuse_unreadable_path"
+anchor = "if !security_context.is_some_and(|ctx| ctx.roles.iter().any(|r| r == role)) {"
+mutant = "if false {"
+killers = ["a_filter_into_a_type_whose_role_the_caller_lacks_is_refused"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "role-actor.rule.caller-holds"
+file = "crates/fraiseql-core/src/security/role_gate.rs"
+function = "caller_holds"
+anchor = ".is_none_or(|role| security_context.is_some_and(|ctx| ctx.roles.iter().any(|r| r == role)))"
+mutant = ".is_none_or(|_role| security_context.is_some())"
+killers = ["mutation_denied_without_role_reports_not_found"]
+shard = "core-lib-gates"

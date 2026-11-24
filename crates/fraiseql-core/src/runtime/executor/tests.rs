@@ -694,6 +694,33 @@ mod entities_authz {
         assert!(adapter.captured_aggregate_sql().is_none());
     }
 
+    /// `_entities` enforces the backing query's actor allow-list: a caller of another actor
+    /// class is refused before any SQL runs, and one of the listed class gets through.
+    #[tokio::test]
+    async fn entities_requires_actor_refuses_another_actor_class() {
+        let mut schema = entities_user_schema(None, IndexMap::new());
+        schema.queries[0].requires_actor = vec![crate::security::ActorType::ServiceAccount];
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema, adapter.clone());
+        let vars = representations();
+
+        let human = ctx_with_roles(&["viewer"]);
+        let err = executor
+            .execute_with_security(entities_query(), Some(&vars), &human)
+            .await
+            .unwrap_err();
+        assert!(is_authz(&err), "a human caller is refused, got: {err}");
+        assert!(adapter.captured_aggregate_sql().is_none(), "no SQL runs when refused");
+
+        let service =
+            ctx_with_roles(&["viewer"]).with_actor_type(crate::security::ActorType::ServiceAccount);
+        let served = executor.execute_with_security(entities_query(), Some(&vars), &service).await;
+        assert!(
+            !served.as_ref().is_err_and(is_authz),
+            "the listed actor class passes the gate, got: {served:?}"
+        );
+    }
+
     #[tokio::test]
     async fn entities_inject_anonymous_fails_closed() {
         let mut inject = IndexMap::new();

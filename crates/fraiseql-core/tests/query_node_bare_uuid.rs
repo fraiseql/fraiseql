@@ -200,3 +200,46 @@ async fn ambiguity_is_judged_among_the_types_the_caller_may_read() {
         "{message}"
     );
 }
+
+/// A `node` lookup selecting only `User`'s fields.
+fn user_node(id: &str) -> String {
+    format!("{{ node(id: \"{id}\") {{ ... on User {{ id name }} }} }}")
+}
+
+/// `User` and `UserCard` over one table, `userCards` behind `gate` (a `requires_role` or a
+/// `requires_actor`).
+async fn executor_gating_the_card(gate: Value) -> Executor {
+    let container = common::testcontainer::get_test_container().await;
+    let adapter = Arc::new(PostgresAdapter::new(&container.connection_string()).await.unwrap());
+    provision(&adapter).await;
+    let mut cards = list_query("userCards", "UserCard", "v_user_card");
+    for (key, value) in gate.as_object().unwrap() {
+        cards[key] = value.clone();
+    }
+    let schema: CompiledSchema = serde_json::from_value(json!({
+        "types": [node_type("User", "v_user"), node_type("UserCard", "v_user_card")],
+        "queries": [list_query("users", "User", "v_user"), cards],
+        "interfaces": [{ "name": "Node", "fields": [{ "name": "id", "field_type": "ID" }] }]
+    }))
+    .unwrap();
+    Executor::new(schema, adapter)
+}
+
+/// A type whose read requires a role the caller lacks is no candidate: the id resolves
+/// to the one type the caller may read, and nothing reveals that the other holds it.
+#[tokio::test]
+async fn a_type_whose_role_the_caller_lacks_is_not_a_candidate() {
+    let executor = executor_gating_the_card(json!({ "requires_role": "admin" })).await;
+
+    let resolved = executor.execute_with_security(&user_node(ALICE), None, &tenant("t1")).await;
+    assert_eq!(resolved.unwrap()["data"]["node"]["name"], "Alice");
+}
+
+/// The same for a type whose read is restricted to an actor class the caller is not.
+#[tokio::test]
+async fn a_type_restricted_to_another_actor_class_is_not_a_candidate() {
+    let executor = executor_gating_the_card(json!({ "requires_actor": ["service_account"] })).await;
+
+    let resolved = executor.execute_with_security(&user_node(ALICE), None, &tenant("t1")).await;
+    assert_eq!(resolved.unwrap()["data"]["node"]["name"], "Alice");
+}
