@@ -168,7 +168,7 @@ fn test_service_with_security_context() {
 /// Tests that `get_flight_info` returns schema for views.
 #[tokio::test]
 async fn test_get_flight_info_for_optimized_view() {
-    let service = FraiseQLFlightService::new();
+    let service = super::handlers::session_test_support::service();
 
     // Create a FlightTicket for an optimized view and encode it
     let ticket = FlightTicket::OptimizedView {
@@ -187,7 +187,7 @@ async fn test_get_flight_info_for_optimized_view() {
         cmd:    Default::default(),
     };
 
-    let request = Request::new(descriptor);
+    let request = super::handlers::session_test_support::authorized(descriptor);
     let result = service.get_flight_info(request).await;
 
     // Should return FlightInfo with schema
@@ -202,7 +202,7 @@ async fn test_get_flight_info_for_optimized_view() {
 /// Tests that `get_flight_info` returns error for invalid view.
 #[tokio::test]
 async fn test_get_flight_info_invalid_view() {
-    let service = FraiseQLFlightService::new();
+    let service = super::handlers::session_test_support::service();
 
     // Create a FlightTicket for a non-existent view and encode it
     let ticket = FlightTicket::OptimizedView {
@@ -221,11 +221,15 @@ async fn test_get_flight_info_invalid_view() {
         cmd:    Default::default(),
     };
 
-    let request = Request::new(descriptor);
+    let request = super::handlers::session_test_support::authorized(descriptor);
     let result = service.get_flight_info(request).await;
 
-    // Should return error for invalid view
-    assert!(result.is_err(), "get_flight_info should fail for non-existent view");
+    // Should return NotFound for invalid view, past the session check
+    assert_eq!(
+        result.map(|_| ()).map_err(|status| status.code()),
+        Err(tonic::Code::NotFound),
+        "get_flight_info should fail for non-existent view"
+    );
 }
 
 /// Tests that `list_actions` returns available actions.

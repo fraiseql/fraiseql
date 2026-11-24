@@ -99,7 +99,12 @@ async fn test_get_schema_for_ta_orders() {
 
         // Request schema
         let descriptor = FlightDescriptor::new_path(vec![ticket_path]);
-        let request = tonic::Request::new(descriptor);
+        // Every Flight call but the handshake requires a session.
+        let mut request = tonic::Request::new(descriptor);
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", create_test_session_token()).parse().unwrap(),
+        );
 
         let response = client.get_schema(request).await.expect("GetSchema failed for ta_orders");
         let schema_result = response.into_inner();
@@ -141,7 +146,12 @@ async fn test_get_schema_for_ta_users() {
 
         // Request schema
         let descriptor = FlightDescriptor::new_path(vec![ticket_path]);
-        let request = tonic::Request::new(descriptor);
+        // Every Flight call but the handshake requires a session.
+        let mut request = tonic::Request::new(descriptor);
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", create_test_session_token()).parse().unwrap(),
+        );
 
         let response = client.get_schema(request).await.expect("GetSchema failed for ta_users");
         let schema_result = response.into_inner();

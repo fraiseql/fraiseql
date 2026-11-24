@@ -101,6 +101,15 @@ fn make_session_token() -> String {
 }
 
 /// Encode a `FlightTicket` into a `FlightDescriptor` path entry.
+/// `message`, carrying a session the service holding `TEST_SECRET` issued.
+fn authorized<T>(message: T) -> Request<T> {
+    let mut request = Request::new(message);
+    request
+        .metadata_mut()
+        .insert("authorization", format!("Bearer {}", make_session_token()).parse().unwrap());
+    request
+}
+
 fn descriptor_for_ticket(ticket: &FlightTicket) -> FlightDescriptor {
     let bytes = ticket.encode().expect("Failed to encode ticket");
     FlightDescriptor {
@@ -137,17 +146,17 @@ fn listed_view(path: &str) -> String {
     }
 }
 
-/// `list_flights` enumerates the four built-in views without authentication.
+/// `list_flights` enumerates the four built-in views to a caller with a session.
 #[tokio::test]
 async fn test_list_flights_enumerates_four_default_views() {
-    let service = FraiseQLFlightService::new();
+    let service = FraiseQLFlightService::new().with_session_secret(TEST_SECRET);
     let result = service
-        .list_flights(Request::new(Criteria {
+        .list_flights(authorized(Criteria {
             expression: vec![].into(),
         }))
         .await;
 
-    assert!(result.is_ok(), "list_flights should succeed without auth");
+    assert!(result.is_ok(), "list_flights should succeed with a session");
     let mut stream = result.unwrap().into_inner();
 
     let mut names: Vec<String> = Vec::new();
@@ -167,6 +176,49 @@ async fn test_list_flights_enumerates_four_default_views() {
 }
 
 // ---------------------------------------------------------------------------
+/// Without a session, every metadata call is refused `Unauthenticated`, as `do_get` is.
+#[tokio::test]
+async fn test_metadata_calls_without_a_session_are_refused() {
+    let service = FraiseQLFlightService::new().with_session_secret(TEST_SECRET);
+    let ticket = FlightTicket::OptimizedView {
+        view:     "va_orders".to_string(),
+        filter:   None,
+        order_by: None,
+        limit:    None,
+        offset:   None,
+    };
+    let listed = service
+        .list_flights(Request::new(Criteria {
+            expression: vec![].into(),
+        }))
+        .await
+        .map(|_| ())
+        .map_err(|status| status.code());
+    let schema = service
+        .get_schema(Request::new(descriptor_for_ticket(&ticket)))
+        .await
+        .map(|_| ())
+        .map_err(|status| status.code());
+    let info = service
+        .get_flight_info(Request::new(descriptor_for_ticket(&ticket)))
+        .await
+        .map(|_| ())
+        .map_err(|status| status.code());
+    let poll = service
+        .poll_flight_info(Request::new(descriptor_for_ticket(&ticket)))
+        .await
+        .map(|_| ())
+        .map_err(|status| status.code());
+    for (call, outcome) in [
+        ("ListFlights", listed),
+        ("GetSchema", schema),
+        ("GetFlightInfo", info),
+        ("PollFlightInfo", poll),
+    ] {
+        assert_eq!(outcome, Err(tonic::Code::Unauthenticated), "{call}");
+    }
+}
+
 // Tests: get_schema
 // ---------------------------------------------------------------------------
 
@@ -178,12 +230,12 @@ async fn test_list_flights_enumerates_four_default_views() {
 /// a shape the data stream never emits. It certified the defect.
 #[tokio::test]
 async fn test_get_schema_for_graphql_query_is_unimplemented() {
-    let service = FraiseQLFlightService::new();
+    let service = FraiseQLFlightService::new().with_session_secret(TEST_SECRET);
     let ticket = FlightTicket::GraphQLQuery {
         query:     "{ users { id name } }".to_string(),
         variables: None,
     };
-    let result = service.get_schema(Request::new(descriptor_for_ticket(&ticket))).await;
+    let result = service.get_schema(authorized(descriptor_for_ticket(&ticket))).await;
 
     let status = result.expect_err("get_schema for GraphQLQuery must not return a schema");
     assert_eq!(
@@ -197,14 +249,14 @@ async fn test_get_schema_for_graphql_query_is_unimplemented() {
 /// concrete 8-field schema for a stream the server cannot produce.
 #[tokio::test]
 async fn test_get_schema_for_observer_events_is_unimplemented() {
-    let service = FraiseQLFlightService::new();
+    let service = FraiseQLFlightService::new().with_session_secret(TEST_SECRET);
     let ticket = FlightTicket::ObserverEvents {
         entity_type: "Order".to_string(),
         start_date:  None,
         end_date:    None,
         limit:       None,
     };
-    let result = service.get_schema(Request::new(descriptor_for_ticket(&ticket))).await;
+    let result = service.get_schema(authorized(descriptor_for_ticket(&ticket))).await;
 
     let status = result.expect_err("get_schema for ObserverEvents must not return a schema");
     assert_eq!(
@@ -217,7 +269,7 @@ async fn test_get_schema_for_observer_events_is_unimplemented() {
 /// `get_schema` for an `OptimizedView` ticket returns the registered Arrow schema.
 #[tokio::test]
 async fn test_get_schema_for_optimized_view_returns_schema() {
-    let service = FraiseQLFlightService::new();
+    let service = FraiseQLFlightService::new().with_session_secret(TEST_SECRET);
     let ticket = FlightTicket::OptimizedView {
         view:     "va_orders".to_string(),
         filter:   None,
@@ -225,7 +277,7 @@ async fn test_get_schema_for_optimized_view_returns_schema() {
         limit:    None,
         offset:   None,
     };
-    let result = service.get_schema(Request::new(descriptor_for_ticket(&ticket))).await;
+    let result = service.get_schema(authorized(descriptor_for_ticket(&ticket))).await;
     assert!(result.is_ok(), "get_schema for va_orders must succeed");
     assert!(!result.unwrap().into_inner().schema.is_empty());
 }
@@ -233,14 +285,14 @@ async fn test_get_schema_for_optimized_view_returns_schema() {
 /// `get_schema` for a `BulkExport` ticket returns `Unimplemented` naming `do_get`.
 #[tokio::test]
 async fn test_get_schema_bulk_export_returns_informative_error() {
-    let service = FraiseQLFlightService::new();
+    let service = FraiseQLFlightService::new().with_session_secret(TEST_SECRET);
     let ticket = FlightTicket::BulkExport {
         table:  "ta_orders".to_string(),
         filter: None,
         limit:  None,
         format: None,
     };
-    let result = service.get_schema(Request::new(descriptor_for_ticket(&ticket))).await;
+    let result = service.get_schema(authorized(descriptor_for_ticket(&ticket))).await;
     assert!(result.is_err(), "Must fail for BulkExport");
 
     let err = result.err().unwrap();
@@ -259,7 +311,7 @@ async fn test_get_schema_bulk_export_returns_informative_error() {
 /// `get_flight_info` for `BulkExport` must return the exact same message as `get_schema`.
 #[tokio::test]
 async fn test_get_flight_info_bulk_export_message_matches_get_schema() {
-    let service = FraiseQLFlightService::new();
+    let service = FraiseQLFlightService::new().with_session_secret(TEST_SECRET);
     let ticket = FlightTicket::BulkExport {
         table:  "ta_orders".to_string(),
         filter: None,
@@ -268,12 +320,12 @@ async fn test_get_flight_info_bulk_export_message_matches_get_schema() {
     };
 
     let get_schema_err = service
-        .get_schema(Request::new(descriptor_for_ticket(&ticket)))
+        .get_schema(authorized(descriptor_for_ticket(&ticket)))
         .await
         .expect_err("get_schema must fail for BulkExport");
 
     let get_flight_info_err = service
-        .get_flight_info(Request::new(descriptor_for_ticket(&ticket)))
+        .get_flight_info(authorized(descriptor_for_ticket(&ticket)))
         .await
         .expect_err("get_flight_info must fail for BulkExport");
 
@@ -292,7 +344,7 @@ async fn test_get_flight_info_bulk_export_message_matches_get_schema() {
 /// `PollInfo`: `flight_descriptor = None` (signals done) and `progress = 1.0`.
 #[tokio::test]
 async fn test_poll_flight_info_returns_completed_poll_info() {
-    let service = FraiseQLFlightService::new();
+    let service = FraiseQLFlightService::new().with_session_secret(TEST_SECRET);
     let ticket = FlightTicket::OptimizedView {
         view:     "va_orders".to_string(),
         filter:   None,
@@ -302,7 +354,7 @@ async fn test_poll_flight_info_returns_completed_poll_info() {
     };
 
     let poll_info = service
-        .poll_flight_info(Request::new(descriptor_for_ticket(&ticket)))
+        .poll_flight_info(authorized(descriptor_for_ticket(&ticket)))
         .await
         .expect("poll_flight_info must succeed for a known view")
         .into_inner();
@@ -323,7 +375,7 @@ async fn test_poll_flight_info_returns_completed_poll_info() {
 /// `poll_flight_info` for an unknown view must propagate `NotFound`.
 #[tokio::test]
 async fn test_poll_flight_info_unknown_view_returns_not_found() {
-    let service = FraiseQLFlightService::new();
+    let service = FraiseQLFlightService::new().with_session_secret(TEST_SECRET);
     let ticket = FlightTicket::OptimizedView {
         view:     "no_such_view".to_string(),
         filter:   None,
@@ -333,7 +385,7 @@ async fn test_poll_flight_info_unknown_view_returns_not_found() {
     };
 
     let err = service
-        .poll_flight_info(Request::new(descriptor_for_ticket(&ticket)))
+        .poll_flight_info(authorized(descriptor_for_ticket(&ticket)))
         .await
         .expect_err("poll_flight_info must fail for unknown view");
 
@@ -465,7 +517,7 @@ async fn test_do_get_without_auth_returns_error() {
 async fn every_metadata_call_sends_a_schema_the_reference_decoder_reads() {
     use fraiseql_arrow::arrow::datatypes::Schema;
 
-    let service = FraiseQLFlightService::new();
+    let service = FraiseQLFlightService::new().with_session_secret(TEST_SECRET);
     let registered = service.schema_registry().get("va_orders").unwrap();
     let descriptor = || {
         descriptor_for_ticket(&FlightTicket::OptimizedView {
@@ -477,18 +529,18 @@ async fn every_metadata_call_sends_a_schema_the_reference_decoder_reads() {
         })
     };
 
-    let schema = service.get_schema(Request::new(descriptor())).await.unwrap().into_inner();
+    let schema = service.get_schema(authorized(descriptor())).await.unwrap().into_inner();
     assert_eq!(Schema::try_from(&schema).unwrap(), *registered, "get_schema");
 
-    let info = service.get_flight_info(Request::new(descriptor())).await.unwrap().into_inner();
+    let info = service.get_flight_info(authorized(descriptor())).await.unwrap().into_inner();
     assert_eq!(info.try_decode_schema().unwrap(), *registered, "get_flight_info");
 
-    let poll = service.poll_flight_info(Request::new(descriptor())).await.unwrap().into_inner();
+    let poll = service.poll_flight_info(authorized(descriptor())).await.unwrap().into_inner();
     let info = poll.info.expect("a completed poll carries its FlightInfo");
     assert_eq!(info.try_decode_schema().unwrap(), *registered, "poll_flight_info");
 
     let mut listed = service
-        .list_flights(Request::new(Criteria {
+        .list_flights(authorized(Criteria {
             expression: vec![].into(),
         }))
         .await

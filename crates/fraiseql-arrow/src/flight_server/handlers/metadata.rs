@@ -12,9 +12,12 @@ use prost::bytes::Bytes;
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{error, info, warn};
 
-use super::super::{
-    FlightInfoStream, FraiseQLFlightService, HandshakeStream, create_session_token,
-    map_security_error_to_status,
+use super::{
+    super::{
+        FlightInfoStream, FraiseQLFlightService, HandshakeStream, create_session_token,
+        map_security_error_to_status,
+    },
+    metadata_session::require_session,
 };
 use crate::ticket::FlightTicket;
 
@@ -155,9 +158,10 @@ pub(super) async fn handshake(
 /// `list_flights` handler: returns metadata about available pre-compiled Arrow views.
 pub(super) async fn list_flights(
     svc: &FraiseQLFlightService,
-    _request: Request<Criteria>,
+    request: Request<Criteria>,
 ) -> std::result::Result<Response<FlightInfoStream>, Status> {
     info!("ListFlights called");
+    require_session(svc, &request)?;
 
     let mut flight_infos = Vec::new();
 
@@ -207,6 +211,7 @@ pub(super) async fn get_schema(
     svc: &FraiseQLFlightService,
     request: Request<FlightDescriptor>,
 ) -> std::result::Result<Response<SchemaResult>, Status> {
+    require_session(svc, &request)?;
     let descriptor = request.into_inner();
     info!("GetSchema called: {:?}", descriptor);
 
@@ -229,6 +234,7 @@ pub(super) async fn get_flight_info(
     svc: &FraiseQLFlightService,
     request: Request<FlightDescriptor>,
 ) -> std::result::Result<Response<FlightInfo>, Status> {
+    require_session(svc, &request)?;
     let descriptor = request.into_inner();
     info!("GetFlightInfo called: {:?}", descriptor);
 
@@ -265,11 +271,11 @@ pub(super) async fn poll_flight_info(
     svc: &FraiseQLFlightService,
     request: Request<FlightDescriptor>,
 ) -> std::result::Result<Response<PollInfo>, Status> {
-    let descriptor = request.into_inner();
-    info!("PollFlightInfo called: {:?}", descriptor);
+    info!("PollFlightInfo called: {:?}", request.get_ref());
 
-    // Reuse get_flight_info logic to build the FlightInfo.
-    let flight_info = get_flight_info(svc, Request::new(descriptor)).await?.into_inner();
+    // Reuse get_flight_info, which checks the session, on the request as received, so the
+    // caller's session travels with it.
+    let flight_info = get_flight_info(svc, request).await?.into_inner();
 
     // flight_descriptor = None signals "complete — no need to poll again".
     // progress = 1.0 confirms 100 % complete.
@@ -284,3 +290,7 @@ pub(super) async fn poll_flight_info(
 #[cfg(test)]
 #[path = "list_flights_tests.rs"]
 mod list_flights_tests;
+
+#[cfg(test)]
+#[path = "metadata_session_tests.rs"]
+mod metadata_session_tests;

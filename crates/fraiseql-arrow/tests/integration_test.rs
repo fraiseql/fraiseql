@@ -15,6 +15,31 @@ use tonic::transport::{Endpoint, Server};
 
 const TEST_FLIGHT_SECRET: &str = "flight-test-session-secret-for-integration-tests";
 
+/// `message`, carrying a session signed with `TEST_FLIGHT_SECRET`: every Flight call
+/// but the handshake requires one.
+fn authorized<T>(message: T) -> tonic::Request<T> {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
+
+    let now = chrono::Utc::now().timestamp();
+    let token = encode(
+        &Header::new(Algorithm::HS256),
+        &serde_json::json!({
+            "sub": "test-user",
+            "exp": now + 300,
+            "iat": now,
+            "scopes": ["user"],
+            "session_type": "flight",
+        }),
+        &EncodingKey::from_secret(TEST_FLIGHT_SECRET.as_bytes()),
+    )
+    .unwrap();
+    let mut request = tonic::Request::new(message);
+    request
+        .metadata_mut()
+        .insert("authorization", format!("Bearer {token}").parse().unwrap());
+    request
+}
+
 /// Start a test Flight server on a random available port.
 ///
 /// Returns the server address (e.g., "http://127.0.0.1:12345").
@@ -54,7 +79,7 @@ async fn test_server_starts_and_accepts_connections() {
         let mut client = FlightServiceClient::new(channel);
 
         // Test ListFlights (should succeed even if empty)
-        let request = tonic::Request::new(Criteria {
+        let request = authorized(Criteria {
             expression: vec![].into(),
         });
         let response = client.list_flights(request).await;
@@ -87,7 +112,7 @@ async fn test_get_schema_for_observer_events() {
 
         // Request schema
         let descriptor = FlightDescriptor::new_path(vec![String::from_utf8(ticket_bytes).unwrap()]);
-        let request = tonic::Request::new(descriptor);
+        let request = authorized(descriptor);
 
         // #1038: this advertised a concrete 8-field Arrow schema for a ticket the
         // server can never serve — `event_storage` is `None` at every constructor
@@ -129,7 +154,7 @@ async fn test_get_schema_for_graphql_query() {
 
         // Request schema
         let descriptor = FlightDescriptor::new_path(vec![String::from_utf8(ticket_bytes).unwrap()]);
-        let request = tonic::Request::new(descriptor);
+        let request = authorized(descriptor);
 
         // #1037: this returned the hardcoded placeholder `{id: Utf8, data: Utf8}`,
         // which the `do_get` stream never produces. "Non-empty bytes" is true of any
@@ -312,7 +337,7 @@ async fn test_bulk_export_ticket_not_implemented() {
 
         // Request schema for bulk export
         let descriptor = FlightDescriptor::new_path(vec![String::from_utf8(ticket_bytes).unwrap()]);
-        let request = tonic::Request::new(descriptor);
+        let request = authorized(descriptor);
 
         let response = client.get_schema(request).await;
         assert!(response.is_err(), "BulkExport should not be implemented yet");

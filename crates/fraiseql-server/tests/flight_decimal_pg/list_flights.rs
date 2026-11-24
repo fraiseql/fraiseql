@@ -11,11 +11,11 @@ use fraiseql_arrow::{
 use fraiseql_server::arrow::{create_flight_service, register_flight_views};
 use futures::StreamExt as _;
 
-use super::adapter;
+use super::{SECRET, adapter, authorized};
 
 async fn listed(service: &fraiseql_arrow::FraiseQLFlightService) -> Vec<String> {
     let mut stream = service
-        .list_flights(tonic::Request::new(Criteria {
+        .list_flights(authorized(Criteria {
             expression: vec![].into(),
         }))
         .await
@@ -37,7 +37,7 @@ async fn listed(service: &fraiseql_arrow::FraiseQLFlightService) -> Vec<String> 
 #[ignore = "needs DATABASE_URL; run by the Dagger integration leg"]
 async fn list_flights_lists_exactly_the_declared_views() {
     let pg = adapter().await;
-    let service = create_flight_service(Arc::clone(&pg), &[]);
+    let service = create_flight_service(Arc::clone(&pg), &[]).with_session_secret(SECRET);
     assert!(listed(&service).await.is_empty(), "nothing is declared, so nothing is listed");
 
     let declared = ["p_flight_dec_v".to_string(), "p_flight_dec_nan".to_string()];

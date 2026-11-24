@@ -18,6 +18,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Arrow Flight's metadata calls require a session (#2473).** `GetSchema`, `GetFlightInfo`,
+  `PollFlightInfo` and `ListFlights` answered without one, so a caller with no session could
+  list the served views and read each one's Arrow schema, while `DoGet` refused it. They now
+  require the session `DoGet` requires and answer `UNAUTHENTICATED` without one. A client
+  calls them after the handshake, with `authorization: Bearer <session token>`, as it already
+  does for `DoGet`.
+
 - **`HttpTriggerRoute::requires_auth`, `with_auth` and `without_auth` are removed
   (#2399).** The field was set and never read: matching ignored it and no HTTP trigger route
   is mounted, so marking a route as requiring authentication enforced nothing.

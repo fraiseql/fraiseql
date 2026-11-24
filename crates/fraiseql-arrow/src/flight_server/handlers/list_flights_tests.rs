@@ -11,8 +11,8 @@ use std::sync::Arc;
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow_flight::{Criteria, FlightDescriptor, flight_service_server::FlightService};
 use futures::StreamExt;
-use tonic::Request;
 
+use super::super::session_test_support as support;
 use crate::{flight_server::FraiseQLFlightService, ticket::FlightTicket};
 
 /// A view's schema: one column named after the view, so each view's is distinct.
@@ -22,7 +22,7 @@ fn schema_of(view: &str) -> Schema {
 
 /// A service whose registry holds exactly `views`, as the server leaves it.
 fn serving(views: &[&str]) -> FraiseQLFlightService {
-    let service = FraiseQLFlightService::new();
+    let service = support::service();
     service.schema_registry.clear();
     for view in views {
         service.schema_registry.register(*view, Arc::new(schema_of(view)));
@@ -33,7 +33,7 @@ fn serving(views: &[&str]) -> FraiseQLFlightService {
 /// Every listed descriptor, in listing order.
 async fn listed(service: &FraiseQLFlightService) -> Vec<FlightDescriptor> {
     let mut stream = service
-        .list_flights(Request::new(Criteria {
+        .list_flights(support::authorized(Criteria {
             expression: vec![].into(),
         }))
         .await
@@ -73,7 +73,7 @@ async fn a_listed_descriptor_passed_back_reads_its_views_schema() {
     let service = serving(&["sales_by_region", "va_invoice"]);
     for descriptor in listed(&service).await {
         let view = view_of(&descriptor);
-        let read = service.get_schema(Request::new(descriptor)).await.unwrap().into_inner();
+        let read = service.get_schema(support::authorized(descriptor)).await.unwrap().into_inner();
         assert_eq!(Schema::try_from(&read).unwrap(), schema_of(&view), "{view}");
     }
 }

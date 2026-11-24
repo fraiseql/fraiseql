@@ -10,7 +10,10 @@ mod do_exchange;
 mod do_get;
 mod do_put;
 mod metadata;
+mod metadata_session;
 mod send_helpers;
+#[cfg(test)]
+pub(super) mod session_test_support;
 mod upload_guard;
 
 use arrow_flight::{

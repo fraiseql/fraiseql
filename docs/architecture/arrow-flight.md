@@ -61,7 +61,10 @@ Read this before naming anything in either list:
    Flight.
 2. The handshake answers with a session token, signed with `FLIGHT_SESSION_SECRET` and
    valid for five minutes. Every later call carries it as
-   `authorization: Bearer <session token>`.
+   `authorization: Bearer <session token>`: the data calls, and the metadata calls
+   `ListFlights`, `GetSchema`, `GetFlightInfo` and `PollFlightInfo`, which answer
+   `UNAUTHENTICATED` without one. Only `ListActions`, a fixed list of action names, answers
+   without a session.
 
 With no `[auth]`, the server logs that Flight runs without authentication, and the
 handshake still refuses every client: there is no unauthenticated Flight access.
