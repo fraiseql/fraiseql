@@ -2631,10 +2631,9 @@ mod pkce_tests {
 
     #[cfg(feature = "redis-pkce")]
     #[tokio::test]
-    #[ignore = "requires Redis — set REDIS_URL=redis://localhost:6379"]
+    #[ignore = "requires Redis — runs in the `integration (redis)` suite, which sets REDIS_URL"]
     async fn test_redis_pkce_create_and_consume_roundtrip() {
-        let url =
-            std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
+        let url = bound_redis_url();
         let store = PkceStateStore::new_redis(&url, 300, None)
             .await
             .expect("Redis connection failed");
@@ -2647,10 +2646,9 @@ mod pkce_tests {
 
     #[cfg(feature = "redis-pkce")]
     #[tokio::test]
-    #[ignore = "requires Redis — set REDIS_URL=redis://localhost:6379"]
+    #[ignore = "requires Redis — runs in the `integration (redis)` suite, which sets REDIS_URL"]
     async fn test_redis_pkce_one_shot_consumption() {
-        let url =
-            std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
+        let url = bound_redis_url();
         let store = PkceStateStore::new_redis(&url, 300, None)
             .await
             .expect("Redis connection failed");
@@ -2667,10 +2665,9 @@ mod pkce_tests {
 
     #[cfg(feature = "redis-pkce")]
     #[tokio::test]
-    #[ignore = "requires Redis — set REDIS_URL=redis://localhost:6379"]
+    #[ignore = "requires Redis — runs in the `integration (redis)` suite, which sets REDIS_URL"]
     async fn test_redis_pkce_two_instances_share_state() {
-        let url =
-            std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
+        let url = bound_redis_url();
 
         let store_a = PkceStateStore::new_redis(&url, 300, None)
             .await
@@ -2690,10 +2687,9 @@ mod pkce_tests {
 
     #[cfg(feature = "redis-pkce")]
     #[tokio::test]
-    #[ignore = "requires Redis — set REDIS_URL=redis://localhost:6379"]
+    #[ignore = "requires Redis — runs in the `integration (redis)` suite, which sets REDIS_URL"]
     async fn test_redis_pkce_tampered_token_rejected() {
-        let url =
-            std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
+        let url = bound_redis_url();
         let enc = Some(Arc::new(StateEncryptionService::from_raw_key(
             &[0u8; 32],
             EncryptionAlgorithm::Chacha20Poly1305,
