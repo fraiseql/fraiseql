@@ -1783,6 +1783,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The audit docs describe what the server records, and where (#1630).** The deployment
+  security guide recommended the webhook audit exporter and mapped stores to it, though the
+  `fraiseql-server` binary cannot configure that exporter; the admin SQL console told
+  operators to wire a database-backed audit logger the binary cannot install, and listed a
+  `success` field its entries do not carry. Both now say that the binary records security
+  events, mutations and admin SQL executions as log records only (tenant lifecycle events in
+  memory), how to ship them to a write-once store, and that the library's database-backed
+  logger is for an embedding application that provides its own table. The tamper-evident
+  chain is still unbuilt.
+
 - **A fact-table root refuses an unknown enum value as one of its published enum (#2449).**
   The `_aggregate` and `_window` roots did not hold a document's enum values to the enums
   they publish: `orderBy: [{field: nosuch}]` was refused by the planner ("neither a grouped

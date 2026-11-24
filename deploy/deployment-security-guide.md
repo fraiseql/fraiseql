@@ -652,11 +652,24 @@ critical endpoints.
 ## Audit Log Integrity
 
 FraiseQL does not yet chain its audit entries: no entry carries the hash of the one
-before it, so nothing in the database detects an edited or deleted entry (tracked in
-#1630). Security events (JWT and session-token validation, OAuth and OIDC exchanges,
-authentication and authorization outcomes, admin SQL executions) are emitted as
-structured log events (`Security event: …`, with `event_type`,
-`secret_type`, `subject`, `operation` and `context` fields).
+before it, so nothing detects an edited or deleted entry (tracked in #1630). What the
+`fraiseql-server` binary records today, all of it as `tracing` records in its log output
+(`FRAISEQL_LOG_FORMAT=json` for JSON), none of it in the database:
+
+- **Security events**: JWT and session-token validation, OAuth and OIDC exchanges,
+  authentication and authorization outcomes, admin SQL executions. `INFO`
+  `Security event: successful operation` or `WARN` `Security event: failed operation`
+  (with `error`), carrying `event_type`, `secret_type`, `subject`, `operation` and
+  `context`.
+- **Mutations**: one `INFO` record per successful mutation, target
+  `fraiseql::mutation_audit`, message `mutation.executed`, with `mutation_name`,
+  `entity_type`, `operation` and `tenant_id`, while `audit_logging_enabled` is on (below).
+- **Tenant lifecycle events** of the multi-tenant admin API are kept in memory only, and
+  are gone when the process restarts.
+
+The library's `fraiseql_core::security::AuditLogger` writes entries to a table that no
+migration creates, `fraiseql_audit_logs` (#1630), and the binary never constructs that
+logger: it is for an application that embeds the library and provides the table itself.
 
 **Recommendation for high-compliance environments** (SOC2, PCI-DSS): ship those
 events off the host as they are written, to a store an attacker on the database or
@@ -673,24 +686,25 @@ audit_logging_enabled = true
 ```
 
 `fraiseql-core` ships two export sinks, `SyslogAuditExporter` (the `audit-syslog`
-feature) and `WebhookAuditExporter` (`audit-webhook`), for an application that embeds
-the library. The `fraiseql-server` binary has no configuration for them: with the
-binary, ship the structured log events above.
+feature) and `WebhookAuditExporter` (`audit-webhook`), which feed the library's
+`AuditLogger` above, for an application that embeds the library. The `fraiseql-server`
+binary has no configuration for them: with the binary, ship the log records above.
 
-**Integration patterns for common external stores:**
+**Shipping the binary's log records to common external stores** (with
+`FRAISEQL_LOG_FORMAT=json`, so a collector can select records by `event_type` or by
+the `fraiseql::mutation_audit` target):
 
 | Store | Method | Notes |
 |-------|--------|-------|
-| **S3 (immutable)** | Fluent Bit sidecar consuming syslog | Enable S3 Object Lock for WORM compliance |
-| **Splunk** | Webhook export → Splunk HEC endpoint | Set `url` to `https://splunk:8088/services/collector/event` |
-| **Grafana Loki** | Syslog export → Loki syslog receiver | Use TCP transport for reliable delivery |
-| **CloudWatch Logs** | Fluent Bit sidecar with CloudWatch output | Works with both syslog and webhook |
-| **Elasticsearch** | Webhook export → Elasticsearch bulk API | Use `_bulk` endpoint with NDJSON |
+| **S3 (immutable)** | Fluent Bit or Vector reading the container's stdout | Enable S3 Object Lock for WORM compliance |
+| **Splunk** | Fluent Bit or Vector → Splunk HEC endpoint | `https://splunk:8088/services/collector/event` |
+| **Grafana Loki** | Promtail, Grafana Alloy or Fluent Bit | Keep the JSON fields as labels or structured metadata |
+| **CloudWatch Logs** | Fluent Bit sidecar with the CloudWatch output | |
+| **Elasticsearch** | Fluent Bit or Vector → Elasticsearch bulk API | |
 
-**Recommendation for SOC2/PCI compliance:** Use the webhook exporter to push
-audit entries to an immutable store (S3 with Object Lock, or a SIEM with
-write-once retention). That write-once copy is the one that survives a
-compromised database or server.
+**Recommendation for SOC2/PCI compliance:** ship those records off the host as they are
+written, to a store with write-once retention (S3 with Object Lock, or a SIEM). That
+write-once copy is the one that survives a compromised database or server.
 
 ---
 

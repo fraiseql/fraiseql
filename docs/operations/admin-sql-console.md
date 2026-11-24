@@ -156,14 +156,16 @@ would be the hole the extractor exists to close.
 ## Every execution is audited
 
 One entry per request, emitted as a structured security log event, like the credential
-events (there is no tamper-evident chain yet, #1630):
+events (there is no tamper-evident chain yet, #1630). An executed statement is an `INFO`
+record, `Security event: successful operation`; a failed or refused one is a `WARN` record,
+`Security event: failed operation`, with an `error` field. Either carries:
 
 ```text
 event_type   = admin_sql_execution
 secret_type  = admin_token
-subject      = admin_token | admin_readonly_token
-success      = true | false
-context      = peer_ip=… sha256=… commit_requested=… committed=… impersonate=… sql=…
+subject      = Some("admin_token") | Some("admin_readonly_token")
+operation    = admin_sql
+context      = Some("peer_ip=… sha256=… commit_requested=… committed=… impersonate=… sql=…")
 ```
 
 Recorded for **every** request that reaches the endpoint — executed, failed, and
@@ -175,9 +177,11 @@ The statement text is truncated to about 1 KB (the audit entry is bounded), so t
 SHA-256 of the whole text is recorded alongside it. A truncated record still
 identifies exactly which statement ran.
 
-Wire a database-backed audit logger before enabling the console in production. The
-default logger writes structured `tracing` records, which is fine if your log
-pipeline retains them and is not if it does not.
+These entries exist only as `tracing` records in the server's log output. The server
+ships no database-backed audit sink and nothing in its configuration installs one, so
+before enabling the console in production, make sure your log pipeline collects and
+retains them (`FRAISEQL_LOG_FORMAT=json` emits them as JSON), preferably in a store
+that whoever operates the database or the server cannot rewrite.
 
 ## What this does not bound
 
