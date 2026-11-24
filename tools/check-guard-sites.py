@@ -241,16 +241,28 @@ class Source:
     def function_spans(self, name: str) -> list[tuple[int, int]]:
         """The spans of `fn name` bodies, and of `const name` items (a guard can be a
         shared SQL predicate held in a const). For a file that defines `name` more than
-        once, `Type::name` keeps only those inside an `impl` block for `Type`, and `::name`
-        only those outside every `impl` and `trait` block: the free fn."""
+        once, `Type::name` keeps only those inside an `impl` block naming `Type`, and
+        `::name` only those outside every `impl` and `trait` block: the free fn. When
+        `Type` implements a trait with a method of the same name, `impl Type::name` keeps
+        the inherent `impl Type` alone and `impl Trait for Type::name` that trait's."""
         if "::" in name:
             owner, _, name = name.rpartition("::")
-            # An empty owner would match every `impl` block as if it were one for `Type`.
-            opener = (
-                r"\b(?:impl|trait)\b[^{;]*\{"
-                if not owner
-                else r"\bimpl\b[^{;]*?\b" + re.escape(owner) + r"\b[^{;]*\{"
-            )
+            if not owner:
+                # An empty owner would match every `impl` block as if it were one for `Type`.
+                opener = r"\b(?:impl|trait)\b[^{;]*\{"
+            elif owner.startswith("impl ") and " for " in owner:
+                trait, _, typ = owner[len("impl ") :].partition(" for ")
+                opener = (
+                    r"\bimpl\b[^{;]*?\b" + re.escape(trait.strip())
+                    + r"\b[^{;]*?\bfor\s+" + re.escape(typ.strip()) + r"\b[^{;]*\{"
+                )
+            elif owner.startswith("impl "):
+                opener = (
+                    r"\bimpl\b(?:\s*<[^{;>]*>)?\s+" + re.escape(owner[len("impl ") :].strip())
+                    + r"\b(?![^{;]*\bfor\b)[^{;]*\{"
+                )
+            else:
+                opener = r"\bimpl\b[^{;]*?\b" + re.escape(owner) + r"\b[^{;]*\{"
             blocks = [
                 (match.start(), closing_brace(self.code, match.end() - 1))
                 for match in re.finditer(opener, self.code)

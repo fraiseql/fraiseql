@@ -3371,3 +3371,12 @@ anchor = 'if body_bytes.len() > MAX_DISCOVERY_RESPONSE_BYTES {'
 mutant = 'if false && body_bytes.len() > MAX_DISCOVERY_RESPONSE_BYTES {'
 killers = ["oidc_discovery_oversized_response_is_rejected"]
 shard = "core-lib-oidc"
+
+[[site]]
+id = "jwks.source.unavailable"
+file = "crates/fraiseql-jwks/src/source.rs"
+function = "impl JwksSource::key"
+anchor = "None => Err(self.unavailable()),"
+mutant = "None => {\n                let _ = self.unavailable();\n                Ok(None)\n            },"
+killers = ["an_unreachable_publisher_is_asked_once_per_cooldown_too"]
+shard = "jwks-lib"

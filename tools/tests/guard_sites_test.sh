@@ -222,6 +222,27 @@ edit "tools/guard-sites.toml" 'mutant   = "check_revocation(None, u)"' 'mutant  
 expect 1 "${src}/routes/auth.rs:11:49: session guard" "29c. ::name resolves to the free fn, so the impl method's call is unrowed"
 if grep -qF "${src}/routes/auth.rs:2:5" "${tmp}/out"; then fail "29d. the free fn's rowed call was reported"; else pass "29d. the free fn's rowed call was not reported"; fi
 
+# A type with the same method in its own impl and in a trait's: each is named apart.
+tree; add "${src}/routes/auth.rs" $'pub struct Gate;
+impl Gate {
+    pub fn admit(s: &State, u: &User) { let _ = check_revocation(s.revocation.as_ref(), u); }
+}
+impl Admit for Gate {
+    fn admit(t: &State, v: &User) { let _ = check_revocation(t.revocation.as_ref(), v); }
+}'
+edit "tools/guard-sites.toml" 'function = "admit"' 'function = "Gate::admit"'
+expect 1 "\`fn Gate::admit\` is defined 2 time(s)" "29e. Type::name spans both impls of the type"
+edit "tools/guard-sites.toml" 'function = "Gate::admit"' 'function = "impl Gate::admit"'
+edit "tools/guard-sites.toml" 'anchor   = "check_revocation(state.revocation.as_ref(), user)"' 'anchor   = "check_revocation(s.revocation.as_ref(), u)"'
+edit "tools/guard-sites.toml" 'mutant   = "check_revocation(None, user)"' 'mutant   = "check_revocation(None, u)"'
+expect 1 "${src}/routes/auth.rs:14:45: session guard" "29f. impl Type::name is the inherent method, so the trait impl's call is unrowed"
+if grep -qF "${src}/routes/auth.rs:11:49" "${tmp}/out"; then fail "29f2. the inherent method's rowed call was reported"; else pass "29f2. the inherent method's rowed call was not reported"; fi
+edit "tools/guard-sites.toml" 'function = "impl Gate::admit"' 'function = "impl Admit for Gate::admit"'
+edit "tools/guard-sites.toml" 'anchor   = "check_revocation(s.revocation.as_ref(), u)"' 'anchor   = "check_revocation(t.revocation.as_ref(), v)"'
+edit "tools/guard-sites.toml" 'mutant   = "check_revocation(None, u)"' 'mutant   = "check_revocation(None, v)"'
+expect 1 "${src}/routes/auth.rs:11:49: session guard" "29g. impl Trait for Type::name is the trait's method, so the inherent call is unrowed"
+if grep -qF "${src}/routes/auth.rs:14:45" "${tmp}/out"; then fail "29g2. the trait method's rowed call was reported"; else pass "29g2. the trait method's rowed call was not reported"; fi
+
 rls_family() {
   cat >> "${ws}/tools/guard-sites.toml" <<'EOF'
 
