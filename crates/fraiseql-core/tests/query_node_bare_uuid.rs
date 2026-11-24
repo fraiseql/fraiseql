@@ -225,6 +225,55 @@ async fn executor_gating_the_card(gate: Value) -> Executor {
     Executor::new(schema, adapter)
 }
 
+/// `User`, and `AccountCard` behind `gate` over the accounts: an id `User` does not hold.
+async fn executor_gating_the_account_card(gate: Value) -> Executor {
+    let container = common::testcontainer::get_test_container().await;
+    let adapter = Arc::new(PostgresAdapter::new(&container.connection_string()).await.unwrap());
+    provision(&adapter).await;
+    let mut cards = list_query("accountCards", "AccountCard", "v_account");
+    for (key, value) in gate.as_object().unwrap() {
+        cards[key] = value.clone();
+    }
+    let schema: CompiledSchema = serde_json::from_value(json!({
+        "types": [node_type("User", "v_user"), node_type("AccountCard", "v_account")],
+        "queries": [list_query("users", "User", "v_user"), cards],
+        "interfaces": [{ "name": "Node", "fields": [{ "name": "id", "field_type": "ID" }] }]
+    }))
+    .unwrap();
+    Executor::new(schema, adapter)
+}
+
+/// An id only a gated type holds is not served to a caller the gate refuses: the lookup
+/// answers `null`, as for an id nothing holds, and the row is never returned.
+#[tokio::test]
+async fn an_id_only_a_role_gated_type_holds_is_null_without_the_role() {
+    let executor = executor_gating_the_account_card(json!({ "requires_role": "admin" })).await;
+    let query = format!("{{ node(id: \"{ACME}\") {{ ... on AccountCard {{ name }} }} }}");
+
+    let refused = executor.execute_with_security(&query, None, &tenant("t1")).await.unwrap();
+    assert_eq!(refused["data"]["node"], Value::Null, "{refused}");
+
+    let mut admin = tenant("t1");
+    admin.roles = vec!["admin".to_string()];
+    let served = executor.execute_with_security(&query, None, &admin).await.unwrap();
+    assert_eq!(served["data"]["node"]["name"], "Acme", "the role holder is served: {served}");
+}
+
+/// The same for an id only a type restricted to another actor class holds.
+#[tokio::test]
+async fn an_id_only_an_actor_restricted_type_holds_is_null_to_another_class() {
+    let executor =
+        executor_gating_the_account_card(json!({ "requires_actor": ["service_account"] })).await;
+    let query = format!("{{ node(id: \"{ACME}\") {{ ... on AccountCard {{ name }} }} }}");
+
+    let refused = executor.execute_with_security(&query, None, &tenant("t1")).await.unwrap();
+    assert_eq!(refused["data"]["node"], Value::Null, "{refused}");
+
+    let service = tenant("t1").with_actor_type(fraiseql_core::security::ActorType::ServiceAccount);
+    let served = executor.execute_with_security(&query, None, &service).await.unwrap();
+    assert_eq!(served["data"]["node"]["name"], "Acme", "the listed class is served: {served}");
+}
+
 /// A type whose read requires a role the caller lacks is no candidate: the id resolves
 /// to the one type the caller may read, and nothing reveals that the other holds it.
 #[tokio::test]

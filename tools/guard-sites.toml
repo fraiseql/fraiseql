@@ -2570,7 +2570,10 @@ file = "crates/fraiseql-core/src/runtime/executor/runners/query_relay.rs"
 function = "resolve_bare_node_type"
 anchor = "crate::security::actor_type::enforce_requires_actor(\n                    \"Query\",\n                    &node_qdef.name,\n                    &node_qdef.requires_actor,\n                    security_context,\n                )"
 mutant = "crate::security::actor_type::enforce_requires_actor(\n                    \"Query\",\n                    &node_qdef.name,\n                    &[],\n                    security_context,\n                )"
-killers = ["a_type_restricted_to_another_actor_class_is_not_a_candidate"]
+killers = [
+  "a_type_restricted_to_another_actor_class_is_not_a_candidate",
+  "an_id_only_an_actor_restricted_type_holds_is_null_to_another_class",
+]
 shard = "core-node-bare-id"
 
 [[site]]
