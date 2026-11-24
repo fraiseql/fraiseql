@@ -1,6 +1,5 @@
-//! The calendar text, case by case, then over a sweep against chrono itself while chrono is
-//! still a workspace dependency. PostgreSQL's own rendering is the other oracle, in
-//! `fraiseql-db`'s `temporal_text_against_postgres_pg` suite.
+//! The calendar text, case by case, as chrono 0.4.45 wrote it. PostgreSQL's own rendering is
+//! the other oracle, in `fraiseql-db`'s `temporal_text_against_postgres_pg` suite.
 
 use super::{date, date_time, rfc3339};
 
@@ -116,71 +115,4 @@ fn a_nanosecond_of_a_whole_second_or_a_date_outside_chronos_years_is_none() {
     // The last second chrono held, and the first.
     assert_eq!(date_time(95_026_237 * 86_400 - 1, 0).as_deref(), Some("+262142-12-31T23:59:59"));
     assert_eq!(date_time(-96_465_292 * 86_400, 0).as_deref(), Some("-262143-01-01T00:00:00"));
-}
-
-/// The same text as chrono's, over a sweep across its whole range, while chrono is still a
-/// workspace dependency.
-mod against_chrono {
-    use chrono::{DateTime, NaiveDate, SecondsFormat};
-
-    use super::super::{date, date_time, rfc3339};
-
-    /// Days from 1970: dense near the era and leap-year boundaries, sparse elsewhere.
-    fn days() -> Vec<i64> {
-        let mut days: Vec<i64> = (-800_000..=800_000).step_by(997).collect();
-        for anchor in [
-            -96_465_292,
-            -2_440_550,
-            -719_469,
-            -719_162,
-            -25_508,
-            0,
-            10_957,
-            11_016,
-            157_113,
-            2_932_897,
-            95_026_236,
-        ] {
-            days.extend(anchor - 3..=anchor + 3);
-        }
-        days.extend((-96_465_300..=95_026_240).step_by(104_729));
-        days
-    }
-
-    #[test]
-    fn every_date_is_chronos_text_or_none_where_chrono_had_none() {
-        let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).expect("the epoch");
-        for days in days() {
-            let theirs = epoch
-                .checked_add_signed(chrono::Duration::days(days))
-                .map(|day| day.to_string());
-            assert_eq!(date(days), theirs, "{days}");
-        }
-    }
-
-    #[test]
-    fn every_date_time_is_chronos_text_or_none_where_chrono_had_none() {
-        for days in days() {
-            for (of_day, nanosecond) in [
-                (0, 0),
-                (1, 1_000),
-                (43_200, 500_000_000),
-                (86_399, 999_999_999),
-                (37_800, 123_456_000),
-            ] {
-                let second = days * 86_400 + of_day;
-                let theirs = DateTime::from_timestamp(second, nanosecond);
-                assert_eq!(
-                    date_time(second, nanosecond),
-                    theirs.map(|at| at.naive_utc().format("%Y-%m-%dT%H:%M:%S%.f").to_string()),
-                    "{second} {nanosecond}"
-                );
-                assert_eq!(
-                    rfc3339(second, nanosecond),
-                    theirs.map(|at| at.to_rfc3339_opts(SecondsFormat::AutoSi, false)),
-                    "{second} {nanosecond}"
-                );
-            }
-        }
-    }
 }

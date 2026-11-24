@@ -233,6 +233,11 @@ disagreed, and the promise was the part that was wrong.
   message, `<field> = "<text>" is not a valid RFC3339 timestamp; expected e.g.
   "2026-01-31T00:00:00Z"`, without the parser's own reason.
 
+- **`fraiseql-time`'s `chrono` feature is removed (#2026).** No FraiseQL crate depends on
+  chrono, so the `From`/`TryFrom` conversions between `Timestamp` and
+  `chrono::DateTime<Utc>` are gone. Code that still holds a chrono value converts through
+  its seconds and nanoseconds with `Timestamp::new`.
+
 - **`fraiseql_server::chrono` is removed, and `fraiseql-server` no longer depends on
   chrono (#2026).** The instants in its public API are `fraiseql_time::Timestamp`:
   `ApiKeyRecord`'s times, `AdminTokenRecord::created_at` and `last_used_at`,
@@ -1725,6 +1730,14 @@ disagreed, and the promise was the part that was wrong.
   see "Roles from the actor row" in `docs/architecture/enriched-identity-rls.md`.
 
 ### Changed
+
+- **No FraiseQL crate depends on chrono (#2026).** Every instant is a
+  `fraiseql_time::Timestamp`, built on jiff, and every text form is unchanged. chrono
+  stays in the build only under third-party crates: arrow and parquet, async-imap, rmcp
+  (directly and through schemars' `chrono04` feature) and samael. RUSTSEC-2026-0543 is
+  therefore no longer an accepted advisory: `unmaintained = "workspace"` applies to
+  direct dependencies only, as it does for the other unmaintained crates under
+  third-party ones.
 
 - **An API key whose `expires_in_secs` reaches past 9999-12-30T22:00:00Z is refused
   (#2026).** `POST /api/v1/admin/api-keys` answers 400 `invalid_input`, "expires_in_secs

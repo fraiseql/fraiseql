@@ -78,7 +78,6 @@ base64 = "0.22"
 # Utilities
 bytes = "1.0"
 # Time
-chrono = { version = "0.4", features = ["serde"] }
 # Time zone data is compiled in, so a binary reads the same zones on every host.
 jiff = { version = "0.2.37", default-features = false, features = [
   "std",
@@ -214,7 +213,6 @@ tokio = { version = "1.52", features = [
 tokio-postgres = { version = "0.7", features = [
   "with-serde_json-1",
   "with-uuid-1",
-  "with-chrono-0_4",
 ] }
 # Configuration
 toml = "0.8"

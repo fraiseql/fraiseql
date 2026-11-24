@@ -1,11 +1,12 @@
 //! `Timestamp` as a PostgreSQL `timestamptz`, through sqlx and tokio-postgres, against a
-//! real database, beside chrono's `DateTime<Utc>` over the same values.
+//! real database: read as PostgreSQL's own epoch names the value, and written as chrono's
+//! `DateTime<Utc>` wrote the same instants (its text recorded from chrono 0.4.45 through
+//! both drivers).
 //!
 //! `#[ignore]`: needs `DATABASE_URL`. Run with:
 //! `cargo test -p fraiseql-time --all-features --test timestamptz_pg -- --ignored
 //! --test-threads=1`.
 
-use chrono::{DateTime, Utc};
 use fraiseql_test_support::database_url;
 use fraiseql_time::Timestamp;
 use sqlx::{PgPool, Row as _};
@@ -27,11 +28,7 @@ fn at(second: i64, nanosecond: i32) -> Timestamp {
     Timestamp::new(second, nanosecond).expect("an instant in range")
 }
 
-const fn chrono_at(second: i64, nanosecond: i32) -> DateTime<Utc> {
-    DateTime::from_timestamp(second, nanosecond.unsigned_abs()).expect("an instant in range")
-}
-
-/// Values in range read as the instant chrono read, through both drivers.
+/// Values in range read as the instant PostgreSQL's epoch names, through both drivers.
 const IN_RANGE: &[&str] = &[
     "2025-11-20 12:00:00.123456+00",
     "2025-11-20 12:00:00.12+00",
@@ -54,25 +51,27 @@ const OUT_OF_RANGE: &[(&str, &str)] = &[
 
 #[tokio::test]
 #[ignore = "needs DATABASE_URL"]
-async fn values_in_range_read_as_chrono_read_them() {
+async fn values_in_range_read_as_postgresqls_epoch_names_them() {
     let pool = pool().await;
     let client = client().await;
     for text in IN_RANGE {
         let sql = format!("select '{text}'::timestamptz");
+        let epoch = format!("select (extract(epoch from '{text}'::timestamptz) * 1000000)::int8");
+        // Reason: the literal is one of the test's own constants.
+        let micros: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(epoch.as_str()))
+            .fetch_one(&pool)
+            .await
+            .expect("PostgreSQL names the epoch");
         // Reason: the literal is one of the test's own constants.
         let ours: Timestamp = sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str()))
             .fetch_one(&pool)
             .await
             .expect("sqlx reads");
-        let theirs: DateTime<Utc> =
-            // Reason: the literal is one of the test's own constants.
-            sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())).fetch_one(&pool).await.expect("sqlx reads chrono");
-        assert_eq!(ours.as_microsecond(), theirs.timestamp_micros(), "sqlx, {text}");
+        assert_eq!(ours.as_microsecond(), micros, "sqlx, {text}");
 
         let row = client.query_one(&sql, &[]).await.expect("tokio-postgres reads");
         let ours: Timestamp = row.get(0);
-        let theirs: DateTime<Utc> = row.get(0);
-        assert_eq!(ours.as_microsecond(), theirs.timestamp_micros(), "tokio-postgres, {text}");
+        assert_eq!(ours.as_microsecond(), micros, "tokio-postgres, {text}");
     }
 }
 
@@ -100,17 +99,19 @@ async fn values_out_of_range_are_a_decode_error_naming_the_value() {
     }
 }
 
-/// Instants written, then read back by PostgreSQL as text in UTC.
-const WRITTEN: &[(i64, i32)] = &[
-    (1_763_640_000, 123_456_789),
-    (1_763_640_000, 120_000_000),
-    (946_684_800, 0),
-    (946_684_799, 999_999_999),
-    (946_684_799, 999_999),
-    (-1, 999_999_999),
-    (-62_135_596_800, 1_999),
-    (-210_866_803_200, 0),
-    (253_402_207_200, 999_999_999),
+/// Instants written, and the text PostgreSQL reads back in UTC, as it did for chrono's
+/// `DateTime<Utc>` of the same instant: the fraction truncated to the microsecond toward
+/// 2000-01-01.
+const WRITTEN: &[(i64, i32, &str)] = &[
+    (1_763_640_000, 123_456_789, "2025-11-20 12:00:00.123456"),
+    (1_763_640_000, 120_000_000, "2025-11-20 12:00:00.12"),
+    (946_684_800, 0, "2000-01-01 00:00:00"),
+    (946_684_799, 999_999_999, "2000-01-01 00:00:00"),
+    (946_684_799, 999_999, "1999-12-31 23:59:59.001"),
+    (-1, 999_999_999, "1970-01-01 00:00:00"),
+    (-62_135_596_800, 1_999, "0001-01-01 00:00:00.000002"),
+    (-210_866_803_200, 0, "4714-11-24 00:00:00 BC"),
+    (253_402_207_200, 999_999_999, "9999-12-30 22:00:00.999999"),
 ];
 
 #[tokio::test]
@@ -119,31 +120,21 @@ async fn values_are_written_as_chrono_wrote_them() {
     const AS_TEXT: &str = "select ($1::timestamptz at time zone 'UTC')::text";
     let pool = pool().await;
     let client = client().await;
-    for &(second, nanosecond) in WRITTEN {
+    for &(second, nanosecond, text) in WRITTEN {
         let what = format!("{second} s {nanosecond} ns");
         let ours: String = sqlx::query_scalar(AS_TEXT)
             .bind(at(second, nanosecond))
             .fetch_one(&pool)
             .await
             .expect("sqlx writes");
-        let theirs: String = sqlx::query_scalar(AS_TEXT)
-            .bind(chrono_at(second, nanosecond))
-            .fetch_one(&pool)
-            .await
-            .expect("sqlx writes chrono");
-        assert_eq!(ours, theirs, "sqlx, {what}");
+        assert_eq!(ours, text, "sqlx, {what}");
 
         let ours: String = client
             .query_one(AS_TEXT, &[&at(second, nanosecond)])
             .await
             .expect("tokio-postgres writes")
             .get(0);
-        let theirs: String = client
-            .query_one(AS_TEXT, &[&chrono_at(second, nanosecond)])
-            .await
-            .expect("tokio-postgres writes chrono")
-            .get(0);
-        assert_eq!(ours, theirs, "tokio-postgres, {what}");
+        assert_eq!(ours, text, "tokio-postgres, {what}");
     }
 }
 
@@ -152,7 +143,7 @@ async fn values_are_written_as_chrono_wrote_them() {
 async fn a_value_written_reads_back_truncated_to_the_microsecond() {
     let pool = pool().await;
     let client = client().await;
-    for &(second, nanosecond) in WRITTEN {
+    for &(second, nanosecond, _) in WRITTEN {
         let written = at(second, nanosecond);
         // Truncated toward 2000-01-01, not toward 1970: the two differ between the epochs.
         let since_2000 = written.duration_since(at(946_684_800, 0)).as_micros();

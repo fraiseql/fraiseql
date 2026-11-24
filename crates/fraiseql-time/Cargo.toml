@@ -15,7 +15,6 @@ version.workspace = true
 
 [dependencies]
 bytes = { workspace = true, optional = true }
-chrono = { workspace = true, optional = true }
 jiff = { workspace = true }
 postgres-types = { version = "0.2", optional = true }
 serde = { workspace = true }
@@ -25,21 +24,16 @@ sqlx = { version = "0.9.1", default-features = false, features = [
 thiserror = { workspace = true }
 
 [dev-dependencies]
-# The text forms are compared against chrono itself while workspace crates still use it.
-chrono = { workspace = true }
 fraiseql-test-support = { path = "../fraiseql-test-support" }
 serde_json = { workspace = true }
 sqlx = { version = "0.9.1", default-features = false, features = [
   "postgres",
   "runtime-tokio",
-  "chrono",
 ] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tokio-postgres = { workspace = true }
 
 [features]
-# `From`/`TryFrom` between `Timestamp` and `chrono::DateTime<Utc>`.
-chrono = ["dep:chrono"]
 # `Type`/`Encode`/`Decode` for sqlx's PostgreSQL driver.
 sqlx = ["dep:sqlx"]
 # `ToSql`/`FromSql` for tokio-postgres (through postgres-types).

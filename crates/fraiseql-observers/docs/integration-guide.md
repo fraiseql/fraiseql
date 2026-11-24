@@ -81,7 +81,7 @@ async fn drive(pool: sqlx::PgPool, executor: ObserverExecutor) -> fraiseql_obser
         let state = CheckpointState {
             listener_id:       LISTENER.to_string(),
             last_processed_id: last.id,
-            last_processed_at: chrono::Utc::now(),
+            last_processed_at: fraiseql_time::Timestamp::now(),
             batch_size:        batch.len(),
             event_count:       processed,
         };

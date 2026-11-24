@@ -4350,7 +4350,6 @@ name = "fraiseql-time"
 version = "2.19.1"
 dependencies = [
  "bytes",
- "chrono",
  "fraiseql-test-support",
  "jiff",
  "postgres-types",
@@ -7176,7 +7175,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "851ca9db4932932d69f3ea811b1abe63087a0f740a47692619dd40d4899b68be"
 dependencies = [
  "bytes",
- "chrono",
  "fallible-iterator",
  "postgres-protocol",
  "serde_core",
@@ -9071,7 +9069,6 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "cfg-if",
- "chrono",
  "crc",
  "crossbeam-queue",
  "either",
@@ -9148,7 +9145,6 @@ dependencies = [
  "bitflags 2.11.1",
  "byteorder",
  "bytes",
- "chrono",
  "crc",
  "digest 0.11.2",
  "dotenvy",
@@ -9177,7 +9173,6 @@ dependencies = [
  "base64 0.22.1",
  "bitflags 2.11.1",
  "byteorder",
- "chrono",
  "crc",
  "dotenvy",
  "etcetera",
@@ -9211,7 +9206,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "88b6b78a34ddcb1db4046d462db8f79cee811019d7297b99fca8fac5de26672e"
 dependencies = [
  "atoi",
- "chrono",
  "flume",
  "form_urlencoded",
  "futures-channel",

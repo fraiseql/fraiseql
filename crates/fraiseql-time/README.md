@@ -20,9 +20,6 @@ whole microseconds from 2000-01-01, truncated toward it when written. Reading a 
 outside the range a `Timestamp` holds (`infinity`, `-infinity`, a year past 9999) is a
 decode error naming the value.
 
-With the `chrono` feature, a `Timestamp` converts into a `chrono::DateTime<Utc>`, and one
-converts back with `TryFrom`, which fails outside the range a `Timestamp` holds.
-
 `calendar` writes the same text for dates and date-times past year 9999, which a
 `Timestamp` does not hold but PostgreSQL stores: `calendar::date(days)`,
 `calendar::date_time(second, nanosecond)` and `calendar::rfc3339(second, nanosecond)`,

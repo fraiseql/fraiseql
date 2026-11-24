@@ -64,11 +64,6 @@ ignore = [
   { id = "RUSTSEC-2026-0398", reason = "zstd-safe Seekable::decompress: compiled only with the `seekable` feature, which nothing enables (feature-off:seekable, check-advisory-paths.sh). Fix needs zstd 0.14, blocked by parquet 59 (#1747). Deadline 2027-01-31." },
   { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5 under elliptic-curve 0.13: ES256/384 and webhook verification are public-key; secret-key use is Apple's cached client_secret and S3 SigV4a (#1711). No 0.5-series fix. Deadline 2027-01-31." },
   { id = "RUSTSEC-2023-0071", reason = "rsa used for RS256 public-key verification (unaffected) and GCS service-account signing only; no caller-triggerable private-key operation (#1110, gated by check-crypto-providers.sh). Deadline 2027-01-31." },
-  # chrono 0.4.45: marked unmaintained by RustSec (all versions), no vulnerability and no
-  # exploit path; `unmaintained = "workspace"` fails because workspace crates depend on it
-  # directly. The move to jiff is #2026.
-  # deadline: 2027-05-17 — move workspace crates to jiff (#2026).
-  { id = "RUSTSEC-2026-0543", reason = "chrono unmaintained (maintenance advisory, no vulnerability): direct dependency of workspace crates; move to jiff is #2026. Deadline 2027-05-17." },
 ]
 unmaintained = "workspace"
 
