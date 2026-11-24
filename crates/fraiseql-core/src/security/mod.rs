@@ -21,6 +21,7 @@ pub mod audit_export_webhook;
 pub mod auth_middleware;
 pub mod authorizer;
 pub mod bearer;
+pub mod claim_time;
 pub mod errors;
 pub mod field_authorizer;
 pub mod field_masking;
@@ -63,6 +64,7 @@ pub use authorizer::{
     Authorizer, AuthzDecision, AuthzNesting, AuthzOperation, AuthzRequest, OperationKind,
 };
 pub use bearer::bearer_credential;
+pub use claim_time::instant_from_claim;
 pub use errors::SecurityError;
 pub use field_authorizer::{FieldAuthorizer, FieldAuthzDecision, FieldAuthzRequest};
 pub use field_masking::{FieldMasker, FieldSensitivity};

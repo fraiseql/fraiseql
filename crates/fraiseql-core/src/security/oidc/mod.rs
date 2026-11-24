@@ -53,6 +53,8 @@ pub mod replay_cache;
 pub(crate) mod token;
 
 #[cfg(test)]
+mod exp_bound_tests;
+#[cfg(test)]
 mod in_process_keys_tests;
 #[cfg(test)]
 mod temporal_claims_tests;

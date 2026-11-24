@@ -199,7 +199,6 @@ mod principal_hash_tests {
         tenant_id: Option<&str>,
         scopes: &[&str],
     ) -> SecurityContext {
-        use chrono::Utc;
         SecurityContext {
             user_id:          user_id.into(),
             roles:            roles.iter().map(|s| (*s).to_string()).collect(),
@@ -208,8 +207,9 @@ mod principal_hash_tests {
             attributes:       std::collections::HashMap::new(),
             request_id:       "test-request".to_string(),
             ip_address:       None,
-            authenticated_at: Utc::now(),
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
             issuer:           None,
             audience:         None,
             email:            None,

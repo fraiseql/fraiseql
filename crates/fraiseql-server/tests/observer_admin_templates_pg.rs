@@ -30,7 +30,6 @@ use axum::{
     body::Body,
     http::{Method, Request, StatusCode},
 };
-use chrono::{Duration, Utc};
 use fraiseql_core::{
     db::postgres::PostgresAdapter,
     runtime::Executor,
@@ -101,7 +100,8 @@ async fn rig_over(schema: CompiledSchema) -> Rig {
     let operator = AuthUser(AuthenticatedUser {
         user_id:      fraiseql_core::types::UserId::new("admin-user"),
         scopes:       vec!["fraiseql:admin".to_owned()],
-        expires_at:   Utc::now() + Duration::hours(1),
+        expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
         email:        None,
         display_name: None,
         extra_claims: HashMap::new(),

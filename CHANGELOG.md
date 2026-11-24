@@ -233,6 +233,15 @@ disagreed, and the promise was the part that was wrong.
   message, `<field> = "<text>" is not a valid RFC3339 timestamp; expected e.g.
   "2026-01-31T00:00:00Z"`, without the parser's own reason.
 
+- **`SecurityContext`, `AuthenticatedUser` and `AuditEntry` carry instants as
+  `fraiseql_time::Timestamp` (#2026).** `SecurityContext::authenticated_at` and
+  `expires_at`, `AuthenticatedUser::expires_at` and `AuditEntry::timestamp` were
+  `chrono::DateTime<Utc>`. `fraiseql-core` re-exports `fraiseql_time`, so code that builds
+  one reaches the type as `fraiseql_core::fraiseql_time::Timestamp`. Their text is
+  unchanged: a serialized context or audit entry writes the same instants, a stored audit
+  chain still verifies, and `AuthenticatedUser`'s `Display` still reads
+  `expires=2024-01-15 10:30:00 UTC`.
+
 - **`fraiseql_functions::chrono` and `fraiseql_functions::chrono_tz` are removed, and
   `fraiseql-functions` no longer depends on chrono or chrono-tz (#2026).** The crate's
   public API names no chrono type any more. A caller that reached chrono or chrono-tz
@@ -1668,6 +1677,13 @@ disagreed, and the promise was the part that was wrong.
   see "Roles from the actor row" in `docs/architecture/enriched-identity-rls.md`.
 
 ### Changed
+
+- **A bearer token whose `exp` is after 9999-12-30T22:00:00Z is refused as invalid
+  (#2026).** That is the last whole second a principal's expiry holds; a token expiring
+  later is one that never expires, so the OIDC validator and Arrow Flight's session
+  tokens refuse it rather than accept it with an expiry it cannot carry. Arrow Flight
+  answered such a session token with an internal error, `Invalid expiration timestamp`; it
+  now answers `UNAUTHENTICATED` with `Invalid token`, as the OIDC path does.
 
 - **`SortDirection` has four more values (#1606):** `ASC_NULLS_FIRST`, `ASC_NULLS_LAST`,
   `DESC_NULLS_FIRST` and `DESC_NULLS_LAST`, after `ASC` and `DESC`. Every document that

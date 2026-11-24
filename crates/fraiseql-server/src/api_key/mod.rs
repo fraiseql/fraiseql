@@ -272,7 +272,8 @@ fn build_security_context(key_name: &str, scopes: &[String]) -> SecurityContext 
     let user = AuthenticatedUser {
         user_id:      fraiseql_core::types::UserId::new(format!("apikey:{key_name}")),
         scopes:       scopes.to_vec(),
-        expires_at:   Utc::now() + chrono::Duration::hours(24),
+        expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(24),
         email:        None,
         display_name: None,
         extra_claims: std::collections::HashMap::new(),

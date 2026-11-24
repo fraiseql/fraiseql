@@ -1510,8 +1510,9 @@ mod mutation {
             attributes:       std::collections::HashMap::default(),
             request_id:       "req-1".to_string(),
             ip_address:       None,
-            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: chrono::Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -2353,8 +2354,6 @@ mod mutation {
     /// authenticated path cannot silently diverge from the anonymous one.
     #[tokio::test]
     async fn jsonb_mutation_recases_through_execute_with_security() {
-        use chrono::Utc;
-
         use crate::{
             schema::{
                 FieldType, InputFieldDefinition, InputObjectDefinition, InputStyle,
@@ -2403,8 +2402,9 @@ mod mutation {
             attributes:       std::collections::HashMap::default(),
             request_id:       "req-1".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -3475,8 +3475,6 @@ mod mutation_audit {
 mod mutation_rbac {
     use std::collections::HashMap;
 
-    use chrono::Utc;
-
     use super::*;
     use crate::{schema::MutationDefinition, security::SecurityContext};
 
@@ -3499,8 +3497,9 @@ mod mutation_rbac {
             attributes:       HashMap::default(),
             request_id:       "req-1".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -3582,7 +3581,6 @@ mod field_authz {
     use std::collections::HashMap;
 
     use async_trait::async_trait;
-    use chrono::Utc;
 
     use super::*;
     use crate::{
@@ -4831,8 +4829,9 @@ mod field_authz {
             attributes:       HashMap::default(),
             request_id:       "req-authz".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -5048,7 +5047,6 @@ mod cascade {
     use std::collections::HashMap;
 
     use async_trait::async_trait;
-    use chrono::Utc;
     use serde_json::json;
 
     use super::*;
@@ -5254,8 +5252,9 @@ mod cascade {
             attributes:       HashMap::default(),
             request_id:       "req-cascade".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -5785,7 +5784,6 @@ mod before_mutation_enforcement {
     };
 
     use async_trait::async_trait;
-    use chrono::Utc;
 
     use super::*;
     use crate::{
@@ -6088,8 +6086,9 @@ mod before_mutation_enforcement {
             attributes:       HashMap::default(),
             request_id:       "req-1327".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -6443,7 +6442,6 @@ mod before_mutation_read_bridge {
     };
 
     use async_trait::async_trait;
-    use chrono::Utc;
 
     use super::*;
     use crate::{
@@ -6730,8 +6728,9 @@ mod before_mutation_read_bridge {
             attributes:       HashMap::default(),
             request_id:       format!("req-1328-{user}"),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -6882,7 +6881,6 @@ mod rest_write_body {
     };
 
     use async_trait::async_trait;
-    use chrono::Utc;
 
     use super::*;
     use crate::{
@@ -7221,8 +7219,9 @@ mod rest_write_body {
             attributes:       HashMap::default(),
             request_id:       "req-1331".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,

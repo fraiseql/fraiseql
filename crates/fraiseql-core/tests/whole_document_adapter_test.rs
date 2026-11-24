@@ -154,8 +154,9 @@ fn scopeless() -> SecurityContext {
         attributes:       HashMap::new(),
         request_id:       "req-whole-document".to_string(),
         ip_address:       None,
-        authenticated_at: chrono::Utc::now(),
-        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        authenticated_at: fraiseql_time::Timestamp::now(),
+        expires_at:       fraiseql_time::Timestamp::now()
+            + fraiseql_time::jiff::SignedDuration::from_hours(1),
         issuer:           None,
         audience:         None,
         email:            None,

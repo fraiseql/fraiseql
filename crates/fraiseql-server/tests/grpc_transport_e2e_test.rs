@@ -1163,8 +1163,9 @@ async fn query_with_security_context_applies_rls_where_clause() {
         attributes:       HashMap::new(),
         request_id:       "grpc-test".to_string(),
         ip_address:       None,
-        authenticated_at: chrono::Utc::now(),
-        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        authenticated_at: fraiseql_core::fraiseql_time::Timestamp::now(),
+        expires_at:       fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
         issuer:           None,
         audience:         None,
         email:            None,
@@ -1573,7 +1574,8 @@ async fn a_configured_rls_policy_is_the_one_a_grpc_read_applies() {
             email:        None,
             display_name: None,
             scopes:       Vec::new(),
-            expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+            expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+                + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
             extra_claims: std::collections::HashMap::new(),
             provenance:   fraiseql_core::security::Provenance::BearerToken,
         },
@@ -1630,7 +1632,8 @@ async fn an_unconfigured_policy_is_not_invented_for_a_grpc_read() {
             email:        None,
             display_name: None,
             scopes:       Vec::new(),
-            expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+            expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+                + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
             extra_claims: std::collections::HashMap::new(),
             provenance:   fraiseql_core::security::Provenance::BearerToken,
         },
@@ -1681,7 +1684,8 @@ fn p1348_principal() -> fraiseql_core::security::SecurityContext {
             email:        None,
             display_name: None,
             scopes:       Vec::new(),
-            expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+            expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+                + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
             extra_claims: std::collections::HashMap::new(),
             provenance:   fraiseql_core::security::Provenance::BearerToken,
         },

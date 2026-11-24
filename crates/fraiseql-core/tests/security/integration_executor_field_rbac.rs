@@ -11,7 +11,6 @@
 #![allow(clippy::default_trait_access)] // Reason: test setup uses Default::default() for brevity
 use std::collections::HashMap;
 
-use chrono::Utc;
 use fraiseql_core::{
     runtime::{RuntimeConfig, can_access_field, filter_fields},
     schema::{
@@ -197,8 +196,9 @@ fn create_executor_context(role: &str) -> SecurityContext {
         attributes:       HashMap::new(),
         request_id:       "req-exec".to_string(),
         ip_address:       None,
-        authenticated_at: Utc::now(),
-        expires_at:       Utc::now() + chrono::Duration::hours(1),
+        authenticated_at: fraiseql_time::Timestamp::now(),
+        expires_at:       fraiseql_time::Timestamp::now()
+            + fraiseql_time::jiff::SignedDuration::from_hours(1),
         issuer:           None,
         audience:         None,
         email:            None,

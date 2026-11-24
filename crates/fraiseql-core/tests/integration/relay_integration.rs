@@ -1452,8 +1452,9 @@ mod relay_security {
             )]),
             request_id:       "test-req".to_string(),
             ip_address:       None,
-            authenticated_at: chrono::Utc::now(),
-            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -1473,8 +1474,9 @@ mod relay_security {
             )]),
             request_id:       "test-admin-req".to_string(),
             ip_address:       None,
-            authenticated_at: chrono::Utc::now(),
-            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
             issuer:           None,
             audience:         None,
             email:            None,

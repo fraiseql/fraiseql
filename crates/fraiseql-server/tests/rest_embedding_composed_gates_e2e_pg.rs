@@ -36,7 +36,6 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use chrono::Utc;
 use fraiseql_core::{
     db::postgres::PostgresAdapter,
     error::FraiseQLError,
@@ -171,8 +170,9 @@ fn principal(user: &str, roles: &[&str]) -> SecurityContext {
         attributes:       HashMap::new(),
         request_id:       "req-composed-gates".to_string(),
         ip_address:       None,
-        authenticated_at: Utc::now(),
-        expires_at:       Utc::now() + chrono::Duration::hours(1),
+        authenticated_at: fraiseql_core::fraiseql_time::Timestamp::now(),
+        expires_at:       fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
         issuer:           None,
         audience:         None,
         email:            None,

@@ -255,11 +255,13 @@ async fn spawn_ws_server_with_principal(
     format!("ws://{addr}/ws")
 }
 
-fn user_expiring_in(duration: chrono::Duration) -> fraiseql_core::security::AuthenticatedUser {
+fn user_expiring_in(
+    duration: fraiseql_core::fraiseql_time::jiff::SignedDuration,
+) -> fraiseql_core::security::AuthenticatedUser {
     fraiseql_core::security::AuthenticatedUser {
         user_id:      fraiseql_core::types::UserId::new("user-771"),
         scopes:       vec![],
-        expires_at:   chrono::Utc::now() + duration,
+        expires_at:   fraiseql_core::fraiseql_time::Timestamp::now() + duration,
         email:        None,
         display_name: None,
         extra_claims: std::collections::HashMap::new(),
@@ -279,7 +281,7 @@ async fn expired_token_stops_event_delivery_and_closes_4401() {
 
     let url = spawn_ws_server_with_principal(
         state,
-        user_expiring_in(chrono::Duration::milliseconds(500)),
+        user_expiring_in(fraiseql_core::fraiseql_time::jiff::SignedDuration::from_millis(500)),
     )
     .await;
     let (mut sink, mut stream) = connect_ws(&url).await;
@@ -346,7 +348,7 @@ async fn idle_expired_stream_is_closed_by_the_periodic_recheck() {
 
     let url = spawn_ws_server_with_principal(
         state,
-        user_expiring_in(chrono::Duration::milliseconds(300)),
+        user_expiring_in(fraiseql_core::fraiseql_time::jiff::SignedDuration::from_millis(300)),
     )
     .await;
     let (mut sink, mut stream) = connect_ws(&url).await;
@@ -398,7 +400,7 @@ async fn revoked_token_terminates_live_subscription_with_4401() {
         .with_auth_recheck_interval(std::time::Duration::from_millis(100));
 
     // Token valid for an hour — only revocation can terminate this stream.
-    let user = user_expiring_in(chrono::Duration::hours(1));
+    let user = user_expiring_in(fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1));
     let claims = SessionTokenClaims {
         jti: Some("jti-771".to_string()),
         iat: Some(chrono::Utc::now().timestamp() - 60),
@@ -843,7 +845,7 @@ async fn a_subscribe_sent_after_the_token_expired_closes_4401() {
 
     let url = spawn_ws_server_with_principal(
         state,
-        user_expiring_in(chrono::Duration::milliseconds(300)),
+        user_expiring_in(fraiseql_core::fraiseql_time::jiff::SignedDuration::from_millis(300)),
     )
     .await;
     let (mut sink, mut stream) = connect_ws(&url).await;
@@ -1060,7 +1062,8 @@ mod variable_type_visibility {
         let state = SubscriptionState::new(Arc::clone(&manager))
             .with_live_schema(Some(live_schema))
             .with_live_executor(Some(live_executor));
-        let mut user = user_expiring_in(chrono::Duration::hours(1));
+        let mut user =
+            user_expiring_in(fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1));
         user.extra_claims.insert("roles".to_string(), json!(roles));
         (spawn_ws_server_with_principal(state, user).await, manager)
     }

@@ -70,7 +70,8 @@ fn router(resolver: Option<IdentityResolver>, token_roles: &[&str]) -> Router {
             email: None,
             display_name: None,
             scopes: Vec::new(),
-            expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+            expires_at: fraiseql_core::fraiseql_time::Timestamp::now()
+                + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
             extra_claims,
             provenance: fraiseql_core::security::Provenance::BearerToken,
         })))

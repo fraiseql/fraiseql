@@ -39,7 +39,6 @@ use fraiseql_core::{
         CacheConfig, CachedDatabaseAdapter, FactTableCacheConfig, FactTableVersionStrategy,
         QueryResultCache,
     },
-    chrono::Utc,
     compiler::fact_table::{
         Additivity, DimensionColumn, DimensionPath, FactGrain, FactRowScope, FactTableMetadata,
         FilterColumn, GrainBucket, MeasureColumn, SemiAdditiveReduction, SqlType,
@@ -358,8 +357,9 @@ fn principal(account: i64) -> SecurityContext {
         attributes:       HashMap::from([("account".to_string(), json!(account))]),
         request_id:       "req-1".to_string(),
         ip_address:       None,
-        expires_at:       Utc::now() + fraiseql_core::chrono::Duration::hours(1),
-        authenticated_at: Utc::now(),
+        expires_at:       fraiseql_time::Timestamp::now()
+            + fraiseql_time::jiff::SignedDuration::from_hours(1),
+        authenticated_at: fraiseql_time::Timestamp::now(),
         issuer:           None,
         audience:         None,
         email:            None,

@@ -868,8 +868,6 @@ mod tenant_key_tests {
     }
 
     fn ctx_with_tenant(tenant_id: &str) -> SecurityContext {
-        use chrono::Utc;
-
         SecurityContext {
             user_id:          fraiseql_core::types::UserId::new("test-user"),
             roles:            vec![],
@@ -881,8 +879,9 @@ mod tenant_key_tests {
             )]),
             request_id:       "test-req".to_string(),
             ip_address:       None,
-            authenticated_at: Utc::now(),
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: fraiseql_core::fraiseql_time::Timestamp::now(),
+            expires_at:       fraiseql_core::fraiseql_time::Timestamp::now()
+                + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -2085,7 +2084,6 @@ fn an_execution_timeout_maps_to_504_not_408() {
 mod enrichment_role_names {
     use std::sync::Arc;
 
-    use chrono::Utc;
     use fraiseql_core::{
         runtime::Executor,
         schema::{CompiledSchema, RoleDefinition, SecurityConfig},
@@ -2121,8 +2119,8 @@ mod enrichment_role_names {
             attributes:       std::collections::HashMap::new(),
             request_id:       "req-test".to_owned(),
             ip_address:       None,
-            authenticated_at: Utc::now(),
-            expires_at:       Utc::now(),
+            authenticated_at: fraiseql_core::fraiseql_time::Timestamp::now(),
+            expires_at:       fraiseql_core::fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,

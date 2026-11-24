@@ -11,7 +11,7 @@ pub(super) const MAX_DISCOVERY_RESPONSE_BYTES: usize = 64 * 1024; // 64 KiB
 
 use std::{sync::Arc, time::Duration};
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use fraiseql_jwks::{JwksKeys, JwksSource};
 use jsonwebtoken::{Algorithm, Validation, decode, decode_header};
 
@@ -20,6 +20,7 @@ use crate::security::{
         AuthenticatedUser,
         types::{extract_claim_string, extract_name_string},
     },
+    claim_time::instant_from_claim,
     errors::{Result, SecurityError},
     oidc::{
         audience::JwtClaims,
@@ -544,8 +545,7 @@ impl OidcValidator {
             claim: "exp".to_string(),
         })?;
 
-        let expires_at =
-            DateTime::<Utc>::from_timestamp(exp, 0).ok_or(SecurityError::InvalidToken)?;
+        let expires_at = instant_from_claim(exp).ok_or(SecurityError::InvalidToken)?;
 
         tracing::debug!(
             user_id = %user_id,

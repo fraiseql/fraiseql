@@ -15,7 +15,6 @@
 use std::{collections::HashMap, sync::Arc};
 
 use fraiseql_core::{
-    chrono::Utc,
     db::{DatabaseAdapter, postgres::PostgresAdapter},
     runtime::Executor,
     schema::CompiledSchema,
@@ -110,8 +109,9 @@ fn principal() -> SecurityContext {
         attributes:       HashMap::new(),
         request_id:       "req-1".to_string(),
         ip_address:       None,
-        expires_at:       Utc::now() + fraiseql_core::chrono::Duration::hours(1),
-        authenticated_at: Utc::now(),
+        expires_at:       fraiseql_time::Timestamp::now()
+            + fraiseql_time::jiff::SignedDuration::from_hours(1),
+        authenticated_at: fraiseql_time::Timestamp::now(),
         issuer:           None,
         audience:         None,
         email:            None,

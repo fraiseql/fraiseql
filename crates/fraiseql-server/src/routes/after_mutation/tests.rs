@@ -857,8 +857,9 @@ mod query_bridge_wiring {
             roles:            vec!["sales_rep".to_string()],
             scopes:           vec![],
             tenant_id:        Some(fraiseql_core::types::TenantId::new("tenant-7")),
-            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: chrono::Utc::now(),
+            expires_at:       fraiseql_core::fraiseql_time::Timestamp::now()
+                + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_core::fraiseql_time::Timestamp::now(),
             request_id:       "req-42".to_string(),
             ip_address:       None,
             attributes:       std::collections::HashMap::from([
@@ -937,8 +938,9 @@ mod query_bridge_wiring {
             roles:            vec![],
             scopes:           vec![],
             tenant_id:        Some(fraiseql_core::types::TenantId::new("tenant-7")),
-            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: chrono::Utc::now(),
+            expires_at:       fraiseql_core::fraiseql_time::Timestamp::now()
+                + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_core::fraiseql_time::Timestamp::now(),
             request_id:       "req-42".to_string(),
             ip_address:       None,
             attributes:       std::collections::HashMap::from([

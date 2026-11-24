@@ -44,7 +44,8 @@ mod auth_tests {
         AuthUser(fraiseql_core::security::AuthenticatedUser {
             user_id:      fraiseql_core::types::UserId::new(user_id),
             scopes:       vec![],
-            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+                + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
             email:        None,
             display_name: None,
             extra_claims: extra,
@@ -61,7 +62,8 @@ mod auth_tests {
         AuthUser(fraiseql_core::security::AuthenticatedUser {
             user_id:      fraiseql_core::types::UserId::new(user_id),
             scopes:       vec![],
-            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+                + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
             email:        email.map(str::to_owned),
             display_name: display_name.map(str::to_owned),
             extra_claims: extra,
@@ -457,7 +459,8 @@ mod revoke_tests {
         AuthUser(fraiseql_core::security::AuthenticatedUser {
             user_id:      fraiseql_core::types::UserId::new(sub),
             scopes:       scopes.into_iter().map(str::to_owned).collect(),
-            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+                + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
             email:        None,
             display_name: None,
             extra_claims: std::collections::HashMap::new(),

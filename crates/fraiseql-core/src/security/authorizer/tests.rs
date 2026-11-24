@@ -3,7 +3,6 @@
 
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 
-use chrono::Utc;
 use serde_json::json;
 
 use super::{
@@ -68,8 +67,8 @@ fn ctx(user_id: &str) -> SecurityContext {
         attributes:       std::collections::HashMap::new(),
         request_id:       "req-test".to_string(),
         ip_address:       None,
-        authenticated_at: Utc::now(),
-        expires_at:       Utc::now(),
+        authenticated_at: fraiseql_time::Timestamp::now(),
+        expires_at:       fraiseql_time::Timestamp::now(),
         issuer:           None,
         audience:         None,
         email:            None,

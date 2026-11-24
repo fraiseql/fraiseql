@@ -7,7 +7,6 @@
 //! from the handshake phase, and that scope-based access control works.
 
 use arrow_flight::{Action, Ticket, flight_service_server::FlightService};
-use chrono::Utc;
 use fraiseql_arrow::{flight_server::FraiseQLFlightService, ticket::FlightTicket};
 use fraiseql_core::security::auth_middleware::AuthenticatedUser;
 use tonic::Request;
@@ -17,7 +16,8 @@ fn create_test_user(user_id: &str, scopes: Vec<&str>) -> AuthenticatedUser {
     AuthenticatedUser {
         user_id:      fraiseql_core::types::UserId::new(user_id),
         scopes:       scopes.into_iter().map(|s| s.to_string()).collect(),
-        expires_at:   Utc::now() + chrono::Duration::hours(1),
+        expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
         email:        None,
         display_name: None,
         extra_claims: std::collections::HashMap::new(),

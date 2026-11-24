@@ -5,8 +5,9 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use fraiseql_core::{
+    fraiseql_time::jiff::SignedDuration,
     schema::ServiceAccountConfig,
     security::{EnrichmentMark, Provenance, SecurityContext, auth_middleware::AuthenticatedUser},
 };
@@ -23,7 +24,7 @@ const SUB: &str = "user-1";
 const SECRET: &str = "s3cret-value-for-tests";
 
 /// A principal as the validator produces one, `jti` / `iat` when the token had them.
-fn bearer(jti: Option<&str>, iat: Option<i64>, expires_in: Duration) -> SecurityContext {
+fn bearer(jti: Option<&str>, iat: Option<i64>, expires_in: SignedDuration) -> SecurityContext {
     principal_from(Provenance::BearerToken, jti, iat, expires_in)
 }
 
@@ -31,7 +32,7 @@ fn principal_from(
     provenance: Provenance,
     jti: Option<&str>,
     iat: Option<i64>,
-    expires_in: Duration,
+    expires_in: SignedDuration,
 ) -> SecurityContext {
     let mut extra_claims = HashMap::from([("iss".to_owned(), json!("https://issuer.test"))]);
     if let Some(jti) = jti {
@@ -43,7 +44,7 @@ fn principal_from(
     let user = AuthenticatedUser {
         user_id: fraiseql_core::types::UserId::new(SUB),
         scopes: Vec::new(),
-        expires_at: Utc::now() + expires_in,
+        expires_at: fraiseql_core::fraiseql_time::Timestamp::now() + expires_in,
         email: None,
         display_name: None,
         extra_claims,
@@ -77,15 +78,17 @@ fn with_revocation(revocation: &TokenRevocationManager) -> CallerChecks<'_> {
 }
 
 fn issued_ago(secs: i64) -> i64 {
-    (Utc::now() - Duration::seconds(secs)).timestamp()
+    (Utc::now() - chrono::Duration::seconds(secs)).timestamp()
 }
 
 fn live_token() -> SecurityContext {
-    bearer(Some("jti-1"), Some(issued_ago(60)), Duration::hours(1))
+    bearer(Some("jti-1"), Some(issued_ago(60)), SignedDuration::from_hours(1))
 }
 
 async fn refused(caller: &Value, checks: CallerChecks<'_>) -> String {
-    replay_caller(Some(caller), checks, Utc::now()).await.unwrap_err()
+    replay_caller(Some(caller), checks, fraiseql_core::fraiseql_time::Timestamp::now())
+        .await
+        .unwrap_err()
 }
 
 // ── Shape of what is stored ──────────────────────────────────────────────────────────────
@@ -142,7 +145,13 @@ async fn a_caller_whose_authenticator_is_not_recorded_is_not_acted_for() {
 #[tokio::test]
 async fn a_dispatch_with_no_caller_runs_as_its_function() {
     let (_, revocation) = manager();
-    let caller = replay_caller(None, with_revocation(&revocation), Utc::now()).await.unwrap();
+    let caller = replay_caller(
+        None,
+        with_revocation(&revocation),
+        fraiseql_core::fraiseql_time::Timestamp::now(),
+    )
+    .await
+    .unwrap();
     assert!(caller.is_none());
 }
 
@@ -151,11 +160,14 @@ async fn a_dispatch_with_no_caller_runs_as_its_function() {
 #[tokio::test]
 async fn an_unexpired_unrevoked_bearer_caller_is_acted_for_with_its_enrichment_mark() {
     let (_, revocation) = manager();
-    let caller =
-        replay_caller(Some(&stored(&live_token())), with_revocation(&revocation), Utc::now())
-            .await
-            .unwrap()
-            .expect("the caller is acted for");
+    let caller = replay_caller(
+        Some(&stored(&live_token())),
+        with_revocation(&revocation),
+        fraiseql_core::fraiseql_time::Timestamp::now(),
+    )
+    .await
+    .unwrap()
+    .expect("the caller is acted for");
     assert_eq!(caller.user_id.as_str(), SUB);
     // #2005: the replayed principal carries the mark its live request had.
     assert_eq!(caller.enrichment_mark(), Some(EnrichmentMark::Resolved));
@@ -164,7 +176,8 @@ async fn an_unexpired_unrevoked_bearer_caller_is_acted_for_with_its_enrichment_m
 #[tokio::test]
 async fn a_bearer_caller_whose_token_expired_is_not_acted_for() {
     let (_, revocation) = manager();
-    let later = Utc::now() + Duration::hours(2);
+    let later = fraiseql_core::fraiseql_time::Timestamp::now()
+        + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(2);
     let reason = replay_caller(Some(&stored(&live_token())), with_revocation(&revocation), later)
         .await
         .unwrap_err();
@@ -193,10 +206,15 @@ async fn a_bearer_token_issued_after_a_wholesale_revocation_is_acted_for() {
     // Kills a replay that loses the stored `iat`: without it, any revoke-all refuses.
     let (store, revocation) = manager();
     store.revoke_all_for_user(SUB, 3600).await.unwrap();
-    let caller = stored(&bearer(Some("jti-1"), Some(issued_ago(-60)), Duration::hours(1)));
-    let replayed = replay_caller(Some(&caller), with_revocation(&revocation), Utc::now())
-        .await
-        .unwrap();
+    let caller =
+        stored(&bearer(Some("jti-1"), Some(issued_ago(-60)), SignedDuration::from_hours(1)));
+    let replayed = replay_caller(
+        Some(&caller),
+        with_revocation(&revocation),
+        fraiseql_core::fraiseql_time::Timestamp::now(),
+    )
+    .await
+    .unwrap();
     assert!(replayed.is_some());
 }
 
@@ -204,7 +222,7 @@ async fn a_bearer_token_issued_after_a_wholesale_revocation_is_acted_for() {
 async fn a_bearer_caller_without_iat_under_a_wholesale_revocation_is_not_acted_for() {
     let (store, revocation) = manager();
     store.revoke_all_for_user(SUB, 3600).await.unwrap();
-    let caller = stored(&bearer(Some("jti-1"), None, Duration::hours(1)));
+    let caller = stored(&bearer(Some("jti-1"), None, SignedDuration::from_hours(1)));
     let reason = refused(&caller, with_revocation(&revocation)).await;
     assert!(reason.contains("revocation check"), "{reason}");
 }
@@ -214,10 +232,14 @@ async fn without_a_revocation_check_an_unexpired_bearer_caller_is_acted_for() {
     // The request path checks no revocation either when none is configured.
     let caller = stored(&live_token());
     assert!(
-        replay_caller(Some(&caller), CallerChecks::default(), Utc::now())
-            .await
-            .unwrap()
-            .is_some()
+        replay_caller(
+            Some(&caller),
+            CallerChecks::default(),
+            fraiseql_core::fraiseql_time::Timestamp::now()
+        )
+        .await
+        .unwrap()
+        .is_some()
     );
 }
 
@@ -239,7 +261,8 @@ async fn a_caller_of_an_authenticator_a_replay_cannot_reverify_is_not_acted_for(
         Provenance::Impersonation,
         Provenance::FlightSession,
     ] {
-        let caller = stored(&principal_from(provenance, Some("jti-1"), None, Duration::hours(1)));
+        let caller =
+            stored(&principal_from(provenance, Some("jti-1"), None, SignedDuration::from_hours(1)));
         let reason = refused(&caller, with_revocation(&revocation)).await;
         assert!(
             reason.contains(&format!("authenticated by {}", provenance.describe())),
@@ -288,7 +311,7 @@ async fn replay_service_account(
         revocation:       None,
         service_accounts: Some(now),
     };
-    replay_caller(Some(recorded), checks, Utc::now()).await
+    replay_caller(Some(recorded), checks, fraiseql_core::fraiseql_time::Timestamp::now()).await
 }
 
 #[test]
@@ -368,7 +391,8 @@ fn a_token_claim_cannot_set_the_provenance() {
     let user = AuthenticatedUser {
         user_id:      fraiseql_core::types::UserId::new(SUB),
         scopes:       Vec::new(),
-        expires_at:   Utc::now() + Duration::hours(1),
+        expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
         email:        None,
         display_name: None,
         extra_claims: HashMap::from([(

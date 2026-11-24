@@ -855,12 +855,11 @@ mod extractors_tests {
 
     #[test]
     fn test_optional_security_context_creation_from_auth_user() {
-        use chrono::Utc;
-
         let auth_user = crate::middleware::AuthUser(fraiseql_core::security::AuthenticatedUser {
             user_id:      fraiseql_core::types::UserId::new("user123"),
             scopes:       vec!["read:user".to_string(), "write:post".to_string()],
-            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+                + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
             email:        None,
             display_name: None,
             extra_claims: std::collections::HashMap::new(),

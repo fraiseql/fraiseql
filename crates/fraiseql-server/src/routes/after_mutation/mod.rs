@@ -425,7 +425,7 @@ pub async fn replay_recorded(
     let caller = crate::function_dispatch::replay_caller(
         due.caller.as_ref(),
         replay.caller_checks(),
-        chrono::Utc::now(),
+        fraiseql_time::Timestamp::now(),
     )
     .await?;
     let base =

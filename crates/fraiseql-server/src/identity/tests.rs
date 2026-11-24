@@ -23,7 +23,6 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use chrono::Utc;
 use fraiseql_core::{
     security::{ActorType, ENRICHED_NAMESPACE_PREFIX, SecurityContext},
     types::{TenantId, UserId},
@@ -1177,8 +1176,8 @@ fn sec_ctx(sub: &str, attrs: &[(&str, Value)]) -> SecurityContext {
         attributes:       attrs.iter().map(|(k, v)| ((*k).to_owned(), v.clone())).collect(),
         request_id:       "req-test".to_owned(),
         ip_address:       None,
-        authenticated_at: Utc::now(),
-        expires_at:       Utc::now(),
+        authenticated_at: fraiseql_core::fraiseql_time::Timestamp::now(),
+        expires_at:       fraiseql_core::fraiseql_time::Timestamp::now(),
         issuer:           None,
         audience:         None,
         email:            None,
@@ -2375,7 +2374,8 @@ async fn an_enrichment_field_cannot_set_the_provenance() {
     let user = AuthenticatedUser {
         user_id:      UserId::new("u1"),
         scopes:       Vec::new(),
-        expires_at:   Utc::now() + chrono::Duration::hours(1),
+        expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
         email:        None,
         display_name: None,
         extra_claims: HashMap::new(),

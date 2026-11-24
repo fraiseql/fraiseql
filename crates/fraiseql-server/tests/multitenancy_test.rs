@@ -420,7 +420,6 @@ fn test_domain_registry_register_lookup_remove() {
 #[test]
 fn test_tenant_key_token_binds_then_header_then_host() {
     use axum::http::{HeaderMap, HeaderValue};
-    use chrono::Utc;
     use fraiseql_core::{
         security::SecurityContext,
         types::{TenantId, UserId},
@@ -440,8 +439,9 @@ fn test_tenant_key_token_binds_then_header_then_host() {
         ]),
         request_id:       "r1".to_string(),
         ip_address:       None,
-        authenticated_at: Utc::now(),
-        expires_at:       Utc::now() + chrono::Duration::hours(1),
+        authenticated_at: fraiseql_core::fraiseql_time::Timestamp::now(),
+        expires_at:       fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
         issuer:           None,
         audience:         None,
         email:            None,
@@ -852,7 +852,8 @@ async fn an_authenticated_caller_cannot_select_another_tenant_by_header() {
             let user = AuthenticatedUser {
                 user_id:      UserId::new("alice"),
                 scopes:       vec![],
-                expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+                expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+                    + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
                 email:        None,
                 display_name: None,
                 extra_claims: std::collections::HashMap::from([(

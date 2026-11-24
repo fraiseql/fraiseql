@@ -409,7 +409,8 @@ fn impersonated_session_vars(
         scopes: claims.scopes.clone(),
         // A preview is a preview of *now*; an expiry in the past would make the
         // context read as expired to anything that inspects it later.
-        expires_at: chrono::Utc::now() + chrono::Duration::minutes(5),
+        expires_at: fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_mins(5),
         email: None,
         display_name: None,
         extra_claims,

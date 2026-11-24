@@ -30,8 +30,9 @@ fn test_rls_policy_evaluates_correctly_for_non_admins() {
         attributes:       HashMap::new(),
         request_id:       "req-admin".to_string(),
         ip_address:       None,
-        authenticated_at: chrono::Utc::now(),
-        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        authenticated_at: fraiseql_time::Timestamp::now(),
+        expires_at:       fraiseql_time::Timestamp::now()
+            + fraiseql_time::jiff::SignedDuration::from_hours(1),
         issuer:           None,
         audience:         None,
         email:            None,
@@ -50,8 +51,9 @@ fn test_rls_policy_evaluates_correctly_for_non_admins() {
         attributes:       HashMap::new(),
         request_id:       "req-user".to_string(),
         ip_address:       None,
-        authenticated_at: chrono::Utc::now(),
-        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        authenticated_at: fraiseql_time::Timestamp::now(),
+        expires_at:       fraiseql_time::Timestamp::now()
+            + fraiseql_time::jiff::SignedDuration::from_hours(1),
         issuer:           None,
         audience:         None,
         email:            None,
@@ -97,8 +99,9 @@ fn test_rls_policy_enforces_multi_tenant_isolation() {
         )]),
         request_id:       "req-1".to_string(),
         ip_address:       None,
-        authenticated_at: chrono::Utc::now(),
-        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        authenticated_at: fraiseql_time::Timestamp::now(),
+        expires_at:       fraiseql_time::Timestamp::now()
+            + fraiseql_time::jiff::SignedDuration::from_hours(1),
         issuer:           None,
         audience:         None,
         email:            None,
@@ -133,8 +136,9 @@ fn test_rls_allows_access_when_no_policy_matches() {
         attributes:       HashMap::new(),
         request_id:       "req-1".to_string(),
         ip_address:       None,
-        authenticated_at: chrono::Utc::now(),
-        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        authenticated_at: fraiseql_time::Timestamp::now(),
+        expires_at:       fraiseql_time::Timestamp::now()
+            + fraiseql_time::jiff::SignedDuration::from_hours(1),
         issuer:           None,
         audience:         None,
         email:            None,
@@ -174,8 +178,8 @@ fn test_where_clause_composition_for_rls() {
 /// Test that `SecurityContext` metadata flows through correctly
 #[test]
 fn test_security_context_carries_all_metadata() {
-    let now = chrono::Utc::now();
-    let expires = now + chrono::Duration::hours(1);
+    let now = fraiseql_time::Timestamp::now();
+    let expires = now + fraiseql_time::jiff::SignedDuration::from_hours(1);
 
     let mut attrs = HashMap::new();
     attrs.insert("department".to_string(), serde_json::json!("engineering"));
@@ -240,8 +244,9 @@ fn test_rls_policy_produces_correct_where_clauses() {
         attributes:       HashMap::new(),
         request_id:       "req-test".to_string(),
         ip_address:       None,
-        authenticated_at: chrono::Utc::now(),
-        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        authenticated_at: fraiseql_time::Timestamp::now(),
+        expires_at:       fraiseql_time::Timestamp::now()
+            + fraiseql_time::jiff::SignedDuration::from_hours(1),
         issuer:           None,
         audience:         None,
         email:            None,
@@ -285,8 +290,9 @@ fn test_rls_compose_with_tenant_and_owner_filters() {
         )]),
         request_id:       "req-test".to_string(),
         ip_address:       None,
-        authenticated_at: chrono::Utc::now(),
-        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        authenticated_at: fraiseql_time::Timestamp::now(),
+        expires_at:       fraiseql_time::Timestamp::now()
+            + fraiseql_time::jiff::SignedDuration::from_hours(1),
         issuer:           None,
         audience:         None,
         email:            None,

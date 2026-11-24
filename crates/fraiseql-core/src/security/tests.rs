@@ -45,7 +45,6 @@ mod service_account_tests {
 }
 
 mod audit_tests {
-    use chrono::Utc;
 
     use crate::security::audit::{AuditEntry, AuditError, AuditExportConfig, AuditLevel};
 
@@ -53,7 +52,7 @@ mod audit_tests {
     fn test_audit_entry_integrity_hash() {
         let entry = AuditEntry {
             id:             Some(1),
-            timestamp:      Utc::now(),
+            timestamp:      fraiseql_time::Timestamp::now(),
             level:          AuditLevel::INFO,
             user_id:        123,
             tenant_id:      456,
@@ -77,7 +76,7 @@ mod audit_tests {
     fn test_audit_integrity_verification() {
         let mut entry = AuditEntry {
             id:             Some(1),
-            timestamp:      Utc::now(),
+            timestamp:      fraiseql_time::Timestamp::now(),
             level:          AuditLevel::INFO,
             user_id:        123,
             tenant_id:      456,
@@ -108,7 +107,7 @@ mod audit_tests {
 
     #[test]
     fn test_audit_hash_chain() {
-        let timestamp = Utc::now();
+        let timestamp = fraiseql_time::Timestamp::now();
 
         let mut entry1 = AuditEntry {
             id: Some(1),
@@ -209,7 +208,7 @@ mod audit_tests {
 /// timestamps are written: each entry's hash covers its timestamp's text, so a change of
 /// even one character (`.120` to `.12`, `+00:00` to `Z`) breaks every stored chain.
 mod audit_chain_stored_bytes {
-    use chrono::{DateTime, TimeZone as _, Utc};
+    use fraiseql_time::Timestamp;
 
     use crate::security::audit::{AuditEntry, AuditLevel};
 
@@ -220,16 +219,14 @@ mod audit_chain_stored_bytes {
     /// this code, not taken from it.
     const STORED: &str = r#"[{"id":1,"timestamp":"2025-11-20T12:00:00.120Z","level":"INFO","user_id":7,"tenant_id":9,"operation":"query","query":"{ users { id } }","variables":{},"ip_address":"10.0.0.1","user_agent":"agent","error":null,"duration_ms":4,"previous_hash":null,"integrity_hash":"472d94fb36630f61bbf2977dfa336f0759886e8890f2f3fd178bd5939962a35d"},{"id":2,"timestamp":"2025-11-20T12:00:01.500Z","level":"WARN","user_id":7,"tenant_id":9,"operation":"mutation","query":"mutation { a }","variables":{},"ip_address":"10.0.0.1","user_agent":"agent","error":null,"duration_ms":5,"previous_hash":"472d94fb36630f61bbf2977dfa336f0759886e8890f2f3fd178bd5939962a35d","integrity_hash":"a3e4f6dff0d3c485a2a315ba3afe39638bb3dbf66f1ec304b8d4f6179c71518c"},{"id":3,"timestamp":"2025-11-20T12:00:02Z","level":"ERROR","user_id":7,"tenant_id":9,"operation":"query","query":"{ b }","variables":{},"ip_address":"10.0.0.1","user_agent":"agent","error":"denied","duration_ms":6,"previous_hash":"a3e4f6dff0d3c485a2a315ba3afe39638bb3dbf66f1ec304b8d4f6179c71518c","integrity_hash":"0e294f0e11746871c921589b4e87e6b1e9ab10b13e94546a0ac427bcfc3080d8"}]"#;
 
-    fn at(nanos: u32, second: u32) -> DateTime<Utc> {
-        Utc.with_ymd_and_hms(2025, 11, 20, 12, 0, second)
-            .single()
-            .expect("a valid instant")
-            + chrono::Duration::nanoseconds(i64::from(nanos))
+    /// 2025-11-20T12:00:00Z plus `second` seconds and `nanos` nanoseconds.
+    fn at(nanos: i32, second: i64) -> Timestamp {
+        Timestamp::new(1_763_640_000 + second, nanos).expect("a valid instant")
     }
 
     fn entry(
         id: i64,
-        timestamp: DateTime<Utc>,
+        timestamp: Timestamp,
         (level, operation, query, error, duration_ms): (AuditLevel, &str, &str, Option<&str>, i32),
         previous_hash: Option<String>,
     ) -> AuditEntry {
@@ -301,7 +298,6 @@ mod audit_export_syslog_tests {
 
     use std::{io::Read, net::UdpSocket};
 
-    use chrono::Utc;
     use parking_lot::Mutex;
 
     use crate::security::{
@@ -312,7 +308,7 @@ mod audit_export_syslog_tests {
     fn test_entry() -> AuditEntry {
         AuditEntry {
             id:             Some(1),
-            timestamp:      Utc::now(),
+            timestamp:      fraiseql_time::Timestamp::now(),
             level:          AuditLevel::INFO,
             user_id:        123,
             tenant_id:      456,
@@ -453,8 +449,6 @@ mod audit_export_syslog_tests {
 mod audit_export_webhook_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-    use chrono::Utc;
-
     use crate::security::{
         audit::{AuditEntry, AuditExporter, AuditLevel, WebhookExportConfig},
         audit_export_webhook::WebhookAuditExporter,
@@ -463,7 +457,7 @@ mod audit_export_webhook_tests {
     fn test_entry() -> AuditEntry {
         AuditEntry {
             id:             Some(1),
-            timestamp:      Utc::now(),
+            timestamp:      fraiseql_time::Timestamp::now(),
             level:          AuditLevel::INFO,
             user_id:        123,
             tenant_id:      456,
@@ -1762,8 +1756,9 @@ mod rls_policy_tests {
             attributes:       HashMap::new(),
             request_id:       "req1".to_string(),
             ip_address:       None,
-            authenticated_at: chrono::Utc::now(),
-            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -2267,8 +2262,9 @@ mod rls_policy_tests {
             attributes:       attrs,
             request_id:       "r1".to_string(),
             ip_address:       None,
-            authenticated_at: chrono::Utc::now(),
-            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -2326,8 +2322,6 @@ mod rls_policy_tests {
 mod security_context_tests {
     use std::collections::HashMap;
 
-    use chrono::Utc;
-
     use crate::security::*;
 
     #[test]
@@ -2340,8 +2334,9 @@ mod security_context_tests {
             attributes:       HashMap::new(),
             request_id:       "req-1".to_string(),
             ip_address:       None,
-            authenticated_at: Utc::now(),
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -2363,8 +2358,9 @@ mod security_context_tests {
             attributes:       HashMap::new(),
             request_id:       "req-1".to_string(),
             ip_address:       None,
-            authenticated_at: Utc::now(),
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -2386,8 +2382,9 @@ mod security_context_tests {
             attributes:       HashMap::new(),
             request_id:       "req-1".to_string(),
             ip_address:       None,
-            authenticated_at: Utc::now(),
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -2402,7 +2399,7 @@ mod security_context_tests {
     #[test]
     fn test_builder_pattern() {
         use crate::types::TenantId;
-        let now = Utc::now();
+        let now = fraiseql_time::Timestamp::now();
         let context = SecurityContext {
             user_id:          "user123".into(),
             roles:            vec![],
@@ -2412,7 +2409,7 @@ mod security_context_tests {
             request_id:       "req-1".to_string(),
             ip_address:       None,
             authenticated_at: now,
-            expires_at:       now + chrono::Duration::hours(1),
+            expires_at:       now + fraiseql_time::jiff::SignedDuration::from_hours(1),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -2434,7 +2431,6 @@ mod actor_context_tests {
 
     use std::collections::HashMap;
 
-    use chrono::Utc;
     use serde_json::json;
     use uuid::Uuid;
 
@@ -2451,7 +2447,8 @@ mod actor_context_tests {
         AuthenticatedUser {
             user_id:      UserId::new(sub),
             scopes:       scopes.iter().map(ToString::to_string).collect(),
-            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            expires_at:   fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
             email:        None,
             display_name: None,
             extra_claims: extra,
@@ -2634,7 +2631,8 @@ mod issuer_tests {
         AuthenticatedUser {
             user_id:      UserId::new("u1"),
             scopes:       vec![],
-            expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+            expires_at:   fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
             email:        None,
             display_name: None,
             extra_claims: extra,
@@ -2662,8 +2660,6 @@ mod issuer_tests {
 mod scope_grant_tests {
     use std::collections::HashMap;
 
-    use chrono::Utc;
-
     use crate::{
         graphql::require_permission_directive::RequirePermissionDirective,
         schema::security_config::RoleDefinition,
@@ -2685,7 +2681,8 @@ mod scope_grant_tests {
         AuthenticatedUser {
             user_id:      UserId::new("u1"),
             scopes:       scopes.iter().map(ToString::to_string).collect(),
-            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            expires_at:   fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
             email:        None,
             display_name: None,
             extra_claims: HashMap::new(),

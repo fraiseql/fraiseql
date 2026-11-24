@@ -164,7 +164,7 @@ pub(crate) struct CallerChecks<'a> {
 pub(crate) async fn replay_caller(
     caller: Option<&serde_json::Value>,
     checks: CallerChecks<'_>,
-    now: chrono::DateTime<chrono::Utc>,
+    now: fraiseql_time::Timestamp,
 ) -> Result<Option<SecurityContext>, String> {
     let Some(caller) = caller else {
         return Ok(None);

@@ -337,7 +337,7 @@ pub async fn revoke_token(
     // already expired, the auth middleware would have rejected the request,
     // so a positive TTL is the only path that reaches this point.
     let ttl_secs = {
-        let remaining = (auth_user.0.expires_at - chrono::Utc::now()).num_seconds();
+        let remaining = (auth_user.0.expires_at - fraiseql_time::Timestamp::now()).as_secs();
         u64::try_from(remaining).unwrap_or(0)
     };
 

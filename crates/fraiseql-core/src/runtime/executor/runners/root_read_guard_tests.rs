@@ -14,8 +14,6 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use chrono::Utc;
-
 use crate::{
     backend::types::JsonbValue,
     error::{FraiseQLError, Result},
@@ -81,8 +79,9 @@ fn principal() -> SecurityContext {
         )]),
         request_id:       "req-guard".to_string(),
         ip_address:       None,
-        expires_at:       Utc::now() + chrono::Duration::hours(1),
-        authenticated_at: Utc::now(),
+        expires_at:       fraiseql_time::Timestamp::now()
+            + fraiseql_time::jiff::SignedDuration::from_hours(1),
+        authenticated_at: fraiseql_time::Timestamp::now(),
         issuer:           None,
         audience:         None,
         email:            None,
@@ -170,7 +169,8 @@ fn is_refusal(err: &FraiseQLError) -> bool {
 async fn a_document_read_refuses_an_expired_principal() {
     let (executor, _) = executor(plain_schema(), RuntimeConfig::default());
     let mut expired = principal();
-    expired.expires_at = Utc::now() - chrono::Duration::minutes(1);
+    expired.expires_at =
+        fraiseql_time::Timestamp::now() - fraiseql_time::jiff::SignedDuration::from_mins(1);
     let err = executor
         .execute_with_security("{ users { id } }", None, &expired)
         .await
@@ -594,7 +594,8 @@ async fn a_direct_read_and_a_count_refuse_an_expired_principal() {
     let (executor, adapter) = executor(plain_schema(), RuntimeConfig::default());
     let qm = direct_match(&executor, "{ users { id } }");
     let mut expired = principal();
-    expired.expires_at = Utc::now() - chrono::Duration::minutes(1);
+    expired.expires_at =
+        fraiseql_time::Timestamp::now() - fraiseql_time::jiff::SignedDuration::from_mins(1);
     let read = executor.execute_query_direct(&qm, None, Some(&expired), None).await;
     assert!(read.is_err_and(|e| e.to_string().contains("expired")));
     let count = executor.count_rows(&qm, None, Some(&expired)).await;

@@ -35,7 +35,7 @@ impl JwksKeys for PublishedKeys {
 }
 
 /// The leeway the tests configure, well under the validator's cap.
-const LEEWAY_SECS: u64 = 60;
+pub(super) const LEEWAY_SECS: u64 = 60;
 
 /// A validator trusting `issuer`, with `clock_skew_secs` as its leeway.
 fn validator(issuer: &TestIssuer, clock_skew_secs: u64) -> OidcValidator {
@@ -55,7 +55,7 @@ fn now() -> i64 {
 }
 
 /// Validate a token carrying the issuer's default claims with `name` set to `value`.
-async fn validate_with(
+pub(super) async fn validate_with(
     issuer: &TestIssuer,
     clock_skew_secs: u64,
     name: &str,

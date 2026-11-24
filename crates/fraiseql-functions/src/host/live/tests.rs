@@ -758,9 +758,9 @@ async fn test_host_auth_context_returns_claims() {
         roles:            vec!["admin".to_string(), "user".to_string()],
         scopes:           vec!["read:users".to_string(), "write:users".to_string()],
         tenant_id:        Some(fraiseql_core::types::TenantId("tenant456".to_string())),
-        expires_at:       fraiseql_core::chrono::Utc::now()
-            + fraiseql_core::chrono::Duration::hours(1),
-        authenticated_at: fraiseql_core::chrono::Utc::now(),
+        expires_at:       fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
+        authenticated_at: fraiseql_core::fraiseql_time::Timestamp::now(),
         request_id:       "req-123".to_string(),
         ip_address:       None,
         attributes:       std::collections::HashMap::from([
@@ -802,9 +802,9 @@ async fn test_host_auth_context_redacts_sensitive() {
         roles:            vec!["admin".to_string()],
         scopes:           vec!["read:users".to_string()],
         tenant_id:        Some(fraiseql_core::types::TenantId("tenant456".to_string())),
-        expires_at:       fraiseql_core::chrono::Utc::now()
-            + fraiseql_core::chrono::Duration::hours(1),
-        authenticated_at: fraiseql_core::chrono::Utc::now(),
+        expires_at:       fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
+        authenticated_at: fraiseql_core::fraiseql_time::Timestamp::now(),
         request_id:       "req-123".to_string(),
         ip_address:       Some("192.168.1.1".to_string()),
         attributes:       std::collections::HashMap::from([
@@ -848,9 +848,9 @@ async fn test_host_auth_context_exposes_verified_sending_identity() {
         roles:            vec![],
         scopes:           vec![],
         tenant_id:        None,
-        expires_at:       fraiseql_core::chrono::Utc::now()
-            + fraiseql_core::chrono::Duration::hours(1),
-        authenticated_at: fraiseql_core::chrono::Utc::now(),
+        expires_at:       fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
+        authenticated_at: fraiseql_core::fraiseql_time::Timestamp::now(),
         request_id:       "req-123".to_string(),
         ip_address:       None,
         attributes:       std::collections::HashMap::new(),
@@ -1088,9 +1088,9 @@ fn caller_identity(
         roles:            vec![],
         scopes:           vec![],
         tenant_id:        tenant.map(fraiseql_core::types::TenantId::new),
-        expires_at:       fraiseql_core::chrono::Utc::now()
-            + fraiseql_core::chrono::Duration::hours(1),
-        authenticated_at: fraiseql_core::chrono::Utc::now(),
+        expires_at:       fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
+        authenticated_at: fraiseql_core::fraiseql_time::Timestamp::now(),
         request_id:       "req-send".to_string(),
         ip_address:       None,
         attributes:       std::collections::HashMap::new(),

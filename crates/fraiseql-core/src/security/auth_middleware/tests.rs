@@ -3,8 +3,6 @@
 mod authenticated_user_tests {
     use std::collections::HashMap;
 
-    use chrono::Utc;
-
     use crate::security::auth_middleware::types::AuthenticatedUser;
 
     #[test]
@@ -12,7 +10,8 @@ mod authenticated_user_tests {
         let user = AuthenticatedUser {
             user_id:      "user123".into(),
             scopes:       vec!["read".to_string(), "write".to_string()],
-            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            expires_at:   fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
             email:        None,
             display_name: None,
             extra_claims: HashMap::new(),
@@ -29,7 +28,8 @@ mod authenticated_user_tests {
         let user = AuthenticatedUser {
             user_id:      "user123".into(),
             scopes:       vec![],
-            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            expires_at:   fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
             email:        None,
             display_name: None,
             extra_claims: HashMap::new(),
@@ -44,7 +44,8 @@ mod authenticated_user_tests {
         let user = AuthenticatedUser {
             user_id:      "user123".into(),
             scopes:       vec![],
-            expires_at:   Utc::now() - chrono::Duration::hours(1),
+            expires_at:   fraiseql_time::Timestamp::now()
+                - fraiseql_time::jiff::SignedDuration::from_hours(1),
             email:        None,
             display_name: None,
             extra_claims: HashMap::new(),
@@ -56,8 +57,8 @@ mod authenticated_user_tests {
 
     #[test]
     fn test_user_ttl_calculation() {
-        let now = Utc::now();
-        let expires_at = now + chrono::Duration::hours(2);
+        let now = fraiseql_time::Timestamp::now();
+        let expires_at = now + fraiseql_time::jiff::SignedDuration::from_hours(2);
         let user = AuthenticatedUser {
             user_id: "user123".into(),
             scopes: vec![],
@@ -78,7 +79,8 @@ mod authenticated_user_tests {
         let user = AuthenticatedUser {
             user_id:      "user123".into(),
             scopes:       vec![],
-            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            expires_at:   fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
             email:        None,
             display_name: None,
             extra_claims: HashMap::new(),

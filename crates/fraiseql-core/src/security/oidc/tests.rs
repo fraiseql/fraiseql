@@ -688,7 +688,10 @@ async fn validate_token_with_real_rsa_keypair_and_wiremock_jwks() {
 
     assert_eq!(user.user_id.as_str(), "user-42");
     assert_eq!(user.scopes, vec!["read", "write", "admin"]);
-    assert!(user.expires_at > chrono::Utc::now(), "token should not be expired yet");
+    assert!(
+        user.expires_at > fraiseql_time::Timestamp::now(),
+        "token should not be expired yet"
+    );
 }
 
 #[tokio::test]

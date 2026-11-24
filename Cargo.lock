@@ -3842,6 +3842,7 @@ dependencies = [
  "fraiseql-kafka",
  "fraiseql-test-support",
  "fraiseql-test-utils",
+ "fraiseql-time",
  "fraiseql-wire",
  "futures",
  "hex",

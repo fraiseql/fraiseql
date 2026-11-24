@@ -2,7 +2,6 @@
 //!
 //! These properties verify that audit logging behaves correctly across all inputs.
 
-use chrono::Utc;
 use fraiseql_core::security::{AuditEntry, AuditLevel};
 use proptest::prelude::*;
 use serde_json::json;
@@ -23,7 +22,7 @@ proptest! {
     ) {
         let entry = AuditEntry {
             id: None,
-            timestamp: Utc::now(),
+            timestamp: fraiseql_time::Timestamp::now(),
             level: AuditLevel::INFO,
             user_id,
             tenant_id: 1,
@@ -54,7 +53,7 @@ proptest! {
     ) {
         let entry = AuditEntry {
             id: None,
-            timestamp: Utc::now(),
+            timestamp: fraiseql_time::Timestamp::now(),
             level: AuditLevel::INFO,
             user_id,
             tenant_id: 1,
@@ -81,7 +80,7 @@ proptest! {
         user_id_b in 500_001i64..1_000_000,
         query_str in "[a-zA-Z {}()]{1,50}",
     ) {
-        let now = Utc::now();
+        let now = fraiseql_time::Timestamp::now();
         let make_entry = |uid| AuditEntry {
             id: None,
             timestamp: now,
@@ -112,7 +111,7 @@ proptest! {
     ) {
         prop_assume!(query_a != query_b);
 
-        let now = Utc::now();
+        let now = fraiseql_time::Timestamp::now();
         let make_entry = |q: String| AuditEntry {
             id: None,
             timestamp: now,
@@ -143,7 +142,7 @@ proptest! {
     ) {
         let mut entry = AuditEntry {
             id: None,
-            timestamp: Utc::now(),
+            timestamp: fraiseql_time::Timestamp::now(),
             level: AuditLevel::INFO,
             user_id,
             tenant_id: 1,
@@ -171,7 +170,7 @@ proptest! {
     ) {
         let mut entry = AuditEntry {
             id: None,
-            timestamp: Utc::now(),
+            timestamp: fraiseql_time::Timestamp::now(),
             level: AuditLevel::INFO,
             user_id,
             tenant_id: 1,
@@ -199,7 +198,7 @@ proptest! {
         query_str in "[a-zA-Z {}()]{1,50}",
         prev_hash in "[0-9a-f]{64}",
     ) {
-        let now = Utc::now();
+        let now = fraiseql_time::Timestamp::now();
         let make_entry = |prev: Option<String>| AuditEntry {
             id: None,
             timestamp: now,

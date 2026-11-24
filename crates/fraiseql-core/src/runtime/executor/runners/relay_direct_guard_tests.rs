@@ -44,7 +44,8 @@ async fn a_relay_page_refuses_a_principal_of_the_wrong_actor_type() {
 async fn a_relay_page_refuses_an_expired_principal() {
     let (executor, adapter) = relay_executor(relay_schema(|_| {}), RuntimeConfig::default());
     let mut expired = principal();
-    expired.expires_at = Utc::now() - chrono::Duration::minutes(1);
+    expired.expires_at =
+        fraiseql_time::Timestamp::now() - fraiseql_time::jiff::SignedDuration::from_mins(1);
     let err = executor
         .execute_relay_direct(&page_match(&executor), Some(&expired), None)
         .await

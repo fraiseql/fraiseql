@@ -44,7 +44,6 @@
 
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use chrono::Utc;
 use fraiseql_core::{
     db::postgres::PostgresAdapter,
     prelude::{TenantId, UserId},
@@ -176,8 +175,9 @@ fn principal(claims: &[(&str, &str)]) -> SecurityContext {
         attributes,
         request_id: "req-p04-example".to_string(),
         ip_address: None,
-        authenticated_at: Utc::now(),
-        expires_at: Utc::now() + chrono::Duration::hours(1),
+        authenticated_at: fraiseql_core::fraiseql_time::Timestamp::now(),
+        expires_at: fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
         issuer: None,
         audience: None,
         email: None,

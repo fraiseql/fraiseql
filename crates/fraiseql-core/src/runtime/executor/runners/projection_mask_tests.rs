@@ -11,7 +11,6 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use chrono::Utc;
 use proptest::prelude::*;
 
 use crate::{
@@ -113,8 +112,9 @@ fn caller(roles: &[&str], noise: u8) -> SecurityContext {
         attributes:       HashMap::new(),
         request_id:       "req-mask".to_string(),
         ip_address:       None,
-        expires_at:       Utc::now() + chrono::Duration::hours(1),
-        authenticated_at: Utc::now(),
+        expires_at:       fraiseql_time::Timestamp::now()
+            + fraiseql_time::jiff::SignedDuration::from_hours(1),
+        authenticated_at: fraiseql_time::Timestamp::now(),
         issuer:           None,
         audience:         None,
         email:            None,

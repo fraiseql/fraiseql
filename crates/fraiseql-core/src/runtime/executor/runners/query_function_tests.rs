@@ -169,8 +169,9 @@ fn principal(user_id: &str) -> SecurityContext {
         attributes:       HashMap::default(),
         request_id:       "req-1329".to_string(),
         ip_address:       None,
-        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
-        authenticated_at: chrono::Utc::now(),
+        expires_at:       fraiseql_time::Timestamp::now()
+            + fraiseql_time::jiff::SignedDuration::from_hours(1),
+        authenticated_at: fraiseql_time::Timestamp::now(),
         issuer:           None,
         audience:         None,
         email:            None,

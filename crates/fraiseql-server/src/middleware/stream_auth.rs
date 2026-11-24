@@ -32,7 +32,7 @@ use crate::{middleware::oidc_auth::SessionTokenClaims, token_revocation::TokenRe
 #[derive(Clone)]
 pub struct StreamAuthGuard {
     /// When the principal's token expires. `None` for anonymous connections.
-    expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    expires_at: Option<fraiseql_time::Timestamp>,
     /// The principal's subject, for the revocation `revoke-all` epoch check.
     sub:        Option<String>,
     /// The validated bearer token's `jti`/`iat` claims. `None` when the
@@ -71,7 +71,7 @@ impl StreamAuthGuard {
     /// Cheap per-delivery check: has the principal's token expired?
     #[must_use]
     pub fn expired(&self) -> bool {
-        self.expires_at.is_some_and(|exp| exp <= chrono::Utc::now())
+        self.expires_at.is_some_and(|exp| exp <= fraiseql_time::Timestamp::now())
     }
 
     /// The full re-check: expiry plus revocation.

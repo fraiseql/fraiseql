@@ -8,8 +8,6 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use chrono::Utc;
-
 use crate::{
     backend::types::JsonbValue,
     error::{FraiseQLError, Result},
@@ -74,8 +72,9 @@ fn principal() -> SecurityContext {
         )]),
         request_id:       "req-function-root".to_string(),
         ip_address:       None,
-        expires_at:       Utc::now() + chrono::Duration::hours(1),
-        authenticated_at: Utc::now(),
+        expires_at:       fraiseql_time::Timestamp::now()
+            + fraiseql_time::jiff::SignedDuration::from_hours(1),
+        authenticated_at: fraiseql_time::Timestamp::now(),
         issuer:           None,
         audience:         None,
         email:            None,

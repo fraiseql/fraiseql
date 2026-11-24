@@ -61,6 +61,8 @@ dashmap = { workspace = true }
 dhat = { version = "0.3", optional = true }
 # Database abstraction layer (adapters, collation, introspector, filters)
 fraiseql-db = { workspace = true, default-features = false }
+# The instant type of the security context, the authenticated user and the audit entry.
+fraiseql-time = { workspace = true }
 fraiseql-error = { workspace = true }
 # Federation support (Apollo Federation v2)
 fraiseql-federation = { workspace = true, optional = true }

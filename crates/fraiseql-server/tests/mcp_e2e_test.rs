@@ -10,7 +10,6 @@
 
 use std::sync::Arc;
 
-use chrono::Utc;
 use fraiseql_core::{
     runtime::Executor,
     schema::{ArgumentDefinition, CompiledSchema, FieldType, McpConfig, SecurityConfig},
@@ -366,8 +365,9 @@ fn test_security_context() -> SecurityContext {
         )]),
         request_id:       "mcp-test".to_string(),
         ip_address:       None,
-        expires_at:       Utc::now() + chrono::Duration::hours(1),
-        authenticated_at: Utc::now(),
+        expires_at:       fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
+        authenticated_at: fraiseql_core::fraiseql_time::Timestamp::now(),
         issuer:           None,
         audience:         None,
         email:            None,

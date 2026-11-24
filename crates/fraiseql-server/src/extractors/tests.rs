@@ -3,7 +3,6 @@
 use std::collections::HashMap;
 
 use axum::extract::FromRequestParts;
-use chrono::Utc;
 use fraiseql_core::{security::AuthenticatedUser, types::UserId};
 use serde_json::json;
 
@@ -29,7 +28,8 @@ fn user_with_claims(extra_claims: HashMap<String, serde_json::Value>) -> Authent
     AuthenticatedUser {
         user_id: UserId::new("user-1"),
         scopes: vec![],
-        expires_at: Utc::now() + chrono::Duration::hours(1),
+        expires_at: fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
         email: None,
         display_name: None,
         extra_claims,

@@ -28,7 +28,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use chrono::{Duration, Utc};
 use fraiseql_core::security::AuthenticatedUser;
 use fraiseql_server::{
     middleware::AuthUser,
@@ -48,7 +47,8 @@ fn make_auth_user(user_id: &str, extra_claims: HashMap<String, serde_json::Value
     AuthUser(AuthenticatedUser {
         user_id: fraiseql_core::types::UserId::new(user_id),
         scopes: vec!["read".to_owned()],
-        expires_at: Utc::now() + Duration::hours(1),
+        expires_at: fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
         email: None,
         display_name: None,
         extra_claims,

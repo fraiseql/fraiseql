@@ -580,7 +580,6 @@ mod chokepoint {
     };
 
     use async_trait::async_trait;
-    use chrono::Utc;
     use fraiseql_core::{
         db::{
             DatabaseAdapter, DatabaseType, WhereClause,
@@ -775,8 +774,9 @@ mod chokepoint {
             attributes:       HashMap::default(),
             request_id:       "req-grpc".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_core::fraiseql_time::Timestamp::now()
+                + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_core::fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -1010,7 +1010,8 @@ mod principal_production {
             email:        Some("u1@example.test".to_string()),
             display_name: None,
             scopes:       Vec::new(),
-            expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+            expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+                + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
             extra_claims: extra,
             provenance:   fraiseql_core::security::Provenance::BearerToken,
         }

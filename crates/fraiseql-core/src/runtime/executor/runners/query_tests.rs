@@ -3,7 +3,6 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 use std::{collections::HashMap, sync::Arc};
 
-use chrono::Utc;
 use indexmap::IndexMap;
 
 use crate::{
@@ -477,8 +476,9 @@ mod rls_composition {
             )]),
             request_id:       "req-001".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -850,8 +850,9 @@ mod session_variables {
             )]),
             request_id:       "req-sv".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -1392,8 +1393,9 @@ mod node_authz {
             )]),
             request_id:       "req-1".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -1862,8 +1864,9 @@ mod pagination_order {
             attributes:       HashMap::default(),
             request_id:       "req-1303".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -1982,8 +1985,9 @@ mod row_read {
             )]),
             request_id:       "req-row".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,

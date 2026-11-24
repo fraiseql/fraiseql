@@ -451,8 +451,6 @@ fn refuse_unreadable_path(
 mod enrichment_backstop_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-    use chrono::Utc;
-
     use super::enforce_enrichment_resolved;
     use crate::{
         schema::{
@@ -470,8 +468,9 @@ mod enrichment_backstop_tests {
             attributes:       std::collections::HashMap::new(),
             request_id:       "req-1336".to_string(),
             ip_address:       None,
-            authenticated_at: Utc::now(),
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
             issuer:           None,
             audience:         None,
             email:            None,

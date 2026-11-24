@@ -7,8 +7,8 @@
 use std::{sync::Arc, time::SystemTime};
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use deadpool_postgres::Pool;
+use fraiseql_time::Timestamp;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tracing::error;
@@ -74,7 +74,7 @@ pub struct AuditEntry {
     /// Entry ID (None for new entries)
     pub id:             Option<i64>,
     /// Timestamp
-    pub timestamp:      DateTime<Utc>,
+    pub timestamp:      Timestamp,
     /// Log level
     pub level:          AuditLevel,
     /// User ID
@@ -329,12 +329,14 @@ impl AuditLogger {
         let client = self.pool.get().await?;
         let variables_json = serde_json::to_value(&entry.variables)?;
 
-        // Convert DateTime<Utc> to SystemTime for PostgreSQL
-        // timestamp() returns i64 seconds since epoch; audit events are always post-epoch.
-        let secs = u64::try_from(entry.timestamp.timestamp()).unwrap_or(0);
+        // Convert the instant to SystemTime for PostgreSQL. Audit events are always
+        // post-epoch, so the second and its fraction are both non-negative.
+        let secs = u64::try_from(entry.timestamp.as_second()).unwrap_or(0);
         let timestamp_system = SystemTime::UNIX_EPOCH
             + std::time::Duration::from_secs(secs)
-            + std::time::Duration::from_nanos(u64::from(entry.timestamp.timestamp_subsec_nanos()));
+            + std::time::Duration::from_nanos(
+                u64::try_from(entry.timestamp.subsec_nanosecond()).unwrap_or(0),
+            );
 
         let row = client
             .query_one(

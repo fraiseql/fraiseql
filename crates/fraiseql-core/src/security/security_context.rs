@@ -28,7 +28,7 @@
 
 use std::collections::HashMap;
 
-use chrono::{DateTime, Utc};
+use fraiseql_time::{Timestamp, jiff::SignedDuration};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -220,10 +220,10 @@ pub struct SecurityContext {
     pub ip_address: Option<String>,
 
     /// When the JWT was issued
-    pub authenticated_at: DateTime<Utc>,
+    pub authenticated_at: Timestamp,
 
     /// When the JWT expires
-    pub expires_at: DateTime<Utc>,
+    pub expires_at: Timestamp,
 
     /// Token issuer (for multi-issuer systems)
     pub issuer: Option<String>,
@@ -308,7 +308,7 @@ impl SecurityContext {
             attributes: HashMap::new(),
             request_id,
             ip_address: None,
-            authenticated_at: Utc::now(),
+            authenticated_at: Timestamp::now(),
             expires_at: user.expires_at,
             // The issuer that vouched for the token (#1400); the validator forwards
             // `iss` among the claims it verified.
@@ -446,7 +446,7 @@ impl SecurityContext {
         tenant: Option<TenantId>,
         actor_type: ActorType,
     ) -> Self {
-        let now = Utc::now();
+        let now = Timestamp::now();
         SecurityContext {
             user_id: UserId(user_id),
             roles,
@@ -459,7 +459,7 @@ impl SecurityContext {
             // A machine principal's identity is minted fresh per request/firing and does
             // not outlive it; a generous window keeps any TTL check from tripping
             // mid-run (mirrors the live host's default context).
-            expires_at: now + chrono::Duration::hours(24),
+            expires_at: now + SignedDuration::from_hours(24),
             issuer: None,
             audience: None,
             email: None,
@@ -687,7 +687,7 @@ impl SecurityContext {
     /// `true` if the JWT has expired, `false` otherwise.
     #[must_use]
     pub fn is_expired(&self) -> bool {
-        self.expires_at <= Utc::now()
+        self.expires_at <= Timestamp::now()
     }
 
     /// Get time until expiry in seconds.
@@ -697,7 +697,7 @@ impl SecurityContext {
     /// Seconds until JWT expiry, negative if already expired.
     #[must_use]
     pub fn ttl_secs(&self) -> i64 {
-        (self.expires_at - Utc::now()).num_seconds()
+        (self.expires_at - Timestamp::now()).as_secs()
     }
 
     /// Check if the user is an admin.

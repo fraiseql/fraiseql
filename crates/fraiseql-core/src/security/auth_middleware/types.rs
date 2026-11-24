@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, fmt};
 
-use chrono::{DateTime, Utc};
+use fraiseql_time::Timestamp;
 
 use crate::types::UserId;
 
@@ -19,7 +19,7 @@ pub struct AuthenticatedUser {
     pub scopes: Vec<String>,
 
     /// When the token expires
-    pub expires_at: DateTime<Utc>,
+    pub expires_at: Timestamp,
 
     /// Normalised email address extracted from the JWT `email` claim.
     ///
@@ -52,12 +52,13 @@ pub struct AuthenticatedUser {
 
 impl fmt::Display for AuthenticatedUser {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "User({}, expires={})",
-            self.user_id.as_str(),
-            self.expires_at.format("%Y-%m-%d %H:%M:%S UTC")
-        )
+        // The expiry to the whole second below it, with a space: `2024-01-15 10:30:00 UTC`.
+        let nanosecond = self.expires_at.subsec_nanosecond();
+        let second = self.expires_at.as_second() - i64::from(nanosecond < 0);
+        let expires = fraiseql_time::calendar::date_time(second, 0)
+            .unwrap_or_default()
+            .replacen('T', " ", 1);
+        write!(f, "User({}, expires={expires} UTC)", self.user_id.as_str())
     }
 }
 
@@ -71,13 +72,13 @@ impl AuthenticatedUser {
     /// Check if the token has expired (as of now)
     #[must_use]
     pub fn is_expired(&self) -> bool {
-        self.expires_at <= Utc::now()
+        self.expires_at <= Timestamp::now()
     }
 
     /// Get time until expiry in seconds
     #[must_use]
     pub fn ttl_secs(&self) -> i64 {
-        (self.expires_at - Utc::now()).num_seconds()
+        (self.expires_at - Timestamp::now()).as_secs()
     }
 }
 

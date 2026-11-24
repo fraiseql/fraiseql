@@ -15,7 +15,6 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use chrono::Utc;
 use fraiseql_core::{
     db::{
         traits::DatabaseAdapter,
@@ -145,8 +144,9 @@ fn tenant_security_context() -> SecurityContext {
         ]),
         request_id:       "req-inject-test".to_string(),
         ip_address:       None,
-        authenticated_at: Utc::now(),
-        expires_at:       Utc::now() + chrono::Duration::hours(1),
+        authenticated_at: fraiseql_time::Timestamp::now(),
+        expires_at:       fraiseql_time::Timestamp::now()
+            + fraiseql_time::jiff::SignedDuration::from_hours(1),
         issuer:           None,
         audience:         None,
         email:            None,

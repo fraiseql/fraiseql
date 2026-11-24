@@ -211,7 +211,8 @@ fn admin_api(pool: &PgPool, adapter: Arc<PostgresAdapter>) -> Router {
     let operator = AuthUser(fraiseql_core::security::AuthenticatedUser {
         user_id:      fraiseql_core::types::UserId::new("admin-user"),
         scopes:       vec!["fraiseql:admin".to_owned()],
-        expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+        expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
         email:        None,
         display_name: None,
         extra_claims: HashMap::new(),

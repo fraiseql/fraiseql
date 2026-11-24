@@ -98,6 +98,8 @@ pub use deadpool_postgres;
 /// which is what a single shared re-export would do, and is how the blanket export
 /// came to expose the whole data plane.
 pub(crate) use fraiseql_db as backend;
+/// The instant type this crate's public API is built against (#1198).
+pub use fraiseql_time;
 
 /// The database layer this crate's public API is built against.
 ///

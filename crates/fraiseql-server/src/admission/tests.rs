@@ -4,7 +4,6 @@
 use std::{collections::HashMap, sync::Arc};
 
 use axum::{Router, body::Body, routing::post};
-use chrono::{Duration, Utc};
 use fraiseql_core::{
     db::types::JsonbValue,
     runtime::Executor,
@@ -121,7 +120,8 @@ fn principal() -> SecurityContext {
     let user = AuthenticatedUser {
         user_id:      UserId::new("u-1"),
         scopes:       Vec::new(),
-        expires_at:   Utc::now() + Duration::hours(1),
+        expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
         email:        None,
         display_name: None,
         extra_claims: HashMap::new(),

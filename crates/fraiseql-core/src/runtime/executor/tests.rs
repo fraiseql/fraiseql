@@ -1,7 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 use std::collections::HashMap;
 
-use chrono::Utc;
 use indexmap::IndexMap;
 
 use super::{test_support::*, *};
@@ -637,8 +636,9 @@ mod entities_authz {
             )]),
             request_id:       "req-1".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -1451,8 +1451,7 @@ mod inject {
         tenant_id: Option<&str>,
         extra: &[(&str, serde_json::Value)],
     ) -> SecurityContext {
-        use chrono::Utc;
-        let now = Utc::now();
+        let now = fraiseql_time::Timestamp::now();
         SecurityContext {
             user_id:          crate::types::UserId::new(user_id),
             roles:            vec![],
@@ -1462,7 +1461,7 @@ mod inject {
             request_id:       "test-req".to_string(),
             ip_address:       None,
             authenticated_at: now,
-            expires_at:       now + chrono::Duration::hours(1),
+            expires_at:       now + fraiseql_time::jiff::SignedDuration::from_hours(1),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -2307,8 +2306,9 @@ mod field_rbac {
             attributes:       HashMap::default(),
             request_id:       "req-001".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -2325,8 +2325,9 @@ mod field_rbac {
             attributes:       HashMap::default(),
             request_id:       "req-002".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -2602,8 +2603,9 @@ mod executor_paths {
             attributes:       HashMap::default(),
             request_id:       "req-001".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -2634,8 +2636,9 @@ mod executor_paths {
             attributes:       HashMap::default(),
             request_id:       "req-002".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -3067,8 +3070,9 @@ mod field_authz {
             attributes:       HashMap::default(),
             request_id:       "req-authz".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -3396,8 +3400,9 @@ mod operation_authz {
             attributes:       HashMap::default(),
             request_id:       "req-op-authz".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -3913,8 +3918,9 @@ mod rls_fail_closed {
             attributes:       HashMap::default(),
             request_id:       "req-rls".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -4388,8 +4394,9 @@ mod gated_filters {
             attributes:       HashMap::default(),
             request_id:       "req-aa3".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,
@@ -4469,8 +4476,9 @@ mod projection_moves {
             attributes:       HashMap::new(),
             request_id:       "req-1".to_string(),
             ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
             issuer:           None,
             audience:         None,
             email:            None,

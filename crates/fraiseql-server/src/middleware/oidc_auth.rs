@@ -636,7 +636,8 @@ mod revocation_tests {
         AuthenticatedUser {
             user_id:      fraiseql_core::types::UserId::new(sub),
             scopes:       vec![],
-            expires_at:   Utc::now() + chrono::Duration::hours(1),
+            expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+                + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
             email:        None,
             display_name: None,
             extra_claims: HashMap::new(),

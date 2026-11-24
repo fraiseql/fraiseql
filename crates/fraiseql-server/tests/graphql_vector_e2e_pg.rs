@@ -875,8 +875,9 @@ async fn a_distance_survives_the_full_row_path_a_gated_field_forces() {
         attributes:       std::collections::HashMap::default(),
         request_id:       "req-vector".to_string(),
         ip_address:       None,
-        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
-        authenticated_at: chrono::Utc::now(),
+        expires_at:       fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
+        authenticated_at: fraiseql_core::fraiseql_time::Timestamp::now(),
         issuer:           None,
         audience:         None,
         email:            None,

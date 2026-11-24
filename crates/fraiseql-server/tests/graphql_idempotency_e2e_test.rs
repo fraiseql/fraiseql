@@ -22,7 +22,6 @@
 use std::{collections::HashMap, sync::Arc};
 
 use axum::{Router, body::Body, routing::post};
-use chrono::{Duration, Utc};
 use fraiseql_core::{
     runtime::Executor,
     schema::{ArgumentDefinition, FieldType, MutationDefinition},
@@ -220,7 +219,8 @@ fn principal(sub: &str, roles: &[&str]) -> AuthUser {
     AuthUser(AuthenticatedUser {
         user_id:      UserId::new(sub),
         scopes:       Vec::new(),
-        expires_at:   Utc::now() + Duration::hours(1),
+        expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
         email:        None,
         display_name: None,
         extra_claims: HashMap::from([("roles".to_string(), json!(roles))]),

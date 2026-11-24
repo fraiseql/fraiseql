@@ -614,7 +614,8 @@ mod identity_enrichment {
                 email:        None,
                 display_name: None,
                 scopes:       Vec::new(),
-                expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+                expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+                    + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
                 extra_claims: std::collections::HashMap::new(),
                 provenance:   fraiseql_core::security::Provenance::BearerToken,
             },
@@ -746,7 +747,8 @@ mod principal_parity {
             email:        None,
             display_name: None,
             scopes:       vec!["read:orders".to_string()],
-            expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+            expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+                + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
             extra_claims: [
                 ("tenant_id".to_string(), serde_json::json!("acme")),
                 ("org_id".to_string(), serde_json::json!("org-7")),
@@ -791,7 +793,8 @@ mod principal_parity {
         use super::super::auth::validate_session_token;
 
         let mut short = user();
-        short.expires_at = chrono::Utc::now() + chrono::Duration::seconds(60);
+        short.expires_at = fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_secs(60);
         let session = create_session_token(&short, SECRET).unwrap();
         let restored = validate_session_token(&session, SECRET).unwrap();
         assert!(

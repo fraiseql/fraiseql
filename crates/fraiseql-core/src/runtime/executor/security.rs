@@ -266,8 +266,6 @@ impl Executor {
 mod session_variable_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-    use chrono::Utc;
-
     use crate::{
         error::Result,
         schema::{SessionVariableMapping, SessionVariableSource, SessionVariablesConfig},
@@ -300,8 +298,8 @@ mod session_variable_tests {
             attributes,
             request_id: "req-test".to_string(),
             ip_address: None,
-            authenticated_at: Utc::now(),
-            expires_at: Utc::now(),
+            authenticated_at: fraiseql_time::Timestamp::now(),
+            expires_at: fraiseql_time::Timestamp::now(),
             issuer: None,
             audience: None,
             email: None,
@@ -617,8 +615,6 @@ mod enrichment_entry_point_tests {
 
     use std::sync::Arc;
 
-    use chrono::Utc;
-
     use super::super::mutation::any_write_selections;
     use crate::{
         error::FraiseQLError,
@@ -675,8 +671,9 @@ mod enrichment_entry_point_tests {
             attributes:       std::collections::HashMap::new(),
             request_id:       "req-1336".to_string(),
             ip_address:       None,
-            authenticated_at: Utc::now(),
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: fraiseql_time::Timestamp::now(),
+            expires_at:       fraiseql_time::Timestamp::now()
+                + fraiseql_time::jiff::SignedDuration::from_hours(1),
             issuer:           None,
             audience:         None,
             email:            None,

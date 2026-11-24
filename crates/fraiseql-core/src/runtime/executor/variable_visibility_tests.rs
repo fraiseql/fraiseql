@@ -6,7 +6,6 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use chrono::Utc;
 use serde_json::{Value, json};
 
 use crate::{
@@ -73,8 +72,9 @@ fn caller(roles: &[&str]) -> SecurityContext {
         attributes:       HashMap::default(),
         request_id:       "req-1".to_string(),
         ip_address:       None,
-        expires_at:       Utc::now() + chrono::Duration::hours(1),
-        authenticated_at: Utc::now(),
+        expires_at:       fraiseql_time::Timestamp::now()
+            + fraiseql_time::jiff::SignedDuration::from_hours(1),
+        authenticated_at: fraiseql_time::Timestamp::now(),
         issuer:           None,
         audience:         None,
         email:            None,

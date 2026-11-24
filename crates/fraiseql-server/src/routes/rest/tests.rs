@@ -311,7 +311,8 @@ mod stream_decisions {
         let user = fraiseql_core::security::auth_middleware::AuthenticatedUser {
             user_id:      fraiseql_core::types::UserId::new("user-1"),
             scopes:       vec!["user".to_string()],
-            expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+            expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+                + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
             email:        None,
             display_name: None,
             extra_claims: std::collections::HashMap::new(),

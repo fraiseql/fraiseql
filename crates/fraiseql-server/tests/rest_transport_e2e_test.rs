@@ -1217,7 +1217,7 @@ mod export_embedding_refusal {
 // ---------------------------------------------------------------------------
 
 mod idempotency_key_owner {
-    use chrono::{Duration, Utc};
+
     use fraiseql_core::{security::AuthenticatedUser, types::UserId};
     use fraiseql_server::middleware::AuthUser;
 
@@ -1250,7 +1250,8 @@ mod idempotency_key_owner {
         request.extensions_mut().insert(AuthUser(AuthenticatedUser {
             user_id:      UserId::new(sub),
             scopes:       Vec::new(),
-            expires_at:   Utc::now() + Duration::hours(1),
+            expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+                + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
             email:        None,
             display_name: None,
             extra_claims: HashMap::new(),
@@ -1286,7 +1287,7 @@ mod idempotency_key_owner {
 // ---------------------------------------------------------------------------
 
 mod cache_visibility {
-    use chrono::{Duration, Utc};
+
     use fraiseql_core::{security::AuthenticatedUser, types::UserId};
     use fraiseql_server::middleware::AuthUser;
 
@@ -1325,7 +1326,8 @@ mod cache_visibility {
             request.extensions_mut().insert(AuthUser(AuthenticatedUser {
                 user_id:      UserId::new(sub),
                 scopes:       Vec::new(),
-                expires_at:   Utc::now() + Duration::hours(1),
+                expires_at:   fraiseql_core::fraiseql_time::Timestamp::now()
+                    + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
                 email:        None,
                 display_name: None,
                 extra_claims: HashMap::new(),

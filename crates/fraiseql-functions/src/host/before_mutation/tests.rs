@@ -10,10 +10,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use fraiseql_core::{
-    chrono::{self, Utc},
-    security::{GuestQueryBridge, SecurityContext},
-};
+use fraiseql_core::security::{GuestQueryBridge, SecurityContext};
 
 use super::BeforeMutationHost;
 use crate::{
@@ -60,8 +57,9 @@ fn principal() -> SecurityContext {
         attributes:       std::collections::HashMap::default(),
         request_id:       "req-1328".to_string(),
         ip_address:       Some("203.0.113.7".to_string()),
-        expires_at:       Utc::now() + chrono::Duration::hours(1),
-        authenticated_at: Utc::now(),
+        expires_at:       fraiseql_core::fraiseql_time::Timestamp::now()
+            + fraiseql_core::fraiseql_time::jiff::SignedDuration::from_hours(1),
+        authenticated_at: fraiseql_core::fraiseql_time::Timestamp::now(),
         issuer:           None,
         audience:         None,
         email:            None,

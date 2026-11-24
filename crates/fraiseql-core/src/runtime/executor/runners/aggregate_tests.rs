@@ -4,8 +4,6 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use chrono::Utc;
-
 use crate::{
     compiler::fact_table::{
         DimensionColumn, FactRowScope, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
@@ -23,8 +21,9 @@ pub(super) fn tenant_security_context(tenant_id: &str) -> SecurityContext {
         attributes:       HashMap::from([("tenant_id".to_string(), serde_json::json!(tenant_id))]),
         request_id:       "req-001".to_string(),
         ip_address:       None,
-        expires_at:       Utc::now() + chrono::Duration::hours(1),
-        authenticated_at: Utc::now(),
+        expires_at:       fraiseql_time::Timestamp::now()
+            + fraiseql_time::jiff::SignedDuration::from_hours(1),
+        authenticated_at: fraiseql_time::Timestamp::now(),
         issuer:           None,
         audience:         None,
         email:            None,
@@ -44,8 +43,9 @@ fn admin_security_context() -> SecurityContext {
         )]),
         request_id:       "req-002".to_string(),
         ip_address:       None,
-        expires_at:       Utc::now() + chrono::Duration::hours(1),
-        authenticated_at: Utc::now(),
+        expires_at:       fraiseql_time::Timestamp::now()
+            + fraiseql_time::jiff::SignedDuration::from_hours(1),
+        authenticated_at: fraiseql_time::Timestamp::now(),
         issuer:           None,
         audience:         None,
         email:            None,

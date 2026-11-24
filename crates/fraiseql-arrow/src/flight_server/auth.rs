@@ -1,6 +1,9 @@
 //! Authentication helpers for Flight service session tokens.
 
-use chrono::Utc;
+use fraiseql_core::{
+    fraiseql_time::{Timestamp, jiff::SignedDuration},
+    security::{SecurityError, instant_from_claim},
+};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use tonic::{Request, Status};
 use tracing::warn;
@@ -37,13 +40,13 @@ pub fn create_session_token(
     user: &fraiseql_core::security::auth_middleware::AuthenticatedUser,
     secret: &str,
 ) -> std::result::Result<String, Status> {
-    let now = Utc::now();
-    let exp = (now + chrono::Duration::minutes(5)).min(user.expires_at);
+    let now = Timestamp::now();
+    let exp = (now + SignedDuration::from_mins(5)).min(user.expires_at);
 
     let claims = SessionTokenClaims {
         sub:          user.user_id.0.clone(),
-        exp:          exp.timestamp(),
-        iat:          now.timestamp(),
+        exp:          exp.as_second(),
+        iat:          now.as_second(),
         scopes:       user.scopes.clone(),
         session_type: "flight".to_string(),
         claims:       user.extra_claims.clone(),
@@ -103,8 +106,9 @@ pub fn validate_session_token(
     }
 
     // Convert claims back to AuthenticatedUser
-    let expires_at = chrono::DateTime::<chrono::Utc>::from_timestamp(claims.exp, 0)
-        .ok_or_else(|| Status::internal("Invalid expiration timestamp"))?;
+    // The rule every bearer's `exp` is read by: one past year 9999 is refused.
+    let expires_at = instant_from_claim(claims.exp)
+        .ok_or_else(|| map_security_error_to_status(SecurityError::InvalidToken))?;
 
     Ok(fraiseql_core::security::auth_middleware::AuthenticatedUser {
         user_id: fraiseql_core::types::UserId::new(claims.sub),
@@ -149,3 +153,6 @@ pub fn extract_session_token<T>(request: &Request<T>) -> std::result::Result<Str
 
 #[cfg(test)]
 mod not_before_tests;
+
+#[cfg(test)]
+mod exp_bound_tests;

@@ -8,7 +8,6 @@
 use std::{collections::HashMap, sync::Arc};
 
 use axum::http::{HeaderMap, HeaderName, HeaderValue};
-use chrono::Utc;
 use fraiseql_core::{
     runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
@@ -57,8 +56,8 @@ fn ctx_with_tenant(tenant: &str) -> SecurityContext {
         )]),
         request_id:       "req-test".to_string(),
         ip_address:       None,
-        authenticated_at: Utc::now(),
-        expires_at:       Utc::now(),
+        authenticated_at: fraiseql_core::fraiseql_time::Timestamp::now(),
+        expires_at:       fraiseql_core::fraiseql_time::Timestamp::now(),
         issuer:           None,
         audience:         None,
         email:            None,
@@ -208,8 +207,8 @@ mod row_visibility_596 {
             attributes,
             request_id: "req-596".to_string(),
             ip_address: None,
-            authenticated_at: Utc::now(),
-            expires_at: Utc::now(),
+            authenticated_at: fraiseql_core::fraiseql_time::Timestamp::now(),
+            expires_at: fraiseql_core::fraiseql_time::Timestamp::now(),
             issuer: None,
             audience: None,
             email: None,

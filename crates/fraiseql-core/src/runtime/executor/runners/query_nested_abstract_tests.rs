@@ -9,8 +9,6 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use chrono::Utc;
-
 use super::{DocumentRowFilter, SelectionAccess, guard_relation_filters, type_read_refusal};
 use crate::{
     backend::{WhereClause, WhereOperator, types::JsonbValue},
@@ -115,8 +113,9 @@ fn unscoped() -> SecurityContext {
         )]),
         request_id:       "req-abstract".to_string(),
         ip_address:       None,
-        expires_at:       Utc::now() + chrono::Duration::hours(1),
-        authenticated_at: Utc::now(),
+        expires_at:       fraiseql_time::Timestamp::now()
+            + fraiseql_time::jiff::SignedDuration::from_hours(1),
+        authenticated_at: fraiseql_time::Timestamp::now(),
         issuer:           None,
         audience:         None,
         email:            None,
