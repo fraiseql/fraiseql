@@ -25,6 +25,8 @@ mod http_query_method_tests;
 mod middleware;
 #[cfg(test)]
 mod mount_authz_tests;
+#[cfg(test)]
+mod mount_gate_tests;
 #[cfg(feature = "observers")]
 pub(in crate::server) mod observers;
 #[cfg(all(test, feature = "auth", feature = "rest"))]

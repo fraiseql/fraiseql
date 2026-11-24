@@ -3098,16 +3098,16 @@ shard = "guard-lib"
 [[family]]
 name = "jwt-validation"
 patterns = [
-    '(?<!\.)\bheader\.kid\.as_(?:ref|deref)\(\)\.ok_or_else',
-    '\.min\(MAX_CLOCK_SKEW_SECS\)',
-    '\.require_jti && claims\.jti',
-    'set_required_spec_claims\(&\["exp", "iss"\]\)',
-    '\bvalidation\.set_audience\s*\(',
-    '\bvalidation\.validate_nbf = true',
-    'allowed_algorithms\.contains\(',
-    '\.find\(\|issuer\| issuer\.config\.issuer',
-    'saturating_add_unsigned\(leeway\)',
-    '\.kid\.as_deref\(\) == Some\(kid\)',
+  '(?<!\.)\bheader\.kid\.as_(?:ref|deref)\(\)\.ok_or_else',
+  '\.min\(MAX_CLOCK_SKEW_SECS\)',
+  '\.require_jti && claims\.jti',
+  'set_required_spec_claims\(&\["exp", "iss"\]\)',
+  '\bvalidation\.set_audience\s*\(',
+  '\bvalidation\.validate_nbf = true',
+  'allowed_algorithms\.contains\(',
+  '\.find\(\|issuer\| issuer\.config\.issuer',
+  'saturating_add_unsigned\(leeway\)',
+  '\.kid\.as_deref\(\) == Some\(kid\)',
 ]
 
 [[shard]]
@@ -3190,7 +3190,10 @@ file = "crates/fraiseql-core/src/security/oidc/token.rs"
 function = "validate_token"
 anchor = "validation.set_audience(&audiences);"
 mutant = "let _ = &audiences;\n            validation.validate_aud = false;"
-killers = ["validate_token_rejects_wrong_audience", "each_issuer_checks_its_own_audience"]
+killers = [
+  "validate_token_rejects_wrong_audience",
+  "each_issuer_checks_its_own_audience",
+]
 shard = "core-lib-oidc"
 
 [[site]]
@@ -3199,7 +3202,9 @@ file = "crates/fraiseql-core/src/security/oidc/token.rs"
 function = "validate_token"
 anchor = "validation.set_audience(&issuer.config.additional_audiences);"
 mutant = "validation.validate_aud = false;"
-killers = ["an_issuer_with_only_additional_audiences_refuses_a_token_for_another"]
+killers = [
+  "an_issuer_with_only_additional_audiences_refuses_a_token_for_another",
+]
 shard = "core-lib-oidc"
 
 [[site]]
@@ -3217,7 +3222,10 @@ file = "crates/fraiseql-core/src/security/oidc/token.rs"
 function = "validate_token"
 anchor = "validation.validate_nbf = true;"
 mutant = "validation.validate_nbf = false;"
-killers = ["a_token_used_before_its_nbf_is_refused", "the_nbf_leeway_is_the_issuers_configured_clock_skew"]
+killers = [
+  "a_token_used_before_its_nbf_is_refused",
+  "the_nbf_leeway_is_the_issuers_configured_clock_skew",
+]
 shard = "core-lib-oidc"
 
 [[site]]
@@ -3226,7 +3234,10 @@ file = "crates/fraiseql-core/src/security/oidc/token.rs"
 function = "validate_token"
 anchor = ".is_some_and(|iat| iat > Utc::now().timestamp().saturating_add_unsigned(leeway))"
 mutant = ".is_some_and(|iat| false && iat > Utc::now().timestamp().saturating_add_unsigned(leeway))"
-killers = ["a_token_issued_in_the_future_is_refused", "the_iat_leeway_is_the_issuers_configured_clock_skew"]
+killers = [
+  "a_token_issued_in_the_future_is_refused",
+  "the_iat_leeway_is_the_issuers_configured_clock_skew",
+]
 shard = "core-lib-oidc"
 
 [[site]]
@@ -3277,9 +3288,9 @@ shard = "jwks-lib"
 [[family]]
 name = "jwks-fetch"
 patterns = [
-    '(?<!fn )\bresolve_and_guard\s*\(',
-    '\.resolve_to_addrs\s*\(',
-    '> MAX_(?:DISCOVERY_)?RESPONSE_BYTES',
+  '(?<!fn )\bresolve_and_guard\s*\(',
+  '\.resolve_to_addrs\s*\(',
+  '> MAX_(?:DISCOVERY_)?RESPONSE_BYTES',
 ]
 
 [[site]]
@@ -3306,7 +3317,9 @@ file = "crates/fraiseql-jwks/src/fetch.rs"
 function = "pinned_client"
 anchor = 'builder = builder.resolve_to_addrs(host, addrs);'
 mutant = "builder = builder.timeout(timeout);\n        let _ = addrs;"
-killers = ["the_pinned_client_connects_to_the_validated_address_and_not_through_dns"]
+killers = [
+  "the_pinned_client_connects_to_the_validated_address_and_not_through_dns",
+]
 shard = "jwks-lib"
 
 [[site]]
@@ -3383,10 +3396,24 @@ shard = "jwks-lib"
 
 [[family]]
 name = "auth-state-store"
+patterns = ['"GETDEL"|\bget_del\s*\(', '\.decrypt\(outbound_token\)']
+
+[[family]]
+name = "mount-gate"
+# The auth layer on a mounted router that serves an admin or authenticated surface.
 patterns = [
-    '"GETDEL"|\bget_del\s*\(',
-    '\.decrypt\(outbound_token\)',
+  '\.route_layer\(\s*(?:auth_layer\(\)|(?:axum::)?(?:middleware::)?from_fn_with_state\((?:[^;()]|\([^;()]*\))*?\b(?:bearer_auth|oidc_auth|required_auth|admin_auth|admin_dual_auth|admin_principal|scim_auth|service_account)_middleware\b)',
 ]
+
+[[shard]]
+name = "server-lib-mount"
+crate = "crates/fraiseql-server"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,auth-saml,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,inbound-email' --lib -- server::routing:: server::scim_mount_tests:: server::rbac_mount_tests::"
+
+[[shard]]
+name = "server-it-mount"
+crate = "crates/fraiseql-server"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,auth-saml,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,inbound-email' --no-fail-fast --test saml_mount_e2e_pg --test first_party_issuer_e2e_pg --test tenant_admin_e2e_pg --test api_key_postgres_e2e_pg --test service_account_auth_layers_e2e_pg --test admin_sql_console_e2e_pg -- --test-threads=1"
 
 [[shard]]
 name = "auth-lib-pkce"
@@ -3422,7 +3449,9 @@ file = "crates/fraiseql-auth/src/pkce.rs"
 function = "consume_state_impl"
 anchor = "let bytes = enc.decrypt(outbound_token).map_err(|_| PkceError::StateNotFound)?;"
 mutant = "let bytes = enc.decrypt(outbound_token).unwrap_or_else(|_| outbound_token.as_bytes().to_vec());"
-killers = ["test_redis_pkce_refuses_the_stored_key_in_place_of_its_encrypted_token"]
+killers = [
+  "test_redis_pkce_refuses_the_stored_key_in_place_of_its_encrypted_token",
+]
 shard = "auth-lib-pkce"
 
 [[site]]
@@ -3431,7 +3460,9 @@ file = "crates/fraiseql-auth/src/pkce.rs"
 function = "consume_state_sync"
 anchor = "let bytes = enc.decrypt(outbound_token).map_err(|_| PkceError::StateNotFound)?;"
 mutant = "let bytes = enc.decrypt(outbound_token).unwrap_or_else(|_| outbound_token.as_bytes().to_vec());"
-killers = ["test_in_memory_pkce_refuses_the_stored_key_in_place_of_its_encrypted_token"]
+killers = [
+  "test_in_memory_pkce_refuses_the_stored_key_in_place_of_its_encrypted_token",
+]
 shard = "auth-lib-pkce"
 
 [[site]]
@@ -3478,3 +3509,425 @@ anchor = "if now > expiry {"
 mutant = "if false && now > expiry {"
 killers = ["retrieve_rejects_an_expired_entry"]
 shard = "auth-lib-state-store"
+
+# ---------------------------------------------------------------------------
+# Mount gates: the auth layer on each router that serves an admin or authenticated
+# surface. The mutant drops the layer, so the router answers with no credential.
+# ---------------------------------------------------------------------------
+
+[[site]]
+id = "mount.scim"
+file = "crates/fraiseql-server/src/api/scim/mod.rs"
+function = "scim_router"
+anchor = ".route_layer(axum::middleware::from_fn_with_state(state.clone(), scim_auth_middleware))"
+mutant = ".route_layer({ let _ = scim_auth_middleware; tower::layer::util::Identity::new() })"
+killers = ["scim_enabled_with_a_database_pool_mounts_its_routes"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.identity-admin"
+file = "crates/fraiseql-server/src/server/capabilities/identity.rs"
+function = "routes"
+anchor = ".route_layer(\n            axum::middleware::from_fn_with_state(auth_state, crate::server::bearer_auth_middleware),\n        )"
+mutant = ""
+killers = ["the_identity_cache_flush_takes_the_admin_token"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.email-suppression-admin"
+file = "crates/fraiseql-server/src/server/capabilities/inbound_email.rs"
+function = "routes"
+anchor = ".route_layer(\n            axum::middleware::from_fn_with_state(auth_state, crate::server::bearer_auth_middleware),\n        )"
+mutant = ""
+killers = ["the_suppression_admin_api_takes_the_admin_token"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.saml-idp-admin"
+file = "crates/fraiseql-server/src/server/capabilities/saml.rs"
+function = "routes"
+anchor = ".route_layer(\n            axum::middleware::from_fn_with_state(\n                auth_state,\n                crate::middleware::admin_principal_middleware,\n            ),\n        )"
+mutant = ""
+killers = ["stored_idps_are_managed_over_http_and_served_scoped_by_tenant"]
+shard = "server-it-mount"
+
+[[site]]
+id = "mount.studio-admin"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_studio_admin_api"
+anchor = ".route_layer(middleware::from_fn_with_state(auth, bearer_auth_middleware))"
+mutant = ""
+killers = ["admin_assembly_does_not_expose_realtime_monitor_routes"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.jwks-refresh"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_jwks_refresh"
+anchor = ".route_layer(middleware::from_fn_with_state(auth, bearer_auth_middleware))"
+mutant = ""
+killers = ["the_jwks_refresh_takes_the_admin_token"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.playground"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_playground"
+anchor = ".route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))"
+mutant = ""
+killers = [
+  "the_cookie_is_a_credential_where_every_route_refuses_a_form_or_only_reads",
+]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.introspection"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_introspection"
+anchor = ".route(&self.config.introspection_path, get(introspection_handler))\n                    .route_layer(middleware::from_fn_with_state(\n                        auth_state,\n                        required_auth_middleware,\n                    ))"
+mutant = ".route(&self.config.introspection_path, get(introspection_handler))\n                    "
+killers = [
+  "the_cookie_is_a_credential_where_every_route_refuses_a_form_or_only_reads",
+]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.schema-export"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_introspection"
+anchor = ".route(\"/api/v1/schema.json\", get(api::schema::export_json_handler))\n                    .route_layer(middleware::from_fn_with_state(\n                        auth_state,\n                        required_auth_middleware,\n                    ))"
+mutant = ".route(\"/api/v1/schema.json\", get(api::schema::export_json_handler))\n                    "
+killers = [
+  "the_cookie_is_a_credential_where_every_route_refuses_a_form_or_only_reads",
+]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.schema-metadata"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_introspection"
+anchor = ".route(\"/api/v1/schema/metadata\", get(api::metadata::metadata_handler))\n                    .route_layer(middleware::from_fn_with_state(\n                        auth_state,\n                        required_auth_middleware,\n                    ))"
+mutant = ".route(\"/api/v1/schema/metadata\", get(api::metadata::metadata_handler))\n                    "
+killers = ["behind_the_auth_layer_it_answers_the_tokens_view"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.metrics"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_metrics"
+anchor = ".route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware))"
+mutant = ""
+killers = ["the_metrics_endpoints_take_the_metrics_token"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.admin-write"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_admin_api"
+anchor = ".route_layer(middleware::from_fn_with_state(write_auth, bearer_auth_middleware))"
+mutant = ""
+killers = ["failures_spread_across_two_admin_routers_exhaust_one_budget"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.admin-read"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_admin_api"
+anchor = ".route_layer(middleware::from_fn_with_state(read_auth, bearer_auth_middleware))"
+mutant = ""
+killers = ["an_anonymous_caller_is_refused"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.storage-policy-write"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_storage_policy_admin"
+anchor = ".route_layer(middleware::from_fn_with_state(write_auth, bearer_auth_middleware))"
+mutant = ""
+killers = ["the_read_token_can_inspect_but_cannot_change_a_policy"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.storage-policy-read"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_storage_policy_admin"
+anchor = ".route_layer(middleware::from_fn_with_state(read_auth, bearer_auth_middleware))"
+mutant = ""
+killers = ["the_read_token_can_inspect_but_cannot_change_a_policy"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.admin-sql"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_admin_sql_console"
+cfg = 'feature = "admin-sql"'
+anchor = ".route_layer(middleware::from_fn_with_state(auth, admin_dual_auth_middleware))"
+mutant = ""
+killers = ["the_console_refuses_an_unauthenticated_or_wrong_credential"]
+shard = "server-it-mount"
+
+[[site]]
+id = "mount.design-audit"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_design_audit"
+anchor = ".route_layer(middleware::from_fn_with_state(auth_state, admin_auth_middleware))"
+mutant = ""
+killers = [
+  "a_live_token_without_the_admin_scope_is_forbidden_on_the_admin_plane",
+]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.session-routes"
+file = "crates/fraiseql-server/src/server/routing/auth.rs"
+function = "behind_session"
+anchor = ".route_layer(middleware::from_fn_with_state(session, oidc_auth_middleware))"
+mutant = ""
+killers = [
+  "an_external_providers_token_reaches_graphql_but_not_the_account_routes",
+]
+shard = "server-it-mount"
+
+[[site]]
+id = "mount.auth-me"
+file = "crates/fraiseql-server/src/server/routing/auth.rs"
+function = "mount_auth_routes"
+anchor = ".route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))\n                .with_state(me_state)"
+mutant = ".with_state(me_state)"
+killers = [
+  "the_cookie_is_a_credential_where_every_route_refuses_a_form_or_only_reads",
+]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.auth-session-end"
+file = "crates/fraiseql-server/src/server/routing/auth.rs"
+function = "mount_auth_routes"
+anchor = ".route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))\n                    .with_state(rev_state)"
+mutant = ".with_state(rev_state)"
+killers = ["a_form_shaped_post_carrying_the_cookie_is_refused"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.admin-tokens"
+file = "crates/fraiseql-server/src/server/routing/extensions.rs"
+function = "mount_extensions"
+anchor = ".route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware))"
+mutant = ""
+killers = ["only_the_platform_manages_tenant_admin_tokens"]
+shard = "server-it-mount"
+
+[[site]]
+id = "mount.api-key-admin"
+file = "crates/fraiseql-server/src/server/routing/extensions.rs"
+function = "mount_extensions"
+anchor = ".route_layer(\n                    middleware::from_fn_with_state(auth_state, bearer_auth_middleware),\n                )"
+mutant = ""
+killers = ["server_mounts_management_api_and_the_managed_keys_authenticate"]
+shard = "server-it-mount"
+
+[[site]]
+id = "mount.scim-tokens"
+file = "crates/fraiseql-server/src/server/routing/extensions.rs"
+function = "mount_extensions"
+anchor = ".route_layer(middleware::from_fn_with_state(\n                        auth_state,\n                        crate::middleware::admin_principal_middleware,\n                    ))"
+mutant = ""
+killers = ["scim_enabled_with_a_database_pool_mounts_its_routes"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.rbac-admin"
+file = "crates/fraiseql-server/src/server/routing/extensions.rs"
+function = "mount_rbac"
+anchor = ".route_layer(\n                middleware::from_fn_with_state(\n                    auth_state,\n                    crate::middleware::admin_principal_middleware,\n                ),\n            )"
+mutant = ""
+killers = ["the_rbac_api_is_mounted_with_an_admin_token_and_a_pool"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.graphql-oidc"
+file = "crates/fraiseql-server/src/server/routing/mod.rs"
+function = "attach_auth"
+anchor = ".route_layer(from_fn_with_state(auth_state, oidc_auth_middleware))"
+mutant = ""
+killers = [
+  "the_cookie_is_a_credential_where_every_route_refuses_a_form_or_only_reads",
+]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.graphql-service-account"
+file = "crates/fraiseql-server/src/server/routing/mod.rs"
+function = "attach_auth"
+anchor = ".route_layer(from_fn_with_state(\n                Arc::clone(accounts),\n                crate::service_account::service_account_middleware,\n            ))"
+mutant = ""
+killers = ["a_service_account_is_admitted_as_itself_without_jwt_auth"]
+shard = "server-it-mount"
+
+[[site]]
+id = "mount.observers"
+file = "crates/fraiseql-server/src/server/routing/observers.rs"
+function = "add_observer_routes"
+anchor = "observer_routes(observer_state).route_layer(auth_layer())"
+mutant = "observer_routes(observer_state)"
+killers = [
+  "rest_the_socket_and_observer_admin_take_a_bearer_token_not_the_cookie",
+]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.observer-changelog"
+file = "crates/fraiseql-server/src/server/routing/observers.rs"
+function = "add_observer_routes"
+anchor = "observer_changelog_routes(changelog_state).route_layer(auth_layer())"
+mutant = "observer_changelog_routes(changelog_state)"
+killers = ["the_changelog_takes_an_operators_token"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.observer-runtime"
+file = "crates/fraiseql-server/src/server/routing/observers.rs"
+function = "add_observer_routes"
+anchor = "observer_runtime_routes(runtime_state).route_layer(auth_layer())"
+mutant = "observer_runtime_routes(runtime_state)"
+killers = ["the_runtime_routes_take_an_operators_token"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.observer-dlq"
+file = "crates/fraiseql-server/src/server/routing/observers.rs"
+function = "add_observer_routes"
+anchor = "observer_dlq_routes(dlq_state).route_layer(auth_layer())"
+mutant = "observer_dlq_routes(dlq_state)"
+killers = ["the_dead_letter_routes_take_an_operators_token"]
+shard = "server-lib-mount"
+
+# A router whose config asks for a credential it has no way to check is not mounted:
+# the branch that warns instead. The mutant mounts the router open in its place.
+
+[[site]]
+id = "mount.unmounted.playground"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_playground"
+anchor = "warn!(\n                    playground_path = %self.config.playground_path,\n                    \"playground_require_auth is true but no OIDC configured \u2014 playground disabled\"\n                );"
+mutant = "app = self.mounts.merge(app, super::Mount::public(\"playground\"), Router::new().route(&self.config.playground_path, get(playground_handler)).with_state(playground_state));"
+killers = ["the_playground_requiring_auth_is_not_mounted_without_oidc"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.unmounted.introspection"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_introspection"
+anchor = "warn!(\n                    \"introspection_require_auth is true but no OIDC configured - introspection disabled\"\n                );"
+mutant = "app = self.mounts.merge(app, super::Mount::public(\"introspection\"), Router::new().route(&self.config.introspection_path, get(introspection_handler)).with_state(state.clone()));"
+killers = ["introspection_requiring_auth_is_not_mounted_without_oidc"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.unmounted.schema-export"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_introspection"
+anchor = "warn!(\n                    \"schema_export_require_auth is true but no OIDC configured - schema export disabled\"\n                );"
+mutant = "app = self.mounts.merge(app, super::Mount::public(\"schema-export\"), Router::new().route(\"/api/v1/schema.json\", get(api::schema::export_json_handler)).with_state(state.clone()));"
+killers = ["the_schema_export_requiring_auth_is_not_mounted_without_oidc"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.unmounted.schema-metadata"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_introspection"
+anchor = "warn!(\n                    \"metadata_require_auth is true but no OIDC configured - metadata endpoint disabled\"\n                );"
+mutant = "app = self.mounts.merge(app, super::Mount::public(\"schema-metadata\"), Router::new().route(\"/api/v1/schema/metadata\", get(api::metadata::metadata_handler)).with_state(state.clone()));"
+killers = ["the_schema_metadata_requiring_auth_is_not_mounted_without_oidc"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.unmounted.metrics"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_metrics"
+anchor = "warn!(\n                \"metrics_enabled is true but metrics_token is not set - metrics endpoints disabled\"\n            );"
+mutant = "app = self.mounts.merge(app, super::Mount::public(\"metrics\"), Router::new().route(&self.config.metrics_path, get(metrics_handler)).with_state(state.clone()));"
+killers = ["the_metrics_endpoints_are_not_mounted_without_a_token"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.unmounted.admin"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_admin_api"
+anchor = "warn!(\n                \"admin_api_enabled is true but admin_token is not set - admin endpoints disabled\"\n            );"
+mutant = "app = self.mounts.merge(app, super::Mount::public(\"admin\"), Router::new().route(\"/api/v1/admin/config\", get(api::admin::config_handler)).with_state(state.clone()));"
+killers = ["the_admin_api_is_not_mounted_without_a_token"]
+shard = "server-lib-mount"
+
+[[site]]
+id = "mount.unmounted.design-audit"
+file = "crates/fraiseql-server/src/server/routing/admin.rs"
+function = "mount_design_audit"
+anchor = "warn!(\n                    \"SECURITY: design_api_require_auth is true but no OIDC configured \u2014 \\\n                     design API endpoints are DISABLED. Configure an OIDC validator \\\n                     or set design_api_require_auth = false (development only).\"\n                );"
+mutant = "app = self.mounts.nest(app, super::Mount::public(\"design-audit\"), \"/api/v1\", Router::new().route(\"/design/audit\", post(api::design::overall_design_audit_handler)).with_state(state.clone()));"
+killers = ["the_design_audit_requiring_auth_is_not_mounted_without_oidc"]
+shard = "server-lib-mount"
+
+# The observer routers refuse a call with no principal twice: the route layer and the
+# handler's `OperatorOnly`. Each single row above is killed by the operator its layer
+# admits; each joint drops both, and the call with no credential is then served.
+
+[[site]]
+id = "mount.observer-changelog.joint.layer"
+file = "crates/fraiseql-server/src/server/routing/observers.rs"
+function = "add_observer_routes"
+anchor = "observer_changelog_routes(changelog_state).route_layer(auth_layer())"
+mutant = "observer_changelog_routes(changelog_state)"
+killers = ["the_changelog_takes_an_operators_token"]
+shard = "server-lib-mount"
+joint = "observer-changelog-unauthenticated-layers"
+
+[[site]]
+id = "mount.observer-changelog.joint.operator-only"
+file = "crates/fraiseql-server/src/observers/changelog_handlers/mod.rs"
+function = "changelog_list_handler"
+anchor = "    _: OperatorOnly,\n"
+mutant = ""
+killers = ["the_changelog_takes_an_operators_token"]
+shard = "server-lib-mount"
+joint = "observer-changelog-unauthenticated-layers"
+
+[[site]]
+id = "mount.observer-runtime.joint.layer"
+file = "crates/fraiseql-server/src/server/routing/observers.rs"
+function = "add_observer_routes"
+anchor = "observer_runtime_routes(runtime_state).route_layer(auth_layer())"
+mutant = "observer_runtime_routes(runtime_state)"
+killers = ["the_runtime_routes_take_an_operators_token"]
+shard = "server-lib-mount"
+joint = "observer-runtime-unauthenticated-layers"
+
+[[site]]
+id = "mount.observer-runtime.joint.operator-only"
+file = "crates/fraiseql-server/src/observers/handlers.rs"
+function = "get_runtime_health"
+anchor = "    _: OperatorOnly,\n"
+mutant = ""
+killers = ["the_runtime_routes_take_an_operators_token"]
+shard = "server-lib-mount"
+joint = "observer-runtime-unauthenticated-layers"
+
+[[site]]
+id = "mount.observer-dlq.joint.layer"
+file = "crates/fraiseql-server/src/server/routing/observers.rs"
+function = "add_observer_routes"
+anchor = "observer_dlq_routes(dlq_state).route_layer(auth_layer())"
+mutant = "observer_dlq_routes(dlq_state)"
+killers = ["the_dead_letter_routes_take_an_operators_token"]
+shard = "server-lib-mount"
+joint = "observer-dlq-unauthenticated-layers"
+
+[[site]]
+id = "mount.observer-dlq.joint.operator-only"
+file = "crates/fraiseql-server/src/observers/dlq_handlers/mod.rs"
+function = "dlq_list_handler"
+anchor = "    _: OperatorOnly,\n"
+mutant = ""
+killers = ["the_dead_letter_routes_take_an_operators_token"]
+shard = "server-lib-mount"
+joint = "observer-dlq-unauthenticated-layers"
