@@ -75,10 +75,12 @@ TOML
   cp "${ws}/${file}" "${tmp}/original"
 }
 
-# Run the runner; expect exit `$1` and output containing `$2`, and an untouched tree.
+# Run the runner with any arguments after `$3`; expect exit `$1` and output containing
+# `$2`, and an untouched tree.
 expect() {
   local want="$1" needle="$2" name="$3"
-  GUARD_SITES_ROOT="$ws" python3 "$runner" > "${tmp}/out" 2>&1
+  shift 3
+  GUARD_SITES_ROOT="$ws" python3 "$runner" "$@" > "${tmp}/out" 2>&1
   local rc=$?
   if [ "$rc" -ne "$want" ]; then
     fail "${name} — rc=${rc} (want ${want})"
@@ -122,6 +124,7 @@ shard    = "kills-both"
 joint    = "pair"
 TOML
 expect 0 "one + two: KILLED" "5. a joint's members are mutated together"
+expect 0 "one + two: KILLED" "5b. selecting one member of a joint mutates the whole joint" --site one
 
 tree; shard always-red
 cat >> "${ws}/tools/guard-sites.toml" <<'TOML'

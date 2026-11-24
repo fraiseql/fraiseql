@@ -23,7 +23,8 @@ mutant caused, which committed would pin it).
 
 Selection: every site (the weekly sweep), `--site ID` (repeatable), `--shard NAME`, or
 `--changed-since REF`: the sites whose `file` differs between REF and the working tree,
-which is the per-PR run. `--list` prints the selection without running it; `--output DIR`
+which is the per-PR run. A selected site brings every member of its joint, so a joint is
+never mutated in part. `--list` prints the selection without running it; `--output DIR`
 keeps each mutant's test output, to read why a mutant was killed.
 
 Run from the repository root; the shard commands inherit this environment (a database
@@ -162,7 +163,8 @@ def main() -> int:
     with INVENTORY.open("rb") as handle:
         data = tomllib.load(handle)
     shards = {shard["name"]: shard for shard in data.get("shard", [])}
-    sites = data.get("site", [])
+    inventory = data.get("site", [])
+    sites = inventory
     if args.site:
         unknown = set(args.site) - {site["id"] for site in sites}
         if unknown:
@@ -173,10 +175,11 @@ def main() -> int:
         sites = [site for site in sites if site["shard"] == args.shard]
     if args.changed_since:
         touched = changed_files(args.changed_since)
-        files = {site["file"] for site in sites if site["file"] in touched}
-        # A joint member's file changing re-runs the whole joint.
-        joint_names = {site["joint"] for site in sites if site["file"] in files and "joint" in site}
-        sites = [site for site in sites if site["file"] in files or site.get("joint") in joint_names]
+        sites = [site for site in sites if site["file"] in touched]
+    # A selected joint member brings its whole joint: one member mutated alone is not the
+    # joint, and a test that kills it alone would read as the joint's verdict.
+    joint_names = {site["joint"] for site in sites if "joint" in site}
+    sites = [site for site in inventory if site in sites or site.get("joint") in joint_names]
 
     units = groups(sites)
     for unit in units:

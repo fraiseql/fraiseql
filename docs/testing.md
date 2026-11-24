@@ -187,7 +187,8 @@ twice; `impl Type::method` or `impl Trait for Type::method` when the type has bo
 is defined once per build (`cfg = 'feature = "admin-sql"'` picks the definition under
 `#[cfg(feature = "admin-sql")]`), an exact `anchor` of its code, the `mutant` that replaces it, the
 `killers` (tests that must fail on the mutant) and the `shard` (test command) they run
-in. Two sites that each cover the other share a `joint` and are mutated together.
+in. Two sites that each cover the other share a `joint` and are mutated together;
+selecting one (`--site`, `--shard`, `--changed-since`) runs the whole joint.
 `[[held]]` paths are not inventoried yet; `[[exempt]]` functions match a guard pattern
 without being one, with the reason and the issue deciding them. An exempt row that names
 an `anchor` exempts that statement alone, so a guard added beside it is still reported; a
