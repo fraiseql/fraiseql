@@ -242,4 +242,7 @@ fn decimal_units(digits: &str, scale: i8) -> Result<i128> {
 }
 
 #[cfg(test)]
+#[path = "db_convert_temporal_tests.rs"]
+mod temporal_tests;
+#[cfg(test)]
 mod tests;

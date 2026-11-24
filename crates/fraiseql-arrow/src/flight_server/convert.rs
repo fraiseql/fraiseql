@@ -678,4 +678,7 @@ pub fn decode_upload_batch(batch_bytes: &[u8]) -> std::result::Result<RecordBatc
 }
 
 #[cfg(test)]
+#[path = "convert_temporal_tests.rs"]
+mod temporal_tests;
+#[cfg(test)]
 mod tests;

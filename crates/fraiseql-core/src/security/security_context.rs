@@ -882,3 +882,7 @@ impl std::fmt::Display for SecurityContext {
         )
     }
 }
+
+#[cfg(test)]
+#[path = "security_context_time_text_tests.rs"]
+mod time_text_tests;

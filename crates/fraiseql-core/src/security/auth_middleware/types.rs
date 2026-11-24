@@ -157,3 +157,7 @@ pub(crate) fn extract_name_string(value: &serde_json::Value) -> Option<String> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+#[path = "types_display_tests.rs"]
+mod display_tests;

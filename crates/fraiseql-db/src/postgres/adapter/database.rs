@@ -2909,3 +2909,7 @@ impl Writer for PostgresAdapter {
         Ok(self)
     }
 }
+
+#[cfg(test)]
+#[path = "database_temporal_text_tests.rs"]
+mod temporal_text_tests;

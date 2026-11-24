@@ -460,3 +460,7 @@ impl RequestLogger {
             .with_request_context((*self.context).clone())
     }
 }
+
+#[cfg(test)]
+#[path = "logging_timestamp_tests.rs"]
+mod timestamp_tests;

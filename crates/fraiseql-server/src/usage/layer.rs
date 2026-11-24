@@ -129,3 +129,7 @@ impl<S: Subscriber> Layer<S> for MutationAuditLayer {
         self.aggregator.record(&audit_event);
     }
 }
+
+#[cfg(test)]
+#[path = "layer_period_tests.rs"]
+mod period_tests;
