@@ -94,14 +94,13 @@ impl CompiledSchema {
                             .is_some_and(|i| surface.input_types.iter().all(|d| d != i))
                 },
                 _ => {
-                    // A declared `SortDirection` serves if it holds the two directions, or
-                    // the two and the four that name a placement.
+                    // A declared `SortDirection` serves only if it holds the six values the
+                    // roots publish, in their order.
                     let differs = |e: &crate::schema::EnumDefinition| {
                         if name == crate::schema::derived_inputs::SORT_DIRECTION_ENUM {
                             let values: Vec<&str> =
                                 e.values.iter().map(|v| v.name.as_str()).collect();
-                            values != ["ASC", "DESC"]
-                                && values != crate::types::SORT_DIRECTIONS.as_slice()
+                            values != crate::types::SORT_DIRECTIONS.as_slice()
                         } else {
                             surface.enums.iter().all(|d| d != e)
                         }

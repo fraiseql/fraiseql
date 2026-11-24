@@ -97,7 +97,7 @@ async fn main() -> Result<()> {
             "4. ordering and pagination",
             r"
             query Page($limit: Int, $offset: Int) {
-                orders(orderBy: {placedAt: DESC}, limit: $limit, offset: $offset) {
+                orders(orderBy: [{field: placedAt, direction: DESC}], limit: $limit, offset: $offset) {
                     orderNumber
                     placedAt
                 }
@@ -109,7 +109,7 @@ async fn main() -> Result<()> {
             r"
             query Overview {
                 categories { name productCount }
-                customers(orderBy: {lifetimeValue: DESC}, limit: 3) {
+                customers(orderBy: [{field: lifetimeValue, direction: DESC}], limit: 3) {
                     fullName
                     lifetimeValue
                 }

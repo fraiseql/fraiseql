@@ -245,7 +245,10 @@ async fn a_graphql_offset_past_the_ceiling_is_refused_before_any_statement() {
     let Some(rig) = rig(Some(2)).await else {
         return;
     };
-    let served = rig.graphql("{ users(offset: 2, orderBy: {id: ASC}) { id } }").await.unwrap();
+    let served = rig
+        .graphql("{ users(offset: 2, orderBy: [{field: id, direction: ASC}]) { id } }")
+        .await
+        .unwrap();
     assert_eq!(ids(&served["data"]["users"]), vec![3, 4, 5], "{served}");
 
     let err = rig
@@ -263,7 +266,7 @@ async fn an_authenticated_graphql_offset_past_the_ceiling_is_refused_before_any_
         return;
     };
     let served = rig
-        .graphql_as_alice("{ users(offset: 2, orderBy: {id: ASC}) { id } }")
+        .graphql_as_alice("{ users(offset: 2, orderBy: [{field: id, direction: ASC}]) { id } }")
         .await
         .unwrap();
     assert_eq!(ids(&served["data"]["users"]), vec![3, 4, 5], "{served}");

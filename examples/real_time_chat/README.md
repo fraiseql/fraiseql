@@ -190,7 +190,7 @@ mutation SendMessage {
 query GetMessages($roomId: UUID!, $limit: Int!) {
   messageThread(
     where: { roomId: { _eq: $roomId } }
-    orderBy: { createdAt: DESC }
+    orderBy: [{ field: createdAt, direction: DESC }]
     limit: $limit
   ) {
     id

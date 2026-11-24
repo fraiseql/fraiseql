@@ -56,7 +56,7 @@ data:
 ## `@stream` on a root list field
 
 ```graphql
-{ items(orderBy: {id: ASC}) @stream(initialCount: 2) { id label } }
+{ items(orderBy: [{field: id}]) @stream(initialCount: 2) { id label } }
 ```
 
 - The initial `next` payload carries `initialCount` rows plus `hasNext: true`.

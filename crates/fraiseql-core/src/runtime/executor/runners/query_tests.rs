@@ -3412,39 +3412,35 @@ mod enum_membership {
         assert!(result.get("data").is_some(), "{result}");
     }
 
-    /// The boundary, stated rather than discovered.
-    ///
-    /// `orderBy` has a second, *object* form — `{name: "desc"}`, a field-to-direction map —
-    /// which `order_by_argument_type`'s own doc comment says "keeps executing but has no
-    /// expression in this type". It carries neither `field` nor `direction`, so the declared
-    /// `UserOrderByInput` cannot adjudicate it and the walk passes it through untouched,
-    /// exactly as #939 requires. Lower case still works there.
-    ///
-    /// So the asymmetry is real and deliberate: the form the schema describes is checked,
-    /// the form it does not describe is not. Pinned so nobody reads it as an oversight —
-    /// and note the ARRAY form is a different thing again, where the parser itself demands
-    /// a `field` key before this walk is ever consulted.
+    /// `orderBy` has one form, the list of `{field, direction}` keys the schema publishes.
+    /// The field-to-direction object (`{name: "desc"}`) used to pass the declared
+    /// `UserOrderByInput` unadjudicated, carrying neither of its keys, and was served in any
+    /// case. It is refused now, naming the key no item takes.
     #[tokio::test]
-    async fn the_untyped_object_form_of_order_by_is_still_passed_through() {
-        let result = executor()
+    async fn the_object_form_of_order_by_is_refused() {
+        let err = executor()
             .execute(r#"{ users(orderBy: {name: "desc"}) { id name } }"#, None)
             .await
-            .expect("a shape the derived input type does not describe is not adjudicated");
-        assert!(result.get("data").is_some(), "{result}");
+            .expect_err("a field-to-direction object is not a sort key");
+        assert!(
+            err.to_string()
+                .contains("orderBy item takes `field` and `direction`, got `name`"),
+            "{err}"
+        );
     }
 
-    /// And the array form's own requirement is untouched: the parser demands `field`, and
-    /// that refusal is its own, not this walk's. Without this the case above could be
-    /// passing because `orderBy` stopped being adjudicated at all.
+    /// An item is refused for a key it does not take before the walk or the parser asks for
+    /// `field`, so the refusal names what was written.
     #[tokio::test]
-    async fn the_array_form_still_demands_a_field_key() {
+    async fn an_item_naming_another_key_is_refused_naming_it() {
         let err = executor()
             .execute(r#"{ users(orderBy: [{name: "desc"}]) { id name } }"#, None)
             .await
-            .expect_err("an array item without `field` is refused by the orderBy parser");
+            .expect_err("an array item without `field` is refused");
         assert!(
-            err.to_string().contains("missing 'field'"),
-            "the refusal must be the parser's, not the enum walk's: {err}"
+            err.to_string()
+                .contains("orderBy item takes `field` and `direction`, got `name`"),
+            "{err}"
         );
     }
 

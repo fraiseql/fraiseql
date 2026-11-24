@@ -174,9 +174,12 @@ async fn the_reported_index_is_the_one_the_query_reads() {
     .await;
     assert!(indexes_read(&adapter, &filter).await.contains(&fr.name), "eq: {filter}");
 
-    let sort =
-        executed_sql(&executor, "fr-FR", "{ products(orderBy: { name: ASC }, limit: 10) { id } }")
-            .await;
+    let sort = executed_sql(
+        &executor,
+        "fr-FR",
+        "{ products(orderBy: [{field: name, direction: ASC}], limit: 10) { id } }",
+    )
+    .await;
     assert!(indexes_read(&adapter, &sort).await.contains(&fr.name), "order: {sort}");
 
     // Projection proof: the index, as the catalog holds it, depends on no session setting.

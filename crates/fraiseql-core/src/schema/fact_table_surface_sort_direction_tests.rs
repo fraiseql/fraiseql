@@ -1,5 +1,5 @@
-//! The fact-table roots publish the one `SortDirection`, and a declared one serves them when
-//! it holds the two directions, or the two and the four placements.
+//! The fact-table roots publish the one `SortDirection`, and a declared one serves them only
+//! when it holds the six values they publish.
 
 use serde_json::{Value, json};
 
@@ -29,8 +29,7 @@ fn the_roots_publish_the_six_directions() {
 }
 
 #[test]
-fn a_declared_sort_direction_with_the_two_or_the_six_serves() {
-    assert_eq!(published(&declaring(&["ASC", "DESC"])), ["ASC", "DESC"]);
+fn a_declared_sort_direction_with_the_six_serves() {
     assert_eq!(
         published(&declaring(&crate::types::SORT_DIRECTIONS)),
         crate::types::SORT_DIRECTIONS
@@ -40,11 +39,16 @@ fn a_declared_sort_direction_with_the_two_or_the_six_serves() {
 #[test]
 fn a_declared_sort_direction_with_other_values_is_refused() {
     for values in [
-        &["ASC"][..],
+        &["ASC", "DESC"][..],
+        &["ASC"],
         &["ASC", "DESC", "ASC_NULLS_FIRST"],
         &["DESC", "ASC"],
     ] {
         let message = refusal(&declaring(values));
-        assert!(message.contains("`SortDirection` is declared"), "{values:?}: {message}");
+        assert!(
+            message.contains("`SortDirection` is declared, and the roots of fact table `")
+                && message.contains("` publish the enum of that name: rename the declaration"),
+            "{values:?}: {message}"
+        );
     }
 }

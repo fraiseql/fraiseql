@@ -197,7 +197,7 @@ fn page_query(cursor: i64, limit: i64) -> String {
     format!(
         "{{ entity_change_logs(\
            where: {{ pk_entity_change_log: {{ gt: {cursor} }} }}, \
-           orderBy: {{ pk_entity_change_log: \"ASC\" }}, \
+           orderBy: [{{field: pk_entity_change_log, direction: \"ASC\"}}], \
            limit: {limit}) {{ pk_entity_change_log object_type }} }}"
     )
 }
@@ -248,7 +248,7 @@ async fn changelog_e2e_full_stack() {
     let only_orders = executor
         .execute_with_security(
             "{ entity_change_logs(where: { object_type: { eq: \"Order\" } }, \
-               orderBy: { pk_entity_change_log: \"ASC\" }, limit: 100) \
+               orderBy: [{field: pk_entity_change_log, direction: \"ASC\"}], limit: 100) \
                { pk_entity_change_log object_type } }",
             None,
             &reader,

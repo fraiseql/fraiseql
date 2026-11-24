@@ -38,3 +38,7 @@ impl QueryRunner {
 #[cfg(test)]
 #[path = "query_tests.rs"]
 mod query_runner_tests;
+
+#[cfg(test)]
+#[path = "order_by_strict_tests.rs"]
+mod order_by_strict_tests;

@@ -206,9 +206,12 @@ fn lines(response: &Value, field: &str) -> Vec<(String, f64)> {
 async fn a_function_root_answers_the_rows_its_lateral_view_answers() {
     let executor = executor().await;
     for (shape, args) in [
-        ("every line", r"orderBy: { label: ASC }"),
-        ("filtered", r#"where: { label: { neq: "Toner" } }, orderBy: { label: ASC }"#),
-        ("ordered and paged", r"orderBy: { amount: DESC }, limit: 2"),
+        ("every line", r"orderBy: [{field: label, direction: ASC}]"),
+        (
+            "filtered",
+            r#"where: { label: { neq: "Toner" } }, orderBy: [{field: label, direction: ASC}]"#,
+        ),
+        ("ordered and paged", r"orderBy: [{field: amount, direction: DESC}], limit: 2"),
     ] {
         let read = |field: &str| {
             format!(r#"{{ {field}(assetId: "{ASSET}", {args}) {{ label amount }} }}"#)
@@ -227,7 +230,7 @@ async fn a_function_roots_where_order_and_page_apply_to_the_rows_of_its_call() {
     let response = run(
         &executor,
         &format!(
-            r#"{{ lineItems(assetId: "{ASSET}", where: {{ label: {{ neq: "Toner" }} }}, orderBy: {{ amount: DESC }}, limit: 1) {{ label amount }} }}"#
+            r#"{{ lineItems(assetId: "{ASSET}", where: {{ label: {{ neq: "Toner" }} }}, orderBy: [{{field: amount, direction: DESC}}], limit: 1) {{ label amount }} }}"#
         ),
         "t1",
     )

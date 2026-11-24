@@ -56,7 +56,7 @@ finds no label is a field error, as any missing non-null value is
 
 ## Filter, sort, index
 
-`where: {name: {eq: "Pomme"}}` compares the request locale's label, and `orderBy: {name: ASC}`
+`where: {name: {eq: "Pomme"}}` compares the request locale's label, and `orderBy: [{field: name}]`
 sorts it under the locale's ICU collation, with unlabelled rows last. `fraiseql compile`
 prints a `CREATE INDEX CONCURRENTLY` per allowed locale on exactly the key those queries
 read, collation included, so the planner can use it.

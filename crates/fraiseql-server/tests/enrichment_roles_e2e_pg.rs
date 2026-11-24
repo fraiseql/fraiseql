@@ -339,7 +339,7 @@ async fn a_viewer_cannot_filter_or_sort_on_the_masked_field() {
 
     for query in [
         "{ invoices(where: { unit_cost: { gt: 15 } }) { id } }",
-        "{ invoices(orderBy: { unit_cost: DESC }) { id } }",
+        "{ invoices(orderBy: [{field: unit_cost, direction: DESC}]) { id } }",
     ] {
         let pricer = graphql_post(&base, query, &token_for(&issuer, PRICER)).await;
         assert!(

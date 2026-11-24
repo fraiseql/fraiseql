@@ -144,7 +144,7 @@ async fn a_sort_orders_the_label_under_the_locales_collation() {
     let Some(executor) = executor().await else {
         return;
     };
-    let order = "orderBy: { name: ASC }";
+    let order = "orderBy: [{field: name, direction: ASC}]";
     // fr-FR: Pear, Pomme, Zèbre.
     assert_eq!(ids(&executor, "fr-FR", order).await, rows(&[2, 1, 3, 4]), "fr-FR");
     // sv-SE: Päron, Zebra, Äpple (Ä after Z); the default collation would put Äpple first.
@@ -160,7 +160,7 @@ async fn a_sort_orders_the_label_under_the_locales_collation() {
     let response = with_request_locale(
         "sv-SE",
         relay.execute(
-            "{ productsConnection(first: 10, orderBy: { name: ASC }) { edges { node { id } } } }",
+            "{ productsConnection(first: 10, orderBy: [{field: name, direction: ASC}]) { edges { node { id } } } }",
             None,
         ),
     )

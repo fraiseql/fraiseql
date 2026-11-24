@@ -77,6 +77,28 @@ disagreed, and the promise was the part that was wrong.
   or `BYPASSRLS` role. A stamp would only have made a watermark readable by that tenant's
   own role, which no path does. Build the store with `PostgresSourceCursorStore::new`.
 
+- **A list query's `orderBy` takes only the list it publishes (#2415).** `orderBy` is a list
+  of `{field, direction}` items, applied in order, and a direction is one of the six
+  `SortDirection` values spelled as published. Three readings outside that are refused:
+  - The field-to-direction object, `orderBy: {name: DESC}`, which the published
+    `[<Type>OrderByInput!]` never described. It is refused as "orderBy item takes `field`
+    and `direction`, got `name`". Write `orderBy: [{field: name, direction: DESC}]`.
+  - A direction in another case, `desc`, which reached the parser through an `orderBy`
+    typed `JSON` (a return type the schema cannot adjudicate) or a variable. It is refused
+    as "orderBy direction 'desc' must be one of `ASC`, `DESC`, …". A direction that is not
+    a string, which was read as `ASC`, is refused the same way.
+  - A declared `SortDirection` other than the six. It replaced the derived one, so a schema
+    declaring `ASC` and `DESC` published an `orderBy` that refused the placements; a schema
+    that declares one, with a sortable list query or a fact table, must now declare the six
+    or none, and is refused when it loads otherwise.
+
+  One item written without the list, `orderBy: {field: name, direction: DESC}`, is a
+  one-item list, as GraphQL input coercion makes it; it used to be read as a sort by a key
+  named `field`. gRPC's `order_by` is handed to the engine as such an item. A relay cursor's
+  ordering is recorded from the `ORDER BY` it sorts by, not from how `orderBy` was written,
+  so every cursor issued under the old forms resumes under the list that names the same
+  ordering.
+
 - **The Go SDK requires Go 1.26 (#2278).** Its `go.mod` declares `go 1.26`, the oldest
   release Go still supports, and its suite runs on 1.26 and 1.27; it declared 1.23, was
   tested on 1.23 and 1.24, and its README promised 1.22. The code needs nothing newer than
@@ -1185,8 +1207,7 @@ disagreed, and the promise was the part that was wrong.
   across the NULLs in the order asked. Under `ASC` and `DESC` the SQL is unchanged.
 
 - **An `orderBy` direction puts its key's NULLs first or last (#1606).** `{field:
-  discontinuedAt, direction: DESC_NULLS_LAST}` (or `{discontinuedAt: DESC_NULLS_LAST}`)
-  sorts as `ORDER BY discontinued_at DESC NULLS LAST`, so a newest-first list no longer opens
+  discontinuedAt, direction: DESC_NULLS_LAST}` sorts as `ORDER BY discontinued_at DESC NULLS LAST`, so a newest-first list no longer opens
   on every row without a date. `ASC` and `DESC` keep their meaning and their SQL. A relay
   connection keeps the placement on every page, forward and backward, and its cursor records
   it: a cursor issued under `ASC_NULLS_LAST` is refused under `ASC_NULLS_FIRST`. Cursors
@@ -1595,8 +1616,7 @@ disagreed, and the promise was the part that was wrong.
   `DESC_NULLS_FIRST` and `DESC_NULLS_LAST`, after `ASC` and `DESC`. Every document that
   names `ASC` or `DESC` is still valid and sorts as before. Code generated from the schema,
   and an exhaustive match over a typed `SortDirection` variable, sees the four new members.
-  A schema that declares its own `SortDirection` keeps it, and with fact tables it must hold
-  `ASC` and `DESC`, or the six.
+  A schema that declares its own `SortDirection` must hold the six.
 
 - **A query with several roots answers the roots it can (#1925).** One root failing failed
   the whole document, and the errors a root's runner reported inside its answer were

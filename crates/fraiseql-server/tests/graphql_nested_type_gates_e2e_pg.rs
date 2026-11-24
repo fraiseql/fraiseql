@@ -1133,7 +1133,7 @@ async fn a_composed_relay_page_resumes_past_its_cursor_in_the_requested_order() 
     let executor = relay_rig_or_skip!("v_user_fk", Policy::Owner);
     let page = |args: &str, node: &str| {
         format!(
-            "{{ foldersPage({args}, orderBy: {{id: DESC}}) {{ pageInfo {{ startCursor \
+            "{{ foldersPage({args}, orderBy: [{{field: id, direction: DESC}}]) {{ pageInfo {{ startCursor \
              endCursor }} edges {{ cursor node {{ {node} }} }} }} }}"
         )
     };

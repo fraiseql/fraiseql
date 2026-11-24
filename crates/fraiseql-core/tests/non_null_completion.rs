@@ -157,7 +157,8 @@ async fn a_null_in_a_non_null_field_of_a_non_null_list_nulls_data() {
         eprintln!("skipping #1522: DATABASE_URL not set");
         return;
     };
-    let response = run(&executor, "{ products(orderBy: {pk: ASC}) { id name } }").await;
+    let response =
+        run(&executor, "{ products(orderBy: [{field: pk, direction: ASC}]) { id name } }").await;
     assert_eq!(response["data"], Value::Null, "{response}");
     let errors = errors(&response);
     assert_eq!(
@@ -177,7 +178,8 @@ async fn the_error_path_uses_aliases() {
     let Some(executor) = executor().await else {
         return;
     };
-    let response = run(&executor, "{ p: products(orderBy: {pk: ASC}) { n: name } }").await;
+    let response =
+        run(&executor, "{ p: products(orderBy: [{field: pk, direction: ASC}]) { n: name } }").await;
     assert_eq!(errors(&response)[0].0, json!(["p", 2, "n"]), "{response}");
 }
 
@@ -223,7 +225,7 @@ async fn a_null_inside_a_relay_node_nulls_the_node() {
     };
     let response = run(
         &executor,
-        "{ productsConnection(first: 10, orderBy: {pk: ASC}) { edges { node { id name } } } }",
+        "{ productsConnection(first: 10, orderBy: [{field: pk, direction: ASC}]) { edges { node { id name } } } }",
     )
     .await;
     let nodes: Vec<Value> = response["data"]["productsConnection"]["edges"]

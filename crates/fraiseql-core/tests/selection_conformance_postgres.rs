@@ -2855,13 +2855,17 @@ async fn a_string_field_filters_and_sorts_as_text() {
     let (filtered, _) =
         answer(&exec, r#"{ cleanKinds(where: { string: { eq: "x" } }) { int string } }"#).await;
     assert_eq!(filtered["data"]["cleanKinds"], json!([{"int": 7, "string": "x"}]), "{filtered}");
-    let (sorted, _) = answer(&exec, "{ cleanKinds(orderBy: { string: ASC }) { string } }").await;
+    let (sorted, _) =
+        answer(&exec, "{ cleanKinds(orderBy: [{field: string, direction: ASC}]) { string } }")
+            .await;
     assert_eq!(
         sorted["data"]["cleanKinds"],
         json!([{"string": ""}, {"string": "x"}]),
         "{sorted}"
     );
-    let (sorted, _) = answer(&exec, "{ cleanKinds(orderBy: { string: DESC }) { string } }").await;
+    let (sorted, _) =
+        answer(&exec, "{ cleanKinds(orderBy: [{field: string, direction: DESC}]) { string } }")
+            .await;
     assert_eq!(
         sorted["data"]["cleanKinds"],
         json!([{"string": "x"}, {"string": ""}]),
@@ -2908,7 +2912,8 @@ async fn an_integer_id_round_trips_through_node() {
         eprintln!("SKIP: no PostgreSQL (set DATABASE_URL)");
         return;
     };
-    let (listed, _) = answer(&exec, "{ cleanKinds(orderBy: { int: DESC }) { id int } }").await;
+    let (listed, _) =
+        answer(&exec, "{ cleanKinds(orderBy: [{field: int, direction: DESC}]) { id int } }").await;
     let first = &listed["data"]["cleanKinds"][0];
     assert_eq!(first, &json!({"id": "1", "int": 7}), "{listed}");
     let node_id = encode_node_id("CleanKind", first["id"].as_str().unwrap());

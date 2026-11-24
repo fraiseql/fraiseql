@@ -21,6 +21,7 @@ pub mod schema;
 mod schema_domain;
 mod schema_lookup;
 mod schema_serde;
+mod sort_direction_rule;
 mod type_inject;
 mod type_relationships;
 mod type_roles;
@@ -45,6 +46,8 @@ mod name_violations_tests;
 mod role_names_read_tests;
 #[cfg(test)]
 mod sdl_deprecation_tests;
+#[cfg(test)]
+mod sort_direction_rule_tests;
 #[cfg(test)]
 mod tests;
 

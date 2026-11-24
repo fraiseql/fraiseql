@@ -182,7 +182,7 @@ async fn pks(executor: &Executor, query: &str, filter: &Value) -> Result<Vec<i64
 
 /// The pks `query` returns sorted ascending by `field`, in the order they came back.
 async fn sorted_pks(executor: &Executor, query: &str, field: &str) -> Result<Vec<i64>, String> {
-    let document = format!("{{ {query}(orderBy: {{{field}: ASC}}) {{ pk }} }}");
+    let document = format!("{{ {query}(orderBy: [{{field: {field}, direction: ASC}}]) {{ pk }} }}");
     let response = executor.execute(&document, None).await.map_err(|e| e.to_string())?;
     let rows = response["data"][query]
         .as_array()

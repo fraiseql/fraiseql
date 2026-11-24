@@ -279,7 +279,7 @@ async fn a_streamed_fragment_on_a_type_the_caller_may_not_see_answers_as_one_on_
     let server = Box::pin(boot_schema(sse_config(1), schema)).await.unwrap();
     let answer = |on: &str| {
         let query = format!(
-            "{{ items(orderBy: {{id: ASC}}) @stream(initialCount: 1) {{ id ... on {on} {{ id }} }} }}"
+            "{{ items(orderBy: [{{field: id, direction: ASC}}]) @stream(initialCount: 1) {{ id ... on {on} {{ id }} }} }}"
         );
         let server = &server;
         async move { sse_post(server, &json!({ "query": query }), None).await.text().await.unwrap() }
@@ -296,7 +296,7 @@ async fn a_bounded_stream_within_max_offset_is_served() {
         return;
     }
     let server = Box::pin(boot_schema(sse_config(1), schema_with_max_offset(3))).await.unwrap();
-    let query = "{ items(limit: 4, orderBy: {id: ASC}) @stream(initialCount: 1) { id } }";
+    let query = "{ items(limit: 4, orderBy: [{field: id, direction: ASC}]) @stream(initialCount: 1) { id } }";
     let body = sse_post(&server, &json!({ "query": query }), None).await.text().await.unwrap();
     let payloads = next_payloads(&parse_sse(&body));
     assert_eq!(streamed_ids(&payloads, "items"), vec![1, 2, 3, 4], "{body}");
@@ -310,7 +310,7 @@ async fn an_unbounded_stream_ends_with_the_refusal_at_max_offset() {
         return;
     }
     let server = Box::pin(boot_schema(sse_config(1), schema_with_max_offset(2))).await.unwrap();
-    let query = "{ items(orderBy: {id: ASC}) @stream(initialCount: 1) { id } }";
+    let query = "{ items(orderBy: [{field: id, direction: ASC}]) @stream(initialCount: 1) { id } }";
     let body = sse_post(&server, &json!({ "query": query }), None).await.text().await.unwrap();
     let payloads = next_payloads(&parse_sse(&body));
     assert_eq!(streamed_ids(&payloads, "items"), vec![1, 2, 3], "{body}");
@@ -387,7 +387,8 @@ async fn stream_delivers_initial_then_batches_in_order() {
     }
     let server = Box::pin(boot(sse_config(1))).await.unwrap();
 
-    let query = r"{ items(orderBy: {id: ASC}) @stream(initialCount: 2) { id label } }";
+    let query =
+        r"{ items(orderBy: [{field: id, direction: ASC}]) @stream(initialCount: 2) { id label } }";
     let resp = sse_post(&server, &json!({"query": query}), None).await;
     assert_eq!(resp.status(), 200);
     let events = parse_sse(&resp.text().await.unwrap());
@@ -423,7 +424,7 @@ async fn stream_respects_the_client_row_limit() {
     }
     let server = Box::pin(boot(sse_config(1))).await.unwrap();
 
-    let query = r"{ items(limit: 3, orderBy: {id: ASC}) @stream(initialCount: 1) { id } }";
+    let query = r"{ items(limit: 3, orderBy: [{field: id, direction: ASC}]) @stream(initialCount: 1) { id } }";
     let resp = sse_post(&server, &json!({"query": query}), None).await;
     assert_eq!(resp.status(), 200);
     let events = parse_sse(&resp.text().await.unwrap());
@@ -447,7 +448,7 @@ async fn stream_respects_a_row_limit_given_as_a_variable_default() {
     }
     let server = Box::pin(boot(sse_config(1))).await.unwrap();
 
-    let query = r"query Q($n: Int = 3) { items(limit: $n, orderBy: {id: ASC}) @stream(initialCount: 1) { id } }";
+    let query = r"query Q($n: Int = 3) { items(limit: $n, orderBy: [{field: id, direction: ASC}]) @stream(initialCount: 1) { id } }";
     let resp = sse_post(&server, &json!({"query": query}), None).await;
     assert_eq!(resp.status(), 200);
     let events = parse_sse(&resp.text().await.unwrap());
@@ -508,7 +509,8 @@ async fn multipart_delivers_the_same_stream_payloads_as_sse() {
         return;
     }
     let server = Box::pin(boot(sse_config(1))).await.unwrap();
-    let query = r"{ items(orderBy: {id: ASC}) @stream(initialCount: 2) { id } }";
+    let query =
+        r"{ items(orderBy: [{field: id, direction: ASC}]) @stream(initialCount: 2) { id } }";
 
     let sse_ids = streamed_ids(
         &next_payloads(&parse_sse(
@@ -557,7 +559,7 @@ async fn multipart_delivers_deferred_payloads() {
     let server = Box::pin(boot(sse_config(10))).await.unwrap();
 
     let query = r#"
-        { items(limit: 1, orderBy: {id: ASC}) { id ...Detail @defer(label: "detail") } }
+        { items(limit: 1, orderBy: [{field: id, direction: ASC}]) { id ...Detail @defer(label: "detail") } }
         fragment Detail on SseItem { label }
     "#;
     let resp = multipart_post(&server, &json!({"query": query})).await;
@@ -638,7 +640,7 @@ async fn defer_on_a_fragment_splits_the_response_into_two_payloads() {
     let server = Box::pin(boot(sse_config(10))).await.unwrap();
 
     let query = r#"
-        { items(limit: 2, orderBy: {id: ASC}) { id ...Detail @defer(label: "detail") } }
+        { items(limit: 2, orderBy: [{field: id, direction: ASC}]) { id ...Detail @defer(label: "detail") } }
         fragment Detail on SseItem { label }
     "#;
     let resp = sse_post(&server, &json!({"query": query}), None).await;
@@ -710,7 +712,7 @@ async fn defer_combined_with_stream_is_refused() {
     let server = Box::pin(boot(sse_config(1))).await.unwrap();
 
     let query = r"
-        { items(orderBy: {id: ASC}) @stream(initialCount: 1) { id ...Detail @defer } }
+        { items(orderBy: [{field: id, direction: ASC}]) @stream(initialCount: 1) { id ...Detail @defer } }
         fragment Detail on SseItem { label }
     ";
     let resp = sse_post(&server, &json!({"query": query}), None).await;
@@ -774,7 +776,8 @@ async fn last_event_id_resumes_the_delivery_without_repeating_or_skipping_rows()
     }
     let server = Box::pin(boot(sse_config(1))).await.unwrap();
 
-    let query = r"{ items(orderBy: {id: ASC}) @stream(initialCount: 2) { id } }";
+    let query =
+        r"{ items(orderBy: [{field: id, direction: ASC}]) @stream(initialCount: 2) { id } }";
 
     // First connection, read whole: ids are 2, 3, 4, 5, 5 (initial delivers 2 rows,
     // then one per batch, and the terminal payload repeats the final offset).
@@ -823,7 +826,7 @@ async fn resuming_charges_already_delivered_rows_against_the_client_limit() {
     }
     let server = Box::pin(boot(sse_config(1))).await.unwrap();
 
-    let query = r"{ items(limit: 3, orderBy: {id: ASC}) @stream(initialCount: 1) { id } }";
+    let query = r"{ items(limit: 3, orderBy: [{field: id, direction: ASC}]) @stream(initialCount: 1) { id } }";
     let resumed = reqwest::Client::new()
         .post(format!("{}/graphql", server.url))
         .header("accept", "text/event-stream")
@@ -861,7 +864,7 @@ async fn a_malformed_or_backwards_last_event_id_is_refused() {
             .header("content-type", "application/json")
             .header("last-event-id", header)
             .json(&json!({
-                "query": r"{ items(offset: 2, orderBy: {id: ASC}) @stream(initialCount: 1) { id } }"
+                "query": r"{ items(offset: 2, orderBy: [{field: id, direction: ASC}]) @stream(initialCount: 1) { id } }"
             }))
             .send()
             .await
@@ -1304,7 +1307,8 @@ async fn a_root_stream_still_pages_the_database() {
     }
     let server = Box::pin(boot(sse_config(2))).await.unwrap();
 
-    let query = r"{ items(orderBy: {id: ASC}) @stream(initialCount: 1) { id } }";
+    let query =
+        r"{ items(orderBy: [{field: id, direction: ASC}]) @stream(initialCount: 1) { id } }";
     let resp = sse_post(&server, &json!({"query": query}), None).await;
     let events = parse_sse(&resp.text().await.unwrap());
     let payloads = next_payloads(&events);
@@ -1427,13 +1431,13 @@ async fn an_untyped_deferred_fragment_splits_as_a_named_one_does() {
         }
     };
     let named = delivered(
-        r#"{ items(limit: 2, orderBy: {id: ASC}) { id ...Detail @defer(label: "detail") } }
+        r#"{ items(limit: 2, orderBy: [{field: id, direction: ASC}]) { id ...Detail @defer(label: "detail") } }
            fragment Detail on SseItem { label }"#,
     )
     .await;
     assert_eq!(named[0]["hasNext"], json!(true), "{named:?}");
     let untyped = delivered(
-        r#"{ items(limit: 2, orderBy: {id: ASC}) { id ... @defer(label: "detail") { label } } }"#,
+        r#"{ items(limit: 2, orderBy: [{field: id, direction: ASC}]) { id ... @defer(label: "detail") { label } } }"#,
     )
     .await;
     assert_eq!(untyped, named);

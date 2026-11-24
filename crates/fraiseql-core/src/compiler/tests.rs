@@ -438,15 +438,14 @@ mod aggregation_tests {
     }
 
     #[test]
-    fn test_order_by_from_graphql_json_object_format() {
+    fn test_order_by_from_graphql_json_object_format_is_refused() {
         let json = serde_json::json!({ "name": "DESC", "created_at": "ASC" });
-        let clauses = OrderByClause::from_graphql_json(&json).unwrap();
-        assert_eq!(clauses.len(), 2);
-        assert!(clauses.iter().any(|c| c.field == "name" && c.direction == OrderDirection::Desc));
+        let result = OrderByClause::from_graphql_json(&json);
         assert!(
-            clauses
-                .iter()
-                .any(|c| c.field == "created_at" && c.direction == OrderDirection::Asc)
+            matches!(&result, Err(FraiseQLError::Validation { message, .. })
+                if message == "orderBy item takes `field` and `direction`, got `created_at`"
+                    || message == "orderBy item takes `field` and `direction`, got `name`"),
+            "expected the object form refused naming its key, got: {result:?}"
         );
     }
 
@@ -466,7 +465,7 @@ mod aggregation_tests {
 
     #[test]
     fn test_order_by_from_graphql_json_invalid_direction() {
-        let json = serde_json::json!({ "name": "INVALID" });
+        let json = serde_json::json!([{ "field": "name", "direction": "INVALID" }]);
         let result = OrderByClause::from_graphql_json(&json);
         assert!(
             matches!(result, Err(FraiseQLError::Validation { .. })),
@@ -476,7 +475,7 @@ mod aggregation_tests {
 
     #[test]
     fn test_order_by_rejects_sql_injection_in_field() {
-        let json = serde_json::json!({ "x' || pg_sleep(5) || '": "ASC" });
+        let json = serde_json::json!([{ "field": "x' || pg_sleep(5) || '", "direction": "ASC" }]);
         let result = OrderByClause::from_graphql_json(&json);
         assert!(
             matches!(result, Err(FraiseQLError::Validation { .. })),
@@ -486,7 +485,7 @@ mod aggregation_tests {
 
     #[test]
     fn test_order_by_rejects_field_with_dot() {
-        let json = serde_json::json!({ "a.b": "ASC" });
+        let json = serde_json::json!([{ "field": "a.b" }]);
         let result = OrderByClause::from_graphql_json(&json);
         assert!(
             matches!(result, Err(FraiseQLError::Validation { .. })),
@@ -496,7 +495,7 @@ mod aggregation_tests {
 
     #[test]
     fn test_order_by_rejects_empty_field() {
-        let json = serde_json::json!({ "": "ASC" });
+        let json = serde_json::json!([{ "field": "" }]);
         let result = OrderByClause::from_graphql_json(&json);
         assert!(
             matches!(result, Err(FraiseQLError::Validation { .. })),
@@ -506,7 +505,10 @@ mod aggregation_tests {
 
     #[test]
     fn test_order_by_accepts_valid_identifiers() {
-        let json = serde_json::json!({ "created_at": "DESC", "_score": "ASC" });
+        let json = serde_json::json!([
+            { "field": "created_at", "direction": "DESC" },
+            { "field": "_score" }
+        ]);
         let clauses = OrderByClause::from_graphql_json(&json).unwrap();
         assert_eq!(clauses.len(), 2);
     }

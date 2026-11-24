@@ -706,6 +706,14 @@ impl CompiledSchema {
                 path:    Some("subscriptions.filter".to_string()),
             });
         }
+        // The `SortDirection` a list query's `orderBy` publishes holds the six values; before the
+        // defaults, whose `ASC` a narrower declaration would refuse without naming why.
+        if let Some(violation) = self.sort_direction_violation() {
+            return Err(FraiseQLError::Validation {
+                message: format!("orderBy cannot be published:\n  - {violation}"),
+                path:    Some("enums.SortDirection".to_string()),
+            });
+        }
         // A default publishes as a GraphQL literal of its type. One with no such
         // literal would be published as absent, which makes an optional field required.
         let violations = self.default_literal_violations();

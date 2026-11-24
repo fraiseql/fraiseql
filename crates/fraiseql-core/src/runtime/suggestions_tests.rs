@@ -150,10 +150,20 @@ async fn an_unknown_where_field() {
     assert_hint_follows_switch(&with, &without, "nmae");
 }
 
+/// A list query's sort key is a member of its published `<Type>OrderByField`, so an unknown
+/// one is the enum's refusal, which names the members introspection publishes whatever the
+/// switch says; the parser's hint is never reached.
 #[tokio::test]
-async fn an_unknown_sort_field() {
-    let [with, without] = refusals(schema(), "{ users(orderBy: {nmae: ASC}) { id } }", None).await;
-    assert_hint_follows_switch(&with, &without, "nmae");
+async fn an_unknown_sort_field_is_the_published_enums_refusal() {
+    let [with, without] =
+        refusals(schema(), "{ users(orderBy: [{field: nmae}]) { id } }", None).await;
+    for refusal in [&with, &without] {
+        assert!(
+            refusal.contains("`orderBy[0].field` has enum type `UserOrderByField`")
+                && !refusal.contains(HINT),
+            "{refusal}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -165,7 +175,7 @@ async fn an_unknown_where_field_on_a_connection() {
 
 #[tokio::test]
 async fn an_unknown_sort_field_on_a_connection() {
-    let query = "{ users(first: 2, orderBy: {nmae: ASC}) { edges { node { id } } } }";
+    let query = "{ users(first: 2, orderBy: [{field: nmae}]) { edges { node { id } } } }";
     let [with, without] = refusals(relay_schema(), query, None).await;
     assert_hint_follows_switch(&with, &without, "nmae");
 }

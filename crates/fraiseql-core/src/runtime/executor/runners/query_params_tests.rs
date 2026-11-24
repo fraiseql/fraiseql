@@ -309,7 +309,7 @@ fn nearest_dimension_mismatch_is_refused() {
 fn nearest_conflicts_with_limit_and_order_by() {
     for (extra, needle) in [
         (serde_json::json!(3), "limit"),
-        (serde_json::json!({"id": "ASC"}), "orderBy"),
+        (serde_json::json!([{"field": "id", "direction": "ASC"}]), "orderBy"),
     ] {
         let mut a = args(&serde_json::json!({"nearest": {"vector": [1, 2, 3], "k": 2}}));
         a.insert(

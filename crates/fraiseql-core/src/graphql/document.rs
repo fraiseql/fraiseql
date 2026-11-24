@@ -7,8 +7,8 @@
 //! module's concern.
 //!
 //! The parser is `apollo-parser`, chosen for keeping a document as written: an object
-//! literal's keys stay in the order written, so `orderBy: {ratio: ASC, current: DESC}` sorts by
-//! `ratio` first (#1567), and a key written twice is seen, and refused (§ 5.6.3). It is also
+//! literal's keys stay in the order written (#1567), so an object answers as the same object
+//! passed as a variable does, and a key written twice is seen, and refused (§ 5.6.3). It is also
 //! error-resilient by design: a fuzz campaign seeded with every input that panicked the
 //! parsers measured against it (graphql-parser 0.4 on a block string indented with U+00A0,
 //! #976; cynic-parser 0.11 on the same, on an integer literal beyond `i64` and on a NUL in a

@@ -202,7 +202,7 @@ async fn a_non_null_variable_fits_a_nullable_position() {
     let served = names(
         &exec,
         "query Q($l: Int!, $n: [String!]!) { things(limit: $l, where: {name: {in: $n}}, \
-         orderBy: {name: ASC}) { name } }",
+         orderBy: [{field: name, direction: ASC}]) { name } }",
         Some(&vars),
     )
     .await;

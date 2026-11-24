@@ -216,8 +216,8 @@ A direction can also say where the key puts its NULLs, before or after every val
 `{field: discontinuedAt, direction: DESC_NULLS_LAST}` lists the most recently discontinued
 first and the products never discontinued after them, as `ORDER BY discontinued_at DESC
 NULLS LAST`. A direction's own default spelled out (`ASC_NULLS_LAST`, `DESC_NULLS_FIRST`) is
-the same ordering as `ASC` or `DESC`, and renders the same SQL. The object form takes the
-same values: `orderBy: {discontinuedAt: DESC_NULLS_LAST}`.
+the same ordering as `ASC` or `DESC`, and renders the same SQL. A direction is one of these
+six, spelled as published: `desc` is refused, listing them.
 
 REST spells the placement as a suffix on the `?sort=` item, as PostgREST does (#2415):
 `?sort=-discontinuedAt.nullslast` is the ordering above, and `.nullsfirst` the other one. Any
@@ -227,10 +227,15 @@ An index serves such an ordering only when it was declared with the same placeme
 `CREATE INDEX … (discontinued_at DESC NULLS LAST)`. An index declared `DESC` alone has its
 NULLs first, and PostgreSQL sorts instead of reading it.
 
-An object written inline is applied in the order its keys were written, as the same object
-passed as a variable is: `orderBy: {ratio: ASC, isCurrent: DESC}` sorts by `ratio` first.
-An input object naming a key twice (`{ratio: ASC, ratio: DESC}`) is refused with its
-position, as GraphQL requires (§ 5.6.3), rather than sorted by one of the two.
+The items are applied in the order written: `orderBy: [{field: ratio}, {field: isCurrent,
+direction: DESC}]` sorts by `ratio` first. One item may be written without the list
+(`orderBy: {field: ratio}`), as GraphQL coerces any input to a one-item list. A
+field-to-direction object (`orderBy: {ratio: ASC}`) is not an item, and is refused naming
+its key; an item naming a key twice is refused with its position, as GraphQL requires
+(§ 5.6.3), rather than sorted by one of the two.
+
+A schema that declares its own `SortDirection` publishes it in place of the derived one, so it
+must hold these six values; any other declaration is refused when the schema loads.
 
 The keys are the type's fields that order meaningfully (not a relation, a list, a `JSON`
 document or a vector, whose order would be that of their serialized text), plus the

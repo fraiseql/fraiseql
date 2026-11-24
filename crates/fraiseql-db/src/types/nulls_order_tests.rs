@@ -62,24 +62,27 @@ fn any_other_direction_names_nothing() {
 }
 
 #[test]
-fn an_order_by_item_and_key_carry_the_placement_their_direction_names() {
+fn an_order_by_item_carries_the_placement_its_direction_names() {
     let items = OrderByClause::from_graphql_json(&json!([
-        { "field": "discontinuedAt", "direction": "desc_nulls_last" },
+        { "field": "discontinuedAt", "direction": "DESC_NULLS_LAST" },
         { "field": "name" },
     ]))
     .unwrap();
     assert_eq!((items[0].direction, items[0].nulls), (Desc, Some(NullsOrder::Last)));
     assert_eq!((items[1].direction, items[1].nulls), (Asc, None));
-    let keys =
-        OrderByClause::from_graphql_json(&json!({ "discontinuedAt": "ASC_NULLS_FIRST" })).unwrap();
-    assert_eq!((keys[0].direction, keys[0].nulls), (Asc, Some(NullsOrder::First)));
+    let one = OrderByClause::from_graphql_json(
+        &json!({ "field": "discontinuedAt", "direction": "ASC_NULLS_FIRST" }),
+    )
+    .unwrap();
+    assert_eq!((one[0].direction, one[0].nulls), (Asc, Some(NullsOrder::First)));
 }
 
 #[test]
 fn an_order_by_direction_outside_the_six_is_refused_listing_them() {
     for value in [
         json!([{ "field": "name", "direction": "DESC_NULLS" }]),
-        json!({ "name": "UP" }),
+        json!([{ "field": "name", "direction": "desc_nulls_last" }]),
+        json!({ "field": "name", "direction": "UP" }),
     ] {
         let message = OrderByClause::from_graphql_json(&value).unwrap_err().to_string();
         assert!(

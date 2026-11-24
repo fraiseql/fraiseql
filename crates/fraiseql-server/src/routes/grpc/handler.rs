@@ -525,16 +525,22 @@ pub fn read_arguments(
         arguments.insert("offset".to_string(), serde_json::json!(offset));
     }
     if let Some((field, direction)) = extract_order_by_pair(msg, type_def) {
-        arguments.insert("orderBy".to_string(), serde_json::json!({ field: direction }));
+        arguments.insert("orderBy".to_string(), order_by_argument(&field, &direction));
     }
 
     arguments
 }
 
+/// The `orderBy` argument that sorts by `field` in `direction`: one `{field, direction}` key.
+#[must_use]
+pub fn order_by_argument(field: &str, direction: &str) -> serde_json::Value {
+    serde_json::json!([{ "field": field, "direction": direction }])
+}
+
 /// Extract `order_by` as a `(field, direction)` pair.
 ///
-/// The engine takes the ordering as `{"field": "ASC"}` and validates the field
-/// itself. The removed `extract_order_by` rendered a pre-quoted SQL fragment
+/// The engine takes the ordering as a `{field, direction}` key and validates the
+/// field itself. The removed `extract_order_by` rendered a pre-quoted SQL fragment
 /// instead — the shape the old self-built statement needed, and nothing else.
 #[must_use]
 pub fn extract_order_by_pair(

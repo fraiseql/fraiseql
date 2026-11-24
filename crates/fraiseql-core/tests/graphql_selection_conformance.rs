@@ -2179,9 +2179,12 @@ async fn multi_root_object_form_argument_is_the_control() {
     // The object form already took the arm that unquotes keys, so it worked
     // where the array form of the same argument did not.
     let (exec, adapter) = ordering_executor();
-    exec.execute(r#"{ a: users(orderBy: {name: "DESC"}) { id } b: users { id } }"#, None)
-        .await
-        .expect("multi-root object-form argument must run");
+    exec.execute(
+        r#"{ a: users(orderBy: [{field: name, direction: "DESC"}]) { id } b: users { id } }"#,
+        None,
+    )
+    .await
+    .expect("multi-root object-form argument must run");
     let recorded = adapter.recorded_order_bys();
     assert!(
         recorded.iter().flatten().any(|o| o.contains("name")),

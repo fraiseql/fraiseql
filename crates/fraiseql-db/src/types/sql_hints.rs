@@ -413,72 +413,73 @@ impl OrderByClause {
         crate::utils::validate_graphql_identifier(field, "orderBy")
     }
 
-    /// Parse `orderBy` from a GraphQL variables JSON value.
+    /// Parse `orderBy` from a GraphQL variables JSON value: a list of
+    /// `{ "field": "name", "direction": "DESC_NULLS_LAST" }` keys, applied in order, or one
+    /// such key as a one-item list (GraphQL input coercion).
     ///
-    /// Accepts two formats:
-    /// - Object: `{ "name": "DESC", "created_at": "ASC" }`
-    /// - Array:  `[{ "field": "name", "direction": "DESC_NULLS_LAST" }]`
-    ///
-    /// A direction is a [`SORT_DIRECTIONS`](super::nulls_order::SORT_DIRECTIONS) value, in any
-    /// case: `ASC`, `DESC`, or either with the placement of its NULLs.
+    /// A direction is a [`SORT_DIRECTIONS`](super::nulls_order::SORT_DIRECTIONS) value, spelled
+    /// as published, and `ASC` when absent.
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Validation` for an invalid structure or direction.
+    /// Returns `FraiseQLError::Validation` for any other structure (a field-to-direction
+    /// object among them), an item naming a key other than `field` and `direction`, or a
+    /// direction that is not a published value.
     pub fn from_graphql_json(value: &serde_json::Value) -> Result<Vec<Self>> {
-        if let Some(obj) = value.as_object() {
-            // Object format: { "name": "DESC", "created_at": "ASC" }
-            obj.iter()
-                .map(|(field, dir_val)| {
-                    let dir_str = dir_val.as_str().ok_or_else(|| FraiseQLError::Validation {
-                        message: format!("orderBy direction for '{field}' must be a string"),
-                        path:    None,
-                    })?;
-                    let (direction, nulls) = parse_direction(dir_str)?;
-                    Self::validate_field_name(field)?;
-                    let mut clause = Self::new(field.clone(), direction);
-                    clause.nulls = nulls;
-                    Ok(clause)
-                })
-                .collect()
-        } else if let Some(arr) = value.as_array() {
-            // Array format: [{ "field": "name", "direction": "DESC" }]
-            arr.iter()
-                .map(|item| {
-                    let obj = item.as_object().ok_or_else(|| FraiseQLError::Validation {
-                        message: "orderBy array items must be objects".to_string(),
-                        path:    None,
-                    })?;
-                    let field = obj
-                        .get("field")
-                        .and_then(|v| v.as_str())
-                        .ok_or_else(|| FraiseQLError::Validation {
-                            message: "orderBy item missing 'field' string".to_string(),
-                            path:    None,
-                        })?
-                        .to_string();
-                    let dir_str = obj.get("direction").and_then(|v| v.as_str()).unwrap_or("ASC");
-                    let (direction, nulls) = parse_direction(dir_str)?;
-                    Self::validate_field_name(&field)?;
-                    let mut clause = Self::new(field, direction);
-                    clause.nulls = nulls;
-                    Ok(clause)
-                })
-                .collect()
-        } else {
-            Err(argument_shape_refusal("orderBy", "an object or array"))
+        let items = match value {
+            serde_json::Value::Array(items) => items.as_slice(),
+            serde_json::Value::Object(_) => std::slice::from_ref(value),
+            _ => {
+                return Err(argument_shape_refusal(
+                    "orderBy",
+                    "a list of `{field, direction}` keys",
+                ));
+            },
+        };
+        items.iter().map(Self::from_graphql_item).collect()
+    }
+
+    /// One `{field, direction}` key of an `orderBy` list.
+    fn from_graphql_item(item: &serde_json::Value) -> Result<Self> {
+        let obj = item.as_object().ok_or_else(|| FraiseQLError::Validation {
+            message: "orderBy array items must be objects".to_string(),
+            path:    None,
+        })?;
+        if let Some(key) = obj.keys().find(|key| !matches!(key.as_str(), "field" | "direction")) {
+            return Err(FraiseQLError::Validation {
+                message: format!("orderBy item takes `field` and `direction`, got `{key}`"),
+                path:    None,
+            });
         }
+        let field =
+            obj.get("field")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: "orderBy item missing 'field' string".to_string(),
+                    path:    None,
+                })?;
+        Self::validate_field_name(field)?;
+        let (direction, nulls) = match obj.get("direction") {
+            None | Some(serde_json::Value::Null) => (OrderDirection::Asc, None),
+            Some(value) => parse_direction(value)?,
+        };
+        let mut clause = Self::new(field.to_string(), direction);
+        clause.nulls = nulls;
+        Ok(clause)
     }
 }
 
-/// A list query's `orderBy` direction, in any case.
-fn parse_direction(direction: &str) -> Result<(OrderDirection, Option<NullsOrder>)> {
-    parse_sort_direction(&direction.to_ascii_uppercase()).ok_or_else(|| FraiseQLError::Validation {
-        message: format!(
-            "orderBy direction '{direction}' must be one of {}",
-            sort_directions_listed()
-        ),
-        path:    None,
+/// A list query's `orderBy` direction: a published value, spelled as published.
+fn parse_direction(value: &serde_json::Value) -> Result<(OrderDirection, Option<NullsOrder>)> {
+    value.as_str().and_then(parse_sort_direction).ok_or_else(|| {
+        let written = value.as_str().map_or_else(|| value.to_string(), |d| format!("'{d}'"));
+        FraiseQLError::Validation {
+            message: format!(
+                "orderBy direction {written} must be one of {}",
+                sort_directions_listed()
+            ),
+            path:    None,
+        }
     })
 }
 

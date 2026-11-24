@@ -189,7 +189,7 @@ async fn a_non_null_localized_field_with_no_label_is_an_error() {
     };
     let response = with_request_locale(
         "en-US",
-        executor.execute("{ products(orderBy: {id: ASC}) { id name } }", None),
+        executor.execute("{ products(orderBy: [{field: id, direction: ASC}]) { id name } }", None),
     )
     .await
     .unwrap();

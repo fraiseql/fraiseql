@@ -1,12 +1,11 @@
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
-//! #1567: an object literal keeps the key order it was written in.
+//! #1567: an `orderBy` literal sorts by its keys in the order written.
 //!
-//! `orderBy: {ratio: ASC, current: DESC}` sorts by `ratio` first. The parser stores an
-//! object literal as a map ordered by key, so the literal was applied as
-//! `{current: DESC, ratio: ASC}` while the same object passed as a variable (JSON, which
-//! keeps its order) was applied as written: one request, two answers. The rows make the two
-//! orders disagree on the first page: the smallest ratios are not current.
+//! `orderBy: [{field: ratio, direction: ASC}, {field: current, direction: DESC}]` sorts by
+//! `ratio` first, as the same list passed as a variable, or as a variable's default, does: one
+//! request, one answer. The rows make the two orders disagree on the first page: the smallest
+//! ratios are not current.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** creates and drops its own `tv_p1567_doc` table.
@@ -93,7 +92,8 @@ async fn an_order_by_literal_sorts_by_its_keys_in_the_order_written() {
 
     let literal = page(
         &executor,
-        "{ docs(limit: 2, orderBy: {ratio: ASC, current: DESC}) { id } }",
+        "{ docs(limit: 2, orderBy: [{field: ratio, direction: ASC}, {field: current, direction: \
+         DESC}]) { id } }",
         None,
     )
     .await;
@@ -108,12 +108,20 @@ async fn an_order_by_literal_and_the_same_variable_return_the_same_rows() {
         return;
     };
 
-    for written in ["{ratio: ASC, current: DESC}", "{current: DESC, ratio: ASC}"] {
+    for written in [
+        "[{field: ratio, direction: ASC}, {field: current, direction: DESC}]",
+        "[{field: current, direction: DESC}, {field: ratio, direction: ASC}]",
+    ] {
         let literal =
             page(&executor, &format!("{{ docs(limit: 2, orderBy: {written}) {{ id }} }}"), None)
                 .await;
-        let as_json = written.replace("ratio", "\"ratio\"").replace("current", "\"current\"");
-        let as_json = as_json.replace("ASC", "\"ASC\"").replace("DESC", "\"DESC\"");
+        let as_json = ["field", "direction", "ratio", "current", "DESC", "ASC"].into_iter().fold(
+            written.to_string(),
+            |text, name| {
+                text.replace(&format!(" {name}"), &format!(" \"{name}\""))
+                    .replace(&format!("{{{name}"), &format!("{{\"{name}\""))
+            },
+        );
         let variables = json!({ "o": serde_json::from_str::<Value>(&as_json).unwrap() });
         let variable = page(
             &executor,
@@ -137,11 +145,13 @@ async fn a_variable_default_keeps_its_order() {
     // leave them unsorted, `a, b`, and pass the first case by coincidence.
     for (query, expected) in [
         (
-            "query($o: JSON = {ratio: ASC, current: DESC}) { docs(limit: 2, orderBy: $o) { id } }",
+            "query($o: JSON = [{field: ratio, direction: ASC}, {field: current, direction: \
+             DESC}]) { docs(limit: 2, orderBy: $o) { id } }",
             ["a", "b"],
         ),
         (
-            "query($o: JSON = {current: DESC, ratio: ASC}) { docs(limit: 2, orderBy: $o) { id } }",
+            "query($o: JSON = [{field: current, direction: DESC}, {field: ratio, direction: \
+             ASC}]) { docs(limit: 2, orderBy: $o) { id } }",
             ["c", "d"],
         ),
     ] {
@@ -150,8 +160,8 @@ async fn a_variable_default_keeps_its_order() {
 }
 
 /// An input object naming a key twice is refused (GraphQL § 5.6.3, Input Object Field
-/// Uniqueness), never applied with one of its two values: `{ratio: ASC, ratio: DESC}` has no
-/// order to sort by.
+/// Uniqueness), never applied with one of its two values: `{field: ratio, field: current}`
+/// has no key to sort by.
 #[tokio::test]
 async fn an_input_object_naming_a_key_twice_is_refused() {
     let Some(executor) = executor().await else {
@@ -160,8 +170,9 @@ async fn an_input_object_naming_a_key_twice_is_refused() {
     };
 
     for query in [
-        "{ docs(limit: 2, orderBy: {ratio: ASC, ratio: DESC}) { id } }",
-        "query($o: JSON = {current: DESC, ratio: ASC, current: ASC}) { docs(orderBy: $o) { id } }",
+        "{ docs(limit: 2, orderBy: [{field: ratio, field: current}]) { id } }",
+        "query($o: JSON = [{field: current, direction: DESC, direction: ASC}]) { docs(orderBy: \
+         $o) { id } }",
     ] {
         let error = executor
             .execute(query, None)

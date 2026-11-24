@@ -184,7 +184,7 @@ async fn a_null_order_by_reads_as_no_order_by() {
     assert_eq!(by_variable, ["a", "b", "c"]);
     // And an `orderBy` that is not `null` still orders.
     assert_eq!(
-        ids(&executor, "{ docs(orderBy: {rank: ASC}) { id } }", None).await,
+        ids(&executor, "{ docs(orderBy: [{field: rank, direction: ASC}]) { id } }", None).await,
         ["b", "c", "a"]
     );
 }

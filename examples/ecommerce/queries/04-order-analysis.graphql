@@ -3,7 +3,7 @@
 # in one query, all projected out of v_order's `data` column.
 
 query OrderAnalysis($limit: Int) {
-  orders(orderBy: {placedAt: DESC}, limit: $limit) {
+  orders(orderBy: [{field: placedAt, direction: DESC}], limit: $limit) {
     orderNumber
     status
     currency

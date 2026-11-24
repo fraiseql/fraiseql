@@ -197,7 +197,7 @@ async fn the_localized_catalog_example_works_end_to_end() {
     let alice = token(&server, "alice", ALICE_TENANT);
     // A visitor, in the guest tenant (stored locale en-US).
     let visitor = token(&server, "visitor", "00000000-0000-0000-0000-0000000000c3");
-    let sorted = "(orderBy: { name: ASC })";
+    let sorted = "(orderBy: [{field: name, direction: ASC}])";
 
     // The browser's locale wins over the stored one: fr-CA → fr-FR → fr → en-US.
     assert_eq!(

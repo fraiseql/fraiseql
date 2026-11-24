@@ -221,25 +221,42 @@ async fn assert_walks(connection: &str, order: Value, order_sql: &str) {
 
 #[tokio::test]
 async fn a_proven_not_null_key_with_ties_walks_every_row_once() {
-    assert_walks("itemsConnection", json!({ "word": "ASC" }), "word ASC").await;
+    assert_walks("itemsConnection", json!([{ "field": "word", "direction": "ASC" }]), "word ASC")
+        .await;
 }
 
 #[tokio::test]
 async fn an_unproven_native_key_with_nulls_walks_every_row_once() {
-    assert_walks("itemsConnection", json!({ "note": "ASC" }), "note ASC").await;
+    assert_walks("itemsConnection", json!([{ "field": "note", "direction": "ASC" }]), "note ASC")
+        .await;
 }
 
 #[tokio::test]
 async fn a_descending_proven_key_walks_every_row_once() {
-    assert_walks("itemsConnection", json!({ "word": "DESC" }), "word DESC").await;
+    assert_walks(
+        "itemsConnection",
+        json!([{ "field": "word", "direction": "DESC" }]),
+        "word DESC",
+    )
+    .await;
 }
 
 #[tokio::test]
 async fn a_document_key_with_nulls_walks_every_row_once() {
-    assert_walks("documentItemsConnection", json!({ "note": "ASC" }), "note ASC").await;
+    assert_walks(
+        "documentItemsConnection",
+        json!([{ "field": "note", "direction": "ASC" }]),
+        "note ASC",
+    )
+    .await;
 }
 
 #[tokio::test]
 async fn a_view_backed_key_walks_every_row_once() {
-    assert_walks("viewItemsConnection", json!({ "word": "ASC" }), "word ASC").await;
+    assert_walks(
+        "viewItemsConnection",
+        json!([{ "field": "word", "direction": "ASC" }]),
+        "word ASC",
+    )
+    .await;
 }

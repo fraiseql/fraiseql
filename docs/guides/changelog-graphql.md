@@ -142,7 +142,7 @@ list type. Page by keyset on the monotonic `pk_entity_change_log`:
 query Page($cursor: Int!, $limit: Int!) {
   entity_change_logs(
     where:   { pk_entity_change_log: { gt: $cursor } }
-    orderBy: { pk_entity_change_log: "ASC" }
+    orderBy: [{ field: pk_entity_change_log, direction: ASC }]
     limit:   $limit
   ) {
     pk_entity_change_log

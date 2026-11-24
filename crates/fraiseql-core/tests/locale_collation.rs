@@ -150,7 +150,7 @@ async fn a_text_sort_follows_the_request_locale() {
         assert_ne!(expected, default, "{locale}: the data must discriminate");
         let response = with_request_locale(
             locale,
-            executor.execute("{ words(orderBy: {word: ASC}) { word } }", None),
+            executor.execute("{ words(orderBy: [{field: word, direction: ASC}]) { word } }", None),
         )
         .await
         .unwrap();
@@ -170,7 +170,10 @@ async fn a_text_field_on_a_column_that_is_not_text_sorts_as_the_column() {
     let executor = Executor::new(schema(), Arc::new(adapter));
     let response = with_request_locale(
         "sv-SE",
-        executor.execute("{ words(orderBy: {wordClass: ASC}) { wordClass } }", None),
+        executor.execute(
+            "{ words(orderBy: [{field: wordClass, direction: ASC}]) { wordClass } }",
+            None,
+        ),
     )
     .await
     .unwrap_or_else(|e| panic!("a sort on an enum column in a locale must run: {e}"));
@@ -195,7 +198,7 @@ async fn a_numeric_sort_takes_no_collation() {
     let executor = Executor::new(schema(), Arc::new(adapter));
     let response = with_request_locale(
         "sv-SE",
-        executor.execute("{ words(orderBy: {rank: ASC}) { word } }", None),
+        executor.execute("{ words(orderBy: [{field: rank, direction: ASC}]) { word } }", None),
     )
     .await
     .unwrap_or_else(|e| panic!("a numeric sort in a locale must run: {e}"));
@@ -238,7 +241,11 @@ async fn an_authenticated_text_sort_follows_the_request_locale() {
     let ctx = principal();
     let response = with_request_locale(
         "fr-CA",
-        executor.execute_with_security("{ words(orderBy: {word: ASC}) { word } }", None, &ctx),
+        executor.execute_with_security(
+            "{ words(orderBy: [{field: word, direction: ASC}]) { word } }",
+            None,
+            &ctx,
+        ),
     )
     .await
     .unwrap();
@@ -254,7 +261,7 @@ async fn a_relay_connection_sorts_in_the_request_locale() {
     let response = with_request_locale(
         "fr-CA",
         executor.execute(
-            "{ wordsConnection(first: 20, orderBy: {word: ASC}) { edges { node { word } } } }",
+            "{ wordsConnection(first: 20, orderBy: [{field: word, direction: ASC}]) { edges { node { word } } } }",
             None,
         ),
     )
@@ -356,7 +363,7 @@ async fn a_window_ordered_by_a_text_dimension_sorts_in_the_request_locale() {
 /// One page of `wordsConnection` in `locale`, ordered by `word`: its words and `pageInfo`.
 async fn word_page(executor: &Executor, locale: &str, window: &str) -> (Vec<String>, Value) {
     let query = format!(
-        "{{ wordsConnection({window}, orderBy: {{word: ASC}}) {{ edges {{ node {{ word }} }} \
+        "{{ wordsConnection({window}, orderBy: [{{field: word, direction: ASC}}]) {{ edges {{ node {{ word }} }} \
          pageInfo {{ hasNextPage hasPreviousPage startCursor endCursor }} }} }}"
     );
     let response = with_request_locale(locale, executor.execute(&query, None))
@@ -414,7 +421,7 @@ async fn a_cursor_issued_in_one_locale_is_refused_in_another() {
     };
     let (_, info) = word_page(&executor, "fr-CA", "first: 1").await;
     let query = format!(
-        "{{ wordsConnection(first: 1, after: {}, orderBy: {{word: ASC}}) {{ edges {{ node {{ word \
+        "{{ wordsConnection(first: 1, after: {}, orderBy: [{{field: word, direction: ASC}}]) {{ edges {{ node {{ word \
          }} }} }} }}",
         info["endCursor"]
     );

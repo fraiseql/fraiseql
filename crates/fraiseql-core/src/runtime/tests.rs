@@ -1871,7 +1871,7 @@ mod matcher_tests {
         let matcher = QueryMatcher::new(schema);
 
         matcher
-            .match_query(r"{ users(where: {}, orderBy: {}, limit: 1, offset: 2) { id } }", None)
+            .match_query(r"{ users(where: {}, orderBy: [], limit: 1, offset: 2) { id } }", None)
             .expect("auto-wired arguments must be accepted when auto_params enables them");
     }
 
@@ -1922,7 +1922,7 @@ mod matcher_tests {
 
         matcher
             .match_query(
-                r#"{ users(first: 2, after: "NDI=", where: {}, orderBy: {}) { edges { node { id } } } }"#,
+                r#"{ users(first: 2, after: "NDI=", where: {}, orderBy: []) { edges { node { id } } } }"#,
                 None,
             )
             .expect("relay pagination arguments must be accepted");

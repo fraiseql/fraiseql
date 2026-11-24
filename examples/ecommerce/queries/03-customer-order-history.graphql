@@ -10,7 +10,7 @@ query CustomerOrderHistory($customerId: ID!) {
     orderCount
     lifetimeValue
   }
-  orders(where: {customer: {id: {eq: $customerId}}}, orderBy: {placedAt: DESC}) {
+  orders(where: {customer: {id: {eq: $customerId}}}, orderBy: [{field: placedAt, direction: DESC}]) {
     orderNumber
     status
     total

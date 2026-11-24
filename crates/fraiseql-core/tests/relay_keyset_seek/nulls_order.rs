@@ -93,15 +93,16 @@ async fn a_cursor_is_refused_under_another_placement() {
     let (omitted, _) = page(
         &executor,
         "itemsConnection",
-        &json!({ "first": 2, "after": cursor, "order": { "note": "ASC" } }),
+        &json!({ "first": 2, "after": cursor, "order": [{ "field": "note", "direction": "ASC" }] }),
     )
     .await;
     assert_eq!(resumed, omitted);
 }
 
 /// Cursors issued before a direction could name a placement (at 13e1a43e0, on this table, after the
-/// first page of two) resume on the row they did, under the ordering they were issued for and under
-/// its default placement spelled out. The DESC cursor's row has a NULL key.
+/// first page of two, under the field-to-direction object `{note: ASC}` then accepted) resume on
+/// the row they did, under the list item that names the same ordering and under its default
+/// placement spelled out. The DESC cursor's row has a NULL key.
 #[tokio::test]
 async fn a_cursor_issued_before_nulls_existed_still_resumes_where_it_did() {
     let Some((_adapter, executor)) = setup().await else {
@@ -109,12 +110,18 @@ async fn a_cursor_issued_before_nulls_existed_still_resumes_where_it_did() {
     };
     for (orders, cursor, next) in [
         (
-            [json!({ "note": "ASC" }), json!([item("ASC", "LAST")])],
+            [
+                json!([{ "field": "note", "direction": "ASC" }]),
+                json!([item("ASC", "LAST")]),
+            ],
             "eyJ2IjoyLCJvIjoiN2U3MjljYWYzNjQwNjhjZCIsImsiOlsidyJdLCJjIjo3fQ==",
             [1, 4],
         ),
         (
-            [json!({ "note": "DESC" }), json!([item("DESC", "FIRST")])],
+            [
+                json!([{ "field": "note", "direction": "DESC" }]),
+                json!([item("DESC", "FIRST")]),
+            ],
             "eyJ2IjoyLCJvIjoiMWYxODUwYmU0Njc2NGU4ZSIsImsiOltudWxsXSwiYyI6Nn0=",
             [8, 5],
         ),
@@ -132,8 +139,8 @@ async fn a_cursor_issued_before_nulls_existed_still_resumes_where_it_did() {
 }
 
 /// A list's `ORDER BY` (no cursor, no keyset) puts the NULLs where the direction asks: in a
-/// list item, in an object key, and as the enum literals a document writes, which are held to
-/// the published `SortDirection`.
+/// list item, in one item written without the list, and as the enum literals a document writes,
+/// which are held to the published `SortDirection`.
 #[tokio::test]
 async fn a_list_puts_its_nulls_where_the_item_asks() {
     let Some((adapter, _)) = setup().await else {
@@ -161,7 +168,7 @@ async fn a_list_puts_its_nulls_where_the_item_asks() {
     for (direction, nulls) in [("ASC", "FIRST"), ("DESC", "LAST")] {
         let expected = super::oracle(&adapter, &format!("note {direction} NULLS {nulls}")).await;
         let named = format!("{direction}_NULLS_{nulls}");
-        for order in [json!([item(direction, nulls)]), json!({ "note": named })] {
+        for order in [json!([item(direction, nulls)]), item(direction, nulls)] {
             let response = executor
                 .execute(
                     "query($order: JSON) { items(orderBy: $order) { pk } }",
