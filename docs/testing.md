@@ -208,7 +208,9 @@ Two tools read it:
   each mutant, runs its shard and restores the file. A shard that already fails is
   reported BASELINE-RED and none of its mutants run, since a red shard would "kill"
   every mutant; one whose test binary runs no test is BASELINE-EMPTY, since it would
-  let every mutant "survive" untested. A mutant is killed only when one of its named killers fails; one that
+  let every mutant "survive" untested. An untracked file a shard run leaves behind (a
+  proptest seed of a failure a mutant caused) fails the run as LEFT-BEHIND: committed, it
+  would pin the mutant's failure as a case to re-run. A mutant is killed only when one of its named killers fails; one that
   survives, is failed only by an unnamed test, or does not build fails the run.
   `--site`, `--shard` and `--changed-since REF` select a subset; `--list` prints the
   selection; `--output DIR` keeps each mutant's test output. Self-test: `make

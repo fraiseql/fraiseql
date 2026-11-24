@@ -673,4 +673,24 @@ mod required_plane_revocation {
             "a live admin token passes both checks, got {live}"
         );
     }
+
+    /// The admin plane authorizes as well as authenticates: a live token without the
+    /// admin scope is refused there, though the required plane serves it.
+    #[tokio::test]
+    async fn a_live_token_without_the_admin_scope_is_forbidden_on_the_admin_plane() {
+        let idp = TestIdp::start().await;
+        let app = app(&idp, Arc::new(InMemoryRevocationStore::new())).await;
+        let user = idp.token("alice", "j-user");
+        assert_eq!(
+            introspection(&app, &user).await,
+            StatusCode::OK,
+            "the required plane serves it"
+        );
+        assert_eq!(design_audit(&app, &user).await, StatusCode::FORBIDDEN);
+        let admin = design_audit(&app, &admin_token(&idp, "alice", "j-admin")).await;
+        assert!(
+            admin != StatusCode::UNAUTHORIZED && admin != StatusCode::FORBIDDEN,
+            "the same user holding the admin scope is served, got {admin}"
+        );
+    }
 }

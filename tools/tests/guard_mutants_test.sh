@@ -23,6 +23,7 @@ file="crates/fraiseql-server/src/gate.rs"
 tree() {
   rm -rf "$ws"
   mkdir -p "${ws}/$(dirname "$file")" "${ws}/tools"
+  git -C "$ws" init -q
   cat > "${ws}/${file}" <<'RS'
 fn one() { guard_one(); }
 fn two() { guard_two(); }
@@ -157,6 +158,10 @@ if cmp -s "${ws}/crates/fraiseql-server/migrations/01_rls.sql" "${tmp}/sql-origi
 else
   fail "8b. the .sql file was not restored"
 fi
+
+tree; shard kills
+sed -i 's|^command = "if grep -q skipped crates/fraiseql-server/src/gate.rs; then echo .test gate::refuses ... FAILED.; exit 101; fi"|command = "if grep -q skipped crates/fraiseql-server/src/gate.rs; then mkdir -p proptest-regressions; echo seed > proptest-regressions/gate.txt; echo '"'"'test gate::refuses ... FAILED'"'"'; exit 101; fi"|' "${ws}/tools/guard-sites.toml"
+expect 1 "FAILED proptest-regressions/gate.txt: LEFT-BEHIND" "9. a file a shard run writes under a mutant fails the run"
 
 if [ "$failures" -ne 0 ]; then
   echo "guard mutants runner: ${failures} case(s) FAILED"

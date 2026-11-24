@@ -101,6 +101,12 @@ name = "admin-failure-limiter"
 patterns = ['\bfailure_limiter\.(?:is_blocked|record_failure)\s*\(']
 
 [[family]]
+name = "scope-check"
+# A scope a caller or role must hold: the admin plane's admin scope, the scope that lets a
+# caller end another user's sessions, the scopes a role grants for field-level access.
+patterns = ['\.has_scope\s*\(']
+
+[[family]]
 name = "executor"
 patterns = ['\bexecutor_for(?:_tenant)?\s*\(']
 
@@ -225,6 +231,16 @@ command = "cargo test -p fraiseql-server --features auth --lib -- middleware:: -
 name = "admin-sql-console"
 crate = "crates/fraiseql-server"
 command = "cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test admin_sql_console_e2e_pg -- --test-threads=1"
+
+[[shard]]
+name = "server-lib-routes"
+crate = "crates/fraiseql-server"
+command = "cargo test -p fraiseql-server --features auth --lib -- routes::tests:: --test-threads=4"
+
+[[shard]]
+name = "core-lib-field-access"
+crate = "crates/fraiseql-core"
+command = "cargo test -p fraiseql-core --lib -- field_filter_tests field_rbac field_authz"
 
 [[shard]]
 name = "core-cache"
@@ -2056,3 +2072,35 @@ anchor = "(false, true) => Some(AdminPrivilege::ReadOnly),"
 mutant = "(false, true) => Some(AdminPrivilege::ReadWrite),"
 killers = ["a_readonly_token_cannot_update"]
 shard = "admin-sql-console"
+
+# A scope the caller or its role must hold (family `scope-check`). The mutant of the check
+# on ending another user's sessions keeps the scope constant in use, so it builds.
+
+[[site]]
+id = "authz.admin.scope"
+file = "crates/fraiseql-server/src/middleware/oidc_auth.rs"
+function = "admin_auth_middleware"
+anchor = "if user.has_scope(ADMIN_SCOPE) {"
+mutant = "if true {"
+killers = [
+  "a_live_token_without_the_admin_scope_is_forbidden_on_the_admin_plane",
+]
+shard = "server-lib-auth"
+
+[[site]]
+id = "authz.end-all-sessions.cross-user"
+file = "crates/fraiseql-server/src/routes/auth.rs"
+function = "revoke_all_tokens"
+anchor = "!auth_user.0.has_scope(REVOKE_ALL_ADMIN_SCOPE)"
+mutant = "REVOKE_ALL_ADMIN_SCOPE.is_empty()"
+killers = ["revoke_all_cross_user_without_admin_scope_returns_403"]
+shard = "server-lib-routes"
+
+[[site]]
+id = "authz.role.scope"
+file = "crates/fraiseql-core/src/schema/security_config.rs"
+function = "role_has_scope"
+anchor = ".is_some_and(|role| role.has_scope(scope))"
+mutant = ".is_some()"
+killers = ["test_cannot_access_scoped_field_without_role"]
+shard = "core-lib-field-access"

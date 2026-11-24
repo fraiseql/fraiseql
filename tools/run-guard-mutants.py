@@ -16,9 +16,10 @@ Each shard is first run unmutated, and one that fails there is BASELINE-RED and 
 its mutants run: a red shard would mark every mutant KILLED. A shard with a test binary
 that runs no test (its target `cfg`'d out under the shard's features, or a filter that
 matches nothing) is BASELINE-EMPTY and none of its mutants run either: every survivor it
-reported would be untested. Anything but KILLED fails
-the run. After the last mutant every touched file is checked
-against its original sha256, and a mismatch fails the run too.
+reported would be untested. Anything but KILLED fails the run. After the last mutant every
+touched file is checked against its original sha256, and a mismatch fails the run too, as
+does an untracked file a shard run wrote (LEFT-BEHIND: a proptest seed of a failure the
+mutant caused, which committed would pin it).
 
 Selection: every site (the weekly sweep), `--site ID` (repeatable), `--shard NAME`, or
 `--changed-since REF`: the sites whose `file` differs between REF and the working tree,
@@ -60,6 +61,19 @@ def changed_files(ref: str) -> set[str]:
         ["git", "diff", "--name-only", ref, "--"], cwd=ROOT, check=True, capture_output=True, text=True
     )
     return set(out.stdout.split())
+
+
+def untracked() -> set[str]:
+    """The untracked, unignored files under the root: a shard run that writes one (a
+    proptest seed of a failure the mutant caused) leaves the tree unlike the one it ran."""
+    out = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return {path for path in out.stdout.split("\0") if path}
 
 
 def groups(sites: list[dict]) -> list[list[dict]]:
@@ -141,6 +155,7 @@ def main() -> int:
         return 0
 
     originals: dict[Path, bytes] = {}
+    before = untracked()
     verdicts: list[tuple[str, str, float]] = []
     baselines: dict[str, bool] = {}
     try:
@@ -218,6 +233,11 @@ def main() -> int:
                 path.write_bytes(raw)
                 print(f"RESTORED {path.relative_to(ROOT)}: it did not match its original bytes")
                 verdicts.append((str(path), "UNRESTORED", 0.0))
+        for path in sorted(untracked() - before):
+            # Not removed here: it may be a test's own output. Committed, a seed written
+            # under a mutant would pin that mutant's failure as a case to re-run.
+            print(f"LEFT-BEHIND {path}: a shard run wrote it; remove it before committing")
+            verdicts.append((path, "LEFT-BEHIND", 0.0))
 
     bad = [(label, verdict) for label, verdict, _ in verdicts if verdict != "KILLED"]
     total = sum(elapsed for _, _, elapsed in verdicts)
