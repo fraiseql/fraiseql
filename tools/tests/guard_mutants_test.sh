@@ -329,6 +329,15 @@ else
 fi
 expect 2 "--lane takes I/N" "15c. a lane outside its count is refused" --list --lane 3/2
 
+# A list of changed files selects as `--changed-since` does: the sites in a listed file.
+tree; shard kills
+printf 'README.md\n%s\n' "$file" > "${tmp}/changed"
+expect 0 "1 mutant(s) selected" "16. a listed file selects its sites" --list --changed-files "${tmp}/changed"
+printf 'README.md\n' > "${tmp}/changed"
+expect 0 "0 mutant(s) selected" "16b. an unlisted file selects none" --list --changed-files "${tmp}/changed"
+expect 2 "pass one" "16c. both ways of naming changed files at once are refused" \
+  --list --changed-files "${tmp}/changed" --changed-since HEAD
+
 if [ "$failures" -ne 0 ]; then
   echo "guard mutants runner: ${failures} case(s) FAILED"
   exit 1

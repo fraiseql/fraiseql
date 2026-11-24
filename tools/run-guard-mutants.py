@@ -29,7 +29,8 @@ refuses to start (exit 2) until every recorded file matches HEAD.
 
 Selection: every site (the weekly sweep), `--site ID` (repeatable), `--shard NAME`, or
 `--changed-since REF`: the sites whose `file` differs between REF and the working tree,
-which is the per-PR run. `--lane I/N` keeps the selection's share for lane I of N: the
+which is the per-PR run, or `--changed-files PATH`: the same, from a file listing the
+changed paths (for a tree without its history). `--lane I/N` keeps the selection's share for lane I of N: the
 shards are grouped by the cargo build they compile, every shard of one build runs in one
 lane, and the builds are balanced across lanes by mutant count, so lanes on their own
 target volumes run side by side. A selected site brings every member of its joint, so a joint is
@@ -273,6 +274,7 @@ def main() -> int:
     parser.add_argument("--site", action="append", default=[])
     parser.add_argument("--shard")
     parser.add_argument("--changed-since")
+    parser.add_argument("--changed-files", type=Path)
     parser.add_argument("--lane", help="I/N: run lane I of N, each build in one lane")
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--output", type=Path, help="write each mutant's test output here")
@@ -299,8 +301,14 @@ def main() -> int:
         sites = [site for site in sites if site["id"] in args.site]
     if args.shard:
         sites = [site for site in sites if site["shard"] == args.shard]
-    if args.changed_since:
-        touched = changed_files(args.changed_since)
+    if args.changed_since and args.changed_files:
+        print("--changed-since and --changed-files each name the changed files; pass one")
+        return 2
+    if args.changed_since or args.changed_files:
+        if args.changed_since:
+            touched = changed_files(args.changed_since)
+        else:
+            touched = set(args.changed_files.read_text(encoding="utf-8").split())
         sites = [site for site in sites if site["file"] in touched]
     # A selected joint member brings its whole joint: one member mutated alone is not the
     # joint, and a test that kills it alone would read as the joint's verdict.

@@ -26,6 +26,9 @@ const guardMutantsLaneEnv = "FRAISEQL_GUARD_MUTANTS_LANE"
 // read from this line.
 var guardMutantsLaneRC = regexp.MustCompile(`(?m)^GUARD-MUTANTS-LANE-RC=(\d+)$`)
 
+// guardMutantsChangedFile holds the `changed` paths in a lane, outside the tree it commits.
+const guardMutantsChangedFile = "/tmp/guard-mutants-changed"
+
 // guardMutantsShard is the form of a shard name, checked before it is put in a script.
 var guardMutantsShard = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 
@@ -48,6 +51,11 @@ func (m *FraiseqlCi) GuardMutants(
 	// Only the sites of this shard (every site when empty).
 	// +optional
 	shard string,
+	// Only the sites in these files: the paths a change touched, separated by
+	// whitespace, as `git diff --name-only` prints them. The per-change run passes them,
+	// since the source arrives without the history to compute them from.
+	// +optional
+	changed string,
 ) (string, error) {
 	if lanes < 1 {
 		return "", fmt.Errorf("lanes must be 1 or more, got %d", lanes)
@@ -66,7 +74,7 @@ func (m *FraiseqlCi) GuardMutants(
 		wg.Add(1)
 		go func(lane int) {
 			defer wg.Done()
-			out, err := m.guardMutantsLane(ctx, source, lane, lanes, shard)
+			out, err := m.guardMutantsLane(ctx, source, lane, lanes, shard, changed)
 			results[lane-1] = laneResult{out: out, err: err}
 		}(lane)
 	}
@@ -104,7 +112,7 @@ func (m *FraiseqlCi) guardMutantsLane(
 	ctx context.Context,
 	source *dagger.Directory,
 	lane, lanes int,
-	shard string,
+	shard, changed string,
 ) (string, error) {
 	tag := strconv.Itoa(lane)
 	postgres := m.pgContainer(source).WithEnvVariable(guardMutantsLaneEnv, tag).AsService()
@@ -123,6 +131,9 @@ func (m *FraiseqlCi) guardMutantsLane(
 	selection := fmt.Sprintf("--lane %d/%d", lane, lanes)
 	if shard != "" {
 		selection += " --shard " + shard
+	}
+	if changed != "" {
+		selection += " --changed-files " + guardMutantsChangedFile
 	}
 	script := strings.Join([]string{
 		"set -uo pipefail",
@@ -147,6 +158,7 @@ func (m *FraiseqlCi) guardMutantsLane(
 		WithEnvVariable(requirePostgresEnv, "1").
 		WithEnvVariable("REDIS_URL", fmt.Sprintf("redis://%s:6379", redisBindHost)).
 		WithEnvVariable("NATS_URL", fmt.Sprintf("nats://%s:4222", natsBindHost)).
+		WithNewFile(guardMutantsChangedFile, changed).
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }
