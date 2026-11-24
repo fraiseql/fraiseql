@@ -3573,10 +3573,10 @@ shard = "server-lib-mount"
 id = "mount.playground"
 file = "crates/fraiseql-server/src/server/routing/admin.rs"
 function = "mount_playground"
-anchor = ".route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))"
-mutant = ""
+anchor = ".route_layer(middleware::from_fn_with_state(\n                        auth_state,\n                        required_auth_middleware,\n                    ))\n                    .with_state(playground_state)"
+mutant = ".with_state(playground_state)"
 killers = [
-  "the_cookie_is_a_credential_where_every_route_refuses_a_form_or_only_reads",
+  "the_playground_requiring_auth_refuses_a_call_with_no_credential_under_optional_oidc",
 ]
 shard = "server-lib-mount"
 

@@ -12,8 +12,8 @@ use tracing::{info, warn};
 use super::super::{
     BearerAuthState, PlaygroundState, Server, SubscriptionState, admin_auth_middleware, api,
     bearer_auth_middleware, health_handler, introspection_handler, liveness_handler,
-    metrics_handler, metrics_json_handler, oidc_auth_middleware, playground_handler,
-    readiness_handler, required_auth_middleware, subscription_handler,
+    metrics_handler, metrics_json_handler, playground_handler, readiness_handler,
+    required_auth_middleware, subscription_handler,
 };
 use crate::routes::graphql::AppState;
 
@@ -189,7 +189,10 @@ impl Server {
                     self.oidc_session_state(validator.clone(), super::AccessCookie::Accepted);
                 let playground_router = Router::new()
                     .route(&self.config.playground_path, get(playground_handler))
-                    .route_layer(middleware::from_fn_with_state(auth_state, oidc_auth_middleware))
+                    .route_layer(middleware::from_fn_with_state(
+                        auth_state,
+                        required_auth_middleware,
+                    ))
                     .with_state(playground_state);
                 app = self.mounts.merge(
                     app,

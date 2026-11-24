@@ -400,3 +400,25 @@ mod unmounted_without_its_credential {
         );
     }
 }
+
+/// `playground_require_auth` requires a credential whatever the validator's own
+/// `required` flag says, as introspection, schema export and metadata do.
+#[cfg(feature = "auth")]
+#[tokio::test]
+async fn the_playground_requiring_auth_refuses_a_call_with_no_credential_under_optional_oidc() {
+    let idp = crate::testing::idp::TestIdp::start().await;
+    let mut server = server(ServerConfig {
+        playground_require_auth: Some(true),
+        ..ServerConfig::default()
+    })
+    .await;
+    // Boot refuses the playground outside development mode; the mount is what is tested.
+    server.config.playground_enabled = true;
+    server.oidc_validator = Some(idp.validator(false));
+    let app = server.build_router(&server.build_app_state());
+    let path = server.config.playground_path.clone();
+
+    assert_eq!(status(&app, Method::GET, &path, None).await, StatusCode::UNAUTHORIZED);
+    let token = idp.token("alice", "j-alice");
+    assert_eq!(status(&app, Method::GET, &path, Some(&token)).await, StatusCode::OK);
+}
