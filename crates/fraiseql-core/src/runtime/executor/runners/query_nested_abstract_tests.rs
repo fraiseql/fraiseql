@@ -650,3 +650,77 @@ async fn a_gated_field_of_a_member_is_refused_to_a_principal_with_an_authorizer(
     assert!(err.to_string().contains("field of 'Person'"), "{err}");
     assert!(adapter.captured_where().is_none(), "the read ran");
 }
+
+// ── A named fragment spread applies only where its type condition holds ──────────────────
+//
+// `party` holds an `Org` and `holder` a `Bank`. A spread of a fragment on another type the
+// position can hold selects nothing on them, as the same fragment written inline does.
+
+/// The `Ledger` fixture with `Trust`, a second implementor of `Holder`.
+fn with_trust() -> CompiledSchema {
+    schema_with(FieldDenyPolicy::Reject, |s| {
+        let mut trust = TypeDefinition::new("Trust", "v_trust");
+        trust.fields = vec![FieldDefinition::new("name", FieldType::String)];
+        trust.implements = vec!["Holder".to_string()];
+        s.types.push(trust);
+    })
+}
+
+/// `ledgers[0].<field>` of `document`, read anonymously and by an unscoped principal.
+async fn ledger_field(exec: &Executor, document: &str, field: &str) -> [serde_json::Value; 2] {
+    both_callers(exec, document)
+        .await
+        .map(|result| result.unwrap()["data"]["ledgers"][0][field].clone())
+}
+
+#[tokio::test]
+async fn a_named_spread_on_one_member_answers_nothing_on_another() {
+    let (exec, _) = executor(schema(FieldDenyPolicy::Reject));
+    for document in [
+        "{ ledgers { party { ... on Person { name } } } }",
+        "{ ledgers { party { ...P } } } fragment P on Person { name }",
+    ] {
+        for party in ledger_field(&exec, document, "party").await {
+            assert_eq!(party, serde_json::json!({}), "{document}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_named_spread_on_the_member_a_value_is_answers_on_it() {
+    let (exec, _) = executor(schema(FieldDenyPolicy::Reject));
+    for document in [
+        "{ ledgers { party { ... on Org { name } } } }",
+        "{ ledgers { party { ...O } } } fragment O on Org { name }",
+    ] {
+        for party in ledger_field(&exec, document, "party").await {
+            assert_eq!(party, serde_json::json!({"name": "o"}), "{document}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_named_spread_on_one_implementor_answers_nothing_on_another() {
+    let (exec, _) = executor(with_trust());
+    for document in [
+        "{ ledgers { holder { ... on Trust { name } } } }",
+        "{ ledgers { holder { ...T } } } fragment T on Trust { name }",
+    ] {
+        for holder in ledger_field(&exec, document, "holder").await {
+            assert_eq!(holder, serde_json::json!({}), "{document}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_named_spread_on_the_interface_answers_on_every_implementor() {
+    let (exec, _) = executor(with_trust());
+    for document in [
+        "{ ledgers { holder { ... on Holder { name } } } }",
+        "{ ledgers { holder { ...H } } } fragment H on Holder { name }",
+    ] {
+        for holder in ledger_field(&exec, document, "holder").await {
+            assert_eq!(holder, serde_json::json!({"name": "b"}), "{document}");
+        }
+    }
+}

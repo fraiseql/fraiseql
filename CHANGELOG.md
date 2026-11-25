@@ -40,6 +40,13 @@ disagreed, and the promise was the part that was wrong.
   - `fraiseql_server::inbound::emit_in_tx` takes the event type as a third argument
     (`None` where there is none).
 
+- **A fragment on an interface is held to the interface's fields (GraphQL § 5.3.1, #2539).**
+  `... on Problem { missing }`, and a named spread of a fragment on `Problem` selecting
+  `missing`, was accepted when the interface declares no such field and answered
+  `missing: null`. It is now refused with `Cannot query field 'missing' on type 'Problem'`,
+  as a fragment on an object type is. The fields below an interface's own fields are
+  checked too.
+
 - **A query's `jsonb_column` other than `data` is refused at compile (#2541).** The runtime
   reads a query's rows from a document column named `data` and never read the declared
   name: a query declaring `jsonb_column = "payload"`, or the empty name, compiled, and its
@@ -2019,6 +2026,20 @@ disagreed, and the promise was the part that was wrong.
 - **The PHP SDK's client no longer calls `curl_close()` (#2542).** It has done nothing
   since PHP 8.0, and PHP 8.5 deprecates it, so every request raised a deprecation on 8.5.
   The handle is freed when it goes out of scope, as it already was.
+
+- **A named fragment spread applies only where its type condition holds (GraphQL § 6.3.2,
+  #2539).** A spread `...P` was expanded into its fields with its type condition dropped,
+  so at a union or interface position it selected on every member: under `party: Party`,
+  `party { ...P }` with `fragment P on Person { name }` selected `name` on an `Org`, where
+  `... on Person { name }` selects nothing on it. The same held in a mutation's result, where
+  a fragment on the success type selected on a failure and one on an error type on a
+  success, and in subscription events. A spread now stands as the inline fragment on its
+  type condition, under its own directives, so the two forms answer alike everywhere. A
+  named spread on an interface an error type implements, beside an inline fragment on that
+  error type, is accepted and answers its fields on a failure, where it was refused with
+  `Cannot query field … on type 'CreateUserSuccess'`. `@defer` and `@stream` inside a
+  fragment, named or inline, are honoured by the incremental transport, and an
+  introspection selection reads a fragment's fields.
 
 - **A mutation's result is completed as the type its outcome answers, whether or not
   `__typename` is selected (#2538).** A failure of a mutation returning an object type,

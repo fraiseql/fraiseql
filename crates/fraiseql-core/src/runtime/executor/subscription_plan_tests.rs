@@ -1172,3 +1172,46 @@ fn an_event_honours_skip_and_include_inside_a_fragment_read_into_its_set() {
         }
     }
 }
+
+/// A named fragment spread applies only where its type condition holds: on an event whose
+/// `party` is an `Org`, a spread of a fragment on `Person` selects nothing, as the same
+/// fragment written inline does, and one on `Org` selects its fields.
+#[test]
+fn a_named_spread_on_one_member_answers_nothing_on_another_in_an_event() {
+    let mut schema = schema();
+    schema.types[0]
+        .fields
+        .push(FieldDefinition::nullable("party", FieldType::Union("Party".to_string())));
+    for name in ["Org", "Person"] {
+        let mut member = TypeDefinition::new(name, "v_party");
+        member.fields = vec![FieldDefinition::new("name", FieldType::String)];
+        schema.types.push(member);
+    }
+    schema.unions.push(
+        crate::schema::UnionDefinition::new("Party")
+            .with_members(vec!["Org".to_string(), "Person".to_string()]),
+    );
+    schema.build_indexes();
+    let exec = executor(schema, RuntimeConfig::default());
+    let event = json!({"id": "o1", "party": {"__typename": "Org", "name": "o"}});
+    let party = |document: &str| {
+        let data = plan(&exec, document, &json!({}), None)
+            .unwrap()
+            .deliver(&event, false)
+            .unwrap()
+            .data;
+        data["party"].clone()
+    };
+    for document in [
+        "subscription { orderCreated { party { ... on Person { name } } } }",
+        "subscription { orderCreated { party { ...P } } } fragment P on Person { name }",
+    ] {
+        assert_eq!(party(document), json!({}), "{document}");
+    }
+    for document in [
+        "subscription { orderCreated { party { ... on Org { name } } } }",
+        "subscription { orderCreated { party { ...O } } } fragment O on Org { name }",
+    ] {
+        assert_eq!(party(document), json!({"name": "o"}), "{document}");
+    }
+}

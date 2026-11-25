@@ -266,13 +266,18 @@ fn validate_at(
     if schema.find_type(type_name).is_none() && schema.find_union(type_name).is_some() {
         for sel in selections {
             if let Some(condition) = sel.name.strip_prefix("...on ") {
-                let condition = condition.trim();
-                if schema.find_type(condition).is_some() {
-                    validate_at(schema, condition, &sel.nested_fields, depth + 1)?;
-                }
+                validate_fragment_at(schema, condition, &sel.nested_fields, depth)?;
             }
         }
         return Ok(());
+    }
+
+    // An interface's selection set is held to the interface's own fields (§ 5.3.1), as an
+    // object type's is to its own: a field no implementor need have is not selectable on it.
+    if schema.find_type(type_name).is_none() {
+        if let Some(interface) = schema.find_interface(type_name) {
+            return validate_interface_at(schema, type_name, &interface.fields, selections, depth);
+        }
     }
 
     let Some(type_def) = schema.find_type(type_name) else {
@@ -286,10 +291,7 @@ fn validate_at(
         // An inline fragment: its selection set is scoped to the type condition,
         // not to the parent type.
         if let Some(condition) = sel.name.strip_prefix("...on ") {
-            let condition = condition.trim();
-            if schema.find_type(condition).is_some() {
-                validate_at(schema, condition, &sel.nested_fields, depth + 1)?;
-            }
+            validate_fragment_at(schema, condition, &sel.nested_fields, depth)?;
             continue;
         }
         // A spread this far down means expansion did not run; it is not this
@@ -327,6 +329,54 @@ fn validate_at(
         }
     }
 
+    Ok(())
+}
+
+/// An inline fragment on `condition`, at `depth`: its selection set is scoped to the type
+/// condition, an object type or an interface, not to the parent type. A condition the
+/// schema has neither as is not this routine's to judge.
+fn validate_fragment_at(
+    schema: &CompiledSchema,
+    condition: &str,
+    selections: &[FieldSelection],
+    depth: usize,
+) -> Result<()> {
+    let condition = condition.trim();
+    if schema.find_type(condition).is_some() || schema.find_interface(condition).is_some() {
+        validate_at(schema, condition, selections, depth + 1)?;
+    }
+    Ok(())
+}
+
+/// [`validate_at`] for the interface `type_name`, whose fields are `fields`.
+fn validate_interface_at(
+    schema: &CompiledSchema,
+    type_name: &str,
+    fields: &[crate::schema::FieldDefinition],
+    selections: &[FieldSelection],
+    depth: usize,
+) -> Result<()> {
+    for sel in selections {
+        if let Some(condition) = sel.name.strip_prefix("...on ") {
+            validate_fragment_at(schema, condition, &sel.nested_fields, depth)?;
+            continue;
+        }
+        if sel.name.starts_with("...") || sel.name.starts_with("__") {
+            continue;
+        }
+        let Some(field_def) = fields.iter().find(|f| f.name == sel.name) else {
+            return Err(FraiseQLError::Validation {
+                message: format!("Cannot query field '{}' on type '{type_name}'.", sel.name),
+                path:    Some(format!("{type_name}.{}", sel.name)),
+            });
+        };
+        if sel.nested_fields.is_empty() {
+            continue;
+        }
+        if let Some(child_type) = composite_type_of(&field_def.field_type) {
+            validate_at(schema, child_type, &sel.nested_fields, depth + 1)?;
+        }
+    }
     Ok(())
 }
 

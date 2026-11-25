@@ -194,7 +194,7 @@ fn walk(
         return Ok(());
     };
 
-    for selection in selections {
+    for selection in &crate::graphql::selection_set::with_fragments_read_in(selections) {
         let key = selection.response_key();
         match stream_directive(selection, variables) {
             Some(spec) if spec.enabled => {

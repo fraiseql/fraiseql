@@ -1114,6 +1114,141 @@ mod mutation {
         }
     }
 
+    /// The document of the issue: a named spread on `Problem`, an interface the error type
+    /// implements, beside an inline fragment on the error type.
+    #[tokio::test]
+    async fn a_named_spread_on_an_interface_the_error_type_implements_answers_on_a_failure() {
+        let executor = failing_with_conflict();
+        let document = "mutation { createUser { ... on DuplicateEmailError { conflict { id } } ...P } } \
+                        fragment P on Problem { conflict { email } }";
+        let result = executor.execute(document, None).await.unwrap();
+        assert!(result.get("errors").is_none(), "{result}");
+        assert_eq!(
+            result["data"]["createUser"]["conflict"],
+            serde_json::json!({"id": "u1", "email": "a@b.c"}),
+            "{result}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_fragment_selecting_a_field_no_possible_type_has_is_refused() {
+        let executor = failing_with_conflict();
+        for document in [
+            "mutation { createUser { ... on Problem { missing } } }",
+            "mutation { createUser { ...P } } fragment P on Problem { missing }",
+            "mutation { createUser { ... on CreateUserSuccess { missing } } }",
+            "mutation { createUser { ...S } } fragment S on CreateUserSuccess { missing }",
+            "mutation { createUser { ... on Problem { conflict { missing } } } }",
+            "mutation { createUser { ...P } } fragment P on Problem { conflict { missing } }",
+        ] {
+            let err = executor.execute(document, None).await.expect_err(document);
+            assert!(
+                matches!(err, FraiseQLError::Validation { .. })
+                    && err.to_string().contains("missing"),
+                "{document}: {err}"
+            );
+        }
+    }
+
+    /// `createUser`, returning `User { id name message }` or, with `union`, the union
+    /// `CreateUserResult` of it and `DuplicateEmailError { message name }`, the declared
+    /// error type. Both types publish `message` and `name`.
+    fn creating_with_shared_fields<A: fraiseql_db::Writer>(
+        adapter: Arc<A>,
+        union: bool,
+    ) -> Executor {
+        use crate::schema::{
+            FieldDefinition, FieldType, MutationDefinition, TypeDefinition, UnionDefinition,
+        };
+
+        let mut schema = CompiledSchema::new();
+        let mut user = TypeDefinition::new("User", "v_user");
+        user.fields = vec![
+            FieldDefinition::new("id", FieldType::String),
+            FieldDefinition::nullable("name", FieldType::String),
+            FieldDefinition::nullable("message", FieldType::String),
+        ];
+        schema.types.push(user);
+        schema.types.push(TypeDefinition {
+            is_error: true,
+            fields: vec![
+                FieldDefinition::nullable("message", FieldType::String),
+                FieldDefinition::nullable("name", FieldType::String),
+            ],
+            ..TypeDefinition::new("DuplicateEmailError", "")
+        });
+        let returns = if union {
+            schema.unions.push(
+                UnionDefinition::new("CreateUserResult")
+                    .with_members(vec!["User".to_string(), "DuplicateEmailError".to_string()]),
+            );
+            "CreateUserResult"
+        } else {
+            "User"
+        };
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createUser", returns)
+        });
+        Executor::new(schema, adapter)
+    }
+
+    /// `createUser` of `document`, which must answer without errors.
+    async fn created(executor: &Executor, document: &str) -> serde_json::Value {
+        let result = executor.execute(document, None).await.unwrap();
+        assert!(result.get("errors").is_none(), "{document}: {result}");
+        result["data"]["createUser"].clone()
+    }
+
+    #[tokio::test]
+    async fn a_named_spread_on_the_success_type_answers_nothing_on_a_failure() {
+        for union in [false, true] {
+            let failure = creating_with_shared_fields(
+                Arc::new(MutationErrorMockAdapter {
+                    entity_type: Some("DuplicateEmailError"),
+                    detail:      None,
+                }),
+                union,
+            );
+            for document in [
+                "mutation { createUser { ... on User { message } } }",
+                "mutation { createUser { ...S } } fragment S on User { message }",
+            ] {
+                let data = created(&failure, document).await;
+                assert!(data.get("message").is_none(), "union {union}, {document}: {data}");
+            }
+            for document in [
+                "mutation { createUser { ... on DuplicateEmailError { message } } }",
+                "mutation { createUser { ...E } } fragment E on DuplicateEmailError { message }",
+            ] {
+                let data = created(&failure, document).await;
+                assert_eq!(data["message"], "already exists", "union {union}, {document}: {data}");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_named_spread_on_the_error_type_answers_nothing_on_a_success() {
+        for union in [false, true] {
+            let success =
+                creating_with_shared_fields(Arc::new(SelectionSetFilterMockAdapter), union);
+            for document in [
+                "mutation { createUser { ... on DuplicateEmailError { name } } }",
+                "mutation { createUser { ...E } } fragment E on DuplicateEmailError { name }",
+            ] {
+                let data = created(&success, document).await;
+                assert!(data.get("name").is_none(), "union {union}, {document}: {data}");
+            }
+            for document in [
+                "mutation { createUser { ... on User { name } } }",
+                "mutation { createUser { ...U } } fragment U on User { name }",
+            ] {
+                let data = created(&success, document).await;
+                assert_eq!(data["name"], "Alice", "union {union}, {document}: {data}");
+            }
+        }
+    }
+
     /// `createUser: User`, `User { id name }`, and the declared error type
     /// `DuplicateEmailError { message }`, over `adapter`.
     fn creating_user<A: fraiseql_db::Writer>(adapter: Arc<A>) -> Executor {

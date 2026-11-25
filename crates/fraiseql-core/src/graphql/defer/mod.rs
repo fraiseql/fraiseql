@@ -103,8 +103,8 @@ struct DeferSpec {
 
 /// Resolve the first enabled-or-not `@defer` on a selection.
 ///
-/// A field can carry more than one: flattening a spread prepends the spread's
-/// directives onto each contributed field, so `...Outer @defer` wrapping
+/// A field can carry more than one: reading a fragment into its set prepends the
+/// fragment's directives onto each of its fields, so `...Outer @defer` wrapping
 /// `...Inner @defer(label: "inner")` leaves both on the leaf. The first is the
 /// outermost, and the outermost is the one that decides — a nested `@defer` cannot
 /// un-defer what an enclosing one deferred, exactly as a nested `@include` cannot
@@ -157,7 +157,7 @@ fn walk(
         return;
     };
 
-    for selection in selections {
+    for selection in &crate::graphql::selection_set::with_fragments_read_in(selections) {
         let key = selection.response_key();
         match defer_directive(selection, variables) {
             Some(spec) if spec.enabled => {

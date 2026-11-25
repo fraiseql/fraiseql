@@ -11,11 +11,23 @@ use crate::{
 };
 
 /// Response keys of the root field's children, in order.
+/// The response keys below the first root, with each fragment on the root's type read into
+/// the set, as the executor reads it: a spread stands there as its fragment.
 fn child_names(selections: &[FieldSelection]) -> Vec<String> {
-    selections
-        .first()
-        .map(|root| root.nested_fields.iter().map(|f| f.response_key().to_string()).collect())
-        .unwrap_or_default()
+    fn keys(selections: &[FieldSelection], out: &mut Vec<String>) {
+        for f in selections {
+            if f.name.starts_with("...on ") {
+                keys(&f.nested_fields, out);
+            } else {
+                out.push(f.response_key().to_string());
+            }
+        }
+    }
+    let mut out = Vec::new();
+    if let Some(root) = selections.first() {
+        keys(&root.nested_fields, &mut out);
+    }
+    out
 }
 
 fn resolved(query: &str, variables: &serde_json::Value) -> Vec<String> {
@@ -161,14 +173,27 @@ fn a_field_written_twice_is_one_field_with_both_sub_selections() {
 
 #[test]
 fn a_field_selected_by_two_fragments_is_one_field_with_both_sub_selections() {
-    assert_eq!(
-        resolved_tree(
-            "{ users { ...A ...B } } \
-             fragment A on User { posts { id } } fragment B on User { posts { title } }",
-            &json!({})
-        ),
-        tree(&[("posts", &["id", "title"])])
-    );
+    let parsed = parse_query(
+        "{ users { ...A ...B } } \
+         fragment A on User { posts { id } } fragment B on User { posts { title } }",
+    )
+    .expect("query must parse");
+    let out = resolve_and_filter(
+        &parsed.selections,
+        &parsed.fragments,
+        &variables_map(Some(&json!({}))),
+        DEFAULT_MAX_QUERY_DEPTH,
+    )
+    .expect("selection set must resolve");
+    // Both spreads stand as the fragment on `User`, which merges into one, and so does the
+    // field each selects.
+    let users = &out[0].nested_fields;
+    assert_eq!(users.len(), 1);
+    assert_eq!(users[0].name, "...on User");
+    let posts = &users[0].nested_fields;
+    assert_eq!(posts.len(), 1);
+    let keys: Vec<&str> = posts[0].nested_fields.iter().map(FieldSelection::response_key).collect();
+    assert_eq!(keys, ["id", "title"]);
 }
 
 #[test]

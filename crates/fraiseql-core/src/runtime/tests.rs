@@ -1733,7 +1733,13 @@ mod matcher_tests {
 
     #[test]
     fn test_match_query_with_fragment() {
-        let schema = test_schema();
+        let mut schema = test_schema();
+        let mut user = crate::schema::TypeDefinition::new("User", "v_user");
+        user.fields = vec![
+            crate::schema::FieldDefinition::new("id", crate::schema::FieldType::Id),
+            crate::schema::FieldDefinition::new("name", crate::schema::FieldType::String),
+        ];
+        schema.types.push(user);
         let matcher = QueryMatcher::new(schema);
 
         let query = r"

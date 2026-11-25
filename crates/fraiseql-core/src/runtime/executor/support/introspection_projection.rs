@@ -84,7 +84,7 @@ pub fn project(value: &serde_json::Value, selections: &[FieldSelection]) -> serd
         },
         serde_json::Value::Object(map) => {
             let mut out = serde_json::Map::with_capacity(selections.len());
-            for sel in selections {
+            for sel in &crate::graphql::selection_set::with_fragments_read_in(selections) {
                 // `__typename` on an introspection type is answered by the
                 // introspection value itself when present; there is no schema
                 // type to synthesise it from here.

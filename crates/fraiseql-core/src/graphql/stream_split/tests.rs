@@ -246,3 +246,27 @@ fn a_zero_batch_size_is_treated_as_one() {
     assert_eq!(chunks.len(), 2);
     assert_eq!(chunks[0].items, vec![json!(1)]);
 }
+
+/// A streamed list selected inside a fragment is streamed, whether the fragment is spread
+/// by name or written inline.
+#[test]
+fn a_list_streamed_inside_a_fragment_is_streamed() {
+    for document in [
+        "{ users { ...F } } fragment F on User { posts @stream(initialCount: 1) { id } }",
+        "{ users { ... on User { posts @stream(initialCount: 1) { id } } } }",
+    ] {
+        let parsed = crate::graphql::parse_query(document).unwrap();
+        let selections = crate::graphql::selection_set::resolve_and_filter(
+            &parsed.selections,
+            &parsed.fragments,
+            &no_vars(),
+            crate::schema::DEFAULT_MAX_QUERY_DEPTH,
+        )
+        .unwrap();
+        let mut data = json!({"users": {"posts": [{"id": 1}, {"id": 2}, {"id": 3}]}});
+        let chunks = split(&selections, &mut data, &no_vars(), 10).unwrap();
+        assert_eq!(data, json!({"users": {"posts": [{"id": 1}]}}), "{document}");
+        assert_eq!(chunks.len(), 1, "{document}");
+        assert_eq!(chunks[0].items, vec![json!({"id": 2}), json!({"id": 3})], "{document}");
+    }
+}

@@ -50,9 +50,33 @@ mod fragment_resolver_tests {
         let resolver = FragmentResolver::new(&[fragment]);
         let result_selections = resolver.resolve_spreads(&selections).unwrap();
 
-        assert_eq!(result_selections.len(), 2);
-        assert_eq!(result_selections[0].name, "id");
-        assert_eq!(result_selections[1].name, "name");
+        // The spread stands as the inline fragment on its type condition.
+        assert_eq!(result_selections.len(), 1);
+        assert_eq!(result_selections[0].name, "...on User");
+        let fields: Vec<&str> =
+            result_selections[0].nested_fields.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(fields, ["id", "name"]);
+    }
+
+    #[test]
+    fn a_spread_keeps_its_directives_on_the_fragment_it_stands_for() {
+        let fragment = make_fragment("UserFields", vec![make_field("id", vec![])]);
+        let skip = crate::graphql::Directive {
+            name:      "skip".to_string(),
+            arguments: vec![],
+        };
+        let selections = vec![FieldSelection {
+            name:          "...UserFields".to_string(),
+            alias:         None,
+            arguments:     vec![],
+            nested_fields: vec![],
+            directives:    vec![skip],
+        }];
+
+        let resolved = FragmentResolver::new(&[fragment]).resolve_spreads(&selections).unwrap();
+
+        assert_eq!(resolved[0].directives.len(), 1);
+        assert_eq!(resolved[0].directives[0].name, "skip");
     }
 
     #[test]
@@ -103,9 +127,14 @@ mod fragment_resolver_tests {
         let resolver = FragmentResolver::new(&[fragment_a, fragment_b]);
         let result_selections = resolver.resolve_spreads(&selections).unwrap();
 
-        assert_eq!(result_selections.len(), 2);
-        assert_eq!(result_selections[0].name, "id");
-        assert_eq!(result_selections[1].name, "name");
+        // `...on User { ...on User { id } name }`: each spread stands as its fragment.
+        assert_eq!(result_selections.len(), 1);
+        let b = &result_selections[0];
+        assert_eq!(b.name, "...on User");
+        assert_eq!(b.nested_fields.len(), 2);
+        assert_eq!(b.nested_fields[0].name, "...on User");
+        assert_eq!(b.nested_fields[0].nested_fields[0].name, "id");
+        assert_eq!(b.nested_fields[1].name, "name");
     }
 
     #[test]

@@ -54,8 +54,8 @@ impl From<SelectionError> for crate::error::FraiseQLError {
     }
 }
 
-/// Expand every fragment spread, carrying each spread's directives onto the
-/// fields it contributes.
+/// Expand every fragment spread into the inline fragment it stands for, on the
+/// fragment's type condition and under the spread's own directives.
 ///
 /// Variable-independent, so the result may be cached against the query string.
 ///
@@ -101,8 +101,8 @@ pub fn filter(
 ///
 /// Runs after `@skip`/`@include`, which apply to each occurrence on its own. Only
 /// occurrences of the same field with the same arguments merge. Two that differ are a
-/// § 5.3.2 conflict, which is decided per parent type, and named spreads lose their type
-/// condition at expansion, so they are left as written.
+/// § 5.3.2 conflict, which is decided per parent type, so they are left as written. Two
+/// fragments on one type condition merge as one, and so do the fields they select.
 fn merge_by_response_key(selections: Vec<FieldSelection>) -> Vec<FieldSelection> {
     let mut merged: Vec<FieldSelection> = Vec::with_capacity(selections.len());
     for selection in selections {
@@ -122,6 +122,29 @@ fn merge_by_response_key(selections: Vec<FieldSelection>) -> Vec<FieldSelection>
         }
     }
     merged
+}
+
+/// `selections` with each fragment in it read into the set, at any depth of fragments in
+/// fragments: its fields stand beside the set's own, each under the fragment's directives.
+///
+/// For a reader of a value already completed, which has no type to decide a fragment by: a
+/// key a fragment selects is in the value only where the fragment applied, so reading every
+/// fragment's fields against it reads the ones that did.
+#[must_use]
+pub fn with_fragments_read_in(selections: &[FieldSelection]) -> Vec<FieldSelection> {
+    let mut fields = Vec::with_capacity(selections.len());
+    for selection in selections {
+        if selection.name.starts_with("...") {
+            let start = fields.len();
+            fields.extend(with_fragments_read_in(&selection.nested_fields));
+            for field in &mut fields[start..] {
+                field.inherit_directives(&selection.directives);
+            }
+        } else {
+            fields.push(selection.clone());
+        }
+    }
+    fields
 }
 
 /// Expand spreads and evaluate directives in one step — the field set the client

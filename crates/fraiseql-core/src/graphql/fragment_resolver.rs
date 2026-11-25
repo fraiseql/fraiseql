@@ -143,19 +143,22 @@ impl FragmentResolver {
                 visited_fragments.insert(fragment_name.clone());
 
                 // Recursively resolve the fragment's selections
-                let mut resolved =
+                let resolved =
                     self.resolve_selections(&fragment.selections, depth + 1, visited_fragments)?;
 
-                // Carry the spread's own directives onto every field it
-                // contributes. `@skip`/`@include` are spec-valid on
-                // `FRAGMENT_SPREAD`, and expansion is the last moment at which
-                // the association still exists: once the fragment's fields are
-                // flattened into the parent set they are indistinguishable from
-                // fields written there directly (#826).
-                for field in &mut resolved {
-                    field.inherit_directives(&selection.directives);
-                }
-                result.extend(resolved);
+                // The spread becomes the inline fragment it stands for, on the
+                // fragment's type condition and under the spread's own directives
+                // (`@skip`/`@include` are spec-valid on `FRAGMENT_SPREAD`). A named
+                // fragment applies only where its type condition holds (§ 6.3.2,
+                // `DoesFragmentTypeApply`), exactly as an inline one does, so every
+                // reader of the set decides both the same way.
+                result.push(FieldSelection {
+                    name:          format!("...on {}", fragment.type_condition),
+                    alias:         None,
+                    arguments:     Vec::new(),
+                    nested_fields: resolved,
+                    directives:    selection.directives.clone(),
+                });
 
                 // Unmark for other paths
                 visited_fragments.remove(&fragment_name);

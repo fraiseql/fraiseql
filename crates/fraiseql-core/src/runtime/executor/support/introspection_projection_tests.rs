@@ -94,3 +94,27 @@ fn an_alias_changes_the_shape() {
         "an alias changes the emitted key, so it is a different projection"
     );
 }
+
+/// A fragment's fields are projected where it stands, whether it is spread by name or
+/// written inline.
+#[test]
+fn a_fragments_fields_are_projected_where_it_stands() {
+    for document in [
+        "{ __schema { types { ...T } } } fragment T on __Type { name }",
+        "{ __schema { types { ... on __Type { name } } } }",
+    ] {
+        let parsed = crate::graphql::parse_query(document).expect("document must parse");
+        let selections = crate::graphql::selection_set::resolve(
+            &parsed.selections[0].nested_fields,
+            &parsed.fragments,
+            crate::schema::DEFAULT_MAX_QUERY_DEPTH,
+        )
+        .expect("the fragment must expand");
+        let value = json!({"types": [{"name": "User", "kind": "OBJECT"}]});
+        assert_eq!(
+            project(&value, &selections),
+            json!({"types": [{"name": "User"}]}),
+            "{document}"
+        );
+    }
+}

@@ -291,3 +291,33 @@ fn the_split_descends_through_undeferred_nesting() {
     assert_eq!(data, json!({"user": {"profile": {"name": "n"}}}));
     assert_eq!(payloads[0].path, vec![json!("user"), json!("profile")]);
 }
+
+/// The selection set of `document`, as the transport splits it: spreads expanded,
+/// conditions evaluated.
+fn resolved(document: &str) -> Vec<FieldSelection> {
+    let parsed = crate::graphql::parse_query(document).unwrap();
+    crate::graphql::selection_set::resolve_and_filter(
+        &parsed.selections,
+        &parsed.fragments,
+        &no_vars(),
+        crate::schema::DEFAULT_MAX_QUERY_DEPTH,
+    )
+    .unwrap()
+}
+
+/// A deferred fragment defers the fields it selects, whether it is spread by name or
+/// written inline.
+#[test]
+fn a_deferred_fragment_defers_the_fields_it_selects() {
+    for document in [
+        "{ users { id ...F @defer(label: \"f\") } } fragment F on User { name }",
+        "{ users { id ... on User @defer(label: \"f\") { name } } }",
+    ] {
+        let mut data = json!({"users": {"id": "1", "name": "a"}});
+        let payloads = split(&resolved(document), &mut data, &no_vars());
+        assert_eq!(data, json!({"users": {"id": "1"}}), "{document}");
+        assert_eq!(payloads.len(), 1, "{document}: {payloads:?}");
+        assert_eq!(payloads[0].label.as_deref(), Some("f"), "{document}");
+        assert_eq!(payloads[0].data["name"], "a", "{document}");
+    }
+}

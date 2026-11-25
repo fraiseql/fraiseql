@@ -550,11 +550,9 @@ fn unknown_sort_field(
     }
 }
 
-/// Return `true` if `field_name` appears in `selections`, including inside inline
-/// fragment entries (`FieldSelection` whose name starts with `"..."`).
-///
-/// Named fragment spreads are already flattened by [`FragmentResolver`] before this
-/// is called, so we only need to recurse one level into inline fragments.
+/// Return `true` if `field_name` appears in `selections`, including inside fragment
+/// entries (`FieldSelection` whose name starts with `"..."`), at any depth: a named spread
+/// stands there as the inline fragment on its type condition.
 pub fn selections_contain_field(selections: &[FieldSelection], field_name: &str) -> bool {
     for sel in selections {
         if sel.name == field_name {
