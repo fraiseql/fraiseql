@@ -27,6 +27,9 @@ disagreed, and the promise was the part that was wrong.
   keeps the old behaviour). A Deno module's `source_hash` is now the function hash (see
   Added), no longer the SHA-256 of its file.
 
+- **`fraiseql-error` drops `ConfigError` (#1681).** `fraiseql_error::ConfigError` and its
+  re-export `fraiseql::ConfigError` are removed. Nothing in the workspace raised it.
+
 - **`fraiseql_core::http` is private (#1681).** `build_ssrf_safe_client` is no longer
   public. Its one caller is the webhook audit exporter in the same crate.
 

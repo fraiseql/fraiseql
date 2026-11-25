@@ -38,14 +38,12 @@
 // here at the crate level. Test files opt out individually with a `Reason:`.
 #![deny(clippy::indexing_slicing)]
 
-mod config;
 pub mod core_error;
 mod file;
 pub mod graphql_error;
 #[cfg(feature = "axum-compat")]
 mod http;
 
-pub use config::ConfigError;
 pub use core_error::{
     ConstraintViolation, ErrorContext, FraiseQLError, Result, ValidationFieldError,
 };

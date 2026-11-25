@@ -39,7 +39,6 @@ The central error crate. All runtime crates depend on it.
 | `FraiseQLError` | `core_error.rs` | The single root error type. Engine variants (`Parse`, `Validation`, `Database`, `RateLimited`, `NotFound`, `ServiceUnavailable`, `Internal`, …) plus four domain composition variants (`Auth`, `Webhook`, `Observer`, `File`). `#[non_exhaustive]` |
 | `ErrorResponse` | `http.rs` | OAuth 2.0-style JSON body with `error`, `error_description`, `error_code`, `error_uri`, `details`, `retry_after`. Built by the `IntoResponse` impl for `FraiseQLError` (`axum-compat` feature). |
 | `FileError` | `file.rs` | Upload limits, MIME types, storage backends. Used directly by storage backends; composes into `FraiseQLError::File` via `#[from]`. |
-| `ConfigError` | `config.rs` | File not found, parse errors, env vars. |
 | `GraphQLError` | `graphql_error.rs` | GraphQL-spec error payload for response envelopes. |
 
 ### `fraiseql-auth` (Internal Auth Layer)

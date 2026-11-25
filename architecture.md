@@ -71,7 +71,7 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   FraiseQLError (enum)    Result<T>    ErrorContext    ValidationFieldError
-  ConfigError  FileError  GraphQLError
+  FileError  GraphQLError
   Feature: axum-compat  → IntoResponse impl for FraiseQLError (axum handlers)
   Subsystem error types (AuthError, WebhookError, ObserverError) live in their
   own crates and compose into FraiseQLError::{Auth, Webhook, Observer} via
