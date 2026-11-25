@@ -281,6 +281,11 @@ fi
 
 echo "[6/7] Pre-tag release validation..."
 
+# A tree no green guard-mutants sweep has covered is not tagged: a guard no test holds
+# would ship unnoticed. The sweep runs weekly and on dispatch; see guard_mutant_sweep_gate.
+echo "      Checking for a green guard-mutants sweep of this tree..."
+guard_mutant_sweep_gate "$VERSION" "$(git rev-parse HEAD)" Cargo.lock "${RELEASE_FILES[@]}" || exit 1
+
 if [[ -n "${SKIP_RELEASE_VALIDATE:-}" ]]; then
     echo "      SKIP_RELEASE_VALIDATE set — skipping."
     echo "      Run 'make release-validate VERSION=${VERSION}' before pushing the tag."

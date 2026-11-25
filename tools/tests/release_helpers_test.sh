@@ -710,6 +710,87 @@ check "stage: succeeds beside an ignored file"      "$(cat "$STAGE/rc")" "0"
 check "stage: the tracked file is staged"           "$(git -C "$STAGE" diff --cached --name-only)" "tracked.toml"
 check "stage: the ignored file is left untracked"   "$(git -C "$STAGE" ls-files Cargo.lock)" ""
 
+# ── guard_mutant_sweep_gate ────────────────────────────────────────────────────
+# A tag needs a green guard-mutants sweep of its tree: a run of the workflow on the commit
+# itself, or on one that differs from it only in files the release commit writes. `gh` is
+# a stub that prints GH_OUT and exits GH_RC. Every way the answer can be unknown refuses.
+
+SWEEP="$WORK/sweep"
+git init -q "$SWEEP"
+(
+    cd "$SWEEP"
+    git config user.email t@t && git config user.name t
+    mkdir -p src && echo 1 > Cargo.toml && echo 1 > src/guard.rs && echo 1 > CHANGELOG.md
+    git add . && git commit -qm swept
+    echo 2 > Cargo.toml && echo 2 > CHANGELOG.md && git commit -qam bump
+    git checkout -q -b weakened HEAD~1
+    echo 2 > src/guard.rs && git commit -qam weakened
+    git checkout -q -
+)
+SWEPT="$(git -C "$SWEEP" rev-parse HEAD~1)"
+BUMP="$(git -C "$SWEEP" rev-parse HEAD)"
+WEAK="$(git -C "$SWEEP" rev-parse weakened)"
+mkdir -p "$WORK/bin"
+cat > "$WORK/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s' "${GH_OUT:-}"
+exit "${GH_RC:-0}"
+EOF
+chmod +x "$WORK/bin/gh"
+
+# sweep_gate <release-sha> <gh-output> [gh-rc] [skip]: the gate's exit status, then its output.
+sweep_gate() {
+    local out rc
+    set +e
+    out="$(cd "$SWEEP" && PATH="$WORK/bin:$PATH" GH_OUT="$2" GH_RC="${3:-0}" \
+        SKIP_GUARD_MUTANTS="${4:-}" guard_mutant_sweep_gate 9.9.9 "$1" Cargo.toml CHANGELOG.md 2>&1)"
+    rc=$?
+    set -e
+    printf '%s\n%s' "$rc" "$out"
+}
+rc_of() { head -1 <<<"$1"; }
+says() { tail -n +2 <<<"$1" | grep -c -- "$2" || true; }
+
+r="$(sweep_gate "$BUMP" "$SWEPT completed success")"
+check "sweep: a green sweep of a tree that differs only in release files passes" "$(rc_of "$r")" "0"
+r="$(sweep_gate "$WEAK" "$WEAK completed success")"
+check "sweep: a green sweep of the commit itself passes" "$(rc_of "$r")" "0"
+r="$(sweep_gate "$BUMP" "$BUMP in_progress
+$SWEPT completed success")"
+check "sweep: a sweep still running is passed over for a finished one" "$(rc_of "$r")" "0"
+
+r="$(sweep_gate "$BUMP" "none")"
+check "sweep: no sweep at all refuses"              "$(rc_of "$r")" "1"
+check "sweep: ... and says none ran"                "$(says "$r" "no guard-mutants sweep has run")" "1"
+r="$(sweep_gate "$BUMP" "$SWEPT completed failure")"
+check "sweep: a red sweep of the tree refuses"      "$(rc_of "$r")" "1"
+check "sweep: ... and names its conclusion"         "$(says "$r" "concluded failure")" "1"
+r="$(sweep_gate "$BUMP" "$BUMP completed failure
+$SWEPT completed success")"
+check "sweep: a newer red sweep outweighs an older green one" "$(rc_of "$r")" "1"
+r="$(sweep_gate "$WEAK" "$SWEPT completed success")"
+check "sweep: a green sweep of a tree that differs in other files refuses" "$(rc_of "$r")" "1"
+check "sweep: ... and names a differing file"       "$(says "$r" "src/guard.rs")" "1"
+r="$(sweep_gate "$BUMP" "$SWEPT completed success" 1)"
+check "sweep: gh failing refuses"                   "$(rc_of "$r")" "1"
+check "sweep: ... and says it could not read the runs" "$(says "$r" "could not read")" "1"
+r="$(sweep_gate "$BUMP" "")"
+check "sweep: gh printing nothing refuses"          "$(rc_of "$r")" "1"
+r="$(sweep_gate "$BUMP" "0000000000000000000000000000000000000000 completed success")"
+check "sweep: a run of a commit this clone lacks refuses" "$(rc_of "$r")" "1"
+r="$(sweep_gate "$BUMP" "none" 0 1)"
+check "sweep: SKIP_GUARD_MUTANTS passes"            "$(rc_of "$r")" "0"
+check "sweep: ... and says the sweep was not checked" "$(says "$r" "SKIP_GUARD_MUTANTS set")" "1"
+r="$(sweep_gate "$BUMP" "none")"
+check "sweep: a refusal prints the remedy"          "$(says "$r" "gh workflow run dagger-guard-mutants.yml")" "1"
+
+# release.sh asks before it tags: a call of the gate that stops the script on a refusal
+# comes before `git tag -a`. Anchored on the call, so a comment naming the gate is no match.
+gate_line="$(grep -nE '^guard_mutant_sweep_gate .*\|\| exit 1$' "$REPO_ROOT/tools/release.sh" | head -1 | cut -d: -f1 || true)"
+tag_line="$(grep -n 'git tag -a' "$REPO_ROOT/tools/release.sh" | head -1 | cut -d: -f1 || true)"
+check "sweep: release.sh runs the gate before it tags" \
+    "$([[ -n "$gate_line" && -n "$tag_line" && "$gate_line" -lt "$tag_line" ]] && echo yes || echo no)" "yes"
+
 # ── Summary ────────────────────────────────────────────────────────────────────
 
 echo ""

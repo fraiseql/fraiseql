@@ -519,3 +519,80 @@ stage_release_files() {
         git add -- $tracked
     fi
 }
+
+# Refuse to tag a tree no green guard-mutants sweep has covered.
+#
+# The sweep (.github/workflows/dagger-guard-mutants.yml) mutates every guard site in
+# tools/guard-sites.toml and fails unless a test kills each mutant. A run covers the tag's
+# tree when it ran on the release commit itself, or on a commit that differs from it only
+# in the files the release commit writes (passed as the remaining arguments): a version
+# bump moves no guard and no test. Of the runs that cover the tree, the newest finished one
+# decides, so a red sweep is not outweighed by an older green one. Every way the answer can
+# be unknown refuses: `gh` failing or printing nothing, no run at all, a run of a commit
+# this clone lacks.
+#
+# SKIP_GUARD_MUTANTS set skips the check (a local sweep of the commit that ended
+# "guard-mutants OK" can stand in for a run).
+#
+# Usage: guard_mutant_sweep_gate <version> <release-sha> <release-file>...
+guard_mutant_sweep_gate() {
+    local version="$1" release="$2"
+    shift 2
+    local -A release_files=()
+    local file
+    for file in "$@"; do
+        release_files["$file"]=1
+    done
+
+    if [[ -n "${SKIP_GUARD_MUTANTS:-}" ]]; then
+        echo "      SKIP_GUARD_MUTANTS set: the guard-mutants sweep was not checked."
+        return 0
+    fi
+
+    local runs verdict=""
+    if ! runs="$(gh run list --workflow dagger-guard-mutants.yml --limit 50 \
+        --json headSha,status,conclusion \
+        --jq 'if length == 0 then "none" else .[] | "\(.headSha) \(.status) \(.conclusion)" end')"; then
+        verdict="could not read the guard-mutants runs (gh run list failed)"
+    elif [[ -z "$runs" ]]; then
+        verdict="could not read the guard-mutants runs (gh run list printed nothing)"
+    elif [[ "$runs" == "none" ]]; then
+        verdict="no guard-mutants sweep has run"
+    else
+        local sha status conclusion changed other
+        verdict="no guard-mutants sweep covers this tree"
+        while read -r sha status conclusion; do
+            [[ "$status" == "completed" ]] || continue
+            if ! git cat-file -e "${sha}^{commit}" 2>/dev/null; then
+                verdict+="; a run of ${sha} is not in this clone"
+                continue
+            fi
+            changed="$(git diff --name-only "$sha" "$release")" || {
+                verdict="could not compare ${sha} with ${release}"
+                break
+            }
+            other=""
+            while IFS= read -r file; do
+                [[ -z "$file" || -n "${release_files[$file]:-}" ]] || other="$file"
+            done <<<"$changed"
+            if [[ -n "$other" ]]; then
+                verdict+="; ${sha} differs from it in ${other}"
+                continue
+            fi
+            if [[ "$conclusion" == "success" ]]; then
+                echo "      Guard-mutants sweep of ${sha} is green, and covers this tree."
+                return 0
+            fi
+            verdict="the newest sweep that covers this tree (${sha}) concluded ${conclusion}"
+            break
+        done <<<"$runs"
+    fi
+
+    echo "ERROR: ${verdict} — not creating tag v${version}." >&2
+    echo "       Sweep the release commit (about 3h10m on two lanes), then re-run this script:" >&2
+    echo "         gh workflow run dagger-guard-mutants.yml --ref <release branch>" >&2
+    echo "       or, at the release commit, run" >&2
+    echo "         env -u SSH_AUTH_SOCK dagger call guard-mutants --source=. --lanes=2" >&2
+    echo "       and, once it ends \"guard-mutants OK\", re-run with SKIP_GUARD_MUTANTS=1." >&2
+    return 1
+}

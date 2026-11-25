@@ -230,7 +230,8 @@ Two tools read it:
   sites in those files (the per-change run: `git diff --name-only` against the merge
   base), and `--shard NAME` one shard's. The whole inventory takes about 3h10m on two
   lanes. `.github/workflows/dagger-guard-mutants.yml` runs it on a schedule, and on
-  dispatch for the commit a release will tag.
+  dispatch for the commit a release will tag; `tools/release.sh` refuses to tag a tree no
+  green sweep has covered (`SKIP_GUARD_MUTANTS=1` skips the check).
 
 **Adding a guard.** Add a `[[site]]` row, then run its mutant:
 
