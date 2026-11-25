@@ -80,7 +80,7 @@ A query declaring `"sql_source_kind": "function"` reads `SELECT data FROM fn($1,
   query's arguments without the auto-params, then one per inject param. Two overloads of that
   arity are refused, because the parameters are bound untyped and the call would be ambiguous;
 - it returns a set (`RETURNS TABLE(…)` or `RETURNS SETOF …`);
-- it returns the query's `jsonb_column` (`data` by default) as `json` or `jsonb`;
+- it returns its document column, `data`, as `json` or `jsonb`;
 - it is not `VOLATILE`. A read may be cached, retried or served from a replica, so a function
   that writes belongs in a mutation.
 

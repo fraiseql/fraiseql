@@ -5,6 +5,8 @@
 //! 1. `jsonb_column` field is preserved during schema compilation
 //! 2. `jsonb_column` defaults to "data" when not specified
 //! 3. `QueryDefinition` supports `jsonb_column` field
+//! 4. a `jsonb_column` other than `data` (or the empty flat-column shape) is refused: the runtime
+//!    reads its documents from `data`
 //!
 //! Issue #268: fraiseql-cli compile drops `jsonb_column` from queries
 
@@ -114,7 +116,7 @@ fn test_jsonb_column_defaults_to_data() {
 }
 
 #[test]
-fn test_jsonb_column_custom_value() {
+fn test_jsonb_column_other_than_data_is_refused() {
     let schema_json = json!({
         "types": [
             {
@@ -143,17 +145,12 @@ fn test_jsonb_column_custom_value() {
     let intermediate: fraiseql_cli::schema::IntermediateSchema =
         serde_json::from_str(&intermediate_str).expect("Failed to parse intermediate schema");
 
-    // Convert to compiled schema
-    let compiled = fraiseql_cli::schema::SchemaConverter::convert(intermediate)
-        .expect("Failed to convert schema");
-
-    // Verify custom jsonb_column is preserved
-    let compiled_query = &compiled.queries[0];
-    assert_eq!(compiled_query.name, "orders");
-    assert_eq!(
-        compiled_query.jsonb_column, "metadata",
-        "Custom jsonb_column value should be preserved, not default to 'data'"
-    );
+    // The runtime reads `data`: a query naming another column is refused, not compiled into
+    // an artifact whose first read fails.
+    let err = fraiseql_cli::schema::SchemaConverter::convert(intermediate)
+        .expect_err("`metadata` is not a column the runtime reads");
+    let message = format!("{err:#}");
+    assert!(message.contains("Query 'orders': jsonb_column = 'metadata'"), "{message}");
 }
 
 #[test]
@@ -204,7 +201,7 @@ fn test_jsonb_column_in_compiled_schema_json() {
 }
 
 #[test]
-fn test_multiple_queries_with_different_jsonb_columns() {
+fn test_multiple_queries_keep_their_own_jsonb_column() {
     let schema_json = json!({
         "types": [
             {
@@ -231,7 +228,7 @@ fn test_multiple_queries_with_different_jsonb_columns() {
                 "returns_list": true,
                 "nullable": false,
                 "sql_source": "tv_user",
-                "jsonb_column": "user_data"
+                "jsonb_column": "data"
             },
             {
                 "name": "orders",
@@ -239,7 +236,7 @@ fn test_multiple_queries_with_different_jsonb_columns() {
                 "returns_list": true,
                 "nullable": false,
                 "sql_source": "tv_order",
-                "jsonb_column": "order_metadata"
+                "jsonb_column": ""
             }
         ]
     });
@@ -252,10 +249,11 @@ fn test_multiple_queries_with_different_jsonb_columns() {
     let compiled = fraiseql_cli::schema::SchemaConverter::convert(intermediate)
         .expect("Failed to convert schema");
 
-    // Verify each query preserves its own jsonb_column
+    // Each query keeps its own jsonb_column: `data`, and the empty flat-column shape
+    // federation's `_entities` reads (ADR 0014).
     assert_eq!(compiled.queries[0].name, "users");
-    assert_eq!(compiled.queries[0].jsonb_column, "user_data");
+    assert_eq!(compiled.queries[0].jsonb_column, "data");
 
     assert_eq!(compiled.queries[1].name, "orders");
-    assert_eq!(compiled.queries[1].jsonb_column, "order_metadata");
+    assert_eq!(compiled.queries[1].jsonb_column, "");
 }

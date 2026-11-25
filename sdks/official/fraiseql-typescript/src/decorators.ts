@@ -147,6 +147,11 @@ export interface OperationConfig {
   sqlSource?: string;
   autoParams?: Record<string, boolean>;
   operation?: string;
+  /**
+   * The column a query's rows hold their document in. The runtime reads `data`, the
+   * default, so omit it: the compiler refuses another name. A view whose document column has
+   * another name exposes it as `data`.
+   */
   jsonbColumn?: string;
   relay?: boolean;
   [key: string]: unknown;

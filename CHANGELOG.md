@@ -40,6 +40,15 @@ disagreed, and the promise was the part that was wrong.
   - `fraiseql_server::inbound::emit_in_tx` takes the event type as a third argument
     (`None` where there is none).
 
+- **A query's `jsonb_column` other than `data` is refused at compile (#2541).** The runtime
+  reads a query's rows from a document column named `data` and never read the declared
+  name: a query declaring `jsonb_column = "payload"` compiled, and its first read failed with
+  `column "data" does not exist`. `fraiseql compile` now refuses it, naming the query and the
+  column; expose the document as `data` in the view (`SELECT ..., payload AS data FROM ...`)
+  and drop `jsonb_column`. Omitting it, `"data"`, and the empty flat-column shape federation's
+  `_entities` reads are unchanged. The Python and TypeScript SDK docs no longer suggest
+  another column name.
+
 - **Selections of one response key must merge into one field (GraphQL § 5.3.2, #1723).**
   A document is refused before anything is read or written when one response key names two
   different fields, the same field with two sets of arguments, or, below two different

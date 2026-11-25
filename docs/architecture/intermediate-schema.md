@@ -281,7 +281,7 @@ Custom GraphQL scalar type.
 | `sql_source` | `string?` | no | Database view/table name |
 | `auto_params` | `IntermediateAutoParams?` | no | Auto-generated pagination params |
 | `deprecated` | `IntermediateDeprecation?` | no | Deprecation info |
-| `jsonb_column` | `string?` | no | JSONB column name (`tv_*` pattern) |
+| `jsonb_column` | `string?` | no | The column the rows hold their document in: `data`, the default and the column the runtime reads; another name is refused at compile. `""` is the flat-column shape federation's `_entities` reads (ADR 0014) |
 | `relay` | `bool` | no | `true` for Relay connection queries |
 | `inject_params` | `{[col]: source}` | no | Server-injected params (not exposed as args). Values are `"jwt:<claim>"` or `{"source": "jwt", "claim": "<claim>"}`. On a mutation, `"jwt_optional:<claim>"` passes SQL `NULL` when the token lacks the claim (refused on queries and types, whose inject params filter rows, and for the tenant claim). **The key is `inject_params`, not `inject`** |
 | `exclude_inject_defaults` | `string[]` | no | `inject_defaults` keys this operation opts out of. Each must name a default that would otherwise apply and must not also be in `inject_params`; both are compile errors |

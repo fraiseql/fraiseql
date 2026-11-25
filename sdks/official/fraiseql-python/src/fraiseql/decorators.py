@@ -1141,8 +1141,9 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
               name a default that would otherwise apply.
             - ``auto_params``: dict of ``{limit, offset, where, order_by}`` booleans,
               or ``True`` to enable all.
-            - ``jsonb_column``: name of the JSONB column holding the result data.
-              Defaults to ``"data"`` — omit unless your table uses a different column name.
+            - ``jsonb_column``: the column the query's rows hold their document in. The
+              runtime reads ``"data"``, the default, so omit it: the compiler refuses another
+              name. A view whose document column has another name exposes it as ``data``.
             - ``pagination_order``: the column that orders this query's ``LIMIT``/``OFFSET``
               pages, or ``"none"`` to keep a self-ordering view's own ``ORDER BY``. Omit it
               and the compiler derives the entity identity, which is what almost every

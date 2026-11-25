@@ -108,6 +108,7 @@ impl SchemaConverter {
         // mistake.
         Self::refuse_sql_settings_on_a_function_backed_query(&intermediate)?;
         Self::refuse_reads_a_function_root_cannot_serve(&intermediate)?;
+        Self::refuse_a_document_column_the_runtime_does_not_read(&intermediate)?;
 
         // Validate relay constraints before conversion.
         if intermediate.relay {
@@ -295,6 +296,31 @@ impl SchemaConverter {
             rest_stream: intermediate.rest_stream,
             native_columns: HashMap::new(),
         })
+    }
+
+    /// Whether a query may name `column` as the one its row's document is read from: `data`,
+    /// the column the runtime reads, or the empty name, the flat-column shape federation's
+    /// `_entities` reads (ADR 0014).
+    fn is_a_document_column_the_runtime_reads(column: &str) -> bool {
+        matches!(column, "data" | "")
+    }
+
+    /// Refuse a `jsonb_column` the runtime does not read.
+    ///
+    /// Every read of a query's relation takes the row's document from `data`, so any other
+    /// name compiles into an artifact whose first read fails with `column "data" does not
+    /// exist`. The remedy is in the view, which can expose its document under that name.
+    fn refuse_a_document_column_the_runtime_does_not_read(query: &IntermediateQuery) -> Result<()> {
+        match query.jsonb_column.as_deref() {
+            Some(column) if !Self::is_a_document_column_the_runtime_reads(column) => bail!(
+                "Query '{}': jsonb_column = '{column}' is not a column the runtime reads. A \
+                 query's rows are read from a document column named `data`, so this query \
+                 would fail on its first read. Expose the document under that name in the view \
+                 (`SELECT ..., {column} AS data FROM ...`) and remove jsonb_column.",
+                query.name
+            ),
+            _ => Ok(()),
+        }
     }
 
     /// Refuse the SQL-lowering settings beside a `function` declaration (#1329).

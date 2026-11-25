@@ -5004,3 +5004,56 @@ fn a_custom_scalar_named_big_int_denotes_the_built_in() {
     let balance = ledger.fields.iter().find(|f| f.name == "balance").unwrap();
     assert_eq!(Some(&balance.field_type), FieldType::from_authoring_name("BigInt").as_ref());
 }
+
+// A query's `jsonb_column` names the column its row's document is read from. The runtime
+// reads `data`; a query naming another column is refused rather than compiled into an
+// artifact that fails on its first read.
+
+#[test]
+fn a_query_naming_a_document_column_other_than_data_is_refused() {
+    let err = convert_one(paginating_query(|q| q.jsonb_column = Some("payload".to_string())))
+        .expect_err("the runtime does not read `payload`");
+    let message = err.to_string();
+    for part in [
+        "'users'",
+        "jsonb_column = 'payload'",
+        "`data`",
+        "payload AS data",
+    ] {
+        assert!(message.contains(part), "{part}: {message}");
+    }
+}
+
+#[test]
+fn a_query_reading_data_compiles_whether_or_not_it_says_so() {
+    for column in [None, Some("data")] {
+        let q = convert_one(paginating_query(|q| q.jsonb_column = column.map(str::to_string)))
+            .unwrap_or_else(|e| panic!("{column:?}: {e}"));
+        assert_eq!(q.jsonb_column, "data", "{column:?}");
+    }
+}
+
+/// A function-backed field reads no row, so any `jsonb_column` beside it meets that refusal,
+/// which says why, before this one.
+#[test]
+fn a_document_column_beside_a_function_is_refused_as_a_function_setting() {
+    let q = IntermediateQuery {
+        name: "users".to_string(),
+        return_type: "User".to_string(),
+        returns_list: true,
+        function: Some("fn_users".to_string()),
+        jsonb_column: Some("payload".to_string()),
+        ..IntermediateQuery::default()
+    };
+    let message = convert_one(q).expect_err("a function reads no row").to_string();
+    assert!(message.contains("cannot be combined with function = 'fn_users'"), "{message}");
+}
+
+// The empty column: the flat-column shape federation's `_entities` reads (ADR 0014).
+
+#[test]
+fn a_query_declaring_the_empty_document_column_compiles() {
+    let q = convert_one(paginating_query(|q| q.jsonb_column = Some(String::new())))
+        .expect("the flat-column shape compiles");
+    assert_eq!(q.jsonb_column, "");
+}

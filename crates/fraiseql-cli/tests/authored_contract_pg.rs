@@ -56,6 +56,30 @@ fn compile(dir: &Path, schema: &Value) -> std::path::PathBuf {
     out
 }
 
+/// Compile `schema` into `dir`, expecting `fraiseql compile` to refuse it: its error output.
+fn compile_refused(dir: &Path, schema: &Value) -> String {
+    let input = dir.join("schema.json");
+    std::fs::write(&input, schema.to_string()).unwrap();
+    let out = dir.join("schema.compiled.json");
+    let output = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+        .args([
+            "compile",
+            input.to_str().unwrap(),
+            "--skip-hash",
+            "-o",
+            out.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "compile accepted {schema}");
+    assert!(!out.exists(), "a refused compile wrote an artifact");
+    format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    )
+}
+
 /// Run `operation` through `fraiseql query`: the response, whatever its exit code. A request
 /// refused before execution prints no response but its error chain on stderr; that comes back
 /// as `{"errors": [{"message": <stderr>}]}`.
@@ -970,4 +994,94 @@ async fn an_enum_operand_passed_as_a_nested_variable_filters_the_rows() {
         message.contains("$s") && message.contains("OrderStatus"),
         "a value no member names is refused, naming the variable: {not_a_member}"
     );
+}
+
+// ── The document column a query reads ──────────────────────────────────────────────
+
+/// One note row, `{ id, body }`, exposed by `v_note` as `data` and by `v_note_payload` as
+/// `payload`; and the schema of `notes` over `view`, declaring `jsonb_column` when given.
+async fn notes(url: &str, view: &str, jsonb_column: Option<&str>) -> Value {
+    execute(
+        url,
+        &format!(
+            "DROP SCHEMA IF EXISTS {SCHEMA} CASCADE;
+             CREATE SCHEMA {SCHEMA};
+             CREATE TABLE {SCHEMA}.tb_note (id uuid PRIMARY KEY, body text NOT NULL);
+             INSERT INTO {SCHEMA}.tb_note
+                 VALUES ('00000000-0000-0000-0000-000000002541', 'hello');
+             CREATE VIEW {SCHEMA}.v_note AS
+                 SELECT id, jsonb_build_object('id', id, 'body', body) AS data
+                 FROM {SCHEMA}.tb_note;
+             CREATE VIEW {SCHEMA}.v_note_payload AS
+                 SELECT id, jsonb_build_object('id', id, 'body', body) AS payload
+                 FROM {SCHEMA}.tb_note;"
+        ),
+    )
+    .await;
+    let mut query = json!({
+        "name": "notes", "return_type": "Note", "returns_list": true,
+        "nullable": false, "sql_source": format!("{SCHEMA}.{view}")
+    });
+    if let Some(column) = jsonb_column {
+        query["jsonb_column"] = json!(column);
+    }
+    json!({
+        "types": [{
+            "name": "Note",
+            "sql_source": format!("{SCHEMA}.{view}"),
+            "fields": [
+                { "name": "id", "type": "ID", "nullable": false },
+                { "name": "body", "type": "String", "nullable": false }
+            ]
+        }],
+        "queries": [query]
+    })
+}
+
+#[tokio::test]
+async fn a_query_declaring_the_data_column_serves_its_rows() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping the document column: DATABASE_URL not set");
+        return;
+    };
+    let dir = TempDir::new().unwrap();
+    let compiled = compile(dir.path(), &notes(&url, "v_note", Some("data")).await);
+
+    let response = query(&compiled, &url, "{ notes { id body } }", None);
+
+    assert_eq!(
+        response,
+        json!({ "data": { "notes": [{
+            "id": "00000000-0000-0000-0000-000000002541", "body": "hello"
+        }] } })
+    );
+}
+
+/// A query naming its view's `payload` column is refused at compile. The refusal stands for
+/// what the artifact would do: the same query compiled with that column read through the
+/// runtime, which reads `data`, fails on its first read.
+#[tokio::test]
+async fn a_query_declaring_another_document_column_is_refused_for_the_read_it_would_fail() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping the document column: DATABASE_URL not set");
+        return;
+    };
+    let dir = TempDir::new().unwrap();
+    let schema = notes(&url, "v_note_payload", Some("payload")).await;
+
+    let refusal = compile_refused(dir.path(), &schema);
+    assert!(refusal.contains("Query 'notes': jsonb_column = 'payload'"), "{refusal}");
+    assert!(refusal.contains("payload AS data"), "{refusal}");
+
+    let mut readable = schema;
+    readable["queries"][0]["jsonb_column"] = json!("data");
+    let compiled = compile(dir.path(), &readable);
+    let mut artifact: Value =
+        serde_json::from_str(&std::fs::read_to_string(&compiled).unwrap()).unwrap();
+    artifact["queries"][0]["jsonb_column"] = json!("payload");
+    std::fs::write(&compiled, artifact.to_string()).unwrap();
+
+    let response = query(&compiled, &url, "{ notes { id body } }", None);
+    let errors = response["errors"].to_string();
+    assert!(errors.contains(r#"column \"data\" does not exist"#), "{response}");
 }
