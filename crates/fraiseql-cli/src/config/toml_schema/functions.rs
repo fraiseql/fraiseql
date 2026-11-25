@@ -37,6 +37,7 @@ pub struct FunctionsSettings {
     ///
     /// Unset ⇒ a function imports nothing: every `import` is refused. It must be a
     /// directory of its own, neither `module_dir` nor an ancestor of it.
+    /// `FRAISEQL_FUNCTIONS_SHARED_DIR` overrides it in production.
     pub shared_dir: Option<PathBuf>,
 
     /// Which dead-letter store backs function dispatch (#598): `"memory"` (the

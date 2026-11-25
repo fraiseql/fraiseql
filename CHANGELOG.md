@@ -18,6 +18,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A Deno function runs as an ES module, in strict mode (#1651).** Its source used to be
+  rewritten into a script. It now loads unchanged as a module, so module rules apply: an
+  assignment to an undeclared name throws a `ReferenceError` instead of creating a global,
+  and `this` at the top level is `undefined`. Every function in the Deno test suite ran
+  unchanged. For Rust callers of `fraiseql-functions`, `FunctionModule` gains `shared` and
+  `FunctionsConfig` gains `shared_dir`, so a struct literal needs the new field (`None`
+  keeps the old behaviour). A Deno module's `source_hash` is now the function hash (see
+  Added), no longer the SHA-256 of its file.
+
 - **An inbound webhook delivery is claimed once, by the inbound spine (#1782).** Each
   delivery used to be claimed twice in one transaction: in `webhooks.tb_inbound_delivery`
   on `(route, event_id)`, and again by the spine insert on `(source, idempotency_key)`. The
@@ -1350,6 +1359,26 @@ disagreed, and the promise was the part that was wrong.
   is folded too (`[éè]` matches like `[ee]`), and a regex pattern is held to the existing
   length and nesting limits after the fold. Without the section the operators are neither
   published nor accepted. See `docs/features/accent-insensitive-filters.md`.
+
+- **Deno functions share code through `[functions] shared_dir` (#1651).** A function
+  imports the modules of the declared directory as `@shared/<path>.<ts|js|mts|mjs>`; that
+  is the one importable form, and every other specifier (a URL, `npm:`/`jsr:`/`node:`, a
+  relative or absolute path, a bare name, a `..` segment, import attributes) is refused,
+  naming the module that wrote it. Without a `shared_dir`, every import is refused, naming
+  the key. Everything a function imports is read and transpiled once when it loads, and the
+  isolate imports from that set alone. A load reads at most 1 MiB per shared module, 8 MiB
+  in all and 256 modules.
+  - `fraiseql compile` refuses a `shared_dir` that is missing or holds function files, and
+    a `deno.json` in `module_dir` whose `@shared/` entry disagrees with it. The engine never
+    reads `deno.json`; the line is there for editors.
+  - A function's hash is a SHA-256 over its source and each shared module it imports.
+    `fraiseql functions invoke` prints it (`"hash"` under `--json`) and the server logs it
+    at load.
+  - `FRAISEQL_FUNCTIONS_SHARED_DIR` overrides `shared_dir`. `fraiseql functions invoke` now
+    applies it and `FRAISEQL_FUNCTIONS_MODULE_DIR` as the server does: it used to load from
+    the compiled `module_dir` whatever the environment said, so it could run other files
+    than the server. Both now load through one loader,
+    `fraiseql_functions::modules::load_function_module`.
 
 - **`fraiseql_time::calendar` writes dates and date-times past year 9999 (#2026).**
   `calendar::date`, `calendar::date_time` and `calendar::rfc3339` write the text chrono

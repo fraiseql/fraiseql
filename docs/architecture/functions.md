@@ -375,13 +375,14 @@ rather than a promise.
 A function gets the host calls above and the language's own built-ins, and nothing
 else. Each line below is pinned by a test: `runtime::deno::runtime_surface_tests`,
 `runtime::wasm::runtime_surface_tests` (against the probe guest
-`tests/fixtures/functions/guest-runtime-probe`) and `runtime::deno::default_export_tests`.
+`tests/fixtures/functions/guest-runtime-probe`), `runtime::deno::default_export_tests` and
+`runtime::deno::shared_module_tests`.
 
 **Deno.** The isolate runs `deno_core` with the fraiseql ops and no web-API extension.
 
 | | Available |
 |---|---|
-| `import` | **no**: a function runs as an ES module (strict mode), and every `import`, static or `import()`, is refused with a permanent error naming `[functions] shared_dir`. `import type` is erased by the type-stripper and never reaches the runtime. |
+| `import` | **`@shared/<path>` only**: a function runs as an ES module (strict mode) and imports the modules of `[functions] shared_dir`, read when the function loads (see [Sharing code between functions](#sharing-code-between-functions-1651)). Any other specifier is refused with a permanent error, and without a `shared_dir` every import is, naming the key. `import type` is erased by the type-stripper and never reaches the runtime. |
 | JavaScript built-ins (`JSON`, `Math`, `Date`, `Promise`, `Intl`, `WebAssembly`, typed arrays) | yes |
 | `queueMicrotask` | yes |
 | `console` | present. Each `console` call, and each `Deno.core.print`, is one of the function's log entries (`info`; a `Deno.core.print(…, true)` is `error`), under the same limit as `fraiseql_log`. Nothing reaches the server's stdout or stderr. |
@@ -640,6 +641,7 @@ class Functions {
 # fraiseql.toml
 [functions]
 module_dir = "functions"                # default; where the .ts / .wasm modules live
+shared_dir = "functions/shared"         # opt-in; the modules functions import as @shared/
 dlq_store = "postgres"                  # memory (default) | postgres
 ```
 
@@ -683,6 +685,7 @@ A bad declaration fails `fraiseql compile`, not server boot:
 | `after:mutation:` names an entity a mutation **writes** | `after:mutation:updateOrder`: it matches the entity a mutation's success produces (its return type, the success member of its `auto_error_union` result, or a cascade payload's entity), not the mutation's name |
 | `when` fields exist on that type | `{"field": "statuss"}` on an `Order` with `status` |
 | the module is on disk, with an extension the runtime loads | `runtime: "Wasm"` beside a `notify.ts` |
+| `shared_dir` is a directory holding no function file, and a `deno.json` in `module_dir` maps `@shared/` to it (when `module_dir` exists) | `shared_dir = "functions"`, or `"@shared/": "./lib/"` beside `shared_dir = "functions/shared"` |
 | a query's `function` names a **declared** function | `function = "preview_qoute"` |
 | …whose trigger is `request:query` | a query bound to an `after:mutation` handler |
 | every `request:query` function is named by a query | a declared function no field points at — it would load, the server would boot, and nothing would ever call it |
@@ -708,6 +711,69 @@ the registry and refused by the loader, so a valid schema could not boot.
 
 The query ↔ function pairing is the same shape: `validate_query_bindings`, called by
 the compiler and again by the loader.
+
+### Sharing code between functions (#1651)
+
+Code two functions share lives in one declared directory, and a function imports it
+under one alias:
+
+```text
+functions/
+├── deno.json          # for editors only
+├── greet.ts           # import { greeting } from "@shared/text.ts";
+├── shout.ts           # import { greeting, shout } from "@shared/text.ts";
+└── shared/
+    └── text.ts
+```
+
+```toml
+# fraiseql.toml
+[functions]
+module_dir = "functions"
+shared_dir = "functions/shared"
+```
+
+```json
+{ "imports": { "@shared/": "./shared/" } }
+```
+
+`shared_dir` is opt-in and has no default. The `deno.json` line lets an editor and
+`deno check` resolve `@shared/`. The engine never reads it, so `fraiseql compile` checks
+that it agrees with `shared_dir` and refuses a drift, naming both paths. Only
+`deno.json` is checked: a project that keeps its import map in `deno.jsonc` gets no
+drift check.
+
+**One form is importable: `@shared/<path>.<ts|js|mts|mjs>`.** Each of these is refused,
+naming the module that wrote the import:
+
+- any scheme (`https:`, `file:`, `data:`, `npm:`, `jsr:`, `node:`, …);
+- a bare name, or a relative or absolute path;
+- a `.`, `..` or empty segment, a backslash, percent-encoding or a control character;
+- no module extension, a directory, a missing or non-UTF-8 file;
+- import attributes (`with { type: "json" }`);
+- a path that resolves outside `shared_dir`, through a link or otherwise.
+
+A function's own file is never importable: `shared_dir` may not be `module_dir` or hold
+it. Static `import`, `export … from` and `import()` follow the same rule.
+
+**Everything a function imports is read when it loads**: at server boot, and by
+`fraiseql functions invoke`. The loader walks the function's type-stripped code, follows
+each import, and transpiles each shared module once. At run time the isolate imports
+from that set alone: no import reaches the filesystem or the network. An `import()`
+whose specifier is computed reaches only a module the function also imports literally.
+An edit to a helper takes effect at the next boot.
+
+Every invocation runs in a fresh isolate, so a shared module's top-level state starts
+over each time: a module-level counter or cache does not carry over between calls.
+
+A load reads at most 1 MiB per shared module, 8 MiB across them, and 256 of them; each
+refusal names its limit. The function's own file is not counted.
+
+**The function's hash** is a SHA-256 over the function's source and the source of each
+shared module it imports. `fraiseql functions invoke` prints it (`hash: …`, `"hash"`
+under `--json`) and the server logs it at load (`function module loaded`, with
+`function` and `hash`). Both load through the same loader, so equal files give the
+same hash. Nothing verifies it; it names what ran.
 
 ## Answering a request from a function (#1329)
 

@@ -2512,7 +2512,7 @@
           "default": null
         },
         "shared_dir": {
-          "description": "The one directory a Deno function may import from, as `@shared/<path>`,\nresolved relative to the server's working directory (for example\n`functions/shared`).\n\nUnset ⇒ a function imports nothing: every `import` is refused. It must be a\ndirectory of its own, neither `module_dir` nor an ancestor of it.",
+          "description": "The one directory a Deno function may import from, as `@shared/<path>`,\nresolved relative to the server's working directory (for example\n`functions/shared`).\n\nUnset ⇒ a function imports nothing: every `import` is refused. It must be a\ndirectory of its own, neither `module_dir` nor an ancestor of it.\n`FRAISEQL_FUNCTIONS_SHARED_DIR` overrides it in production.",
           "type": [
             "string",
             "null"
