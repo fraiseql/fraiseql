@@ -317,7 +317,8 @@ func (m *FraiseqlCi) SccacheBootstrap(
 		Stdout(ctx)
 }
 
-// Fmt: `cargo +<fmtNightly> fmt --all -- --check`. rustfmt's
+// Fmt: `make fmt-check`, rustfmt in check mode at tools/fmt-toolchain.txt's nightly,
+// which check-fmt-toolchain.sh holds equal to fmtNightly. rustfmt's
 // advanced options need nightly (rust-toolchain.toml pins stable to the MSRV), so
 // rustBase carries that pinned nightly with only the rustfmt component.
 func (m *FraiseqlCi) Fmt(
@@ -328,12 +329,11 @@ func (m *FraiseqlCi) Fmt(
 	return m.rustBase().
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").
-		WithExec([]string{"bash", "-c", "cargo +" + fmtNightly + " fmt --all -- --check"}).
+		WithExec([]string{"bash", "-c", "make -k --no-print-directory fmt-check"}).
 		Stdout(ctx)
 }
 
-// Clippy:
-// `cargo clippy --workspace --all-features --all-targets -- -D warnings`.
+// Clippy: `make clippy`, warnings denied, every feature and target.
 // --all-features is intentional (lints every feature path; the test-* gate features
 // only need infra at runtime).
 func (m *FraiseqlCi) Clippy(
@@ -342,18 +342,13 @@ func (m *FraiseqlCi) Clippy(
 	source *dagger.Directory,
 ) (string, error) {
 	return m.rustSrc(source).
-		WithExec([]string{"bash", "-c",
-			"cargo clippy --workspace --all-features --all-targets -- -D warnings",
-		}).
-		// The async-jobs example subgraph is its own crate outside the workspace;
-		// its clippy gate lived only in the retired legacy ci.yml (#951).
-		WithWorkdir("/src/examples/async-jobs-subgraph/subgraph").
-		WithExec([]string{"bash", "-c", "cargo clippy --all-targets -- -D warnings"}).
+		// The target also clippies the async-jobs example subgraph, its own crate
+		// outside the workspace.
+		WithExec([]string{"bash", "-c", "make -k --no-print-directory clippy"}).
 		Stdout(ctx)
 }
 
-// CheckDefault:
-// `cargo check --workspace --all-targets` — the DEFAULT feature set.
+// CheckDefault: `make check-default`, `cargo check` with the DEFAULT feature set.
 //
 // Every other Rust gate in this leg is `--all-features`, which by construction
 // can never compile a `cfg(not(feature = …))` arm. The default configuration is
@@ -377,7 +372,7 @@ func (m *FraiseqlCi) CheckDefault(
 	source *dagger.Directory,
 ) (string, error) {
 	return m.rustSrc(source).
-		WithExec([]string{"bash", "-c", "cargo check --workspace --all-targets"}).
+		WithExec([]string{"bash", "-c", "make -k --no-print-directory check-default"}).
 		Stdout(ctx)
 }
 
@@ -400,9 +395,8 @@ func (m *FraiseqlCi) CheckFuzz(
 	source *dagger.Directory,
 ) (string, error) {
 	return m.rustSrc(source).
-		WithExec([]string{"bash", "tools/check-fuzz-compiles.sh"}).
-		// The gate's self-test compiles fixture crates, so it needs this leg's cargo.
-		WithExec([]string{"bash", "tools/tests/fuzz_compiles_test.sh"}).
+		// The gate's self-test compiles fixture crates, so it runs here, with cargo.
+		WithExec([]string{"bash", "-c", "make -k --no-print-directory check-fuzz test-fuzz-compiles-gate"}).
 		Stdout(ctx)
 }
 
@@ -418,9 +412,8 @@ func (m *FraiseqlCi) CheckExampleCrates(
 	source *dagger.Directory,
 ) (string, error) {
 	return m.rustSrc(source).
-		WithExec([]string{"bash", "tools/check-example-crates-compile.sh"}).
-		// The gate's self-test compiles fixture crates, so it needs this leg's cargo.
-		WithExec([]string{"bash", "tools/tests/example_crates_compile_test.sh"}).
+		// The gate's self-test compiles fixture crates, so it runs here, with cargo.
+		WithExec([]string{"bash", "-c", "make -k --no-print-directory check-example-crates test-example-crates-gate"}).
 		Stdout(ctx)
 }
 
@@ -450,27 +443,23 @@ func (m *FraiseqlCi) CheckRExamples(
 		)).
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").
-		WithExec([]string{"bash", "tools/check-r-examples-parse.sh"}).
-		// The gate's self-test parses fixture R files, so it needs this leg's Rscript.
-		WithExec([]string{"bash", "tools/tests/r_examples_parse_test.sh"}).
+		// The gate's self-test parses fixture R files, so it runs here, with Rscript.
+		WithExec([]string{"bash", "-c", "make -k --no-print-directory lint-r-examples test-r-examples-gate"}).
 		Stdout(ctx)
 }
 
-// Rustdoc:
-// `RUSTDOCFLAGS=-D warnings cargo doc --workspace --all-features --no-deps`.
+// Rustdoc: `make rustdoc`, every feature, warnings denied.
 func (m *FraiseqlCi) Rustdoc(
 	ctx context.Context,
 	// +ignore=["target", "**/target", ".git"]
 	source *dagger.Directory,
 ) (string, error) {
 	return m.rustSrc(source).
-		WithEnvVariable("RUSTDOCFLAGS", "-D warnings").
-		WithExec([]string{"bash", "-c", "cargo doc --workspace --all-features --no-deps"}).
+		WithExec([]string{"bash", "-c", "make -k --no-print-directory rustdoc"}).
 		Stdout(ctx)
 }
 
-// RustdocDefault:
-// `RUSTDOCFLAGS=-D warnings cargo doc --workspace --no-deps` — the DEFAULT feature set.
+// RustdocDefault: `make rustdoc-default`, the DEFAULT feature set, warnings denied.
 //
 // The same blindness `CheckDefault` closes for the compiler, closed for rustdoc. The
 // `--all-features` pass above resolves every intra-doc link, because every link target's
@@ -496,8 +485,7 @@ func (m *FraiseqlCi) RustdocDefault(
 	source *dagger.Directory,
 ) (string, error) {
 	return m.rustSrc(source).
-		WithEnvVariable("RUSTDOCFLAGS", "-D warnings").
-		WithExec([]string{"bash", "-c", "cargo doc --workspace --no-deps --keep-going && bash tools/check-rustdoc-feature-sets.sh"}).
+		WithExec([]string{"bash", "-c", "make -k --no-print-directory rustdoc-default"}).
 		Stdout(ctx)
 }
 

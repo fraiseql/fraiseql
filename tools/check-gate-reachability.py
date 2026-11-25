@@ -63,11 +63,21 @@ SIBLING = re.compile(r'\$\(dirname "\$\{BASH_SOURCE\[0\]\}"\)/([\w.-]+\.(?:sh|py
 MAKE = re.compile(r"(?:\$\(MAKE\)|\bmake\b)((?:" + SEP + r"[^\s\"',;&|>]+)+)")
 DAGGER_CALL = re.compile(r"\bdagger\s+call\s+([a-z][\w-]*)")
 
-# A Dagger function whose only gate command is a make target. Its exec is pinned to the
-# exact string: a `|| true`, an `-i`, another target or a line moved into a comment would
-# each leave the leg green over a failing gate, with every gate still "reached".
+# Each Dagger function whose only gate command is a make target, and that command. The
+# exec is pinned to the exact string: a `|| true`, an `-i`, another target, an inline
+# cargo line or a line moved into a comment would each leave the leg green over a failing
+# gate, with every gate still "reached". `make preflight` runs the same targets.
+_MK = "make -k --no-print-directory "
 MAKE_EXECS = {
-    "ShellGates": "git init -q . >/dev/null && make -k --no-print-directory shell-gates",
+    "ShellGates": "git init -q . >/dev/null && " + _MK + "shell-gates",
+    "Fmt": _MK + "fmt-check",
+    "Rustdoc": _MK + "rustdoc",
+    "RustdocDefault": _MK + "rustdoc-default",
+    "Clippy": _MK + "clippy",
+    "CheckDefault": _MK + "check-default",
+    "CheckFuzz": _MK + "check-fuzz test-fuzz-compiles-gate",
+    "CheckExampleCrates": _MK + "check-example-crates test-example-crates-gate",
+    "CheckRExamples": _MK + "lint-r-examples test-r-examples-gate",
 }
 # Make targets named as gates. Each is reached by a CI leg, or wraps only scripts a leg
 # runs some other way, or is exempted.

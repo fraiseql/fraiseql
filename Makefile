@@ -466,9 +466,31 @@ changelog:
 changelog-full:
 	git cliff --output CHANGELOG.md
 
-# Run Clippy
+# The Rust gates of the Dagger Preflight. Each of its sibling functions (Rustdoc,
+# RustdocDefault, Clippy, CheckDefault, CheckFuzz, CheckExampleCrates, CheckRExamples,
+# Fmt) runs its target here in its own container, and `make preflight` runs the same
+# targets, so each command is written once.
+
+# Clippy over the workspace, and over examples/async-jobs-subgraph/subgraph, a
+# standalone crate (its own [workspace]) that `--workspace` never reaches.
+.PHONY: clippy
 clippy:
-	cargo clippy --all-targets --all-features -- -D warnings
+	cargo clippy --workspace --all-features --all-targets -- -D warnings
+	cd examples/async-jobs-subgraph/subgraph && cargo clippy --all-targets -- -D warnings
+
+# Rustdoc with every feature, warnings denied.
+.PHONY: rustdoc
+rustdoc: export RUSTDOCFLAGS := -D warnings
+rustdoc:
+	cargo doc --workspace --all-features --no-deps
+
+# Rustdoc with default features (the links `--all-features` resolves), then
+# fraiseql-server once per module-gating feature.
+.PHONY: rustdoc-default
+rustdoc-default: export RUSTDOCFLAGS := -D warnings
+rustdoc-default:
+	cargo doc --workspace --no-deps --keep-going
+	bash tools/check-rustdoc-feature-sets.sh
 
 # The DEFAULT feature set, which no other Rust gate here compiles. `clippy` and
 # `rustdoc` are both `--all-features`, and `--all-features` can never compile a
@@ -2488,27 +2510,14 @@ shell-gates: test-e2e-documents-gate
 # failures the Dagger `preflight` leg would reject — rustfmt drift, clippy
 # `-D warnings`, broken rustdoc intra-doc links, and the grep/wc policy gates —
 # for free instead of paying for a CI rerun. Runs `shell-gates`, the list the Dagger
-# ShellGates leg runs, then the Rust gates of the `.dagger` Preflight. Does NOT run the
+# ShellGates leg runs, then the targets the other Preflight functions run. Does NOT run the
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: lint-fmt-toolchain fmt-check shell-gates test-e2e-documents lint-r-examples lint-feature-combo-features test-fuzz-compiles-gate test-example-crates-gate test-r-examples-gate
-	@echo "=== preflight: rustdoc (-D warnings, --all-features) ==="
-	RUSTDOCFLAGS='-D warnings' cargo doc --workspace --all-features --no-deps
-	@echo "=== preflight: rustdoc (default features — the links --all-features resolves) ==="
-	RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --keep-going
-	@echo "=== preflight: rustdoc (fraiseql-server, one module-gating feature at a time) ==="
-	bash tools/check-rustdoc-feature-sets.sh
-	@echo "=== preflight: clippy (--all-targets --all-features -D warnings) ==="
-	@$(MAKE) --no-print-directory clippy
-	@echo "=== preflight: check-default (default features — the feature-OFF arms) ==="
-	@$(MAKE) --no-print-directory check-default
-	@echo "=== preflight: check-fuzz (the crates/*/fuzz crates nothing else compiles) ==="
-	@$(MAKE) --no-print-directory check-fuzz
-	@echo "=== preflight: check-example-crates (the standalone examples/ crates nothing else compiles) ==="
-	@$(MAKE) --no-print-directory check-example-crates
+preflight: lint-fmt-toolchain fmt-check shell-gates rustdoc rustdoc-default clippy check-default check-fuzz test-fuzz-compiles-gate check-example-crates test-example-crates-gate lint-r-examples test-r-examples-gate test-e2e-documents lint-feature-combo-features
 	@echo ""
-	@echo "✅ preflight passed — mirrors the Dagger preflight leg."
+	@echo "✅ preflight passed — the targets the Dagger preflight leg runs, and"
+	@echo "   test-e2e-documents and lint-feature-combo-features, which other legs run."
 	@echo "⚠  It ran NO tests but the e2e document guards (test-e2e-documents)."
 	@echo "   --all-targets compiles the test binaries; it does not"
 	@echo "   execute them, and the workspace suite is 29 commands rather than one"

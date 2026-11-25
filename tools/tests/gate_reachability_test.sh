@@ -26,6 +26,21 @@ trap 'rm -rf "$WORK"' EXIT
 
 EXEC='git init -q . >/dev/null && make -k --no-print-directory shell-gates'
 
+# The other functions whose exec the gate pins, generated from the gate's own table so
+# the fixture cannot fall behind it: one Go function each, running its make command.
+SIBLINGS_GO="$(python3 - "$GATE" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("gate", sys.argv[1])
+gate = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(gate)
+for fn, cmd in gate.MAKE_EXECS.items():
+    if fn != "ShellGates":
+        print(f"\nfunc (m *FraiseqlCi) {fn}(ctx context.Context) (string, error) {{")
+        print(f'\treturn run([]string{{"bash", "-c", "{cmd}"}})\n}}')
+PY
+)"
+SIBLING_CALLS="$(printf '%s\n' "$SIBLINGS_GO" | sed -n 's/^func (m \*FraiseqlCi) \([A-Za-z]*\)(.*/\tm.\1(ctx)/p')"
+
 # fixture <dir>: a workflow calling `dagger call preflight`; Preflight reaching
 # ShellGates (one make exec) and Lint (a script list); an Unused function; and a
 # Makefile whose shell-gates target runs a lint and a self-test.
@@ -46,6 +61,7 @@ package main
 
 func (m *FraiseqlCi) Preflight(ctx context.Context) (string, error) {
 	m.Lint(ctx)
+$SIBLING_CALLS
 	return m.ShellGates(ctx)
 }
 
@@ -65,6 +81,7 @@ func (m *FraiseqlCi) Lint(ctx context.Context) (string, error) {
 func (m *FraiseqlCi) Unused(ctx context.Context) (string, error) {
 	return run("true")
 }
+$SIBLINGS_GO
 GO
     cat >"$dir/Makefile" <<'MK'
 .PHONY: shell-gates
@@ -139,8 +156,8 @@ expect_green "every gate reached through shell-gates and the Lint function" "$d"
 
 d="$(case_dir go-string-list)"
 new_check "$d"
-sed -i 's|return run("true")|return run("true")\n}\n\nfunc (m *FraiseqlCi) Fmt() {\n\tWithExec([]string{"bash", "tools/check-c.sh"})|' "$d/.dagger/main.go"
-sed -i 's|return m.ShellGates(ctx)|m.Fmt()\n\treturn m.ShellGates(ctx)|' "$d/.dagger/main.go"
+sed -i 's|return run("true")|return run("true")\n}\n\nfunc (m *FraiseqlCi) Extra() {\n\tWithExec([]string{"bash", "tools/check-c.sh"})|' "$d/.dagger/main.go"
+sed -i 's|return m.ShellGates(ctx)|m.Extra()\n\treturn m.ShellGates(ctx)|' "$d/.dagger/main.go"
 expect_green "a script in a Go string list, in a function the root references" "$d"
 
 d="$(case_dir raw-string)"
@@ -268,6 +285,19 @@ expect_red "(g) the exec survives only in a comment" "$d" "$EXACT"
 d="$(case_dir exec-second-make)"
 sed -i 's|return run(\[\]string{"bash", "-c", script})|run([]string{"bash", "-c", "make lint-a"})\n\treturn run([]string{"bash", "-c", script})|' "$d/.dagger/main.go"
 expect_red "the function runs a second make command" "$d" "$EXACT"
+
+d="$(case_dir sibling-inline-cargo)"
+sed -i 's|"make -k --no-print-directory clippy"|"cargo clippy --workspace -- -D warnings"|' "$d/.dagger/main.go"
+expect_red "(h) a Preflight sibling runs cargo inline instead of its make target" "$d" \
+    'Clippy: must run exactly'
+
+d="$(case_dir sibling-unreached)"
+sed -i '/^\tm.Clippy(ctx)$/d' "$d/.dagger/main.go"
+expect_red "no workflow reaches a pinned sibling" "$d" 'Clippy: no workflow reaches it'
+
+d="$(case_dir sibling-gone)"
+sed -i '/^func (m \*FraiseqlCi) CheckFuzz(/,/^}$/d; /^\tm.CheckFuzz(ctx)$/d' "$d/.dagger/main.go"
+expect_red "a pinned sibling deleted" "$d" 'CheckFuzz: no such function'
 
 d="$(case_dir exec-unreached)"
 sed -i 's|return m.ShellGates(ctx)|return "", nil|' "$d/.dagger/main.go"
