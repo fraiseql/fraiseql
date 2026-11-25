@@ -40,12 +40,15 @@ disagreed, and the promise was the part that was wrong.
   - `fraiseql_server::inbound::emit_in_tx` takes the event type as a third argument
     (`None` where there is none).
 
-- **A fragment on an interface is held to the interface's fields (GraphQL § 5.3.1, #2539).**
-  `... on Problem { missing }`, and a named spread of a fragment on `Problem` selecting
-  `missing`, was accepted when the interface declares no such field and answered
-  `missing: null`. It is now refused with `Cannot query field 'missing' on type 'Problem'`,
-  as a fragment on an object type is. The fields below an interface's own fields are
-  checked too.
+- **A fragment on an interface is held to the interface's fields (GraphQL § 5.3.1 and
+  § 5.3.3, #2539).** `... on Problem { missing }`, and a named spread of a fragment on
+  `Problem` selecting `missing`, was accepted when the interface declares no such field and
+  answered `missing: null`. It is now refused with `Cannot query field 'missing' on type
+  'Problem'`, as a fragment on an object type is. The fields below an interface's own fields
+  are checked too, and a composite field needs a selection set there as on an object type:
+  `... on Problem { conflict }`, and a field of an interface type named with no selection
+  set, are now refused with `Field 'conflict' of composite type 'Conflict' must have a
+  selection set.`
 
 - **A query's `jsonb_column` other than `data` is refused at compile (#2541).** The runtime
   reads a query's rows from a document column named `data` and never read the declared

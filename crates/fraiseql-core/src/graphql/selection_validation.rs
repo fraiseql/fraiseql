@@ -104,13 +104,16 @@ fn composite_type_of(field_type: &crate::schema::FieldType) -> Option<&str> {
 ///
 /// **Every unknown is a `false`**, matching this module's governing rule that a
 /// rejection it cannot justify would break a working query: a type the compiled
-/// schema does not carry, and an object whose field list the compiler did not emit,
-/// both pass. A union is `true` — it is composite, and unlike the bare-field case
-/// below there is no field to score against the wrong variant, so refusing an
-/// absent set does not make this routine the arbiter of union modelling.
+/// schema does not carry, and an object or interface whose field list the compiler
+/// did not emit, both pass. A union is `true` — it is composite, and unlike the
+/// bare-field case below there is no field to score against the wrong variant, so
+/// refusing an absent set does not make this routine the arbiter of union modelling.
 fn requires_selection_set(schema: &CompiledSchema, type_name: &str) -> bool {
     if let Some(type_def) = schema.find_type(type_name) {
         return !type_def.fields.is_empty();
+    }
+    if let Some(interface) = schema.find_interface(type_name) {
+        return !interface.fields.is_empty();
     }
     schema.find_union(type_name).is_some()
 }
@@ -180,29 +183,27 @@ fn leaf_check_at(
         };
     }
 
-    // A union carries its fields only inside its inline fragments; each names a
-    // concrete variant, and that variant's sub-selection is what § 5.3.3 scores.
-    let Some(type_def) = schema.find_type(type_name) else {
+    // An object type and an interface score their own fields; a union carries its
+    // fields only inside its inline fragments, each scored against its type condition.
+    let (fields, object) = if let Some(type_def) = schema.find_type(type_name) {
+        (type_def.fields.as_slice(), Some(type_def))
+    } else if let Some(interface) = schema.find_interface(type_name) {
+        (interface.fields.as_slice(), None)
+    } else {
         for sel in selections {
             if let Some(condition) = sel.name.strip_prefix("...on ") {
-                let condition = condition.trim();
-                if schema.find_type(condition).is_some() {
-                    leaf_check_at(schema, condition, &sel.nested_fields, depth + 1)?;
-                }
+                leaf_check_fragment_at(schema, condition, &sel.nested_fields, depth)?;
             }
         }
         return Ok(());
     };
-    if type_def.fields.is_empty() {
+    if fields.is_empty() {
         return Ok(());
     }
 
     for sel in selections {
         if let Some(condition) = sel.name.strip_prefix("...on ") {
-            let condition = condition.trim();
-            if schema.find_type(condition).is_some() {
-                leaf_check_at(schema, condition, &sel.nested_fields, depth + 1)?;
-            }
+            leaf_check_fragment_at(schema, condition, &sel.nested_fields, depth)?;
             continue;
         }
         // An unexpanded spread, and the meta-fields, are § 5.3.1's business; a name
@@ -211,14 +212,16 @@ fn leaf_check_at(
             continue;
         }
         // A translations sibling is a list of `LocalizedString` objects (#1513).
-        if type_def.translations_of(&sel.name).is_some() && sel.nested_fields.is_empty() {
+        if object.is_some_and(|t| t.translations_of(&sel.name).is_some())
+            && sel.nested_fields.is_empty()
+        {
             return Err(field_needs_selection_set(
                 type_name,
                 &sel.name,
                 crate::schema::LOCALIZED_STRING_TYPE,
             ));
         }
-        let Some(field_def) = type_def.fields.iter().find(|f| f.name == sel.name) else {
+        let Some(field_def) = fields.iter().find(|f| f.name == sel.name) else {
             continue;
         };
         // `composite_type_of` unwraps the list wrapper and answers `None` for a leaf
@@ -238,6 +241,22 @@ fn leaf_check_at(
         leaf_check_at(schema, child_type, &sel.nested_fields, depth + 1)?;
     }
 
+    Ok(())
+}
+
+/// [`leaf_check_at`] for an inline fragment on `condition`, at `depth`: its selection set
+/// is scored against the type condition, an object type or an interface. A condition the
+/// schema has neither as is not this routine's to judge.
+fn leaf_check_fragment_at(
+    schema: &CompiledSchema,
+    condition: &str,
+    selections: &[FieldSelection],
+    depth: usize,
+) -> Result<()> {
+    let condition = condition.trim();
+    if schema.find_type(condition).is_some() || schema.find_interface(condition).is_some() {
+        leaf_check_at(schema, condition, selections, depth + 1)?;
+    }
     Ok(())
 }
 

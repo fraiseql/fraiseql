@@ -1150,6 +1150,26 @@ mod mutation {
         }
     }
 
+    /// § 5.3.3 inside a fragment on an interface: `Problem.conflict` is an object, so it
+    /// needs a selection set there as it does on the type that implements it.
+    #[tokio::test]
+    async fn a_composite_field_in_a_fragment_on_an_interface_needs_a_selection_set() {
+        let executor = failing_with_conflict();
+        for document in [
+            "mutation { createUser { ... on Problem { conflict } } }",
+            "mutation { createUser { ...P } } fragment P on Problem { conflict }",
+        ] {
+            let err = executor.execute(document, None).await.expect_err(document);
+            assert!(
+                matches!(err, FraiseQLError::Validation { .. })
+                    && err.to_string().contains(
+                        "Field 'conflict' of composite type 'Conflict' must have a selection set."
+                    ),
+                "{document}: {err}"
+            );
+        }
+    }
+
     /// `createUser`, returning `User { id name message }` or, with `union`, the union
     /// `CreateUserResult` of it and `DuplicateEmailError { message name }`, the declared
     /// error type. Both types publish `message` and `name`.

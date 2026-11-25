@@ -724,3 +724,20 @@ async fn a_named_spread_on_the_interface_answers_on_every_implementor() {
         }
     }
 }
+
+/// § 5.3.3 for a field of an interface type: `holder` is composite, so naming it without a
+/// selection set is refused, as it is for a field of a union or an object type.
+#[tokio::test]
+async fn a_field_of_an_interface_type_needs_a_selection_set() {
+    let (exec, _) = executor(schema(FieldDenyPolicy::Reject));
+    for result in both_callers(&exec, "{ ledgers { holder } }").await {
+        let err = result.expect_err("a bare interface-typed field");
+        assert!(
+            matches!(err, FraiseQLError::Validation { .. })
+                && err.to_string().contains(
+                    "Field 'holder' of composite type 'Holder' must have a selection set."
+                ),
+            "{err}"
+        );
+    }
+}
