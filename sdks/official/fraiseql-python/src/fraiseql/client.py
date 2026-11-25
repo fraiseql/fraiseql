@@ -16,6 +16,8 @@ from typing import Any
 
 import httpx
 
+from fraiseql._wire import JSON_HEADERS, encode_body
+
 # The error hierarchy lives in fraiseql.errors so the sync and async clients share
 # ONE FraiseQLError base — `except fraiseql.FraiseQLError` then catches errors from
 # either client (H27). These names are re-exported here so existing
@@ -122,7 +124,7 @@ class FraiseQLClient:
         if operation_name is not None:
             payload["operationName"] = operation_name
 
-        resp = await self._client.post(self.url, json=payload)
+        resp = await self._client.post(self.url, content=encode_body(payload), headers=JSON_HEADERS)
         raise_for_status(resp.status_code, resp.headers.get("Retry-After"))
         body: dict[str, Any] = resp.json()
 

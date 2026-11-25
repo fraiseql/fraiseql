@@ -17,6 +17,7 @@ from typing import Any
 
 import httpx
 
+from fraiseql._wire import JSON_HEADERS, encode_body
 from fraiseql.errors import (
     GraphQLError,
     NetworkError,
@@ -226,7 +227,11 @@ class AsyncFraiseQLClient:
         headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         try:
-            resp = await self._client.post(self._url, json=payload, headers=headers or None)
+            resp = await self._client.post(
+                self._url,
+                content=encode_body(payload),
+                headers={**JSON_HEADERS, **(headers or {})},
+            )
         except httpx.TimeoutException as exc:
             raise TimeoutError("Request timed out") from exc
         except httpx.RequestError as exc:

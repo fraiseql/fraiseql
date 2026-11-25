@@ -2035,6 +2035,12 @@ disagreed, and the promise was the part that was wrong.
   failure merges its error type's fragments and leaves the success type's out.
   `@skip`/`@include` on such a fragment, or inside it, is honoured.
 
+- **The Python SDK's clients send a `decimal.Decimal` variable as its exact digits
+  (#1761).** `FraiseQLClient` and `AsyncFraiseQLClient` raised `TypeError` on a
+  `decimal.Decimal` variable. They now send it as the JSON string the server takes for a
+  `Decimal`: every digit and the scale, never an exponent (`Decimal("1E+3")` is sent as
+  `"1000"`). A NaN or infinite `Decimal` raises `ValueError` before the request is sent.
+
 - **A schema that reads the enriched identity is refused wherever nothing resolves one
   (#2521).** Registering a tenant through the admin API now runs the check boot and schema
   reload run: on a server whose `[identity.enrichment]` is disabled, a tenant schema with an

@@ -204,9 +204,20 @@ server's own policy.
 | `bool` | `Boolean` |
 | `datetime.datetime` | `DateTime` |
 | `fraiseql.LocalDateTime` | `LocalDateTime` (a date and time with no offset, a PostgreSQL `timestamp`) |
+| `decimal.Decimal` | `Decimal` (exact; travels as the string of its digits) |
 | `list[T]` | `[T]` |
 | `T \| None` | `T` (nullable) |
 | Custom class | Object type |
+
+### Decimal values in the client
+
+A `Decimal` travels as a JSON string of its exact digits, `"1.50"`, in both directions.
+`FraiseQLClient` and `AsyncFraiseQLClient` send a `decimal.Decimal` variable as that
+string, with every digit and its scale, and never in exponent form: `Decimal("1E+3")` is
+sent as `"1000"`. A NaN or infinite `Decimal` raises `ValueError` before the request is
+sent. Do not pass a `float`: the server refuses a number with a fraction for a
+`Decimal`, because a float has already lost its digits. A response holds each `Decimal`
+as that string; `decimal.Decimal(value)` reads it exactly.
 
 ## Documentation
 
