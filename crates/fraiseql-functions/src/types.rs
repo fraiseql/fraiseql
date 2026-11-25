@@ -87,6 +87,9 @@ pub struct FunctionModule {
     pub bytecode:    bytes::Bytes,
     /// Which runtime executes this module.
     pub runtime:     RuntimeType,
+    /// The shared modules a Deno function may import, transpiled, by key, as its load
+    /// read them. `None` when no shared directory is declared: every import is refused.
+    pub shared:      Option<std::sync::Arc<crate::modules::SharedModules>>,
 }
 
 impl FunctionModule {
@@ -98,6 +101,7 @@ impl FunctionModule {
             source_hash,
             bytecode,
             runtime: RuntimeType::Wasm,
+            shared: None,
         }
     }
 
@@ -111,6 +115,7 @@ impl FunctionModule {
             source_hash,
             bytecode,
             runtime,
+            shared: None,
         }
     }
 }

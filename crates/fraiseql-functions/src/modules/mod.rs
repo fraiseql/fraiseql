@@ -18,3 +18,7 @@ pub mod layout;
 pub mod resolve;
 
 pub use layout::{SharedDirError, check_shared_dir};
+
+/// A function's shared modules, as the isolate runs them (transpiled `JavaScript`), by
+/// key.
+pub type SharedModules = std::collections::BTreeMap<resolve::ModuleKey, String>;

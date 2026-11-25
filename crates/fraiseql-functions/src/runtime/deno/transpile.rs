@@ -14,11 +14,9 @@
 //! set (the default); with it off the `JavaScript` is executed byte-for-byte
 //! unchanged.
 
-use std::ops::Range;
-
 use deno_ast::{
-    EmitOptions, MediaType, ModuleSpecifier, ParseParams, SourceMapOption, SourceRangedForSpanned,
-    TranspileModuleOptions, TranspileOptions,
+    EmitOptions, MediaType, ModuleSpecifier, ParseParams, SourceMapOption, TranspileModuleOptions,
+    TranspileOptions,
     swc::ast::{ExportSpecifier, ModuleDecl, ModuleExportName, ModuleItem},
 };
 
@@ -71,13 +69,13 @@ pub fn transpile_typescript(source: &str) -> Result<String, String> {
     Ok(emitted.text)
 }
 
-/// Where the module's `export default` item is, and the expression or declaration it
-/// exports, as byte ranges of `source`.
+/// Check that the function module has a default export: the function the driver calls.
 ///
-/// An export list naming a local binding as the default, `export { handler as default };`,
-/// counts too: it is how esbuild's `--format=esm` output names a bundle's entry point.
-/// One that re-exports another module's (`... from "./x"`) does not, as there is no module
-/// loader to reach it.
+/// Any form counts: `export default <expression>`, `export default function …`, and an
+/// export list naming one, `export { handler as default }` (how esbuild's
+/// `--format=esm` output names a bundle's entry point), including one that re-exports a
+/// shared module's (`export { default } from "@shared/handler.ts"`). An `export * from`
+/// does not: it never re-exports a default.
 ///
 /// Found by parsing the `JavaScript` the isolate will run, so the words `export default`
 /// in a comment or a string literal are not mistaken for the entry point.
@@ -86,7 +84,7 @@ pub fn transpile_typescript(source: &str) -> Result<String, String> {
 ///
 /// Returns a `SyntaxError: …`-prefixed string when the source does not parse or has no
 /// default export: either way there is no function to call.
-pub fn default_export(source: &str) -> Result<(Range<usize>, Range<usize>), String> {
+pub fn default_export(source: &str) -> Result<(), String> {
     let specifier = ModuleSpecifier::parse(GUEST_SPECIFIER)
         .map_err(|e| format!("SyntaxError: invalid guest specifier: {e}"))?;
 
@@ -100,39 +98,29 @@ pub fn default_export(source: &str) -> Result<(Range<usize>, Range<usize>), Stri
     })
     .map_err(|diagnostic| diagnostic.to_string())?;
 
-    let start = parsed.text_info_lazy().range().start;
-    parsed
-        .program_ref()
-        .unwrap_module()
-        .body
-        .iter()
-        .find_map(|item| match item {
-            ModuleItem::ModuleDecl(ModuleDecl::ExportDefaultExpr(export)) => Some((
-                export.range().as_byte_range(start),
-                export.expr.range().as_byte_range(start),
-            )),
-            ModuleItem::ModuleDecl(ModuleDecl::ExportDefaultDecl(export)) => Some((
-                export.range().as_byte_range(start),
-                export.decl.range().as_byte_range(start),
-            )),
-            ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(export)) if export.src.is_none() => {
-                export.specifiers.iter().find_map(|specifier| match specifier {
-                    ExportSpecifier::Named(named)
-                        if matches!(&named.exported, Some(ModuleExportName::Ident(name)) if &*name.sym == "default") =>
-                    {
-                        Some((
-                            export.range().as_byte_range(start),
-                            named.orig.range().as_byte_range(start),
-                        ))
-                    },
-                    _ => None,
-                })
-            },
-            _ => None,
-        })
-        .ok_or_else(|| {
+    let exports_default = |name: &ModuleExportName| matches!(name, ModuleExportName::Ident(ident) if &*ident.sym == "default");
+    let has_default = parsed.program_ref().unwrap_module().body.iter().any(|item| match item {
+        ModuleItem::ModuleDecl(
+            ModuleDecl::ExportDefaultExpr(_) | ModuleDecl::ExportDefaultDecl(_),
+        ) => true,
+        ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(export)) => {
+            export.specifiers.iter().any(|specifier| match specifier {
+                ExportSpecifier::Named(named) => named
+                    .exported
+                    .as_ref()
+                    .map_or_else(|| exports_default(&named.orig), exports_default),
+                ExportSpecifier::Default(_) | ExportSpecifier::Namespace(_) => false,
+            })
+        },
+        _ => false,
+    });
+    if has_default {
+        Ok(())
+    } else {
+        Err(
             "SyntaxError: the function module has no default export, so there is no function \
              to call. Export it with `export default`."
-                .to_string()
-        })
+                .to_string(),
+        )
+    }
 }

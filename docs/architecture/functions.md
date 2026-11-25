@@ -381,7 +381,7 @@ else. Each line below is pinned by a test: `runtime::deno::runtime_surface_tests
 
 | | Available |
 |---|---|
-| `import` | **no**: a static `import` is a syntax error, a dynamic `import()` fails. There is no module loader. |
+| `import` | **no**: a function runs as an ES module (strict mode), and every `import`, static or `import()`, is refused with a permanent error naming `[functions] shared_dir`. `import type` is erased by the type-stripper and never reaches the runtime. |
 | JavaScript built-ins (`JSON`, `Math`, `Date`, `Promise`, `Intl`, `WebAssembly`, typed arrays) | yes |
 | `queueMicrotask` | yes |
 | `console` | present. Each `console` call, and each `Deno.core.print`, is one of the function's log entries (`info`; a `Deno.core.print(…, true)` is `error`), under the same limit as `fraiseql_log`. Nothing reaches the server's stdout or stderr. |

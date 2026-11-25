@@ -1,6 +1,6 @@
 //! Every documented default-export form runs, with or without a trailing `;`, whether or
 //! not the source is type-stripped first; and only the module's real default export is
-//! rewritten, not the same words in a comment or a string.
+//! the entry point, not the same words in a comment or a string.
 
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 
@@ -31,7 +31,7 @@ async fn run(source: &str, enable_typescript: bool) -> fraiseql_error::Result<se
         .map(|r| r.value.unwrap_or(serde_json::Value::Null))
 }
 
-/// The forms `wrap_source` documents, each written with and without its trailing `;`.
+/// The default-export forms, each written with and without its trailing `;`.
 const FORMS: &[&str] = &[
     "export default async function notify(event) {\n  return { id: event.id };\n}\n",
     "export default async function notify(event) {\n  return { id: event.id };\n};\n",
@@ -105,12 +105,14 @@ async fn an_esbuild_esm_bundle_runs() {
     }
 }
 
+/// A re-exported default is an entry point, so the refusal is about where it comes
+/// from: an import, which only a declared shared directory allows.
 #[tokio::test]
-async fn a_re_export_of_another_module_has_no_loader_to_reach_it() {
+async fn a_re_exported_default_is_refused_as_an_import() {
     let error = run("export { notify as default } from \"./notify.js\";\n", false)
         .await
-        .expect_err("there is no module loader to resolve `from`");
-    assert!(error.to_string().contains("no default export"), "{error}");
+        .expect_err("no shared directory is declared");
+    assert!(error.to_string().contains("`[functions] shared_dir`"), "{error}");
 }
 
 #[tokio::test]

@@ -61,7 +61,7 @@ const GUEST: &str = "export default async (event) => ({ doubled: event.n * 2 });
 fn invoke() -> (Duration, PhaseTimings) {
     let started = Instant::now();
     let out = std::thread::spawn(|| {
-        run_in_dedicated_thread(GUEST, &json!({ "n": 21 }), &ResourceLimits::default(), None)
+        run_in_dedicated_thread(GUEST, None, &json!({ "n": 21 }), &ResourceLimits::default(), None)
     })
     .join()
     .unwrap()

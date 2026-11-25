@@ -64,19 +64,30 @@ async fn the_globals_a_function_can_rely_on() {
     }
 }
 
-/// There is no module loader: a function is one file, and a library reaches it bundled.
+/// A function imports only from a declared shared directory: with none declared, an
+/// import is refused, permanently, naming the key that would allow it. A library still
+/// reaches a function bundled.
 #[tokio::test]
-async fn a_static_import_is_a_syntax_error() {
-    let error = run("import { x } from \"./lib.js\";\nexport default async () => x;\n")
-        .await
-        .expect_err("a static import has nothing to load it");
-    assert!(error.to_string().contains("Cannot use import statement"), "{error}");
+async fn a_static_import_without_a_shared_dir_is_refused() {
+    for specifier in ["@shared/lib.ts", "./lib.js"] {
+        let source = format!("import {{ x }} from {specifier:?};\nexport default async () => x;\n");
+        let error = run(&source).await.expect_err("no shared directory is declared");
+        assert!(
+            matches!(error, fraiseql_error::FraiseQLError::Validation { .. }),
+            "a refused import is permanent: {error:?}"
+        );
+        assert!(error.to_string().contains("`[functions] shared_dir`"), "{error}");
+    }
 }
 
 #[tokio::test]
-async fn a_dynamic_import_fails() {
-    let error = run("export default async () => (await import(\"./lib.js\")).x;\n")
+async fn a_dynamic_import_without_a_shared_dir_is_refused() {
+    let error = run("export default async () => (await import(\"@shared/lib.ts\")).x;\n")
         .await
-        .expect_err("a dynamic import has nothing to load it");
-    assert!(error.to_string().contains("import"), "{error}");
+        .expect_err("no shared directory is declared");
+    assert!(
+        matches!(error, fraiseql_error::FraiseQLError::Validation { .. }),
+        "a refused import is permanent: {error:?}"
+    );
+    assert!(error.to_string().contains("`[functions] shared_dir`"), "{error}");
 }

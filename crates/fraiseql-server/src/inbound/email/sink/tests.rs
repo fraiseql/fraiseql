@@ -382,6 +382,7 @@ async fn a_polled_message_records_its_dispatch_and_the_dispatch_settles_it() {
         source_hash: "test".to_string(),
         bytecode:    bytes::Bytes::new(),
         runtime:     fraiseql_functions::RuntimeType::Wasm,
+        shared:      None,
     };
     let mut hooks = crate::subsystems::BeforeMutationHooks::new(
         fraiseql_functions::TriggerRegistry::load_from_definitions(&definitions).unwrap(),

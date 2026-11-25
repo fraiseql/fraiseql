@@ -632,7 +632,7 @@ export default async (event) => {
 
 /// #804: a host whose `http_request` is genuinely pending (awaits a timer), so
 /// the guest's continuation after `await` provably resumes inside
-/// `run_event_loop`, not during `execute_script`'s microtask drain.
+/// `run_event_loop`, not during module evaluation's microtask drain.
 #[allow(dead_code)] // Reason: constructed only by the #[tokio::test] harness build
 struct PendingOpHost {
     event: EventPayload,
@@ -724,7 +724,7 @@ impl crate::host::dyn_context::DynHostContext for PendingOpHost {
 
 /// #804: a guest that spins *after* awaiting a real async host op must still be
 /// terminated at `max_duration`. Pre-fix, `watchdog_done` was stored `true`
-/// immediately after `execute_script` returned — before `run_event_loop` ran —
+/// immediately after the guest's evaluation returned — before `run_event_loop` ran —
 /// so the continuation's `while (true) {}` had no armed watchdog, the
 /// event-loop `tokio::time::timeout` future was never polled again, and the
 /// executor thread + isolate wedged at 100% CPU forever.

@@ -14,6 +14,7 @@ fn module(name: &str) -> FunctionModule {
         source_hash: "test".to_string(),
         bytecode:    bytes::Bytes::new(),
         runtime:     RuntimeType::Wasm,
+        shared:      None,
     }
 }
 

@@ -247,6 +247,7 @@ fn a_replayed_dispatch_carries_the_first_dispatchs_token() {
         source_hash: "test".to_string(),
         bytecode:    bytes::Bytes::new(),
         runtime:     fraiseql_functions::RuntimeType::Wasm,
+        shared:      None,
     };
     let hooks = crate::subsystems::BeforeMutationHooks::new(
         fraiseql_functions::TriggerRegistry::load_from_definitions(&definitions).unwrap(),

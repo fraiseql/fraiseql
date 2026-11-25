@@ -10,14 +10,16 @@
 //!
 //! Each execution:
 //! 1. Creates a new V8 isolate with memory and timeout limits
-//! 2. Loads the function source. When [`DenoConfig::enable_typescript`] is set (the default),
-//!    `TypeScript` types are stripped to executable `JavaScript` first (see [`transpile`]); with it
-//!    off the isolate executes the `JavaScript` unchanged.
+//! 2. Loads the function source as an ES module. When [`DenoConfig::enable_typescript`] is set (the
+//!    default), `TypeScript` types are stripped to executable `JavaScript` first (see
+//!    [`transpile`]); with it off the isolate executes the `JavaScript` unchanged. A function
+//!    imports only the shared modules its load captured ([`module_loader`]).
 //! 3. Calls the default export with the event as a JS object
 //! 4. Captures logs and enforces resource limits throughout
 //! 5. Properly cleans up the isolate after execution
 
 pub mod executor;
+pub mod module_loader;
 pub mod ops;
 pub mod tests;
 pub mod transpile;
@@ -47,6 +49,8 @@ mod reply_awareness_tests;
 mod runtime_surface_tests;
 #[cfg(test)]
 mod scoring_tests;
+#[cfg(test)]
+mod shared_module_tests;
 
 use std::sync::Arc;
 
@@ -227,6 +231,7 @@ fn run_guest(
     };
     // Functions receive the entity data, not the full internal EventPayload.
     let event_data = event.data;
+    let shared = module.shared.clone();
 
     async move {
         let source = source.map_err(|message| fraiseql_error::FraiseQLError::Validation {
@@ -265,7 +270,8 @@ fn run_guest(
         >();
 
         std::thread::spawn(move || {
-            let result = executor::run_in_dedicated_thread(&source, &event_data, &limits, host);
+            let result =
+                executor::run_in_dedicated_thread(&source, shared, &event_data, &limits, host);
             let _ = tx.send(result);
         });
 

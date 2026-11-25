@@ -101,6 +101,7 @@ fn router(pool: PgPool) -> Router {
         source_hash: "test".to_string(),
         bytecode:    bytes::Bytes::new(),
         runtime:     RuntimeType::Wasm,
+        shared:      None,
     };
     let hooks = BeforeMutationHooks::new(
         TriggerRegistry::load_from_definitions(&definitions).unwrap(),

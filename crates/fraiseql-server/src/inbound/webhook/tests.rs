@@ -1202,6 +1202,7 @@ mod the_event_is_what_the_scheme_authenticated {
             source_hash: "test".to_string(),
             bytecode:    bytes::Bytes::new(),
             runtime:     fraiseql_functions::RuntimeType::Wasm,
+            shared:      None,
         };
         let mut hooks = crate::subsystems::BeforeMutationHooks::new(
             fraiseql_functions::TriggerRegistry::load_from_definitions(&definitions).unwrap(),

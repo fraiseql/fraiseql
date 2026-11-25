@@ -21,7 +21,11 @@ use std::{
 use deno_core::{Extension, JsRuntime, JsRuntimeForSnapshot, OpState, RuntimeOptions, op2, v8};
 use serde_json::Value;
 
-use super::{ops::DenoHostContext, transpile, watchdog};
+use super::{
+    module_loader::{DRIVER_URL, FunctionModuleLoader, SharedModules, driver},
+    ops::DenoHostContext,
+    transpile, watchdog,
+};
 use crate::{
     host::dyn_context::DynHostContext,
     types::{LogEntry, LogLevel, ResourceLimits},
@@ -184,62 +188,6 @@ fn make_fraiseql_extension(
     }
 }
 
-// ── Source preprocessing ────────────────────────────────────────────────────────
-
-/// Wrap the user-provided source so the default-exported function is called with
-/// the event data and the result stored in `globalThis.__fraiseql_result`.
-///
-/// The default export is bound in place as `const __fn = <expression>;`, for every form:
-///   `export default async (event) => { ... };`
-///   `export default async function name(event) { ... }`
-///
-/// The binding is always terminated. Without the `;`, a declaration ending in `}` is
-/// followed by the appended `(async () => ...)()`, and the parser reads that as a call
-/// of the function with the invocation as its argument. The item is located by
-/// [`transpile::default_export`], not by matching text, so the same words in a comment
-/// or a string are left alone; and it is rewritten on its own line, so a stack trace
-/// still points into the author's source.
-///
-/// The wrapped code also catches any thrown exception and stores it in
-/// `globalThis.__fraiseql_error`.
-///
-/// # Errors
-///
-/// Returns a `SyntaxError: …` string when the source does not parse or has no default
-/// export.
-fn wrap_source(source: &str, event_json: &str) -> Result<String, String> {
-    let (item, exported) = transpile::default_export(source)?;
-    let inner = format!(
-        "{}const __fn = {};{}",
-        &source[..item.start],
-        &source[exported],
-        &source[item.end..]
-    );
-
-    // Injected so a guest can mark a thrown error permanent structurally
-    // (`throw Object.assign(new Error(msg), {{ fraiseqlPermanent: true }})`) and the
-    // runtime dead-letters it immediately. Host-op errors already carry the marker
-    // in their message; this folds the property form into the same signal.
-    let marker = crate::types::PERMANENT_ERROR_MARKER;
-    Ok(format!(
-        r#"
-{inner}
-(async () => {{
-    try {{
-        const __event = {event_json};
-        const __result = await __fn(__event);
-        globalThis.__fraiseql_result = JSON.stringify(__result);
-        globalThis.__fraiseql_error = null;
-    }} catch (e) {{
-        globalThis.__fraiseql_result = null;
-        const __permanent = e && e.fraiseqlPermanent === true;
-        globalThis.__fraiseql_error = (__permanent ? "{marker} " : "") + String(e);
-    }}
-}})();
-"#
-    ))
-}
-
 // ── Execution result ────────────────────────────────────────────────────────────
 
 /// Result returned from the blocking deno thread back to the async caller.
@@ -263,7 +211,8 @@ pub struct PhaseTimings {
     pub tokio_runtime: Duration,
     /// Constructing the `JsRuntime`: the V8 isolate, its context and the fraiseql ops.
     pub isolate:       Duration,
-    /// Compiling and running the wrapped guest script up to its first `await`.
+    /// Loading, compiling and evaluating the driver and the guest's modules, up to the
+    /// guest's first `await`.
     pub script:        Duration,
     /// Driving the event loop until the guest's promise settles.
     pub event_loop:    Duration,
@@ -290,6 +239,11 @@ impl PhaseTimings {
 
 /// Execute guest `JavaScript` inside a fresh `JsRuntime` + dedicated Tokio runtime.
 ///
+/// `source` is the function's module. `shared` holds the shared modules it may import,
+/// already transpiled; `None` means no shared directory is declared, so any import is
+/// refused. Each invocation builds its own isolate and loads every module afresh, so no
+/// module-level state survives from one invocation to the next.
+///
 /// This function is called from inside `std::thread::spawn`, so it is free to
 /// create its own `current_thread` Tokio runtime and call `block_on` without
 /// conflict.
@@ -305,6 +259,7 @@ impl PhaseTimings {
 /// panicked while holding the lock, which cannot happen in normal operation).
 pub fn run_in_dedicated_thread(
     source: &str,
+    shared: Option<Arc<SharedModules>>,
     event_value: &Value,
     limits: &ResourceLimits,
     host: Option<Arc<dyn DynHostContext>>,
@@ -336,8 +291,16 @@ pub fn run_in_dedicated_thread(
     // Serialise the event data for injection into JS
     let event_json = serde_json::to_string(event_value).map_err(|e| e.to_string())?;
 
-    // Build the wrapper script
-    let wrapped = wrap_source(source, &event_json)?;
+    // A function with no default export has nothing to call: say so before building an
+    // isolate, rather than as the driver's link error.
+    transpile::default_export(source)?;
+    let driver_source = driver(&event_json);
+    let driver_url = deno_core::ModuleSpecifier::parse(DRIVER_URL)
+        .map_err(|e| format!("Internal error: invalid driver URL: {e}"))?;
+    let loader = std::rc::Rc::new(FunctionModuleLoader {
+        function: source.to_string(),
+        shared,
+    });
 
     // Extract before async move to avoid partial-move into the closure.
     let max_duration = limits.max_duration;
@@ -371,6 +334,7 @@ pub fn run_in_dedicated_thread(
             extensions: vec![make_fraiseql_extension(collector, host)],
             startup_snapshot: Some(startup_snapshot()),
             create_params: Some(create_params),
+            module_loader: Some(loader),
             ..Default::default()
         });
         phases.isolate = phase_started.elapsed();
@@ -433,20 +397,24 @@ pub fn run_in_dedicated_thread(
             }
         };
 
-        // Execute the wrapped script. The watchdog stays ARMED past this point
-        // (#804): the guest's continuations after `await` run inside
-        // `run_event_loop` below, and a synchronous spin there is only
-        // stoppable by the watchdog's `terminate_execution`.
+        // Load and evaluate the driver, which imports the function and its shared
+        // modules through the loader. Evaluation runs every module's top level and the
+        // function up to its first `await`. The watchdog stays ARMED past this point
+        // (#804): the guest's continuations after `await` run inside `run_event_loop`
+        // below, and a synchronous spin there is only stoppable by the watchdog's
+        // `terminate_execution`.
         let phase_started = Instant::now();
-        let exec_outcome = js_runtime.execute_script("<fraiseql-function>", wrapped);
+        let evaluation =
+            match js_runtime.load_main_es_module_from_code(&driver_url, driver_source).await {
+                Ok(id) => js_runtime.mod_evaluate(id),
+                Err(e) => {
+                    // Stop and reap the watchdog before returning.
+                    watchdog_done.finish();
+                    let _ = watchdog.join();
+                    return Err(classify(&e.to_string(), &mem_exceeded_run, &timed_out_run));
+                },
+            };
         phases.script = phase_started.elapsed();
-
-        if let Err(e) = exec_outcome {
-            // Stop and reap the watchdog before returning.
-            watchdog_done.finish();
-            let _ = watchdog.join();
-            return Err(classify(&e.to_string(), &mem_exceeded_run, &timed_out_run));
-        }
 
         // Drive the event loop to resolve Promises from async functions. The
         // tokio timeout covers *async idle* hangs (a pending promise that never
@@ -473,6 +441,13 @@ pub fn run_in_dedicated_thread(
                 return Err(classify(&e.to_string(), &mem_exceeded_run, &timed_out_run));
             },
             Ok(Ok(())) => {},
+        }
+        // Settle the evaluation. A module whose top level threw already failed the event
+        // loop above with that error (pinned by `shared_module_tests`); this keeps the
+        // error should the evaluation be the only place it surfaces. The driver's own
+        // call never throws past its `catch`.
+        if let Err(e) = evaluation.await {
+            return Err(classify(&e.to_string(), &mem_exceeded_run, &timed_out_run));
         }
 
         // Retrieve the result stored in globalThis.__fraiseql_result
