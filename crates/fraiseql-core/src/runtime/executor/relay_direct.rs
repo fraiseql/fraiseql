@@ -28,6 +28,12 @@ impl Executor {
         security_context: Option<&SecurityContext>,
         request_budget: Option<&RequestBudget>,
     ) -> Result<serde_json::Value> {
+        // The enrichment backstop, as on every read entry.
+        crate::runtime::executor::support::security::enforce_enrichment_resolved(
+            &self.ctx.schema,
+            security_context,
+        )?;
+
         let response = self
             .query_runner()
             .execute_relay_direct(query_match, security_context, request_budget)

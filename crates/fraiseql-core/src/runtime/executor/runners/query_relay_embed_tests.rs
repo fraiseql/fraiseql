@@ -597,4 +597,37 @@ mod enrichment_entry_point_tests {
             "a resolved principal passes the backstop: {served:?}"
         );
     }
+
+    /// The flat relay entry refuses a principal no transport resolved, on a schema that
+    /// reads the enriched identity elsewhere: the page itself reads nothing enriched, so
+    /// without the backstop it would be served.
+    #[tokio::test]
+    async fn the_relay_direct_entry_refuses_an_unresolved_principal() {
+        let schema = schema(|orders| {
+            orders.inject_params.insert(
+                "owner_id".to_string(),
+                crate::schema::InjectedParamSource::Enrichment("org".to_string()),
+            );
+        });
+        assert!(schema.declares_enrichment_consumer(), "the schema reads the enriched identity");
+        let config = config(&schema);
+        let qm = page(&schema, &[("first", json!(2))]);
+        let adapter = Arc::new(CapturingMockAdapter::new(Vec::new()));
+        let executor = Executor::with_config_and_relay(schema, adapter.clone(), config);
+
+        let err = executor
+            .execute_relay_direct(&qm, Some(&principal()), None)
+            .await
+            .expect_err("an unresolved principal must not read");
+        assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err}");
+        assert!(adapter.captured_where().is_none(), "nothing is read");
+
+        let mut resolved = principal();
+        resolved.mark_enrichment(EnrichmentMark::Resolved);
+        executor
+            .execute_relay_direct(&qm, Some(&resolved), None)
+            .await
+            .expect("a resolved principal is served");
+        assert!(adapter.captured_where().is_some(), "the page is read");
+    }
 }
