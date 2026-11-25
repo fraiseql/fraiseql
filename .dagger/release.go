@@ -101,6 +101,7 @@ func (m *FraiseqlCi) semverBase() *dagger.Container {
 // namedSemverCrates mirrors ci.yml's per-PR "API Semver Compatibility" job — the
 // five crates whose public API is the load-bearing surface.
 var namedSemverCrates = []string{
+	// crate-subset: the crates whose public API is the load-bearing surface
 	"fraiseql-error", "fraiseql-db", "fraiseql-core", "fraiseql-server", "fraiseql-cli",
 }
 

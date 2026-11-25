@@ -1754,6 +1754,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **The release's package verification reads the crate set from the workspace (#1784).**
+  The job that checks every crate is visible on crates.io after a release listed the
+  crates by hand, and the list had to be edited when `fraiseql-time` was added. It now
+  runs `tools/verify-published.sh`, which takes the crates from
+  `tools/publish-order.py --set`: the manifests, read without a Rust toolchain. A test
+  runs the script against a stubbed registry in the shell gates, so its logic no longer
+  runs for the first time at a release. A new gate, `tools/check-crate-lists.py`,
+  refuses any workflow, Dagger module, release script or the release guide that lists
+  three or more publishable crates, unless a `crate-subset: <reason>` comment says why
+  the list is a deliberate subset. The release guide's publish order, which was written
+  out by hand and named a crate that no longer exists, now points at the derived order.
+
 - **No FraiseQL crate depends on chrono (#2026).** Every instant is a
   `fraiseql_time::Timestamp`, built on jiff, and every text form is unchanged. chrono
   stays in the build only under third-party crates: arrow and parquet, async-imap, rmcp

@@ -7,6 +7,8 @@ say `publish = false`; it is published after every workspace crate it depends on
     python3 tools/publish-order.py                  # the order, one crate per line
     python3 tools/publish-order.py --metadata F     # the order from a saved
                                                     # `cargo metadata --no-deps` JSON
+    python3 tools/publish-order.py --set            # the crates alone, sorted, read
+                                                    # from the manifests without cargo
 
 A dependency counts whatever its kind, except a dev-dependency. An *optional*
 dependency counts too: crates.io resolves every dependency a manifest declares, so
@@ -16,8 +18,10 @@ would close cycles (a crate's tests depending on a crate that depends on it).
 
 Ties are broken by name, so the order is the same on every run.
 
-`publishable_workspace_crates` reads the manifests with `tomllib` instead of running
-cargo, for the gates in the toolchain-free ShellGates container.
+`publishable_workspace_crates` (and `--set`) reads the manifests with `tomllib` instead
+of running cargo, for the gates in the toolchain-free ShellGates container and for the
+release job that verifies what was published, which installs no toolchain. `--root`
+points either reader at another workspace.
 """
 
 from __future__ import annotations
@@ -91,13 +95,23 @@ def publish_order(metadata: dict) -> list[str]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--metadata", type=Path, help="a saved `cargo metadata --no-deps` JSON")
+    parser.add_argument(
+        "--set", action="store_true", help="the publishable crates, sorted, without cargo"
+    )
+    parser.add_argument("--root", type=Path, default=ROOT, help="the workspace root")
     args = parser.parse_args()
+    if args.set:
+        crates = sorted(publishable_workspace_crates(args.root))
+        if not crates:
+            sys.exit(f"ERROR: {args.root} publishes no crates")
+        print("\n".join(crates))
+        return
     if args.metadata:
         text = args.metadata.read_text(encoding="utf-8")
     else:
         text = subprocess.run(
             ["cargo", "metadata", "--no-deps", "--format-version", "1"],
-            cwd=ROOT,
+            cwd=args.root,
             check=True,
             capture_output=True,
             text=True,

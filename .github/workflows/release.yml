@@ -640,64 +640,12 @@ jobs:
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
       - name: Verify every crate is published on crates.io (+ PyPI + npm)
-        run: |
-          # Disable errexit: this is a collect-ALL check that tracks failures itself
-          # and fails once at the end (GitHub runs `run:` as `bash -e`). No
-          # continue-on-error — a version that never becomes visible MUST redden the job.
-          set +e
-          echo "## 📦 Package Verification" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          VERSION="${{ steps.get_version.outputs.version }}"
-
-          # Every crate the `publish-crates` job ships — keep in sync with the CRATES
-          # list in the validate-release "Dry-run publish" step. The old step checked
-          # only `fraiseql` (1 of 16) and soft-passed a miss as "indexing in progress".
-          CRATES="fraiseql-time fraiseql-guard fraiseql-kafka fraiseql-jwks fraiseql-error fraiseql-auth fraiseql-webhooks \
-                  fraiseql-wire fraiseql-cdc-sinks \
-                  fraiseql-db fraiseql-storage fraiseql-federation fraiseql-core \
-                  fraiseql-codegen fraiseql-arrow fraiseql-secrets fraiseql-observers \
-                  fraiseql-functions fraiseql-saga fraiseql-server fraiseql-cli fraiseql"
-
-          # One "label|url" channel-item per array element.
-          PENDING=()
-          for c in $CRATES; do
-            PENDING+=("crates.io: $c v$VERSION|https://crates.io/api/v1/crates/$c/$VERSION")
-          done
-          PENDING+=("PyPI: fraiseql v$VERSION|https://pypi.org/pypi/fraiseql/$VERSION/json")
-          PENDING+=("npm: fraiseql v$VERSION|https://registry.npmjs.org/fraiseql/$VERSION")
-          # The third published SDK (ADR-0019). It is not a workspace member, so it is
-          # absent from CRATES above and was absent from this check entirely.
-          PENDING+=("crates.io: fraiseql-rust v$VERSION|https://crates.io/api/v1/crates/fraiseql-rust/$VERSION")
-
-          # Bounded retry-then-FAIL: absorbs registry indexing lag (tens of seconds)
-          # without the old warn-and-proceed. ~3 min ceiling; usually one round.
-          MAX_ROUNDS=12
-          SLEEP=15
-          for round in $(seq 1 "$MAX_ROUNDS"); do
-            STILL=()
-            for item in "${PENDING[@]}"; do
-              label="${item%%|*}"; url="${item##*|}"
-              code="$(curl -s -o /dev/null -w '%{http_code}' -H 'User-Agent: fraiseql-ci' "$url")"
-              if [ "$code" = "200" ]; then
-                echo "✅ $label" >> "$GITHUB_STEP_SUMMARY"
-              else
-                STILL+=("$item")
-              fi
-            done
-            PENDING=("${STILL[@]}")
-            [ "${#PENDING[@]}" -eq 0 ] && break
-            echo "… ${#PENDING[@]} not yet visible; retry in ${SLEEP}s (round $round/$MAX_ROUNDS)"
-            sleep "$SLEEP"
-          done
-
-          if [ "${#PENDING[@]}" -ne 0 ]; then
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "### ❌ Never became visible" >> "$GITHUB_STEP_SUMMARY"
-            for item in "${PENDING[@]}"; do echo "- ${item%%|*}" >> "$GITHUB_STEP_SUMMARY"; done
-            echo "::error::one or more published artifacts never became visible after ~3min — see the job summary"
-            exit 1
-          fi
-          echo "All crates + the Rust SDK (crates.io) + PyPI + npm are published and visible at v$VERSION."
+        # The crates are read from the workspace by tools/publish-order.py, so a new
+        # crate is verified without editing a list. tools/tests/verify_published_test.sh
+        # runs this script against a stubbed registry in the shell gates.
+        env:
+          VERSION: ${{ steps.get_version.outputs.version }}
+        run: bash tools/verify-published.sh "$VERSION"
 
       - name: Verify all expected release assets are present
         env:

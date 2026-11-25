@@ -246,19 +246,19 @@ Total time: ~20-35 minutes (with parallelization)
 
 **Purpose:** Publish all Rust crates to crates.io
 
-**Order of publication:**
+**Order of publication:** derived, never written down. `python3 tools/publish-order.py`
+prints every workspace crate that does not say `publish = false`, each after every
+workspace crate it depends on (optional dependencies included, dev-dependencies not).
+A new crate is published without editing any list.
 
-1. fraiseql-error (no dependencies)
-2. fraiseql-wire (minimal deps)
-3. fraiseql-core (depends on error)
-4. fraiseql-arrow (depends on core, wire)
-5. fraiseql-observers-macros (depends on core)
-6. fraiseql-observers (depends on core, macros)
-7. fraiseql-server (depends on core, error, observers, arrow)
-8. fraiseql-cli (depends on core)
-9. fraiseql (root crate, depends on all)
+**Waits between publishes:** `tools/wait-for-crates-index.sh` waits until each crate
+resolves from the sparse index before the next one is published, and stops the
+release if it never does. A crate already on crates.io at the version is skipped, so
+a rerun after a partial failure resumes where it stopped.
 
-**Waits between publishes:** 30 seconds (for crates.io indexing)
+**Afterwards:** the verify job runs `tools/verify-published.sh <version>`, which
+checks every crate in `python3 tools/publish-order.py --set`, plus PyPI, npm and
+`fraiseql-rust`.
 
 #### 4. publish-python
 
@@ -366,11 +366,13 @@ export VERSION="2.0.0-alpha.6"
 git tag -a v$VERSION -m "Release v$VERSION"
 git push origin v$VERSION
 
-# 3. Publish Rust crates
-for crate in fraiseql-error fraiseql-wire fraiseql-core fraiseql-arrow fraiseql-observers-macros fraiseql-observers fraiseql-server fraiseql-cli fraiseql; do
-  echo "Publishing $crate..."
-  cargo publish -p $crate --token $CARGO_TOKEN
-  sleep 30  # Wait for indexing
+# 3. Publish Rust crates, in the derived order; a crate already published is skipped
+for crate in $(python3 tools/publish-order.py); do
+  if [ "$(curl -s -o /dev/null -w '%{http_code}' "https://crates.io/api/v1/crates/$crate/$VERSION")" != 200 ]; then
+    echo "Publishing $crate..."
+    cargo publish -p "$crate" --token "$CARGO_TOKEN" || break
+  fi
+  bash tools/wait-for-crates-index.sh "$VERSION" "$crate" || break
 done
 
 # 4. Publish Python package

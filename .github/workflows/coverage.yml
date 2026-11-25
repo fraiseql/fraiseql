@@ -92,6 +92,7 @@ jobs:
 
       - name: "Check threshold: remaining crates (≥50%)"
         run: |
+          # crate-subset: the crates held to the shared 50% floor
           for crate in fraiseql-error fraiseql-wire fraiseql-cli fraiseql-arrow fraiseql-observers; do
             echo "Checking $crate..."
             cargo llvm-cov report -p "$crate" --fail-under-lines 50 || exit 1

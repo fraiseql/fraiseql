@@ -632,12 +632,13 @@ lint-tests-layout:
 
 # Unit tests for the release tooling (tools/release.sh shell libs). Pure bash, no
 # toolchain — wired into the Dagger ShellGates so the release-cut helpers (tag-note
-# extraction, internal floor bump, the derived crate publish order) cannot silently
-# bit-rot.
+# extraction, internal floor bump, the derived crate publish order, the check of what a
+# release published) cannot silently bit-rot.
 .PHONY: test-release-tooling
 test-release-tooling:
 	@bash tools/tests/release_helpers_test.sh
 	@bash tools/tests/publish_order_test.sh
+	@bash tools/tests/verify_published_test.sh
 	@bash tools/tests/wait_for_workflow_runs_test.sh
 
 # Unit tests for the advisory-deadline gate. Its boundary behaviour is worth
@@ -1546,6 +1547,16 @@ test-crate-sizes-gate:
 test-crate-growth-gate:
 	@bash tools/tests/crate_growth_test.sh
 
+# No release file keeps its own list of the workspace's crates: the crates a release
+# publishes come from tools/publish-order.py. A deliberate subset says why with a
+# `crate-subset: <reason>` comment. The gate, then its red-capability pin.
+.PHONY: lint-crate-lists test-crate-lists-gate
+lint-crate-lists:
+	@python3 tools/check-crate-lists.py
+
+test-crate-lists-gate:
+	@bash tools/tests/crate_lists_test.sh
+
 # Every official SDK's own test suite and linters (#1346): SDK conformance checks what
 # each SDK emits, not its unit tests, and no other local target runs those. A missing
 # toolchain falls back to the SDK's container; anything that could not run fails the
@@ -2267,6 +2278,8 @@ shell-gates: lint-feature-chains
 # It counts production lines only, by rules its self-test pins (#1882).
 shell-gates: lint-crate-sizes
 shell-gates: test-crate-growth-gate
+shell-gates: lint-crate-lists
+shell-gates: test-crate-lists-gate
 shell-gates: test-crate-sizes-gate
 
 # Every official SDK's own suite runs under ONE unfiltered, required check,
