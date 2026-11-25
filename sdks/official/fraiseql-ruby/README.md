@@ -112,6 +112,19 @@ fraiseql-cli compile schema.json  # Compile to schema.compiled.json
 fraiseql-server --schema schema.compiled.json
 ```
 
+## Decimal Values in the Client
+
+A `Decimal` travels as a JSON string of its digits, `"1.50"`, in both directions.
+`FraiseQL::Client` sends a `BigDecimal` variable as `to_s("F")`, a string of its digits
+with no exponent (`JSON.generate` alone writes `"0.15e1"`, which the server refuses). A
+NaN or infinite `BigDecimal` raises `ArgumentError` before the request is sent.
+
+A `BigDecimal` holds a value, not a scale: `BigDecimal("100.00")` is sent as `"100.0"`.
+The value is exact; the scale is not kept. Pass the `String` `"100.00"` when the scale
+matters. A response holds each `Decimal` as its string, scale included, and
+`BigDecimal(value)` reads it exactly. Do not pass a `Float`: the server refuses a number
+with a fraction for a `Decimal`.
+
 ## Requirements
 
 - Ruby >= 3.1

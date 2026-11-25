@@ -3,6 +3,7 @@
 require "net/http"
 require "uri"
 require "json"
+require_relative "decimal_wire"
 
 module FraiseQL
   class Client
@@ -63,7 +64,7 @@ module FraiseQL
       request["Content-Type"] = "application/json"
       request["Accept"] = "application/json"
       request["Authorization"] = @authorization if @authorization
-      request.body = JSON.generate(body.compact)
+      request.body = JSON.generate(DecimalWire.encodable(body.compact))
 
       response = http.request(request)
       parse_response(response)

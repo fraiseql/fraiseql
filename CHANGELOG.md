@@ -2035,6 +2035,13 @@ disagreed, and the promise was the part that was wrong.
   failure merges its error type's fragments and leaves the success type's out.
   `@skip`/`@include` on such a fragment, or inside it, is honoured.
 
+- **The Ruby SDK's client sends a `BigDecimal` variable as its digits (#1761).**
+  `JSON.generate` wrote a `BigDecimal` as `"0.15e1"`, and the server refuses a `Decimal`
+  string with an exponent. `FraiseQL::Client` now sends `to_s("F")` (`"1.5"`), and a NaN
+  or infinite `BigDecimal` raises `ArgumentError` before the request is sent. The value
+  is exact; its scale is not kept, because a `BigDecimal` holds none
+  (`BigDecimal("100.00")` is sent as `"100.0"`): pass a `String` to keep one.
+
 - **The F# SDK's client sends and reads a `decimal` as its exact digits (#1761).**
   `FraiseQLHttpClient` had the C# client's two defects: a `decimal` variable went out as
   a JSON number, which the server refuses for a `Decimal` once it has a fraction, and a
