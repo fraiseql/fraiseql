@@ -7,21 +7,18 @@
 //! - `config_diagnostic`: a refused configuration as data (code, file, table, key)
 //! - `env_expand`: `${VAR}` placeholders in a configuration file's text
 //! - `operators`: GraphQL operator registry and validation
-//! - `opaque_id`: ID encoding to prevent enumeration attacks
 //! - `text`: UTF-8-safe string truncation for error/log/audit display
 
 pub mod casing;
 pub mod clock;
 pub mod config_diagnostic;
 pub mod env_expand;
-pub mod opaque_id;
 pub mod operators;
 pub mod text;
 
 // Re-export commonly used items
 pub use casing::{normalize_field_path, to_camel_case, to_snake_case};
 pub use clock::{Clock, SystemClock};
-pub use opaque_id::OpaqueId;
 pub use operators::{OperatorCategory, OperatorInfo, get_operator_info, is_operator};
 pub use text::{truncate_at_char_boundary, truncate_for_display};
 

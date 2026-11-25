@@ -27,6 +27,23 @@ disagreed, and the promise was the part that was wrong.
   keeps the old behaviour). A Deno module's `source_hash` is now the function hash (see
   Added), no longer the SHA-256 of its file.
 
+- **`fraiseql-core` drops eight modules nothing in the engine called (#1681).**
+  - `graphql::fragments` (`FragmentGraph`). Fragment cycles are still refused, by
+    `FragmentResolver` and the complexity validator.
+  - `graphql::require_permission_directive` (`RequirePermissionDirective`).
+  - `graphql::directive_evaluator::custom` (`CustomDirectiveEvaluator`). `@skip` and
+    `@include` are evaluated as before.
+  - `utils::opaque_id` (`OpaqueId`).
+  - `runtime::query_tracing` (`QueryTraceBuilder`, `QueryExecutionTrace`, `QueryPhaseSpan`,
+    `create_query_span`, `create_phase_span`) and `runtime::sql_logger`
+    (`SqlQueryLogBuilder`, `SqlQueryLog`, `SqlOperation`, `create_sql_span`). The server
+    reports query latency as the `fraiseql_query_duration_seconds` histogram.
+    `examples/performance` keeps only its timing step.
+  - `cache::cascade_metadata` (`CascadeMetadata`). The GraphQL `CascadeMetadata` type in
+    mutation responses is unrelated and unchanged.
+  - `validation::id_policy` (`IDPolicy`, `IDValidationError`, `IDValidationProfile`,
+    `ValidationProfileType`, `validate_id`).
+
 - **`fraiseql-arrow` drops `event_schema` (#1681).** `entity_event_arrow_schema()` is
   removed. Nothing called it outside its own tests.
 

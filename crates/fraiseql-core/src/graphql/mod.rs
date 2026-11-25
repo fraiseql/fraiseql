@@ -87,9 +87,6 @@ pub mod fragment_resolver;
 /// Directive evaluation (@skip, @include).
 pub mod directive_evaluator;
 
-/// Fragment cycle detection.
-pub mod fragments;
-
 /// The shared selection-resolution routine used by every entry point.
 pub mod selection_set;
 
@@ -109,9 +106,6 @@ pub mod selection_validation;
 
 /// Query complexity analysis and `DoS` prevention.
 pub mod complexity;
-
-/// Field-level RBAC directive (@require_permission).
-pub mod require_permission_directive;
 
 /// `@defer`: splitting a resolved response into immediate and deferred payloads.
 pub mod defer;
@@ -136,16 +130,14 @@ pub use complexity::{
 };
 pub use defer::DeferredPayload;
 pub use directive_evaluator::{
-    CustomDirectiveEvaluator, DirectiveError, DirectiveEvaluator, DirectiveHandler,
-    DirectiveResult, EvaluationContext, OperationType,
+    DirectiveError, DirectiveEvaluator, DirectiveHandler, DirectiveResult, EvaluationContext,
+    OperationType,
 };
 pub use fragment_resolver::{FragmentError, FragmentResolver};
-pub use fragments::FragmentGraph;
 pub use parser::{
     operation_selection_error, parse_query, parse_query_with_operation_name,
     parse_selected_operation,
 };
-pub use require_permission_directive::RequirePermissionDirective;
 pub use selection_set::SelectionError;
 pub use selection_validation::{validate_leaf_field_selections, validate_selection_set};
 pub use types::{

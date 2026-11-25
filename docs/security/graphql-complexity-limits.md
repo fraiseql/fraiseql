@@ -11,7 +11,7 @@ Audit of all GraphQL query complexity and abuse protections in FraiseQL.
 | **Top-level page size** | 1000 rows | Yes (`max_page_size` in `[validation]`, `FRAISEQL_MAX_PAGE_SIZE` env) | `crates/fraiseql-core/src/runtime/executor/runners/query_params.rs` (`enforce_max_page_size`) |
 | **Offset depth** | none | Yes (`max_offset` in `[validation]`, `FRAISEQL_MAX_OFFSET` env) | `crates/fraiseql-core/src/runtime/executor/runners/query_params.rs` (`enforce_max_offset`); see [pagination](../features/pagination.md#deep-offset) |
 | **Federation batch** | 1000 representations | No (hardcoded) | `crates/fraiseql-server/src/federation/` |
-| **Fragment cycles** | refused | No | `crates/fraiseql-core/src/graphql/fragments.rs` (`FragmentGraph::detect_cycles`); the validator scores a spread cycle over its limits (`graphql/complexity.rs`) |
+| **Fragment cycles** | refused | No | `crates/fraiseql-core/src/graphql/fragment_resolver.rs` (`FragmentError::CircularFragmentReference`); the validator scores a spread cycle over its limits (`graphql/complexity.rs`) |
 
 ### Alias Amplification (Hardcoded at 30)
 

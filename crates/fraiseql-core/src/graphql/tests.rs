@@ -221,91 +221,6 @@ mod fragment_resolver_tests {
     }
 }
 
-mod fragments_tests {
-
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-
-    use super::super::*;
-    #[allow(unused_imports)]
-    // Reason: nested test mod re-imports may not all be used by every test
-    use super::*;
-
-    #[test]
-    fn test_no_cycles() {
-        let graph = FragmentGraph {
-            dependencies: HashMap::from([
-                ("FragA".to_string(), HashSet::from(["FragB".to_string()])),
-                ("FragB".to_string(), HashSet::from(["FragC".to_string()])),
-                ("FragC".to_string(), HashSet::new()),
-            ]),
-        };
-        graph
-            .detect_cycles()
-            .unwrap_or_else(|c| panic!("expected no cycles, got: {c:?}"));
-    }
-
-    #[test]
-    fn test_simple_cycle() {
-        let graph = FragmentGraph {
-            dependencies: HashMap::from([
-                ("FragA".to_string(), HashSet::from(["FragB".to_string()])),
-                ("FragB".to_string(), HashSet::from(["FragA".to_string()])),
-            ]),
-        };
-        let cycle = graph.detect_cycles().expect_err("expected cycle to be detected");
-        // Cycle can start from either FragA or FragB depending on iteration order
-        assert!(cycle.len() >= 2, "cycle must contain at least 2 fragments, got: {cycle:?}");
-    }
-
-    #[test]
-    fn test_complex_cycle() {
-        let graph = FragmentGraph {
-            dependencies: HashMap::from([
-                ("FragA".to_string(), HashSet::from(["FragB".to_string()])),
-                ("FragB".to_string(), HashSet::from(["FragC".to_string()])),
-                ("FragC".to_string(), HashSet::from(["FragA".to_string()])),
-                ("FragD".to_string(), HashSet::from(["FragE".to_string()])),
-                ("FragE".to_string(), HashSet::new()),
-            ]),
-        };
-        let result = graph.detect_cycles();
-        assert!(result.is_err(), "expected A→B→C→A cycle to be detected, got: {result:?}");
-    }
-
-    #[test]
-    fn test_multiple_cycles() {
-        let graph = FragmentGraph {
-            dependencies: HashMap::from([
-                ("FragA".to_string(), HashSet::from(["FragB".to_string()])),
-                ("FragB".to_string(), HashSet::from(["FragA".to_string()])),
-                ("FragC".to_string(), HashSet::from(["FragD".to_string()])),
-                ("FragD".to_string(), HashSet::from(["FragC".to_string()])),
-            ]),
-        };
-        let cycle = graph.detect_cycles().expect_err("expected at least one cycle to be detected");
-        // Should detect one of the cycles (DFS order dependent)
-        assert!(
-            cycle.len() >= 2,
-            "cycle must contain at least 2 fragments (A→B or C→D), got: {cycle:?}"
-        );
-    }
-
-    #[test]
-    fn test_self_reference_cycle() {
-        let graph = FragmentGraph {
-            dependencies: HashMap::from([(
-                "FragA".to_string(),
-                HashSet::from(["FragA".to_string()]),
-            )]),
-        };
-        let result = graph.detect_cycles();
-        assert!(
-            result.is_err(),
-            "expected self-reference FragA→FragA to be detected as cycle, got: {result:?}"
-        );
-    }
-}
-
 mod parser_tests {
 
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
@@ -533,38 +448,6 @@ mod parser_tests {
             literal = format!("{{k{i}: {literal}}}");
         }
         assert!(encoded(&literal).is_err(), "an over-limit object is refused");
-    }
-}
-
-mod require_permission_directive_tests {
-
-    use super::super::*;
-    #[allow(unused_imports)]
-    // Reason: nested test mod re-imports may not all be used by every test
-    use super::*;
-
-    #[test]
-    fn test_permission_matches_exact() {
-        assert!(RequirePermissionDirective::permission_matches(
-            "query:users:read",
-            "query:users:read"
-        ));
-        assert!(!RequirePermissionDirective::permission_matches(
-            "query:users:read",
-            "query:users:write"
-        ));
-    }
-
-    #[test]
-    fn test_permission_matches_wildcard() {
-        assert!(RequirePermissionDirective::permission_matches("*", "query:users:read"));
-        // `*:*` is not a second spelling of `*`: the one scope rule reads it as "below `*:`".
-        assert!(!RequirePermissionDirective::permission_matches("*:*", "query:users:read"));
-        assert!(RequirePermissionDirective::permission_matches("query:*", "query:users:read"));
-        assert!(!RequirePermissionDirective::permission_matches(
-            "mutation:*",
-            "query:users:read"
-        ));
     }
 }
 

@@ -73,11 +73,9 @@ pub mod notices;
 mod planner;
 pub(crate) mod projection;
 pub mod query_function;
-pub mod query_tracing;
 pub mod relay;
 mod request_locale;
 mod session_headers;
-pub mod sql_logger;
 pub mod subscription;
 /// Variable-definition validation for the executed operation (GraphQL § 5.8.3).
 mod variable_position;
@@ -164,9 +162,6 @@ pub use projection::{
 };
 pub(crate) use projection::{shape_projected, shape_unprojected_root};
 pub use query_function::{QueryFunctionRequest, QueryFunctionResolver};
-pub use query_tracing::{
-    QueryExecutionTrace, QueryPhaseSpan, QueryTraceBuilder, create_phase_span, create_query_span,
-};
 pub use request_locale::{
     localization_chain, localize, request_locale, scoped_request_locale, with_request_locale,
     with_request_locale_sync,
@@ -175,7 +170,6 @@ pub use session_headers::{
     MAX_SESSION_HEADER_BYTES, SessionHeaders, scoped_session_header, scoped_session_headers,
     with_session_headers, with_session_headers_sync,
 };
-pub use sql_logger::{SqlOperation, SqlQueryLog, SqlQueryLogBuilder, create_sql_span};
 pub use subscription::{
     ActiveSubscription, DeliveredEvent, DeliveryResult, KafkaAdapter, KafkaConfig,
     SubscriptionError, SubscriptionEvent, SubscriptionId, SubscriptionManager,

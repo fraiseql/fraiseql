@@ -2673,7 +2673,6 @@ mod scope_grant_tests {
     use std::collections::HashMap;
 
     use crate::{
-        graphql::require_permission_directive::RequirePermissionDirective,
         schema::security_config::RoleDefinition,
         security::{AuthenticatedUser, SecurityContext},
         types::UserId,
@@ -2724,14 +2723,6 @@ mod scope_grant_tests {
         assert_follows_the_rule("RoleDefinition::has_scope", |pattern, required| {
             RoleDefinition::new("r", vec![pattern.to_string()]).has_scope(required)
         });
-    }
-
-    #[test]
-    fn require_permission_follows_the_scope_rule() {
-        assert_follows_the_rule(
-            "@requirePermission",
-            RequirePermissionDirective::permission_matches,
-        );
     }
 
     /// The admin scope and revoke-all checks read `AuthenticatedUser::has_scope`, which

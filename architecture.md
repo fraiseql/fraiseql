@@ -130,8 +130,6 @@
   │    relay.rs           Relay cursor pagination
   │    subscription/      Subscription executor
   │    explain.rs         EXPLAIN ANALYZE integration
-  │    sql_logger.rs      Query audit logging
-  │    query_tracing.rs   OpenTelemetry span creation
   │    field_filter.rs    Field-level access control
   │    matcher.rs         Pattern matching
   │
@@ -139,8 +137,7 @@
   │    parser.rs          Query document parser
   │    fragment_resolver  Fragment flattening
   │    complexity.rs      Query complexity calculation
-  │    directive_evaluator @require_permission, @deprecated
-  │    require_permission_directive
+  │    directive_evaluator @skip, @include
   │    types.rs           GraphQL AST types
   │
   ├─ cache/               Result caching (moka W-TinyLFU, lock-free reads, DashMap reverse indexes)
@@ -149,7 +146,6 @@
   │      query.rs         Cache-aware SELECT path
   │      mutation.rs      Invalidation-triggering mutation path
   │    cascade_invalidator  Dependency-graph cache invalidation
-  │    cascade_metadata   View dependency metadata
   │    fact_table_cache   Fact table version tracking
   │    relay_cache        Cursor cache
   │
@@ -173,7 +169,6 @@
   ├─ filters/             Filter expression types
   ├─ utils/               Shared utilities
   │                       operators.rs (OPERATOR_REGISTRY)
-  │                       opaque_id.rs (OpaqueIdValidator)
   └─ validation/          Request/schema validation
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

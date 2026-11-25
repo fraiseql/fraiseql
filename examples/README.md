@@ -35,7 +35,7 @@ gitignored.
 | [`basic-query/`](basic-query) | yes | load a compiled schema, connect, execute, print — four calls |
 | [`error-handling/`](error-handling) | yes | the three places a query can fail, including the one that raises nothing |
 | [`complex-queries/`](complex-queries) | yes | nesting, variables, filtering, ordering, two root fields in one operation |
-| [`performance/`](performance) | yes | repeated timings, a phase trace that accounts for its own total, structured SQL logs |
+| [`performance/`](performance) | yes | repeated timings of a narrow and a wide selection over the same rows |
 | [`subscriptions/`](subscriptions) | no | the subscription manager end to end in one process |
 | [`authentication/`](authentication) | no | mint a token, validate it, and five tokens that must be rejected |
 

@@ -61,15 +61,7 @@ fraiseql_federation::http_resolver pending a gateway-only piece fraiseql-saga im
 fraiseql_federation::tls pending a gateway-only piece fraiseql-saga imports; triage #1681
 fraiseql_arrow::clickhouse_sink pending its row mapping ports into a CDC sink kind; triage #1681
 fraiseql_core::http pending no plan names it; triage #1681
-fraiseql_core::graphql::fragments pending no plan names it; triage #1681
-fraiseql_core::graphql::require_permission_directive pending no plan names it; triage #1681
-fraiseql_core::utils::opaque_id pending no plan names it; triage #1681
-fraiseql_core::runtime::query_tracing pending no plan names it; triage #1681
-fraiseql_core::runtime::sql_logger pending no plan names it; triage #1681
-fraiseql_core::cache::cascade_metadata pending no plan names it; triage #1681
 fraiseql_core::tenancy pending no plan names it; triage #1681
-fraiseql_core::validation::id_policy pending ID-format validation only the input processor called; triage #1681
-fraiseql_core::graphql::directive_evaluator::custom pending a pluggable directive registry nothing registers into; triage #1681
 fraiseql_error::config pending ConfigError, raised nowhere; triage #1681
 fraiseql_server::logging pending no plan names it; triage #1681
 fraiseql_server::observers::config pending no plan names it; triage #1681

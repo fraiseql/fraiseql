@@ -200,7 +200,6 @@ mod result;
 pub mod cascade_invalidator;
 
 // Entity-level caching modules
-pub mod cascade_metadata;
 pub mod collections;
 pub mod embedding_graph;
 pub mod entity_key;
@@ -221,7 +220,6 @@ pub mod mutation_reach;
 pub use adapter::{CachedDatabaseAdapter, view_name_to_entity_type};
 pub use by_id::read_by_id_sources;
 pub use cascade_invalidator::{CascadeInvalidator, InvalidationStats};
-pub use cascade_metadata::CascadeMetadata;
 pub use config::{CacheConfig, RlsEnforcement};
 // Export dependency tracker (used in doctests and advanced use cases)
 pub use embedding_graph::{read_embedding_graph, swept_view_names};

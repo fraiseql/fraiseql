@@ -10,7 +10,6 @@ pub mod cross_field;
 pub mod custom_scalar;
 pub mod custom_type_registry;
 pub mod date_validators;
-mod id_policy;
 pub mod inheritance;
 pub mod input_object;
 pub mod mutual_exclusivity;
@@ -34,9 +33,6 @@ pub use custom_type_registry::{CustomTypeDef, CustomTypeRegistry, CustomTypeRegi
 pub use date_validators::{
     validate_date_range, validate_max_age, validate_max_date, validate_max_days_in_future,
     validate_max_days_in_past, validate_min_age, validate_min_date,
-};
-pub use id_policy::{
-    IDPolicy, IDValidationError, IDValidationProfile, ValidationProfileType, validate_id,
 };
 pub use inheritance::{
     InheritanceMode, RuleMetadata, ValidationRuleRegistry, inherit_validation_rules,
