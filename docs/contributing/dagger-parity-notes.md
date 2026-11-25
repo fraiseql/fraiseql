@@ -114,7 +114,7 @@ push(dev)+dispatch only).
 | `clippy` — `cargo clippy --workspace --all-features --all-targets -- -D warnings` | `dagger call clippy` | the full-compile pole; uses cache volumes |
 | `docs` — `RUSTDOCFLAGS=-D warnings cargo doc --workspace --all-features --no-deps` | `dagger call rustdoc` | |
 | `clippy` step `make lint-tests-layout` | `dagger call shell-gates` | grep/wc only — no Rust toolchain |
-| `clippy` step `make lint-unwrap UNWRAP_ALLOW_LIMIT=3` | `shell-gates` | limit threaded as a module const |
+| `clippy` step `make lint-unwrap UNWRAP_ALLOW_LIMIT=3` | `shell-gates` | the limit is set once, in the Makefile |
 | `clippy` step `make lint-expect` | `shell-gates` | |
 | `clippy` step `make lint-async-trait` | `shell-gates` | ASYNC_TRAIT_LIMIT=180 (Makefile default) |
 | `clippy` step `make lint-gate-db` | `shell-gates` | |

@@ -382,7 +382,7 @@ check-default:
 # The budget is set here once: `shell-gates` (the Dagger ShellGates leg) and a bare
 # `make lint-unwrap` both check this value.
 # Raise UNWRAP_ALLOW_LIMIT only with a PR comment justifying each new addition.
-UNWRAP_ALLOW_LIMIT ?= 3
+UNWRAP_ALLOW_LIMIT ?= 2
 .PHONY: lint-unwrap
 lint-unwrap:
 	@echo "=== Counting unwrap allows in production code ==="
