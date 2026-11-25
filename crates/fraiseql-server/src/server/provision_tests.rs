@@ -210,12 +210,18 @@ async fn tables_are_created_by_provisioning_not_by_the_constructor() {
     let pool = sqlx::PgPool::connect(&format!("{prefix}/{CTOR_SCRATCH_DB}{query}"))
         .await
         .unwrap();
-    let config: ServerConfig = serde_json::from_value(serde_json::json!({
+    // Every capability this build has that provisions a table: `[session_state]` is a
+    // section only of a build with `auth`.
+    let mut config = serde_json::json!({
         "cors_enabled": false,
-        "session_state": { "backend": "postgres" },
         "async_operations": { "operations": ["largeExport"] },
-    }))
-    .unwrap();
+    });
+    let mut expected = vec!["_system.async_operations"];
+    if cfg!(feature = "auth") {
+        config["session_state"] = serde_json::json!({ "backend": "postgres" });
+        expected.push("_system.session_state");
+    }
+    let config: ServerConfig = serde_json::from_value(config).unwrap();
 
     let mut server = Box::pin(Server::new(
         config,
@@ -240,7 +246,7 @@ async fn tables_are_created_by_provisioning_not_by_the_constructor() {
     .unwrap();
     assert_eq!(constructed, Vec::<String>::new(), "the constructor ran DDL");
     provisioned.unwrap();
-    for table in ["_system.async_operations", "_system.session_state"] {
+    for table in expected {
         assert!(
             served.iter().any(|t| t == table),
             "provisioning did not create {table}: {served:?}"

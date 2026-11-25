@@ -84,6 +84,10 @@ const (
 	// serverWithoutArrowOrDenoFeatures: no `arrow`, no `functions-runtime-deno`
 	// (`functions-runtime` stays on).
 	serverWithoutArrowOrDenoFeatures = "auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,observers-nats"
+	// serverWithoutAuthFeatures: the integration leg's server set without `auth` and
+	// every feature that turns it on; built with --no-default-features (`auth` is a
+	// default).
+	serverWithoutAuthFeatures = "arrow,aws-s3,cdc-outbound,cli,export-csv,export-xlsx,federation,functions-runtime-deno,grpc,inbound,inbound-email,metrics,observers,observers-nats,redis-apq,redis-rate-limiting,rest,secrets,sources,storage-transforms,subscription-kafka,testing,tracing-opentelemetry,webhooks"
 	// serverWithoutFunctionsFeatures: no `functions-runtime`.
 	serverWithoutFunctionsFeatures = "arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,observers-nats"
 	// cliPostgresFeatures: the one fraiseql-cli feature set of the postgres integration leg.
@@ -820,11 +824,11 @@ func (m *FraiseqlCi) Test(
 		// rather than ignored — compile only where those features are off (#1179).
 		"echo '### cargo test -p fraiseql-server --lib (default features: the feature-OFF refusal arms)'",
 		"cargo test -p fraiseql-server --lib -- --skip server::routing::storage_policy_admin_tests --skip tenancy::tests::runtime_config_drift",
-		// A build without `auth` resolves no enriched identity, so it refuses a schema that
-		// reads one at boot, on a reload and at tenant registration (#2521). Those refusals
-		// compile only with `auth` off, which neither line above builds.
-		"echo '### cargo test -p fraiseql-server --lib (no default features, rest: the auth-OFF enrichment refusals)'",
-		"cargo test -p fraiseql-server --lib --no-default-features --features rest -- server::parity_tests::no_auth_enrichment_tests::",
+		// The build without `auth` (#2521, #2522): its refusals and its fixtures compile only
+		// there, which neither line above builds. The database-backed tests it skips run in
+		// integrationPostgres, in a build without `auth` too.
+		"echo '### cargo test -p fraiseql-server --lib (no default features, rest: the auth-OFF build)'",
+		"cargo test -p fraiseql-server --lib --no-default-features --features rest -- --skip server::routing::storage_policy_admin_tests --skip tenancy::tests::runtime_config_drift",
 		// fraiseql-auth runs above only inside the `--all-features` workspace sweep, so its
 		// `#[cfg(not(feature = "auth-saml"))]` arms compiled nowhere: the build without SAML,
 		// the default one, was never tested.
@@ -1436,6 +1440,11 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// the config is read per registration rather than captured. Serial: each
 		// registration provisions its own pool.
 		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --lib tenancy::tests::runtime_config_drift -- --test-threads=1",
+		// #2522: the server lib's database-backed tests in the build without `auth`, which
+		// the DB-less Test leg skips or sees self-skip. A fixture naming a section only an
+		// `auth` build has fails here, against a real database.
+		// feature-off: auth — server::provision_tests
+		"cargo test -p fraiseql-server --no-default-features --features '" + serverWithoutAuthFeatures + "' --lib -- server::provision_tests:: server::routing::storage_policy_admin_tests:: tenancy::tests::runtime_config_drift:: --test-threads=1",
 		// #775: per-mailbox spine scoping + content-digest dedup key. Drives
 		// EmailIngestSink against real PG (no IMAP, no real mailbox): the same
 		// Message-ID to two mailboxes lands twice; a pre-claimed Message-ID cannot
