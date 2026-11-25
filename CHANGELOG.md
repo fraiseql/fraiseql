@@ -2016,6 +2016,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The PHP SDK's client no longer calls `curl_close()` (#2542).** It has done nothing
+  since PHP 8.0, and PHP 8.5 deprecates it, so every request raised a deprecation on 8.5.
+  The handle is freed when it goes out of scope, as it already was.
+
 - **A mutation's result is completed as the type its outcome answers, whether or not
   `__typename` is selected (#2538).** A failure of a mutation returning an object type,
   selected as `... on CreateUserSuccess { id } ... on DuplicateEmailError { message }`,

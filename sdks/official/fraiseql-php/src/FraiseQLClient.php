@@ -109,7 +109,6 @@ final class FraiseQLClient
         $response = curl_exec($ch);
         $errno = curl_errno($ch);
         $info = curl_getinfo($ch);
-        curl_close($ch);
 
         if ($errno === CURLE_OPERATION_TIMEDOUT) {
             throw new TimeoutException('Request timed out');
