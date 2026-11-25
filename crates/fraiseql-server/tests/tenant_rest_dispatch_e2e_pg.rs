@@ -8,7 +8,8 @@
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** creates and drops `tenant_p1550rest` and `public` decoys named
-//! `*_p1550_*` → run `--test-threads=1`.
+//! `*_p1550_*` (and `enrichment_consumer` its own `tenant_p2521` and `*_p2521_*`) → run
+//! `--test-threads=1`.
 #![cfg(feature = "rest")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code
 
@@ -38,6 +39,9 @@ use fraiseql_server::{
 use fraiseql_test_support::try_database_url;
 use serde_json::{Value, json};
 use tower::ServiceExt as _;
+
+#[path = "tenant_rest_dispatch_e2e_pg/enrichment_consumer.rs"]
+mod enrichment_consumer;
 
 const TENANT: &str = "p1550rest";
 const TENANT_ROW: &str = "TENANT-ROW";

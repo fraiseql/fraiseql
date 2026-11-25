@@ -277,6 +277,19 @@ pub async fn upsert_tenant_handler(
     let schema_json = serde_json::to_string(&body.schema)
         .map_err(|e| ApiError::validation_error(format!("invalid schema JSON: {e}")))?;
 
+    // A schema that reads the enriched identity needs a resolver, as at boot and on a
+    // reload: checked before the executor is built, so a refused schema is never installed.
+    #[cfg(feature = "auth")]
+    {
+        let schema = fraiseql_core::schema::CompiledSchema::from_json(&schema_json, false)
+            .map_err(|e| ApiError::validation_error(format!("invalid schema: {e}")))?;
+        crate::server::initialization::enrichment_readers_resolved_check(
+            &schema,
+            state.identity.resolves_enrichment(),
+        )
+        .map_err(ApiError::validation_error)?;
+    }
+
     // Refuse a quota that cannot enforce anything *before* provisioning the
     // executor (#966). Tenants are registered here rather than from a config
     // file, so this endpoint is where "a configured-but-unconsumed budget is an

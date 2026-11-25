@@ -2577,6 +2577,17 @@ killers = ["an_embedded_count_counts_what_the_targets_policy_admits"]
 shard = "rest-relay-embed"
 
 [[site]]
+id = "enrichment.tenant-registration"
+file = "crates/fraiseql-server/src/routes/api/tenant_admin.rs"
+function = "upsert_tenant_handler"
+anchor = "enrichment_readers_resolved_check(\n            &schema,\n            state.identity.resolves_enrichment(),\n        )"
+mutant = "enrichment_readers_resolved_check(\n            &schema,\n            { let _ = &state.identity; true },\n        )"
+killers = [
+  "a_tenant_schema_reading_the_enriched_identity_is_refused_without_a_resolver",
+]
+shard = "tenant-rest"
+
+[[site]]
 id = "enrichment.execute_relay_composed"
 file = "crates/fraiseql-core/src/runtime/executor/relay_direct.rs"
 function = "Executor::execute_relay_composed"
