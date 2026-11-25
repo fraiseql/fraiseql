@@ -651,25 +651,46 @@ critical endpoints.
 
 ## Audit Log Integrity
 
-FraiseQL does not yet chain its audit entries: no entry carries the hash of the one
-before it, so nothing detects an edited or deleted entry (tracked in #1630). What the
-`fraiseql-server` binary records today, all of it as `tracing` records in its log output
-(`FRAISEQL_LOG_FORMAT=json` for JSON), none of it in the database:
+FraiseQL does not chain its audit records: no record carries the hash of the one before
+it, so nothing detects an edited or deleted record (tracked in #1630). What the
+`fraiseql-server` binary records today, and where:
 
-- **Security events**: JWT and session-token validation, OAuth and OIDC exchanges,
-  authentication and authorization outcomes, admin SQL executions. `INFO`
-  `Security event: successful operation` or `WARN` `Security event: failed operation`
-  (with `error`), carrying `event_type`, `secret_type`, `subject`, `operation` and
-  `context`.
+In the database:
+
+- **Mutation change log**: one row in `core.tb_entity_change_log` per mutation that
+  succeeds and changes state, written in the mutation's own transaction. It carries the
+  entity type and id, the verb, the after-image, `tenant_id`, `trace_id`, `actor_type`
+  and `acting_for` (see [Audit logging: the actor model](../docs/features/audit-logging.md)).
+  On by default; `FRAISEQL_CHANGELOG_ENABLED=false`, `[changelog] write_enabled = false`
+  or a mutation's own opt-out turns it off. Read it through `core.v_entity_change_log`.
+- **RBAC changes**: one row in `fraiseql_permission_audit` per role, permission or
+  assignment change made through the RBAC management API, in the same transaction as the
+  change. The server creates the table at boot when an admin token and a database are
+  configured; `GET /api/audit/permissions` reads it.
+
+In the log output only, as `tracing` records (`FRAISEQL_LOG_FORMAT=json` for JSON):
+
+- **Security events**: sign-in outcomes of the first-party auth flows (local password,
+  password reset and email verification, email OTP, TOTP MFA, SAML, anonymous sessions,
+  account linking), session creation and revocation, authorization denials on GraphQL
+  operations, and admin SQL executions. `INFO` `Security event: successful operation` or
+  `WARN` `Security event: failed operation` (with `error`), carrying `event_type`,
+  `secret_type`, `subject`, `operation` and `context`.
 - **Mutations**: one `INFO` record per successful mutation, target
   `fraiseql::mutation_audit`, message `mutation.executed`, with `mutation_name`,
   `entity_type`, `operation` and `tenant_id`, while `audit_logging_enabled` is on (below).
-- **Tenant lifecycle events** of the multi-tenant admin API are kept in memory only, and
-  are gone when the process restarts.
 
-The library's `fraiseql_core::security::AuditLogger` writes entries to a table that no
-migration creates, `fraiseql_audit_logs` (#1630), and the binary never constructs that
-logger: it is for an application that embeds the library and provides the table itself.
+In memory only, gone when the process restarts:
+
+- **Tenant lifecycle events** of the multi-tenant admin API.
+
+Whoever can write to the database can rewrite both tables, and whoever controls the
+server's log output can drop records from it.
+
+The library's `fraiseql_core::security::AuditLogger` writes to a table that no migration
+creates (`fraiseql_audit_logs` does not exist unless you create it, #1630), and the binary
+never constructs that logger: it is for an application that embeds the library and creates
+the table itself.
 
 **Recommendation for high-compliance environments** (SOC2, PCI-DSS): ship those
 events off the host as they are written, to a store an attacker on the database or

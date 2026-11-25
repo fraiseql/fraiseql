@@ -156,7 +156,8 @@ would be the hole the extractor exists to close.
 ## Every execution is audited
 
 One entry per request, emitted as a structured security log event, like the credential
-events (there is no tamper-evident chain yet, #1630). An executed statement is an `INFO`
+events. Entries are not chained: none carries the hash of the one before it, so an
+edited or deleted entry is not detectable (#1630). An executed statement is an `INFO`
 record, `Security event: successful operation`; a failed or refused one is a `WARN` record,
 `Security event: failed operation`, with an `error` field. Either carries:
 
@@ -177,9 +178,9 @@ The statement text is truncated to about 1 KB (the audit entry is bounded), so t
 SHA-256 of the whole text is recorded alongside it. A truncated record still
 identifies exactly which statement ran.
 
-These entries exist only as `tracing` records in the server's log output. The server
-ships no database-backed audit sink and nothing in its configuration installs one, so
-before enabling the console in production, make sure your log pipeline collects and
+These entries exist only as `tracing` records in the server's log output: no database
+table receives them, and nothing in the server's configuration installs one. Before
+enabling the console in production, make sure your log pipeline collects and
 retains them (`FRAISEQL_LOG_FORMAT=json` emits them as JSON), preferably in a store
 that whoever operates the database or the server cannot rewrite.
 
