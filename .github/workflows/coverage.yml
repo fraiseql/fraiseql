@@ -52,35 +52,14 @@ jobs:
         uses: ./.github/actions/init-postgres
 
       # Collect profdata across multiple runs with --no-report.
-      # fraiseql-core and fraiseql-db use the feature sets their legs test, read from
-      # .dagger/main.go (`make lint-leg-lines` holds these steps to it).
+      # fraiseql-core and fraiseql-db are measured by `CoveragePostgres` in .dagger/main.go,
+      # over the lines their legs run and the services the database-backed tests need
+      # (standby replicas, a server below the version floor), with their thresholds:
+      #   dagger call coverage-postgres --source=. export --path=coverage
+      # `make lint-leg-lines` holds this workflow to measuring neither.
       # All other crates use --all-features for maximum coverage.
       - name: Clean previous coverage data
         run: cargo llvm-cov clean --workspace
-
-      - name: "Collect coverage: fraiseql-core"
-        run: |
-          # The set the Test leg tests this crate with: the const in .dagger/main.go.
-          features="$(python3 tools/leg-lines.py --const coreTestFeatures)"
-          cargo llvm-cov --no-report \
-            --features "$features" \
-            -p fraiseql-core \
-            -- --test-threads=1
-        env:
-          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
-          CARGO_BUILD_JOBS: 2
-
-      - name: "Collect coverage: fraiseql-db"
-        run: |
-          # The set the Test leg tests this crate with: the const in .dagger/main.go.
-          features="$(python3 tools/leg-lines.py --const dbTestFeatures)"
-          cargo llvm-cov --no-report \
-            --features "$features" \
-            -p fraiseql-db \
-            -- --test-threads=1
-        env:
-          DATABASE_URL: postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
-          CARGO_BUILD_JOBS: 2
 
       - name: "Collect coverage: remaining crates"
         run: |
@@ -104,12 +83,6 @@ jobs:
       # Per-crate threshold checks
       - name: "Check threshold: security-critical crates (≥80%)"
         run: cargo llvm-cov report -p fraiseql-auth -p fraiseql-secrets --fail-under-lines 80
-
-      - name: "Check threshold: fraiseql-core (≥70%)"
-        run: cargo llvm-cov report -p fraiseql-core --fail-under-lines 70
-
-      - name: "Check threshold: fraiseql-db (≥65%)"
-        run: cargo llvm-cov report -p fraiseql-db --fail-under-lines 65
 
       - name: "Check threshold: fraiseql-server (≥60%)"
         run: cargo llvm-cov report -p fraiseql-server --fail-under-lines 60

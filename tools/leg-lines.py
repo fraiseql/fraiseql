@@ -32,18 +32,30 @@ tools/check-suite-coverage.py attributes to the function. That gate certifies wh
 each leg runs; two readers of main.go that disagree mean one of them misreads it,
 which is FATAL too.
 
-Two more modes serve `.github/workflows/coverage.yml`, which builds fraiseql-core and
-fraiseql-db with the features their legs test:
+Two more modes serve coverage. fraiseql-core and fraiseql-db are measured by
+`CoveragePostgres` in main.go, over the tests their legs run, database-backed ones
+included; `.github/workflows/coverage.yml` measures the other crates:
 
     python3 tools/leg-lines.py --const coreTestFeatures   # one const's value
-    python3 tools/leg-lines.py --coverage                 # check the workflow
+    python3 tools/leg-lines.py --coverage                 # check both
 
-`--const` prints a const of main.go; a name main.go does not define is FATAL. The
-workflow reads its feature lists through it at run time, so a feature added to a const
-reaches coverage with no workflow edit. `--coverage` holds the workflow to that: in its
-`run:` blocks (a YAML or shell comment, or an `echo`, runs nothing and is not read), no
-`--features` value may be a literal, every `--const` must name a const, and the consts
-in COVERAGE_CONSTS must each be read.
+`--const` prints a const of main.go; a name main.go does not define is FATAL.
+`--coverage` holds the split. In the workflow's `run:` blocks (a YAML or shell comment,
+or an `echo`, runs nothing and is not read), no `--features` value may be a literal,
+every `--const` must name a const, and no `cargo llvm-cov` command may measure a crate
+of COVERAGE_CRATES: none may name one with `-p`, and a `--workspace` one must
+`--exclude` each. In main.go, `CoveragePostgres` must read its lines through
+`leg-lines.py --crates` naming every crate of COVERAGE_CRATES.
+
+One more serves `CoveragePostgres` in main.go, which measures fraiseql-core and
+fraiseql-db over the services `integrationPostgres` binds:
+
+    python3 tools/leg-lines.py --crates fraiseql-core,fraiseql-db Test integrationPostgres
+
+`--crates` prints, from the named shards in order, the cargo test lines whose `-p` names
+one of the crates, as the shard runs them. Nothing else of the shard is printed. A crate
+no shard tests is FATAL, and so is a crate none of the named shards prints a line for:
+coverage measured over no line of a crate is a number about nothing.
 
 Its red capability is pinned by `tools/tests/leg_lines_test.sh`. `LEG_LINES_ROOT`
 points it at another tree (the test's fixtures).
@@ -76,9 +88,10 @@ CI_ONLY = (
     "export PATH=/tmp/confiture/bin:$PATH",
 )
 
-# The consts coverage.yml must read: the feature sets of the crates it builds with
-# explicit features rather than --all-features.
-COVERAGE_CONSTS = ("coreTestFeatures", "dbTestFeatures")
+# The crates CoveragePostgres measures over their legs' lines, and coverage.yml does not.
+COVERAGE_CRATES = ("fraiseql-core", "fraiseql-db")
+COVERAGE_FUNC = "CoveragePostgres"
+CRATES_READ = re.compile(r"leg-lines\.py\s+--crates\s+([\w,-]+)")
 COVERAGE_WORKFLOW = Path(".github") / "workflows" / "coverage.yml"
 RUN_KEY = re.compile(r"^(\s*)(?:-\s+)?run:\s*(.*)$")
 CONST_READ = re.compile(r"leg-lines\.py\s+--const\s+([A-Za-z_]\w*)")
@@ -245,6 +258,41 @@ def leg_lines(func: str) -> list[str]:
     return lines
 
 
+def flag_values(toks: list[str], *flags: str) -> set[str]:
+    """The values of `flags` among `toks`, as `--flag v` or `--flag=v`."""
+    found = set()
+    for idx, tok in enumerate(toks):
+        if tok in flags and idx + 1 < len(toks):
+            found.add(toks[idx + 1])
+        elif tok.startswith(tuple(f"{flag}=" for flag in flags)):
+            found.add(tok.split("=", 1)[1])
+    return found
+
+
+def packages(line: str) -> set[str]:
+    """The `-p`/`--package` crates of a cargo test line; empty for any other line."""
+    if canonical(line) is None:
+        return set()
+    return flag_values(shlex.split(line), "-p", "--package")
+
+
+def crate_lines(crates: list[str], shards: list[str]) -> list[str]:
+    """The cargo test lines of `shards`, in order, that test one of `crates`."""
+    read = {shard: leg_lines(shard) for shard in SHARDS}
+    tested = set().union(*(packages(line) for lines in read.values() for line in lines))
+    unknown = [crate for crate in crates if crate not in tested]
+    if unknown:
+        raise Unreadable(
+            "no shard tests " + ", ".join(f"`{c}`" for c in unknown)
+            + f" (the crates {', '.join(SHARDS)} test: {', '.join(sorted(tested))})"
+        )
+    out = [line for shard in shards for line in read[shard] if packages(line) & set(crates)]
+    for crate in crates:
+        if not any(crate in packages(line) for line in out):
+            raise Unreadable(f"`{', '.join(shards)}` run no cargo test line for `{crate}`")
+    return out
+
+
 def go_consts() -> dict[str, str]:
     return dict(GO_CONST.findall((ROOT / ".dagger" / "main.go").read_text(encoding="utf-8")))
 
@@ -305,14 +353,28 @@ def shell_commands(block: str) -> list[str]:
     return out
 
 
-def literal_features(command: str) -> list[str]:
-    """The `--features` values of a command that are literals (expand no `$`)."""
+def command_tokens(command: str) -> list[str]:
+    """A run command's words; empty for an `echo`, which runs nothing it names."""
     try:
         toks = shlex.split(command, comments=True)
     except ValueError as exc:
         raise Unreadable(f"coverage.yml: cannot split `{command}`: {exc}") from exc
-    if not toks or toks[0] in ("echo", "printf"):
-        return []
+    return [] if not toks or toks[0] in ("echo", "printf") else toks
+
+
+def measured_crates(toks: list[str]) -> set[str]:
+    """The COVERAGE_CRATES a `cargo llvm-cov` command measures or reports."""
+    if toks[:2] != ["cargo", "llvm-cov"] or toks[2:3] in (["clean"], ["show-env"]):
+        return set()
+    named = flag_values(toks, "-p", "--package")
+    if "--workspace" in toks or "--all" in toks:
+        named |= set(COVERAGE_CRATES) - flag_values(toks, "--exclude")
+    return named & set(COVERAGE_CRATES)
+
+
+def literal_features(command: str) -> list[str]:
+    """The `--features` values of a command that are literals (expand no `$`)."""
+    toks = command_tokens(command)
     found = []
     for idx, tok in enumerate(toks):
         if tok.startswith("--features="):
@@ -326,12 +388,22 @@ def literal_features(command: str) -> list[str]:
     return found
 
 
+def function_body(main_go: str, func: str) -> str:
+    head = re.search(rf"^func \(m \*FraiseqlCi\) {re.escape(func)}\(", main_go, re.MULTILINE)
+    if not head:
+        raise Unreadable(f"no `{func}` function in .dagger/main.go")
+    body = main_go[head.start() :]
+    nxt = re.search(r"^func ", body[1:], re.MULTILINE)
+    return body[: nxt.start() + 1] if nxt else body
+
+
 def check_coverage() -> list[str]:
     path = ROOT / COVERAGE_WORKFLOW
     if not path.is_file():
         raise Unreadable(f"{COVERAGE_WORKFLOW} not found")
-    consts = go_consts()
-    errors, read = [], set()
+    main_go = (ROOT / ".dagger" / "main.go").read_text(encoding="utf-8")
+    consts = dict(GO_CONST.findall(main_go))
+    errors = []
     blocks = run_blocks(path.read_text(encoding="utf-8"))
     if not blocks:
         raise Unreadable(f"{COVERAGE_WORKFLOW}: no `run:` step read; the reader went blind")
@@ -343,17 +415,24 @@ def check_coverage() -> list[str]:
                     "set from .dagger/main.go with `python3 tools/leg-lines.py --const <name>`"
                 )
             for name in CONST_READ.findall(command):
-                read.add(name)
                 if name not in consts:
                     errors.append(
                         f"{COVERAGE_WORKFLOW}:{lineno}: `--const {name}` is not a const of "
                         ".dagger/main.go"
                     )
+            for crate in sorted(measured_crates(command_tokens(command))):
+                errors.append(
+                    f"{COVERAGE_WORKFLOW}:{lineno}: measures `{crate}`, which "
+                    f"{COVERAGE_FUNC} measures over its legs' lines and the services they need"
+                )
+    read = set()
+    for crates in CRATES_READ.findall(function_body(main_go, COVERAGE_FUNC)):
+        read |= set(crates.split(","))
     errors.extend(
-        f"{COVERAGE_WORKFLOW}: no run step reads `{name}`; the crate it is the set of "
-        "would be built with another"
-        for name in COVERAGE_CONSTS
-        if name not in read
+        f".dagger/main.go: {COVERAGE_FUNC} does not read `{crate}`'s lines through "
+        "`leg-lines.py --crates`; nothing measures it"
+        for crate in COVERAGE_CRATES
+        if crate not in read
     )
     return errors
 
@@ -363,6 +442,18 @@ def main() -> int:
     try:
         if len(args) == 2 and args[0] == "--const":
             print(const_value(args[1]))
+            return 0
+        if len(args) >= 3 and args[0] == "--crates":
+            crates = [c for c in args[1].split(",") if c]
+            shards = args[2:]
+            bad = [shard for shard in shards if shard not in SHARDS]
+            if not crates or bad:
+                raise Unreadable(
+                    "usage: --crates CRATE[,CRATE…] SHARD…, with SHARD one of "
+                    + ", ".join(SHARDS)
+                    + (f" (not a shard: {', '.join(bad)})" if bad else "")
+                )
+            print("\n".join(crate_lines(crates, shards)))
             return 0
         if args == ["--coverage"]:
             errors = check_coverage()
@@ -374,7 +465,8 @@ def main() -> int:
         return 1
     if len(args) != 1 or args[0] not in SHARDS:
         print(
-            f"usage: leg-lines.py {{{'|'.join(SHARDS)}}} | --const NAME | --coverage",
+            f"usage: leg-lines.py {{{'|'.join(SHARDS)}}} | --const NAME | --coverage"
+            " | --crates CRATE[,CRATE…] SHARD…",
             file=sys.stderr,
         )
         return 2

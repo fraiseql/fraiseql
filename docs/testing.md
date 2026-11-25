@@ -352,6 +352,21 @@ Each list of gates is written once, in the `Makefile`, and CI runs that list.
   of the `Test` and `integrationPostgres` shards. `tools/leg-lines.py` reads them out
   of `.dagger/main.go` when the target runs; `python3 tools/leg-lines.py Test` prints
   them.
+- **Coverage of fraiseql-core and fraiseql-db.** The Dagger `CoveragePostgres`
+  function measures the two crates over the same shard lines, with the services
+  `integrationPostgres` binds (two streaming standbys, a server below the version
+  floor), and holds them to their thresholds (core 70%, db 65%).
+  `python3 tools/leg-lines.py --crates fraiseql-core,fraiseql-db Test integrationPostgres`
+  prints the lines it runs; a crate with no line fails it, and so does a failing test.
+  No workflow calls it yet. To run it by hand and write the report (`lcov.info`,
+  `coverage.json`) to `coverage/`:
+
+  ```bash
+  dagger call coverage-postgres --source=. export --path=coverage
+  ```
+
+  `.github/workflows/coverage.yml` measures the other crates, and
+  `make lint-leg-lines` fails if it measures either of these two.
 
 `tools/check-gate-reachability.py` (in `shell-gates`) holds this together. It fails
 when:

@@ -143,7 +143,72 @@ open(p, "w").write(s)
 PY
 expect_red "a shard with no cargo test line" "$d" Test 'no cargo test line read'
 
-# --- coverage.yml reads its feature sets from main.go ----------------------------
+# --- --crates: a crate's lines out of the shards ----------------------------------
+crates_expect() {
+    local name="$1" d="$2" want="$3"
+    shift 3
+    cases=$((cases + 1))
+    if [ "$d" != "$repo_root" ] && cmp -s "$repo_root/.dagger/main.go" "$d/.dagger/main.go" &&
+        [ "${name#baseline}" = "$name" ]; then
+        echo "FAIL: $name: the plant changed nothing"
+        failed=$((failed + 1))
+        return
+    fi
+    LEG_LINES_ROOT="$d" python3 "$READER" --crates "$@" >"$work/out" 2>&1
+    local rc=$?
+    if [ -n "$want" ] && [ $rc -ne 0 ] && grep -qF -- "$want" "$work/out"; then
+        echo "ok: $name"
+    else
+        echo "FAIL: $name: rc=$rc, wanted red with: $want"
+        sed 's/^/    /' "$work/out"
+        failed=$((failed + 1))
+    fi
+}
+
+# Every line printed tests one of the crates, every crate has a line, and each line is
+# one the shard runs, verbatim.
+d="$(case_dir crates-baseline)"
+cases=$((cases + 1))
+if LEG_LINES_ROOT="$d" python3 "$READER" --crates fraiseql-core,fraiseql-db Test integrationPostgres >"$work/crates.out" 2>&1 &&
+    [ "$(grep -c -- '-p fraiseql-core ' "$work/crates.out")" -ge 2 ] &&
+    [ "$(grep -c -- '-p fraiseql-db ' "$work/crates.out")" -ge 2 ] &&
+    [ "$(grep -cv -- '^cargo test -p fraiseql-\(core\|db\) ' "$work/crates.out")" = 0 ] &&
+    [ "$(grep -cxFf "$work/crates.out" "$work/test.lines" "$work/pg.lines" | awk -F: '{n += $2} END {print n}')" = "$(wc -l <"$work/crates.out")" ]; then
+    echo "ok: --crates prints the crates' lines as the shards run them, and only those"
+else
+    echo "FAIL: --crates prints the crates' lines as the shards run them, and only those"
+    sed 's/^/    /' "$work/crates.out"
+    failed=$((failed + 1))
+fi
+
+# A line for another crate is left out, one whose name the crate's is a prefix of too.
+d="$(case_dir crates-other)"
+sed -i '0,/^\t\t"cargo test -p fraiseql-core --lib",$/s//\t\t"cargo test -p fraiseql-db-planted --lib",/' "$d/.dagger/main.go"
+cases=$((cases + 1))
+if planted "$d" "a line for another crate is excluded" &&
+    LEG_LINES_ROOT="$d" python3 "$READER" Test | grep -c -- '-p fraiseql-db-planted ' >/dev/null &&
+    LEG_LINES_ROOT="$d" python3 "$READER" --crates fraiseql-db Test >"$work/out" 2>&1 &&
+    [ "$(grep -c 'fraiseql-db-planted\|fraiseql-core' "$work/out")" = 0 ] &&
+    [ "$(grep -c -- '-p fraiseql-db ' "$work/out")" = 1 ]; then
+    echo "ok: a line for another crate is excluded"
+else
+    echo "FAIL: a line for another crate is excluded"
+    sed 's/^/    /' "$work/out"
+    failed=$((failed + 1))
+fi
+
+crates_expect "an unknown crate" "$repo_root" 'no shard tests `fraiseql-nope`' \
+    fraiseql-core,fraiseql-nope Test integrationPostgres
+
+d="$(case_dir crates-empty)"
+sed -i "0,/^\t\t\"cargo test -p fraiseql-db --lib --features '\" + dbTestFeatures + \"'\",\$/s//\t\t\"cargo test -p fraiseql-time --lib --features '\" + dbTestFeatures + \"'\",/" "$d/.dagger/main.go"
+crates_expect "a crate the named shards run no line for" "$d" \
+    '`Test` run no cargo test line for `fraiseql-db`' fraiseql-core,fraiseql-db Test
+
+crates_expect "a name that is not a shard" "$repo_root" '(not a shard: integrationRedis)' \
+    fraiseql-db Test integrationRedis
+
+# --- coverage: CoveragePostgres measures core and db, coverage.yml the rest -------
 cov_dir() {
     local d
     d="$(case_dir "$1")"
@@ -152,8 +217,8 @@ cov_dir() {
     printf '%s\n' "$d"
 }
 
-# Replace the first line holding `$2` in the case's coverage.yml (the core step's, where
-# the anchor is in both) with `$3`, newlines written as \n.
+# Replace the first line holding `$2` in the case's coverage.yml with `$3`, newlines
+# written as \n.
 cov_plant() {
     python3 - "$1/.github/workflows/coverage.yml" "$2" "$3" <<'PY'
 import sys
@@ -194,15 +259,15 @@ d="$(cov_dir cov-baseline)"
 cov_expect baseline "$d" ""
 
 d="$(cov_dir cov-literal)"
-cov_plant "$d" '--features "$features" \' '--features "test-postgres,arrow,kafka" \'
+cov_plant "$d" '--all-features \' '--features "test-postgres,arrow,kafka" \'
 cov_expect "a literal --features in a run block" "$d" 'a literal `--features test-postgres,arrow,kafka`'
 
 d="$(cov_dir cov-continued)"
-cov_plant "$d" '--features "$features" \' '--features \\n  "postgres,wire-backend" \'
+cov_plant "$d" '--all-features \' '--features \\n  "postgres,wire-backend" \'
 cov_expect "a literal --features split over a continuation" "$d" 'a literal `--features postgres,wire-backend`'
 
 d="$(cov_dir cov-equals)"
-cov_plant "$d" '--features "$features" \' '--features=postgres,wire-backend \'
+cov_plant "$d" '--all-features \' '--features=postgres,wire-backend \'
 cov_expect "a literal --features=" "$d" 'a literal `--features postgres,wire-backend`'
 
 d="$(cov_dir cov-yaml-comment)"
@@ -210,37 +275,48 @@ cov_plant "$d" '# Collect profdata across multiple runs' '# Collect profdata acr
 cov_expect "a literal in a YAML comment runs nothing" "$d" ""
 
 d="$(cov_dir cov-shell-comment)"
-cov_plant "$d" '# The set the Test leg tests this crate with' '# The set the Test leg tests this crate with\n# was: cargo llvm-cov --features "arrow,kafka" \'
+cov_plant "$d" '--all-features \' '--all-features \\n# was: cargo llvm-cov --features "arrow,kafka" -p fraiseql-db \'
 cov_expect "a literal in a shell comment runs nothing" "$d" ""
 
 # In bash a comment line inside a continued command ends it, trailing `\` and all: the
 # line after it runs as a command of its own, and its literal is read.
 d="$(cov_dir cov-comment-continued)"
-cov_plant "$d" '--features "$features" \' '# an old note \\n--features "arrow,kafka" \'
+cov_plant "$d" '--all-features \' '# an old note \\n--features "arrow,kafka" \'
 cov_expect "a comment line ending a continued command hides no literal after it" "$d" 'a literal `--features arrow,kafka`'
 
 d="$(cov_dir cov-echo)"
-cov_plant "$d" 'run: cargo llvm-cov clean --workspace' 'run: |\n  echo was --features arrow,kafka\n  cargo llvm-cov clean --workspace'
+cov_plant "$d" 'run: cargo llvm-cov clean --workspace' 'run: |\n  echo was cargo llvm-cov report -p fraiseql-db --features arrow,kafka\n  cargo llvm-cov clean --workspace'
 cov_expect "a literal in an echo runs nothing" "$d" ""
 
 d="$(cov_dir cov-unknown-const)"
-sed -i 's/--const dbTestFeatures)/--const dbFeatures)/' "$d/.github/workflows/coverage.yml"
+cov_plant "$d" '--all-features \' '--features "$(python3 tools/leg-lines.py --const dbFeatures)" \'
 cov_expect "a --const naming no const" "$d" '`--const dbFeatures` is not a const'
 
-d="$(cov_dir cov-unread)"
-sed -i 's/--const coreTestFeatures)/--const dbTestFeatures)/' "$d/.github/workflows/coverage.yml"
-cov_expect "a coverage const no step reads" "$d" 'no run step reads `coreTestFeatures`'
+d="$(cov_dir cov-threshold)"
+cov_plant "$d" 'run: cargo llvm-cov report -p fraiseql-federation --fail-under-lines 60' 'run: cargo llvm-cov report -p fraiseql-db --fail-under-lines 50'
+cov_expect "the workflow measures a crate CoveragePostgres measures" "$d" 'measures `fraiseql-db`, which CoveragePostgres measures'
 
-# A feature planted in the const reaches what the workflow reads, with no workflow edit.
+d="$(cov_dir cov-unexcluded)"
+cov_plant "$d" '--exclude fraiseql-core \' '\'
+cov_expect "a --workspace run that does not exclude core" "$d" 'measures `fraiseql-core`, which CoveragePostgres measures'
+
+d="$(cov_dir cov-func-crate)"
+sed -i 's/leg-lines.py --crates fraiseql-core,fraiseql-db /leg-lines.py --crates fraiseql-core /' "$d/.dagger/main.go"
+cov_expect "CoveragePostgres reads no line for db" "$d" "CoveragePostgres does not read \`fraiseql-db\`'s lines"
+
+d="$(cov_dir cov-func-gone)"
+sed -i 's/^func (m \*FraiseqlCi) CoveragePostgres(/func (m *FraiseqlCi) CoverageRenamed(/' "$d/.dagger/main.go"
+cov_expect "CoveragePostgres is gone" "$d" 'no `CoveragePostgres` function'
+
+# A feature planted in a const is what --const prints.
 d="$(cov_dir cov-flow)"
 sed -i 's/^\(\s*coreTestFeatures\s*=\s*"\)/\1planted-feature,/' "$d/.dagger/main.go"
 cases=$((cases + 1))
-if planted "$d" "a planted core feature flows into coverage" &&
-    LEG_LINES_ROOT="$d" python3 "$READER" --coverage >/dev/null 2>&1 &&
+if planted "$d" "--const prints a feature planted in the const" &&
     LEG_LINES_ROOT="$d" python3 "$READER" --const coreTestFeatures | grep -c '^planted-feature,' >/dev/null; then
-    echo "ok: a planted core feature flows into coverage"
+    echo "ok: --const prints a feature planted in the const"
 else
-    echo "FAIL: a planted core feature flows into coverage"
+    echo "FAIL: --const prints a feature planted in the const"
     failed=$((failed + 1))
 fi
 
@@ -317,4 +393,4 @@ echo "$cases cases, $failed failed"
 if [ "$failed" -ne 0 ]; then
     exit 1
 fi
-echo "OK: tools/leg-lines.py refuses every shape it cannot read, the mirror runs every line, and coverage.yml reads its feature sets from main.go."
+echo "OK: tools/leg-lines.py refuses every shape it cannot read, the mirror runs every line, --crates prints a crate's lines and nothing else, and coverage leaves core and db to CoveragePostgres."

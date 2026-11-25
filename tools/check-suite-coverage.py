@@ -1375,6 +1375,19 @@ def extract_invocations(main_go: str) -> tuple[list[Invocation], list[str]]:
     env_by_func: dict[str, set[str]] = {}
     for m in re.finditer(r'WithEnvVariable\("([A-Z0-9_]+)"', main_go):
         env_by_func.setdefault(func_at(m.start()), set()).add(m.group(1))
+    # A leg binds what the methods it calls bind: integrationPostgres's services are
+    # bound in withPostgresServices, which CoveragePostgres binds too.
+    calls: dict[str, set[str]] = {}
+    for m in re.finditer(r"\bm\.(\w+)\(", main_go):
+        calls.setdefault(func_at(m.start()), set()).add(m.group(1))
+    changed = True
+    while changed:
+        changed = False
+        for caller, callees in calls.items():
+            inherited = set().union(*(env_by_func.get(c, set()) for c in callees))
+            if not inherited <= env_by_func.get(caller, set()):
+                env_by_func.setdefault(caller, set()).update(inherited)
+                changed = True
     for inv in invocations:
         inv.env = env_by_func.get(inv.leg, set())
 

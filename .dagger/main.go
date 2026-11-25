@@ -39,6 +39,8 @@ const (
 	// iaiCallgrindVersion pins iai-callgrind-runner to the iai-callgrind library version
 	// in crates/fraiseql-core/Cargo.toml; the runner refuses a library of another version.
 	iaiCallgrindVersion = "0.16.1"
+	// cargoLlvmCovVersion pins the cargo-llvm-cov CoveragePostgres installs.
+	cargoLlvmCovVersion = "0.9.1"
 	// rustMsrv mirrors Cargo.toml workspace rust-version and rust-toolchain.toml channel.
 	rustMsrv = "1.95.0"
 	// fmtNightly pins the nightly rustfmt this workspace is formatted with, because
@@ -1343,11 +1345,6 @@ func (m *FraiseqlCi) integrationExamples(ctx context.Context, source *dagger.Dir
 // connects to the bound service; the read-replica lag suite additionally reads
 // STANDBY_DATABASE_URL.
 func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Directory, lane int) (string, error) {
-	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
-	standbyURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgStandbyBindHost, pgDatabase)
-	failoverURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgFailoverBindHost, pgDatabase)
-	belowFloorURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBelowFloorBindHost, pgDatabase)
-
 	script := strings.Join([]string{
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
@@ -1633,13 +1630,28 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"echo 'test-integration OK: postgres suite passed'",
 	}, "\n")
 
+	return m.withPostgresServices(m.integrationBase(source, rustMsrv, lane), source).
+		WithExec([]string{"bash", "-c", script}).
+		Stdout(ctx)
+}
+
+// withPostgresServices binds what integrationPostgres runs against: a seeded primary,
+// two real streaming standbys of it, and a server below the version floor, with the URLs
+// its suites read. CoveragePostgres measures over the same bindings, so the two cannot
+// come to differ in what a database-backed test finds.
+func (m *FraiseqlCi) withPostgresServices(c *dagger.Container, source *dagger.Directory) *dagger.Container {
+	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
+	standbyURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgStandbyBindHost, pgDatabase)
+	failoverURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgFailoverBindHost, pgDatabase)
+	belowFloorURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBelowFloorBindHost, pgDatabase)
+
 	// One pgService instance, bound to both the test container and the standby:
 	// the suite writes on the primary and reads through the standby, so a second
 	// pgService(source) call would leave the standby streaming from a database
 	// nobody writes to and its measured lag permanently zero.
 	primary := m.pgService(source)
 
-	return m.integrationBase(source, rustMsrv, lane).
+	return c.
 		WithServiceBinding(pgBindHost, primary).
 		WithServiceBinding(pgStandbyBindHost, m.pgStandbyService(source, primary, "fraiseql_standby")).
 		WithServiceBinding(pgFailoverBindHost, m.pgStandbyService(source, primary, pgFailoverSlot)).
@@ -1648,9 +1660,63 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		WithEnvVariable("STANDBY_DATABASE_URL", standbyURL).
 		WithEnvVariable("FAILOVER_STANDBY_DATABASE_URL", failoverURL).
 		WithServiceBinding(pgBelowFloorBindHost, m.pgBelowFloorService()).
-		WithEnvVariable("BELOW_FLOOR_DATABASE_URL", belowFloorURL).
-		WithExec([]string{"bash", "-c", script}).
-		Stdout(ctx)
+		WithEnvVariable("BELOW_FLOOR_DATABASE_URL", belowFloorURL)
+}
+
+// CoveragePostgres measures line coverage of fraiseql-core and fraiseql-db over the
+// tests CI runs for them, the database-backed ones included, and returns the report
+// (lcov.info, coverage.json). The hosted coverage workflow cannot bind what those tests
+// need: streaming standbys and a server below the version floor.
+//
+// It runs no line of its own. `tools/leg-lines.py --crates` prints the two crates' cargo
+// test lines from `Test` and `integrationPostgres` as those shards run them, and each is
+// executed unchanged under `cargo llvm-cov show-env`, which instruments a plain `cargo
+// test`. A reader that prints no line for either crate fails the function, and so does a
+// failing test: a number measured over fewer tests than CI runs would read as coverage.
+// The thresholds are the ones the coverage workflow held these crates to.
+//
+//	dagger call coverage-postgres --source=. export --path=coverage
+func (m *FraiseqlCi) CoveragePostgres(
+	ctx context.Context,
+	// +ignore=["target", "**/target", ".git"]
+	source *dagger.Directory,
+	// The runner's lane, as for TestIntegration: the instrumented build has a target
+	// volume of its own per lane.
+	// +optional
+	// +default=0
+	lane int,
+) (*dagger.Directory, error) {
+	if lane < 0 {
+		return nil, fmt.Errorf("lane must be 0 or more, got %d", lane)
+	}
+	script := strings.Join([]string{
+		"set -euo pipefail",
+		"echo \"### toolchain: $(rustc --version); $(cargo llvm-cov --version)\"",
+		"eval \"$(cargo llvm-cov show-env --sh)\"",
+		"cargo llvm-cov clean --workspace",
+		// The assignment fails the script when the reader does: no line for a crate.
+		"lines=\"$(python3 tools/leg-lines.py --crates fraiseql-core,fraiseql-db Test integrationPostgres)\"",
+		// In this shell, not a child bash: BASH_ENV would stamp the sources again before
+		// every line and rebuild the workspace each time.
+		"while IFS= read -r line; do echo \"### $line\"; eval \"$line\"; done <<<\"$lines\"",
+		"mkdir -p coverage",
+		"cargo llvm-cov report --lcov --output-path coverage/lcov.info",
+		"cargo llvm-cov report --json --output-path coverage/coverage.json",
+		"cargo llvm-cov report -p fraiseql-core --fail-under-lines 70",
+		"cargo llvm-cov report -p fraiseql-db --fail-under-lines 65",
+	}, "\n")
+
+	toolchain := resolveToolchain(rustMsrv)
+	base := m.rustBaseFor(toolchain).
+		WithExec([]string{"bash", "-c", "rustup component add llvm-tools-preview"}).
+		WithExec([]string{"bash", "-c", "cargo install cargo-llvm-cov --version " + cargoLlvmCovVersion + " --locked"})
+	volume := laneVolume("fraiseql-rust-target-cov-"+strings.ReplaceAll(toolchain, ".", "-"), lane)
+	built := m.withPostgresServices(rustSource(base, source, volume).WithEnvVariable("RUST_LOG", "debug"), source).
+		WithExec([]string{"bash", "-c", script})
+	if _, err := built.Sync(ctx); err != nil {
+		return nil, err
+	}
+	return built.Directory("/src/coverage"), nil
 }
 
 // integrationSaml runs the #381 SAML SP-login + ACS suite behind the non-default

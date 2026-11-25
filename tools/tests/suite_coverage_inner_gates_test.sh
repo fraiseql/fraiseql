@@ -261,6 +261,21 @@ make_fixture "$WORK/svc_wrong" "$FEATS" "$SERVICE_BODY" \
 expect "...a DIFFERENT service does not satisfy it" 1 "$WORK/svc_wrong" \
     "demo::lib::tests[parquet]"
 
+# A leg binds what a method it calls binds, and only a method it calls.
+make_fixture "$WORK/svc_helper" "$FEATS" "$SERVICE_BODY" \
+    "cargo test -p demo --lib --features parquet"
+cat >>"$WORK/svc_helper/.dagger/main.go" <<'GO'
+
+func (m *FraiseqlCi) withRedis(ctr *Container) *Container {
+	return ctr.WithEnvVariable("REDIS_URL", "stub")
+}
+GO
+cp -r "$WORK/svc_helper" "$WORK/svc_helper_uncalled"
+sed -i 's/^\tscript := \[\]string{$/\t_ = m.withRedis(nil)\n&/' "$WORK/svc_helper/.dagger/main.go"
+expect "...bound by a method the leg calls, it is covered" 0 "$WORK/svc_helper"
+expect "...bound by a method the leg never calls, it is not" 1 "$WORK/svc_helper_uncalled" \
+    "demo::lib::tests[parquet]"
+
 # The service is read from the gated span, not from the file. Whole-file
 # detection would call every target in a tests.rs service-bound because one test
 # somewhere in it dials Redis — it read `commands::tests::run_tests[run-server]`

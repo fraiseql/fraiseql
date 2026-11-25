@@ -287,8 +287,9 @@ test-leg:
 lint-leg-lines:
 	@python3 tools/leg-lines.py Test >/dev/null
 	@python3 tools/leg-lines.py integrationPostgres >/dev/null
+	@python3 tools/leg-lines.py --crates fraiseql-core,fraiseql-db Test integrationPostgres >/dev/null
 	@python3 tools/leg-lines.py --coverage
-	@echo "leg-lines: OK — Test and integrationPostgres read, in agreement with check-suite-coverage.py; coverage.yml reads its feature sets from main.go"
+	@echo "leg-lines: OK — Test and integrationPostgres read, in agreement with check-suite-coverage.py; CoveragePostgres has lines for core and db, and coverage.yml measures neither"
 
 # Red-capability pin for the reader: a shard shape it cannot read, an unresolvable
 # piece, a canary line of neither form and a disagreement with the coverage gate
