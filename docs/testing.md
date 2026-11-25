@@ -332,3 +332,35 @@ credentials that the Makefile targets use.
 | Federation | `federation-tests` | Required |
 | Load | `perf-baseline` | Advisory |
 | Criterion | — | Manual only |
+
+---
+
+## Where a Gate Runs
+
+Each list of gates is written once, in the `Makefile`, and CI runs that list.
+
+- **Shell gates.** Every `shell-gates: <target>` line adds a target to the list. The
+  Dagger `ShellGates` function runs `make -k shell-gates`, and `make preflight` runs
+  the same target. `-k` reports every failing gate in one run; the exit code is still
+  non-zero if any one of them fails. To add a gate, write its target and add one
+  `shell-gates:` line, with a comment saying what it catches.
+- **Rust gates.** Each of the other `Preflight` functions (`Fmt`, `Rustdoc`,
+  `RustdocDefault`, `Clippy`, `CheckDefault`, `CheckFuzz`, `CheckExampleCrates`,
+  `CheckRExamples`) runs one `make` command in its own container. `make preflight`
+  depends on the same targets.
+- **Test shards.** `make test-leg` and `make test-integration-postgres` run the lines
+  of the `Test` and `integrationPostgres` shards. `tools/leg-lines.py` reads them out
+  of `.dagger/main.go` when the target runs; `python3 tools/leg-lines.py Test` prints
+  them.
+
+`tools/check-gate-reachability.py` (in `shell-gates`) holds this together. It fails
+when:
+
+- a `tools/check-*` script, a `tools/tests/*_test.sh` self-test, or a `lint-*` or
+  `test-*-gate` target is run by no CI leg. A gate that is run by no CI leg on
+  purpose gets a row with a `reason` in `tools/gate-reachability-exemptions.toml`;
+- a `Preflight` function's `make` command differs from the one the script pins;
+- a target a CI leg reaches can carry on past a failure: a `-` recipe prefix, a
+  command ending `|| true`, `|| :` or `; true`, `make -i`, an `.IGNORE:` line, or
+  `-i` in `MAKEFLAGS`. A recipe line that says why, with `# Reason:`, may carry on
+  past a failure; `.IGNORE:` and `MAKEFLAGS` have no such exception.
