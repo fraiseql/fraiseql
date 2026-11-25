@@ -289,6 +289,13 @@ pub async fn upsert_tenant_handler(
         )
         .map_err(ApiError::validation_error)?;
     }
+    #[cfg(not(feature = "auth"))]
+    {
+        let schema = fraiseql_core::schema::CompiledSchema::from_json(&schema_json, false)
+            .map_err(|e| ApiError::validation_error(format!("invalid schema: {e}")))?;
+        crate::server::enrichment_without_auth::enrichment_readers_need_auth_check(&schema)
+            .map_err(ApiError::validation_error)?;
+    }
 
     // Refuse a quota that cannot enforce anything *before* provisioning the
     // executor (#966). Tenants are registered here rather than from a config

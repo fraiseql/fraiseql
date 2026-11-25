@@ -21,6 +21,8 @@
 //! **Parallelism:** safe
 #![allow(clippy::panic)] // Reason: the relay stub is never invoked by these tests
 
+#[cfg(not(feature = "auth"))]
+mod no_auth_enrichment_tests;
 mod reload_session_variables_tests;
 
 use std::{collections::HashMap, sync::Arc};

@@ -273,6 +273,8 @@ impl Server {
         crate::server::initialization::enrichment_consumer_without_resolver_check(
             &schema, &config,
         )?;
+        #[cfg(not(feature = "auth"))]
+        crate::server::enrichment_without_auth::enrichment_readers_need_auth_check(&schema)?;
         #[cfg(feature = "auth")]
         crate::server::initialization::locale_enrichment_fields_check(&schema, &config)?;
         // A `static_enriched` field the schema never reads answers nothing.

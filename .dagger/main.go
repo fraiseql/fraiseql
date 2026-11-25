@@ -1251,6 +1251,11 @@ func (m *FraiseqlCi) Test(
 		// rather than ignored — compile only where those features are off (#1179).
 		"echo '### cargo test -p fraiseql-server --lib (default features: the feature-OFF refusal arms)'",
 		"cargo test -p fraiseql-server --lib -- --skip server::routing::storage_policy_admin_tests --skip tenancy::tests::runtime_config_drift",
+		// A build without `auth` resolves no enriched identity, so it refuses a schema that
+		// reads one at boot, on a reload and at tenant registration (#2521). Those refusals
+		// compile only with `auth` off, which neither line above builds.
+		"echo '### cargo test -p fraiseql-server --lib (no default features, rest: the auth-OFF enrichment refusals)'",
+		"cargo test -p fraiseql-server --lib --no-default-features --features rest -- server::parity_tests::no_auth_enrichment_tests::",
 		// fraiseql-auth runs above only inside the `--all-features` workspace sweep, so its
 		// `#[cfg(not(feature = "auth-saml"))]` arms compiled nowhere: the build without SAML,
 		// the default one, was never tested.

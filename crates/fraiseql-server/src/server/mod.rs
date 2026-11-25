@@ -35,6 +35,8 @@ use crate::{
 mod builder;
 pub(crate) mod cache_feed;
 pub(crate) mod capabilities;
+#[cfg(not(feature = "auth"))]
+pub(crate) mod enrichment_without_auth;
 mod extensions;
 #[cfg(feature = "functions-runtime")]
 mod functions_setup;

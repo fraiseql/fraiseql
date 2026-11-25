@@ -1962,6 +1962,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A schema that reads the enriched identity is refused wherever nothing resolves one
+  (#2521).** Registering a tenant through the admin API now runs the check boot and schema
+  reload run: on a server whose `[identity.enrichment]` is disabled, a tenant schema with an
+  `enrichment`-sourced session variable, inject param, `[locale]` source or subscription
+  policy is refused (`VALIDATION_ERROR`, with the boot message) and no executor is
+  installed. A REST relay route read without `?select=` embeds refuses an unresolved
+  principal ("Identity was not resolved for this request"), as every other read already
+  did. A server built without the `auth` feature, which resolves no enriched identity,
+  refuses such a schema at boot, on a reload and at tenant registration, naming the
+  fields it reads.
+
 - **Federation markers authored in Python and TypeScript reach the compiled schema
   (#1713).** Python's `field(inaccessible=True)` was dropped at export; it is now the field
   directive the compiler lifts into the compiled `federation` block. TypeScript's

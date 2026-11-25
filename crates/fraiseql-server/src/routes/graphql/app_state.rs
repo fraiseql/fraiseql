@@ -596,6 +596,9 @@ impl AppState {
             self.identity.resolves_enrichment(),
         )
         .map_err(|e| e.to_string())?;
+        #[cfg(not(feature = "auth"))]
+        crate::server::enrichment_without_auth::enrichment_readers_need_auth_check(&schema)
+            .map_err(|e| e.to_string())?;
         crate::server::initialization::static_enriched_fields_check(&schema)
             .map_err(|e| e.to_string())?;
         // `[session_variables]` is not frozen across a reload, and the adapter is: a reload

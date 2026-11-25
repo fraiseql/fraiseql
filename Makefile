@@ -385,9 +385,10 @@ test-leg:
 	cargo test -p fraiseql-core --lib
 	cargo test -p fraiseql-db --lib --features 'postgres,wire-backend'
 	@echo ""
-	@echo "### server --lib (SYNC:SERVER_FEATURES, then default features)"
+	@echo "### server --lib (SYNC:SERVER_FEATURES, then default features, then auth off)"
 	cargo test -p fraiseql-server --lib --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' -- --skip server::routing::storage_policy_admin_tests --skip tenancy::tests::runtime_config_drift
 	cargo test -p fraiseql-server --lib -- --skip server::routing::storage_policy_admin_tests --skip tenancy::tests::runtime_config_drift
+	cargo test -p fraiseql-server --lib --no-default-features --features rest -- server::parity_tests::no_auth_enrichment_tests::
 	@echo ""
 	@echo "### server test binaries not covered by --lib (mcp, subscriptions, idempotency, in-process)"
 	cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --test mcp_transport_safety_test --test mcp_e2e_test --test mcp_integration_test

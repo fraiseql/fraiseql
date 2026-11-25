@@ -206,6 +206,11 @@ crate = "crates/fraiseql-server"
 command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test rest_pagination_stability_e2e_pg relay_embed -- --test-threads=1"
 
 [[shard]]
+name = "server-lib-no-auth"
+crate = "crates/fraiseql-server"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --no-default-features --features rest --lib -- no_auth_enrichment_tests"
+
+[[shard]]
 name = "tenant-rest"
 crate = "crates/fraiseql-server"
 command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test tenant_rest_dispatch_e2e_pg -- --test-threads=1"
@@ -2575,6 +2580,51 @@ anchor = "where_clause: resolved.composed_where.clone(),"
 mutant = "where_clause: None,"
 killers = ["an_embedded_count_counts_what_the_targets_policy_admits"]
 shard = "rest-relay-embed"
+
+# A build without `auth` resolves no enriched identity: a schema reading one is refused
+# at every door a schema comes in through.
+
+[[site]]
+id = "enrichment.no-auth.check"
+file = "crates/fraiseql-server/src/server/enrichment_without_auth.rs"
+function = "enrichment_readers_need_auth_check"
+anchor = "if !schema.declares_enrichment_consumer() {"
+mutant = "if true {"
+killers = [
+  "every_constructor_refuses_a_schema_reading_the_enriched_identity",
+  "a_reload_to_a_schema_reading_the_enriched_identity_is_refused",
+  "a_tenant_registration_with_a_schema_reading_the_enriched_identity_is_refused",
+]
+shard = "server-lib-no-auth"
+
+[[site]]
+id = "enrichment.no-auth.boot"
+file = "crates/fraiseql-server/src/server/builder.rs"
+function = "new_inner"
+anchor = "enrichment_readers_need_auth_check(&schema)?;"
+mutant = "enrichment_readers_need_auth_check(&fraiseql_core::schema::CompiledSchema::default())?;"
+killers = ["every_constructor_refuses_a_schema_reading_the_enriched_identity"]
+shard = "server-lib-no-auth"
+
+[[site]]
+id = "enrichment.no-auth.reload"
+file = "crates/fraiseql-server/src/routes/graphql/app_state.rs"
+function = "swap_in_schema"
+anchor = "enrichment_readers_need_auth_check(&schema)\n            .map_err(|e| e.to_string())?;"
+mutant = "enrichment_readers_need_auth_check(&fraiseql_core::schema::CompiledSchema::default())\n            .map_err(|e| e.to_string())?;"
+killers = ["a_reload_to_a_schema_reading_the_enriched_identity_is_refused"]
+shard = "server-lib-no-auth"
+
+[[site]]
+id = "enrichment.no-auth.tenant-registration"
+file = "crates/fraiseql-server/src/routes/api/tenant_admin.rs"
+function = "upsert_tenant_handler"
+anchor = "enrichment_readers_need_auth_check(&schema)\n            .map_err(ApiError::validation_error)?;"
+mutant = "enrichment_readers_need_auth_check(&fraiseql_core::schema::CompiledSchema::default())\n            .map_err(ApiError::validation_error)?;"
+killers = [
+  "a_tenant_registration_with_a_schema_reading_the_enriched_identity_is_refused",
+]
+shard = "server-lib-no-auth"
 
 [[site]]
 id = "enrichment.tenant-registration"
