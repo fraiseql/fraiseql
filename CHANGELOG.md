@@ -2035,6 +2035,14 @@ disagreed, and the promise was the part that was wrong.
   failure merges its error type's fragments and leaves the success type's out.
   `@skip`/`@include` on such a fragment, or inside it, is honoured.
 
+- **The C# SDK's client sends and reads a `decimal` as its exact digits (#1761).**
+  `FraiseQLClient` wrote a `decimal` variable as a JSON number, which the server refuses for
+  a `Decimal` once it has a fraction, and could not read a response's `"1.50"` into a
+  `decimal` property (`JsonException`). A new `DecimalDigitsConverter` writes the
+  string of its digits and reads one back with its scale. A value with more digits
+  than a .NET `decimal` holds (28) fails with a `JsonException` naming it, instead of
+  being rounded.
+
 - **The Java SDK's client sends a `BigDecimal` variable as its exact digits (#1761).**
   `FraiseQLClient` wrote a `BigDecimal` as a JSON number, which the server refuses for a
   `Decimal` once it has a fraction. It now writes it as a string of

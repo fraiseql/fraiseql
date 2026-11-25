@@ -39,6 +39,13 @@ public class FraiseQLClientOptions
 /// </summary>
 public sealed class FraiseQLClient : IDisposable
 {
+    // JsonContent's own defaults (web: camelCase), with each decimal sent as its digits.
+    private static readonly JsonSerializerOptions RequestJson =
+        new(JsonSerializerDefaults.Web) { Converters = { new DecimalDigitsConverter() } };
+
+    private static readonly JsonSerializerOptions ResponseJson =
+        new() { PropertyNameCaseInsensitive = true, Converters = { new DecimalDigitsConverter() } };
+
     private readonly HttpClient _http;
     private readonly FraiseQLClientOptions _options;
     private readonly bool _ownsHttpClient;
@@ -95,7 +102,7 @@ public sealed class FraiseQLClient : IDisposable
             : new { query = gqlQuery, variables };
         using var request = new HttpRequestMessage(HttpMethod.Post, _options.Url)
         {
-            Content = JsonContent.Create(body)
+            Content = JsonContent.Create(body, options: RequestJson)
         };
 
         if (_options.AuthorizationFactory is not null)
@@ -149,9 +156,7 @@ public sealed class FraiseQLClient : IDisposable
                 || dataEl.ValueKind == JsonValueKind.Null)
                 return default!;
 
-            return JsonSerializer.Deserialize<T>(
-                dataEl.GetRawText(),
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? default!;
+            return JsonSerializer.Deserialize<T>(dataEl.GetRawText(), ResponseJson) ?? default!;
         }
     }
 

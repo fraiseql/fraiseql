@@ -125,6 +125,16 @@ fraiseql compile schema.json
 | a `[GraphQLType]` class | its declared name |
 | any other type, `object` included | refused at registration, naming the property: declare `[GraphQLField(Type = "...")]` |
 
+### Decimal values in the client
+
+A `Decimal` travels as a JSON string of its exact digits, `"1.50"`, in both directions.
+`FraiseQLClient` sends a `decimal` variable as that string, with its scale and never in
+exponent form, and reads a response's string into a `decimal` or `decimal?` property
+through `DecimalDigitsConverter`. A .NET `decimal` holds at most 28 significant digits: a
+response value with more fails with a `JsonException` naming it, rather than being
+rounded. Read such a field as a `string` instead. Do not pass a `double`: the server
+refuses a number with a fraction for a `Decimal`.
+
 ---
 
 ## QueryBuilder / MutationBuilder Reference
