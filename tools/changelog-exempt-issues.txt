@@ -108,3 +108,4 @@
 #2522  tests: a provisioning-test fixture named a section only an `auth` build has, and the server lib now runs in a build without `auth` in CI; no shipped artifact changes
 #2520  CI: the dispatch-only coverage workflow reads the fraiseql-core and fraiseql-db feature sets its legs test from .dagger/main.go, so it builds again; no shipped artifact changes
 #2523  CI: fraiseql-core and fraiseql-db coverage is measured over their legs' lines with the integration services bound, in a Dagger function; no shipped artifact changes
+#1776  CI: crate growth is bounded per commit, with a trailer admitting more, and the crate-size budgets become loose ceilings; no shipped artifact changes

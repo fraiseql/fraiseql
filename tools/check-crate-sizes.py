@@ -23,8 +23,11 @@ A line of `src/` is, in this order of precedence:
    of a `/* … */`. A line inside a string literal is code.
 4. **production**, otherwise.
 
-Budgets are [workspace.metadata.crate-size-budget] in the root Cargo.toml. A crate
-over its budget fails, and so does a crate with a `src/` and no budget row.
+Budgets are [workspace.metadata.crate-size-budget] in the root Cargo.toml: loose
+ceilings, set once at 1.5 times a crate's production lines, that catch slow cumulative
+growth. A crate over its ceiling fails, and so does a crate with a `src/` and no row.
+Growth commit by commit is bounded by tools/check-crate-growth.py, which counts with
+these rules.
 
 Usage:
   check-crate-sizes.py               every crate
@@ -336,7 +339,7 @@ def main(argv: list[str]) -> int:
     if failures:
         print("\n".join(failures))
         print(f"crate sizes: {len(failures)} problem(s). A budget counts production lines only (see this")
-        print("script's header); raise one in Cargo.toml with a comment saying why.")
+        print("script's header). It is a loose ceiling: reaching one calls for a re-baseline, not a raise.")
         return 1
     print(f"crate sizes: ok ({checked} crates within budget; docs, unit tests and tests/ are reported, not gated)")
     return 0

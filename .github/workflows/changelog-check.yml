@@ -33,3 +33,19 @@ jobs:
 
       - name: Every issue closed since the last release is documented
         run: bash tools/check-changelog-issues.sh
+
+      # Needs the same full history, so it runs in this job rather than in ShellGates,
+      # which has no .git. Each commit is measured against its parent; its self-test,
+      # `make test-crate-growth-gate`, runs in ShellGates.
+      - name: Crate growth per commit
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            python3 tools/check-crate-growth.py --base "$PR_BASE" --head "$PR_HEAD"
+          else
+            python3 tools/check-crate-growth.py --base "$PUSH_BEFORE" --head HEAD
+          fi

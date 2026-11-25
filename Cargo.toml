@@ -405,49 +405,32 @@ unsafe_code = "deny"
 unused_imports = "warn"
 unused_variables = "warn"
 
-# ---------------------------------------------------------------------------
-# Crate size budgets: production lines only, enforced by tools/check-crate-sizes.sh
-# (counting in tools/check-crate-sizes.py), which runs in the `preflight` make target
-# and the Dagger ShellGates leg (the required check).
-#
-# A crate's production lines are the non-blank, non-comment lines of its src/ compiled
-# outside cfg(test). Unit tests, docs and the crate's tests/ are reported beside the
-# budget and never gated, so a test costs no budget (#1882). A crate with a src/ and no
-# row here fails.
-#
-# A runaway-growth ratchet, not a split mandate. Every budget was set 2026-10-31 at the
-# crate's production lines plus about 20%, rounded up to 500. Raising one is a one-line
-# edit with a comment saying why; the history of a row is `git log -L` on it.
-# ---------------------------------------------------------------------------
+# Production-line ceilings, set 2026-11-25 at 1.5x (tools/check-crate-sizes.py); growth per commit: tools/check-crate-growth.py.
 [workspace.metadata.crate-size-budget]
-fraiseql = 500
-fraiseql-arrow = 5_500
-fraiseql-auth = 13_500
-fraiseql-cdc-sinks = 1_500
-fraiseql-cli = 30_500
-fraiseql-codegen = 4_500
-fraiseql-core = 60_500
-fraiseql-db = 14_000
-fraiseql-error = 1_500
-fraiseql-federation = 5_000
-fraiseql-functions = 7_000
+fraiseql = 1_000
+fraiseql-arrow = 7_000
+fraiseql-auth = 19_000
+fraiseql-cdc-sinks = 2_000
+fraiseql-cli = 42_000
+fraiseql-codegen = 6_000
+fraiseql-core = 87_000
+fraiseql-db = 21_000
+fraiseql-error = 2_000
+fraiseql-federation = 6_000
+fraiseql-functions = 9_000
 fraiseql-guard = 1_000
 fraiseql-jwks = 1_000
-fraiseql-kafka = 500
-fraiseql-observers = 10_500
-fraiseql-saga = 3_500
-fraiseql-secrets = 3_000
-fraiseql-server = 61_500
-fraiseql-storage = 8_500
-# Raised from 500 for the strict RFC 3339 grammar (`parse_rfc3339_strict`): a second
-# parser the crate owns, the one storage policy bounds are read with.
-fraiseql-time = 1_000
-# Raised from 1_000 for held_replies, the BEGIN-holding PostgreSQL relay behind the
-# held-replies feature, which only test suites enable.
-fraiseql-test-support = 1_500
-fraiseql-test-utils = 1_500
-fraiseql-webhooks = 3_000
-fraiseql-wire = 6_500
+fraiseql-kafka = 1_000
+fraiseql-observers = 13_000
+fraiseql-saga = 4_000
+fraiseql-secrets = 4_000
+fraiseql-server = 84_000
+fraiseql-storage = 11_000
+fraiseql-test-support = 2_000
+fraiseql-test-utils = 2_000
+fraiseql-time = 2_000
+fraiseql-webhooks = 4_000
+fraiseql-wire = 8_000
 
 [workspace.package]
 authors = ["FraiseQL Team <team@fraiseql.dev>"]
