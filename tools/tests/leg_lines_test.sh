@@ -143,6 +143,117 @@ open(p, "w").write(s)
 PY
 expect_red "a shard with no cargo test line" "$d" Test 'no cargo test line read'
 
+# --- coverage.yml reads its feature sets from main.go ----------------------------
+cov_dir() {
+    local d
+    d="$(case_dir "$1")"
+    mkdir -p "$d/.github/workflows"
+    cp "$repo_root/.github/workflows/coverage.yml" "$d/.github/workflows/coverage.yml"
+    printf '%s\n' "$d"
+}
+
+# Replace the first line holding `$2` in the case's coverage.yml (the core step's, where
+# the anchor is in both) with `$3`, newlines written as \n.
+cov_plant() {
+    python3 - "$1/.github/workflows/coverage.yml" "$2" "$3" <<'PY'
+import sys
+p, anchor, new = sys.argv[1:]
+lines = open(p).read().split("\n")
+hits = [i for i, l in enumerate(lines) if anchor in l]
+assert hits, anchor
+i = hits[0]
+indent = lines[i][: len(lines[i]) - len(lines[i].lstrip())]
+lines[i : i + 1] = [indent + l for l in new.split("\\n")]
+open(p, "w").write("\n".join(lines))
+PY
+}
+
+cov_expect() {
+    local name="$1" d="$2" want="$3"
+    cases=$((cases + 1))
+    if cmp -s "$repo_root/.github/workflows/coverage.yml" "$d/.github/workflows/coverage.yml" &&
+        cmp -s "$repo_root/.dagger/main.go" "$d/.dagger/main.go" && [ "$name" != baseline ]; then
+        echo "FAIL: $name: the plant changed nothing"
+        failed=$((failed + 1))
+        return
+    fi
+    LEG_LINES_ROOT="$d" python3 "$READER" --coverage >"$work/out" 2>&1
+    local rc=$?
+    if [ -z "$want" ] && [ $rc -eq 0 ]; then
+        echo "ok: $name"
+    elif [ -n "$want" ] && [ $rc -ne 0 ] && grep -qF -- "$want" "$work/out"; then
+        echo "ok: $name"
+    else
+        echo "FAIL: $name: rc=$rc, wanted ${want:-green}"
+        sed 's/^/    /' "$work/out"
+        failed=$((failed + 1))
+    fi
+}
+
+d="$(cov_dir cov-baseline)"
+cov_expect baseline "$d" ""
+
+d="$(cov_dir cov-literal)"
+cov_plant "$d" '--features "$features" \' '--features "test-postgres,arrow,kafka" \'
+cov_expect "a literal --features in a run block" "$d" 'a literal `--features test-postgres,arrow,kafka`'
+
+d="$(cov_dir cov-continued)"
+cov_plant "$d" '--features "$features" \' '--features \\n  "postgres,wire-backend" \'
+cov_expect "a literal --features split over a continuation" "$d" 'a literal `--features postgres,wire-backend`'
+
+d="$(cov_dir cov-equals)"
+cov_plant "$d" '--features "$features" \' '--features=postgres,wire-backend \'
+cov_expect "a literal --features=" "$d" 'a literal `--features postgres,wire-backend`'
+
+d="$(cov_dir cov-yaml-comment)"
+cov_plant "$d" '# Collect profdata across multiple runs' '# Collect profdata across multiple runs\n# cargo llvm-cov --features "arrow,kafka" -p fraiseql-core'
+cov_expect "a literal in a YAML comment runs nothing" "$d" ""
+
+d="$(cov_dir cov-shell-comment)"
+cov_plant "$d" '# The set the Test leg tests this crate with' '# The set the Test leg tests this crate with\n# was: cargo llvm-cov --features "arrow,kafka" \'
+cov_expect "a literal in a shell comment runs nothing" "$d" ""
+
+# In bash a comment line inside a continued command ends it, trailing `\` and all: the
+# line after it runs as a command of its own, and its literal is read.
+d="$(cov_dir cov-comment-continued)"
+cov_plant "$d" '--features "$features" \' '# an old note \\n--features "arrow,kafka" \'
+cov_expect "a comment line ending a continued command hides no literal after it" "$d" 'a literal `--features arrow,kafka`'
+
+d="$(cov_dir cov-echo)"
+cov_plant "$d" 'run: cargo llvm-cov clean --workspace' 'run: |\n  echo was --features arrow,kafka\n  cargo llvm-cov clean --workspace'
+cov_expect "a literal in an echo runs nothing" "$d" ""
+
+d="$(cov_dir cov-unknown-const)"
+sed -i 's/--const dbTestFeatures)/--const dbFeatures)/' "$d/.github/workflows/coverage.yml"
+cov_expect "a --const naming no const" "$d" '`--const dbFeatures` is not a const'
+
+d="$(cov_dir cov-unread)"
+sed -i 's/--const coreTestFeatures)/--const dbTestFeatures)/' "$d/.github/workflows/coverage.yml"
+cov_expect "a coverage const no step reads" "$d" 'no run step reads `coreTestFeatures`'
+
+# A feature planted in the const reaches what the workflow reads, with no workflow edit.
+d="$(cov_dir cov-flow)"
+sed -i 's/^\(\s*coreTestFeatures\s*=\s*"\)/\1planted-feature,/' "$d/.dagger/main.go"
+cases=$((cases + 1))
+if planted "$d" "a planted core feature flows into coverage" &&
+    LEG_LINES_ROOT="$d" python3 "$READER" --coverage >/dev/null 2>&1 &&
+    LEG_LINES_ROOT="$d" python3 "$READER" --const coreTestFeatures | grep -c '^planted-feature,' >/dev/null; then
+    echo "ok: a planted core feature flows into coverage"
+else
+    echo "FAIL: a planted core feature flows into coverage"
+    failed=$((failed + 1))
+fi
+
+d="$(cov_dir cov-missing-const)"
+cases=$((cases + 1))
+if ! LEG_LINES_ROOT="$d" python3 "$READER" --const noSuchFeatures >"$work/out" 2>&1 &&
+    grep -qF '`noSuchFeatures` is not a const of .dagger/main.go' "$work/out"; then
+    echo "ok: --const refuses a name main.go does not define"
+else
+    echo "FAIL: --const refuses a name main.go does not define"
+    failed=$((failed + 1))
+fi
+
 # --- the make targets run every line, and stop at the first failure ---------------
 stub="$work/stub"
 mkdir -p "$stub"
@@ -206,4 +317,4 @@ echo "$cases cases, $failed failed"
 if [ "$failed" -ne 0 ]; then
     exit 1
 fi
-echo "OK: tools/leg-lines.py refuses every shape it cannot read, and the mirror runs every line."
+echo "OK: tools/leg-lines.py refuses every shape it cannot read, the mirror runs every line, and coverage.yml reads its feature sets from main.go."

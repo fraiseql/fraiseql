@@ -32,6 +32,19 @@ tools/check-suite-coverage.py attributes to the function. That gate certifies wh
 each leg runs; two readers of main.go that disagree mean one of them misreads it,
 which is FATAL too.
 
+Two more modes serve `.github/workflows/coverage.yml`, which builds fraiseql-core and
+fraiseql-db with the features their legs test:
+
+    python3 tools/leg-lines.py --const coreTestFeatures   # one const's value
+    python3 tools/leg-lines.py --coverage                 # check the workflow
+
+`--const` prints a const of main.go; a name main.go does not define is FATAL. The
+workflow reads its feature lists through it at run time, so a feature added to a const
+reaches coverage with no workflow edit. `--coverage` holds the workflow to that: in its
+`run:` blocks (a YAML or shell comment, or an `echo`, runs nothing and is not read), no
+`--features` value may be a literal, every `--const` must name a const, and the consts
+in COVERAGE_CONSTS must each be read.
+
 Its red capability is pinned by `tools/tests/leg_lines_test.sh`. `LEG_LINES_ROOT`
 points it at another tree (the test's fixtures).
 """
@@ -62,6 +75,13 @@ CI_ONLY = (
     "/tmp/uv/bin/uv pip install --quiet --python /tmp/confiture/bin/python -r ",
     "export PATH=/tmp/confiture/bin:$PATH",
 )
+
+# The consts coverage.yml must read: the feature sets of the crates it builds with
+# explicit features rather than --all-features.
+COVERAGE_CONSTS = ("coreTestFeatures", "dbTestFeatures")
+COVERAGE_WORKFLOW = Path(".github") / "workflows" / "coverage.yml"
+RUN_KEY = re.compile(r"^(\s*)(?:-\s+)?run:\s*(.*)$")
+CONST_READ = re.compile(r"leg-lines\.py\s+--const\s+([A-Za-z_]\w*)")
 
 GO_CONST = re.compile(r'^\s*([a-zA-Z]\w*)\s*=\s*"([^"]*)"\s*$', re.MULTILINE)
 ENV_ASSIGN = re.compile(r"^[A-Za-z_]\w*=")
@@ -225,12 +245,141 @@ def leg_lines(func: str) -> list[str]:
     return lines
 
 
+def go_consts() -> dict[str, str]:
+    return dict(GO_CONST.findall((ROOT / ".dagger" / "main.go").read_text(encoding="utf-8")))
+
+
+def const_value(name: str) -> str:
+    consts = go_consts()
+    if name not in consts:
+        raise Unreadable(f"`{name}` is not a const of .dagger/main.go")
+    return consts[name]
+
+
+def run_blocks(workflow: str) -> list[tuple[int, str]]:
+    """The shell of each `run:` step, with the line of its `run:` key: a block
+    scalar's lines (those indented past the key), or the inline value."""
+    lines = workflow.splitlines()
+    blocks = []
+    i = 0
+    while i < len(lines):
+        m = RUN_KEY.match(lines[i])
+        i += 1
+        if not m:
+            continue
+        key_line, indent, value = i, len(m.group(1)), m.group(2).strip()
+        if not value.startswith(("|", ">")):
+            blocks.append((key_line, value))
+            continue
+        body = []
+        while i < len(lines) and (
+            not lines[i].strip() or len(lines[i]) - len(lines[i].lstrip()) > indent
+        ):
+            body.append(lines[i])
+            i += 1
+        blocks.append((key_line, "\n".join(body)))
+    return blocks
+
+
+def shell_commands(block: str) -> list[str]:
+    """A run block's commands: `\\` continuations joined, comment lines dropped. As in
+    bash, a comment line is not continued by a trailing `\\` and ends the command it
+    sits in, so the line after it is a command of its own."""
+    out, buf = [], ""
+    for raw in block.splitlines():
+        line = raw.strip()
+        if line.startswith("#"):
+            if buf:
+                out.append(buf)
+                buf = ""
+            continue
+        if not buf and not line:
+            continue
+        if line.endswith("\\"):
+            buf += line[:-1] + " "
+            continue
+        out.append(buf + line)
+        buf = ""
+    if buf:
+        out.append(buf)
+    return out
+
+
+def literal_features(command: str) -> list[str]:
+    """The `--features` values of a command that are literals (expand no `$`)."""
+    try:
+        toks = shlex.split(command, comments=True)
+    except ValueError as exc:
+        raise Unreadable(f"coverage.yml: cannot split `{command}`: {exc}") from exc
+    if not toks or toks[0] in ("echo", "printf"):
+        return []
+    found = []
+    for idx, tok in enumerate(toks):
+        if tok.startswith("--features="):
+            value = tok.split("=", 1)[1]
+        elif tok == "--features" and idx + 1 < len(toks):
+            value = toks[idx + 1]
+        else:
+            continue
+        if "$" not in value:
+            found.append(value)
+    return found
+
+
+def check_coverage() -> list[str]:
+    path = ROOT / COVERAGE_WORKFLOW
+    if not path.is_file():
+        raise Unreadable(f"{COVERAGE_WORKFLOW} not found")
+    consts = go_consts()
+    errors, read = [], set()
+    blocks = run_blocks(path.read_text(encoding="utf-8"))
+    if not blocks:
+        raise Unreadable(f"{COVERAGE_WORKFLOW}: no `run:` step read; the reader went blind")
+    for lineno, block in blocks:
+        for command in shell_commands(block):
+            for value in literal_features(command):
+                errors.append(
+                    f"{COVERAGE_WORKFLOW}:{lineno}: a literal `--features {value}`; read the "
+                    "set from .dagger/main.go with `python3 tools/leg-lines.py --const <name>`"
+                )
+            for name in CONST_READ.findall(command):
+                read.add(name)
+                if name not in consts:
+                    errors.append(
+                        f"{COVERAGE_WORKFLOW}:{lineno}: `--const {name}` is not a const of "
+                        ".dagger/main.go"
+                    )
+    errors.extend(
+        f"{COVERAGE_WORKFLOW}: no run step reads `{name}`; the crate it is the set of "
+        "would be built with another"
+        for name in COVERAGE_CONSTS
+        if name not in read
+    )
+    return errors
+
+
 def main() -> int:
-    if len(sys.argv) != 2 or sys.argv[1] not in SHARDS:
-        print(f"usage: leg-lines.py {{{'|'.join(SHARDS)}}}", file=sys.stderr)
+    args = sys.argv[1:]
+    try:
+        if len(args) == 2 and args[0] == "--const":
+            print(const_value(args[1]))
+            return 0
+        if args == ["--coverage"]:
+            errors = check_coverage()
+            for error in errors:
+                print(f"leg-lines: FAIL — {error}", file=sys.stderr)
+            return 1 if errors else 0
+    except Unreadable as exc:
+        print(f"leg-lines: FAIL — {exc}", file=sys.stderr)
+        return 1
+    if len(args) != 1 or args[0] not in SHARDS:
+        print(
+            f"usage: leg-lines.py {{{'|'.join(SHARDS)}}} | --const NAME | --coverage",
+            file=sys.stderr,
+        )
         return 2
     try:
-        lines = leg_lines(sys.argv[1])
+        lines = leg_lines(args[0])
     except Unreadable as exc:
         print(f"leg-lines: FAIL — {exc}", file=sys.stderr)
         return 1

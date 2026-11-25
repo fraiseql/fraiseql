@@ -52,16 +52,18 @@ jobs:
         uses: ./.github/actions/init-postgres
 
       # Collect profdata across multiple runs with --no-report.
-      # fraiseql-core and fraiseql-db use explicit features.
+      # fraiseql-core and fraiseql-db use the feature sets their legs test, read from
+      # .dagger/main.go (`make lint-leg-lines` holds these steps to it).
       # All other crates use --all-features for maximum coverage.
       - name: Clean previous coverage data
         run: cargo llvm-cov clean --workspace
 
       - name: "Collect coverage: fraiseql-core"
         run: |
-          # SYNC:CORE_TEST_FEATURES — keep in sync with other SYNC:CORE_TEST_FEATURES locations
+          # The set the Test leg tests this crate with: the const in .dagger/main.go.
+          features="$(python3 tools/leg-lines.py --const coreTestFeatures)"
           cargo llvm-cov --no-report \
-            --features "test-postgres,arrow,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend" \
+            --features "$features" \
             -p fraiseql-core \
             -- --test-threads=1
         env:
@@ -70,9 +72,10 @@ jobs:
 
       - name: "Collect coverage: fraiseql-db"
         run: |
-          # SYNC:DB_FEATURES — keep in sync with other SYNC:DB_FEATURES locations
+          # The set the Test leg tests this crate with: the const in .dagger/main.go.
+          features="$(python3 tools/leg-lines.py --const dbTestFeatures)"
           cargo llvm-cov --no-report \
-            --features "postgres,wire-backend" \
+            --features "$features" \
             -p fraiseql-db \
             -- --test-threads=1
         env:
