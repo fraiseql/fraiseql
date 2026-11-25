@@ -59,7 +59,6 @@ fraiseql_functions::triggers::storage pending after:storage dispatch by #1654
 fraiseql_core::security::kms pending moves into fraiseql-secrets as a KeyProvider; triage #1681
 fraiseql_federation::http_resolver pending a gateway-only piece fraiseql-saga imports; triage #1681
 fraiseql_federation::tls pending a gateway-only piece fraiseql-saga imports; triage #1681
-fraiseql_functions::triggers::http pending no request kind dispatches it; triage #1681
 fraiseql_arrow::clickhouse_sink pending its row mapping ports into a CDC sink kind; triage #1681
 fraiseql_arrow::event_schema pending no plan names it; triage #1681
 fraiseql_core::http pending no plan names it; triage #1681

@@ -5,7 +5,6 @@
 //! - `before:mutation`: Fire before mutation (sync, can abort)
 //! - `after:storage`: Fire after storage operations
 //! - `cron`: Fire on schedule
-//! - `http`: Custom HTTP endpoints
 //!
 //! # Integration Overview
 //!
@@ -19,7 +18,6 @@
 //!    - `BeforeMutationTrigger`: Intercepts mutations before DB write (sync, can abort)
 //!    - `StorageTrigger`: Responds to storage operations (async dispatch)
 //!    - `CronTrigger`: Scheduled execution with state persistence
-//!    - `HttpTriggerRoute`: Custom HTTP endpoints
 //!
 //! 3. **Lifecycle**:
 //!    - **Startup**: `TriggerRegistry` initializes cron scheduler, validates triggers
@@ -42,7 +40,6 @@
 //! All trigger types validate input and return clear error messages.
 
 pub mod cron;
-pub mod http;
 pub mod ingest;
 pub mod mutation;
 pub mod registry;
@@ -52,7 +49,6 @@ pub mod storage;
 mod tests;
 
 pub use cron::{CronDecision, CronExecutionState, CronSchedule, CronTrigger, Schedule};
-pub use http::{HttpTriggerMatcher, HttpTriggerPayload, HttpTriggerResponse, HttpTriggerRoute};
 pub use ingest::{
     Attachment, Classification, InboundMessage, InboundRouting, IngestError, IngestSelector,
     IngestSource, IngestTrigger, PullBatch, PullContext, PullSource, PushSource, RawDelivery,

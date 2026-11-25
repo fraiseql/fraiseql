@@ -27,6 +27,11 @@ disagreed, and the promise was the part that was wrong.
   keeps the old behaviour). A Deno module's `source_hash` is now the function hash (see
   Added), no longer the SHA-256 of its file.
 
+- **`fraiseql-functions` drops `triggers::http` (#1681).** `HttpTriggerRoute`,
+  `HttpTriggerMatcher`, `HttpTriggerPayload`, `HttpTriggerResponse` and `HttpMethod` are
+  removed. Nothing mounted them: an `http:` trigger is still refused at compile time, as
+  before.
+
 - **`fraiseql-storage` drops two modules the server never mounted (#1681).** `graphql`
   (`StorageSchemaTypes`, `StorageSchemaEntries`) and `service` (`BucketService`) are
   removed. Storage is served by the `/storage/v1` routes, which never used either.
