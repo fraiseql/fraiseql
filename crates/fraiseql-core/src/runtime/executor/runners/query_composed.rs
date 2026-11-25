@@ -75,8 +75,8 @@ pub(super) struct ComposedPlan {
     embeds:      Vec<PlannedEmbed>,
 }
 
-/// One embedded relationship of a [`ComposedPlan`] level.
-struct PlannedEmbed {
+/// One embedded relationship of a [`ComposedPlan`] level, or of a Relay page's root.
+pub(super) struct PlannedEmbed {
     /// The key the value is written under.
     output_key:   String,
     /// The relationship followed, as declared on the parent type.
@@ -208,7 +208,7 @@ impl QueryRunner {
     }
 
     /// Resolve what is embedded into each row of `parent_type`.
-    fn plan_embeds(
+    pub(super) fn plan_embeds(
         &self,
         parent_type: &str,
         path: &str,
@@ -337,12 +337,12 @@ impl QueryRunner {
         match &mut projected {
             serde_json::Value::Array(items) => {
                 for (item, row) in items.iter_mut().zip(rows) {
-                    self.attach_embeds(plan, item, row.get(COMPOSED_EMBEDS_KEY))?;
+                    self.attach_embeds(&plan.embeds, item, row.get(COMPOSED_EMBEDS_KEY))?;
                 }
             },
             serde_json::Value::Object(_) => {
                 if let Some(row) = rows.first() {
-                    self.attach_embeds(plan, &mut projected, row.get(COMPOSED_EMBEDS_KEY))?;
+                    self.attach_embeds(&plan.embeds, &mut projected, row.get(COMPOSED_EMBEDS_KEY))?;
                 }
             },
             _ => {},
@@ -351,16 +351,16 @@ impl QueryRunner {
     }
 
     /// Write each embedded value of one composed row into its projected parent object.
-    fn attach_embeds(
+    pub(super) fn attach_embeds(
         &self,
-        plan: &ComposedPlan,
+        embeds: &[PlannedEmbed],
         item: &mut serde_json::Value,
         embedded: Option<&serde_json::Value>,
     ) -> Result<()> {
         let Some(object) = item.as_object_mut() else {
             return Ok(());
         };
-        for embed in &plan.embeds {
+        for embed in embeds {
             let raw = embedded.and_then(|e| e.get(&embed.output_key));
             let to_one = embed.relationship.cardinality.is_to_one();
             let value = match &embed.target {
@@ -410,19 +410,10 @@ impl ComposedPlan {
             )?
             .is_empty()
         {
-            return Err(FraiseQLError::Unsupported {
-                message: format!(
-                    "'{}' selects a nested object whose type scopes its rows alongside an \
-                     embedded relationship, which this read cannot compose; select it without \
-                     the embed, or embed it through its relationship",
-                    self.query_match.query_def.return_type
-                ),
-            });
+            return Err(nested_object_beside_embed(&self.query_match.query_def.return_type));
         }
         for embed in &self.embeds {
-            if let EmbedTarget::Rows(child) = &embed.target {
-                child.refuse_gated_leaf_objects(runner, security_context)?;
-            }
+            embed.refuse_gated_leaf_objects(runner, security_context)?;
         }
         Ok(())
     }
@@ -437,15 +428,7 @@ impl ComposedPlan {
         DirectReadProjection {
             leaf_fields: self.resolved.leaf_fields,
             limit:       self.resolved.limit,
-            nested:      self
-                .embeds
-                .iter()
-                .filter_map(|embed| match &embed.target {
-                    EmbedTarget::Rows(child) => Some(child.projection()),
-                    EmbedTarget::Count(_) => Some(DirectReadProjection::flat(0, None)),
-                    EmbedTarget::Unreadable => None,
-                })
-                .collect(),
+            nested:      self.embeds.iter().filter_map(PlannedEmbed::projection).collect(),
         }
     }
 
@@ -482,9 +465,32 @@ impl ComposedPlan {
 }
 
 impl PlannedEmbed {
+    /// The embedded level's projection, as the cost estimator scores it; `None` for a
+    /// relationship there is nothing to read for.
+    pub(super) fn projection(&self) -> Option<DirectReadProjection> {
+        match &self.target {
+            EmbedTarget::Rows(child) => Some(child.projection()),
+            EmbedTarget::Count(_) => Some(DirectReadProjection::flat(0, None)),
+            EmbedTarget::Unreadable => None,
+        }
+    }
+
+    /// Refuse the embedded level, at any depth, selecting a nested object whose type
+    /// scopes its rows ([`ComposedPlan::refuse_gated_leaf_objects`]).
+    pub(super) fn refuse_gated_leaf_objects(
+        &self,
+        runner: &QueryRunner,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<()> {
+        match &self.target {
+            EmbedTarget::Rows(child) => child.refuse_gated_leaf_objects(runner, security_context),
+            EmbedTarget::Count(_) | EmbedTarget::Unreadable => Ok(()),
+        }
+    }
+
     /// The embedded level and its correlation, or `None` for a relationship there is
     /// nothing to read for.
-    fn lower(
+    pub(super) fn lower(
         &self,
         schema: &CompiledSchema,
         parent_type: &str,
@@ -527,6 +533,18 @@ impl PlannedEmbed {
             source: correlated_source(schema, rel, parent_type, Some((&level.view, parent_view))),
             level,
         })
+    }
+}
+
+/// The refusal of a level of `type_name` selecting a nested object whose type scopes its
+/// rows beside an embedded relationship: the read composes relationship embeds only.
+pub(super) fn nested_object_beside_embed(type_name: &str) -> FraiseQLError {
+    FraiseQLError::Unsupported {
+        message: format!(
+            "'{type_name}' selects a nested object whose type scopes its rows alongside an \
+             embedded relationship, which this read cannot compose; select it without the \
+             embed, or embed it through its relationship"
+        ),
     }
 }
 

@@ -435,7 +435,13 @@ impl QueryRunner {
                 let session_pairs: Vec<(&str, &str)> =
                     session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
                 return self
-                    .execute_relay_query(&query_match, variables, security_context, &session_pairs)
+                    .execute_relay_query(
+                        &query_match,
+                        variables,
+                        security_context,
+                        &session_pairs,
+                        &[],
+                    )
                     .await
                     .map(ResponseBody::Value);
             },

@@ -2497,6 +2497,15 @@ killers = [
 shard = "core-lib-enrichment"
 
 [[site]]
+id = "enrichment.execute_relay_composed"
+file = "crates/fraiseql-core/src/runtime/executor/relay_direct.rs"
+function = "Executor::execute_relay_composed"
+anchor = "enforce_enrichment_resolved(\n            &self.ctx.schema,\n            security_context,"
+mutant = "enforce_enrichment_resolved(\n            &self.ctx.schema,\n            { let _ = &security_context; None },"
+killers = ["the_relay_composed_entry_refuses_an_unresolved_principal"]
+shard = "core-lib-enrichment"
+
+[[site]]
 id = "enrichment.execute_query_composed"
 file = "crates/fraiseql-core/src/runtime/executor/core.rs"
 function = "Executor::execute_query_composed"

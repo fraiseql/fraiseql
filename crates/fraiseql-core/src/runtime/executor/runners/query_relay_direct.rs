@@ -13,8 +13,8 @@ use super::{
 };
 use crate::{
     error::{FraiseQLError, Result},
-    graphql::{DirectReadProjection, FieldSelection},
-    runtime::matcher::QueryMatch,
+    graphql::FieldSelection,
+    runtime::{CountSelection, EmbedSelection, matcher::QueryMatch},
     security::{RequestBudget, SecurityContext},
 };
 
@@ -72,6 +72,19 @@ impl QueryRunner {
         security_context: Option<&SecurityContext>,
         request_budget: Option<&RequestBudget>,
     ) -> Result<serde_json::Value> {
+        self.relay_page(query_match, &[], &[], security_context, request_budget).await
+    }
+
+    /// The connection page of [`execute_relay_direct`](Self::execute_relay_direct), with
+    /// `embeds` and `counts` read into each node: none for a flat page.
+    pub(super) async fn relay_page(
+        &self,
+        query_match: &QueryMatch,
+        embeds: &[EmbedSelection],
+        counts: &[CountSelection],
+        security_context: Option<&SecurityContext>,
+        request_budget: Option<&RequestBudget>,
+    ) -> Result<serde_json::Value> {
         let query_def = &query_match.query_def;
         match self.resolve_root_read(query_match, None, security_context, Door::Connection)? {
             RootRoute::Relay => {},
@@ -86,8 +99,12 @@ impl QueryRunner {
             },
         }
 
-        // Scored flat before the database, as every direct read is: the selected fields over
-        // the page the request asks for.
+        // Each embedded level resolved through every gate an embedded level passes, after the
+        // root's own gates and before anything is scored or read.
+        let planned = self.plan_relay_embeds(query_match, embeds, counts, security_context)?;
+
+        // Scored before the database: the selected fields over the page the request asks for,
+        // and each embedded level beneath it (flat when nothing is embedded).
         let fields = query_match.selections.first().map_or(0, |root| root.nested_fields.len());
         let page = ["first", "last"]
             .into_iter()
@@ -100,7 +117,7 @@ impl QueryRunner {
             .max();
         self.charge_direct_read_cost(
             &query_def.name,
-            &DirectReadProjection::flat(fields, page),
+            &super::query_relay_embed::relay_page_projection(fields, page, &planned),
             request_budget,
         )?;
 
@@ -109,7 +126,7 @@ impl QueryRunner {
             session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         let connection = as_connection(query_match);
         let response = self
-            .execute_relay_query(&connection, None, security_context, &session_pairs)
+            .execute_relay_query(&connection, None, security_context, &session_pairs, &planned)
             .await?;
 
         // The response-bytes ceiling, charged on the rows the page serves.

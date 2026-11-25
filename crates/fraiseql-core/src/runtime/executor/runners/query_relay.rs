@@ -47,12 +47,19 @@ impl QueryRunner {
     /// Returns [`FraiseQLError::Validation`] if required pagination variables are
     /// missing or contain invalid cursor values.
     /// Returns [`FraiseQLError::Database`] if the SQL execution or result projection fails.
+    ///
+    /// `embeds` are the relationships a REST relay route embeds into each node, resolved
+    /// through every gate an embedded level passes (`plan_embeds`): each is read as a level
+    /// of the composed statement rooted at the page, so the page is cut before any of them
+    /// is joined, and attached to its node after the node is projected. A GraphQL document
+    /// passes none.
     pub(super) async fn execute_relay_query(
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
         session_vars: &[(&str, &str)],
+        embeds: &[super::query_composed::PlannedEmbed],
     ) -> Result<serde_json::Value> {
         use crate::{
             compiler::aggregation::OrderByClause,
@@ -149,6 +156,11 @@ impl QueryRunner {
             security_context,
             &selection_access,
         )?;
+        // A gated nested level and an embedded relationship would share the statement's
+        // embedded values; refused as the offset route's composed read refuses them.
+        if !embeds.is_empty() && !nested_reads.is_empty() {
+            return Err(super::query_composed::nested_object_beside_embed(&query_def.return_type));
+        }
 
         // Extract relay pagination arguments from the matcher's merged argument map
         // (#904). Reading the raw request `variables` instead dropped every argument
@@ -272,7 +284,7 @@ impl QueryRunner {
 
         // Pin session variables to the page/count queries' connection so
         // RLS-protected relay pagination returns the correct tenant's rows (#329).
-        let (page, result_total_count) = if nested_reads.is_empty() {
+        let (page, result_total_count) = if nested_reads.is_empty() && embeds.is_empty() {
             let result = relay
                 .execute_relay_page_with_session(
                     sql_source,
@@ -290,7 +302,7 @@ impl QueryRunner {
                 )
                 .await?;
             let total = result.total_count();
-            (result.into_rows(), total)
+            (result.into_rows().into_iter().map(|row| (row, None)).collect(), total)
         } else {
             // The same page — cursor, ordering, direction, `fetch_limit` — as the root of a
             // composed read, so each row-gated level carries its type's predicate. An
@@ -312,7 +324,13 @@ impl QueryRunner {
                 decimals:     self.ctx.decimals.read_by(&query_def.name).cloned(),
             };
             let documents = self
-                .execute_composed_document_read(root, session_vars, query_def.read_routing)
+                .execute_relay_composed_page(
+                    root,
+                    embeds,
+                    &query_def.return_type,
+                    session_vars,
+                    query_def.read_routing,
+                )
                 .await?;
             // `totalCount` ignores the cursor (Relay): the relay adapter's own count, asked
             // for with an empty page, so it is the count the flat path returns.
@@ -337,7 +355,7 @@ impl QueryRunner {
             } else {
                 None
             };
-            (std::sync::Arc::unwrap_or_clone(documents), total)
+            (documents, total)
         };
 
         // Detect whether there are more pages.
@@ -363,7 +381,7 @@ impl QueryRunner {
         let mut start_cursor_str: Option<String> = None;
         let mut end_cursor_str: Option<String> = None;
 
-        for (i, mut row) in rows.into_iter().enumerate() {
+        for (i, (mut row, embedded)) in rows.into_iter().enumerate() {
             // The row's sort-key values, which the adapter adds to the document of a page
             // with an ordering; never part of the node.
             let sort_keys = row
@@ -426,6 +444,9 @@ impl QueryRunner {
                 &node_fields,
                 &self.ctx.schema,
             );
+            if !embeds.is_empty() {
+                self.attach_embeds(embeds, &mut node, embedded.as_ref())?;
+            }
             edges.push(serde_json::json!({
                 "cursor": cursor_str,
                 "node": node,
