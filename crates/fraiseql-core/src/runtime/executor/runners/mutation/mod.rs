@@ -1088,6 +1088,14 @@ fn build_mutation_result(
                     })?
                 },
             };
+            let selections = &crate::graphql::selection_set::filter(
+                &crate::graphql::concrete_fragments::select_for_object(
+                    selections.to_vec(),
+                    &payload_type,
+                    &ctx.schema,
+                ),
+                authz_variables,
+            )?;
             build_cascade_payload(
                 ctx,
                 security_ctx,
@@ -1135,6 +1143,14 @@ fn build_mutation_result(
             // under the read gates a query of the same entity meets (`payload_gates`), then
             // the dynamic field authorizer (#423), per the resolved concrete type.
             // Fail-closed.
+            let selections = &crate::graphql::selection_set::filter(
+                &crate::graphql::concrete_fragments::select_for_object(
+                    selections.to_vec(),
+                    &typename,
+                    &ctx.schema,
+                ),
+                authz_variables,
+            )?;
             let mut projected = serve_entity(
                 ctx,
                 security_ctx,
@@ -1238,6 +1254,14 @@ fn build_mutation_result(
             // dynamic field authorizer (#423), so a scoped or gated field on an error type
             // cannot leak through the error arm.
             let mut result = if let Some(td) = error_type {
+                let selections = &crate::graphql::selection_set::filter(
+                    &crate::graphql::concrete_fragments::select_for_object(
+                        selections.to_vec(),
+                        td.name.as_str(),
+                        &ctx.schema,
+                    ),
+                    authz_variables,
+                )?;
                 serve_entity(
                     ctx,
                     security_ctx,

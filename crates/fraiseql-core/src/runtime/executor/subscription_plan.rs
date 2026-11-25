@@ -228,7 +228,14 @@ impl Executor {
         refuse_undelivered_selection(schema, definition, &root.nested_fields)?;
         // #1513: a localized field's `locale:` and translations sibling are adjudicated
         // here, as for a query, before the subscription registers.
-        let mut selections = root.nested_fields.clone();
+        let mut selections = crate::graphql::selection_set::filter(
+            &crate::graphql::concrete_fragments::select_for_object(
+                root.nested_fields.clone(),
+                type_name,
+                schema,
+            ),
+            &variables_map,
+        )?;
         crate::runtime::resolve_locale_arguments(
             schema,
             type_name,

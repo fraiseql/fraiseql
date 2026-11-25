@@ -68,7 +68,10 @@ fn mutation_success_row() -> HashMap<String, serde_json::Value> {
     row.insert("message".to_string(), json!("ok"));
     row.insert(
         "entity".to_string(),
-        json!({"id": ALICE_UUID, "email": "alice@example.com", "name": "Alice"}),
+        json!({
+            "id": ALICE_UUID, "email": "alice@example.com", "name": "Alice",
+            "profile": {"tier": "gold", "since": 2020},
+        }),
     );
     // No `entity_type`: this row answers mutations returning `User` and the union
     // `CreateUserResult`, and a stamp must name the type each returns (ruling AA 1).
@@ -2804,4 +2807,88 @@ fn a_transport_checking_the_document_refuses_one_key_two_fields() {
     let parsed = fraiseql_core::graphql::parse_query(ONE_KEY_TWO_FIELDS).unwrap();
     let err = exec.check_fragment_conditions(&parsed, None).expect_err("an invalid document");
     assert_merging_refusal(&err);
+}
+
+/// The golden mutation schema, whose `User` also holds `profile: Profile { tier since }`.
+fn profile_mutation_executor() -> (Executor, Arc<RecordingAdapter>) {
+    let json = include_str!("../../../tests/fixtures/golden/01-basic-query-mutation.json");
+    let mut schema = CompiledSchema::from_json(json, false).expect("golden fixture must parse");
+    let profile = TestTypeBuilder::new("Profile", "v_profile")
+        .with_simple_field("tier", FieldType::String)
+        .with_simple_field("since", FieldType::Int)
+        .build();
+    let user = schema.types.iter_mut().find(|t| t.name == "User").unwrap();
+    user.fields.push(fraiseql_core::schema::FieldDefinition::nullable(
+        "profile",
+        FieldType::Object("Profile".to_string()),
+    ));
+    schema.types.push(profile);
+    schema.build_indexes();
+    let adapter = Arc::new(RecordingAdapter::new());
+    (Executor::new(schema, Arc::clone(&adapter)), adapter)
+}
+
+/// **Control** — the payload answers the nested object written once.
+#[tokio::test]
+async fn a_mutation_payload_answers_a_nested_object() {
+    let (exec, _) = profile_mutation_executor();
+    let response = exec
+        .execute(
+            "mutation { createUser(email: \"a@b.com\", name: \"Alice\") { \
+             profile { tier since } } }",
+            None,
+        )
+        .await
+        .expect("mutation must run");
+    assert_eq!(
+        response["data"]["createUser"],
+        json!({"profile": {"tier": "gold", "since": 2020}}),
+        "response: {response}"
+    );
+}
+
+#[tokio::test]
+async fn a_mutation_payload_merges_a_key_selected_again_in_an_inline_fragment() {
+    let (exec, _) = profile_mutation_executor();
+    let response = exec
+        .execute(
+            "mutation { createUser(email: \"a@b.com\", name: \"Alice\") { \
+             profile { tier } ... on User { profile { since } } } }",
+            None,
+        )
+        .await
+        .expect("mutation must run");
+    assert_eq!(
+        response["data"]["createUser"],
+        json!({"profile": {"tier": "gold", "since": 2020}}),
+        "response: {response}"
+    );
+}
+
+/// `users` as a Relay connection.
+fn connection_executor() -> (Executor, Arc<RecordingAdapter>) {
+    let mut schema = user_schema();
+    for q in &mut schema.queries {
+        q.relay = true;
+        q.relay_cursor_column = Some("pk_user".to_string());
+    }
+    let adapter = Arc::new(RecordingAdapter::new());
+    (Executor::new_with_relay(schema, Arc::clone(&adapter)), adapter)
+}
+
+#[tokio::test]
+async fn a_connection_merges_a_key_selected_again_in_an_inline_fragment() {
+    let (exec, _) = connection_executor();
+    for document in [
+        "{ users(first: 1) { edges { node { id } } ... { edges { node { name } } } } }",
+        "{ users(first: 1) { edges { node { id } ... { node { name } } } } }",
+        "{ users(first: 1) { edges { node { id ... on User { name } } } } }",
+    ] {
+        let response = exec.execute(document, None).await.expect(document);
+        assert_eq!(
+            response["data"]["users"]["edges"][0]["node"],
+            json!({"id": ALICE_UUID, "name": "Alice"}),
+            "{document}: {response}"
+        );
+    }
 }

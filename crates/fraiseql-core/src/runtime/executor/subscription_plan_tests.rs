@@ -1098,3 +1098,77 @@ fn an_event_id_is_served_as_a_string() {
         }
     }
 }
+
+/// `Order { id customer: Customer { id name } }` and `orderCreated: Order`.
+fn schema_with_customer() -> CompiledSchema {
+    let mut schema = CompiledSchema::new();
+    schema.types.push(TypeDefinition {
+        fields: vec![
+            FieldDefinition::new("id", FieldType::Id),
+            FieldDefinition::nullable("customer", FieldType::Object("Customer".into())),
+        ],
+        ..TypeDefinition::new("Order", "v_order")
+    });
+    schema.types.push(TypeDefinition {
+        fields: vec![
+            FieldDefinition::new("id", FieldType::Id),
+            FieldDefinition::new("name", FieldType::String),
+        ],
+        ..TypeDefinition::new("Customer", "v_customer")
+    });
+    schema.subscriptions.push(SubscriptionDefinition::new("orderCreated", "Order"));
+    schema.build_indexes();
+    schema
+}
+
+#[test]
+fn an_event_merges_a_key_selected_again_in_an_inline_fragment() {
+    let exec = executor(schema_with_customer(), RuntimeConfig::default());
+    let event = json!({"id": "o1", "customer": {"id": "c1", "name": "Ada"}});
+    for query in [
+        "subscription { orderCreated { customer { id name } } }",
+        "subscription { orderCreated { customer { id } ... on Order { customer { name } } } }",
+    ] {
+        let plan = plan(&exec, query, &json!({}), None)
+            .map_err(|e| format!("{query}: {e:?}"))
+            .unwrap();
+        assert_eq!(
+            plan.deliver(&event, false).map(|s| s.data),
+            Some(json!({"customer": {"id": "c1", "name": "Ada"}})),
+            "{query}"
+        );
+    }
+}
+
+#[test]
+fn an_event_honours_skip_and_include_inside_a_fragment_read_into_its_set() {
+    let exec = executor(schema_with_customer(), RuntimeConfig::default());
+    let event = json!({"id": "o1", "customer": {"id": "c1", "name": "Ada"}});
+    let both = json!({"customer": {"id": "c1", "name": "Ada"}});
+    let id_only = json!({"customer": {"id": "c1"}});
+    for (query, when_true, when_false) in [
+        (
+            "subscription($v: Boolean!) { orderCreated { customer { id } \
+             ... on Order @include(if: $v) { customer { name } } } }",
+            &both,
+            &id_only,
+        ),
+        (
+            "subscription($v: Boolean!) { orderCreated { customer { id } \
+             ... on Order { customer { name @skip(if: $v) } } } }",
+            &id_only,
+            &both,
+        ),
+    ] {
+        for (v, expected) in [(true, when_true), (false, when_false)] {
+            let plan = plan(&exec, query, &json!({ "v": v }), None)
+                .map_err(|e| format!("{query} v={v}: {e:?}"))
+                .unwrap();
+            assert_eq!(
+                plan.deliver(&event, false).map(|s| s.data).as_ref(),
+                Some(expected),
+                "{query} v={v}"
+            );
+        }
+    }
+}

@@ -2006,6 +2006,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A key selected again inside an inline fragment is merged in mutation payloads and
+  subscription events (#1723).** `profile { tier } ... on User { profile { since } }`
+  answered `profile: null` with a non-null error on a mutation's result, and `null` on a
+  subscription event; both now answer `{ tier since }`, as a query and a Relay connection
+  already did. A mutation's result merges the fragments that apply to the type it answers
+  as: the success type, the error type a failure reports, or a cascade's payload, so a
+  failure merges its error type's fragments and leaves the success type's out.
+  `@skip`/`@include` on such a fragment, or inside it, is honoured.
+
 - **A schema that reads the enriched identity is refused wherever nothing resolves one
   (#2521).** Registering a tenant through the admin API now runs the check boot and schema
   reload run: on a server whose `[identity.enrichment]` is disabled, a tenant schema with an

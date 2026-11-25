@@ -634,12 +634,17 @@ mod mutation {
     /// leaves the column absent, exercising the union-fallback resolution (#465).
     struct MutationErrorMockAdapter {
         entity_type: Option<&'static str>,
+        /// The failure's `error_detail`, which the declared error type's fields read.
+        detail:      Option<serde_json::Value>,
     }
 
     impl MutationErrorMockAdapter {
         /// A failure row with no `entity_type` stamped (the union-fallback case).
         const fn bare() -> Self {
-            Self { entity_type: None }
+            Self {
+                entity_type: None,
+                detail:      None,
+            }
         }
     }
 
@@ -722,6 +727,9 @@ mod mutation {
             row.insert("http_status".to_string(), json!(409));
             if let Some(et) = self.entity_type {
                 row.insert("entity_type".to_string(), json!(et));
+            }
+            if let Some(detail) = &self.detail {
+                row.insert("error_detail".to_string(), detail.clone());
             }
             Ok(vec![row])
         }
@@ -1019,6 +1027,7 @@ mod mutation {
 
         let adapter = Arc::new(MutationErrorMockAdapter {
             entity_type: Some("DuplicateEmailError"),
+            detail:      None,
         });
         let executor = Executor::new(schema, adapter);
 
@@ -1045,6 +1054,76 @@ mod mutation {
         assert_eq!(data.get("message").and_then(|v| v.as_str()), Some("already exists"),);
         // The success entity arm must contribute nothing on a failure.
         assert!(data.get("id").is_none(), "success-arm field 'id' must be absent on failure");
+    }
+
+    /// `CreateUserSuccess { id }` returned, `DuplicateEmailError { message conflict }`, which
+    /// implements `Problem { conflict }`, on a failure, whose `conflict: Conflict { id email }`
+    /// the failure's detail holds.
+    fn failing_with_conflict() -> Executor {
+        use crate::schema::{
+            FieldDefinition, FieldType, InterfaceDefinition, MutationDefinition, TypeDefinition,
+        };
+
+        let mut schema = CompiledSchema::new();
+        let mut user = TypeDefinition::new("CreateUserSuccess", "v_user");
+        user.fields = vec![FieldDefinition::new("id", FieldType::String)];
+        schema.types.push(user);
+        schema.types.push(TypeDefinition {
+            is_error: true,
+            fields: vec![
+                FieldDefinition::new("message", FieldType::String),
+                FieldDefinition::nullable("conflict", FieldType::Object("Conflict".into())),
+            ],
+            implements: vec!["Problem".to_string()],
+            ..TypeDefinition::new("DuplicateEmailError", "")
+        });
+        schema.interfaces.push(InterfaceDefinition::new("Problem").with_field(
+            FieldDefinition::nullable("conflict", FieldType::Object("Conflict".into())),
+        ));
+        let mut conflict = TypeDefinition::new("Conflict", "v_conflict");
+        conflict.fields = vec![
+            FieldDefinition::new("id", FieldType::String),
+            FieldDefinition::new("email", FieldType::String),
+        ];
+        schema.types.push(conflict);
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createUser", "CreateUserSuccess")
+        });
+        let adapter = Arc::new(MutationErrorMockAdapter {
+            entity_type: Some("DuplicateEmailError"),
+            detail:      Some(serde_json::json!({"conflict": {"id": "u1", "email": "a@b.c"}})),
+        });
+        Executor::new(schema, adapter)
+    }
+
+    #[tokio::test]
+    async fn a_failure_merges_a_key_its_error_type_selects_in_two_fragments() {
+        let executor = failing_with_conflict();
+        for document in [
+            "mutation { createUser { ... on DuplicateEmailError { conflict { id email } } } }",
+            "mutation { createUser { ... on DuplicateEmailError { conflict { id } } \
+             ... on Problem { conflict { email } } } }",
+        ] {
+            let result = executor.execute(document, None).await.unwrap();
+            assert_eq!(
+                result["data"]["createUser"]["conflict"],
+                serde_json::json!({"id": "u1", "email": "a@b.c"}),
+                "{document}: {result}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn a_failure_answers_only_its_error_types_fragments_merged() {
+        let executor = failing_with_conflict();
+        let document = "mutation { createUser { __typename ... on CreateUserSuccess { id } \
+                        ... on DuplicateEmailError { conflict { id } } \
+                        ... on Problem { conflict { email } } } }";
+        let result = executor.execute(document, None).await.unwrap();
+        let data = &result["data"]["createUser"];
+        assert_eq!(data["conflict"], serde_json::json!({"id": "u1", "email": "a@b.c"}), "{result}");
+        assert!(data.get("id").is_none(), "{result}");
     }
 
     /// #465 (specificity): with a result union carrying *several* `is_error`
@@ -1083,6 +1162,7 @@ mod mutation {
 
         let adapter = Arc::new(MutationErrorMockAdapter {
             entity_type: Some("DuplicateEmailError"),
+            detail:      None,
         });
         let executor = Executor::new(schema, adapter);
 
@@ -5340,6 +5420,32 @@ mod cascade {
 
         // updatedFields rehomed onto the payload.
         assert_eq!(payload["updatedFields"], json!(["title"]));
+    }
+
+    /// The cascade schema with its payload type declared, as a compiled schema declares it.
+    #[tokio::test]
+    async fn a_cascade_payload_merges_a_key_selected_again_in_an_inline_fragment() {
+        let mut schema = cascade_schema();
+        let mut payload = TypeDefinition::new("CreatePostPayload", "");
+        payload.fields = vec![FieldDefinition::new(
+            "entity",
+            FieldType::Object("Post".into()),
+        )];
+        schema.types.push(payload);
+        schema.build_indexes();
+        let executor =
+            Executor::new(schema, Arc::new(CannedMutationAdapter::new(standard_cascade())));
+        for q in [
+            "mutation { createPost { entity { id title } } }",
+            "mutation { createPost { entity { id } ... on CreatePostPayload { entity { title } } } }",
+        ] {
+            let res = executor.execute(q, None).await.unwrap();
+            assert_eq!(
+                res["data"]["createPost"]["entity"],
+                json!({ "id": "p1", "title": "Hello" }),
+                "{q}: {res}"
+            );
+        }
     }
 
     /// Each entry's `typename` is its row's type, as graphql-cascade defines it (#2313): a
