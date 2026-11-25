@@ -22,13 +22,11 @@
 
 pub mod backend;
 pub mod config;
-pub mod graphql;
 pub mod metadata;
 pub mod migrations;
 pub mod policy;
 pub mod rls;
 pub mod routes;
-pub mod service;
 pub mod transforms;
 pub mod uploads;
 
@@ -56,7 +54,6 @@ pub use backend::{
 /// The `bytes` this crate's public API is built against (#1198).
 pub use bytes;
 pub use config::{BucketAccess, BucketConfig, StorageConfig};
-pub use graphql::{StorageSchemaEntries, StorageSchemaTypes};
 /// The `image` this crate's public API is built against (#1198).
 #[cfg(feature = "transforms")]
 pub use image;
@@ -73,7 +70,6 @@ pub use routes::{
 };
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;
-pub use service::BucketService;
 /// The `sqlx` this crate's public API is built against (#1198).
 pub use sqlx;
 #[cfg(feature = "transforms")]

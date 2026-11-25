@@ -27,6 +27,10 @@ disagreed, and the promise was the part that was wrong.
   keeps the old behaviour). A Deno module's `source_hash` is now the function hash (see
   Added), no longer the SHA-256 of its file.
 
+- **`fraiseql-storage` drops two modules the server never mounted (#1681).** `graphql`
+  (`StorageSchemaTypes`, `StorageSchemaEntries`) and `service` (`BucketService`) are
+  removed. Storage is served by the `/storage/v1` routes, which never used either.
+
 - **`fraiseql-federation` drops its unused gateway pieces (#1681).** The
   `composition_validator` (`CompositionValidator`, `CrossSubgraphValidator`,
   `CompositionError`, `ComposedSchema`, `ComposedType`, `ConflictResolutionStrategy`),

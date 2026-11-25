@@ -178,8 +178,8 @@ impl BucketConfig {
     /// (#876): `put_handler` matched the *raw* header value, so an allow-list
     /// entry `text/plain` rejected the browser-standard
     /// `text/plain;charset=UTF-8`, and it read `Some([])` as "no restriction"
-    /// — the opposite of the documented meaning — while `BucketService::upload`
-    /// read `Some([])` correctly but ignored `image/*` wildcards entirely. Two
+    /// — the opposite of the documented meaning — while a bucket service, since
+    /// removed, read `Some([])` correctly but ignored `image/*` wildcards entirely. Two
     /// implementations of one policy, disagreeing in both directions.
     ///
     /// Rules:
