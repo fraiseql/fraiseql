@@ -188,6 +188,15 @@ server's own policy; `retry:` takes a `%FraiseQL.RetryConfig{}` and nothing else
 
 Any unknown atom is automatically converted to PascalCase and used as-is.
 
+### Decimal values in the client
+
+A `Decimal` travels as a JSON string of its exact digits, `"1.50"`, in both directions.
+`FraiseQL.Client` encodes with Jason, which writes a `%Decimal{}` variable as
+`Decimal.to_string(d, :normal)`: every digit and the scale, never an exponent
+(`Decimal.new("1E+3")` is sent as `"1000"`). A response holds each `Decimal` as that
+string; `Decimal.new(value)` reads it exactly. Do not pass a float: the server refuses a
+number with a fraction for a `Decimal`.
+
 ## Mix Task Reference
 
 ```
