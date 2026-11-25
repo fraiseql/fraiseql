@@ -1,0 +1,56 @@
+name: Dagger — guard mutants
+
+# The guard-site mutation sweep: every row of tools/guard-sites.toml is mutated in turn
+# by tools/run-guard-mutants.py, and the shard named for it must fail. A surviving mutant
+# is a guard no test holds. `dagger call guard-mutants` runs the inventory in two lanes,
+# each with its own target volume and its own PostgreSQL, Redis and NATS services. See
+# docs/testing.md.
+#
+# AN ASSURANCE SIGNAL, NOT A MERGE GATE. It runs on a schedule and on dispatch, never on
+# push: the whole inventory takes about 3h10m (first sweep, cold lane volumes: 3h08m44s),
+# and a sweep holds one of the two heavy runners for all of it. A red scheduled run is not a
+# signal anyone receives on its own, so tools/release.sh reads this workflow's result
+# before it tags, and refuses to tag past a red or a missing sweep. A run opens no issue on
+# its own; the cut is where its result is read.
+#
+# Dispatch it on a release branch to sweep the exact commit a cut will tag.
+on:
+  schedule:
+    # Weekly, Sunday 00:30 UTC: the release cut needs a green sweep of the commit it tags,
+    # so the schedule is an early warning; weekly takes a heavy runner one night a week.
+    - cron: '30 0 * * 0'
+  workflow_dispatch:
+
+# packages: read lets the runner pull the private ghcr.io/fraiseql/* base-image mirror
+# (.github/workflows/mirror-base-images.yml); contents: read for checkout.
+permissions:
+  contents: read
+  packages: read
+
+# One sweep per ref at a time. Not cancelled in progress: a dispatch must not throw away
+# a scheduled sweep three hours in, so a second run waits for the first.
+concurrency:
+  group: dagger-guard-mutants-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    name: guard mutants (every site)
+    # fraiseql-heavy: the lanes' target volumes live on the runner's own box, so a sweep
+    # is warm on whichever heavy runner ran the last one.
+    runs-on: [self-hosted, fraiseql-heavy]
+    # 360: about twice the measured 3h09m, which was a cold-volume run.
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      # The Dagger engine pulls the private ghcr.io/fraiseql/* base images via the
+      # host's docker credentials; authenticate with the job's GITHUB_TOKEN first.
+      - name: Log in to ghcr.io (private base-image mirror)
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: dagger call guard-mutants
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          dagger version
+          dagger call guard-mutants --source=. --lanes=2

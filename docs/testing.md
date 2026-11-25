@@ -228,7 +228,9 @@ Two tools read it:
   target volume and its own Postgres (pgvector), Redis and NATS, and the call fails unless
   every mutant is killed by a test its site names. `--changed="<paths>"` runs only the
   sites in those files (the per-change run: `git diff --name-only` against the merge
-  base), and `--shard NAME` one shard's.
+  base), and `--shard NAME` one shard's. The whole inventory takes about 3h10m on two
+  lanes. `.github/workflows/dagger-guard-mutants.yml` runs it on a schedule, and on
+  dispatch for the commit a release will tag.
 
 **Adding a guard.** Add a `[[site]]` row, then run its mutant:
 
