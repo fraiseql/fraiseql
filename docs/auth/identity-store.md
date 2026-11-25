@@ -74,7 +74,9 @@ tenant key and a valid `::uuid` cast in the auth tables' row-level policies. A d
 running per-tenant dispatch (`[tenancy.runtime]`) must therefore register each tenant whose
 accounts sign in through FraiseQL under that simple-form UUID
 (`PUT /api/v1/admin/tenants/<simple-form-uuid>`); a request whose tenant is not registered
-is refused. `auth.sessions.tenant_id` records the tenant for revocation and audit.
+is refused. Registrations are held in each server process's memory and are lost on restart,
+so each replica needs them again after it starts
+([Tenant and domain registration](../operations/tenant-registry.md)). `auth.sessions.tenant_id` records the tenant for revocation and audit.
 
 ## Usage
 

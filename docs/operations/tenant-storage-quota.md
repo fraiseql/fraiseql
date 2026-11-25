@@ -22,8 +22,11 @@ interval_secs = 300   # how often every tenant with a quota is measured; 0 is re
 
 The tenant's own schema (`tenant_<key>`, the schema its `search_path` names), on the
 tenant's own connection: every table and materialized view in it, with their indexes and
-TOAST (`pg_total_relation_size`). A tenant is measured when it is registered, every tenant
-when the server starts, then one every `interval_secs`. A measurement that takes longer than
+TOAST (`pg_total_relation_size`). A tenant is measured when it is registered, then on every
+sweep: one when the server starts and one every `interval_secs`. The quota and its last
+measurement belong to the registration, which the server keeps in memory only: a restart
+forgets both until the tenant is registered again ([Tenant and domain
+registration](tenant-registry.md)). A measurement that takes longer than
 30 seconds is abandoned with a warning and the tenant keeps its last state, so one
 unresponsive database never holds up the others.
 

@@ -98,6 +98,9 @@ Requirements:
   mid-drain.
 - Readiness probe points at the readiness path so the LB never routes to a pod whose schema
   has not finished loading.
+- With `[tenancy.runtime]`, every new pod starts with no tenants and no domain mappings: the
+  readiness path does not wait for them. Register them on each new pod before it takes
+  their traffic ([Tenant and domain registration](tenant-registry.md)).
 
 ---
 
@@ -248,6 +251,8 @@ unnecessary:
       [compiled-schema-lifecycle.md](compiled-schema-lifecycle.md#schema-versioning).
 - [ ] Rollback path verified: because the DB was only expanded, the previous fleet still runs.
 - [ ] Subscription clients reconnect-and-resubscribe on disconnect.
+- [ ] With `[tenancy.runtime]`: tenants and domains are registered on every new process
+      before it serves them; they are not carried over from the old one.
 
 ---
 

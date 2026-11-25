@@ -141,10 +141,11 @@ including the per-tenant `search_path` lowered into the PostgreSQL startup
 every pool, verified by an integration test that inspects
 `pg_settings.reset_val` through a replica-routed connection.
 
-Tenants may register replicas of their own:
+Tenants may register replicas of their own (the registration lives in the server's
+memory only; see [Tenant and domain registration](tenant-registry.md)):
 
 ```json
-POST /admin/tenants/acme
+PUT /api/v1/admin/tenants/acme
 {
   "connection": {
     "connection_string": "postgres://app@acme-primary/appdb",

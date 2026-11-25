@@ -152,6 +152,9 @@ the same tenant. Without per-class budgets they share one allowance: the batch
 job exhausts the window the humans need, and sizing the window for the batch job
 removes the ceiling from everyone.
 
+The budgets are part of the tenant's registration, which the server holds in memory only
+([Tenant and domain registration](tenant-registry.md)).
+
 ```jsonc
 // PUT /api/v1/admin/tenants/{key}
 {
