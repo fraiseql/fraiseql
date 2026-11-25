@@ -1027,9 +1027,12 @@ fn nested_input_type_name(field_type: &str, schema: &CompiledSchema) -> Option<S
 #[non_exhaustive]
 pub struct MutationExecution {
     /// The `{"data": {...}}` envelope, projected by the selection set.
-    pub data:    serde_json::Value,
+    pub data:     serde_json::Value,
     /// The parsed `app.mutation_response` row this write produced.
-    pub outcome: MutationOutcome,
+    pub outcome:  MutationOutcome,
+    /// The type the result was built as: the success type, the error type a failure
+    /// reports, or a cascade's payload. `None` for a failure no declared type describes.
+    pub answered: Option<String>,
 }
 
 /// Build a mutation's GraphQL response value from the `mutation_response` row the
@@ -1058,7 +1061,7 @@ fn build_mutation_result(
     is_cascade: bool,
     selections: &[FieldSelection],
     authz_variables: &std::collections::HashMap<String, serde_json::Value>,
-) -> Result<serde_json::Value> {
+) -> Result<(serde_json::Value, Option<String>)> {
     match outcome {
         MutationOutcome::Success {
             entity,
@@ -1109,6 +1112,7 @@ fn build_mutation_result(
                 selections,
                 authz_variables,
             )
+            .map(|payload| (payload, Some(payload_type)))
         },
         MutationOutcome::Success {
             entity,
@@ -1184,7 +1188,7 @@ fn build_mutation_result(
                 }
             }
 
-            Ok(projected)
+            Ok((projected, Some(typename)))
         },
         MutationOutcome::Error {
             error_class,
@@ -1293,7 +1297,7 @@ fn build_mutation_result(
                     .or_insert_with(|| serde_json::Value::String(status.to_string()));
             }
 
-            Ok(result)
+            Ok((result, error_type.map(|td| td.name.to_string())))
         },
     }
 }
@@ -2193,11 +2197,11 @@ struct PreparedWrite<'a> {
 
 /// What a write's rows were judged to be: the parsed outcome, the response built from it, and
 /// the types a derived cascade's report named (#1575).
-/// A call's outcome, its response, every type `pg_tviews` reported it changed (#1575), and the
-/// rows it changed when a report says so (#1576; `None`: unknown).
+/// A call's outcome, its response and the type it was built as, every type `pg_tviews` reported
+/// it changed (#1575), and the rows it changed when a report says so (#1576; `None`: unknown).
 type Adjudicated = (
     MutationOutcome,
-    serde_json::Value,
+    (serde_json::Value, Option<String>),
     std::collections::BTreeSet<String>,
     Option<crate::backend::ChangedRows>,
 );
@@ -2403,7 +2407,7 @@ impl PreparedWrite<'_> {
         Ok((envelope, result_json, reported, changed))
     }
 
-    fn build(&self, outcome: MutationOutcome) -> Result<serde_json::Value> {
+    fn build(&self, outcome: MutationOutcome) -> Result<(serde_json::Value, Option<String>)> {
         build_mutation_result(
             self.ctx,
             self.security_ctx,
@@ -2445,10 +2449,11 @@ impl PreparedWrite<'_> {
         Ok((envelope, result_json, std::collections::BTreeSet::new(), unchanged))
     }
 
-    fn execution(&self, (outcome, result_json, ..): Adjudicated) -> MutationExecution {
+    fn execution(&self, (outcome, (result_json, answered), ..): Adjudicated) -> MutationExecution {
         MutationExecution {
             data: ResultProjector::wrap_in_data_envelope(result_json, &self.response_key),
             outcome,
+            answered,
         }
     }
 }

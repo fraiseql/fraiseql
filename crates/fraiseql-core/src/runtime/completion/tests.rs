@@ -860,3 +860,70 @@ fn a_big_int_refusal_names_the_scalar_and_never_the_value() {
          that is not one"
     );
 }
+
+/// `createUser: User`, `User { id: String! }`, and two other types it does not declare:
+/// `DuplicateEmailError { message }`, a failure the write can answer as, and `Conflict`.
+fn mutation_schema() -> CompiledSchema {
+    use crate::schema::MutationDefinition;
+    let mut schema = CompiledSchema::new();
+    for (name, field) in [
+        ("User", "id"),
+        ("DuplicateEmailError", "message"),
+        ("Conflict", "id"),
+    ] {
+        let mut ty = TypeDefinition::new(name, "v_user");
+        ty.fields = vec![FieldDefinition::new(field, FieldType::String)];
+        ty.is_error = name == "DuplicateEmailError";
+        schema.types.push(ty);
+    }
+    schema.mutations.push(MutationDefinition::new("createUser", "User"));
+    schema
+}
+
+/// `createUser { ...on User { id } ...on DuplicateEmailError { message } }` over a failure's
+/// `{ message }`, which names no `__typename`.
+fn complete_failure(resolved: &ResolvedTypes) -> Value {
+    let types = OutputTypes::from_schema(&mutation_schema());
+    let mut response = json!({"data": {"createUser": {"message": "taken"}}});
+    let selections = [sel(
+        "createUser",
+        vec![
+            sel("...on User", vec![sel("id", vec![])]),
+            sel("...on DuplicateEmailError", vec![sel("message", vec![])]),
+        ],
+    )];
+    types.complete(&mut response, "Mutation", &selections, None, resolved);
+    response
+}
+
+fn possible() -> Vec<String> {
+    vec!["DuplicateEmailError".to_string()]
+}
+
+#[test]
+fn a_write_is_completed_as_the_type_it_answered_though_the_declared_type_is_another() {
+    let mut resolved = ResolvedTypes::default();
+    resolved.answered("createUser", "DuplicateEmailError", &possible());
+    let response = complete_failure(&resolved);
+    assert!(response.get("errors").is_none(), "{response}");
+    assert_eq!(response["data"]["createUser"], json!({"message": "taken"}), "{response}");
+}
+
+/// A type outside the write's possible types steers nothing: the value is completed as with
+/// no entry, as its declared type.
+#[test]
+fn an_answered_type_the_write_cannot_answer_as_changes_nothing() {
+    let unrecorded = complete_failure(&ResolvedTypes::default());
+    assert!(
+        unrecorded.get("errors").is_some(),
+        "the baseline is the declared type: {unrecorded}"
+    );
+    for (key, type_name) in [
+        ("createUser", "Conflict"),
+        ("elsewhere", "DuplicateEmailError"),
+    ] {
+        let mut resolved = ResolvedTypes::default();
+        resolved.answered(key, type_name, &possible());
+        assert_eq!(complete_failure(&resolved), unrecorded, "{key}: {type_name}");
+    }
+}

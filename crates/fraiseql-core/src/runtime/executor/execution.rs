@@ -757,7 +757,10 @@ impl Executor {
             },
             QueryType::Mutation { roots } => {
                 self.check_mutation_variable_values(roots, document_variables, variables)?;
-                self.execute_mutation_roots(roots, variables, security_context).await
+                let (response, answered) =
+                    self.execute_mutation_roots(roots, variables, security_context).await?;
+                resolved = answered;
+                Ok(response)
             },
             QueryType::NodeQuery { root, selections } => {
                 // The node runner fails closed for any RLS/inject/role-gated type
@@ -842,19 +845,41 @@ impl Executor {
         roots: &[super::MutationRoot],
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
-    ) -> Result<serde_json::Value> {
+    ) -> Result<(serde_json::Value, crate::runtime::completion::ResolvedTypes)> {
         let [single] = roots else {
             return self.execute_mutation_roots_serially(roots, variables, security_context).await;
         };
-        self.execute_mutation_query(
-            &single.name,
-            &single.response_key,
-            variables,
-            security_context,
-            &single.selections,
-            &single.arguments,
-        )
-        .await
+        let execution = self
+            .execute_mutation_query(
+                &single.name,
+                &single.response_key,
+                variables,
+                security_context,
+                &single.selections,
+                &single.arguments,
+            )
+            .await?;
+        let mut resolved = crate::runtime::completion::ResolvedTypes::default();
+        self.record_answered(&mut resolved, single, execution.answered.as_deref());
+        Ok((execution.data, resolved))
+    }
+
+    /// Record that `root`'s write answered as `answered`. Completion takes the result to be
+    /// of that type when it is one of the declared return type's, or one of the error types
+    /// the mutation's contract lets a failure be served as: an object return's failure is
+    /// one of the latter, and of no type the return type names.
+    pub(super) fn record_answered(
+        &self,
+        resolved: &mut crate::runtime::completion::ResolvedTypes,
+        root: &super::MutationRoot,
+        answered: Option<&str>,
+    ) {
+        let (Some(type_name), Some(mutation)) = (answered, self.schema().find_mutation(&root.name))
+        else {
+            return;
+        };
+        let errors = super::StampContract::of(self.schema(), mutation).error;
+        resolved.answered(&root.response_key, type_name, &errors);
     }
 
     /// The multi-root arm of [`execute_mutation_roots`].
@@ -863,7 +888,7 @@ impl Executor {
         roots: &[super::MutationRoot],
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
-    ) -> Result<serde_json::Value> {
+    ) -> Result<(serde_json::Value, crate::runtime::completion::ResolvedTypes)> {
         if roots.is_empty() {
             return Err(FraiseQLError::Validation {
                 message: "mutation operation has no root field".to_string(),
@@ -873,6 +898,7 @@ impl Executor {
 
         let mut data = serde_json::Map::with_capacity(roots.len());
         let mut errors: Vec<serde_json::Value> = Vec::new();
+        let mut resolved = crate::runtime::completion::ResolvedTypes::default();
 
         for root in roots {
             let outcome = self
@@ -886,10 +912,12 @@ impl Executor {
                 )
                 .await;
             match outcome {
-                Ok(response) => {
+                Ok(execution) => {
+                    self.record_answered(&mut resolved, root, execution.answered.as_deref());
                     // The runner already wrapped its result under the response
                     // key; lift it back out so every root shares one envelope.
-                    let value = response
+                    let value = execution
+                        .data
                         .get("data")
                         .and_then(|d| d.get(root.response_key.as_str()))
                         .cloned()
@@ -908,7 +936,7 @@ impl Executor {
         if !errors.is_empty() {
             response.insert("errors".to_string(), serde_json::Value::Array(errors));
         }
-        Ok(serde_json::Value::Object(response))
+        Ok((serde_json::Value::Object(response), resolved))
     }
 }
 

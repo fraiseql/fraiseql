@@ -2006,6 +2006,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A mutation's result is completed as the type its outcome answers, whether or not
+  `__typename` is selected (#2538).** A failure of a mutation returning an object type,
+  selected as `... on CreateUserSuccess { id } ... on DuplicateEmailError { message }`,
+  answered `null` with `Cannot return null for non-nullable field CreateUserSuccess.id`;
+  with `__typename` added it answered the error type. It now answers `{ message }` either
+  way. A success or a cascade payload under a returned union is held to its type's
+  non-null fields without `__typename` too, where it was not checked at all. The result is
+  only ever completed as one of the return type's own types or an error type the
+  mutation declares.
+
 - **A key selected again inside an inline fragment is merged in mutation payloads and
   subscription events (#1723).** `profile { tier } ... on User { profile { since } }`
   answered `profile: null` with a non-null error on a mutation's result, and `null` on a

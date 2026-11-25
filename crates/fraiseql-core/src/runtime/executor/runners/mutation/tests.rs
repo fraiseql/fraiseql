@@ -1114,6 +1114,166 @@ mod mutation {
         }
     }
 
+    /// `createUser: User`, `User { id name }`, and the declared error type
+    /// `DuplicateEmailError { message }`, over `adapter`.
+    fn creating_user<A: fraiseql_db::Writer>(adapter: Arc<A>) -> Executor {
+        use crate::schema::{FieldDefinition, FieldType, MutationDefinition, TypeDefinition};
+
+        let mut schema = CompiledSchema::new();
+        let mut user = TypeDefinition::new("User", "v_user");
+        user.fields = vec![
+            FieldDefinition::new("id", FieldType::String),
+            FieldDefinition::new("name", FieldType::String),
+        ];
+        schema.types.push(user);
+        schema.types.push(TypeDefinition {
+            is_error: true,
+            fields: vec![FieldDefinition::new("message", FieldType::String)],
+            ..TypeDefinition::new("DuplicateEmailError", "")
+        });
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createUser", "User")
+        });
+        Executor::new(schema, adapter)
+    }
+
+    /// The answered type is the write's outcome, whether or not `__typename` is selected:
+    /// both forms, on a success and on a failure.
+    #[tokio::test]
+    async fn a_write_answers_its_outcomes_fragment_with_or_without_typename() {
+        let success = creating_user(Arc::new(SelectionSetFilterMockAdapter));
+        let failure = creating_user(Arc::new(MutationErrorMockAdapter {
+            entity_type: Some("DuplicateEmailError"),
+            detail:      None,
+        }));
+        let fragments = "... on User { id } ... on DuplicateEmailError { message }";
+        for (executor, typename, field, value) in [
+            (&success, "User", "id", "123"),
+            (&failure, "DuplicateEmailError", "message", "already exists"),
+        ] {
+            for selected in ["", "__typename "] {
+                let document = format!("mutation {{ createUser {{ {selected}{fragments} }} }}");
+                let result = executor.execute(&document, None).await.unwrap();
+                let data = &result["data"]["createUser"];
+                assert!(result.get("errors").is_none(), "{document}: {result}");
+                assert_eq!(data[field], value, "{document}: {result}");
+                let other = if field == "id" { "message" } else { "id" };
+                assert!(data.get(other).is_none(), "{document}: {result}");
+                if !selected.is_empty() {
+                    assert_eq!(data["__typename"], typename, "{document}: {result}");
+                }
+            }
+        }
+    }
+
+    /// Each root of a multi-root mutation is completed as the type its own write answered.
+    #[tokio::test]
+    async fn each_root_of_a_mutation_answers_its_own_outcomes_fragment() {
+        let failure = creating_user(Arc::new(MutationErrorMockAdapter {
+            entity_type: Some("DuplicateEmailError"),
+            detail:      None,
+        }));
+        let document = "mutation { \
+                        a: createUser { ... on User { id } ... on DuplicateEmailError { message } } \
+                        b: createUser { ... on DuplicateEmailError { message } ... on User { name } } }";
+        let result = failure.execute(document, None).await.unwrap();
+        assert!(result.get("errors").is_none(), "{result}");
+        for key in ["a", "b"] {
+            let data = &result["data"][key];
+            assert_eq!(data["message"], "already exists", "{key}: {result}");
+            assert!(data.get("id").is_none() && data.get("name").is_none(), "{key}: {result}");
+        }
+    }
+
+    /// What the executor records for a write that answered as `answered`, completed over a
+    /// failure's `{ message }` through `...on CreateUserSuccess { id }
+    /// ...on DuplicateEmailError { message }`.
+    fn complete_as_recorded(executor: &Executor, answered: Option<&str>) -> serde_json::Value {
+        use crate::{graphql::FieldSelection, runtime::executor::MutationRoot};
+
+        let sel = |name: &str, nested_fields: Vec<FieldSelection>| FieldSelection {
+            name: name.to_string(),
+            alias: None,
+            arguments: vec![],
+            nested_fields,
+            directives: vec![],
+        };
+        let selections = vec![sel(
+            "createUser",
+            vec![
+                sel("...on CreateUserSuccess", vec![sel("id", vec![])]),
+                sel("...on DuplicateEmailError", vec![sel("message", vec![])]),
+            ],
+        )];
+        let root = MutationRoot {
+            response_key: "createUser".to_string(),
+            name:         "createUser".to_string(),
+            selections:   selections[0].nested_fields.clone(),
+            arguments:    vec![],
+        };
+        let mut resolved = crate::runtime::completion::ResolvedTypes::default();
+        executor.record_answered(&mut resolved, &root, answered);
+        let mut response = serde_json::json!({"data": {"createUser": {"message": "taken"}}});
+        executor
+            .ctx
+            .output_types
+            .complete(&mut response, "Mutation", &selections, None, &resolved);
+        response
+    }
+
+    /// A type the mutation cannot answer as, recorded by the runner, changes nothing: the
+    /// result is completed as its declared type, as with nothing recorded. `Conflict` is
+    /// published, and is neither the return type nor an error type.
+    #[tokio::test]
+    async fn a_recorded_type_the_mutation_cannot_answer_as_changes_nothing() {
+        let executor = failing_with_conflict();
+        let declared = complete_as_recorded(&executor, None);
+        assert!(declared.get("errors").is_some(), "the declared type's `id`: {declared}");
+        assert_eq!(complete_as_recorded(&executor, Some("Conflict")), declared);
+        let failure = complete_as_recorded(&executor, Some("DuplicateEmailError"));
+        assert!(failure.get("errors").is_none(), "an error type it declares: {failure}");
+    }
+
+    /// A success under a returned union is completed as its type, which the union names no
+    /// `__typename` for: the success type's non-null `slug`, which the entity never holds,
+    /// is reported.
+    #[tokio::test]
+    async fn a_success_under_a_returned_union_is_completed_as_its_type() {
+        use crate::schema::{
+            FieldDefinition, FieldType, MutationDefinition, TypeDefinition, UnionDefinition,
+        };
+
+        let mut schema = CompiledSchema::new();
+        let mut user = TypeDefinition::new("User", "v_user");
+        user.fields = vec![
+            FieldDefinition::new("id", FieldType::String),
+            FieldDefinition::new("slug", FieldType::String),
+        ];
+        schema.types.push(user);
+        schema.types.push(TypeDefinition {
+            is_error: true,
+            fields: vec![FieldDefinition::new("message", FieldType::String)],
+            ..TypeDefinition::new("DuplicateEmailError", "")
+        });
+        schema.unions.push(
+            UnionDefinition::new("CreateUserResult")
+                .with_members(vec!["User".to_string(), "DuplicateEmailError".to_string()]),
+        );
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createUser", "CreateUserResult")
+        });
+        let executor = Executor::new(schema, Arc::new(SelectionSetFilterMockAdapter));
+        let document = "mutation { createUser { ... on User { id slug } } }";
+        let result = executor.execute(document, None).await.unwrap();
+        assert_eq!(
+            result["errors"][0]["path"],
+            serde_json::json!(["createUser", "slug"]),
+            "{result}"
+        );
+    }
+
     #[tokio::test]
     async fn a_failure_answers_only_its_error_types_fragments_merged() {
         let executor = failing_with_conflict();
@@ -5446,6 +5606,39 @@ mod cascade {
                 "{q}: {res}"
             );
         }
+    }
+
+    /// A cascade returning a result union is completed as its payload type, which the union
+    /// names no `__typename` for: its entity's non-null `slug`, which the row never holds, is
+    /// reported.
+    #[tokio::test]
+    async fn a_cascade_result_is_completed_as_its_payload_type() {
+        let mut schema = cascade_schema();
+        schema.mutations[0].return_type = "CreatePostResult".to_string();
+        schema.types[0].fields.push(FieldDefinition::new("slug", FieldType::String));
+        let mut payload = TypeDefinition::new("CreatePostPayload", "");
+        payload.fields = vec![FieldDefinition::new(
+            "entity",
+            FieldType::Object("Post".into()),
+        )];
+        schema.types.push(payload);
+        schema.types.push(TypeDefinition {
+            is_error: true,
+            fields: vec![FieldDefinition::nullable("message", FieldType::String)],
+            ..TypeDefinition::new("CreatePostError", "")
+        });
+        schema
+            .unions
+            .push(crate::schema::UnionDefinition::new("CreatePostResult").with_members(vec![
+                "CreatePostPayload".to_string(),
+                "CreatePostError".to_string(),
+            ]));
+        schema.build_indexes();
+        let executor =
+            Executor::new(schema, Arc::new(CannedMutationAdapter::new(standard_cascade())));
+        let q = "mutation { createPost { ... on CreatePostPayload { entity { id slug } } } }";
+        let res = executor.execute(q, None).await.unwrap();
+        assert_eq!(res["errors"][0]["path"], json!(["createPost", "entity", "slug"]), "{res}");
     }
 
     /// Each entry's `typename` is its row's type, as graphql-cascade defines it (#2313): a

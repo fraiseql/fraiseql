@@ -248,6 +248,9 @@ impl Executor {
     /// [`execute_mutation_impl`](runners::mutation::execute_mutation_impl) function, which
     /// refuses unless the executor holds a write handle.
     ///
+    /// Returns the projection and the type it was built as, which completion takes the
+    /// result to be (§ 6.4.4).
+    ///
     /// # Errors
     ///
     /// * [`FraiseQLError::Validation`] — the adapter does not support mutations, mutation name not
@@ -297,7 +300,7 @@ impl Executor {
         security_context: Option<&SecurityContext>,
         selections: &[FieldSelection],
         inline_arguments: &[crate::graphql::GraphQLArgument],
-    ) -> Result<serde_json::Value> {
+    ) -> Result<runners::mutation::MutationExecution> {
         // The capability question is asked at step 0 of `execute_mutation_impl`, which
         // every path below reaches — including the § 5.3.3 refusal underneath, which is a
         // *validation* answer and must not depend on write capability to be given. The
@@ -337,7 +340,6 @@ impl Executor {
             inline_arguments,
         )
         .await
-        .map(|execution| execution.data)
     }
 
     /// [`execute_mutation_query`](Self::execute_mutation_query), keeping the parsed

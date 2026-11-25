@@ -31,8 +31,9 @@
 //!
 //! A value at an interface or union position is completed as its concrete type: the type
 //! its `__typename` names, else the type the read resolved for that position
-//! ([`ResolvedTypes`]: a `node(id:)` lookup knows the type its id names), else the declared
-//! type, whose own fields are then all that can be held to their types. A stored document
+//! ([`ResolvedTypes`]: a `node(id:)` lookup knows the type its id names, a write the type
+//! its outcome was built as), else the declared type, whose own fields are then all that
+//! can be held to their types. A stored document
 //! at an interface or union field names no type unless its view writes `__typename`, so such
 //! a variant's own fields are completed only when the view writes it or the client selects
 //! it. Every read path — regular,
@@ -414,39 +415,60 @@ impl OutputTypes {
     }
 }
 
-/// The concrete type a read resolved for an abstract root value, by the root's response
-/// key: a `node(id:)` lookup reads the type its id names.
+/// The concrete type a read resolved for a root value, by the root's response key: a
+/// `node(id:)` lookup reads the type its id names, and a write answers as the type its
+/// outcome was built as, which may be an error type its declared type is not.
 ///
 /// It steers completion only: nothing is written into the response, so a `__typename`
 /// the client did not select is not served.
 #[derive(Debug, Default)]
 pub struct ResolvedTypes {
-    roots: Vec<(String, String)>,
+    roots: Vec<ResolvedRoot>,
+}
+
+#[derive(Debug)]
+struct ResolvedRoot {
+    response_key: String,
+    type_name:    String,
+    /// Types the root can be of besides those of its declared type: a write's error types.
+    possible:     Vec<String>,
 }
 
 impl ResolvedTypes {
     /// The root value at `response_key` is of type `type_name`.
     #[must_use]
     pub fn root(response_key: &str, type_name: &str) -> Self {
-        Self {
-            roots: vec![(response_key.to_string(), type_name.to_string())],
-        }
+        let mut resolved = Self::default();
+        resolved.insert(response_key, type_name);
+        resolved
     }
 
     /// The root value at `response_key` is also of type `type_name`.
     pub fn insert(&mut self, response_key: &str, type_name: &str) {
-        self.roots.push((response_key.to_string(), type_name.to_string()));
+        self.answered(response_key, type_name, &[]);
     }
 
-    /// The type resolved for the value at `path`, if it is a root this names.
-    fn at(&self, path: &[Step<'_>]) -> Option<&str> {
+    /// The write at `response_key` answered as `type_name`, which steers completion when it
+    /// is one of the declared type's or one of `possible`, the error types the write can
+    /// answer as.
+    pub fn answered(&mut self, response_key: &str, type_name: &str, possible: &[String]) {
+        self.roots.push(ResolvedRoot {
+            response_key: response_key.to_string(),
+            type_name:    type_name.to_string(),
+            possible:     possible.to_vec(),
+        });
+    }
+
+    /// The type resolved for the value at `path`, if it is a root this names, with the
+    /// types it may be besides the declared type's.
+    fn at(&self, path: &[Step<'_>]) -> Option<(&str, &[String])> {
         let [Step::Key(key)] = path else {
             return None;
         };
         self.roots
             .iter()
-            .find(|(root, _)| root == key)
-            .map(|(_, type_name)| type_name.as_str())
+            .find(|root| root.response_key == *key)
+            .map(|root| (root.type_name.as_str(), root.possible.as_slice()))
     }
 }
 
@@ -1161,14 +1183,16 @@ impl<'a> Walk<'a> {
         // The object is of the type its `__typename` names, when that is a type the schema
         // publishes: an abstract type's variant, or the error type a failed mutation
         // resolves to under a bare success return type. Without one, of the type the read
-        // resolved for this position, when that is one of the declared type's. Without
+        // resolved for this position, when that is one of the declared type's or, for a
+        // write, one of the error types it can answer as. Without
         // either, the declared type's own fields (an interface's) are all that can be
         // adjudicated.
         let types = self.types;
         let resolved = self
             .resolved
             .and_then(|resolved| resolved.at(path))
-            .filter(|t| self.satisfies(t, declared));
+            .filter(|(t, possible)| self.satisfies(t, declared) || possible.iter().any(|p| p == t))
+            .map(|(t, _)| t);
         let Some((concrete, fields)) = map
             .get("__typename")
             .and_then(Value::as_str)
