@@ -619,6 +619,14 @@ T | null        →  T         (nullable)
 T | undefined   →  T         (optional param)
 ```
 
+### Decimal values in the client
+
+A `Decimal` travels as a JSON string of its exact digits, `"1.50"`, in both directions.
+The `Decimal` type is a branded `string`: pass the digits as a string, and a response
+holds each `Decimal` as that string. Do not pass a `number`: the server refuses a number
+with a fraction for a `Decimal`, because a JS number is a binary float that has already
+lost its digits.
+
 ## Analytics Features
 
 ### Fact Tables

@@ -210,4 +210,6 @@ pub(super) fn parse_input_type(type_str: &str) -> ParsedInputType {
 }
 
 #[cfg(test)]
+mod decimal_tests;
+#[cfg(test)]
 mod tests;

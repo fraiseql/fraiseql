@@ -81,4 +81,6 @@ fn stamp(body: &str, hash: &str) -> String {
 }
 
 #[cfg(test)]
+mod decimal_tests;
+#[cfg(test)]
 mod tests;

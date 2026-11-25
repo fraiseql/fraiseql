@@ -220,6 +220,14 @@ server's own policy. `register_observer` refuses a second observer of one name w
 `DuplicateObserver`. The retry type is `ObserverRetry`, because
 `fraiseql_client::RetryConfig` is the client's retry of a request.
 
+## Decimal Values in the Client
+
+A `Decimal` travels as a JSON string of its exact digits, `"1.50"`, in both directions.
+`fraiseql-client` sends the `serde_json::Value` you give it and decodes the response into
+your type, so build a `Decimal` variable from a `String` and read one into a `String` (or
+a decimal type whose serde form is a string). A response holds each `Decimal` as that string. Do not pass a `f64`: the server refuses a number
+with a fraction for a `Decimal`, because a binary float has already lost its digits.
+
 ## Building & Testing
 
 ### Build the project

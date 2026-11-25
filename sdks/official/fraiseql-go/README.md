@@ -164,6 +164,14 @@ Tag format: `fraiseql:"<field_name>,type=<graphql_type>,nullable=<true|false>"`
 - `type`: GraphQL type (required)
 - `nullable`: Whether field can be null (optional, defaults to false for non-pointer types)
 
+### Decimal values in the client
+
+A `Decimal` travels as a JSON string of its exact digits, `"1.50"`, in both directions.
+`fraiseql.Decimal` is a `string` type, so a `fraiseql.Decimal` variable is sent as that
+string and a response decodes into a `fraiseql.Decimal` (or `string`) field with every
+digit. A response holds each `Decimal` as that string. Do not pass a `float64`: the server refuses a number
+with a fraction for a `Decimal`, because a binary float has already lost its digits.
+
 ## Features
 
 - **Type-safe**: Go struct definitions map to GraphQL types

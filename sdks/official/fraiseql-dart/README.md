@@ -114,6 +114,13 @@ fraiseql-cli compile schema.json  # Compile to schema.compiled.json
 fraiseql-server --schema schema.compiled.json
 ```
 
+## Decimal Values in the Client
+
+A `Decimal` travels as a JSON string of its exact digits, `"1.50"`, in both directions.
+Dart's core library has no decimal type: pass the digits as a `String`, and
+`FraiseQLClient` sends it unchanged. A response holds each `Decimal` as that string. Do not pass a `double`: the server refuses a number
+with a fraction for a `Decimal`, because a binary float has already lost its digits.
+
 ## Requirements
 
 - Dart SDK >= 3.0.0

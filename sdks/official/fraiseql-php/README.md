@@ -339,6 +339,13 @@ PHP types are automatically mapped to GraphQL scalar types:
 
 Use `#[GraphQLField(type: 'ID')]` to override the inferred type.
 
+### Decimal values in the client
+
+A `Decimal` (`Scalars::DECIMAL`) travels as a JSON string of its exact digits, `"1.50"`,
+in both directions. PHP has no decimal type: pass the digits as a `string`, and
+`FraiseQLClient` sends it unchanged. A response holds each `Decimal` as that string. Do not pass a `float`: the server refuses a number
+with a fraction for a `Decimal`, because a binary float has already lost its digits.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
