@@ -1,9 +1,15 @@
-# Gate scripts under tools/ that no CI leg runs, each with the reason.
-# tools/check-gate-reachability.py fails on a row for a script CI does run, or for one
-# that no longer exists.
+# Gate scripts under tools/ (`path`) and gate make targets (`target`) that no CI leg
+# runs, each with the reason. tools/check-gate-reachability.py fails on a row for one
+# CI does run, or for one that no longer exists.
 
 [[exempt]]
 path = "tools/check-test-baseline.sh"
 reason = """A workstation tool: it runs the local nextest suite without a database and \
 classifies each failure. CI runs the suites themselves, with their services bound, in \
 the Test and integration legs."""
+
+[[exempt]]
+target = "lint-feature-matrix"
+reason = """The local runner for the Dagger feature-matrix leg (dagger-feature-matrix.yml), \
+which compiles every combo itself; running the runner in CI would run the matrix twice. \
+Its self-test, test-feature-matrix-gate, runs in shell-gates."""

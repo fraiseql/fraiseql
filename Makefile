@@ -483,10 +483,11 @@ check-default:
 # production code fails `cargo clippy --workspace -- -D warnings` before this gate runs.
 # This secondary gate limits annotation proliferation (each annotation is a deliberate exception).
 # Excludes lines containing "test" (covers #![allow] in test modules and test-only src files).
-# Baseline: 0 (plan-09 replaced the NaiveDate::from_ymd_opt().unwrap() with unreachable!).
 # `#![allow]` inside `#[cfg(test)]` modules are excluded via `grep -v '#!\[allow'`.
+# The budget is set here once: `shell-gates` (the Dagger ShellGates leg) and a bare
+# `make lint-unwrap` both check this value.
 # Raise UNWRAP_ALLOW_LIMIT only with a PR comment justifying each new addition.
-UNWRAP_ALLOW_LIMIT ?= 0
+UNWRAP_ALLOW_LIMIT ?= 3
 .PHONY: lint-unwrap
 lint-unwrap:
 	@echo "=== Counting unwrap allows in production code ==="
@@ -609,7 +610,7 @@ lint-async-trait:
 # Target: ≤20 allows (currently 16 after B1 remediation).
 # Run `make lint-gate` in CI to detect regressions.
 lint-gate:
-	@ALLOW_COUNT=$$(grep -c '#!\[allow(clippy::' crates/fraiseql-core/src/lib.rs); \
+	@ALLOW_COUNT=$$(grep -c '^#!\[allow(clippy::' crates/fraiseql-core/src/lib.rs); \
 	echo "fraiseql-core lib.rs crate-level allow count: $$ALLOW_COUNT"; \
 	if [ "$$ALLOW_COUNT" -gt 20 ]; then \
 	  echo "ERROR: too many crate-level clippy allows ($$ALLOW_COUNT > 20)"; \
@@ -624,7 +625,7 @@ lint-gate:
 FRAISEQL_DB_LIB_ALLOWS_MAX ?= 40
 .PHONY: lint-gate-db
 lint-gate-db:
-	@count=$$(grep -c '#!\[allow(clippy' crates/fraiseql-db/src/lib.rs); \
+	@count=$$(grep -c '^#!\[allow(clippy' crates/fraiseql-db/src/lib.rs); \
 	echo "fraiseql-db lib.rs crate-level allows: $$count (max: $(FRAISEQL_DB_LIB_ALLOWS_MAX))"; \
 	for lint in cast_possible_truncation cast_precision_loss cast_sign_loss; do \
 	  if grep -q "allow.*$$lint" crates/fraiseql-db/src/lib.rs; then \
@@ -642,10 +643,13 @@ lint-gate-db:
 # Target: ≤15 allows (post-F053 reorganization: 8 wire-protocol casts + 7 style prefs).
 # Test-bleed allows (unreadable_literal, explicit_iter_loop) live in mod tests blocks
 # and must not return to crate level.
+# The three crate-level counts match `#![allow` only at the start of a line: a `//`
+# comment quoting one is prose, and counting it put this gate at 16 over 15 real
+# allows while no leg ran it.
 FRAISEQL_WIRE_LIB_ALLOWS_MAX ?= 15
 .PHONY: lint-gate-wire
 lint-gate-wire:
-	@count=$$(grep -c '#!\[allow(clippy::' crates/fraiseql-wire/src/lib.rs); \
+	@count=$$(grep -c '^#!\[allow(clippy::' crates/fraiseql-wire/src/lib.rs); \
 	echo "fraiseql-wire lib.rs crate-level allow count: $$count (max: $(FRAISEQL_WIRE_LIB_ALLOWS_MAX))"; \
 	for lint in unreadable_literal map_unwrap_or explicit_iter_loop range_plus_one; do \
 	  if grep -q "^#!\[allow(clippy::$$lint" crates/fraiseql-wire/src/lib.rs; then \
@@ -1859,17 +1863,6 @@ image-properties:
 test-secret-scan-gate:
 	@bash tools/tests/gitleaks_allowlist_test.sh
 
-.PHONY: lint-preflight-parity
-lint-preflight-parity:
-	@python3 tools/check-preflight-parity.py
-
-# Red-capability pin for the parity gate. A gate asserting two lists agree is
-# itself a third place the assurance can be false, so each way they can diverge
-# has a fixture that must be reported.
-.PHONY: test-preflight-parity
-test-preflight-parity:
-	@bash tools/tests/preflight_parity_test.sh
-
 # Gate: each local mirror target must run exactly what the Dagger shard it names
 # runs. `make test-integration-postgres` mirrors `integration (postgres)` — the
 # knowledge that those suites only pass serialized lived only in
@@ -1962,21 +1955,544 @@ test-suite-marker-prelude:
 lint-required-checks:
 	@bash tools/check-required-checks.sh
 
+# Gate: a test reads DATABASE_URL through the test-support helpers, never inline,
+# so a missing URL fails the test instead of skipping it.
+.PHONY: lint-test-imports
+lint-test-imports:
+	@bash tools/check-test-imports.sh
+
+# Gate: deny.toml, .cargo/audit.toml and docs/dependency-risk-policy.md accept the
+# same entries.
+.PHONY: lint-audit-lockstep
+lint-audit-lockstep:
+	@bash tools/check-audit-lockstep.sh
+
+# ============================================================================
+# shell-gates — every gate the Dagger ShellGates leg runs, written once
+# ============================================================================
+#
+# `.dagger/main.go`'s ShellGates runs `make -k shell-gates` and nothing else, and
+# `preflight` depends on this target, so CI and the local run read one list.
+# Each prerequisite is a gate target; a rule per line keeps each gate's reason
+# beside it, and make runs them in the order written. Every gate here runs in
+# the ShellGates container: make, git, gawk, findutils, grep and python3, no Rust
+# toolchain and no `.git` (the leg runs `git init -q .` first). A gate that needs
+# cargo or another toolchain runs in its own Dagger function instead.
+#
+# `make -k shell-gates` reports every failing gate in one run; make still exits
+# non-zero if any failed. One gate by hand: `make <target>`.
+.PHONY: shell-gates
+shell-gates: lint-tests-layout
+shell-gates: lint-unwrap
+shell-gates: lint-expect
+shell-gates: lint-async-trait
+shell-gates: lint-gate-db
+shell-gates: lint-gate-core
+
+# The crate-level allow budgets of fraiseql-core's lib.rs and fraiseql-wire, and the
+# `# Errors` doc floors per crate. They ran in no leg until the reachability check
+# below named them.
+shell-gates: lint-gate
+shell-gates: lint-gate-wire
+shell-gates: lint-gate-errors-doc
+shell-gates: test-release-tooling
+shell-gates: test-deadline-gate
+shell-gates: test-audit-ledger-gate
+shell-gates: test-docs-env-vars-gate
+shell-gates: test-doc-claims-gate
+shell-gates: test-release-validation-gate
+shell-gates: test-rustc-wrapper-gate
+
+# The changelog gate's SELF-TEST only. The gate itself needs real git
+# history and would pass vacuously here — the ShellGates leg mounts the tree
+# without `.git` and runs `git init -q .` first, so `Closes #N` over the release range
+# returns nothing. The gate runs in changelog-check.yml and in
+# release.yml's validate-release, both with fetch-depth: 0 (#1127).
+shell-gates: test-changelog-gate
+
+# The nightly rustfmt is pinned and pinned once: a bare `nightly` makes the
+# Fmt gate depend on the day it runs (2026-09-25 red dev this way).
+shell-gates: lint-fmt-toolchain
+shell-gates: lint-test-imports
+shell-gates: lint-routes
+
+# No route answers 501 through `not_implemented(` but one route's conditional one
+# (ADR-0007 §5, check 8): a route that exists and declines is a capability the
+# registry reports served and the deployment does not serve.
+shell-gates: lint-not-implemented
+shell-gates: test-not-implemented-gate
+shell-gates: lint-guard-parity
+
+# The test side of the same rule (#1272): a test that asserts a guard's
+# behaviour must take the temp_env lock, or it races the sibling that sets
+# the guard's opt-out and reads the guard as disabled. Four vault tests did; the
+# three asserting a refusal reddened the ShellGates leg at random, and the one
+# asserting Ok passed with the outbound-address guard refusing every address.
+shell-gates: lint-guard-test-lock
+shell-gates: test-guard-test-lock-gate
+
+# Every router the server mounts is recorded, so the transport refusal matrix
+# sees every transport (#1844).
+shell-gates: lint-mount-ledger
+shell-gates: test-mount-ledger-gate
+
+# Every guard site has a mutant and a named killer, and every guard-shaped call
+# of an enabled family is an inventoried site (#1846).
+shell-gates: lint-guard-sites
+shell-gates: test-guard-sites-gate
+shell-gates: test-guard-mutants-gate
+shell-gates: lint-deploy-security
+
+# Deploy artifacts must name the version being released, and the chart's
+# default image must be one this project publishes (#1129).
+shell-gates: lint-deploy-versions
+
+# A compiled schema a workflow boots must name the build this tree makes:
+# the server refuses any other since #1304, and release-smoke.yml only runs
+# on release/* and v*, so a stale one first shows up at the tag.
+shell-gates: lint-compiled-schema-stamp
+shell-gates: test-compiled-schema-stamp-gate
+
+# Every fuzz.yml matrix row must name a target that exists in the crate it
+# names (#1128), and every target on disk has a row or a stated exemption (#1847).
+shell-gates: lint-fuzz-targets
+shell-gates: test-fuzz-targets-gate
+
+# A Compose file merely NAMED by a make target, and absent, is outside
+# check-examples-integrity.sh — that gate discovers compose files with `find` and
+# checks what is inside them. Three make targets drove a path in no commit
+# reachable from dev and failed on their first line (#1219).
+shell-gates: lint-compose-references
+shell-gates: test-compose-references-gate
+
+# First-party sessions are ES256 ([auth_issuer]) and validated by OidcValidator.
+# The shared-secret path is being removed; a file outside the gate's lists that
+# names it fails, and the PENDING list only shrinks.
+shell-gates: lint-no-first-party-hs256
+shell-gates: test-no-first-party-hs256-gate
+
+# Every apt install refreshes its index in the same exec: one layered on a
+# separately cached `apt-get update` 404'd the ShellGates leg on every run once
+# Ubuntu replaced a package the cached index still named (2026-10-10).
+shell-gates: lint-dagger-apt
+shell-gates: test-dagger-apt-gate
+
+# One pg_tviews pin (docker/pg-tviews/Dockerfile); the docs and compose name it (#1391).
+shell-gates: lint-pg-tviews-pin
+shell-gates: test-pg-tviews-pin-gate
+
+# The quiet-window check the release benchmark waits on before measuring on forge:
+# another CI job, a cargo or rustc, or a load over the limit keeps it from measuring.
+shell-gates: test-bench-quiet-window-gate
+
+# A velocitybench baseline compares only on the host that measured it.
+shell-gates: test-detect-regression-host-gate
+
+# A velocitybench run that measured nothing fails the release benchmark.
+shell-gates: test-bench-require-measured-gate
+
+# A bare `image: fraiseql:...` in a fenced code block resolves to
+# docker.io/library/fraiseql, which this project cannot publish to — #1129's
+# defect, in the one place the file-level gates do not read (#1220).
+shell-gates: lint-doc-image-refs
+
+# Every tool CI installs names a version. `pip install scim2-tester httpx` in
+# .dagger/main.go let two PyPI releases redden `integration (saml)` twice in nine
+# hours on an untouched branch (2026-09-20) — once before a single check ran.
+shell-gates: lint-ci-install-pins
+shell-gates: test-ci-install-pins-gate
+
+# The #1421 stale-artifact check the canary runs in every Rust leg, proved RED and
+# GREEN on synthetic cargo logs (a green leg cannot show it would ever fire).
+shell-gates: test-ci-stale-artifacts-gate
+
+# #1596: the stamp is taken inside each exec of a Rust leg, after its target volume
+# is mounted, by tools/ci-stamp-sources.sh (BASH_ENV); proved in a tree with no .git.
+shell-gates: lint-ci-source-stamp
+shell-gates: test-ci-source-stamp-gate
+shell-gates: lint-phases-citations
+shell-gates: test-phases-citations-gate
+shell-gates: lint-image-context
+shell-gates: test-image-context-gate
+
+# Every gate script under tools/ is run by some CI leg or exempted with a
+# reason. The five self-tests above and in CheckFuzz, CheckExampleCrates and
+# CheckRExamples ran only in `make preflight` until this gate named them.
+shell-gates: lint-gate-reachability
+shell-gates: test-gate-reachability-gate
+shell-gates: test-doc-image-refs-gate
+
+# Every secret a publish job reads is checked by release.yml's prerequisite
+# step before anything is published. The Rust SDK read CARGO_REGISTRY_TOKEN, a
+# secret the repository never had: empty at the upload, after every other
+# package of v2.16.0 was already public (#1518).
+shell-gates: lint-publish-secrets
+shell-gates: test-publish-secrets-gate
+
+# The pre-tag image leg must build exactly what docker-build.yml publishes,
+# in both directions and across both of its matrices. Static — it reads the
+# two lists; building the images is the heavy leg's job (#1205).
+shell-gates: lint-image-parity
+shell-gates: test-image-parity-gate
+
+# #1621: every platform-artifact recipe compiles the server features
+# docs/releases.md lists.
+shell-gates: lint-artifact-features
+shell-gates: test-artifact-features-gate
+
+# One level up from check-suite-coverage.py: every artifact this repository
+# SHIPS maps to a leg that executes it, or to an exemption naming the issue
+# that owns the gap. Discovery reads the same sources the four per-class
+# parity gates read, so a new image variant, crate or SDK arrives here too;
+# what this adds is that a row may not claim coverage that does not exist —
+# `dagger:PublishDryRun` is a real function no workflow calls, and a leg is
+# only coverage if some run: step invokes it (#1205's hole, one level up).
+shell-gates: lint-delivery-coverage
+shell-gates: test-delivery-coverage-gate
+
+# #1640: every crates/*/src/**/*.rs is declared by some target. Walks the
+# filesystem, not `git ls-files`, which is empty in the ShellGates container.
+shell-gates: lint-module-reachability
+shell-gates: test-module-reachability-gate
+
+# #1640: every public library module is used by a binary or allowlisted.
+shell-gates: lint-pub-mod-callers
+shell-gates: test-pub-mod-callers-gate
+
+# #1640: issue numbers in non-test code comments only go down, per crate.
+shell-gates: lint-prose-ratchet
+shell-gates: test-prose-ratchet-gate
+
+# #1636: the perf comparator's self-test (the gate runs in PerfInstructions).
+shell-gates: test-perf-instructions-gate
+
+# #1640: docs with a ```rust block are doctests, and no doc fence is bare.
+shell-gates: lint-docs-rust-examples
+shell-gates: test-docs-rust-examples-gate
+
+# #1859: a `fraiseql_query` example binds its values as variables.
+shell-gates: lint-query-variables
+shell-gates: test-query-variables-gate
+
+# A published SDK's lockfile may not pin a version its manifest no longer
+# claims (#1225): the 2.15.0 bump edited the SDK manifests and left
+# fraiseql-python's uv.lock and fraiseql-rust's Cargo.lock at 2.14.1.
+# fraiseql-typescript stayed correct only because its suite runs `npm ci`,
+# which refuses a disagreeing lockfile — one SDK gated by accident of tooling
+# and two not. Pure text, so it runs here on every push, whichever SDKs the
+# push touched; dependency drift is covered by the `--locked` flags in
+# tools/sdk-suite.sh, and neither subsumes the other.
+shell-gates: lint-sdk-lockfile-freshness
+shell-gates: test-sdk-lockfile-freshness-gate
+
+# The general rule beneath it, over every Cargo.lock in the tree: a path package
+# is recorded at its manifest's version. The 2.16.0 cut left the seven fuzz
+# lockfiles at 2.15.0 and fraiseql-client's at 2.3.0, because no build of those
+# workspaces runs --locked.
+shell-gates: lint-cargo-lock-path-versions
+shell-gates: test-cargo-lock-path-versions-gate
+
+# The local feature-matrix runner's red-capability pin (#1227). The RUNNER is
+# local-only — the leg it mirrors is this repo's `Dagger — feature matrix`, so
+# running it here would be running the matrix twice. What belongs here is the
+# pin: it stubs `cargo`, compiles nothing, needs no toolchain, and asserts the
+# one property that makes the local gate worth trusting — it cannot silently
+# cover fewer combos than .dagger/feature-combos.go declares.
+shell-gates: test-feature-matrix-gate
+
+# The pin for tools/check-feature-combo-features.py (#2096), over a stubbed
+# `cargo`. The check itself needs cargo, so it runs in the feature-matrix leg.
+shell-gates: test-feature-combo-features-gate
+shell-gates: lint-internal-flag
+shell-gates: lint-value-json
+
+# The mutation chokepoint is only a chokepoint while nothing reaches the
+# database's write path on its own (#1327). Clippy refuses a call to the
+# adapter's write (.clippy.toml), which is how the gRPC arm did it until #1330;
+# this gate refuses the other way, write SQL handed to `execute_raw_query`.
+# Either skips every gate on a write at once, invisibly to the transport's tests.
+shell-gates: lint-mutation-dispatch
+
+# One layer in from the chokepoint (#1331, #1352): the selection set a write is
+# projected through. `&[]` is the PERMISSIVE shape — project_entity returns the
+# whole entity and the #423 field authorizer takes zero calls — so REST's
+# anonymous arm served gated fields the authenticated arm is refused, and gRPC's
+# own copy of the derivation reached the same empty set via unwrap_or_default().
+# Rule 3 bans the other half: a document rebuilt out of arguments by format!,
+# which quotes object keys as JSON and so refused every nested REST body.
+shell-gates: lint-write-selections
+shell-gates: test-write-selections-gate
+
+# First-party auth's tables live in schema `auth`, owned by its own role. The
+# inventory test proves where the DDL puts them; this catches a query left on
+# the old location, which fails only at runtime on the path that runs it.
+shell-gates: lint-auth-schema
+shell-gates: test-auth-schema-gate
+
+# SQL text built at runtime reaches sqlx only through `sqlx::AssertSqlSafe`, each
+# with a `// Reason:` beside it saying what the text is built from.
+shell-gates: lint-sql-safe
+shell-gates: test-sql-safe-gate
+shell-gates: lint-ddl-lock
+shell-gates: test-ddl-lock-gate
+
+# The same shape one layer up (#1336): a transport that turns a credential into a
+# principal and dispatches it unresolved. REST, MCP and gRPC each did for three
+# releases, and no test could see it — a transport that skips the resolve answers
+# every request reading no enriched field exactly as one that runs it does.
+shell-gates: lint-principal-producers
+shell-gates: test-principal-producers-gate
+
+# #1337: `deny_unknown_fields` stops at the top level. Every section struct needs
+# its own, or a mistyped key is discarded and the setting stays at its default
+# without a word — `[auth] require_jti`, `[tls] require_client_cert` and
+# `[rate_limiting] enabled` among them.
+shell-gates: lint-config-deny-unknown
+shell-gates: test-config-deny-unknown-gate
+shell-gates: lint-config-refusals
+shell-gates: test-config-refusals-gate
+shell-gates: lint-audit-lockstep
+shell-gates: lint-audit-ledger
+shell-gates: lint-doc-claims
+shell-gates: lint-release-validation
+
+# A job that runs cargo under a RUSTC_WRAPPER it never installs fails at its
+# first rustc (v2.15.0's publish-rust-sdk); the workflow env reaches every job.
+shell-gates: lint-rustc-wrapper
+
+# The no-orphan-suites gate: every test target × feature combo maps to a
+# leg that executes it (it parses .dagger/main.go, so legs and gate cannot
+# drift). Retrospective rule 1 of the 2026-07-27 program.
+shell-gates: lint-suite-coverage
+
+# Every `-- --ignored` line names a target with an `#[ignore]` test; on one
+# with none it runs 0 tests and exits 0 (#2103). Reads .dagger/main.go, the
+# workflows and the Makefile; the pin runs it over a fixture crate.
+shell-gates: lint-ignored-lines
+shell-gates: test-ignored-lines-gate
+
+# No pipe into `grep -q` where `pipefail` is on: grep exits at its first
+# match, the writer takes SIGPIPE, and the pipeline reads the match as a miss
+# (#1870, #1961).
+shell-gates: lint-grep-q-pipefail
+shell-gates: test-grep-q-pipefail-gate
+
+# The crates the Doctests leg skips hold no doctest: a skip list refused when a
+# skipped crate's source holds anything rustdoc could compile.
+shell-gates: lint-doctest-skip
+shell-gates: test-doctest-skip-gate
+
+# …and the red-capability pin for its GitHub Actions side (#1120): a
+# workflow can look like coverage and provide none.
+shell-gates: test-suite-coverage-workflows
+
+# ...and the pin for its INNER feature-gate side (#1179): a test fn behind
+# `#[cfg(feature = "x")]` in an ungated module was invisible to the gate,
+# counted as covered while compiled out — and a `not(feature)` arm needs a
+# leg with the feature OFF, which `--all-features` can never be.
+shell-gates: test-suite-coverage-inner-gates
+
+# ...and the pin for its GATING side (#1289): a leg can run every suite it
+# names and still be unable to fail a merge, which is how two `*_e2e_pg`
+# tests were red on `dev` for two weeks under four green required checks.
+shell-gates: test-suite-coverage-gating
+
+# ...and the pin for its FILTER side (#1300): a positional filter matching
+# nothing prints `running 0 tests` and exits 0, so a rename retires the
+# suite the line was added to run and the leg stays green.
+shell-gates: test-suite-coverage-filters
+
+# The conformance harness's own four properties (#1118). `project.py` cited a
+# `selftest.py` that had never existed, so the growth property — a new construct
+# fails every SDK until each implements it or declares the gap — was asserted in
+# prose and pinned by nothing. Synthetic dicts only: no toolchain, no CLI, no
+# network, so it belongs here rather than in the eleven-runtime SDK job.
+shell-gates: test-conformance-selftest
+
+# Comment-only #[test] bodies read as green coverage (#895/#748).
+shell-gates: lint-empty-tests
+
+# The rung above: not a comment-only body but a whole test BINARY that
+# references no fraiseql crate, so it can only assert against mocks it
+# defined itself (#1269/#1270). Its red capability is pinned separately —
+# a gate over a tree it just emptied is green for the wrong reason.
+shell-gates: lint-test-subject
+shell-gates: test-test-subject-gate
+
+# The prelude .dagger/main.go injects into `integrationServer`, pinned against
+# the regression that made two of that leg's aborts undiagnosable
+# (#1276): a failing suite whose output `set -e` discarded before it was
+# printed. Reads `suiteCountPrelude` out of main.go and runs it against a
+# fake `cargo`, so it pins the shipped constant rather than a copy.
+shell-gates: test-suite-marker-prelude
+
+# Snapshot pairing, both directions (#986): every .snap registered, no
+# stale registry rows. Was a pre-commit-only hook that ran nowhere.
+shell-gates: lint-snapshot-pairing
+shell-gates: lint-deadlines
+shell-gates: lint-docs-env-vars
+shell-gates: lint-docs-version
+shell-gates: test-docs-version-gate
+
+# Every typed TOML config loader has a coverage manifest naming each
+# key's consumer (#909). Retrospective rule 2: no unconsumed surface.
+shell-gates: lint-config-loaders
+
+# A published crate's public API must not name a third-party type it does
+# not re-export (#1198): `JwtValidator::new` took a `jsonwebtoken::Algorithm`
+# reachable from nowhere, so the crate's documented first line did not
+# compile. Reads manifests with tomllib — there is no cargo in the ShellGates container.
+shell-gates: lint-public-api-reexports
+shell-gates: test-public-api-reexports-gate
+
+# The SDKs the repo says it publishes are exactly the ones it can publish
+# (#1130). Eight sat frozen at 2.1.6 while README called two of them Tier 1
+# (Supported), and six had a live publish job that would have pushed 2.1.6
+# to a registry that will not take a version number back.
+shell-gates: lint-sdk-publication-claims
+shell-gates: test-sdk-publication-claims-gate
+shell-gates: lint-sdk-dead-surface
+
+# No example provisions or points at a backend #374 removed. The
+# PostgreSQL-only de-scope covered crates/; examples/ kept a running
+# MySQL topology for three phases afterwards (#940).
+shell-gates: lint-examples-postgres-only
+
+# A shipped example must be able to run at all: compose mounts resolve, COPY
+# sources exist in the build context, no `|| true` around a build step, no
+# health grep that also matches "unhealthy", every documented `cd` lands
+# somewhere. Before this, the whole CI coverage of `examples/` was one clippy
+# run and three greps, and a nine-issue audit found essentially every
+# documented entry point dead (#1050-#1054, #1071-#1073). The two tiers that
+# need a toolchain and a database are the `examples` integration suite.
+shell-gates: lint-examples-integrity
+
+# A declared-but-unread `feature = []` is a promise the build cannot keep:
+# enabling it changes nothing, so the capability it names is either absent or
+# reachable another way. This gate existed but ran in NO leg while failing on
+# clean dev, so its one real finding (`export-parquet`, deleted in #1012) went
+# unreported for as long as it was there. A gate that is red and unrun is worth
+# less than no gate — it trains the next reader to assume the surface is checked.
+shell-gates: lint-feature-chains
+
+# A per-crate runaway-growth ratchet, and a check that every crate has a
+# budget at all. Its only caller was the orphaned tools/lint.sh, so it ran
+# nowhere while four crates went over budget and five acquired no budget
+# row — and Cargo.toml claimed all along that CI enforced it (#1055/#990).
+# It counts production lines only, by rules its self-test pins (#1882).
+shell-gates: lint-crate-sizes
+shell-gates: test-crate-sizes-gate
+
+# Every official SDK's own suite runs under ONE unfiltered, required check,
+# sdk-suites.yml. Four of eleven per-SDK workflows could not run on a branch
+# push (#1119), and the rest were paths-filtered, which a required check
+# cannot be, so they gated nothing (#1467).
+shell-gates: lint-sdk-workflows
+shell-gates: test-sdk-workflows-gate
+
+# The Go SDK's floor is go.mod's `go` line, and the matrix, the setup-go pins,
+# the conformance container and the docs all say the same. Four files pinned Go
+# independently, and the README promised 1.22 against go.mod's 1.23 (#2278).
+shell-gates: lint-go-floor
+shell-gates: test-go-floor-gate
+
+# A job `if:` may not name an event or a ref its own workflow cannot
+# receive. The 2026-05-31 migration stripped triggers and left the
+# conditions: docker-build.yml kept two jobs that read as image coverage
+# and had never run, because an unreachable job is absent from the checks
+# list rather than reported as skipped (#1206).
+shell-gates: lint-workflow-reachability
+shell-gates: test-workflow-reachability-gate
+
+# Every self-hosted job a push can start skips a SHA that already passed
+# it. The guard was opt-in, so `Dagger — image` reran ~36 min on every
+# fast-forward to dev over a tree its chain-branch dispatch had just built.
+shell-gates: lint-already-passed-guard
+shell-gates: test-already-passed-guard-gate
+
+# Every ghcr.io/fraiseql image above is mirrored from a pinned source. The
+# minio row rode `docker.io/minio/minio:latest`, which stopped resolving, and
+# the weekly mirror stayed red while the legs pulled a stale copy (#1453).
+shell-gates: lint-image-mirror
+shell-gates: test-image-mirror-gate
+
+# GitHub's push ref-filter rule — which halves a `push:` leaves defined —
+# had four implementations in tools/, and two were wrong in opposite
+# directions: one read `branches-ignore`/`tags-ignore` as neither key, the
+# other read a missing `branches:` as no restriction, which made sixteen
+# tag-only publish contexts look branch-reaching. #1301 collapsed them onto
+# one; this refuses a fifth, and the self-test drives the shared table
+# through every consumer and mutates each branch of the rule.
+shell-gates: lint-trigger-rule-copies
+shell-gates: test-workflow-trigger-rule
+
+# Two SQL fixtures declared `public.tb_user` with incompatible shapes,
+# both under `CREATE TABLE IF NOT EXISTS`, so whichever loaded second was
+# a silent no-op and the loser's dependent objects failed to build. Every
+# consumer had grown its own defence; nothing guarded the fixtures (#1281).
+shell-gates: lint-fixture-collisions
+shell-gates: test-fixture-collisions-gate
+
+# Same shape, two legs over: `make test-integration-postgres` and
+# `make test-leg` are hand-maintained copies of the line lists in
+# integrationPostgres and Test. Before the first existed, the fact that
+# those suites only pass under --test-threads=1 lived ONLY in .dagger/main.go,
+# so `cargo test -p fraiseql-core` was red by construction and
+# `make test-integration` reported success having run 1 test out of 2828
+# (#1169). The second is the only command that runs what .dagger/main.go's Test
+# function runs — nothing did before a merge to dev, which is how
+# `config_coverage_manifest_test` reddened the test leg on `231c3a25c`
+# after a green preflight and sixteen green branch legs (#1257).
+# Bidirectional — a local-only extra line falsifies the target's claim in
+# the other direction.
+shell-gates: lint-shard-parity
+
+# The postgres and observers integration legs build each package with one
+# feature list; each extra list rebuilt fraiseql-server and fraiseql-core under
+# it, and a cold runner could not finish the postgres leg (#1886, #1906). A line
+# that needs a feature OFF names the flag and the suite it keeps running.
+shell-gates: lint-leg-feature-sets
+shell-gates: test-leg-feature-sets-gate
+
+# cargo-deny's unmatched-skip lints default to WARN, so a stale
+# [[bans.skip-tree]] pin covers NOTHING while `cargo deny check` still exits 0.
+# The level cannot be set in deny.toml, so `-D` lives on three command lines;
+# this keeps them in lockstep (#1020, #933).
+# A Rust base image older than [workspace.package] rust-version cannot build
+# this workspace at all, and docker-build.yml is tag-only — so without this
+# the first witness to a stale pin is the release itself (#1107).
+# An uncopied [workspace] member means `cargo build -p fraiseql-server` cannot
+# even load the manifest, so the release image cannot be built at all (#1205).
+shell-gates: lint-dockerfile-members
+shell-gates: test-dockerfile-members-gate
+shell-gates: lint-dockerfile-msrv
+shell-gates: test-dockerfile-msrv-gate
+shell-gates: lint-deny-flags
+shell-gates: test-deny-flags-gate
+shell-gates: test-shard-parity
+
+# The bare-DATABASE_URL gate above ran here for its whole life without ever
+# being able to reject anything (#1075). Its red capability is now pinned.
+shell-gates: test-imports-gate
+
+# A database-gated test binary that loads a compiled document carries
+# `the_document_loads_without_a_database`, a test that cannot skip, so a
+# load-time refusal of the document fails whichever leg runs the binary
+# (2b843cd27). The scan and its self-test need no toolchain. Until #1945 they ran
+# only in `make preflight`: a chain carrying `saml_acs_e2e_pg.rs` without its
+# guard passed every required context, and only the local preflight refused it.
+shell-gates: lint-e2e-documents
+shell-gates: test-e2e-documents-gate
+
 # Run the cheap-but-frequent CI gates locally before `git push`, to catch the
 # failures the Dagger `preflight` leg would reject — rustfmt drift, clippy
 # `-D warnings`, broken rustdoc intra-doc links, and the grep/wc policy gates —
-# for free instead of paying for a CI rerun. Mirrors the `.dagger` Preflight +
-# ShellGates leg (UNWRAP_ALLOW_LIMIT pinned to 3 to match CI). Does NOT run the
+# for free instead of paying for a CI rerun. Runs `shell-gates`, the list the Dagger
+# ShellGates leg runs, then the Rust gates of the `.dagger` Preflight. Does NOT run the
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: lint-fmt-toolchain fmt-check lint-not-implemented test-not-implemented-gate lint-sdk-dead-surface test-e2e-documents-gate lint-e2e-documents test-e2e-documents lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-audit-ledger lint-doc-claims lint-release-validation lint-rustc-wrapper lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets test-fuzz-targets-gate lint-compose-references lint-no-first-party-hs256 lint-dagger-apt lint-pg-tviews-pin lint-doc-image-refs lint-ci-install-pins lint-phases-citations lint-image-context lint-publish-secrets lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-mount-ledger test-mount-ledger-gate lint-guard-sites test-guard-sites-gate test-guard-mutants-gate lint-internal-flag lint-value-json lint-mutation-dispatch lint-write-selections lint-auth-schema lint-sql-safe lint-ddl-lock lint-principal-producers test-principal-producers-gate lint-config-deny-unknown test-config-deny-unknown-gate lint-config-refusals test-config-refusals-gate lint-docs-env-vars lint-docs-version test-docs-version-gate lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-ignored-lines test-ignored-lines-gate lint-grep-q-pipefail test-grep-q-pipefail-gate lint-doctest-skip test-doctest-skip-gate lint-snapshot-pairing lint-empty-tests lint-test-subject lint-module-reachability lint-pub-mod-callers lint-prose-ratchet lint-docs-rust-examples lint-query-variables lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-go-floor lint-workflow-reachability lint-already-passed-guard lint-image-mirror lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-leg-feature-sets lint-gate-reachability lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-artifact-features lint-delivery-coverage lint-sdk-lockfile-freshness lint-cargo-lock-path-versions test-release-tooling test-changelog-gate test-deadline-gate test-audit-ledger-gate test-docs-env-vars-gate test-doc-claims-gate test-release-validation-gate test-rustc-wrapper-gate test-write-selections-gate test-auth-schema-gate test-sql-safe-gate test-ddl-lock-gate test-preflight-parity test-shard-parity test-leg-feature-sets-gate test-gate-reachability-gate test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-already-passed-guard-gate test-image-mirror-gate test-sdk-workflows-gate test-go-floor-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-artifact-features-gate test-publish-secrets-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-cargo-lock-path-versions-gate test-feature-matrix-gate lint-feature-combo-features test-feature-combo-features-gate test-test-subject-gate test-module-reachability-gate test-pub-mod-callers-gate test-prose-ratchet-gate test-perf-instructions-gate test-docs-rust-examples-gate test-query-variables-gate test-crate-sizes-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-no-first-party-hs256-gate test-dagger-apt-gate test-pg-tviews-pin-gate test-bench-quiet-window-gate test-detect-regression-host-gate test-bench-require-measured-gate test-doc-image-refs-gate test-ci-install-pins-gate test-ci-stale-artifacts-gate lint-ci-source-stamp test-ci-source-stamp-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
-	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
-	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
-	@echo "=== preflight: check-test-imports ==="
-	@bash tools/check-test-imports.sh
-	@echo "=== preflight: check-audit-lockstep ==="
-	@bash tools/check-audit-lockstep.sh
+preflight: lint-fmt-toolchain fmt-check shell-gates test-e2e-documents lint-r-examples lint-feature-combo-features test-fuzz-compiles-gate test-example-crates-gate test-r-examples-gate
 	@echo "=== preflight: rustdoc (-D warnings, --all-features) ==="
 	RUSTDOCFLAGS='-D warnings' cargo doc --workspace --all-features --no-deps
 	@echo "=== preflight: rustdoc (default features — the links --all-features resolves) ==="

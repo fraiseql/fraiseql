@@ -63,6 +63,22 @@ SIBLING = re.compile(r'\$\(dirname "\$\{BASH_SOURCE\[0\]\}"\)/([\w.-]+\.(?:sh|py
 MAKE = re.compile(r"(?:\$\(MAKE\)|\bmake\b)((?:" + SEP + r"[^\s\"',;&|>]+)+)")
 DAGGER_CALL = re.compile(r"\bdagger\s+call\s+([a-z][\w-]*)")
 
+# A Dagger function whose only gate command is a make target. Its exec is pinned to the
+# exact string: a `|| true`, an `-i`, another target or a line moved into a comment would
+# each leave the leg green over a failing gate, with every gate still "reached".
+MAKE_EXECS = {
+    "ShellGates": "git init -q . >/dev/null && make -k --no-print-directory shell-gates",
+}
+# Make targets named as gates. Each is reached by a CI leg, or wraps only scripts a leg
+# runs some other way, or is exempted.
+GATE_TARGET = re.compile(r"^(?:lint-.+|test-.+-gate)$")
+# A recipe or command that carries on past a failure.
+# A command ends at `;`, `&&`, a shell comment or the end of the line.
+SWALLOW_TAIL = re.compile(r"(?:\|\|\s*(?:true|:)|;\s*true)\s*(?:;|&&|#|\\?$)")
+IGNORE_FLAG = re.compile(r"(?:^|\s)(?:-(?!-)[A-Za-z]*i[A-Za-z]*|--ignore-errors)(?=\s|$)")
+MAKE_RUN = re.compile(r"(?:\$\(MAKE\)|\bmake\b)([^;&|]*)")
+REASON = "# Reason:"
+
 GO_UNIT = re.compile(r"^(?:func\s+(?:\([^)]*\)\s*)?(\w+)|const\b|var\b|type\s+(\w+))", re.M)
 GO_CONST_NAME = re.compile(r"^\s*(\w+)\s*(?:\w+\s*)?=", re.M)
 GO_STRING = re.compile(r'"((?:[^"\\\n]|\\.)*)"|`([^`]*)`')
@@ -164,6 +180,65 @@ def go_text(body: str) -> str:
     return "\n".join(parts)
 
 
+def exec_problems(units: dict[str, str], reached_units: set[str]) -> list[str]:
+    """Each MAKE_EXECS function runs its make command exactly, and nothing else that
+    names make, in a function a workflow reaches."""
+    problems = []
+    for fn, want in MAKE_EXECS.items():
+        if fn not in units:
+            problems.append(f"{fn}: no such function in .dagger/*.go")
+            continue
+        if fn not in reached_units:
+            problems.append(f"{fn}: no workflow reaches it")
+        lits = [a if a is not None else b for a, b in GO_STRING.findall(units[fn])]
+        makes = [lit for lit in lits if re.search(r"\bmake\b", lit)]
+        if makes != [want]:
+            problems.append(
+                f"{fn}: must run exactly `{want}`, and no other make command; "
+                f"found {makes or 'none'}"
+            )
+    return problems
+
+
+def swallow_problems(
+    makefile: str, targets: dict[str, tuple[list[str], list[str]]], reached: set[str]
+) -> list[str]:
+    """A target CI runs may not carry on past a failure: no `-` recipe prefix, no
+    `|| true` / `|| :` / `; true` ending a command, no `.IGNORE`, no `-i` in MAKEFLAGS or
+    in a make it runs. A recipe line saying `# Reason:` why its failure is expected is
+    exempt; `.IGNORE` and MAKEFLAGS have no exemption."""
+    problems = []
+    for name in sorted(reached):
+        for line in targets[name][1]:
+            body = line.lstrip("\t")
+            if REASON in body:
+                continue
+            prefix = re.match(r"[@+\-\s]*", body).group(0)
+            if "-" in prefix:
+                problems.append(f"make {name}: a recipe line ignores its failure (`-`): {body.strip()}")
+            if SWALLOW_TAIL.search(body):
+                problems.append(f"make {name}: a command ends by discarding its failure: {body.strip()}")
+            for m in MAKE_RUN.finditer(body):
+                if IGNORE_FLAG.search(m.group(1)):
+                    problems.append(f"make {name}: runs make with -i: {body.strip()}")
+    for line in makefile.replace("\\\n", " ").splitlines():
+        m = re.match(r"^\.IGNORE\s*:(.*)$", line)
+        if m:
+            named = m.group(1).split("#", 1)[0].split()
+            if not named:
+                problems.append("Makefile: `.IGNORE:` with no prerequisites ignores every failure")
+            for t in named:
+                if t in reached:
+                    problems.append(f"Makefile: `.IGNORE:` names {t}, which a CI leg runs")
+        m = re.match(r"^\s*(?:export\s+|override\s+)*MAKEFLAGS\s*[:+?!]*=(.*)$", line)
+        if m and any(
+            w == "--ignore-errors" or re.fullmatch(r"-?[A-Za-z]*i[A-Za-z]*", w)
+            for w in m.group(1).split("#", 1)[0].split()
+        ):
+            problems.append(f"Makefile: MAKEFLAGS carries -i: {line.strip()}")
+    return problems
+
+
 def camel_key(name: str) -> str:
     return name.replace("-", "").lower()
 
@@ -201,7 +276,8 @@ def main() -> int:
         # own; it adds nothing here, so it is noted rather than fatal.
         print(f"gate-reachability: note — no Go function for {', '.join(missing_roots)}")
 
-    targets = parse_makefile((ROOT / "Makefile").read_text(encoding="utf-8"))
+    makefile_text = (ROOT / "Makefile").read_text(encoding="utf-8")
+    targets = parse_makefile(makefile_text)
     reached_targets: set[str] = set()
     reached_scripts: set[str] = set()
     pending_targets: list[str] = []
@@ -249,13 +325,29 @@ def main() -> int:
         fail("found no gate script under tools/; the discovery went blind")
 
     exempt: dict[str, str] = {}
+    exempt_targets: dict[str, str] = {}
     if EXEMPTIONS.is_file():
         for row in tomllib.loads(EXEMPTIONS.read_text(encoding="utf-8")).get("exempt", []):
+            name = row.get("path") or row.get("target")
             if not row.get("reason", "").strip():
-                fail(f"exemption for {row.get('path')} gives no reason")
-            exempt[row["path"]] = row["reason"]
+                fail(f"exemption for {name} gives no reason")
+            (exempt if "path" in row else exempt_targets)[name] = row["reason"]
 
-    problems = []
+    problems = exec_problems(units, reached_units)
+    problems += swallow_problems(makefile_text, targets, reached_targets)
+    for name in sorted(t for t in targets if GATE_TARGET.match(t)):
+        wrapped = [
+            os.path.normpath(x) for line in targets[name][1] for x in scripts_in(line)
+        ]
+        covered = name in reached_targets or (
+            wrapped and all(x in reached_scripts for x in wrapped)
+        )
+        if covered and name in exempt_targets:
+            problems.append(f"make {name}: exempted, but a CI leg runs it; drop the exemption")
+        elif not covered and name not in exempt_targets:
+            problems.append(f"make {name}: no CI leg runs it")
+    for name in sorted(set(exempt_targets) - set(targets)):
+        problems.append(f"make {name}: exempted, but no such target exists")
     for path in discovered:
         if path in reached_scripts and path in exempt:
             problems.append(f"{path}: exempted, but a CI leg runs it; drop the exemption")
