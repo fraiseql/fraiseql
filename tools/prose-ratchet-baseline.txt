@@ -9,7 +9,7 @@ fraiseql-codegen 17
 fraiseql-core 406
 fraiseql-db 87
 fraiseql-error 1
-fraiseql-federation 9
+fraiseql-federation 7
 fraiseql-functions 24
 fraiseql-guard 2
 fraiseql-jwks 2

@@ -159,10 +159,6 @@ required-features = ["federation"]
 
 
 [[test]]
-name = "federation_dependency_graph"
-required-features = ["federation"]
-
-[[test]]
 name = "federation_directives"
 required-features = ["federation"]
 

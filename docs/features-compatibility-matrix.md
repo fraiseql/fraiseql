@@ -264,7 +264,6 @@ Defaults: `auth`, `cli`. `fraiseql-core` is always built with `postgres` and `sc
 | Feature | Default | Description | Activates |
 |---------|---------|-------------|-----------|
 | `test-utils` | no | Test helper constructors | (empty) |
-| `unstable` | no | Pre-release APIs | (empty) |
 
 ### fraiseql-saga
 

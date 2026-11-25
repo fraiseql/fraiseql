@@ -1,21 +1,19 @@
 //! Integration tests for Federation Maturity features.
 //!
 //! Tests cross-cutting scenarios spanning directives, caching,
-//! observability, and health checking.
+//! and observability.
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
 use std::time::Duration;
 
 use fraiseql_federation::{
-    composition_validator::{CompositionError, CompositionValidator},
-    health::{SubgraphHealthAggregator, SubgraphHealthStatus},
     observability::{EntityResolutionMetrics, SubgraphLatencyTracker},
     query_plan_cache::{
         QueryPlan, QueryPlanCache, SubgraphFetch, normalize_query, schema_fingerprint,
     },
     service_sdl::generate_service_sdl,
-    types::{FederatedType, FederationMetadata, FieldFederationDirectives, KeyDirective},
+    types::FederationMetadata,
 };
 
 // ---------------------------------------------------------------------------
@@ -81,109 +79,6 @@ fn test_link_directive_imports_all_directives() {
     ] {
         assert!(sdl.contains(&format!("\"{import}\"")), "@link import missing {import}: {sdl}");
     }
-}
-
-// ---------------------------------------------------------------------------
-// Cross-directive composition validation
-// ---------------------------------------------------------------------------
-
-#[test]
-fn test_composition_with_all_new_directives() {
-    let mut users_type = FederatedType::new("User".to_string());
-    users_type.keys = vec![KeyDirective {
-        fields:     vec!["id".to_string()],
-        resolvable: true,
-    }];
-    users_type
-        .set_field_directives("email".to_string(), FieldFederationDirectives::new().shareable());
-    users_type
-        .set_field_directives("ssn".to_string(), FieldFederationDirectives::new().inaccessible());
-
-    let mut users_type_b = FederatedType::new("User".to_string());
-    users_type_b.is_extends = true;
-    users_type_b.keys = vec![KeyDirective {
-        fields:     vec!["id".to_string()],
-        resolvable: true,
-    }];
-    users_type_b
-        .set_field_directives("email".to_string(), FieldFederationDirectives::new().shareable());
-    users_type_b
-        .set_field_directives("ssn".to_string(), FieldFederationDirectives::new().inaccessible());
-
-    let subgraphs = vec![
-        (
-            "users".to_string(),
-            FederationMetadata {
-                enabled: true,
-                version: "v2".to_string(),
-                types:   vec![users_type],
-            },
-        ),
-        (
-            "auth".to_string(),
-            FederationMetadata {
-                enabled: true,
-                version: "v2".to_string(),
-                types:   vec![users_type_b],
-            },
-        ),
-    ];
-
-    let validator = CompositionValidator::new();
-    let result = validator.validate_composition(subgraphs);
-    assert!(result.is_ok(), "Valid composition should pass: {result:?}");
-}
-
-#[test]
-fn test_inaccessible_conflict_blocks_composition() {
-    let mut type_a = FederatedType::new("Product".to_string());
-    type_a.keys = vec![KeyDirective {
-        fields:     vec!["id".to_string()],
-        resolvable: true,
-    }];
-    type_a.set_field_directives(
-        "internal_code".to_string(),
-        FieldFederationDirectives::new().inaccessible(),
-    );
-
-    let mut type_b = FederatedType::new("Product".to_string());
-    type_b.is_extends = true;
-    type_b.keys = vec![KeyDirective {
-        fields:     vec!["id".to_string()],
-        resolvable: true,
-    }];
-    // NOT inaccessible — should conflict
-    type_b.set_field_directives("internal_code".to_string(), FieldFederationDirectives::new());
-
-    let subgraphs = vec![
-        (
-            "catalog".to_string(),
-            FederationMetadata {
-                enabled: true,
-                version: "v2".to_string(),
-                types:   vec![type_a],
-            },
-        ),
-        (
-            "pricing".to_string(),
-            FederationMetadata {
-                enabled: true,
-                version: "v2".to_string(),
-                types:   vec![type_b],
-            },
-        ),
-    ];
-
-    let validator = CompositionValidator::new();
-    let result = validator.validate_composition(subgraphs);
-    assert!(result.is_err());
-
-    let errors = result.unwrap_err();
-    assert!(
-        errors
-            .iter()
-            .any(|e| matches!(e, CompositionError::InaccessibleFieldConflict { .. }))
-    );
 }
 
 // ---------------------------------------------------------------------------
@@ -265,47 +160,6 @@ fn test_observability_full_flow() {
 
     // Total latency
     assert_eq!(tracker.total_latency(), Duration::from_millis(37));
-}
-
-// ---------------------------------------------------------------------------
-// Health check integration
-// ---------------------------------------------------------------------------
-
-#[test]
-fn test_health_check_full_lifecycle() {
-    let health = SubgraphHealthAggregator::new();
-
-    // Register subgraphs
-    health.register("users", "http://users:4000/graphql");
-    health.register("orders", "http://orders:4001/graphql");
-    health.register("products", "http://products:4002/graphql");
-
-    // Initially all unknown
-    let report = health.aggregate();
-    assert_eq!(report.overall_status, SubgraphHealthStatus::Unknown);
-    assert_eq!(report.subgraphs.len(), 3);
-
-    // Health checks come in
-    health.report_healthy("users", Duration::from_millis(5));
-    health.report_healthy("orders", Duration::from_millis(10));
-    health.report_unhealthy("products");
-
-    let report = health.aggregate();
-    assert_eq!(
-        report.overall_status,
-        SubgraphHealthStatus::Unhealthy,
-        "one unhealthy should make overall unhealthy"
-    );
-    assert_eq!(report.healthy_count, 2);
-    assert_eq!(report.unhealthy_count, 1);
-
-    // Products recovers
-    health.report_healthy("products", Duration::from_millis(20));
-
-    let report = health.aggregate();
-    assert_eq!(report.overall_status, SubgraphHealthStatus::Healthy);
-    assert_eq!(report.healthy_count, 3);
-    assert_eq!(report.unhealthy_count, 0);
 }
 
 // Multi-key entity resolution is covered by the unit test

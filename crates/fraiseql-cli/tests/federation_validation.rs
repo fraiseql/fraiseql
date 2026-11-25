@@ -1,19 +1,14 @@
 #![allow(clippy::unwrap_used)] // Reason: test/bench code, panics are acceptable
 //! Tests for validating federation directives at schema compilation time:
 //! - @requires/@provides reference valid fields
-//! - No circular dependencies
 //! - @external only on @extends types
 //! - @key fields exist
 //!
 //! Tests for compile-time federation validation
 
-use fraiseql_core::federation::{
-    DependencyGraph,
-    types::{
-        FederatedType, FederationMetadata, FieldFederationDirectives, FieldPathSelection,
-        KeyDirective,
-    },
-}; // DependencyGraph used in validate_federation_metadata helper
+use fraiseql_core::federation::types::{
+    FederatedType, FederationMetadata, FieldFederationDirectives, FieldPathSelection, KeyDirective,
+};
 
 // ============================================================================
 // Test: @requires Field Validation
@@ -218,117 +213,6 @@ fn test_validate_external_only_on_extends_fails() {
 // ============================================================================
 
 #[test]
-fn test_validate_two_node_circular_requires() {
-    // TEST: Circular @requires should be rejected (2-node cycle)
-    // GIVEN: User.orders requires Order.user AND Order.user requires User.orders (circle!)
-    // WHEN: We validate
-    // THEN: Validation should fail with circular dependency error
-
-    let mut user_type = FederatedType::new("User".to_string());
-    user_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
-        resolvable: true,
-    });
-    user_type.set_field_directives(
-        "orders".to_string(),
-        FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["user".to_string()],
-            typename: "Order".to_string(),
-        }),
-    );
-
-    let mut order_type = FederatedType::new("Order".to_string());
-    order_type.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
-        resolvable: true,
-    });
-    order_type.set_field_directives(
-        "user".to_string(),
-        FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["orders".to_string()],
-            typename: "User".to_string(),
-        }),
-    );
-
-    let metadata = FederationMetadata {
-        enabled: true,
-        version: "v2".to_string(),
-        types:   vec![user_type, order_type],
-    };
-
-    let result = validate_federation_metadata(&metadata);
-    assert!(result.is_err(), "Should fail when 2-node circular @requires detected");
-    let err = result.unwrap_err();
-    assert!(
-        err.to_lowercase().contains("circular")
-            || err.to_lowercase().contains("cycle")
-            || err.to_lowercase().contains("dependency"),
-        "Error should mention circular dependency: {}",
-        err
-    );
-}
-
-#[test]
-fn test_validate_three_node_cycle() {
-    // TEST: Three-node cycles should be detected
-    // GIVEN: A.f1 requires B.f2, B.f2 requires C.f3, C.f3 requires A.f1 (cycle!)
-    // WHEN: We validate
-    // THEN: Validation should fail
-
-    let mut type_a = FederatedType::new("A".to_string());
-    type_a.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
-        resolvable: true,
-    });
-    type_a.set_field_directives(
-        "f1".to_string(),
-        FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["f2".to_string()],
-            typename: "B".to_string(),
-        }),
-    );
-
-    let mut type_b = FederatedType::new("B".to_string());
-    type_b.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
-        resolvable: true,
-    });
-    type_b.set_field_directives(
-        "f2".to_string(),
-        FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["f3".to_string()],
-            typename: "C".to_string(),
-        }),
-    );
-
-    let mut type_c = FederatedType::new("C".to_string());
-    type_c.keys.push(KeyDirective {
-        fields:     vec!["id".to_string()],
-        resolvable: true,
-    });
-    type_c.set_field_directives(
-        "f3".to_string(),
-        FieldFederationDirectives::new().add_requires(FieldPathSelection {
-            path:     vec!["f1".to_string()],
-            typename: "A".to_string(),
-        }),
-    );
-
-    let metadata = FederationMetadata {
-        enabled: true,
-        version: "v2".to_string(),
-        types:   vec![type_a, type_b, type_c],
-    };
-
-    let result = validate_federation_metadata(&metadata);
-    assert!(result.is_err(), "Should fail when 3-node circular dependency detected");
-}
-
-// ============================================================================
-// Test: @key Field Validation
-// ============================================================================
-
-#[test]
 fn test_validate_key_fields_exist() {
     // TEST: @key fields must reference existing fields
     // GIVEN: User type with @key(fields: "id")
@@ -364,7 +248,7 @@ fn validate_federation_metadata(metadata: &FederationMetadata) -> Result<(), Str
         return Ok(());
     }
 
-    // Step 1: Validate @requires/@provides and @external directives
+    // Validate @requires/@provides and @external directives
     for federated_type in &metadata.types {
         for (field_name, directives) in &federated_type.field_directives {
             // Validate @requires fields have non-empty paths
@@ -405,29 +289,6 @@ fn validate_federation_metadata(metadata: &FederationMetadata) -> Result<(), Str
                 ));
             }
         }
-    }
-
-    // Step 2: Check for circular dependencies using DependencyGraph
-    let graph = DependencyGraph::build(metadata).map_err(|e| {
-        format!("Validation Error: Failed to build dependency graph\nReason: {}", e)
-    })?;
-
-    let cycles = graph.detect_cycles();
-    if !cycles.is_empty() {
-        let cycle_description = cycles
-            .iter()
-            .enumerate()
-            .map(|(i, cycle)| format!("  Cycle {}: {}", i + 1, cycle.join(" → ")))
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        return Err(format!(
-            "Validation Error: Circular @requires dependencies detected\n\
-             Cycles found:\n{}\n\
-             Issue: Field requirements form circular dependency chain\n\
-             Suggestion: Remove one of the @requires directives to break the cycle",
-            cycle_description
-        ));
     }
 
     Ok(())

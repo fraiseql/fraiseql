@@ -53,13 +53,6 @@ wiremock = "0.6"
 # # Exposes test-helper constructors (e.g. `HttpEntityResolver::new_for_test`).
 # # Never enable in production — these bypass security checks.
 test-utils = []
-# # Enable modules that are not yet production-ready.
-# #
-# # The following modules require the `unstable` feature:
-# # - `ConnectionManager::get_or_create_connection` — direct DB connection (not yet implemented)
-# #
-# # These APIs may change without semver guarantees.
-unstable = []
 
 [lints]
 workspace = true

@@ -6,26 +6,11 @@
 //! multi-subgraph GraphQL composition with:
 //! - Entity resolution via `_entities` query
 //! - Service SDL via `_service` query
-//! - Multiple resolution strategies (local, direct DB, HTTP)
+//! - Entity resolution from the local database or over HTTP
 //!
 //! Saga orchestration lives in `fraiseql-saga`, which sits *above* `fraiseql-core`
 //! so a saga step dispatches through the mutation chokepoint rather than building
 //! its own SQL (#1354).
-//!
-//! # Production-ready vs unstable APIs
-//!
-//! | Component | Status | Notes |
-//! |-----------|--------|-------|
-//! | Subgraph mode — `HttpEntityResolver` (`_entities` HTTP resolution) | ✅ Production | SSRF-protected, retry, tracing |
-//! | Composition validation — `CompositionValidator` | ✅ Production | compile-time only |
-//! | Gateway mode — `ConnectionManager::get_or_create_connection` | 🚧 Unstable | requires `unstable` feature |
-//! | Direct-DB federation — `DirectDbResolver` | 🚧 Unstable | stub only; not yet implemented |
-//!
-//! To enable unstable APIs:
-//! ```toml
-//! [dependencies]
-//! fraiseql-federation = { version = "…", features = ["unstable"] }
-//! ```
 //!
 //! # Architecture
 //!
@@ -45,14 +30,9 @@
 //! let response = executor.handle_entities_query(input).await?;
 //! ```
 
-pub mod composition_validator;
-pub mod connection_manager;
 pub mod contract_tags;
 pub mod database_resolver;
-pub mod dependency_graph;
-pub mod direct_db_resolver;
 pub mod entity_resolver;
-pub mod health;
 pub mod http_resolver;
 pub mod logging;
 pub mod metadata_helpers;
@@ -68,18 +48,11 @@ pub mod tls;
 pub mod tracing;
 pub mod types;
 
-pub use composition_validator::{
-    ComposedSchema, ComposedType, CompositionError, CompositionValidator, CrossSubgraphValidator,
-};
-pub use connection_manager::*;
 pub use contract_tags::{ContractTags, MAX_TAG_LEN, ROLE_TAG_PREFIX, role_tag};
 pub use database_resolver::*;
-pub use dependency_graph::DependencyGraph;
-pub use direct_db_resolver::*;
 pub use entity_resolver::*;
 use fraiseql_error::FraiseQLError;
 pub use fraiseql_error::Result;
-pub use health::{FederationHealthReport, SubgraphHealthAggregator, SubgraphHealthStatus};
 pub use http_resolver::*;
 pub use logging::{
     FederationLogContext, FederationOperationType, LogTimer, OperationStatus, ResolutionStrategy,

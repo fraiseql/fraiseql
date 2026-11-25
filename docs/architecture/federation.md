@@ -21,13 +21,9 @@ crates/fraiseql-federation/src/
 ├── selection_parser.rs            # Field selection for the lookup
 ├── service_sdl.rs                 # _service { sdl } rendering
 ├── http_resolver.rs               # HttpEntityResolver: _entities over HTTPS (SSRF-hardened); used by fraiseql-saga
-├── composition_validator.rs       # CompositionValidator: library API (not called by the compiler)
 ├── requires_provides_validator.rs # @requires / @provides validation
-├── dependency_graph.rs            # Cross-entity dependency ordering
-├── connection_manager.rs          # Gateway-mode connections (`unstable` feature)
-├── direct_db_resolver.rs          # Direct-DB federation (`unstable`; stub)
 ├── observability.rs               # Subgraph latency histogram, entity resolution counters
-└── health.rs, logging.rs, tracing.rs, tls.rs, types.rs, metadata_helpers.rs, query_plan_cache.rs
+└── logging.rs, tracing.rs, tls.rs, types.rs, metadata_helpers.rs, query_plan_cache.rs
 
 crates/fraiseql-saga/src/
 ├── saga_coordinator.rs            # SagaCoordinator facade

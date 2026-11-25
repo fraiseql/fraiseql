@@ -27,6 +27,18 @@ disagreed, and the promise was the part that was wrong.
   keeps the old behaviour). A Deno module's `source_hash` is now the function hash (see
   Added), no longer the SHA-256 of its file.
 
+- **`fraiseql-federation` drops its unused gateway pieces (#1681).** The
+  `composition_validator` (`CompositionValidator`, `CrossSubgraphValidator`,
+  `CompositionError`, `ComposedSchema`, `ComposedType`, `ConflictResolutionStrategy`),
+  `connection_manager` (`ConnectionManager`, `RemoteDatabaseConfig`), `dependency_graph`
+  (`DependencyGraph`), `direct_db_resolver` (`DirectDatabaseResolver`) and `health`
+  (`SubgraphHealthAggregator`, `SubgraphHealthStatus`, `SubgraphHealthReport`,
+  `FederationHealthReport`) modules are removed, with the now-empty `unstable` feature.
+  Neither the CLI nor the server called them, and the shipped binaries contain none of
+  their code. The server keeps its own subgraph health check
+  (`fraiseql_server::federation::health_checker`).
+  `fraiseql_core::federation`, which re-exports the crate, loses the same items.
+
 - **`fraiseql-auth` drops two modules no server route mounted (#1681).** `monitoring`
   (`AuthEvent`, `AuthMetrics`, `OperationTimer`) and `phone_otp` (`SmsSender`,
   `InMemorySmsSender`, `SmsOtpAuthState`, `send_sms_otp`, `verify_sms_otp`,
