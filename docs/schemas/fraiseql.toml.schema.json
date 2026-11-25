@@ -1853,6 +1853,13 @@
             "null"
           ]
         },
+        "redis_url_env": {
+          "description": "The environment variable holding the Redis URL, read by the server at startup.\n\nThe compiled schema carries the variable's name, never its value; a URL holding a\ncredential belongs here rather than in `redis_url`. At most one of the two is set.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "trust_proxy_headers": {
           "description": "Trust `X-Real-IP` / `X-Forwarded-For` headers for client IP extraction.\n\nSet to `true` only when FraiseQL is deployed behind a trusted reverse\nproxy that sets these headers. Enabling without a trusted proxy allows\nclients to spoof their IP address.",
           "type": "boolean",
@@ -1970,6 +1977,13 @@
             "string",
             "null"
           ]
+        },
+        "redis_url_env": {
+          "description": "The environment variable holding the Redis URL, read by the server at startup.\n\nThe compiled schema carries the variable's name, never its value; a URL holding a\ncredential belongs here rather than in `redis_url`. At most one of the two is set.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "additionalProperties": false
@@ -2077,6 +2091,13 @@
         },
         "redis_url": {
           "description": "Redis URL for distributed revocation (inherited from `[fraiseql.redis]`\nif absent).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "redis_url_env": {
+          "description": "The environment variable holding the Redis URL, read by the server at startup.\n\nThe compiled schema carries the variable's name, never its value; a URL holding a\ncredential belongs here rather than in `redis_url`. At most one of the two is set.",
           "type": [
             "string",
             "null"

@@ -1,13 +1,35 @@
 # Runbook: Redis Failure (PKCE Store / Observers Backend Down)
 
 FraiseQL uses Redis for an **explicit, configured** set of subsystems: the PKCE login
-state store (`[security.pkce] redis_url`, compiled into the schema), the
+state store (`[security.pkce]`), the
 observers cache/dedup backend
 (`FRAISEQL_REDIS_URL`), and the Redis-backed auth rate limiter (opt-in
 `redis-rate-limiting` build feature). The GraphQL query result cache is **in-process,
 not Redis**. A configured Redis backend is never silently downgraded to in-memory
 (#898): a server restarted while its configured Redis is unreachable **refuses to
 boot**, naming Redis in the error.
+
+## Where the Redis URL comes from
+
+`[security.pkce]`, `[security.rate_limiting]` and `[security.token_revocation]` (with
+`backend = "redis"`) each name their Redis one of two ways:
+
+```toml
+[security.pkce]
+enabled = true
+redis_url_env = "REDIS_URL"        # the server reads $REDIS_URL at startup
+
+[security.rate_limiting]
+enabled = true
+redis_url = "redis://redis:6379/0" # compiled into the schema as written
+```
+
+`redis_url_env` names the environment variable holding the URL: the compiled schema
+carries the variable's name, and the server reads its value when it starts, refusing to
+boot when it is unset or empty. `redis_url` is compiled verbatim, so `fraiseql compile`
+refuses one holding a credential (`user:pass@`, `:pass@`, or a `password`/`pass` query
+parameter): an authenticated Redis is named through `redis_url_env`. A section sets one of
+the two, not both. Startup logs name the Redis by `scheme://host:port` only.
 
 ## Symptoms
 
@@ -98,7 +120,8 @@ redis-cli -h $REDIS_HOST -p $REDIS_PORT -a "$REDIS_PASS" PING
 
 ```bash
 # Which subsystems name Redis? (each is explicit — there is no global backend key)
-jq '.security.pkce.redis_url' /etc/fraiseql/schema.compiled.json   # PKCE state store
+jq '.security | {pkce, rate_limiting, token_revocation}
+    | map_values(.redis_url_env // .redis_url)' /etc/fraiseql/schema.compiled.json
 env | grep -E "FRAISEQL_(REDIS|REQUIRE_REDIS)"                     # observers cache/dedup
 
 # Redis error counters the server actually exports:
@@ -160,8 +183,8 @@ docker logs fraiseql-server | grep -i "redis" | head -1
    configuration that names it:
 
    ```bash
-   # PKCE state store: its config is COMPILED — remove `redis_url` from
-   # [security.pkce] in the project fraiseql.toml, re-run
+   # PKCE state store: its config is COMPILED — remove `redis_url` or
+   # `redis_url_env` from [security.pkce] in the project fraiseql.toml, re-run
    # `fraiseql compile`, redeploy the compiled schema — and make sure the
    # enforcement flag is unset:
    unset FRAISEQL_REQUIRE_REDIS
@@ -201,7 +224,7 @@ docker logs fraiseql-server | grep -i "redis" | head -1
    redis-cli -h $REDIS_HOST -p $REDIS_PORT -a "$REDIS_PASS" PING
 
    # If password wrong, update it
-   # Option 1: Update FraiseQL environment
+   # Option 1: Update the variable the sections' redis_url_env names, then restart
    export REDIS_URL="redis://:newpassword@$REDIS_HOST:$REDIS_PORT"
 
    # Option 2: Update Redis password

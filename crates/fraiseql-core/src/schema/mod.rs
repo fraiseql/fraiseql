@@ -60,6 +60,7 @@ mod hierarchy;
 mod introspection;
 pub mod locale;
 mod observer_types;
+pub mod redis_url;
 mod scalar_types;
 pub mod security_config;
 mod source_probe;

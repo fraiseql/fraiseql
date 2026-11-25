@@ -2770,6 +2770,10 @@ func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Direct
 		// #770/#777 these ran in NO leg (this leg only ran core + observers), so
 		// the cross-instance sharing they assert was never CI-verified.
 		"cargo test -p fraiseql-server --features redis-rate-limiting --lib middleware::rate_limit -- --ignored --test-threads=1",
+		// The Redis URL of PKCE, the rate limiter and token revocation: one holding a
+		// password reaches the bound Redis, as written and through redis_url_env, and the
+		// startup log names its host only.
+		"cargo test -p fraiseql-server --features 'redis-pkce,redis-rate-limiting' --lib server::initialization::tests -- --ignored --test-threads=1",
 		// #992: Redis-needing binaries that ran in NO leg (each self-skips
 		// without REDIS_URL, and only service-less legs compiled them).
 		"echo '### redis-backed strays (#992)'",

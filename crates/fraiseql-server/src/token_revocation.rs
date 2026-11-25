@@ -685,7 +685,12 @@ pub async fn revocation_manager_from_schema_in(
     let store: Arc<dyn RevocationStore> = match config.backend.as_str() {
         #[cfg(feature = "redis-rate-limiting")]
         "redis" => {
-            let url = config.redis_url.as_deref().unwrap_or("redis://localhost:6379");
+            let redis_url = crate::server::initialization::configured_redis_url(
+                "token_revocation",
+                config.redis_url.as_deref(),
+                config.redis_url_env.as_deref(),
+            )?;
+            let url = redis_url.as_deref().unwrap_or("redis://localhost:6379");
             match RedisRevocationStore::new(url).await {
                 Ok(s) => {
                     info!(backend = "redis", "Token revocation store initialized");

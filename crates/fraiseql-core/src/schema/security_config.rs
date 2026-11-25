@@ -455,6 +455,12 @@ pub struct RateLimitingSecurityConfig {
     /// class) — the server does not silently downgrade to per-process limits.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub redis_url: Option<String>,
+    /// The environment variable holding the Redis URL, read by the server at startup.
+    ///
+    /// The compiled schema carries the variable's name, never its value; a URL holding a
+    /// credential belongs here rather than in `redis_url`. At most one of the two is set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redis_url_env: Option<String>,
     /// Trust `X-Real-IP` / `X-Forwarded-For` headers for client IP extraction.
     ///
     /// Set to `true` only when FraiseQL is deployed behind a trusted reverse
@@ -521,6 +527,7 @@ impl RateLimitingSecurityConfig {
         failed_login_max_attempts: 10,
         failed_login_lockout_secs: 900,
         redis_url: None,
+        redis_url_env: None,
         trust_proxy_headers: false,
         trusted_proxy_cidrs: None,
         max_buckets: DEFAULT_RATE_LIMIT_MAX_BUCKETS,
@@ -633,6 +640,12 @@ pub struct PkceSecurityConfig {
     /// Cargo feature.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub redis_url:             Option<String>,
+    /// The environment variable holding the Redis URL, read by the server at startup.
+    ///
+    /// The compiled schema carries the variable's name, never its value; a URL holding a
+    /// credential belongs here rather than in `redis_url`. At most one of the two is set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redis_url_env:         Option<String>,
 }
 
 impl Default for PkceSecurityConfig {
@@ -642,6 +655,7 @@ impl Default for PkceSecurityConfig {
             code_challenge_method: CodeChallengeMethod::S256,
             state_ttl_secs:        600,
             redis_url:             None,
+            redis_url_env:         None,
         }
     }
 }
@@ -751,6 +765,12 @@ pub struct TokenRevocationSecurityConfig {
     /// if absent).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub redis_url:           Option<String>,
+    /// The environment variable holding the Redis URL, read by the server at startup.
+    ///
+    /// The compiled schema carries the variable's name, never its value; a URL holding a
+    /// credential belongs here rather than in `redis_url`. At most one of the two is set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redis_url_env:       Option<String>,
     /// How long (seconds) a `revoke-all` epoch is retained.
     ///
     /// `revoke-all` records a per-user epoch rather than deleting individual
@@ -774,6 +794,7 @@ impl Default for TokenRevocationSecurityConfig {
             require_jti:         true,
             fail_open:           false,
             redis_url:           None,
+            redis_url_env:       None,
             revoke_all_ttl_secs: None,
         }
     }

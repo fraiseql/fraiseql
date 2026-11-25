@@ -756,3 +756,172 @@ fn a_failed_mutation_root_withholds_database_text_when_nothing_declares_the_depl
         "development shows it: {development}"
     );
 }
+
+// ── The Redis URL of the Redis-backed sections ─────────────────────────────────
+
+/// A value no log line may show.
+#[cfg(all(feature = "redis-pkce", feature = "redis-rate-limiting"))]
+const REDIS_PASSWORD: &str = "pw-REDIS-SENTINEL";
+
+/// PKCE, the rate limiter and token revocation, each naming its Redis URL as given.
+#[cfg(all(feature = "redis-pkce", feature = "redis-rate-limiting"))]
+fn redis_schema(url: Option<&str>, url_env: Option<&str>) -> CompiledSchema {
+    use fraiseql_core::schema::{
+        PkceSecurityConfig, RateLimitingSecurityConfig, SecurityConfig,
+        TokenRevocationSecurityConfig,
+    };
+
+    let url = url.map(str::to_owned);
+    let url_env = url_env.map(str::to_owned);
+    let mut schema = CompiledSchema::new();
+    schema.security = Some(SecurityConfig {
+        rate_limiting: Some(RateLimitingSecurityConfig {
+            enabled: true,
+            redis_url: url.clone(),
+            redis_url_env: url_env.clone(),
+            ..RateLimitingSecurityConfig::default()
+        }),
+        pkce: Some(PkceSecurityConfig {
+            enabled: true,
+            redis_url: url.clone(),
+            redis_url_env: url_env.clone(),
+            ..PkceSecurityConfig::default()
+        }),
+        token_revocation: Some(TokenRevocationSecurityConfig {
+            enabled: true,
+            backend: "redis".to_owned(),
+            redis_url: url,
+            redis_url_env: url_env,
+            ..TokenRevocationSecurityConfig::default()
+        }),
+        ..SecurityConfig::default()
+    });
+    schema
+}
+
+/// Each Redis-backed section's construction in development: whether it chose Redis, or its
+/// refusal.
+#[cfg(all(feature = "redis-pkce", feature = "redis-rate-limiting"))]
+async fn redis_backends(schema: &CompiledSchema) -> Vec<(&'static str, Result<bool, String>)> {
+    use fraiseql_guard::deployment::Deployment;
+
+    let dev = Deployment::Development;
+    let pkce = super::pkce_store_from_schema_in(schema, None, dev)
+        .await
+        .map(|store| !store.expect("PKCE is enabled").is_in_memory());
+    let limiter = super::resolve_rate_limiter(schema, &crate::ServerConfig::default(), dev)
+        .await
+        .map(|limiter| limiter.expect("rate limiting is enabled").is_distributed());
+    let revocation =
+        crate::token_revocation::revocation_manager_from_schema_in(schema, dev, 86_400)
+            .await
+            .map(|manager| manager.expect("revocation is enabled").is_distributed());
+    vec![
+        ("pkce", pkce.map_err(|e| e.to_string())),
+        ("rate_limiting", limiter.map_err(|e| e.to_string())),
+        ("token_revocation", revocation.map_err(|e| e.to_string())),
+    ]
+}
+
+/// `redis_backends`, with the JSON log lines it wrote.
+#[cfg(all(feature = "redis-pkce", feature = "redis-rate-limiting"))]
+fn redis_backends_logged(
+    schema: &CompiledSchema,
+) -> (Vec<(&'static str, Result<bool, String>)>, Vec<serde_json::Value>) {
+    let mut outcome = Vec::new();
+    let log = log_events(|| {
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        outcome = runtime.block_on(redis_backends(schema));
+    });
+    (outcome, log)
+}
+
+#[cfg(all(feature = "redis-pkce", feature = "redis-rate-limiting"))]
+#[test]
+fn a_redis_url_env_naming_an_unset_variable_refuses_each_backend() {
+    let schema = redis_schema(None, Some("FQ_TEST_REDIS_URL_NEVER_SET"));
+    let (outcome, _) = redis_backends_logged(&schema);
+    for (section, result) in outcome {
+        let refusal = result.expect_err(section);
+        assert!(
+            refusal.contains(&format!(
+                "[security.{section}] redis_url_env names `FQ_TEST_REDIS_URL_NEVER_SET`, which is \
+                 not set"
+            )),
+            "{section}: {refusal}"
+        );
+    }
+}
+
+#[cfg(all(feature = "redis-pkce", feature = "redis-rate-limiting"))]
+#[test]
+fn a_section_naming_its_redis_url_twice_refuses_each_backend() {
+    let schema = redis_schema(Some("redis://127.0.0.1:1"), Some("FQ_TEST_REDIS_URL_NEVER_SET"));
+    let (outcome, _) = redis_backends_logged(&schema);
+    for (section, result) in outcome {
+        let refusal = result.expect_err(section);
+        assert!(
+            refusal.contains(&format!("[security.{section}] sets both")),
+            "{section}: {refusal}"
+        );
+    }
+}
+
+/// A Redis URL the client refuses falls back in development; neither that warning nor any
+/// other line shows the URL's password.
+#[cfg(all(feature = "redis-pkce", feature = "redis-rate-limiting"))]
+#[test]
+fn a_refused_redis_url_is_reported_without_its_password() {
+    // A port no Redis client accepts: the URL is refused without a connection attempt, whose
+    // retries would hold the test for half a minute.
+    let url = format!("redis://default:{REDIS_PASSWORD}@127.0.0.1:99999/0");
+    let (outcome, log) = redis_backends_logged(&redis_schema(Some(&url), None));
+    for (section, result) in outcome {
+        assert_eq!(result, Ok(false), "{section} falls back to memory in development");
+    }
+    let fallbacks = log
+        .iter()
+        .filter(|line| line.to_string().contains("falling back to in-memory"))
+        .count();
+    assert_eq!(fallbacks, 3, "each backend reports its fallback: {log:?}");
+    for line in &log {
+        assert!(!line.to_string().contains(REDIS_PASSWORD), "{line}");
+    }
+}
+
+/// A URL holding a password reaches a real Redis, from `redis_url` and from the variable
+/// `redis_url_env` names, and the startup log names its host only.
+///
+/// Needs `REDIS_URL` naming a Redis without `requirepass` (which accepts any password for
+/// the `default` user): the Redis leg binds one.
+#[cfg(all(feature = "redis-pkce", feature = "redis-rate-limiting"))]
+#[test]
+#[ignore = "requires Redis (REDIS_URL)"]
+fn a_redis_url_holding_a_password_reaches_redis_and_is_logged_by_host() {
+    let redis = std::env::var("REDIS_URL").expect("REDIS_URL names the test Redis");
+    let host = fraiseql_core::schema::redis_url::host_of(&redis);
+    let url = host.replacen("://", &format!("://default:{REDIS_PASSWORD}@"), 1);
+
+    let written = redis_schema(Some(&url), None);
+    let named = redis_schema(None, Some("FQ_TEST_REDIS_URL_WITH_PASSWORD"));
+    let runs = [
+        redis_backends_logged(&written),
+        temp_env::with_var("FQ_TEST_REDIS_URL_WITH_PASSWORD", Some(&url), || {
+            redis_backends_logged(&named)
+        }),
+    ];
+    for (outcome, log) in runs {
+        for (section, result) in outcome {
+            assert_eq!(result, Ok(true), "{section} runs on Redis");
+        }
+        let hosts: Vec<&serde_json::Value> =
+            log.iter().filter_map(|line| line["fields"].get("redis_host")).collect();
+        assert_eq!(hosts.len(), 2, "PKCE and the rate limiter name the host: {log:?}");
+        for logged in hosts {
+            assert_eq!(logged, &serde_json::Value::String(host.clone()));
+        }
+        for line in &log {
+            assert!(!line.to_string().contains(REDIS_PASSWORD), "{line}");
+        }
+    }
+}

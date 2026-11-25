@@ -673,6 +673,9 @@ pub async fn compile_to_schema(
     // 5g. Refuse authorization declarations no enforcer reads (#983).
     refuse_unenforced_authz_declarations(&schema)?;
 
+    // 5g. Refuse a Redis URL the compiled schema could not carry as written.
+    refuse_uncompilable_redis_urls(&schema)?;
+
     // 5g'. Refuse a tenant-scoped fact table whose analytics roots nothing scopes.
     refuse_unscoped_fact_tables(&schema)?;
 
@@ -818,6 +821,27 @@ fn refuse_update_input_defaults(schema: &CompiledSchema) -> Result<()> {
          update that omits it. Remove the default, give the update its own input type without \
          it, or make the mutation a full replace (not an update)."
     )
+}
+
+/// Refuse a Redis URL the compiled schema cannot carry as written.
+///
+/// `redis_url` of `[security.rate_limiting]`, `[security.pkce]` and
+/// `[security.token_revocation]` is compiled verbatim, so it is held to carrying no
+/// credential, and a section names its URL one way only; `redis_url_env` names the variable
+/// the server reads it from at startup.
+///
+/// # Errors
+///
+/// Returns the refusal naming the section and key, never the URL.
+fn refuse_uncompilable_redis_urls(schema: &CompiledSchema) -> Result<()> {
+    let Some(security) = schema.security.as_ref() else {
+        return Ok(());
+    };
+    for (section, url, url_env) in fraiseql_core::schema::redis_url::declared(security) {
+        fraiseql_core::schema::redis_url::check(section, url, url_env)
+            .map_err(anyhow::Error::msg)?;
+    }
+    Ok(())
 }
 
 /// Refuse `security.rules`, `security.field_auth` and `security.default_policy` (#983).

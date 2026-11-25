@@ -3,7 +3,10 @@
 
 use std::sync::Arc;
 
-use fraiseql_core::{db::traits::DatabaseAdapter, schema::CompiledSchema};
+use fraiseql_core::{
+    db::traits::DatabaseAdapter,
+    schema::{CompiledSchema, redis_url},
+};
 use fraiseql_guard::deployment::Deployment;
 use tracing::{info, warn};
 
@@ -223,9 +226,9 @@ impl Server {
              subsystems hold per-process state: {}.\n  In a multi-replica deployment that \
              means auth callbacks can fail across replicas, revoked tokens stay accepted by \
              other replicas, and rate limits multiply by the replica count.\n\n  To fix, give \
-             each of them a shared backend:\n    [security.pkce]            redis_url = \
-             \"redis://…\"\n    [security.rate_limiting]   redis_url = \"redis://…\"\n    \
-             [security.token_revocation] backend = \"postgres\" (or redis_url = \"redis://…\")\
+             each of them a shared backend:\n    [security.pkce]            redis_url_env = \
+             \"REDIS_URL\"\n    [security.rate_limiting]   redis_url_env = \"REDIS_URL\"\n    \
+             [security.token_revocation] backend = \"postgres\" (or redis_url_env = \"REDIS_URL\")\
              \n    [saml]                     uses the configured pool automatically; a \
              per-process replay store means Server was built programmatically without \
              one\n\n  To allow per-process state (single-replica only): unset \
@@ -703,13 +706,15 @@ pub(super) async fn pkce_store_from_schema_in(
     }
 
     let enc = state_encryption.cloned();
+    let redis_url =
+        configured_redis_url("pkce", cfg.redis_url.as_deref(), cfg.redis_url_env.as_deref())?;
 
-    // Prefer the Redis backend when redis_url is configured and the feature is compiled in.
+    // Prefer the Redis backend when a Redis URL is configured and the feature is compiled in.
     #[cfg(feature = "redis-pkce")]
-    if let Some(ref url) = cfg.redis_url {
+    if let Some(ref url) = redis_url {
         match crate::auth::PkceStateStore::new_redis(url, cfg.state_ttl_secs, enc.clone()).await {
             Ok(store) => {
-                info!(redis_url = %url, "PKCE state store: Redis backend");
+                info!(redis_host = %redis_url::host_of(url), "PKCE state store: Redis backend");
                 return Ok(Some(Arc::new(store)));
             },
             Err(e) => {
@@ -724,7 +729,7 @@ pub(super) async fn pkce_store_from_schema_in(
     }
 
     #[cfg(not(feature = "redis-pkce"))]
-    if cfg.redis_url.is_some() {
+    if redis_url.is_some() {
         redis_backend_unavailable_check(
             "[security.pkce] redis_url",
             "the `redis-pkce` Cargo feature is not compiled into this binary",
@@ -733,11 +738,11 @@ pub(super) async fn pkce_store_from_schema_in(
         )?;
     }
 
-    if cfg.redis_url.is_none() {
+    if redis_url.is_none() {
         warn!(
             "PKCE state store: in-memory. In a multi-replica deployment, auth flows will fail \
              if /auth/start and /auth/callback hit different replicas. \
-             Set [security.pkce] redis_url to enable the Redis backend, \
+             Set [security.pkce] redis_url_env (or redis_url) to enable the Redis backend, \
              or FRAISEQL_REQUIRE_REDIS=1 to enforce it at startup."
         );
     }
@@ -943,14 +948,21 @@ async fn build_rate_limiter(
 ) -> crate::Result<RateLimiter> {
     let with_rules = |limiter: RateLimiter| limiter.with_path_rules_from_security(auth_rules);
 
-    let redis_url = sec.and_then(|s| s.redis_url.as_deref());
+    let redis_url = match sec {
+        Some(s) => configured_redis_url(
+            "rate_limiting",
+            s.redis_url.as_deref(),
+            s.redis_url_env.as_deref(),
+        )?,
+        None => None,
+    };
 
     #[cfg(feature = "redis-rate-limiting")]
-    if let Some(url) = redis_url {
+    if let Some(url) = redis_url.as_deref() {
         match RateLimiter::new_redis(url, config.clone()).await {
             Ok(rl) => {
                 info!(
-                    url,
+                    redis_host = %redis_url::host_of(url),
                     rps_per_ip = config.rps_per_ip,
                     burst_size = config.burst_size,
                     "Rate limiting: using Redis distributed backend"
@@ -984,6 +996,22 @@ async fn build_rate_limiter(
         "Rate limiting: using in-memory backend"
     );
     Ok(with_rules(RateLimiter::new(config)))
+}
+
+/// The Redis URL `[security.<section>]` names, reading `redis_url_env` from the process
+/// environment.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` naming the key and variable, never a value, when the
+/// section names its URL both ways or the variable is unset or empty.
+pub fn configured_redis_url(
+    section: &str,
+    url: Option<&str>,
+    url_env: Option<&str>,
+) -> crate::Result<Option<String>> {
+    redis_url::resolve(section, url, url_env, |name| std::env::var(name).ok())
+        .map_err(crate::ServerError::ConfigError)
 }
 
 /// What breaks when configured-Redis rate limiting silently lands in memory.

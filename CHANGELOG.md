@@ -105,6 +105,19 @@ disagreed, and the promise was the part that was wrong.
   directory cached nothing. wasmtime is now built without its `cache` feature. Drop the field
   from a `WasmConfig` literal; `WasmConfig::default()` is unchanged.
 
+- **The Redis URL of `[security.rate_limiting]`, `[security.pkce]` and
+  `[security.token_revocation]` takes an environment variable's name, and a written one
+  holds no credential (#2565).** Each section takes `redis_url_env`, naming the variable
+  that holds the URL; the server reads it at startup and refuses to boot when it is unset or
+  empty, and the compiled schema carries the name, not the value. `fraiseql compile` now
+  refuses a `redis_url` holding user info (`user:pass@`, `:pass@`, `user@`) or a `password`
+  or `pass` query parameter, naming the key and pointing at `redis_url_env`, from
+  fraiseql.toml and from a schema document's `security` block alike; a section that sets
+  both keys is refused too. A project whose `redis_url` carries a password moves it into a
+  variable and names that variable with `redis_url_env`. The startup lines for the PKCE
+  state store and the rate limiter name the Redis by `scheme://host:port` (`redis_host`),
+  where they printed the whole URL.
+
 - **An inbound webhook delivery is claimed once, by the inbound spine (#1782).** Each
   delivery used to be claimed twice in one transaction: in `webhooks.tb_inbound_delivery`
   on `(route, event_id)`, and again by the spine insert on `(source, idempotency_key)`. The
