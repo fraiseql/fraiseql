@@ -137,6 +137,17 @@
         }
       ]
     },
+    "accent_insensitive": {
+      "description": "Accent-insensitive string filters (`[accent_insensitive]`): the function their\noperators fold through. Absent, the `ai*` operators are neither published nor accepted.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AccentInsensitiveConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "observers": {
       "description": "Observers/event system configuration",
       "$ref": "#/$defs/ObserversConfig",
@@ -2364,6 +2375,18 @@
           ]
         }
       ]
+    },
+    "AccentInsensitiveConfig": {
+      "description": "`[accent_insensitive]`, as compiled and as loaded.\n\nDeclaring it publishes the `ai*` string operators (`aicontains`, `aistartswith`,\n`aiendswith`, `aieq`, `ailike`, `nailike`, `airegex`, `nairegex`) on every string\nfilter, each folding both of its sides through `function`. Without it, the operators\nare neither published nor accepted. The server never creates the function:\n`fraiseql compile --emit-ddl` writes it, and `fraiseql compile --database` checks it.",
+      "type": "object",
+      "properties": {
+        "function": {
+          "description": "The `IMMUTABLE` `text → text` function both sides are folded through, schema\nqualified and lower case. Default `fraiseql.unaccent`.",
+          "type": "string",
+          "default": "fraiseql.unaccent"
+        }
+      },
+      "additionalProperties": false
     },
     "ObserversConfig": {
       "description": "Observers/event system configuration — the **declarative compile-time**\nshape of the `[observers]` table.\n\nThis is NOT the server's runtime schema. The same `fraiseql.toml` is fed to\nboth `fraiseql compile` (this struct) and `fraiseql-server`; the server's\nruntime tuning lives under `[observers.runtime]` (see the server's\n`ObserverRuntimeSettings` / issue #342). The [`runtime`](Self::runtime)\nfield is declared-and-ignored here so a shared config carrying the server's\n`[observers.runtime]` sub-table still compiles — the compiler does not\nvalidate its contents; `fraiseql run` hands them to the server, which does.",

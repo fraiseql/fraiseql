@@ -91,9 +91,9 @@ mod compile_tests {
     };
 
     use super::super::compile::{
-        EMIT_DDL_FORMAT, WIDE_FANOUT_THRESHOLD, apply_database_report, emit_ddl_to_dir,
-        field_type_to_pg, infer_native_columns_from_arg_types, jsonb_preserve_mismatches,
-        to_snake_case, wide_cascade_mutations,
+        WIDE_FANOUT_THRESHOLD, apply_database_report, emit_ddl_to_dir, field_type_to_pg,
+        infer_native_columns_from_arg_types, jsonb_preserve_mismatches, to_snake_case,
+        wide_cascade_mutations,
     };
     use crate::schema::{
         SchemaValidator,
@@ -791,12 +791,16 @@ mod compile_tests {
 
     /// Every file of an emitted directory, by name.
     fn emitted(types: Vec<TypeDefinition>) -> std::collections::BTreeMap<String, Vec<u8>> {
-        let tmp = tempfile::tempdir().unwrap();
-        let schema = CompiledSchema {
+        emitted_from(&CompiledSchema {
             types,
             ..Default::default()
-        };
-        emit_ddl_to_dir(&schema, tmp.path().to_str().unwrap()).unwrap();
+        })
+    }
+
+    /// The files `--emit-ddl` writes for `schema`, by name.
+    fn emitted_from(schema: &CompiledSchema) -> std::collections::BTreeMap<String, Vec<u8>> {
+        let tmp = tempfile::tempdir().unwrap();
+        emit_ddl_to_dir(schema, tmp.path().to_str().unwrap()).unwrap();
         std::fs::read_dir(tmp.path())
             .unwrap()
             .map(|entry| {
@@ -874,14 +878,19 @@ mod compile_tests {
     /// #965: every file says which format it is and which compiler wrote it, first.
     #[test]
     fn every_file_names_its_format_and_its_compiler() {
-        for (name, bytes) in emitted(artifact_types()) {
+        let schema = CompiledSchema {
+            types: artifact_types(),
+            accent_insensitive: Some(fraiseql_core::schema::AccentInsensitiveConfig::default()),
+            ..Default::default()
+        };
+        let files = emitted_from(&schema);
+        assert!(files.contains_key("accent-insensitive.sql"), "{:?}", files.keys());
+        for (name, bytes) in files {
             let text = String::from_utf8(bytes).unwrap();
             let mut lines = text.lines();
-            assert_eq!(
-                lines.next(),
-                Some(format!("-- fraiseql emit-ddl format {EMIT_DDL_FORMAT}").as_str()),
-                "{name}"
-            );
+            // The literal, not the constant read back: a format change is a `### Breaking`
+            // entry and a consumer fixture change, made here on purpose.
+            assert_eq!(lines.next(), Some("-- fraiseql emit-ddl format 2"), "{name}");
             assert_eq!(
                 lines.next(),
                 Some(
@@ -890,6 +899,30 @@ mod compile_tests {
                 "{name}"
             );
         }
+    }
+
+    /// `[accent_insensitive]` adds one file of its own, and only when declared: the schema,
+    /// the extension and the wrapper, in that order, with no `-- Type:` line.
+    #[test]
+    fn a_declared_accent_insensitive_section_writes_its_file() {
+        let undeclared = emitted(artifact_types());
+        assert!(!undeclared.contains_key("accent-insensitive.sql"), "{:?}", undeclared.keys());
+
+        let schema = CompiledSchema {
+            types: artifact_types(),
+            accent_insensitive: Some(fraiseql_core::schema::AccentInsensitiveConfig::default()),
+            ..Default::default()
+        };
+        let files = emitted_from(&schema);
+        assert_eq!(files.len(), undeclared.len() + 1, "{:?}", files.keys());
+        let text = String::from_utf8(files["accent-insensitive.sql"].clone()).unwrap();
+        assert!(!text.contains("-- Type:"), "{text}");
+        let at = |needle: &str| text.find(needle).unwrap_or_else(|| panic!("{needle}:\n{text}"));
+        let schema_at = at("CREATE SCHEMA IF NOT EXISTS \"fraiseql\";");
+        let extension_at = at("CREATE EXTENSION IF NOT EXISTS unaccent");
+        let function_at = at("CREATE OR REPLACE FUNCTION \"fraiseql\".\"unaccent\"(text)");
+        assert!(schema_at < extension_at && extension_at < function_at, "{text}");
+        assert!(text.contains("IMMUTABLE"), "{text}");
     }
 
     /// #965: two types whose table names coincide would write one file, the last one winning

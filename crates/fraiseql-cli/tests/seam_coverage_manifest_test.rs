@@ -34,8 +34,9 @@ use fraiseql_cli::schema::{
     seam::{AUTHORABLE_ARRAY_SECTIONS, AUTHORABLE_SINGLETON_SECTIONS},
 };
 use fraiseql_core::schema::{
-    ChangelogConfig, DebugConfig, GrpcConfig, HierarchiesConfig, LocaleConfig, McpConfig,
-    NamingConvention, RestConfig, SessionVariablesConfig, SubscriptionsConfig, ValidationConfig,
+    AccentInsensitiveConfig, ChangelogConfig, DebugConfig, GrpcConfig, HierarchiesConfig,
+    LocaleConfig, McpConfig, NamingConvention, RestConfig, SessionVariablesConfig,
+    SubscriptionsConfig, ValidationConfig,
 };
 
 /// Fields of `IntermediateSchema` that are **not** authored at the seam, and why.
@@ -54,6 +55,12 @@ const KNOWN_UNAUTHORED: &[(&str, &str)] = &[
         "configuration, not schema: set by the compiler from `[locale]` in fraiseql.toml \
          (both the project config and the TOML schema loader, #1512); a schema document that \
          carries a different one is refused",
+    ),
+    (
+        "accent_insensitive",
+        "configuration, not schema: set by the compiler from `[accent_insensitive]` in \
+         fraiseql.toml, as `locale` is; a schema document that carries a different one is \
+         refused",
     ),
     (
         "functions_config",
@@ -149,6 +156,7 @@ fn every_field_is_classified() {
             )
             .unwrap(),
         ),
+        accent_insensitive:   Some(AccentInsensitiveConfig::default()),
         hierarchies_config:   Some(HierarchiesConfig::default()),
         changelog_config:     Some(ChangelogConfig::default()),
     };

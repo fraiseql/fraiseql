@@ -414,7 +414,8 @@ impl<'a> BulkHandler<'a> {
 
         let type_def = self.schema.find_type(type_name);
 
-        let extractor = RestParamExtractor::new(self.config, &query_def, type_def);
+        let extractor = RestParamExtractor::new(self.config, &query_def, type_def)
+            .with_accent_insensitive(self.schema.accent_insensitive.is_some());
 
         let params = extractor.extract(&[], query_params).map_err(RestError::from)?;
 

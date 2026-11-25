@@ -144,6 +144,11 @@ const SERVED_BY_EVERY_BUILD: &[(&str, &str)] = &[
          projection live in fraiseql-core and every transport (#1512, #1513)",
     ),
     (
+        "accent_insensitive",
+        "the `ai*` operators: parsed and generated in fraiseql-core and fraiseql-db, \
+         advertised by the derived filter inputs and, in every build that mounts it, REST",
+    ),
+    (
         "auth",
         "`auth` is a default feature; a build without it mounts no auth surface at all",
     ),

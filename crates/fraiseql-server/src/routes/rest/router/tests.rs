@@ -556,3 +556,75 @@ mod admission {
         assert_eq!(get(&router, &acme).await, StatusCode::UNAUTHORIZED);
     }
 }
+
+// -----------------------------------------------------------------------
+// accent-insensitive operators
+// -----------------------------------------------------------------------
+
+/// A read accepts an accent-insensitive bracket operator exactly where the schema declares
+/// `[accent_insensitive]`, and the OpenAPI document it serves lists one only there.
+mod accent_insensitive {
+    use std::sync::Arc;
+
+    use axum::{body::Body, http::StatusCode};
+    use fraiseql_core::{
+        db::types::JsonbValue,
+        runtime::Executor,
+        schema::{AccentInsensitiveConfig, RestConfig},
+    };
+    use fraiseql_test_utils::failing_adapter::FailingAdapter;
+    use http::Request;
+    use tower::ServiceExt;
+
+    use super::{RestMountConfig, rest_router, schema_with_rest};
+    use crate::routes::graphql::AppState;
+
+    fn router(declared: bool) -> axum::Router {
+        let mut schema = schema_with_rest();
+        schema.rest_config = Some(RestConfig {
+            enabled: true,
+            require_auth: false,
+            ..RestConfig::default()
+        });
+        schema.accent_insensitive = declared.then(AccentInsensitiveConfig::default);
+        let adapter = FailingAdapter::new().with_response(
+            "v_user",
+            vec![JsonbValue::new(
+                serde_json::json!({ "pk_user_id": 1, "name": "Crème" }),
+            )],
+        );
+        let state = AppState::new(Arc::new(Executor::new(schema, Arc::new(adapter))));
+        rest_router(&state, &RestMountConfig::default()).unwrap()
+    }
+
+    async fn get(router: &axum::Router, uri: &str) -> (StatusCode, String) {
+        let response = router
+            .clone()
+            .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let status = response.status();
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        (status, String::from_utf8_lossy(&bytes).into_owned())
+    }
+
+    #[tokio::test]
+    async fn a_read_takes_one_only_where_the_schema_declares_it() {
+        let uri = "/rest/v1/users?name%5Baicontains%5D=creme";
+        let (status, body) = get(&router(false), uri).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+        assert!(body.contains("Unknown bracket operator 'aicontains'"), "{body}");
+
+        let (status, body) = get(&router(true), uri).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+    }
+
+    #[tokio::test]
+    async fn the_served_openapi_document_lists_one_only_where_declared() {
+        let (status, undeclared) = get(&router(false), "/rest/v1/openapi.json").await;
+        assert_eq!(status, StatusCode::OK, "{undeclared}");
+        assert!(!undeclared.contains("aicontains"), "{undeclared}");
+        let (_, declared) = get(&router(true), "/rest/v1/openapi.json").await;
+        assert!(declared.contains("aicontains"), "{declared}");
+    }
+}

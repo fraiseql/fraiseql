@@ -665,6 +665,15 @@ fn test_stringagg_delimiter_clean_value_unchanged() {
 // =========================================================================
 
 fn make_string_where_plan(_db: DatabaseType) -> AggregationPlan {
+    make_where_plan(WhereClause::Field {
+        path:     vec!["status".to_string()],
+        operator: WhereOperator::Eq,
+        value:    serde_json::json!("test_value"),
+    })
+}
+
+/// `tf_sales` counted by `category`, filtered by `clause`.
+fn make_where_plan(clause: WhereClause) -> AggregationPlan {
     let metadata = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
@@ -688,11 +697,7 @@ fn make_string_where_plan(_db: DatabaseType) -> AggregationPlan {
 
     let request = AggregationRequest {
         table_name:   "tf_sales".to_string(),
-        where_clause: Some(WhereClause::Field {
-            path:     vec!["status".to_string()],
-            operator: WhereOperator::Eq,
-            value:    serde_json::json!("test_value"),
-        }),
+        where_clause: Some(clause),
         group_by:     vec![GroupBySelection::Dimension {
             path:  "category".to_string(),
             alias: "category".to_string(),
@@ -707,6 +712,44 @@ fn make_string_where_plan(_db: DatabaseType) -> AggregationPlan {
     };
 
     crate::compiler::aggregation::AggregationPlanner::plan(request, metadata).unwrap()
+}
+
+/// A fact-table filter folds nothing: each accent-insensitive operator is refused, bare or
+/// in its node, rather than run as a plain comparison.
+#[test]
+fn an_accent_insensitive_filter_is_refused_on_a_fact_table() {
+    use fraiseql_db::where_clause::UnaccentFunction;
+    let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
+    for name in [
+        "aicontains",
+        "aistartswith",
+        "aiendswith",
+        "aieq",
+        "ailike",
+        "nailike",
+        "airegex",
+        "nairegex",
+    ] {
+        let leaf = WhereClause::Field {
+            path:     vec!["status".to_string()],
+            operator: WhereOperator::from_str(name).unwrap(),
+            value:    serde_json::json!("creme"),
+        };
+        let err = gen.generate_parameterized(&make_where_plan(leaf.clone())).unwrap_err();
+        assert!(
+            err.to_string().contains("is not supported in a fact-table aggregate filter"),
+            "{name}: {err}"
+        );
+        let node = WhereClause::Unaccented {
+            function: UnaccentFunction::default(),
+            inner:    Box::new(leaf),
+        };
+        let err = gen.generate_parameterized(&make_where_plan(node)).unwrap_err();
+        assert!(
+            err.to_string().contains("accent-insensitive filter is not supported"),
+            "{name}: {err}"
+        );
+    }
 }
 
 #[test]

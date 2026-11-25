@@ -381,11 +381,15 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 collation,
                 inner,
             } => {
+                let (function, leaf) = match inner.as_ref() {
+                    WhereClause::Unaccented { function, inner } => (Some(function), inner.as_ref()),
+                    leaf => (None, leaf),
+                };
                 let WhereClause::Field {
                     path,
                     operator,
                     value,
-                } = inner.as_ref()
+                } = leaf
                 else {
                     return Err(FraiseQLError::validation(
                         "a localized filter wraps a field comparison".to_string(),
@@ -397,7 +401,34 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                     chain,
                     collation.as_deref(),
                 )?;
-                self.visit_field(path, label, operator, value, params, hierarchy_ctx, types, guards)
+                match function {
+                    Some(function) => self
+                        .visit_unaccented(function, path, label, operator, value, params, guards),
+                    None => self.visit_field(
+                        path,
+                        label,
+                        operator,
+                        value,
+                        params,
+                        hierarchy_ctx,
+                        types,
+                        guards,
+                    ),
+                }
+            },
+            WhereClause::Unaccented { function, inner } => {
+                let WhereClause::Field {
+                    path,
+                    operator,
+                    value,
+                } = inner.as_ref()
+                else {
+                    return Err(FraiseQLError::validation(
+                        "an accent-insensitive filter wraps a field comparison".to_string(),
+                    ));
+                };
+                let field = self.resolve_field_expr(path);
+                self.visit_unaccented(function, path, field, operator, value, params, guards)
             },
             WhereClause::NativeField {
                 column,
@@ -1399,6 +1430,24 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                     .map_err(|e| FraiseQLError::validation(e.to_string()))
             },
 
+            // ── Accent-insensitive ────────────────────────────────────────────
+            // They fold through the schema's declared function, which only their
+            // `Unaccented` node carries: a bare one is refused, never run unfolded.
+            WhereOperator::Aicontains
+            | WhereOperator::Aistartswith
+            | WhereOperator::Aiendswith
+            | WhereOperator::Aieq
+            | WhereOperator::Ailike
+            | WhereOperator::Nailike
+            | WhereOperator::Airegex
+            | WhereOperator::Nairegex => Err(FraiseQLError::Validation {
+                message: format!(
+                    "accent-insensitive operator {operator:?} reached SQL generation without \
+                     the schema's unaccent function"
+                ),
+                path:    None,
+            }),
+
             // ── Unknown / future operators ────────────────────────────────────
             // This arm is only reachable if WhereOperator gains new variants
             // (it is #[non_exhaustive]).  Suppress the lint that fires when all
@@ -1413,6 +1462,58 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 path:    None,
             }),
         }
+    }
+
+    /// An accent-insensitive comparison of `field_expr`, the value at `path` (its document
+    /// key, or a localized field's label), both sides folded through `function`.
+    ///
+    /// The value reads through the row guards of the relations on its path, as every other
+    /// comparison's does. For the `contains` / `startswith` / `endswith` forms the operand
+    /// is escaped for `LIKE` *after* the fold: the dictionary folds `％`, `＿` and `＼` into
+    /// `%`, `_` and `\`, so an operand escaped first would match with wildcards the caller
+    /// never wrote. A `like` or `regex` pattern is folded as written, wildcards and
+    /// classes included.
+    fn visit_unaccented(
+        &self,
+        function: &crate::where_clause::UnaccentFunction,
+        path: &[String],
+        field_expr: String,
+        operator: &WhereOperator,
+        value: &serde_json::Value,
+        params: &mut Vec<serde_json::Value>,
+        guards: &[(&[String], &WhereClause)],
+    ) -> Result<String> {
+        let field = self.guarded_expr(field_expr, path, params, guards)?;
+        let lhs = function.call(&field);
+        let operand = self.require_str(value, "accent-insensitive")?;
+        if matches!(operator, WhereOperator::Airegex | WhereOperator::Nairegex) {
+            crate::where_clause::unaccent::check_fold_safe_pattern(operand)?;
+            validate_regex_pattern(operand)?;
+        }
+        let p = self.push_param(params, serde_json::Value::String(operand.to_string()));
+        let folded = function.call(&p);
+        let escaped = || {
+            format!(
+                "replace(replace(replace({folded}, chr(92), chr(92) || chr(92)), '%', chr(92) || \
+                 '%'), '_', chr(92) || '_')"
+            )
+        };
+        Ok(match operator {
+            WhereOperator::Aicontains => format!("{lhs} ILIKE '%' || {} || '%'", escaped()),
+            WhereOperator::Aistartswith => format!("{lhs} ILIKE {} || '%'", escaped()),
+            WhereOperator::Aiendswith => format!("{lhs} ILIKE '%' || {}", escaped()),
+            WhereOperator::Aieq => format!("lower({lhs}) = lower({folded})"),
+            WhereOperator::Ailike => format!("{lhs} ILIKE {folded}"),
+            WhereOperator::Nailike => format!("{lhs} NOT ILIKE {folded}"),
+            WhereOperator::Airegex => format!("{lhs} ~* {folded}"),
+            WhereOperator::Nairegex => format!("{lhs} !~* {folded}"),
+            other => {
+                return Err(FraiseQLError::Validation {
+                    message: format!("{other:?} is not an accent-insensitive operator"),
+                    path:    None,
+                });
+            },
+        })
     }
 
     fn require_str<'a>(&self, value: &'a serde_json::Value, op: &'static str) -> Result<&'a str> {

@@ -85,6 +85,23 @@ impl TomlSchema {
             schema.locale = Some(locale);
         }
 
+        // `[accent_insensitive]`: a document copy must agree with it, key by key.
+        if let Some(accent) = self.accent_insensitive.clone() {
+            super::runtime_sections::reconcile_values(
+                "accent_insensitive",
+                "accent_insensitive",
+                &serde_json::to_value(&accent)?,
+                schema
+                    .accent_insensitive
+                    .as_ref()
+                    .map(serde_json::to_value)
+                    .transpose()?
+                    .as_ref(),
+                labels.document,
+            )?;
+            schema.accent_insensitive = Some(accent);
+        }
+
         schema.functions_config = self.functions.reconcile(schema.functions_config.take())?;
 
         if self.declares("observers")

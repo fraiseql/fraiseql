@@ -115,6 +115,9 @@ pub fn boot_frozen_drift(current: &CompiledSchema, next: &CompiledSchema) -> Vec
         fact_tables: current_fact_tables,
         // Boot-checked against the database's collations (#1512), so a reload may not change it.
         locale: current_locale,
+        // Which operators the boot-mounted REST surface accepts and advertises; GraphQL
+        // follows the swap, so a change would leave the two disagreeing.
+        accent_insensitive: current_accent_insensitive,
         // The identity what the schema declares is owned under in a shared database.
         project_name: current_project_name,
     } = current;
@@ -129,6 +132,9 @@ pub fn boot_frozen_drift(current: &CompiledSchema, next: &CompiledSchema) -> Vec
     }
     if differs(current_locale, &next.locale) {
         drifted.push("locale");
+    }
+    if differs(current_accent_insensitive, &next.accent_insensitive) {
+        drifted.push("accent_insensitive");
     }
     // Observers and what else the schema owns are claimed under it at boot.
     if differs(current_project_name, &next.project_name) {

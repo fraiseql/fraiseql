@@ -324,6 +324,11 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub locale: Option<crate::schema::LocaleConfig>,
 
+    /// Accent-insensitive filters (`[accent_insensitive]`): the function their operators
+    /// fold through. `None`: the `ai*` operators are neither published nor accepted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accent_insensitive: Option<crate::schema::AccentInsensitiveConfig>,
+
     /// Hierarchy definitions for ID-based ltree operators.
     ///
     /// Maps hierarchy names to `table`/`path_column` pairs. Compiled from the

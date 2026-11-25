@@ -1036,6 +1036,7 @@ dependencies = [
  "fraiseql-time",
  "futures",
  "memchr",
+ "regex",
  "serde",
  "serde_json",
  "tokio",

@@ -350,7 +350,8 @@ fn mentions(clause: &WhereClause, over: &str) -> bool {
         WhereClause::Not(inner)
         | WhereClause::Typed { inner, .. }
         | WhereClause::InHierarchy { inner, .. }
-        | WhereClause::Localized { inner, .. } => mentions(inner, over),
+        | WhereClause::Localized { inner, .. }
+        | WhereClause::Unaccented { inner, .. } => mentions(inner, over),
         WhereClause::Guarded { guard, inner, .. } => mentions(guard, over) || mentions(inner, over),
         // Reason: `WhereClause` is non_exhaustive across crates; an unknown kind is refused.
         _ => true,

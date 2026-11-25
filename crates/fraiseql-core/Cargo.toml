@@ -231,6 +231,10 @@ name = "window_where_operators_pg"
 required-features = ["postgres"]
 
 [[test]]
+name = "accent_insensitive_filter_pg"
+required-features = ["postgres"]
+
+[[test]]
 name = "aggregate_decimal_digits_pg"
 required-features = ["postgres"]
 

@@ -526,6 +526,7 @@ impl RestHandler<'_> {
         let lenient = PreferHeader::from_headers(headers).handling
             == Some(super::prefer::HandlingPreference::Lenient);
         let extractor = RestParamExtractor::new(self.config, &query_def, type_def)
+            .with_accent_insensitive(self.schema.accent_insensitive.is_some())
             .with_lenient_handling(lenient);
         let path_pairs: Vec<(&str, &str)> =
             resolved.path_params.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();

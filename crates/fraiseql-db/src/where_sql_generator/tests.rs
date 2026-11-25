@@ -388,3 +388,40 @@ fn a_guarded_path_reads_its_value_only_where_the_guard_holds() {
         "(CASE WHEN data#>'{team}'->>'tenant_id' = 'A' THEN data#>'{team}'->>'name' END) = 'blue'"
     );
 }
+
+/// The wire backend embeds literals and folds nothing: an accent-insensitive comparison is
+/// refused, in its node or bare, rather than run as a plain one.
+#[test]
+fn an_accent_insensitive_comparison_is_refused_on_the_wire_backend() {
+    for name in [
+        "aicontains",
+        "aistartswith",
+        "aiendswith",
+        "aieq",
+        "ailike",
+        "nailike",
+        "airegex",
+        "nairegex",
+    ] {
+        let leaf = WhereClause::Field {
+            path:     vec!["name".to_string()],
+            operator: WhereOperator::from_str(name).unwrap(),
+            value:    json!("creme"),
+        };
+        let err = WhereSqlGenerator::to_sql(&leaf).unwrap_err();
+        assert!(
+            err.to_string().contains("accent-insensitive operators are not supported"),
+            "{name}: {err}"
+        );
+        let node = WhereClause::Unaccented {
+            function: crate::where_clause::UnaccentFunction::default(),
+            inner:    Box::new(leaf),
+        };
+        // The node itself is refused, not left to the operator's own arm.
+        let err = WhereSqlGenerator::to_sql(&node).unwrap_err();
+        assert!(
+            err.to_string().contains("an accent-insensitive filter is not supported"),
+            "{name}: {err}"
+        );
+    }
+}

@@ -189,7 +189,7 @@ impl OpenApiGenerator<'_> {
                     let desc = format!(
                         "Filter by {}. Bracket operators: {}",
                         field.name,
-                        bracket_operators_desc()
+                        bracket_operators_desc(self.schema.accent_insensitive.is_some())
                     );
                     params.push(json!({
                         "name": format!("{}[operator]", field.name),

@@ -146,3 +146,66 @@ fn a_bulk_filter_on_a_valued_enum_reaches_sql_as_the_stored_value() {
 
     assert_eq!(selection.arguments["where"], serde_json::json!({"status": {"eq": "shipped"}}));
 }
+
+/// A bulk filter accepts an accent-insensitive operator exactly where the schema declares
+/// `[accent_insensitive]`, as a read does.
+#[test]
+fn a_bulk_filter_takes_an_accent_insensitive_operator_only_where_declared() {
+    use std::sync::Arc;
+
+    use fraiseql_core::{
+        runtime::Executor,
+        schema::{AccentInsensitiveConfig, CompiledSchema, FieldType, RestConfig},
+    };
+    use fraiseql_test_utils::{
+        failing_adapter::FailingAdapter,
+        schema_builder::{TestFieldBuilder, TestQueryBuilder, TestTypeBuilder},
+    };
+
+    use crate::routes::rest::resource::RestRouteTable;
+
+    for declared in [false, true] {
+        let mut schema = CompiledSchema::new();
+        schema.queries.push(
+            TestQueryBuilder::new("products", "Product")
+                .returns_list(true)
+                .with_sql_source("v_product")
+                .build(),
+        );
+        schema.types.push(
+            TestTypeBuilder::new("Product", "v_product")
+                .with_field(TestFieldBuilder::new("id", FieldType::Id).build())
+                .with_field(TestFieldBuilder::new("name", FieldType::String).build())
+                .build(),
+        );
+        schema.rest_config = Some(RestConfig {
+            enabled: true,
+            require_auth: false,
+            ..RestConfig::default()
+        });
+        schema.accent_insensitive = declared.then(AccentInsensitiveConfig::default);
+        schema.build_indexes();
+        let executor = Arc::new(Executor::new(schema.clone(), Arc::new(FailingAdapter::new())));
+        let route_table = RestRouteTable::from_compiled_schema(&schema).unwrap();
+        let config = schema.rest_config.clone().unwrap();
+        let bulk = super::BulkHandler::new(&executor, &schema, &config, &route_table);
+
+        let selection = bulk.build_filter_query_match(
+            "products",
+            &[("name[aicontains]", "creme")],
+            "Product",
+            "no filter",
+        );
+
+        if declared {
+            let selection = selection.unwrap();
+            assert_eq!(
+                selection.arguments["where"],
+                serde_json::json!({"name": {"aicontains": "creme"}})
+            );
+        } else {
+            let err = format!("{:?}", selection.err().unwrap());
+            assert!(err.contains("Unknown bracket operator 'aicontains'"), "{err}");
+        }
+    }
+}

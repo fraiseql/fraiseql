@@ -70,6 +70,7 @@ fn test_compile_schema_with_single_custom_scalar() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         locale:               None,
+        accent_insensitive:   None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -140,6 +141,7 @@ fn test_compile_schema_with_multiple_custom_scalars() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         locale:               None,
+        accent_insensitive:   None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -208,6 +210,7 @@ fn test_custom_scalar_with_multiple_validation_rules() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         locale:               None,
+        accent_insensitive:   None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -266,6 +269,7 @@ fn test_custom_scalar_preserves_all_metadata() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         locale:               None,
+        accent_insensitive:   None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -316,6 +320,7 @@ fn test_empty_custom_scalars_list() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         locale:               None,
+        accent_insensitive:   None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -370,6 +375,7 @@ fn test_custom_scalar_with_no_validation_rules() {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         locale:               None,
+        accent_insensitive:   None,
         hierarchies_config:   None,
         changelog_config:     None,
     };

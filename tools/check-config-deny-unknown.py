@@ -89,6 +89,8 @@ EXPECTED_REACHABLE = int(os.environ.get("CONFIG_DENY_UNKNOWN_EXPECTED", "54"))
 # hand, and listed with its pinning test in `HAND_WRITTEN`.
 # +1 (TOML walk): `ConnectionCap`, a `[subscriptions]` connection bound, is a number or the
 # string "unlimited", never a table, so it has no key to be unknown.
+# +2 (TOML walk, #1607): `[accent_insensitive]` is `AccentInsensitiveConfig`, which refuses
+# unknown keys, and its `function` is `UnaccentFunction`, read from a string, never a table.
 
 # The second walk starts at the type `fraiseql.toml` is read into, across the crates that
 # define the types it reaches.
@@ -98,7 +100,7 @@ TOML_CRATES = set(
         "CONFIG_DENY_UNKNOWN_TOML_CRATES", "fraiseql-cli,fraiseql-core,fraiseql-db"
     ).split(",")
 )
-TOML_EXPECTED_REACHABLE = int(os.environ.get("CONFIG_DENY_UNKNOWN_TOML_EXPECTED", "93"))
+TOML_EXPECTED_REACHABLE = int(os.environ.get("CONFIG_DENY_UNKNOWN_TOML_EXPECTED", "95"))
 
 # Each table `TomlSchema` reaches that is open on purpose, its keys chosen by the author:
 # `<type> <file> <reason>` per line.

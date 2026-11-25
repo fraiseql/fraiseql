@@ -298,6 +298,11 @@ pub struct IntermediateSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub locale: Option<fraiseql_core::schema::LocaleConfig>,
 
+    /// Accent-insensitive string filters (`[accent_insensitive]`), carried from
+    /// `fraiseql.toml`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accent_insensitive: Option<fraiseql_core::schema::AccentInsensitiveConfig>,
+
     /// Hierarchy definitions for ID-based ltree operators.
     ///
     /// Compiled from the `[hierarchies]` TOML section. Maps hierarchy names

@@ -14,8 +14,8 @@ use super::super::resource::{HttpMethod, RestRoute};
 /// by hand, this was a third operator vocabulary: it advertised `contains`,
 /// which `validate_bracket_operator` rejected, and omitted `istartswith`,
 /// `iendswith` and `is_not_null`, which it accepted (#828).
-pub(crate) fn bracket_operators_desc() -> String {
-    crate::routes::rest::params::BRACKET_OPERATORS.join(", ")
+pub(crate) fn bracket_operators_desc(accent_insensitive: bool) -> String {
+    crate::routes::rest::params::bracket_operators(accent_insensitive).join(", ")
 }
 
 /// Map a `FieldType` to a JSON Schema type object.

@@ -531,6 +531,7 @@ impl SchemaConverter {
             naming_convention: intermediate.naming_convention, // Naming convention from TOML
             session_variables: intermediate.session_variables.unwrap_or_default(),
             locale: intermediate.locale,
+            accent_insensitive: intermediate.accent_insensitive,
             hierarchies_config: intermediate.hierarchies_config,
             changelog: intermediate.changelog_config, // Changelog exposure config from TOML
             schema_sdl: None,                         // Raw GraphQL SDL

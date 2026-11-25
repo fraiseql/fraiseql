@@ -1515,12 +1515,55 @@ fn a_list_element_of_the_wrong_type_is_refused() {
 /// `iendswith` and `is_not_null`, which it accepted (#828).
 #[test]
 fn the_openapi_bracket_operator_list_matches_the_validator() {
-    let advertised = crate::routes::rest::openapi::format::bracket_operators_desc();
-    let listed: Vec<&str> = advertised.split(", ").collect();
-    assert_eq!(
-        listed, BRACKET_OPERATORS,
-        "the OpenAPI description and the request validator must name one set"
-    );
+    for declared in [false, true] {
+        let advertised = crate::routes::rest::openapi::format::bracket_operators_desc(declared);
+        let listed: Vec<&str> = advertised.split(", ").collect();
+        assert_eq!(
+            listed,
+            super::bracket_operators(declared),
+            "the OpenAPI description and the request validator must name one set"
+        );
+    }
+    let undeclared = crate::routes::rest::openapi::format::bracket_operators_desc(false);
+    assert!(!undeclared.contains("aicontains"), "{undeclared}");
+    let declared = crate::routes::rest::openapi::format::bracket_operators_desc(true);
+    assert!(declared.contains("aicontains"), "{declared}");
+}
+
+/// Undeclared, an accent-insensitive operator is unknown to REST, as to GraphQL, and no
+/// refusal lists one.
+#[test]
+fn an_accent_insensitive_operator_is_unknown_where_the_schema_declares_none() {
+    let config = test_config();
+    let qd = list_query_def();
+    let td = user_type_def();
+    let ext = extractor_list(&config, &qd, &td);
+    let err = ext.extract(&[], &[("name[aicontains]", "creme")]).unwrap_err().to_string();
+    assert!(err.contains("Unknown bracket operator 'aicontains'"), "{err}");
+    assert!(!err.contains("aieq"), "{err}");
+    let err = ext
+        .extract(&[], &[("filter", r#"{"name":{"aicontains":"creme"}}"#)])
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("Unknown filter operator 'aicontains'"), "{err}");
+    assert!(!err.contains("nairegex"), "{err}");
+}
+
+/// Declared, each runs from a bracket and from `filter`, beside its case-insensitive
+/// counterpart.
+#[test]
+fn an_accent_insensitive_operator_is_accepted_where_the_schema_declares_it() {
+    let config = test_config();
+    let qd = list_query_def();
+    let td = user_type_def();
+    let ext = extractor_list(&config, &qd, &td).with_accent_insensitive(true);
+    for op in ["aieq", "ailike", "aicontains", "aistartswith", "aiendswith"] {
+        let key = format!("name[{op}]");
+        let result = ext.extract(&[], &[(key.as_str(), "crème")]).unwrap();
+        assert_eq!(result.where_clause, Some(serde_json::json!({"name": {op: "crème"}})), "{op}");
+    }
+    let result = ext.extract(&[], &[("filter", r#"{"name":{"airegex":"^cr[éè]me"}}"#)]).unwrap();
+    assert_eq!(result.where_clause, Some(serde_json::json!({"name": {"airegex": "^cr[éè]me"}})));
 }
 
 // -----------------------------------------------------------------------

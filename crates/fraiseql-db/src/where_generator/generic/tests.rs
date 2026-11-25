@@ -967,3 +967,95 @@ fn a_temporal_operand_outside_its_format_is_refused() {
         assert!(gen.generate(&typed(accepted.clone())).is_ok(), "{ty:?} {accepted}");
     }
 }
+
+// ── Accent-insensitive comparisons ───────────────────────────────────────────
+
+fn unaccented(inner: WhereClause) -> WhereClause {
+    WhereClause::Unaccented {
+        function: crate::where_clause::UnaccentFunction::default(),
+        inner:    Box::new(inner),
+    }
+}
+
+/// Both sides fold through the declared function; a substring operand is escaped for
+/// `LIKE` after its fold, never before.
+#[test]
+fn an_accent_insensitive_comparison_folds_both_sides_and_escapes_after_the_fold() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let (sql, params) = gen
+        .generate(&unaccented(field("name", WhereOperator::Aicontains, json!("50％"))))
+        .unwrap();
+    assert_eq!(
+        sql,
+        "\"fraiseql\".\"unaccent\"(data->>'name') ILIKE '%' || \
+         replace(replace(replace(\"fraiseql\".\"unaccent\"($1), chr(92), chr(92) || chr(92)), \
+         '%', chr(92) || '%'), '_', chr(92) || '_') || '%'"
+    );
+    assert_eq!(params, [json!("50％")]);
+    let (sql, _) = gen
+        .generate(&unaccented(field("name", WhereOperator::Aieq, json!("x"))))
+        .unwrap();
+    assert_eq!(
+        sql,
+        "lower(\"fraiseql\".\"unaccent\"(data->>'name')) = lower(\"fraiseql\".\"unaccent\"($1))"
+    );
+}
+
+/// A relation's value reads through its guard, as every other comparison's does.
+#[test]
+fn an_accent_insensitive_comparison_on_a_guarded_path_reads_through_the_guard() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let clause = guarded_team_name(unaccented(team_name(WhereOperator::Ailike, json!("blu%"))));
+    let (sql, params) = gen.generate(&clause).unwrap();
+    assert_eq!(
+        sql,
+        "\"fraiseql\".\"unaccent\"((CASE WHEN data->'team'->>'tenant_id' = $1 THEN \
+         data->'team'->>'name' END)) ILIKE \"fraiseql\".\"unaccent\"($2)"
+    );
+    assert_eq!(params, [json!("A"), json!("blu%")]);
+}
+
+/// On a localized field the label the request locale reads is folded, not the map.
+#[test]
+fn an_accent_insensitive_comparison_on_a_localized_field_folds_its_label() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let clause = WhereClause::Localized {
+        chain:     vec!["fr".to_string()],
+        collation: None,
+        inner:     Box::new(unaccented(field("name", WhereOperator::Aieq, json!("creme")))),
+    };
+    let (sql, _) = gen.generate(&clause).unwrap();
+    let label = crate::projection_generator::localized_key_expr(
+        "data",
+        &["name".to_string()],
+        &["fr".to_string()],
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        sql,
+        format!("lower(\"fraiseql\".\"unaccent\"({label})) = lower(\"fraiseql\".\"unaccent\"($1))")
+    );
+}
+
+/// Without its node there is no function to fold through: refused, never run unfolded.
+#[test]
+fn a_bare_accent_insensitive_operator_is_refused() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    for op in [
+        WhereOperator::Aicontains,
+        WhereOperator::Aistartswith,
+        WhereOperator::Aiendswith,
+        WhereOperator::Aieq,
+        WhereOperator::Ailike,
+        WhereOperator::Nailike,
+        WhereOperator::Airegex,
+        WhereOperator::Nairegex,
+    ] {
+        let err = gen.generate(&field("name", op.clone(), json!("x"))).unwrap_err();
+        assert!(
+            err.to_string().contains("without the schema's unaccent function"),
+            "{op:?}: {err}"
+        );
+    }
+}

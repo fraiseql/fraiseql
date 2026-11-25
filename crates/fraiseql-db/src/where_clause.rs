@@ -2,6 +2,7 @@
 
 pub mod field_types;
 pub mod operator_table;
+pub mod unaccent;
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -14,6 +15,7 @@ pub use self::{
         WhereFieldSchema,
     },
     operator_table::{OperatorCategory, WHERE_OPERATORS, WhereOperatorSpec, operator_spec},
+    unaccent::{DEFAULT_UNACCENT_FUNCTION, UnaccentFunction},
 };
 use crate::{types::sql_hints::ScalarFieldType, utils::to_snake_case};
 
@@ -159,8 +161,22 @@ pub enum WhereClause {
         chain:     Vec<String>,
         /// The request locale's collation, when the schema names one.
         collation: Option<String>,
-        /// The leaf, a [`WhereClause::Field`].
+        /// The leaf, a [`WhereClause::Field`], or a [`WhereClause::Unaccented`] one.
         inner:     Box<WhereClause>,
+    },
+
+    /// A leaf whose accent-insensitive operator folds both sides through `function`.
+    ///
+    /// The parser wraps the leaf when the schema declares accent-insensitive filters, with
+    /// the function the schema names. Like [`Typed`], it is a node of the clause so that no
+    /// seam the clause travels through can drop it; a seam that cannot fold refuses it.
+    ///
+    /// [`Typed`]: WhereClause::Typed
+    Unaccented {
+        /// The declared unaccent function.
+        function: UnaccentFunction,
+        /// The leaf, a [`WhereClause::Field`].
+        inner:    Box<WhereClause>,
     },
 
     /// Whether the key stored at `path` is among the `target_key` values of the rows of
@@ -199,7 +215,8 @@ impl WhereClause {
             Self::Typed { inner, .. }
             | Self::Guarded { inner, .. }
             | Self::InHierarchy { inner, .. }
-            | Self::Localized { inner, .. } => inner.is_empty(),
+            | Self::Localized { inner, .. }
+            | Self::Unaccented { inner, .. } => inner.is_empty(),
             Self::Not(_) | Self::Field { .. } | Self::NativeField { .. } | Self::KeyIn { .. } => {
                 false
             },
@@ -238,7 +255,8 @@ impl WhereClause {
             Self::Not(inner)
             | Self::Typed { inner, .. }
             | Self::InHierarchy { inner, .. }
-            | Self::Localized { inner, .. } => {
+            | Self::Localized { inner, .. }
+            | Self::Unaccented { inner, .. } => {
                 inner.collect_native_column_names(out);
             },
             Self::Guarded { guard, inner, .. } => {
@@ -335,6 +353,28 @@ impl WhereClause {
     /// `discovered` accumulates `(dotted path, cast)` for every comparison the
     /// descent reaches, which is how a nested path gets a declared type without
     /// enumerating the (possibly cyclic) closure of paths up front (#1157).
+    /// `leaf`, an accent-insensitive comparison on `field_name`, wrapped in the schema's
+    /// declared unaccent function; refused where the schema declares none.
+    fn unaccented_leaf(
+        schema: &WhereFieldSchema,
+        field_name: &str,
+        op_str: &str,
+        leaf: Self,
+    ) -> Result<Self> {
+        let function = schema.unaccent().ok_or_else(|| FraiseQLError::Validation {
+            message: format!(
+                "'{op_str}' on '{field_name}' compares accent-insensitively, and this schema \
+                 declares no accent-insensitive filters: add an `[accent_insensitive]` table to \
+                 fraiseql.toml and create the function `fraiseql compile --emit-ddl` writes."
+            ),
+            path:    None,
+        })?;
+        Ok(Self::Unaccented {
+            function: function.clone(),
+            inner:    Box::new(leaf),
+        })
+    }
+
     fn parse_where_object(
         value: &serde_json::Value,
         path_prefix: &[String],
@@ -503,11 +543,15 @@ impl WhereClause {
                                 });
                             },
                             Ok(operator) => {
-                                let leaf = Self::Field {
+                                let accent_insensitive = operator.is_accent_insensitive();
+                                let mut leaf = Self::Field {
                                     path: field_path.clone(),
                                     operator,
                                     value: op_val.clone(),
                                 };
+                                if accent_insensitive {
+                                    leaf = Self::unaccented_leaf(schema, field_name, op_str, leaf)?;
+                                }
                                 // #1513: a localized field compares the request locale's
                                 // label. Without a reading there is no label to compare.
                                 if level.and_then(|l| l.get(&snake)).is_some_and(|i| i.localized) {
@@ -705,6 +749,29 @@ pub enum WhereOperator {
     Niregex,
 
     // ========================================================================
+    // Accent-insensitive string operators
+    // ========================================================================
+    //
+    // Accent- and case-insensitive: both sides are folded through the schema's declared
+    // unaccent function, so each runs only inside a [`WhereClause::Unaccented`] node.
+    /// Contains substring, accent- and case-insensitive.
+    Aicontains,
+    /// Starts with, accent- and case-insensitive.
+    Aistartswith,
+    /// Ends with, accent- and case-insensitive.
+    Aiendswith,
+    /// Equal, accent- and case-insensitive.
+    Aieq,
+    /// Pattern matching (LIKE), accent- and case-insensitive; the pattern is folded too.
+    Ailike,
+    /// Negated pattern matching, accent- and case-insensitive; the pattern is folded too.
+    Nailike,
+    /// POSIX regex match, accent- and case-insensitive; the pattern is folded too.
+    Airegex,
+    /// Negated POSIX regex match, accent- and case-insensitive; the pattern is folded too.
+    Nairegex,
+
+    // ========================================================================
     // Null Checks
     // ========================================================================
     /// Is null. A `false` operand inverts it to IS NOT NULL.
@@ -869,7 +936,10 @@ impl WhereOperator {
         matches!(self, Self::In | Self::Nin)
     }
 
-    /// Check if operator is case-insensitive.
+    /// Check if operator is one of the `ILIKE` / `~*` family.
+    ///
+    /// The accent-insensitive operators are case-insensitive too, but are not in this
+    /// family: they run only inside their [`WhereClause::Unaccented`] node.
     #[must_use]
     pub const fn is_case_insensitive(&self) -> bool {
         matches!(
@@ -903,6 +973,31 @@ impl WhereOperator {
                 | Self::Iregex
                 | Self::Nregex
                 | Self::Niregex
+                | Self::Aicontains
+                | Self::Aistartswith
+                | Self::Aiendswith
+                | Self::Aieq
+                | Self::Ailike
+                | Self::Nailike
+                | Self::Airegex
+                | Self::Nairegex
+        )
+    }
+
+    /// Whether the operator folds accents, and so needs the schema's declared unaccent
+    /// function.
+    #[must_use]
+    pub const fn is_accent_insensitive(&self) -> bool {
+        matches!(
+            self,
+            Self::Aicontains
+                | Self::Aistartswith
+                | Self::Aiendswith
+                | Self::Aieq
+                | Self::Ailike
+                | Self::Nailike
+                | Self::Airegex
+                | Self::Nairegex
         )
     }
 }

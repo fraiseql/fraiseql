@@ -260,11 +260,15 @@ pub fn where_field_types_reading(
     // schema says is not there.
     let known = crate::schema::derived_inputs::where_keys_of(schema, type_def);
 
-    let fields = WhereFieldSchema::with_relations(
+    let mut fields = WhereFieldSchema::with_relations(
         casts,
         known,
         Arc::clone(&schema.derived.where_relation_fields),
     );
+    // The `ai*` operators fold through the declared function, and are refused without one.
+    if let Some(accent) = &schema.accent_insensitive {
+        fields = fields.with_unaccent(accent.function.clone());
+    }
     // #1513: a filter on a localized field reads the request locale's label, collated.
     match (
         crate::runtime::localization_chain(schema),

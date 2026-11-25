@@ -124,6 +124,16 @@ where_operators! {
     Nregex,      "nregex",      ["not_matches"], "!~",  String, false, false;
     Niregex,     "niregex",     [], "!~*",      String, false, false;
 
+    // ── Accent-insensitive string (declared in fraiseql.toml) ─────────────
+    Aicontains,   "aicontains",   [], "ILIKE",     String, false, false;
+    Aistartswith, "aistartswith", [], "ILIKE",     String, false, false;
+    Aiendswith,   "aiendswith",   [], "ILIKE",     String, false, false;
+    Aieq,         "aieq",         [], "=",         String, false, false;
+    Ailike,       "ailike",       [], "ILIKE",     String, false, false;
+    Nailike,      "nailike",      [], "NOT ILIKE", String, false, false;
+    Airegex,      "airegex",      [], "~*",        String, false, false;
+    Nairegex,     "nairegex",     [], "!~*",       String, false, false;
+
     // ── Array ─────────────────────────────────────────────────────────────
     ArrayContains,     "array_contains",     [], "@>", Array, false, false;
     ArrayContainedBy,  "array_contained_by", ["array_contained_in", "contained_in"], "<@",

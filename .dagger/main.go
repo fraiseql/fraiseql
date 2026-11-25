@@ -1580,6 +1580,11 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// real CLI and read through the real executor (#1586).
 		"echo '### cargo test -p fraiseql-cli --test authored_contract_pg (declaration = served contract)'",
 		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test authored_contract_pg -- --test-threads=1",
+		// #1607: `compile --database` refuses a schema declaring [accent_insensitive] against a
+		// database without its wrapper, or with one an index cannot use, and compiles one whose
+		// wrapper is ready.
+		"echo '### cargo test -p fraiseql-cli --test accent_insensitive_against_db_pg (#1607 wrapper drift)'",
+		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test accent_insensitive_against_db_pg -- --test-threads=1",
 		// #384 verification suites that had NEVER run with a database in any leg:
 		// each self-skips without DATABASE_URL, and the workspace test leg (which
 		// compiles them under --all-features) binds no Postgres — so all three read

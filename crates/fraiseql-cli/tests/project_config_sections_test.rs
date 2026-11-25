@@ -54,6 +54,15 @@ impl Section {
 
 const SECTIONS: &[Section] = &[
     Section {
+        toml:      "[accent_insensitive]\nfunction = \"search.fold\"\n",
+        needs:     "",
+        table:     "accent_insensitive",
+        key:       "accent_insensitive",
+        agreeing:  || json!({"function": "search.fold"}),
+        differing: || (json!({"function": "search.other"}), "function"),
+        compiled:  &["accent_insensitive"],
+    },
+    Section {
         toml:      "[mcp]\nenabled = true\n",
         needs:     "",
         table:     "mcp",

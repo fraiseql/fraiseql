@@ -42,6 +42,7 @@
 //! # }
 //! ```
 
+mod accent_insensitive;
 mod changelog;
 mod compiled;
 pub(crate) use compiled::fact_field;
@@ -67,6 +68,7 @@ mod subscribable_ddl;
 mod subscription_policy;
 mod subscription_types;
 
+pub use accent_insensitive::AccentInsensitiveConfig;
 pub use changelog::inject_changelog;
 pub use compiled::{
     AUTO_PARAM_NAMES, AppleSocialConfig, ArgumentDefinition, AuthClientConfig, AuthDatabaseConfig,

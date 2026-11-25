@@ -1263,6 +1263,7 @@ dependencies = [
  "fraiseql-time",
  "futures",
  "memchr",
+ "regex",
  "rustls",
  "rustls-native-certs",
  "schemars",

@@ -25,3 +25,15 @@ fn a_changed_observer_runtime_configuration_still_needs_a_restart() {
 
     assert_eq!(boot_frozen_drift(&CompiledSchema::default(), &next), ["observers_config"]);
 }
+
+/// REST reads which operators it accepts from the schema it was mounted with, and GraphQL
+/// from the swapped one: a reload changing `[accent_insensitive]` would split them.
+#[test]
+fn a_changed_accent_insensitive_section_needs_a_restart() {
+    let next = CompiledSchema {
+        accent_insensitive: Some(fraiseql_core::schema::AccentInsensitiveConfig::default()),
+        ..CompiledSchema::default()
+    };
+
+    assert_eq!(boot_frozen_drift(&CompiledSchema::default(), &next), ["accent_insensitive"]);
+}

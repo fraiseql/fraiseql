@@ -104,6 +104,19 @@ pub const STRING_OPERATORS: &[&str] = &[
     "niregex",
 ];
 
+/// Accent- and case-insensitive operators, advertised on text-backed leaves of a schema that
+/// declares `[accent_insensitive]`, and only there: they fold through the function it names.
+pub const ACCENT_INSENSITIVE_OPERATORS: &[&str] = &[
+    "aicontains",
+    "aistartswith",
+    "aiendswith",
+    "aieq",
+    "ailike",
+    "nailike",
+    "airegex",
+    "nairegex",
+];
+
 /// JSONB array containment and length operators, advertised on lists and `JSON`.
 pub const ARRAY_OPERATORS: &[&str] = &[
     "array_contains",
@@ -488,6 +501,8 @@ enum Slot {
 struct Ops {
     /// LIKE/ILIKE/regex — text-backed leaves.
     string:      bool,
+    /// The accent-insensitive family — text-backed leaves, where the schema declares it.
+    accent:      bool,
     /// JSONB array containment and length.
     array:       bool,
     /// JSONB containment.
@@ -500,6 +515,7 @@ impl Ops {
     const fn none() -> Self {
         Self {
             string:      false,
+            accent:      false,
             array:       false,
             containment: false,
             vector:      false,
@@ -541,6 +557,9 @@ impl Ops {
         names.extend(NULL_OPERATORS);
         if self.string {
             names.extend(STRING_OPERATORS);
+        }
+        if self.accent {
+            names.extend(ACCENT_INSENSITIVE_OPERATORS);
         }
         if self.array {
             names.extend(ARRAY_OPERATORS);
@@ -603,7 +622,7 @@ fn operand_type(op: &str, operand: &str) -> String {
     if NULL_OPERATORS.contains(&op) {
         return "Boolean".to_string();
     }
-    if STRING_OPERATORS.contains(&op) {
+    if STRING_OPERATORS.contains(&op) || ACCENT_INSENSITIVE_OPERATORS.contains(&op) {
         return "String".to_string();
     }
     if op.starts_with("len_") {
@@ -620,8 +639,16 @@ fn operand_type(op: &str, operand: &str) -> String {
 
 /// One line of prose per operator, taken from the SQL it lowers to.
 fn operator_description(op: &str) -> String {
-    fraiseql_db::where_clause::operator_spec(op)
-        .map_or_else(|| format!("`{op}`"), |spec| format!("`{op}` — SQL `{}`.", spec.sql_op))
+    let Some(spec) = fraiseql_db::where_clause::operator_spec(op) else {
+        return format!("`{op}`");
+    };
+    if ACCENT_INSENSITIVE_OPERATORS.contains(&op) {
+        return format!(
+            "`{op}` — accent- and case-insensitive: SQL `{}` with both sides unaccented.",
+            spec.sql_op
+        );
+    }
+    format!("`{op}` — SQL `{}`.", spec.sql_op)
 }
 
 /// The entity a nested `where` predicate on a field of this type filters, if the
@@ -705,11 +732,15 @@ pub(crate) fn where_keys_of(
 
 /// The filter slot a field of `field_type` occupies.
 fn classify(schema: &CompiledSchema, field_type: &FieldType) -> Slot {
+    let accent = schema.accent_insensitive.is_some();
     let leaf = |key: &str, operand: &str, ops: Ops| {
         Slot::Leaf(LeafFilter {
-            key: key.to_string(),
+            key:     key.to_string(),
             operand: operand.to_string(),
-            ops,
+            ops:     Ops {
+                accent: ops.string && accent,
+                ..ops
+            },
         })
     };
 

@@ -40,6 +40,14 @@ disagreed, and the promise was the part that was wrong.
   - `fraiseql_server::inbound::emit_in_tx` takes the event type as a third argument
     (`None` where there is none).
 
+- **The `--emit-ddl` directory is format 2 (#1607).** Every file's first line now reads
+  `-- fraiseql emit-ddl format 2`. A schema declaring `[accent_insensitive]` gets one more
+  file, `accent-insensitive.sql`, which renders no type: it has no `-- Type:` line and holds
+  `CREATE SCHEMA`, `CREATE EXTENSION unaccent` and `CREATE FUNCTION` statements. A reader of
+  format 1 expected only `CREATE TABLE` files (with their `vector` extension and indexes);
+  a reader of format 2 must handle a file of those three statement kinds that names no type.
+  See `docs/operations/emit-ddl.md`.
+
 - **A fragment on an interface is held to the interface's fields (GraphQL § 5.3.1 and
   § 5.3.3, #2539).** `... on Problem { missing }`, and a named spread of a fragment on
   `Problem` selecting `missing`, was accepted when the interface declares no such field and
@@ -1330,6 +1338,18 @@ disagreed, and the promise was the part that was wrong.
   `BigInt`, `Json`, `Email`.
 
 ### Added
+
+- **Accent-insensitive string filters (#1607).** A schema that declares
+  `[accent_insensitive]` in fraiseql.toml publishes `aicontains`, `aistartswith`,
+  `aiendswith`, `aieq`, `ailike`, `nailike`, `airegex` and `nairegex` on its string filters,
+  in GraphQL and REST: each accent- and case-insensitive, folding both sides through an
+  `IMMUTABLE` wrapper over PostgreSQL's `unaccent` (default `fraiseql.unaccent`), so a
+  trigram or expression index can serve it. `fraiseql compile --emit-ddl` writes the
+  wrapper and `fraiseql compile --database` refuses a database without it, naming the
+  statements that create it; the server never runs DDL for it. A `like` or `regex` pattern
+  is folded too (`[éè]` matches like `[ee]`), and a regex pattern is held to the existing
+  length and nesting limits after the fold. Without the section the operators are neither
+  published nor accepted. See `docs/features/accent-insensitive-filters.md`.
 
 - **`fraiseql_time::calendar` writes dates and date-times past year 9999 (#2026).**
   `calendar::date`, `calendar::date_time` and `calendar::rfc3339` write the text chrono

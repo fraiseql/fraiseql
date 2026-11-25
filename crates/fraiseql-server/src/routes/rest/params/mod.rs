@@ -19,7 +19,10 @@ use std::collections::{BTreeMap, HashMap};
 pub use bracket::parse_bracket_key;
 pub use coerce::coerce_to_type;
 use fraiseql_core::{
-    schema::{FieldType, QueryDefinition, RestConfig, TypeDefinition},
+    schema::{
+        FieldType, QueryDefinition, RestConfig, TypeDefinition,
+        derived_inputs::ACCENT_INSENSITIVE_OPERATORS,
+    },
     utils::operators::OPERATOR_REGISTRY,
 };
 use fraiseql_error::FraiseQLError;
@@ -72,6 +75,21 @@ pub(super) const BRACKET_OPERATORS: &[&str] = &[
     "is_null",
     "is_not_null",
 ];
+
+/// The accent-insensitive bracket operators, beside their case-insensitive counterparts
+/// above. Accepted and advertised only where the schema declares `[accent_insensitive]`.
+pub(super) const ACCENT_INSENSITIVE_BRACKET_OPERATORS: &[&str] =
+    &["aieq", "ailike", "aicontains", "aistartswith", "aiendswith"];
+
+/// The bracket operators a schema accepts: [`BRACKET_OPERATORS`], and the
+/// accent-insensitive ones where it declares `[accent_insensitive]`.
+pub(crate) fn bracket_operators(accent_insensitive: bool) -> Vec<&'static str> {
+    let mut operators = BRACKET_OPERATORS.to_vec();
+    if accent_insensitive {
+        operators.extend(ACCENT_INSENSITIVE_BRACKET_OPERATORS);
+    }
+    operators
+}
 
 /// Known query-string parameter names that are *not* filter keys.
 const RESERVED_PARAMS: &[&str] = &[
@@ -297,9 +315,12 @@ pub struct EmbeddedSpec {
 
 /// Extracts and validates REST request parameters against schema metadata.
 pub struct RestParamExtractor<'a> {
-    config:    &'a RestConfig,
-    query_def: &'a QueryDefinition,
-    type_def:  Option<&'a TypeDefinition>,
+    config:             &'a RestConfig,
+    query_def:          &'a QueryDefinition,
+    type_def:           Option<&'a TypeDefinition>,
+    /// Whether the schema declares `[accent_insensitive]`: without it, its operators are
+    /// unknown here, as they are to the GraphQL surface.
+    accent_insensitive: bool,
     /// Skip unknown query parameters instead of rejecting them.
     ///
     /// Set from `Prefer: handling=lenient` (RFC 7240 §4.4). The preference was parsed,
@@ -307,7 +328,7 @@ pub struct RestParamExtractor<'a> {
     /// with the example summary "Ignore unknown parameters" — while having no reader
     /// anywhere outside `prefer.rs` (#873.1). A client whose proxy appends `utm_source`
     /// followed the published guidance and still got a 400.
-    lenient:   bool,
+    lenient:            bool,
 }
 
 impl<'a> RestParamExtractor<'a> {
@@ -322,8 +343,23 @@ impl<'a> RestParamExtractor<'a> {
             config,
             query_def,
             type_def,
+            accent_insensitive: false,
             lenient: false,
         }
+    }
+
+    /// Accept and advertise the accent-insensitive operators: the schema declares
+    /// `[accent_insensitive]`.
+    #[must_use]
+    pub const fn with_accent_insensitive(mut self, declared: bool) -> Self {
+        self.accent_insensitive = declared;
+        self
+    }
+
+    /// Whether `op` names an operator this schema runs.
+    fn knows_operator(&self, op: &str) -> bool {
+        OPERATOR_REGISTRY.contains_key(op)
+            && (self.accent_insensitive || !ACCENT_INSENSITIVE_OPERATORS.contains(&op))
     }
 
     /// Honour `Prefer: handling=lenient` — ignore unknown query parameters rather than
@@ -963,9 +999,13 @@ impl<'a> RestParamExtractor<'a> {
             // Inner object keys should be operators.
             if let Some(ops) = inner.as_object() {
                 for op_name in ops.keys() {
-                    if !OPERATOR_REGISTRY.contains_key(op_name.as_str()) {
+                    if !self.knows_operator(op_name) {
                         let available: Vec<&str> = {
-                            let mut ops: Vec<&str> = OPERATOR_REGISTRY.keys().copied().collect();
+                            let mut ops: Vec<&str> = OPERATOR_REGISTRY
+                                .keys()
+                                .copied()
+                                .filter(|op| self.knows_operator(op))
+                                .collect();
                             ops.sort_unstable();
                             ops
                         };
@@ -1204,11 +1244,12 @@ impl<'a> RestParamExtractor<'a> {
     }
 
     fn validate_bracket_operator(&self, op: &str) -> Result<(), FraiseQLError> {
-        if !BRACKET_OPERATORS.contains(&op) {
+        let operators = bracket_operators(self.accent_insensitive);
+        if !operators.contains(&op) {
             return Err(validation_error(format!(
                 "Unknown bracket operator '{op}'. \
                  Available bracket operators: {available}",
-                available = BRACKET_OPERATORS.join(", ")
+                available = operators.join(", ")
             )));
         }
         Ok(())

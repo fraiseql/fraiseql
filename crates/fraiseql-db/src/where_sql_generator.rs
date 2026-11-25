@@ -82,6 +82,13 @@ impl WhereSqlGenerator {
                     .to_string(),
                 path:    None,
             }),
+            // The wire backend embeds literals and folds nothing: an accent-insensitive
+            // comparison is refused rather than run as a plain one.
+            WhereClause::Unaccented { .. } => Err(FraiseQLError::Validation {
+                message: "an accent-insensitive filter is not supported on the wire backend"
+                    .to_string(),
+                path:    None,
+            }),
             // Ruling AH: a path through `under` reads its value only where `guard` holds.
             WhereClause::Guarded {
                 under,
@@ -305,6 +312,24 @@ impl WhereSqlGenerator {
                         "Array length operators not yet supported in fraiseql-wire: {operator:?}"
                     ),
                     source:  None,
+                });
+            },
+
+            // Only inside their `Unaccented` node, which this backend refuses.
+            WhereOperator::Aicontains
+            | WhereOperator::Aistartswith
+            | WhereOperator::Aiendswith
+            | WhereOperator::Aieq
+            | WhereOperator::Ailike
+            | WhereOperator::Nailike
+            | WhereOperator::Airegex
+            | WhereOperator::Nairegex => {
+                return Err(FraiseQLError::Validation {
+                    message: format!(
+                        "accent-insensitive operators are not supported on the wire backend: \
+                         {operator:?}"
+                    ),
+                    path:    None,
                 });
             },
 

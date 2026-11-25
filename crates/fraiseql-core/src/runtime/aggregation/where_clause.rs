@@ -109,6 +109,14 @@ impl AggregationSqlGenerator {
                 )?;
                 self.generate_key_where_parameterized(&key, operator, value, params)
             },
+            // A fact-table filter builds its own SQL and folds nothing: refused, never run
+            // as a plain comparison.
+            WhereClause::Unaccented { .. } => Err(crate::FraiseQLError::Validation {
+                message: "an accent-insensitive filter is not supported in a fact-table \
+                          aggregate filter"
+                    .to_string(),
+                path:    None,
+            }),
             // Reason: non_exhaustive requires catch-all for cross-crate matches
             _ => Err(crate::FraiseQLError::Validation {
                 message: "Unknown WhereClause variant".to_string(),

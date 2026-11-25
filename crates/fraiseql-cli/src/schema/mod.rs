@@ -3,6 +3,7 @@
 //! This module handles the intermediate schema format (language-agnostic)
 //! and converts it to `CompiledSchema` (Rust-specific).
 
+pub mod accent_insensitive;
 pub mod artifact;
 pub mod converter;
 pub mod database_validator;

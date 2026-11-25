@@ -18,6 +18,7 @@
 | Write a `DateTime`, `LocalDateTime`, `Date` or `Time` value | [`docs/features/temporal-values.md`](features/temporal-values.md) |
 | Give SQL per-request values (claims, headers, literals) | [`docs/features/session-variables.md`](features/session-variables.md) |
 | Understand how paginated reads are ordered | [`docs/features/pagination.md`](features/pagination.md) |
+| Filter strings accent-insensitively (`aicontains`, …) | [`docs/features/accent-insensitive-filters.md`](features/accent-insensitive-filters.md) |
 | Understand window functions | [`docs/modules/window-functions.md`](modules/window-functions.md) |
 | Understand analytics fact tables | [`docs/modules/fact-table.md`](modules/fact-table.md) |
 | See the PostgreSQL 18 feature measurements (uuidv7, SQL/JSON, RETURNING) | [`docs/benchmarks/pg18-evaluations.md`](benchmarks/pg18-evaluations.md) |

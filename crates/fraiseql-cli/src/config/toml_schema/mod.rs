@@ -148,6 +148,11 @@ pub struct TomlSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub locale: Option<fraiseql_core::schema::LocaleConfig>,
 
+    /// Accent-insensitive string filters (`[accent_insensitive]`): the function their
+    /// operators fold through. Absent, the `ai*` operators are neither published nor accepted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accent_insensitive: Option<fraiseql_core::schema::AccentInsensitiveConfig>,
+
     /// Observers/event system configuration
     #[serde(rename = "observers")]
     pub observers: ObserversConfig,

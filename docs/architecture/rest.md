@@ -68,7 +68,10 @@ and refuse every request.
 
 - **Filters:** `?name=x` is equality; `?price[gte]=10` takes an operator: `eq`, `ne`,
   `gt`, `gte`, `lt`, `lte`, `in`, `nin`, `like`, `ilike`, `contains`, `icontains`,
-  `startswith`, `istartswith`, `endswith`, `iendswith`, `is_null`, `is_not_null`.
+  `startswith`, `istartswith`, `endswith`, `iendswith`, `is_null`, `is_not_null`; and,
+  where the schema declares `[accent_insensitive]`, `aieq`, `ailike`, `aicontains`,
+  `aistartswith`, `aiendswith` (see
+  [accent-insensitive filters](../features/accent-insensitive-filters.md)).
   `?filter=` takes a JSON filter, and `or`, `and` and `not` combine them.
 - **Selection and embedding:** `?select=id,title,author(name)` picks fields and embeds
   relations. An embed is read in the same SQL statement as its parent; its total cost

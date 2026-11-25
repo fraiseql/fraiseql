@@ -480,6 +480,8 @@ fn reads_a_column_under(
         // Its key is a document path; its predicate reads the related view inside its own
         // subquery (ruling AL).
         W::KeyIn { .. } => false,
+        // An accent-insensitive comparison folds the document value, never a column.
+        W::Unaccented { .. } => false,
     }
 }
 

@@ -477,6 +477,60 @@ impl PgCatalog {
         Ok(row.get(0))
     }
 
+    /// The schema the `unaccent` extension is installed in, or `None` when it is not.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the catalog query fails.
+    pub async fn unaccent_extension_schema(&self) -> Result<Option<String>> {
+        let client = self.pool.get().await.context("failed to acquire DB connection")?;
+        let row = client
+            .query_opt(
+                "SELECT n.nspname::text FROM pg_extension e \
+                 JOIN pg_namespace n ON n.oid = e.extnamespace WHERE e.extname = 'unaccent'",
+                &[],
+            )
+            .await
+            .context("failed to look up the unaccent extension")?;
+        Ok(row.map(|r| r.get(0)))
+    }
+
+    /// What the database has of the accent-insensitive wrapper `function(text)`: whether a
+    /// plain function of that name takes one `text`, and if so its volatility and return type.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the catalog query fails.
+    pub async fn unaccent_wrapper_state(
+        &self,
+        function: &fraiseql_db::where_clause::UnaccentFunction,
+    ) -> Result<crate::schema::accent_insensitive::WrapperState> {
+        use crate::schema::accent_insensitive::WrapperState;
+        let client = self.pool.get().await.context("failed to acquire DB connection")?;
+        let row = client
+            .query_opt(
+                "SELECT p.provolatile::text, format_type(p.prorettype, NULL) FROM pg_proc p \
+                 JOIN pg_namespace n ON n.oid = p.pronamespace \
+                 WHERE n.nspname = $1 AND p.proname = $2 AND p.prokind = 'f' \
+                 AND p.pronargs = 1 AND p.proargtypes[0] = 'text'::regtype",
+                &[&function.schema(), &function.function()],
+            )
+            .await
+            .context("failed to look up the accent-insensitive function")?;
+        let Some(row) = row else {
+            return Ok(WrapperState::Missing);
+        };
+        let volatility: String = row.get(0);
+        let returns: String = row.get(1);
+        Ok(if volatility != "i" {
+            WrapperState::NotImmutable(volatility.chars().next().unwrap_or('v'))
+        } else if returns != "text" {
+            WrapperState::NotText(returns)
+        } else {
+            WrapperState::Ready
+        })
+    }
+
     /// Run the PL/pgSQL body-resolution pass over `schemas` and return every
     /// unresolved internal call (#409).
     ///

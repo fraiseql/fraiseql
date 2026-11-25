@@ -75,6 +75,7 @@ fn base_schema_with_query(
         naming_convention: NamingConvention::default(),
         session_variables: None,
         locale: None,
+        accent_insensitive: None,
         hierarchies_config: None,
         changelog_config: None,
     }

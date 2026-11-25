@@ -138,6 +138,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
         locale:               None,
+        accent_insensitive:   None,
         hierarchies_config:   None,
         changelog_config:     None,
     }

@@ -225,6 +225,9 @@ pub struct WhereFieldSchema {
     relations:            RelationFieldMaps,
     /// The request's locale reading, for a filter on a localized field.
     locale:               Option<LocaleReading>,
+    /// The schema's declared unaccent function; `None` refuses accent-insensitive
+    /// operators.
+    unaccent:             Option<super::UnaccentFunction>,
     /// Refuse an unknown key without a "Did you mean" hint (#1717). Stored negated so
     /// the derived `Default` keeps the hint, as every constructor does.
     withhold_suggestions: bool,
@@ -236,6 +239,20 @@ impl WhereFieldSchema {
     pub fn with_locale(mut self, locale: LocaleReading) -> Self {
         self.locale = Some(locale);
         self
+    }
+
+    /// The same schema, folding accent-insensitive comparisons through `function`.
+    #[must_use]
+    pub fn with_unaccent(mut self, function: super::UnaccentFunction) -> Self {
+        self.unaccent = Some(function);
+        self
+    }
+
+    /// The schema's declared unaccent function, when it declares accent-insensitive
+    /// filters.
+    #[must_use]
+    pub const fn unaccent(&self) -> Option<&super::UnaccentFunction> {
+        self.unaccent.as_ref()
     }
 
     /// The same schema, with "Did you mean" hints on an unknown key on or off (#1717).
@@ -268,6 +285,7 @@ impl WhereFieldSchema {
             known: None,
             relations: RelationFieldMaps::default(),
             locale: None,
+            unaccent: None,
             withhold_suggestions: false,
         }
     }
@@ -287,6 +305,7 @@ impl WhereFieldSchema {
             known: Some(Arc::new(known)),
             relations: RelationFieldMaps::default(),
             locale: None,
+            unaccent: None,
             withhold_suggestions: false,
         }
     }
@@ -307,6 +326,7 @@ impl WhereFieldSchema {
             known: Some(Arc::new(known)),
             relations,
             locale: None,
+            unaccent: None,
             withhold_suggestions: false,
         }
     }
