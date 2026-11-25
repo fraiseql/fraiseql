@@ -138,13 +138,6 @@ disagreed, and the promise was the part that was wrong.
   the list. A rolled-up table answering a split range orders its recombined groups by the
   same items. Code generated from the schema sees the new item type and enum.
 
-- **A relay query's REST route refuses `?select=` naming a relationship (#2418).** Such a
-  request was answered `200` with the embedded rows, from an unpaged read that ignored the
-  route's cursor parameters. The route now pages by keyset, and the page composes no embed,
-  so the request is answered `400`: "`?select=` cannot embed a relationship on a relay
-  (cursor) route; select the route's own fields, and read the relationship from its own
-  route". Read the relationship from its own route. An offset route embeds as before.
-
 - **The Go SDK requires Go 1.26 (#2278).** Its `go.mod` declares `go 1.26`, the oldest
   release Go still supports, and its suite runs on 1.26 and 1.27; it declared 1.23, was
   tested on 1.23 and 1.24, and its README promised 1.22. The code needs nothing newer than
@@ -2056,6 +2049,18 @@ disagreed, and the promise was the part that was wrong.
   `meta.hasNextPage`, `hasPreviousPage`, `startCursor` and `endCursor`, and
   `links.next`/`links.prev` keep the request's `?sort=`. A cursor is refused under another
   `?sort=`, and the OpenAPI document publishes the relay body.
+
+- **A relay query's REST route reads `?select=` embeds into its keyset page (#2418, #2448).**
+  In 2.19.1 a relay route given `?select=` with a relationship answered from an unpaged read
+  that ignored the route's cursor parameters. It now pages by keyset and reads the embeds
+  into that page: the page's rows, cursors, `meta` and links are the ones it serves without
+  the embed, and each row carries its related rows. An embedded level is read under the
+  caller's scope as on an offset route: its type's row policy and `inject_params`, the
+  request's session settings, its field-level RBAC, its query's role gate and the
+  authorizer's answer for a nested read. Nested embeds, `rel(count)` and `?rel.limit=` work
+  as on an offset route. The page stays bounded by `[rest]`'s default and maximum page
+  size, and `[security.cost_budget]` charges it for what it embeds. `Prefer: count=exact`
+  counts the page's rows.
 
 - **`fraiseql run` starts the observer runtime with `fraiseql.toml`'s `[observers.runtime]`
   tuning (#1740).** The table was accepted and ignored, so the runtime ran on its defaults

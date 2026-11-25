@@ -331,8 +331,12 @@ the `?sort=` above all, since a cursor resumes only the ordering it was issued u
 same cursor under another `?sort=` is refused, as over GraphQL. A link is `null` when there
 is no such page. `Prefer: count=exact` adds `meta.total`.
 
-A relay route does not embed: `?select=` naming a relationship is refused, since the page
-composes no embedded read. Read the relationship from its own route.
+A relay route embeds as an offset route does: `?select=id,author(name),posts(title)` serves
+each row of the page with its related rows, including nested embeds, `rel(count)` and
+`?rel.limit=`. The page is cut before anything is embedded, so its rows, cursors, `meta` and
+links are the ones the route serves without the embed, and a cursor from either resumes the
+other. Each embedded level is read under the caller's scope by its own type's rules, as on an
+offset route. `meta.total` counts the page's rows.
 
 ### Refetching a node
 

@@ -738,15 +738,9 @@ impl RestHandler<'_> {
         // statement by the engine, which gates every embedded level as a read of its own
         // target — see `embedding` for the fan-out this replaces.
         let has_embeddings = !params.embeddings.is_empty() || !params.embedding_counts.is_empty();
-        // A relay route pages by keyset through the relay runner, which composes no embed: an
-        // embed on it is refused rather than served on a page it does not bound.
+        // A relay route pages by keyset; an embed on it is read into that page, which is cut
+        // before any embedded level is joined to it.
         let relay = query_match.query_def.relay;
-        if relay && has_embeddings {
-            return Err(RestError::bad_request(
-                "`?select=` cannot embed a relationship on a relay (cursor) route; select the \
-                 route's own fields, and read the relationship from its own route",
-            ));
-        }
         let (embeds, counts) = super::super::embedding::selections(
             &params.embeddings,
             &params.embedding_counts,
@@ -755,7 +749,17 @@ impl RestHandler<'_> {
             super::super::embedding::default_embed_page(self.config),
         );
         let read = async {
-            if relay {
+            if relay && has_embeddings {
+                self.executor
+                    .execute_relay_composed(
+                        query_match,
+                        &embeds,
+                        &counts,
+                        security_context,
+                        Some(&request_budget),
+                    )
+                    .await
+            } else if relay {
                 self.executor
                     .execute_relay_direct(query_match, security_context, Some(&request_budget))
                     .await

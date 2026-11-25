@@ -3,7 +3,7 @@
 //! cursors, and `links.next`/`links.prev` resume it under the request's own `?sort=`. A walk
 //! that follows the links returns every row once, in the order PostgreSQL gives; a cursor
 //! issued under one `?sort=` is refused under another. The page's rows are charged to the
-//! response-bytes ceiling, and an embed, which the keyset page does not compose, is refused.
+//! response-bytes ceiling, and an embed is read into the page (`relay_embed` walks it).
 //!
 //! **Parallelism:** creates and drops its own `tf_rest_relay`.
 
@@ -276,7 +276,7 @@ async fn a_page_over_the_response_ceiling_is_refused() {
 }
 
 #[tokio::test]
-async fn an_embed_on_a_relay_route_is_refused() {
+async fn an_embed_on_a_relay_route_is_served_on_the_page() {
     let Some((_adapter, server)) = start_with(|schema| {
         schema.types[0].relationships.push(Relationship {
             name:           "peer".to_string(),
@@ -292,7 +292,14 @@ async fn an_embed_on_a_relay_route_is_refused() {
     else {
         return;
     };
+    let (flat, _, _) = page(&server, "?first=2&select=pk").await;
     let (status, body) = get(&server.url, ROUTE, "?first=2&select=pk,peer(pk)").await;
-    assert_eq!(status, reqwest::StatusCode::BAD_REQUEST, "{body}");
-    assert!(body.contains("cannot embed a relationship on a relay (cursor) route"), "{body}");
+    assert_eq!(status, reqwest::StatusCode::OK, "{body}");
+    let body: Value = serde_json::from_str(&body).unwrap();
+    let rows = body["data"].as_array().unwrap();
+    let pks: Vec<i64> = rows.iter().map(|r| r["pk"].as_i64().unwrap()).collect();
+    assert_eq!(pks, flat, "the embed changed the page: {body}");
+    for row in rows {
+        assert_eq!(row["peer"]["pk"], row["pk"], "each row's peer is itself: {row}");
+    }
 }
