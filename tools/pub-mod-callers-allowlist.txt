@@ -60,7 +60,6 @@ fraiseql_core::security::kms pending moves into fraiseql-secrets as a KeyProvide
 fraiseql_federation::http_resolver pending a gateway-only piece fraiseql-saga imports; triage #1681
 fraiseql_federation::tls pending a gateway-only piece fraiseql-saga imports; triage #1681
 fraiseql_arrow::clickhouse_sink pending its row mapping ports into a CDC sink kind; triage #1681
-fraiseql_arrow::event_schema pending no plan names it; triage #1681
 fraiseql_core::http pending no plan names it; triage #1681
 fraiseql_core::graphql::fragments pending no plan names it; triage #1681
 fraiseql_core::graphql::require_permission_directive pending no plan names it; triage #1681

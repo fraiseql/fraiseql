@@ -79,7 +79,6 @@ pub mod convert;
 pub mod db;
 pub mod db_convert;
 pub mod error;
-pub mod event_schema;
 pub mod event_storage;
 pub mod exchange_protocol;
 pub mod export;

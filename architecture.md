@@ -367,7 +367,6 @@
   ticket.rs               Flight ticket encoding
   metadata.rs             Flight metadata
   subscription.rs         Arrow subscription streaming
-  event_schema.rs         Event → Arrow schema
   event_storage.rs        Arrow-backed event store
   exchange_protocol.rs    DoPut / DoExchange handlers
   cache.rs                Arrow result cache

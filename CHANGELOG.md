@@ -27,6 +27,9 @@ disagreed, and the promise was the part that was wrong.
   keeps the old behaviour). A Deno module's `source_hash` is now the function hash (see
   Added), no longer the SHA-256 of its file.
 
+- **`fraiseql-arrow` drops `event_schema` (#1681).** `entity_event_arrow_schema()` is
+  removed. Nothing called it outside its own tests.
+
 - **`fraiseql-functions` drops `triggers::http` (#1681).** `HttpTriggerRoute`,
   `HttpTriggerMatcher`, `HttpTriggerPayload`, `HttpTriggerResponse` and `HttpMethod` are
   removed. Nothing mounted them: an `http:` trigger is still refused at compile time, as
