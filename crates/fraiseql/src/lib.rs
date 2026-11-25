@@ -56,8 +56,8 @@ pub use fraiseql_cli as cli;
 #[cfg(feature = "federation")]
 pub use fraiseql_core::federation;
 pub use fraiseql_core::{
-    CompiledSchema, FraiseQLError, Result, TenantContext, apq, cache, compiler, db, graphql,
-    runtime, schema, security, tenancy, validation,
+    CompiledSchema, FraiseQLError, Result, apq, cache, compiler, db, graphql, runtime, schema,
+    security, validation,
 };
 // Re-export error types. The canonical workspace error is `FraiseQLError`
 // (re-exported via `fraiseql_core` above). `ConfigError` and `FileError` are
@@ -86,7 +86,6 @@ pub mod prelude {
     //! - Database abstraction: [`DatabaseAdapter`], [`db`] module
     //! - GraphQL execution: [`Executor`]
     //! - GraphQL parsing: [`ParsedQuery`], [`parse_query`]
-    //! - Tenancy: [`TenantContext`], [`Tenant`]
     //! - Observer system (feature `observers`): `EntityEvent`, `EventKind`, `ObserverExecutor`
     //! - HTTP server (feature `server`): `Server`, `ServerConfig`
 
@@ -94,23 +93,21 @@ pub mod prelude {
     // Database access
     // GraphQL parsing
     // Runtime executor
-    // Tenancy support
     pub use fraiseql_core::{
         db,
         graphql::{ParsedQuery, parse_query},
         prelude::DatabaseAdapter,
         runtime::Executor,
-        tenancy::TenantContext as Tenant,
     };
 
+    // Core types
+    pub use crate::CompiledSchema;
     // Optional: Observer system
     #[cfg(feature = "observers")]
     pub use crate::observers::{EntityEvent, EventKind, ObserverExecutor};
     // Optional: Server components
     #[cfg(feature = "server")]
     pub use crate::server::{Server, ServerConfig};
-    // Core types
-    pub use crate::{CompiledSchema, TenantContext};
     pub use crate::{FraiseQLError, Result};
 }
 

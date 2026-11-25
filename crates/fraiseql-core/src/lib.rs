@@ -194,7 +194,6 @@ pub mod design;
 #[cfg(feature = "federation")]
 pub use fraiseql_federation as federation;
 pub mod security;
-pub mod tenancy;
 pub mod types;
 pub mod utils;
 pub mod validation;
@@ -204,7 +203,6 @@ pub mod prelude;
 // Re-exports for convenience
 pub use error::{FraiseQLError, Result};
 pub use schema::CompiledSchema;
-pub use tenancy::TenantContext;
 /// The `uuid` this crate's public API is built against (#1198).
 pub use uuid;
 /// The `zeroize` this crate's public API is built against (#1198).

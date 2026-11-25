@@ -18,5 +18,4 @@ fn prelude_is_usable() {
 
     // Core types are reachable.
     let _: Option<CompiledSchema> = None;
-    let _: Option<TenantContext> = None;
 }

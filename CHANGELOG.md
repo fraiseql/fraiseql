@@ -27,6 +27,11 @@ disagreed, and the promise was the part that was wrong.
   keeps the old behaviour). A Deno module's `source_hash` is now the function hash (see
   Added), no longer the SHA-256 of its file.
 
+- **`fraiseql_core::tenancy` and its facade re-exports are removed (#1681).**
+  `fraiseql_core::TenantContext`, `fraiseql::TenantContext`, `fraiseql::tenancy` and
+  `fraiseql::prelude::{Tenant, TenantContext}` are gone. Nothing in the engine read a
+  `TenantContext`: the tenant a request acts for comes from its `SecurityContext`.
+
 - **`fraiseql-core` drops eight modules nothing in the engine called (#1681).**
   - `graphql::fragments` (`FragmentGraph`). Fragment cycles are still refused, by
     `FragmentResolver` and the complexity validator.

@@ -164,7 +164,6 @@
   │                       (hash → stored query; Redis-backed optional)
   ├─ federation/          Apollo Federation v2 support
   │                       FederationTraceContext, circuit breaker, health
-  ├─ tenancy/             Multi-tenancy (TenantContext, RLS integration)
   ├─ design/              Domain design helpers
   ├─ filters/             Filter expression types
   ├─ utils/               Shared utilities
@@ -234,7 +233,7 @@
   logging.rs              Structured logging (StructuredLogEntry, RequestLogger)
   metrics_server.rs       MetricsCollector (atomic counters), PrometheusMetrics
   tracing_utils.rs        W3C traceparent extraction → FederationTraceContext
-  extractors.rs           Axum extractors (RequestId, TenantContext, AuthUser, …)
+  extractors.rs           Axum extractors (PeerIp, OptionalSecurityContext)
   validation.rs           RequestValidator (depth, complexity, alias limits)
   trusted_documents.rs    Query allowlist enforcement
   api_key.rs              API key authentication
