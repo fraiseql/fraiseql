@@ -22,7 +22,7 @@
         { "name": "email", "type": "String", "nullable": true },
         { "name": "limit", "type": "Int",    "nullable": false, "default": 10 }
       ],
-      "jsonb_column": "payload",
+      "jsonb_column": "data",
       "description": "List all users with optional filtering"
     },
     {

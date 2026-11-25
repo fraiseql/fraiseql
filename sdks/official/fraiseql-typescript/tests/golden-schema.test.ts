@@ -34,7 +34,7 @@ describe("Golden fixture 01 — basic query and mutation", () => {
       "List all users with optional filtering",
       {
         sqlSource: "v_user",
-        jsonbColumn: "payload",
+        jsonbColumn: "data",
       }
     );
 
@@ -47,7 +47,7 @@ describe("Golden fixture 01 — basic query and mutation", () => {
       "Fetch a single user by ID",
       {
         sqlSource: "v_user",
-        jsonbColumn: "payload",
+        jsonbColumn: "data",
       }
     );
 
