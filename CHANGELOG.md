@@ -100,6 +100,11 @@ disagreed, and the promise was the part that was wrong.
   takes and returns arrow types (`RecordBatch`, `Schema`), so a crate that passes them in from
   its own arrow dependency moves to arrow 60 with it.
 
+- **`WasmConfig::compilation_cache_dir` is removed (#1747).** The field was accepted and never
+  read: `WasmRuntime::new` did not configure wasmtime's compilation cache, so setting a
+  directory cached nothing. wasmtime is now built without its `cache` feature. Drop the field
+  from a `WasmConfig` literal; `WasmConfig::default()` is unchanged.
+
 - **An inbound webhook delivery is claimed once, by the inbound spine (#1782).** Each
   delivery used to be claimed twice in one transaction: in `webhooks.tb_inbound_delivery`
   on `(route, event_id)`, and again by the spine insert on `(source, idempotency_key)`. The

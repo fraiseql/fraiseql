@@ -45,19 +45,12 @@ pub struct WasmConfig {
     /// Enable SIMD (Single Instruction, Multiple Data) support in WASM modules.
     ///
     /// SIMD can improve performance for data-parallel workloads but adds compilation overhead.
-    pub enable_simd:           bool,
-    /// Optional directory for caching compiled components.
-    ///
-    /// If set, compiled modules are cached to disk to speed up subsequent loads.
-    pub compilation_cache_dir: Option<std::path::PathBuf>,
+    pub enable_simd: bool,
 }
 
 impl Default for WasmConfig {
     fn default() -> Self {
-        Self {
-            enable_simd:           true,
-            compilation_cache_dir: None,
-        }
+        Self { enable_simd: true }
     }
 }
 
