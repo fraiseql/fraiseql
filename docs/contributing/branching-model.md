@@ -117,8 +117,8 @@ the intended reading. Before relying on it, stop pushing and let one run finish.
 The **remaining** heavy leg, `feature-matrix`, still runs post-merge; dispatch it
 manually (`gh workflow run dagger-feature-matrix.yml --ref <branch>`) when a change
 warrants full validation before merge. Locally, `make preflight` mirrors the fast gate
-and `make test-leg` mirrors the `test` leg line for line (`make lint-shard-parity`
-holds the two lists together).
+and `make test-leg` runs the `test` leg's own lines (`tools/leg-lines.py` reads
+them out of `.dagger/main.go`).
 
 ### The two things `make preflight` cannot see
 

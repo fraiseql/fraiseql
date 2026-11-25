@@ -183,7 +183,7 @@ warning on the self-hosted runner (job exit 0; route-syntax ran fine) — watch,
 Ports ci.yml's `test` job (Linux path) into `dagger call test --rust=<stable|msrv>`,
 backed by `.github/workflows/dagger-test.yml` (self-hosted matrix, push to every
 in-repo branch + dispatch; both arms are required checks on `dev` since #1257, and
-`make test-leg` is the local mirror held to this leg by `make lint-shard-parity`).
+`make test-leg` runs this leg's lines locally, read by `tools/leg-lines.py`).
 
 | Legacy ci.yml `test` step (non-Windows) | Dagger `test` equivalent | Notes |
 |---|---|---|

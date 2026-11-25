@@ -96,10 +96,9 @@ const (
 	// the harness spawns a testcontainer, which this engine has no Docker for.
 	// It runs for real in the `storage` integration suite.
 	//
-	// A package const rather than a local in `Test`: `make test-leg` mirrors that
-	// invocation, and tools/check-shard-parity.py resolves consts but reports an
-	// unresolvable expression as fatal rather than comparing a command it could
-	// not read.
+	// A package const rather than a local in `Test`: `make test-leg` runs this
+	// line through tools/leg-lines.py, which resolves consts but refuses an
+	// expression it cannot resolve rather than run a different command.
 	testWorkspaceSkip = "-- --skip metadata::tests --skip migrations::tests --skip routes::tests --skip uploads::tests"
 	// serverInProcessTests: every fraiseql-server tests/*.rs binary that runs
 	// in-process (no backing service) and is not already named by a dedicated

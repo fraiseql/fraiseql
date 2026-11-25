@@ -196,10 +196,10 @@ test-integration: test-integration-postgres
 # line with `--test-threads=1` — but that knowledge lived only in that file.
 # This target is the command that was missing.
 #
-# The line list is held to the shard's by `make lint-shard-parity`, in
-# both directions. Do not edit one side alone. The rationale for each individual
-# line lives with it in `.dagger/main.go` and is deliberately not duplicated
-# here: two copies of a rationale drift, and only one copy can be right.
+# The lines are the shard's own: tools/leg-lines.py reads them out of
+# `.dagger/main.go`'s integrationPostgres at run time, so they are written once,
+# with their rationale, there. `python3 tools/leg-lines.py integrationPostgres`
+# prints them; copy one to run it alone (with the exports below).
 #
 # Serialized on purpose: expect this to take a while. What is NOT mirrored is
 # the shard's build environment (sccache, mold, CARGO_INCREMENTAL=0, a pinned
@@ -222,85 +222,8 @@ test-integration-postgres: export RUST_BACKTRACE := 1
 # writable server unless it is re-cloned.
 test-integration-postgres: db-up db-failover-reset
 	@echo ""
-	@echo "=== integration (postgres) — mirroring .dagger/main.go integrationPostgres ==="
-	@echo "### toolchain: $$(rustc --version)"
-	@echo ""
-	@echo "### core/db --test '*' sweep (serialized: shared public schema)"
-	@cargo test -p fraiseql-core --features 'audit-syslog,audit-webhook,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend,test-postgres' --test '*' -- --test-threads=1
-	@cargo test -p fraiseql-db --features 'postgres,wire-backend,test-postgres' --test '*' -- --test-threads=1
-	@echo ""
-	@echo "### fraiseql-time: the instant type as a timestamptz"
-	@cargo test -p fraiseql-time --all-features --test timestamptz_pg -- --ignored --test-threads=1
-	@echo ""
-	@echo "### live-PostgreSQL lib tests"
-	@cargo test -p fraiseql-functions --features 'runtime-deno,runtime-wasm,host-live' --lib migrations::tests -- --test-threads=1
-	@cargo test -p fraiseql-functions --features 'runtime-deno,runtime-wasm,host-live' --lib runtime::deno::cursor_tests:: -- --test-threads=1
-	@echo ""
-	@echo "### auth: durable identity store, password, reset, verification, linking, single-use, sweeps"
-	@cargo test -p fraiseql-auth --test postgres_account_store -- --test-threads=1
-	@cargo test -p fraiseql-auth --test postgres_session_tenant -- --test-threads=1
-	@cargo test -p fraiseql-auth --test postgres_session_mfa -- --test-threads=1
-	@cargo test -p fraiseql-auth --test postgres_signing_key -- --test-threads=1
-	@cargo test -p fraiseql-auth --test local_password -- --test-threads=1
-	@cargo test -p fraiseql-auth --test password_reset -- --test-threads=1
-	@cargo test -p fraiseql-auth --test email_verification -- --test-threads=1
-	@cargo test -p fraiseql-auth --test social_linking -- --test-threads=1
-	@cargo test -p fraiseql-auth --test postgres_single_use_consume -- --test-threads=1
-	@cargo test -p fraiseql-auth --test postgres_expiry_sweep -- --test-threads=1
-	@cargo test -p fraiseql-auth --test postgres_otp_guess_budget -- --test-threads=1
-	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,functions-runtime-deno,observers-nats' --test integration -- --test-threads=1
-	@cargo test -p fraiseql-auth --test session_state_integration -- --test-threads=1
-	@echo ""
-	@echo "### inbound spine, storage policy admin, sources, functions runtime"
-	@cargo test -p fraiseql-webhooks --test inbound_pipeline_pg -- --test-threads=1
-	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,functions-runtime-deno,observers-nats' --lib -- inbound:: server::provision_tests:: server::parity_tests:: server::routing::mount_gate_tests:: server_config::tests::refused_in_every_deployment::
-	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,functions-runtime-deno,observers-nats' --lib server::routing::storage_policy_admin_tests -- --test-threads=1
-	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,functions-runtime-deno,observers-nats' --lib tenancy::tests::runtime_config_drift -- --test-threads=1
-	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,functions-runtime-deno,observers-nats' --test inbound_email_dedup_scope_pg -- --test-threads=1
-	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,functions-runtime-deno,observers-nats' --lib -- sources:: stranded_tables:: server_config::egress:: server::provision_tests::each_configured_capability_plans_its_own_tables capability::schema_tests:: --test-threads=1
-	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,functions-runtime-deno,observers-nats' --lib -- cron:: routes::after_mutation:: server::after_mutation_wiring_tests:: server::functions_setup:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: function_dispatch:: server::provision_tests:: server::entry_point_parity_tests:: server::health_capabilities_tests:: server::initialization::tests::static_enriched_fields::functions:: server::declared_observer_env_tests:: --test-threads=1
-	@cargo test -p fraiseql-server --features 'auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,observers-nats' --lib -- server::entry_point_parity_tests:: subsystems::loader:: --test-threads=1
-	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,observers-nats' --lib -- server::entry_point_parity_tests:: server::health_capabilities_tests:: --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --lib commands::run_serve_tests:: -- --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test run_admin_provisioning_pg -- --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test auth_rotate_signing_key_pg -- --test-threads=1
-	@cargo test -p fraiseql-saga --features test-utils --lib saga_store::tests -- --test-threads=1
-	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,functions-runtime-deno,observers-nats' --test functions_schema_seam_test
-	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka,cli,admin-sql,functions-runtime-deno,observers-nats' --test functions_query_bridge_pin_test
-	@echo ""
-	@echo "### saga: forward execution, compensation, recovery, remote dispatch"
-	@cargo test -p fraiseql-saga --features test-utils --test saga_integration -- --include-ignored --test-threads=1
-# #1354 moved the saga above the engine. This binary was fraiseql-core's
-# federation_mutation_http, which the core --test '*' sweep covered by wildcard;
-# a wildcard cannot reach another package.
-	@cargo test -p fraiseql-saga --features test-utils --test mutation_http -- --test-threads=1
-	@echo ""
-	@echo "### fraiseql-cli against-db suites (each self-skips without DATABASE_URL)"
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test init_first_run_pg -- --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test generate_views_validate_pg -- --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test validate_facts_pg -- --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test compile_drift_fail_pg -- --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test native_column_nullability_pg -- --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test authored_contract_pg -- --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test mutation_contract_against_db -- --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test doctor_against_db -- --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test source_probe_against_db -- --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test function_root_against_db -- --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test cascade_rls_against_db -- --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test setup_against_db -- --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test federation_sdl_against_db -- --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test sources_against_db -- --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test validate_sql_sources_gate -- --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test runtime_smoke -- --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test perf_against_db -- --test-threads=1
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test server_version_floor_pg -- --test-threads=1
-	@echo ""
-	@echo "### fraiseql migrate against the confiture on PATH (CI pins it: tools/confiture-requirements.txt)"
-	@cargo test -p fraiseql-cli --features 'test-postgres,federation,run-server,fraiseql-server/observers' --test migrate_against_confiture -- --test-threads=1
-	@echo ""
-	@echo "### seed-fixture integrity (runs last: names any clobber a suite above left)"
-	@cargo test -p fraiseql-db --features postgres,wire-backend,test-postgres --test seed_fixture_integrity -- --test-threads=1
-	@echo ""
+	@echo "=== integration (postgres) — the lines of .dagger/main.go integrationPostgres ==="
+	@script="$$(python3 tools/leg-lines.py integrationPostgres)" && bash -ec "$$script"
 	@echo "test-integration OK: postgres suite passed"
 
 # ============================================================================
@@ -316,11 +239,10 @@ test-integration-postgres: db-up db-failover-reset
 # legs green, and reddened `Dagger — test` afterwards. `make preflight` compiles
 # these tests (`--all-targets`) and never runs them.
 #
-# The line list is held to `.dagger/main.go`'s `Test` shard by
-# `make lint-shard-parity`, in both directions. Do not edit one side alone. The
-# rationale for each individual line lives with it in `.dagger/main.go` and is
-# deliberately not duplicated here: two copies of a rationale drift, and only one
-# copy can be right.
+# The lines are the shard's own: tools/leg-lines.py reads them out of
+# `.dagger/main.go`'s `Test` at run time, so they are written once, with their
+# rationale, there. `python3 tools/leg-lines.py Test` prints them; copy one to run
+# it alone.
 #
 # What is NOT mirrored is the leg's build environment (sccache, mold,
 # CARGO_INCREMENTAL=0, a pinned toolchain image) — that is the local box's
@@ -350,8 +272,7 @@ test-leg:
 		exit 1; \
 	fi
 	@echo ""
-	@echo "=== test — mirroring .dagger/main.go Test ==="
-	@echo "### toolchain: $$(rustc --version)"
+	@echo "=== test — the lines of .dagger/main.go Test ==="
 # A cold full run grew target/ by ~200 GB here — 138 GB of debug/deps plus 94 GB of
 # debug/incremental (which CI never creates: rustBase sets CARGO_INCREMENTAL=0). Out of
 # space, rustc and sccache report "failed to parse process output", which reads as a
@@ -359,69 +280,21 @@ test-leg:
 # otherwise. `rm -rf target/debug/incremental` reclaims the larger half without
 # invalidating anything already built.
 	@echo "### free on this filesystem: $$(df -Ph . | tail -1 | awk '{print $$4}') (a cold run adds ~200 GB to target/)"
-	@echo ""
-	@echo "### cargo build --all-features"
-	cargo build --all-features
-	@echo ""
-	@echo "### skipped here, as in the leg: testcontainers suites (storage"
-	@echo "###   metadata/migrations/routes::tests, functions migrations::tests,"
-	@echo "###   fraiseql-wire tests/*) — they run in the integration legs"
-	@echo ""
-	@echo "### cargo test --workspace (non-DB crates; wire+functions run separately below)"
-	cargo test --workspace --exclude fraiseql-core --exclude fraiseql-db --exclude fraiseql-arrow --exclude fraiseql-observers --exclude fraiseql-server --exclude fraiseql-wire --exclude fraiseql-functions --all-features -- --skip metadata::tests --skip migrations::tests --skip routes::tests --skip uploads::tests
-	@echo ""
-	@echo "### fraiseql-wire --lib, fraiseql-arrow (all-features, then default)"
-	cargo test -p fraiseql-wire --lib --all-features
-	cargo test -p fraiseql-arrow --all-features
-	cargo test -p fraiseql-arrow --lib
-	cargo test -p fraiseql-auth --lib
-	cargo test -p fraiseql-test-support --lib
-	@echo ""
-	@echo "### fraiseql-functions (incl. runtime-deno)"
-	cargo test -p fraiseql-functions --features 'runtime-deno,runtime-wasm,host-live' -- --skip migrations::tests
-	@echo ""
-	@echo "### core/db --lib (SYNC:CORE_FEATURES / SYNC:DB_FEATURES, then default features)"
-	cargo test -p fraiseql-core --lib --features 'audit-syslog,audit-webhook,federation,kafka,postgres,redis-apq,schema-lint,test-utils,wire-backend'
-	cargo test -p fraiseql-core --lib
-	cargo test -p fraiseql-db --lib --features 'postgres,wire-backend'
-	@echo ""
-	@echo "### server --lib (SYNC:SERVER_FEATURES, then default features, then auth off)"
-	cargo test -p fraiseql-server --lib --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' -- --skip server::routing::storage_policy_admin_tests --skip tenancy::tests::runtime_config_drift
-	cargo test -p fraiseql-server --lib -- --skip server::routing::storage_policy_admin_tests --skip tenancy::tests::runtime_config_drift
-	cargo test -p fraiseql-server --lib --no-default-features --features rest -- server::parity_tests::no_auth_enrichment_tests::
-	@echo ""
-	@echo "### server test binaries not covered by --lib (mcp, subscriptions, idempotency, in-process)"
-	cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --test mcp_transport_safety_test --test mcp_e2e_test --test mcp_integration_test
-	cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --test subscription_ws_e2e_test --test subscription_protocol_test --test subscription_integration_test --test graphql_ws_row_visibility_pin_test --test subscription_lifecycle_ws_test --test subscription_connection_caps_ws_test
-	cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --test test_issuer_auth_test
-	cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --test graphql_idempotency_e2e_test
-	cargo test -p fraiseql-server --test order_by_conformance_parity
-	cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks' --test admin_api_security_test --test admin_authz_test --test admin_cache_vocabulary_e2e --test admission_control_test --test api_admin_tests --test api_design_audit_tests --test api_design_security_tests --test api_federation_tests --test api_infrastructure_tests --test api_query_tests --test api_schema_tests --test apq_mutation_e2e_test --test auth_me_integration_test --test auth_regression_test --test backpressure_overload_test --test backpressure_test --test cache_wiring_tests --test changelog_cascade_compose_boot --test config_struct_test --test constructor_drift_test --test endpoint_health_tests --test error_handling_validation_test --test example_validation_test --test functions_platform_pins_test --test graphql_http_layer_test --test graphql_request_validation_test --test grpc_transport_e2e_test --test introspection_gate_e2e_test --test introspection_mutation_authz_test --test introspection_security_test --test metrics_facade_scrape --test metrics_integration_test --test multitenancy_test --test observability_test --test platform_e2e_test --test production_safety_test --test profile_error_redaction_test --test profile_query_limits_test --test rate_limiting_integration_test --test rate_limit_sweep_is_scheduled_test --test rest_transport_e2e_test --test security --test property --test security_stack_integration_test --test service_account_conformance_test --test studio_admin_api_test --test studio_e2e_test --test studio_metrics_test --test studio_shell_test --test tracing_integration_test --test typename_e2e_test --test v230_integration_tests
-	@echo ""
-	@echo "### feature-gated --lib modules that SYNC:SERVER_FEATURES compiles out"
-	cargo test -p fraiseql-server --features rest,export-csv,export-xlsx --lib -- routes::rest::streaming:: routes::rest::openapi::
-	cargo test -p fraiseql-server --features functions-runtime --lib -- routes::query_function:: routes::before_mutation:: server::provision_tests::each_configured_capability_plans_its_own_tables
-	cargo test -p fraiseql-server --features functions-runtime-deno --lib subsystems::
-	cargo test -p fraiseql-server --features functions-runtime --test functions_authoring_round_trip_test --test function_backed_query_seam_test
-	cargo test -p fraiseql-server --features cdc-outbound --lib -- cdc_outbound:: server::provision_tests::each_configured_capability_plans_its_own_tables
-	cargo test -p fraiseql-server --features cdc-kafka --lib cdc_outbound::
-	cargo test -p fraiseql-server --features cdc-kinesis --lib cdc_outbound::
-	cargo test -p fraiseql-cdc-sinks --features cdc-kafka --lib kafka::
-	cargo test -p fraiseql-server --features subscription-kafka --lib subscription_kafka::
-	cargo test -p fraiseql-kafka
-	@echo ""
-	@echo "### config-coverage manifest + doc config examples"
-	cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka' --test config_coverage_manifest_test --test doc_config_examples_test --test project_security_keys_honoured_test
-	@echo ""
-	@echo "### observers (--lib + in-process binaries), saga"
-	cargo test -p fraiseql-observers --lib --features 'caching,checkpoint,metrics,nats'
-	cargo test -p fraiseql-observers --features 'metrics,testing' --test stress_tests --test transport_pipeline_test
-	cargo test -p fraiseql-saga --lib
-	@echo ""
-	@echo "### cargo test --doc --all-features"
-	cargo test --doc --all-features -- --test-threads=6
-	@echo ""
-	@echo "test OK: workspace suite passed (testcontainers tests skipped)"
+	@script="$$(python3 tools/leg-lines.py Test)" && bash -ec "$$script"
+
+# The two mirror targets above read their lines through tools/leg-lines.py.
+.PHONY: lint-leg-lines
+lint-leg-lines:
+	@python3 tools/leg-lines.py Test >/dev/null
+	@python3 tools/leg-lines.py integrationPostgres >/dev/null
+	@echo "leg-lines: OK — Test and integrationPostgres read, in agreement with check-suite-coverage.py"
+
+# Red-capability pin for the reader: a shard shape it cannot read, an unresolvable
+# piece, a canary line of neither form and a disagreement with the coverage gate
+# must each fail, by name.
+.PHONY: test-leg-lines-gate
+test-leg-lines-gate:
+	@bash tools/tests/leg_lines_test.sh
 
 # Run ALL #[ignore] tests — requires full test infrastructure (make db-up first).
 # Covers: Redis APQ, NATS transport, Vault secrets, the observer runtime.
@@ -1885,25 +1758,6 @@ image-properties:
 test-secret-scan-gate:
 	@bash tools/tests/gitleaks_allowlist_test.sh
 
-# Gate: each local mirror target must run exactly what the Dagger shard it names
-# runs. `make test-integration-postgres` mirrors `integration (postgres)` — the
-# knowledge that those suites only pass serialized lived only in
-# `.dagger/main.go`, so the two commands a developer reached for were a false-red
-# and a false-green respectively (#1169). `make test-leg` mirrors the workspace
-# suite, which is twenty-nine commands no developer would assemble by hand and
-# which no gate ran before a merge to dev (#1257). A mirror maintained by hand in
-# a second file is only worth having if it cannot drift.
-.PHONY: lint-shard-parity
-lint-shard-parity:
-	@python3 tools/check-shard-parity.py
-
-# Red-capability pin for the shard parity gate: a dropped line, an added line, a
-# changed flag, and a shard shape the parser cannot read must each be reported
-# rather than passed over, on both shards.
-.PHONY: test-shard-parity
-test-shard-parity:
-	@bash tools/tests/shard_parity_test.sh
-
 # The postgres and observers integration legs build each package with one feature
 # list; a line that needs features OFF names the flag and the suite it keeps running
 # (`// feature-off:`). Every extra list rebuilt fraiseql-server and fraiseql-core under
@@ -2455,19 +2309,15 @@ shell-gates: test-workflow-trigger-rule
 shell-gates: lint-fixture-collisions
 shell-gates: test-fixture-collisions-gate
 
-# Same shape, two legs over: `make test-integration-postgres` and
-# `make test-leg` are hand-maintained copies of the line lists in
-# integrationPostgres and Test. Before the first existed, the fact that
-# those suites only pass under --test-threads=1 lived ONLY in .dagger/main.go,
-# so `cargo test -p fraiseql-core` was red by construction and
-# `make test-integration` reported success having run 1 test out of 2828
-# (#1169). The second is the only command that runs what .dagger/main.go's Test
-# function runs — nothing did before a merge to dev, which is how
-# `config_coverage_manifest_test` reddened the test leg on `231c3a25c`
-# after a green preflight and sixteen green branch legs (#1257).
-# Bidirectional — a local-only extra line falsifies the target's claim in
-# the other direction.
-shell-gates: lint-shard-parity
+# `make test-integration-postgres` and `make test-leg` run the lines of
+# .dagger/main.go's integrationPostgres and Test, read at run time by
+# tools/leg-lines.py. Before the first existed, the fact that those suites only
+# pass under --test-threads=1 lived ONLY in .dagger/main.go, so
+# `cargo test -p fraiseql-core` was red by construction (#1169); nothing ran what
+# Test runs before a merge to dev (#1257). This holds the reader able to read both
+# shards, and in agreement with check-suite-coverage.py on their cargo test lines.
+shell-gates: lint-leg-lines
+shell-gates: test-leg-lines-gate
 
 # The postgres and observers integration legs build each package with one
 # feature list; each extra list rebuilt fraiseql-server and fraiseql-core under
@@ -2491,7 +2341,6 @@ shell-gates: lint-dockerfile-msrv
 shell-gates: test-dockerfile-msrv-gate
 shell-gates: lint-deny-flags
 shell-gates: test-deny-flags-gate
-shell-gates: test-shard-parity
 
 # The bare-DATABASE_URL gate above ran here for its whole life without ever
 # being able to reject anything (#1075). Its red capability is now pinned.

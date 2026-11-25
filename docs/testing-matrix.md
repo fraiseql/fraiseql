@@ -32,9 +32,9 @@ none of which are yours, and the failing *names* drift between runs, which reads
 as flakiness in whatever you just changed. CI never uses default parallelism:
 every one of these invocations carries `--test-threads=1`.
 
-Use **`make test-integration-postgres`**. It is the line-for-line mirror of the
-Dagger `integration (postgres)` shard, held to it in both directions by
-`make lint-shard-parity`, so what passes there is what CI will run.
+Use **`make test-integration-postgres`**. It runs the lines of the Dagger
+`integration (postgres)` shard, read out of `.dagger/main.go` at run time by
+`tools/leg-lines.py`, so what passes there is what CI will run.
 
 Two things this replaced, both of which misled (#1169):
 
@@ -65,8 +65,8 @@ So a green `cargo test` says nothing about those eighty-one binaries. That is ho
 `dev` on `231c3a25c` with `make preflight` green and all sixteen branch legs
 green, and reddened `Dagger — test` afterwards (#1257).
 
-Use **`make test-leg`**. It is the line-for-line mirror of the `Dagger — test`
-shard, held to it in both directions by `make lint-shard-parity`.
+Use **`make test-leg`**. It runs the lines of the `Dagger — test` shard, read out
+of `.dagger/main.go` at run time by `tools/leg-lines.py`.
 
 It refuses to start if `DATABASE_URL`, `REDIS_URL`, `NATS_URL`, `VAULT_ADDR` or
 their siblings are exported: the leg binds none of them, so a suite that
