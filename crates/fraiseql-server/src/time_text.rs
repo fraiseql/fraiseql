@@ -1,8 +1,6 @@
 //! Instants the server writes as text, or computes from a configured or stored length,
 //! as it did when they were chrono's.
 
-use std::fmt::Write as _;
-
 use fraiseql_time::{Timestamp, calendar, jiff::SignedDuration};
 use sqlx::{Row as _, postgres::PgRow};
 
@@ -23,16 +21,6 @@ fn parts(at: Timestamp) -> (i64, u32) {
 /// `second`'s date and time of day, `2024-01-15T10:30:00`.
 fn whole_second(second: i64) -> String {
     calendar::date_time(second, 0).expect("a Timestamp's date is within the calendar's years")
-}
-
-/// `2024-01-15T10:30:00.123Z`: milliseconds always, truncated, and `Z`, as chrono's
-/// `to_rfc3339_opts(SecondsFormat::Millis, true)` wrote it.
-pub fn rfc3339_millis_z(at: Timestamp) -> String {
-    let (second, nanosecond) = parts(at);
-    let mut text = whole_second(second);
-    // Writing to a `String` cannot fail.
-    let _ = write!(text, ".{:03}Z", nanosecond / 1_000_000);
-    text
 }
 
 /// `2024-01-15T10:30:00Z`: whole seconds, truncated, and `Z`, as chrono's

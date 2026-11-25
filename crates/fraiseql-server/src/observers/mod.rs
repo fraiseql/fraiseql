@@ -26,7 +26,6 @@
 //! - Soft delete support
 
 pub mod changelog_handlers;
-pub mod config;
 pub mod declared_env;
 pub mod dlq_handlers;
 pub mod handlers;
@@ -46,7 +45,6 @@ mod scope;
 mod tests;
 
 pub use changelog_handlers::ChangelogState;
-pub use config::ObserverManagementConfig;
 pub use dlq_handlers::DlqState;
 use fraiseql_observers::ActionConfig;
 use fraiseql_time::Timestamp;

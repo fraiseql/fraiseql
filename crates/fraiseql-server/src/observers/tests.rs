@@ -121,21 +121,6 @@ mod redaction_tests {
     }
 }
 
-mod config_tests {
-    use super::super::config::ObserverManagementConfig;
-
-    #[test]
-    fn test_default_config() {
-        let config = ObserverManagementConfig::default();
-        assert!(config.enabled);
-        assert_eq!(config.base_path, "/api/observers");
-        assert_eq!(config.max_page_size, 100);
-        assert!(!config.log_payloads);
-        assert_eq!(config.log_retention_days, 30);
-        assert!(config.require_auth);
-    }
-}
-
 mod repository_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 

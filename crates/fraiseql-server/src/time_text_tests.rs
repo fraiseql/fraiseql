@@ -5,18 +5,10 @@
 
 use fraiseql_time::Timestamp;
 
-use super::{later_by, rfc3339_bound, rfc3339_millis_z, year_month};
+use super::{later_by, rfc3339_bound, year_month};
 
 fn at(second: i64, nanosecond: i32) -> Timestamp {
     Timestamp::new(second, nanosecond).unwrap()
-}
-
-#[test]
-fn milliseconds_are_always_three_digits_truncated_with_z() {
-    assert_eq!(rfc3339_millis_z(at(1_705_314_600, 0)), "2024-01-15T10:30:00.000Z");
-    assert_eq!(rfc3339_millis_z(at(1_705_314_600, 123_999_999)), "2024-01-15T10:30:00.123Z");
-    assert_eq!(rfc3339_millis_z(at(-1, 999_000_000)), "1969-12-31T23:59:59.999Z");
-    assert_eq!(rfc3339_millis_z(at(-1, 0)), "1969-12-31T23:59:59.000Z");
 }
 
 #[test]

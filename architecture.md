@@ -230,7 +230,6 @@
     event_bridge.rs       Backend event routing
     webhook_lifecycle.rs  Webhook-triggered subscription events
 
-  logging.rs              Structured logging (StructuredLogEntry, RequestLogger)
   metrics_server.rs       MetricsCollector (atomic counters), PrometheusMetrics
   tracing_utils.rs        W3C traceparent extraction → FederationTraceContext
   extractors.rs           Axum extractors (PeerIp, OptionalSecurityContext)

@@ -73,7 +73,6 @@ pub mod function_dispatch;
 /// so the dead-code allowance mirrors `routes::after_mutation`.
 #[cfg_attr(not(feature = "functions-runtime"), allow(dead_code))]
 mod function_metrics;
-pub mod logging;
 pub mod middleware;
 // Mutual exclusion for the server-owned DDL the subsystems run at startup. The module
 // carries its own `//!` documentation; an outer doc comment here would make rustdoc
@@ -337,10 +336,6 @@ mod tests;
 
 #[cfg(feature = "cli")]
 pub use cli::{Cli, ServerArgs};
-pub use logging::{
-    ErrorDetails, LogLevel, LogMetrics, RequestContext, RequestId, RequestLogger, SourceLocation,
-    StructuredLogEntry,
-};
 pub use metrics_server::{MetricsCollector, PrometheusMetrics};
 pub use schema::CompiledSchemaLoader;
 pub use server::{
