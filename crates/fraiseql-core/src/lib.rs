@@ -71,7 +71,7 @@
 // Core modules
 pub mod capability;
 pub mod error;
-pub mod http;
+pub(crate) mod http;
 pub mod schema;
 
 // Compilation layer

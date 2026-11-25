@@ -6,7 +6,7 @@
 //!
 //! # SSRF protection
 //!
-//! Uses [`crate::http::client::build_ssrf_safe_client`] to prevent redirect-
+//! Uses the crate's `build_ssrf_safe_client` to prevent redirect-
 //! chain attacks and enforce HTTPS-only connections.
 //!
 //! # Failure handling

@@ -27,6 +27,9 @@ disagreed, and the promise was the part that was wrong.
   keeps the old behaviour). A Deno module's `source_hash` is now the function hash (see
   Added), no longer the SHA-256 of its file.
 
+- **`fraiseql_core::http` is private (#1681).** `build_ssrf_safe_client` is no longer
+  public. Its one caller is the webhook audit exporter in the same crate.
+
 - **`fraiseql_core::tenancy` and its facade re-exports are removed (#1681).**
   `fraiseql_core::TenantContext`, `fraiseql::TenantContext`, `fraiseql::tenancy` and
   `fraiseql::prelude::{Tenant, TenantContext}` are gone. Nothing in the engine read a
