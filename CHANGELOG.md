@@ -27,6 +27,11 @@ disagreed, and the promise was the part that was wrong.
   keeps the old behaviour). A Deno module's `source_hash` is now the function hash (see
   Added), no longer the SHA-256 of its file.
 
+- **`fraiseql-observers` drops `logging` (#1681).** `StructuredLogger`, `LogBuilder`,
+  `TraceIdExtractor`, `TraceContext`, `set_trace_id_context`, `get_current_trace_id` and
+  `clear_trace_id_context` are removed. The observer runtime never called them; it logs
+  through `tracing`.
+
 - **`fraiseql-server` drops `logging` and `observers::config` (#1681).** `RequestLogger`,
   `RequestContext`, `RequestId`, `StructuredLogEntry`, `LogLevel`, `LogMetrics`,
   `ErrorDetails`, `SourceLocation` and `ObserverManagementConfig` are removed. The server's

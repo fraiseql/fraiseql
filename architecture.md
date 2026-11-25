@@ -319,7 +319,6 @@
     condition/            Condition DSL parser + evaluator
     config/               Observer configuration
     listener/             ChangeLogListener, poll lease, tail, replay
-    logging/              Trace-ID correlated logging
     metrics/              Prometheus metrics [feature:metrics]
     migrations/           Change-log contract migrations
     resilience/           Circuit breaker

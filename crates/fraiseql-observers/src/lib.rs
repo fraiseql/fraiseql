@@ -38,7 +38,7 @@
 //! - **Reliability**: Retry logic with exponential/linear/fixed backoff
 //! - **Dead Letter Queue**: Failed actions stored for manual retry
 //! - **Backpressure**: Configurable overflow policies (drop, block, drop-oldest)
-//! - **Observable**: Structured logging, Prometheus metrics
+//! - **Observable**: `tracing` events, Prometheus metrics
 //! - **Testable**: All external dependencies abstracted as traits with mock implementations
 
 #![allow(clippy::panic)] // Reason: test code, panics acceptable
@@ -55,7 +55,6 @@ pub mod error;
 pub mod event;
 pub mod executor;
 pub mod listener;
-pub mod logging;
 pub mod matcher;
 #[cfg(feature = "metrics")]
 pub mod metrics;
@@ -102,10 +101,6 @@ pub use executor::{ActionExecutionDetail, ExecutionSummary, ObserverExecutor};
 /// The `futures` this crate's public API is built against (#1198).
 pub use futures;
 pub use listener::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig, CheckpointLease};
-pub use logging::{
-    StructuredLogger, TraceIdExtractor, correlation::TraceContext, get_current_trace_id,
-    set_trace_id_context,
-};
 pub use matcher::EventMatcher;
 #[cfg(feature = "metrics")]
 pub use metrics::MetricsRegistry;
