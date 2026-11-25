@@ -154,6 +154,16 @@ server's own policy. The `fraiseql { }` computation expression yields no observe
 | Any other type | Type name (e.g. `MyRecord`) |
 | `obj` | refused at registration, naming the property: declare `[<GraphQLField(Type = "...")>]` |
 
+### Decimal values in the client
+
+A `Decimal` travels as a JSON string of its exact digits, `"1.50"`, in both directions.
+`FraiseQLHttpClient` sends a `decimal` variable as that string, with its scale and never
+in exponent form, and reads a response's string into a `decimal` or `decimal option`
+field through `DecimalDigitsConverter`. A .NET `decimal` holds at most 28 significant
+digits: a response value with more fails with a `JsonException` naming it, rather than
+being rounded. Read such a field as a `string` instead. Do not pass a `float`: the server
+refuses a number with a fraction for a `Decimal`.
+
 ## JSON Output Format
 
 Both approaches produce a `schema.json` in the format consumed by `fraiseql compile`:

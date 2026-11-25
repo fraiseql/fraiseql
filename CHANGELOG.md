@@ -2035,6 +2035,13 @@ disagreed, and the promise was the part that was wrong.
   failure merges its error type's fragments and leaves the success type's out.
   `@skip`/`@include` on such a fragment, or inside it, is honoured.
 
+- **The F# SDK's client sends and reads a `decimal` as its exact digits (#1761).**
+  `FraiseQLHttpClient` had the C# client's two defects: a `decimal` variable went out as
+  a JSON number, which the server refuses for a `Decimal` once it has a fraction, and a
+  response's `"1.50"` could not be read into a `decimal` field. Its own
+  `DecimalDigitsConverter` writes the string of the digits and reads one back with its
+  scale; a value wider than a .NET `decimal` (28 digits) fails instead of being rounded.
+
 - **The C# SDK's client sends and reads a `decimal` as its exact digits (#1761).**
   `FraiseQLClient` wrote a `decimal` variable as a JSON number, which the server refuses for
   a `Decimal` once it has a fraction, and could not read a response's `"1.50"` into a

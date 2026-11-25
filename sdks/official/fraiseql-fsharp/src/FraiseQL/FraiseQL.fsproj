@@ -25,6 +25,7 @@
     <Compile Include="ObserverBuilder.fs" />
     <Compile Include="SchemaExporter.fs" />
     <Compile Include="Dsl.fs" />
+    <Compile Include="DecimalDigitsConverter.fs" />
     <Compile Include="Client.fs" />
   </ItemGroup>
   <ItemGroup>

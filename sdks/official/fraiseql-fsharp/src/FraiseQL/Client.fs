@@ -76,6 +76,16 @@ module FraiseQLClientOptions =
 
 /// HTTP client for executing GraphQL queries and mutations against a FraiseQL server.
 type FraiseQLHttpClient(options: FraiseQLClientOptions) =
+    // JsonContent's own defaults (web: camelCase), with each decimal sent as its digits.
+    static let requestJson =
+        let o = JsonSerializerOptions(JsonSerializerDefaults.Web)
+        o.Converters.Add(DecimalDigitsConverter())
+        o
+
+    static let responseJson =
+        let o = JsonSerializerOptions(PropertyNameCaseInsensitive = true)
+        o.Converters.Add(DecimalDigitsConverter())
+        o
 
     let http, ownsHttp =
         match options.HttpClient with
@@ -94,7 +104,7 @@ type FraiseQLHttpClient(options: FraiseQLClientOptions) =
                 | Some opName -> {| query = gqlQuery; variables = variables; operationName = opName |} :> obj
                 | None        -> {| query = gqlQuery; variables = variables |} :> obj
             use request = new HttpRequestMessage(HttpMethod.Post, options.Url,
-                                                 Content = JsonContent.Create(body))
+                                                 Content = JsonContent.Create(body, options = requestJson))
 
             match options.AuthorizationFactory with
             | Some factory ->
@@ -156,10 +166,9 @@ type FraiseQLHttpClient(options: FraiseQLClientOptions) =
             if errorsOpt.IsSome then
                 raise (GraphQLException errorsOpt.Value)
 
-            let opts = JsonSerializerOptions(PropertyNameCaseInsensitive = true)
             return
                 match dataRaw with
-                | Some raw -> JsonSerializer.Deserialize<'T>(raw, opts)
+                | Some raw -> JsonSerializer.Deserialize<'T>(raw, responseJson)
                 | None     -> Unchecked.defaultof<'T>
         }
 
