@@ -236,8 +236,8 @@ fn nested_occurrences_merge_at_every_level() {
 #[test]
 fn occurrences_with_different_arguments_are_not_merged() {
     // Merging them would answer one of the two argument sets with the other's rows.
-    // § 5.3.2 refuses such a document; that check needs the type conditions named
-    // spreads lose at expansion, so until it exists the occurrences stay apart.
+    // § 5.3.2 refuses such a document before its spreads are expanded, so the
+    // occurrences stay apart here.
     assert_eq!(
         resolved_tree("{ users { posts(limit: 1) { id } posts(limit: 2) { title } } }", &json!({})),
         tree(&[("posts", &["id"]), ("posts", &["title"])])
@@ -246,7 +246,8 @@ fn occurrences_with_different_arguments_are_not_merged() {
 
 #[test]
 fn two_fields_under_one_alias_are_not_merged() {
-    // `a` cannot be both `id` and `name` (§ 5.3.2); the occurrences stay apart.
+    // `a` cannot be both `id` and `name`: § 5.3.2 refuses such a document before its
+    // spreads are expanded, so the occurrences stay apart here.
     assert_eq!(
         resolved_tree("{ users { a: id a: name } }", &json!({})),
         tree(&[("a", &[]), ("a", &[])])

@@ -101,6 +101,9 @@ pub mod concrete_fragments;
 /// Every fragment's type condition names a type the schema has, which can apply there.
 pub mod fragment_conditions;
 
+/// Selections of one response key can merge into one field (GraphQL § 5.3.2).
+pub mod field_merging;
+
 /// Field-existence validation for a resolved selection set (GraphQL § 5.3.1).
 pub mod selection_validation;
 

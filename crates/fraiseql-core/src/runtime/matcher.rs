@@ -436,6 +436,12 @@ impl QueryMatcher {
             &self.schema,
             &self.schema,
         )?;
+        crate::graphql::field_merging::check(
+            &parsed.selections,
+            &parsed.fragments,
+            &parsed.operation_type,
+            &self.schema,
+        )?;
 
         // 3a. Expand fragment spreads. Kept apart from evaluating `@skip`/`@include` so the
         //     *written* set survives: § 5.3.3 is anti-monotone under field removal and has to

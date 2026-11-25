@@ -2728,3 +2728,80 @@ async fn a_union_payload_named_with_no_selection_set_is_refused_before_the_write
         adapter.recorded_function_calls()
     );
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// F. § 5.3.2 Field Selection Merging
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// One response key is one field. A document giving it two fields, or one field with
+// two argument sets, is invalid and is refused at every entry that reads a document,
+// before anything executes. Where it is valid, every occurrence answers as the one
+// field, a fragment's included.
+
+const ONE_KEY_TWO_FIELDS: &str = "{ users { a: id a: name } }";
+
+/// `err` is the § 5.3.2 refusal of key `a`.
+fn assert_merging_refusal(err: &FraiseQLError) {
+    match err {
+        FraiseQLError::Validation { message, path } => {
+            assert!(message.contains("Fields \"a\" conflict"), "{message}");
+            assert!(message.contains("§ 5.3.2"), "{message}");
+            assert_eq!(path.as_deref(), Some("users.a"), "{message}");
+        },
+        other => panic!("expected a § 5.3.2 refusal, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn one_key_two_fields_is_refused_before_anything_is_read() {
+    let (exec, adapter) = executor();
+    let err = exec.execute(ONE_KEY_TWO_FIELDS, None).await.expect_err("an invalid document");
+    assert_merging_refusal(&err);
+    assert!(adapter.recorded_projections().is_empty(), "nothing may be read");
+}
+
+#[tokio::test]
+async fn one_field_two_argument_sets_is_refused() {
+    let (exec, _) = executor();
+    let err = exec
+        .execute("{ users(limit: 1) { id } users(limit: 2) { name } }", None)
+        .await
+        .expect_err("an invalid document");
+    let FraiseQLError::Validation { message, .. } = &err else {
+        panic!("expected a § 5.3.2 refusal, got {err:?}");
+    };
+    assert!(message.contains("Fields \"users\" conflict because they have different arguments"));
+}
+
+#[tokio::test]
+async fn a_mutation_giving_one_key_two_fields_is_refused_before_the_write() {
+    let (exec, adapter) = mutation_executor();
+    let err = exec
+        .execute(
+            "mutation { createUser(email: \"a@b.com\", name: \"Alice\") { a: id a: name } }",
+            None,
+        )
+        .await
+        .expect_err("an invalid document");
+    let FraiseQLError::Validation { message, path } = &err else {
+        panic!("expected a § 5.3.2 refusal, got {err:?}");
+    };
+    assert!(message.contains("Fields \"a\" conflict"), "{message}");
+    assert_eq!(path.as_deref(), Some("createUser.a"));
+    assert!(adapter.recorded_function_calls().is_empty(), "the write must not happen");
+}
+
+#[test]
+fn the_matcher_refuses_one_key_two_fields() {
+    let matcher = fraiseql_core::runtime::QueryMatcher::new(user_schema());
+    let err = matcher.match_query(ONE_KEY_TWO_FIELDS, None).expect_err("an invalid document");
+    assert_merging_refusal(&err);
+}
+
+#[test]
+fn a_transport_checking_the_document_refuses_one_key_two_fields() {
+    let (exec, _) = executor();
+    let parsed = fraiseql_core::graphql::parse_query(ONE_KEY_TWO_FIELDS).unwrap();
+    let err = exec.check_fragment_conditions(&parsed, None).expect_err("an invalid document");
+    assert_merging_refusal(&err);
+}

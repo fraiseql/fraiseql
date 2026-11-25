@@ -40,6 +40,16 @@ disagreed, and the promise was the part that was wrong.
   - `fraiseql_server::inbound::emit_in_tx` takes the event type as a third argument
     (`None` where there is none).
 
+- **Selections of one response key must merge into one field (GraphQL § 5.3.2, #1723).**
+  A document is refused before anything is read or written when one response key names two
+  different fields, the same field with two sets of arguments, or, below two different
+  union members, two fields that answer differently (leaf type, nullability or list
+  wrapping). The `Validation` error names the key and its path, e.g. `Fields "a" conflict
+  because "id" and "name" are different fields`. `{ users { a: id a: name } }` was answered
+  with one of the two, and `posts(limit: 1) { id } posts(limit: 2) { title }` read with one
+  argument set. Fragments on two different object types may still give one key different
+  fields when the fields answer alike. Give each field its own alias.
+
 - **The C# SDK's `FederationConfig` is removed (#2474).** Nothing read it: `SchemaExporter`
   has no overload that takes it and writes no `federation` key, so a schema exported with
   one configured carried no federation block, although its documentation said it emitted

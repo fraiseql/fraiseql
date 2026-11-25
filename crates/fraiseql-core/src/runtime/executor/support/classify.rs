@@ -244,6 +244,12 @@ impl Executor {
             &self.ctx.schema,
             visible,
         )?;
+        crate::graphql::field_merging::check(
+            &parsed.selections,
+            &parsed.fragments,
+            &parsed.operation_type,
+            &self.ctx.schema,
+        )?;
         let defaults = value_json::variable_defaults(&parsed.variables)?;
         let root_type = match parsed.operation_type.as_str() {
             "mutation" => "Mutation",

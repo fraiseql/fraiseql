@@ -8,7 +8,7 @@
 
 use crate::{
     error::Result,
-    graphql::{ParsedQuery, fragment_conditions},
+    graphql::{ParsedQuery, field_merging, fragment_conditions},
     runtime::Executor,
     security::SecurityContext,
 };
@@ -34,6 +34,12 @@ impl Executor {
             &parsed.operation_type,
             &self.ctx.schema,
             visible.as_deref().unwrap_or(&self.ctx.schema),
+        )?;
+        field_merging::check(
+            &parsed.selections,
+            &parsed.fragments,
+            &parsed.operation_type,
+            &self.ctx.schema,
         )
     }
 }
