@@ -92,6 +92,12 @@ const MANIFEST: &[(&str, &str)] = &[
          `fraiseql functions invoke`; the definitions half is authored in the schema",
     ),
     (
+        "functions.shared_dir",
+        "compiled functions section; checked at compile time by schema::converter::shared_dir \
+         (a directory not holding function files, and the `@shared/` entry of a deno.json in \
+         module_dir)",
+    ),
+    (
         "functions.dlq_store",
         "compiled functions section → server function dead-letter store (#598), overridable \
          by FRAISEQL_FUNCTIONS_DLQ_STORE",

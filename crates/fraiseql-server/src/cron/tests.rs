@@ -167,6 +167,7 @@ fn a_cron_function_runs_under_its_declared_timeout() {
         )]),
         config:           FunctionsConfig {
             module_dir: "/functions".into(),
+            shared_dir: None,
             dlq_store: None,
             definitions,
         },

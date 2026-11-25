@@ -404,6 +404,14 @@ pub struct FunctionsConfig {
     /// somewhere the author did not choose.
     pub module_dir: PathBuf,
 
+    /// The one directory a Deno function may import from, as `@shared/<path>`.
+    ///
+    /// Absent ⇒ a function imports nothing: every `import` is refused. Present, it
+    /// must be a directory that is neither `module_dir` nor an ancestor of it, so no
+    /// function's own file is importable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared_dir: Option<PathBuf>,
+
     /// The declared functions.
     #[serde(default)]
     pub definitions: Vec<FunctionDefinition>,

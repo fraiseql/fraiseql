@@ -45,6 +45,7 @@ fn build_subsystem_loads_all_declared_modules() {
 
     let config = FunctionsConfig {
         module_dir:  dir.path().to_path_buf(),
+        shared_dir:  None,
         dlq_store:   None,
         definitions: vec![wasm_def("scoreDeal"), wasm_def("chargeCard")],
     };
@@ -61,6 +62,7 @@ fn build_subsystem_fails_loud_on_a_missing_module() {
     // Declared but no file on disk.
     let config = FunctionsConfig {
         module_dir:  dir.path().to_path_buf(),
+        shared_dir:  None,
         dlq_store:   None,
         definitions: vec![wasm_def("missing")],
     };
@@ -96,6 +98,7 @@ fn loads_a_deno_module_from_source() {
 fn functions_in(dir: &std::path::Path, definitions: Vec<FunctionDefinition>) -> FunctionsConfig {
     FunctionsConfig {
         module_dir: dir.to_path_buf(),
+        shared_dir: None,
         dlq_store: None,
         definitions,
     }

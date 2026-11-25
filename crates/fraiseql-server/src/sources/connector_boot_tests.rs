@@ -33,6 +33,7 @@ fn orders() -> SourceDefinition {
 fn functions_in(dir: &Path) -> FunctionsConfig {
     FunctionsConfig {
         module_dir:  dir.to_path_buf(),
+        shared_dir:  None,
         dlq_store:   None,
         definitions: vec![],
     }

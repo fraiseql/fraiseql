@@ -125,6 +125,7 @@ pub fn validate_against_schema(
         if let Err(module_failures) = modules_are_present(functions) {
             failures.extend(module_failures);
         }
+        failures.extend(super::shared_dir::failures(functions));
     }
     failures.extend(unloadable_connectors(functions, schema));
 

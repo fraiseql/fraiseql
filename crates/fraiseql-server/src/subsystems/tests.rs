@@ -23,6 +23,7 @@ fn into_before_mutation_hooks_resolves_dispatch_settings() {
     // from the compiled schema and stands up the shared dead-letter queue.
     let config = FunctionsConfig {
         module_dir:  "/functions".into(),
+        shared_dir:  None,
         dlq_store:   None,
         definitions: vec![
             FunctionDefinition::new("chargeCard", "after:mutation:Order:insert", RuntimeType::Wasm),

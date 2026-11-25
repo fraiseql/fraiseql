@@ -163,6 +163,7 @@
       "$ref": "#/$defs/FunctionsSettings",
       "default": {
         "module_dir": null,
+        "shared_dir": null,
         "dlq_store": null
       }
     },
@@ -2504,6 +2505,14 @@
       "properties": {
         "module_dir": {
           "description": "Directory holding the function modules (`.wasm`, `.js`, `.ts`), resolved\nrelative to the server's working directory.\n\nUnset ⇒ the compiler emits the convention, `functions/`. The compiled\nartifact always carries an explicit value, so the server can keep requiring\none and a hand-written compiled schema that omits it still fails loudly.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "shared_dir": {
+          "description": "The one directory a Deno function may import from, as `@shared/<path>`,\nresolved relative to the server's working directory (for example\n`functions/shared`).\n\nUnset ⇒ a function imports nothing: every `import` is refused. It must be a\ndirectory of its own, neither `module_dir` nor an ancestor of it.",
           "type": [
             "string",
             "null"

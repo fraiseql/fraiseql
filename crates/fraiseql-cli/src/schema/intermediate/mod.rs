@@ -53,6 +53,10 @@ pub struct IntermediateFunctionsConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub module_dir: Option<std::path::PathBuf>,
 
+    /// The directory functions import shared modules from. Unset ⇒ no imports.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared_dir: Option<std::path::PathBuf>,
+
     /// Which dead-letter store backs function dispatch (#598).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dlq_store: Option<String>,

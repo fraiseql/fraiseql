@@ -31,6 +31,14 @@ pub struct FunctionsSettings {
     /// one and a hand-written compiled schema that omits it still fails loudly.
     pub module_dir: Option<PathBuf>,
 
+    /// The one directory a Deno function may import from, as `@shared/<path>`,
+    /// resolved relative to the server's working directory (for example
+    /// `functions/shared`).
+    ///
+    /// Unset ⇒ a function imports nothing: every `import` is refused. It must be a
+    /// directory of its own, neither `module_dir` nor an ancestor of it.
+    pub shared_dir: Option<PathBuf>,
+
     /// Which dead-letter store backs function dispatch (#598): `"memory"` (the
     /// default — dead-letters vanish on restart) or `"postgres"` (durable).
     /// `FRAISEQL_FUNCTIONS_DLQ_STORE` overrides it in production.
@@ -45,7 +53,7 @@ impl FunctionsSettings {
     /// deliberate choice.
     #[must_use]
     pub const fn is_configured(&self) -> bool {
-        self.module_dir.is_some() || self.dlq_store.is_some()
+        self.module_dir.is_some() || self.shared_dir.is_some() || self.dlq_store.is_some()
     }
 
     /// Lower the project config's `[functions]` beside a schema document's own copy.
@@ -66,16 +74,19 @@ impl FunctionsSettings {
         }
         let from_config = IntermediateFunctionsConfig {
             module_dir: self.module_dir.clone(),
+            shared_dir: self.shared_dir.clone(),
             dlq_store:  self.dlq_store.clone(),
         };
         let Some(from_document) = document else {
             return Ok(Some(from_config));
         };
-        let differing = if from_config.module_dir == from_document.module_dir {
-            (from_config.dlq_store != from_document.dlq_store).then_some("dlq_store")
-        } else {
-            Some("module_dir")
-        };
+        let differing = [
+            ("module_dir", from_config.module_dir == from_document.module_dir),
+            ("shared_dir", from_config.shared_dir == from_document.shared_dir),
+            ("dlq_store", from_config.dlq_store == from_document.dlq_store),
+        ]
+        .into_iter()
+        .find_map(|(key, same)| (!same).then_some(key));
         if let Some(key) = differing {
             return Err(crate::config::refusal(
                 DiagnosticCode::Disagrees,

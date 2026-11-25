@@ -90,6 +90,7 @@ fn test_platform_e2e_functions_subsystem_full_construction() {
     let config = fraiseql_server::schema::loader::FunctionsConfig {
         definitions: defs,
         module_dir:  std::env::temp_dir().join("fraiseql_test_functions"),
+        shared_dir:  None,
         dlq_store:   None,
     };
 

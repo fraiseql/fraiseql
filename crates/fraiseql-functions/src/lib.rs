@@ -12,6 +12,7 @@
 
 pub mod host;
 pub mod migrations;
+pub mod modules;
 pub mod observer;
 pub mod outbound;
 pub mod runtime;

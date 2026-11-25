@@ -12,6 +12,7 @@ mod mutations;
 mod observers;
 mod queries;
 mod relay;
+mod shared_dir;
 mod subscriptions;
 pub(crate) mod tenancy;
 mod types;
@@ -210,7 +211,9 @@ impl SchemaConverter {
         let runs_a_connector = intermediate.sources.iter().flatten().any(|source| source.enabled);
         if definitions.is_empty() && !runs_a_connector {
             anyhow::ensure!(
-                settings.module_dir.is_none() && settings.dlq_store.is_none(),
+                settings.module_dir.is_none()
+                    && settings.shared_dir.is_none()
+                    && settings.dlq_store.is_none(),
                 "the `[functions]` table configures the functions subsystem but the schema \
                  declares no function and no enabled source, so nothing would use it. Declare \
                  a function or a source, or remove the table."
@@ -222,6 +225,7 @@ impl SchemaConverter {
             module_dir: settings
                 .module_dir
                 .unwrap_or_else(|| std::path::PathBuf::from(DEFAULT_FUNCTION_MODULE_DIR)),
+            shared_dir: settings.shared_dir,
             definitions,
             dlq_store: settings.dlq_store,
         }))

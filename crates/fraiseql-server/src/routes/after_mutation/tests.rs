@@ -1293,6 +1293,7 @@ mod declared_limits {
             module_registry,
             config: FunctionsConfig {
                 module_dir: "/functions".into(),
+                shared_dir: None,
                 dlq_store: None,
                 definitions,
             },

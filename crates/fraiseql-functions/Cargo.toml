@@ -42,6 +42,7 @@ reqwest = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
+tempfile.workspace = true
 wiremock = "0.6"
 # Migration integration tests connect through the test-support harness (env-URL first;
 # optional local-testcontainers spawn). Dagger provides the Postgres service in CI.

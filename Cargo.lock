@@ -4032,6 +4032,7 @@ dependencies = [
  "sha2 0.11.0",
  "sqlparser",
  "sqlx",
+ "tempfile",
  "tokio",
  "tracing",
  "trait-variant",
