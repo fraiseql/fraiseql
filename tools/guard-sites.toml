@@ -201,6 +201,11 @@ crate = "crates/fraiseql-server"
 command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --lib -- tenant_admin_tests"
 
 [[shard]]
+name = "rest-relay-embed"
+crate = "crates/fraiseql-server"
+command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test rest_pagination_stability_e2e_pg relay_embed -- --test-threads=1"
+
+[[shard]]
 name = "tenant-rest"
 crate = "crates/fraiseql-server"
 command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,admin-sql,export-csv,export-xlsx,functions-runtime-deno,inbound-email' --test tenant_rest_dispatch_e2e_pg -- --test-threads=1"
@@ -2495,6 +2500,81 @@ killers = [
   "the_bounded_composed_and_row_read_entries_refuse_an_unresolved_principal",
 ]
 shard = "core-lib-enrichment"
+
+# A REST relay route's page with embeds: the keyset page is the root of one composed
+# statement, and each embedded level carries its target's gates. A row whose defect a
+# response shows is killed by the suites serving such a page from PostgreSQL; one only the
+# statement shows, by the core suite that captures it.
+
+# The runner trims what the statement returns to the page, so an unbounded statement
+# serves the same page: only the statement shows the bound, and the core suite reads it.
+[[site]]
+id = "relay-embed.page.limit"
+file = "crates/fraiseql-core/src/runtime/executor/runners/query_relay.rs"
+function = "execute_relay_query"
+anchor = "limit:        Some(fetch_limit),"
+mutant = "limit:        None,"
+killers = [
+  "the_page_is_the_root_the_embed_is_joined_to",
+  "with_no_window_the_page_with_an_embed_is_the_default_size",
+]
+shard = "core-lib-gates"
+
+[[site]]
+id = "relay-embed.page.where"
+file = "crates/fraiseql-core/src/runtime/executor/runners/query_relay.rs"
+function = "execute_relay_query"
+anchor = "where_clause: combined_where.clone(),"
+mutant = "where_clause: None,"
+killers = ["the_targets_policy_scopes_the_embedded_rows"]
+shard = "rest-relay-embed"
+
+[[site]]
+id = "relay-embed.page.session"
+file = "crates/fraiseql-core/src/runtime/executor/runners/query_relay_embed.rs"
+function = "execute_relay_composed_page"
+anchor = ".execute_composed_with_session(&root, session_pairs, routing)"
+mutant = ".execute_composed_with_session(&root, &[], routing)"
+killers = ["the_embedded_rows_are_read_under_the_requests_session_settings"]
+shard = "rest-relay-embed"
+
+[[site]]
+id = "relay-embed.level.nesting"
+file = "crates/fraiseql-core/src/runtime/executor/runners/query_composed.rs"
+function = "plan_embeds"
+anchor = "let resolved = self.resolve_rows(\n                        &query_match,\n                        variables,\n                        security_context,\n                        Door::Direct {\n                            gated:   GatedFieldHandling::RefuseAsUnsupported,\n                            cost:    DirectReadCost::Composed,\n                            nesting: Some(&nesting),"
+mutant = "let resolved = self.resolve_rows(\n                        &query_match,\n                        variables,\n                        security_context,\n                        Door::Direct {\n                            gated:   GatedFieldHandling::RefuseAsUnsupported,\n                            cost:    DirectReadCost::Composed,\n                            nesting: None,"
+killers = ["the_authorizer_is_asked_about_the_embed_as_a_nested_read"]
+shard = "rest-relay-embed"
+
+[[site]]
+id = "relay-embed.level.where"
+file = "crates/fraiseql-core/src/runtime/executor/runners/query_composed.rs"
+function = "ComposedPlan::lower_level"
+anchor = "where_clause: self.resolved.composed_where.clone(),"
+mutant = "where_clause: None,"
+killers = ["the_targets_policy_scopes_the_embedded_rows"]
+shard = "rest-relay-embed"
+
+# Completion masks each embedded node again, so a level read whole serves the same
+# response: only the statement shows the masked key written NULL, and the core suite reads it.
+[[site]]
+id = "relay-embed.level.keys"
+file = "crates/fraiseql-core/src/runtime/executor/runners/query_composed.rs"
+function = "PlannedEmbed::lower"
+anchor = "(shape, child.lower_level(schema, level_keys(&child.resolved)))"
+mutant = "(shape, { let _ = level_keys; child.lower_level(schema, LevelKeys::Whole) })"
+killers = ["a_masked_field_of_the_target_is_null_in_the_statement"]
+shard = "core-lib-gates"
+
+[[site]]
+id = "relay-embed.count.where"
+file = "crates/fraiseql-core/src/runtime/executor/runners/query_composed.rs"
+function = "PlannedEmbed::lower"
+anchor = "where_clause: resolved.composed_where.clone(),"
+mutant = "where_clause: None,"
+killers = ["an_embedded_count_counts_what_the_targets_policy_admits"]
+shard = "rest-relay-embed"
 
 [[site]]
 id = "enrichment.execute_relay_composed"
