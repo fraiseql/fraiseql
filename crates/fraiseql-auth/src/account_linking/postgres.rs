@@ -4,8 +4,8 @@
 //! [`InMemoryAccountStore`](super::InMemoryAccountStore) loses all linkage on
 //! restart. It is a drop-in replacement (same trait, same `"user_<uuid>"`
 //! identifier format, so it joins the existing `auth.sessions.user_id`), so
-//! `multi_provider` / `phone_otp` need no change beyond which `Arc<dyn AccountStore>`
-//! they are handed.
+//! `multi_provider` needs no change beyond which `Arc<dyn AccountStore>` it is
+//! handed.
 //!
 //! # Schema
 //!

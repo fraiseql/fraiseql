@@ -275,7 +275,6 @@
   audit/                  Audit logger (actor model)
   constant_time.rs        Timing-attack-safe comparison (subtle crate)
   middleware.rs           AuthError → HTTP response mapping
-  monitoring.rs           Auth subsystem health metrics
   provider.rs             OAuthProvider trait
   oidc_provider.rs        OIDC discovery + token endpoint
   oidc_server_client.rs   OIDC client (server-side flow)

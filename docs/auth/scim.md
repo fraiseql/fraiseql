@@ -80,8 +80,8 @@ is a platform account. To hand one to a tenant, assign it:
 1. **revokes every existing session**, so access ends now rather than when a refresh token
    happens to expire; and
 2. **blocks new sessions**, enforced at session creation — the one point every credential
-   path converges on (password login, the MFA second factor, social callback, email and
-   phone OTP, the SAML ACS).
+   path converges on (password login, the MFA second factor, social callback, email OTP,
+   the SAML ACS).
 
 Reactivation restores both. A principal with no account row — an anonymous or JWT-only
 session — is a different identity space and is unaffected.

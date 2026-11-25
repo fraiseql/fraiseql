@@ -42,12 +42,10 @@ pub mod handlers;
 pub mod jwt;
 pub mod local_password;
 pub mod middleware;
-pub mod monitoring;
 pub mod multi_provider;
 pub mod oidc_provider;
 pub mod oidc_server_client;
 pub mod otp;
-pub mod phone_otp;
 pub mod pkce;
 pub mod provider;
 pub mod providers;
@@ -120,7 +118,6 @@ pub use local_password::{
         local_password_routes,
     },
 };
-pub use monitoring::{AuthEvent, AuthMetrics, OperationTimer};
 pub use multi_provider::{
     AuthTokenResponse, AuthorizeQuery, CallbackQuery, MultiProviderAuthState, ProvidersResponse,
     authorize, callback, list_providers,
@@ -132,10 +129,6 @@ pub use otp::{
     OtpAllowGate, OtpAllowList, OtpIssue, OtpRequest, OtpResponse, OtpRouteState, OtpStore,
     PgOtpAllowList, VerifyRequest, otp_send, otp_verify,
     postgres::{PG_OTP_SCHEMA_SQL, PgOtpStore},
-};
-pub use phone_otp::{
-    InMemorySmsSender, SmsOtpAuthState, SmsOtpRequest, SmsOtpResponse, SmsSender, SmsVerifyRequest,
-    SmsVerifyResponse, normalize_e164, send_sms_otp, verify_sms_otp,
 };
 pub use pkce::{ConsumedPkceState, PkceError, PkceStateStore};
 pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};

@@ -27,6 +27,13 @@ disagreed, and the promise was the part that was wrong.
   keeps the old behaviour). A Deno module's `source_hash` is now the function hash (see
   Added), no longer the SHA-256 of its file.
 
+- **`fraiseql-auth` drops two modules no server route mounted (#1681).** `monitoring`
+  (`AuthEvent`, `AuthMetrics`, `OperationTimer`) and `phone_otp` (`SmsSender`,
+  `InMemorySmsSender`, `SmsOtpAuthState`, `send_sms_otp`, `verify_sms_otp`,
+  `normalize_e164` and their request/response types) are removed. Neither was reachable
+  from the server: no `[auth]` key enabled phone OTP and no route served it. The second
+  factor FraiseQL serves is authenticator-app MFA (TOTP, `mfa = true` in `[auth.local]`).
+
 - **An inbound webhook delivery is claimed once, by the inbound spine (#1782).** Each
   delivery used to be claimed twice in one transaction: in `webhooks.tb_inbound_delivery`
   on `(route, event_id)`, and again by the spine insert on `(source, idempotency_key)`. The

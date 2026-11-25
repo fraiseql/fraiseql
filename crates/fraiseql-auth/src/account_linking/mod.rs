@@ -315,7 +315,7 @@ fn identity_key(verified_email: Option<&str>, provider: &str, provider_id: &str)
 /// The gate reasons about the *incoming* provider, but the merge is also safe on the
 /// *existing*-account side by construction: only a verified email from a trusted source
 /// ever enters the merge-able `email:<normalized>` key space. Unverified identities
-/// (local-password and phone sign-ups pass `email_verified = false`; see [`crate::local_password`])
+/// (local-password sign-ups pass `email_verified = false`; see [`crate::local_password`])
 /// live in the `(provider, provider_id)` key space and are therefore structurally never
 /// absorbed by a later trusted sign-in — closing the classic pre-hijack where an
 /// attacker pre-seeds an unverified local account under the victim's email.

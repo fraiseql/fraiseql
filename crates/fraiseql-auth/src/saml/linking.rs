@@ -45,8 +45,8 @@ pub fn saml_provider_key(idp_name: &str) -> String {
 /// # Both-sides safety
 ///
 /// When this returns `true` the store merges on the `email:` key space, which by
-/// construction holds only verified-trusted identities (local-password and phone sign-ups
-/// pass `email_verified = false` and live in the `(provider, provider_id)` space — see
+/// construction holds only verified-trusted identities (local-password sign-ups pass
+/// `email_verified = false` and live in the `(provider, provider_id)` space — see
 /// [`crate::account_linking`]). So an attacker-seeded unverified local account under the
 /// victim's email is never absorbed by a later trusted SAML sign-in.
 #[must_use]

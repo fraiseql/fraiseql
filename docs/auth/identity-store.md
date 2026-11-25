@@ -50,7 +50,7 @@ Who decides the space is the security property. A tenant account is created only
 | --- | --- |
 | SAML sign-in through a tenant-bound IdP | that IdP's `tenant_id` |
 | SCIM provisioning with a tenant-scoped token | that token's tenant |
-| Password, email OTP, phone OTP, social OAuth | platform |
+| Password (with authenticator-app MFA as the second factor: TOTP, `mfa = true` in `[auth.local]`, the `/auth/v1/mfa/*` routes), email OTP, social OAuth | platform |
 
 Nothing the client sends picks the space. A header or a body field naming a tenant would let
 anyone sign up into, or link into, any tenant.
