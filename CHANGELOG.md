@@ -18,6 +18,28 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **An inbound webhook delivery is claimed once, by the inbound spine (#1782).** Each
+  delivery used to be claimed twice in one transaction: in `webhooks.tb_inbound_delivery`
+  on `(route, event_id)`, and again by the spine insert on `(source, idempotency_key)`. The
+  spine claim is now the only one, and the server no longer creates
+  `webhooks.tb_inbound_delivery`. A database that already has the table keeps it; nothing
+  reads or writes it.
+  - `_fraiseql_inbound_message` gains a nullable `event_type` column holding a webhook's
+    verified event type. Email messages, and webhooks whose provider sends no type, leave it
+    `NULL`. The provisioning DDL adds the column to an existing table, so a server upgraded
+    over an existing database boots and emits.
+  - `fraiseql-webhooks`: `IdempotencyStore`, `PostgresIdempotencyStore` and the
+    `idempotency` module are removed. `WebhookPipeline` loses its store type parameter
+    (`WebhookPipeline<P, H>`, `WebhookPipeline::new(pool, secrets, handler)`), and
+    `Delivery` loses its `route` field. `EventHandler::handle` now receives the
+    `&VerifiedEvent` instead of its bare params. The handler is the delivery's claim: it
+    records the event with `INSERT … ON CONFLICT DO NOTHING` on the transaction it is given,
+    and answers `Handled::Duplicate` when an earlier delivery holds the key, which the
+    pipeline reports as `Disposition::Duplicate`. A handler error still rolls the whole
+    transaction back, claim included.
+  - `fraiseql_server::inbound::emit_in_tx` takes the event type as a third argument
+    (`None` where there is none).
+
 - **The C# SDK's `FederationConfig` is removed (#2474).** Nothing read it: `SchemaExporter`
   has no overload that takes it and writes no `federation` key, so a schema exported with
   one configured carried no federation block, although its documentation said it emitted

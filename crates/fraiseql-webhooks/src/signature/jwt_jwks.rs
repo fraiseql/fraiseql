@@ -56,8 +56,8 @@
 //! every Kinde delivery outright — Kinde documents no `iat` or `exp` and retries
 //! for up to 36 hours. So `exp` is checked when present and not required, and
 //! `max_age_secs` is an *additional* window that applies only when an operator
-//! configures one. For a publisher whose token carries no `exp`, the delivery
-//! ledger is what bounds replay.
+//! configures one. For a publisher whose token carries no `exp`, the delivery's
+//! dedup claim is what bounds replay.
 
 use std::{borrow::Cow, sync::Arc};
 
@@ -107,7 +107,7 @@ enum IdSource {
     /// the only signed, delivery-stable material there is.
     ///
     /// ⚠ If such a publisher **re-signs on retry** (a fresh `iat` gives a fresh
-    /// digest), each attempt is a distinct delivery and the ledger cannot coalesce
+    /// digest), each attempt is a distinct delivery and the dedup claim cannot coalesce
     /// retries. That makes delivery at-least-once and `after:ingest` handlers must
     /// be idempotent. Confirming it needs a captured retry.
     TokenDigest,
@@ -260,7 +260,7 @@ fn hanko() -> Preset {
 ///
 /// Its type claim is `type` and its id claim is `event_id` — **not** the `evt` the
 /// issue proposed as a shared default, which is Hanko's. The `webhook-id` header
-/// is stable across retries but unsigned, so it cannot be the ledger's key.
+/// is stable across retries but unsigned, so it cannot be the dedup key.
 fn kinde() -> Preset {
     Preset {
         token_from: CredentialLocation::Body,
@@ -726,7 +726,7 @@ impl SignatureVerifier for JwtJwksVerifier {
         // `exp` is checked when present (`validate_exp` defaults true) and NOT
         // required. The default `required_spec_claims` of `{exp}` would refuse
         // every Kinde delivery: Kinde documents no `exp`, and for such a publisher
-        // the delivery ledger is what bounds replay.
+        // the delivery's dedup claim is what bounds replay.
         validation.set_required_spec_claims::<&str>(&[]);
         validation.leeway = MAX_CLOCK_SKEW_SECS;
         // A token is not accepted before its `nbf`, within the same leeway as `exp`;

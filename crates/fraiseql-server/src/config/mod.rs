@@ -160,7 +160,7 @@ pub struct WebhookRouteConfig {
     #[serde(default)]
     pub payload_claim: Option<String>,
 
-    /// The claim carrying the event's id, which the delivery ledger keys on.
+    /// The claim carrying the event's id, which the delivery's dedup claim keys on.
     /// Absent means a digest of the verified token.
     #[serde(default)]
     pub id_claim: Option<String>,

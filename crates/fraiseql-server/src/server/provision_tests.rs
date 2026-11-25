@@ -296,10 +296,7 @@ async fn each_configured_capability_plans_its_own_tables() {
             planned(&server),
             vec![(
                 "inbound webhook",
-                vec![
-                    fraiseql_functions::migrations::inbound_migration_sql(),
-                    fraiseql_webhooks::idempotency::SCHEMA_SQL,
-                ]
+                vec![fraiseql_functions::migrations::inbound_migration_sql()]
             )]
         );
     }

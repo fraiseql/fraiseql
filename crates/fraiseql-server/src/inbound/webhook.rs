@@ -33,8 +33,8 @@ use fraiseql_guard::deployment::Deployment;
 use fraiseql_jwks::JwksSource;
 use fraiseql_webhooks::{
     Authenticated, Delivery, Disposition, EventHandler, Handled, InboundRequest,
-    PostgresIdempotencyStore, Result as WebhookResult, SchemeContext, SignatureVerifier,
-    StaticSecretProvider, VerifiedEvent, WebhookError, WebhookPipeline, build_scheme,
+    Result as WebhookResult, SchemeContext, SignatureVerifier, StaticSecretProvider, VerifiedEvent,
+    WebhookError, WebhookPipeline, build_scheme,
 };
 use serde_json::{Value, json};
 use sqlx::{PgPool, Postgres, Transaction};
@@ -109,9 +109,9 @@ impl PushSource for WebhookSource {
         //
         // Length-prefixed, because the sender chooses the event id and a plain
         // `<route>:<id>` join is not injective: route `a` with the id `b:1` lands on
-        // the same key as route `a:b` with the id `1`. The ledger key is a real
-        // tuple and stays distinct, so such a forgery would claim cleanly and lose
-        // only the durable spine row — the exact silent drop this issue is about.
+        // the same key as route `a:b` with the id `1`, so one route's sender could
+        // claim another route's event and have the genuine delivery answered
+        // `duplicate`.
         let idempotency_key = format!("{}:{}:{}", self.route.len(), self.route, delivery.event_id);
         let mut message = InboundMessage::new(self.source(), idempotency_key, delivery.received_at);
         // The event type is the closest thing a webhook has to a subject.
@@ -142,10 +142,12 @@ struct RecordedMessage {
 
 /// The [`EventHandler`] that persists a normalized message onto the spine.
 ///
-/// The route pre-normalizes the delivery and passes the [`InboundMessage`] as the
-/// delivery params; this handler runs inside the pipeline's transaction, so its
-/// spine write, and the dispatch-ledger rows of the `after:ingest` functions the message
-/// triggers (#1175), are atomic with the pipeline's idempotency claim.
+/// The route normalizes the delivery inside `event_of`, out of what the scheme
+/// authenticated, and passes the [`InboundMessage`] as the verified event's params.
+/// The spine insert is the delivery's one claim, keyed by `(source,
+/// idempotency_key)`; this handler runs inside the pipeline's transaction, so the
+/// dispatch-ledger rows of the `after:ingest` functions the message triggers (#1175)
+/// commit or roll back with it.
 #[derive(Default)]
 pub(crate) struct SpineEventHandler {
     ledger: Arc<LedgerPlan>,
@@ -155,35 +157,17 @@ impl EventHandler for SpineEventHandler {
     async fn handle(
         &self,
         _function_name: &str,
-        params: Value,
+        event: &VerifiedEvent,
         tx: &mut Transaction<'_, Postgres>,
     ) -> WebhookResult<Handled> {
-        let message: InboundMessage = serde_json::from_value(params)?;
-        let emitted = emit_in_tx(tx, &message)
+        let message: InboundMessage = serde_json::from_value(event.params.clone())?;
+        let emitted = emit_in_tx(tx, &message, Some(&event.event_type))
             .await
             .map_err(|error| WebhookError::Database(error.to_string()))?;
 
-        // #1176: report what the spine did. This handler runs only when the
-        // delivery ledger's `(route, event_id)` claim was fresh, so a spine
-        // `Duplicate` means the two dedup layers disagree about the same
-        // delivery — and answering "processed" there told the sender its message
-        // had been accepted while dispatching `after:ingest` on a row this
-        // delivery never wrote.
-        //
-        // Today the two keys are derived from the same material (#1046), so they
-        // agree by construction. That is a property of how they happen to be
-        // derived, not a guarantee anything enforces: it breaks if a retention
-        // job prunes one table and not the other, if another caller drives
-        // `WebhookPipeline` with a different derivation, or if the two drift —
-        // which is exactly what #1046 was.
+        // An earlier committed delivery holds `(source, idempotency_key)`: this one wrote
+        // nothing, and `after:ingest` does not fire on a row it did not create (#1176).
         let Emitted::New(id) = emitted else {
-            tracing::warn!(
-                source = ?message.source,
-                idempotency_key = %message.idempotency_key,
-                "inbound spine refused a delivery whose ledger claim was fresh: the delivery \
-                 ledger and the spine disagree about this event. Reported as duplicate; \
-                 after:ingest not dispatched."
-            );
             return Ok(Handled::Duplicate);
         };
         // #1175: one pending ledger row per function the message triggers, leased to the
@@ -394,8 +378,7 @@ fn build_routes<S: std::hash::BuildHasher>(
 }
 
 /// The concrete pipeline used by the inbound webhook adapter.
-type InboundPipeline =
-    WebhookPipeline<StaticSecretProvider, PostgresIdempotencyStore, SpineEventHandler>;
+type InboundPipeline = WebhookPipeline<StaticSecretProvider, SpineEventHandler>;
 
 /// Shared state for the inbound webhook route.
 #[derive(Clone)]
@@ -474,12 +457,11 @@ impl WebhookInboundState {
             mounted.insert(segment, route);
         }
 
-        let store = PostgresIdempotencyStore::new(pool.clone());
         let ledger = Arc::new(LedgerPlan::default());
         let handler = SpineEventHandler {
             ledger: Arc::clone(&ledger),
         };
-        let pipeline = WebhookPipeline::new(pool.clone(), secrets, store, handler);
+        let pipeline = WebhookPipeline::new(pool.clone(), secrets, handler);
 
         Self {
             pipeline: Arc::new(pipeline),
@@ -693,7 +675,7 @@ fn collect_headers(headers: &HeaderMap) -> BTreeMap<String, String> {
 ///
 /// # Why request headers are not consulted (#751)
 ///
-/// This key is what [`PostgresIdempotencyStore::claim`] and the spine dedup on, and
+/// This key is what the spine's claim dedups on, and
 /// what decides whether `after:ingest` fires. Every supported provider signs the
 /// **body** only — GitHub/GitLab/Shopify/Postmark/`LemonSqueezy`/generic
 /// `HMAC(body)`, Stripe `HMAC(t.body)`, Paddle `HMAC(ts:body)`. No verifier covers
@@ -948,10 +930,6 @@ pub async fn webhook_handler(
     };
 
     let delivery = Delivery {
-        // #1046: the dedup namespace is this route, not the provider it serves.
-        // Sound as a namespace because `build_routes` refuses two routes resolving
-        // to one segment (#1048), so a segment names exactly one config.
-        route:         &segment,
         function_name: &segment,
         request:       InboundRequest::new(&header_map, &body, signing_url.as_deref()),
     };

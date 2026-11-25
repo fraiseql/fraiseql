@@ -2837,7 +2837,7 @@
           "default": null
         },
         "id_claim": {
-          "description": "The claim carrying the event's id, which the delivery ledger keys on.\nAbsent means a digest of the verified token.",
+          "description": "The claim carrying the event's id, which the delivery's dedup claim keys on.\nAbsent means a digest of the verified token.",
           "type": [
             "string",
             "null"

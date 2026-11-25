@@ -5,18 +5,15 @@
 //! live/test pair, two accounts of one multi-tenant provider. Each sender mints
 //! its own event ids, so the same id (`"1001"`) is expected to appear on both.
 //!
-//! Both dedup layers used to be keyed on the provider string alone:
-//!
-//! * the delivery ledger on `(provider, event_id)` — `webhooks.tb_inbound_delivery`;
-//! * the durable spine on `(source, idempotency_key)`, where `source` is `webhook:<provider>`.
-//!
-//! so the second partner's genuine, correctly-signed delivery hit the first
+//! The dedup key used to be scoped by the provider string alone, so the second
+//! partner's genuine, correctly-signed delivery hit the first
 //! partner's claim, was answered `200 {"status":"duplicate"}`, was never written to
 //! the spine, and never fired `after:ingest`. The 200 tells the sender it
 //! succeeded, so it never retries — a silent, permanent loss. It is also a
 //! cross-sender suppression channel: a partner holding a valid secret for its own
 //! route can pre-claim ids it predicts a co-tenant will use. This is the shape #775
-//! fixed for email, which is why both layers are asserted here.
+//! fixed for email. The claim is the spine's `(source, idempotency_key)`, and the key
+//! carries the route.
 //!
 //! Route segments are a sound dedup namespace only because boot now refuses two
 //! routes resolving to one segment (#1048).
@@ -25,7 +22,7 @@
 //! database-free `test` leg and runs in the Dagger `integration: server` suite.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** truncates the shared ledger and spine on setup →
+//! **Parallelism:** truncates the shared spine on setup →
 //! `--test-threads=1`.
 #![cfg(feature = "inbound")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code.
@@ -43,7 +40,6 @@ use fraiseql_server::{
     inbound::{WebhookInboundState, WebhookRoutes, webhook_router, webhook_routes_check},
 };
 use fraiseql_test_support::try_database_url;
-use fraiseql_webhooks::PostgresIdempotencyStore;
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 use sqlx::{PgPool, postgres::PgPoolOptions};
@@ -67,7 +63,7 @@ const B_SECRET_ENV: &str = "FRAISEQL_TEST_PARTNER_B_WEBHOOK_SECRET";
 const B_SECRET: &str = "whsec_partner_b";
 
 /// Partner A's first event. Both partners number their own events from scratch,
-/// so both bodies carry `"id":"1001"` — the collision the ledger key must not see.
+/// so both bodies carry `"id":"1001"` — the collision the dedup key must not see.
 const A_BODY: &[u8] = br#"{"id":"1001","type":"order.created","partner":"a"}"#;
 /// Partner B's own, unrelated event number 1001 — different content, same id.
 const B_BODY: &[u8] = br#"{"id":"1001","type":"order.created","partner":"b"}"#;
@@ -104,17 +100,12 @@ fn router(pool: PgPool) -> Router {
     webhook_router(state)
 }
 
-/// Connect, create the ledger + spine, and truncate both so each test starts clean.
+/// Connect, create the spine, and truncate it so each test starts clean.
 /// Returns `None` (skip) when `DATABASE_URL` is unset.
 async fn setup() -> Option<PgPool> {
     let url = try_database_url()?;
     let pool = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
-    PostgresIdempotencyStore::new(pool.clone()).init().await.unwrap();
     WebhookInboundState::init_spine(&pool).await.unwrap();
-    sqlx::query("TRUNCATE webhooks.tb_inbound_delivery RESTART IDENTITY")
-        .execute(&pool)
-        .await
-        .unwrap();
     sqlx::query("TRUNCATE _fraiseql_inbound_message RESTART IDENTITY CASCADE")
         .execute(&pool)
         .await
@@ -151,13 +142,6 @@ async fn post(
     (status, disposition)
 }
 
-async fn ledger_count(pool: &PgPool) -> i64 {
-    sqlx::query_scalar::<_, i64>("SELECT count(*) FROM webhooks.tb_inbound_delivery")
-        .fetch_one(pool)
-        .await
-        .unwrap()
-}
-
 async fn spine_count(pool: &PgPool) -> i64 {
     sqlx::query_scalar::<_, i64>("SELECT count(*) FROM _fraiseql_inbound_message")
         .fetch_one(pool)
@@ -191,7 +175,7 @@ macro_rules! skip_if_no_db {
 
 /// The defect exactly as filed: two routes on one provider, each sender's own
 /// event `1001`. Partner B's genuine delivery must not be swallowed by partner A's
-/// claim — on either dedup layer.
+/// claim.
 #[tokio::test]
 async fn two_routes_on_one_provider_do_not_share_a_dedup_namespace() {
     let pool = skip_if_no_db!("cross-route dedup scope");
@@ -210,17 +194,10 @@ async fn two_routes_on_one_provider_do_not_share_a_dedup_namespace() {
          succeeded, so it never retries",
     );
     assert_eq!(
-        ledger_count(&pool).await,
-        2,
-        "#1046: the delivery ledger must claim both — its key is scoped by route, not \
-         by the shared provider string",
-    );
-    assert_eq!(
         spine_count(&pool).await,
         2,
-        "#1046: both messages must reach the durable spine. Scoping only the ledger \
-         moves the silent drop here: the claim succeeds, the spine emit conflicts, and \
-         the route still answers `processed`",
+        "#1046: the spine must claim both — its key is scoped by route, not by the \
+         shared provider string",
     );
     let partners = spine_partners(&pool).await;
     assert_eq!(
@@ -248,6 +225,5 @@ async fn a_redelivery_to_the_same_route_still_deduplicates() {
         "the provider's own retry of an already-processed delivery must still \
          deduplicate — route scoping narrows the namespace, it must not disable it",
     );
-    assert_eq!(ledger_count(&pool).await, 1, "exactly one claimed delivery");
-    assert_eq!(spine_count(&pool).await, 1, "exactly one spine row");
+    assert_eq!(spine_count(&pool).await, 1, "exactly one claimed delivery");
 }

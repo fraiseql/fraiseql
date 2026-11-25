@@ -2,7 +2,7 @@
 //!
 //! The scheme's own suite (`fraiseql_webhooks::signature::jwt_jwks::tests`) pins
 //! what verification *reports*. This pins what the **route** does with that: the
-//! durable spine row, the delivery-ledger row, and the fact that neither is
+//! durable spine row — the delivery's claim — and the fact that none of it is
 //! derived from the envelope the sender chose.
 //!
 //! It asserts the rows rather than the response. `{"status":"processed"}` is the
@@ -19,7 +19,7 @@
 //! `webhook_provider_matrix_pg` in the Dagger `integration: server` suite.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** truncates the shared `webhooks` ledger on setup → run
+//! **Parallelism:** deletes this suite's `webhook:hanko` spine rows on setup → run
 //! `--test-threads=1`.
 #![cfg(feature = "inbound")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
@@ -37,7 +37,6 @@ use fraiseql_server::{
     inbound::{WebhookInboundState, webhook_router, webhook_routes_check},
 };
 use fraiseql_test_support::try_database_url;
-use fraiseql_webhooks::PostgresIdempotencyStore;
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use serde_json::{Value, json};
 use sha2::{Digest as _, Sha256};
@@ -58,13 +57,12 @@ const PUBLISHED_KID: &str = "hanko-tenant-key";
 const JWKS_PATH: &str = "/.well-known/jwks.json";
 const ROUTE: &str = "idp";
 
-/// Connect, create the ledger + spine, and truncate so each test starts clean.
+/// Connect, create the spine, and delete this suite's rows so each test starts clean.
 async fn setup() -> Option<PgPool> {
     let url = try_database_url()?;
     let pool = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
-    PostgresIdempotencyStore::new(pool.clone()).init().await.unwrap();
     WebhookInboundState::init_spine(&pool).await.unwrap();
-    sqlx::query("TRUNCATE webhooks.tb_inbound_delivery RESTART IDENTITY")
+    sqlx::query("DELETE FROM _fraiseql_inbound_message WHERE source = 'webhook:hanko'")
         .execute(&pool)
         .await
         .unwrap();
@@ -159,13 +157,19 @@ async fn spine_row(pool: &PgPool, idempotency_key: &str) -> Option<(Option<Strin
     Some((subject, payload))
 }
 
-/// The delivery-ledger row's `(event_id, event_type)`.
-async fn ledger_row(pool: &PgPool) -> Option<(String, String)> {
-    sqlx::query_as("SELECT event_id, event_type FROM webhooks.tb_inbound_delivery WHERE route = $1")
-        .bind(ROUTE)
-        .fetch_optional(pool)
-        .await
-        .unwrap()
+/// The route's claim: the event id out of its spine key `<len>:<route>:<id>`, and the
+/// stored event type.
+async fn claim_row(pool: &PgPool) -> Option<(String, Option<String>)> {
+    let prefix = format!("{}:{ROUTE}:", ROUTE.len());
+    let row: Option<(String, Option<String>)> = sqlx::query_as(
+        "SELECT idempotency_key, event_type FROM _fraiseql_inbound_message \
+         WHERE source = 'webhook:hanko' AND starts_with(idempotency_key, $1)",
+    )
+    .bind(&prefix)
+    .fetch_optional(pool)
+    .await
+    .unwrap();
+    row.map(|(key, event_type)| (key[prefix.len()..].to_string(), event_type))
 }
 
 #[tokio::test]
@@ -208,15 +212,14 @@ async fn a_hanko_delivery_dispatches_the_signed_event_and_not_the_envelope() {
     // The id is a digest of the verified token, because Hanko's tokens carry no
     // `jti` and no event id — the only signed, delivery-stable material there is.
     let signed_id = hex::encode(Sha256::digest(token.as_bytes()));
-    let (event_id, event_type) =
-        ledger_row(&pool).await.expect("the delivery ledger committed a row");
+    let (event_id, event_type) = claim_row(&pool).await.expect("the spine committed a row");
     assert_eq!(
         event_id, signed_id,
-        "the ledger must key on the signed token's digest. Keying on anything the envelope \
+        "the claim must key on the signed token's digest. Keying on anything the envelope \
          carries would let one captured delivery be replayed indefinitely under a fresh \
          outer field (#751)"
     );
-    assert_eq!(event_type, "user.create", "and record the signed type");
+    assert_eq!(event_type.as_deref(), Some("user.create"), "and record the signed type");
 
     // #1046: the spine's key is `<route length>:<route>:<event id>`.
     let key = format!("{}:{ROUTE}:{signed_id}", ROUTE.len());
@@ -266,7 +269,7 @@ async fn a_delivery_whose_token_is_signed_by_an_unpublished_key_writes_nothing()
         "a signature the publisher cannot be held to is the sender's problem: {response}"
     );
     assert!(
-        ledger_row(&pool).await.is_none(),
+        claim_row(&pool).await.is_none(),
         "and no database work may happen at all — a forged delivery must be refused before \
          a connection is taken, which is why verification precedes the transaction"
     );

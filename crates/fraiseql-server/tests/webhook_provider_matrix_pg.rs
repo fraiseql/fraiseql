@@ -13,8 +13,8 @@
 //! `integration: server` suite next to `webhook_replay_header_dedup_pg`.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** truncates the shared `webhooks` ledger on setup → run
-//! `--test-threads=1`.
+//! **Parallelism:** keys every delivery on a per-run id, so it shares the spine
+//! safely; run `--test-threads=1` like its siblings.
 #![cfg(feature = "inbound")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
@@ -33,7 +33,6 @@ use fraiseql_server::{
     inbound::{WebhookInboundState, WebhookRoutes, webhook_router, webhook_routes_check},
 };
 use fraiseql_test_support::try_database_url;
-use fraiseql_webhooks::PostgresIdempotencyStore;
 use hmac::{Hmac, KeyInit, Mac};
 use sha1::Sha1;
 use sha2::{Digest as _, Sha256};
@@ -110,16 +109,11 @@ fn router(pool: PgPool) -> Router {
     webhook_router(state)
 }
 
-/// Connect, create the ledger + spine, and truncate so each test starts clean.
+/// Connect and create the spine.
 async fn setup() -> Option<PgPool> {
     let url = try_database_url()?;
     let pool = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
-    PostgresIdempotencyStore::new(pool.clone()).init().await.unwrap();
     WebhookInboundState::init_spine(&pool).await.unwrap();
-    sqlx::query("TRUNCATE webhooks.tb_inbound_delivery RESTART IDENTITY")
-        .execute(&pool)
-        .await
-        .unwrap();
     Some(pool)
 }
 
@@ -138,9 +132,8 @@ fn now() -> String {
         .to_string()
 }
 
-/// A value distinct on every run. `setup` truncates the ledger but not the spine,
-/// so a suite re-run inside the same second would otherwise present a key the spine
-/// already holds.
+/// A value distinct on every run. `setup` does not truncate the spine, so a suite
+/// re-run would otherwise present a key the spine already holds.
 fn unique() -> String {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -712,8 +705,8 @@ async fn a_forged_delivery_to_a_configured_route_is_still_refused() {
     assert_eq!(status, StatusCode::UNAUTHORIZED, "a forged Lago delivery must 401");
 }
 
-/// #1323 cycle 3: the delivery ledger and the durable spine key on the **signed**
-/// id, through the mounted route and a real claim.
+/// #1323 cycle 3: the durable spine — the delivery's claim — keys on the **signed**
+/// id, through the mounted route.
 ///
 /// The unit fixtures pin the scheme; these pin what the *route* does with what the
 /// scheme authenticated. Every assertion counts durable rows — never the response
@@ -840,30 +833,26 @@ header_prefix = "svix"
         }
     }
 
-    /// Ledger rows for one `(route, event_id)` — the durable claim.
-    async fn ledger_rows(pool: &PgPool, route: &str, event_id: &str) -> i64 {
-        sqlx::query_scalar::<_, i64>(
-            "SELECT count(*) FROM webhooks.tb_inbound_delivery WHERE route = $1 AND \
-             event_id = $2",
-        )
-        .bind(route)
-        .bind(event_id)
-        .fetch_one(pool)
-        .await
-        .unwrap()
+    /// The spine key of `event_id` received on `route`.
+    fn claim_key(route: &str, event_id: &str) -> String {
+        format!("{}:{route}:{event_id}", route.len())
+    }
+
+    /// Claims for one `(route, event_id)`: spine rows under its key.
+    async fn claim_rows(pool: &PgPool, route: &str, event_id: &str) -> i64 {
+        spine_rows(pool, &claim_key(route, event_id)).await
     }
 
     /// The `event_type` the claim recorded, if any.
-    async fn ledger_event_type(pool: &PgPool, route: &str, event_id: &str) -> Option<String> {
-        sqlx::query_scalar::<_, String>(
-            "SELECT event_type FROM webhooks.tb_inbound_delivery WHERE route = $1 AND \
-             event_id = $2",
+    async fn claim_event_type(pool: &PgPool, route: &str, event_id: &str) -> Option<String> {
+        sqlx::query_scalar::<_, Option<String>>(
+            "SELECT event_type FROM _fraiseql_inbound_message WHERE idempotency_key = $1",
         )
-        .bind(route)
-        .bind(event_id)
+        .bind(claim_key(route, event_id))
         .fetch_optional(pool)
         .await
         .unwrap()
+        .flatten()
     }
 
     /// Spine rows for one idempotency key — the durable message.
@@ -878,10 +867,10 @@ header_prefix = "svix"
     }
 
     #[tokio::test]
-    async fn the_ledger_keys_on_the_signed_id_and_not_on_the_body() {
+    async fn the_claim_keys_on_the_signed_id_and_not_on_the_body() {
         let Some(pool) = setup().await else {
             eprintln!(
-                "skipping the_ledger_keys_on_the_signed_id_and_not_on_the_body: \
+                "skipping the_claim_keys_on_the_signed_id_and_not_on_the_body: \
                        DATABASE_URL unset"
             );
             return;
@@ -900,14 +889,14 @@ header_prefix = "svix"
         assert!(response.contains("processed"), "expected processed, got: {response}");
 
         assert_eq!(
-            ledger_rows(&pool, "clerk-live", &id).await,
+            claim_rows(&pool, "clerk-live", &id).await,
             1,
             "the claim must be recorded under the SIGNED id. The body carries a \
              different `id` field, so a route keying on the body would have claimed \
              that one and this count would be 0."
         );
         assert_eq!(
-            ledger_event_type(&pool, "clerk-live", &id).await.as_deref(),
+            claim_event_type(&pool, "clerk-live", &id).await.as_deref(),
             Some("user.created"),
             "the event TYPE still comes out of the signed body — the body is signed \
              here, unlike the envelope arm where nothing in it is trusted"
@@ -949,11 +938,6 @@ header_prefix = "svix"
         // Durable rows, not the response: the response is built before the spine is
         // read back, so it cannot distinguish "deduped" from "written twice".
         assert_eq!(
-            ledger_rows(&pool, "clerk-live", &id).await,
-            1,
-            "exactly one claim for one signed id"
-        );
-        assert_eq!(
             spine_rows(&pool, &delivery.spine_key("clerk-live")).await,
             1,
             "exactly one durable spine row for one signed id"
@@ -981,7 +965,7 @@ header_prefix = "svix"
         // IGNORE the id header, because nothing signed it: a captured signed body
         // replayed under a fresh id claimed a fresh key and re-fired every
         // `after:ingest` function. Now the id is inside the signed content, so the
-        // replay does not reach the ledger at all — it fails the signature.
+        // replay does not reach the claim at all — it fails the signature.
         let forged_id = format!("msg_attacker_{}", unique());
         let replay = captured.under_a_fresh_id(&forged_id);
         let (status, _) = send(&router, replay.request("clerk-live", "svix")).await;
@@ -992,15 +976,10 @@ header_prefix = "svix"
         );
 
         assert_eq!(
-            ledger_rows(&pool, "clerk-live", &forged_id).await,
+            spine_rows(&pool, &replay.spine_key("clerk-live")).await,
             0,
             "the forged id must reach no claim — verification runs before any database \
              work, so a refused delivery takes no connection"
-        );
-        assert_eq!(
-            spine_rows(&pool, &replay.spine_key("clerk-live")).await,
-            0,
-            "and no durable spine row"
         );
     }
 
@@ -1031,7 +1010,6 @@ header_prefix = "svix"
                 "{segment}: one signed id arriving on a second route is a NEW event, \
                  not a duplicate; got: {body}"
             );
-            assert_eq!(ledger_rows(&pool, segment, &id).await, 1, "{segment}: one claim");
             assert_eq!(
                 spine_rows(&pool, &delivery.spine_key(segment)).await,
                 1,
@@ -1061,7 +1039,7 @@ header_prefix = "svix"
         let delivery = Delivery::genuine(&id);
         let (status, body) = send(&router, delivery.request("partner", "svix")).await;
         assert_eq!(status, StatusCode::OK, "a delivery under the configured spelling: {body}");
-        assert_eq!(ledger_rows(&pool, "partner", &id).await, 1);
+        assert_eq!(claim_rows(&pool, "partner", &id).await, 1);
 
         // The same delivery under the spec's default spelling must 401: a scheme
         // reading both prefixes would pass the assertion above.

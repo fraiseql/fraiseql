@@ -17,10 +17,10 @@ fraiseql-kafka 0
 fraiseql-observers 32
 fraiseql-saga 19
 fraiseql-secrets 4
-fraiseql-server 573
+fraiseql-server 569
 fraiseql-storage 47
 fraiseql-test-support 1
 fraiseql-test-utils 1
 fraiseql-time 0
-fraiseql-webhooks 21
+fraiseql-webhooks 20
 fraiseql-wire 14

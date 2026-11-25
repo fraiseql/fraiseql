@@ -4368,7 +4368,6 @@ dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
  "fraiseql-error",
- "fraiseql-guard",
  "fraiseql-jwks",
  "fraiseql-test-support",
  "futures",

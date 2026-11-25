@@ -5,8 +5,8 @@
 //! is `HMAC-SHA256(secret, body)` and covers no header. While the dedup key was read
 //! from `webhook-id` / `x-github-delivery`, anyone holding one captured signed
 //! delivery could POST it repeatedly under a fresh delivery header: signature
-//! verification passed each time, each replay claimed a new
-//! `webhooks.tb_inbound_delivery` row, and `after:ingest` re-fired per replay.
+//! verification passed each time, each replay claimed a new idempotency key, and
+//! `after:ingest` re-fired per replay.
 //!
 //! The unit tests in `src/inbound/webhook/tests.rs` pin the key-derivation function;
 //! only this test proves the property that actually matters — that the *handler*,
@@ -17,7 +17,7 @@
 //! database-free `test` leg and runs in the Dagger `integration: server` suite.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** truncates the shared `webhooks` ledger on setup → run
+//! **Parallelism:** truncates the shared inbound spine on setup → run
 //! `--test-threads=1`.
 #![cfg(feature = "inbound")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
@@ -35,7 +35,6 @@ use fraiseql_server::{
     inbound::{WebhookInboundState, WebhookRoutes, webhook_router, webhook_routes_check},
 };
 use fraiseql_test_support::try_database_url;
-use fraiseql_webhooks::PostgresIdempotencyStore;
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 use sqlx::{PgPool, postgres::PgPoolOptions};
@@ -88,23 +87,14 @@ fn router(pool: PgPool) -> Router {
     webhook_router(state)
 }
 
-/// Connect, create the ledger + spine, and truncate so each test starts clean.
+/// Connect, create the spine, and truncate it so each test starts clean.
 /// Returns `None` (skip) when `DATABASE_URL` is unset.
 async fn setup() -> Option<PgPool> {
     let url = try_database_url()?;
     let pool = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
-    PostgresIdempotencyStore::new(pool.clone()).init().await.unwrap();
     WebhookInboundState::init_spine(&pool).await.unwrap();
-    sqlx::query("TRUNCATE webhooks.tb_inbound_delivery RESTART IDENTITY")
-        .execute(&pool)
-        .await
-        .unwrap();
-    // Both layers, because every test here posts the SAME `CAPTURED_BODY` and the two
-    // dedup keys derive from it. Truncating only the ledger left the previous test's
-    // committed spine row owning this body, so the next test's genuine first delivery
-    // was refused by the spine. That was invisible until #1176 stopped reporting a
-    // spine refusal as `processed`; the sibling suite
-    // (`webhook_route_dedup_scope_pg.rs`) has always truncated both.
+    // Every test here posts the SAME `CAPTURED_BODY`, so a previous test's committed
+    // spine row would own it and refuse this test's genuine first delivery.
     sqlx::query("TRUNCATE _fraiseql_inbound_message RESTART IDENTITY CASCADE")
         .execute(&pool)
         .await
@@ -138,7 +128,7 @@ async fn post_replay(router: &Router, delivery_id: &str) -> (StatusCode, String)
 }
 
 async fn delivery_count(pool: &PgPool) -> i64 {
-    sqlx::query_scalar::<_, i64>("SELECT count(*) FROM webhooks.tb_inbound_delivery")
+    sqlx::query_scalar::<_, i64>("SELECT count(*) FROM _fraiseql_inbound_message")
         .fetch_one(pool)
         .await
         .unwrap()

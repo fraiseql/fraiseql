@@ -34,7 +34,7 @@ pub mod email;
 pub enum Transport {
     /// The sender delivers to us and expects an ACK, redelivering on failure
     /// (provider webhook, mail-provider inbound-parse hook). The idempotency key
-    /// is the provider event id; the only state is the idempotency ledger.
+    /// is the provider event id; the only state is the spine's dedup claim.
     Push,
     /// We poll the remote and advance a cursor / UID watermark (poll-IMAP,
     /// Gmail history, MS Graph delta). The idempotency key is the `Message-ID`;

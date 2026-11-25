@@ -784,20 +784,12 @@ mod signed_dedup_key {
 }
 
 mod spine_handler_disposition {
-    //! #1176: `SpineEventHandler` must report what the spine actually did.
+    //! `SpineEventHandler` is the delivery's one claim, so it must report what the
+    //! spine actually did (#1176).
     //!
-    //! The handler runs **only** when the delivery ledger's `(route, event_id)`
-    //! claim was fresh, so an `Emitted::Duplicate` from the spine is by
-    //! construction the two dedup layers disagreeing: the ledger says "never
-    //! seen", the spine says "already mine". Discarding that answer reported the
-    //! delivery to the sender as `200 {"status":"processed"}` and fired
-    //! `after:ingest` — on a message this delivery did not write.
-    //!
-    //! Reachable whenever the two keys stop being derived from the same material:
-    //! a retention job pruning one table and not the other (neither has one
-    //! today), another caller driving `WebhookPipeline` with a different key
-    //! derivation, or the derivations drifting in a future change — which is
-    //! exactly what #1046 was.
+    //! An `Emitted::Duplicate` from the spine is the delivery's duplicate answer.
+    //! Reporting it as recorded would tell the sender `200 {"status":"processed"}`
+    //! and fire `after:ingest` — on a message this delivery did not write.
     //!
     //! Needs a real database: the disposition is `ON CONFLICT`'s answer, and a
     //! fixture that never commits a first row cannot produce it.
@@ -805,7 +797,7 @@ mod spine_handler_disposition {
     #![allow(clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip notes are acceptable
 
     use fraiseql_functions::{InboundMessage, IngestSource};
-    use fraiseql_webhooks::EventHandler as _;
+    use fraiseql_webhooks::{EventHandler as _, VerifiedEvent};
     use sqlx::PgPool;
 
     use crate::inbound::{
@@ -829,6 +821,25 @@ mod spine_handler_disposition {
         )
     }
 
+    /// The verified event the route hands the handler for `msg`.
+    fn verified(msg: &InboundMessage, event_type: &str) -> VerifiedEvent {
+        VerifiedEvent {
+            id:         msg.idempotency_key.clone(),
+            event_type: event_type.to_string(),
+            params:     serde_json::to_value(msg).unwrap(),
+        }
+    }
+
+    async fn stored_event_type(pool: &PgPool, key: &str) -> Option<String> {
+        sqlx::query_scalar::<_, Option<String>>(
+            "SELECT event_type FROM _fraiseql_inbound_message WHERE idempotency_key = $1",
+        )
+        .bind(key)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    }
+
     /// A key the spine already owns must come back as `Duplicate`, not as a
     /// successful handle.
     #[tokio::test]
@@ -847,16 +858,15 @@ mod spine_handler_disposition {
         // An earlier delivery commits the message onto the spine.
         let mut tx = pool.begin().await.unwrap();
         assert!(
-            matches!(emit_in_tx(&mut tx, &msg).await.unwrap(), Emitted::New(_)),
+            matches!(emit_in_tx(&mut tx, &msg, None).await.unwrap(), Emitted::New(_)),
             "the first emit must record the message"
         );
         tx.commit().await.unwrap();
 
-        // This delivery's ledger claim was fresh (the handler only runs then), but
-        // the spine already owns the key.
+        // A redelivery: the spine already owns the key.
         let mut tx = pool.begin().await.unwrap();
         let handled = SpineEventHandler::default()
-            .handle("stripe", serde_json::to_value(&msg).unwrap(), &mut tx)
+            .handle("stripe", &verified(&msg, "charge.succeeded"), &mut tx)
             .await
             .expect("a duplicate is an answer, not a failure");
         tx.commit().await.unwrap();
@@ -882,7 +892,7 @@ mod spine_handler_disposition {
         let msg = message(&uuid::Uuid::new_v4().to_string());
         let mut tx = pool.begin().await.unwrap();
         let handled = SpineEventHandler::default()
-            .handle("stripe", serde_json::to_value(&msg).unwrap(), &mut tx)
+            .handle("stripe", &verified(&msg, "charge.succeeded"), &mut tx)
             .await
             .unwrap();
         tx.commit().await.unwrap();
@@ -895,11 +905,37 @@ mod spine_handler_disposition {
             Some(msg.idempotency_key.as_str()),
             "the normalized message is what the route dispatches on: {value}"
         );
+        assert_eq!(
+            stored_event_type(&pool, &msg.idempotency_key).await.as_deref(),
+            Some("charge.succeeded"),
+            "the verified event type is stored on the spine row"
+        );
+    }
+
+    /// A webhook with no event type (a `GitHub` delivery without its event header) stores `NULL`,
+    /// not an empty string, the way an email message does.
+    #[tokio::test]
+    async fn an_empty_event_type_is_stored_as_null() {
+        let Some((pool, _svc)) = pool().await else {
+            eprintln!("SKIP an_empty_event_type_is_stored_as_null: no postgres");
+            return;
+        };
+        PostgresInboundSpine::new(pool.clone()).init().await.unwrap();
+
+        let msg = message(&uuid::Uuid::new_v4().to_string());
+        let mut tx = pool.begin().await.unwrap();
+        SpineEventHandler::default()
+            .handle("stripe", &verified(&msg, ""), &mut tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+
+        assert_eq!(stored_event_type(&pool, &msg.idempotency_key).await, None);
     }
 }
 
 mod the_event_is_what_the_scheme_authenticated {
-    //! #1321 cycle 2: the ledger claim, the spine row and its payload are built
+    //! #1321 cycle 2: the spine row — the claim — and its payload are built
     //! from what the **scheme authenticated**, not from the body it arrived in.
     //!
     //! Today `webhook_handler` derives `event_id` and `event_type` from the parsed
@@ -928,8 +964,8 @@ mod the_event_is_what_the_scheme_authenticated {
         http::{Request, StatusCode},
     };
     use fraiseql_webhooks::{
-        InboundRequest, PostgresIdempotencyStore, SignatureError, SignatureVerifier,
-        StaticSecretProvider, Verified, WebhookPipeline,
+        InboundRequest, SignatureError, SignatureVerifier, StaticSecretProvider, Verified,
+        WebhookPipeline,
     };
     use hmac::{Hmac, KeyInit, Mac as _};
     use serde_json::{Value, json};
@@ -1011,7 +1047,6 @@ mod the_event_is_what_the_scheme_authenticated {
         );
         let secrets =
             StaticSecretProvider::new().with_secret(SECRET_ENV.to_string(), SECRET.to_string());
-        let store = PostgresIdempotencyStore::new(pool.clone());
         // One cell, read by the handler and set by `with_hooks`, as `WebhookInboundState::new`
         // builds it.
         let ledger = Arc::new(crate::inbound::webhook::LedgerPlan::default());
@@ -1019,7 +1054,6 @@ mod the_event_is_what_the_scheme_authenticated {
             pipeline: Arc::new(WebhookPipeline::new(
                 pool.clone(),
                 secrets,
-                store,
                 SpineEventHandler {
                     ledger: Arc::clone(&ledger),
                 },
@@ -1035,11 +1069,6 @@ mod the_event_is_what_the_scheme_authenticated {
     async fn setup() -> Option<PgPool> {
         let url = fraiseql_test_support::try_database_url()?;
         let pool = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
-        // Under the migration lock, as boot provisions it: the leg runs these tests in
-        // parallel, and a bare `init()` races its siblings on an empty database (#1831).
-        crate::migration_lock::run_migration(&pool, fraiseql_webhooks::idempotency::SCHEMA_SQL)
-            .await
-            .unwrap();
         WebhookInboundState::init_spine(&pool).await.unwrap();
         Some(pool)
     }
@@ -1056,12 +1085,9 @@ mod the_event_is_what_the_scheme_authenticated {
     }
 
     #[tokio::test]
-    async fn the_ledger_and_the_spine_record_the_authenticated_event() {
+    async fn the_spine_records_the_authenticated_event() {
         let Some(pool) = setup().await else {
-            eprintln!(
-                "skipping the_ledger_and_the_spine_record_the_authenticated_event: \
-                 DATABASE_URL unset"
-            );
+            eprintln!("skipping the_spine_records_the_authenticated_event: DATABASE_URL unset");
             return;
         };
         let router = webhook_router(state(pool.clone()));
@@ -1097,22 +1123,24 @@ mod the_event_is_what_the_scheme_authenticated {
         let response = router.oneshot(request).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK, "the delivery is genuine and must be taken");
 
-        // ── the delivery ledger ────────────────────────────────────────────────
-        // This run's claims only, by the two ids it could be keyed on: the route is
-        // shared with the other test in this module, so its latest row may be theirs.
-        let claims: Vec<(String, String)> = sqlx::query_as(
-            "SELECT event_id, event_type FROM webhooks.tb_inbound_delivery \
-             WHERE route = $1 AND event_id IN ($2, $3)",
+        // ── the claim ──────────────────────────────────────────────────────────
+        // This run's spine rows only, by the two ids it could be keyed on: the route
+        // is shared with the other test in this module.
+        let claims: Vec<(String, Option<String>)> = sqlx::query_as(
+            "SELECT idempotency_key, event_type FROM _fraiseql_inbound_message \
+             WHERE idempotency_key IN ($1, $2)",
         )
-        .bind(SEGMENT)
-        .bind(&authenticated_id)
-        .bind(format!("envelope-{run}"))
+        .bind(format!("{}:{SEGMENT}:{authenticated_id}", SEGMENT.len()))
+        .bind(format!("{}:{SEGMENT}:envelope-{run}", SEGMENT.len()))
         .fetch_all(&pool)
         .await
         .unwrap();
         assert_eq!(
             claims,
-            [(authenticated_id.clone(), "authenticated.event".to_string())],
+            [(
+                format!("{}:{SEGMENT}:{authenticated_id}", SEGMENT.len()),
+                Some("authenticated.event".to_string())
+            )],
             "#1321: the replay defence must be keyed on the id the scheme \
              authenticated, and record its type. Keyed on the envelope's own id, a \
              sender that controls the envelope controls the dedup key of an event it \
@@ -1255,8 +1283,8 @@ mod the_credential_need_not_be_a_header_and_the_body_need_not_be_json {
         http::{Request, StatusCode},
     };
     use fraiseql_webhooks::{
-        CredentialLocation, InboundRequest, PostgresIdempotencyStore, SignatureError,
-        SignatureVerifier, StaticSecretProvider, Verified, WebhookPipeline,
+        CredentialLocation, InboundRequest, SignatureError, SignatureVerifier,
+        StaticSecretProvider, Verified, WebhookPipeline,
     };
     use serde_json::{Value, json};
     use sqlx::{PgPool, postgres::PgPoolOptions};
@@ -1351,7 +1379,6 @@ mod the_credential_need_not_be_a_header_and_the_body_need_not_be_json {
         );
         let secrets =
             StaticSecretProvider::new().with_secret(SECRET_ENV.to_string(), SECRET.to_string());
-        let store = PostgresIdempotencyStore::new(pool.clone());
         // One cell, read by the handler and set by `with_hooks`, as `WebhookInboundState::new`
         // builds it.
         let ledger = Arc::new(crate::inbound::webhook::LedgerPlan::default());
@@ -1359,7 +1386,6 @@ mod the_credential_need_not_be_a_header_and_the_body_need_not_be_json {
             pipeline: Arc::new(WebhookPipeline::new(
                 pool.clone(),
                 secrets,
-                store,
                 SpineEventHandler {
                     ledger: Arc::clone(&ledger),
                 },
@@ -1375,11 +1401,6 @@ mod the_credential_need_not_be_a_header_and_the_body_need_not_be_json {
     async fn setup() -> Option<PgPool> {
         let url = fraiseql_test_support::try_database_url()?;
         let pool = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
-        // Under the migration lock, as boot provisions it: the leg runs these tests in
-        // parallel, and a bare `init()` races its siblings on an empty database (#1831).
-        crate::migration_lock::run_migration(&pool, fraiseql_webhooks::idempotency::SCHEMA_SQL)
-            .await
-            .unwrap();
         WebhookInboundState::init_spine(&pool).await.unwrap();
         Some(pool)
     }
@@ -1392,15 +1413,19 @@ mod the_credential_need_not_be_a_header_and_the_body_need_not_be_json {
             .to_string()
     }
 
-    async fn ledger_event_id(pool: &PgPool, route: &str) -> Option<String> {
-        sqlx::query_scalar(
-            "SELECT event_id FROM webhooks.tb_inbound_delivery WHERE route = $1 \
-             ORDER BY pk_inbound_delivery DESC LIMIT 1",
+    /// The event id of the route's latest spine row: its key is `<len>:<route>:<id>`.
+    async fn claimed_event_id(pool: &PgPool, route: &str) -> Option<String> {
+        let prefix = format!("{}:{route}:", route.len());
+        sqlx::query_scalar::<_, String>(
+            "SELECT idempotency_key FROM _fraiseql_inbound_message \
+             WHERE starts_with(idempotency_key, $1) \
+             ORDER BY pk_inbound_message DESC LIMIT 1",
         )
-        .bind(route)
+        .bind(&prefix)
         .fetch_optional(pool)
         .await
         .unwrap()
+        .map(|key| key[prefix.len()..].to_string())
     }
 
     #[tokio::test]
@@ -1436,7 +1461,7 @@ mod the_credential_need_not_be_a_header_and_the_body_need_not_be_json {
         );
         assert!(text.contains("processed"), "expected processed, got: {text}");
         assert_eq!(
-            ledger_event_id(&pool, segment).await.as_deref(),
+            claimed_event_id(&pool, segment).await.as_deref(),
             Some(id.as_str()),
             "the body is still the event for this scheme, so the claim is keyed on its id"
         );
@@ -1477,7 +1502,7 @@ mod the_credential_need_not_be_a_header_and_the_body_need_not_be_json {
         );
         assert!(text.contains("processed"), "expected processed, got: {text}");
         assert_eq!(
-            ledger_event_id(&pool, segment).await.as_deref(),
+            claimed_event_id(&pool, segment).await.as_deref(),
             Some(id.as_str()),
             "the event comes out of the authenticated token, not out of the body bytes"
         );
@@ -1505,7 +1530,7 @@ mod the_credential_need_not_be_a_header_and_the_body_need_not_be_json {
 
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "a wrong token must 401");
         assert_eq!(
-            ledger_event_id(&pool, segment).await,
+            claimed_event_id(&pool, segment).await,
             None,
             "a delivery that failed verification must claim nothing"
         );

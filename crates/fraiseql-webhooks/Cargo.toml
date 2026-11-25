@@ -2,8 +2,6 @@
 base64 = "0.22"
 ed25519-dalek = { version = "2", features = ["std"] }
 fraiseql-error = { workspace = true }
-# The workspace's one DDL advisory lock, for the delivery ledger's schema script.
-fraiseql-guard = { workspace = true }
 # The one bounded JWKS client (#1335). Brought in for #1322: the `jwt-jwks` scheme
 # verifies against keys a publisher serves, and this crate does not keep a second
 # cache of them. It does no network I/O itself — the route hands it a `JwksKeys`.

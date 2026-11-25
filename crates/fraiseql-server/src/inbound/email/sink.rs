@@ -173,7 +173,7 @@ impl IngestSink for EmailIngestSink {
         // a crash after the commit leaves them for the sweep (#1175).
         let mut fresh: Vec<(uuid::Uuid, InboundMessage)> = Vec::new();
         for message in &batch.messages {
-            if let Emitted::New(id) = emit_in_tx(&mut tx, message).await? {
+            if let Emitted::New(id) = emit_in_tx(&mut tx, message, None).await? {
                 record_pending_in_tx(
                     &mut tx,
                     id,

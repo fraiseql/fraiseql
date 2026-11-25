@@ -36,8 +36,9 @@ Use it when **your own data changes** and you want downstream consumers to know:
 > is mounted as an HTTP route — `POST /webhooks/{segment}` — as the first **push adapter**
 > of the inbound-source model (see below). The route verifies the signature via this
 > pipeline, normalizes the delivery to an `InboundMessage`, and persists it onto the durable
-> inbound spine *inside the receiver transaction*, so persistence is atomic with the
-> idempotency claim. Without the feature the whole inbound path is compiled out.
+> inbound spine *inside the receiver transaction*. That spine insert is the delivery's
+> one idempotency claim, and everything else the delivery writes commits or rolls back
+> with it. Without the feature the whole inbound path is compiled out.
 
 ### Inbound as a source
 
@@ -50,7 +51,8 @@ normalization above transport (idempotency/thread keys, bodies, attachments, dec
 routing) lives once in `InboundMessage`.
 
 Each normalized delivery is deduplicated by `(source, idempotency_key)` on the spine
-(`_fraiseql_inbound_message`) and fires `after:ingest[:<source>]` functions on the same
+(`_fraiseql_inbound_message`), which also records a webhook's verified event type in
+its `event_type` column, and fires `after:ingest[:<source>]` functions on the same
 I/O-capable host context as `after:mutation`, reusing the durable dispatch path (retry +
 dead-letter).
 
@@ -213,8 +215,8 @@ token rather than in the request body.
 | where the token is | body field `token` | the whole body | header `X-FusionAuth-Signature-JWT` |
 | what the signature covers | the claims `evt` + `data`. The outer `event` field is **not signed** | the claims | the **body**, via a `request_body_sha256` claim = base64(SHA-256(raw bytes)) |
 | the dispatched event | the signed `evt` / `data` | the signed `type` / `data` | the body, which the digest claim makes verified material |
-| what the ledger keys on | SHA-256 of the verified token | the signed `event_id` | the body's own id, as the receiver's rules find it |
-| what bounds replay | the token's `exp` (`iat` + 300) | **the delivery ledger alone** — Kinde documents no `iat`/`exp` and retries for up to 36 h | the token's `exp` |
+| what the dedup key is built on | SHA-256 of the verified token | the signed `event_id` | the body's own id, as the receiver's rules find it |
+| what bounds replay | the token's `exp` (`iat` + 300) | **the dedup claim alone** — Kinde documents no `iat`/`exp` and retries for up to 36 h | the token's `exp` |
 | key types | tenant JWKS, RSA | RSA | RSA **or** EC — both accepted out of the box, since either is an ordinary FusionAuth setup. An EdDSA or HMAC key is refused **by name** |
 
 Two facts an operator cannot guess:
@@ -225,15 +227,15 @@ route is key material nothing consults, and this configuration refuses rather th
 ignores it. Conversely a `jwks_uri` is **required**, and a route without one does not
 boot.
 
-**Kinde's replay window is the delivery ledger, not a timestamp.** Its tokens carry
+**Kinde's replay window is the dedup claim, not a timestamp.** Its tokens carry
 no `exp`, so nothing about a captured token goes stale. What stops a replay is that
-the ledger already holds its `event_id`. Do not truncate
-`webhooks.tb_inbound_delivery` for a route serving Kinde.
+the spine already holds its `event_id`. Do not prune `_fraiseql_inbound_message`
+rows for a route serving Kinde.
 
 And one for Hanko specifically: its tokens carry **no `jti` and no event id**, so the
 delivery id is a digest of the verified token. If Hanko re-signs on retry — a fresh
-`iat` gives a fresh digest — each attempt is a distinct delivery and the ledger cannot
-coalesce retries. Treat delivery as at-least-once and write idempotent
+`iat` gives a fresh digest — each attempt is a distinct delivery and the dedup claim
+cannot coalesce retries. Treat delivery as at-least-once and write idempotent
 `after:ingest` handlers. (This is not yet confirmed against a captured retry.)
 
 #### Token confusion: why each preset checks claims, not just the signature
@@ -385,14 +387,12 @@ partners signing with the generic `hmac-sha256` scheme under separate secrets, a
 live/test pair, two accounts of one multi-tenant provider. Each sender numbers its
 own events, so the same event id turns up on both.
 
-Both dedup layers are therefore namespaced by **route** — the `/webhooks/{segment}`
-path segment, which is a route's `path` override or, absent one, its config key:
+The dedup claim is therefore namespaced by **route** — the `/webhooks/{segment}`
+path segment, which is a route's `path` override or, absent one, its config key. The
+spine claims `(source, "<route length>:<route>:<event id>")`.
 
-- the delivery ledger claims `(route, event_id)`;
-- the durable spine claims `(source, "<route length>:<route>:<event id>")`.
-
-The spine has to flatten its half into one column, and the sender chooses the event
-id — so the join is length-prefixed to keep it injective. A bare `<route>:<id>` join
+The route and the id share one column, and the sender chooses the event id — so the
+join is length-prefixed to keep it injective. A bare `<route>:<id>` join
 is not: route `a` receiving the id `b:1` lands on route `a:b`'s event `1`.
 
 Keying on the provider instead meant the second sender's genuine delivery met the

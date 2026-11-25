@@ -271,11 +271,6 @@ crate = "crates/fraiseql-functions"
 command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-functions --lib migrations::tests -- --test-threads=1"
 
 [[shard]]
-name = "webhooks-ledger"
-crate = "crates/fraiseql-webhooks"
-command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-webhooks --test inbound_pipeline_pg -- --test-threads=1"
-
-[[shard]]
 name = "observers-change-log-rls"
 crate = "crates/fraiseql-observers"
 command = "FRAISEQL_TEST_REQUIRE_POSTGRES=1 cargo test -p fraiseql-observers --test rls_isolation -- --ignored --test-threads=1"
@@ -1876,15 +1871,6 @@ anchor = "ALTER TABLE _fraiseql_suppression ENABLE ROW LEVEL SECURITY"
 mutant = "ALTER TABLE _fraiseql_suppression DISABLE ROW LEVEL SECURITY"
 killers = ["send_tracking_rows_are_read_through_the_tenant_policy"]
 shard = "functions-migrations"
-
-[[site]]
-id = "rls-enable.webhooks.idempotency.SCHEMA_SQL"
-file = "crates/fraiseql-webhooks/src/idempotency.rs"
-function = "SCHEMA_SQL"
-anchor = "ALTER TABLE webhooks.tb_inbound_delivery ENABLE ROW LEVEL SECURITY"
-mutant = "ALTER TABLE webhooks.tb_inbound_delivery DISABLE ROW LEVEL SECURITY"
-killers = ["rls_denies_inbound_delivery_ledger_by_default"]
-shard = "webhooks-ledger"
 
 [[site]]
 id = "rls-policy.observers.migration-12.p_change_log_tenant_read.tb_entity_change_log"

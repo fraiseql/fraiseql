@@ -17,8 +17,7 @@ impl Capability for InboundWebhooks {
         cx.server.application_pool().is_some() && !cx.server.webhook_routes.is_empty()
     }
 
-    /// The spine that holds normalized messages, and the idempotency ledger behind the
-    /// pipeline's atomic claim.
+    /// The spine that holds normalized messages; its insert is each delivery's claim.
     #[cfg(feature = "inbound")]
     fn provision(&self, cx: &BootCx<'_>) -> Vec<ProvisionStep> {
         let server = cx.server;
@@ -26,10 +25,7 @@ impl Capability for InboundWebhooks {
             Some(pool) if !server.config.webhooks.is_empty() => vec![ProvisionStep::new(
                 "inbound webhook",
                 pool,
-                &[
-                    fraiseql_functions::migrations::inbound_migration_sql(),
-                    fraiseql_webhooks::idempotency::SCHEMA_SQL,
-                ],
+                &[fraiseql_functions::migrations::inbound_migration_sql()],
             )],
             _ => Vec::new(),
         }

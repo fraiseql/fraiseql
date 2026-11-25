@@ -82,11 +82,15 @@ CREATE INDEX IF NOT EXISTS idx_cron_state_next_fire
 /// | `idempotency_key` | `TEXT NOT NULL` | Provider event id or `Message-ID` |
 /// | `thread_key` | `TEXT` | Conversation key (reply-awareness) |
 /// | `payload` | `JSONB NOT NULL` | The full normalized `InboundMessage` |
+/// | `event_type` | `TEXT` | The verified webhook event type; `NULL` where the source has none |
 /// | `received_at` | `TIMESTAMPTZ NOT NULL` | When the adapter received it |
 /// | `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | Row insertion time |
 ///
-/// The `UNIQUE (source, idempotency_key)` constraint is the dedup key: an
-/// `INSERT … ON CONFLICT DO NOTHING` against it discards a redelivery.
+/// The `UNIQUE (source, idempotency_key)` constraint is the dedup key, and the only
+/// one an inbound delivery is claimed under: an `INSERT … ON CONFLICT DO NOTHING`
+/// against it discards a redelivery. `event_type` is also added by an `ALTER TABLE
+/// … ADD COLUMN IF NOT EXISTS`, so the DDL converges on a table an earlier version
+/// of it created.
 ///
 /// `_fraiseql_inbound_dispatch`, keyed `(fk_inbound_message, function_name)`: `state`
 /// (`pending` → `dispatched` | `dead_lettered`), `attempts`, `lease_until` (while it is in the
@@ -108,10 +112,13 @@ CREATE TABLE IF NOT EXISTS _fraiseql_inbound_message (
     idempotency_key    TEXT        NOT NULL,
     thread_key         TEXT,
     payload            JSONB       NOT NULL,
+    event_type         TEXT,
     received_at        TIMESTAMPTZ NOT NULL,
     created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (source, idempotency_key)
 );
+
+ALTER TABLE _fraiseql_inbound_message ADD COLUMN IF NOT EXISTS event_type TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_inbound_message_thread
     ON _fraiseql_inbound_message (thread_key)

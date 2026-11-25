@@ -32,7 +32,7 @@ pub mod twilio;
 ///
 /// Deriving the delivery's id and type from the *unverified* body is the #751
 /// class: it put the entire replay defence under the control of whoever sent the
-/// request. The pipeline therefore builds the ledger claim, the spine row and the
+/// request. The pipeline therefore builds the dedup claim, the spine row and the
 /// `after:ingest` dispatch from this value and nothing else.
 ///
 /// Deliberately **not** `#[non_exhaustive]`: implementors outside this crate have

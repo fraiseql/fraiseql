@@ -95,7 +95,7 @@ async fn emit_in_tx_rolls_back_with_the_caller_transaction() {
     let key = uuid::Uuid::new_v4().to_string();
 
     let mut tx = pool.begin().await.unwrap();
-    let emitted = emit_in_tx(&mut tx, &message(&key)).await.unwrap();
+    let emitted = emit_in_tx(&mut tx, &message(&key), None).await.unwrap();
     assert!(emitted.is_new());
     tx.rollback().await.unwrap();
 

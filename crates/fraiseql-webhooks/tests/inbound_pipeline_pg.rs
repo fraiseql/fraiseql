@@ -1,42 +1,36 @@
 //! Live-PostgreSQL integration tests for the #431 inbound webhook pipeline.
 //!
-//! These prove the parts that only a real database can: the atomic idempotency
-//! claim, the single-transaction handoff (claim + handler commit or roll back
-//! together), and the deny-by-default RLS posture of the delivery ledger. The
-//! signature-verification short-circuit is unit-tested in `src/pipeline/tests.rs`
-//! (no DB) and is exercised here once end-to-end to prove a forged delivery writes
-//! no row.
+//! These prove the pipeline's half of the contract with its handler, which only a
+//! real database can: the handler is the delivery's one claim, its `Duplicate` is
+//! reported as a duplicate, and its failure rolls its claim back with everything
+//! else in the transaction. The handlers below claim the way the server's spine
+//! does, with `INSERT … ON CONFLICT DO NOTHING` on the transaction they are given.
+//! The signature-verification short-circuit is unit-tested in
+//! `src/pipeline/tests.rs` (no DB) and is exercised here once end-to-end to prove a
+//! forged delivery writes no row.
 //!
 //! Self-skips when no `DATABASE_URL` is set (no `#[ignore]`), so it is inert in the
 //! database-free `test` leg and runs in the Dagger `integration: postgres` suite,
 //! which binds Postgres and injects `DATABASE_URL`.
 //!
 //! **Execution engine:** PostgreSQL · **Infrastructure:** `DATABASE_URL` ·
-//! **Parallelism:** truncates the shared `webhooks` tables on setup → run
+//! **Parallelism:** truncates the shared `webhooks.tb_claim_test` on setup → run
 //! `--test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 #![allow(clippy::missing_const_for_fn)] // Reason: const fn not stable for all patterns used (matches the lib crate)
 
-use std::str::FromStr;
-
 use fraiseql_test_support::try_database_url;
 use fraiseql_webhooks::{
-    Authenticated, Delivery, Disposition, EventHandler, Handled, InboundRequest,
-    PostgresIdempotencyStore, Result, SignatureError, SignatureVerifier, StaticSecretProvider,
-    Verified, VerifiedEvent, WebhookError, WebhookPipeline,
+    Authenticated, Delivery, Disposition, EventHandler, Handled, InboundRequest, Result,
+    SignatureError, SignatureVerifier, StaticSecretProvider, Verified, VerifiedEvent, WebhookError,
+    WebhookPipeline,
 };
 use serde_json::{Value, json};
-use sqlx::{
-    PgPool, Postgres, Transaction,
-    postgres::{PgConnectOptions, PgPoolOptions},
-};
-
-const READER_ROLE: &str = "fraiseql_webhooks_rls_reader";
-const ROLE_PASSWORD: &str = "webhooks_rls_test_password";
+use sqlx::{PgPool, Postgres, Transaction, postgres::PgPoolOptions};
 
 // ── Test verifiers ────────────────────────────────────────────────────────────
 // Signature crypto is covered by the per-provider unit/replay tests; these stand
-// in for "valid" / "forged" so the pipeline tests stay focused on dedup + tx.
+// in for "valid" / "forged" so the pipeline tests stay focused on the claim + tx.
 
 struct AcceptingVerifier;
 impl SignatureVerifier for AcceptingVerifier {
@@ -69,90 +63,88 @@ impl SignatureVerifier for RejectingVerifier {
 }
 
 // ── Test handlers ─────────────────────────────────────────────────────────────
-// Each handler records its invocation in `webhooks.tb_handled_test` so a test can
-// assert exactly how many times the handler ran (and whether its effects survived).
+// Each claims the delivery in `webhooks.tb_claim_test`, keyed by the verified
+// event id, so a test can count how many deliveries recorded the event and
+// whether the claim survived.
 
-struct RecordingHandler;
-impl EventHandler for RecordingHandler {
+/// Claim the verified event on `tx`: `true` when this delivery inserted the key.
+async fn claim(
+    function_name: &str,
+    event: &VerifiedEvent,
+    tx: &mut Transaction<'_, Postgres>,
+) -> Result<bool> {
+    let claimed = sqlx::query_scalar::<_, i64>(
+        "INSERT INTO webhooks.tb_claim_test (event_id, event_type, function_name, params) \
+         VALUES ($1, $2, $3, $4) ON CONFLICT (event_id) DO NOTHING RETURNING pk",
+    )
+    .bind(&event.id)
+    .bind(&event.event_type)
+    .bind(function_name)
+    .bind(&event.params)
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(claimed.is_some())
+}
+
+struct ClaimingHandler;
+impl EventHandler for ClaimingHandler {
     async fn handle(
         &self,
         function_name: &str,
-        params: Value,
+        event: &VerifiedEvent,
         tx: &mut Transaction<'_, Postgres>,
     ) -> Result<Handled> {
-        sqlx::query("INSERT INTO webhooks.tb_handled_test (function_name, params) VALUES ($1, $2)")
-            .bind(function_name)
-            .bind(&params)
-            .execute(&mut **tx)
-            .await?;
-        Ok(Handled::Recorded(json!({ "handled": function_name })))
+        if claim(function_name, event, tx).await? {
+            Ok(Handled::Recorded(json!({ "handled": function_name })))
+        } else {
+            Ok(Handled::Duplicate)
+        }
     }
 }
 
-/// Writes its side effect *then* fails — so a test can prove the effect is rolled
-/// back together with the idempotency claim (no "seen but unhandled" row left).
+/// Claims the delivery *then* fails — so a test can prove the claim is rolled back
+/// with the failure (no "seen but unhandled" row left).
 struct FailingHandler;
 impl EventHandler for FailingHandler {
     async fn handle(
         &self,
         function_name: &str,
-        params: Value,
+        event: &VerifiedEvent,
         tx: &mut Transaction<'_, Postgres>,
     ) -> Result<Handled> {
-        sqlx::query("INSERT INTO webhooks.tb_handled_test (function_name, params) VALUES ($1, $2)")
-            .bind(function_name)
-            .bind(&params)
-            .execute(&mut **tx)
-            .await?;
+        assert!(claim(function_name, event, tx).await?, "precondition: a fresh claim");
         Err(WebhookError::Database("handler boom".to_string()))
-    }
-}
-
-/// Reports the event as already-recorded without writing anything — the shape a
-/// handler takes when its own dedup layer refuses the write while the delivery
-/// ledger's claim was fresh (#1176).
-struct DuplicateReportingHandler;
-impl EventHandler for DuplicateReportingHandler {
-    async fn handle(
-        &self,
-        _function_name: &str,
-        _params: Value,
-        _tx: &mut Transaction<'_, Postgres>,
-    ) -> Result<Handled> {
-        Ok(Handled::Duplicate)
     }
 }
 
 // ── Harness ───────────────────────────────────────────────────────────────────
 
-/// Connect as the superuser `DATABASE_URL`, create the ledger + a side table, and
-/// truncate both so each test starts clean. Returns `None` (skip) when unconfigured.
-async fn setup() -> Option<(PostgresIdempotencyStore, PgPool)> {
+/// Connect as the superuser `DATABASE_URL`, create the claim table, and truncate it
+/// so each test starts clean. Returns `None` (skip) when unconfigured.
+async fn setup() -> Option<PgPool> {
     let url = try_database_url()?;
     let admin = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
-    let store = PostgresIdempotencyStore::new(admin.clone());
-    store.init().await.unwrap();
     sqlx::raw_sql(
-        "CREATE TABLE IF NOT EXISTS webhooks.tb_handled_test (
+        "CREATE SCHEMA IF NOT EXISTS webhooks;
+         CREATE TABLE IF NOT EXISTS webhooks.tb_claim_test (
              pk            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+             event_id      TEXT  NOT NULL UNIQUE,
+             event_type    TEXT  NOT NULL,
              function_name TEXT  NOT NULL,
              params        JSONB NOT NULL
-         );",
+         );
+         TRUNCATE webhooks.tb_claim_test RESTART IDENTITY;",
     )
     .execute(&admin)
     .await
     .unwrap();
-    sqlx::query("TRUNCATE webhooks.tb_inbound_delivery, webhooks.tb_handled_test RESTART IDENTITY")
-        .execute(&admin)
-        .await
-        .unwrap();
-    Some((store, admin))
+    Some(admin)
 }
 
 macro_rules! skip_if_no_db {
     () => {
         match setup().await {
-            Some(pair) => pair,
+            Some(pool) => pool,
             None => {
                 eprintln!("skipping #431 inbound pipeline test: DATABASE_URL not set");
                 return;
@@ -168,14 +160,13 @@ static NO_HEADERS: std::sync::LazyLock<std::collections::BTreeMap<String, String
 
 fn delivery() -> Delivery<'static> {
     Delivery {
-        route:         "stripe",
         function_name: "process_payment",
-        request:       InboundRequest::new(&NO_HEADERS, b"{}", None),
+        request:       InboundRequest::new(&NO_HEADERS, br#"{"id":"evt_from_the_body"}"#, None),
     }
 }
 
 /// The `event_of` these tests pass: the id and params are the test's, and they
-/// reach the ledger only through this closure — which is the point of #1321, so
+/// reach the handler only through this closure — which is the point of #1321, so
 /// the tests exercise the real shape rather than a shortcut around it.
 fn event_of(
     event_id: &'static str,
@@ -194,15 +185,8 @@ fn secrets() -> StaticSecretProvider {
     StaticSecretProvider::new().with_secret("stripe", "whsec_test")
 }
 
-async fn delivery_count(pool: &PgPool) -> i64 {
-    sqlx::query_scalar::<_, i64>("SELECT count(*) FROM webhooks.tb_inbound_delivery")
-        .fetch_one(pool)
-        .await
-        .unwrap()
-}
-
-async fn handled_count(pool: &PgPool) -> i64 {
-    sqlx::query_scalar::<_, i64>("SELECT count(*) FROM webhooks.tb_handled_test")
+async fn claimed_count(pool: &PgPool) -> i64 {
+    sqlx::query_scalar::<_, i64>("SELECT count(*) FROM webhooks.tb_claim_test")
         .fetch_one(pool)
         .await
         .unwrap()
@@ -212,8 +196,8 @@ async fn handled_count(pool: &PgPool) -> i64 {
 
 #[tokio::test]
 async fn fresh_delivery_is_processed_and_recorded() {
-    let (store, admin) = skip_if_no_db!();
-    let pipeline = WebhookPipeline::new(admin.clone(), secrets(), store, RecordingHandler);
+    let admin = skip_if_no_db!();
+    let pipeline = WebhookPipeline::new(admin.clone(), secrets(), ClaimingHandler);
 
     let outcome = pipeline
         .process(
@@ -226,14 +210,41 @@ async fn fresh_delivery_is_processed_and_recorded() {
         .unwrap();
 
     assert!(matches!(outcome, Disposition::Processed(_)), "a fresh delivery is processed");
-    assert_eq!(delivery_count(&admin).await, 1, "the claim row is committed");
-    assert_eq!(handled_count(&admin).await, 1, "the handler ran once and its effect committed");
+    assert_eq!(claimed_count(&admin).await, 1, "the handler's claim committed");
+}
+
+/// The handler is given the event `event_of` built and nothing else of the
+/// delivery (#1321): the id it claims on is the verified one, never the id the
+/// unverified body carries.
+#[tokio::test]
+async fn the_handler_claims_on_the_verified_event_not_the_request() {
+    let admin = skip_if_no_db!();
+    let pipeline = WebhookPipeline::new(admin.clone(), secrets(), ClaimingHandler);
+
+    pipeline
+        .process(
+            &AcceptingVerifier,
+            Some("stripe"),
+            &delivery(),
+            event_of("evt_verified", json!({"n": 1})),
+        )
+        .await
+        .unwrap();
+
+    let (event_id, event_type, params): (String, String, Value) =
+        sqlx::query_as("SELECT event_id, event_type, params FROM webhooks.tb_claim_test")
+            .fetch_one(&admin)
+            .await
+            .unwrap();
+    assert_eq!(event_id, "evt_verified", "the claim key is the verified id, not the body's");
+    assert_eq!(event_type, "payment_intent.succeeded");
+    assert_eq!(params, json!({"n": 1}));
 }
 
 #[tokio::test]
-async fn duplicate_delivery_is_discarded_and_handler_runs_once() {
-    let (store, admin) = skip_if_no_db!();
-    let pipeline = WebhookPipeline::new(admin.clone(), secrets(), store, RecordingHandler);
+async fn duplicate_delivery_is_reported_duplicate_and_recorded_once() {
+    let admin = skip_if_no_db!();
+    let pipeline = WebhookPipeline::new(admin.clone(), secrets(), ClaimingHandler);
     let d = delivery();
     let event = || event_of("evt_dup", json!({"id": "evt_dup"}));
 
@@ -243,28 +254,22 @@ async fn duplicate_delivery_is_discarded_and_handler_runs_once() {
     assert!(matches!(first, Disposition::Processed(_)), "first delivery is processed");
     assert!(
         matches!(second, Disposition::Duplicate),
-        "a duplicate (route, event_id) is silently discarded, got: {second:?}",
+        "the handler's Duplicate is the delivery's disposition, got: {second:?}",
     );
-    assert_eq!(delivery_count(&admin).await, 1, "the duplicate adds no second claim row");
-    assert_eq!(
-        handled_count(&admin).await,
-        1,
-        "the handler ran exactly once (not on the duplicate)"
-    );
+    assert_eq!(claimed_count(&admin).await, 1, "the duplicate records nothing");
 }
 
 #[tokio::test]
 async fn concurrent_duplicate_deliveries_process_exactly_once() {
-    let (store_a, admin) = skip_if_no_db!();
-    let store_b = PostgresIdempotencyStore::new(admin.clone());
-    let pipeline_a = WebhookPipeline::new(admin.clone(), secrets(), store_a, RecordingHandler);
-    let pipeline_b = WebhookPipeline::new(admin.clone(), secrets(), store_b, RecordingHandler);
+    let admin = skip_if_no_db!();
+    let pipeline_a = WebhookPipeline::new(admin.clone(), secrets(), ClaimingHandler);
+    let pipeline_b = WebhookPipeline::new(admin.clone(), secrets(), ClaimingHandler);
     let d = delivery();
     let event = || event_of("evt_race", json!({"id": "evt_race"}));
 
-    // Two deliveries of the same (route, event_id) race. They serialise on the
-    // unique-key row lock inside the atomic claim: exactly one inserts and commits,
-    // the other waits, sees the conflict, and is discarded.
+    // Two deliveries of the same event race. They serialise on the unique-key row
+    // lock inside the handler's claim: exactly one inserts and commits, the other
+    // waits, sees the conflict, and answers Duplicate.
     let (a, b) = tokio::join!(
         pipeline_a.process(&AcceptingVerifier, Some("stripe"), &d, event()),
         pipeline_b.process(&AcceptingVerifier, Some("stripe"), &d, event()),
@@ -280,34 +285,31 @@ async fn concurrent_duplicate_deliveries_process_exactly_once() {
         .count();
 
     assert_eq!(processed, 1, "exactly one racer processes the event, got a={a:?} b={b:?}");
-    assert_eq!(duplicate, 1, "the other racer is discarded as a duplicate, got a={a:?} b={b:?}");
-    assert_eq!(delivery_count(&admin).await, 1, "exactly one claim row exists");
-    assert_eq!(handled_count(&admin).await, 1, "the handler ran exactly once under the race");
+    assert_eq!(duplicate, 1, "the other racer is a duplicate, got a={a:?} b={b:?}");
+    assert_eq!(claimed_count(&admin).await, 1, "exactly one claim exists");
 }
 
 #[tokio::test]
-async fn handler_failure_rolls_back_claim_and_effects_so_retry_reprocesses() {
-    let (store, admin) = skip_if_no_db!();
+async fn handler_failure_rolls_back_its_claim_so_retry_reprocesses() {
+    let admin = skip_if_no_db!();
     let d = delivery();
     let event = || event_of("evt_retry", json!({"id": "evt_retry"}));
 
-    // First attempt: the handler writes its side effect, then fails.
-    let failing = WebhookPipeline::new(admin.clone(), secrets(), store, FailingHandler);
+    // First attempt: the handler claims, then fails.
+    let failing = WebhookPipeline::new(admin.clone(), secrets(), FailingHandler);
     let err = failing
         .process(&AcceptingVerifier, Some("stripe"), &d, event())
         .await
         .unwrap_err();
     assert!(matches!(err, WebhookError::Database(_)), "handler error surfaces, got: {err:?}");
     assert_eq!(
-        delivery_count(&admin).await,
+        claimed_count(&admin).await,
         0,
-        "the claim is rolled back with the handler — nothing is recorded as processed",
+        "the claim is rolled back with the failure — nothing is recorded as processed",
     );
-    assert_eq!(handled_count(&admin).await, 0, "the handler's side effect is rolled back too");
 
-    // The sender retries: a fresh store over the same DB, now with a working handler.
-    let store2 = PostgresIdempotencyStore::new(admin.clone());
-    let succeeding = WebhookPipeline::new(admin.clone(), secrets(), store2, RecordingHandler);
+    // The sender retries, and this time the handler completes.
+    let succeeding = WebhookPipeline::new(admin.clone(), secrets(), ClaimingHandler);
     let outcome = succeeding
         .process(&AcceptingVerifier, Some("stripe"), &d, event())
         .await
@@ -316,14 +318,13 @@ async fn handler_failure_rolls_back_claim_and_effects_so_retry_reprocesses() {
         matches!(outcome, Disposition::Processed(_)),
         "the retry reprocesses the event (it was not lost as 'seen but unhandled')",
     );
-    assert_eq!(delivery_count(&admin).await, 1, "the retry now commits the claim");
-    assert_eq!(handled_count(&admin).await, 1, "the retry runs the handler to completion");
+    assert_eq!(claimed_count(&admin).await, 1, "the retry commits the claim");
 }
 
 #[tokio::test]
-async fn forged_signature_writes_no_delivery_row() {
-    let (store, admin) = skip_if_no_db!();
-    let pipeline = WebhookPipeline::new(admin.clone(), secrets(), store, RecordingHandler);
+async fn forged_signature_writes_no_row() {
+    let admin = skip_if_no_db!();
+    let pipeline = WebhookPipeline::new(admin.clone(), secrets(), ClaimingHandler);
 
     let err = pipeline
         .process(
@@ -339,189 +340,5 @@ async fn forged_signature_writes_no_delivery_row() {
         matches!(err, WebhookError::SignatureInvalid(_)),
         "a forged signature is rejected, got: {err:?}",
     );
-    assert_eq!(delivery_count(&admin).await, 0, "a rejected delivery claims no idempotency row");
-    assert_eq!(handled_count(&admin).await, 0, "a rejected delivery never reaches the handler");
-}
-
-/// The delivery ledger is RLS deny-by-default: a `NOBYPASSRLS` role with `SELECT`
-/// granted still reads nothing (no permissive policy), while the owner that runs
-/// the pipeline sees every row.
-#[tokio::test]
-async fn rls_denies_inbound_delivery_ledger_by_default() {
-    let Some(url) = try_database_url() else {
-        eprintln!("skipping #431 RLS test: DATABASE_URL not set");
-        return;
-    };
-    let (store, admin) = setup().await.unwrap();
-    let pipeline = WebhookPipeline::new(admin.clone(), secrets(), store, RecordingHandler);
-    pipeline
-        .process(&AcceptingVerifier, Some("stripe"), &delivery(), event_of("evt_rls", json!({})))
-        .await
-        .unwrap();
-
-    // A NOBYPASSRLS reader with SELECT on the ledger (idempotent across runs).
-    // Reason: test SQL built from names and values this test defines.
-    sqlx::query(sqlx::AssertSqlSafe(format!(
-        "DO $$ BEGIN
-             IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{READER_ROLE}') THEN
-                 CREATE ROLE {READER_ROLE} LOGIN PASSWORD '{ROLE_PASSWORD}' NOSUPERUSER NOBYPASSRLS;
-             END IF;
-         END $$"
-    )))
-    .execute(&admin)
-    .await
-    .unwrap();
-    // Reason: test SQL built from names and values this test defines.
-    sqlx::query(sqlx::AssertSqlSafe(format!(
-        "ALTER ROLE {READER_ROLE} NOSUPERUSER NOBYPASSRLS LOGIN PASSWORD '{ROLE_PASSWORD}'"
-    )))
-    .execute(&admin)
-    .await
-    .unwrap();
-    // Reason: test SQL built from names and values this test defines.
-    sqlx::query(sqlx::AssertSqlSafe(format!("GRANT USAGE ON SCHEMA webhooks TO {READER_ROLE}")))
-        .execute(&admin)
-        .await
-        .unwrap();
-    // Reason: test SQL built from names and values this test defines.
-    sqlx::query(sqlx::AssertSqlSafe(format!(
-        "GRANT SELECT ON webhooks.tb_inbound_delivery TO {READER_ROLE}"
-    )))
-    .execute(&admin)
-    .await
-    .unwrap();
-
-    let reader_opts = PgConnectOptions::from_str(&url)
-        .unwrap()
-        .username(READER_ROLE)
-        .password(ROLE_PASSWORD);
-    let reader = PgPoolOptions::new().max_connections(2).connect_with(reader_opts).await.unwrap();
-
-    assert_eq!(
-        delivery_count(&reader).await,
-        0,
-        "deny-by-default: a NOBYPASSRLS reader sees zero rows (no permissive policy)",
-    );
-    assert_eq!(delivery_count(&admin).await, 1, "the owner bypasses RLS and sees the row");
-}
-
-/// The column names of the delivery ledger, sorted.
-async fn ledger_columns(pool: &PgPool) -> Vec<String> {
-    sqlx::query_scalar::<_, String>(
-        "SELECT column_name FROM information_schema.columns \
-         WHERE table_schema = 'webhooks' AND table_name = 'tb_inbound_delivery' \
-         ORDER BY column_name",
-    )
-    .fetch_all(pool)
-    .await
-    .unwrap()
-}
-
-/// #1046 upgrade path: a ledger created before the dedup namespace was scoped per
-/// route still carries the old `provider` column, and the `CREATE TABLE IF NOT
-/// EXISTS` in `SCHEMA_SQL` will not touch it — the first claim after the upgrade
-/// would fail with *column "route" does not exist*. `init` renames it in place.
-///
-/// The rename is only worth anything if the unique index follows the column: an
-/// `ON CONFLICT (route, event_id)` that no longer resolves to a constraint is an
-/// error, and one resolving to the wrong one would silently stop deduplicating. So
-/// this drives a real redelivery through the migrated table rather than inspecting
-/// the catalogue alone.
-///
-/// Reconstructs the old shape by renaming back rather than dropping, because other
-/// suites share this table. A failure between the two renames leaves the ledger in
-/// its pre-#1046 shape; the next `init` (every suite's setup runs one) repairs it.
-#[tokio::test]
-async fn init_migrates_a_pre_1046_ledger_and_the_claim_stays_atomic() {
-    let (store, admin) = skip_if_no_db!();
-
-    sqlx::query("ALTER TABLE webhooks.tb_inbound_delivery RENAME COLUMN route TO provider")
-        .execute(&admin)
-        .await
-        .unwrap();
-    assert!(
-        ledger_columns(&admin).await.contains(&"provider".to_string()),
-        "precondition: the ledger is in its pre-#1046 shape",
-    );
-
-    store.init().await.unwrap();
-
-    let columns = ledger_columns(&admin).await;
-    assert!(
-        columns.contains(&"route".to_string()),
-        "#1046: init must rename the namespace column on an existing ledger; got {columns:?}",
-    );
-    assert!(
-        !columns.contains(&"provider".to_string()),
-        "#1046: the old column must be renamed, not duplicated; got {columns:?}",
-    );
-
-    let pipeline = WebhookPipeline::new(admin.clone(), secrets(), store, RecordingHandler);
-    let d = delivery();
-    let event = || event_of("evt_migrated", json!({"id": "evt_migrated"}));
-    let first = pipeline.process(&AcceptingVerifier, Some("stripe"), &d, event()).await.unwrap();
-    let second = pipeline.process(&AcceptingVerifier, Some("stripe"), &d, event()).await.unwrap();
-
-    assert!(
-        matches!(first, Disposition::Processed(_)),
-        "a fresh delivery is claimed on the migrated ledger, got: {first:?}",
-    );
-    assert!(
-        matches!(second, Disposition::Duplicate),
-        "the unique index must survive the rename, or every redelivery is processed \
-         again; got: {second:?}",
-    );
-    assert_eq!(delivery_count(&admin).await, 1, "the redelivery adds no second claim row");
-}
-
-// ── #1176: a handler's own duplicate disposition ─────────────────────────────
-
-/// A handler that reports `Duplicate` must not be rendered as `Processed`.
-///
-/// The route answers `{"status":"processed"}` for `Disposition::Processed` and
-/// dispatches on it. Reporting a delivery the handler never wrote as processed
-/// tells the sender its message was accepted and fires the dispatch on a row
-/// this delivery did not create.
-#[tokio::test]
-async fn a_handler_reporting_duplicate_is_not_reported_processed() {
-    let (store, admin) = skip_if_no_db!();
-    let pipeline = WebhookPipeline::new(admin.clone(), secrets(), store, DuplicateReportingHandler);
-    let d = delivery();
-    let event = || event_of("evt_handler_dup", json!({"id": "evt_handler_dup"}));
-
-    let disposition =
-        pipeline.process(&AcceptingVerifier, Some("stripe"), &d, event()).await.unwrap();
-
-    assert!(
-        matches!(disposition, Disposition::Duplicate),
-        "the handler wrote nothing and said so; got: {disposition:?}"
-    );
-    assert_eq!(
-        handled_count(&admin).await,
-        0,
-        "this handler writes no side effect — the count guards the fixture, not the rule"
-    );
-}
-
-/// The half a handler *error* could not give: the claim still commits, so the
-/// sender's next redelivery short-circuits at the ledger.
-///
-/// This is why `Duplicate` is an answer rather than an `Err`. Failing the handler
-/// rolls the claim back, and the state that produced the disagreement — an event
-/// the handler's own layer already owns — does not go away on a retry, so the
-/// sender would ask the same question forever.
-#[tokio::test]
-async fn a_handler_reported_duplicate_still_commits_the_claim() {
-    let (store, admin) = skip_if_no_db!();
-    let pipeline = WebhookPipeline::new(admin.clone(), secrets(), store, DuplicateReportingHandler);
-    let d = delivery();
-    let event = || event_of("evt_handler_dup_claim", json!({"id": "evt_handler_dup_claim"}));
-
-    pipeline.process(&AcceptingVerifier, Some("stripe"), &d, event()).await.unwrap();
-
-    assert_eq!(
-        delivery_count(&admin).await,
-        1,
-        "the ledger claim must survive: without it the sender retries this delivery forever"
-    );
+    assert_eq!(claimed_count(&admin).await, 0, "a rejected delivery never reaches the handler");
 }

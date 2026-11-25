@@ -231,14 +231,14 @@ async fn hanko_reports_the_event_inside_the_token_and_not_the_envelope() {
         json!({ "id": "user-in-the-token", "email": "signed@example.com" }),
         "the payload is the signed `data`, not the outer one"
     );
-    assert!(!id.is_empty(), "and a delivery the ledger can key on");
+    assert!(!id.is_empty(), "and a delivery the dedup claim can key on");
 }
 
 /// Hanko's token carries **no** `jti` and no event id — the issue's "dedup on
 /// `jti`, or the provider's event id" has nothing to name here. The only signed,
 /// delivery-stable material is the token itself, so the id is a digest of it.
 #[tokio::test]
-async fn hanko_keys_the_ledger_on_a_digest_of_the_verified_token() {
+async fn hanko_keys_the_dedup_claim_on_a_digest_of_the_verified_token() {
     let issued = now();
     let claims = json!({
         "sub": "hanko webhooks", "aud": ["my-app"], "iat": issued, "exp": issued + 300,
@@ -395,7 +395,7 @@ async fn kinde_receives_a_token_that_is_the_entire_body_and_carries_no_exp() {
     assert_eq!(
         id, "event_01HQ8",
         "and its id claim is `event_id`. The `webhook-id` header is stable across retries but \
-         UNSIGNED, so it cannot be what the ledger keys on (#751)"
+         UNSIGNED, so it cannot be what the dedup claim keys on (#751)"
     );
     assert_eq!(payload, json!({ "user": { "id": "kp_abc" } }));
 }

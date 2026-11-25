@@ -211,7 +211,7 @@ pub struct SchemeConfig {
     /// The claim carrying the event itself. `None` → the scheme's own default.
     pub payload_claim: Option<String>,
 
-    /// The claim carrying the event's id, which the delivery ledger keys on.
+    /// The claim carrying the event's id, which the delivery's dedup claim keys on.
     ///
     /// `None` → the scheme's own default, which for a publisher whose token
     /// carries no id at all is a digest of the verified token.
@@ -226,7 +226,7 @@ pub struct SchemeConfig {
     /// `None` → the token's `exp` is the only freshness rule, which is the right
     /// default and not a gap: a publisher that retries for 36 hours with a reused
     /// token would have every retry past the window refused by a FraiseQL-chosen
-    /// age. Where a token carries no `exp` at all, the delivery ledger is what
+    /// age. Where a token carries no `exp` at all, the delivery's dedup claim is what
     /// bounds replay, and the scheme's documentation says so.
     pub max_age_secs: Option<u64>,
 }

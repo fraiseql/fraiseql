@@ -1447,6 +1447,11 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// Message-ID to two mailboxes lands twice; a pre-claimed Message-ID cannot
 		// suppress a genuine, differently-bodied message.
 		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --test inbound_email_dedup_scope_pg -- --test-threads=1",
+		// #1782: an inbound webhook delivery is claimed once, by the spine insert. Through
+		// the mounted route with an after:ingest plan: a redelivery is a duplicate, a
+		// failure after the claim rolls it back, a concurrent pair emits once, and the
+		// spine DDL converges on a table created before `event_type`.
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --test webhook_single_claim_e2e_pg -- --test-threads=1",
 		// #573 source scheduler (Model B): the SourceQueryExecutor identity/tenant
 		// seam, the source poller build_host composition (cursor round-trip vs PG +
 		// executor reachable via host.query), and the scheduler's schedulable/config

@@ -2,9 +2,9 @@
 //!
 //! Verifying and **processing** inbound webhooks from third-party services. This
 //! crate provides constant-time signature verification and a genuinely-real
-//! receiver pipeline ([`WebhookPipeline`]) with atomic idempotency and
-//! transactional handler execution. It stops short of the HTTP layer: extracting
-//! the request and routing it to a provider is the caller's (or the server's) job,
+//! receiver pipeline ([`WebhookPipeline`]) that runs a delivery's handler in one
+//! transaction, the handler's own atomic claim included. It stops short of the HTTP layer:
+//! extracting the request and routing it to a provider is the caller's (or the server's) job,
 //! so the crate stays free of any web framework.
 //!
 //! ## What this crate provides
@@ -14,11 +14,8 @@
 //!   route's configuration by [`scheme::build_scheme`] — the one construction, so boot validation
 //!   and the mounted route are served from the same value (#1321).
 //! - A constant-time comparison helper ([`signature::constant_time_eq`]).
-//! - [`WebhookPipeline`] — composes secret resolution → signature verification → atomic idempotency
-//!   claim → transactional handler into one [`process`](WebhookPipeline::process) call (see
-//!   "Security Properties").
-//! - [`PostgresIdempotencyStore`] — a durable delivery ledger whose claim is an `INSERT … ON
-//!   CONFLICT DO NOTHING` issued on the handler's transaction.
+//! - [`WebhookPipeline`] — composes secret resolution → signature verification → transactional
+//!   handler into one [`process`](WebhookPipeline::process) call (see "Security Properties").
 //! - [`StaticSecretProvider`] — an in-memory [`SecretProvider`] for callers that load signing
 //!   secrets at startup.
 //!
@@ -29,7 +26,9 @@
 //!   the route).
 //! - **No built-in event handler** — mapping a verified event to *your* database function is
 //!   inherently app-specific; you implement [`traits::EventHandler`] (the pipeline runs it inside
-//!   the delivery's transaction).
+//!   the delivery's transaction). The handler is also the delivery's claim: it records the event
+//!   under a unique key of its own and answers [`Handled::Duplicate`] when an earlier committed
+//!   delivery already holds that key.
 //!
 //! ## Inbound vs. Outbound
 //!
@@ -69,12 +68,14 @@
 //!
 //! - **Verify before any database work** — a forged or malformed signature is rejected before a
 //!   connection is taken, so an attacker cannot drive load onto the pool.
-//! - **Idempotency** — a duplicate delivery is detected and silently discarded. The claim is an
-//!   atomic `INSERT … ON CONFLICT DO NOTHING` on the handler's own transaction, so concurrent
-//!   duplicate deliveries serialise on the unique-key row lock and exactly one is processed.
-//! - **Transactional handler execution** — the idempotency claim and the handler commit or roll
-//!   back together. A handler failure rolls the claim back, so the sender's retry reprocesses the
-//!   event rather than it being lost as "seen but unhandled" (no lost / double-processed events).
+//! - **One claim, in the handler's transaction** — the handler claims the delivery with an atomic
+//!   `INSERT … ON CONFLICT DO NOTHING` on the transaction the pipeline gives it, so concurrent
+//!   duplicate deliveries serialise on the unique-key row lock and exactly one is processed; the
+//!   others answer [`Handled::Duplicate`], which the pipeline reports as
+//!   [`Disposition::Duplicate`].
+//! - **Transactional handler execution** — the claim and the rest of the handler's work commit or
+//!   roll back together. A handler failure rolls the claim back, so the sender's retry reprocesses
+//!   the event rather than it being lost as "seen but unhandled".
 //!
 //! ## See Also
 //!
@@ -97,7 +98,6 @@
 //! - **Replay protection**: Timestamp-window validation for providers that sign a timestamp
 //! - **Custom providers**: Register your own verifier via [`traits::SignatureVerifier`]
 
-pub mod idempotency;
 pub mod pipeline;
 pub mod request;
 pub mod scheme;
@@ -110,7 +110,6 @@ pub mod transaction;
 // Re-exports
 /// The `futures` this crate's public API is built against (#1198).
 pub use futures;
-pub use idempotency::PostgresIdempotencyStore;
 pub use pipeline::{
     Authenticated, Delivery, Disposition, VerifiedEvent, WebhookPipeline, verify_signature,
 };
@@ -127,9 +126,7 @@ pub use sqlx;
 // Re-export testing mocks for unit tests and integration tests with `testing` feature
 #[cfg(any(test, feature = "testing"))]
 pub use testing::mocks;
-pub use traits::{
-    Clock, EventHandler, Handled, IdempotencyStore, SecretProvider, SignatureVerifier,
-};
+pub use traits::{Clock, EventHandler, Handled, SecretProvider, SignatureVerifier};
 pub use transaction::{WebhookIsolation, execute_in_transaction};
 
 /// Errors that can occur while verifying a webhook and running caller-supplied seams.

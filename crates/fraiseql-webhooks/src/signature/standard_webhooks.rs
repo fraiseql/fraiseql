@@ -19,9 +19,9 @@
 //! That is the whole difference from #751, where the receiver keyed on the same
 //! header *before anything signed it*: one captured delivery replayed under a fresh
 //! id claimed a fresh key and re-fired every `after:ingest` function, indefinitely.
-//! Verification here reports [`Verified::BodyWithId`], and the id the ledger claims
-//! comes out of that value and nowhere else — so a replay under a fresh id does not
-//! reach the ledger at all, it fails the signature.
+//! Verification here reports [`Verified::BodyWithId`], and the id the dedup claim
+//! keys on comes out of that value and nowhere else — so a replay under a fresh id
+//! does not reach the claim at all, it fails the signature.
 //!
 //! # `v1a` (Ed25519) is not implemented
 //!
@@ -222,7 +222,7 @@ impl SignatureVerifier for StandardWebhooksVerifier {
             .header(&self.signature_header)
             .ok_or_else(|| SignatureError::MissingCredential(self.signature_header.clone()))?;
         // The id is as load-bearing as the signature: without it there is no signed
-        // content to compute, and it is what the ledger will claim. Absent, the
+        // content to compute, and it is what the dedup claim keys on. Absent, the
         // delivery is not a Standard Webhooks delivery.
         let id = request
             .header(&self.id_header)

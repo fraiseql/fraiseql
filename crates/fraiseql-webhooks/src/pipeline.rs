@@ -10,11 +10,12 @@
 //!    ([`Verified`]), not "was the signature good?".
 //! 3. **Read the event out of that**, through the caller's `event_of` closure. The delivery's id,
 //!    type and params exist only from here on (#1321).
-//! 4. **Atomically claim and process** inside a single transaction
-//!    ([`execute_in_transaction`](crate::execute_in_transaction)): the [`IdempotencyStore::claim`]
-//!    and the [`EventHandler`] commit or roll back together. A duplicate delivery is silently
-//!    discarded ([`Disposition::Duplicate`]); a handler failure rolls the claim back so the
-//!    sender's retry reprocesses cleanly.
+//! 4. **Handle** inside a single transaction
+//!    ([`execute_in_transaction`](crate::execute_in_transaction)). The [`EventHandler`] is the
+//!    delivery's one claim: it records the event under its own unique key and answers
+//!    [`Handled::Duplicate`] when an earlier committed delivery holds it, which is reported as
+//!    [`Disposition::Duplicate`]. A handler failure rolls the claim back with everything else, so
+//!    the sender's retry reprocesses cleanly.
 //!
 //! The HTTP receiver endpoint and provider/event routing that sit *in front* of
 //! this pipeline are the caller's (or the server's) responsibility — this crate
@@ -23,8 +24,8 @@
 use serde_json::Value;
 
 use crate::{
-    EventHandler, Handled, IdempotencyStore, Result, SecretProvider, SignatureVerifier,
-    WebhookError, WebhookIsolation,
+    EventHandler, Handled, Result, SecretProvider, SignatureVerifier, WebhookError,
+    WebhookIsolation,
     request::InboundRequest,
     signature::{SignatureError, Verified},
 };
@@ -42,17 +43,6 @@ use crate::{
 /// control of whoever sent the request (#751) for any scheme that does not sign
 /// the body verbatim.
 pub struct Delivery<'a> {
-    /// Which configured receiving endpoint this delivery arrived on — the first
-    /// half of the idempotency key, and the dedup namespace.
-    ///
-    /// **Not the provider (#1046).** Several endpoints may serve one provider
-    /// under separate signing secrets (two partners on the generic `hmac-sha256`
-    /// scheme, a live/test pair, two accounts of one multi-tenant provider), and
-    /// each sender numbers its own events from scratch. Keying on the provider
-    /// therefore let one sender's event `1001` discard another's as a duplicate,
-    /// answering `200` so the loss was silent and permanent. Give each endpoint a
-    /// distinct value — the server passes the route's path segment.
-    pub route:         &'a str,
     /// Name of the database function the handler invokes for this event.
     pub function_name: &'a str,
     /// The request itself. The scheme locates its own credential in it (#1321):
@@ -66,7 +56,7 @@ pub struct Delivery<'a> {
 ///
 /// The caller cannot reach the request body through this type unless verification
 /// succeeded, and cannot reach an id or a type at all unless the scheme reported
-/// one — which is what keeps the #751 class out of the delivery ledger.
+/// one — which is what keeps the #751 class out of the delivery's dedup key.
 ///
 /// Deliberately **not** `#[non_exhaustive]`, like [`Handled`]: a third kind of
 /// authenticated material must be a compile error at every match site, not
@@ -83,7 +73,7 @@ pub enum Authenticated<'a> {
     BodyWithId {
         /// The verified request body.
         body: &'a [u8],
-        /// The event's id, as signed. The caller must key the ledger on this and
+        /// The event's id, as signed. The caller must key the dedup claim on this and
         /// not on anything it can read out of `body`.
         id:   &'a str,
     },
@@ -102,8 +92,9 @@ pub enum Authenticated<'a> {
 /// The event a verified delivery turned out to be — the caller's answer to an
 /// [`Authenticated`] view.
 ///
-/// `id` is the second half of the idempotency key, `event_type` is recorded with
-/// the claim, and `params` is what the [`EventHandler`] is given.
+/// It is all the [`EventHandler`] is given of the delivery: every field was read
+/// out of what the scheme authenticated, so a handler cannot key its claim on
+/// anything else (#1321).
 #[derive(Debug, Clone)]
 pub struct VerifiedEvent {
     /// Unique delivery id, as authenticated.
@@ -118,11 +109,11 @@ pub struct VerifiedEvent {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum Disposition {
-    /// The delivery was newly claimed and the handler ran; carries the handler's
-    /// return value. The claim and the handler's effects committed together.
+    /// The handler recorded the delivery; carries its return value. The claim and
+    /// the handler's other effects committed together.
     Processed(Value),
-    /// The delivery was already processed by an earlier committed delivery and was
-    /// silently discarded (no handler ran).
+    /// An earlier committed delivery already holds this event's claim; the handler
+    /// recorded nothing.
     Duplicate,
 }
 
@@ -179,38 +170,34 @@ pub async fn verify_signature(
 
 /// A genuinely-real inbound webhook receiver pipeline over a PostgreSQL pool.
 ///
-/// Holds the wired seams (secret provider, idempotency store, event handler) and
-/// the pool, and exposes [`process`](Self::process) to run one delivery through
-/// verify → claim → handle. See the module documentation for the ordering and the
-/// transactional guarantees.
-pub struct WebhookPipeline<P, S, H> {
+/// Holds the wired seams (secret provider, event handler) and the pool, and exposes
+/// [`process`](Self::process) to run one delivery through verify → handle. See the module
+/// documentation for the ordering and the transactional guarantees.
+pub struct WebhookPipeline<P, H> {
     pool:            sqlx::PgPool,
     isolation:       WebhookIsolation,
     secret_provider: P,
-    store:           S,
     handler:         H,
 }
 
-impl<P, S, H> WebhookPipeline<P, S, H>
+impl<P, H> WebhookPipeline<P, H>
 where
     P: SecretProvider,
-    S: IdempotencyStore,
     H: EventHandler,
 {
     /// Build a pipeline from a pool and its wired seams. Uses
     /// [`WebhookIsolation::ReadCommitted`] by default; override with
     /// [`with_isolation`](Self::with_isolation).
-    pub fn new(pool: sqlx::PgPool, secret_provider: P, store: S, handler: H) -> Self {
+    pub fn new(pool: sqlx::PgPool, secret_provider: P, handler: H) -> Self {
         Self {
             pool,
             isolation: WebhookIsolation::default(),
             secret_provider,
-            store,
             handler,
         }
     }
 
-    /// Set the transaction isolation level used for the claim + handler step.
+    /// Set the transaction isolation level the handler runs at.
     #[must_use]
     pub fn with_isolation(mut self, isolation: WebhookIsolation) -> Self {
         self.isolation = isolation;
@@ -218,18 +205,18 @@ where
     }
 
     /// Process one inbound delivery: resolve secret → verify → **ask the caller what
-    /// was authenticated** → atomically claim and run the handler in one transaction.
+    /// was authenticated** → run the handler in one transaction.
     ///
     /// `event_of` is called with an [`Authenticated`] view of what verification
-    /// established, and returns the [`VerifiedEvent`] the claim and the handler are
-    /// built from. It is the only way an id reaches the ledger, which is what makes
-    /// the #751 class — a dedup key taken from the unverified request — not
-    /// expressible here (#1321). It runs **after** verification and **before** any
-    /// database work, so it must not do I/O.
+    /// established, and returns the [`VerifiedEvent`] the handler is given — all it
+    /// is given of the delivery. It is the only way an id reaches the handler's
+    /// claim, which is what makes the #751 class — a dedup key taken from the
+    /// unverified request — not expressible here (#1321). It runs **after**
+    /// verification and **before** any database work, so it must not do I/O.
     ///
-    /// Returns [`Disposition::Processed`] when the handler ran and committed, or
-    /// [`Disposition::Duplicate`] when an earlier committed delivery already
-    /// claimed this `(route, id)`.
+    /// Returns [`Disposition::Processed`] when the handler recorded the delivery and
+    /// committed, or [`Disposition::Duplicate`] when it answered that an earlier
+    /// committed delivery holds the claim.
     ///
     /// # Errors
     ///
@@ -237,9 +224,9 @@ where
     /// - [`WebhookError::SignatureInvalid`] if verification fails (no DB work).
     /// - Whatever `event_of` returns — the delivery verified but could not be read as an event (no
     ///   DB work).
-    /// - [`WebhookError::Database`] if the claim or transaction fails.
-    /// - Whatever the handler returns — on which the whole transaction (claim included) is rolled
-    ///   back, so the delivery is *not* recorded as processed.
+    /// - [`WebhookError::Database`] if the transaction fails.
+    /// - Whatever the handler returns — on which the whole transaction (its claim included) is
+    ///   rolled back, so the delivery is *not* recorded as processed.
     pub async fn process(
         &self,
         verifier: &dyn SignatureVerifier,
@@ -279,44 +266,23 @@ where
             },
         })?;
 
-        // 4. Atomic claim + handler in one transaction. The claim and the handler's effects commit
-        //    or roll back together (no lost / double-processed events). The transaction is managed
-        //    inline rather than via `execute_in_transaction` because the seam futures (`claim` /
-        //    `handle`) are `async fn` in traits and so are not `Send` behind a `dyn`-boxed future;
-        //    inlining keeps the whole `process` future `Send` by monomorphisation.
-        //    `execute_in_transaction` remains the public building block for callers driving their
-        //    own closures.
+        // 4. The handler in one transaction. Its claim and its other effects commit or roll back
+        //    together (no lost / double-processed events). The transaction is managed inline rather
+        //    than via `execute_in_transaction` because the seam future (`handle`) is an `async fn`
+        //    in a trait and so is not `Send` behind a `dyn`-boxed future; inlining keeps the whole
+        //    `process` future `Send` by monomorphisation. `execute_in_transaction` remains the
+        //    public building block for callers driving their own closures.
         let mut tx = self.pool.begin().await?;
         sqlx::query(self.isolation.set_transaction_sql()).execute(&mut *tx).await?;
 
-        let claimed =
-            match self.store.claim(&mut tx, delivery.route, &event.id, &event.event_type).await {
-                Ok(claimed) => claimed,
-                Err(e) => return Err(rollback_then(tx, e).await),
-            };
-
-        let disposition = match claimed {
-            // ON CONFLICT yielded no row → an earlier committed delivery owns this key.
-            // Discard silently; the (empty) transaction commits below.
-            None => Disposition::Duplicate,
-            Some(_id) => match self
-                .handler
-                .handle(delivery.function_name, event.params.clone(), &mut tx)
-                .await
-            {
-                Ok(Handled::Recorded(result)) => Disposition::Processed(result),
-                // #1176: the claim was fresh and the handler still found the event
-                // already recorded — the two dedup layers disagree. The delivery is
-                // reported as the duplicate it is (not `processed`, and with no
-                // dispatch), and the claim below still COMMITS, which is the half a
-                // handler error could not give: the sender's next redelivery
-                // short-circuits at the ledger instead of asking the same question
-                // forever.
-                Ok(Handled::Duplicate) => Disposition::Duplicate,
-                // Handler failed → roll the claim back too, so the sender's retry
-                // reprocesses the event instead of it being lost as "seen but unhandled".
-                Err(e) => return Err(rollback_then(tx, e).await),
-            },
+        let disposition = match self.handler.handle(delivery.function_name, &event, &mut tx).await {
+            Ok(Handled::Recorded(result)) => Disposition::Processed(result),
+            // An earlier committed delivery holds the claim: nothing was written, and the
+            // (empty) transaction commits below.
+            Ok(Handled::Duplicate) => Disposition::Duplicate,
+            // Handler failed → roll its claim back too, so the sender's retry reprocesses the
+            // event instead of it being lost as "seen but unhandled".
+            Err(e) => return Err(rollback_then(tx, e).await),
         };
 
         tx.commit().await?;

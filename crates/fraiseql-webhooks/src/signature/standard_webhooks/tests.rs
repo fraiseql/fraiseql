@@ -187,7 +187,7 @@ fn a_timestamp_one_second_beyond_the_tolerance_is_refused() {
 fn a_genuine_delivery_whose_id_header_was_changed_is_refused() {
     // The #751 attack, closed by the signature rather than by ignoring the header:
     // the delivery below is genuine in every byte except the id, and the id is
-    // inside the signed content. Before this scheme the receiver keyed the ledger on
+    // inside the signed content. Before this scheme the receiver keyed the dedup claim on
     // exactly this header before anything signed it, so one captured delivery
     // replayed under a fresh id claimed a fresh key and re-fired every `after:ingest`
     // function.

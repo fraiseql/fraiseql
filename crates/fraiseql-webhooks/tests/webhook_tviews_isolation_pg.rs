@@ -12,16 +12,16 @@
 //! suite skips.
 //!
 //! **Execution engine:** `PostgreSQL` + `pg_tviews` · **Infrastructure:**
-//! `TVIEWS_DATABASE_URL` · **Parallelism:** drops and recreates its own `p1894` schema and
-//! truncates the shared `webhooks` ledger → run `--test-threads=1`.
+//! `TVIEWS_DATABASE_URL` · **Parallelism:** drops and recreates its own `p1894` schema → run
+//! `--test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
 use fraiseql_webhooks::{
-    Authenticated, Delivery, Disposition, EventHandler, Handled, InboundRequest,
-    PostgresIdempotencyStore, Result, SignatureError, SignatureVerifier, StaticSecretProvider,
-    Verified, VerifiedEvent, WebhookIsolation, WebhookPipeline,
+    Authenticated, Delivery, Disposition, EventHandler, Handled, InboundRequest, Result,
+    SignatureError, SignatureVerifier, StaticSecretProvider, Verified, VerifiedEvent,
+    WebhookIsolation, WebhookPipeline,
 };
-use serde_json::{Value, json};
+use serde_json::json;
 use sqlx::{PgPool, Postgres, Transaction, postgres::PgPoolOptions};
 
 const SCHEMA: &str = "p1894";
@@ -47,12 +47,12 @@ impl EventHandler for RenamingHandler {
     async fn handle(
         &self,
         function_name: &str,
-        params: Value,
+        event: &VerifiedEvent,
         tx: &mut Transaction<'_, Postgres>,
     ) -> Result<Handled> {
         // Reason: test SQL built from names and values this test defines.
         sqlx::query(sqlx::AssertSqlSafe(format!("UPDATE {SCHEMA}.tb_item SET label = $1")))
-            .bind(params["label"].as_str().unwrap())
+            .bind(event.params["label"].as_str().unwrap())
             .execute(&mut **tx)
             .await?;
         Ok(Handled::Recorded(json!({ "handled": function_name })))
@@ -63,7 +63,7 @@ fn tviews_database_url() -> Option<String> {
     std::env::var("TVIEWS_DATABASE_URL").ok().filter(|u| !u.is_empty())
 }
 
-/// A base table, the TVIEW over it and an empty delivery ledger. `None` (skip) without
+/// A base table and the TVIEW over it. `None` (skip) without
 /// `TVIEWS_DATABASE_URL`.
 async fn setup() -> Option<PgPool> {
     let url = tviews_database_url()?;
@@ -83,11 +83,6 @@ async fn setup() -> Option<PgPool> {
     .execute(&admin)
     .await
     .unwrap();
-    PostgresIdempotencyStore::new(admin.clone()).init().await.unwrap();
-    sqlx::query("TRUNCATE webhooks.tb_inbound_delivery")
-        .execute(&admin)
-        .await
-        .unwrap();
     Some(admin)
 }
 
@@ -96,7 +91,6 @@ static NO_HEADERS: std::sync::LazyLock<std::collections::BTreeMap<String, String
 
 fn delivery() -> Delivery<'static> {
     Delivery {
-        route:         "stripe",
         function_name: "rename_item",
         request:       InboundRequest::new(&NO_HEADERS, b"{}", None),
     }
@@ -135,7 +129,6 @@ async fn a_handler_writing_a_tviews_base_table_commits_at_every_offered_isolatio
         let outcome = WebhookPipeline::new(
             admin.clone(),
             StaticSecretProvider::new().with_secret("stripe", "whsec_test"),
-            PostgresIdempotencyStore::new(admin.clone()),
             RenamingHandler,
         )
         .with_isolation(level)

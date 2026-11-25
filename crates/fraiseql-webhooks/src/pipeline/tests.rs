@@ -1,14 +1,10 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::panic)] // Reason: NeverHandler panics loudly if the pipeline wrongly reaches it
 
-use serde_json::Value;
 use sqlx::{Postgres, Transaction, postgres::PgPoolOptions};
 
 use super::*;
-use crate::{
-    StaticSecretProvider, idempotency::PostgresIdempotencyStore,
-    testing::mocks::MockSignatureVerifier,
-};
+use crate::{StaticSecretProvider, testing::mocks::MockSignatureVerifier};
 
 /// A handler that must never run in these (pre-transaction) short-circuit tests.
 /// If the pipeline reached the transaction stage, this would panic and fail loudly.
@@ -18,7 +14,7 @@ impl EventHandler for NeverHandler {
     async fn handle(
         &self,
         _function_name: &str,
-        _params: Value,
+        _event: &VerifiedEvent,
         _tx: &mut Transaction<'_, Postgres>,
     ) -> Result<Handled> {
         panic!("handler must not run when the pipeline short-circuits before the transaction");
@@ -31,7 +27,6 @@ static NO_HEADERS: std::sync::LazyLock<std::collections::BTreeMap<String, String
 
 fn delivery() -> Delivery<'static> {
     Delivery {
-        route:         "stripe",
         function_name: "process_payment",
         request:       InboundRequest::new(&NO_HEADERS, b"{}", None),
     }
@@ -92,9 +87,8 @@ fn unreachable_pool() -> sqlx::PgPool {
 async fn forged_signature_is_rejected_before_any_database_work() {
     let pool = unreachable_pool();
     let pipeline = WebhookPipeline::new(
-        pool.clone(),
+        pool,
         StaticSecretProvider::new().with_secret("stripe", "whsec"),
-        PostgresIdempotencyStore::new(pool),
         NeverHandler,
     );
 
@@ -114,9 +108,8 @@ async fn forged_signature_is_rejected_before_any_database_work() {
 async fn missing_secret_is_rejected_before_any_database_work() {
     let pool = unreachable_pool();
     let pipeline = WebhookPipeline::new(
-        pool.clone(),
+        pool,
         StaticSecretProvider::new(), // no secrets registered
-        PostgresIdempotencyStore::new(pool),
         NeverHandler,
     );
 

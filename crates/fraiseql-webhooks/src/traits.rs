@@ -175,51 +175,6 @@ pub trait SignatureVerifier: Send + Sync {
     ) -> std::result::Result<Verified, SignatureError>;
 }
 
-/// Atomic, transaction-scoped deduplication of inbound webhook deliveries.
-///
-/// A delivery is claimed *inside* the same transaction that runs its handler, so
-/// the claim and the handler's effects commit or roll back together. This is the
-/// only race-free shape: two concurrent duplicate deliveries serialise on the
-/// unique-key row lock, exactly one wins, and a handler failure rolls the claim
-/// back so the sender's retry reprocesses cleanly (no lost / double-processed
-/// events). A check-then-record split (read outside the transaction, write after)
-/// has a TOCTOU window where concurrent duplicates both pass the read and both
-/// process — which is why this trait exposes a single atomic [`claim`] rather
-/// than separate check / record calls.
-///
-/// [`claim`]: IdempotencyStore::claim
-#[allow(async_fn_in_trait)] // Reason: trait is used with concrete types only, not dyn Trait
-pub trait IdempotencyStore: Send + Sync {
-    /// Atomically claim a `(route, event_id)` delivery within the caller's
-    /// transaction.
-    ///
-    /// Returns `Ok(Some(id))` when the delivery is newly claimed (the caller
-    /// should process it) and `Ok(None)` when it was already claimed by an
-    /// earlier committed delivery (a duplicate the caller must silently discard).
-    ///
-    /// `route` is the **dedup namespace**: which configured receiving endpoint
-    /// this delivery arrived on. It is deliberately not the provider — two
-    /// endpoints may serve one provider under separate secrets, and each sender
-    /// numbers its own events, so a provider-wide namespace discards the second
-    /// sender's genuine deliveries as duplicates (#1046).
-    ///
-    /// The claim must be performed with the supplied transaction so that it is
-    /// rolled back if the handler later fails — otherwise an event marked
-    /// processed but not handled would be lost.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`WebhookError::Database`](crate::WebhookError::Database) if the
-    /// claim query fails.
-    async fn claim(
-        &self,
-        tx: &mut Transaction<'_, Postgres>,
-        route: &str,
-        event_id: &str,
-        event_type: &str,
-    ) -> Result<Option<uuid::Uuid>>;
-}
-
 /// Secret provider abstraction for testing
 #[allow(async_fn_in_trait)] // Reason: trait is used with concrete types only, not dyn Trait
 pub trait SecretProvider: Send + Sync {
@@ -229,12 +184,8 @@ pub trait SecretProvider: Send + Sync {
 
 /// What a handler did with the delivery it was given (#1176).
 ///
-/// A handler runs **only** when the delivery ledger's `(route, event_id)` claim
-/// was fresh, so a handler that finds the event already durably recorded has
-/// discovered the two dedup layers disagreeing. That is an answer, not a
-/// failure, and it is not the same answer as "recorded": the route must not
-/// report the delivery as processed, and must not fire the dispatch that a
-/// processed delivery earns.
+/// The handler is the delivery's one claim, so its answer is the delivery's
+/// disposition: `Recorded` is reported as processed, `Duplicate` as a duplicate.
 ///
 /// Deliberately **not** `#[non_exhaustive]`. A third outcome should be a compile
 /// error at every match site rather than something a wildcard arm silently
@@ -242,35 +193,48 @@ pub trait SecretProvider: Send + Sync {
 /// dropped on the floor.
 #[derive(Debug)]
 pub enum Handled {
-    /// The handler recorded the event. Carries the value the caller passes on to
-    /// its dispatch.
+    /// The handler claimed and recorded the event. Carries the value the caller
+    /// passes on to its dispatch.
     Recorded(Value),
-    /// An earlier committed delivery already owns this event; the handler wrote
-    /// nothing and no dispatch should fire.
+    /// An earlier committed delivery already holds this event's claim; the handler
+    /// wrote nothing and no dispatch should fire.
     Duplicate,
 }
 
-/// Event handler abstraction for testing
+/// Records a verified webhook event, and is the delivery's one claim.
+///
+/// [`WebhookPipeline`](crate::WebhookPipeline) runs the handler inside the
+/// delivery's transaction and keeps no ledger of its own. So the handler claims
+/// the delivery: an `INSERT … ON CONFLICT DO NOTHING` on a unique key, issued on
+/// the transaction it is given, before anything else it writes. Concurrent
+/// duplicates then serialise on the unique-key row lock and exactly one records
+/// the event; the others find the key taken and answer [`Handled::Duplicate`].
+/// A check-then-insert split instead has a window in which both pass the check.
+///
+/// The key is read from the [`VerifiedEvent`](crate::VerifiedEvent), which holds
+/// only what the scheme authenticated (#1321), and is namespaced by the receiving
+/// endpoint, not the provider: several endpoints may serve one provider, each
+/// sender numbers its own events, and a provider-wide key discards a second
+/// sender's genuine event as a duplicate (#1046). The server carries the endpoint
+/// in the params `event_of` builds.
 #[allow(async_fn_in_trait)] // Reason: trait is used with concrete types only, not dyn Trait
 pub trait EventHandler: Send + Sync {
-    /// Handle webhook event by calling database function.
+    /// Claim and record one verified event.
     ///
-    /// Returning [`Handled::Duplicate`] tells the pipeline this delivery wrote
-    /// nothing because an earlier committed one already owns the event. The
-    /// idempotency claim still commits — see [`Handled`] — so the sender's next
-    /// redelivery short-circuits at the ledger instead of asking again.
+    /// Returning [`Handled::Duplicate`] tells the pipeline an earlier committed
+    /// delivery already holds the claim and this one wrote nothing.
     ///
     /// # Errors
     ///
-    /// Whatever the handler cannot recover from. The pipeline rolls the claim
-    /// back with it, so the sender's retry reprocesses the event rather than
-    /// losing it as "seen but unhandled". Reserve this for a genuine failure: a
-    /// duplicate returned as an error would roll back the claim the sender needs
-    /// in order to stop retrying.
+    /// Whatever the handler cannot recover from. The pipeline rolls the whole
+    /// transaction back with it, the claim included, so the sender's retry
+    /// reprocesses the event rather than losing it as "seen but unhandled".
+    /// Reserve this for a genuine failure: a duplicate returned as an error would
+    /// be retried by the sender forever.
     async fn handle(
         &self,
         function_name: &str,
-        params: Value,
+        event: &crate::VerifiedEvent,
         tx: &mut Transaction<'_, Postgres>,
     ) -> Result<Handled>;
 }

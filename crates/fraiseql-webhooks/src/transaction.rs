@@ -2,9 +2,9 @@
 //!
 //! [`execute_in_transaction`] is the generic building block: it opens a transaction
 //! at a chosen isolation level, runs the caller's closure, and commits on `Ok` /
-//! rolls back on `Err`. [`crate::WebhookPipeline`] uses the same begin → claim →
-//! handle → commit shape inline so that the idempotency claim and the handler share
-//! one transaction (they commit or roll back together); callers driving their own
+//! rolls back on `Err`. [`crate::WebhookPipeline`] uses the same begin → handle →
+//! commit shape inline, so the handler's claim and the rest of its work share one
+//! transaction (they commit or roll back together); callers driving their own
 //! closures can reach for this helper directly.
 
 use futures::future::BoxFuture;

@@ -26,8 +26,9 @@
 //!
 //! The claim ([`emit_in_tx`]) is an `INSERT … ON CONFLICT DO NOTHING RETURNING id`
 //! and is designed to run *inside the receiver's transaction* (the
-//! `fraiseql-webhooks` pipeline hands its handler a `&mut Transaction`), so the
-//! spine write and the receiver's idempotency claim commit or roll back together.
+//! `fraiseql-webhooks` pipeline hands its handler a `&mut Transaction`). It is the
+//! delivery's only claim: the receiver's other writes, the dispatch rows among them,
+//! commit or roll back with it.
 
 use fraiseql_functions::InboundMessage;
 use sqlx::{PgPool, Postgres, Transaction};
@@ -61,8 +62,11 @@ fn db_err(context: &str, error: &sqlx::Error) -> fraiseql_error::FraiseQLError {
 ///
 /// Returns [`Emitted::New`] with the durable id when the message was newly
 /// recorded, or [`Emitted::Duplicate`] when an earlier committed emit already
-/// owns the key. Running inside the caller's transaction keeps the spine write
-/// atomic with the receiver's own idempotency claim.
+/// owns the key. Running inside the caller's transaction makes this insert the
+/// receiver's claim: whatever else the receiver writes commits or rolls back with it.
+///
+/// `event_type` is the verified event type of a webhook delivery, stored in its own
+/// column; a source with none (email) passes `None`, and so does an empty type.
 ///
 /// # Errors
 ///
@@ -71,6 +75,7 @@ fn db_err(context: &str, error: &sqlx::Error) -> fraiseql_error::FraiseQLError {
 pub async fn emit_in_tx(
     tx: &mut Transaction<'_, Postgres>,
     message: &InboundMessage,
+    event_type: Option<&str>,
 ) -> fraiseql_error::Result<Emitted> {
     // The whole normalized message is the durable payload; `InboundMessage` is a
     // plain serde struct of standard types, so this serialization is infallible in
@@ -86,8 +91,8 @@ pub async fn emit_in_tx(
     // duplicate deliveries serialise on the unique-key row lock, so exactly one wins.
     let id = sqlx::query_scalar::<_, uuid::Uuid>(
         "INSERT INTO _fraiseql_inbound_message \
-             (source, idempotency_key, thread_key, payload, received_at) \
-         VALUES ($1, $2, $3, $4::jsonb, $5) \
+             (source, idempotency_key, thread_key, payload, event_type, received_at) \
+         VALUES ($1, $2, $3, $4::jsonb, $5, $6) \
          ON CONFLICT (source, idempotency_key) DO NOTHING \
          RETURNING id",
     )
@@ -95,6 +100,7 @@ pub async fn emit_in_tx(
     .bind(&message.idempotency_key)
     .bind(message.thread_key.as_deref())
     .bind(payload)
+    .bind(event_type.filter(|t| !t.is_empty()))
     .bind(message.received_at)
     .fetch_optional(&mut **tx)
     .await
@@ -146,8 +152,8 @@ impl PostgresInboundSpine {
     ///
     /// A convenience for callers that are not already inside a receiver
     /// transaction (e.g. a pull adapter). Push adapters that run inside the
-    /// receiver's transaction should call [`emit_in_tx`] instead so the write is
-    /// atomic with the receiver's idempotency claim.
+    /// receiver's transaction should call [`emit_in_tx`] instead, so the write is
+    /// the claim their other writes commit or roll back with. Records no event type.
     ///
     /// # Errors
     ///
@@ -155,7 +161,7 @@ impl PostgresInboundSpine {
     /// if the transaction or insert fails.
     pub async fn emit(&self, message: &InboundMessage) -> fraiseql_error::Result<Emitted> {
         let mut tx = self.pool.begin().await.map_err(|error| db_err("begin", &error))?;
-        let emitted = emit_in_tx(&mut tx, message).await?;
+        let emitted = emit_in_tx(&mut tx, message, None).await?;
         tx.commit().await.map_err(|error| db_err("commit", &error))?;
         Ok(emitted)
     }

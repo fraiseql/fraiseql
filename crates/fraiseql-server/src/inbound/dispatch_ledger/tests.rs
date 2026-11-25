@@ -87,7 +87,7 @@ async fn pool(schema: &str) -> Option<(PgPool, fraiseql_test_support::Service)> 
 /// transaction, as a receiver does; the dispatch it would then run never runs (the crash).
 async fn receive(pool: &PgPool, key: &str, functions: &[&str], lease: Duration) -> uuid::Uuid {
     let mut tx = pool.begin().await.unwrap();
-    let Emitted::New(id) = emit_in_tx(&mut tx, &message(key)).await.unwrap() else {
+    let Emitted::New(id) = emit_in_tx(&mut tx, &message(key), None).await.unwrap() else {
         panic!("{key} is new");
     };
     let functions: Vec<String> = functions.iter().map(ToString::to_string).collect();
@@ -121,7 +121,7 @@ async fn the_ledger_is_written_in_the_receivers_transaction() {
         return;
     };
     let mut tx = pool.begin().await.unwrap();
-    let Emitted::New(id) = emit_in_tx(&mut tx, &message("rolled-back")).await.unwrap() else {
+    let Emitted::New(id) = emit_in_tx(&mut tx, &message("rolled-back"), None).await.unwrap() else {
         panic!("new");
     };
     record_pending_in_tx(&mut tx, id, &["classify".to_string()], Duration::from_mins(1))
