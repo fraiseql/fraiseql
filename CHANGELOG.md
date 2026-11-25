@@ -96,6 +96,10 @@ disagreed, and the promise was the part that was wrong.
   from the server: no `[auth]` key enabled phone OTP and no route served it. The second
   factor FraiseQL serves is authenticator-app MFA (TOTP, `mfa = true` in `[auth.local]`).
 
+- **`fraiseql-arrow` builds on arrow, arrow-flight and parquet 60 (#1747).** Its public API
+  takes and returns arrow types (`RecordBatch`, `Schema`), so a crate that passes them in from
+  its own arrow dependency moves to arrow 60 with it.
+
 - **An inbound webhook delivery is claimed once, by the inbound spine (#1782).** Each
   delivery used to be claimed twice in one transaction: in `webhooks.tb_inbound_delivery`
   on `(route, event_id)`, and again by the spine insert on `(source, idempotency_key)`. The
@@ -3020,6 +3024,17 @@ disagreed, and the promise was the part that was wrong.
   way where it registered empty. `registerType` already refused an unannotated class.
 
 ### Security
+
+- **zstd 0.14.5 (RUSTSEC-2026-0391, -0398, -0403) (#1747).** The lock carries one zstd
+  stack: zstd 0.14.5, zstd-safe 8.4.0 and zstd-sys 2.2.0+zstd.1.6.0, replacing 0.13.3, 7.2.4
+  and 2.1.2. Its three consumers moved: compression-codecs 0.4.49 (with async-compression
+  0.4.54, under tower-http's response compression), parquet 60.2.0 with arrow and
+  arrow-flight 60.2.0 (tonic 0.14.9), and wasmtime, whose on-disk compilation cache
+  `fraiseql-functions` no longer enables. The runtime never configured that cache, and it was
+  wasmtime 48's only zstd edge. The three acceptances leave `deny.toml`,
+  `.cargo/audit.toml` and `docs/dependency-risk-policy.md`, and
+  `tools/check-zstd-context-reuse.sh`, the condition of the first, goes with them. The minimum
+  Rust version stays 1.95.0.
 
 - **parquet and arrow 59.3.3 (RUSTSEC-2026-0595) (#2401).** The lock moves parquet and the
   arrow 59 crates from 59.1.0 to 59.3.3, lz4_flex from 0.13.1 to 0.14.2, and adds num-bigint

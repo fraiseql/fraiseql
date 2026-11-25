@@ -62,7 +62,6 @@ func (m *FraiseqlCi) Security(
 		{"secret-scan", m.SecretScan},
 		{"crypto-providers", m.CryptoProviders},
 		{"advisory-paths", m.AdvisoryPaths},
-		{"zstd-context-reuse", m.ZstdContextReuse},
 		{"default-build-minimums", m.DefaultBuildMinimums},
 		{"cargo-deny", m.CargoDeny},
 		{"cargo-audit", m.CargoAudit},
@@ -167,22 +166,6 @@ func (m *FraiseqlCi) AdvisoryPaths(
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").
 		WithExec([]string{"bash", "tools/check-advisory-paths.sh"}).
-		Stdout(ctx)
-}
-
-// ZstdContextReuse runs tools/check-zstd-context-reuse.sh, the condition on which
-// RUSTSEC-2026-0391 is accepted: no direct zstd consumer and no workspace crate calls the
-// stream `with_context` constructors (#1747). Like AdvisoryPaths it needs only `cargo
-// metadata`, so it runs on denyBase.
-func (m *FraiseqlCi) ZstdContextReuse(
-	ctx context.Context,
-	// +ignore=["target", "**/target", ".git"]
-	source *dagger.Directory,
-) (string, error) {
-	return m.denyBase().
-		WithMountedDirectory("/src", source).
-		WithWorkdir("/src").
-		WithExec([]string{"bash", "tools/check-zstd-context-reuse.sh"}).
 		Stdout(ctx)
 }
 

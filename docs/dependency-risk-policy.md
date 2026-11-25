@@ -11,8 +11,8 @@ hard review deadline.
 A CVE is accepted only when **all** of the following are true:
 
 1. No upstream fix is available (`ignore-unfixed: true` in Trivy)
-2. **The exposure is stated accurately and argued.** Three of the eight current acceptances
-   are for crates that *are* in the default build, so "not reachable in a default
+2. **The exposure is stated accurately and argued.** An acceptance can be for a crate
+   that *is* in the default build, so "not reachable in a default
    configuration" is not a precondition — it is one of two arguments that can carry an
    acceptance, and the row must say which one it is making:
    - **absence** — the crate is not compiled into the default artifact (`feature-gated:<f>`
@@ -69,9 +69,6 @@ that reason.
 |----------|-------|------|----------|------------|---------|
 | RUSTSEC-2023-0071 | `rsa@0.9.10` | `jsonwebtoken` 10.4 (`rust_crypto`) → `fraiseql-auth` | `default-build` | Used to VERIFY RS256/384/512 tokens, a public-key operation the advisory does not affect. The one private-key operation is the opt-in `gcs` backend signing its own service-account assertion (Google requires RS256): server-initiated, cached, neither triggerable nor timeable by a caller. `tools/check-crypto-providers.sh` fails on any RSA private key outside `gcs.rs` (#1110) | 2027-01-31 |
 | RUSTSEC-2026-0387 | `crypto-bigint@0.5.5` | `elliptic-curve` 0.13 (`ecdsa`, `p256`, `p384`) → `jsonwebtoken` 10.4, `fraiseql-webhooks`, `aws-sigv4` | `default-build` | Verifying ES256/384 tokens and SendGrid webhook signatures works on public values, which the advisory does not affect. Secret-key use: Apple sign-in's `client_secret` (server-initiated, cached for an hour, neither triggerable nor timeable by a caller) and S3 SigV4a for multi-region access points, whose removal is #1711. Fixed only in 0.7.6, which no elliptic-curve 0.13 release accepts | 2027-01-31 |
-| RUSTSEC-2026-0391 | `zstd@0.13.3` | `compression-codecs` (`tower-http` response compression), `parquet` 59 (opt-in `fraiseql-arrow/parquet`), `wasmtime` 48 cache (`fraiseql-functions`) | `default-build` | The flaw is in the stream `Encoder`/`Decoder::with_context` constructors, which reuse a borrowed context. Nothing we compile calls them: compression-codecs builds each response stream with `with_dictionary`, a fresh owned context; parquet's codec uses the one-shot bulk API (`ZSTD_compress2`, `ZSTD_decompressDCtx`); wasmtime's cache uses `encode_all`/`decode_all`, a fresh context per call, and is not enabled. `tools/check-zstd-context-reuse.sh` fails on any `with_context` constructor, or aliased zstd `Encoder`/`Decoder`, in every direct zstd consumer and every workspace crate; if it fails, this acceptance is void. Fixed only in zstd 0.14.3, which parquet 59 does not accept (#1747) | 2027-01-31 |
-| RUSTSEC-2026-0403 | `zstd-sys@2.1.2+zstd.1.5.7` | `zstd-safe` 7 → `zstd` 0.13 → the same three consumers | `feature-off:legacy` | The flaw is in streaming decompression of legacy (pre-v0.8) frames. Legacy support is compiled out: zstd-sys's build script defines `ZSTD_LEGACY_SUPPORT=0` unless its `legacy` feature is on, and nothing in the graph enables it, even with every feature on. If anything turns it on, `tools/check-advisory-paths.sh` fails and this acceptance is void. Fixed only in zstd-safe 8.2, under zstd 0.14 (#1747) | 2027-01-31 |
-| RUSTSEC-2026-0398 | `zstd-safe@7.2.4` | `zstd` 0.13 → `compression-codecs` (`tower-http` response compression), `parquet` 59 (opt-in `fraiseql-arrow/parquet`), `wasmtime` 48 cache (`fraiseql-functions`) | `feature-off:seekable` | The flaw is in `zstd_safe::seekable::Seekable::decompress`, compiled only with zstd-safe's `seekable` feature, which nothing in the graph enables, even with every FraiseQL feature on; no FraiseQL or dependency code can call it. Fixed only in zstd-safe 8.2, which needs zstd 0.14; parquet 59 requires zstd ^0.13 (#1747) | 2027-01-31 |
 
 ⚠ This row was corrected twice. On 2026-08-16 it claimed `sqlx-mysql` (gone since #374); `rsa`
 in fact arrives via `jsonwebtoken` in the **default** build. That correction then claimed an
@@ -130,6 +127,22 @@ second one.
 
 Kept as a record, not as acceptances. Nothing below is ignored in `deny.toml` or
 `.cargo/audit.toml` any more.
+
+### RUSTSEC-2026-0391, -0398, -0403 (zstd 0.13) — resolved 2026-11-26
+
+All three were accepted while zstd 0.13 had three consumers that did not accept 0.14 (#1747):
+`compression-codecs` (tower-http response compression), `parquet` 59 (opt-in
+`fraiseql-arrow/parquet`) and the `wasmtime` 48 compilation cache (`fraiseql-functions`).
+
+- `compression-codecs` 0.4.49 and `parquet` 60 depend on zstd ^0.14; arrow and arrow-flight
+  moved to 60 with parquet.
+- The wasmtime cache was never configured. `fraiseql-functions` now enables wasmtime 48's
+  default features without `cache`, which removes `wasmtime-internal-cache` and its zstd edge.
+  The first wasmtime release on zstd 0.14 (51) needs a newer Rust than the workspace MSRV.
+
+`Cargo.lock` carries `zstd 0.14.5`, `zstd-safe 8.4.0` and `zstd-sys 2.2.0+zstd.1.6.0` only, and
+`tools/check-zstd-context-reuse.sh`, the condition RUSTSEC-2026-0391 was accepted on, is gone
+with it.
 
 ### RUSTSEC-2025-0134, -2026-0194, -2026-0195, -2026-0204 — resolved 2026-10-04
 

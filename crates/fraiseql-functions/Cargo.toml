@@ -68,10 +68,41 @@ runtime-wasm = ["wasmtime", "wasmtime-wasi"]
 runtime-deno = ["deno_core", "deno_ast"]
 host-live = ["fraiseql-core", "sqlparser", "reqwest"]
 
+# wasmtime 48's default features minus `cache`, the on-disk compilation cache.
+# The runtime never configures that cache, and it is the only path by which
+# wasmtime pulls in zstd 0.13 (#1747). Keep this list equal to wasmtime's own
+# `default` set, less `cache`, when bumping wasmtime.
 [dependencies.wasmtime]
 version = "48"
 optional = true
-features = ["component-model"]
+default-features = false
+features = [
+  "addr2line",
+  "anyhow",
+  "async",
+  "backtrace",
+  "compile-time-builtins",
+  "component-model",
+  "component-model-async",
+  "coredump",
+  "cranelift",
+  "debug",
+  "debug-builtins",
+  "demangle",
+  "gc",
+  "gc-copying",
+  "gc-drc",
+  "gc-null",
+  "parallel-compilation",
+  "pooling-allocator",
+  "profiling",
+  "runtime",
+  "stack-switching",
+  "std",
+  "threads",
+  "wat",
+  "wit-parser",
+]
 
 [dependencies.wasmtime-wasi]
 version = "48"

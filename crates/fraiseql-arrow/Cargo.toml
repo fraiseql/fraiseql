@@ -9,8 +9,8 @@ name = "arrow_vs_json_serialization"
 [dependencies]
 fraiseql-guard = { workspace = true }
 # Arrow ecosystem (with CSV and Parquet support)
-arrow = { version = "59", features = ["csv", "json"] }
-arrow-flight = "59"
+arrow = { version = "60", features = ["csv", "json"] }
+arrow-flight = "60"
 # Async utilities
 async-trait = "0.1"
 # Instants and their calendar text
@@ -26,7 +26,7 @@ futures = "0.3"
 reqwest = { workspace = true }
 # JWT handling (for session token creation and validation)
 jsonwebtoken = "10"
-parquet = { version = "59", optional = true }
+parquet = { version = "60", optional = true }
 prost = "0.14"
 # Serialization
 serde = { version = "1", features = ["derive"] }
