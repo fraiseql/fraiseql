@@ -142,6 +142,11 @@ standard), symmetric with how the query path defaults a query's `jsonb_column` t
 `"data"`. A flat-column extends entity is therefore the one authored with an explicit
 empty `jsonb_column`.
 
+A flat-column entity is sourced from its **type**, not from a query. A query's own root
+read always takes its rows from `data`, so the compiler refuses an authored query whose
+`jsonb_column` is anything but `data`, the empty name included (#2541): the flat shape is
+declared on the type, where the `_entities` builder's type fallback reads it.
+
 `relation` is quoted defensively at SQL-build time (`quote_relation`): split on `.`,
 each segment validated as a safe SQL identifier and double-quoted, so `app.v_org`
 becomes `"app"."v_org"`. The authored value must be the **bare** identifier (`user`),

@@ -5049,11 +5049,14 @@ fn a_document_column_beside_a_function_is_refused_as_a_function_setting() {
     assert!(message.contains("cannot be combined with function = 'fn_users'"), "{message}");
 }
 
-// The empty column: the flat-column shape federation's `_entities` reads (ADR 0014).
+// The empty column: a flat-column federation entity is sourced from its type, not from a
+// query (ADR 0014), and a query's own read takes `data`.
 
 #[test]
-fn a_query_declaring_the_empty_document_column_compiles() {
-    let q = convert_one(paginating_query(|q| q.jsonb_column = Some(String::new())))
-        .expect("the flat-column shape compiles");
-    assert_eq!(q.jsonb_column, "");
+fn a_query_declaring_the_empty_document_column_is_refused() {
+    let message = convert_one(paginating_query(|q| q.jsonb_column = Some(String::new())))
+        .expect_err("a query's read takes `data`")
+        .to_string();
+    assert!(message.contains("jsonb_column = ''"), "{message}");
+    assert!(message.contains("on its type, not on a query"), "{message}");
 }

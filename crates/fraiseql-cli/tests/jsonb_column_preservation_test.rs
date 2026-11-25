@@ -5,8 +5,8 @@
 //! 1. `jsonb_column` field is preserved during schema compilation
 //! 2. `jsonb_column` defaults to "data" when not specified
 //! 3. `QueryDefinition` supports `jsonb_column` field
-//! 4. a `jsonb_column` other than `data` (or the empty flat-column shape) is refused: the runtime
-//!    reads its documents from `data`
+//! 4. a `jsonb_column` other than `data`, the empty name included, is refused: the runtime reads a
+//!    query's documents from `data`
 //!
 //! Issue #268: fraiseql-cli compile drops `jsonb_column` from queries
 
@@ -201,7 +201,7 @@ fn test_jsonb_column_in_compiled_schema_json() {
 }
 
 #[test]
-fn test_multiple_queries_keep_their_own_jsonb_column() {
+fn test_multiple_queries_each_default_or_declare_data() {
     let schema_json = json!({
         "types": [
             {
@@ -235,8 +235,7 @@ fn test_multiple_queries_keep_their_own_jsonb_column() {
                 "return_type": "Order",
                 "returns_list": true,
                 "nullable": false,
-                "sql_source": "tv_order",
-                "jsonb_column": ""
+                "sql_source": "tv_order"
             }
         ]
     });
@@ -249,11 +248,10 @@ fn test_multiple_queries_keep_their_own_jsonb_column() {
     let compiled = fraiseql_cli::schema::SchemaConverter::convert(intermediate)
         .expect("Failed to convert schema");
 
-    // Each query keeps its own jsonb_column: `data`, and the empty flat-column shape
-    // federation's `_entities` reads (ADR 0014).
+    // A declared `data` and an omitted column both compile to `data`.
     assert_eq!(compiled.queries[0].name, "users");
     assert_eq!(compiled.queries[0].jsonb_column, "data");
 
     assert_eq!(compiled.queries[1].name, "orders");
-    assert_eq!(compiled.queries[1].jsonb_column, "");
+    assert_eq!(compiled.queries[1].jsonb_column, "data");
 }
