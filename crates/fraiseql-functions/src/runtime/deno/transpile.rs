@@ -39,8 +39,18 @@ const GUEST_SPECIFIER: &str = "file:///fraiseql-function.ts";
 /// so an untranspilable function dead-letters as a permanent 4xx rather than
 /// being retried.
 pub fn transpile_typescript(source: &str) -> Result<String, String> {
-    let specifier = ModuleSpecifier::parse(GUEST_SPECIFIER)
-        .map_err(|e| format!("SyntaxError: invalid guest specifier: {e}"))?;
+    transpile_module(source, GUEST_SPECIFIER)
+}
+
+/// [`transpile_typescript`] for the module at `url`: a shared module is parsed under its
+/// own URL, so a diagnostic and its source map name that module, not the function.
+///
+/// # Errors
+///
+/// As [`transpile_typescript`].
+pub fn transpile_module(source: &str, url: &str) -> Result<String, String> {
+    let specifier = ModuleSpecifier::parse(url)
+        .map_err(|e| format!("SyntaxError: invalid module specifier: {e}"))?;
 
     let parsed = deno_ast::parse_module(ParseParams {
         specifier,

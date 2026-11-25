@@ -93,9 +93,10 @@ const MANIFEST: &[(&str, &str)] = &[
     ),
     (
         "functions.shared_dir",
-        "compiled functions section; checked at compile time by schema::converter::shared_dir \
-         (a directory not holding function files, and the `@shared/` entry of a deno.json in \
-         module_dir)",
+        "compiled functions section → fraiseql_functions::modules::load_function_module, the \
+         server's and `functions invoke`'s loader (overridable by FRAISEQL_FUNCTIONS_SHARED_DIR); \
+         checked at compile time by schema::converter::shared_dir (a directory not holding \
+         function files, and the `@shared/` entry of a deno.json in module_dir)",
     ),
     (
         "functions.dlq_store",

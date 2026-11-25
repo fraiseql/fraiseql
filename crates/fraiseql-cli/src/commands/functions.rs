@@ -5,10 +5,11 @@
 //! This is the author's inner loop: fixture → run → observe, without a live server,
 //! database, or network.
 //!
-//! The module loads exactly as the server does — one `FunctionModule` read from the
-//! compiled schema's `module_dir`, dispatched through a `FunctionObserver` with the
-//! Deno runtime registered (mirroring
-//! `fraiseql-server::subsystems::loader::build_functions_subsystem`). The host is a
+//! The module loads exactly as the server does: the same environment overrides of the
+//! compiled directories, then the same loader
+//! (`fraiseql_functions::modules::load_function_module`), dispatched through a
+//! `FunctionObserver` with the Deno runtime registered. The report prints the
+//! function's integrity hash, which the server logs when it loads the function. The host is a
 //! recording mock (`RecordingHost`): each op is logged, HTTP/query responses come
 //! from `--mock-http` / `--mock-query` (a matched entry → canned response; a miss
 //! against a configured mock fails loud), and other ops return benign defaults so a
@@ -25,8 +26,7 @@ use std::{
 
 use anyhow::{Context, Result, anyhow, bail};
 use fraiseql_functions::{
-    EventPayload, FunctionDefinition, FunctionModule, FunctionObserver, FunctionsConfig, LogLevel,
-    ResourceLimits, RuntimeType,
+    EventPayload, FunctionObserver, FunctionsConfig, LogLevel, ResourceLimits, RuntimeType,
     host::{HostContext, HttpResponse, dyn_context::DynHostContext},
     runtime::deno::{DenoConfig, DenoRuntime},
     triggers::{
@@ -69,7 +69,9 @@ pub async fn invoke(
     json: bool,
 ) -> Result<i32> {
     // ── Load the compiled schema's functions section + the named definition. ──
-    let functions = load_functions_section(schema_path)?;
+    let mut functions = load_functions_section(schema_path)?;
+    // The directories as the server resolves them, so the harness runs what it would.
+    fraiseql_functions::modules::apply_env_overrides(&mut functions, |key| std::env::var(key).ok());
     let definition = functions
         .definitions
         .iter()
@@ -92,7 +94,11 @@ pub async fn invoke(
     }
 
     // ── Load the module exactly like the server, register the Deno runtime. ──
-    let module = load_module(&functions.module_dir, definition)?;
+    let module = fraiseql_functions::modules::load_function_module(
+        &functions,
+        &definition.name,
+        definition.runtime,
+    )?;
     if module.runtime != RuntimeType::Deno {
         bail!(
             "the invoke harness runs TypeScript/JavaScript (Deno) functions; {name:?} is {:?}",
@@ -120,7 +126,7 @@ pub async fn invoke(
     let calls = host.calls();
     match result {
         Ok(function_result) => {
-            print_success(name, &function_result, &calls, json);
+            print_success(name, &module.source_hash, &function_result, &calls, json);
             // A before:mutation guest's return value *is* a decision, so the harness
             // reports the decision the server would reach rather than leaving the
             // author to read the convention out of the raw JSON.
@@ -152,34 +158,6 @@ fn load_functions_section(schema_path: &Path) -> Result<FunctionsConfig> {
         .ok_or_else(|| anyhow!("{} has no \"functions\" section", schema_path.display()))?;
     serde_json::from_value(functions.clone())
         .with_context(|| format!("parsing the functions section of {}", schema_path.display()))
-}
-
-/// Load the `FunctionModule` from `module_dir`, mirroring the server's loader
-/// (`build_functions_subsystem` → `load_one_module`): try each supported extension,
-/// first existing file wins, fail loud otherwise.
-fn load_module(module_dir: &Path, definition: &FunctionDefinition) -> Result<FunctionModule> {
-    // One definition of where a function's code lives, shared with the server's
-    // loader and the compiler's compile-time check (#1325).
-    let Some(path) = definition.resolve_module_path(module_dir) else {
-        bail!(
-            "no module file for {:?} at {}",
-            definition.name,
-            definition.module_path_pattern(module_dir)
-        );
-    };
-    match definition.runtime {
-        RuntimeType::Deno => {
-            let source = std::fs::read_to_string(&path)
-                .with_context(|| format!("reading module {}", path.display()))?;
-            Ok(FunctionModule::from_source(definition.name.clone(), source, RuntimeType::Deno))
-        },
-        RuntimeType::Wasm => {
-            let bytes = std::fs::read(&path)
-                .with_context(|| format!("reading module {}", path.display()))?;
-            Ok(FunctionModule::from_bytecode(definition.name.clone(), bytes.into()))
-        },
-        other => bail!("unsupported function runtime {other:?}"),
-    }
 }
 
 /// A synthesized dispatch payload plus the row images the predicates evaluate on.
@@ -620,6 +598,7 @@ fn summarize(text: &str) -> String {
 
 fn print_success(
     name: &str,
+    hash: &str,
     result: &fraiseql_functions::FunctionResult,
     calls: &[HostOpCall],
     json: bool,
@@ -629,6 +608,7 @@ fn print_success(
             "{}",
             serde_json::json!({
                 "function": name,
+                "hash": hash,
                 "ok": true,
                 "result": result.value,
                 "duration_ms": result.duration.as_millis(),
@@ -639,6 +619,7 @@ fn print_success(
         return;
     }
     println!("✓ {name} ran in {} ms", result.duration.as_millis());
+    println!("hash: {hash}");
     if let Some(value) = &result.value {
         println!("result: {value}");
     }

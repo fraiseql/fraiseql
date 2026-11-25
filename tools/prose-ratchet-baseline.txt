@@ -4,7 +4,7 @@ fraiseql 0
 fraiseql-arrow 28
 fraiseql-auth 27
 fraiseql-cdc-sinks 1
-fraiseql-cli 211
+fraiseql-cli 210
 fraiseql-codegen 17
 fraiseql-core 406
 fraiseql-db 87
@@ -17,7 +17,7 @@ fraiseql-kafka 0
 fraiseql-observers 32
 fraiseql-saga 19
 fraiseql-secrets 4
-fraiseql-server 569
+fraiseql-server 568
 fraiseql-storage 47
 fraiseql-test-support 1
 fraiseql-test-utils 1

@@ -3,7 +3,9 @@
 //! The compiled schema declares each function (name, trigger, runtime) and a
 //! `module_dir`; the compiled/authored module lives on disk as
 //! `<module_dir>/<name>.<ext>` (`.wasm` for WASM, `.js`/`.ts` for Deno). This
-//! module reads those files, builds the runtime observer with the compiled-in
+//! module reads those files through `fraiseql_functions::modules::load_function_module`
+//! (the loader `fraiseql functions invoke` uses, with a Deno function's shared modules),
+//! logs each function's integrity hash, builds the runtime observer with the compiled-in
 //! runtimes registered, and assembles the [`FunctionsSubsystem`] the server turns
 //! into before-mutation hooks.
 //!
@@ -17,11 +19,13 @@
 //! silently (it is the very class of bug that leaves after:mutation work
 //! mysteriously never firing).
 
-use std::{collections::HashMap, path::Path};
+use std::collections::HashMap;
 
 use fraiseql_error::{FraiseQLError, Result};
 use fraiseql_functions::{
-    FunctionModule, FunctionObserver, RuntimeType, triggers::TriggerRegistry,
+    FunctionModule, FunctionObserver, RuntimeType,
+    modules::{LoadError, load_function_module},
+    triggers::TriggerRegistry,
     types::FunctionDefinition,
 };
 
@@ -101,12 +105,14 @@ fn load_modules(
 ) -> Result<HashMap<String, FunctionModule>> {
     let mut registry = HashMap::with_capacity(config.definitions.len() + connectors.len());
     for definition in &config.definitions {
-        let module = load_one_module(&config.module_dir, definition)?;
+        let module = load_one_module(config, definition)?;
+        log_loaded(&module);
         registry.insert(definition.name.clone(), module);
     }
     for connector in connectors {
         if !registry.contains_key(connector.function) {
-            let module = load_connector(&config.module_dir, *connector)?;
+            let module = load_connector(config, *connector)?;
+            log_loaded(&module);
             registry.insert(connector.function.to_string(), module);
         }
     }
@@ -114,7 +120,10 @@ fn load_modules(
 }
 
 /// Load a source connector's module: a Deno module at `<module_dir>/<function>.<ext>`.
-fn load_connector(module_dir: &Path, connector: SourceConnector<'_>) -> Result<FunctionModule> {
+fn load_connector(
+    config: &FunctionsConfig,
+    connector: SourceConnector<'_>,
+) -> Result<FunctionModule> {
     let runtime = RuntimeType::Deno;
     if !runtime_compiled_in(runtime) {
         return Err(FraiseQLError::Configuration {
@@ -125,24 +134,27 @@ fn load_connector(module_dir: &Path, connector: SourceConnector<'_>) -> Result<F
             ),
         });
     }
-    let Some(path) = runtime.resolve_module_path(module_dir, connector.function) else {
-        return Err(FraiseQLError::Configuration {
+    load_function_module(config, connector.function, runtime).map_err(|error| match error {
+        LoadError::NoModule { pattern, .. } => FraiseQLError::Configuration {
             message: format!(
-                "source {:?} runs the connector {:?}, but no module was found at {} — a \
+                "source {:?} runs the connector {:?}, but no module was found at {pattern} — a \
                  connector is loaded from `<module_dir>/<function>.<ext>`, so the file name \
                  must match the source's `function`",
-                connector.source,
-                connector.function,
-                runtime.module_path_pattern(module_dir, connector.function),
+                connector.source, connector.function,
             ),
-        });
-    };
-    build_module(connector.function, runtime, &path)
+        },
+        other => FraiseQLError::Configuration {
+            message: format!("source {:?}: {other}", connector.source),
+        },
+    })
 }
 
 /// Load one function's module from `<module_dir>/<name>.<ext>`, trying each
-/// extension the function's runtime supports.
-fn load_one_module(module_dir: &Path, definition: &FunctionDefinition) -> Result<FunctionModule> {
+/// extension the function's runtime supports, with the shared modules it imports.
+fn load_one_module(
+    config: &FunctionsConfig,
+    definition: &FunctionDefinition,
+) -> Result<FunctionModule> {
     if !runtime_compiled_in(definition.runtime) {
         return Err(FraiseQLError::Configuration {
             message: format!(
@@ -152,51 +164,19 @@ fn load_one_module(module_dir: &Path, definition: &FunctionDefinition) -> Result
             ),
         });
     }
-
-    // One definition of where a function's code lives, shared with the compiler's
-    // compile-time check and the `functions invoke` harness (#1325).
-    if let Some(path) = definition.resolve_module_path(module_dir) {
-        return build_module(&definition.name, definition.runtime, &path);
-    }
-
-    Err(FraiseQLError::Configuration {
-        message: format!(
-            "function {:?} declares the {:?} runtime but no module file was found at {}",
-            definition.name,
-            definition.runtime,
-            definition.module_path_pattern(module_dir),
-        ),
+    // One loader, shared with the `functions invoke` harness; where a function's code
+    // lives is shared with the compiler's compile-time check too.
+    load_function_module(config, &definition.name, definition.runtime).map_err(|error| {
+        FraiseQLError::Configuration {
+            message: error.to_string(),
+        }
     })
 }
 
-/// Read `path` into a [`FunctionModule`] for `runtime`: raw bytecode for WASM, source
-/// text for Deno.
-fn build_module(name: &str, runtime: RuntimeType, path: &Path) -> Result<FunctionModule> {
-    match runtime {
-        RuntimeType::Wasm => {
-            let bytecode = std::fs::read(path).map_err(|error| FraiseQLError::Configuration {
-                message: format!(
-                    "failed to read WASM module for function {name:?} at {}: {error}",
-                    path.display()
-                ),
-            })?;
-            Ok(FunctionModule::from_bytecode(name.to_string(), bytecode.into()))
-        },
-        RuntimeType::Deno => {
-            let source =
-                std::fs::read_to_string(path).map_err(|error| FraiseQLError::Configuration {
-                    message: format!(
-                        "failed to read Deno module for function {name:?} at {}: {error}",
-                        path.display()
-                    ),
-                })?;
-            Ok(FunctionModule::from_source(name.to_string(), source, RuntimeType::Deno))
-        },
-        // `RuntimeType` is non-exhaustive; a future runtime lands with its own arm.
-        other => Err(FraiseQLError::Configuration {
-            message: format!("function {name:?} declares an unsupported runtime {other:?}"),
-        }),
-    }
+/// Name a loaded module and its integrity hash, the hash `fraiseql functions invoke`
+/// prints for the same files.
+fn log_loaded(module: &FunctionModule) {
+    tracing::info!(function = %module.name, hash = %module.source_hash, "function module loaded");
 }
 
 /// Whether the given runtime is compiled into this build.

@@ -270,6 +270,7 @@ runtime override is:
 | `FRAISEQL_MAX_OFFSET` | The compiled offset ceiling, `[validation] max_offset` (#1306); `0`/`none` lifts it |
 | `FRAISEQL_CHANGELOG_ENABLED` | The compiled change-log toggle (composes AND with the compiled value) |
 | `FRAISEQL_FUNCTIONS_MODULE_DIR` | The compiled `[functions] module_dir`, where function modules load from (#1715) |
+| `FRAISEQL_FUNCTIONS_SHARED_DIR` | The compiled `[functions] shared_dir`, where shared modules load from (#1651) |
 | `FRAISEQL_FUNCTIONS_DLQ_STORE` | The compiled `[functions] dlq_store` backend |
 | `FRAISEQL_FUNCTIONS_DLQ_MAX_SIZE` | The compiled functions DLQ size cap |
 | `FRAISEQL_FUNCTIONS_RETRY_MAX_ATTEMPTS` / `_INITIAL_DELAY_MS` / `_MAX_DELAY_MS` | The compiled functions retry policy |

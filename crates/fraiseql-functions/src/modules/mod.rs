@@ -10,14 +10,20 @@
 //!   parses the imports).
 //! - [`hash`]: the function's integrity hash over its source and those modules.
 //! - [`layout`]: where the shared directory may be.
+//! - [`dirs`]: the directories as a deployment resolves them, environment overrides applied.
+//! - [`load`]: the one loader, the server's and `fraiseql functions invoke`'s.
 
+pub mod dirs;
 #[cfg(feature = "runtime-deno")]
 pub mod graph;
 pub mod hash;
 pub mod layout;
+pub mod load;
 pub mod resolve;
 
+pub use dirs::apply_env_overrides;
 pub use layout::{SharedDirError, check_shared_dir};
+pub use load::{LoadError, load_function_module};
 
 /// A function's shared modules, as the isolate runs them (transpiled `JavaScript`), by
 /// key.

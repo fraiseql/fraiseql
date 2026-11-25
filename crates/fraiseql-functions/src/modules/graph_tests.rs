@@ -62,14 +62,12 @@ fn every_import_form_is_followed() {
         ("c.ts", "export const c = 1;\n"),
         ("d.ts", "export const d = 1;\n"),
         ("e.ts", "export const e = 1;\n"),
-        ("f.ts", "export type F = number;\n"),
         ("g.ts", "export const g = 1;\n"),
     ]);
     let entry = r#"
         import { a } from "@shared/a.ts";
         export { b } from "@shared/b.ts";
         export * from "@shared/c.ts";
-        import type { F } from "@shared/f.ts";
         import "@shared/g.ts";
         export default async () => {
             const d = await import("@shared/d.ts");
@@ -78,9 +76,9 @@ fn every_import_form_is_followed() {
         };
     "#;
     let graph = collect(ENTRY, entry, Some(&root)).unwrap();
-    assert_eq!(keys(&graph), ["a.ts", "b.ts", "c.ts", "d.ts", "e.ts", "f.ts", "g.ts"]);
+    assert_eq!(keys(&graph), ["a.ts", "b.ts", "c.ts", "d.ts", "e.ts", "g.ts"]);
     assert_eq!(
-        graph.modules[&crate::modules::resolve::resolve_specifier("@shared/a.ts").unwrap()],
+        graph.modules[&crate::modules::resolve::resolve_specifier("@shared/a.ts").unwrap()].source,
         "export const a = 1;\n"
     );
 }

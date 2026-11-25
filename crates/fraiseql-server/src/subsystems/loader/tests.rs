@@ -11,6 +11,16 @@ use crate::schema::loader::FunctionsConfig;
 // WASM is always compiled in under `functions-runtime`, so the loader tests use it
 // (the module bytes are not validated at load time — the runtime instantiates them
 // lazily). Deno loading is exercised only when the Deno runtime is compiled in.
+/// A functions config loading from `module_dir`, with no shared directory.
+fn dir_config(module_dir: &std::path::Path) -> FunctionsConfig {
+    FunctionsConfig {
+        module_dir:  module_dir.to_path_buf(),
+        shared_dir:  None,
+        definitions: Vec::new(),
+        dlq_store:   None,
+    }
+}
+
 fn wasm_def(name: &str) -> FunctionDefinition {
     // A plain valid trigger: `update@<name>`-style suffixes were never a real
     // syntax — they loaded only via the #842 blanket fallback, which silently
@@ -23,7 +33,7 @@ fn loads_a_wasm_module_from_bytecode() {
     let dir = tempdir().unwrap();
     std::fs::write(dir.path().join("scoreDeal.wasm"), b"\0asm\x01\0\0\0").unwrap();
 
-    let module = load_one_module(dir.path(), &wasm_def("scoreDeal")).unwrap();
+    let module = load_one_module(&dir_config(dir.path()), &wasm_def("scoreDeal")).unwrap();
     assert_eq!(module.name, "scoreDeal");
     assert_eq!(module.runtime, RuntimeType::Wasm);
     assert_eq!(&module.bytecode[..], b"\0asm\x01\0\0\0");
@@ -33,7 +43,7 @@ fn loads_a_wasm_module_from_bytecode() {
 fn a_missing_module_file_fails_loud() {
     let dir = tempdir().unwrap();
     // No file written → the declared function has no loadable module.
-    let error = load_one_module(dir.path(), &wasm_def("ghost")).unwrap_err();
+    let error = load_one_module(&dir_config(dir.path()), &wasm_def("ghost")).unwrap_err();
     assert!(error.to_string().contains("ghost"), "the error names the function");
 }
 
@@ -76,7 +86,7 @@ fn a_deno_function_without_the_deno_runtime_fails_loud() {
     let dir = tempdir().unwrap();
     std::fs::write(dir.path().join("followUp.ts"), "export default async () => ({});").unwrap();
     let def = FunctionDefinition::new("followUp", "after:mutation:Deal:update", RuntimeType::Deno);
-    let error = load_one_module(dir.path(), &def).unwrap_err();
+    let error = load_one_module(&dir_config(dir.path()), &def).unwrap_err();
     assert!(error.to_string().contains("not compiled into this build"));
 }
 
@@ -88,7 +98,7 @@ fn loads_a_deno_module_from_source() {
     std::fs::write(dir.path().join("followUp.ts"), "export default async () => ({ ok: true });")
         .unwrap();
     let def = FunctionDefinition::new("followUp", "after:mutation:Deal:update", RuntimeType::Deno);
-    let module = load_one_module(dir.path(), &def).unwrap();
+    let module = load_one_module(&dir_config(dir.path()), &def).unwrap();
     assert_eq!(module.runtime, RuntimeType::Deno);
     assert!(String::from_utf8_lossy(&module.bytecode).contains("export default"));
 }

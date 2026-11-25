@@ -1,7 +1,10 @@
 //! A function's module graph: every shared module it imports, read once, at load time.
 //!
-//! The walk starts at the function's own source and follows each import it finds:
-//! static `import`, `export … from`, and `import()` with a string literal. Every
+//! The walk starts at the function's code and follows each import it finds: static
+//! `import`, `export … from`, and `import()` with a string literal. It reads the code
+//! the isolate will run, after type-stripping, so an import the transpiler erases
+//! (`import type`, or one used only as a type) is never followed: it never reaches
+//! the runtime. Each shared module is transpiled here, once. Every
 //! specifier goes through [`resolve_specifier`] and then [`locate`]; the first refusal
 //! stops the load and names the module that wrote the import. Each module is read once:
 //! a key already in the graph is not followed again, so an import cycle ends.
@@ -30,6 +33,7 @@ use deno_ast::{
 };
 
 use super::resolve::{ModuleKey, Refusal, locate, resolve_specifier};
+use crate::runtime::deno::transpile::transpile_module;
 
 /// The most one shared module may hold, in bytes: one mebibyte.
 pub const MAX_MODULE_BYTES: u64 = 1024 * 1024;
@@ -45,7 +49,16 @@ pub const MAX_MODULES: usize = 256;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ModuleGraph {
     /// Every shared module reached from the function, directly or not.
-    pub modules: BTreeMap<ModuleKey, String>,
+    pub modules: BTreeMap<ModuleKey, GraphModule>,
+}
+
+/// One shared module as its load read it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GraphModule {
+    /// The file's text, which the function's integrity hash covers.
+    pub source: String,
+    /// The `JavaScript` the isolate runs: the source with `TypeScript` types stripped.
+    pub code:   String,
 }
 
 /// Why a function's module graph cannot be loaded.
@@ -112,8 +125,9 @@ impl std::fmt::Display for GraphError {
 
 impl std::error::Error for GraphError {}
 
-/// Walk the imports of `entry_source` and read every shared module it reaches.
+/// Walk the imports of `entry_code` and read every shared module it reaches.
 ///
+/// `entry_code` is the function's code as the isolate runs it (type-stripped).
 /// `entry_name` names the function in a refusal. `shared_root` is the canonical shared
 /// directory ([`check_shared_dir`](super::check_shared_dir)); `None` means none is
 /// declared, and any import is refused.
@@ -123,7 +137,7 @@ impl std::error::Error for GraphError {}
 /// The first [`GraphError`] the walk meets.
 pub fn collect(
     entry_name: &str,
-    entry_source: &str,
+    entry_code: &str,
     shared_root: Option<&Path>,
 ) -> Result<ModuleGraph, GraphError> {
     let mut walk = Walk {
@@ -133,13 +147,13 @@ pub fn collect(
         queue: VecDeque::new(),
         read: HashMap::new(),
     };
-    for import in imports(entry_name, entry_source, MediaType::TypeScript)? {
+    for import in imports(entry_name, entry_code)? {
         walk.follow(entry_name, &import)?;
     }
     while let Some(key) = walk.queue.pop_front() {
-        let source = walk.graph.modules[&key].clone();
+        let code = walk.graph.modules[&key].code.clone();
         let importer = key.to_string();
-        for import in imports(&importer, &source, media_type(&key))? {
+        for import in imports(&importer, &code)? {
             walk.follow(&importer, &import)?;
         }
     }
@@ -153,7 +167,7 @@ struct Walk<'a> {
     queue:       VecDeque<ModuleKey>,
     /// Each file read so far, by canonical path: two keys reaching one file through
     /// a symlink inside the shared directory read and count it once.
-    read:        HashMap<PathBuf, String>,
+    read:        HashMap<PathBuf, GraphModule>,
 }
 
 impl Walk<'_> {
@@ -178,8 +192,8 @@ impl Walk<'_> {
             return Err(GraphError::TooManyModules { limit: MAX_MODULES });
         }
         let path = locate(shared_root, &key).map_err(refused)?;
-        let source = if let Some(source) = self.read.get(&path) {
-            source.clone()
+        let module = if let Some(module) = self.read.get(&path) {
+            module.clone()
         } else {
             let source = read_module(&path).map_err(|error| match error {
                 ReadError::Refused(refusal) => refused(refusal),
@@ -194,10 +208,16 @@ impl Walk<'_> {
                     limit: MAX_GRAPH_BYTES,
                 });
             }
-            self.read.insert(path, source.clone());
-            source
+            let code =
+                transpile_module(&source, &key.url()).map_err(|message| GraphError::Parse {
+                    module: key.to_string(),
+                    message,
+                })?;
+            let module = GraphModule { source, code };
+            self.read.insert(path, module.clone());
+            module
         };
-        self.graph.modules.insert(key.clone(), source);
+        self.graph.modules.insert(key.clone(), module);
         self.queue.push_back(key);
         Ok(())
     }
@@ -221,16 +241,6 @@ fn read_module(path: &Path) -> Result<String, ReadError> {
     String::from_utf8(bytes).map_err(|_| ReadError::Refused(Refusal::NotUtf8))
 }
 
-/// How a shared module is parsed, from its extension.
-fn media_type(key: &ModuleKey) -> MediaType {
-    match key.as_str().rsplit_once('.').map(|(_, extension)| extension) {
-        Some("js") => MediaType::JavaScript,
-        Some("mjs") => MediaType::Mjs,
-        Some("mts") => MediaType::Mts,
-        _ => MediaType::TypeScript,
-    }
-}
-
 /// One import found in a module: the specifier as written, and a refusal the import's
 /// form already earns (attributes, or a specifier that is not a valid string).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -239,12 +249,11 @@ pub(crate) struct Import {
     pub(crate) refusal:   Option<Refusal>,
 }
 
-/// Every import `source` writes, in source order.
-pub(crate) fn imports(
-    module: &str,
-    source: &str,
-    media_type: MediaType,
-) -> Result<Vec<Import>, GraphError> {
+/// Every import `code` writes, in source order.
+///
+/// Parsed as `TypeScript`, a superset of the `JavaScript` the transpiler emits, so the
+/// scan also reads untranspiled source the same way.
+pub(crate) fn imports(module: &str, code: &str) -> Result<Vec<Import>, GraphError> {
     let parse_error = |message: String| GraphError::Parse {
         module: module.to_string(),
         message,
@@ -253,8 +262,8 @@ pub(crate) fn imports(
         .map_err(|error| parse_error(error.to_string()))?;
     let parsed = deno_ast::parse_module(ParseParams {
         specifier,
-        text: source.into(),
-        media_type,
+        text: code.into(),
+        media_type: MediaType::TypeScript,
         capture_tokens: false,
         scope_analysis: false,
         maybe_syntax: None,
