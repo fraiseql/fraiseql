@@ -43,7 +43,7 @@ public final class FraiseQLClient implements Closeable {
         this.retry = builder.retry != null ? builder.retry : RetryConfig.noRetry();
         this.httpClient = builder.httpClient != null ? builder.httpClient
                 : HttpClient.newBuilder().connectTimeout(this.timeout).build();
-        this.mapper = new ObjectMapper();
+        this.mapper = DecimalWire.newMapper();
     }
 
     /**

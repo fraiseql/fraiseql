@@ -141,6 +141,15 @@ without its element type (a raw `List`) is refused: name the GraphQL type instea
 (`@GraphQLField(type = "[Int!]")`). The rule is the same in every SDK
 ([../README.md](../README.md#one-rule-for-nullability)).
 
+### Decimal values in the client
+
+A `Decimal` travels as a JSON string of its exact digits, `"1.50"`, in both directions.
+`FraiseQLClient` sends a `BigDecimal` variable as `toPlainString()` in a string: every
+digit and the scale, never an exponent (`new BigDecimal("1E+3")` is sent as `"1000"`).
+A response's `Decimal` reads into a `BigDecimal` field with its scale (`"100.00"` has
+scale 2). Do not pass a `double`: the server refuses a number with a fraction for a
+`Decimal`, because a double has already lost its digits.
+
 ### Annotations
 
 **@GraphQLType**: Marks a class as a GraphQL type

@@ -2035,6 +2035,12 @@ disagreed, and the promise was the part that was wrong.
   failure merges its error type's fragments and leaves the success type's out.
   `@skip`/`@include` on such a fragment, or inside it, is honoured.
 
+- **The Java SDK's client sends a `BigDecimal` variable as its exact digits (#1761).**
+  `FraiseQLClient` wrote a `BigDecimal` as a JSON number, which the server refuses for a
+  `Decimal` once it has a fraction. It now writes it as a string of
+  `toPlainString()`: every digit and the scale, never an exponent (`1E+3` is sent as
+  `"1000"`). Reading was already exact; a test now holds it.
+
 - **The Python SDK's clients send a `decimal.Decimal` variable as its exact digits
   (#1761).** `FraiseQLClient` and `AsyncFraiseQLClient` raised `TypeError` on a
   `decimal.Decimal` variable. They now send it as the JSON string the server takes for a
