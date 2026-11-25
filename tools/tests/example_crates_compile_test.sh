@@ -11,7 +11,8 @@
 # run offline in about a second.
 set -uo pipefail
 
-repo_root="$(git rev-parse --show-toplevel)"
+# From this file, not git: the CI legs that run it mount the tree without `.git`.
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 gate="${repo_root}/tools/check-example-crates-compile.sh"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT

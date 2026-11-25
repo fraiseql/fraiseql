@@ -1,0 +1,9 @@
+# Gate scripts under tools/ that no CI leg runs, each with the reason.
+# tools/check-gate-reachability.py fails on a row for a script CI does run, or for one
+# that no longer exists.
+
+[[exempt]]
+path = "tools/check-test-baseline.sh"
+reason = """A workstation tool: it runs the local nextest suite without a database and \
+classifies each failure. CI runs the suites themselves, with their services bound, in \
+the Test and integration legs."""

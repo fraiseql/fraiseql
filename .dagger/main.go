@@ -403,6 +403,8 @@ func (m *FraiseqlCi) CheckFuzz(
 ) (string, error) {
 	return m.rustSrc(source).
 		WithExec([]string{"bash", "tools/check-fuzz-compiles.sh"}).
+		// The gate's self-test compiles fixture crates, so it needs this leg's cargo.
+		WithExec([]string{"bash", "tools/tests/fuzz_compiles_test.sh"}).
 		Stdout(ctx)
 }
 
@@ -419,6 +421,8 @@ func (m *FraiseqlCi) CheckExampleCrates(
 ) (string, error) {
 	return m.rustSrc(source).
 		WithExec([]string{"bash", "tools/check-example-crates-compile.sh"}).
+		// The gate's self-test compiles fixture crates, so it needs this leg's cargo.
+		WithExec([]string{"bash", "tools/tests/example_crates_compile_test.sh"}).
 		Stdout(ctx)
 }
 
@@ -449,6 +453,8 @@ func (m *FraiseqlCi) CheckRExamples(
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").
 		WithExec([]string{"bash", "tools/check-r-examples-parse.sh"}).
+		// The gate's self-test parses fixture R files, so it needs this leg's Rscript.
+		WithExec([]string{"bash", "tools/tests/r_examples_parse_test.sh"}).
 		Stdout(ctx)
 }
 
@@ -635,7 +641,14 @@ func (m *FraiseqlCi) ShellGates(
 		"bash tools/check-ci-source-stamp.sh",
 		"bash tools/tests/ci_source_stamp_test.sh",
 		"bash tools/check-phases-citations.sh",
+		"bash tools/tests/phases_citations_test.sh",
 		"bash tools/check-image-context.sh",
+		"bash tools/tests/image_context_test.sh",
+		// Every gate script under tools/ is run by some CI leg or exempted with a
+		// reason. The five self-tests above and in CheckFuzz, CheckExampleCrates and
+		// CheckRExamples ran only in `make preflight` until this gate named them.
+		"python3 tools/check-gate-reachability.py",
+		"make test-gate-reachability-gate",
 		"bash tools/tests/doc_image_refs_test.sh",
 		// Every secret a publish job reads is checked by release.yml's prerequisite
 		// step before anything is published. The Rust SDK read CARGO_REGISTRY_TOKEN, a
