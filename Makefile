@@ -347,11 +347,13 @@ changelog-full:
 # targets, so each command is written once.
 
 # Clippy over the workspace, and over examples/async-jobs-subgraph/subgraph, a
-# standalone crate (its own [workspace]) that `--workspace` never reaches.
+# standalone crate (its own [workspace]) that `--workspace` never reaches. Each run goes
+# through tools/clippy-config-paths-gate.sh: a path in .clippy.toml that clippy cannot
+# resolve is only a warning `-D warnings` lets through, and the ban it names is dropped.
 .PHONY: clippy
 clippy:
-	cargo clippy --workspace --all-features --all-targets -- -D warnings
-	cd examples/async-jobs-subgraph/subgraph && cargo clippy --all-targets -- -D warnings
+	bash tools/clippy-config-paths-gate.sh cargo clippy --workspace --all-features --all-targets -- -D warnings
+	cd examples/async-jobs-subgraph/subgraph && bash ../../../tools/clippy-config-paths-gate.sh cargo clippy --all-targets -- -D warnings
 
 # Rustdoc with every feature, warnings denied.
 .PHONY: rustdoc
@@ -783,6 +785,11 @@ lint-grep-q-pipefail:
 .PHONY: test-grep-q-pipefail-gate
 test-grep-q-pipefail-gate:
 	@bash tools/tests/grep_q_pipefail_test.sh
+
+# Red-capability pin for tools/clippy-config-paths-gate.sh, which `clippy` runs through.
+.PHONY: test-clippy-config-paths-gate
+test-clippy-config-paths-gate:
+	@bash tools/tests/clippy_config_paths_test.sh
 
 # Gate: every crate the doctest leg skips holds no doctest. The list is a claim about
 # the source; the check refuses it when a skipped crate's docs hold anything rustdoc
@@ -2172,6 +2179,7 @@ shell-gates: test-ignored-lines-gate
 # (#1870, #1961).
 shell-gates: lint-grep-q-pipefail
 shell-gates: test-grep-q-pipefail-gate
+shell-gates: test-clippy-config-paths-gate
 
 # The crates the Doctests leg skips hold no doctest: a skip list refused when a
 # skipped crate's source holds anything rustdoc could compile.
