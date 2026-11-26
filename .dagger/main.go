@@ -34,6 +34,11 @@ const (
 	rustImage = "ghcr.io/fraiseql/rust:1.100.0"
 	// ubuntuImage backs shellBase (the toolchain-free shell-gate container).
 	ubuntuImage = "ghcr.io/fraiseql/ubuntu:24.04"
+	// smokePythonImage backs smokePythonBase: the in-repo Python SDK's floor is 3.15, which
+	// neither rustImage (Debian 13, Python 3.13) nor ubuntuImage (3.12) ships. It is
+	// python:3.15-slim-trixie, the same Debian 13 as rustImage, so a binary built there
+	// runs here.
+	smokePythonImage = "ghcr.io/fraiseql/python:3.15.2-slim-trixie"
 	// sccacheVersion pins the prebuilt sccache binary fetched into rustBase.
 	sccacheVersion = "v0.8.2"
 	// iaiCallgrindVersion pins iai-callgrind-runner to the iai-callgrind library version
@@ -1270,21 +1275,17 @@ func (m *FraiseqlCi) integrationQuickstart(ctx context.Context, source *dagger.D
 
 	script := strings.Join([]string{
 		"set -e",
-		"echo \"### toolchain: $(rustc --version)\"",
+		"echo \"### python: $(python3 --version)\"",
 		"echo '### integration: quickstart (docs/guides/getting-started.md verbatim, #734)'",
-		"bash tools/ci-target-canary.sh -- build -p fraiseql-cli --bin fraiseql-cli", // #880 canary wraps the build
-		"cargo build -p fraiseql-server --bin fraiseql-server",
-		"export PATH=/src/target/debug:$PATH",
 		"bash tools/quickstart-smoke.sh",
 		"echo 'test-integration OK: quickstart suite passed'",
 	}, "\n")
 
-	return m.integrationBase(source, rustMsrv, lane).
-		// The smoke drives the documented user tooling, not the test harness:
-		// psql applies the doc's setup.sql, curl issues the doc's query.
-		// python3-httpx is the SDK's one third-party import (the doc's
-		// `pip install fraiseql` is substituted with the in-repo SDK).
-		WithExec(aptInstall("postgresql-client", "curl", "python3-httpx")).
+	// The smoke drives the documented user tooling, not the test harness: psql applies
+	// the doc's setup.sql, curl issues the doc's query, and the doc's
+	// `pip install fraiseql` is substituted with the in-repo SDK, on the Python it
+	// requires. smokeContainer builds the binaries and puts them on PATH.
+	return m.smokeContainer(source, lane).
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithEnvVariable("SMOKE_DATABASE_URL", dbURL).
 		WithExec([]string{"bash", "-c", script}).
@@ -1322,24 +1323,21 @@ func (m *FraiseqlCi) integrationExamples(ctx context.Context, source *dagger.Dir
 
 	script := strings.Join([]string{
 		"set -e",
-		"echo \"### toolchain: $(rustc --version)\"",
+		"echo \"### python: $(python3 --version)\"",
 		"echo '### integration: examples (compile tier + smoke tier)'",
-		"bash tools/ci-target-canary.sh -- build -p fraiseql-cli --bin fraiseql-cli", // #880 canary wraps the build
-		"cargo build -p fraiseql-server --bin fraiseql-server",
-		"export FRAISEQL_BIN=/src/target/debug/fraiseql-cli",
-		"export SERVER_BIN=/src/target/debug/fraiseql-server",
+		"export FRAISEQL_BIN=/usr/local/bin/fraiseql-cli",
+		"export SERVER_BIN=/usr/local/bin/fraiseql-server",
 		"bash tools/check-examples-compile.sh",
 		"bash tools/examples-smoke.sh",
 		"echo 'test-integration OK: examples suite passed'",
 	}, "\n")
 
-	return m.integrationBase(source, rustMsrv, lane).
-		// The smoke drives the tools a reader drives: psql applies each example's
-		// setup.sql, curl asks the booted server a question. python3-httpx is the
-		// authoring SDK's one third-party import, and every example authors through
-		// it — five example schema.py files still did `from fraiseql import key` when
-		// this landed, and nothing had run them since v1.
-		WithExec(aptInstall("postgresql-client", "curl", "python3-httpx")).
+	// The smoke drives the tools a reader drives: psql applies each example's
+	// setup.sql, curl asks the booted server a question, and every example authors
+	// through the in-repo SDK, on the Python it requires — five example schema.py files
+	// still did `from fraiseql import key` when this landed, and nothing had run them
+	// since v1.
+	return m.smokeContainer(source, lane).
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		// examples-smoke.sh CREATEs and DROPs a database per example, so it needs a
 		// URL it can connect to while doing that — the maintenance database, not one
@@ -1348,6 +1346,53 @@ func (m *FraiseqlCi) integrationExamples(ctx context.Context, source *dagger.Dir
 		WithEnvVariable(requirePostgresEnv, "1").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
+}
+
+// smokePythonBase is the container the quickstart and examples legs run the in-repo
+// Python SDK in: smokePythonImage, with psql and curl, which the smokes drive as a reader
+// would, and the SDK's runtime dependencies, hash-pinned in
+// tools/smoke-python-requirements.txt. Nothing of the source tree is mounted yet, and the
+// requirements file is the only input taken from it, so both layers are cached across
+// pushes until an engine GC.
+func (m *FraiseqlCi) smokePythonBase(source *dagger.Directory) *dagger.Container {
+	const requirements = "/opt/smoke-python-requirements.txt"
+	return dag.Container().
+		From(smokePythonImage).
+		WithExec(aptInstall("postgresql-client", "curl")).
+		WithFile(requirements, source.File("tools/smoke-python-requirements.txt")).
+		WithExec([]string{
+			"pip", "install", "--no-cache-dir", "--require-hashes", "--no-deps", "-r", requirements,
+		})
+}
+
+// smokeBinaries builds fraiseql-cli and fraiseql-server in the leg's Rust container and
+// returns them, for a smoke that runs them in smokePythonBase. They are copied out of the
+// target volume, which is a cache mount and so not part of the container's files.
+func (m *FraiseqlCi) smokeBinaries(source *dagger.Directory, lane int) *dagger.Directory {
+	script := strings.Join([]string{
+		"set -e",
+		"echo \"### toolchain: $(rustc --version)\"",
+		"bash tools/ci-target-canary.sh -- build -p fraiseql-cli --bin fraiseql-cli", // #880 canary wraps the build
+		"cargo build -p fraiseql-server --bin fraiseql-server",
+		"mkdir -p /out",
+		"cp target/debug/fraiseql-cli target/debug/fraiseql-server /out/",
+	}, "\n")
+	return m.integrationBase(source, rustMsrv, lane).
+		WithExec([]string{"bash", "-c", script}).
+		Directory("/out")
+}
+
+// smokeContainer is smokePythonBase with the two binaries on PATH and the source at /src.
+// FRAISEQL_LEG_NONCE, as rustSource sets it, keeps a re-run of the same commit from
+// being answered from the cache.
+func (m *FraiseqlCi) smokeContainer(source *dagger.Directory, lane int) *dagger.Container {
+	bins := m.smokeBinaries(source, lane)
+	return m.smokePythonBase(source).
+		WithFile("/usr/local/bin/fraiseql-cli", bins.File("fraiseql-cli")).
+		WithFile("/usr/local/bin/fraiseql-server", bins.File("fraiseql-server")).
+		WithMountedDirectory("/src", source).
+		WithWorkdir("/src").
+		WithEnvVariable("FRAISEQL_LEG_NONCE", strconv.FormatInt(time.Now().UnixNano(), 10))
 }
 
 // integrationPostgres binds a seeded PostgreSQL 18 service — plus a real streaming
