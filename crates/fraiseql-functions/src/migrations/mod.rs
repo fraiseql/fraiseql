@@ -118,14 +118,38 @@ CREATE TABLE IF NOT EXISTS _fraiseql_inbound_message (
     UNIQUE (source, idempotency_key)
 );
 
-ALTER TABLE _fraiseql_inbound_message ADD COLUMN IF NOT EXISTS event_type TEXT;
-
-CREATE INDEX IF NOT EXISTS idx_inbound_message_thread
-    ON _fraiseql_inbound_message (thread_key)
-    WHERE thread_key IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS idx_inbound_message_received
-    ON _fraiseql_inbound_message (received_at);
+-- Every server runs this at boot while the others serve traffic. `ADD COLUMN IF NOT
+-- EXISTS` and `CREATE INDEX IF NOT EXISTS` lock the table (ACCESS EXCLUSIVE, SHARE)
+-- before they find there is nothing to do, so each is guarded by a catalog check: a boot
+-- over a current schema takes no lock on either table.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_attribute
+        WHERE attrelid = to_regclass('_fraiseql_inbound_message')
+          AND attname = 'event_type' AND NOT attisdropped
+    ) THEN
+        ALTER TABLE _fraiseql_inbound_message ADD COLUMN event_type TEXT;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('_fraiseql_inbound_message')
+          AND i.relname = 'idx_inbound_message_thread'
+    ) THEN
+        CREATE INDEX idx_inbound_message_thread
+            ON _fraiseql_inbound_message (thread_key)
+            WHERE thread_key IS NOT NULL;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('_fraiseql_inbound_message')
+          AND i.relname = 'idx_inbound_message_received'
+    ) THEN
+        CREATE INDEX idx_inbound_message_received
+            ON _fraiseql_inbound_message (received_at);
+    END IF;
+END
+$$;
 
 CREATE TABLE IF NOT EXISTS _fraiseql_inbound_dispatch (
     fk_inbound_message BIGINT      NOT NULL
@@ -140,9 +164,19 @@ CREATE TABLE IF NOT EXISTS _fraiseql_inbound_dispatch (
     PRIMARY KEY (fk_inbound_message, function_name)
 );
 
-CREATE INDEX IF NOT EXISTS idx_inbound_dispatch_due
-    ON _fraiseql_inbound_dispatch (lease_until)
-    WHERE state = 'pending';
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('_fraiseql_inbound_dispatch')
+          AND i.relname = 'idx_inbound_dispatch_due'
+    ) THEN
+        CREATE INDEX idx_inbound_dispatch_due
+            ON _fraiseql_inbound_dispatch (lease_until)
+            WHERE state = 'pending';
+    END IF;
+END
+$$;
 "
 }
 

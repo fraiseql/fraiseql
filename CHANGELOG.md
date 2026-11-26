@@ -2144,6 +2144,19 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A server booting beside running ones no longer stalls or deadlocks their inbound
+  dispatch (#2570).** Every server runs the inbound spine's DDL at boot. Over a schema that
+  was already current, its `ADD COLUMN IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`
+  statements still locked the message table (ACCESS EXCLUSIVE) and the dispatch table
+  (SHARE) for the length of the boot's transaction. During a rolling deploy, a running
+  server's ingest waited behind the booting one, and a dispatch being marked done could
+  deadlock with it: PostgreSQL aborted one side, so either the boot failed or the dispatch
+  stayed pending and ran again once its lease ran out. Each of those statements now runs
+  only when the catalog shows its column or index missing, so a boot over a current schema
+  takes no lock on either table. Settling a dispatch and the sweep's claim now each read the
+  message table in a statement of their own, so neither holds the dispatch table while it
+  waits for the message table.
+
 - **The PHP SDK's client no longer calls `curl_close()` (#2542).** It has done nothing
   since PHP 8.0, and PHP 8.5 deprecates it, so every request raised a deprecation on 8.5.
   The handle is freed when it goes out of scope, as it already was.

@@ -21,15 +21,15 @@ async fn connect_pool() -> Option<(PgPool, fraiseql_test_support::Service)> {
     Some((pool, svc))
 }
 
-/// Execute multi-statement DDL by splitting on semicolons.
+/// Execute multi-statement DDL as the server does: one script, sent whole behind the
+/// migration lock. Splitting it on semicolons would cut a `DO` block's body apart, and
+/// without the lock two tests migrating at once can deadlock on each other's DDL.
 async fn execute_ddl(pool: &PgPool, ddl: &str) {
-    for stmt in ddl.split(';') {
-        let trimmed = stmt.trim();
-        if !trimmed.is_empty() {
-            // Reason: the crate's own migration DDL, split into statements.
-            sqlx::query(sqlx::AssertSqlSafe(trimmed)).execute(pool).await.unwrap();
-        }
-    }
+    // Reason: the crate's own migration DDL, behind the fixed lock statement.
+    sqlx::raw_sql(sqlx::AssertSqlSafe(fraiseql_guard::ddl::lock_prefixed(ddl)))
+        .execute(pool)
+        .await
+        .unwrap();
 }
 
 /// Verify the cron DDL is syntactically complete and contains all expected

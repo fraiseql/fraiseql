@@ -95,6 +95,10 @@ pub async fn record_pending_in_tx(
 /// Mark the dispatch of `function_name` for `message_id` terminal, per `outcome`. A row
 /// already terminal is left as it is; [`DispatchOutcome::Unsettled`] changes nothing.
 ///
+/// The message is read and the dispatch updated in two statements, so the settle never
+/// holds the dispatch table while it waits for the message table: a server booting with
+/// spine DDL to run takes them in that order, and the inverse is a deadlock.
+///
 /// # Errors
 ///
 /// `FraiseQLError::Database` when the update fails.
@@ -109,13 +113,21 @@ pub async fn settle(
         DispatchOutcome::DeadLettered => "dead_lettered",
         DispatchOutcome::Unsettled => return Ok(()),
     };
-    sqlx::query(
-        "UPDATE _fraiseql_inbound_dispatch d SET state = $3, settled_at = now() \
-         FROM _fraiseql_inbound_message m \
-         WHERE d.fk_inbound_message = m.pk_inbound_message AND m.id = $1 \
-           AND d.function_name = $2 AND d.state = 'pending'",
+    let Some(pk) = sqlx::query_scalar::<_, i64>(
+        "SELECT pk_inbound_message FROM _fraiseql_inbound_message WHERE id = $1",
     )
     .bind(message_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|error| db_err("settle", &error))?
+    else {
+        return Ok(());
+    };
+    sqlx::query(
+        "UPDATE _fraiseql_inbound_dispatch SET state = $3, settled_at = now() \
+         WHERE fk_inbound_message = $1 AND function_name = $2 AND state = 'pending'",
+    )
+    .bind(pk)
     .bind(function_name)
     .bind(state)
     .execute(pool)
@@ -140,7 +152,8 @@ pub struct DueDispatch {
 /// Claim up to `batch` `pending` dispatches whose lease has run out, renewing it for `lease`.
 ///
 /// Concurrent sweepers skip each other's rows (`FOR UPDATE SKIP LOCKED`), and a renewed lease
-/// keeps the next sweep off a row until it runs out again.
+/// keeps the next sweep off a row until it runs out again. The claim and the read of the
+/// claimed messages are two statements, for the reason [`settle`]'s are.
 ///
 /// # Errors
 ///
@@ -150,7 +163,7 @@ pub async fn claim_due(
     batch: u32,
     lease: Duration,
 ) -> fraiseql_error::Result<Vec<DueDispatch>> {
-    let rows = sqlx::query(
+    let claimed = sqlx::query(
         "WITH due AS ( \
              SELECT fk_inbound_message, function_name FROM _fraiseql_inbound_dispatch \
              WHERE state = 'pending' AND lease_until <= now() \
@@ -158,30 +171,51 @@ pub async fn claim_due(
              FOR UPDATE SKIP LOCKED) \
          UPDATE _fraiseql_inbound_dispatch d \
          SET lease_until = now() + make_interval(secs => $2), attempts = d.attempts + 1 \
-         FROM due, _fraiseql_inbound_message m \
+         FROM due \
          WHERE d.fk_inbound_message = due.fk_inbound_message \
            AND d.function_name = due.function_name \
-           AND m.pk_inbound_message = d.fk_inbound_message \
-         RETURNING m.id, d.function_name, m.payload, d.attempts",
+         RETURNING d.fk_inbound_message, d.function_name, d.attempts",
     )
     .bind(i64::from(batch))
     .bind(secs(lease))
     .fetch_all(pool)
     .await
     .map_err(|error| db_err("claim", &error))?;
+    if claimed.is_empty() {
+        return Ok(Vec::new());
+    }
 
-    rows.iter()
-        .map(|row| {
-            let payload: serde_json::Value = row.get("payload");
+    let keys: Vec<i64> = claimed.iter().map(|row| row.get("fk_inbound_message")).collect();
+    let messages: std::collections::HashMap<i64, (uuid::Uuid, serde_json::Value)> = sqlx::query(
+        "SELECT pk_inbound_message, id, payload FROM _fraiseql_inbound_message \
+             WHERE pk_inbound_message = ANY($1)",
+    )
+    .bind(&keys)
+    .fetch_all(pool)
+    .await
+    .map_err(|error| db_err("claim", &error))?
+    .iter()
+    .map(|row| (row.get("pk_inbound_message"), (row.get("id"), row.get("payload"))))
+    .collect();
+
+    // A message deleted since its dispatch was claimed took the dispatch with it (ON DELETE
+    // CASCADE): there is nothing left to run.
+    claimed
+        .iter()
+        .filter_map(|row| {
+            let (message_id, payload) = messages.get(&row.get::<i64, _>("fk_inbound_message"))?;
+            Some((row, *message_id, payload.clone()))
+        })
+        .map(|(row, message_id, payload)| {
             Ok(DueDispatch {
-                message_id:    row.get("id"),
+                message_id,
                 function_name: row.get("function_name"),
-                message:       serde_json::from_value(payload).map_err(|error| {
+                message: serde_json::from_value(payload).map_err(|error| {
                     fraiseql_error::FraiseQLError::database(format!(
                         "inbound dispatch ledger: read message: {error}"
                     ))
                 })?,
-                attempts:      row.get("attempts"),
+                attempts: row.get("attempts"),
             })
         })
         .collect()
@@ -249,3 +283,6 @@ pub async fn run_sweeper(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod lock_order_tests;
