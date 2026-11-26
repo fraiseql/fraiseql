@@ -113,6 +113,14 @@ disagreed, and the promise was the part that was wrong.
   directory cached nothing. wasmtime is now built without its `cache` feature. Drop the field
   from a `WasmConfig` literal; `WasmConfig::default()` is unchanged.
 
+- **`fraiseql-functions` builds on wasmtime and wasmtime-wasi 51.** The crate re-exports
+  `wasmtime` (`fraiseql_functions::wasmtime`), so a crate that names its types, or passes them
+  in from its own wasmtime dependency, moves to wasmtime 51 with it. wasmtime 51 needs Rust
+  1.97, within the workspace's 1.100 minimum. The runtime is built with the same wasmtime
+  features as on 48: its default set less `cache` is unchanged. wasmtime-wasi 51 adds WASI
+  preview 3 (`p3`) to its defaults, which the runtime does not use, so it stays on `p1` and
+  `p2`.
+
 - **The Redis URL of `[security.rate_limiting]`, `[security.pkce]` and
   `[security.token_revocation]` takes an environment variable's name, and a written one
   holds no credential (#2565).** Each section takes `redis_url_env`, naming the variable

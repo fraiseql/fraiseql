@@ -117,11 +117,6 @@ reason = "aws-runtime 1.9 → http-body 0.4, same cause as the http 0.2 entry; w
 version = "^0.4"
 
 [[bans.skip]]
-name = "io-lifetimes"
-reason = "wasmtime-wasi 48 → cap-primitives 4 (io-lifetimes 3) and cap-primitives → fs-set-times 0.20 (io-lifetimes 2): both inside wasmtime-wasi's own tree, which the wasmtime skip-tree does not root"
-version = "^2"
-
-[[bans.skip]]
 name = "async-channel"
 reason = "async-imap (inbound-email) → stop-token → async-channel 1.9.0; workspace on 2.x"
 version = "^1"
@@ -343,8 +338,8 @@ version = "^1"
 
 [[bans.skip-tree]]
 name = "wasmtime"
-reason = "wasmtime pulls in older debug utilities (addr2line, gimli, object, etc.) via backtrace/dhat, plus its own wasm-tooling versions (wasm-encoder, wasmparser, wast). The 48 line, not one release: a patch bump keeps it matching, and a move to 49 matches nothing, which -D unmatched-skip-root fails at every call site, instead of un-skipping the tree into a storm of unrelated-looking duplicates (#933, #1020, #1849)."
-version = "^48"
+reason = "wasmtime pulls in older debug utilities (addr2line, gimli, object, etc.) via backtrace/dhat, plus its own wasm-tooling versions (wasm-encoder, wasmparser, wast). The 51 line, not one release: a patch bump keeps it matching, and a move to 52 matches nothing, which -D unmatched-skip-root fails at every call site, instead of un-skipping the tree into a storm of unrelated-looking duplicates (#933, #1020, #1849)."
+version = "^51"
 
 [[bans.skip-tree]]
 name = "windows-sys"

@@ -70,12 +70,12 @@ runtime-wasm = ["wasmtime", "wasmtime-wasi"]
 runtime-deno = ["deno_core", "deno_ast"]
 host-live = ["fraiseql-core", "sqlparser", "reqwest"]
 
-# wasmtime 48's default features minus `cache`, the on-disk compilation cache.
-# The runtime never configures that cache, and it is the only path by which
-# wasmtime pulls in zstd 0.13 (#1747). Keep this list equal to wasmtime's own
-# `default` set, less `cache`, when bumping wasmtime.
+# wasmtime 51's default features minus `cache`, the on-disk compilation cache.
+# The runtime never configures that cache, so it stays out with its zstd and
+# config dependencies (#1747). Keep this list equal to wasmtime's own `default`
+# set, less `cache`, when bumping wasmtime: 51's is the same as 48's.
 [dependencies.wasmtime]
-version = "48"
+version = "51"
 optional = true
 default-features = false
 features = [
@@ -106,9 +106,14 @@ features = [
   "wit-parser",
 ]
 
+# wasmtime-wasi 51's defaults add `p3` (WASI preview 3) to the `p1` and `p2` 48
+# had. The runtime links only p2 (`wasmtime_wasi::p2::add_to_linker_async`), so the
+# list stays at 48's and p3 is not compiled in.
 [dependencies.wasmtime-wasi]
-version = "48"
+version = "51"
 optional = true
+default-features = false
+features = ["p1", "p2"]
 
 [dependencies.deno_core]
 version = "0.290"

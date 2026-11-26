@@ -136,9 +136,10 @@ All three were accepted while zstd 0.13 had three consumers that did not accept 
 
 - `compression-codecs` 0.4.49 and `parquet` 60 depend on zstd ^0.14; arrow and arrow-flight
   moved to 60 with parquet.
-- The wasmtime cache was never configured. `fraiseql-functions` now enables wasmtime 48's
-  default features without `cache`, which removes `wasmtime-internal-cache` and its zstd edge.
-  The first wasmtime release on zstd 0.14 (51) needs a newer Rust than the workspace MSRV.
+- The wasmtime cache was never configured. `fraiseql-functions` enables wasmtime's default
+  features without `cache`, which removes `wasmtime-internal-cache` and its zstd edge. The
+  first wasmtime release on zstd 0.14, 51, needed Rust 1.97. The workspace moved to it after
+  the 1.100 toolchain, and still leaves `cache` off, since nothing configures it.
 
 `Cargo.lock` carries `zstd 0.14.5`, `zstd-safe 8.4.0` and `zstd-sys 2.2.0+zstd.1.6.0` only, and
 `tools/check-zstd-context-reuse.sh`, the condition RUSTSEC-2026-0391 was accepted on, is gone
