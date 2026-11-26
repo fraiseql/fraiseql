@@ -26,6 +26,9 @@ use crate::{
 };
 
 mod schema;
+mod threat;
+
+pub(crate) use threat::ThreatModel;
 
 /// A capability and whether this build compiled it in.
 ///
@@ -40,6 +43,9 @@ pub struct Registration {
     pub compiled_in:       bool,
     /// The code that runs it.
     pub(crate) capability: &'static dyn Capability,
+    /// What it guards, and the inputs it must refuse.
+    #[cfg_attr(not(test), allow(dead_code))] // Reason: read by the definition-of-shipped gate
+    pub(crate) threat: ThreatModel,
 }
 
 impl Registration {
@@ -144,7 +150,7 @@ macro_rules! register {
     (
         capability: $capability:expr,name: $name:literal,feature: $feature:literal,compiled_sections: $compiled:expr,runtime_keys:
         $runtime:expr,docs: $docs:expr,maturity: $maturity:expr,release: $release:expr,entry_points:
-        $entry_points:expr $(,)?
+        $entry_points:expr,threat: $threat:expr $(,)?
     ) => {
         Registration {
             meta:        CapabilityMeta {
@@ -159,6 +165,7 @@ macro_rules! register {
             },
             compiled_in: cfg!(feature = $feature),
             capability:  &$capability,
+            threat:      $threat,
         }
     };
 }
@@ -179,6 +186,11 @@ pub static REGISTRY: &[Registration] = &[
         maturity: Maturity::Stable,
         release: Release::Platform,
         entry_points: EntryPoints::ALL,
+        threat: ThreatModel {
+            assets:  &["the database, through the queries a module runs", "the host's filesystem and network, outside a module's grant"],
+            crosses: &["a caller's input into a module", "a module's code into the server process"],
+            refuses: &[],
+        },
     },
     register! {
         capability: impls::Sources,
@@ -190,6 +202,11 @@ pub static REGISTRY: &[Registration] = &[
         maturity: Maturity::Stable,
         release: Release::Platform,
         entry_points: EntryPoints::ALL,
+        threat: ThreatModel {
+            assets:  &["the tables a pull writes", "the source cursor"],
+            crosses: &["an upstream service's response into the database"],
+            refuses: &[],
+        },
     },
     register! {
         capability: impls::Mcp,
@@ -201,6 +218,11 @@ pub static REGISTRY: &[Registration] = &[
         maturity: Maturity::Stable,
         release: Release::Platform,
         entry_points: EntryPoints::ALL,
+        threat: ThreatModel {
+            assets:  &["every query and mutation the schema exposes"],
+            crosses: &["an agent client's tool call into the executor"],
+            refuses: &[],
+        },
     },
     register! {
         capability: impls::Rest,
@@ -212,6 +234,11 @@ pub static REGISTRY: &[Registration] = &[
         maturity: Maturity::Stable,
         release: Release::Full,
         entry_points: EntryPoints::HTTP,
+        threat: ThreatModel {
+            assets:  &["the tables behind each resource"],
+            crosses: &["an HTTP client's request into the executor"],
+            refuses: &[],
+        },
     },
     register! {
         capability: impls::Grpc,
@@ -223,6 +250,11 @@ pub static REGISTRY: &[Registration] = &[
         maturity: Maturity::Preview,
         release: Release::Source,
         entry_points: EntryPoints::NONE,
+        threat: ThreatModel {
+            assets:  &["the queries and mutations each service exposes"],
+            crosses: &["a gRPC client's request into the executor"],
+            refuses: &[],
+        },
     },
     register! {
         capability: impls::Federation,
@@ -234,6 +266,11 @@ pub static REGISTRY: &[Registration] = &[
         maturity: Maturity::Stable,
         release: Release::Platform,
         entry_points: EntryPoints::HTTP,
+        threat: ThreatModel {
+            assets:  &["the entities `_entities` resolves", "the service SDL"],
+            crosses: &["a gateway's request into the executor"],
+            refuses: &[],
+        },
     },
     register! {
         capability: impls::Observers,
@@ -248,6 +285,11 @@ pub static REGISTRY: &[Registration] = &[
         maturity: Maturity::Stable,
         release: Release::Platform,
         entry_points: EntryPoints::ALL,
+        threat: ThreatModel {
+            assets:  &["the change log", "the endpoints an action sends to"],
+            crosses: &["a database change into an outbound request"],
+            refuses: &[],
+        },
     },
     register! {
         capability: impls::ArrowFlight,
@@ -262,6 +304,11 @@ pub static REGISTRY: &[Registration] = &[
             listener: false,
             ..EntryPoints::HTTP
         },
+        threat: ThreatModel {
+            assets:  &["the rows a ticket streams"],
+            crosses: &["a Flight client's handshake and ticket into the executor"],
+            refuses: &[],
+        },
     },
     register! {
         capability: impls::InboundWebhooks,
@@ -273,6 +320,11 @@ pub static REGISTRY: &[Registration] = &[
         maturity: Maturity::Stable,
         release: Release::Platform,
         entry_points: EntryPoints::HTTP,
+        threat: ThreatModel {
+            assets:  &["the tables a delivery's handler writes"],
+            crosses: &["an outside sender's delivery into the database"],
+            refuses: &[],
+        },
     },
     register! {
         capability: impls::InboundEmail,
@@ -284,6 +336,11 @@ pub static REGISTRY: &[Registration] = &[
         maturity: Maturity::Stable,
         release: Release::Platform,
         entry_points: EntryPoints::ALL,
+        threat: ThreatModel {
+            assets:  &["the tables a routed message writes", "the mailbox credentials"],
+            crosses: &["a mail sender's message, read over IMAP, into the database"],
+            refuses: &[],
+        },
     },
     register! {
         capability: impls::Identity,
@@ -295,6 +352,11 @@ pub static REGISTRY: &[Registration] = &[
         maturity: Maturity::Stable,
         release: Release::Default,
         entry_points: EntryPoints::HTTP,
+        threat: ThreatModel {
+            assets:  &["the actor rows enrichment reads and provisions"],
+            crosses: &["a bearer's claims into SQL parameters"],
+            refuses: &[],
+        },
     },
     register! {
         capability: impls::SessionState,
@@ -308,6 +370,11 @@ pub static REGISTRY: &[Registration] = &[
         // Not `mcp_stdio`: a session is keyed by `mcp-session-id`, which stdio has no header
         // to carry, so no value is ever held there.
         entry_points: EntryPoints::HTTP,
+        threat: ThreatModel {
+            assets:  &["each MCP session's stored state"],
+            crosses: &["an agent client's session into the state table"],
+            refuses: &[],
+        },
     },
     register! {
         capability: impls::Saml,
@@ -319,6 +386,11 @@ pub static REGISTRY: &[Registration] = &[
         maturity: Maturity::Preview,
         release: Release::Source,
         entry_points: EntryPoints::HTTP,
+        threat: ThreatModel {
+            assets:  &["the sessions an assertion signs in to", "the identity-provider registry"],
+            crosses: &["an identity provider's assertion into a session"],
+            refuses: &[],
+        },
     },
     register! {
         capability: impls::CdcOutbound,
@@ -330,6 +402,11 @@ pub static REGISTRY: &[Registration] = &[
         maturity: Maturity::Stable,
         release: Release::Platform,
         entry_points: EntryPoints::ALL,
+        threat: ThreatModel {
+            assets:  &["the change events", "the sink's network endpoint"],
+            crosses: &["database changes out to a broker"],
+            refuses: &[],
+        },
     },
     register! {
         capability: impls::SubscriptionKafka,
@@ -341,6 +418,11 @@ pub static REGISTRY: &[Registration] = &[
         maturity: Maturity::Preview,
         release: Release::Source,
         entry_points: EntryPoints::HTTP,
+        threat: ThreatModel {
+            assets:  &["the subscription payloads"],
+            crosses: &["a subscriber's request into a Kafka topic"],
+            refuses: &[],
+        },
     },
 ];
 
@@ -363,6 +445,8 @@ pub fn feature_gated_keys() -> Vec<(&'static str, &'static str, bool)> {
 mod manifest_tests;
 #[cfg(test)]
 mod schema_tests;
+#[cfg(test)]
+mod threat_tests;
 
 /// What the serve entry point started and mounted, by capability name.
 ///

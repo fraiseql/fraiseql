@@ -220,6 +220,25 @@ same table in the same order:
 [features-compatibility-matrix.md](../features-compatibility-matrix.md) print the same
 registry.
 
+**Adding a capability.** A registration is shipped when tests show it working and
+refusing. The definition-of-shipped gate checks both:
+
+- **A boot-to-effect fixture**, a directory under
+  `crates/fraiseql-server/tests/capabilities/`, authors the capability as an application
+  does. The `fraiseql-server` binary then serves it through every entry point its metadata
+  declares, and the fixture judges it by the effect that follows: a row, a message, a
+  delivery.
+- **A threat model** is part of the registration (`threat` in `register!`). It lists the
+  assets the capability touches and the trust boundaries its inputs cross. Each input it
+  must refuse is a `Refusal` naming a hostile fixture: one with `role = "hostile"` that
+  sends that input and shows nothing following, as a `none` effect, a boot `refused`, or
+  a `row` expecting no rows.
+- **Every hostile fixture is named by a refusal of its capability**, and every `none`
+  effect needs a positive fixture of the same kind for the same capability, which shows
+  its probe can see the effect.
+- **A registration without a hostile fixture** is listed in `NO_HOSTILE_FIXTURE_YET`
+  (`capability/threat_tests.rs`) with the issue that tracks it. The list only shrinks.
+
 **Benefits:**
 
 - ✅ Users pay only for what they use (compilation time, binary size)
