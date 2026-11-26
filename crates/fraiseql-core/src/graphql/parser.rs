@@ -1,8 +1,8 @@
 //! Selecting the operation to execute from a parsed document (§ 6.1), as a [`ParsedQuery`].
 //!
-//! The document itself is read once by [`document::parse`](crate::graphql::document::parse),
+//! The document itself is read once by [`document::parse`],
 //! through the request's shared parse
-//! ([`parse_graphql_document`](crate::graphql::parse_graphql_document)).
+//! ([`parse_graphql_document`]).
 
 use crate::graphql::{
     document::{Document, Operation},
