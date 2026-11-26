@@ -19,4 +19,5 @@ args = [{ name = "title", type = "String", required = true }]
 
 [rest]
 enabled = true
+require_auth = true
 path = "/rest/v1"

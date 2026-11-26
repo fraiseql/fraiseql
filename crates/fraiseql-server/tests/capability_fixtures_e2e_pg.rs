@@ -347,14 +347,16 @@ impl Signature {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 enum Effect {
-    /// `method path` (a `GET` unless named, with `body` when given) answers `status`, with
-    /// `equals` at `json_pointer` when one is given.
+    /// `method path` (a `GET` unless named, with `body` and the bearer `auth` when given)
+    /// answers `status`, with `equals` at `json_pointer` when one is given.
     Http {
         #[serde(default = "default_method")]
         method:       String,
         path:         String,
         #[serde(default)]
         body:         Option<String>,
+        #[serde(default)]
+        auth:         Option<Auth>,
         status:       u16,
         #[serde(default)]
         json_pointer: Option<String>,
@@ -1372,6 +1374,7 @@ async fn observe(served: &Served, database_url: &str, effect: &Effect) -> Result
             method,
             path,
             body,
+            auth,
             status,
             json_pointer,
             equals,
@@ -1381,6 +1384,9 @@ async fn observe(served: &Served, database_url: &str, effect: &Effect) -> Result
             let mut request = reqwest::Client::new()
                 .request(verb, format!("{}{path}", served.base))
                 .header("content-type", "application/json");
+            if let Some(auth) = auth {
+                request = request.bearer_auth(auth.bearer(&served.receiver).map_err(Broken)?);
+            }
             if let Some(body) = body {
                 request = request.body(body.clone());
             }

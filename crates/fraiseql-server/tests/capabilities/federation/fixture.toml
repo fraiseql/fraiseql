@@ -3,4 +3,4 @@
 capability = "federation"
 
 [effect]
-http = { method = "POST", path = "/graphql", body = '{"query":"query($representations: [_Any!]!) { _entities(representations: $representations) { ... on Note { title } } }","variables":{"representations":[{"__typename":"Note","id":"00000000-0000-4000-8000-000000000001"}]}}', status = 200, json_pointer = "/data/_entities/0/title", equals = "seeded" }
+http = { method = "POST", path = "/graphql", body = '{"query":"query($representations: [_Any!]!) { _entities(representations: $representations) { ... on Note { title } } }","variables":{"representations":[{"__typename":"Note","id":"00000000-0000-4000-8000-000000000001"}]}}', auth = { oidc = { sub = "agent-1", aud = "fraiseql" } }, status = 200, json_pointer = "/data/_entities/0/title", equals = "seeded" }

@@ -6,7 +6,7 @@ capability = "functions"
 FRAISEQL_FUNCTIONS_MODULE_DIR = "$FIXTURE/modules"
 
 [[stimulus]]
-http = { method = "POST", path = "/graphql", body = '{"query":"mutation { createOrder(label: \"A-1\") { id } }"}' }
+http = { method = "POST", path = "/graphql", body = '{"query":"mutation { createOrder(label: \"A-1\") { id } }"}', auth = { oidc = { sub = "agent-1", aud = "fraiseql" } } }
 
 [effect]
 row = { query = "SELECT order_label FROM app.tb_receipt", expect = [["A-1"]] }
