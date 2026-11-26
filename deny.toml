@@ -223,7 +223,7 @@ version = "^0.23"
 
 [[bans.skip]]
 name = "atoi"
-reason = "sqlx-postgres 0.9 holds atoi 2.0; arrow-cast 60 (fraiseql-arrow, #1747) is on 3.1. Drops when sqlx moves to atoi 3"
+reason = "sqlx-postgres 0.9 holds atoi 2.0; arrow-cast 60 (fraiseql-arrow, #1747) is on 3.1. Drops when sqlx moves to atoi 3 (#2598)"
 version = "^2"
 
 [[bans.skip]]
@@ -233,7 +233,7 @@ version = "^0.21"
 
 [[bans.skip]]
 name = "winnow"
-reason = "the workspace's toml 0.8 → toml_edit 0.22 holds winnow 0.7; toml_edit 0.25 and toml_parser (proc-macro-crate) are on 1.0. Was masked under the wasmtime skip-tree until wasmtime's cache left the graph (#1747). Drops when the workspace moves off toml 0.8"
+reason = "the workspace's toml 0.8 → toml_edit 0.22 holds winnow 0.7; toml_edit 0.25 and toml_parser (proc-macro-crate) are on 1.0. Was masked under the wasmtime skip-tree until wasmtime's cache left the graph (#1747). Drops when the workspace moves off toml 0.8 (#2599)"
 version = "^0.7"
 
 [[bans.skip]]
