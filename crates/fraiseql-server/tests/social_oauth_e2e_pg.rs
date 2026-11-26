@@ -25,8 +25,8 @@
 //! - The `/auth/v1/authorize` flood faces the `auth_start` path bucket (#788).
 //! - Bogus state and unknown providers are refused.
 //! - How the session reaches the browser: a `JSON` body with no redirect allow-list, the redirect's
-//!   fragment with one, and no cookie either way; and a login state completes from a client other
-//!   than the one that started it.
+//!   fragment with one, and no session cookie either way.
+//! - A login completes only from the browser that started it, by the cookie `authorize` sets.
 //!
 //! Self-skips when no `DATABASE_URL` is set. The stub `IdP` lives on loopback
 //! `HTTP`, so the suite opts into the development SSRF bypass
@@ -503,6 +503,19 @@ fn state_from_location(location: &str) -> String {
         .expect("authorize redirect carries a state")
 }
 
+/// The `name=value` of the login cookie `authorize` set on `resp`, which the browser that
+/// started the login sends back to the callback.
+fn login_cookie(resp: &reqwest::Response) -> String {
+    resp.headers()
+        .get_all(reqwest::header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .find(|v| v.starts_with("__Host-fraiseql_login_"))
+        .and_then(|v| v.split(';').next())
+        .expect("authorize sets the login cookie")
+        .to_string()
+}
+
 /// Decode a JWT's claims without validating it (test-side peek).
 fn jwt_claims(token: &str) -> serde_json::Value {
     use base64::Engine as _;
@@ -565,6 +578,7 @@ async fn sign_in(base: &str, provider: &str) -> (reqwest::StatusCode, serde_json
         "authorize must redirect to the provider, got {} ({provider})",
         resp.status()
     );
+    let cookie = login_cookie(&resp);
     let location = resp
         .headers()
         .get("location")
@@ -575,6 +589,7 @@ async fn sign_in(base: &str, provider: &str) -> (reqwest::StatusCode, serde_json
 
     let resp = client
         .get(format!("{base}/auth/v1/callback?code=any-code&state={state}"))
+        .header(reqwest::header::COOKIE, cookie)
         .send()
         .await
         .expect("callback request");
@@ -594,6 +609,7 @@ async fn apple_login(base: &str, user_payload: Option<&str>) -> serde_json::Valu
         .await
         .expect("authorize request");
     assert!(resp.status().is_redirection(), "authorize must redirect to Apple");
+    let cookie = login_cookie(&resp);
     let location = resp
         .headers()
         .get("location")
@@ -612,6 +628,7 @@ async fn apple_login(base: &str, user_payload: Option<&str>) -> serde_json::Valu
     }
     let resp = client
         .post(format!("{base}/auth/v1/callback"))
+        .header(reqwest::header::COOKIE, cookie)
         .form(&form)
         .send()
         .await
@@ -1119,7 +1136,7 @@ async fn a_social_sign_in_of_an_mfa_user_yields_a_challenge() {
     drop_scratch(&url, db).await;
 }
 
-// ── How a session reaches the browser today ─────────────────────────────────
+// ── How a session reaches the browser ───────────────────────────────────────
 
 /// The `Set-Cookie` headers of `resp`.
 fn set_cookies(resp: &reqwest::Response) -> Vec<String> {
@@ -1130,13 +1147,30 @@ fn set_cookies(resp: &reqwest::Response) -> Vec<String> {
         .collect()
 }
 
-/// `authorize` for `provider` on `client`, redirecting to `redirect_uri`; the state.
+/// Whether any `Set-Cookie` of `resp` carries a session token.
+fn sets_a_session_cookie(resp: &reqwest::Response) -> bool {
+    set_cookies(resp).iter().any(|c| {
+        c.starts_with(fraiseql_auth::session_cookies::ACCESS_COOKIE)
+            || c.starts_with(fraiseql_auth::session_cookies::REFRESH_COOKIE)
+    })
+}
+
+/// Whether `resp` clears the login cookie whose `name=value` is `cookie`.
+fn clears(resp: &reqwest::Response, cookie: &str) -> bool {
+    let name = cookie.split('=').next().unwrap_or_default();
+    set_cookies(resp)
+        .iter()
+        .any(|c| c.starts_with(&format!("{name}=;")) && c.contains("Max-Age=0"))
+}
+
+/// `authorize` for `provider` on `client`, redirecting to `redirect_uri`: the state, the
+/// login cookie's `name=value`, and every `Set-Cookie` the answer carried.
 async fn authorize(
     client: &reqwest::Client,
     base: &str,
     provider: &str,
     redirect_uri: &str,
-) -> String {
+) -> (String, String, Vec<String>) {
     let resp = client
         .get(format!(
             "{base}/auth/v1/authorize?provider={provider}&redirect_uri={redirect_uri}"
@@ -1145,7 +1179,8 @@ async fn authorize(
         .await
         .expect("authorize request");
     assert!(resp.status().is_redirection(), "authorize must redirect ({provider})");
-    state_from_location(resp.headers()["location"].to_str().expect("a location"))
+    let state = state_from_location(resp.headers()["location"].to_str().expect("a location"));
+    (state, login_cookie(&resp), set_cookies(&resp))
 }
 
 /// With no redirect allow-list, the callback answers the session in its `JSON` body.
@@ -1168,14 +1203,17 @@ async fn a_social_sign_in_with_no_bound_redirect_answers_its_tokens_in_json() {
     .await;
     let client = no_redirect_client();
 
-    let state = authorize(&client, &base, "google", "https://app.example.com/cb").await;
+    let (state, cookie, _) =
+        authorize(&client, &base, "google", "https://app.example.com/cb").await;
     let resp = client
         .get(format!("{base}/auth/v1/callback?code=any-code&state={state}"))
+        .header(reqwest::header::COOKIE, &cookie)
         .send()
         .await
         .expect("callback request");
     assert_eq!(resp.status(), reqwest::StatusCode::OK);
-    assert!(set_cookies(&resp).is_empty(), "the JSON answer sets no cookie");
+    assert!(!sets_a_session_cookie(&resp), "the JSON answer sets no session cookie");
+    assert!(clears(&resp, &cookie), "the answer clears the login cookie");
     let body: serde_json::Value = resp.json().await.expect("a JSON body");
     assert!(body["access_token"].is_string(), "{body}");
     assert!(body["refresh_token"].is_string(), "{body}");
@@ -1207,22 +1245,27 @@ async fn a_bound_redirect_carries_the_session_in_its_fragment() {
         Box::pin(boot_server(social_config(&scratch_url), schema, pool, &scratch_url)).await;
     let client = no_redirect_client();
 
-    let state = authorize(&client, &base, "google", "https://app.example.com/cb").await;
+    let (state, get_cookie, _) =
+        authorize(&client, &base, "google", "https://app.example.com/cb").await;
     let get = client
         .get(format!("{base}/auth/v1/callback?code=any-code&state={state}"))
+        .header(reqwest::header::COOKIE, &get_cookie)
         .send()
         .await
         .expect("callback request");
-    let state = authorize(&client, &base, "apple", "https://app.example.com/cb").await;
+    let (state, post_cookie, _) =
+        authorize(&client, &base, "apple", "https://app.example.com/cb").await;
     let post = client
         .post(format!("{base}/auth/v1/callback"))
+        .header(reqwest::header::COOKIE, &post_cookie)
         .form(&[("code", "apple-code"), ("state", state.as_str())])
         .send()
         .await
         .expect("form-POST callback request");
-    for (shape, resp) in [("GET", get), ("POST", post)] {
+    for (shape, resp, cookie) in [("GET", get, get_cookie), ("POST", post, post_cookie)] {
         assert!(resp.status().is_redirection(), "{shape}: {}", resp.status());
-        assert!(set_cookies(&resp).is_empty(), "{shape}: the redirect sets no cookie");
+        assert!(!sets_a_session_cookie(&resp), "{shape}: the redirect sets no session cookie");
+        assert!(clears(&resp, &cookie), "{shape}: the redirect clears the login cookie");
         let location = resp.headers()["location"].to_str().expect("a location").to_string();
         let (target, fragment) = location.split_once('#').expect("the redirect has a fragment");
         assert_eq!(target, "https://app.example.com/cb", "{shape}");
@@ -1235,10 +1278,11 @@ async fn a_bound_redirect_carries_the_session_in_its_fragment() {
     drop_scratch(&url, db).await;
 }
 
-/// A state one client started completes from another client that shares nothing with it.
+/// A login completes only from the browser that started it: by the cookie `authorize` sets,
+/// `SameSite=Lax` for a `GET` callback and `SameSite=None` for Apple's form `POST`.
 #[tokio::test]
-async fn a_login_state_completes_from_a_client_that_did_not_start_it() {
-    let Some(url) = database_url_or_skip("a_login_state_completes_from_another_client") else {
+async fn a_login_completes_only_from_the_browser_that_started_it() {
+    let Some(url) = database_url_or_skip("a_login_completes_only_from_its_browser") else {
         return;
     };
     set_test_env();
@@ -1253,11 +1297,65 @@ async fn a_login_state_completes_from_a_client_that_did_not_start_it() {
         &scratch_url,
     ))
     .await;
+    let started_by = no_redirect_client();
+    let other = no_redirect_client();
+    let callback = |state: &str| format!("{base}/auth/v1/callback?code=any-code&state={state}");
+    let cb = "https://app.example.com/cb";
 
-    let state =
-        authorize(&no_redirect_client(), &base, "google", "https://app.example.com/cb").await;
-    let resp = no_redirect_client()
-        .get(format!("{base}/auth/v1/callback?code=any-code&state={state}"))
+    // The cookie each provider's login sets.
+    for (provider, same_site) in [("google", "SameSite=Lax"), ("apple", "SameSite=None")] {
+        let (_, _, set) = authorize(&started_by, &base, provider, cb).await;
+        let set = set.join("\n");
+        for attribute in [
+            "__Host-fraiseql_login_",
+            "Path=/",
+            "HttpOnly",
+            "Secure",
+            same_site,
+        ] {
+            assert!(set.contains(attribute), "{provider}: {set}");
+        }
+    }
+
+    // Another browser, with no cookie: refused, the cookie cleared, and the state spent.
+    let (state, cookie, _) = authorize(&started_by, &base, "google", cb).await;
+    let resp = other.get(callback(&state)).send().await.expect("callback request");
+    assert_eq!(resp.status(), reqwest::StatusCode::BAD_REQUEST);
+    assert!(clears(&resp, &cookie), "a refusal clears the login cookie");
+    let resp = started_by
+        .get(callback(&state))
+        .header(reqwest::header::COOKIE, &cookie)
+        .send()
+        .await
+        .expect("callback request");
+    assert_eq!(resp.status(), reqwest::StatusCode::BAD_REQUEST, "a refused state is spent");
+
+    // The cookie's name with another value: refused.
+    let (state, cookie, _) = authorize(&started_by, &base, "google", cb).await;
+    let name = cookie.split('=').next().expect("a cookie name");
+    let resp = other
+        .get(callback(&state))
+        .header(reqwest::header::COOKIE, format!("{name}=0123abcd"))
+        .send()
+        .await
+        .expect("callback request");
+    assert_eq!(resp.status(), reqwest::StatusCode::BAD_REQUEST);
+
+    // Apple's form POST from another browser: refused.
+    let (state, _, _) = authorize(&started_by, &base, "apple", cb).await;
+    let resp = other
+        .post(format!("{base}/auth/v1/callback"))
+        .form(&[("code", "apple-code"), ("state", state.as_str())])
+        .send()
+        .await
+        .expect("form-POST callback request");
+    assert_eq!(resp.status(), reqwest::StatusCode::BAD_REQUEST);
+
+    // The browser that started it, with its cookie: completes.
+    let (state, cookie, _) = authorize(&started_by, &base, "google", cb).await;
+    let resp = started_by
+        .get(callback(&state))
+        .header(reqwest::header::COOKIE, &cookie)
         .send()
         .await
         .expect("callback request");

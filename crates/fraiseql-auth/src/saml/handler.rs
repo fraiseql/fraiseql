@@ -11,7 +11,7 @@ use std::sync::Arc;
 use axum::{
     Json, Router,
     extract::{Form, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Redirect, Response},
     routing::{get, post},
 };
@@ -25,6 +25,7 @@ use crate::{
     account_linking::AccountStore,
     audit::logger::{AuditEventType, SecretType, get_audit_logger},
     handlers::generate_secure_state,
+    login_binding,
     session::{SessionStore, unix_now},
     state_store::StateStore,
 };
@@ -171,7 +172,8 @@ fn json_error(status: StatusCode, message: &str) -> Response {
 }
 
 /// What the single-use `RelayState` token binds: which IdP, for which tenant, answering
-/// which in-flight `AuthnRequest`.
+/// which in-flight `AuthnRequest`, started in which browser (the login binding's digest,
+/// see [`crate::login_binding`]).
 ///
 /// The tenant travels with the request so the ACS re-resolves through the *same* scoped
 /// path the login took. Without it a login legitimately started for tenant A, whose IdP is
@@ -179,6 +181,7 @@ fn json_error(status: StatusCode, message: &str) -> Response {
 /// to at ACS time.
 #[derive(Debug, PartialEq, Eq)]
 struct RelayPayload {
+    binding:    String,
     idp_name:   String,
     tenant:     Option<String>,
     request_id: String,
@@ -187,7 +190,8 @@ struct RelayPayload {
 impl RelayPayload {
     fn encode(&self) -> String {
         format!(
-            "{}{RELAY_PAYLOAD_SEPARATOR}{}{RELAY_PAYLOAD_SEPARATOR}{}",
+            "{}{RELAY_PAYLOAD_SEPARATOR}{}{RELAY_PAYLOAD_SEPARATOR}{}{RELAY_PAYLOAD_SEPARATOR}{}",
+            self.binding,
             self.idp_name,
             self.tenant.as_deref().unwrap_or_default(),
             self.request_id
@@ -195,11 +199,13 @@ impl RelayPayload {
     }
 
     fn decode(payload: &str) -> Option<Self> {
-        let mut parts = payload.splitn(3, RELAY_PAYLOAD_SEPARATOR);
+        let mut parts = payload.splitn(4, RELAY_PAYLOAD_SEPARATOR);
+        let binding = parts.next()?.to_string();
         let idp_name = parts.next()?.to_string();
         let tenant = parts.next()?;
         let request_id = parts.next()?.to_string();
         Some(Self {
+            binding,
             idp_name,
             tenant: (!tenant.is_empty()).then(|| tenant.to_string()),
             request_id,
@@ -237,7 +243,15 @@ pub async fn saml_login(
     };
 
     let relay_state = generate_secure_state();
+    // Tie the login to this browser: the IdP answers by a cross-site form POST to the ACS,
+    // which completes it only from here.
+    let binding = login_binding::start(
+        &relay_state,
+        login_binding::ReturnsBy::FormPost,
+        LOGIN_STATE_TTL_SECS,
+    );
     let payload = RelayPayload {
+        binding:    binding.digest.clone(),
         idp_name:   idp.idp_name.clone(),
         tenant:     idp.tenant_id.map(|t| t.to_string()),
         request_id: authn_request.id.clone(),
@@ -263,7 +277,11 @@ pub async fn saml_login(
     };
 
     match redirect {
-        Ok(Some(url)) => Redirect::to(url.as_str()).into_response(),
+        Ok(Some(url)) => {
+            let mut response = Redirect::to(url.as_str()).into_response();
+            response.headers_mut().append(header::SET_COOKIE, binding.cookie);
+            response
+        },
         Ok(None) => {
             json_error(StatusCode::INTERNAL_SERVER_ERROR, "IdP has no redirect destination")
         },
@@ -299,7 +317,25 @@ pub async fn saml_metadata(
 /// Consumes the `RelayState`, verifies the `SAMLResponse`, resolves a local user, and
 /// returns session tokens as JSON. Verification failures return a generic `400`/`401`
 /// (detail is logged, never surfaced).
-pub async fn saml_acs(State(state): State<SamlAuthState>, Form(form): Form<AcsForm>) -> Response {
+pub async fn saml_acs(
+    State(state): State<SamlAuthState>,
+    headers: HeaderMap,
+    Form(form): Form<AcsForm>,
+) -> Response {
+    let relay_state = form.relay_state.clone();
+    let mut response = complete_acs(&state, form, &headers).await;
+    // Any answer ends the login: clear its binding cookie.
+    if !relay_state.is_empty() {
+        response.headers_mut().append(
+            header::SET_COOKIE,
+            login_binding::clear(&relay_state, login_binding::ReturnsBy::FormPost),
+        );
+    }
+    response
+}
+
+/// The ACS, but for clearing the login binding cookie.
+async fn complete_acs(state: &SamlAuthState, form: AcsForm, headers: &HeaderMap) -> Response {
     let logger = get_audit_logger();
 
     if form.relay_state.is_empty() {
@@ -311,6 +347,7 @@ pub async fn saml_acs(State(state): State<SamlAuthState>, Form(form): Form<AcsFo
         return json_error(StatusCode::BAD_REQUEST, "invalid or expired RelayState");
     };
     let Some(RelayPayload {
+        binding,
         idp_name,
         tenant,
         request_id,
@@ -318,6 +355,14 @@ pub async fn saml_acs(State(state): State<SamlAuthState>, Form(form): Form<AcsFo
     else {
         return json_error(StatusCode::BAD_REQUEST, "malformed RelayState");
     };
+    // The RelayState is consumed above whatever this says, so a refused one cannot be
+    // retried.
+    if !login_binding::matches(headers, &form.relay_state, &binding) {
+        return json_error(
+            StatusCode::BAD_REQUEST,
+            "this login was started in another browser, or its cookie is missing",
+        );
+    }
 
     let Ok(now_secs) = unix_now() else {
         return json_error(StatusCode::INTERNAL_SERVER_ERROR, "system clock error");

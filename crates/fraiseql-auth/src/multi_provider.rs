@@ -9,7 +9,7 @@ use std::{collections::HashMap, sync::Arc};
 use axum::{
     Form, Json,
     extract::{Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Redirect, Response},
 };
 use serde::{Deserialize, Serialize};
@@ -19,6 +19,7 @@ use crate::{
     account_linking::{AccountStore, TrustedEmailProviders},
     audit::logger::{AuditEventType, SecretType, get_audit_logger},
     handlers::generate_secure_state,
+    login_binding,
     provider::OAuthProvider,
     session::SessionStore,
     state_store::StateStore,
@@ -30,11 +31,13 @@ const MAX_REDIRECT_URI_BYTES: usize = 2_048;
 /// Maximum length for the `provider` query parameter.
 const MAX_PROVIDER_NAME_BYTES: usize = 128;
 
-/// Separator between the provider name and the bound `redirect_uri` in the stored CSRF
-/// state value (#427). A newline cannot appear in a provider name or a (percent-encoded)
-/// URI, so this round-trips unambiguously; a value with no separator is a legacy
-/// provider-only entry with no bound redirect.
+/// Separator between the login binding's digest, the provider name and the bound
+/// `redirect_uri` in the stored CSRF state value (#427). A newline cannot appear in a hex
+/// digest, a provider name or a (percent-encoded) URI, so this round-trips unambiguously.
 const STATE_VALUE_SEPARATOR: char = '\n';
+
+/// How long a started login lives: its stored state and its binding cookie.
+const LOGIN_STATE_TTL_SECS: u64 = 600;
 
 /// Returns `true` if `candidate` is permitted by the `redirect_uri` allow-list (#427).
 ///
@@ -70,19 +73,33 @@ fn redirect_uri_matches(candidate: &Url, entry: &Url) -> bool {
             .is_some_and(|rest| entry_path.ends_with('/') || rest.starts_with('/'))
 }
 
-/// Encode the CSRF-state stored value, optionally binding a validated `redirect_uri`.
-fn encode_state_value(provider: &str, redirect_uri: Option<&str>) -> String {
+/// Encode the CSRF-state stored value: the login binding's digest (see
+/// [`crate::login_binding`]), the provider, and any validated `redirect_uri`.
+fn encode_state_value(binding: &str, provider: &str, redirect_uri: Option<&str>) -> String {
     match redirect_uri {
-        Some(uri) => format!("{provider}{STATE_VALUE_SEPARATOR}{uri}"),
-        None => provider.to_string(),
+        Some(uri) => {
+            format!("{binding}{STATE_VALUE_SEPARATOR}{provider}{STATE_VALUE_SEPARATOR}{uri}")
+        },
+        None => format!("{binding}{STATE_VALUE_SEPARATOR}{provider}"),
     }
 }
 
-/// Decode the CSRF-state stored value into `(provider, bound_redirect_uri)`.
-fn decode_state_value(value: &str) -> (String, Option<String>) {
-    match value.split_once(STATE_VALUE_SEPARATOR) {
-        Some((provider, uri)) => (provider.to_string(), Some(uri.to_string())),
-        None => (value.to_string(), None),
+/// Decode the CSRF-state stored value into `(binding, provider, bound_redirect_uri)`;
+/// `None` for a value that carries no binding.
+fn decode_state_value(value: &str) -> Option<(String, String, Option<String>)> {
+    let (binding, rest) = value.split_once(STATE_VALUE_SEPARATOR)?;
+    Some(match rest.split_once(STATE_VALUE_SEPARATOR) {
+        Some((provider, uri)) => (binding.to_string(), provider.to_string(), Some(uri.to_string())),
+        None => (binding.to_string(), rest.to_string(), None),
+    })
+}
+
+/// How `provider` brings the browser back to the callback.
+fn returns_by(provider: &dyn OAuthProvider) -> login_binding::ReturnsBy {
+    if provider.answers_by_form_post() {
+        login_binding::ReturnsBy::FormPost
+    } else {
+        login_binding::ReturnsBy::Redirect
     }
 }
 
@@ -488,9 +505,13 @@ pub async fn authorize(
         return json_error(StatusCode::INTERNAL_SERVER_ERROR, "system clock error");
     };
 
-    let expiry = now + 600; // 10 minutes
+    let expiry = now + LOGIN_STATE_TTL_SECS;
 
-    let state_payload = encode_state_value(&q.provider, bound_redirect_uri.as_deref());
+    // Tie the login to this browser: the callback completes it only from here.
+    let binding =
+        login_binding::start(&state_value, returns_by(provider.as_ref()), LOGIN_STATE_TTL_SECS);
+    let state_payload =
+        encode_state_value(&binding.digest, &q.provider, bound_redirect_uri.as_deref());
     if let Err(e) = state.state_store.store(state_value.clone(), state_payload, expiry).await {
         tracing::error!("state store failed: {e}");
         return json_error(
@@ -502,7 +523,9 @@ pub async fn authorize(
     // Generate authorization URL
     let authorization_url = provider.authorization_url(&state_value);
 
-    Redirect::to(&authorization_url).into_response()
+    let mut response = Redirect::to(&authorization_url).into_response();
+    response.headers_mut().append(header::SET_COOKIE, binding.cookie);
+    response
 }
 
 // ---------------------------------------------------------------------------
@@ -532,9 +555,12 @@ pub async fn authorize(
 /// returned an error. Returns `502` if the token exchange or user info fetch fails.
 pub async fn callback(
     State(state): State<Arc<MultiProviderAuthState>>,
+    headers: HeaderMap,
     Query(q): Query<CallbackQuery>,
 ) -> Response {
-    complete_callback(&state, q, None).await
+    let login = q.state.clone();
+    let response = complete_callback(&state, q, None, &headers).await;
+    clearing_the_binding(response, login.as_deref(), login_binding::ReturnsBy::Redirect)
 }
 
 // ---------------------------------------------------------------------------
@@ -562,14 +588,16 @@ pub async fn callback(
 /// - `502` — token exchange with the provider failed.
 pub async fn callback_form_post(
     State(state): State<Arc<MultiProviderAuthState>>,
+    headers: HeaderMap,
     Form(form): Form<CallbackForm>,
 ) -> Response {
+    let login = form.state.clone();
     let display_name = form
         .user
         .as_deref()
         .and_then(crate::providers::apple::AppleFirstAuthUser::parse)
         .and_then(|u| u.display_name());
-    complete_callback(
+    let response = complete_callback(
         &state,
         CallbackQuery {
             code:              form.code,
@@ -578,8 +606,25 @@ pub async fn callback_form_post(
             error_description: form.error_description,
         },
         display_name,
+        &headers,
     )
-    .await
+    .await;
+    clearing_the_binding(response, login.as_deref(), login_binding::ReturnsBy::FormPost)
+}
+
+/// `response`, also clearing the binding cookie of the login `state` names: a callback
+/// answer of any kind ends that login.
+fn clearing_the_binding(
+    mut response: Response,
+    state: Option<&str>,
+    returns_by: login_binding::ReturnsBy,
+) -> Response {
+    if let Some(state) = state {
+        response
+            .headers_mut()
+            .append(header::SET_COOKIE, login_binding::clear(state, returns_by));
+    }
+    response
 }
 
 /// The shared body of both callback shapes.
@@ -591,6 +636,7 @@ async fn complete_callback(
     state: &Arc<MultiProviderAuthState>,
     q: CallbackQuery,
     first_auth_name: Option<String>,
+    headers: &HeaderMap,
 ) -> Response {
     // Surface provider errors
     if let Some(err) = q.error {
@@ -615,7 +661,17 @@ async fn complete_callback(
     let Ok((state_payload, expiry)) = state.state_store.retrieve(&state_token).await else {
         return json_error(StatusCode::BAD_REQUEST, "invalid or expired state token");
     };
-    let (provider_name, bound_redirect_uri) = decode_state_value(&state_payload);
+    let Some((binding, provider_name, bound_redirect_uri)) = decode_state_value(&state_payload)
+    else {
+        return json_error(StatusCode::BAD_REQUEST, "invalid or expired state token");
+    };
+    // The state is consumed above whatever this says, so a refused one cannot be retried.
+    if !login_binding::matches(headers, &state_token, &binding) {
+        return json_error(
+            StatusCode::BAD_REQUEST,
+            "this login was started in another browser, or its cookie is missing",
+        );
+    }
 
     // Check state expiry. Fail-closed: if the clock cannot be read, reject rather than
     // treat the (possibly expired) CSRF state as valid (matches the authorize path).

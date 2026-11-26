@@ -104,28 +104,44 @@ fn matcher_multiple_entries_any_match() {
     assert!(!is_redirect_uri_allowed("https://c.example.com/cb", &allow));
 }
 
-// ── CSRF-state value codec (provider ± bound redirect_uri) ──────────────────────────
+// ── CSRF-state value codec (binding, provider ± bound redirect_uri) ─────────────────
 
 #[test]
 fn codec_round_trips_with_redirect() {
-    let encoded = encode_state_value("github", Some("https://app.example.com/cb"));
+    let encoded = encode_state_value("d1", "github", Some("https://app.example.com/cb"));
     assert_eq!(
         decode_state_value(&encoded),
-        ("github".to_string(), Some("https://app.example.com/cb".to_string()))
+        Some((
+            "d1".to_string(),
+            "github".to_string(),
+            Some("https://app.example.com/cb".to_string())
+        ))
     );
 }
 
 #[test]
 fn codec_round_trips_without_redirect() {
-    let encoded = encode_state_value("github", None);
-    assert_eq!(encoded, "github");
-    assert_eq!(decode_state_value(&encoded), ("github".to_string(), None));
+    let encoded = encode_state_value("d1", "github", None);
+    assert_eq!(
+        decode_state_value(&encoded),
+        Some(("d1".to_string(), "github".to_string(), None))
+    );
 }
 
 #[test]
-fn codec_decodes_legacy_provider_only_value() {
-    // A value written before #427 is a bare provider name → no bound redirect.
-    assert_eq!(decode_state_value("google"), ("google".to_string(), None));
+fn a_value_with_no_binding_does_not_decode() {
+    assert_eq!(decode_state_value("google"), None);
+}
+
+/// Bind the login `token` as `authorize` does: the digest to store with it, and the
+/// headers of the browser that started it.
+fn bound(token: &str) -> (String, axum::http::HeaderMap) {
+    let started =
+        crate::login_binding::start(token, crate::login_binding::ReturnsBy::Redirect, 600);
+    let pair = started.cookie.to_str().unwrap().split(';').next().unwrap().to_string();
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(axum::http::header::COOKIE, pair.parse().unwrap());
+    (started.digest, headers)
 }
 
 // ── fragment-delivery redirect builder ──────────────────────────────────────────────
@@ -278,10 +294,11 @@ async fn callback_redirects_to_bound_uri_with_token_fragment() {
     let (state, store) = state_with_allowlist(vec!["https://app.example.com/cb".to_string()]);
 
     // Bind a validated redirect_uri to a known state token, as `authorize` would have.
+    let (binding, headers) = bound("state-token-1");
     store
         .store(
             "state-token-1".to_string(),
-            encode_state_value("mock", Some("https://app.example.com/cb")),
+            encode_state_value(&binding, "mock", Some("https://app.example.com/cb")),
             now_secs() + 600,
         )
         .await
@@ -289,6 +306,7 @@ async fn callback_redirects_to_bound_uri_with_token_fragment() {
 
     let response = callback(
         State(state),
+        headers,
         Query(CallbackQuery {
             code:              Some("auth-code".to_string()),
             state:             Some("state-token-1".to_string()),
@@ -310,13 +328,19 @@ async fn callback_redirects_to_bound_uri_with_token_fragment() {
 async fn callback_without_bound_redirect_returns_json() {
     // Legacy path: state stored with no bound redirect → JSON token response, not a redirect.
     let (state, store) = state_with_allowlist(vec![]);
+    let (binding, headers) = bound("state-token-2");
     store
-        .store("state-token-2".to_string(), encode_state_value("mock", None), now_secs() + 600)
+        .store(
+            "state-token-2".to_string(),
+            encode_state_value(&binding, "mock", None),
+            now_secs() + 600,
+        )
         .await
         .unwrap();
 
     let response = callback(
         State(state),
+        headers,
         Query(CallbackQuery {
             code:              Some("auth-code".to_string()),
             state:             Some("state-token-2".to_string()),
@@ -374,12 +398,18 @@ async fn drive_callback(
     provider: &str,
     token: &str,
 ) {
+    let (binding, headers) = bound(token);
     store
-        .store(token.to_string(), encode_state_value(provider, None), now_secs() + 600)
+        .store(
+            token.to_string(),
+            encode_state_value(&binding, provider, None),
+            now_secs() + 600,
+        )
         .await
         .unwrap();
     let response = callback(
         State(state.clone()),
+        headers,
         Query(CallbackQuery {
             code:              Some("auth-code".to_string()),
             state:             Some(token.to_string()),

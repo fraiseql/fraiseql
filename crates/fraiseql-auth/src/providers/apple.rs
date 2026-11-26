@@ -550,6 +550,10 @@ impl OAuthProvider for AppleOAuth {
         "apple"
     }
 
+    fn answers_by_form_post(&self) -> bool {
+        true
+    }
+
     fn authorization_url(&self, state: &str) -> String {
         let mut url = format!("{}/auth/authorize", self.base_url);
         write!(

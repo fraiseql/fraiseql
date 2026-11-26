@@ -3208,6 +3208,7 @@ mod multi_provider_tests {
         let resp = app.clone().oneshot(req).await.unwrap();
 
         assert!(resp.status().is_redirection());
+        let cookie = login_cookie(&resp);
 
         let location = resp
             .headers()
@@ -3224,7 +3225,11 @@ mod multi_provider_tests {
             .expect("state must be in redirect URL");
 
         let callback_uri = format!("/auth/v1/callback?code=auth_code_123&state={state_token}");
-        let req2 = Request::builder().uri(&callback_uri).body(Body::empty()).unwrap();
+        let req2 = Request::builder()
+            .uri(&callback_uri)
+            .header("cookie", &cookie)
+            .body(Body::empty())
+            .unwrap();
         let resp2 = app.oneshot(req2).await.unwrap();
 
         assert_eq!(resp2.status(), axum::http::StatusCode::OK, "callback should return 200");
@@ -3249,6 +3254,7 @@ mod multi_provider_tests {
             .body(Body::empty())
             .unwrap();
         let resp = app.clone().oneshot(req).await.unwrap();
+        let cookie = login_cookie(&resp);
         let location = resp.headers().get("location").unwrap().to_str().unwrap().to_string();
         let parsed = reqwest::Url::parse(&location).unwrap();
         let state_token = parsed
@@ -3259,6 +3265,7 @@ mod multi_provider_tests {
 
         let req1 = Request::builder()
             .uri(format!("/auth/v1/callback?code=code1&state={state_token}"))
+            .header("cookie", &cookie)
             .body(Body::empty())
             .unwrap();
         let resp1 = app.clone().oneshot(req1).await.unwrap();
@@ -3266,6 +3273,7 @@ mod multi_provider_tests {
 
         let req2 = Request::builder()
             .uri(format!("/auth/v1/callback?code=code2&state={state_token}"))
+            .header("cookie", &cookie)
             .body(Body::empty())
             .unwrap();
         let resp2 = app.oneshot(req2).await.unwrap();
@@ -3289,6 +3297,7 @@ mod multi_provider_tests {
             .body(Body::empty())
             .unwrap();
         let resp_gh = app.clone().oneshot(req_gh).await.unwrap();
+        let cookie_gh = login_cookie(&resp_gh);
         let loc_gh = resp_gh.headers().get("location").unwrap().to_str().unwrap().to_string();
 
         let req_gg = Request::builder()
@@ -3296,6 +3305,7 @@ mod multi_provider_tests {
             .body(Body::empty())
             .unwrap();
         let resp_gg = app.clone().oneshot(req_gg).await.unwrap();
+        let cookie_gg = login_cookie(&resp_gg);
         let loc_gg = resp_gg.headers().get("location").unwrap().to_str().unwrap().to_string();
 
         assert!(loc_gh.starts_with("https://github.example.com/"), "github redirect wrong");
@@ -3316,6 +3326,7 @@ mod multi_provider_tests {
 
         let req_cb_gh = Request::builder()
             .uri(format!("/auth/v1/callback?code=c1&state={state_gh}"))
+            .header("cookie", format!("{cookie_gh}; {cookie_gg}"))
             .body(Body::empty())
             .unwrap();
         let resp_cb_gh = app.clone().oneshot(req_cb_gh).await.unwrap();
@@ -3325,6 +3336,7 @@ mod multi_provider_tests {
 
         let req_cb_gg = Request::builder()
             .uri(format!("/auth/v1/callback?code=c2&state={state_gg}"))
+            .header("cookie", format!("{cookie_gh}; {cookie_gg}"))
             .body(Body::empty())
             .unwrap();
         let resp_cb_gg = app.oneshot(req_cb_gg).await.unwrap();
@@ -3354,6 +3366,19 @@ mod multi_provider_tests {
         assert!(auth_state.get_provider("nonexistent").is_none());
     }
 
+    /// The `name=value` of the login cookie `authorize` set on `resp`: what the browser
+    /// that started the login sends back to the callback.
+    fn login_cookie(resp: &axum::response::Response) -> String {
+        resp.headers()
+            .get_all("set-cookie")
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .find(|v| v.starts_with("__Host-fraiseql_login_"))
+            .and_then(|v| v.split(';').next())
+            .expect("authorize sets the login cookie")
+            .to_string()
+    }
+
     async fn do_auth_round_trip(app: &Router, provider: &str) -> serde_json::Value {
         let req = Request::builder()
             .uri(format!(
@@ -3363,6 +3388,7 @@ mod multi_provider_tests {
             .unwrap();
         let resp = app.clone().oneshot(req).await.unwrap();
         assert!(resp.status().is_redirection(), "authorize should redirect");
+        let cookie = login_cookie(&resp);
 
         let location = resp.headers().get("location").unwrap().to_str().unwrap().to_string();
         let parsed = reqwest::Url::parse(&location).unwrap();
@@ -3374,6 +3400,7 @@ mod multi_provider_tests {
 
         let req2 = Request::builder()
             .uri(format!("/auth/v1/callback?code=authcode&state={state_token}"))
+            .header("cookie", &cookie)
             .body(Body::empty())
             .unwrap();
         let resp2 = app.clone().oneshot(req2).await.unwrap();

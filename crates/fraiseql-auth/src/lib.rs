@@ -41,6 +41,7 @@ pub mod error;
 pub mod handlers;
 pub mod jwt;
 pub mod local_password;
+pub mod login_binding;
 pub mod middleware;
 pub mod multi_provider;
 pub mod oidc_provider;

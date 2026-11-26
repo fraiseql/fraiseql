@@ -62,6 +62,13 @@ pub trait OAuthProvider: Send + Sync + fmt::Debug {
     /// Provider name for logging/debugging
     fn name(&self) -> &str;
 
+    /// Whether the provider brings the browser back by a cross-site form `POST`
+    /// (`response_mode=form_post`) rather than a `GET` redirect. It sets the login
+    /// binding cookie's `SameSite` ([`crate::login_binding`]).
+    fn answers_by_form_post(&self) -> bool {
+        false
+    }
+
     /// Generate authorization URL for user to visit
     ///
     /// # Arguments

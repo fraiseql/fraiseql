@@ -1486,6 +1486,16 @@ disagreed, and the promise was the part that was wrong.
   object reference, as `compile` reads it. Write the name in its own case: `Int`,
   `BigInt`, `Json`, `Email`.
 
+- **A social or SAML login completes only in the browser that started it (#2621).**
+  `GET /auth/v1/authorize` and `GET /auth/saml/login` set a short-lived
+  `__Host-fraiseql_login_…` cookie (`HttpOnly; Secure`, `SameSite=Lax` for a `GET` callback,
+  `SameSite=None` for Apple's `form_post` and the SAML ACS) whose hash is stored with the
+  `state` or `RelayState`. The social callback and the ACS refuse a login whose cookie is
+  missing or does not match, and clear it on every answer. This holds in `JSON` and cookie
+  session transport alike. A client that requested the authorize or login URL from one HTTP
+  client and opened the provider's page in a browser must now send the browser to that URL
+  itself. A login in flight across the upgrade is refused and is started again.
+
 ### Added
 
 - **Accent-insensitive string filters (#1607).** A schema that declares

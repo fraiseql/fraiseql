@@ -45,6 +45,17 @@ struct TestIdp {
     cert: CertificateDer,
 }
 
+/// Bind the `RelayState` `relay` as the login does: the digest to store with it, and the
+/// headers of the browser that started it.
+fn bound(relay: &str) -> (String, axum::http::HeaderMap) {
+    let started =
+        crate::login_binding::start(relay, crate::login_binding::ReturnsBy::FormPost, 600);
+    let pair = started.cookie.to_str().unwrap().split(';').next().unwrap().to_string();
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(axum::http::header::COOKIE, pair.parse().unwrap());
+    (started.digest, headers)
+}
+
 fn new_idp() -> TestIdp {
     let idp = IdentityProvider::generate_new(KeyType::Rsa(Rsa::Rsa2048)).unwrap();
     let cert = idp
@@ -689,15 +700,17 @@ async fn acs_happy_path_creates_session() {
     // Seed a RelayState binding as login would have, then present a matching response.
     let relay = "relay-token-1".to_string();
     let now = crate::session::unix_now().unwrap();
-    // Payload shape: idp_name \n tenant \n request_id (tenant empty = untenanted).
+    // Payload shape: binding \n idp_name \n tenant \n request_id (tenant empty = untenanted).
+    let (binding, headers) = bound(&relay);
     state_store
-        .store(relay.clone(), format!("test-idp\n\n{REQ_ID}"), now + 600)
+        .store(relay.clone(), format!("{binding}\ntest-idp\n\n{REQ_ID}"), now + 600)
         .await
         .unwrap();
     let b64 = signed_response(&test_idp, "nameid-123", SP_ENTITY, SP_ACS, REQ_ID, &[]);
 
     let resp = saml_acs(
         axum::extract::State(state),
+        headers.clone(),
         Form(AcsForm {
             saml_response: b64,
             relay_state:   relay,
@@ -728,13 +741,15 @@ async fn acs_creates_the_account_in_the_idps_tenant() {
 
     let relay = "relay-token-tenant".to_string();
     let now = crate::session::unix_now().unwrap();
+    let (binding, headers) = bound(&relay);
     state_store
-        .store(relay.clone(), format!("test-idp\n{TENANT_A}\n{REQ_ID}"), now + 600)
+        .store(relay.clone(), format!("{binding}\ntest-idp\n{TENANT_A}\n{REQ_ID}"), now + 600)
         .await
         .unwrap();
     let b64 = signed_response(&test_idp, "nameid-123", SP_ENTITY, SP_ACS, REQ_ID, &[]);
     let resp = saml_acs(
         axum::extract::State(state),
+        headers.clone(),
         Form(AcsForm {
             saml_response: b64,
             relay_state:   relay,
@@ -764,6 +779,7 @@ async fn acs_rejects_missing_relay_state() {
 
     let resp = saml_acs(
         axum::extract::State(state),
+        axum::http::HeaderMap::new(),
         Form(AcsForm {
             saml_response: "irrelevant".to_string(),
             relay_state:   String::new(),
@@ -1329,14 +1345,16 @@ async fn acs_for_an_mfa_user_yields_a_challenge() {
         .with_user_store(accounts);
     let relay = "relay-mfa".to_string();
     let now = crate::session::unix_now().unwrap();
+    let (binding, headers) = bound(&relay);
     state_store
-        .store(relay.clone(), format!("test-idp\n\n{REQ_ID}"), now + 600)
+        .store(relay.clone(), format!("{binding}\ntest-idp\n\n{REQ_ID}"), now + 600)
         .await
         .unwrap();
     let b64 = signed_response(&test_idp, "nameid-mfa", SP_ENTITY, SP_ACS, REQ_ID, &[]);
 
     let resp = saml_acs(
         axum::extract::State(state),
+        headers.clone(),
         Form(AcsForm {
             saml_response: b64,
             relay_state:   relay,

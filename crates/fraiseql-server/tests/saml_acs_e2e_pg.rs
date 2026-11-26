@@ -259,6 +259,9 @@ struct Booted {
     client:   reqwest::Client,
     shutdown: tokio::sync::oneshot::Sender<()>,
     handle:   tokio::task::JoinHandle<()>,
+    /// The login cookie each `RelayState` was started with, by `RelayState`: what the
+    /// browser that started it sends back to the ACS.
+    started:  std::sync::Mutex<std::collections::HashMap<String, String>>,
 }
 
 async fn boot(url: &str, db: &str, idp: &SigningIdp, schema: CompiledSchema) -> Booted {
@@ -293,6 +296,7 @@ async fn boot(url: &str, db: &str, idp: &SigningIdp, schema: CompiledSchema) -> 
         client,
         shutdown,
         handle,
+        started: std::sync::Mutex::default(),
     }
 }
 
@@ -307,6 +311,7 @@ impl Booted {
             .await
             .expect("login request");
         assert!(resp.status().is_redirection(), "login must redirect: {}", resp.status());
+        let cookie = login_cookie(&resp);
         let redirect = resp.headers()["location"].to_str().unwrap().to_string();
         let redirect = reqwest::Url::parse(&redirect).expect("the redirect is a URL");
         let param = |name: &str| {
@@ -315,7 +320,14 @@ impl Booted {
                 |(_, v)| v.into_owned(),
             )
         };
-        (param("RelayState"), request_id(&param("SAMLRequest")))
+        let relay_state = param("RelayState");
+        self.started.lock().unwrap().insert(relay_state.clone(), cookie);
+        (relay_state, request_id(&param("SAMLRequest")))
+    }
+
+    /// The login cookie `relay_state` was started with.
+    fn cookie_of(&self, relay_state: &str) -> String {
+        self.started.lock().unwrap().get(relay_state).cloned().unwrap_or_default()
     }
 
     /// Post `response` to the ACS under `relay_state`.
@@ -327,6 +339,7 @@ impl Booted {
         let resp = self
             .client
             .post(format!("{}/auth/saml/acs", self.base))
+            .header(reqwest::header::COOKIE, self.cookie_of(relay_state))
             .form(&[("SAMLResponse", response), ("RelayState", relay_state)])
             .send()
             .await
@@ -339,6 +352,35 @@ impl Booted {
         let _ = self.shutdown.send(());
         let _ = self.handle.await;
     }
+}
+
+/// The `name=value` of the login cookie the SAML login set on `resp`.
+fn login_cookie(resp: &reqwest::Response) -> String {
+    resp.headers()
+        .get_all(reqwest::header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .find(|v| v.starts_with("__Host-fraiseql_login_"))
+        .and_then(|v| v.split(';').next())
+        .expect("the login sets the login cookie")
+        .to_string()
+}
+
+/// The `Set-Cookie` headers of `resp`.
+fn set_cookies(resp: &reqwest::Response) -> Vec<String> {
+    resp.headers()
+        .get_all(reqwest::header::SET_COOKIE)
+        .iter()
+        .map(|v| v.to_str().unwrap_or_default().to_string())
+        .collect()
+}
+
+/// Whether `resp` clears the login cookie whose `name=value` is `cookie`.
+fn clears(resp: &reqwest::Response, cookie: &str) -> bool {
+    let name = cookie.split('=').next().unwrap_or_default();
+    set_cookies(resp)
+        .iter()
+        .any(|c| c.starts_with(&format!("{name}=;")) && c.contains("Max-Age=0"))
 }
 
 /// The `ID` of the `AuthnRequest` an HTTP-Redirect `SAMLRequest` carries: raw DEFLATE,
@@ -403,7 +445,7 @@ async fn ttl_secs_sets_the_lifetime_of_a_saml_sign_in() {
     drop_scratch(&url, db).await;
 }
 
-/// The ACS answers the session in its `JSON` body: no cookie, no redirect.
+/// The ACS answers the session in its `JSON` body: no session cookie, no redirect.
 #[tokio::test]
 async fn a_saml_sign_in_answers_its_tokens_in_json() {
     let Some(url) = database_url_or_skip("a_saml_sign_in_answers_its_tokens_in_json") else {
@@ -415,9 +457,11 @@ async fn a_saml_sign_in_answers_its_tokens_in_json() {
 
     let (relay_state, request_id) = server.login().await;
     let response = idp.response(&request_id, "ada", &DigestAlgorithm::Sha256);
+    let cookie = server.cookie_of(&relay_state);
     let resp = server
         .client
         .post(format!("{}/auth/saml/acs", server.base))
+        .header(reqwest::header::COOKIE, &cookie)
         .form(&[
             ("SAMLResponse", response.as_str()),
             ("RelayState", relay_state.as_str()),
@@ -426,7 +470,13 @@ async fn a_saml_sign_in_answers_its_tokens_in_json() {
         .await
         .expect("ACS request");
     assert_eq!(resp.status(), reqwest::StatusCode::OK);
-    assert!(resp.headers().get(reqwest::header::SET_COOKIE).is_none(), "no cookie");
+    let set = set_cookies(&resp);
+    assert!(
+        !set.iter().any(|c| c.starts_with(fraiseql_auth::session_cookies::ACCESS_COOKIE)
+            || c.starts_with(fraiseql_auth::session_cookies::REFRESH_COOKIE)),
+        "no session cookie: {set:?}"
+    );
+    assert!(clears(&resp, &cookie), "the answer clears the login cookie");
     assert!(resp.headers().get(reqwest::header::LOCATION).is_none(), "no redirect");
     let body: serde_json::Value = resp.json().await.expect("a JSON body");
     assert!(body["access_token"].is_string(), "{body}");
@@ -436,38 +486,77 @@ async fn a_saml_sign_in_answers_its_tokens_in_json() {
     drop_scratch(&url, db).await;
 }
 
-/// A `RelayState` one client started completes from another client that shares nothing
-/// with it.
+/// A SAML login completes only from the browser that started it: by the `SameSite=None`
+/// cookie the login sets, which the `IdP`'s cross-site form `POST` carries back.
 #[tokio::test]
-async fn a_relay_state_completes_from_a_client_that_did_not_start_it() {
-    let Some(url) = database_url_or_skip("a_relay_state_completes_from_another_client") else {
+async fn a_saml_login_completes_only_from_the_browser_that_started_it() {
+    let Some(url) = database_url_or_skip("a_saml_login_completes_only_from_its_browser") else {
         return;
     };
     let db = "fraiseql_saml_acs_other_client";
     let idp = SigningIdp::new();
     let server = boot(&url, db, &idp, schema(FIRST_PARTY.session())).await;
-
-    let (relay_state, request_id) = server.login().await;
-    let response = idp.response(&request_id, "ada", &DigestAlgorithm::Sha256);
     let other = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .expect("client");
-    let resp = other
-        .post(format!("{}/auth/saml/acs", server.base))
-        .form(&[
-            ("SAMLResponse", response.as_str()),
-            ("RelayState", relay_state.as_str()),
-        ])
+    let acs =
+        |client: &reqwest::Client, relay_state: &str, response: &str, cookie: Option<&str>| {
+            let mut request = client.post(format!("{}/auth/saml/acs", server.base));
+            if let Some(cookie) = cookie {
+                request = request.header(reqwest::header::COOKIE, cookie.to_string());
+            }
+            request
+                .form(&[
+                    ("SAMLResponse", response.to_string()),
+                    ("RelayState", relay_state.to_string()),
+                ])
+                .send()
+        };
+
+    // The cookie the login sets.
+    let resp = server
+        .client
+        .get(format!("{}/auth/saml/login?idp=test-idp&tenant={TENANT}", server.base))
         .send()
         .await
+        .expect("login request");
+    let set = set_cookies(&resp).join("\n");
+    for attribute in [
+        "__Host-fraiseql_login_",
+        "Path=/",
+        "HttpOnly",
+        "Secure",
+        "SameSite=None",
+    ] {
+        assert!(set.contains(attribute), "{set}");
+    }
+
+    // Another browser, with no cookie: refused, the cookie cleared, and the RelayState spent.
+    let (relay_state, request_id) = server.login().await;
+    let cookie = server.cookie_of(&relay_state);
+    let response = idp.response(&request_id, "ada", &DigestAlgorithm::Sha256);
+    let resp = acs(&other, &relay_state, &response, None).await.expect("ACS request");
+    assert_eq!(resp.status(), reqwest::StatusCode::BAD_REQUEST);
+    assert!(clears(&resp, &cookie), "a refusal clears the login cookie");
+    let resp = acs(&server.client, &relay_state, &response, Some(&cookie)).await.expect("ACS");
+    assert_eq!(resp.status(), reqwest::StatusCode::BAD_REQUEST, "a refused RelayState is spent");
+
+    // The cookie's name with another value: refused.
+    let (relay_state, request_id) = server.login().await;
+    let name = server.cookie_of(&relay_state).split('=').next().expect("a name").to_string();
+    let response = idp.response(&request_id, "ada", &DigestAlgorithm::Sha256);
+    let mismatched = format!("{name}=0123abcd");
+    let resp = acs(&other, &relay_state, &response, Some(&mismatched))
+        .await
         .expect("ACS request");
-    assert_eq!(
-        resp.status(),
-        reqwest::StatusCode::OK,
-        "{}",
-        resp.text().await.unwrap_or_default()
-    );
+    assert_eq!(resp.status(), reqwest::StatusCode::BAD_REQUEST);
+
+    // The browser that started it: completes.
+    let (relay_state, request_id) = server.login().await;
+    let response = idp.response(&request_id, "ada", &DigestAlgorithm::Sha256);
+    let (status, body) = server.acs(&relay_state, &response).await;
+    assert_eq!(status, reqwest::StatusCode::OK, "{body}");
 
     server.stop().await;
     drop_scratch(&url, db).await;
@@ -636,6 +725,7 @@ async fn a_saml_sign_in_runs_on_the_auth_role() {
             .expect("client"),
         shutdown,
         handle,
+        started: std::sync::Mutex::default(),
     };
 
     let claims = sign_in(&booted, &idp).await;

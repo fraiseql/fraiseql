@@ -955,6 +955,16 @@ async fn a_social_sign_in_completes() {
         "authorize must redirect: {}",
         authorize.status()
     );
+    // The browser that started the login sends its login cookie back to the callback.
+    let cookie = authorize
+        .headers()
+        .get_all(reqwest::header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .find(|v| v.starts_with("__Host-fraiseql_login_"))
+        .and_then(|v| v.split(';').next())
+        .expect("authorize sets the login cookie")
+        .to_string();
     let location = authorize
         .headers()
         .get("location")
@@ -969,6 +979,7 @@ async fn a_social_sign_in_completes() {
         .expect("state");
     let callback = client
         .get(format!("{}/auth/v1/callback?code=any-code&state={state}", running.base))
+        .header(reqwest::header::COOKIE, cookie)
         .send()
         .await
         .expect("callback request");
