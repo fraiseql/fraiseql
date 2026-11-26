@@ -1,6 +1,6 @@
-//! The cookie that ties a social or SAML login to the browser that started it.
+//! The cookie that ties a social, SAML or `OIDC` login to the browser that started it.
 //!
-//! A login's `state` (social) or `RelayState` (SAML) is kept server-side and comes back
+//! A login's `state` (social, `OIDC`) or `RelayState` (SAML) is kept server-side and comes back
 //! through the provider; by itself it does not say which browser brings it back. So
 //! starting a login also sets a cookie holding a random value, and the stored state keeps
 //! that value's SHA-256. The callback or the ACS completes only a state whose cookie is
@@ -48,10 +48,43 @@ pub struct Started {
 /// Start the binding of the login `state`, whose cookie lives `max_age_secs`.
 #[must_use]
 pub fn start(state: &str, returns_by: ReturnsBy, max_age_secs: u64) -> Started {
-    let value = crate::handlers::generate_secure_state();
-    let digest = hex::encode(Sha256::digest(value.as_bytes()));
-    let cookie = header_value(&cookie_name(state), &value, returns_by, max_age_secs);
-    Started { cookie, digest }
+    let pending = Pending::new();
+    let cookie = pending.cookie(state, returns_by, max_age_secs);
+    Started {
+        cookie,
+        digest: pending.digest,
+    }
+}
+
+/// A binding whose state is not yet known: for a store that mints the state as it stores
+/// the digest. Its cookie is written once the state is.
+#[derive(Debug)]
+pub struct Pending {
+    value:      String,
+    /// The SHA-256 of the cookie's value, hex: what the stored state keeps.
+    pub digest: String,
+}
+
+impl Pending {
+    /// A new random value, and its digest.
+    #[must_use]
+    pub fn new() -> Self {
+        let value = crate::handlers::generate_secure_state();
+        let digest = hex::encode(Sha256::digest(value.as_bytes()));
+        Self { value, digest }
+    }
+
+    /// The `Set-Cookie` value binding the login `state` to this value.
+    #[must_use]
+    pub fn cookie(&self, state: &str, returns_by: ReturnsBy, max_age_secs: u64) -> HeaderValue {
+        header_value(&cookie_name(state), &self.value, returns_by, max_age_secs)
+    }
+}
+
+impl Default for Pending {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// Whether the request carries the cookie of the login `state`, and its value hashes to

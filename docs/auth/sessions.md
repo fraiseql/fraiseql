@@ -193,19 +193,21 @@ and on `POST /auth/revoke`, `/auth/revoke-all` and the design audit, whose bodie
 subscription socket, the `REST` transport and the observer admin endpoints (`/api/observers/…`)
 do not accept it. Send them `Authorization: Bearer`.
 
-## A social or SAML login completes in the browser that started it
+## A social, SAML or OIDC login completes in the browser that started it
 
-`GET /auth/v1/authorize` and `GET /auth/saml/login` set a cookie, `__Host-fraiseql_login_…`,
-holding a random value; the stored `state` or `RelayState` keeps that value's SHA-256. The
-social callback and the SAML ACS complete only a login whose cookie is present and matches,
+`GET /auth/v1/authorize`, `GET /auth/saml/login` and the `OIDC` `GET /auth/start` set a cookie,
+`__Host-fraiseql_login_…`, holding a random value; the stored `state` or `RelayState` keeps
+that value's SHA-256. The social callback, the SAML ACS and `GET /auth/callback` complete only a
+login whose cookie is present and matches,
 and every answer they give clears it, so a login started in one browser cannot be finished
 from another. The cookie is `HttpOnly; Secure; Path=/` and lives as long as the login (ten
-minutes). It is `SameSite=Lax` when the provider comes back by a `GET` redirect, and
+minutes, or `[security.pkce] state_ttl_secs` for `OIDC`). It is `SameSite=Lax` when the
+provider comes back by a `GET` redirect, and
 `SameSite=None` when it comes back by a cross-site form `POST`: Apple's `form_post` and the
 SAML ACS.
 
-So a client starts the login by sending the browser itself to `/auth/v1/authorize` or
-`/auth/saml/login`. Requesting that URL from another HTTP client and opening the
+So a client starts the login by sending the browser itself to `/auth/v1/authorize`,
+`/auth/saml/login` or `/auth/start`. Requesting that URL from another HTTP client and opening the
 provider's page in a browser leaves the cookie in the wrong place, and the callback refuses
 the login.
 

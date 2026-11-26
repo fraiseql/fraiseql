@@ -1,6 +1,6 @@
 //! PKCE state store — RFC 7636 Proof Key for Code Exchange.
 //!
-//! Stores `(code_verifier, redirect_uri)` under a random internal key while
+//! Stores `(code_verifier, redirect_uri, binding)` under a random internal key while
 //! the OAuth2 authorization round-trip is in flight.  The token sent to the
 //! OIDC provider in the `?state=` query parameter is either:
 //! - the raw internal key (no encryption configured), or
@@ -8,13 +8,14 @@
 //!   attached).
 //!
 //! State lifecycle:
-//! - `create_state(redirect_uri)` → `internal_key = random 32 bytes (base64url)` → `outbound_token
-//!   = encrypt(internal_key)` (or `internal_key` if no encryption) → `store.insert(internal_key,
-//!   {verifier, redirect_uri, ttl})` → returns `(outbound_token, verifier)`
+//! - `create_state(redirect_uri, binding)` → `internal_key = random 32 bytes (base64url)` →
+//!   `outbound_token = encrypt(internal_key)` (or `internal_key` if no encryption) →
+//!   `store.insert(internal_key, {verifier, redirect_uri, binding, ttl})` → returns
+//!   `(outbound_token, verifier)`
 //! - `consume_state(outbound_token)` → `internal_key = decrypt(outbound_token)` (or
 //!   `outbound_token` if no encryption) → `entry = store.remove(internal_key)?` (
 //!   [`PkceError::StateNotFound`] if absent) → if `entry.elapsed > entry.ttl` →
-//!   [`PkceError::StateExpired`] → returns `{verifier, redirect_uri}`
+//!   [`PkceError::StateExpired`] → returns `{verifier, redirect_uri, binding}`
 //!
 //! Backends:
 //! - **InMemory** — `DashMap`, single-process, per-replica
@@ -102,6 +103,9 @@ pub struct ConsumedPkceState {
     pub verifier:     String,
     /// The `redirect_uri` the client specified at `/auth/start`.
     pub redirect_uri: String,
+    /// The digest of the login cookie `/auth/start` set (see [`crate::login_binding`]):
+    /// the callback completes the state only for the browser presenting that cookie.
+    pub binding:      String,
 }
 
 // ---------------------------------------------------------------------------
@@ -111,6 +115,7 @@ pub struct ConsumedPkceState {
 struct PkceEntry {
     verifier:     String,
     redirect_uri: String,
+    binding:      String,
     /// Creation time as a Tokio instant so `tokio::time::pause()` +
     /// `tokio::time::advance()` can control TTL expiry in tests.
     created_at:   tokio::time::Instant,
@@ -167,7 +172,11 @@ impl InMemoryPkceStateStore {
         }
     }
 
-    fn create_state_sync(&self, redirect_uri: &str) -> Result<(String, String), anyhow::Error> {
+    fn create_state_sync(
+        &self,
+        redirect_uri: &str,
+        binding: &str,
+    ) -> Result<(String, String), anyhow::Error> {
         // SECURITY: reserve a slot atomically to bound memory under DoS. The
         // fetch_add and its bound-check are one operation, so concurrent creators
         // cannot each pass a `len() < max` check and all insert (#737 TOCTOU).
@@ -192,6 +201,7 @@ impl InMemoryPkceStateStore {
             PkceEntry {
                 verifier:     verifier.clone(),
                 redirect_uri: redirect_uri.to_owned(),
+                binding:      binding.to_owned(),
                 created_at:   tokio::time::Instant::now(),
                 ttl:          Duration::from_secs(self.state_ttl_secs),
             },
@@ -237,6 +247,7 @@ impl InMemoryPkceStateStore {
         Ok(ConsumedPkceState {
             verifier:     entry.verifier,
             redirect_uri: entry.redirect_uri,
+            binding:      entry.binding,
         })
     }
 
@@ -314,6 +325,7 @@ impl RedisPkceStateStore {
     async fn create_state_impl(
         &self,
         redirect_uri: &str,
+        binding: &str,
     ) -> Result<(String, String), anyhow::Error> {
         // code_verifier (RFC 7636 §4.1)
         let mut verifier_bytes = [0u8; 32];
@@ -330,6 +342,7 @@ impl RedisPkceStateStore {
         let value = serde_json::json!({
             "verifier":     verifier,
             "redirect_uri": redirect_uri,
+            "binding":      binding,
         })
         .to_string();
 
@@ -359,6 +372,7 @@ impl RedisPkceStateStore {
         struct StoredEntry {
             verifier:     String,
             redirect_uri: String,
+            binding:      String,
         }
 
         // Recover internal key from outbound token
@@ -404,6 +418,7 @@ impl RedisPkceStateStore {
         Ok(ConsumedPkceState {
             verifier:     entry.verifier,
             redirect_uri: entry.redirect_uri,
+            binding:      entry.binding,
         })
     }
 }
@@ -490,6 +505,9 @@ impl PkceStateStore {
     /// - `code_verifier` is passed to [`Self::s256_challenge`] and stored until the callback
     ///   arrives.
     ///
+    /// `binding` is the digest of the login cookie the start sets, returned with the state
+    /// by [`Self::consume_state`].
+    ///
     /// # Errors
     ///
     /// Returns an error if encryption fails (effectively never with a valid
@@ -497,11 +515,22 @@ impl PkceStateStore {
     pub async fn create_state(
         &self,
         redirect_uri: &str,
+        binding: &str,
     ) -> Result<(String, String), anyhow::Error> {
         match self {
-            Self::InMemory(s) => s.create_state_sync(redirect_uri),
+            Self::InMemory(s) => s.create_state_sync(redirect_uri, binding),
             #[cfg(feature = "redis-pkce")]
-            Self::Redis(s) => s.create_state_impl(redirect_uri).await,
+            Self::Redis(s) => s.create_state_impl(redirect_uri, binding).await,
+        }
+    }
+
+    /// How long a state lives, in seconds: the login cookie lives as long.
+    #[must_use]
+    pub const fn state_ttl_secs(&self) -> u64 {
+        match self {
+            Self::InMemory(s) => s.state_ttl_secs,
+            #[cfg(feature = "redis-pkce")]
+            Self::Redis(s) => s.state_ttl_secs,
         }
     }
 

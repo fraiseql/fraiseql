@@ -1,6 +1,6 @@
 //! SR-7: R2b — `authorization_url()` generated OAuth state but never returned it,
 //!       making CSRF verification impossible.
-//!       Fix: `create_state()` returns the outbound state token, and `consume_state()`
+//!       Fix: `create_state(, "")` returns the outbound state token, and `consume_state()`
 //!       with a mismatched token is rejected — ensuring one-to-one callback binding.
 //!
 //! These tests exercise the `PkceStateStore` public API, which is the layer that
@@ -32,7 +32,7 @@ async fn create_state_returns_non_empty_state_token() {
     let redirect_uri = "https://app.example.com/callback";
 
     let (token, verifier) =
-        store.create_state(redirect_uri).await.expect("create_state must not fail");
+        store.create_state(redirect_uri, "").await.expect("create_state must not fail");
 
     assert!(!token.is_empty(), "R2b regression: create_state returned empty state token");
     assert!(!verifier.is_empty(), "create_state returned empty code verifier");
@@ -47,7 +47,7 @@ async fn consume_state_with_wrong_token_is_rejected_as_csrf() {
 
     // Generate a real state
     let (_real_token, _verifier) = store
-        .create_state("https://app.example.com/callback")
+        .create_state("https://app.example.com/callback", "")
         .await
         .expect("create_state must succeed");
 
@@ -71,7 +71,7 @@ async fn consume_state_with_correct_token_succeeds() {
     let redirect_uri = "https://app.example.com/callback";
 
     let (token, verifier) =
-        store.create_state(redirect_uri).await.expect("create_state must succeed");
+        store.create_state(redirect_uri, "").await.expect("create_state must succeed");
 
     let consumed = store.consume_state(&token).await.expect("consume_state must succeed");
 
@@ -94,7 +94,7 @@ async fn state_token_is_consumed_exactly_once() {
     let store = PkceStateStore::new(300, None);
 
     let (token, _) = store
-        .create_state("https://app.example.com/callback")
+        .create_state("https://app.example.com/callback", "")
         .await
         .expect("create_state must succeed");
 
@@ -115,8 +115,8 @@ async fn state_token_is_consumed_exactly_once() {
 async fn independent_state_tokens_do_not_interfere() {
     let store = PkceStateStore::new(300, None);
 
-    let (token_a, _) = store.create_state("https://app.example.com/a").await.unwrap();
-    let (token_b, _) = store.create_state("https://app.example.com/b").await.unwrap();
+    let (token_a, _) = store.create_state("https://app.example.com/a", "").await.unwrap();
+    let (token_b, _) = store.create_state("https://app.example.com/b", "").await.unwrap();
 
     // Tokens must be distinct
     assert_ne!(token_a, token_b, "state tokens must be unique");

@@ -395,8 +395,22 @@ mod auth_tests {
 
         assert!(!state_token.is_empty(), "extracted state token must not be empty");
 
+        // The browser that started the login sends its login cookie back.
+        let cookie = resp
+            .headers()
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .find(|v| v.starts_with("__Host-fraiseql_login_"))
+            .and_then(|v| v.split(';').next())
+            .expect("/auth/start sets the login cookie")
+            .to_string();
         let callback_uri = format!("/auth/callback?code=test_code&state={state_token}");
-        let req2 = Request::builder().uri(&callback_uri).body(Body::empty()).unwrap();
+        let req2 = Request::builder()
+            .uri(&callback_uri)
+            .header(header::COOKIE, cookie)
+            .body(Body::empty())
+            .unwrap();
         let resp2 = app.clone().oneshot(req2).await.unwrap();
 
         assert_ne!(

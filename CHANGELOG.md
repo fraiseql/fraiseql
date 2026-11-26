@@ -1496,6 +1496,15 @@ disagreed, and the promise was the part that was wrong.
   client and opened the provider's page in a browser must now send the browser to that URL
   itself. A login in flight across the upgrade is refused and is started again.
 
+- **An OIDC PKCE login completes only in the browser that started it (#2643).** `GET
+  /auth/start` sets the same short-lived `__Host-fraiseql_login_…` cookie (`HttpOnly; Secure;
+  SameSite=Lax`, as long as `[security.pkce] state_ttl_secs`) whose hash is stored with the PKCE
+  state, in memory or in Redis. `GET /auth/callback` refuses a state whose cookie is missing or
+  does not match, and clears it on every answer. A client that requested `/auth/start` from
+  one HTTP client and opened the provider's page in a browser must now send the browser to
+  `/auth/start` itself. A login in flight across the upgrade is refused and is started again;
+  a Redis-held state from before the upgrade no longer decodes, and is refused the same way.
+
 - **Cookie transport covers social and SAML sign-in, and its key moved to `[auth.session]
   transport` (#1935).** `[auth.local] session_transport` set the transport of the local
   sign-ins alone, so a social or SAML sign-in still put its tokens in a body or a fragment.

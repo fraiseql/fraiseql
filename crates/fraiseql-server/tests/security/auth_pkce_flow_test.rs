@@ -3,11 +3,12 @@
 //! Drives the complete PKCE flow at the HTTP level against a real Axum router
 //! built from the production `auth_start` and `auth_callback` handlers.  No
 //! real OIDC `IdP` is involved — the test verifies the middleware layers
-//! (state creation, state consumption, replay prevention) that are NOT covered
+//! (state creation, state consumption, replay prevention, the login cookie that ties a
+//! state to the browser that started it) that are NOT covered
 //! by the `PkceStateStore` unit tests alone.
 //!
 //! # What is NOT tested here
-//! - Real OIDC token exchange (requires a live `IdP`)
+//! - Real OIDC token exchange (requires a live `IdP`; a `wiremock` token endpoint stands in)
 //! - Encrypted PKCE state (requires `state_encryption` feature config)
 //! - Redis-backed PKCE store (see the `#[ignore]` variant in the redis integration variant)
 //!
@@ -87,23 +88,77 @@ fn auth_router() -> Router {
         .with_state(state)
 }
 
-/// Send a GET request to the given router and return the status + location
-/// header (if any).
-async fn get_request(router: &Router, uri: &str) -> (StatusCode, Option<String>) {
-    let response = router
-        .clone()
-        .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
-        .await
-        .unwrap();
+/// An answer of the router: its status, `Location`, `Set-Cookie`s and body.
+struct Answer {
+    status:      StatusCode,
+    location:    Option<String>,
+    set_cookies: Vec<String>,
+    body:        String,
+}
 
+impl Answer {
+    /// The `name=value` of the login cookie `/auth/start` set.
+    fn login_cookie(&self) -> String {
+        self.set_cookies
+            .iter()
+            .find(|c| c.starts_with("__Host-fraiseql_login_"))
+            .and_then(|c| c.split(';').next())
+            .expect("/auth/start sets the login cookie")
+            .to_string()
+    }
+
+    /// Whether this answer clears the login cookie whose `name=value` is `cookie`.
+    fn clears(&self, cookie: &str) -> bool {
+        let name = cookie.split('=').next().unwrap_or_default();
+        self.set_cookies
+            .iter()
+            .any(|c| c.starts_with(&format!("{name}=;")) && c.contains("Max-Age=0"))
+    }
+}
+
+/// Send a GET to the router carrying `cookie` (a `Cookie` header value), if any.
+async fn send(router: &Router, uri: &str, cookie: Option<&str>) -> Answer {
+    let mut request = Request::builder().uri(uri);
+    if let Some(cookie) = cookie {
+        request = request.header(http::header::COOKIE, cookie);
+    }
+    let response = router.clone().oneshot(request.body(Body::empty()).unwrap()).await.unwrap();
     let status = response.status();
     let location = response
         .headers()
         .get("location")
         .and_then(|v| v.to_str().ok())
         .map(str::to_owned);
+    let set_cookies = response
+        .headers()
+        .get_all(http::header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .map(str::to_owned)
+        .collect();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    Answer {
+        status,
+        location,
+        set_cookies,
+        body: String::from_utf8_lossy(&body).into_owned(),
+    }
+}
 
-    (status, location)
+/// Send a GET to the router with no cookie: the status, and the `Location` if any.
+async fn get_request(router: &Router, uri: &str) -> (StatusCode, Option<String>) {
+    let answer = send(router, uri, None).await;
+    (answer.status, answer.location)
+}
+
+/// `/auth/start` from a browser: the state, and the login cookie it set.
+async fn start(router: &Router) -> (String, String, Answer) {
+    let answer =
+        send(router, "/auth/start?redirect_uri=https://app.example.com/after-login", None).await;
+    assert_eq!(answer.status, StatusCode::SEE_OTHER, "auth_start must redirect (303)");
+    let location = answer.location.clone().expect("auth_start must set Location header");
+    let state = extract_state_param(&location).to_string();
+    (state, answer.login_cookie(), answer)
 }
 
 /// Extract the `state=` query parameter from a URL string.
@@ -173,20 +228,14 @@ async fn auth_start_then_callback_completes_pkce_flow() {
     let router = auth_router();
 
     // ── Step 1: auth_start ────────────────────────────────────────────────
-    let (status, location) =
-        get_request(&router, "/auth/start?redirect_uri=https://app.example.com/after-login").await;
-
-    assert_eq!(status, StatusCode::SEE_OTHER, "auth_start must redirect (303)");
-    let loc = location.expect("auth_start must provide Location header");
-
-    let state_token = extract_state_param(&loc);
+    let (state_token, cookie, _) = start(&router).await;
     assert!(!state_token.is_empty(), "state token must not be empty");
 
     // ── Step 2: auth_callback — state consumed, exchange fails ────────────
     // The state token is valid; the token exchange fails because the endpoint
     // is non-routable (192.0.2.1).  That should produce 502, not 400.
     let callback_uri = format!("/auth/callback?code=fake_code&state={state_token}");
-    let (callback_status, _) = get_request(&router, &callback_uri).await;
+    let callback_status = send(&router, &callback_uri, Some(&cookie)).await.status;
 
     // The token exchange fails (non-routable IP) → 502.
     // What matters: it must NOT be 400, which would indicate state was not found.
@@ -198,7 +247,7 @@ async fn auth_start_then_callback_completes_pkce_flow() {
     );
 
     // ── Step 3: replay — state already consumed ───────────────────────────
-    let (replay_status, _) = get_request(&router, &callback_uri).await;
+    let replay_status = send(&router, &callback_uri, Some(&cookie)).await.status;
 
     assert_eq!(
         replay_status,
@@ -240,6 +289,116 @@ async fn auth_callback_missing_code_and_state_returns_400() {
     let router = auth_router();
     let (status, _) = get_request(&router, "/auth/callback").await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "callback with no params must return 400");
+}
+
+// ---------------------------------------------------------------------------
+// The login cookie: a state completes only in the browser that started it
+// ---------------------------------------------------------------------------
+
+/// A router whose token endpoint is a `wiremock` mock answering a valid token, and
+/// which answers the tokens in `JSON` (no `post_login_redirect_uri`).
+async fn completing_router(mock_server: &MockServer) -> Router {
+    Mock::given(method("POST"))
+        .and(path("/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "access_token": "test-access-token-xyz",
+            "expires_in": 3600,
+            "token_type": "Bearer"
+        })))
+        .mount(mock_server)
+        .await;
+    let oidc_client = OidcServerClient::new(
+        "test-client",
+        "test-secret",
+        "http://localhost/auth/callback",
+        "https://auth.example.com/authorize",
+        format!("{}/token", mock_server.uri()),
+    );
+    let state = Arc::new(AuthPkceState {
+        pkce_store:              Arc::new(PkceStateStore::new(300, None)),
+        oidc_client:             Arc::new(oidc_client),
+        http_client:             Arc::new(reqwest::Client::new()),
+        post_login_redirect_uri: None,
+    });
+    Router::new()
+        .route("/auth/start", get(auth_start))
+        .route("/auth/callback", get(auth_callback))
+        .with_state(state)
+}
+
+/// `/auth/start` sets a `SameSite=Lax` login cookie living as long as the state, and the
+/// callback completes the state only for the browser presenting it: another browser, or
+/// the cookie's name with another value, is refused, and the refusal spends the state.
+/// Every answer clears the cookie.
+#[tokio::test]
+async fn a_pkce_login_completes_only_from_the_browser_that_started_it() {
+    let mock_server = MockServer::start().await;
+    let router = completing_router(&mock_server).await;
+    let callback = |state: &str| format!("/auth/callback?code=valid_code&state={state}");
+
+    // Another browser, with no cookie: refused, the cookie cleared, and the state spent.
+    let started =
+        send(&router, "/auth/start?redirect_uri=https://app.example.com/after-login", None).await;
+    let location = started.location.clone().expect("auth_start must set Location header");
+    let state = extract_state_param(&location).to_string();
+    let refused = send(&router, &callback(&state), None).await;
+    assert_eq!(refused.status, StatusCode::BAD_REQUEST, "{}", refused.body);
+    assert!(!refused.body.contains("test-access-token-xyz"), "{}", refused.body);
+    let cookie = started.login_cookie();
+    assert!(
+        refused.clears(&cookie),
+        "a refusal clears the login cookie: {:?}",
+        refused.set_cookies
+    );
+    let retried = send(&router, &callback(&state), Some(&cookie)).await;
+    assert_eq!(retried.status, StatusCode::BAD_REQUEST, "a refused state is spent");
+
+    // The cookie.
+    let set = started.set_cookies.join("\n");
+    for attribute in [
+        "__Host-fraiseql_login_",
+        "Path=/",
+        "HttpOnly",
+        "Secure",
+        "SameSite=Lax",
+        "Max-Age=300",
+    ] {
+        assert!(set.contains(attribute), "{set}");
+    }
+
+    // The cookie's name with another value: refused.
+    let (state, cookie, _) = start(&router).await;
+    let name = cookie.split('=').next().expect("a cookie name");
+    let refused = send(&router, &callback(&state), Some(&format!("{name}=0123abcd"))).await;
+    assert_eq!(refused.status, StatusCode::BAD_REQUEST, "{}", refused.body);
+
+    // Another state's cookie: refused.
+    let (state, _, _) = start(&router).await;
+    let (_, other_cookie, _) = start(&router).await;
+    let refused = send(&router, &callback(&state), Some(&other_cookie)).await;
+    assert_eq!(refused.status, StatusCode::BAD_REQUEST, "{}", refused.body);
+
+    // The browser that started it: completes, and the cookie is cleared.
+    let (state, cookie, _) = start(&router).await;
+    let completed = send(&router, &callback(&state), Some(&cookie)).await;
+    assert_eq!(completed.status, StatusCode::OK, "{}", completed.body);
+    assert!(completed.body.contains("test-access-token-xyz"), "{}", completed.body);
+    assert!(completed.clears(&cookie), "{:?}", completed.set_cookies);
+}
+
+/// A callback carrying a provider error and the state clears the login cookie too.
+#[tokio::test]
+async fn a_provider_error_clears_the_login_cookie() {
+    let router = auth_router();
+    let (state, cookie, _) = start(&router).await;
+    let answer = send(
+        &router,
+        &format!("/auth/callback?error=access_denied&state={state}"),
+        Some(&cookie),
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::BAD_REQUEST);
+    assert!(answer.clears(&cookie), "{:?}", answer.set_cookies);
 }
 
 // ---------------------------------------------------------------------------
@@ -295,18 +454,20 @@ async fn auth_callback_session_cookie_mode() {
     let router = session_cookie_router(&mock_server).await;
 
     // ── Step 1: auth_start → redirect to IdP ─────────────────────────────
-    let (status, location) =
-        get_request(&router, "/auth/start?redirect_uri=https://app.example.com/after-login").await;
-    assert_eq!(status, StatusCode::SEE_OTHER, "auth_start must redirect (303)");
-    let loc = location.expect("auth_start must set Location header");
-    let state_token = extract_state_param(&loc);
+    let (state_token, cookie, _) = start(&router).await;
     assert!(!state_token.is_empty(), "state token must not be empty");
 
     // ── Step 2: auth_callback → cookie redirect ──────────────────────────
     let callback_uri = format!("/auth/callback?code=valid_code&state={state_token}");
     let response = router
         .clone()
-        .oneshot(Request::builder().uri(&callback_uri).body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri(&callback_uri)
+                .header(http::header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
@@ -373,6 +534,18 @@ async fn auth_callback_session_cookie_mode() {
         set_cookie.contains("Max-Age=3600"),
         "cookie Max-Age must match token expires_in (3600), got: {set_cookie}"
     );
+
+    // The login cookie is cleared alongside.
+    let name = cookie.split('=').next().unwrap_or_default();
+    assert!(
+        response
+            .headers()
+            .get_all("set-cookie")
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .any(|c| c.starts_with(&format!("{name}=;")) && c.contains("Max-Age=0")),
+        "the login cookie is cleared"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -406,18 +579,14 @@ async fn auth_pkce_flow_with_redis_store() {
         .with_state(state);
 
     // Step 1
-    let (status, location) =
-        get_request(&router, "/auth/start?redirect_uri=https://app.example.com/after-login").await;
-    assert_eq!(status, StatusCode::SEE_OTHER);
-    let loc = location.unwrap();
-    let state_token = extract_state_param(&loc);
+    let (state_token, cookie, _) = start(&router).await;
 
     // Step 2 — exchange fails (non-routable) but state is consumed
     let callback_uri = format!("/auth/callback?code=fake_code&state={state_token}");
-    let (callback_status, _) = get_request(&router, &callback_uri).await;
+    let callback_status = send(&router, &callback_uri, Some(&cookie)).await.status;
     assert_ne!(callback_status, StatusCode::BAD_REQUEST);
 
     // Step 3 — replay rejected
-    let (replay_status, _) = get_request(&router, &callback_uri).await;
+    let replay_status = send(&router, &callback_uri, Some(&cookie)).await.status;
     assert_eq!(replay_status, StatusCode::BAD_REQUEST);
 }

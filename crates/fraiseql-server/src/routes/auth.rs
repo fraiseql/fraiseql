@@ -8,10 +8,10 @@
 //!
 //! ```text
 //! GET /auth/start?redirect_uri=https://app.example.com/after-login
-//!   → 302 → OIDC provider /authorize?...&code_challenge=...&state=...
+//!   → 303 + the login cookie → OIDC provider /authorize?...&code_challenge=...&state=...
 //!
-//! GET /auth/callback?code=<code>&state=<state>
-//!   → [verify state, exchange code+verifier for tokens]
+//! GET /auth/callback?code=<code>&state=<state>, carrying the login cookie
+//!   → [verify state and its cookie, exchange code+verifier for tokens, clear the cookie]
 //!   → 200 JSON { access_token, id_token, expires_in, token_type }
 //!   OR 302 + Set-Cookie (when post_login_redirect_uri is configured)
 //! ```
@@ -24,9 +24,10 @@ use std::sync::Arc;
 use axum::{
     Extension, Json,
     extract::{Query, State},
-    http::{StatusCode, header},
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Redirect, Response},
 };
+use fraiseql_auth::login_binding;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -127,7 +128,10 @@ pub async fn auth_start(
         return auth_error(StatusCode::BAD_REQUEST, "redirect_uri exceeds maximum length");
     }
 
-    let (outbound_token, verifier) = match state.pkce_store.create_state(&q.redirect_uri).await {
+    // The cookie that ties the state to this browser; the store keeps its digest.
+    let binding = login_binding::Pending::new();
+    let created = state.pkce_store.create_state(&q.redirect_uri, &binding.digest).await;
+    let (outbound_token, verifier) = match created {
         Ok(v) => v,
         Err(e) => {
             tracing::error!("pkce create_state failed: {e}");
@@ -141,7 +145,16 @@ pub async fn auth_start(
     let challenge = PkceStateStore::s256_challenge(&verifier);
     let location = state.oidc_client.authorization_url(&outbound_token, &challenge, "S256");
 
-    Redirect::to(&location).into_response()
+    let mut response = Redirect::to(&location).into_response();
+    response.headers_mut().append(
+        header::SET_COOKIE,
+        binding.cookie(
+            &outbound_token,
+            login_binding::ReturnsBy::Redirect,
+            state.pkce_store.state_ttl_secs(),
+        ),
+    );
+    response
 }
 
 // ---------------------------------------------------------------------------
@@ -150,8 +163,8 @@ pub async fn auth_start(
 
 /// Complete the PKCE authorization code flow.
 ///
-/// Validates the `state` parameter, recovers the `code_verifier`, then
-/// exchanges the authorization `code` at the OIDC token endpoint.
+/// Validates the `state` parameter and the login cookie `/auth/start` set, recovers the
+/// `code_verifier`, then exchanges the authorization `code` at the OIDC token endpoint.
 ///
 /// # Query parameters
 ///
@@ -167,10 +180,29 @@ pub async fn auth_start(
 ///   when `post_login_redirect_uri` is configured.
 /// - `400` — invalid/expired state, missing parameters, or provider error.
 /// - `502` — token exchange with the OIDC provider failed.
-#[allow(clippy::cognitive_complexity)] // Reason: OAuth callback handler with state validation, token exchange, and redirect logic
 pub async fn auth_callback(
     State(state): State<Arc<AuthPkceState>>,
+    headers: HeaderMap,
     Query(q): Query<AuthCallbackQuery>,
+) -> Response {
+    let login = q.state.clone();
+    let mut response = complete_callback(&state, &headers, q).await;
+    // Every answer clears the login cookie: the state is spent, or was never valid.
+    if let Some(login) = login {
+        response.headers_mut().append(
+            header::SET_COOKIE,
+            login_binding::clear(&login, login_binding::ReturnsBy::Redirect),
+        );
+    }
+    response
+}
+
+/// The body of [`auth_callback`], whose every answer clears the login cookie.
+#[allow(clippy::cognitive_complexity)] // Reason: OAuth callback handler with state validation, token exchange, and redirect logic
+async fn complete_callback(
+    state: &AuthPkceState,
+    headers: &HeaderMap,
+    q: AuthCallbackQuery,
 ) -> Response {
     // ── Surface OIDC provider errors immediately ──────────────────────────
     if let Some(err) = q.error {
@@ -204,6 +236,14 @@ pub async fn auth_callback(
             return auth_error(StatusCode::BAD_REQUEST, &e.to_string());
         },
     };
+    // The state completes only for the browser that started it; consumed first, so a
+    // refused state cannot be tried again.
+    if !login_binding::matches(headers, &state_token, &pkce.binding) {
+        return auth_error(
+            StatusCode::BAD_REQUEST,
+            "this login was started in another browser, or its cookie is missing",
+        );
+    }
 
     // ── Exchange code + verifier at the OIDC provider ────────────────────
     let tokens = match state
@@ -241,7 +281,7 @@ pub async fn auth_callback(
         let mut resp = Redirect::to(redirect_uri).into_response();
         match cookie.parse() {
             Ok(value) => {
-                resp.headers_mut().insert(header::SET_COOKIE, value);
+                resp.headers_mut().append(header::SET_COOKIE, value);
             },
             Err(e) => {
                 tracing::error!("Failed to parse Set-Cookie header: {e}");

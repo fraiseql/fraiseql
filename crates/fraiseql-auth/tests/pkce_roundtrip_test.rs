@@ -40,7 +40,7 @@ async fn test_pkce_state_roundtrip_with_encryption() {
     let redirect_uri = "https://app.example.com/callback";
 
     let (token, verifier) =
-        store.create_state(redirect_uri).await.expect("create_state must succeed");
+        store.create_state(redirect_uri, "").await.expect("create_state must succeed");
 
     // The token must not contain the raw verifier — it is encrypted and base64-encoded.
     assert!(!token.contains(&verifier), "token must not contain plaintext verifier");
@@ -80,7 +80,7 @@ async fn test_pkce_state_roundtrip_without_encryption() {
     let redirect_uri = "https://app.example.com/callback";
 
     let (token, verifier) =
-        store.create_state(redirect_uri).await.expect("create_state must succeed");
+        store.create_state(redirect_uri, "").await.expect("create_state must succeed");
 
     let consumed = store
         .consume_state(&token)
@@ -112,7 +112,7 @@ async fn test_pkce_state_tampered_token_rejected() {
     let store = PkceStateStore::new(300, Some(enc_svc()));
 
     let (token, _) = store
-        .create_state("https://app.example.com/callback")
+        .create_state("https://app.example.com/callback", "")
         .await
         .expect("create_state must succeed");
 

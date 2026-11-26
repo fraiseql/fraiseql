@@ -2130,16 +2130,34 @@ mod pkce_tests {
     #[tokio::test]
     async fn test_create_and_consume_roundtrip() {
         let store = store_no_enc(600);
-        let (token, verifier) = store.create_state("https://app.example.com/cb").await.unwrap();
+        let (token, verifier) = store.create_state("https://app.example.com/cb", "").await.unwrap();
         let result = store.consume_state(&token).await.unwrap();
         assert_eq!(result.verifier, verifier);
         assert_eq!(result.redirect_uri, "https://app.example.com/cb");
     }
 
+    /// The login cookie's digest comes back with the state, plain and encrypted, and is
+    /// each state's own.
+    #[tokio::test]
+    async fn the_binding_comes_back_with_its_state() {
+        for store in [
+            store_no_enc(600),
+            PkceStateStore::new(600, Some(enc_service())),
+        ] {
+            let (first, _) =
+                store.create_state("https://app.example.com/cb", "digest-1").await.unwrap();
+            let (second, _) =
+                store.create_state("https://app.example.com/cb", "digest-2").await.unwrap();
+            assert_eq!(store.consume_state(&second).await.unwrap().binding, "digest-2");
+            assert_eq!(store.consume_state(&first).await.unwrap().binding, "digest-1");
+            assert_eq!(store.state_ttl_secs(), 600);
+        }
+    }
+
     #[tokio::test]
     async fn test_consume_removes_entry_cannot_reuse() {
         let store = store_no_enc(600);
-        let (token, _) = store.create_state("https://app.example.com/cb").await.unwrap();
+        let (token, _) = store.create_state("https://app.example.com/cb", "").await.unwrap();
         store.consume_state(&token).await.unwrap();
         assert!(
             matches!(store.consume_state(&token).await, Err(PkceError::StateNotFound)),
@@ -2150,7 +2168,7 @@ mod pkce_tests {
     #[tokio::test(start_paused = true)]
     async fn test_expired_state_returns_state_expired_not_not_found() {
         let store = store_no_enc(1);
-        let (token, _) = store.create_state("https://example.com").await.unwrap();
+        let (token, _) = store.create_state("https://example.com", "").await.unwrap();
         tokio::time::advance(Duration::from_millis(1100)).await;
         assert!(
             matches!(store.consume_state(&token).await, Err(PkceError::StateExpired)),
@@ -2170,8 +2188,8 @@ mod pkce_tests {
     #[tokio::test]
     async fn test_two_distinct_states_dont_interfere() {
         let store = store_no_enc(600);
-        let (t1, v1) = store.create_state("https://a.example.com/cb").await.unwrap();
-        let (t2, v2) = store.create_state("https://b.example.com/cb").await.unwrap();
+        let (t1, v1) = store.create_state("https://a.example.com/cb", "").await.unwrap();
+        let (t2, v2) = store.create_state("https://b.example.com/cb", "").await.unwrap();
         let r2 = store.consume_state(&t2).await.unwrap();
         let r1 = store.consume_state(&t1).await.unwrap();
         assert_eq!(r1.verifier, v1);
@@ -2188,7 +2206,7 @@ mod pkce_tests {
     #[tokio::test]
     async fn test_verifier_length_and_charset_are_rfc7636_compliant() {
         let store = store_no_enc(600);
-        let (_, verifier) = store.create_state("https://example.com").await.unwrap();
+        let (_, verifier) = store.create_state("https://example.com", "").await.unwrap();
         assert!(
             verifier.len() >= 43 && verifier.len() <= 128,
             "verifier length {} is outside the 43–128 char range",
@@ -2200,7 +2218,7 @@ mod pkce_tests {
     #[tokio::test]
     async fn test_encrypted_token_is_longer_than_raw_internal_key() {
         let store = PkceStateStore::new(600, Some(enc_service()));
-        let (token, _) = store.create_state("https://app.example.com/cb").await.unwrap();
+        let (token, _) = store.create_state("https://app.example.com/cb", "").await.unwrap();
         assert!(
             token.len() > 43,
             "encrypted token (len={}) must be longer than a raw 32-byte key (43 chars)",
@@ -2211,7 +2229,7 @@ mod pkce_tests {
     #[tokio::test]
     async fn test_encrypted_roundtrip_works_end_to_end() {
         let store = PkceStateStore::new(600, Some(enc_service()));
-        let (token, verifier) = store.create_state("https://app.example.com/cb").await.unwrap();
+        let (token, verifier) = store.create_state("https://app.example.com/cb", "").await.unwrap();
         let result = store.consume_state(&token).await.unwrap();
         assert_eq!(result.verifier, verifier);
     }
@@ -2219,7 +2237,7 @@ mod pkce_tests {
     #[tokio::test]
     async fn test_tampered_encrypted_token_returns_not_found() {
         let store = PkceStateStore::new(600, Some(enc_service()));
-        store.create_state("https://app.example.com/cb").await.unwrap();
+        store.create_state("https://app.example.com/cb", "").await.unwrap();
         let result = store.consume_state("aGVsbG8gd29ybGQ").await;
         assert!(
             matches!(result, Err(PkceError::StateNotFound)),
@@ -2230,7 +2248,7 @@ mod pkce_tests {
     #[tokio::test(start_paused = true)]
     async fn test_consume_at_exact_ttl_boundary_succeeds() {
         let store = store_no_enc(2);
-        let (token, verifier) = store.create_state("https://example.com").await.unwrap();
+        let (token, verifier) = store.create_state("https://example.com", "").await.unwrap();
         tokio::time::advance(Duration::from_secs(2)).await;
         let result = store.consume_state(&token).await.unwrap();
         assert_eq!(result.verifier, verifier, "state at exact TTL boundary must still be valid");
@@ -2252,7 +2270,7 @@ mod pkce_tests {
     #[tokio::test]
     async fn test_is_empty_false_after_create() {
         let store = store_no_enc(600);
-        store.create_state("https://example.com").await.unwrap();
+        store.create_state("https://example.com", "").await.unwrap();
         assert!(!store.is_empty(), "store with one entry must not be empty");
         assert_eq!(store.len(), 1);
     }
@@ -2260,7 +2278,7 @@ mod pkce_tests {
     #[tokio::test]
     async fn test_is_empty_true_after_consume() {
         let store = store_no_enc(600);
-        let (token, _) = store.create_state("https://example.com").await.unwrap();
+        let (token, _) = store.create_state("https://example.com", "").await.unwrap();
         store.consume_state(&token).await.unwrap();
         assert!(store.is_empty(), "store must be empty after consuming the only entry");
     }
@@ -2268,13 +2286,13 @@ mod pkce_tests {
     #[tokio::test(start_paused = true)]
     async fn test_cleanup_removes_expired_leaves_valid() {
         let store = store_no_enc(1);
-        store.create_state("https://a.example.com").await.unwrap();
+        store.create_state("https://a.example.com", "").await.unwrap();
         tokio::time::advance(Duration::from_millis(1100)).await;
         store.cleanup_expired().await;
         assert_eq!(store.len(), 0, "expired entry must be removed by cleanup");
 
         let store2 = store_no_enc(600);
-        store2.create_state("https://b.example.com").await.unwrap();
+        store2.create_state("https://b.example.com", "").await.unwrap();
         store2.cleanup_expired().await;
         assert_eq!(store2.len(), 1, "unexpired entry must survive cleanup");
     }
@@ -2283,10 +2301,10 @@ mod pkce_tests {
     async fn test_store_full_error_when_cap_reached() {
         let store = PkceStateStore::new_capped(600, None, 2);
 
-        store.create_state("https://a.example.com").await.unwrap();
-        store.create_state("https://b.example.com").await.unwrap();
+        store.create_state("https://a.example.com", "").await.unwrap();
+        store.create_state("https://b.example.com", "").await.unwrap();
 
-        let result = store.create_state("https://c.example.com").await;
+        let result = store.create_state("https://c.example.com", "").await;
         assert!(
             result.is_err(),
             "create_state must fail when the store has reached its capacity"
@@ -2299,15 +2317,15 @@ mod pkce_tests {
     async fn test_purge_expired_frees_capacity_for_new_entries() {
         let store = PkceStateStore::new_capped(1, None, 2);
 
-        store.create_state("https://a.example.com").await.unwrap();
-        store.create_state("https://b.example.com").await.unwrap();
+        store.create_state("https://a.example.com", "").await.unwrap();
+        store.create_state("https://b.example.com", "").await.unwrap();
 
-        assert!(store.create_state("https://c.example.com").await.is_err());
+        assert!(store.create_state("https://c.example.com", "").await.is_err());
 
         tokio::time::advance(Duration::from_millis(1100)).await;
         store.purge_expired();
 
-        store.create_state("https://c.example.com").await.unwrap();
+        store.create_state("https://c.example.com", "").await.unwrap();
         assert_eq!(store.len(), 1, "store must contain exactly the new entry after purge");
     }
 
@@ -2315,8 +2333,8 @@ mod pkce_tests {
     async fn test_purge_expired_leaves_non_expired_entries_intact() {
         let store = PkceStateStore::new_capped(600, None, 10);
 
-        let (t1, _) = store.create_state("https://a.example.com").await.unwrap();
-        let (t2, _) = store.create_state("https://b.example.com").await.unwrap();
+        let (t1, _) = store.create_state("https://a.example.com", "").await.unwrap();
+        let (t2, _) = store.create_state("https://b.example.com", "").await.unwrap();
 
         store.purge_expired();
 
@@ -2335,10 +2353,13 @@ mod pkce_tests {
             .await
             .expect("Redis connection failed");
 
-        let (token, verifier) = store.create_state("https://example.com/cb").await.unwrap();
+        let (token, verifier) =
+            store.create_state("https://example.com/cb", "a-binding").await.unwrap();
         let consumed = store.consume_state(&token).await.unwrap();
         assert_eq!(consumed.verifier, verifier);
         assert_eq!(consumed.redirect_uri, "https://example.com/cb");
+        assert_eq!(consumed.binding, "a-binding", "the login cookie's digest comes back");
+        assert_eq!(store.state_ttl_secs(), 300);
     }
 
     #[cfg(feature = "redis-pkce")]
@@ -2350,7 +2371,7 @@ mod pkce_tests {
             .await
             .expect("Redis connection failed");
 
-        let (token, _) = store.create_state("https://example.com/cb").await.unwrap();
+        let (token, _) = store.create_state("https://example.com/cb", "").await.unwrap();
         store.consume_state(&token).await.unwrap();
 
         let second = store.consume_state(&token).await;
@@ -2373,7 +2394,7 @@ mod pkce_tests {
             .await
             .expect("Redis connection failed");
 
-        let (token, verifier) = store_a.create_state("https://example.com/cb").await.unwrap();
+        let (token, verifier) = store_a.create_state("https://example.com/cb", "").await.unwrap();
 
         let consumed = store_b.consume_state(&token).await.unwrap();
         assert_eq!(
@@ -2395,7 +2416,7 @@ mod pkce_tests {
             .await
             .expect("Redis connection failed");
 
-        store.create_state("https://example.com/cb").await.unwrap();
+        store.create_state("https://example.com/cb", "").await.unwrap();
 
         let result = store.consume_state("completely-fabricated-token").await;
         assert!(
@@ -2420,7 +2441,7 @@ mod pkce_tests {
             .expect("Redis connection failed");
 
         // Without an encryptor the outbound token is the stored key.
-        let (token, _) = store.create_state("https://example.com/cb").await.unwrap();
+        let (token, _) = store.create_state("https://example.com/cb", "").await.unwrap();
 
         let client = redis::Client::open(url.as_str()).unwrap();
         let mut conn = client.get_multiplexed_async_connection().await.unwrap();
@@ -2440,7 +2461,7 @@ mod pkce_tests {
         let store = PkceStateStore::new_redis(&bound_redis_url(), 300, Some(enc.clone()))
             .await
             .expect("Redis connection failed");
-        let (token, verifier) = store.create_state("https://example.com/cb").await.unwrap();
+        let (token, verifier) = store.create_state("https://example.com/cb", "").await.unwrap();
         let stored_key = String::from_utf8(enc.decrypt(&token).unwrap()).unwrap();
 
         let refused = store.consume_state(&stored_key).await;
@@ -2454,7 +2475,7 @@ mod pkce_tests {
     async fn test_in_memory_pkce_refuses_the_stored_key_in_place_of_its_encrypted_token() {
         let enc = enc_service();
         let store = PkceStateStore::new(300, Some(enc.clone()));
-        let (token, verifier) = store.create_state("https://example.com/cb").await.unwrap();
+        let (token, verifier) = store.create_state("https://example.com/cb", "").await.unwrap();
         let stored_key = String::from_utf8(enc.decrypt(&token).unwrap()).unwrap();
 
         let refused = store.consume_state(&stored_key).await;

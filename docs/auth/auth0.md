@@ -121,12 +121,17 @@ echo -n "your-api-key" | sha256sum | cut -d' ' -f1
 
 ## Testing the flow
 
-```bash
-# 1. Start the auth flow
-curl -v "https://api.yourdomain.com/auth/start?redirect_uri=https://app.yourdomain.com/callback"
-# → 302 redirect to Auth0 login page
+Start the login in the browser that will finish it: `/auth/start` sets a short-lived login
+cookie, and `/auth/callback` completes only a login that cookie came back with (see
+[sessions](sessions.md#a-social-saml-or-oidc-login-completes-in-the-browser-that-started-it)).
+A `curl` that requests `/auth/start`, with the login page then opened in a browser, is refused.
 
-# 2. After login, Auth0 redirects to /auth/callback with code + state
+```bash
+# 1. Open the start URL in a browser
+#    https://api.yourdomain.com/auth/start?redirect_uri=https://app.yourdomain.com/callback
+# → 303 redirect to the Auth0 login page, with the login cookie
+
+# 2. After login, Auth0 redirects that browser to /auth/callback with code + state
 # → FraiseQL exchanges code for tokens and returns them as JSON
 
 # 3. Use the access token for GraphQL queries
@@ -173,3 +178,4 @@ def get_users(tenant_id: str) -> list[User]:
 | `502` on token exchange | Verify `AUTH0_CLIENT_SECRET` is correct |
 | Missing claims in `SecurityContext` | Check Auth0 Action is attached to the Login flow |
 | `state` validation fails | Ensure `STATE_ENCRYPTION_KEY` is the same across replicas (or use Redis PKCE store) |
+| `400` "this login was started in another browser" | Start the login by sending the browser itself to `/auth/start`, not from another HTTP client |

@@ -60,7 +60,7 @@ Every assertion is verified fail-closed before a session is issued:
   `AuthnRequest` ID bound to the single-use `RelayState`.
 - **Browser binding** — the login sets a `SameSite=None` cookie whose hash is stored with
   the `RelayState`; the ACS completes the login only from the browser carrying it (see
-  [sessions](sessions.md#a-social-or-saml-login-completes-in-the-browser-that-started-it)).
+  [sessions](sessions.md#a-social-saml-or-oidc-login-completes-in-the-browser-that-started-it)).
 - **Replay** — each assertion `ID` is single-use for the lifetime of its validity window.
 
 ### Account linking and the email-trust policy
