@@ -218,13 +218,13 @@ fn test_where_case_operators_distinctions() {
         // Both should work with WhereClause
         let clause1 = WhereClause::Field {
             path:     vec!["text".to_string()],
-            operator: case_sensitive.clone(),
+            operator: case_sensitive,
             value:    json!("test"),
         };
 
         let clause2 = WhereClause::Field {
             path:     vec!["text".to_string()],
-            operator: case_insensitive.clone(),
+            operator: case_insensitive,
             value:    json!("test"),
         };
 

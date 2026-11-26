@@ -72,7 +72,7 @@ fn test_where_array_large_element_count() {
         let clause = WhereClause::Field {
             path:     vec!["ids".to_string()],
             operator: WhereOperator::ArrayContains,
-            value:    json!(large_array.clone()),
+            value:    json!(large_array),
         };
 
         match clause {

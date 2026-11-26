@@ -142,9 +142,9 @@ impl FactTableDetector {
                     // them vanish from the metadata entirely (#825 secondary).
                     if name.ends_with("_id") {
                         filters.push(FilterColumn {
-                            name:      name.clone(),
-                            sql_type:  sql_type.clone(),
-                            indexed:   indexed_set.contains(name.as_str()),
+                            name: name.clone(),
+                            sql_type,
+                            indexed: indexed_set.contains(name.as_str()),
                             hierarchy: None,
                         });
                     }

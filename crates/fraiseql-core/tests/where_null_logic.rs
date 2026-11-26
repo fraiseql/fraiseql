@@ -161,7 +161,7 @@ fn test_where_null_with_different_operators() {
     for op in operators {
         let clause = WhereClause::Field {
             path:     vec!["field".to_string()],
-            operator: op.clone(),
+            operator: op,
             value:    json!(null),
         };
 

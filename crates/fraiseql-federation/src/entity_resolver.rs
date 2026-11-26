@@ -533,7 +533,7 @@ pub async fn batch_load_entities_with_tracing_and_metrics_enforced<A: DatabaseAd
         scatter_resolved(&mut all_results, &original_indices, result.entities);
 
         // Collect errors
-        all_errors.extend(result.errors.clone());
+        all_errors.extend(result.errors);
 
         // Drop child span
         drop(child_span);

@@ -175,7 +175,7 @@ async fn test_typed_query_with_ordering() {
         if let Some(prev) = &previous_name {
             assert!(prev <= &user.name, "names should be in ascending order");
         }
-        previous_name = Some(user.name.clone());
+        previous_name = Some(user.name);
         count += 1;
         if count > 50 {
             break;

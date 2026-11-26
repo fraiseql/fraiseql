@@ -405,7 +405,7 @@ async fn test_list_actions_includes_all_admin_actions() {
 
     let mut types: Vec<String> = Vec::new();
     while let Some(Ok(action_type)) = stream.next().await {
-        types.push(action_type.r#type.clone());
+        types.push(action_type.r#type);
     }
 
     assert!(types.contains(&"HealthCheck".to_string()), "HealthCheck must be listed");

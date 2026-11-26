@@ -2331,7 +2331,7 @@ async fn check_embedded_scope_keys(
                     holding_column: if position.is_some() {
                         (*column).to_string()
                     } else {
-                        key.clone()
+                        key
                     },
                     documents:      tally.documents,
                     disagreeing:    tally.disagreeing,

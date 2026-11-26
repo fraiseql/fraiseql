@@ -78,10 +78,7 @@ impl SchemaDependencyGraph {
                             .entry(type_def.name.to_string())
                             .or_default()
                             .insert(ref_type.clone());
-                        incoming
-                            .entry(ref_type.clone())
-                            .or_default()
-                            .insert(type_def.name.to_string());
+                        incoming.entry(ref_type).or_default().insert(type_def.name.to_string());
                     }
                 }
             }
@@ -110,10 +107,7 @@ impl SchemaDependencyGraph {
                             .entry(interface_def.name.clone())
                             .or_default()
                             .insert(ref_type.clone());
-                        incoming
-                            .entry(ref_type.clone())
-                            .or_default()
-                            .insert(interface_def.name.clone());
+                        incoming.entry(ref_type).or_default().insert(interface_def.name.clone());
                     }
                 }
             }
@@ -140,10 +134,7 @@ impl SchemaDependencyGraph {
                             .entry(input_def.name.clone())
                             .or_default()
                             .insert(ref_type.clone());
-                        incoming
-                            .entry(ref_type.clone())
-                            .or_default()
-                            .insert(input_def.name.clone());
+                        incoming.entry(ref_type).or_default().insert(input_def.name.clone());
                     }
                 }
             }
@@ -155,7 +146,7 @@ impl SchemaDependencyGraph {
             if let Some(ref_type) = Self::extract_referenced_type(&parsed) {
                 if all_types.contains(&ref_type) {
                     outgoing.entry("Query".to_string()).or_default().insert(ref_type.clone());
-                    incoming.entry(ref_type.clone()).or_default().insert("Query".to_string());
+                    incoming.entry(ref_type).or_default().insert("Query".to_string());
                 }
             }
         }
@@ -166,7 +157,7 @@ impl SchemaDependencyGraph {
             if let Some(ref_type) = Self::extract_referenced_type(&parsed) {
                 if all_types.contains(&ref_type) {
                     outgoing.entry("Mutation".to_string()).or_default().insert(ref_type.clone());
-                    incoming.entry(ref_type.clone()).or_default().insert("Mutation".to_string());
+                    incoming.entry(ref_type).or_default().insert("Mutation".to_string());
                 }
             }
         }
@@ -180,10 +171,7 @@ impl SchemaDependencyGraph {
                         .entry("Subscription".to_string())
                         .or_default()
                         .insert(ref_type.clone());
-                    incoming
-                        .entry(ref_type.clone())
-                        .or_default()
-                        .insert("Subscription".to_string());
+                    incoming.entry(ref_type).or_default().insert("Subscription".to_string());
                 }
             }
         }

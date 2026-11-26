@@ -244,7 +244,7 @@ fn complete_pipeline_array(c: &mut Criterion) {
         let field_count = 10;
         let fields = generate_field_list(field_count);
         let data = generate_sample_data(field_count, *row_count);
-        let projector = ResultProjector::new(fields.clone());
+        let projector = ResultProjector::new(fields);
 
         group.bench_with_input(
             BenchmarkId::from_parameter(format!("{}_rows", row_count)),

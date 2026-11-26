@@ -177,7 +177,7 @@ fn closed_tables(root: &serde_json::Value) -> Vec<(Vec<Step>, &serde_json::Value
             queue.push_back((next, child, among_arms));
         }
         if let Some(child) = node.get("items") {
-            let mut next = path.clone();
+            let mut next = path;
             next.push(Step::Item);
             queue.push_back((next, child, among_arms));
         }

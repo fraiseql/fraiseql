@@ -1100,7 +1100,7 @@ impl FraiseQLFlightService {
             match &emitted_schema {
                 None => {
                     all_messages.push(schema_to_flight_data(&inferred_schema));
-                    emitted_schema = Some(inferred_schema.clone());
+                    emitted_schema = Some(inferred_schema);
                 },
                 Some(first) if **first != *inferred_schema => {
                     return Err(Status::invalid_argument(format!(
