@@ -47,9 +47,9 @@
 -- this is a defensive no-op on a clean install and a real tightening where a prior
 -- broad `GRANT … TO PUBLIC` reached it. Idempotent.
 --
--- PostgreSQL only. Idempotent / re-run safe (CREATE TABLE IF NOT EXISTS; ENABLE is
--- a no-op when already on; DROP POLICY IF EXISTS + CREATE POLICY replaces cleanly;
--- REVOKE is idempotent).
+-- PostgreSQL only. Idempotent / re-run safe, and a boot over a current schema takes no
+-- table lock: CREATE TABLE IF NOT EXISTS; RLS and each policy behind a catalog guard (a
+-- policy whose definition differs is replaced); REVOKE is idempotent.
 
 -- The table lives in `core` whatever the connection's search_path, as the observer
 -- tables do: created unqualified, it landed in whichever schema led the path, and a
@@ -64,29 +64,69 @@ CREATE TABLE IF NOT EXISTS core._fraiseql_source_cursor (
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE core._fraiseql_source_cursor ENABLE ROW LEVEL SECURITY;  -- NOT FORCE
+-- `ENABLE ROW LEVEL SECURITY`, `DROP POLICY` and `CREATE POLICY` each take an ACCESS
+-- EXCLUSIVE lock even when they change nothing, and every replica runs this at boot. So each
+-- is guarded by the catalog: RLS by `relrowsecurity`, each policy by its whole definition in
+-- `pg_policies`, and a policy whose definition differs is replaced. `tenant_read` is the read
+-- policy's expression as PostgreSQL 18 (the supported floor) stores it; should it differ from
+-- what the CREATE below stores, every boot replaces the policy under its lock and the
+-- boot-lock test fails.
+DO $source_cursor_rls$
+DECLARE
+    tenant_read CONSTANT text :=
+        $q$(tenant_id = (NULLIF(current_setting('fraiseql.tenant_id'::text, true), ''::text))::uuid)$q$;
+BEGIN
+    IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'core._fraiseql_source_cursor'::regclass) THEN
+        ALTER TABLE core._fraiseql_source_cursor ENABLE ROW LEVEL SECURITY;  -- NOT FORCE
+    END IF;
 
--- Read isolation (deny-by-default; forward-compat per-tenant).
-DROP POLICY IF EXISTS p_source_cursor_read ON core._fraiseql_source_cursor;
-CREATE POLICY p_source_cursor_read ON core._fraiseql_source_cursor
-    FOR SELECT
-    USING (
-        tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid
-    );
+    -- Read isolation (deny-by-default; forward-compat per-tenant).
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'core' AND tablename = '_fraiseql_source_cursor'
+          AND policyname = 'p_source_cursor_read'
+          AND permissive = 'PERMISSIVE' AND roles = '{public}'::name[] AND cmd = 'SELECT'
+          AND qual = tenant_read AND with_check IS NULL
+    ) THEN
+        DROP POLICY IF EXISTS p_source_cursor_read ON core._fraiseql_source_cursor;
+        CREATE POLICY p_source_cursor_read ON core._fraiseql_source_cursor
+            FOR SELECT
+            USING (
+                tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid
+            );
+    END IF;
 
--- Permissive writes: the trusted source scheduler (server role) stamps the correct
--- tenant. The SELECT policy above still governs reads; REVOKE FROM PUBLIC below
--- keeps untrusted roles out entirely.
-DROP POLICY IF EXISTS p_source_cursor_insert ON core._fraiseql_source_cursor;
-CREATE POLICY p_source_cursor_insert ON core._fraiseql_source_cursor
-    FOR INSERT
-    WITH CHECK (true);
+    -- Permissive writes: the trusted source scheduler (server role) stamps the correct
+    -- tenant. The SELECT policy above still governs reads; REVOKE FROM PUBLIC below
+    -- keeps untrusted roles out entirely.
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'core' AND tablename = '_fraiseql_source_cursor'
+          AND policyname = 'p_source_cursor_insert'
+          AND permissive = 'PERMISSIVE' AND roles = '{public}'::name[] AND cmd = 'INSERT'
+          AND qual IS NULL AND with_check = 'true'
+    ) THEN
+        DROP POLICY IF EXISTS p_source_cursor_insert ON core._fraiseql_source_cursor;
+        CREATE POLICY p_source_cursor_insert ON core._fraiseql_source_cursor
+            FOR INSERT
+            WITH CHECK (true);
+    END IF;
 
-DROP POLICY IF EXISTS p_source_cursor_update ON core._fraiseql_source_cursor;
-CREATE POLICY p_source_cursor_update ON core._fraiseql_source_cursor
-    FOR UPDATE
-    USING (true)
-    WITH CHECK (true);
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'core' AND tablename = '_fraiseql_source_cursor'
+          AND policyname = 'p_source_cursor_update'
+          AND permissive = 'PERMISSIVE' AND roles = '{public}'::name[] AND cmd = 'UPDATE'
+          AND qual = 'true' AND with_check = 'true'
+    ) THEN
+        DROP POLICY IF EXISTS p_source_cursor_update ON core._fraiseql_source_cursor;
+        CREATE POLICY p_source_cursor_update ON core._fraiseql_source_cursor
+            FOR UPDATE
+            USING (true)
+            WITH CHECK (true);
+    END IF;
+END
+$source_cursor_rls$;
 
 -- Least-privilege baseline: never world-readable.
 REVOKE ALL ON core._fraiseql_source_cursor FROM PUBLIC;

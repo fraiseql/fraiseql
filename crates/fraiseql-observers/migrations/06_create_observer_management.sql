@@ -84,7 +84,16 @@ CREATE TABLE IF NOT EXISTS core.tb_observer (
 -- project's compiled schema declares, which the server writes at boot and the admin API
 -- may only enable or disable. Added after the table, so a table an earlier release
 -- created gains it too.
-ALTER TABLE core.tb_observer ADD COLUMN IF NOT EXISTS managed_by TEXT;
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $observer_managed_by$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('core.tb_observer')
+                   AND attname = 'managed_by' AND NOT attisdropped) THEN
+        ALTER TABLE core.tb_observer ADD COLUMN managed_by TEXT;
+    END IF;
+END
+$observer_managed_by$;
 
 -- The owner is written to these three columns, and a project name has no length rule. An
 -- earlier release created them as VARCHAR; widened once, so a boot that finds them wide
@@ -146,16 +155,32 @@ COMMENT ON COLUMN core.tb_observer.retry_config IS 'Retry policy configuration';
 COMMENT ON COLUMN core.tb_observer.managed_by IS 'Owner of the row: NULL = admin API, ''schema:<project name>'' = declared in that project''s compiled schema';
 
 -- Indexes for efficient querying
-CREATE INDEX IF NOT EXISTS idx_observer_entity_type ON core.tb_observer(entity_type) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_observer_event_type ON core.tb_observer(event_type) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_observer_enabled ON core.tb_observer(enabled) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_observer_customer_org ON core.tb_observer(fk_customer_org) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_observer_priority ON core.tb_observer(priority) WHERE deleted_at IS NULL AND enabled = true;
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $observer_indexes$
+BEGIN
+    IF to_regclass('core.idx_observer_entity_type') IS NULL THEN
+        CREATE INDEX idx_observer_entity_type ON core.tb_observer (entity_type) WHERE deleted_at IS NULL;
+    END IF;
+    IF to_regclass('core.idx_observer_event_type') IS NULL THEN
+        CREATE INDEX idx_observer_event_type ON core.tb_observer (event_type) WHERE deleted_at IS NULL;
+    END IF;
+    IF to_regclass('core.idx_observer_enabled') IS NULL THEN
+        CREATE INDEX idx_observer_enabled ON core.tb_observer (enabled) WHERE deleted_at IS NULL;
+    END IF;
+    IF to_regclass('core.idx_observer_customer_org') IS NULL THEN
+        CREATE INDEX idx_observer_customer_org ON core.tb_observer (fk_customer_org) WHERE deleted_at IS NULL;
+    END IF;
+    IF to_regclass('core.idx_observer_priority') IS NULL THEN
+        CREATE INDEX idx_observer_priority ON core.tb_observer (priority) WHERE deleted_at IS NULL AND enabled = true;
+    END IF;
 
--- Unique constraint on name per tenant (or global if no tenant)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_observer_name_unique
-ON core.tb_observer(name, COALESCE(fk_customer_org, -1))
-WHERE deleted_at IS NULL;
+    -- Unique constraint on name per tenant (or global if no tenant)
+    IF to_regclass('core.idx_observer_name_unique') IS NULL THEN
+        CREATE UNIQUE INDEX idx_observer_name_unique ON core.tb_observer (name, COALESCE(fk_customer_org, -1)) WHERE deleted_at IS NULL;
+    END IF;
+END
+$observer_indexes$;
 
 -- ============================================================================
 -- Observer Execution Log Table
@@ -242,18 +267,38 @@ COMMENT ON COLUMN core.tb_observer_log.status IS 'Execution status: pending, run
 COMMENT ON COLUMN core.tb_observer_log.attempt_number IS 'Current retry attempt (1 = first attempt)';
 
 -- Indexes for efficient querying
-CREATE INDEX IF NOT EXISTS idx_observer_log_observer ON core.tb_observer_log(fk_observer);
-CREATE INDEX IF NOT EXISTS idx_observer_log_event_id ON core.tb_observer_log(event_id);
-CREATE INDEX IF NOT EXISTS idx_observer_log_status ON core.tb_observer_log(status);
-CREATE INDEX IF NOT EXISTS idx_observer_log_created_at ON core.tb_observer_log(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_observer_log_entity ON core.tb_observer_log(entity_type, entity_id);
-CREATE INDEX IF NOT EXISTS idx_observer_log_customer_org ON core.tb_observer_log(fk_customer_org);
-CREATE INDEX IF NOT EXISTS idx_observer_log_trace_id ON core.tb_observer_log(trace_id) WHERE trace_id IS NOT NULL;
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $observer_log_indexes$
+BEGIN
+    IF to_regclass('core.idx_observer_log_observer') IS NULL THEN
+        CREATE INDEX idx_observer_log_observer ON core.tb_observer_log (fk_observer);
+    END IF;
+    IF to_regclass('core.idx_observer_log_event_id') IS NULL THEN
+        CREATE INDEX idx_observer_log_event_id ON core.tb_observer_log (event_id);
+    END IF;
+    IF to_regclass('core.idx_observer_log_status') IS NULL THEN
+        CREATE INDEX idx_observer_log_status ON core.tb_observer_log (status);
+    END IF;
+    IF to_regclass('core.idx_observer_log_created_at') IS NULL THEN
+        CREATE INDEX idx_observer_log_created_at ON core.tb_observer_log (created_at DESC);
+    END IF;
+    IF to_regclass('core.idx_observer_log_entity') IS NULL THEN
+        CREATE INDEX idx_observer_log_entity ON core.tb_observer_log (entity_type, entity_id);
+    END IF;
+    IF to_regclass('core.idx_observer_log_customer_org') IS NULL THEN
+        CREATE INDEX idx_observer_log_customer_org ON core.tb_observer_log (fk_customer_org);
+    END IF;
+    IF to_regclass('core.idx_observer_log_trace_id') IS NULL THEN
+        CREATE INDEX idx_observer_log_trace_id ON core.tb_observer_log (trace_id) WHERE trace_id IS NOT NULL;
+    END IF;
 
--- Composite index for retry queries (find failed items that need retry)
-CREATE INDEX IF NOT EXISTS idx_observer_log_retry
-ON core.tb_observer_log(status, next_retry_at)
-WHERE status = 'failed' AND next_retry_at IS NOT NULL;
+    -- Composite index for retry queries (find failed items that need retry)
+    IF to_regclass('core.idx_observer_log_retry') IS NULL THEN
+        CREATE INDEX idx_observer_log_retry ON core.tb_observer_log (status, next_retry_at) WHERE status = 'failed' AND next_retry_at IS NOT NULL;
+    END IF;
+END
+$observer_log_indexes$;
 
 -- ============================================================================
 -- Observer Statistics View
@@ -422,8 +467,25 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS tr_observer_updated_at ON core.tb_observer;
-CREATE TRIGGER tr_observer_updated_at
-    BEFORE UPDATE ON core.tb_observer
-    FOR EACH ROW
-    EXECUTE FUNCTION core.fn_update_timestamp();
+-- `DROP TRIGGER` and `CREATE TRIGGER` lock the table even when they change nothing, and
+-- every replica runs this at boot, so the trigger is guarded by its definition in the
+-- catalog: its function, its timing and events (`tgtype`: ROW 1 | BEFORE 2 | UPDATE 16), and that it is
+-- enabled with no condition, columns or arguments. Any difference recreates it. The
+-- catalog's fields, not `pg_get_triggerdef`, whose text qualifies names by the session's
+-- search_path.
+DO $observer_updated_at$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger
+        WHERE tgrelid = 'core.tb_observer'::regclass AND tgname = 'tr_observer_updated_at'
+          AND tgfoid = 'core.fn_update_timestamp()'::regprocedure AND tgtype = 1 | 2 | 16
+          AND tgenabled = 'O' AND tgqual IS NULL AND tgnargs = 0 AND tgattr = ''::int2vector
+    ) THEN
+        DROP TRIGGER IF EXISTS tr_observer_updated_at ON core.tb_observer;
+        CREATE TRIGGER tr_observer_updated_at
+            BEFORE UPDATE ON core.tb_observer
+            FOR EACH ROW
+            EXECUTE FUNCTION core.fn_update_timestamp();
+    END IF;
+END
+$observer_updated_at$;

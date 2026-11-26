@@ -2207,6 +2207,28 @@ disagreed, and the promise was the part that was wrong.
   which compile the variable's name; and lists those keys. The compiled-schema lifecycle page
   qualifies "contains no credentials" accordingly.
 
+- **A boot over a current schema no longer takes table locks that a running replica's reads
+  and writes wait behind (#2590).** `ADD COLUMN IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`,
+  `ENABLE ROW LEVEL SECURITY`, `DROP POLICY` / `CREATE POLICY` and `DROP TRIGGER` /
+  `CREATE TRIGGER` take a `SHARE` or `ACCESS EXCLUSIVE` lock even when they change nothing.
+  Every replica runs its stores' provisioning at boot, so a rolling restart queued live
+  traffic behind each one. Each such statement now runs only when the catalog says it is
+  needed. A policy or a trigger is compared by its whole definition, so a database holding
+  an older definition is still brought to the current one.
+  - Covered: the auth stores (accounts and identities, sessions, local passwords, password
+    reset, email verification, OTP, TOTP, SCIM, signing keys, SAML replay, session state);
+    the server's RBAC, admin token and async operation stores; the functions runtime's
+    cron, dead-letter and send tracking tables; the observers' checkpoint, management,
+    source cursor and dispatch tables.
+  - Not yet covered: object storage's migrations, the SAML identity provider store and the
+    `token_revocation` store.
+  - `fraiseql-test-support` gains a `boot-locks` feature. Its `second_init_waits_on_nothing`
+    runs a store's initialisation a second time while a live write holds every table in the
+    store's schemas, and fails naming any lock the boot waits for. Its
+    `boot_restores_the_pinned_shape` pins what a boot builds and requires it again over a
+    schema that lost each guarded object, or holds one of its policies changed in a single
+    attribute.
+
 - **The PHP SDK's client no longer calls `curl_close()` (#2542).** It has done nothing
   since PHP 8.0, and PHP 8.5 deprecates it, so every request raised a deprecation on 8.5.
   The handle is freed when it goes out of scope, as it already was.

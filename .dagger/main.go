@@ -3180,6 +3180,9 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// pull in the SSRF-guard unit tests this suite disables.
 		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --test advisory_lease_pg -- --test-threads=1",
 		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --test source_cursor_pg -- --test-threads=1",
+		// A second boot of each observer script over a current schema waits on no lock a live
+		// write holds, and a boot puts back what each guard skips on. Each test owns a database.
+		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --test boot_locks_pg",
 		// The DDL the change-log listener runs on its first poll, raced by eight listeners.
 		"cargo test -p fraiseql-observers --features 'caching,redis-lease' --test ddl_lock_pg -- --test-threads=1",
 		// #382 outbound CDC: the drain-worker state machine vs the bound Postgres

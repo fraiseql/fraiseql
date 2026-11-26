@@ -45,6 +45,7 @@ criterion = { version = "0.5", features = ["async_tokio"] }
 fraiseql-webhooks = { path = "../fraiseql-webhooks" }
 fraiseql-test-utils = { path = "../fraiseql-test-utils" }
 fraiseql-test-support = { path = "../fraiseql-test-support", features = [
+  "boot-locks",
   "held-replies",
 ] }
 # Captures what the change-log tail logs of a connection handed out inside a transaction.

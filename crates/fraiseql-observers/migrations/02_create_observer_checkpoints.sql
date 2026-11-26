@@ -21,8 +21,15 @@ CREATE TABLE IF NOT EXISTS core.observer_checkpoints (
 );
 
 -- Index for recovery queries
-CREATE INDEX IF NOT EXISTS idx_observer_checkpoints_updated_at
-    ON core.observer_checkpoints(updated_at DESC);
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $checkpoint_indexes$
+BEGIN
+    IF to_regclass('core.idx_observer_checkpoints_updated_at') IS NULL THEN
+        CREATE INDEX idx_observer_checkpoints_updated_at ON core.observer_checkpoints (updated_at DESC);
+    END IF;
+END
+$checkpoint_indexes$;
 
 -- Audit trail: Track all checkpoint updates
 CREATE TABLE IF NOT EXISTS core.observer_checkpoints_history (
@@ -37,11 +44,19 @@ CREATE TABLE IF NOT EXISTS core.observer_checkpoints_history (
     CONSTRAINT valid_history_ids CHECK (last_processed_id >= 0)
 );
 
-CREATE INDEX IF NOT EXISTS idx_checkpoints_history_listener_id
-    ON core.observer_checkpoints_history(listener_id);
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $checkpoint_history_indexes$
+BEGIN
+    IF to_regclass('core.idx_checkpoints_history_listener_id') IS NULL THEN
+        CREATE INDEX idx_checkpoints_history_listener_id ON core.observer_checkpoints_history (listener_id);
+    END IF;
 
-CREATE INDEX IF NOT EXISTS idx_checkpoints_history_updated_at
-    ON core.observer_checkpoints_history(updated_at DESC);
+    IF to_regclass('core.idx_checkpoints_history_updated_at') IS NULL THEN
+        CREATE INDEX idx_checkpoints_history_updated_at ON core.observer_checkpoints_history (updated_at DESC);
+    END IF;
+END
+$checkpoint_history_indexes$;
 
 -- Trigger to auto-populate history (optional, but useful for debugging)
 -- This creates an audit trail of all checkpoint changes
@@ -54,9 +69,25 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Create trigger only if it doesn't exist
-DROP TRIGGER IF EXISTS observer_checkpoints_audit_trigger ON core.observer_checkpoints;
-CREATE TRIGGER observer_checkpoints_audit_trigger
-AFTER INSERT OR UPDATE ON core.observer_checkpoints
-FOR EACH ROW
-EXECUTE FUNCTION core.observer_checkpoints_audit();
+-- `DROP TRIGGER` and `CREATE TRIGGER` lock the table even when they change nothing, and
+-- every replica runs this at boot, so the trigger is guarded by its definition in the
+-- catalog: its function, its timing and events (`tgtype`: ROW 1 | INSERT 4 | UPDATE 16; AFTER is the absence of BEFORE 2), and that it is
+-- enabled with no condition, columns or arguments. Any difference recreates it. The
+-- catalog's fields, not `pg_get_triggerdef`, whose text qualifies names by the session's
+-- search_path.
+DO $checkpoints_audit_trigger$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger
+        WHERE tgrelid = 'core.observer_checkpoints'::regclass AND tgname = 'observer_checkpoints_audit_trigger'
+          AND tgfoid = 'core.observer_checkpoints_audit()'::regprocedure AND tgtype = 1 | 4 | 16
+          AND tgenabled = 'O' AND tgqual IS NULL AND tgnargs = 0 AND tgattr = ''::int2vector
+    ) THEN
+        DROP TRIGGER IF EXISTS observer_checkpoints_audit_trigger ON core.observer_checkpoints;
+        CREATE TRIGGER observer_checkpoints_audit_trigger
+            AFTER INSERT OR UPDATE ON core.observer_checkpoints
+            FOR EACH ROW
+            EXECUTE FUNCTION core.observer_checkpoints_audit();
+    END IF;
+END
+$checkpoints_audit_trigger$;

@@ -467,12 +467,12 @@ reason = "writes are the server role's outbox INSERT and the SECURITY DEFINER ca
 
 [[exempt]]
 file = "crates/fraiseql-observers/migrations/13_create_source_cursor.sql"
-anchor = "CREATE POLICY p_source_cursor_insert ON core._fraiseql_source_cursor\n    FOR INSERT\n    WITH CHECK (true)"
+anchor = "CREATE POLICY p_source_cursor_insert ON core._fraiseql_source_cursor\n            FOR INSERT\n            WITH CHECK (true)"
 reason = "writes are the trusted source scheduler's, which stamps the tenant; no grant, to PUBLIC or any other role, lets another role write: killed site rls-grant.observers.migration-13._fraiseql_source_cursor"
 
 [[exempt]]
 file = "crates/fraiseql-observers/migrations/13_create_source_cursor.sql"
-anchor = "CREATE POLICY p_source_cursor_update ON core._fraiseql_source_cursor\n    FOR UPDATE\n    USING (true)\n    WITH CHECK (true)"
+anchor = "CREATE POLICY p_source_cursor_update ON core._fraiseql_source_cursor\n            FOR UPDATE\n            USING (true)\n            WITH CHECK (true)"
 reason = "writes are the trusted source scheduler's, which stamps the tenant; no grant, to PUBLIC or any other role, lets another role write: killed site rls-grant.observers.migration-13._fraiseql_source_cursor"
 
 # ── Sites ────────────────────────────────────────────────────────────────────────────
@@ -1900,8 +1900,8 @@ shard = "observers-change-log-rls"
 [[site]]
 id = "rls-policy.observers.migration-13.p_source_cursor_read._fraiseql_source_cursor"
 file = "crates/fraiseql-observers/migrations/13_create_source_cursor.sql"
-anchor = "CREATE POLICY p_source_cursor_read ON core._fraiseql_source_cursor\n    FOR SELECT\n    USING (\n        tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid\n    )"
-mutant = "CREATE POLICY p_source_cursor_read ON core._fraiseql_source_cursor\n    FOR SELECT\n    USING ((\n        tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid\n    ) OR TRUE)"
+anchor = "CREATE POLICY p_source_cursor_read ON core._fraiseql_source_cursor\n            FOR SELECT\n            USING (\n                tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid\n            )"
+mutant = "CREATE POLICY p_source_cursor_read ON core._fraiseql_source_cursor\n            FOR SELECT\n            USING ((\n                tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid\n            ) OR TRUE)"
 killers = ["rls_denies_reads_to_a_role_without_the_tenant_guc"]
 shard = "observers-source-cursor"
 

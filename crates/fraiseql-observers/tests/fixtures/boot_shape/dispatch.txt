@@ -1,0 +1,8 @@
+column core.tb_observer_dispatch.change_log_id uuid not null
+column core.tb_observer_dispatch.created_at timestamp with time zone null
+column core.tb_observer_dispatch.dispatched_at timestamp with time zone not null default now()
+column core.tb_observer_dispatch.listener_id text not null
+index CREATE INDEX idx_observer_dispatch_created ON core.tb_observer_dispatch USING btree (listener_id, created_at)
+index CREATE INDEX idx_observer_dispatch_dispatched ON core.tb_observer_dispatch USING btree (listener_id, dispatched_at)
+index CREATE UNIQUE INDEX tb_observer_dispatch_pkey ON core.tb_observer_dispatch USING btree (listener_id, change_log_id)
+row level security core.tb_observer_dispatch off

@@ -1,0 +1,68 @@
+column core.tb_observer.actions jsonb not null default '[]'::jsonb
+column core.tb_observer.condition_expression text null
+column core.tb_observer.created_at timestamp with time zone not null default now()
+column core.tb_observer.created_by text null
+column core.tb_observer.deleted_at timestamp with time zone null
+column core.tb_observer.description text null
+column core.tb_observer.enabled boolean not null default true
+column core.tb_observer.entity_type character varying(255) null
+column core.tb_observer.event_type character varying(50) null
+column core.tb_observer.fk_customer_org bigint null
+column core.tb_observer.id uuid not null default gen_random_uuid()
+column core.tb_observer.managed_by text null
+column core.tb_observer.name character varying(255) not null
+column core.tb_observer.pk_observer bigint not null default nextval('core.tb_observer_pk_observer_seq'::regclass)
+column core.tb_observer.priority integer not null default 100
+column core.tb_observer.retry_config jsonb not null default '{"max_attempts": 3, "max_delay_ms": 60000, "backoff_strategy": "exponential", "initial_delay_ms": 1000}'::jsonb
+column core.tb_observer.timeout_ms integer not null default 30000
+column core.tb_observer.updated_at timestamp with time zone not null default now()
+column core.tb_observer.updated_by text null
+column core.tb_observer_log.action_index integer null
+column core.tb_observer_log.action_type character varying(50) null
+column core.tb_observer_log.attempt_number integer not null default 1
+column core.tb_observer_log.completed_at timestamp with time zone null
+column core.tb_observer_log.created_at timestamp with time zone not null default now()
+column core.tb_observer_log.duration_ms integer null
+column core.tb_observer_log.entity_id uuid not null
+column core.tb_observer_log.entity_type character varying(255) not null
+column core.tb_observer_log.error_code character varying(100) null
+column core.tb_observer_log.error_details jsonb null
+column core.tb_observer_log.error_message text null
+column core.tb_observer_log.event_id uuid not null
+column core.tb_observer_log.event_type character varying(50) not null
+column core.tb_observer_log.fk_customer_org bigint null
+column core.tb_observer_log.fk_entity_change_log bigint null
+column core.tb_observer_log.fk_observer bigint not null
+column core.tb_observer_log.id uuid not null default gen_random_uuid()
+column core.tb_observer_log.max_attempts integer not null default 3
+column core.tb_observer_log.next_retry_at timestamp with time zone null
+column core.tb_observer_log.parent_span_id character varying(32) null
+column core.tb_observer_log.pk_observer_log bigint not null default nextval('core.tb_observer_log_pk_observer_log_seq'::regclass)
+column core.tb_observer_log.request_payload jsonb null
+column core.tb_observer_log.response_payload jsonb null
+column core.tb_observer_log.response_status_code integer null
+column core.tb_observer_log.span_id character varying(32) null
+column core.tb_observer_log.started_at timestamp with time zone null
+column core.tb_observer_log.status character varying(50) not null default 'pending'::character varying
+column core.tb_observer_log.trace_id character varying(64) null
+index CREATE INDEX idx_observer_customer_org ON core.tb_observer USING btree (fk_customer_org) WHERE (deleted_at IS NULL)
+index CREATE INDEX idx_observer_enabled ON core.tb_observer USING btree (enabled) WHERE (deleted_at IS NULL)
+index CREATE INDEX idx_observer_entity_type ON core.tb_observer USING btree (entity_type) WHERE (deleted_at IS NULL)
+index CREATE INDEX idx_observer_event_type ON core.tb_observer USING btree (event_type) WHERE (deleted_at IS NULL)
+index CREATE INDEX idx_observer_log_created_at ON core.tb_observer_log USING btree (created_at DESC)
+index CREATE INDEX idx_observer_log_customer_org ON core.tb_observer_log USING btree (fk_customer_org)
+index CREATE INDEX idx_observer_log_entity ON core.tb_observer_log USING btree (entity_type, entity_id)
+index CREATE INDEX idx_observer_log_event_id ON core.tb_observer_log USING btree (event_id)
+index CREATE INDEX idx_observer_log_observer ON core.tb_observer_log USING btree (fk_observer)
+index CREATE INDEX idx_observer_log_retry ON core.tb_observer_log USING btree (status, next_retry_at) WHERE (((status)::text = 'failed'::text) AND (next_retry_at IS NOT NULL))
+index CREATE INDEX idx_observer_log_status ON core.tb_observer_log USING btree (status)
+index CREATE INDEX idx_observer_log_trace_id ON core.tb_observer_log USING btree (trace_id) WHERE (trace_id IS NOT NULL)
+index CREATE INDEX idx_observer_priority ON core.tb_observer USING btree (priority) WHERE ((deleted_at IS NULL) AND (enabled = true))
+index CREATE UNIQUE INDEX idx_observer_name_unique ON core.tb_observer USING btree (name, COALESCE(fk_customer_org, ('-1'::integer)::bigint)) WHERE (deleted_at IS NULL)
+index CREATE UNIQUE INDEX tb_observer_id_key ON core.tb_observer USING btree (id)
+index CREATE UNIQUE INDEX tb_observer_log_id_key ON core.tb_observer_log USING btree (id)
+index CREATE UNIQUE INDEX tb_observer_log_pkey ON core.tb_observer_log USING btree (pk_observer_log)
+index CREATE UNIQUE INDEX tb_observer_pkey ON core.tb_observer USING btree (pk_observer)
+row level security core.tb_observer off
+row level security core.tb_observer_log off
+trigger CREATE TRIGGER tr_observer_updated_at BEFORE UPDATE ON core.tb_observer FOR EACH ROW EXECUTE FUNCTION core.fn_update_timestamp()

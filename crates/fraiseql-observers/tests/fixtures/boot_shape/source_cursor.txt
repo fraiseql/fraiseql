@@ -1,0 +1,10 @@
+column core._fraiseql_source_cursor.cursor_value jsonb null
+column core._fraiseql_source_cursor.source_name text not null
+column core._fraiseql_source_cursor.tenant_id uuid null
+column core._fraiseql_source_cursor.updated_at timestamp with time zone not null default now()
+column core._fraiseql_source_cursor.version bigint not null default 0
+index CREATE UNIQUE INDEX _fraiseql_source_cursor_pkey ON core._fraiseql_source_cursor USING btree (source_name)
+policy core._fraiseql_source_cursor p_source_cursor_insert permissive to {public} for insert using - check true
+policy core._fraiseql_source_cursor p_source_cursor_read permissive to {public} for select using (tenant_id = (NULLIF(current_setting('fraiseql.tenant_id'::text, true), ''::text))::uuid) check -
+policy core._fraiseql_source_cursor p_source_cursor_update permissive to {public} for update using true check true
+row level security core._fraiseql_source_cursor on

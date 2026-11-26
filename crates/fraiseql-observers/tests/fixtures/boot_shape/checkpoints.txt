@@ -1,0 +1,24 @@
+column core.observer_checkpoints.batch_size integer not null default 100
+column core.observer_checkpoints.consecutive_errors integer not null default 0
+column core.observer_checkpoints.event_count integer not null default 0
+column core.observer_checkpoints.last_error text null
+column core.observer_checkpoints.last_processed_at timestamp with time zone not null default now()
+column core.observer_checkpoints.last_processed_id bigint not null default 0
+column core.observer_checkpoints.listener_id character varying(255) not null
+column core.observer_checkpoints.updated_at timestamp with time zone not null default now()
+column core.observer_checkpoints.updated_by character varying(255) null
+column core.observer_checkpoints_history.batch_size integer not null
+column core.observer_checkpoints_history.event_count integer not null
+column core.observer_checkpoints_history.id bigint not null default nextval('core.observer_checkpoints_history_id_seq'::regclass)
+column core.observer_checkpoints_history.last_processed_id bigint not null
+column core.observer_checkpoints_history.listener_id character varying(255) not null
+column core.observer_checkpoints_history.reason character varying(255) null
+column core.observer_checkpoints_history.updated_at timestamp with time zone not null default now()
+index CREATE INDEX idx_checkpoints_history_listener_id ON core.observer_checkpoints_history USING btree (listener_id)
+index CREATE INDEX idx_checkpoints_history_updated_at ON core.observer_checkpoints_history USING btree (updated_at DESC)
+index CREATE INDEX idx_observer_checkpoints_updated_at ON core.observer_checkpoints USING btree (updated_at DESC)
+index CREATE UNIQUE INDEX observer_checkpoints_history_pkey ON core.observer_checkpoints_history USING btree (id)
+index CREATE UNIQUE INDEX observer_checkpoints_pkey ON core.observer_checkpoints USING btree (listener_id)
+row level security core.observer_checkpoints off
+row level security core.observer_checkpoints_history off
+trigger CREATE TRIGGER observer_checkpoints_audit_trigger AFTER INSERT OR UPDATE ON core.observer_checkpoints FOR EACH ROW EXECUTE FUNCTION core.observer_checkpoints_audit()
