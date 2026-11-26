@@ -132,6 +132,12 @@ disagreed, and the promise was the part that was wrong.
   host, an unparseable URL), name the URL by `scheme://host:port` only, where they quoted
   it whole.
 
+- **First-party auth refuses a database a release before 2.19.1 provisioned (#1965).**
+  Those releases kept auth's tables outside schema `auth` (`core.tb_user`,
+  `_system.sessions` and the rest), and this release reads none of them. A server with
+  `[auth.database]` now refuses to boot while any of those tables exists, naming each one,
+  instead of serving sign-ins over the empty tables in `auth`.
+
 - **A `${VAR}` value must be printable text, and a parse error after expansion shows neither
   the line nor the value, in fraiseql.toml and the server's configuration file (#2566).**
   A substituted value holding a control character (a tab included), an invisible format

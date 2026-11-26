@@ -150,3 +150,9 @@ application's own schema "auth", or point [auth.database] at another database
 FraiseQL recognises its own schema by the comment it writes on it,
 `fraiseql: first-party auth`. A deployment that configures no first-party auth surface
 never touches schema `auth`.
+
+## A database from a release before 2.19.1
+
+Releases before 2.19.1 kept auth's tables outside schema `auth` (`core.tb_user`,
+`_system.sessions` and the rest). The boot refuses a database that still holds any of them,
+naming each one it finds.

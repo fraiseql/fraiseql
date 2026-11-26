@@ -38,6 +38,10 @@ WHAT THIS GATE DELIBERATELY DOES NOT REACH
 * Go sources (`.dagger/`) name these tables only in comments.
 * SQL text assembled at runtime from fragments (`format!("{schema}.{table}")`). No auth
   store does this today; the inventory test is the backstop for DDL built that way.
+* The one deliberate reference to the old location: the server's boot refusal of a
+  database an earlier release provisioned (`EARLIER_AUTH_TABLES` in
+  `crates/fraiseql-server/src/auth_database.rs`) and its test name each table as a
+  (schema, table) pair, which no rule here matches. Its PostgreSQL test pins it.
 """
 
 from __future__ import annotations

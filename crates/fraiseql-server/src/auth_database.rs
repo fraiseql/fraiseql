@@ -88,3 +88,59 @@ pub fn build_auth_pool(
     info!(url_env = name, pool_max = max, "First-party auth runs on its own pool");
     Ok(Some(pool))
 }
+
+/// Where releases before 2.19.1 kept first-party auth's tables, before schema `auth`, as
+/// (schema, table): the one place this crate names that location on purpose.
+const EARLIER_AUTH_TABLES: [(&str, &str); 15] = [
+    ("_system", "sessions"),
+    ("core", "tb_auth_identity"),
+    ("core", "tb_email_verification_token"),
+    ("core", "tb_mfa_challenge"),
+    ("core", "tb_mfa_enrollment"),
+    ("core", "tb_otp_code"),
+    ("core", "tb_otp_send_budget"),
+    ("core", "tb_password_credential"),
+    ("core", "tb_password_reset_token"),
+    ("core", "tb_saml_idp"),
+    ("core", "tb_saml_replay"),
+    ("core", "tb_scim_group"),
+    ("core", "tb_scim_group_member"),
+    ("core", "tb_scim_token"),
+    ("core", "tb_user"),
+];
+
+/// Refuse to boot first-party auth over a database a release before 2.19.1 provisioned.
+///
+/// Those releases kept auth's tables outside schema `auth`. This release reads none of
+/// them, so booting would serve sign-ins over empty tables in `auth`.
+///
+/// # Errors
+///
+/// [`ServerError::ConfigError`] naming every such table found, or
+/// [`ServerError::Database`] when the catalog cannot be read.
+pub async fn refuse_earlier_auth_tables(pool: &PgPool) -> Result<(), ServerError> {
+    let (schemas, tables): (Vec<&str>, Vec<&str>) = EARLIER_AUTH_TABLES.into_iter().unzip();
+    // The catalog, not `to_regclass`: auth's role has no USAGE on those schemas, and
+    // `pg_class` is readable without it.
+    let found: Vec<String> = sqlx::query_scalar(
+        "SELECT e.schema || '.' || e.name \
+         FROM unnest($1::text[], $2::text[]) AS e(schema, name) \
+         JOIN pg_namespace n ON n.nspname = e.schema \
+         JOIN pg_class c ON c.relnamespace = n.oid AND c.relname = e.name \
+         ORDER BY 1",
+    )
+    .bind(schemas)
+    .bind(tables)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ServerError::Database(format!("could not read the catalog: {e}")))?;
+    if found.is_empty() {
+        return Ok(());
+    }
+    Err(ServerError::ConfigError(format!(
+        "this database holds first-party auth tables from a release before 2.19.1, which \
+         kept them outside schema `auth`: {}. This release does not read them, and does \
+         not start over them.",
+        found.join(", ")
+    )))
+}

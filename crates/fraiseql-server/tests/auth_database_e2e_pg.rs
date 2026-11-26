@@ -6,7 +6,8 @@
 //! - with the engine on a role that cannot read schema `auth`, sign-in still works: every auth
 //!   table belongs to the auth role, and the engine role reads none of them;
 //! - boot logs name the auth database by its variable, not its value;
-//! - a schema `auth` that FraiseQL did not create refuses the boot;
+//! - a schema `auth` that FraiseQL did not create refuses the boot, and so does a database a
+//!   release before 2.19.1 provisioned, which kept auth's tables outside `auth`;
 //! - on two roles, each surface reaches its tables through auth's pool: the MFA check at boot, the
 //!   session sweep, refresh, SCIM and social sign-in.
 //!
@@ -561,6 +562,56 @@ async fn a_schema_auth_fraiseql_did_not_create_refuses_the_boot() {
         message.contains("schema \"auth\"") && message.contains("not created by FraiseQL"),
         "the refusal must say whose schema it is: {message}"
     );
+    drop_scratch(&url, db).await;
+}
+
+#[tokio::test]
+async fn a_database_an_earlier_release_provisioned_refuses_the_boot_naming_its_tables() {
+    let Some(url) = database_url_or_skip("a_database_an_earlier_release_provisioned") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_u10_earlier";
+    let (pool, engine_url, auth_url) = scratch(&url, db).await;
+    std::env::set_var("FRAISEQL_TEST_U10_EARLIER_URL", &auth_url);
+    // Two of the tables a release before 2.19.1 created, where it created them.
+    let earlier = [("core", "tb_user"), ("_system", "sessions")];
+    for (schema, table) in earlier {
+        // Reason: test SQL built from the names above.
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "CREATE SCHEMA IF NOT EXISTS {schema}; CREATE TABLE {schema}.{table} (id integer);"
+        )))
+        .execute(&pool)
+        .await
+        .expect("create an earlier release's auth table");
+    }
+
+    let server = construct(
+        config(&engine_url),
+        schema(Some(serde_json::json!({ "url_env": "FRAISEQL_TEST_U10_EARLIER_URL" }))),
+        &engine_url,
+    )
+    .await
+    .expect("construction reads no table, so it does not see them yet");
+    let message = match serve(server).await {
+        Ok(running) => {
+            running.stop().await;
+            panic!("a database an earlier release provisioned must refuse the boot");
+        },
+        Err(message) => message,
+    };
+    assert!(message.contains("before 2.19.1"), "the refusal must say why: {message}");
+    for (schema, table) in earlier {
+        assert!(
+            message.contains(&format!("{schema}.{table}")),
+            "the refusal must name {schema}.{table}: {message}"
+        );
+    }
+    let created: Option<String> = sqlx::query_scalar("SELECT to_regclass('auth.tb_user')::text")
+        .fetch_one(&pool)
+        .await
+        .expect("read the catalog");
+    assert_eq!(created, None, "the refusal must come before provisioning creates `auth`");
     drop_scratch(&url, db).await;
 }
 

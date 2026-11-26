@@ -71,6 +71,13 @@ impl Server {
         #[cfg(feature = "functions-runtime")]
         self.config.function_dispatch.settings().map_err(ServerError::ConfigError)?;
 
+        // First-party auth refuses a database an earlier release provisioned, before
+        // provisioning creates its empty tables in schema `auth`.
+        #[cfg(feature = "auth")]
+        if let Some(pool) = self.auth_pool.as_ref() {
+            crate::auth_database::refuse_earlier_auth_tables(pool).await?;
+        }
+
         // Every table a mounted route depends on, one ordered step per configured
         // subsystem, each under the migration lock.
         super::provision::run(self.provision_steps()).await?;
