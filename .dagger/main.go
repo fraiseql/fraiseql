@@ -768,7 +768,12 @@ func (m *FraiseqlCi) Test(
 			// line is greppable in the log.
 			" --exclude fraiseql-core --exclude fraiseql-db --exclude fraiseql-arrow" +
 			" --exclude fraiseql-observers --exclude fraiseql-server --exclude fraiseql-wire" +
-			" --exclude fraiseql-functions" +
+			// fraiseql-test-support is excluded so that `--all-features`, which applies to
+			// every selected package, does not turn on its `local-testcontainers`: with it
+			// on, a harness that finds no DATABASE_URL starts a container, and this leg has
+			// no Docker, so the database suites panic here instead of skipping. They run in
+			// the integration legs, which bind a database. Its own tests run below.
+			" --exclude fraiseql-functions --exclude fraiseql-test-support" +
 			" --all-features " + testWorkspaceSkip,
 		"echo '### cargo test -p fraiseql-wire --lib (tests/* skipped: testcontainers)'",
 		"cargo test -p fraiseql-wire --lib --all-features",
@@ -840,9 +845,13 @@ func (m *FraiseqlCi) Test(
 		"cargo test -p fraiseql-auth --lib",
 		// fraiseql-test-support's pin that postgres() fails with DATABASE_URL unset holds
 		// only in the build without `local-testcontainers`, where an unset URL cannot
-		// spawn a database; the workspace sweep above enables every feature.
+		// spawn a database. The workspace sweep above leaves the crate out, so these two
+		// lines are where its tests run: default features, then every feature but the
+		// local spawn, which this leg cannot run.
 		"echo '### cargo test -p fraiseql-test-support --lib (default features: no local spawn)'",
 		"cargo test -p fraiseql-test-support --lib",
+		"echo '### cargo test -p fraiseql-test-support (every feature but local-testcontainers)'",
+		"cargo test -p fraiseql-test-support --features boot-locks,held-replies,test-issuer",
 		// The MCP transport's Docker-free test binaries. They ran in
 		// feature-flags.yml's `feature-integration-tests` job, which has been
 		// dispatch-only since the Dagger migration (2026-05-31) — so no CI leg
