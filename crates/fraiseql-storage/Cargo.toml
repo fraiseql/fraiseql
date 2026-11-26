@@ -48,8 +48,11 @@ walkdir = "2"
 # -> rustls 0.21 (EOL, RUSTSEC-2026-0098/-0099/-0104). Every other member of the
 # crate's default set is restored by name. HTTPS is unaffected: it comes from
 # `default-https-client`, which resolves to rustls 0.23 (#1111).
+# `sigv4a`, also in that default set, is left off: it signs every request to a
+# Multi-Region Access Point with an EC key derived from the AWS secret, on
+# crypto-bigint 0.5 (RUSTSEC-2026-0387). Multi-Region Access Points are therefore
+# unsupported, and `create_backend` refuses one as `bucket` (#1711).
 aws-sdk-s3 = { version = "1", optional = true, default-features = false, features = [
-  "sigv4a",
   "http-1x",
   "default-https-client",
   "rt-tokio",

@@ -33,6 +33,12 @@ follows from them:
 | Azure Blob Storage | `azure-blob` | yes | **not implemented** | **not implemented** |
 | Local filesystem | (always available) | yes | no (not a service) | yes |
 
+S3 Multi-Region Access Points are not supported. Every request to one must be
+signed with SigV4a, which the S3 client is built without, so a `bucket` set to a
+Multi-Region Access Point ARN (`arn:aws:s3::<account>:accesspoint/<alias>`) is
+refused when the backend is created. Regional access points, S3 on Outposts and
+every S3-compatible service in the table sign with SigV4 and are unaffected.
+
 `GcsBackend::presigned_url` / `list` and `AzureBackend::presigned_url` / `list`
 return `FileError::NotImplemented`. Presigned uploads and downloads therefore
 work only on the S3-compatible backends.

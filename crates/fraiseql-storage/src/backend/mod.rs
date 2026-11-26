@@ -104,6 +104,9 @@ pub mod gcs;
 pub mod azure;
 
 #[cfg(test)]
+#[path = "multi_region_access_point_tests.rs"]
+mod multi_region_access_point_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod time_tests;
@@ -684,6 +687,20 @@ fn default_s3_endpoint(backend: &str, region: Option<&str>) -> Option<String> {
     }
 }
 
+/// Whether `bucket` is the ARN of an S3 Multi-Region Access Point:
+/// `arn:<partition>:s3::<account>:accesspoint/<alias>`. A regional access point
+/// carries a region in the fourth field; a Multi-Region one leaves it empty. Every
+/// request to one is signed with `SigV4a` only, which this crate's S3 client does not
+/// enable.
+fn is_multi_region_access_point_arn(bucket: &str) -> bool {
+    let mut fields = bucket.splitn(6, ':');
+    matches!(
+        (fields.next(), fields.next(), fields.next(), fields.next(), fields.next(), fields.next()),
+        (Some("arn"), Some(_), Some("s3"), Some(""), Some(_), Some(resource))
+            if resource.starts_with("accesspoint/")
+    )
+}
+
 /// Build a `FileError::Backend` for a missing-config or unknown-backend error.
 fn config_err(message: impl Into<String>) -> fraiseql_error::FraiseQLError {
     fraiseql_error::FraiseQLError::File(FileError::Backend {
@@ -702,8 +719,17 @@ fn config_err(message: impl Into<String>) -> fraiseql_error::FraiseQLError {
 /// # Errors
 ///
 /// Returns `FraiseQLError::File` if the backend type is unknown, the required
-/// feature is not enabled, or required configuration fields are missing.
+/// feature is not enabled, required configuration fields are missing, or `bucket`
+/// names an S3 Multi-Region Access Point (`arn:<partition>:s3::<account>:accesspoint/<alias>`),
+/// whose requests only `SigV4a` can sign and this crate's S3 client is built without.
 pub async fn create_backend(config: &crate::config::StorageConfig) -> Result<StorageBackend> {
+    if let Some(bucket) = config.bucket.as_deref().filter(|b| is_multi_region_access_point_arn(b)) {
+        return Err(config_err(format!(
+            "'bucket' names an S3 Multi-Region Access Point ({bucket}), which is not supported: \
+             its requests can only be signed with SigV4a, and the S3 client is built without it. \
+             Use a bucket name, or a regional access point ARN."
+        )));
+    }
     let backend_name = config.backend.as_str();
 
     match backend_name {

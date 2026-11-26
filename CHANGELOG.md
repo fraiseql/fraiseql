@@ -18,6 +18,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **S3 Multi-Region Access Points are no longer supported (#1711).** `aws-sdk-s3` is
+  built without its `sigv4a` feature. SigV4a signed every request to a Multi-Region
+  Access Point with an EC key derived from the AWS secret, on `crypto-bigint` 0.5
+  (RUSTSEC-2026-0387): the one place where the number of secret-key EC signatures grew
+  with traffic. A `bucket` set to a Multi-Region Access Point ARN
+  (`arn:aws:s3::<account>:accesspoint/<alias>`) is now refused when the storage backend
+  is created, naming the key, instead of failing on its first request. Bucket names,
+  regional access points, S3 on Outposts and the S3-compatible services are unaffected.
+  RUSTSEC-2026-0387 stays accepted until `elliptic-curve` moves to `crypto-bigint` 0.7,
+  since token and webhook verification still pull 0.5 in; its one secret-key use is now
+  Apple sign-in's cached `client_secret`.
+
 - **`admin_auth_max_failures = 0` is refused at load (#2613).** Its documentation said
   `0` turned the admin brute-force limit off. It did the opposite: the limiter blocks an
   address once its failures reach the budget, so `0` answered 429 to the first failed admin

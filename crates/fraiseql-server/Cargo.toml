@@ -27,8 +27,9 @@ aws-config = { version = "1", optional = true }
 # Must mirror fraiseql-storage's declaration exactly. Cargo UNIFIES features across
 # the graph, so one declaration left on default features re-enables the legacy
 # rustls 0.21 connector for every crate — which is what happened here (#1111).
+# `sigv4a` stays off in both, for the reason fraiseql-storage gives (#1711): naming
+# it here would turn it back on for the storage client too.
 aws-sdk-s3 = { version = "1", optional = true, default-features = false, features = [
-  "sigv4a",
   "http-1x",
   "default-https-client",
   "rt-tokio",
