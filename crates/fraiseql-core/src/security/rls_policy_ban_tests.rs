@@ -5,22 +5,24 @@
 //! path that names a type, so every construction must name one: `NoRLSPolicy` is not a
 //! unit value and `DefaultRLSPolicy` cannot be written as a literal outside its module.
 //! A ban whose path stops resolving is only a configuration warning, so these tests also
-//! name each type by the banned path and check the configuration still bans it.
+//! name each type by the banned path and check the configuration still bans it. The path is
+//! where the type is defined, `security::rls_policy`: clippy does not follow the `security`
+//! re-export.
 
 #![allow(clippy::unwrap_used)] // Reason: test code
 
 const BANNED: [&str; 3] = [
-    "fraiseql_core::security::DefaultRLSPolicy",
-    "fraiseql_core::security::NoRLSPolicy",
-    "fraiseql_core::security::CompiledRLSPolicy",
+    "fraiseql_core::security::rls_policy::DefaultRLSPolicy",
+    "fraiseql_core::security::rls_policy::NoRLSPolicy",
+    "fraiseql_core::security::rls_policy::CompiledRLSPolicy",
 ];
 
 #[test]
 #[allow(clippy::disallowed_types)] // Reason: names the banned types to prove the paths resolve
 fn the_banned_paths_name_the_three_policies() {
-    assert!(std::mem::size_of::<crate::security::DefaultRLSPolicy>() > 0);
-    assert_eq!(std::mem::size_of::<crate::security::NoRLSPolicy>(), 0);
-    assert!(std::mem::size_of::<crate::security::CompiledRLSPolicy>() > 0);
+    assert!(std::mem::size_of::<crate::security::rls_policy::DefaultRLSPolicy>() > 0);
+    assert_eq!(std::mem::size_of::<crate::security::rls_policy::NoRLSPolicy>(), 0);
+    assert!(std::mem::size_of::<crate::security::rls_policy::CompiledRLSPolicy>() > 0);
 }
 
 #[test]

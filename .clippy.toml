@@ -62,10 +62,15 @@ verbose-bit-mask-threshold = 1
 # `#[allow]`s; tests that drive an adapter's write carry one per function.
 # `fraiseql-db`'s `traits/write_ban_tests.rs` keeps these two paths resolving: a path that
 # stops resolving is only a configuration warning, and the ban would be silently gone.
+#
+# Every path here names an item where it is DEFINED, never a re-export of it: clippy 1.95
+# followed a re-export, later releases do not, and a re-exported path then resolves to
+# nothing and bans nothing. `Writer` is defined in `traits::mutations` and re-exported from
+# `traits`; the three RLS policies in `security::rls_policy`, re-exported from `security`.
 disallowed-methods = [
   { path = "fraiseql_core::graphql::document::parse", reason = "call fraiseql_core::graphql::parse_graphql_document: it guards the parser and shares one parse per request" },
-  { path = "fraiseql_db::traits::Writer::execute_write", reason = "a write goes through the engine (Executor::execute*, which reaches execute_mutation_impl), where every gate on a mutation runs" },
-  { path = "fraiseql_db::traits::Writer::execute_writes", reason = "a write goes through the engine (Executor::execute*, which reaches execute_mutation_impl), where every gate on a mutation runs" },
+  { path = "fraiseql_db::traits::mutations::Writer::execute_write", reason = "a write goes through the engine (Executor::execute*, which reaches execute_mutation_impl), where every gate on a mutation runs" },
+  { path = "fraiseql_db::traits::mutations::Writer::execute_writes", reason = "a write goes through the engine (Executor::execute*, which reaches execute_mutation_impl), where every gate on a mutation runs" },
   { path = "tracing::subscriber::with_default", reason = "use fraiseql_test_support::tracing_capture::with_default, which a parallel test cannot blind" },
   { path = "tracing::subscriber::set_default", reason = "use fraiseql_test_support::tracing_capture::set_default, which a parallel test cannot blind" },
 ]
@@ -89,7 +94,7 @@ disallowed-types = [
   # them all, inside fraiseql-core too. `rls_policy.rs` defines them; each test that builds
   # one to pass in carries an `#[allow]`. `security/rls_policy_ban_tests.rs` keeps the paths
   # resolving.
-  { path = "fraiseql_core::security::DefaultRLSPolicy", reason = "consult the policy the deployment configured, RuntimeConfig.rls_policy, with None meaning no row filter; a policy built here is not the one in force" },
-  { path = "fraiseql_core::security::NoRLSPolicy", reason = "consult the policy the deployment configured, RuntimeConfig.rls_policy, with None meaning no row filter; a policy built here is not the one in force" },
-  { path = "fraiseql_core::security::CompiledRLSPolicy", reason = "consult the policy the deployment configured, RuntimeConfig.rls_policy, with None meaning no row filter; a policy built here is not the one in force" },
+  { path = "fraiseql_core::security::rls_policy::DefaultRLSPolicy", reason = "consult the policy the deployment configured, RuntimeConfig.rls_policy, with None meaning no row filter; a policy built here is not the one in force" },
+  { path = "fraiseql_core::security::rls_policy::NoRLSPolicy", reason = "consult the policy the deployment configured, RuntimeConfig.rls_policy, with None meaning no row filter; a policy built here is not the one in force" },
+  { path = "fraiseql_core::security::rls_policy::CompiledRLSPolicy", reason = "consult the policy the deployment configured, RuntimeConfig.rls_policy, with None meaning no row filter; a policy built here is not the one in force" },
 ]

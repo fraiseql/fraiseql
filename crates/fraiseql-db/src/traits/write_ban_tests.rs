@@ -6,18 +6,22 @@
 //! lint. This test names both methods by the banned paths, so a rename or a move fails to
 //! compile here, and it checks the configuration still bans exactly those paths.
 
-/// The paths `.clippy.toml` bans, as this crate resolves them.
+/// The paths `.clippy.toml` bans: where the methods are defined, since clippy does not
+/// follow the `traits::Writer` re-export.
 const BANNED: [&str; 2] = [
-    "fraiseql_db::traits::Writer::execute_write",
-    "fraiseql_db::traits::Writer::execute_writes",
+    "fraiseql_db::traits::mutations::Writer::execute_write",
+    "fraiseql_db::traits::mutations::Writer::execute_writes",
 ];
 
 #[test]
 #[allow(clippy::disallowed_methods)] // Reason: names the banned methods to prove the paths resolve; calls neither
 fn the_banned_paths_name_the_writers_methods() {
     // A fn item is zero-sized: both paths resolved to the trait's methods.
-    assert_eq!(std::mem::size_of_val(&<dyn crate::traits::Writer>::execute_write), 0);
-    assert_eq!(std::mem::size_of_val(&<dyn crate::traits::Writer>::execute_writes), 0);
+    assert_eq!(std::mem::size_of_val(&<dyn crate::traits::mutations::Writer>::execute_write), 0);
+    assert_eq!(
+        std::mem::size_of_val(&<dyn crate::traits::mutations::Writer>::execute_writes),
+        0
+    );
 }
 
 #[test]
