@@ -72,10 +72,11 @@ jobs:
           # the job. The string is double-quoted, so a backtick in there would also run as
           # command substitution. Keep prose out here.
           #
-          # Both the floating rust:1.95 and the patch-pinned rust:1.95.0 are mirrored (the
-          # MSRV), and the 1.94 pair stays so an older checkout still resolves. Docker's
-          # rust:1.95 tracks the newest 1.95.x, so a leg pinned to it silently stops testing
-          # the rust-version we declare the day 1.95.1 ships; .dagger pins the exact patch.
+          # Each toolchain is mirrored as a floating and a patch-pinned pair: rust:1.100 and
+          # rust:1.100.0 (the toolchain the workspace moves to), with the 1.95 and 1.94 pairs
+          # kept so an older checkout still resolves. Docker's rust:1.100 tracks the newest
+          # 1.100.x, so a leg pinned to it silently stops testing the rust-version we declare
+          # the day 1.100.1 ships; .dagger pins the exact patch.
           #
           # PostgreSQL 18 is the supported floor (#1452): pgvector:pg18 is the service image.
           # postgres:17 is mirrored because the floor-refusal suites need a server below it.
@@ -89,6 +90,8 @@ jobs:
           docker.io/library/rust:1.94.1|ghcr.io/fraiseql/rust:1.94.1
           docker.io/library/rust:1.95|ghcr.io/fraiseql/rust:1.95
           docker.io/library/rust:1.95.0|ghcr.io/fraiseql/rust:1.95.0
+          docker.io/library/rust:1.100|ghcr.io/fraiseql/rust:1.100
+          docker.io/library/rust:1.100.0|ghcr.io/fraiseql/rust:1.100.0
           docker.io/library/ubuntu:24.04|ghcr.io/fraiseql/ubuntu:24.04
           docker.io/library/postgres:16|ghcr.io/fraiseql/postgres:16
           docker.io/pgvector/pgvector:pg16|ghcr.io/fraiseql/pgvector:pg16
