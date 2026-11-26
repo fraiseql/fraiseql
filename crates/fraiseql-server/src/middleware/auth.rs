@@ -31,6 +31,11 @@ struct FailureRecord {
 ///
 /// Shared inside `BearerAuthState` via an `Arc`-wrapped `DashMap` so that
 /// the state can be `Clone`d cheaply across requests.
+///
+/// A successful authentication leaves the record alone: a failure ages out with
+/// its window and nothing else. One limiter counts failures against every admin
+/// credential, the platform token and lower ones alike, so a success with a lower
+/// credential must not give back the failures spent against the platform token.
 #[derive(Clone)]
 pub(crate) struct FailureLimiter {
     records:      Arc<DashMap<String, FailureRecord>>,
@@ -105,11 +110,6 @@ impl FailureLimiter {
             }
         }
         false
-    }
-
-    /// Reset the failure counter for an IP after a successful authentication.
-    pub(crate) fn record_success(&self, ip: &str) {
-        self.records.remove(ip);
     }
 
     /// Return the current failure count for an IP (used in tests).
@@ -254,9 +254,6 @@ pub async fn bearer_auth_middleware(
                 }
                 return (StatusCode::FORBIDDEN, "Invalid token").into_response();
             }
-
-            // Successful auth — reset the failure counter.
-            auth_state.failure_limiter.record_success(&peer_key);
         },
     }
 
@@ -372,7 +369,6 @@ pub async fn admin_principal_middleware(
         }
         return (StatusCode::FORBIDDEN, "Invalid token").into_response();
     };
-    state.failure_limiter.record_success(&peer_key);
     request.extensions_mut().insert(principal);
     next.run(request).await
 }
@@ -541,7 +537,6 @@ pub async fn admin_dual_auth_middleware(
         return (StatusCode::FORBIDDEN, "Invalid token").into_response();
     };
 
-    auth_state.failure_limiter.record_success(&peer_key);
     request.extensions_mut().insert(AdminCaller {
         privilege,
         peer_ip: peer_key,
@@ -715,5 +710,61 @@ mod failure_budget_tests {
                 .layer(middleware::from_fn_with_state(state, admin_principal_middleware)),
         )
         .await;
+    }
+
+    /// A failure is already on the budget; the right token through `layer` is served and
+    /// leaves that failure counted.
+    async fn assert_a_success_keeps_the_failure(
+        shared: &super::FailureLimiter,
+        layer: Router,
+        token: &str,
+    ) {
+        shared.record_failure("unknown");
+        let request = Request::builder()
+            .uri("/")
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(layer.oneshot(request).await.unwrap().status(), StatusCode::OK);
+        assert_eq!(
+            shared.failure_count("unknown"),
+            1,
+            "a success cleared a failure on the shared budget"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_bearer_success_keeps_the_failures_on_the_shared_budget() {
+        let shared = super::FailureLimiter::new(2);
+        let state = super::BearerAuthState::with_limiter("right-token".to_owned(), shared.clone());
+        let app = Router::new()
+            .route("/", get(admin))
+            .layer(middleware::from_fn_with_state(state, super::bearer_auth_middleware));
+        assert_a_success_keeps_the_failure(&shared, app, "right-token").await;
+    }
+
+    #[tokio::test]
+    async fn a_sql_console_success_keeps_the_failures_on_the_shared_budget() {
+        let shared = super::FailureLimiter::new(2);
+        let state = AdminDualAuthState::with_limiter(
+            "right-token".to_owned(),
+            Some("read-token".to_owned()),
+            shared.clone(),
+        );
+        let app = Router::new()
+            .route("/", get(admin))
+            .layer(middleware::from_fn_with_state(state, admin_dual_auth_middleware));
+        assert_a_success_keeps_the_failure(&shared, app, "read-token").await;
+    }
+
+    #[tokio::test]
+    async fn an_admin_principal_success_keeps_the_failures_on_the_shared_budget() {
+        let shared = super::FailureLimiter::new(2);
+        let state =
+            AdminPrincipalState::with_limiter("right-token".to_owned(), None, shared.clone());
+        let app = Router::new()
+            .route("/", get(admin))
+            .layer(middleware::from_fn_with_state(state, admin_principal_middleware));
+        assert_a_success_keeps_the_failure(&shared, app, "right-token").await;
     }
 }

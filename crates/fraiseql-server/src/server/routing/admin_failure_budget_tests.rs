@@ -4,6 +4,10 @@
 //! still had the full budget on every other: about thirteen times the configured
 //! `admin_auth_max_failures` against the same token. These build the routers the server
 //! mounts and spread failures across two of them.
+//!
+//! A success does not clear that budget: the routers it covers accept lower
+//! credentials than the platform token, so a success with one of them must not give back
+//! the failures spent against the platform token.
 #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
 
 use std::sync::Arc;
@@ -19,14 +23,21 @@ use crate::{server::Server, server_config::ServerConfig};
 const ADMIN_TOKEN: &str = "an-admin-token-long-enough-to-be-accepted";
 const MAX_FAILURES: u32 = 3;
 
-async fn server() -> Server {
-    let config = ServerConfig {
+fn config() -> ServerConfig {
+    ServerConfig {
         cors_enabled: false,
         admin_api_enabled: true,
         admin_token: Some(ADMIN_TOKEN.to_owned()),
         admin_auth_max_failures: MAX_FAILURES,
         ..ServerConfig::default()
-    };
+    }
+}
+
+async fn server() -> Server {
+    server_from(config()).await
+}
+
+async fn server_from(config: ServerConfig) -> Server {
     Box::pin(Server::new(
         config,
         CompiledSchema::new(),
@@ -82,6 +93,70 @@ async fn failures_spread_across_two_admin_routers_exhaust_one_budget() {
         StatusCode::TOO_MANY_REQUESTS,
         "{MAX_FAILURES} failures across two admin routers must block the client on both"
     );
+}
+
+const READONLY_TOKEN: &str = "a-read-only-token-long-enough-to-be-accepted";
+const METRICS_TOKEN: &str = "a-metrics-token-long-enough-to-be-accepted";
+
+/// A server holding the platform token and two lower credentials on the same budget.
+async fn app_with_lower_credentials() -> axum::Router {
+    let server = server_from(ServerConfig {
+        admin_readonly_token: Some(READONLY_TOKEN.to_owned()),
+        metrics_enabled: true,
+        metrics_token: Some(METRICS_TOKEN.to_owned()),
+        ..config()
+    })
+    .await;
+    let state = server.build_app_state();
+    server.build_router(&state)
+}
+
+/// Spend all but one failure against the platform token, succeed with a lower credential,
+/// then make one more wrong attempt at the platform token: it is the failure that spends
+/// the budget, so it is refused as too many.
+async fn assert_a_lower_success_keeps_the_failures(method: &str, uri: &str, credential: &str) {
+    let app = app_with_lower_credentials().await;
+    for _ in 1..MAX_FAILURES {
+        assert_eq!(
+            status(&app, "POST", "/api/v1/admin/cache/clear", "wrong").await,
+            StatusCode::FORBIDDEN,
+            "a wrong platform token is refused"
+        );
+    }
+    let served = status(&app, method, uri, credential).await;
+    assert!(served.is_success(), "the lower credential is served on {uri}, got {served}");
+    assert_eq!(
+        status(&app, "POST", "/api/v1/admin/cache/clear", "wrong").await,
+        StatusCode::TOO_MANY_REQUESTS,
+        "a success on {uri} cleared the failures spent against the platform token"
+    );
+}
+
+#[tokio::test]
+async fn a_read_only_success_keeps_the_failures_spent_against_the_platform_token() {
+    assert_a_lower_success_keeps_the_failures("GET", "/api/v1/admin/config", READONLY_TOKEN).await;
+}
+
+#[tokio::test]
+async fn a_metrics_success_keeps_the_failures_spent_against_the_platform_token() {
+    assert_a_lower_success_keeps_the_failures("GET", "/metrics", METRICS_TOKEN).await;
+}
+
+/// A client that never fails is never slowed: more successes than the budget, on every
+/// credential, are all served.
+#[tokio::test]
+async fn a_client_with_no_failures_is_not_slowed_by_its_own_successes() {
+    let app = app_with_lower_credentials().await;
+    for _ in 0..=MAX_FAILURES * 2 {
+        for (method, uri, credential) in [
+            ("GET", "/admin/v1/schema", ADMIN_TOKEN),
+            ("GET", "/api/v1/admin/config", READONLY_TOKEN),
+            ("GET", "/metrics", METRICS_TOKEN),
+        ] {
+            let served = status(&app, method, uri, credential).await;
+            assert!(served.is_success(), "a clean client was refused on {uri} with {served}");
+        }
+    }
 }
 
 /// Every admin auth state is built on the shared limiter. Most admin routers mount only

@@ -1041,6 +1041,9 @@ pub struct ServerConfig {
     /// Maximum failed admin bearer auth attempts per IP within a 60-second
     /// window before the IP is blocked with 429 Too Many Requests (default: 10).
     ///
+    /// One budget covers every admin credential. A successful request does not
+    /// clear it: failures age out when their window ends.
+    ///
     /// Set to `0` to disable brute-force protection entirely (not recommended).
     ///
     /// # Example (TOML)

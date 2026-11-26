@@ -171,17 +171,6 @@ mod auth_tests {
     }
 
     #[test]
-    fn test_failure_limiter_success_resets_counter() {
-        let limiter = super::super::auth::FailureLimiter::new(3);
-        limiter.record_failure("1.2.3.4");
-        limiter.record_failure("1.2.3.4");
-        assert_eq!(limiter.failure_count("1.2.3.4"), 2);
-        limiter.record_success("1.2.3.4");
-        assert_eq!(limiter.failure_count("1.2.3.4"), 0);
-        assert!(!limiter.is_blocked("1.2.3.4"));
-    }
-
-    #[test]
     fn test_failure_limiter_independent_per_ip() {
         let limiter = super::super::auth::FailureLimiter::new(2);
         limiter.record_failure("10.0.0.1");
@@ -270,7 +259,7 @@ mod auth_tests {
     }
 
     #[tokio::test]
-    async fn test_middleware_resets_counter_on_success() {
+    async fn a_success_does_not_clear_the_failure_count() {
         let auth_state = BearerAuthState::with_max_failures("good-token".to_string(), 2);
         let app = Router::new()
             .route("/protected", get(protected_handler))
@@ -293,15 +282,15 @@ mod auth_tests {
         let r = app.clone().oneshot(good_req).await.unwrap();
         assert_eq!(r.status(), StatusCode::OK);
 
-        // After success the counter should have been reset; one more bad attempt
-        // should be 403, not 429.
+        // The success leaves the first failure counted: the next bad attempt is the
+        // second of a budget of two, so it is refused as too many.
         let bad_req2 = Request::builder()
             .uri("/protected")
             .header("Authorization", "Bearer bad-token")
             .body(Body::empty())
             .unwrap();
         let r = app.oneshot(bad_req2).await.unwrap();
-        assert_eq!(r.status(), StatusCode::FORBIDDEN);
+        assert_eq!(r.status(), StatusCode::TOO_MANY_REQUESTS);
     }
 
     #[test]

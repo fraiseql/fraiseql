@@ -2237,6 +2237,16 @@ disagreed, and the promise was the part that was wrong.
   names the Redis as `scheme://host:port`, and the log line's field is `redis_host`. The
   `fraiseql-observers` connect error no longer carries the URL.
 
+- **A success with any admin credential no longer clears the shared admin failure budget
+  (#2611).** Since #1760 every admin authentication gate counts failures on one per-client
+  budget, and each gate cleared the client's record when it accepted a credential. The
+  credentials on that budget include lower ones: `metrics_token`, `admin_readonly_token` and
+  every tenant admin token. A client holding one could make `admin_auth_max_failures − 1`
+  wrong attempts at the platform `admin_token`, make one good call with its own credential,
+  and start again, so the configured budget no longer bounded attempts at the platform
+  token. A success now leaves the record alone and failures age out with their 60-second
+  window. A client with no failures is not slowed by its own successful calls.
+
 - **The PHP SDK's client no longer calls `curl_close()` (#2542).** It has done nothing
   since PHP 8.0, and PHP 8.5 deprecates it, so every request raised a deprecation on 8.5.
   The handle is freed when it goes out of scope, as it already was.
