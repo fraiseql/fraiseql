@@ -158,7 +158,8 @@ async fn correct_mutation_has_no_violations() {
     let create = flat(&qualified("fn_create_user"), 1);
     let c2 = catalog.resolve_functions(&create.sql_source).await.unwrap();
     assert_eq!(c2[0].out_columns.len(), 3, "TABLE columns introspected");
-    assert!(check_mutation(&create, &c2).is_empty());
+    let violations = check_mutation(&create, &c2);
+    assert!(violations.is_empty(), "{violations:?}");
 
     teardown().await;
 }
@@ -169,7 +170,7 @@ async fn missing_function_is_reported() {
 
     let expected = jsonb_update(&qualified("fn_absent"), &[]);
     let candidates = catalog.resolve_functions(&expected.sql_source).await.unwrap();
-    assert!(candidates.is_empty());
+    assert!(candidates.is_empty(), "{candidates:?}");
     assert_eq!(check_mutation(&expected, &candidates), vec![ContractViolation::MissingFunction]);
 
     teardown().await;

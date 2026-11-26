@@ -775,7 +775,8 @@ mod schema_validator_tests {
     fn a_mutation_returning_an_object_is_valid() {
         let mut schema = minimal_schema();
         schema.mutations.push(mutation("Item"));
-        assert!(errors_of(&schema).is_empty());
+        let errors = errors_of(&schema);
+        assert!(errors.is_empty(), "{errors:?}");
     }
 
     /// Control: a union of success and error variants is the shape #212,

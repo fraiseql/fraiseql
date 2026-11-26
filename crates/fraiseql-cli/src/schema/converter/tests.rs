@@ -3716,7 +3716,7 @@ fn converts_sources_into_the_compiled_schema() {
 #[test]
 fn absent_sources_convert_to_an_empty_list() {
     let compiled = SchemaConverter::convert(IntermediateSchema::default()).unwrap();
-    assert!(compiled.sources.is_empty());
+    assert!(compiled.sources.is_empty(), "{:?}", compiled.sources);
 }
 
 // ===========================================================================
@@ -4126,7 +4126,8 @@ fn a_type_declaring_no_relationships_compiles_to_an_empty_vector() {
     let mut doc = relationship_ir();
     doc["types"][0].as_object_mut().expect("object").remove("relationships");
     let compiled = convert_ir(&doc).expect("a type with no relationships compiles");
-    assert!(compiled.find_type("User").expect("User").relationships.is_empty());
+    let user = compiled.find_type("User").expect("User");
+    assert!(user.relationships.is_empty(), "{:?}", user.relationships);
 }
 
 // ── #1283: what the compiler says about a list query's auto-params ───────────
@@ -4145,7 +4146,8 @@ fn auto_param_warnings_state_each_rule_on_the_configuration_that_earns_it() {
     let warn = |params| SchemaConverter::auto_param_warnings("things", &params, Some(&ordered));
 
     // Everything on: nothing to say.
-    assert!(warn(AutoParams::all()).is_empty());
+    let warnings = warn(AutoParams::all());
+    assert!(warnings.is_empty(), "{warnings:?}");
 
     // #1283: a list route that accepts no filter, which is legal and invisible to the
     // client until it sends one.

@@ -36,7 +36,7 @@ mod config_tests {
     #[test]
     fn test_naming_acronyms_default_empty() {
         let config = TomlSchema::default();
-        assert!(config.naming.acronyms.is_empty());
+        assert!(config.naming.acronyms.is_empty(), "{:?}", config.naming.acronyms);
     }
 
     #[test]
@@ -310,7 +310,7 @@ mod runtime_tests {
         assert_eq!(cfg.host, "0.0.0.0");
         assert_eq!(cfg.port, 8080);
         assert!(!cfg.tls.enabled);
-        assert!(cfg.cors.origins.is_empty());
+        assert!(cfg.cors.origins.is_empty(), "{:?}", cfg.cors.origins);
     }
 
     #[test]

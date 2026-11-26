@@ -40,7 +40,7 @@ fn inject_param_without_a_column_is_silent_jsonb_fallback() {
         &std::collections::HashSet::new(),
     );
     assert!(native.is_empty());
-    assert!(fallbacks.is_empty());
+    assert!(fallbacks.is_empty(), "{fallbacks:?}");
 }
 
 #[test]
@@ -53,7 +53,7 @@ fn explicit_arg_matching_a_column_is_native() {
         &std::collections::HashSet::new(),
     );
     assert_eq!(native.get("id").map(|c| c.pg_type.as_str()), Some("uuid"));
-    assert!(fallbacks.is_empty());
+    assert!(fallbacks.is_empty(), "{fallbacks:?}");
 }
 
 #[test]
@@ -83,7 +83,7 @@ fn args_and_inject_params_combine() {
     assert_eq!(native.len(), 2);
     assert_eq!(native.get("id").map(|c| c.pg_type.as_str()), Some("uuid"));
     assert_eq!(native.get("tenant_id").map(|c| c.pg_type.as_str()), Some("uuid"));
-    assert!(fallbacks.is_empty());
+    assert!(fallbacks.is_empty(), "{fallbacks:?}");
 }
 
 // ─── arg↔column type-convertibility (pure; #384 Gap B) ──────────────────────
@@ -346,7 +346,8 @@ mod embedded_scope_key_tests {
             "shipping": { "lines": [] },
         });
         assert_eq!(embedded_documents(&document, &["billing", "lines"]).len(), 2);
-        assert!(embedded_documents(&document, &["shipping", "lines"]).is_empty());
+        let embedded = embedded_documents(&document, &["shipping", "lines"]);
+        assert!(embedded.is_empty(), "{embedded:?}");
     }
 
     #[test]

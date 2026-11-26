@@ -269,8 +269,8 @@ fn summary_computes_percentiles_over_v2_rows_only() {
 #[test]
 fn empty_input_is_an_empty_report() {
     let report = regression_scan(&[], &params(), NOW);
-    assert!(report.findings.is_empty());
-    assert!(report.skipped.is_empty());
+    assert!(report.findings.is_empty(), "{:?}", report.findings);
+    assert!(report.skipped.is_empty(), "{:?}", report.skipped);
     assert_eq!(report.summary.groups_analyzed, 0);
     assert_eq!(report.summary.total_samples, 0);
 }

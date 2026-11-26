@@ -39,7 +39,8 @@ fn a_query_with_no_page_order_has_nothing_to_advise() {
     let mut q = invoices();
     q.pagination_order = None;
     assert_eq!(tie_break_key(&q), None);
-    assert!(advise(&q, "tb_invoice", &[index("ix", &["status"])]).is_empty());
+    let advice = advise(&q, "tb_invoice", &[index("ix", &["status"])]);
+    assert!(advice.is_empty(), "{advice:?}");
 }
 
 /// The larger cost: nothing leads with the tie-break, so every page sorts the

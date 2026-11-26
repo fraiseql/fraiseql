@@ -776,7 +776,7 @@ fn expected_call_has_no_payload_keys_for_unknown_input_type() {
     };
     m.arguments = vec![single_input_arg("NotInSchema")];
     let call = expected_call(&m, &CompiledSchema::new()).expect("DB-backed mutation");
-    assert!(call.payload_keys.is_empty());
+    assert!(call.payload_keys.is_empty(), "{:?}", call.payload_keys);
 }
 
 // ─── check_mutation: literal entity_type stamps (rulings AA 1, AJ 2) ────────

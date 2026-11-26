@@ -517,7 +517,7 @@ fn a_connector_with_no_function_definition_compiles_and_keeps_module_dir() {
 
     let functions = compile(corpus).functions.expect("a connector needs the functions section");
     assert_eq!(functions.module_dir, modules);
-    assert!(functions.definitions.is_empty());
+    assert!(functions.definitions.is_empty(), "{:?}", functions.definitions);
 }
 
 /// With `module_dir` present, a connector that is not on disk fails the compile,

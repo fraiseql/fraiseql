@@ -426,6 +426,6 @@ def author(id: ID): Author = ???
 #[test]
 fn test_empty_source() {
     let result = PythonExtractor.extract("# no schema here").unwrap();
-    assert!(result.types.is_empty());
-    assert!(result.queries.is_empty());
+    assert!(result.types.is_empty(), "{:?}", result.types);
+    assert!(result.queries.is_empty(), "{:?}", result.queries);
 }

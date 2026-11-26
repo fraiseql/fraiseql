@@ -583,7 +583,8 @@ fn fact_table_roots_are_query_roots_and_a_schema_never_built_has_none() {
         fact_tables: schema.fact_tables,
         ..CompiledSchema::default()
     };
-    assert!(super::common::fact_roots(&unbuilt).is_empty());
+    let roots = super::common::fact_roots(&unbuilt);
+    assert!(roots.is_empty(), "{roots:?}");
     assert!(!super::common::has_query_roots(&unbuilt));
 }
 

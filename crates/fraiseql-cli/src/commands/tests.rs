@@ -171,7 +171,8 @@ mod compile_tests {
     #[test]
     fn test_wide_cascade_no_mutations_no_warnings() {
         let schema = CompiledSchema::default();
-        assert!(wide_cascade_mutations(&schema, WIDE_FANOUT_THRESHOLD).is_empty());
+        let wide = wide_cascade_mutations(&schema, WIDE_FANOUT_THRESHOLD);
+        assert!(wide.is_empty(), "{wide:?}");
     }
 
     // ── jsonb_preserve_mismatches (#456 compile-time warning) ────────────
@@ -280,7 +281,8 @@ mod compile_tests {
             MutationOperation::Insert { table: "t".into() },
             &["shippingAddress"],
         );
-        assert!(jsonb_preserve_mismatches(&schema).is_empty());
+        let mismatches = jsonb_preserve_mismatches(&schema);
+        assert!(mismatches.is_empty(), "{mismatches:?}");
     }
 
     #[test]
@@ -292,7 +294,8 @@ mod compile_tests {
             MutationOperation::Insert { table: "t".into() },
             &["shipping_address", "customer_note"],
         );
-        assert!(jsonb_preserve_mismatches(&schema).is_empty());
+        let mismatches = jsonb_preserve_mismatches(&schema);
+        assert!(mismatches.is_empty(), "{mismatches:?}");
     }
 
     #[test]
@@ -305,7 +308,8 @@ mod compile_tests {
             MutationOperation::Insert { table: "t".into() },
             &["shippingAddress"],
         );
-        assert!(jsonb_preserve_mismatches(&schema).is_empty());
+        let mismatches = jsonb_preserve_mismatches(&schema);
+        assert!(mismatches.is_empty(), "{mismatches:?}");
     }
 
     /// A query whose return type is a declared type validates clean.
@@ -2148,7 +2152,7 @@ mod explain_tests {
         let cmd_result =
             result.unwrap_or_else(|e| panic!("expected Ok for deep nesting query: {e}"));
         if let Some(warnings) = cmd_result.data {
-            assert!(!warnings.to_string().is_empty());
+            assert!(!warnings.to_string().is_empty(), "expected the warnings to render as text");
         }
     }
 }
@@ -2757,7 +2761,7 @@ mod migrate_tests {
     #[test]
     fn test_resolve_migration_dir_default() {
         let dir = resolve_migration_dir(None);
-        assert!(!dir.is_empty());
+        assert!(!dir.is_empty(), "expected a default migration directory");
     }
 
     #[test]
@@ -4191,7 +4195,7 @@ mod validate_tests {
 
         let result = run_with_options(temp_file.path().to_str().unwrap(), opts).unwrap();
         assert_eq!(result.status, "success");
-        assert!(!result.warnings.is_empty());
+        assert!(!result.warnings.is_empty(), "expected warnings, found none");
         assert!(result.warnings.iter().any(|w| w.contains("OrphanType")));
     }
 

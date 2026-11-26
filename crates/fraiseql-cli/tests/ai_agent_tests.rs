@@ -40,7 +40,7 @@ mod help_json {
         let data = &parsed["data"];
         assert_eq!(data["name"], "fraiseql");
         assert!(data["version"].is_string());
-        assert!(!data["version"].as_str().unwrap().is_empty());
+        assert!(!data["version"].as_str().unwrap().is_empty(), "expected a non-empty version");
     }
 
     #[test]
@@ -49,7 +49,7 @@ mod help_json {
         let parsed: Value = serde_json::from_str(&stdout).unwrap();
 
         let subcommands = parsed["data"]["subcommands"].as_array().unwrap();
-        assert!(!subcommands.is_empty());
+        assert!(!subcommands.is_empty(), "expected subcommands, found none");
 
         // Check that known commands exist
         let command_names: Vec<&str> =
@@ -80,7 +80,7 @@ mod help_json {
         let parsed: Value = serde_json::from_str(&stdout).unwrap();
 
         let exit_codes = parsed["data"]["exit_codes"].as_array().unwrap();
-        assert!(!exit_codes.is_empty());
+        assert!(!exit_codes.is_empty(), "expected exit codes, found none");
 
         let codes: Vec<i64> = exit_codes.iter().map(|e| e["code"].as_i64().unwrap()).collect();
 
@@ -121,7 +121,7 @@ mod list_commands {
         let parsed: Value = serde_json::from_str(&stdout).unwrap();
 
         let commands = parsed["data"].as_array().unwrap();
-        assert!(!commands.is_empty());
+        assert!(!commands.is_empty(), "expected commands, found none");
 
         let command_names: Vec<&str> =
             commands.iter().map(|c| c["name"].as_str().unwrap()).collect();

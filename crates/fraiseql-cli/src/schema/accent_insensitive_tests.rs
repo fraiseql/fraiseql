@@ -22,7 +22,8 @@ fn the_ddl_creates_the_schema_the_extension_then_an_immutable_wrapper_pinning_it
 
 #[test]
 fn a_ready_database_reports_nothing() {
-    assert!(drift(&custom(), Some("public"), &WrapperState::Ready).is_empty());
+    let errors = drift(&custom(), Some("public"), &WrapperState::Ready);
+    assert!(errors.is_empty(), "{errors:?}");
 }
 
 #[test]

@@ -118,7 +118,7 @@ fn test_dependency_graph_run_success() {
     assert_eq!(cmd_result.status, "success");
 
     // Should have warnings about unused type
-    assert!(!cmd_result.warnings.is_empty());
+    assert!(!cmd_result.warnings.is_empty(), "expected warnings, found none");
     assert!(cmd_result.warnings.iter().any(|w| w.contains("OrphanType")));
 }
 

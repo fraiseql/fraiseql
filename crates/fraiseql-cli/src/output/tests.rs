@@ -19,7 +19,7 @@ mod output_tests {
         );
 
         let output = formatter.format(&result);
-        assert!(!output.is_empty());
+        assert!(!output.is_empty(), "expected non-empty output");
 
         // Verify it's valid JSON
         let parsed: serde_json::Value =
@@ -35,7 +35,7 @@ mod output_tests {
         let result = CommandResult::success("compile", json!({}));
         let output = formatter.format(&result);
 
-        assert!(!output.is_empty());
+        assert!(!output.is_empty(), "expected non-empty output");
         assert!(output.contains("compile"));
         assert!(output.contains("✓"));
     }
@@ -57,7 +57,7 @@ mod output_tests {
         let result = CommandResult::error("compile", "Parse error", "PARSE_ERROR");
 
         let output = formatter.format(&result);
-        assert!(!output.is_empty());
+        assert!(!output.is_empty(), "expected non-empty output");
 
         let parsed: serde_json::Value =
             serde_json::from_str(&output).expect("Output must be valid JSON");

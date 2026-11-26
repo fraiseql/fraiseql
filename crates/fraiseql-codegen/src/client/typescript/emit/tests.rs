@@ -51,5 +51,5 @@ fn doc_comment_stays_on_one_line() {
 fn doc_comment_is_omitted_when_absent() {
     let mut out = String::new();
     push_doc(&mut out, "", None);
-    assert!(out.is_empty());
+    assert!(out.is_empty(), "{out:?}");
 }

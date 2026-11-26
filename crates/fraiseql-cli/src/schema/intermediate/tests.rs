@@ -619,7 +619,7 @@ mod inject_defaults_apply {
         let (inject, added) =
             apply(&[("tenant_id", "jwt:tenant_id")], &[("tenant_id", "jwt:org_id")], &[]).unwrap();
         assert_eq!(inject, map(&[("tenant_id", "jwt:org_id")]));
-        assert!(added.is_empty());
+        assert!(added.is_empty(), "{added:?}");
     }
 
     /// #1385: a function taking the tenant as `p_tenant_id` already receives it; a second
@@ -629,7 +629,7 @@ mod inject_defaults_apply {
         let own = [("p_tenant_id", "jwt:tenant_id"), ("p_user_id", "jwt:sub")];
         let (inject, added) = apply(&[("tenant_id", "jwt:tenant_id")], &own, &[]).unwrap();
         assert_eq!(inject, map(&own), "the function's arity is untouched");
-        assert!(added.is_empty());
+        assert!(added.is_empty(), "{added:?}");
     }
 
     /// #1383: global reference data opts out of the tenant default, next to itself.

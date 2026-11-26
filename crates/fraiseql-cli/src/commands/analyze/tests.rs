@@ -124,7 +124,7 @@ fn the_report_matches_the_published_output_contract() {
     // exist (#818).
     let data = analyse("contract", &compiled_schema(Some(true)));
     let recs = data["recommendations"].as_array().expect("recommendations array");
-    assert!(!recs.is_empty());
+    assert!(!recs.is_empty(), "expected recommendations, found none");
     for rec in recs {
         for key in ["category", "severity", "message", "suggestion"] {
             assert!(rec.get(key).is_some(), "recommendation missing {key}: {rec}");

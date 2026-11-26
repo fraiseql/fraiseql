@@ -15,7 +15,8 @@ fn schema_with(entities: Vec<SubscribableEntity>) -> CompiledSchema {
 
 #[test]
 fn no_subscribable_types_yields_empty_script() {
-    assert!(build_ddl(&CompiledSchema::default(), true).is_empty());
+    let ddl = build_ddl(&CompiledSchema::default(), true);
+    assert!(ddl.is_empty(), "{ddl:?}");
 }
 
 #[test]
