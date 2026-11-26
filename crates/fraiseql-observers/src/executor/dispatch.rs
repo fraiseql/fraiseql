@@ -441,18 +441,19 @@ impl DefaultActionDispatcher {
     }
 
     /// Dispatch a `cache` action when the `caching` feature is not compiled:
-    /// there is no Redis transport, so the action always fails loud.
+    /// there is no Redis transport, so the action always fails loud. It returns a
+    /// future, as the `caching` version does, so the call site is feature-agnostic.
     #[cfg(not(feature = "caching"))]
-    #[allow(clippy::unused_self, clippy::unused_async)] // Reason: mirrors the `caching` async signature so the call site is feature-agnostic
-    async fn dispatch_cache(
+    #[allow(clippy::unused_self)] // Reason: mirrors the `caching` signature, which reads `self`
+    fn dispatch_cache(
         &self,
         _key_pattern: &str,
         _cache_action: &str,
         _event: &EntityEvent,
-    ) -> Result<ActionResult> {
-        Err(ObserverError::UnsupportedActionType {
+    ) -> std::future::Ready<Result<ActionResult>> {
+        std::future::ready(Err(ObserverError::UnsupportedActionType {
             action_type: "cache".to_string(),
-        })
+        }))
     }
 
     /// Dispatch a `database` action (#632): call the configured PostgreSQL

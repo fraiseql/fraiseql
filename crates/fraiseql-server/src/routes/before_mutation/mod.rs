@@ -222,21 +222,23 @@ impl FunctionChainGate {
     /// is never installed. It is reachable by an embedder that assembles
     /// [`BeforeMutationHooks`] by hand, and for them a named refusal beats the
     /// runtime's generic "No runtime registered for Deno".
+    ///
+    /// It returns a future, as the gated sibling does, so the caller is feature-agnostic.
     #[cfg(not(feature = "functions-runtime"))]
-    #[allow(clippy::unused_async)] // Reason: the gated sibling is async; the signatures must match.
-    async fn run_chain(
+    #[allow(clippy::unused_self)] // Reason: mirrors the gated sibling, which reads `self`
+    fn run_chain(
         &self,
         _chain: &fraiseql_functions::BeforeMutationChain,
         request: &BeforeMutationRequest<'_>,
-    ) -> Result<fraiseql_functions::BeforeMutationResult> {
-        Err(FraiseQLError::Unsupported {
+    ) -> std::future::Ready<Result<fraiseql_functions::BeforeMutationResult>> {
+        std::future::ready(Err(FraiseQLError::Unsupported {
             message: format!(
                 "mutation `{}` declares a before:mutation chain, but this build has no \
                  function runtime (feature `functions-runtime`) — the write is refused rather \
                  than run unadjudicated",
                 request.mutation
             ),
-        })
+        }))
     }
 }
 

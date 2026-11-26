@@ -219,17 +219,22 @@ impl FunctionQueryResolver {
     /// `[functions]` section refuse to boot, and with no section no resolver is
     /// installed. Reachable by an embedder assembling the hooks by hand, and for
     /// them a named refusal beats "No runtime registered for Deno".
+    ///
+    /// It returns a future, as the gated sibling does, so the caller is feature-agnostic.
     #[cfg(not(feature = "functions-runtime"))]
-    #[allow(clippy::unused_async)] // Reason: the gated sibling is async; the signatures must match.
-    async fn invoke(&self, request: QueryFunctionRequest<'_>) -> Result<serde_json::Value> {
-        Err(FraiseQLError::Unsupported {
+    #[allow(clippy::unused_self, clippy::needless_pass_by_value)] // Reason: mirrors the gated sibling, which reads `self` and consumes `request`
+    fn invoke(
+        &self,
+        request: QueryFunctionRequest<'_>,
+    ) -> std::future::Ready<Result<serde_json::Value>> {
+        std::future::ready(Err(FraiseQLError::Unsupported {
             message: format!(
                 "`{}` is backed by the function `{}`, but this build has no function runtime \
                  (feature `functions-runtime`) — the field is refused rather than answered with \
                  nothing",
                 request.field, request.function
             ),
-        })
+        }))
     }
 }
 
