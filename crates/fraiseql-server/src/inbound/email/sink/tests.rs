@@ -433,16 +433,17 @@ async fn a_polled_message_records_its_dispatch_and_the_dispatch_settles_it() {
         .await
         .unwrap()
     };
-    let mut seen = state_of().await;
-    assert!(seen.is_some(), "the dispatch is recorded with the spine row");
-    for _ in 0..100 {
-        if seen.as_deref() != Some("pending") {
-            break;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-        seen = state_of().await;
+    assert!(state_of().await.is_some(), "the dispatch is recorded with the spine row");
+    let dispatched = sink.take_dispatched();
+    assert_eq!(dispatched.len(), 1, "the message triggers one dispatch");
+    for task in dispatched {
+        task.await.unwrap();
     }
-    assert_eq!(seen.as_deref(), Some("dispatched"), "the post-commit dispatch settles it");
+    assert_eq!(
+        state_of().await.as_deref(),
+        Some("dispatched"),
+        "the post-commit dispatch settles it"
+    );
 }
 
 /// #1831: the leg runs these tests in parallel, so their setups start together, and on an

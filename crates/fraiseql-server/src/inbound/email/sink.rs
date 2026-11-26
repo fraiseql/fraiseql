@@ -27,6 +27,7 @@ use crate::{
     subsystems::BeforeMutationHooks,
 };
 
+mod dispatched;
 #[cfg(test)]
 mod tests;
 
@@ -55,6 +56,9 @@ pub struct EmailIngestSink {
     /// The lease a recorded `after:ingest` dispatch takes before the sweep may run it again
     /// (#1175).
     dispatch_lease:           std::time::Duration,
+    /// The post-commit dispatch tasks spawned so far: detached outside tests, kept for a
+    /// test to await in one.
+    dispatched:               dispatched::DispatchedTasks,
 }
 
 impl EmailIngestSink {
@@ -82,7 +86,15 @@ impl EmailIngestSink {
             address_hash_key,
             challenge_suppress_after,
             dispatch_lease: crate::inbound::dispatch_ledger::LedgerSettings::default().lease,
+            dispatched: dispatched::DispatchedTasks::new(),
         }
+    }
+
+    /// Take the post-commit dispatch tasks spawned since the last call, so a test can wait
+    /// for them to settle rather than poll for it.
+    #[cfg(test)]
+    pub(crate) fn take_dispatched(&self) -> Vec<tokio::task::JoinHandle<()>> {
+        self.dispatched.take()
     }
 
     /// The lease a recorded `after:ingest` dispatch takes before the sweep may run it again
@@ -140,17 +152,22 @@ impl EmailIngestSink {
     }
 
     /// Fire the `after:ingest:email` functions for the persisted message `id`, settling
-    /// each one's ledger row when it ends (#1175).
-    fn dispatch(&self, id: uuid::Uuid, message: &InboundMessage) {
+    /// each one's ledger row when it ends (#1175). Returns the spawned tasks.
+    fn dispatch(
+        &self,
+        id: uuid::Uuid,
+        message: &InboundMessage,
+    ) -> Vec<tokio::task::JoinHandle<()>> {
         let Some(ref hooks) = self.hooks else {
-            return;
+            return Vec::new();
         };
         let plans = plan_after_ingest_dispatch(hooks, message);
-        if !plans.is_empty() {
-            // #594: after:ingest functions write back under their `run_as` ceiling via
-            // the request-path executor factory threaded onto the sink at mount time.
-            spawn_after_ingest(hooks, id, plans, self.query_executor_factory.as_ref(), &self.pool);
+        if plans.is_empty() {
+            return Vec::new();
         }
+        // #594: after:ingest functions write back under their `run_as` ceiling via
+        // the request-path executor factory threaded onto the sink at mount time.
+        spawn_after_ingest(hooks, id, plans, self.query_executor_factory.as_ref(), &self.pool)
     }
 }
 
@@ -209,7 +226,7 @@ impl IngestSink for EmailIngestSink {
         // then dispatch the app `after:ingest:email` functions.
         for (id, message) in &fresh {
             self.correlate(message).await;
-            self.dispatch(*id, message);
+            self.dispatched.keep(self.dispatch(*id, message));
         }
         Ok(true)
     }

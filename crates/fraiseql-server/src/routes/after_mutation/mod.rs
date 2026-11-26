@@ -1144,6 +1144,9 @@ pub fn spawn_after_mutation(
 /// A dispatch that never settles (the process dies first) is run again by the ledger's
 /// sweep once its lease runs out.
 ///
+/// Returns one handle per spawned task. Dropping them leaves the tasks running; a caller
+/// that must know a dispatch has settled awaits its handle.
+///
 /// [`LiveHostContext`]: fraiseql_functions::host::live::LiveHostContext
 // Gated on `inbound` (not merely `functions-runtime`): the after:ingest dispatcher
 // is only ever called from the inbound path (webhook + poll-IMAP email sinks), so a
@@ -1156,7 +1159,7 @@ pub fn spawn_after_ingest(
     plans: Vec<AfterMutationDispatch>,
     query_executor_factory: Option<&QueryExecutorFactory>,
     pool: &sqlx::PgPool,
-) {
+) -> Vec<tokio::task::JoinHandle<()>> {
     let base = base_dispatcher(
         hooks,
         fraiseql_observers::DispatchSource::AfterIngest,
@@ -1164,24 +1167,28 @@ pub fn spawn_after_ingest(
         None,
         None,
     );
-    for plan in plans {
-        let (dispatcher, setting) = plan_dispatcher(&base, hooks, &plan);
-        let pool = pool.clone();
-        tokio::spawn(async move {
-            let function = plan.module.name.clone();
-            let outcome = dispatcher.dispatch(plan.module, plan.payload, &setting).await;
-            if let Err(error) =
-                crate::inbound::dispatch_ledger::settle(&pool, message_id, &function, outcome).await
-            {
-                tracing::warn!(
-                    %error,
-                    function = %function,
-                    "after:ingest dispatch ran but could not be settled; the sweep will run it \
-                     again"
-                );
-            }
-        });
-    }
+    plans
+        .into_iter()
+        .map(|plan| {
+            let (dispatcher, setting) = plan_dispatcher(&base, hooks, &plan);
+            let pool = pool.clone();
+            tokio::spawn(async move {
+                let function = plan.module.name.clone();
+                let outcome = dispatcher.dispatch(plan.module, plan.payload, &setting).await;
+                if let Err(error) =
+                    crate::inbound::dispatch_ledger::settle(&pool, message_id, &function, outcome)
+                        .await
+                {
+                    tracing::warn!(
+                        %error,
+                        function = %function,
+                        "after:ingest dispatch ran but could not be settled; the sweep will run it \
+                         again"
+                    );
+                }
+            })
+        })
+        .collect()
 }
 
 /// The ledger sweep's dispatcher (#1175): runs an `after:ingest` function on a persisted

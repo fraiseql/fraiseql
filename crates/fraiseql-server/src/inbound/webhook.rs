@@ -997,13 +997,15 @@ fn dispatch_after_ingest(state: &WebhookInboundState, id: uuid::Uuid, message: &
         // `run_as` ceiling via the request-path executor factory threaded onto the
         // state at mount time (`None` only when no executor was available — then the
         // bridge fails loud, the pre-#594 behavior).
-        crate::routes::after_mutation::spawn_after_ingest(
+        // The tasks run detached: the response does not wait on them, and a dispatch that
+        // never settles is the ledger sweep's.
+        drop(crate::routes::after_mutation::spawn_after_ingest(
             hooks,
             id,
             plans,
             state.query_executor_factory.as_ref(),
             &state.pool,
-        );
+        ));
     }
 }
 
