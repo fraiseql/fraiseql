@@ -118,6 +118,18 @@ disagreed, and the promise was the part that was wrong.
   state store and the rate limiter name the Redis by `scheme://host:port` (`redis_host`),
   where they printed the whole URL.
 
+- **A `${VAR}` value must be printable text, and a parse error after expansion shows neither
+  the line nor the value, in fraiseql.toml and the server's configuration file (#2566).**
+  A substituted value holding a control character (a tab included), an invisible format
+  character (Unicode Cf, such as U+200B or U+FEFF) or a separator other than the plain space
+  (U+00A0, U+2028 and the other Zs, Zl and Zp characters) now refuses the file, wherever the
+  placeholder sits, naming the variable and the class but not the value; so does a value
+  that is not UTF-8, which was read as unset. Accented letters, other scripts and the plain
+  space are kept. `fraiseql compile` printed a parse error's offending line as expanded; both
+  loaders now give the line number and the parser's reason, with every quoted span of the
+  reason shown as `<value>`, and a reason that still holds a value is replaced whole. A file
+  with nothing expanded keeps the whole error.
+
 - **A `${VAR}` value placed outside a quoted string is held to what a bare TOML value can
   hold, in fraiseql.toml and the server's configuration file (#2567).** Both files expand
   placeholders in their text before parsing, so outside a quoted string the value is read as

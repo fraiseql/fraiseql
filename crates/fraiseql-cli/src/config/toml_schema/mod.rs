@@ -410,7 +410,12 @@ impl TomlSchema {
 
     /// [`Self::parse_toml`], reading the files the TOML names relative to `project`.
     pub(crate) fn parse_toml_in(content: &str, project: &std::path::Path) -> Result<Self> {
-        let expanded = expand_env_vars(content)?;
+        let tracked = fraiseql_core::utils::env_expand::expand(
+            content,
+            fraiseql_core::utils::env_expand::UnsetVariable::KeepLiteral,
+        )
+        .map_err(anyhow::Error::msg)?;
+        let expanded = tracked.text.as_str();
         // A file that is not TOML at all is reported by the typed parse below.
         let table = expanded.parse::<toml::Table>().ok();
         if let Some(table) = &table {
@@ -420,7 +425,9 @@ impl TomlSchema {
             crate::config::refuse_server_file_spellings(table)?;
             crate::config::refuse_unknown_keys(table)?;
         }
-        let mut schema: Self = toml::from_str(&expanded).context("Failed to parse TOML schema")?;
+        let mut schema: Self = toml::from_str(expanded)
+            .map_err(|e| anyhow::anyhow!(tracked.parse_error(&e, "fraiseql.toml")))
+            .context("Failed to parse TOML schema")?;
         if let Some(table) = &table {
             schema.declared_security =
                 crate::config::security_merge::declared_in_toml_schema(table);

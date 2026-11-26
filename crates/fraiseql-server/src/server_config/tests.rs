@@ -1274,6 +1274,45 @@ fn a_parse_error_after_expansion_does_not_print_the_expanded_value() {
     });
 }
 
+/// A value of the wrong type is reported by line too: the reason a typed parse gives can quote
+/// the value it read.
+#[test]
+fn a_type_error_after_expansion_does_not_print_the_expanded_value() {
+    temp_env::with_var("FQ_SRV_SECRET", Some("s3cr3t-token-value"), || {
+        let err = load("pool_timeout_secs = \"${FQ_SRV_SECRET}\"\n").unwrap_err();
+        assert!(!err.contains("s3cr3t-token-value"), "{err}");
+        assert!(err.contains("line 1"), "still says where: {err}");
+    });
+}
+
+/// One character of each class a value may not hold refuses the server's file, inside a
+/// quoted string, naming the variable and the class and not the value; so does a value that
+/// is not UTF-8.
+#[test]
+fn a_value_that_is_not_printable_text_refuses_the_server_file() {
+    use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+
+    for (value, class) in [
+        (OsString::from("s3cretPART\tSENT"), "control character"),
+        (OsString::from("s3cretPART\u{200b}SENT"), "format character"),
+        (OsString::from("s3cretPART\u{a0}SENT"), "separator other than the plain space"),
+        (OsString::from_vec(b"s3cretPART\xffSENT".to_vec()), "is not UTF-8"),
+    ] {
+        temp_env::with_var("FQ_SRV_SECRET", Some(&value), || {
+            let err = load("admin_token = \"${FQ_SRV_SECRET}\"\n").unwrap_err();
+            assert!(err.contains("Environment variable FQ_SRV_SECRET"), "{value:?}: {err}");
+            assert!(err.contains(class), "{value:?}: names the class: {err}");
+            assert!(!err.contains("s3cretPART"), "{value:?}: {err}");
+        });
+    }
+    temp_env::with_var("FQ_SRV_SECRET", Some("café über 東京"), || {
+        assert_eq!(
+            load("admin_token = \"${FQ_SRV_SECRET}\"\n").unwrap().admin_token.as_deref(),
+            Some("café über 東京")
+        );
+    });
+}
+
 // ── observers_tests ───────────────────────────────────────────────────────────
 
 #[cfg(feature = "observers")]

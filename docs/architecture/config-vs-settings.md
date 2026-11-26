@@ -120,8 +120,11 @@ and the document's value stands when it does not.
 ## `${VAR}` Placeholders
 
 Both files expand `${VAR}` from the environment before they are parsed, with one
-expander. A value holding a newline, a NUL or a TOML metacharacter (`"`, `'`, `\`, `[`,
-`]`, `{`, `}`) is refused, naming the variable.
+expander. A value must be printable UTF-8 text: one holding a control character (a tab
+included), an invisible format character (Unicode Cf) or a separator other than the plain
+space (Unicode Zs, Zl, Zp) is refused wherever its placeholder sits, naming the variable and
+the class, as is one that is not UTF-8. A value holding a TOML metacharacter (`"`, `'`, `\`,
+`[`, `]`, `{`, `}`) is refused too.
 
 A placeholder written outside a quoted string (`timeout = ${T}`) puts its value into the
 file as bare TOML, where `#` would end the line early and `,` or `=` would add keys to the
@@ -137,8 +140,10 @@ The two files differ on a variable that is not set:
   variable: it is read where the deployment runs, and a placeholder kept as a value would
   become that value, an `admin_token` of `${ADMIN_TOKEN}`.
 
-A parse error in a server file whose variables were expanded gives the line and the reason,
-not the line's text, which may hold a secret.
+A parse error in either file whose variables were expanded gives the line and the reason,
+not the line's text, which may hold a secret. Every quoted span of the reason is shown as
+`<value>` (`invalid type: string <value>, expected u32`), and a reason that still holds an
+expanded value is replaced whole. A file with nothing expanded keeps the whole error.
 
 ## Refused Configuration
 

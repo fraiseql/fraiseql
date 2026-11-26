@@ -33,6 +33,7 @@ crates/fraiseql-cli/src/config/toml_schema/mod.rs | [analytics] enabled = true w
 crates/fraiseql-cli/src/config/toml_schema/mod.rs | [security.api_keys] storage = | [security.api_keys] storage | value check: an unimplemented storage
 crates/fraiseql-cli/src/config/toml_schema/mod.rs | Invalid hierarchy config '{name}': {e} | [hierarchies.*] | value check: the hierarchy's own check
 crates/fraiseql-cli/src/config/toml_schema/mod.rs | [security.rate_limiting] trusted_proxy_cidrs contains an inv | [security.rate_limiting] trusted_proxy_cidrs | value check: a CIDR that does not parse
+crates/fraiseql-cli/src/config/toml_schema/mod.rs | .map_err(|e| anyhow::anyhow!(tracked.parse_error(&e, "fraiseql.toml"))) | (the whole file) | a parse error, not a refused key: the file is not TOML or a value has the wrong type, reported before any key is read
 crates/fraiseql-cli/src/config/toml_schema/mod.rs | federation.circuit_breaker.failure_threshold must be greater | [federation.circuit_breaker] failure_threshold | value check: zero
 crates/fraiseql-cli/src/config/toml_schema/mod.rs | federation.circuit_breaker.recovery_timeout_secs must be gre | [federation.circuit_breaker] recovery_timeout_secs | value check: zero
 crates/fraiseql-cli/src/config/toml_schema/mod.rs | federation.circuit_breaker.success_threshold must be greater | [federation.circuit_breaker] success_threshold | value check: zero

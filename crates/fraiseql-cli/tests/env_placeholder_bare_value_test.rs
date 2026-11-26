@@ -81,7 +81,7 @@ fn a_bare_value_adding_an_inline_table_key_is_refused() {
     for value in [
         "true, auth_start_max_requests = 999999",
         "true,auth_start_window_secs=1",
-        "true\tauth_start_window_secs",
+        "true auth_start_window_secs",
     ] {
         assert_refused(&compile(toml, value), value);
     }

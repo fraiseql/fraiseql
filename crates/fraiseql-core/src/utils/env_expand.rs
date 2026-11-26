@@ -28,12 +28,67 @@ static PLACEHOLDER: LazyLock<regex::Regex> = LazyLock::new(|| {
 ///
 /// # Errors
 ///
-/// Returns a message naming the variable, never its value, when its value holds a newline, a
-/// carriage return, a NUL or a TOML metacharacter (`"`, `'`, `\`, `[`, `]`, `{`, `}`); when
-/// the placeholder sits outside a quoted string and its value holds `#`, `,`, `=` or
-/// whitespace; or when it is unset and `unset` is [`UnsetVariable::Refuse`].
+/// Returns a message naming the variable, never its value, when its value is not UTF-8; when
+/// it holds a TOML metacharacter (`"`, `'`, `\`, `[`, `]`, `{`, `}`) or a character that is not
+/// printable text (a control character, tab included; an invisible format character; a
+/// separator other than the plain space), wherever the placeholder sits; when the placeholder
+/// sits outside a quoted string and its value holds `#`, `,`, `=` or a space; or when it is
+/// unset and `unset` is [`UnsetVariable::Refuse`].
 pub fn expand_env_vars(content: &str, unset: UnsetVariable) -> Result<String, String> {
-    expand_with(content, unset, |name| std::env::var(name).ok())
+    expand(content, unset).map(|expanded| expanded.text)
+}
+
+/// [`expand_env_vars`], keeping the values it substituted so that a parse error over the
+/// result can be reported without them.
+///
+/// # Errors
+///
+/// As [`expand_env_vars`].
+pub fn expand(content: &str, unset: UnsetVariable) -> Result<Expanded, String> {
+    expand_looked_up(content, unset, |name| {
+        std::env::var_os(name).map(|value| value.into_string().map_err(|_| NotUtf8))
+    })
+}
+
+/// A variable whose value is not UTF-8.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NotUtf8;
+
+/// A configuration file's text after expansion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Expanded {
+    /// The text, each set placeholder replaced by its value.
+    pub text: String,
+    values:   Vec<String>,
+}
+
+impl Expanded {
+    /// The message for `error`, raised parsing [`Self::text`], opening with `label`.
+    ///
+    /// When nothing was substituted it is the whole error, the line's text included. When a
+    /// value was, it names the line and the reason only, since the line's text may hold the
+    /// value. The reason a typed parse gives can quote it too (`invalid type: string "…"`), in
+    /// whatever form the parser renders it, so every quoted span of the reason is replaced by
+    /// `<value>`; a reason still holding a substituted value is replaced whole.
+    #[must_use]
+    pub fn parse_error(&self, error: &toml::de::Error, label: &str) -> String {
+        if self.values.is_empty() {
+            return format!("{label}: {error}");
+        }
+        let reason = without_quoted_spans(error.message());
+        let reason = if self.values.iter().any(|value| reason.contains(value.as_str())) {
+            "a value expanded from an environment variable is not valid there".to_owned()
+        } else {
+            reason
+        };
+        match error.span() {
+            Some(span) => {
+                let line = self.text[..span.start.min(self.text.len())].matches('\n').count() + 1;
+                format!("{label} at line {line}: {reason}")
+            },
+            None => format!("{label}: {reason}"),
+        }
+    }
 }
 
 /// [`expand_env_vars`] over a lookup other than the process environment.
@@ -46,6 +101,29 @@ pub fn expand_with(
     unset: UnsetVariable,
     lookup: impl Fn(&str) -> Option<String>,
 ) -> Result<String, String> {
+    expand_tracked(content, unset, lookup).map(|expanded| expanded.text)
+}
+
+/// [`expand_with`], keeping the values it substituted.
+///
+/// # Errors
+///
+/// As [`expand_env_vars`].
+pub fn expand_tracked(
+    content: &str,
+    unset: UnsetVariable,
+    lookup: impl Fn(&str) -> Option<String>,
+) -> Result<Expanded, String> {
+    expand_looked_up(content, unset, |name| lookup(name).map(Ok))
+}
+
+/// [`expand_tracked`] over a lookup that can find a value that is not UTF-8.
+fn expand_looked_up(
+    content: &str,
+    unset: UnsetVariable,
+    lookup: impl Fn(&str) -> Option<Result<String, NotUtf8>>,
+) -> Result<Expanded, String> {
+    let mut values = Vec::new();
     let mut result = String::with_capacity(content.len());
     let mut last_end = 0;
     let mut lexer = Lexer::default();
@@ -56,12 +134,21 @@ pub fn expand_with(
         result.push_str(&content[last_end..whole.start()]);
         let name = name.as_str();
         match (lookup(name), unset) {
-            (Some(value), _) => {
+            (Some(Err(NotUtf8)), _) => {
+                return Err(format!(
+                    "Environment variable {name} is not UTF-8 text; a value must be printable text"
+                ));
+            },
+            (Some(Ok(value)), _) => {
                 refuse_unsafe_value(name, &value)?;
+                refuse_unprintable_value(name, &value)?;
                 if lexer.advance_to(content.as_bytes(), whole.start()) == Context::Bare {
                     refuse_unsafe_bare_value(name, &value)?;
                 }
                 result.push_str(&value);
+                if !value.is_empty() {
+                    values.push(value);
+                }
             },
             (None, UnsetVariable::KeepLiteral) => result.push_str(whole.as_str()),
             (None, UnsetVariable::Refuse) => {
@@ -73,7 +160,63 @@ pub fn expand_with(
         last_end = whole.end();
     }
     result.push_str(&content[last_end..]);
-    Ok(result)
+    Ok(Expanded {
+        text: result,
+        values,
+    })
+}
+
+/// `reason` with every span a parser quotes, in `"` or backticks, replaced by `<value>`,
+/// whatever it holds: a value is quoted in whatever form the parser renders it, so no form of
+/// the value is looked for. A backslash inside a `"` span escapes the next character; a span
+/// never closed runs to the end.
+pub(crate) fn without_quoted_spans(reason: &str) -> String {
+    let mut out = String::with_capacity(reason.len());
+    let mut chars = reason.chars();
+    while let Some(c) = chars.next() {
+        if c != '"' && c != '`' {
+            out.push(c);
+            continue;
+        }
+        out.push_str("<value>");
+        while let Some(inner) = chars.next() {
+            if inner == c {
+                break;
+            }
+            if c == '"' && inner == '\\' {
+                chars.next();
+            }
+        }
+    }
+    out
+}
+
+/// The characters a value may not hold, wherever its placeholder sits, each with what the
+/// refusal calls it.
+static UNPRINTABLE: LazyLock<[(regex::Regex, &str); 3]> = LazyLock::new(|| {
+    #[allow(clippy::expect_used)] // Reason: the patterns are constants and valid
+    let class = |pattern: &str| regex::Regex::new(pattern).expect("class pattern is valid");
+    [
+        (class(r"\p{Cc}"), "a control character (C0, C1 or DEL, a tab included)"),
+        (class(r"\p{Cf}"), "an invisible format character (Unicode Cf)"),
+        (
+            class(r"[\p{Zl}\p{Zp}[\p{Zs}--\x20]]"),
+            "a separator other than the plain space (Unicode Zs, Zl or Zp)",
+        ),
+    ]
+});
+
+/// Refuse a value that is not printable text: it would be invisible in the file it lands in,
+/// and a parser quoting it renders it escaped.
+fn refuse_unprintable_value(name: &str, value: &str) -> Result<(), String> {
+    for (class, what) in UNPRINTABLE.iter() {
+        if class.is_match(value) {
+            return Err(format!(
+                "Environment variable {name} holds {what}; a value must be printable text"
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Refuse a value that, read as bare TOML, would end the line early or add a key.
