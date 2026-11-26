@@ -18,6 +18,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`admin_auth_max_failures = 0` is refused at load (#2613).** Its documentation said
+  `0` turned the admin brute-force limit off. It did the opposite: the limiter blocks an
+  address once its failures reach the budget, so `0` answered 429 to the first failed admin
+  request and then refused that address, a correct token included, for the rest of the
+  60-second window. The server, and `Server::new` for a library caller, now refuses `0` and
+  asks for a value of 1 or more. No value turns the limit off. `0` behaved exactly as `1`
+  does, so a configuration that set it keeps its behaviour with `1`.
+
 - **A Deno function runs as an ES module, in strict mode (#1651).** Its source used to be
   rewritten into a script. It now loads unchanged as a module, so module rules apply: an
   assignment to an undeclared name throws a `ReferenceError` instead of creating a global,

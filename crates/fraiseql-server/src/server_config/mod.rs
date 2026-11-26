@@ -132,6 +132,9 @@ impl FunctionDispatchConfig {
 }
 
 #[cfg(test)]
+#[path = "admin_auth_max_failures_tests.rs"]
+mod admin_auth_max_failures_tests;
+#[cfg(test)]
 mod tests;
 
 use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
@@ -1044,7 +1047,9 @@ pub struct ServerConfig {
     /// One budget covers every admin credential. A successful request does not
     /// clear it: failures age out when their window ends.
     ///
-    /// Set to `0` to disable brute-force protection entirely (not recommended).
+    /// Must be at least 1, and `0` is refused at load: the limiter blocks an address once
+    /// its failures reach this number, so `0` would refuse every address after its first
+    /// failure, a correct token included. No value turns the limit off.
     ///
     /// # Example (TOML)
     ///

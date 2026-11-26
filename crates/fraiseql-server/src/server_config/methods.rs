@@ -511,6 +511,7 @@ impl ServerConfig {
     /// - `metrics_enabled` is true but `metrics_token` is not set
     /// - `[database_tls]` cannot be lowered onto a working connector
     /// - `metrics_token` is set but too short (< 16 characters)
+    /// - `admin_auth_max_failures` is 0
     /// - `auth` config is set but invalid (e.g., empty issuer)
     /// - `tls` is enabled but cert or key path is missing
     /// - TLS minimum version is invalid
@@ -579,6 +580,15 @@ impl ServerConfig {
                 },
                 Some(_) => {},
             }
+        }
+
+        // The limiter blocks an address once its failures reach the budget, so 0 would
+        // refuse every address after its first failure, a correct token included.
+        if self.admin_auth_max_failures == 0 {
+            return Err("admin_auth_max_failures must be a positive number of failed admin \
+                        authentication attempts: 0 would block every address after its \
+                        first failure. Set it to 1 or more."
+                .to_string());
         }
 
         // Admin API validation

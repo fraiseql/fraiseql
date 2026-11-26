@@ -643,7 +643,7 @@
       "default": null
     },
     "admin_auth_max_failures": {
-      "description": "Maximum failed admin bearer auth attempts per IP within a 60-second\nwindow before the IP is blocked with 429 Too Many Requests (default: 10).\n\nOne budget covers every admin credential. A successful request does not\nclear it: failures age out when their window ends.\n\nSet to `0` to disable brute-force protection entirely (not recommended).\n\n# Example (TOML)\n\n```toml\nadmin_auth_max_failures = 5\n```",
+      "description": "Maximum failed admin bearer auth attempts per IP within a 60-second\nwindow before the IP is blocked with 429 Too Many Requests (default: 10).\n\nOne budget covers every admin credential. A successful request does not\nclear it: failures age out when their window ends.\n\nMust be at least 1, and `0` is refused at load: the limiter blocks an address once\nits failures reach this number, so `0` would refuse every address after its first\nfailure, a correct token included. No value turns the limit off.\n\n# Example (TOML)\n\n```toml\nadmin_auth_max_failures = 5\n```",
       "type": "integer",
       "format": "uint32",
       "minimum": 0,
