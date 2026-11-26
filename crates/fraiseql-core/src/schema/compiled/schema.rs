@@ -15,6 +15,9 @@
 
 use std::collections::HashMap;
 
+#[path = "stored_keys.rs"]
+pub mod stored_keys;
+
 use serde::{Deserialize, Serialize};
 
 use super::{directive::DirectiveDefinition, mutation::MutationDefinition, query::QueryDefinition};
@@ -429,6 +432,11 @@ pub struct DerivedState {
     /// the dispatch routes them by name, before any declared query is looked up. Built by
     /// `build_indexes()`.
     pub fact_roots: Vec<crate::schema::fact_table_surface::FactRoot>,
+
+    /// Every declared field's stored JSONB key and camelCase fallback, by type and field
+    /// name, resolved with the schema's acronyms. Built by `build_indexes()`; read through
+    /// [`stored_keys`](CompiledSchema::stored_keys).
+    pub stored_keys: stored_keys::StoredKeyTable,
 
     /// Whether the schema reads the enriched identity, filled by the first
     /// [`declares_enrichment_consumer`](CompiledSchema::declares_enrichment_consumer).

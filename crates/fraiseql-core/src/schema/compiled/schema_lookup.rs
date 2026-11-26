@@ -206,6 +206,8 @@ impl CompiledSchema {
         }
         self.derived.fact_rows = surface.row_types;
         self.derived.fact_roots = surface.roots;
+        self.derived.stored_keys =
+            super::schema::stored_keys::StoredKeyTable::build(&self.types, &self.naming_acronyms);
         self.index_operations();
     }
 

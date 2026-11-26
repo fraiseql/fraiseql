@@ -83,6 +83,7 @@ pub use compiled::{
     ScopedEmbeddingRoute, SessionConfig, SessionTransport, SocialAuthConfig, SubscribableEntity,
     UnfillablePath, canonicalize_json, check_email_header, content_hash_of, is_fact_table_root,
     is_safe_sql_identifier, otp_allowed_statement, render_email_template, render_link_template,
+    schema::stored_keys::{StoredKeyTable, StoredKeys},
 };
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, CaptureTableConfig, Cardinality, ChangelogConfig,
