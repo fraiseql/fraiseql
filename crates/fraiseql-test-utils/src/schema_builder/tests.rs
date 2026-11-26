@@ -7,9 +7,9 @@ use super::*;
 #[test]
 fn test_schema_builder_empty() {
     let schema = TestSchemaBuilder::new().build();
-    assert!(schema.queries.is_empty());
-    assert!(schema.mutations.is_empty());
-    assert!(schema.types.is_empty());
+    assert!(schema.queries.is_empty(), "{:?}", schema.queries);
+    assert!(schema.mutations.is_empty(), "{:?}", schema.mutations);
+    assert!(schema.types.is_empty(), "{:?}", schema.types);
 }
 
 #[test]

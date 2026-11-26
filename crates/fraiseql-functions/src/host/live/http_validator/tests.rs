@@ -68,7 +68,7 @@ async fn test_validate_outbound_url_invalid_url() {
 fn test_default_allowlist_is_deny_by_default() {
     // The default allowlist is empty: no host is permitted.
     let config = HttpClientConfig::default();
-    assert!(config.allowed_domains.is_empty());
+    assert!(config.allowed_domains.is_empty(), "{:?}", config.allowed_domains);
     assert!(!fraiseql_guard::net::allowlist::allows("example.com", &config.allowed_domains));
     assert!(!fraiseql_guard::net::allowlist::allows("8.8.8.8", &config.allowed_domains));
 }

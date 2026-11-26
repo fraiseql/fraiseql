@@ -178,7 +178,7 @@ fn build_select_list_reads_only_decimal_fields_as_text() {
         let (plain, none_read) = build_select_list(&selection, &fed_type, column, None);
         let (sql, read) = build_select_list(&selection, &fed_type, column, Some(&decimals));
 
-        assert!(none_read.is_empty());
+        assert!(none_read.is_empty(), "{none_read:?}");
         let fields: Vec<&str> = read.iter().map(|(field, _)| field.as_str()).collect();
         assert_eq!(fields, ["price", "unitCost"], "{column:?}");
         for field in ["price", "unitCost"] {

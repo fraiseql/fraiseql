@@ -75,7 +75,7 @@ fn test_export_csv() {
     let exported = BulkExporter::export_batch(&batch, ExportFormat::Csv);
 
     let bytes = exported.unwrap_or_else(|e| panic!("expected Ok for CSV export: {e}"));
-    assert!(!bytes.is_empty());
+    assert!(!bytes.is_empty(), "expected bytes, found none");
 
     // CSV should contain headers
     let csv_str = String::from_utf8(bytes).unwrap();
@@ -91,7 +91,7 @@ fn test_export_json() {
     let exported = BulkExporter::export_batch(&batch, ExportFormat::Json);
 
     let bytes = exported.unwrap_or_else(|e| panic!("expected Ok for JSON export: {e}"));
-    assert!(!bytes.is_empty());
+    assert!(!bytes.is_empty(), "expected bytes, found none");
 
     // JSON Lines should contain JSON objects
     let json_str = String::from_utf8(bytes).unwrap();
@@ -107,7 +107,7 @@ fn test_export_parquet() {
     let exported = BulkExporter::export_batch(&batch, ExportFormat::Parquet);
 
     let bytes = exported.unwrap_or_else(|e| panic!("expected Ok for Parquet export: {e}"));
-    assert!(!bytes.is_empty());
+    assert!(!bytes.is_empty(), "expected bytes, found none");
 
     // Parquet files start with "PAR1" magic bytes
     assert_eq!(&bytes[0..4], b"PAR1");
@@ -255,7 +255,7 @@ fn test_json_export_is_valid_ndjson() {
 fn test_export_format_debug_is_nonempty() {
     let fmt = ExportFormat::Csv;
     let s = format!("{fmt:?}");
-    assert!(!s.is_empty());
+    assert!(!s.is_empty(), "expected a non-empty Debug rendering");
 }
 
 /// #1036 — a multi-batch export must be ONE document, not N concatenated ones.

@@ -412,7 +412,7 @@ fn test_empty_rows_returns_empty_arrow_rows() {
     let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, false)]));
     let rows: Vec<HashMap<String, serde_json::Value>> = vec![];
     let arrow_rows = convert_db_rows_to_arrow(&rows, &schema).unwrap();
-    assert!(arrow_rows.is_empty());
+    assert!(arrow_rows.is_empty(), "{arrow_rows:?}");
 }
 
 // --- null JSON values vs missing keys ---

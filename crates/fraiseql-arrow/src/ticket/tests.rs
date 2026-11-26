@@ -175,7 +175,7 @@ fn test_graphql_query_empty_string_roundtrips() {
     let decoded = FlightTicket::decode(&bytes).unwrap();
     match decoded {
         FlightTicket::GraphQLQuery { query, variables } => {
-            assert!(query.is_empty());
+            assert!(query.is_empty(), "{query:?}");
             assert!(variables.is_none());
         },
         _ => panic!("Wrong ticket type"),
@@ -227,7 +227,7 @@ fn test_batched_queries_empty_list_roundtrips() {
     let bytes = ticket.encode().unwrap();
     let decoded = FlightTicket::decode(&bytes).unwrap();
     match decoded {
-        FlightTicket::BatchedQueries { queries } => assert!(queries.is_empty()),
+        FlightTicket::BatchedQueries { queries } => assert!(queries.is_empty(), "{queries:?}"),
         _ => panic!("Wrong ticket type"),
     }
 }

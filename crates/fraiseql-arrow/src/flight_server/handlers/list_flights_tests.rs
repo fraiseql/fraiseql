@@ -64,7 +64,8 @@ async fn the_listed_flights_are_the_declared_views() {
 
 #[tokio::test]
 async fn with_no_view_declared_nothing_is_listed() {
-    assert!(listed(&serving(&[])).await.is_empty());
+    let flights = listed(&serving(&[])).await;
+    assert!(flights.is_empty(), "{flights:?}");
 }
 
 /// A listed descriptor passed back unchanged reads that view's schema.

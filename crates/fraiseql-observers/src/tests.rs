@@ -169,9 +169,9 @@ mod actions_tests {
             body_template_placeholders("{\"n\": {{ total }}, {{ id }}"),
             vec!["total", "id"]
         );
-        assert!(
-            body_template_placeholders(r#"{"plain": "text", "open": "{{ unclosed"}"#).is_empty()
-        );
+        let placeholders =
+            body_template_placeholders(r#"{"plain": "text", "open": "{{ unclosed"}"#);
+        assert!(placeholders.is_empty(), "{placeholders:?}");
     }
 
     /// Each listed path is one rendering looks up: data that fills them all renders, and data

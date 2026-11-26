@@ -6,8 +6,8 @@ use super::*;
 #[test]
 fn test_federation_trace_context_creation() {
     let ctx = FederationTraceContext::new();
-    assert!(!ctx.trace_id.is_empty());
-    assert!(!ctx.parent_span_id.is_empty());
+    assert!(!ctx.trace_id.is_empty(), "expected a non-empty trace id");
+    assert!(!ctx.parent_span_id.is_empty(), "expected a non-empty parent span id");
     assert_eq!(ctx.trace_flags, "01");
 }
 
@@ -37,7 +37,7 @@ fn test_federation_span_creation() {
     let span = FederationSpan::new("federation.query", ctx);
 
     assert_eq!(span.name, "federation.query");
-    assert!(!span.span_id.is_empty());
+    assert!(!span.span_id.is_empty(), "expected a non-empty span id");
     assert!(span.duration_ms() >= 0.0);
 }
 

@@ -98,7 +98,7 @@ fn test_fraiseql_core_types_accessible() {
     let message = "fraiseql-core types accessible";
 
     // Verify imports work by checking these exist at compile time
-    assert!(!message.is_empty());
+    assert!(!message.is_empty(), "expected a non-empty message");
 }
 
 /// Tests that `has_executor()` returns correct status

@@ -73,7 +73,7 @@ fn test_wasm_load_valid_component() {
     // Should not panic and should have correct properties
     assert_eq!(module.name, "test_identity");
     assert_eq!(module.runtime, RuntimeType::Wasm);
-    assert!(!module.source_hash.is_empty());
+    assert!(!module.source_hash.is_empty(), "expected a non-empty source hash");
     assert!(!module.bytecode.is_empty());
 }
 

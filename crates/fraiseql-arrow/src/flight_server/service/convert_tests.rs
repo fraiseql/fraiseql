@@ -33,7 +33,7 @@ fn test_graphql_envelope_finds_array() {
         }
     });
     let batches = service.convert_json_to_arrow_batches(&json).unwrap();
-    assert!(!batches.is_empty());
+    assert!(!batches.is_empty(), "expected batches, found none");
     assert_eq!(batches[0].num_rows(), 3);
 }
 
@@ -53,5 +53,5 @@ fn test_empty_object_produces_fallback() {
     let service = FraiseQLFlightService::new();
     let json = serde_json::json!({});
     let batches = service.convert_json_to_arrow_batches(&json).unwrap();
-    assert!(!batches.is_empty());
+    assert!(!batches.is_empty(), "expected batches, found none");
 }

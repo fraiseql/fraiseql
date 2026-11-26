@@ -169,7 +169,7 @@ fn function_definition_round_trips_when_predicates() {
     // Absent `when` deserializes to an empty conjunction (always fires) and is
     // omitted from the compact wire form.
     let bare = FunctionDefinition::new("f", "after:mutation:X:insert", RuntimeType::Deno);
-    assert!(bare.when.is_empty());
+    assert!(bare.when.is_empty(), "{:?}", bare.when);
     let value = serde_json::to_value(&bare).expect("serialize");
     assert!(value.get("when").is_none(), "empty when is omitted from the wire form");
 }

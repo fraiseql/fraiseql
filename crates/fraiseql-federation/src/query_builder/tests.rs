@@ -96,7 +96,7 @@ fn test_empty_representations() {
         construct_where_in_clause("User", &reps, &metadata, DatabaseType::PostgreSQL, None)
             .unwrap();
     assert_eq!(clause, "1 = 0"); // No rows to resolve
-    assert!(params.is_empty());
+    assert!(params.is_empty(), "{params:?}");
 }
 
 #[test]

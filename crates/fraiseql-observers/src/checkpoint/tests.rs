@@ -13,7 +13,7 @@ mod checkpoint_tests {
         assert_eq!(state.last_processed_id, 0);
         assert_eq!(state.batch_size, DEFAULT_BATCH_SIZE);
         assert_eq!(state.event_count, 0);
-        assert!(state.listener_id.is_empty());
+        assert!(state.listener_id.is_empty(), "{:?}", state.listener_id);
     }
 
     #[test]

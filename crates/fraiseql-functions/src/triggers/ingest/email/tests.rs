@@ -116,7 +116,7 @@ SGVsbG8gUERG\r\n\
 --BOUND--\r\n";
     let parsed = normalize(raw);
     // The message carries no storage refs yet — the caller streams the bytes.
-    assert!(parsed.message.attachments.is_empty());
+    assert!(parsed.message.attachments.is_empty(), "{:?}", parsed.message.attachments);
     assert_eq!(parsed.attachments.len(), 1);
     let attachment = &parsed.attachments[0];
     assert_eq!(attachment.filename, "invoice.pdf");

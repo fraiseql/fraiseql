@@ -1750,7 +1750,7 @@ mod chunk_into_batches_tests {
         // slice. The helper floors the size at 1, so a client `limit = 0`
         // (audit H38) can no longer abort the worker.
         let batches = chunk_into_batches(&[], &converter(0), 0).expect("must not panic");
-        assert!(batches.is_empty());
+        assert!(batches.is_empty(), "{batches:?}");
     }
 
     #[test]

@@ -361,7 +361,7 @@ fn test_clear_then_reregister_works() {
 fn test_get_all_versions_empty_registry() {
     let registry = SchemaRegistry::new();
     let versions = registry.get_all_versions();
-    assert!(versions.is_empty());
+    assert!(versions.is_empty(), "{versions:?}");
 }
 
 #[test]
