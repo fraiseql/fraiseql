@@ -49,8 +49,8 @@ pub use operations::{
 use rest::RestTomlConfig;
 pub use security::{
     ApiKeySecurityConfig, AuthorizationPolicy, AuthorizationRule, CodeChallengeMethod,
-    EncryptionAlgorithm, EnterpriseSecurityConfig, ErrorSanitizationTomlConfig, FieldAuthRule,
-    KeySource, OidcClientConfig, PkceConfig, RateLimitingSecurityConfig, SecuritySettings,
+    EncryptionAlgorithm, EnterpriseSecurityConfig, ErrorSanitizationConfig, FieldAuthRule,
+    KeySource, OidcClientConfig, PkceSecurityConfig, RateLimitingSecurityConfig, SecuritySettings,
     StateEncryptionConfig, StaticApiKeyEntry, TokenRevocationSecurityConfig, TrustedDocumentMode,
     TrustedDocumentsConfig,
 };

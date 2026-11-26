@@ -18,6 +18,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql_cli::config::toml_schema` re-exports the core security section types under
+  their own names (#1777).** `ErrorSanitizationTomlConfig` is `ErrorSanitizationConfig`
+  and `PkceConfig` is `PkceSecurityConfig`, the names `fraiseql_core::schema` gives them.
+  The types and the TOML they read are unchanged.
+
 - **`fraiseql_server::middleware::RateLimitConfig` no longer implements `Serialize` or
   `Deserialize` (#1777).** It is the limiter's runtime form, built from
   `RateLimitingSecurityConfig`; since the server's `[rate_limiting]` table took the policy's

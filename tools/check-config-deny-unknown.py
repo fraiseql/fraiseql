@@ -100,7 +100,7 @@ TOML_CRATES = set(
         "CONFIG_DENY_UNKNOWN_TOML_CRATES", "fraiseql-cli,fraiseql-core,fraiseql-db"
     ).split(",")
 )
-TOML_EXPECTED_REACHABLE = int(os.environ.get("CONFIG_DENY_UNKNOWN_TOML_EXPECTED", "95"))
+TOML_EXPECTED_REACHABLE = int(os.environ.get("CONFIG_DENY_UNKNOWN_TOML_EXPECTED", "98"))
 
 # Each table `TomlSchema` reaches that is open on purpose, its keys chosen by the author:
 # `<type> <file> <reason>` per line.

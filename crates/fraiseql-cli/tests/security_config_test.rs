@@ -3,11 +3,11 @@
 //! and the `[auth]` `OidcClientConfig`.
 
 use fraiseql_cli::config::toml_schema::{
-    CodeChallengeMethod, ErrorSanitizationTomlConfig, RateLimitingSecurityConfig, TomlSchema,
+    CodeChallengeMethod, ErrorSanitizationConfig, RateLimitingSecurityConfig, TomlSchema,
 };
 
 // ---------------------------------------------------------------------------
-// ErrorSanitizationTomlConfig
+// ErrorSanitizationConfig
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -37,7 +37,7 @@ fn test_error_sanitization_config_parses() {
 fn test_error_sanitization_defaults_are_safe() {
     // A written section is on, and its sub-flags protective: with `enabled = false` here,
     // a section that set only `custom_error_message` switched sanitization off (#2019).
-    let cfg = ErrorSanitizationTomlConfig::default();
+    let cfg = ErrorSanitizationConfig::default();
     assert!(cfg.enabled);
     assert!(cfg.sanitize_database_errors);
 }
@@ -126,7 +126,7 @@ fn test_state_encryption_valid_algorithms() {
 }
 
 // ---------------------------------------------------------------------------
-// PkceConfig
+// PkceSecurityConfig
 // ---------------------------------------------------------------------------
 
 #[test]

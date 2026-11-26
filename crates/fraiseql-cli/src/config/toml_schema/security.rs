@@ -44,14 +44,14 @@ pub struct SecuritySettings {
     /// Enterprise security configuration (legacy flags)
     pub enterprise:             EnterpriseSecurityConfig,
     /// Error sanitization — controls what detail clients see in error responses
-    pub error_sanitization:     Option<ErrorSanitizationTomlConfig>,
+    pub error_sanitization:     Option<ErrorSanitizationConfig>,
     /// Rate limiting — per-endpoint request caps
     pub rate_limiting:          Option<RateLimitingSecurityConfig>,
     /// State encryption — AEAD encryption for OAuth state and PKCE blobs
     #[serde(default, deserialize_with = "optional_state_encryption")]
     pub state_encryption:       Option<StateEncryptionConfig>,
     /// PKCE — Proof Key for Code Exchange for OAuth Authorization Code flows
-    pub pkce:                   Option<PkceConfig>,
+    pub pkce:                   Option<PkceSecurityConfig>,
     /// API key authentication — static or database-backed key-based auth
     pub api_keys:               Option<ApiKeySecurityConfig>,
     /// Token revocation — reject JWTs by `jti` after revocation
@@ -89,13 +89,11 @@ pub struct SecuritySettings {
 // The `[security.*]` section shapes are owned by `fraiseql_core::schema` (#977):
 // the compiled schema's `SecurityConfig` carries them as typed fields, so the
 // authoring (TOML), compiled and consuming (server) sides share one definition
-// per subsystem and cannot drift. Re-exported here under the names this module
-// historically used.
+// per subsystem and cannot drift. Re-exported here under their own names.
 pub use fraiseql_core::schema::{
     ApiKeySecurityConfig, AuthorizationPolicy, AuthorizationRule, CodeChallengeMethod,
-    EncryptionAlgorithm, EnterpriseSecurityConfig,
-    ErrorSanitizationConfig as ErrorSanitizationTomlConfig, FieldAuthRule, KeySource,
-    PkceSecurityConfig as PkceConfig, RateLimitingSecurityConfig, StateEncryptionConfig,
+    EncryptionAlgorithm, EnterpriseSecurityConfig, ErrorSanitizationConfig, FieldAuthRule,
+    KeySource, PkceSecurityConfig, RateLimitingSecurityConfig, StateEncryptionConfig,
     StaticApiKeyEntry, TokenRevocationSecurityConfig, TrustedDocumentMode, TrustedDocumentsConfig,
 };
 
@@ -121,13 +119,13 @@ pub struct SharedSections {
     /// `enterprise`, always emitted: its one key, `audit_logging_enabled`, defaults on.
     pub enterprise:             EnterpriseSecurityConfig,
     /// `error_sanitization`; absent is decided by the server at boot.
-    pub error_sanitization:     Option<ErrorSanitizationTomlConfig>,
+    pub error_sanitization:     Option<ErrorSanitizationConfig>,
     /// `rate_limiting`; absent leaves the global limit off.
     pub rate_limiting:          Option<RateLimitingSecurityConfig>,
     /// `state_encryption`
     pub state_encryption:       Option<StateEncryptionConfig>,
     /// `pkce`
-    pub pkce:                   Option<PkceConfig>,
+    pub pkce:                   Option<PkceSecurityConfig>,
     /// `api_keys`
     pub api_keys:               Option<ApiKeySecurityConfig>,
     /// `token_revocation`
