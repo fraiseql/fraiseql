@@ -1314,10 +1314,7 @@ impl std::fmt::Debug for PostgresAdapter {
             .field("mutation_timing_enabled", &self.mutation_timing_enabled)
             .field("timing_variable_name", &self.timing_variable_name)
             .field("pool", &"<Pool>")
-            .field(
-                "read_replicas",
-                &self.read_replicas.as_ref().map(|r| r.pools.len()).unwrap_or_default(),
-            )
+            .field("read_replicas", &self.read_replicas.as_ref().map_or_default(|r| r.pools.len()))
             .field("streaming_permits", &self.streaming_permits.available_permits())
             .field("transaction_retry", &self.transaction_retry)
             .finish()

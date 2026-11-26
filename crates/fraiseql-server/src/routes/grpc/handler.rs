@@ -738,8 +738,7 @@ fn grpc_mutation_variables(
 ) -> serde_json::Value {
     let declared: Vec<String> = schema
         .find_mutation(mutation_name)
-        .map(|m| m.arguments.iter().map(|a| a.name.clone()).collect())
-        .unwrap_or_default();
+        .map_or_default(|m| m.arguments.iter().map(|a| a.name.clone()).collect());
 
     let mut out = serde_json::Map::new();
     for field in request_msg.descriptor().fields() {

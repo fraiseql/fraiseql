@@ -76,7 +76,7 @@ fn literal_to_json(value: &cst::Value, depth: usize) -> std::result::Result<Valu
     }
     Ok(match value {
         cst::Value::Variable(variable) => {
-            let name = variable.name().map(|n| n.text().to_string()).unwrap_or_default();
+            let name = variable.name().map_or_default(|n| n.text().to_string());
             variable_ref(&name)
         },
         cst::Value::StringValue(s) => Value::String(String::from(s)),
@@ -108,7 +108,7 @@ fn literal_to_json(value: &cst::Value, depth: usize) -> std::result::Result<Valu
         // An enum value is a bare GraphQL name; JSON has no enum, so it travels
         // as a string and `value_type` records that it was an enum.
         cst::Value::EnumValue(e) => {
-            Value::String(e.name().map(|n| n.text().to_string()).unwrap_or_default())
+            Value::String(e.name().map_or_default(|n| n.text().to_string()))
         },
         cst::Value::ListValue(list) => Value::Array(
             list.values()
@@ -118,7 +118,7 @@ fn literal_to_json(value: &cst::Value, depth: usize) -> std::result::Result<Valu
         cst::Value::ObjectValue(object) => {
             let mut map = Map::new();
             for field in object.object_fields() {
-                let key = field.name().map(|n| n.text().to_string()).unwrap_or_default();
+                let key = field.name().map_or_default(|n| n.text().to_string());
                 let Some(item) = field.value() else {
                     return Err(refuse(field.syntax(), format!("`{key}` has no value")));
                 };

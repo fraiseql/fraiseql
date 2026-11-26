@@ -460,20 +460,16 @@ fn project_results(
     let mut results = Vec::new();
     for rep in representations {
         // Extract key values from representation
-        let key_values: Vec<String> = fed_type
-            .keys
-            .first()
-            .map(|k| {
-                k.fields
-                    .iter()
-                    .filter_map(|field| {
-                        rep.key_fields.get(field).and_then(|v| {
-                            v.as_str().map(|s| s.to_string()).or_else(|| Some(v.to_string()))
-                        })
+        let key_values: Vec<String> = fed_type.keys.first().map_or_default(|k| {
+            k.fields
+                .iter()
+                .filter_map(|field| {
+                    rep.key_fields.get(field).and_then(|v| {
+                        v.as_str().map(|s| s.to_string()).or_else(|| Some(v.to_string()))
                     })
-                    .collect()
-            })
-            .unwrap_or_default();
+                })
+                .collect()
+        });
 
         // Look up row in map
         if let Some(row) = row_map.get(&key_values) {

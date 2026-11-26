@@ -140,7 +140,7 @@ fn executor<A: Writer + 'static>(adapter: A, policy: ShortResultPolicy) -> Execu
 
 /// `docs` nearest `PROBE`, `k` rows, under `filter` (a `where` literal) when given.
 fn search(k: u32, filter: Option<&str>) -> String {
-    let filter = filter.map(|f| format!(", where: {f}")).unwrap_or_default();
+    let filter = filter.map_or_default(|f| format!(", where: {f}"));
     format!("{{ docs(nearest: {{vector: {PROBE}, k: {k}}}{filter}) {{ id }} }}")
 }
 

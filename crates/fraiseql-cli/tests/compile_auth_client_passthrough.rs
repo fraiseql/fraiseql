@@ -1031,7 +1031,7 @@ const SOCIAL: &str = r#"
 fn transport_of(rest: &str) -> fraiseql_core::schema::SessionTransport {
     let intermediate = merge_transport("", rest).unwrap();
     let compiled = SchemaConverter::convert(intermediate).expect("convert to compiled schema");
-    compiled.auth.and_then(|a| a.session).map(|s| s.transport).unwrap_or_default()
+    compiled.auth.and_then(|a| a.session).map_or_default(|s| s.transport)
 }
 
 #[test]

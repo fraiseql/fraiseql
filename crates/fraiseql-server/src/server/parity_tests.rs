@@ -866,7 +866,7 @@ async fn library_construction_path_runs_config_validate() {
         "Server::new must refuse the config validate() refuses — the library \
          path skipped every production safety gate (#874)"
     );
-    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    let msg = result.err().map_or_default(|e| e.to_string());
     assert!(
         msg.contains("pool_timeout_secs"),
         "the refusal must name the offending key, got: {msg}"
@@ -920,7 +920,7 @@ async fn social_login_without_auth_issuer_refuses_to_boot() {
         None,
     )
     .await;
-    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    let msg = result.err().map_or_default(|e| e.to_string());
     assert!(
         msg.contains("[auth_issuer]"),
         "[auth.social] without [auth_issuer] must refuse naming the missing section, got: {msg}"
@@ -940,7 +940,7 @@ async fn social_login_with_unset_secret_env_refuses_to_boot() {
         None,
     )
     .await;
-    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    let msg = result.err().map_or_default(|e| e.to_string());
     assert!(
         msg.contains("__FRAISEQL_TEST_P26_DEFINITELY_UNSET__"),
         "an unset client_secret_env must refuse naming the env var, got: {msg}"
@@ -964,7 +964,7 @@ async fn social_login_with_an_empty_secret_env_refuses_to_boot() {
         )),
     )
     .await;
-    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    let msg = result.err().map_or_default(|e| e.to_string());
     assert!(
         msg.contains("FRAISEQL_TEST_2133_EMPTY_SOCIAL_SECRET"),
         "names the variable: {msg}"
@@ -987,7 +987,7 @@ async fn social_login_without_auth_database_refuses_to_boot() {
         None,
     )
     .await;
-    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    let msg = result.err().map_or_default(|e| e.to_string());
     assert!(
         msg.contains("[auth.social]") && msg.contains("[auth.database]"),
         "[auth.social] without [auth.database] must refuse naming both, got: {msg}"
@@ -1073,7 +1073,7 @@ async fn local_auth_without_auth_database_refuses_to_boot() {
         None,
     )
     .await;
-    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    let msg = result.err().map_or_default(|e| e.to_string());
     assert!(
         msg.contains("[auth.local]") && msg.contains("[auth.database]"),
         "[auth.local] without [auth.database] must refuse naming both, got: {msg}"
@@ -1096,7 +1096,7 @@ async fn local_auth_without_auth_issuer_refuses_to_boot() {
         None,
     )
     .await;
-    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    let msg = result.err().map_or_default(|e| e.to_string());
     assert!(
         msg.contains("[auth_issuer]"),
         "[auth.local] without [auth_issuer] must refuse naming the missing section, got: {msg}"
@@ -1120,7 +1120,7 @@ async fn local_auth_otp_with_an_unknown_mailbox_refuses_to_boot() {
         None,
     )
     .await;
-    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    let msg = result.err().map_or_default(|e| e.to_string());
     // The pool check fires first (it guards every method); with a pool present
     // the mailbox check is what the live-PG suite proves. Either refusal is a
     // refusal — what must never happen is a successful boot.
@@ -1157,7 +1157,7 @@ async fn postgres_api_keys_without_a_pool_refuse_to_boot() {
         "storage = \"postgres\" with no database pool must refuse to boot, \
          not authenticate nothing silently (#627)"
     );
-    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    let msg = result.err().map_or_default(|e| e.to_string());
     assert!(msg.contains("api_keys"), "the refusal must name the config section, got: {msg}");
 }
 

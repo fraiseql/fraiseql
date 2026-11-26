@@ -173,8 +173,7 @@ impl QueryRunner {
             .ctx
             .schema
             .find_type(&query_def.return_type)
-            .map(|t| t.fields.iter().map(|f| f.name.as_str()).collect())
-            .unwrap_or_default();
+            .map_or_default(|t| t.fields.iter().map(|f| f.name.as_str()).collect());
         let rows = Self::rows_from_function_result(
             field,
             function,

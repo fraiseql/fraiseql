@@ -313,8 +313,7 @@ async fn a_scope_granted_through_a_table_role_unmasks_the_field_and_its_cache_is
     let pricer = graphql_post(&base, COSTS, &token_for(&issuer, PRICER)).await;
     let costs: Vec<Value> = pricer
         .rows("invoices")
-        .map(|rows| rows.iter().map(|row| row["unit_cost"].clone()).collect())
-        .unwrap_or_default();
+        .map_or_default(|rows| rows.iter().map(|row| row["unit_cost"].clone()).collect());
     assert_eq!(costs, [json!(10), json!(20), json!(30)], "Body: {}", pricer.body);
 
     let viewer = graphql_post(&base, COSTS, &token_for(&issuer, VIEWER)).await;

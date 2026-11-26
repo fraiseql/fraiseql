@@ -2014,6 +2014,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **The minimum supported Rust version is 1.100.0, up from 1.95.0.** The workspace's
+  `rust-version`, `rust-toolchain.toml`, the CI toolchain image and the Docker builder
+  stage move together, so every leg builds and tests on exactly the version the crates
+  declare. A project that depends on a FraiseQL crate needs Rust 1.100 or newer.
+
 - **The release's package verification reads the crate set from the workspace (#1784).**
   The job that checks every crate is visible on crates.io after a release listed the
   crates by hand, and the list had to be edited when `fraiseql-time` was added. It now

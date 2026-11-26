@@ -411,12 +411,8 @@ struct Variant {
 
 impl Policy {
     fn create_on(&self, relation: &str) -> String {
-        let using = self.qual.as_ref().map(|q| format!(" USING ({q})")).unwrap_or_default();
-        let check = self
-            .with_check
-            .as_ref()
-            .map(|c| format!(" WITH CHECK ({c})"))
-            .unwrap_or_default();
+        let using = self.qual.as_ref().map_or_default(|q| format!(" USING ({q})"));
+        let check = self.with_check.as_ref().map_or_default(|c| format!(" WITH CHECK ({c})"));
         format!(
             "CREATE POLICY {name} ON {relation} AS {kind} FOR {cmd} TO {roles}{using}{check}",
             name = self.name,

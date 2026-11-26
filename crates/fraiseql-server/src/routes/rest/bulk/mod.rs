@@ -420,15 +420,13 @@ impl<'a> BulkHandler<'a> {
         let params = extractor.extract(&[], query_params).map_err(RestError::from)?;
 
         // Build QueryMatch with only the ID field for bulk operations
-        let id_fields = type_def
-            .map(|td| {
-                td.fields
-                    .iter()
-                    .filter(|f| f.is_primary_key())
-                    .map(|f| f.output_name().to_string())
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+        let id_fields = type_def.map_or_default(|td| {
+            td.fields
+                .iter()
+                .filter(|f| f.is_primary_key())
+                .map(|f| f.output_name().to_string())
+                .collect::<Vec<_>>()
+        });
 
         let fields = if id_fields.is_empty() {
             vec!["id".to_string()]

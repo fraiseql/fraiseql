@@ -337,11 +337,11 @@ fn window_body_over(root: &str) -> Value {
 /// The leak is checked first: before the fix the root answered with rows, and that is
 /// the failure this suite exists to report.
 fn assert_refused_without_rows(response: &Value, foreign: &[&str], label: &str) {
-    let data = response.get("data").map(ToString::to_string).unwrap_or_default();
+    let data = response.get("data").map_or_default(ToString::to_string);
     for tenant in foreign {
         assert!(!data.contains(tenant), "{label}: read {tenant}'s rows: {response}");
     }
-    let errors = response.get("errors").map(ToString::to_string).unwrap_or_default();
+    let errors = response.get("errors").map_or_default(ToString::to_string);
     assert!(errors.contains(REFUSAL), "{label}: expected the #1799 refusal, got {response}");
 }
 
@@ -548,9 +548,9 @@ async fn an_inject_scoped_read_without_the_claim_reads_no_tenants_rows() {
     let token = server.token_with(None);
     for (label, body) in [("aggregate", aggregate_body()), ("window", window_body())] {
         let response = post_graphql(&server.url, Some(&token), &body).await;
-        let data = response.get("data").map(ToString::to_string).unwrap_or_default();
+        let data = response.get("data").map_or_default(ToString::to_string);
         assert!(!data.contains(TENANT_A) && !data.contains(TENANT_B), "{label}: {response}");
-        let errors = response.get("errors").map(ToString::to_string).unwrap_or_default();
+        let errors = response.get("errors").map_or_default(ToString::to_string);
         assert!(
             errors.contains(&format!("JWT claim '{CLAIM}' not present")),
             "{label}: {response}"
@@ -567,9 +567,9 @@ async fn an_anonymous_inject_scoped_read_reads_no_tenants_rows() {
     };
     for (label, body) in [("aggregate", aggregate_body()), ("window", window_body())] {
         let response = post_graphql(&server.url, None, &body).await;
-        let data = response.get("data").map(ToString::to_string).unwrap_or_default();
+        let data = response.get("data").map_or_default(ToString::to_string);
         assert!(!data.contains(TENANT_A) && !data.contains(TENANT_B), "{label}: {response}");
-        let errors = response.get("errors").map(ToString::to_string).unwrap_or_default();
+        let errors = response.get("errors").map_or_default(ToString::to_string);
         assert!(errors.contains("without a security context"), "{label}: {response}");
     }
 }

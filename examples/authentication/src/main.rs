@@ -66,8 +66,9 @@ async fn main() -> Result<()> {
         .extra_claims
         .get("roles")
         .and_then(serde_json::Value::as_array)
-        .map(|roles| roles.iter().filter_map(serde_json::Value::as_str).collect::<Vec<_>>())
-        .unwrap_or_default();
+        .map_or_default(|roles| {
+            roles.iter().filter_map(serde_json::Value::as_str).collect::<Vec<_>>()
+        });
     println!(
         "  → this request is authorized for: {}",
         if roles.is_empty() {

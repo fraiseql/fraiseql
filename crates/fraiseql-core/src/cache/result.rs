@@ -941,11 +941,8 @@ impl QueryResultCache {
     /// Collected first: moka's eviction listener fires synchronously on the calling thread
     /// and re-enters the row index, so no shard guard may be held while evicting.
     fn evict_row(&self, row: &RowRef) -> u64 {
-        let keys: HashSet<u64> = self
-            .rows
-            .get(row)
-            .map(|refs| refs.iter().map(|r| r.0).collect())
-            .unwrap_or_default();
+        let keys: HashSet<u64> =
+            self.rows.get(row).map_or_default(|refs| refs.iter().map(|r| r.0).collect());
         #[allow(clippy::cast_possible_truncation)]
         // Reason: entry count never exceeds u64
         let count = keys.len() as u64;

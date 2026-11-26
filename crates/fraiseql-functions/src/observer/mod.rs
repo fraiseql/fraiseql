@@ -53,6 +53,10 @@ impl FunctionObserver {
     /// Returns `Err` if:
     /// - No runtime is registered for the module's runtime type
     /// - The runtime fails to execute the module
+    #[cfg_attr(
+        not(any(feature = "runtime-wasm", feature = "runtime-deno")),
+        allow(clippy::unused_async_trait_impl)
+    )] // Reason: the `runtime-wasm` and `runtime-deno` arms await the runtime
     pub async fn invoke<H>(
         &self,
         module: &FunctionModule,
@@ -168,6 +172,10 @@ impl FunctionObserver {
     /// Returns `Err` if no runtime is registered for the module's runtime type,
     /// the registered runtime is of the wrong concrete type, or guest execution
     /// fails.
+    #[cfg_attr(
+        not(any(feature = "runtime-wasm", feature = "runtime-deno")),
+        allow(clippy::unused_async_trait_impl)
+    )] // Reason: the `runtime-wasm` and `runtime-deno` arms await the runtime
     pub async fn invoke_with_context(
         &self,
         module: &FunctionModule,

@@ -116,7 +116,7 @@ async fn adapter() -> Option<PostgresAdapter> {
 
 /// The words in the order PostgreSQL sorts them with `collation` (`None`: the default).
 async fn oracle(adapter: &PostgresAdapter, collation: Option<&str>) -> Vec<String> {
-    let collate = collation.map(|c| format!(" COLLATE \"{c}\"")).unwrap_or_default();
+    let collate = collation.map_or_default(|c| format!(" COLLATE \"{c}\""));
     let rows = adapter
         .execute_raw_query(&format!(
             "SELECT data->>'word' AS w FROM {VIEW} ORDER BY data->>'word'{collate}"

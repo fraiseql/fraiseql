@@ -987,8 +987,7 @@ fn enrich_undefined_column_error(
     if sql_state.as_deref() != Some(PG_UNDEFINED_COLUMN) {
         return err;
     }
-    let native_cols: Vec<&str> =
-        where_clause.map(|wc| wc.native_column_names()).unwrap_or_default();
+    let native_cols: Vec<&str> = where_clause.map_or_default(|wc| wc.native_column_names());
     if native_cols.is_empty() {
         return err;
     }

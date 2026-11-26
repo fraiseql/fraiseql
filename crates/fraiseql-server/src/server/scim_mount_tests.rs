@@ -67,7 +67,7 @@ async fn scim_enabled_without_a_database_pool_refuses_to_boot() {
     ))
     .await;
 
-    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    let msg = result.err().map_or_default(|e| e.to_string());
     assert!(
         msg.contains("[scim]") && msg.contains("database pool"),
         "[scim] enabled = true on a server with no database pool must refuse to boot, \

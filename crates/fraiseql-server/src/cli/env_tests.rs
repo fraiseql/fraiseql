@@ -232,8 +232,7 @@ fn each_variable_overrides_the_keys_the_schema_names_it_on() {
             .find_map(|(a, b)| {
                 Some((applied_with(&[(env, (*a).into())])?, applied_with(&[(env, (*b).into())])?))
             })
-            .map(|(a, b)| super::differing_keys(&a, &b))
-            .unwrap_or_default();
+            .map_or_default(|(a, b)| super::differing_keys(&a, &b));
         assert_eq!(&changed, keys, "{env}: the keys set through the environment");
         assert_eq!(keys.is_empty(), NO_FILE_KEY.contains(&env.as_str()), "{env}: {keys:?}");
         for key in keys {

@@ -463,7 +463,7 @@ impl LocalBackend {
             let last_modified = mtime_instant(metadata.modified());
 
             // Generate simple etag from size and mtime (none when the platform reports none)
-            let mtime_text = last_modified.map(|t| t.to_rfc3339()).unwrap_or_default();
+            let mtime_text = last_modified.map_or_default(|t| t.to_rfc3339());
             let etag = format!("{:x}", fnv1a_hash(&format!("{size}-{mtime_text}")));
 
             objects.push((

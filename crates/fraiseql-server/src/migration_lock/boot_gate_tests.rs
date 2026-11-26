@@ -158,7 +158,7 @@ impl<'ast> Visit<'ast> for Scan<'_> {
 
     fn visit_expr_call(&mut self, call: &'ast syn::ExprCall) {
         if let syn::Expr::Path(p) = &*call.func {
-            let last = p.path.segments.last().map(|s| s.ident.to_string()).unwrap_or_default();
+            let last = p.path.segments.last().map_or_default(|s| s.ident.to_string());
             let line = p.path.segments[0].ident.span().start().line;
             let migration_fn = last.ends_with("_sql")
                 && (last.contains("migration")

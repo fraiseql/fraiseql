@@ -97,7 +97,7 @@ fn serde_keys(attr: &syn::Attribute, at: &str) -> Vec<String> {
         return keys;
     }
     attr.parse_nested_meta(|m| {
-        let key = m.path.get_ident().map(ToString::to_string).unwrap_or_default();
+        let key = m.path.get_ident().map_or_default(ToString::to_string);
         assert!(
             !matches!(key.as_str(), "rename" | "rename_all" | "flatten" | "alias"),
             "`{at}`: serde `{key}` changes the wire key; teach this scanner to read it"
@@ -517,8 +517,7 @@ fn image_features(variant: &str) -> Vec<String> {
         .next()
         .expect("value");
     args.strip_prefix("CARGO_FEATURES=")
-        .map(|list| list.split(',').map(ToString::to_string).collect())
-        .unwrap_or_default()
+        .map_or_default(|list| list.split(',').map(ToString::to_string).collect())
 }
 
 /// Each registration's `release` is the smallest published artifact that compiles it,

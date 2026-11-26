@@ -6273,8 +6273,7 @@ mod before_mutation_enforcement {
                 .unwrap()
                 .iter()
                 .find(|(name, _)| name == function)
-                .map(|(_, args)| args.clone())
-                .unwrap_or_default()
+                .map_or_default(|(_, args)| args.clone())
         }
     }
 
@@ -7377,8 +7376,7 @@ mod rest_write_body {
                 .unwrap()
                 .iter()
                 .find(|(n, _)| n == function)
-                .map(|(_, a)| a.clone())
-                .unwrap_or_default()
+                .map_or_default(|(_, a)| a.clone())
         }
     }
 

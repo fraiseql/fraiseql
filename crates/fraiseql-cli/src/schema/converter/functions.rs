@@ -181,15 +181,14 @@ fn unknown_predicate_fields(
                 .fields
                 .iter()
                 .find(|f| f.name.as_str() == predicate.field)
-                .map(|f| {
+                .map_or_default(|f| {
                     format!(
                         " `{}` is the name the field is published under; the entity holds it \
                          under `{}`.",
                         predicate.field,
                         f.stored_key()
                     )
-                })
-                .unwrap_or_default();
+                });
             format!(
                 "  function `{}`: `when` predicate names field `{}`, which is not a key of the \
                  `{entity_type}` its trigger fires on — the predicate can never match, so the \

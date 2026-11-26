@@ -562,7 +562,7 @@ async fn put_handler(
         return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
     };
 
-    let user = user.map(|Extension(u)| u).unwrap_or_default();
+    let user = user.map_or_default(|Extension(u)| u);
 
     // Load any existing object so an overwrite is gated on ownership, not just on the
     // bucket-level write permission (H9 overwrite IDOR). Done before any backend work.
@@ -700,7 +700,7 @@ async fn get_handler(
         return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
     };
 
-    let user = user.map(|Extension(u)| u).unwrap_or_default();
+    let user = user.map_or_default(|Extension(u)| u);
 
     // Look up metadata for RLS check. Missing and not-yours are the same
     // answer (#876), so neither reveals which one it was.
@@ -816,7 +816,7 @@ async fn delete_handler(
         Err(e) => return storage_error_response(&e),
     };
 
-    let user = user.map(|Extension(u)| u).unwrap_or_default();
+    let user = user.map_or_default(|Extension(u)| u);
     if !state.rls.can_delete(&user.caller(Timestamp::now()), bucket, &row) {
         tracing::warn!(
             bucket = %bucket_name,
@@ -873,7 +873,7 @@ async fn list_handler(
         return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
     };
 
-    let user = user.map(|Extension(u)| u).unwrap_or_default();
+    let user = user.map_or_default(|Extension(u)| u);
     // The door: whether this caller may list at all. Which rows come back is
     // `filter_visible`'s decision, applied below. Under a bucket policy `list`
     // is its own method (#371) — it is no longer implied by write access.
@@ -951,7 +951,7 @@ async fn presign_handler(
         return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
     };
 
-    let user = user.map(|Extension(u)| u).unwrap_or_default();
+    let user = user.map_or_default(|Extension(u)| u);
 
     // Validate operation
     let operation = request.operation.to_lowercase();
@@ -1340,7 +1340,7 @@ async fn get_metadata_handler(
     let Some(bucket) = buckets.get(&bucket_name) else {
         return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
     };
-    let user = user.map(|Extension(u)| u).unwrap_or_default();
+    let user = user.map_or_default(|Extension(u)| u);
 
     let row = match state.metadata.get(&bucket_name, &key).await {
         Ok(Some(row)) => row,
@@ -1381,7 +1381,7 @@ async fn put_metadata_handler(
     let Some(bucket) = buckets.get(&bucket_name) else {
         return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
     };
-    let user = user.map(|Extension(u)| u).unwrap_or_default();
+    let user = user.map_or_default(|Extension(u)| u);
 
     let metadata = match validate_metadata(&body.metadata) {
         Ok(metadata) => metadata,

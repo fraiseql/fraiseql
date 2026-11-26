@@ -274,14 +274,12 @@ fn walk_table(
                 return Some(UnknownKey {
                     table:    path.join("."),
                     key:      key.clone(),
-                    accepted: properties
-                        .map(|p| {
-                            p.iter()
-                                .filter(|(_, schema)| !is_refused(schema))
-                                .map(|(key, _)| key.clone())
-                                .collect()
-                        })
-                        .unwrap_or_default(),
+                    accepted: properties.map_or_default(|p| {
+                        p.iter()
+                            .filter(|(_, schema)| !is_refused(schema))
+                            .map(|(key, _)| key.clone())
+                            .collect()
+                    }),
                 });
             },
             // An open table, or one this walk cannot judge: serde reads it.

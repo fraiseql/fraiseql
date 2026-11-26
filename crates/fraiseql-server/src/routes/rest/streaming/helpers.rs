@@ -129,14 +129,11 @@ pub(super) fn determine_columns(
     if let Some(cols) = select_columns {
         return cols.to_vec();
     }
-    rows.first()
-        .and_then(serde_json::Value::as_object)
-        .map(|m| {
-            let mut cols: Vec<String> = m.keys().cloned().collect();
-            cols.sort();
-            cols
-        })
-        .unwrap_or_default()
+    rows.first().and_then(serde_json::Value::as_object).map_or_default(|m| {
+        let mut cols: Vec<String> = m.keys().cloned().collect();
+        cols.sort();
+        cols
+    })
 }
 
 /// Serialise one group of streamed rows as NDJSON bytes.

@@ -1006,8 +1006,7 @@ impl<'a> Walk<'a> {
         let variables = self.directive_variables.get_or_init(|| {
             self.variables
                 .and_then(Value::as_object)
-                .map(|map| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
-                .unwrap_or_default()
+                .map_or_default(|map| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
         });
         // A directive that cannot be evaluated was refused before execution; included is
         // the reading that adjudicates the most.

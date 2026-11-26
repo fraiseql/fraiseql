@@ -487,14 +487,11 @@ impl SubscriptionManager {
     /// Get all active subscriptions for a connection.
     #[must_use]
     pub fn get_connection_subscriptions(&self, connection_id: &str) -> Vec<ActiveSubscription> {
-        self.subscriptions_by_connection
-            .get(connection_id)
-            .map(|ids| {
-                ids.iter()
-                    .filter_map(|id| self.subscriptions.get(id).map(|r| r.clone()))
-                    .collect()
-            })
-            .unwrap_or_default()
+        self.subscriptions_by_connection.get(connection_id).map_or_default(|ids| {
+            ids.iter()
+                .filter_map(|id| self.subscriptions.get(id).map(|r| r.clone()))
+                .collect()
+        })
     }
 
     /// Get total number of active subscriptions.

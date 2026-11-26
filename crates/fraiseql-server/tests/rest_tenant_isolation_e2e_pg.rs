@@ -204,16 +204,12 @@ impl Read {
     /// `#886`: before the projection repair this returned an empty vector for every
     /// key, because each row was `{}`.
     fn column(&self, key: &str) -> Vec<String> {
-        self.body
-            .get("data")
-            .and_then(Value::as_array)
-            .map(|rows| {
-                rows.iter()
-                    .filter_map(|r| r.get(key))
-                    .map(|v| v.as_str().map_or_else(|| v.to_string(), ToString::to_string))
-                    .collect()
-            })
-            .unwrap_or_default()
+        self.body.get("data").and_then(Value::as_array).map_or_default(|rows| {
+            rows.iter()
+                .filter_map(|r| r.get(key))
+                .map(|v| v.as_str().map_or_else(|| v.to_string(), ToString::to_string))
+                .collect()
+        })
     }
 
     /// The keys present on the first row, sorted. Empty when there are no rows.
@@ -223,12 +219,11 @@ impl Read {
             .and_then(Value::as_array)
             .and_then(|rows| rows.first())
             .and_then(Value::as_object)
-            .map(|o| {
+            .map_or_default(|o| {
                 let mut keys: Vec<String> = o.keys().cloned().collect();
                 keys.sort();
                 keys
             })
-            .unwrap_or_default()
     }
 }
 
@@ -610,8 +605,7 @@ async fn a_masked_field_is_nulled_not_served_over_rest() {
         .body
         .get("data")
         .and_then(Value::as_array)
-        .map(|rows| rows.iter().filter_map(|r| r.get(GATED_FIELD)).collect())
-        .unwrap_or_default();
+        .map_or_default(|rows| rows.iter().filter_map(|r| r.get(GATED_FIELD)).collect());
 
     assert_eq!(
         values.len(),

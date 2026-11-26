@@ -298,8 +298,7 @@ async fn sources_resolve_in_order_and_fall_through() {
         ),
     ];
     for (row, argument, accept, subject, expected) in rows {
-        let headers: Vec<(&str, &str)> =
-            accept.map(|a| vec![("accept-language", a)]).unwrap_or_default();
+        let headers: Vec<(&str, &str)> = accept.map_or_default(|a| vec![("accept-language", a)]);
         let extensions = argument.map(|a| json!({ "locale": a }));
         assert_eq!(
             graphql_locale(&server, Some(subject), &headers, extensions).await,

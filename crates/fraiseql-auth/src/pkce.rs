@@ -512,6 +512,7 @@ impl PkceStateStore {
     ///
     /// Returns an error if encryption fails (effectively never with a valid
     /// key) or the Redis backend is unreachable.
+    #[cfg_attr(not(feature = "redis-pkce"), allow(clippy::unused_async_trait_impl))] // Reason: the `redis-pkce` arm awaits the Redis store
     pub async fn create_state(
         &self,
         redirect_uri: &str,
@@ -549,6 +550,7 @@ impl PkceStateStore {
     ///
     /// Returns `PkceError::StateNotFound` if the token is unknown, already consumed,
     /// or fails decryption. Returns `PkceError::StateExpired` if the token's TTL has elapsed.
+    #[cfg_attr(not(feature = "redis-pkce"), allow(clippy::unused_async_trait_impl))] // Reason: the `redis-pkce` arm awaits the Redis store
     pub async fn consume_state(
         &self,
         outbound_token: &str,

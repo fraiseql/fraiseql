@@ -291,12 +291,11 @@ async fn test_three_subgraph_gateway_composition() {
         .and_then(|d| d.get("__schema"))
         .and_then(|s| s.get("types"))
         .and_then(|t| t.as_array())
-        .map(|arr| {
+        .map_or_default(|arr| {
             arr.iter()
                 .filter_map(|t| t.get("name").and_then(|n| n.as_str()).map(|s| s.to_string()))
                 .collect()
-        })
-        .unwrap_or_default();
+        });
 
     println!(
         "✓ Gateway composition verified (User, Order, Product types present: {})",

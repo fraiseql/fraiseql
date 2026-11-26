@@ -221,7 +221,7 @@ bump_lockfile_path_packages() {
 # defaults pulled `docker.io/library/fraiseql:2.8.0`, an image that does not exist
 # (#1129). tools/check-deploy-versions.sh is the gate that keeps this honest.
 #
-# ⚠ Every substitution is anchored. `Dockerfile:8` is `FROM rust:1.95.0-slim`, and a
+# ⚠ Every substitution is anchored. `Dockerfile:8` is `FROM rust:1.100.0-slim`, and a
 # blanket version-shaped rewrite would silently move the toolchain pin — a different
 # concern, owned by #1107. Likewise `appVersion:` must not be caught by the `version:`
 # pattern, which is why the chart edits anchor at the start of the line.

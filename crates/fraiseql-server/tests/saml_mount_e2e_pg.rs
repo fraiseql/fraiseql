@@ -430,7 +430,7 @@ async fn configured_but_broken_shapes_refuse_to_boot() {
         Some(pool.clone()),
     ))
     .await;
-    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    let msg = result.err().map_or_default(|e| e.to_string());
     assert!(
         msg.contains("[saml]") && msg.contains("[auth.database]"),
         "[saml] without [auth.database] must refuse naming both, got: {msg}"
@@ -440,7 +440,7 @@ async fn configured_but_broken_shapes_refuse_to_boot() {
     let mut config = saml_config("<not-metadata/>".to_string());
     config.database_url.clone_from(&scratch_url);
     let result = Box::pin(Server::new(config, empty_schema(), adapter, Some(pool.clone()))).await;
-    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    let msg = result.err().map_or_default(|e| e.to_string());
     assert!(
         msg.contains("test-idp"),
         "unparseable metadata must refuse naming the IdP, got: {msg}"
@@ -476,7 +476,7 @@ async fn a_config_file_idp_tenant_must_be_a_uuid_and_is_honoured() {
     let result =
         Box::pin(Server::new(with_tenant("acme"), empty_schema(), adapter, Some(pool.clone())))
             .await;
-    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    let msg = result.err().map_or_default(|e| e.to_string());
     assert!(
         msg.contains("test-idp") && msg.contains("UUID"),
         "a non-UUID tenant must refuse to boot, naming the IdP: {msg}"
@@ -651,7 +651,7 @@ async fn an_unreadable_sp_key_refuses_to_boot() {
     }
 
     let result = Box::pin(Server::new(config, empty_schema(), adapter, Some(pool.clone()))).await;
-    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    let msg = result.err().map_or_default(|e| e.to_string());
     assert!(
         msg.contains("[saml.sp]") && msg.contains("not set"),
         "an unset SP key env var must refuse to boot, naming the field: {msg}"

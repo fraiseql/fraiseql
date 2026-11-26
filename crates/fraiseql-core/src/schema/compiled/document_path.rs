@@ -115,17 +115,13 @@ impl CompiledSchema {
         let mut delivered: Vec<&FieldDefinition> = Vec::new();
         for name in subscription.fields.iter().filter(|f| !f.starts_with('/')) {
             let Some(field) = entity.find_field(name) else {
-                let named = entity
-                    .fields
-                    .iter()
-                    .find(|f| f.stored_key() == *name)
-                    .map(|f| {
+                let named =
+                    entity.fields.iter().find(|f| f.stored_key() == *name).map_or_default(|f| {
                         format!(
                             " A subscription lists a field by its published name: `{}`.",
                             f.name
                         )
-                    })
-                    .unwrap_or_default();
+                    });
                 return Err(format!(
                     "subscription `{}`: `fields` lists `{name}`, which is no field of `{}`, \
                      so no event delivers it.{named}",

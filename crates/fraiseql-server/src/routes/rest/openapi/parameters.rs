@@ -100,9 +100,8 @@ impl OpenApiGenerator<'_> {
     ) {
         // Select parameter.
         let type_def = self.schema.find_type(&query_def.return_type);
-        let field_names: Vec<String> = type_def
-            .map(|td| td.fields.iter().map(|f| f.name.to_string()).collect())
-            .unwrap_or_default();
+        let field_names: Vec<String> =
+            type_def.map_or_default(|td| td.fields.iter().map(|f| f.name.to_string()).collect());
         let fields_desc = if field_names.is_empty() {
             String::new()
         } else {

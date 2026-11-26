@@ -105,7 +105,7 @@ pub(super) async fn create_upload_handler(
             "Bucket not found",
         ));
     };
-    let user = user.map(|Extension(u)| u).unwrap_or_default();
+    let user = user.map_or_default(|Extension(u)| u);
 
     let Some(declared) = header_i64(&headers, "Upload-Length").filter(|v| *v > 0) else {
         return with_tus(error_response(

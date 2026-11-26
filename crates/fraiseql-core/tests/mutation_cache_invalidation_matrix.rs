@@ -248,12 +248,11 @@ fn read_user_ids(response: &serde_json::Value) -> Vec<String> {
         .get("data")
         .and_then(|d| d.get("users"))
         .and_then(|u| u.as_array())
-        .map(|rows| {
+        .map_or_default(|rows| {
             rows.iter()
                 .map(|r| r.get("id").and_then(serde_json::Value::as_str).unwrap_or("?").to_string())
                 .collect()
         })
-        .unwrap_or_default()
 }
 
 /// Read `{ users { id } }`, run `mutation_query`, swap the database to `after`,

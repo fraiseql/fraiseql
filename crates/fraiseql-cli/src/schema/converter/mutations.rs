@@ -193,15 +193,15 @@ impl SchemaConverter {
         match normalized.as_deref() {
             Some("CREATE" | "INSERT") => {
                 // Extract table name from sql_source or use empty for Custom
-                let table = sql_source.map(std::string::ToString::to_string).unwrap_or_default();
+                let table = sql_source.map_or_default(std::string::ToString::to_string);
                 Ok(MutationOperation::Insert { table })
             },
             Some("UPDATE") => {
-                let table = sql_source.map(std::string::ToString::to_string).unwrap_or_default();
+                let table = sql_source.map_or_default(std::string::ToString::to_string);
                 Ok(MutationOperation::Update { table })
             },
             Some("DELETE") => {
-                let table = sql_source.map(std::string::ToString::to_string).unwrap_or_default();
+                let table = sql_source.map_or_default(std::string::ToString::to_string);
                 Ok(MutationOperation::Delete { table })
             },
             Some("CUSTOM") | None => Ok(MutationOperation::Custom),

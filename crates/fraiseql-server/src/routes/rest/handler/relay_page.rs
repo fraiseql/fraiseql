@@ -24,8 +24,7 @@ pub(super) fn body(
 ) -> Value {
     let data: Vec<Value> = connection["edges"]
         .as_array()
-        .map(|edges| edges.iter().map(|edge| edge["node"].clone()).collect())
-        .unwrap_or_default();
+        .map_or_default(|edges| edges.iter().map(|edge| edge["node"].clone()).collect());
     let page_info = &connection["pageInfo"];
 
     let mut meta = serde_json::Map::new();

@@ -150,8 +150,7 @@ fn build_where_from_variables(variables: Option<&serde_json::Value>) -> Option<W
 fn collect_parameter_values(variables: Option<&serde_json::Value>) -> Vec<serde_json::Value> {
     variables
         .and_then(|v| v.as_object())
-        .map(|map| map.values().cloned().collect())
-        .unwrap_or_default()
+        .map_or_default(|map| map.values().cloned().collect())
 }
 
 /// Build a display representation of the SQL passed to EXPLAIN ANALYZE.

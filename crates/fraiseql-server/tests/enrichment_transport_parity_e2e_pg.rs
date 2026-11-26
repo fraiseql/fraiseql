@@ -222,16 +222,12 @@ struct Answer {
 impl Answer {
     /// Every row's `tenant_id`, for a REST envelope.
     fn rest_tenants(&self) -> Vec<String> {
-        self.body
-            .get("data")
-            .and_then(Value::as_array)
-            .map(|rows| {
-                rows.iter()
-                    .filter_map(|r| r.get("tenant_id"))
-                    .filter_map(|v| v.as_str().map(ToString::to_string))
-                    .collect()
-            })
-            .unwrap_or_default()
+        self.body.get("data").and_then(Value::as_array).map_or_default(|rows| {
+            rows.iter()
+                .filter_map(|r| r.get("tenant_id"))
+                .filter_map(|v| v.as_str().map(ToString::to_string))
+                .collect()
+        })
     }
 }
 

@@ -2070,8 +2070,7 @@ pub fn locale_enrichment_fields_check(
         .identity
         .as_ref()
         .and_then(|identity| identity.enrichment.as_ref())
-        .map(|enrichment| enrichment.map.values().map(String::as_str).collect())
-        .unwrap_or_default();
+        .map_or_default(|enrichment| enrichment.map.values().map(String::as_str).collect());
     let missing: Vec<&str> =
         locale.enrichment_fields().filter(|field| !produced.contains(field)).collect();
     if missing.is_empty() {

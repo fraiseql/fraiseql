@@ -52,5 +52,5 @@ pub fn install() {
 /// result unconditionally.
 #[must_use]
 pub fn render() -> String {
-    HANDLE.get().map(PrometheusHandle::render).unwrap_or_default()
+    HANDLE.get().map_or_default(PrometheusHandle::render)
 }

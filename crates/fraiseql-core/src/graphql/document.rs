@@ -368,8 +368,7 @@ impl Reader<'_, '_> {
                         .type_condition()
                         .and_then(|t| t.named_type())
                         .and_then(|t| t.name())
-                        .map(|n| n.text().to_string())
-                        .unwrap_or_default()
+                        .map_or_default(|n| n.text().to_string())
                 ),
                 alias:         None,
                 arguments:     Vec::new(),

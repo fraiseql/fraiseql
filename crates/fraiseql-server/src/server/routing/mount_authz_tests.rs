@@ -544,8 +544,7 @@ mod schema_metadata_mount {
         let body: serde_json::Value = serde_json::from_slice(&body).unwrap_or_default();
         let keys = body["data"]["metadata"]
             .as_object()
-            .map(|map| map.keys().cloned().collect())
-            .unwrap_or_default();
+            .map_or_default(|map| map.keys().cloned().collect());
         (status, keys)
     }
 

@@ -568,6 +568,7 @@ impl DynamicGrpcService {
     /// `PERMISSION_DENIED` when the identity is denied, `UNAVAILABLE` when resolution
     /// fails transiently — the gRPC spellings of the same two answers every other
     /// transport gives, with the same generic bodies.
+    #[cfg_attr(not(feature = "auth"), allow(clippy::unused_async_trait_impl))] // Reason: the `auth` arm awaits identity resolution
     async fn principal_from_user(
         #[cfg(feature = "auth")] identity: &crate::identity::RequestIdentity,
         user: &fraiseql_core::security::AuthenticatedUser,

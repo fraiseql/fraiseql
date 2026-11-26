@@ -5,10 +5,10 @@ name: Dagger — test
 # --rust=stable` does the full cargo build --all-features + the feature-scoped cargo
 # test invocations + doctests, reusing the box's cargo/target/sccache cache volumes.
 #
-# The MSRV (1.95.0) promise is that the crates BUILD there, and that is gated
+# The MSRV (1.100.0) promise is that the crates BUILD there, and that is gated
 # elsewhere: rust-toolchain.toml pins the MSRV, so preflight's `cargo clippy
 # --workspace --all-features --all-targets` and default-feature `cargo check`, every
-# feature-matrix combo, and every integration suite compile on 1.95.0. A second full
+# feature-matrix combo, and every integration suite compile on 1.100.0. A second full
 # run of the unit tests on 1.95 (`test (msrv)`, until 2026-10-06) re-ran the same
 # tests on the floor toolchain for ~27 min of archbox's CPU per push, the heaviest
 # job on the busiest box. `dagger call test` (default `--rust=msrv`) still runs it

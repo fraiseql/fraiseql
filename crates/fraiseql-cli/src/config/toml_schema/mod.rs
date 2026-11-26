@@ -435,8 +435,7 @@ impl TomlSchema {
             schema.declared_project = table
                 .get("project")
                 .and_then(toml::Value::as_table)
-                .map(|project| project.keys().cloned().collect())
-                .unwrap_or_default();
+                .map_or_default(|project| project.keys().cloned().collect());
         }
         if let Some(local) = schema.auth.as_mut().and_then(|auth| auth.local.as_mut()) {
             security::embed_email_templates(local, project)?;
@@ -770,8 +769,7 @@ impl TomlSchema {
         let hierarchy_names: std::collections::HashSet<&str> = self
             .hierarchies
             .as_ref()
-            .map(|h| h.keys().map(String::as_str).collect())
-            .unwrap_or_default();
+            .map_or_default(|h| h.keys().map(String::as_str).collect());
         for (type_name, type_def) in &self.types {
             for (field_name, field_def) in &type_def.fields {
                 if let Some(ref h_name) = field_def.hierarchy {

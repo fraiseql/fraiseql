@@ -658,16 +658,12 @@ mod schema_isolation_tests {
             sql: &str,
         ) -> FraiseQLResult<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             self.queries.lock().unwrap().push(sql.to_string());
-            Ok(self
-                .reset_val
-                .as_ref()
-                .map(|v| {
-                    vec![std::collections::HashMap::from([(
-                        "reset_val".to_string(),
-                        serde_json::Value::String(v.clone()),
-                    )])]
-                })
-                .unwrap_or_default())
+            Ok(self.reset_val.as_ref().map_or_default(|v| {
+                vec![std::collections::HashMap::from([(
+                    "reset_val".to_string(),
+                    serde_json::Value::String(v.clone()),
+                )])]
+            }))
         }
 
         async fn execute_parameterized_aggregate(

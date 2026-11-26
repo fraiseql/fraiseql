@@ -302,7 +302,7 @@ impl ChangeLogRow {
             pk_entity_change_log: id.to_string(),
             // BIGINT/UUID contract values projected into the string-typed
             // public fields (reconcile without breaking downstream readers).
-            fk_customer_org: fk_customer_org.map(|n| n.to_string()).unwrap_or_default(),
+            fk_customer_org: fk_customer_org.map_or_default(|n| n.to_string()),
             fk_contact: fk_contact.map(|n| n.to_string()),
             object_type,
             object_id: object_id.to_string(),

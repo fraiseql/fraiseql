@@ -142,7 +142,7 @@ async fn assert_injection_refused(
         "{label}: expected a GraphQL error, got {status} {response}"
     );
 
-    let data = response.get("data").map(ToString::to_string).unwrap_or_default();
+    let data = response.get("data").map_or_default(ToString::to_string);
     for needle in injected_keys {
         assert!(
             !data.contains(needle),

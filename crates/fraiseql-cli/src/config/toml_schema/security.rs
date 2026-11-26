@@ -596,7 +596,7 @@ impl OidcClientConfig {
             session.check().map_err(|message| anyhow::anyhow!(message))?;
         }
         if let Some(social) = &self.social {
-            let transport = self.session.as_ref().map(|s| s.transport).unwrap_or_default();
+            let transport = self.session.as_ref().map_or_default(|s| s.transport);
             social.check_transport(transport).map_err(|message| anyhow::anyhow!(message))?;
         }
 

@@ -313,19 +313,16 @@ fn schema() -> CompiledSchema {
 
 /// `(id, role)` pairs as served by `{ items { id role } }`.
 fn rows_of(response: &serde_json::Value) -> Vec<(String, String)> {
-    response["data"]["items"]
-        .as_array()
-        .map(|rows| {
-            rows.iter()
-                .map(|r| {
-                    (
-                        r["id"].as_str().unwrap_or("?").to_string(),
-                        r["role"].as_str().unwrap_or("?").to_string(),
-                    )
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+    response["data"]["items"].as_array().map_or_default(|rows| {
+        rows.iter()
+            .map(|r| {
+                (
+                    r["id"].as_str().unwrap_or("?").to_string(),
+                    r["role"].as_str().unwrap_or("?").to_string(),
+                )
+            })
+            .collect()
+    })
 }
 
 /// Replay `ops` against a freshly provisioned database, returning every read's answer.

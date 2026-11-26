@@ -98,17 +98,15 @@ fn typed_id() -> String {
 }
 
 fn messages(response: &Value) -> Vec<String> {
-    response["errors"]
-        .as_array()
-        .map(|errors| errors.iter().map(|e| e["message"].as_str().unwrap().to_string()).collect())
-        .unwrap_or_default()
+    response["errors"].as_array().map_or_default(|errors| {
+        errors.iter().map(|e| e["message"].as_str().unwrap().to_string()).collect()
+    })
 }
 
 fn paths(response: &Value) -> Vec<Value> {
     response["errors"]
         .as_array()
-        .map(|errors| errors.iter().map(|e| e["path"].clone()).collect())
-        .unwrap_or_default()
+        .map_or_default(|errors| errors.iter().map(|e| e["path"].clone()).collect())
 }
 
 fn principal() -> SecurityContext {

@@ -294,7 +294,7 @@ impl ObserverTransportConfig {
                 nats.url = url;
             }
         }
-        let transport = match compiled.map(|c| c.backend).unwrap_or_default() {
+        let transport = match compiled.map_or_default(|c| c.backend) {
             ObserversBackend::Postgres => TransportKind::Postgres,
             ObserversBackend::Nats => TransportKind::Nats,
         };

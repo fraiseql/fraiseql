@@ -257,7 +257,7 @@ pub(super) async fn render_handler(
     let Some(bucket) = buckets.get(&bucket_name) else {
         return error_response(StatusCode::NOT_FOUND, "bucket_not_found", "Bucket not found");
     };
-    let user = user.map(|Extension(u)| u).unwrap_or_default();
+    let user = user.map_or_default(|Extension(u)| u);
 
     // Resolve the transform: bucket default, preset when named, explicit
     // params on top.

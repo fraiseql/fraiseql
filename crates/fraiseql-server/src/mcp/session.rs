@@ -128,8 +128,7 @@ pub async fn record_call(
     arguments: Option<&serde_json::Map<String, serde_json::Value>>,
     prior: Vec<serde_json::Value>,
 ) {
-    let mut argument_names: Vec<&String> =
-        arguments.map(|a| a.keys().collect()).unwrap_or_default();
+    let mut argument_names: Vec<&String> = arguments.map_or_default(|a| a.keys().collect());
     argument_names.sort();
 
     let mut calls = prior;

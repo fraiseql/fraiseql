@@ -54,8 +54,7 @@ impl ActionConfig {
             .map_err(|e| invalid(format!("the action does not serialize: {e}")))?;
         let mut held: Vec<&str> = held
             .as_object()
-            .map(|keys| keys.keys().map(String::as_str).collect())
-            .unwrap_or_default();
+            .map_or_default(|keys| keys.keys().map(String::as_str).collect());
         let omitted: Vec<&str> = OMITTED_WHEN_EMPTY
             .iter()
             .filter(|(action_type, _)| *action_type == read.action_type())

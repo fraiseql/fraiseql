@@ -232,10 +232,7 @@ fn introspection_publishes_argument_defaults_as_literals() {
 // ── Refused at load ─────────────────────────────────────────────────────────
 
 fn load_error(json: &str) -> String {
-    CompiledSchema::from_json(json, false)
-        .err()
-        .map(|e| e.to_string())
-        .unwrap_or_default()
+    CompiledSchema::from_json(json, false).err().map_or_default(|e| e.to_string())
 }
 
 #[test]

@@ -99,8 +99,7 @@ fn every_required_property_is_actually_produced() {
             .and_then(|p| p.get("data"))
             .and_then(|d| d.get("required"))
             .and_then(Value::as_array)
-            .map(|a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>())
-            .unwrap_or_default();
+            .map_or_default(|a| a.iter().filter_map(Value::as_str).collect::<Vec<_>>());
 
         let produced: BTreeSet<&str> = data
             .as_object()
@@ -148,8 +147,7 @@ fn declared_properties_match_the_producing_struct() {
             .and_then(|p| p.get("data"))
             .and_then(|d| d.get("properties"))
             .and_then(Value::as_object)
-            .map(|o| o.keys().map(String::as_str).collect())
-            .unwrap_or_default();
+            .map_or_default(|o| o.keys().map(String::as_str).collect());
 
         let produced: BTreeSet<&str> =
             data.as_object().unwrap().keys().map(String::as_str).collect();

@@ -15,8 +15,7 @@ pub(super) fn extract_ids(result: &serde_json::Value, id_field: &str) -> Vec<ser
         .and_then(serde_json::Value::as_object)
         .and_then(|o| o.values().next())
         .and_then(serde_json::Value::as_array)
-        .map(|rows| rows.iter().filter_map(|r| r.get(id_field).cloned()).collect())
-        .unwrap_or_default()
+        .map_or_default(|rows| rows.iter().filter_map(|r| r.get(id_field).cloned()).collect())
 }
 
 /// Extract entity data from a mutation result value.

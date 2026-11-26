@@ -122,10 +122,7 @@ async fn drop_example_database(url: &str, db: &str) {
 fn with_database(url: &str, db: &str) -> String {
     let cfg: tokio_postgres::Config = url.parse().expect("parse DATABASE_URL");
     let user = cfg.get_user().unwrap_or("postgres");
-    let password = cfg
-        .get_password()
-        .map(|p| String::from_utf8_lossy(p).into_owned())
-        .unwrap_or_default();
+    let password = cfg.get_password().map_or_default(|p| String::from_utf8_lossy(p).into_owned());
     format!("postgres://{user}:{password}@{}:{}/{db}", host_of(&cfg), port_of(&cfg))
 }
 

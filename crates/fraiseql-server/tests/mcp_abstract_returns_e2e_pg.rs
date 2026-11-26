@@ -397,7 +397,7 @@ async fn a_scoped_field_in_a_fragment_on_an_interface_is_gated() {
     )
     .await;
 
-    let served = through_interface.as_ref().map(ToString::to_string).unwrap_or_default();
+    let served = through_interface.as_ref().map_or_default(ToString::to_string);
     assert!(!served.contains("s3cret"), "the scoped value is never served: {served}");
     assert!(
         through_interface

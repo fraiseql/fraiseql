@@ -572,8 +572,7 @@ impl Executor {
             .queries
             .iter()
             .find(|q| q.return_type == typename && q.reads_relation().is_some())
-            .map(|q| q.inject_params.clone())
-            .unwrap_or_default();
+            .map_or_default(|q| q.inject_params.clone());
         if let Some(t) = self.ctx.schema.types.iter().find(|t| t.name.as_str() == typename) {
             for (column, source) in &t.inject_params {
                 params.entry(column.clone()).or_insert_with(|| source.clone());
@@ -640,12 +639,9 @@ impl Executor {
                     sc,
                     self.ctx.schema.tenant_claim(),
                 )?;
-                let pg_cast = qdef
-                    .and_then(|q| q.native_columns.get(col))
-                    .map(|t| {
-                        crate::runtime::native_columns::pg_type_to_cast(&t.pg_type).to_string()
-                    })
-                    .unwrap_or_default();
+                let pg_cast = qdef.and_then(|q| q.native_columns.get(col)).map_or_default(|t| {
+                    crate::runtime::native_columns::pg_type_to_cast(&t.pg_type).to_string()
+                });
                 conditions.push(WhereClause::NativeField {
                     column: col.clone(),
                     pg_cast,
@@ -702,8 +698,7 @@ fn entities_selection(
         .iter()
         .find(|sel| sel.name == "_entities")
         .or_else(|| resolved.first())
-        .map(|root| root.nested_fields.clone())
-        .unwrap_or_default())
+        .map_or_default(|root| root.nested_fields.clone()))
 }
 
 /// The fail-closed `_entities` denial: a 403 that does not echo the requested ids.

@@ -177,8 +177,7 @@ impl AzureBackend {
         let path = match &self.endpoint {
             Some(ep) => reqwest::Url::parse(ep)
                 .ok()
-                .map(|u| u.path().trim_end_matches('/').to_owned())
-                .unwrap_or_default(),
+                .map_or_default(|u| u.path().trim_end_matches('/').to_owned()),
             None => String::new(),
         };
         if key.is_empty() {

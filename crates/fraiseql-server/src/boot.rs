@@ -279,7 +279,7 @@ async fn build_observer_pool(config: &ServerConfig) -> anyhow::Result<Option<cra
 
     use sqlx::postgres::PgPoolOptions;
 
-    let pool_cfg = config.observers.as_ref().map(|o| o.runtime.pool.clone()).unwrap_or_default();
+    let pool_cfg = config.observers.as_ref().map_or_default(|o| o.runtime.pool.clone());
 
     tracing::info!(
         min = pool_cfg.min_connections,

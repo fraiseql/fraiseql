@@ -440,8 +440,9 @@ homepage = "https://fraiseql.dev"
 keywords = ["graphql", "database", "compiler", "sql"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/fraiseql/fraiseql"
-rust-version = "1.95.0"                               # MSRV — wasmtime 48 (the release fixing RUSTSEC-2026-0314 and
-# RUSTSEC-2026-0316) needs 1.95; it was 1.94.1 for wasmtime 46 (#933) and aws-sdk-kinesis
-# 1.112 (#975). The patch is pinned because CI runs exactly this version — Docker's
-# rust:1.95 tracks the newest patch, so a floating floor would be a claim no leg tested.
+rust-version = "1.100.0"                              # MSRV — the latest stable when adopted (2026-11). It was
+# 1.95.0 for wasmtime 48 (the release fixing RUSTSEC-2026-0314 and RUSTSEC-2026-0316),
+# 1.94.1 for wasmtime 46 (#933) and aws-sdk-kinesis 1.112 (#975). The patch is pinned
+# because CI runs exactly this version — Docker's rust:1.100 tracks the newest patch,
+# so a floating floor would be a claim no leg tested.
 version = "2.19.1"

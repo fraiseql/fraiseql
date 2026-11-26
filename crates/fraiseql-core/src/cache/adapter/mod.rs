@@ -1332,7 +1332,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
             return Ok(None);
         }
         self.cache.run_pending_tasks();
-        let before = self.cache.metrics().map(|m| m.size).unwrap_or_default();
+        let before = self.cache.metrics().map_or_default(|m| m.size);
         self.cache.clear()?;
         // An operator clearing one server behind a load balancer means every server.
         self.announce(|| Eviction::Everything);

@@ -89,11 +89,7 @@ impl MailboxFetcher for FakeFetcher {
         _batch_size: u32,
     ) -> fraiseql_functions::outbound::BoxFuture<'_, std::result::Result<FetchBatch, IngestError>>
     {
-        let messages = self
-            .raw
-            .clone()
-            .map(|raw| vec![FetchedMessage { uid: 1, raw }])
-            .unwrap_or_default();
+        let messages = self.raw.clone().map_or_default(|raw| vec![FetchedMessage { uid: 1, raw }]);
         Box::pin(async move {
             Ok(FetchBatch {
                 uid_validity: 1,

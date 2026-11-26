@@ -315,8 +315,7 @@ impl ServerArgs {
                 let keys = VALUES
                     .iter()
                     .find_map(|(a, b)| Some((applied(long, a)?, applied(long, b)?)))
-                    .map(|(a, b)| differing_keys(&a, &b))
-                    .unwrap_or_default();
+                    .map_or_default(|(a, b)| differing_keys(&a, &b));
                 Some((env, keys))
             })
             .collect()

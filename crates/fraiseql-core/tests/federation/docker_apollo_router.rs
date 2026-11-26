@@ -47,12 +47,11 @@ async fn test_apollo_router_discovers_subgraphs() {
         .and_then(|d| d.get("__schema"))
         .and_then(|s| s.get("types"))
         .and_then(|t| t.as_array())
-        .map(|arr| {
+        .map_or_default(|arr| {
             arr.iter()
                 .filter_map(|t| t.get("name").and_then(|n| n.as_str()).map(|s| s.to_string()))
                 .collect()
-        })
-        .unwrap_or_default();
+        });
 
     // Verify key types from each subgraph
     assert!(type_names.contains(&"User".to_string()), "User type from users subgraph");
@@ -114,12 +113,11 @@ async fn test_apollo_router_schema_composition() {
         .and_then(|s| s.get("queryType"))
         .and_then(|q| q.get("fields"))
         .and_then(|f| f.as_array())
-        .map(|arr| {
+        .map_or_default(|arr| {
             arr.iter()
                 .filter_map(|f| f.get("name").and_then(|n| n.as_str()).map(|s| s.to_string()))
                 .collect()
-        })
-        .unwrap_or_default();
+        });
 
     println!("✓ Apollo Router composed schema with Query type: {}", query_type);
     println!("  Root fields: {}", root_fields.join(", "));
@@ -225,12 +223,11 @@ async fn test_apollo_router_federation_directives() {
         .and_then(|d| d.get("__schema"))
         .and_then(|s| s.get("directives"))
         .and_then(|d| d.as_array())
-        .map(|arr| {
+        .map_or_default(|arr| {
             arr.iter()
                 .filter_map(|d| d.get("name").and_then(|n| n.as_str()).map(|s| s.to_string()))
                 .collect()
-        })
-        .unwrap_or_default();
+        });
 
     println!("✓ Apollo Router federation directives verified");
     println!("  Available directives: {}", directive_names.join(", "));

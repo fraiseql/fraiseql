@@ -551,15 +551,13 @@ fn fixtures_dir() -> PathBuf {
 
 /// Every fixture directory, by name.
 fn fixtures(dir: &Path) -> Vec<(String, PathBuf)> {
-    let mut found: Vec<(String, PathBuf)> = std::fs::read_dir(dir)
-        .map(|entries| {
-            entries
-                .map(|entry| entry.unwrap().path())
-                .filter(|path| path.join("fixture.toml").is_file())
-                .map(|path| (path.file_name().unwrap().to_string_lossy().into_owned(), path))
-                .collect()
-        })
-        .unwrap_or_default();
+    let mut found: Vec<(String, PathBuf)> = std::fs::read_dir(dir).map_or_default(|entries| {
+        entries
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.join("fixture.toml").is_file())
+            .map(|path| (path.file_name().unwrap().to_string_lossy().into_owned(), path))
+            .collect()
+    });
     found.sort();
     found
 }

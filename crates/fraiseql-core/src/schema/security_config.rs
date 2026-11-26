@@ -865,9 +865,9 @@ impl SecurityConfig {
     /// Get all scopes granted to a role.
     #[must_use]
     pub fn get_role_scopes(&self, role_name: &str) -> Vec<String> {
-        self.find_role(role_name)
-            .map(|role| role.scopes.iter().map(|s| s.to_string()).collect::<Vec<String>>())
-            .unwrap_or_default()
+        self.find_role(role_name).map_or_default(|role| {
+            role.scopes.iter().map(|s| s.to_string()).collect::<Vec<String>>()
+        })
     }
 
     /// Check if a role has a specific scope.

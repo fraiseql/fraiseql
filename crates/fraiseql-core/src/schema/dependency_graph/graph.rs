@@ -24,27 +24,21 @@ impl SchemaDependencyGraph {
     /// Get all types that a given type depends on (outgoing edges).
     #[must_use]
     pub fn dependencies_of(&self, type_name: &str) -> Vec<String> {
-        self.outgoing
-            .get(type_name)
-            .map(|deps| {
-                let mut v: Vec<_> = deps.iter().cloned().collect();
-                v.sort();
-                v
-            })
-            .unwrap_or_default()
+        self.outgoing.get(type_name).map_or_default(|deps| {
+            let mut v: Vec<_> = deps.iter().cloned().collect();
+            v.sort();
+            v
+        })
     }
 
     /// Get all types that depend on a given type (incoming edges).
     #[must_use]
     pub fn dependents_of(&self, type_name: &str) -> Vec<String> {
-        self.incoming
-            .get(type_name)
-            .map(|refs| {
-                let mut v: Vec<_> = refs.iter().cloned().collect();
-                v.sort();
-                v
-            })
-            .unwrap_or_default()
+        self.incoming.get(type_name).map_or_default(|refs| {
+            let mut v: Vec<_> = refs.iter().cloned().collect();
+            v.sort();
+            v
+        })
     }
 
     /// Get all type names in the graph.

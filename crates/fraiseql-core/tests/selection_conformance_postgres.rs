@@ -1663,15 +1663,12 @@ async fn answer(exec: &Executor, query: &str) -> (Value, bool) {
 
 /// The path of each error of `response`, and whether its message names `needle`.
 fn error_paths(response: &Value, needle: &str) -> Vec<(Value, bool)> {
-    response["errors"]
-        .as_array()
-        .map(|errors| {
-            errors
-                .iter()
-                .map(|e| (e["path"].clone(), e["message"].as_str().unwrap_or("").contains(needle)))
-                .collect()
-        })
-        .unwrap_or_default()
+    response["errors"].as_array().map_or_default(|errors| {
+        errors
+            .iter()
+            .map(|e| (e["path"].clone(), e["message"].as_str().unwrap_or("").contains(needle)))
+            .collect()
+    })
 }
 
 /// An `Int` is a signed 32-bit integer (§ 3.5.1). A read the projection answers whole, a

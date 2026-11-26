@@ -2970,7 +2970,7 @@ mod run_tests {
     fn capabilities_json_is_a_command() {
         use clap::Parser as _;
         let parsed = crate::cli::Cli::try_parse_from(["fraiseql", "capabilities", "--json"]);
-        assert!(parsed.is_ok(), "{}", parsed.err().map(|e| e.to_string()).unwrap_or_default());
+        assert!(parsed.is_ok(), "{}", parsed.err().map_or_default(|e| e.to_string()));
     }
 
     /// The capabilities report carries every registration, in registry order, with the fields an

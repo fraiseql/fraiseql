@@ -355,8 +355,7 @@ pub fn expected_call(
     let payload_keys = if matches!(shape, CallShape::JsonbPayload) {
         input_type_name
             .and_then(|n| schema.find_input_type(n))
-            .map(|t| t.fields.iter().map(|f| f.name.clone()).collect())
-            .unwrap_or_default()
+            .map_or_default(|t| t.fields.iter().map(|f| f.name.clone()).collect())
     } else {
         Vec::new()
     };

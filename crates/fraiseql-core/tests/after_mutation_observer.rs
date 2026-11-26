@@ -532,7 +532,7 @@ async fn a_writer_without_a_ledger_refuses_a_durable_dispatch() {
     let response = executor.execute(MUTATION, Some(&json!({ "id": ORDER_ID }))).await;
     let refused = match response {
         Err(error) => error.to_string(),
-        Ok(body) => body.get("errors").map(ToString::to_string).unwrap_or_default(),
+        Ok(body) => body.get("errors").map_or_default(ToString::to_string),
     };
     assert!(refused.contains("function-dispatch ledger"), "refused: {refused}");
     assert!(observer.recorded.lock().unwrap().is_empty());

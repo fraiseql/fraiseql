@@ -443,7 +443,7 @@ impl<'a> ChangeLogWrite<'a> {
 // requires futures spawned with `tokio::spawn` to be `Send`. Until Return Type
 // Notation (RFC 3425, tracking: github.com/rust-lang/rust/issues/109417) stabilises,
 // `async_trait` is the only ergonomic path to `dyn DatabaseAdapter + Send + Sync`.
-// Re-evaluate when Rust 1.90+ ships or when RTN is stabilised.
+// RTN is still unstable on 1.100; re-evaluate when it stabilises.
 //
 // MIGRATION TRACKING: async-trait → native async fn in trait
 //

@@ -546,9 +546,9 @@ impl RestHandler<'_> {
         // is deliberate: the projector fix alone would leave the gate inert, because
         // the gate reads the same list.
         let field_names = match &params.field_selection {
-            RestFieldSpec::All => type_def
-                .map(|t| t.fields.iter().map(|f| f.name.to_string()).collect())
-                .unwrap_or_default(),
+            RestFieldSpec::All => {
+                type_def.map_or_default(|t| t.fields.iter().map(|f| f.name.to_string()).collect())
+            },
             RestFieldSpec::Fields(fields) => fields.clone(),
         };
 

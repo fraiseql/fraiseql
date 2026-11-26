@@ -402,8 +402,7 @@ impl CompiledSchema {
     pub fn get_role_scopes(&self, role_name: &str) -> Vec<String> {
         self.security
             .as_ref()
-            .map(|config| config.get_role_scopes(role_name))
-            .unwrap_or_default()
+            .map_or_default(|config| config.get_role_scopes(role_name))
     }
 
     /// Check if a role has a specific scope.

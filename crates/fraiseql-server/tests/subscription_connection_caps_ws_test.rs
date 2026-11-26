@@ -151,8 +151,7 @@ async fn upgrade(url: &str, headers: &[(&str, &str)]) -> Upgrade {
             let body = response
                 .body()
                 .as_ref()
-                .map(|b| String::from_utf8_lossy(b).into_owned())
-                .unwrap_or_default();
+                .map_or_default(|b| String::from_utf8_lossy(b).into_owned());
             Upgrade::Refused(response.status().as_u16(), body)
         },
         Err(other) => panic!("upgrade failed below HTTP: {other}"),

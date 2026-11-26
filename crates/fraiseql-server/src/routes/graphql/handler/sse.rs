@@ -396,8 +396,7 @@ fn deferred_chunks(
     let vars = variables_map(variables);
     let deferred = body
         .get_mut("data")
-        .map(|data| defer::split(selections, data, &vars))
-        .unwrap_or_default();
+        .map_or_default(|data| defer::split(selections, data, &vars));
 
     if deferred.is_empty() {
         // Every `@defer` resolved to a field the response does not carry. The
@@ -582,8 +581,7 @@ async fn batch_step(mut st: BatchState) -> Option<(Chunk, BatchState)> {
                 },
                 Ok(response) => {
                     let items = extract_items(&response, &st.response_key)
-                        .map(<[Value]>::to_vec)
-                        .unwrap_or_default();
+                        .map_or_default(<[Value]>::to_vec);
                     let count = items.len() as u64;
                     let path_index = st.offset;
                     st.offset += count;

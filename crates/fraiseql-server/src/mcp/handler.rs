@@ -486,7 +486,7 @@ impl ServerHandler for FraiseQLMcpService {
         let request_id = context.id.to_string();
         let parts = context.extensions.get::<http::request::Parts>();
         let token = parts.and_then(|parts| extract_bearer(&parts.headers));
-        let headers = parts.map(|parts| parts.headers.clone()).unwrap_or_default();
+        let headers = parts.map_or_default(|parts| parts.headers.clone());
 
         async move {
             MCP_TOOL_CALLS_TOTAL.fetch_add(1, Ordering::Relaxed);
@@ -561,7 +561,7 @@ impl ServerHandler for FraiseQLMcpService {
         let request_id = context.id.to_string();
         let parts = context.extensions.get::<http::request::Parts>();
         let token = parts.and_then(|parts| extract_bearer(&parts.headers));
-        let headers = parts.map(|parts| parts.headers.clone()).unwrap_or_default();
+        let headers = parts.map_or_default(|parts| parts.headers.clone());
         let uri = request.uri;
 
         async move {

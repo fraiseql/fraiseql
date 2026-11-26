@@ -876,7 +876,6 @@ async fn an_authenticated_caller_cannot_select_another_tenant_by_header() {
     let served = send("tenant_a").await;
     let codes: Vec<_> = served["errors"]
         .as_array()
-        .map(|e| e.iter().map(|e| e["code"].clone()).collect())
-        .unwrap_or_default();
+        .map_or_default(|e| e.iter().map(|e| e["code"].clone()).collect());
     assert!(!codes.contains(&serde_json::json!("FORBIDDEN")), "{served}");
 }

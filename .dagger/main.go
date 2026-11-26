@@ -19,9 +19,9 @@ import (
 type FraiseqlCi struct{}
 
 const (
-	// rustImage pins the toolchain to the workspace MSRV (rust-toolchain.toml channel = 1.95.0).
-	// The PATCH is pinned deliberately: docker.io/library/rust:1.95 tracks the newest 1.95.x, so a
-	// floating tag silently stops testing the rust-version we declare the day 1.95.1 ships.
+	// rustImage pins the toolchain to the workspace MSRV (rust-toolchain.toml channel = 1.100.0).
+	// The PATCH is pinned deliberately: docker.io/library/rust:1.100 tracks the newest 1.100.x, so a
+	// floating tag silently stops testing the rust-version we declare the day 1.100.1 ships.
 	// The default (non-slim) variant is buildpack-deps-based, so gcc/perl/curl/git are present.
 	// (Later: pin by digest — see docs/contributing/dagger-parity-notes.md Phase 02.)
 	//
@@ -31,7 +31,7 @@ const (
 	// them anonymously. Every ghcr.io/fraiseql/* tag below MUST have a matching entry in that
 	// workflow's IMAGES list. (mcr.microsoft.com/* and the Apollo router stay as-is — not
 	// Docker Hub, not rate-limited.)
-	rustImage = "ghcr.io/fraiseql/rust:1.95.0"
+	rustImage = "ghcr.io/fraiseql/rust:1.100.0"
 	// ubuntuImage backs shellBase (the toolchain-free shell-gate container).
 	ubuntuImage = "ghcr.io/fraiseql/ubuntu:24.04"
 	// sccacheVersion pins the prebuilt sccache binary fetched into rustBase.
@@ -42,7 +42,7 @@ const (
 	// cargoLlvmCovVersion pins the cargo-llvm-cov CoveragePostgres installs.
 	cargoLlvmCovVersion = "0.9.1"
 	// rustMsrv mirrors Cargo.toml workspace rust-version and rust-toolchain.toml channel.
-	rustMsrv = "1.95.0"
+	rustMsrv = "1.100.0"
 	// fmtNightly pins the nightly rustfmt this workspace is formatted with, because
 	// rustfmt's output is not stable across nightlies: a bare `nightly` made the Fmt
 	// gate enforce whatever published that morning, and on 2026-09-25 that reddened
@@ -718,7 +718,7 @@ func (m *FraiseqlCi) shellBase() *dagger.Container {
 //
 // The workspace test leg: a full `cargo build --all-features`
 // followed by the feature-scoped `cargo test -p …` invocations (the SYNC:* lists)
-// and the doctest pass. Parameterized by toolchain (stable | MSRV 1.95.0).
+// and the doctest pass. Parameterized by toolchain (stable | MSRV 1.100.0).
 
 // Test runs the workspace test suite for the given toolchain. `rust` is "msrv"
 // (default — the pinned floor, == rust-toolchain.toml) or "stable" (latest stable).
@@ -738,7 +738,7 @@ func (m *FraiseqlCi) Test(
 	rust string,
 ) (string, error) {
 	toolchain := resolveToolchain(rust)
-	// Per-toolchain target cache: stable and 1.95.0 produce incompatible artifacts,
+	// Per-toolchain target cache: stable and 1.100.0 produce incompatible artifacts,
 	// so they must not share a target dir (kept separate from the Phase-02 gates'
 	// `fraiseql-rust-target`, which holds clippy/rustdoc check artifacts).
 	// `test2-` bump (2026-06-30): the `test-` volume held stale fraiseql-cli/-db

@@ -166,7 +166,7 @@ fn compare(local: &CompiledSchema, other: &CompiledSchema) -> Vec<String> {
     let local_fed = local.federation.as_ref();
     let other_fed = other.federation.as_ref();
 
-    for entity in local_fed.map(|f| f.entities.as_slice()).unwrap_or_default() {
+    for entity in local_fed.map_or_default(|f| f.entities.as_slice()) {
         let theirs = other_fed.and_then(|f| f.entities.iter().find(|e| e.name == entity.name));
         if let Some(theirs) = theirs {
             if normalized(&entity.key_fields) != normalized(&theirs.key_fields) {
@@ -188,8 +188,7 @@ fn compare(local: &CompiledSchema, other: &CompiledSchema) -> Vec<String> {
         };
         let external: HashSet<&str> = local_fed
             .and_then(|f| f.entities.iter().find(|e| e.name == name))
-            .map(|e| e.external_fields.iter().map(String::as_str).collect())
-            .unwrap_or_default();
+            .map_or_default(|e| e.external_fields.iter().map(String::as_str).collect());
         for field in &type_def.fields {
             let field = field.name.as_str();
             if !theirs.fields.iter().any(|f| f.name == field) || external.contains(field) {

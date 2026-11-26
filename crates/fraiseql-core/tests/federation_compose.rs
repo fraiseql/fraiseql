@@ -446,8 +446,7 @@ fn the_service_sdl_declares_every_query_kind_as_introspection_does() {
         sdl.lines()
             .map(str::trim)
             .find(|l| l.starts_with(&format!("{field}(")) || l.starts_with(&format!("{field}:")))
-            .map(ToString::to_string)
-            .unwrap_or_default()
+            .map_or_default(ToString::to_string)
     };
 
     assert!(declared("ordersCount").ends_with(": Int!"), "{}", declared("ordersCount"));

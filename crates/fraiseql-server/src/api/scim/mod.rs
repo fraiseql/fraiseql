@@ -1110,15 +1110,12 @@ async fn delete_group(
 
 /// Member ids inside a `members` patch value, which is an array of `{ "value": … }`.
 fn member_ids_from(value: Option<&Value>) -> Vec<String> {
-    value
-        .and_then(Value::as_array)
-        .map(|entries| {
-            entries
-                .iter()
-                .filter_map(|e| e.get("value").and_then(Value::as_str).map(str::to_string))
-                .collect()
-        })
-        .unwrap_or_default()
+    value.and_then(Value::as_array).map_or_default(|entries| {
+        entries
+            .iter()
+            .filter_map(|e| e.get("value").and_then(Value::as_str).map(str::to_string))
+            .collect()
+    })
 }
 
 /// Mirror group membership onto RBAC role assignments.

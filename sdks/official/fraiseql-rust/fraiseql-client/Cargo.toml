@@ -2,7 +2,7 @@
 name = "fraiseql-client"
 version = "2.19.1"
 edition = "2021"
-rust-version = "1.95.0"
+rust-version = "1.100.0"
 description = "Async HTTP client for FraiseQL GraphQL servers"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/fraiseql/fraiseql"
