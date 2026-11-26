@@ -189,9 +189,9 @@ impl DenoRuntime {
     /// the `Deno.core.ops.fraiseql_*` I/O ops fail loud — this threads a live
     /// [`DynHostContext`] into the V8 op-state, giving the guest outbound HTTP,
     /// GraphQL `query`, storage, `env_var`, and `auth_context` at parity with the
-    /// WASM [`invoke_with_context`](crate::runtime::wasm::WasmRuntime::invoke_with_context)
-    /// path. The after:mutation dispatcher uses this so side-effecting `TypeScript`
-    /// functions can reach the network.
+    /// WASM runtime's `WasmRuntime::invoke_with_context` path (named, not linked: that
+    /// runtime is built only with `runtime-wasm`). The after:mutation dispatcher uses this
+    /// so side-effecting `TypeScript` functions can reach the network.
     ///
     /// # Errors
     ///

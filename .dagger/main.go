@@ -481,6 +481,8 @@ func (m *FraiseqlCi) Rustdoc(
 // that gates one of its modules. Neither workspace pass sees a link from one optional
 // subsystem to another: `--all-features` resolves it and the default build compiles
 // neither end (#2089: `--features functions-runtime` alone failed on three links).
+// It also documents fraiseql-functions once per runtime feature alone, with no default
+// features: a Deno doc linking into the WASM runtime resolves only when both are built.
 //
 // The doctests per feature set are not here: they build every dependency graph again
 // with codegen, which took 26 minutes cold, and run in `Doctests`, a leg of their own.

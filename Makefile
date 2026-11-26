@@ -360,7 +360,7 @@ rustdoc:
 	cargo doc --workspace --all-features --no-deps
 
 # Rustdoc with default features (the links `--all-features` resolves), then
-# fraiseql-server once per module-gating feature.
+# fraiseql-server once per module-gating feature and fraiseql-functions once per runtime.
 .PHONY: rustdoc-default
 rustdoc-default: export RUSTDOCFLAGS := -D warnings
 rustdoc-default:
