@@ -21,7 +21,7 @@ static DEFAULT_ACRONYMS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
 /// The effective acronym set (defaults ∪ project config), installed once at
 /// startup by [`set_runtime_acronyms`]. When unset (tests, library use),
 /// [`to_snake_case`] falls back to the built-in defaults.
-static RUNTIME_ACRONYMS: OnceLock<HashSet<String>> = OnceLock::new();
+static RUNTIME_ACRONYMS: OnceLock<Acronyms> = OnceLock::new();
 
 /// Install the project's acronym additions (from `[naming] acronyms`) on
 /// top of the built-in defaults.
@@ -29,14 +29,7 @@ static RUNTIME_ACRONYMS: OnceLock<HashSet<String>> = OnceLock::new();
 /// Idempotent — only the first call wins, so the server (at boot) and the CLI (at
 /// compile) each call it once. Terms are trimmed and lowercased; empties ignored.
 pub fn set_runtime_acronyms(extra: &[String]) {
-    let mut set: HashSet<String> = DEFAULT_ACRONYMS.iter().map(|s| (*s).to_string()).collect();
-    for term in extra {
-        let term = term.trim().to_ascii_lowercase();
-        if !term.is_empty() {
-            set.insert(term);
-        }
-    }
-    let _ = RUNTIME_ACRONYMS.set(set);
+    let _ = RUNTIME_ACRONYMS.set(Acronyms::with_extra(extra));
 }
 
 /// Whether `candidate` (a lowercase `<word><digit>` token) is a registered acronym
@@ -49,15 +42,20 @@ fn is_registered_acronym(candidate: &str) -> bool {
 }
 
 /// Does the lowercase word at `word_start` plus the digit run at `digit_start`
-/// form a registered acronym (`s3`, `ipv4`, `oauth2`)? Used to suppress the
-/// letter→digit split so the acronym stays whole.
-fn acronym_spans_digit(chars: &[char], word_start: usize, digit_start: usize) -> bool {
+/// form an acronym `is_acronym` accepts (`s3`, `ipv4`, `oauth2`)? Used to suppress
+/// the letter→digit split so the acronym stays whole.
+fn acronym_spans_digit(
+    chars: &[char],
+    word_start: usize,
+    digit_start: usize,
+    is_acronym: impl Fn(&str) -> bool,
+) -> bool {
     let mut end = digit_start;
     while end < chars.len() && chars[end].is_ascii_digit() {
         end += 1;
     }
     let candidate: String = chars[word_start..end].iter().collect::<String>().to_ascii_lowercase();
-    is_registered_acronym(&candidate)
+    is_acronym(&candidate)
 }
 
 /// Convert a camelCase / `PascalCase` field name to `snake_case` for JSONB key
@@ -106,6 +104,11 @@ fn acronym_spans_digit(chars: &[char], word_start: usize, digit_start: usize) ->
 /// ```
 #[must_use]
 pub fn to_snake_case(name: &str) -> String {
+    snake_case_by(name, is_registered_acronym)
+}
+
+/// The `snake_case` rule of [`to_snake_case`], with the acronym set as a parameter.
+fn snake_case_by(name: &str, is_acronym: impl Fn(&str) -> bool + Copy) -> String {
     let chars: Vec<char> = name.chars().collect();
     let mut result = String::with_capacity(name.len() + 5);
     let mut prev_was_upper = false;
@@ -139,7 +142,7 @@ pub fn to_snake_case(name: &str) -> String {
             // A digit after a lowercase letter normally opens a new word
             // ("phone1" → "phone_1"). Suppress that split when the lowercase word
             // plus this digit run is a registered acronym ("s3", "ipv4", "oauth2").
-            if prev_was_lower && !acronym_spans_digit(&chars, word_start, i) {
+            if prev_was_lower && !acronym_spans_digit(&chars, word_start, i, is_acronym) {
                 result.push('_');
             }
             result.push(c);
@@ -195,6 +198,10 @@ pub fn validate_graphql_identifier(field: &str, context: &str) -> fraiseql_error
         })
     }
 }
+
+mod acronyms;
+
+pub use acronyms::{Acronyms, to_snake_case_with};
 
 #[cfg(test)]
 mod tests;
