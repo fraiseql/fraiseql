@@ -2,9 +2,10 @@
 //!
 //! A function's module is `<module_dir>/<name>.<ext>` ([`RuntimeType::resolve_module_path`]).
 //! A WASM module is read as bytes. A Deno module is read as text, its shared modules are
-//! walked and read ([`graph::collect`]), and its integrity hash covers the function and
-//! every one of them ([`function_hash`]). Both callers load through
-//! [`load_function_module`], so the harness runs exactly what the server would.
+//! walked and read (`graph::collect`, built with `runtime-deno`), and its integrity hash covers
+//! the function and every one of them
+//! ([`hash::function_hash`](crate::modules::hash::function_hash)). Both callers load
+//! through [`load_function_module`], so the harness runs exactly what the server would.
 
 use std::path::PathBuf;
 
