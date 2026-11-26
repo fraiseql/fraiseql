@@ -40,8 +40,10 @@ fn test_empty_schema() {
     let graph = SchemaDependencyGraph::build(&schema);
 
     assert_eq!(graph.type_count(), 0);
-    assert!(graph.find_cycles().is_empty());
-    assert!(graph.find_unused().is_empty());
+    let cycles = graph.find_cycles();
+    assert!(cycles.is_empty(), "{cycles:?}");
+    let unused = graph.find_unused();
+    assert!(unused.is_empty(), "{unused:?}");
 }
 
 #[test]
@@ -163,7 +165,7 @@ fn test_no_cycles() {
     let graph = SchemaDependencyGraph::build(&schema);
     let cycles = graph.find_cycles();
 
-    assert!(cycles.is_empty());
+    assert!(cycles.is_empty(), "{cycles:?}");
 }
 
 #[test]
@@ -273,7 +275,7 @@ fn test_no_unused_types() {
     let graph = SchemaDependencyGraph::build(&schema);
     let unused = graph.find_unused();
 
-    assert!(unused.is_empty());
+    assert!(unused.is_empty(), "{unused:?}");
 }
 
 #[test]

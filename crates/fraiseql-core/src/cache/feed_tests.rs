@@ -56,7 +56,8 @@ fn a_view_named_twice_is_sent_once() {
 
 #[test]
 fn an_empty_batch_sends_nothing() {
-    assert!(encode("a", []).is_empty());
+    let encoded = encode("a", []);
+    assert!(encoded.is_empty(), "{encoded:?}");
 }
 
 #[test]

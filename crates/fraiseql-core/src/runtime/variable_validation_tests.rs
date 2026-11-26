@@ -116,7 +116,8 @@ fn references_are_reported_in_document_order_without_duplicates() {
 
 #[test]
 fn a_query_with_no_variables_references_nothing() {
-    assert!(references("query Q { orders { reference } }").is_empty());
+    let referenced = references("query Q { orders { reference } }");
+    assert!(referenced.is_empty(), "{referenced:?}");
 }
 
 /// A fragment that is *defined* but never spread from the executed operation

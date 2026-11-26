@@ -1091,7 +1091,8 @@ mod audience_tests {
     fn test_audience_none() {
         let aud = Audience::None;
         assert!(!aud.contains("test"));
-        assert!(aud.to_vec().is_empty());
+        let audiences = aud.to_vec();
+        assert!(audiences.is_empty(), "{audiences:?}");
     }
 
     #[test]

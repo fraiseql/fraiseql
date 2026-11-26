@@ -1697,7 +1697,8 @@ async fn an_announced_eviction_applied_here_is_not_announced_again() {
     let (adapter, mut queue) = announcing_adapter();
     adapter.evictor().apply(&Eviction::Views(vec!["v_user".to_string()])).unwrap();
     adapter.evictor().apply(&Eviction::Everything).unwrap();
-    assert!(queued(&mut queue).await.is_empty());
+    let still_queued = queued(&mut queue).await;
+    assert!(still_queued.is_empty(), "{still_queued:?}");
 }
 
 #[tokio::test]
@@ -1720,7 +1721,8 @@ async fn a_disabled_cache_announces_nothing() {
         .await
         .unwrap();
     DatabaseAdapter::invalidate_by_entity(&adapter, "User", "u1").await.unwrap();
-    assert!(queued(&mut queue).await.is_empty());
+    let still_queued = queued(&mut queue).await;
+    assert!(still_queued.is_empty(), "{still_queued:?}");
 }
 
 // ── #1603: a write reports the collections it changed while composed reads are tagged ──

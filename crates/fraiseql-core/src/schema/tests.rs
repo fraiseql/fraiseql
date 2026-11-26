@@ -8,10 +8,10 @@ use super::*;
 #[test]
 fn test_empty_schema_creation() {
     let schema = CompiledSchema::new();
-    assert!(schema.types.is_empty());
-    assert!(schema.queries.is_empty());
-    assert!(schema.mutations.is_empty());
-    assert!(schema.subscriptions.is_empty());
+    assert!(schema.types.is_empty(), "{:?}", schema.types);
+    assert!(schema.queries.is_empty(), "{:?}", schema.queries);
+    assert!(schema.mutations.is_empty(), "{:?}", schema.mutations);
+    assert!(schema.subscriptions.is_empty(), "{:?}", schema.subscriptions);
     assert_eq!(schema.operation_count(), 0);
 }
 
@@ -19,7 +19,7 @@ fn test_empty_schema_creation() {
 fn test_schema_from_json_empty() {
     let json = r#"{"types": [], "queries": [], "mutations": [], "subscriptions": []}"#;
     let schema = CompiledSchema::from_json(json, false).unwrap();
-    assert!(schema.types.is_empty());
+    assert!(schema.types.is_empty(), "{:?}", schema.types);
 }
 
 #[test]
@@ -27,8 +27,8 @@ fn test_schema_from_json_with_defaults() {
     // Minimal JSON - all fields should default
     let json = r"{}";
     let schema = CompiledSchema::from_json(json, false).unwrap();
-    assert!(schema.types.is_empty());
-    assert!(schema.queries.is_empty());
+    assert!(schema.types.is_empty(), "{:?}", schema.types);
+    assert!(schema.queries.is_empty(), "{:?}", schema.queries);
 }
 
 #[test]
@@ -96,7 +96,7 @@ fn test_schema_from_json_full() {
     assert!(!user_type.is_error);
     assert!(!user_type.relay);
     assert!(user_type.requires_role.is_none());
-    assert!(user_type.implements.is_empty());
+    assert!(user_type.implements.is_empty(), "{:?}", user_type.implements);
 
     // Check queries
     assert_eq!(schema.queries.len(), 2);
@@ -112,7 +112,7 @@ fn test_schema_from_json_full() {
     assert_eq!(users_query.relay_cursor_type, CursorType::Int64);
     assert!(users_query.inject_params.is_empty());
     assert!(users_query.cache_ttl_seconds.is_none());
-    assert!(users_query.additional_views.is_empty());
+    assert!(users_query.additional_views.is_empty(), "{:?}", users_query.additional_views);
     assert!(users_query.requires_role.is_none());
     assert!(users_query.deprecation.is_none());
 
@@ -132,8 +132,12 @@ fn test_schema_from_json_full() {
         MutationOperation::Insert { table } if table == "users"
     ));
     assert!(create_user.inject_params.is_empty());
-    assert!(create_user.invalidates_fact_tables.is_empty());
-    assert!(create_user.invalidates_views.is_empty());
+    assert!(
+        create_user.invalidates_fact_tables.is_empty(),
+        "{:?}",
+        create_user.invalidates_fact_tables
+    );
+    assert!(create_user.invalidates_views.is_empty(), "{:?}", create_user.invalidates_views);
     assert!(create_user.deprecation.is_none());
 
     // Check subscriptions
@@ -481,7 +485,7 @@ fn test_python_generated_json_compat() {
     assert!(matches!(create_user.operation, MutationOperation::Custom));
 
     // Verify subscriptions (empty)
-    assert!(schema.subscriptions.is_empty());
+    assert!(schema.subscriptions.is_empty(), "{:?}", schema.subscriptions);
 }
 
 // ============================================================================
@@ -1509,7 +1513,7 @@ fn test_federation_config_default() {
     let config = FederationConfig::default();
     assert!(!config.enabled);
     assert_eq!(config.version, None);
-    assert!(config.entities.is_empty());
+    assert!(config.entities.is_empty(), "{:?}", config.entities);
     assert!(config.circuit_breaker.is_none());
 }
 
@@ -1520,7 +1524,7 @@ fn test_circuit_breaker_config_default() {
     assert_eq!(config.failure_threshold, 5);
     assert_eq!(config.recovery_timeout_secs, 30);
     assert_eq!(config.success_threshold, 2);
-    assert!(config.per_entity.is_empty());
+    assert!(config.per_entity.is_empty(), "{:?}", config.per_entity);
 }
 
 #[test]

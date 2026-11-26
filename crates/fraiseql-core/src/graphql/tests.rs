@@ -572,7 +572,7 @@ mod types_tests {
         assert_eq!(query.operation_type, "query");
         assert_eq!(query.root_field, "");
         assert!(query.operation_name.is_none());
-        assert!(query.selections.is_empty());
+        assert!(query.selections.is_empty(), "{:?}", query.selections);
         assert!(query.variables.is_empty());
         assert!(query.fragments.is_empty());
     }

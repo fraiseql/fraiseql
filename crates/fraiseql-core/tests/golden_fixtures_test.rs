@@ -56,7 +56,7 @@ fn golden_01_types_all_fields() {
     assert_eq!(user.description.as_deref(), Some("A registered user in the system"));
     assert!(!user.is_error);
     assert!(!user.relay);
-    assert!(user.implements.is_empty());
+    assert!(user.implements.is_empty(), "{:?}", user.implements);
     assert!(user.requires_role.is_none());
 
     let hint = user.sql_projection_hint.as_ref().expect("sql_projection_hint must be present");
@@ -110,7 +110,7 @@ fn golden_01_queries_all_fields() {
     assert_eq!(users_q.relay_cursor_type, CursorType::Int64);
     assert!(users_q.inject_params.is_empty());
     assert!(users_q.cache_ttl_seconds.is_none());
-    assert!(users_q.additional_views.is_empty());
+    assert!(users_q.additional_views.is_empty(), "{:?}", users_q.additional_views);
     assert!(users_q.requires_role.is_none());
     assert!(users_q.deprecation.is_none());
     assert_eq!(users_q.arguments.len(), 2);
@@ -141,8 +141,12 @@ fn golden_01_mutations_all_operations() {
     assert_eq!(create.description.as_deref(), Some("Create a new user account"));
     assert_eq!(create.arguments.len(), 2);
     assert!(create.inject_params.is_empty());
-    assert!(create.invalidates_fact_tables.is_empty());
-    assert!(create.invalidates_views.is_empty());
+    assert!(
+        create.invalidates_fact_tables.is_empty(),
+        "{:?}",
+        create.invalidates_fact_tables
+    );
+    assert!(create.invalidates_views.is_empty(), "{:?}", create.invalidates_views);
     assert!(create.deprecation.is_none());
     match &create.operation {
         MutationOperation::Insert { table } => assert_eq!(table, "users"),
@@ -224,9 +228,9 @@ fn golden_02_subscriptions() {
     assert_eq!(order_created.return_type, "Order");
     assert_eq!(order_created.description.as_deref(), Some("Fires when a new order is placed"));
     assert_eq!(order_created.topic.as_deref(), Some("orders.created"));
-    assert!(!order_created.fields.is_empty());
+    assert!(!order_created.fields.is_empty(), "expected fields, found none");
     assert!(order_created.fields.contains(&"id".to_string()));
-    assert!(!order_created.filter_fields.is_empty());
+    assert!(!order_created.filter_fields.is_empty(), "expected filter fields, found none");
     assert!(order_created.filter_fields.contains(&"userId".to_string()));
     assert!(order_created.deprecation.is_none());
     // `userId` and `status` — one per filter key. A filter reference that names no

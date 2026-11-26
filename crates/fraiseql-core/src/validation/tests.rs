@@ -1803,10 +1803,22 @@ mod inheritance_tests {
 
     #[test]
     fn test_inheritance_mode_description() {
-        assert!(!InheritanceMode::Override.description().is_empty());
-        assert!(!InheritanceMode::Merge.description().is_empty());
-        assert!(!InheritanceMode::ChildFirst.description().is_empty());
-        assert!(!InheritanceMode::ParentFirst.description().is_empty());
+        assert!(
+            !InheritanceMode::Override.description().is_empty(),
+            "expected a description for Override"
+        );
+        assert!(
+            !InheritanceMode::Merge.description().is_empty(),
+            "expected a description for Merge"
+        );
+        assert!(
+            !InheritanceMode::ChildFirst.description().is_empty(),
+            "expected a description for ChildFirst"
+        );
+        assert!(
+            !InheritanceMode::ParentFirst.description().is_empty(),
+            "expected a description for ParentFirst"
+        );
     }
 
     #[test]
@@ -1876,7 +1888,7 @@ mod inheritance_tests {
         let child: Vec<ValidationRule> = vec![];
 
         let result = inherit_validation_rules(&parent, &child, InheritanceMode::Merge);
-        assert!(result.is_empty());
+        assert!(result.is_empty(), "{result:?}");
     }
 }
 

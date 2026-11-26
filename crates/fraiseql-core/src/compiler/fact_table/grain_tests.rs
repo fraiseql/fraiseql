@@ -184,8 +184,10 @@ fn table(grain: Option<FactGrain>, filters: &[(&str, SqlType)]) -> FactTableMeta
 #[test]
 fn a_grain_on_a_declared_date_column_loads() {
     let month = Some(grain(GrainBucket::Month));
-    assert!(table(month, &[("day", SqlType::Date)]).grain_violations().is_empty());
-    assert!(table(None, &[]).grain_violations().is_empty());
+    let violations = table(month, &[("day", SqlType::Date)]).grain_violations();
+    assert!(violations.is_empty(), "{violations:?}");
+    let violations = table(None, &[]).grain_violations();
+    assert!(violations.is_empty(), "{violations:?}");
 }
 
 #[test]

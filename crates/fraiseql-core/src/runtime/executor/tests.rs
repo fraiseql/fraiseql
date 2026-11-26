@@ -1817,8 +1817,8 @@ mod planning {
 
         let plan = executor.plan_query("{ __schema { types { name } } }", None).unwrap();
         assert_eq!(plan.query_type, "introspection");
-        assert!(plan.sql.is_empty());
-        assert!(plan.views_accessed.is_empty());
+        assert!(plan.sql.is_empty(), "{:?}", plan.sql);
+        assert!(plan.views_accessed.is_empty(), "{:?}", plan.views_accessed);
     }
 
     #[test]

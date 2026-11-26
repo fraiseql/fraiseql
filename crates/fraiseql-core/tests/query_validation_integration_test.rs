@@ -46,7 +46,7 @@ fn parse_query_rejects_malformed_input() {
 fn parse_query_extracts_selections() {
     let parsed = parse_query("query { users { id name email } }").unwrap();
     // The parser should capture field selections under the root field
-    assert!(!parsed.selections.is_empty());
+    assert!(!parsed.selections.is_empty(), "expected selections, found none");
 }
 
 #[test]
@@ -64,9 +64,9 @@ fn parse_query_extracts_variables() {
 #[test]
 fn compiled_schema_new_is_empty() {
     let schema = TestSchemaBuilder::new().build();
-    assert!(schema.types.is_empty());
-    assert!(schema.queries.is_empty());
-    assert!(schema.mutations.is_empty());
+    assert!(schema.types.is_empty(), "{:?}", schema.types);
+    assert!(schema.queries.is_empty(), "{:?}", schema.queries);
+    assert!(schema.mutations.is_empty(), "{:?}", schema.mutations);
 }
 
 // Migration 8: compiled_schema_from_json_roundtrip

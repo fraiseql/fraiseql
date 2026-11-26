@@ -319,7 +319,7 @@ fn test_external_directive_on_extended_fields() {
     };
 
     assert!(fed_type.is_extends);
-    assert!(!fed_type.external_fields.is_empty());
+    assert!(!fed_type.external_fields.is_empty(), "expected external fields, found none");
 }
 
 #[test]

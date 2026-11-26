@@ -231,7 +231,8 @@ fn a_valid_nested_key_is_accepted() {
 
 #[test]
 fn an_interface_entity_is_checked_against_the_interface_fields() {
-    assert!(problems(r#"{"name":"Node","key_fields":["id"]}"#).is_empty());
+    let key_problems = problems(r#"{"name":"Node","key_fields":["id"]}"#);
+    assert!(key_problems.is_empty(), "{key_problems:?}");
     assert_eq!(
         problems(r#"{"name":"Node","key_fields":["uuid"]}"#),
         vec![FederationKeyProblem::MissingField {
@@ -256,7 +257,8 @@ fn a_schema_without_federation_has_no_key_problems() {
     let schema: CompiledSchema =
         serde_json::from_str(r#"{"types":[],"queries":[],"mutations":[],"subscriptions":[]}"#)
             .unwrap();
-    assert!(schema.federation_key_problems().is_empty());
+    let key_problems = schema.federation_key_problems();
+    assert!(key_problems.is_empty(), "{key_problems:?}");
 }
 
 // ── the load path: every entry point refuses the artifact ────────────────────────────

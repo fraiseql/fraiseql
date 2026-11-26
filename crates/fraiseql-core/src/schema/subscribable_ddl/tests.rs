@@ -29,8 +29,10 @@ fn one_pre_image(entity_type: &str, tables: &[&str]) -> SubscribableEntity {
 
 #[test]
 fn empty_schema_yields_empty_ddl() {
-    assert!(generate_capture_trigger_ddl(&CompiledSchema::default()).is_empty());
-    assert!(generate_capture_trigger_ddl(&schema_with(vec![])).is_empty());
+    let ddl = generate_capture_trigger_ddl(&CompiledSchema::default());
+    assert!(ddl.is_empty(), "{ddl:?}");
+    let capture_trigger_ddl = generate_capture_trigger_ddl(&schema_with(vec![]));
+    assert!(capture_trigger_ddl.is_empty(), "{capture_trigger_ddl:?}");
 }
 
 #[test]
@@ -306,6 +308,8 @@ fn a_document_column_that_is_no_identifier_is_refused_by_name() {
 
 #[test]
 fn a_schema_whose_capture_entries_name_declared_tables_has_no_violation() {
-    assert!(document_table_schema().capture_violations().is_empty());
-    assert!(CompiledSchema::default().capture_violations().is_empty());
+    let violations = document_table_schema().capture_violations();
+    assert!(violations.is_empty(), "{violations:?}");
+    let violations = CompiledSchema::default().capture_violations();
+    assert!(violations.is_empty(), "{violations:?}");
 }

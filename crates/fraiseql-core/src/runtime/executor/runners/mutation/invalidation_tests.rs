@@ -219,6 +219,6 @@ fn a_mutation_naming_no_resolvable_view_yields_only_the_entity_leg() {
     let m = mutation_named("doThing", "OpaquePayload");
 
     let plan = plan_invalidation(&m, &success(Some("Unknown"), Some("x-1")), &schema);
-    assert!(plan.views.is_empty());
+    assert!(plan.views.is_empty(), "{:?}", plan.views);
     assert_eq!(plan.entity, Some(("Unknown".to_string(), "x-1".to_string())));
 }

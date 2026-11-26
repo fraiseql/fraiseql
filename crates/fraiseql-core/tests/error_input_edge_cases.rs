@@ -172,7 +172,7 @@ fn test_where_clause_with_deeply_nested_and_or() {
 
     // Serialization succeeds even with deep nesting
     let serialized = serde_json::to_string(&clause).unwrap();
-    assert!(!serialized.is_empty());
+    assert!(!serialized.is_empty(), "expected a non-empty serialisation");
 
     // Deserialization hits serde_json's recursion limit (default 128)
     // at 100 levels of nesting. This is expected behavior — serde_json

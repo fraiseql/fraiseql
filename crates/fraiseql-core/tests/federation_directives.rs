@@ -220,7 +220,7 @@ fn test_extends_with_external_fields() {
     };
 
     assert!(fed_type.is_extends);
-    assert!(!fed_type.external_fields.is_empty());
+    assert!(!fed_type.external_fields.is_empty(), "expected external fields, found none");
     assert_eq!(fed_type.external_fields[0], "customerId");
 }
 
@@ -463,7 +463,7 @@ fn test_owned_type_cannot_have_external_fields() {
     };
 
     assert!(!fed_type.is_extends);
-    assert!(fed_type.external_fields.is_empty());
+    assert!(fed_type.external_fields.is_empty(), "{:?}", fed_type.external_fields);
 }
 
 // ============================================================================

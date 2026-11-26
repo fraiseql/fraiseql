@@ -552,7 +552,7 @@ mod aggregate_parser_tests {
                 .unwrap();
 
         // No GROUP BY at all — the mapped dimension should NOT appear
-        assert!(request.group_by.is_empty());
+        assert!(request.group_by.is_empty(), "{:?}", request.group_by);
     }
 }
 
@@ -1164,7 +1164,7 @@ mod field_filter_tests {
 
         let access = result.expect("should succeed");
         assert_eq!(access.allowed(), vec!["id", "name"]);
-        assert!(access.masked.is_empty());
+        assert!(access.masked.is_empty(), "{:?}", access.masked);
     }
 
     #[test]
@@ -1229,7 +1229,7 @@ mod field_filter_tests {
 
         let access = result.expect("admin has all scopes");
         assert_eq!(access.allowed(), vec!["id", "email", "salary"]);
-        assert!(access.masked.is_empty());
+        assert!(access.masked.is_empty(), "{:?}", access.masked);
     }
 
     #[test]
@@ -1275,7 +1275,7 @@ mod field_filter_tests {
 
         let access = result.expect("should succeed — salary not requested");
         assert_eq!(access.allowed(), vec!["id"]);
-        assert!(access.masked.is_empty());
+        assert!(access.masked.is_empty(), "{:?}", access.masked);
     }
 }
 
@@ -2028,7 +2028,7 @@ mod matcher_tests {
     fn test_suggest_similar_no_match() {
         // "zzz" is far from everything — no suggestion expected.
         let suggestions = suggest_similar("zzz", &["users", "posts", "comments"]);
-        assert!(suggestions.is_empty());
+        assert!(suggestions.is_empty(), "{suggestions:?}");
     }
 
     #[test]
@@ -2394,7 +2394,7 @@ mod mutation_result_tests {
         assert!(parsed.cascade.is_null());
         assert!(parsed.error_detail.is_null());
         assert!(parsed.metadata.is_null());
-        assert!(parsed.updated_fields.is_empty());
+        assert!(parsed.updated_fields.is_empty(), "{:?}", parsed.updated_fields);
         assert!(parsed.entity_id.is_none());
     }
 
@@ -2769,7 +2769,7 @@ mod planner_tests {
         let query_match = test_query_match();
 
         let plan = planner.plan(&query_match).unwrap();
-        assert!(!plan.sql.is_empty());
+        assert!(!plan.sql.is_empty(), "expected non-empty SQL");
         assert_eq!(plan.projection_fields.len(), 2);
         assert!(!plan.is_cached);
         assert_eq!(plan.estimated_cost, 120);

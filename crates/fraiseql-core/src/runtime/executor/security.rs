@@ -411,7 +411,7 @@ mod session_variable_tests {
             inject_started_at: false,
         };
         let vars = resolve_session_variables(&config, &ctx).unwrap();
-        assert!(vars.is_empty());
+        assert!(vars.is_empty(), "{vars:?}");
         assert!(!vars.iter().any(|(k, _)| k == "fraiseql.started_at"));
     }
 
@@ -454,7 +454,8 @@ mod session_variable_tests {
             }],
             inject_started_at: false,
         };
-        assert!(resolve_session_variables(&config, &ctx).unwrap().is_empty());
+        let session_variables = resolve_session_variables(&config, &ctx).unwrap();
+        assert!(session_variables.is_empty(), "{session_variables:?}");
     }
 
     #[test]

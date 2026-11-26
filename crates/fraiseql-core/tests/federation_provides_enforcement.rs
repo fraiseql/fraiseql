@@ -172,7 +172,7 @@ fn test_provides_no_directives() {
 
     let validation = validate_provides_contract(&metadata, "User", "name", &result);
     assert!(validation.success);
-    assert!(validation.warnings.is_empty());
+    assert!(validation.warnings.is_empty(), "{:?}", validation.warnings);
 }
 
 #[test]
@@ -248,7 +248,7 @@ fn test_provides_warning_context() {
     let result = json!({"id": "456"});
 
     let validation = validate_provides_contract(&metadata, "Order", "shippingEstimate", &result);
-    assert!(!validation.warnings.is_empty());
+    assert!(!validation.warnings.is_empty(), "expected warnings, found none");
 
     let warning = &validation.warnings[0];
     assert!(

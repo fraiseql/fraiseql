@@ -58,8 +58,8 @@ fn test_mutations_and_queries_are_separate_lists() {
     // Both lists should exist and be independent - they're different collection types
     // Both should be accessible without error (compile-time proof they're distinct fields)
     // This verifies they are separate lists, not mixed together
-    assert!(schema.mutations.is_empty());
-    assert!(schema.queries.is_empty());
+    assert!(schema.mutations.is_empty(), "{:?}", schema.mutations);
+    assert!(schema.queries.is_empty(), "{:?}", schema.queries);
 }
 
 #[test]

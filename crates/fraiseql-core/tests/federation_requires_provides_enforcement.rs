@@ -245,7 +245,7 @@ fn test_requires_error_message_includes_missing_field() {
         .collect();
 
     // Error message should include the missing field
-    assert!(!missing.is_empty());
+    assert!(!missing.is_empty(), "expected a missing @requires field, found none");
     assert_eq!(missing[0], "weight");
 }
 
@@ -549,8 +549,8 @@ fn test_requires_and_provides_on_same_field() {
     user.set_field_directives("fullName".to_string(), directives);
 
     let field_directives = user.get_field_directives("fullName").unwrap();
-    assert!(!field_directives.requires.is_empty());
-    assert!(!field_directives.provides.is_empty());
+    assert!(!field_directives.requires.is_empty(), "expected @requires fields, found none");
+    assert!(!field_directives.provides.is_empty(), "expected @provides fields, found none");
 }
 
 #[test]
@@ -571,7 +571,7 @@ fn test_requires_with_shareable_field() {
     user.set_field_directives("publicEmail".to_string(), directives);
 
     let field_directives = user.get_field_directives("publicEmail").unwrap();
-    assert!(!field_directives.requires.is_empty());
+    assert!(!field_directives.requires.is_empty(), "expected @requires fields, found none");
     assert!(field_directives.shareable);
 }
 

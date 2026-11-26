@@ -53,7 +53,7 @@ fn a_counted_truncation_is_verified_or_refused() {
         settle_short_nearest(ShortResultPolicy::Signal, "docs", 10, 10, None)
             .expect("a full page is served");
     });
-    assert!(notices.is_empty());
+    assert!(notices.is_empty(), "{notices:?}");
 }
 
 /// Run `f` inside a notice scope on a fresh current-thread runtime.

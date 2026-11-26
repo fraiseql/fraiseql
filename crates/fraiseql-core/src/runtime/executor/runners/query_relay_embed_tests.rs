@@ -491,7 +491,8 @@ fn a_page_with_embeds_never_scores_below_the_flat_page() {
     }
     // The embedded levels the tree is built from are the plan's.
     let none: &[PlannedEmbed] = &[];
-    assert!(relay_page_projection(2, Some(2), none).nested.is_empty());
+    let projection = relay_page_projection(2, Some(2), none).nested;
+    assert!(projection.is_empty(), "{projection:?}");
 }
 
 /// A page whose embed puts it over `per_request_max` is refused before the statement is

@@ -111,7 +111,8 @@ fn operations_without_sql_source_are_skipped() {
         vec![query("federated", None)],
         vec![mutation("notify", None, MutationOperation::Custom)],
     );
-    assert!(sql_source_probes(&s).is_empty());
+    let probes = sql_source_probes(&s);
+    assert!(probes.is_empty(), "{probes:?}");
 }
 
 #[test]

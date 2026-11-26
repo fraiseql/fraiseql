@@ -68,7 +68,7 @@ mod audit_tests {
         };
 
         let hash = entry.calculate_hash();
-        assert!(!hash.is_empty());
+        assert!(!hash.is_empty(), "expected a non-empty hash");
         assert_eq!(hash.len(), 64); // SHA256 hex is 64 chars
     }
 
@@ -2584,7 +2584,7 @@ mod actor_context_tests {
     fn from_user_roles_empty_without_role_claims() {
         let ctx =
             SecurityContext::from_user(&user("u", &["read:user"], HashMap::new()), "r".to_string());
-        assert!(ctx.roles.is_empty());
+        assert!(ctx.roles.is_empty(), "{:?}", ctx.roles);
     }
 }
 

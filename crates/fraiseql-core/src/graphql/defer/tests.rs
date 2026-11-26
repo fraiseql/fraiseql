@@ -62,7 +62,7 @@ fn a_document_without_defer_is_untouched() {
     assert!(!contains_defer(&selections, &no_vars()));
     let payloads = split(&selections, &mut data, &no_vars());
 
-    assert!(payloads.is_empty());
+    assert!(payloads.is_empty(), "{payloads:?}");
     assert_eq!(data, json!({"user": {"id": 1, "email": "a@b.c"}}));
 }
 
@@ -187,7 +187,7 @@ fn defer_if_false_is_not_a_defer() {
     );
     let payloads = split(&selections, &mut data, &no_vars());
 
-    assert!(payloads.is_empty());
+    assert!(payloads.is_empty(), "{payloads:?}");
     assert_eq!(data, json!({"user": {"email": "a@b.c"}}));
 }
 

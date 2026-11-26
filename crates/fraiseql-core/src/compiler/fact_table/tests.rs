@@ -528,7 +528,7 @@ fn test_extract_paths_empty_object() {
     let sample = serde_json::json!({});
     let paths =
         FactTableDetector::extract_dimension_paths(&sample, "dimensions", DatabaseType::PostgreSQL);
-    assert!(paths.is_empty());
+    assert!(paths.is_empty(), "{paths:?}");
 }
 
 #[test]
@@ -537,13 +537,13 @@ fn test_extract_paths_non_object() {
     let sample = serde_json::json!([1, 2, 3]);
     let paths =
         FactTableDetector::extract_dimension_paths(&sample, "dimensions", DatabaseType::PostgreSQL);
-    assert!(paths.is_empty());
+    assert!(paths.is_empty(), "{paths:?}");
 
     // Scalar at root level
     let sample = serde_json::json!("just a string");
     let paths =
         FactTableDetector::extract_dimension_paths(&sample, "dimensions", DatabaseType::PostgreSQL);
-    assert!(paths.is_empty());
+    assert!(paths.is_empty(), "{paths:?}");
 }
 
 // ==================== Explicit Fact Table Declaration Tests ====================

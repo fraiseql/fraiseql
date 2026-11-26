@@ -415,13 +415,13 @@ fn make_mutation(name: &str, return_type: &str) -> MutationDefinition {
 #[test]
 fn new_returns_empty_schema() {
     let schema = CompiledSchema::new();
-    assert!(schema.types.is_empty());
-    assert!(schema.queries.is_empty());
-    assert!(schema.mutations.is_empty());
-    assert!(schema.subscriptions.is_empty());
-    assert!(schema.enums.is_empty());
-    assert!(schema.interfaces.is_empty());
-    assert!(schema.unions.is_empty());
+    assert!(schema.types.is_empty(), "{:?}", schema.types);
+    assert!(schema.queries.is_empty(), "{:?}", schema.queries);
+    assert!(schema.mutations.is_empty(), "{:?}", schema.mutations);
+    assert!(schema.subscriptions.is_empty(), "{:?}", schema.subscriptions);
+    assert!(schema.enums.is_empty(), "{:?}", schema.enums);
+    assert!(schema.interfaces.is_empty(), "{:?}", schema.interfaces);
+    assert!(schema.unions.is_empty(), "{:?}", schema.unions);
 }
 
 #[test]
@@ -438,8 +438,8 @@ fn from_json_empty_array_fields() {
 fn from_json_minimal_empty_object() {
     // All fields have #[serde(default)] — an empty JSON object is valid
     let schema = CompiledSchema::from_json("{}", false).unwrap();
-    assert!(schema.types.is_empty());
-    assert!(schema.queries.is_empty());
+    assert!(schema.types.is_empty(), "{:?}", schema.types);
+    assert!(schema.queries.is_empty(), "{:?}", schema.queries);
 }
 
 #[test]
@@ -1097,7 +1097,8 @@ fn role_scope_type_wildcard_requires_boundary() {
 #[test]
 fn get_role_scopes_empty_for_missing_role() {
     let schema = CompiledSchema::new();
-    assert!(schema.get_role_scopes("ghost").is_empty());
+    let role_scopes = schema.get_role_scopes("ghost");
+    assert!(role_scopes.is_empty(), "{role_scopes:?}");
 }
 
 // -------------------------------------------------------------------------
@@ -1382,7 +1383,8 @@ fn graphql_arguments_synthesizes_and_dedups_auto_params() {
 
     // No auto_params → arguments unchanged.
     let plain = QueryDefinition::new("user", "User");
-    assert!(plain.graphql_arguments(&schema).is_empty());
+    let arguments = plain.graphql_arguments(&schema);
+    assert!(arguments.is_empty(), "{arguments:?}");
 
     // Explicit arg of the same name wins — no duplicate synthesized.
     let mut q = QueryDefinition::new("users", "User").returning_list();

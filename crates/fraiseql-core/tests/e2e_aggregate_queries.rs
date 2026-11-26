@@ -644,7 +644,7 @@ fn test_temporal_bucket_all_types() {
         let sql = parse_plan_generate(&query);
 
         // Verify SQL generation doesn't panic for any bucket type
-        assert!(!sql.is_empty());
+        assert!(!sql.is_empty(), "expected non-empty SQL");
         assert!(sql.contains("GROUP BY"));
     }
 }

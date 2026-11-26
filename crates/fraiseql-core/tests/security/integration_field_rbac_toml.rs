@@ -426,7 +426,7 @@ fn test_security_config_struct() {
     use fraiseql_core::schema::{RoleDefinition, SecurityConfig};
 
     let mut config = SecurityConfig::new();
-    assert!(config.role_definitions.is_empty());
+    assert!(config.role_definitions.is_empty(), "{:?}", config.role_definitions);
 
     let admin_role = RoleDefinition::new("admin".to_string(), vec!["admin:*".to_string()]);
     let user_role = RoleDefinition::new("user".to_string(), vec!["read:User.*".to_string()]);
@@ -462,7 +462,8 @@ fn test_security_config_get_role_scopes() {
     assert_eq!(scopes[1], "write:Post.*");
     assert_eq!(scopes[2], "write:Comment.*");
 
-    assert!(config.get_role_scopes("nonexistent").is_empty());
+    let role_scopes = config.get_role_scopes("nonexistent");
+    assert!(role_scopes.is_empty(), "{role_scopes:?}");
 }
 
 #[test]

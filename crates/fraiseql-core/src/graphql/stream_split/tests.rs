@@ -64,7 +64,7 @@ fn a_document_without_stream_is_untouched() {
     assert!(!contains_nested_stream(&selections, &no_vars()));
     let chunks = split(&selections, &mut data, &no_vars(), 10).unwrap();
 
-    assert!(chunks.is_empty());
+    assert!(chunks.is_empty(), "{chunks:?}");
     assert_eq!(data, before);
 }
 
@@ -137,7 +137,7 @@ fn a_list_within_the_initial_count_produces_no_chunks() {
 
     let chunks = split(&selections, &mut data, &no_vars(), 5).unwrap();
 
-    assert!(chunks.is_empty());
+    assert!(chunks.is_empty(), "{chunks:?}");
     assert_eq!(data, json!({"user": {"posts": [1, 2]}}));
 }
 
@@ -179,7 +179,7 @@ fn a_disabled_stream_is_left_in_place() {
     assert!(!contains_nested_stream(&selections, &no_vars()));
     let chunks = split(&selections, &mut data, &no_vars(), 1).unwrap();
 
-    assert!(chunks.is_empty());
+    assert!(chunks.is_empty(), "{chunks:?}");
     assert_eq!(data, json!({"user": {"posts": [1, 2, 3]}}));
 }
 
@@ -228,7 +228,7 @@ fn streaming_a_null_field_produces_no_chunks() {
 
     let chunks = split(&selections, &mut data, &no_vars(), 10).unwrap();
 
-    assert!(chunks.is_empty());
+    assert!(chunks.is_empty(), "{chunks:?}");
     assert_eq!(data, json!({"user": {"posts": null}}));
 }
 

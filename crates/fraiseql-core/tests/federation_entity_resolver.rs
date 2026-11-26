@@ -130,7 +130,7 @@ fn test_service_query_required_fields() {
 
     assert!(response["_service"]["sdl"].is_string());
     let sdl = response["_service"]["sdl"].as_str().unwrap();
-    assert!(!sdl.is_empty());
+    assert!(!sdl.is_empty(), "expected non-empty SDL");
 }
 
 #[test]

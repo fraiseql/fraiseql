@@ -23,17 +23,17 @@ fn disabled_config_injects_nothing() {
         expose: false,
         ..Default::default()
     });
-    assert!(schema.types.is_empty());
-    assert!(schema.queries.is_empty());
-    assert!(schema.mutations.is_empty());
+    assert!(schema.types.is_empty(), "{:?}", schema.types);
+    assert!(schema.queries.is_empty(), "{:?}", schema.queries);
+    assert!(schema.mutations.is_empty(), "{:?}", schema.mutations);
 }
 
 #[test]
 fn absent_config_injects_nothing() {
     let mut schema = CompiledSchema::new();
     inject_changelog(&mut schema);
-    assert!(schema.types.is_empty());
-    assert!(schema.queries.is_empty());
+    assert!(schema.types.is_empty(), "{:?}", schema.types);
+    assert!(schema.queries.is_empty(), "{:?}", schema.queries);
 }
 
 #[test]
