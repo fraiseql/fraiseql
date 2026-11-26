@@ -297,7 +297,7 @@ async fn status(
     };
     let (ctx, tenant) = match lookup_tenant(&state, &headers, ctx).await {
         Ok(pair) => pair,
-        Err(resp) => return resp,
+        Err(resp) => return *resp,
     };
 
     // The status is READ from the stored row — never inferred (P19 mode 6) —
@@ -322,7 +322,7 @@ async fn cancel(
     };
     let (ctx, tenant) = match lookup_tenant(&state, &headers, ctx).await {
         Ok(pair) => pair,
-        Err(resp) => return resp,
+        Err(resp) => return *resp,
     };
     let submitter = ctx.user_id.as_str();
     let tenant = tenant.key();
@@ -390,7 +390,8 @@ async fn lookup_tenant(
     state: &AsyncOperationsState,
     headers: &HeaderMap,
     ctx: fraiseql_core::security::SecurityContext,
-) -> std::result::Result<(fraiseql_core::security::SecurityContext, admission::Tenant), Response> {
+) -> std::result::Result<(fraiseql_core::security::SecurityContext, admission::Tenant), Box<Response>>
+{
     let identified = admission::identify(
         &state.app,
         headers,
@@ -398,12 +399,12 @@ async fn lookup_tenant(
         &AdmissionPolicy::ASYNC_OPERATION_LOOKUP,
     )
     .await
-    .map_err(|refusal| refusal_response(&refusal))?;
+    .map_err(|refusal| Box::new(refusal_response(&refusal)))?;
     let tenant = identified
         .tenant(&state.app, headers)
-        .map_err(|refusal| refusal_response(&refusal))?;
+        .map_err(|refusal| Box::new(refusal_response(&refusal)))?;
     let Some(ctx) = identified.into_security_context() else {
-        return Err(error_response(StatusCode::UNAUTHORIZED, UNAUTHENTICATED_LOOKUP));
+        return Err(Box::new(error_response(StatusCode::UNAUTHORIZED, UNAUTHENTICATED_LOOKUP)));
     };
     Ok((ctx, tenant))
 }

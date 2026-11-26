@@ -507,6 +507,7 @@ impl DynamicGrpcService {
         )
         .await
         .map(Some)
+        .map_err(|refused| *refused)
     }
 
     /// Validate a bearer token, then ask the revocation store about it, as both HTTP
@@ -572,7 +573,7 @@ impl DynamicGrpcService {
         user: &fraiseql_core::security::AuthenticatedUser,
         request_id: String,
         tenant_claim: &str,
-    ) -> std::result::Result<SecurityContext, http::Response<TonicBody>> {
+    ) -> std::result::Result<SecurityContext, Box<http::Response<TonicBody>>> {
         let ctx = fraiseql_core::security::SecurityContext::from_token_claims(
             user,
             request_id,
@@ -588,16 +589,16 @@ impl DynamicGrpcService {
             match crate::identity::resolve_request_identity(identity, Some(&mut ctx)).await {
                 crate::identity::EnrichmentOutcome::Proceed => ctx,
                 crate::identity::EnrichmentOutcome::Denied => {
-                    return Err(grpc_error_response(
+                    return Err(Box::new(grpc_error_response(
                         tonic::Code::PermissionDenied,
                         crate::identity::EnrichmentOutcome::DENIED_MESSAGE,
-                    ));
+                    )));
                 },
                 crate::identity::EnrichmentOutcome::Unavailable => {
-                    return Err(grpc_error_response(
+                    return Err(Box::new(grpc_error_response(
                         tonic::Code::Unavailable,
                         crate::identity::EnrichmentOutcome::UNAVAILABLE_MESSAGE,
-                    ));
+                    )));
                 },
             }
         };

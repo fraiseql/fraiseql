@@ -597,8 +597,8 @@ shard = "matrix"
 id = "dispatch.storage"
 file = "crates/fraiseql-server/src/server/routing/extensions.rs"
 function = "admit_storage_request"
-anchor = "let dispatch = tenant.dispatch(state).map_err(storage_refusal)?;"
-mutant = "let dispatch = ({ let _ = &tenant; crate::admission::Tenant::of(state, None, &axum::http::HeaderMap::new()).unwrap() }).dispatch(state).map_err(storage_refusal)?;"
+anchor = "let dispatch = tenant.dispatch(state).map_err(|refusal| Box::new(storage_refusal(refusal)))?;"
+mutant = "let dispatch = ({ let _ = &tenant; crate::admission::Tenant::of(state, None, &axum::http::HeaderMap::new()).unwrap() }).dispatch(state).map_err(|refusal| Box::new(storage_refusal(refusal)))?;"
 killers = ["cases_1_2_3_and_5a_refuse_on_every_transport"]
 shard = "matrix"
 

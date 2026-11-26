@@ -537,7 +537,7 @@ async fn replace_user(
             // each time, which is harmless: an inactive user cannot sign in.
             if !user.active {
                 if let Err(response) = revoke_access(&state, &user.id).await {
-                    return response;
+                    return *response;
                 }
             }
             let groups = store.groups_of_user(&user.id).await.unwrap_or_default();
@@ -596,7 +596,7 @@ async fn patch_user(
             // As for a PUT: whenever the user ends inactive, so a retry revokes again.
             if !user.active {
                 if let Err(response) = revoke_access(&state, &user.id).await {
-                    return response;
+                    return *response;
                 }
             }
             let groups = store.groups_of_user(&user.id).await.unwrap_or_default();
@@ -734,7 +734,7 @@ async fn delete_user(
     // Before the delete, not after: a delete whose revocation failed answers 500, and the
     // `IdP`'s retry must find the user still there to revoke again, not a 404.
     if let Err(response) = revoke_access(&state, &id).await {
-        return response;
+        return *response;
     }
     match store.delete_user(&id).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
@@ -747,18 +747,18 @@ async fn delete_user(
 /// Either failing answers `500`, so the `IdP` retries the call, and the retry runs both
 /// again; both are idempotent. A failed session revocation is the worse one to hide: a live
 /// refresh token outlives every access token, and mints new ones.
-async fn revoke_access(state: &ScimState, user_id: &str) -> Result<(), Response> {
+async fn revoke_access(state: &ScimState, user_id: &str) -> Result<(), Box<Response>> {
     if let Err(e) = state.session_store.revoke_all_sessions(user_id).await {
         tracing::error!(
             user_id = %user_id, error = %e,
             "SCIM deactivation could not revoke the user's sessions; answering 500 so the IdP \
              retries"
         );
-        return Err(scim_error(
+        return Err(Box::new(scim_error(
             StatusCode::INTERNAL_SERVER_ERROR,
             "The user's sessions could not be revoked",
             None,
-        ));
+        )));
     }
     if let Some(denial) = state.denial.as_ref() {
         if let Err(e) = denial.deny_all_for_user(user_id).await {
@@ -767,11 +767,11 @@ async fn revoke_access(state: &ScimState, user_id: &str) -> Result<(), Response>
                 "SCIM deactivation could not deny the user's access tokens; answering 500 so \
                  the IdP retries"
             );
-            return Err(scim_error(
+            return Err(Box::new(scim_error(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "The user's access tokens could not be revoked",
                 None,
-            ));
+            )));
         }
     }
     tracing::info!(user_id = %user_id, "SCIM deactivation revoked the user's sessions and tokens");

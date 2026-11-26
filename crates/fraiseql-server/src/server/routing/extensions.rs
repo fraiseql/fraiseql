@@ -431,7 +431,7 @@ impl Server {
                         .await
                         {
                             Ok(admitted) => admitted,
-                            Err(refused) => return refused,
+                            Err(refused) => return *refused,
                         };
                         if let Some(user) = user {
                             request.extensions_mut().insert(user);
@@ -471,7 +471,7 @@ async fn admit_storage_request(
         Option<fraiseql_storage::StorageUser>,
         crate::routes::graphql::tenant_dispatch::TenantDispatch,
     ),
-    axum::response::Response,
+    Box<axum::response::Response>,
 > {
     let (user, identified) =
         identify_storage_caller(state, storage_token, validator, headers).await?;
@@ -479,8 +479,8 @@ async fn admit_storage_request(
         Some(identified) => identified.tenant(state, headers),
         None => admission::Tenant::of(state, None, headers),
     }
-    .map_err(storage_refusal)?;
-    let dispatch = tenant.dispatch(state).map_err(storage_refusal)?;
+    .map_err(|refusal| Box::new(storage_refusal(refusal)))?;
+    let dispatch = tenant.dispatch(state).map_err(|refusal| Box::new(storage_refusal(refusal)))?;
     Ok((user, dispatch))
 }
 
@@ -507,7 +507,7 @@ async fn identify_storage_caller(
     headers: &axum::http::HeaderMap,
 ) -> Result<
     (Option<fraiseql_storage::StorageUser>, Option<admission::Identified>),
-    axum::response::Response,
+    Box<axum::response::Response>,
 > {
     use axum::{
         http::{StatusCode, header},
@@ -525,18 +525,18 @@ async fn identify_storage_caller(
         return Ok((Some(admin), None));
     }
 
-    let principal =
-        admission::service_account(state, headers, token.is_some()).map_err(storage_refusal)?;
+    let principal = admission::service_account(state, headers, token.is_some())
+        .map_err(|refusal| Box::new(storage_refusal(refusal)))?;
     let (principal, claims) = match (principal, token, validator) {
         (Some(principal), ..) => (Some(principal), fraiseql_storage::ClaimValues::new()),
         (None, Some(token), Some(validator)) => {
             let user = validator.validate_token(&token).await.map_err(|e| {
                 tracing::debug!(error = %e, "Storage auth: token validation failed");
-                storage_refusal(Refusal::from_token_error(&e))
+                Box::new(storage_refusal(Refusal::from_token_error(&e)))
             })?;
             admission::check_revocation(state, &user, &token)
                 .await
-                .map_err(storage_refusal)?;
+                .map_err(|refusal| Box::new(storage_refusal(refusal)))?;
             // #974: a token is the only credential carrying claims, so it is the only one
             // a `require_claims` rule can match.
             let claims = fraiseql_storage::normalise_claims(&user.extra_claims);
@@ -555,13 +555,15 @@ async fn identify_storage_caller(
         },
         (None, Some(_), None) => {
             tracing::debug!("Storage auth: bearer did not match storage_token");
-            return Err((StatusCode::UNAUTHORIZED, "Invalid storage token").into_response());
+            return Err(Box::new(
+                (StatusCode::UNAUTHORIZED, "Invalid storage token").into_response(),
+            ));
         },
         (None, None, _) => (None, fraiseql_storage::ClaimValues::new()),
     };
     let identified = admission::identify(state, headers, principal, &AdmissionPolicy::STORAGE)
         .await
-        .map_err(storage_refusal)?;
+        .map_err(|refusal| Box::new(storage_refusal(refusal)))?;
     let user = identified.security_context().map(|ctx| fraiseql_storage::StorageUser {
         user_id: Some(ctx.user_id.to_string()),
         roles: ctx.scopes.clone(),
