@@ -37,4 +37,7 @@ pub use middleware_fn::{ClientAddress, RateLimitExceeded, rate_limit_middleware}
 pub use redis::{REDIS_RATE_LIMIT_ERRORS, redis_error_count_total};
 
 #[cfg(test)]
+#[path = "default_agreement_tests.rs"]
+mod default_agreement_tests;
+#[cfg(test)]
 mod tests;

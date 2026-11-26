@@ -18,6 +18,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql_server::middleware::RateLimitConfig` no longer implements `Serialize` or
+  `Deserialize` (#1777).** It is the limiter's runtime form, built from
+  `RateLimitingSecurityConfig`; since the server's `[rate_limiting]` table took the policy's
+  keys, no file is read into it. A rate-limit table is read as `RateLimitingSecurityConfig`
+  (`[security.rate_limiting]`) or `ServerRateLimitingConfig` (the server's
+  `[rate_limiting]`).
+
 - **The Python SDK requires Python 3.15 or later (#2599).** It reads `fraiseql.toml` with
   the standard library's `tomllib`, which parses TOML 1.1 from 3.15, as `fraiseql-cli` now
   does. Earlier interpreters' `tomllib` parses TOML 1.0 only, so they are no longer
@@ -2038,6 +2045,13 @@ disagreed, and the promise was the part that was wrong.
   see "Roles from the actor row" in `docs/architecture/enriched-identity-rls.md`.
 
 ### Changed
+
+- **A rate limiter switched on only by a flag or environment variable has the compiled
+  policy's default burst, 200 (#1777).** With no rate-limit section in either file,
+  `FRAISEQL_RATE_LIMITING_ENABLED` (or its flag) started the limiter with a burst of 500,
+  where `[security.rate_limiting] enabled = true` gave 200. Both now start from the one
+  default of `[security.rate_limiting]`. A deployment relying on the larger burst sets
+  `FRAISEQL_RATE_LIMIT_BURST_SIZE=500`.
 
 - **The Python SDK's decorators declare their type parameters with PEP 695 (#2645).**
   `@fraiseql.type`, `query`, `mutation`, `error`, `enum`, `interface`, `input`,

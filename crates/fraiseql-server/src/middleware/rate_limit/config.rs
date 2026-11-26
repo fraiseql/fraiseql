@@ -111,13 +111,11 @@ impl<'de> Deserialize<'de> for ServerRateLimitingConfig {
 /// Distinct from `fraiseql_auth::AuthRateLimitConfig`, which uses a
 /// sliding-window algorithm for auth endpoint brute-force protection.
 ///
-/// The container is `#[serde(default)]` (#874): a partial `[rate_limiting]`
-/// block — including the exact example in `ServerConfig`'s rustdoc — starts
-/// from the documented [`Default`] and overwrites only the keys the operator
-/// set. Without it, omitting `cleanup_interval_secs` (a key no documentation
-/// mentions) refused to boot.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+/// The limiter's runtime form of a policy: built from [`RateLimitingSecurityConfig`], never
+/// read from a file, so it takes no keys of its own. Its [`Default`] is the policy's
+/// default, so a limiter an override switches on with no section configured has the
+/// budget an `enabled = true` section would give it.
+#[derive(Debug, Clone)]
 pub struct RateLimitConfig {
     /// Enable rate limiting
     pub enabled: bool,
@@ -166,16 +164,7 @@ pub struct RateLimitConfig {
 
 impl Default for RateLimitConfig {
     fn default() -> Self {
-        Self {
-            enabled:               true,
-            rps_per_ip:            100,  // 100 req/sec per IP
-            rps_per_user:          1000, // 1000 req/sec per user
-            burst_size:            500,  // Allow bursts up to 500 requests
-            cleanup_interval_secs: 300,  // Clean up every 5 minutes
-            trust_proxy_headers:   false,
-            trusted_proxy_cidrs:   Vec::new(),
-            max_buckets:           fraiseql_core::schema::DEFAULT_RATE_LIMIT_MAX_BUCKETS,
-        }
+        Self::assemble(&RateLimitingSecurityConfig::DEFAULT, Vec::new())
     }
 }
 

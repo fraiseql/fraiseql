@@ -206,6 +206,6 @@ mod tests {
         assert!(config.enabled);
         assert_eq!(config.rps_per_ip, 100);
         assert_eq!(config.rps_per_user, 1000);
-        assert_eq!(config.burst_size, 500);
+        assert_eq!(config.burst_size, 200, "the compiled policy's default burst");
     }
 }
