@@ -259,6 +259,10 @@ fn a_warm_read_does_not_collect_its_fields_again() {
 }
 
 #[cfg(feature = "dhat-heap")]
+#[path = "support/wide_order.rs"]
+mod wide_order;
+
+#[cfg(feature = "dhat-heap")]
 #[path = "support/name_resolution.rs"]
 mod name_resolution;
 

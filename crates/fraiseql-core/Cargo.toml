@@ -31,6 +31,10 @@ name = "sql_projection_benchmark"
 
 [[bench]]
 harness = false
+name = "project_entity"
+
+[[bench]]
+harness = false
 name = "cache_concurrent_bench"
 
 [[bench]]
