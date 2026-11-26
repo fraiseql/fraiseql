@@ -28,12 +28,23 @@ async fn health_and_status_of(
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
-    let serving = tokio::spawn(server.serve_on_listener(listener, async {
+    let mut serving = tokio::spawn(server.serve_on_listener(listener, async {
         let _ = stopped.await;
     }));
     let health = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
-            let response = reqwest::get(format!("http://{addr}/health")).await.unwrap();
+            let response = match reqwest::get(format!("http://{addr}/health")).await {
+                Ok(response) => response,
+                // A server that stopped dropped the listener, which resets the connection
+                // it had not accepted: report why it stopped, not the reset.
+                Err(error) if serving.is_finished() => {
+                    panic!(
+                        "the server stopped before answering ({error}): {:?}",
+                        (&mut serving).await
+                    )
+                },
+                Err(error) => panic!("/health: {error}"),
+            };
             let health: serde_json::Value = response.json().await.unwrap();
             if ready(&health) {
                 return health;
@@ -155,34 +166,41 @@ async fn health_reports_a_started_observer_runtime_body() {
 
 #[cfg(feature = "functions-runtime")]
 #[tokio::test]
+#[allow(clippy::future_not_send)] // Reason: `temp_env`'s lock guard is not `Send`.
 async fn health_reports_a_running_function_runtime() {
-    // The loader reads module bytes without validating them; the runtime would, lazily.
-    let modules = tempfile::tempdir().unwrap();
-    std::fs::write(modules.path().join("onOrder.wasm"), b"\0asm\x01\0\0\0").unwrap();
-    let functions: crate::schema::loader::FunctionsConfig =
-        serde_json::from_value(serde_json::json!({
-            "module_dir": modules.path(),
-            "definitions": [
-                { "name": "onOrder", "trigger": "after:mutation:Order", "runtime": "Wasm" }
-            ]
-        }))
-        .unwrap();
-    let server = Box::pin(Server::new(
-        ServerConfig {
-            cors_enabled: false,
-            ..ServerConfig::default()
-        },
-        CompiledSchema::new(),
-        Arc::new(FailingAdapter::new()),
-        None,
-    ))
-    .await
-    .unwrap()
-    .with_functions_config(Some(functions));
+    // Booting reads the functions directories from the environment, which a sibling
+    // test sets inside a `temp_env` window: hold its lock with them unset.
+    let unset = fraiseql_functions::modules::dirs::DIR_ENV_VARS.map(|var| (var, None::<&str>));
+    Box::pin(temp_env::async_with_vars(unset, async {
+        // The loader reads module bytes without validating them; the runtime would, lazily.
+        let modules = tempfile::tempdir().unwrap();
+        std::fs::write(modules.path().join("onOrder.wasm"), b"\0asm\x01\0\0\0").unwrap();
+        let functions: crate::schema::loader::FunctionsConfig =
+            serde_json::from_value(serde_json::json!({
+                "module_dir": modules.path(),
+                "definitions": [
+                    { "name": "onOrder", "trigger": "after:mutation:Order", "runtime": "Wasm" }
+                ]
+            }))
+            .unwrap();
+        let server = Box::pin(Server::new(
+            ServerConfig {
+                cors_enabled: false,
+                ..ServerConfig::default()
+            },
+            CompiledSchema::new(),
+            Arc::new(FailingAdapter::new()),
+            None,
+        ))
+        .await
+        .unwrap()
+        .with_functions_config(Some(functions));
 
-    let health = health_of(server, |_| true).await;
+        let health = health_of(server, |_| true).await;
 
-    assert_eq!(health["capabilities"]["functions"]["started"], true, "{health}");
+        assert_eq!(health["capabilities"]["functions"]["started"], true, "{health}");
+    }))
+    .await;
 }
 
 #[cfg(feature = "rest")]

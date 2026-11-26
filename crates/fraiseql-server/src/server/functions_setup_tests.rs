@@ -7,48 +7,55 @@
 /// connector host is built from.
 #[cfg(feature = "functions-runtime")]
 #[tokio::test]
+#[allow(clippy::future_not_send)] // Reason: `temp_env`'s lock guard is not `Send`.
 async fn the_functions_runtime_carries_the_egress_list() {
-    use std::sync::Arc;
+    // Booting reads the functions directories from the environment, which a sibling
+    // test sets inside a `temp_env` window: hold its lock with them unset.
+    let unset = fraiseql_functions::modules::dirs::DIR_ENV_VARS.map(|var| (var, None::<&str>));
+    Box::pin(temp_env::async_with_vars(unset, async {
+        use std::sync::Arc;
 
-    use fraiseql_core::schema::CompiledSchema;
-    use fraiseql_test_utils::failing_adapter::FailingAdapter;
+        use fraiseql_core::schema::CompiledSchema;
+        use fraiseql_test_utils::failing_adapter::FailingAdapter;
 
-    use crate::{
-        Server,
-        server_config::{EgressConfig, ServerConfig},
-    };
+        use crate::{
+            Server,
+            server_config::{EgressConfig, ServerConfig},
+        };
 
-    let modules = tempfile::tempdir().unwrap();
-    std::fs::write(modules.path().join("onOrder.wasm"), b"\0asm\x01\0\0\0").unwrap();
-    let functions: crate::schema::loader::FunctionsConfig =
-        serde_json::from_value(serde_json::json!({
-            "module_dir": modules.path(),
-            "definitions": [
-                { "name": "onOrder", "trigger": "after:mutation:Order", "runtime": "Wasm" }
-            ]
-        }))
-        .unwrap();
-    let config = ServerConfig {
-        cors_enabled: false,
-        egress: EgressConfig {
-            allowed_domains: vec!["api.example.com".to_owned()],
-        },
-        ..ServerConfig::default()
-    };
-    let mut server = Box::pin(Server::new(
-        config,
-        CompiledSchema::new(),
-        Arc::new(FailingAdapter::new()),
-        None,
-    ))
-    .await
-    .unwrap()
-    .with_functions_config(Some(functions));
+        let modules = tempfile::tempdir().unwrap();
+        std::fs::write(modules.path().join("onOrder.wasm"), b"\0asm\x01\0\0\0").unwrap();
+        let functions: crate::schema::loader::FunctionsConfig =
+            serde_json::from_value(serde_json::json!({
+                "module_dir": modules.path(),
+                "definitions": [
+                    { "name": "onOrder", "trigger": "after:mutation:Order", "runtime": "Wasm" }
+                ]
+            }))
+            .unwrap();
+        let config = ServerConfig {
+            cors_enabled: false,
+            egress: EgressConfig {
+                allowed_domains: vec!["api.example.com".to_owned()],
+            },
+            ..ServerConfig::default()
+        };
+        let mut server = Box::pin(Server::new(
+            config,
+            CompiledSchema::new(),
+            Arc::new(FailingAdapter::new()),
+            None,
+        ))
+        .await
+        .unwrap()
+        .with_functions_config(Some(functions));
 
-    server.prepare_functions_runtime().await.unwrap();
+        server.prepare_functions_runtime().await.unwrap();
 
-    let hooks = server.functions_hooks.as_ref().expect("the runtime was prepared");
-    assert_eq!(&*hooks.egress, ["api.example.com".to_owned()]);
+        let hooks = server.functions_hooks.as_ref().expect("the runtime was prepared");
+        assert_eq!(&*hooks.egress, ["api.example.com".to_owned()]);
+    }))
+    .await;
 }
 
 /// #1989: a function's `run_as` presenting an enriched field the served schema never reads

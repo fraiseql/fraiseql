@@ -14,6 +14,11 @@ pub const MODULE_DIR_ENV: &str = "FRAISEQL_FUNCTIONS_MODULE_DIR";
 /// Overrides `[functions] shared_dir`, or declares one the compiled schema does not.
 pub const SHARED_DIR_ENV: &str = "FRAISEQL_FUNCTIONS_SHARED_DIR";
 
+/// Every variable [`apply_env_overrides`] reads. A test that boots a functions runtime
+/// while another sets one of these must not read it, so each such test holds `temp_env`'s
+/// lock with them unset.
+pub const DIR_ENV_VARS: [&str; 2] = [MODULE_DIR_ENV, SHARED_DIR_ENV];
+
 /// Apply the environment's directory overrides to `config`, reading variables through
 /// `get_env` (`|key| std::env::var(key).ok()` in production).
 pub fn apply_env_overrides(config: &mut FunctionsConfig, get_env: impl Fn(&str) -> Option<String>) {

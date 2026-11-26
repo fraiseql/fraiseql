@@ -49,16 +49,13 @@ async fn loaded_hash(module_dir: &Path, env: &[(&str, &Path)]) -> String {
             ]
         }))
         .unwrap();
-    let vars: Vec<(&str, Option<String>)> = [
-        "FRAISEQL_FUNCTIONS_MODULE_DIR",
-        "FRAISEQL_FUNCTIONS_SHARED_DIR",
-    ]
-    .into_iter()
-    .map(|key| {
-        let value = env.iter().find(|(k, _)| *k == key).map(|(_, v)| v.display().to_string());
-        (key, value)
-    })
-    .collect();
+    let vars: Vec<(&str, Option<String>)> = fraiseql_functions::modules::dirs::DIR_ENV_VARS
+        .into_iter()
+        .map(|key| {
+            let value = env.iter().find(|(k, _)| *k == key).map(|(_, v)| v.display().to_string());
+            (key, value)
+        })
+        .collect();
     Box::pin(temp_env::async_with_vars(vars, async move {
         let config = ServerConfig {
             cors_enabled: false,
@@ -162,10 +159,7 @@ async fn serve_both(module_dir: &Path) -> Vec<(serde_json::Value, String)> {
             ]
         }))
         .unwrap();
-    let vars = [
-        ("FRAISEQL_FUNCTIONS_MODULE_DIR", None::<&str>),
-        ("FRAISEQL_FUNCTIONS_SHARED_DIR", None),
-    ];
+    let vars = fraiseql_functions::modules::dirs::DIR_ENV_VARS.map(|var| (var, None::<&str>));
     Box::pin(temp_env::async_with_vars(vars, async move {
         let config = ServerConfig {
             cors_enabled: false,

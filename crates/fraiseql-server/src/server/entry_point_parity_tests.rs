@@ -218,101 +218,118 @@ async fn recorded_starts(
 /// as its metadata declares that entry point, `false` included, and nothing else
 /// reports a start.
 #[tokio::test]
+#[allow(clippy::future_not_send)] // Reason: `temp_env`'s lock guard is not `Send`.
 async fn every_entry_point_starts_what_the_registry_declares() {
-    let Some(svc) = fraiseql_test_support::postgres().await else {
-        eprintln!("SKIP every_entry_point_starts_what_the_registry_declares: no postgres");
-        return;
-    };
-    let configured = configured_by_the_fixture();
-
-    for entry in [EntryPoint::Http, EntryPoint::Listener, EntryPoint::McpStdio] {
-        let modules = tempfile::tempdir().unwrap();
-        let pool = sqlx::PgPool::connect(svc.url()).await.unwrap();
-        crate::observers::install_runtime_schema_for_tests(&pool).await;
-        // Port 0: whichever port Flight binds, if it binds one, is the server's own, and no
-        // other test can hold it.
-        let mut server = server_configuring_every_in_process_capability(
-            pool,
-            modules.path(),
-            "127.0.0.1:0".parse().unwrap(),
-        )
-        .await;
-        let starts = Arc::clone(&server.capability_starts);
-        #[cfg(feature = "arrow")]
-        let flight_bound = Arc::clone(&server.flight_bound_addr);
-        #[cfg(feature = "observers")]
-        let observers = server.observer_runtime.clone().expect("observers are configured");
-        let mut effects = BTreeMap::new();
-
-        let recorded = match entry {
-            EntryPoint::Http | EntryPoint::Listener => {
-                let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
-                let shutdown = async {
-                    let _ = stopped.await;
-                };
-                let serving = if entry == EntryPoint::Http {
-                    tokio::spawn(server.serve_with_shutdown(shutdown))
-                } else {
-                    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-                    tokio::spawn(server.serve_on_listener(listener, shutdown))
-                };
-                let recorded = recorded_starts(&starts).await;
-                #[cfg(feature = "observers")]
-                effects.insert("observers", observers.read().await.health().running);
-                #[cfg(feature = "arrow")]
-                effects.insert("arrow_flight", flight_serves(flight_bound.get().copied()).await);
-                let _ = stop.send(());
-                serving.await.unwrap().unwrap();
-                recorded
-            },
-            EntryPoint::McpStdio => {
-                // The stdio transport itself reads stdin; its start is the same call.
-                let app_state = server.provisioned_app_state().await.unwrap();
-                Box::pin(server.start_capabilities(&app_state, EntryPoint::McpStdio))
-                    .await
-                    .unwrap();
-                let recorded = recorded_starts(&starts).await;
-                #[cfg(feature = "observers")]
-                effects.insert("observers", observers.read().await.health().running);
-                #[cfg(feature = "arrow")]
-                effects.insert("arrow_flight", flight_serves(flight_bound.get().copied()).await);
-                server.stop_capabilities().await;
-                recorded
-            },
+    // Booting reads the functions directories and the observer transport from the
+    // environment, which sibling tests set inside `temp_env` windows: hold its lock with
+    // them unset.
+    let unset: Vec<(&str, Option<&str>)> = fraiseql_functions::modules::dirs::DIR_ENV_VARS
+        .into_iter()
+        .chain(super::extensions::UNRUN_TRANSPORT_VARS)
+        .map(|var| (var, None))
+        .collect();
+    Box::pin(temp_env::async_with_vars(unset, async {
+        let Some(svc) = fraiseql_test_support::postgres().await else {
+            eprintln!("SKIP every_entry_point_starts_what_the_registry_declares: no postgres");
+            return;
         };
+        let configured = configured_by_the_fixture();
 
-        for registration in REGISTRY {
-            let name = registration.meta.name;
-            let expected = configured
-                .contains(&name)
-                .then(|| declared(entry, registration.meta.entry_points));
-            assert_eq!(
-                recorded[name], expected,
-                "{entry:?}: `{name}` reported {:?}",
-                recorded[name]
-            );
-        }
-
-        // What each entry point must do, stated apart from the metadata, so a wrong
-        // declaration fails here rather than moving the loop and its check together. A
-        // listener binds no port its caller did not choose; the stdio server may be the
-        // deployment's only process, so it runs the observers as the binary does, and serves
-        // no Arrow Flight, which is not MCP.
-        let must_run = |capability: &str| {
-            matches!(
-                (capability, entry),
-                ("arrow_flight", EntryPoint::Http)
-                    | ("observers", EntryPoint::Http | EntryPoint::Listener | EntryPoint::McpStdio)
+        for entry in [EntryPoint::Http, EntryPoint::Listener, EntryPoint::McpStdio] {
+            let modules = tempfile::tempdir().unwrap();
+            let pool = sqlx::PgPool::connect(svc.url()).await.unwrap();
+            crate::observers::install_runtime_schema_for_tests(&pool).await;
+            // Port 0: whichever port Flight binds, if it binds one, is the server's own, and no
+            // other test can hold it.
+            let mut server = server_configuring_every_in_process_capability(
+                pool,
+                modules.path(),
+                "127.0.0.1:0".parse().unwrap(),
             )
-        };
-        for (capability, running) in effects {
-            assert_eq!(
-                running,
-                must_run(capability),
-                "{entry:?}: `{capability}` running = {running}"
-            );
+            .await;
+            let starts = Arc::clone(&server.capability_starts);
+            #[cfg(feature = "arrow")]
+            let flight_bound = Arc::clone(&server.flight_bound_addr);
+            #[cfg(feature = "observers")]
+            let observers = server.observer_runtime.clone().expect("observers are configured");
+            let mut effects = BTreeMap::new();
+
+            let recorded = match entry {
+                EntryPoint::Http | EntryPoint::Listener => {
+                    let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
+                    let shutdown = async {
+                        let _ = stopped.await;
+                    };
+                    let serving = if entry == EntryPoint::Http {
+                        tokio::spawn(server.serve_with_shutdown(shutdown))
+                    } else {
+                        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+                        tokio::spawn(server.serve_on_listener(listener, shutdown))
+                    };
+                    let recorded = recorded_starts(&starts).await;
+                    #[cfg(feature = "observers")]
+                    effects.insert("observers", observers.read().await.health().running);
+                    #[cfg(feature = "arrow")]
+                    effects
+                        .insert("arrow_flight", flight_serves(flight_bound.get().copied()).await);
+                    let _ = stop.send(());
+                    serving.await.unwrap().unwrap();
+                    recorded
+                },
+                EntryPoint::McpStdio => {
+                    // The stdio transport itself reads stdin; its start is the same call.
+                    let app_state = server.provisioned_app_state().await.unwrap();
+                    Box::pin(server.start_capabilities(&app_state, EntryPoint::McpStdio))
+                        .await
+                        .unwrap();
+                    let recorded = recorded_starts(&starts).await;
+                    #[cfg(feature = "observers")]
+                    effects.insert("observers", observers.read().await.health().running);
+                    #[cfg(feature = "arrow")]
+                    effects
+                        .insert("arrow_flight", flight_serves(flight_bound.get().copied()).await);
+                    server.stop_capabilities().await;
+                    recorded
+                },
+            };
+
+            for registration in REGISTRY {
+                let name = registration.meta.name;
+                let expected = configured
+                    .contains(&name)
+                    .then(|| declared(entry, registration.meta.entry_points));
+                assert_eq!(
+                    recorded[name], expected,
+                    "{entry:?}: `{name}` reported {:?}",
+                    recorded[name]
+                );
+            }
+
+            // What each entry point must do, stated apart from the metadata, so a wrong
+            // declaration fails here rather than moving the loop and its check together. A
+            // listener binds no port its caller did not choose; the stdio server may be the
+            // deployment's only process, so it runs the observers as the binary does, and serves
+            // no Arrow Flight, which is not MCP.
+            let must_run = |capability: &str| {
+                matches!(
+                    (capability, entry),
+                    ("arrow_flight", EntryPoint::Http)
+                        | (
+                            "observers",
+                            EntryPoint::Http | EntryPoint::Listener | EntryPoint::McpStdio
+                        )
+                )
+            };
+            for (capability, running) in effects {
+                assert_eq!(
+                    running,
+                    must_run(capability),
+                    "{entry:?}: `{capability}` running = {running}"
+                );
+            }
         }
-    }
+    }))
+    .await;
 }
 
 /// Whether the server bound Arrow Flight, and accepts connections on what it bound. `None`
