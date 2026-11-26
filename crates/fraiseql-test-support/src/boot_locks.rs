@@ -139,8 +139,16 @@ async fn drop_database(url: &str, name: &str) -> Result<(), sqlx::Error> {
 ///
 /// If the server refuses the connection or the `CREATE DATABASE`.
 pub async fn fresh_database(tag: &str) -> Option<FreshDatabase> {
+    Some(database_on(crate::postgres().await?, tag).await)
+}
+
+/// [`fresh_database`] on the server `service` reaches.
+///
+/// # Panics
+///
+/// As [`fresh_database`].
+async fn database_on(service: Service, tag: &str) -> FreshDatabase {
     static NEXT: AtomicU32 = AtomicU32::new(0);
-    let service = crate::postgres().await?;
     let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().subsec_nanos();
     let name = format!(
         "fq_boot_{tag}_{}_{}_{nanos}",
@@ -160,11 +168,11 @@ pub async fn fresh_database(tag: &str) -> Option<FreshDatabase> {
         .unwrap();
     admin.close().await;
     let options = PgConnectOptions::from_str(service.url()).unwrap().database(&name);
-    Some(FreshDatabase {
+    FreshDatabase {
         name,
         options,
         service,
-    })
+    }
 }
 
 /// A relation lock some session waits for, as `pg_locks` shows it.

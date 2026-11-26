@@ -13,12 +13,16 @@ async fn exists(db: &FreshDatabase, name: &str) -> bool {
 
 /// A test that panics, or returns, before awaiting [`FreshDatabase::drop`] still loses
 /// its database: the next run reads no leftover from it.
+///
+/// The database is made on the witness's server, which the witness keeps up: with no
+/// `DATABASE_URL` each [`fresh_database`] spawns a server of its own, which would go with
+/// the database and leave nothing to look on.
 #[tokio::test]
 async fn a_database_left_undropped_is_dropped_on_the_way_out() {
-    let Some(db) = fresh_database("unwound").await else {
+    let Some(witness) = fresh_database("witness").await else {
         return;
     };
-    let witness = fresh_database("witness").await.unwrap();
+    let db = database_on(Service::from_url(witness.service.url().to_owned()), "unwound").await;
     let name = db.name.clone();
     let _held = db.pool().await;
     let by_url = PgPoolOptions::new().max_connections(1).connect(&db.url()).await.unwrap();

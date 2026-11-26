@@ -48,7 +48,7 @@ pub struct Service {
 
 impl Service {
     /// Build from an environment-provided URL (no owned container).
-    fn from_url(url: String) -> Self {
+    pub(crate) fn from_url(url: String) -> Self {
         Self { url, guard: None }
     }
 
