@@ -467,6 +467,32 @@ impl S {
     }
 }' "a braced macro call"
 
+# ── 42. A macro called by its bare name reaches the module defining it ──────────────
+# No path names the module: only the invocation, in a function body or in item
+# position, can count as its caller.
+new_case 42 '#[macro_use]
+pub mod in_body {
+    macro_rules! tally { () => { 0u8 } }
+}
+#[macro_use]
+pub mod in_item {
+    macro_rules! make_unit { ($n:ident) => { pub struct $n; } }
+}
+pub mod plain { pub fn f() {} }
+make_unit! { Unit }
+pub fn api() -> u8 { tally!() }' 'fn main() { let _ = (lib::api(), lib::Unit); }'
+run_gate
+not_flagged() { # not_flagged <module> <label>: a finished run that names lib::plain only
+  if grep -F "pub-mod-callers: FAIL" "${tmp}/out" >/dev/null && ! grep -F "$1 (" "${tmp}/out" >/dev/null; then
+    pass "$2"
+  else
+    fail "$2"
+  fi
+}
+not_flagged "lib::in_body" "a macro called by its bare name in a body reaches its module"
+not_flagged "lib::in_item" "a macro called by its bare name in item position reaches its module"
+expect_red "✗ lib::plain (" "a module with no caller beside them still fails"
+
 # ── 24. Vacuity: no crates, or no binary, is refused ────────────────────────────────
 root="${tmp}/empty"
 mkdir -p "$root"
