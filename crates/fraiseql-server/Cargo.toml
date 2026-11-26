@@ -172,7 +172,7 @@ thiserror = "2.0"
 # Async runtime
 tokio = { workspace = true }
 # Config and paths
-toml = "0.8"
+toml = "1"
 # Arrow Flight server (optional)
 tonic = { version = "0.14", optional = true }
 tower = { version = "0.5", features = ["full"] }

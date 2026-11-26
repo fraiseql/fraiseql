@@ -314,3 +314,6 @@ fn refuse_unsafe_value(name: &str, value: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+#[path = "env_expand/toml_1_1_tests.rs"]
+mod toml_1_1_tests;

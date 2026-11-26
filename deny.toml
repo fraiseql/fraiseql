@@ -172,16 +172,6 @@ reason = "transitive via getrandom 0.3 (rand 0.10 chain)"
 version = "^0.14"
 
 [[bans.skip]]
-name = "toml_datetime"
-reason = "transitive via toml_edit 0.22"
-version = "^0.6"
-
-[[bans.skip]]
-name = "toml_edit"
-reason = "transitive via cargo-manifest or similar"
-version = "^0.22"
-
-[[bans.skip]]
 name = "lz4_flex"
 reason = "transitive via clickhouse dependency chain (0.11.x); parquet uses 0.12.x"
 version = "^0.11"
@@ -225,11 +215,6 @@ version = "^2"
 name = "base64"
 reason = "testcontainers 0.27 → docker_credential 1.3 holds base64 0.21, test-only; the workspace is on 0.22. Was masked under the wasmtime skip-tree until wasmtime's cache left the graph (#1747)"
 version = "^0.21"
-
-[[bans.skip]]
-name = "winnow"
-reason = "the workspace's toml 0.8 → toml_edit 0.22 holds winnow 0.7; toml_edit 0.25 and toml_parser (proc-macro-crate) are on 1.0. Was masked under the wasmtime skip-tree until wasmtime's cache left the graph (#1747). Drops when the workspace moves off toml 0.8 (#2599)"
-version = "^0.7"
 
 [[bans.skip]]
 name = "base64-simd"

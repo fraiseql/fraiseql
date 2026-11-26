@@ -136,6 +136,9 @@ impl FunctionDispatchConfig {
 mod admin_auth_max_failures_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+#[path = "toml_1_1_tests.rs"]
+mod toml_1_1_tests;
 
 use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 

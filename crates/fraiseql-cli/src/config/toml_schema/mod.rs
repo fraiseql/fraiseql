@@ -899,3 +899,6 @@ fn refuse_unusable_rate_limit_budgets(
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+#[path = "toml_1_1_tests.rs"]
+mod toml_1_1_tests;

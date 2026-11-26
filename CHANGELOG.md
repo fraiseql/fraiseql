@@ -2034,6 +2034,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **`fraiseql.toml` and the server's configuration file are parsed as TOML 1.1 (#2599).**
+  The workspace moves from `toml` 0.8 to `toml` 1. Both files now accept what TOML 1.0
+  refused: an inline table spanning lines or ending with a comma, the `\e` and `\xHH`
+  escapes in a basic string, and a time without seconds (`07:30`). A `${VAR}` value still
+  cannot produce any of the new syntax, since braces, backslashes, newlines and a comma
+  outside quotes are refused in a value. Some of `toml`'s own parse messages are worded
+  differently ("duplicate key" no longer names the key); errors from a typed field read as
+  before.
+
 - **The minimum supported Rust version is 1.100.0, up from 1.95.0.** The workspace's
   `rust-version`, `rust-toolchain.toml`, the CI toolchain image and the Docker builder
   stage move together, so every leg builds and tests on exactly the version the crates
