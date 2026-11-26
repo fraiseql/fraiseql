@@ -232,37 +232,6 @@ mod handlers_tests {
     use super::super::{error::AuthError, handlers::*};
 
     #[test]
-    fn auth_callback_rejects_oversized_code() {
-        let oversized = "a".repeat(MAX_AUTH_CODE_BYTES + 1);
-        let result = validate_auth_input_len(&oversized, MAX_AUTH_CODE_BYTES, "code");
-        assert!(
-            matches!(result, Err(AuthError::InvalidToken { ref reason }) if reason.contains("code")),
-            "expected InvalidToken mentioning 'code', got: {result:?}"
-        );
-    }
-
-    #[test]
-    fn auth_callback_rejects_oversized_state() {
-        let oversized = "a".repeat(MAX_STATE_BYTES + 1);
-        let result = validate_auth_input_len(&oversized, MAX_STATE_BYTES, "state");
-        assert!(
-            matches!(result, Err(AuthError::InvalidToken { ref reason }) if reason.contains("state")),
-            "expected InvalidToken mentioning 'state', got: {result:?}"
-        );
-    }
-
-    #[test]
-    fn auth_callback_accepts_valid_length_state() {
-        let valid = "a".repeat(MAX_STATE_BYTES);
-        assert!(validate_auth_input_len(&valid, MAX_STATE_BYTES, "state").is_ok());
-    }
-
-    #[test]
-    fn state_cap_is_larger_than_code_cap() {
-        const _: () = assert!(MAX_STATE_BYTES > MAX_AUTH_CODE_BYTES);
-    }
-
-    #[test]
     fn auth_refresh_rejects_oversized_token() {
         let oversized = "b".repeat(MAX_REFRESH_TOKEN_BYTES + 1);
         let result = validate_auth_input_len(&oversized, MAX_REFRESH_TOKEN_BYTES, "refresh_token");
@@ -270,12 +239,6 @@ mod handlers_tests {
             matches!(result, Err(AuthError::InvalidToken { ref reason }) if reason.contains("refresh_token")),
             "expected InvalidToken mentioning 'refresh_token', got: {result:?}"
         );
-    }
-
-    #[test]
-    fn auth_callback_accepts_valid_length_code() {
-        let valid = "a".repeat(MAX_AUTH_CODE_BYTES);
-        assert!(validate_auth_input_len(&valid, MAX_AUTH_CODE_BYTES, "code").is_ok());
     }
 
     #[test]

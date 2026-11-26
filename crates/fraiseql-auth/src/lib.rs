@@ -108,7 +108,6 @@ pub use constant_time::ConstantTimeOps;
 pub use error::{AuthError, Result};
 /// The instant type this crate's public API is built against (#1198).
 pub use fraiseql_time;
-pub use handlers::{AuthCallbackQuery, AuthStartRequest, AuthState, auth_callback, auth_start};
 pub use jwt::Claims;
 pub use local_password::{
     EMAIL_VERIFICATION_SCHEMA_SQL, EMAIL_VERIFICATION_TOKEN_TTL_SECS, EmailVerified,

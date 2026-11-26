@@ -145,7 +145,7 @@ fn build_redirect_with_challenge(
 /// # Rate limiting (#788)
 ///
 /// [`authorize`] and [`callback`] write to the bounded CSRF [`StateStore`] with no
-/// per-IP throttle, unlike `handlers::auth_start`, so an unauthenticated flood
+/// per-IP throttle of their own, so an unauthenticated flood
 /// could evict legitimate in-flight states. This is **not wired in the shipped
 /// server**: no fraiseql-server route mounts this router (nor `saml_routes`), so
 /// the gap is not reachable from the binary today. When these routers are mounted

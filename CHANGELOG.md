@@ -1505,6 +1505,15 @@ disagreed, and the promise was the part that was wrong.
   `/auth/start` itself. A login in flight across the upgrade is refused and is started again;
   a Redis-held state from before the upgrade no longer decodes, and is refused the same way.
 
+- **`fraiseql-auth` no longer exports a second OAuth start/callback pair (#2648).** `auth_start`,
+  `auth_callback`, `AuthState`, `AuthStartRequest`, `AuthCallbackQuery`, and the
+  `handlers::{AuthStartResponse, AuthCallbackResponse, MAX_AUTH_CODE_BYTES, MAX_STATE_BYTES}`
+  items are removed. No route of the server mounted them; its OIDC login is `GET /auth/start` and
+  `GET /auth/callback` (`[security.pkce]`), and social sign-in is `GET /auth/v1/authorize` and
+  `GET /auth/v1/callback`. An application that mounted the removed handlers itself mounts one of
+  those instead. `handlers::{generate_secure_state, validate_auth_input_len,
+  MAX_REFRESH_TOKEN_BYTES}` stay.
+
 - **Cookie transport covers social and SAML sign-in, and its key moved to `[auth.session]
   transport` (#1935).** `[auth.local] session_transport` set the transport of the local
   sign-ins alone, so a social or SAML sign-in still put its tokens in a body or a fragment.
