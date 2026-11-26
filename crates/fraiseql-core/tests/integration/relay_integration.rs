@@ -157,7 +157,7 @@ impl DatabaseAdapter for RelayMockAdapter {
 
 // The writes this double answers, called by its `Writer` impl below.
 impl RelayMockAdapter {
-    async fn execute_function_call(
+    const fn execute_function_call(
         &self,
         _function_name: &str,
         _args: &[serde_json::Value],
@@ -178,7 +178,7 @@ impl fraiseql_core::db::traits::Writer for RelayMockAdapter {
         fraiseql_core::error::FraiseQLError,
     > {
         {
-            let rows = self.execute_function_call(request.function, request.args).await?;
+            let rows = self.execute_function_call(request.function, request.args)?;
             gate(&rows)?;
             Ok(rows)
         }
@@ -884,7 +884,7 @@ impl DatabaseAdapter for UuidRelayMockAdapter {
 
 // The writes this double answers, called by its `Writer` impl below.
 impl UuidRelayMockAdapter {
-    async fn execute_function_call(
+    const fn execute_function_call(
         &self,
         _function_name: &str,
         _args: &[serde_json::Value],
@@ -905,7 +905,7 @@ impl fraiseql_core::db::traits::Writer for UuidRelayMockAdapter {
         fraiseql_core::error::FraiseQLError,
     > {
         {
-            let rows = self.execute_function_call(request.function, request.args).await?;
+            let rows = self.execute_function_call(request.function, request.args)?;
             gate(&rows)?;
             Ok(rows)
         }
@@ -1334,7 +1334,7 @@ mod relay_security {
 
     // The writes this double answers, called by its `Writer` impl below.
     impl RecordingRelayAdapter {
-        async fn execute_function_call(
+        const fn execute_function_call(
             &self,
             _function_name: &str,
             _args: &[serde_json::Value],
@@ -1355,7 +1355,7 @@ mod relay_security {
             fraiseql_core::error::FraiseQLError,
         > {
             {
-                let rows = self.execute_function_call(request.function, request.args).await?;
+                let rows = self.execute_function_call(request.function, request.args)?;
                 gate(&rows)?;
                 Ok(rows)
             }

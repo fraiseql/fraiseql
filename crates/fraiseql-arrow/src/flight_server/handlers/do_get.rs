@@ -76,7 +76,7 @@ pub(super) async fn handle(
             start_date,
             end_date,
             limit,
-        } => svc.execute_observer_events(&entity_type, start_date, end_date, limit).await,
+        } => svc.execute_observer_events(&entity_type, start_date, end_date, limit),
         FlightTicket::BulkExport {
             table,
             filter,

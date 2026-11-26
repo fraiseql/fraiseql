@@ -689,7 +689,7 @@ mod chokepoint {
     // The writes this double answers, called by its `Writer` impl below.
     impl RecordingAdapter {
         /// The one method that matters here: reaching it means every gate passed.
-        async fn execute_function_call(
+        fn execute_function_call(
             &self,
             _function_name: &str,
             _args: &[JsonValue],
@@ -713,7 +713,7 @@ mod chokepoint {
             Ok(vec![row])
         }
 
-        async fn execute_function_call_gated(
+        fn execute_function_call_gated(
             &self,
             function_name: &str,
             args: &[JsonValue],
@@ -721,7 +721,7 @@ mod chokepoint {
             _changelog: Option<&fraiseql_core::db::traits::ChangeLogWrite<'_>>,
             gate: fraiseql_core::db::traits::MutationRowGate<'_>,
         ) -> FraiseQLResult<Vec<HashMap<String, JsonValue>>> {
-            let rows = self.execute_function_call(function_name, args).await?;
+            let rows = self.execute_function_call(function_name, args)?;
             gate(&rows)?;
             Ok(rows)
         }
@@ -745,7 +745,6 @@ mod chokepoint {
                 request.changelog,
                 gate,
             )
-            .await
         }
     }
 

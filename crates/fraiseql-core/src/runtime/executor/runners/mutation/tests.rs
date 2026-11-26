@@ -98,7 +98,7 @@ mod mutation {
 
     // The writes this double answers, called by its `Writer` impl below.
     impl SelectionSetFilterMockAdapter {
-        async fn execute_function_call(
+        fn execute_function_call(
             &self,
             _function_name: &str,
             _args: &[serde_json::Value],
@@ -122,7 +122,7 @@ mod mutation {
             Ok(vec![row])
         }
 
-        async fn execute_function_call_gated(
+        fn execute_function_call_gated(
             &self,
             function_name: &str,
             args: &[serde_json::Value],
@@ -130,7 +130,7 @@ mod mutation {
             _changelog: Option<&fraiseql_db::ChangeLogWrite<'_>>,
             gate: fraiseql_db::MutationRowGate<'_>,
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            let rows = self.execute_function_call(function_name, args).await?;
+            let rows = self.execute_function_call(function_name, args)?;
             gate(&rows)?;
             Ok(rows)
         }
@@ -154,7 +154,6 @@ mod mutation {
                 request.changelog,
                 gate,
             )
-            .await
         }
     }
 
@@ -226,7 +225,7 @@ mod mutation {
 
     // The writes this double answers, called by its `Writer` impl below.
     impl EmptySelectionMockAdapter {
-        async fn execute_function_call(
+        fn execute_function_call(
             &self,
             _function_name: &str,
             _args: &[serde_json::Value],
@@ -249,7 +248,7 @@ mod mutation {
             Ok(vec![row])
         }
 
-        async fn execute_function_call_gated(
+        fn execute_function_call_gated(
             &self,
             function_name: &str,
             args: &[serde_json::Value],
@@ -257,7 +256,7 @@ mod mutation {
             _changelog: Option<&fraiseql_db::ChangeLogWrite<'_>>,
             gate: fraiseql_db::MutationRowGate<'_>,
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            let rows = self.execute_function_call(function_name, args).await?;
+            let rows = self.execute_function_call(function_name, args)?;
             gate(&rows)?;
             Ok(rows)
         }
@@ -281,7 +280,6 @@ mod mutation {
                 request.changelog,
                 gate,
             )
-            .await
         }
     }
 
@@ -713,7 +711,7 @@ mod mutation {
 
     // The writes this double answers, called by its `Writer` impl below.
     impl MutationErrorMockAdapter {
-        async fn execute_function_call(
+        fn execute_function_call(
             &self,
             _function_name: &str,
             _args: &[serde_json::Value],
@@ -734,7 +732,7 @@ mod mutation {
             Ok(vec![row])
         }
 
-        async fn execute_function_call_gated(
+        fn execute_function_call_gated(
             &self,
             function_name: &str,
             args: &[serde_json::Value],
@@ -742,7 +740,7 @@ mod mutation {
             _changelog: Option<&fraiseql_db::ChangeLogWrite<'_>>,
             gate: fraiseql_db::MutationRowGate<'_>,
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            let rows = self.execute_function_call(function_name, args).await?;
+            let rows = self.execute_function_call(function_name, args)?;
             gate(&rows)?;
             Ok(rows)
         }
@@ -766,7 +764,6 @@ mod mutation {
                 request.changelog,
                 gate,
             )
-            .await
         }
     }
 
@@ -1691,7 +1688,7 @@ mod mutation {
 
     // The writes this double answers, called by its `Writer` impl below.
     impl CapturingFunctionCallAdapter {
-        async fn execute_function_call(
+        fn execute_function_call(
             &self,
             _function_name: &str,
             args: &[serde_json::Value],
@@ -1714,7 +1711,7 @@ mod mutation {
             Ok(vec![row])
         }
 
-        async fn execute_function_call_gated(
+        fn execute_function_call_gated(
             &self,
             function_name: &str,
             args: &[serde_json::Value],
@@ -1732,7 +1729,7 @@ mod mutation {
             *self.captured_pre_image.lock().unwrap() = changelog.map(|c| c.pre_image);
             *self.captured_object_type.lock().unwrap() =
                 changelog.map(|c| c.object_type.to_string());
-            let rows = self.execute_function_call(function_name, args).await?;
+            let rows = self.execute_function_call(function_name, args)?;
             gate(&rows)?;
             Ok(rows)
         }
@@ -1757,7 +1754,6 @@ mod mutation {
                 request.changelog,
                 gate,
             )
-            .await
         }
     }
 
@@ -3654,7 +3650,7 @@ mod mutation_audit {
 
     // The writes this double answers, called by its `Writer` impl below.
     impl AuditMockAdapter {
-        async fn execute_function_call(
+        fn execute_function_call(
             &self,
             _function_name: &str,
             _args: &[serde_json::Value],
@@ -3669,7 +3665,7 @@ mod mutation_audit {
             Ok(vec![row])
         }
 
-        async fn execute_function_call_gated(
+        fn execute_function_call_gated(
             &self,
             function_name: &str,
             args: &[serde_json::Value],
@@ -3677,7 +3673,7 @@ mod mutation_audit {
             _changelog: Option<&fraiseql_db::ChangeLogWrite<'_>>,
             gate: fraiseql_db::MutationRowGate<'_>,
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            let rows = self.execute_function_call(function_name, args).await?;
+            let rows = self.execute_function_call(function_name, args)?;
             gate(&rows)?;
             Ok(rows)
         }
@@ -3701,7 +3697,6 @@ mod mutation_audit {
                 request.changelog,
                 gate,
             )
-            .await
         }
     }
 
@@ -4129,7 +4124,7 @@ mod field_authz {
         /// decide a refused write is survivable. This one has nothing to roll back (its
         /// "write" is a canned row), so running the call and then adjudicating it is
         /// exactly what the PostgreSQL adapter does, minus the durability.
-        async fn execute_function_call_gated(
+        fn execute_function_call_gated(
             &self,
             function_name: &str,
             args: &[serde_json::Value],
@@ -4166,7 +4161,6 @@ mod field_authz {
                 request.changelog,
                 gate,
             )
-            .await
         }
     }
 
@@ -5553,7 +5547,7 @@ mod cascade {
 
     // The writes this double answers, called by its `Writer` impl below.
     impl CannedMutationAdapter {
-        async fn execute_function_call(
+        fn execute_function_call(
             &self,
             _function_name: &str,
             _args: &[serde_json::Value],
@@ -5561,7 +5555,7 @@ mod cascade {
             Ok(vec![self.row.clone()])
         }
 
-        async fn execute_function_call_with_session(
+        fn execute_function_call_with_session(
             &self,
             function_name: &str,
             args: &[serde_json::Value],
@@ -5570,10 +5564,10 @@ mod cascade {
             Vec<std::collections::HashMap<String, serde_json::Value>>,
             crate::error::FraiseQLError,
         > {
-            self.execute_function_call(function_name, args).await
+            self.execute_function_call(function_name, args)
         }
 
-        async fn execute_function_call_with_changelog(
+        fn execute_function_call_with_changelog(
             &self,
             function_name: &str,
             args: &[serde_json::Value],
@@ -5583,13 +5577,13 @@ mod cascade {
             Vec<std::collections::HashMap<String, serde_json::Value>>,
             crate::error::FraiseQLError,
         > {
-            self.execute_function_call_with_session(function_name, args, session_vars).await
+            self.execute_function_call_with_session(function_name, args, session_vars)
         }
 
         /// The commit gate (#1353) — see `field_authz::GatedEntityAdapter` for why a
         /// double on a policy-gated schema has to implement this rather than inherit
         /// the refusing default.
-        async fn execute_function_call_gated(
+        fn execute_function_call_gated(
             &self,
             function_name: &str,
             args: &[serde_json::Value],
@@ -5597,9 +5591,12 @@ mod cascade {
             changelog: Option<&ChangeLogWrite<'_>>,
             gate: fraiseql_db::MutationRowGate<'_>,
         ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
-            let rows = self
-                .execute_function_call_with_changelog(function_name, args, session_vars, changelog)
-                .await?;
+            let rows = self.execute_function_call_with_changelog(
+                function_name,
+                args,
+                session_vars,
+                changelog,
+            )?;
             gate(&rows)?;
             Ok(rows)
         }
@@ -5623,7 +5620,6 @@ mod cascade {
                 request.changelog,
                 gate,
             )
-            .await
         }
     }
 
@@ -6347,7 +6343,7 @@ mod before_mutation_enforcement {
 
     // The writes this double answers, called by its `Writer` impl below.
     impl MutationCallLog {
-        async fn execute_function_call(
+        fn execute_function_call(
             &self,
             function_name: &str,
             args: &[serde_json::Value],
@@ -6363,7 +6359,7 @@ mod before_mutation_enforcement {
             Ok(vec![row])
         }
 
-        async fn execute_function_call_gated(
+        fn execute_function_call_gated(
             &self,
             function_name: &str,
             args: &[serde_json::Value],
@@ -6371,7 +6367,7 @@ mod before_mutation_enforcement {
             _changelog: Option<&fraiseql_db::ChangeLogWrite<'_>>,
             gate: fraiseql_db::MutationRowGate<'_>,
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            let rows = self.execute_function_call(function_name, args).await?;
+            let rows = self.execute_function_call(function_name, args)?;
             gate(&rows)?;
             Ok(rows)
         }
@@ -6395,7 +6391,6 @@ mod before_mutation_enforcement {
                 request.changelog,
                 gate,
             )
-            .await
         }
     }
 
@@ -7022,7 +7017,7 @@ mod before_mutation_read_bridge {
 
     // The writes this double answers, called by its `Writer` impl below.
     impl ReadEchoAdapter {
-        async fn execute_function_call(
+        fn execute_function_call(
             &self,
             function_name: &str,
             _args: &[serde_json::Value],
@@ -7038,7 +7033,7 @@ mod before_mutation_read_bridge {
             Ok(vec![row])
         }
 
-        async fn execute_function_call_gated(
+        fn execute_function_call_gated(
             &self,
             function_name: &str,
             args: &[serde_json::Value],
@@ -7046,7 +7041,7 @@ mod before_mutation_read_bridge {
             _changelog: Option<&ChangeLogWrite<'_>>,
             gate: fraiseql_db::MutationRowGate<'_>,
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            let rows = self.execute_function_call(function_name, args).await?;
+            let rows = self.execute_function_call(function_name, args)?;
             if let Err(refused) = gate(&rows) {
                 // The call above logged it; the refusal takes it back.
                 self.writes.lock().unwrap().pop();
@@ -7074,7 +7069,6 @@ mod before_mutation_read_bridge {
                 request.changelog,
                 gate,
             )
-            .await
         }
     }
 
@@ -7453,7 +7447,7 @@ mod rest_write_body {
 
     // The writes this double answers, called by its `Writer` impl below.
     impl ArgLog {
-        async fn execute_function_call(
+        fn execute_function_call(
             &self,
             function_name: &str,
             args: &[serde_json::Value],
@@ -7470,20 +7464,20 @@ mod rest_write_body {
             Ok(vec![row])
         }
 
-        async fn execute_function_call_with_changelog(
+        fn execute_function_call_with_changelog(
             &self,
             function_name: &str,
             args: &[serde_json::Value],
             _session_vars: &[(&str, &str)],
             _changelog: Option<&ChangeLogWrite<'_>>,
         ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
-            self.execute_function_call(function_name, args).await
+            self.execute_function_call(function_name, args)
         }
 
         /// The commit gate (#1353) — see `field_authz::GatedEntityAdapter` for why a
         /// double on a policy-gated schema has to implement this rather than inherit
         /// the refusing default.
-        async fn execute_function_call_gated(
+        fn execute_function_call_gated(
             &self,
             function_name: &str,
             args: &[serde_json::Value],
@@ -7491,9 +7485,12 @@ mod rest_write_body {
             changelog: Option<&ChangeLogWrite<'_>>,
             gate: fraiseql_db::MutationRowGate<'_>,
         ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
-            let rows = self
-                .execute_function_call_with_changelog(function_name, args, session_vars, changelog)
-                .await?;
+            let rows = self.execute_function_call_with_changelog(
+                function_name,
+                args,
+                session_vars,
+                changelog,
+            )?;
             gate(&rows)?;
             Ok(rows)
         }
@@ -7517,7 +7514,6 @@ mod rest_write_body {
                 request.changelog,
                 gate,
             )
-            .await
         }
 
         async fn execute_writes(
@@ -8454,7 +8450,7 @@ mod dry_run {
             self.dry_runs.load(Ordering::SeqCst)
         }
 
-        async fn execute_function_call_dry_run(
+        fn execute_function_call_dry_run(
             &self,
             _function_name: &str,
             _args: &[serde_json::Value],
@@ -8482,9 +8478,11 @@ mod dry_run {
                     message: "DryRunAdapter answers only dry runs".to_string(),
                 });
             }
-            let rows = self
-                .execute_function_call_dry_run(request.function, request.args, request.session_vars)
-                .await?;
+            let rows = self.execute_function_call_dry_run(
+                request.function,
+                request.args,
+                request.session_vars,
+            )?;
             gate(&rows)?;
             Ok(rows)
         }

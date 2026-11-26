@@ -1181,7 +1181,7 @@ impl FraiseQLFlightService {
     /// * `start_date` - Optional ISO 8601 start date
     /// * `end_date` - Optional ISO 8601 end date
     /// * `limit` - Optional maximum number of events
-    pub(crate) async fn execute_observer_events(
+    pub(crate) fn execute_observer_events(
         &self,
         entity_type: &str,
         _start_date: Option<String>,

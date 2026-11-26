@@ -634,7 +634,7 @@ impl Writer for MockAdapter {
 /// Returns an empty page: the tests that need this are about whether relay dispatch
 /// is *present*, not about what it pages over.
 impl RelayDatabaseAdapter for MockAdapter {
-    async fn execute_relay_page<'a>(
+    fn execute_relay_page<'a>(
         &'a self,
         _view: &'a str,
         _cursor_column: &'a str,
@@ -645,15 +645,15 @@ impl RelayDatabaseAdapter for MockAdapter {
         _where_clause: Option<&'a WhereClause>,
         _order_by: Option<&'a [OrderByClause]>,
         _include_total_count: bool,
-    ) -> Result<RelayPageResult> {
-        Ok(RelayPageResult::new(Vec::new(), None))
+    ) -> impl std::future::Future<Output = Result<RelayPageResult>> + Send + 'a {
+        std::future::ready(Ok(RelayPageResult::new(Vec::new(), None)))
     }
 }
 
 /// Relay dispatch over the capturing mock: the page's predicate is recorded where every other
 /// read's is, so a test can see what a connection was scoped by. The page itself is empty.
 impl RelayDatabaseAdapter for CapturingMockAdapter {
-    async fn execute_relay_page<'a>(
+    fn execute_relay_page<'a>(
         &'a self,
         _view: &'a str,
         _cursor_column: &'a str,
@@ -664,9 +664,10 @@ impl RelayDatabaseAdapter for CapturingMockAdapter {
         where_clause: Option<&'a WhereClause>,
         _order_by: Option<&'a [OrderByClause]>,
         _include_total_count: bool,
-    ) -> Result<RelayPageResult> {
+    ) -> impl std::future::Future<Output = Result<RelayPageResult>> + Send + 'a {
+        // Recorded when the page is requested; the executor awaits it at once.
         *self.captured_where.lock().unwrap() = where_clause.cloned();
-        Ok(RelayPageResult::new(Vec::new(), None))
+        std::future::ready(Ok(RelayPageResult::new(Vec::new(), None)))
     }
 }
 

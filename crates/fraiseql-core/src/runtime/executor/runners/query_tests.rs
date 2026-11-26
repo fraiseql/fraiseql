@@ -802,7 +802,7 @@ mod session_variables {
 
     // The writes this double answers, called by its `Writer` impl below.
     impl SessionVarCapturingAdapter {
-        async fn execute_function_call(
+        fn execute_function_call(
             &self,
             _function_name: &str,
             _args: &[serde_json::Value],
@@ -823,7 +823,7 @@ mod session_variables {
             crate::error::FraiseQLError,
         > {
             {
-                let rows = self.execute_function_call(request.function, request.args).await?;
+                let rows = self.execute_function_call(request.function, request.args)?;
                 gate(&rows)?;
                 Ok(rows)
             }

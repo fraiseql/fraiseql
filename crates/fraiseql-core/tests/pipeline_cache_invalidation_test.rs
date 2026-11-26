@@ -116,7 +116,7 @@ impl DatabaseAdapter for InnerMockAdapter {
 
 // The writes this double answers, called by its `Writer` impl below.
 impl InnerMockAdapter {
-    async fn execute_function_call(
+    fn execute_function_call(
         &self,
         function_name: &str,
         _args: &[serde_json::Value],
@@ -131,7 +131,7 @@ impl InnerMockAdapter {
         Ok(vec![self.mutation_row.clone()])
     }
 
-    async fn execute_function_call_gated(
+    fn execute_function_call_gated(
         &self,
         function_name: &str,
         args: &[serde_json::Value],
@@ -139,7 +139,7 @@ impl InnerMockAdapter {
         _changelog: Option<&fraiseql_core::db::traits::ChangeLogWrite<'_>>,
         gate: fraiseql_core::db::traits::MutationRowGate<'_>,
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
-        let rows = self.execute_function_call(function_name, args).await?;
+        let rows = self.execute_function_call(function_name, args)?;
         gate(&rows)?;
         Ok(rows)
     }
@@ -163,7 +163,6 @@ impl fraiseql_core::db::traits::Writer for InnerMockAdapter {
             request.changelog,
             gate,
         )
-        .await
     }
 }
 

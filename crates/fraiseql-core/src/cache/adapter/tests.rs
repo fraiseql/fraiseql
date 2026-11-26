@@ -172,7 +172,7 @@ impl DatabaseAdapter for MockAdapter {
 
 // The writes this double answers, called by its `Writer` impl below.
 impl MockAdapter {
-    async fn execute_function_call(
+    fn execute_function_call(
         &self,
         _function_name: &str,
         _args: &[serde_json::Value],
@@ -193,7 +193,7 @@ impl crate::backend::traits::Writer for MockAdapter {
         crate::error::FraiseQLError,
     > {
         {
-            let rows = self.execute_function_call(request.function, request.args).await?;
+            let rows = self.execute_function_call(request.function, request.args)?;
             gate(&rows)?;
             Ok(rows)
         }
@@ -969,7 +969,7 @@ impl DatabaseAdapter for BumpAdapter {
 
 // The writes this double answers, called by its `Writer` impl below.
 impl BumpAdapter {
-    async fn execute_function_call(
+    fn execute_function_call(
         &self,
         function_name: &str,
         _args: &[serde_json::Value],
@@ -998,7 +998,7 @@ impl crate::backend::traits::Writer for BumpAdapter {
         crate::error::FraiseQLError,
     > {
         {
-            let rows = self.execute_function_call(request.function, request.args).await?;
+            let rows = self.execute_function_call(request.function, request.args)?;
             gate(&rows)?;
             Ok(rows)
         }
@@ -1453,7 +1453,7 @@ impl DatabaseAdapter for StreamSpyAdapter {
 
 // The writes this double answers, called by its `Writer` impl below.
 impl StreamSpyAdapter {
-    async fn execute_function_call(
+    fn execute_function_call(
         &self,
         _function_name: &str,
         _args: &[serde_json::Value],
@@ -1474,7 +1474,7 @@ impl crate::backend::traits::Writer for StreamSpyAdapter {
         crate::error::FraiseQLError,
     > {
         {
-            let rows = self.execute_function_call(request.function, request.args).await?;
+            let rows = self.execute_function_call(request.function, request.args)?;
             gate(&rows)?;
             Ok(rows)
         }

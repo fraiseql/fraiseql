@@ -135,7 +135,7 @@ impl DatabaseAdapter for CapturingAdapter {
 
 // The writes this double answers, called by its `Writer` impl below.
 impl CapturingAdapter {
-    async fn execute_function_call(
+    const fn execute_function_call(
         &self,
         _function_name: &str,
         _args: &[serde_json::Value],
@@ -156,7 +156,7 @@ impl fraiseql_core::db::traits::Writer for CapturingAdapter {
         fraiseql_core::error::FraiseQLError,
     > {
         {
-            let rows = self.execute_function_call(request.function, request.args).await?;
+            let rows = self.execute_function_call(request.function, request.args)?;
             gate(&rows)?;
             Ok(rows)
         }
