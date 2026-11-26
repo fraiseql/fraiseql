@@ -15,6 +15,7 @@ boot**, naming Redis in the error.
 `backend = "redis"`) each name their Redis one of two ways:
 
 ```toml
+# fraiseql.toml
 [security.pkce]
 enabled = true
 redis_url_env = "REDIS_URL"        # the server reads $REDIS_URL at startup
