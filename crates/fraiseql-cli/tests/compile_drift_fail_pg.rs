@@ -1029,6 +1029,37 @@ fn temporal_schema(view: &str, booking_view: &str) -> NamedTempFile {
     }))
 }
 
+/// The parts of the temporal values the views below sample, each of which a log must not
+/// carry. The compile log holds the compiler's tracing lines, whose timestamps read the wall
+/// clock (`2026-11-26T13:57:42.512345Z`), so a time of day alone would match a run at that
+/// second: the year is one no run reads, and the time has one fractional digit where a
+/// timestamp has six, so [`carries`] can tell the two apart.
+const SAMPLED: [&str; 2] = ["1987-07-01", "13:57:42.5"];
+
+/// Whether `log` carries `value` as a value, not as the start of a longer number: a tracing
+/// timestamp's `13:57:42.512345` continues a sampled `13:57:42.5` with digits.
+fn carries(log: &str, value: &str) -> bool {
+    log.match_indices(value)
+        .any(|(at, _)| !log[at + value.len()..].starts_with(|c: char| c.is_ascii_digit()))
+}
+
+/// A tracing timestamp at the sampled time of day is not a sampled value; the value itself,
+/// however it is quoted, is.
+#[test]
+fn a_timestamp_at_the_sampled_time_is_not_a_sampled_value() {
+    let traced = "2026-11-26T13:57:42.512345Z  WARN fraiseql_cli: query `slots`: 1 of 1";
+    assert!(!SAMPLED.iter().any(|value| carries(traced, value)), "{traced}");
+    for printed in [
+        "`13:57:42.5`",
+        "\"1987-07-01T13:57:42.5+00:00\"",
+        "13:57:42.5+00",
+        "at 13:57:42.5",
+    ] {
+        assert!(carries(printed, "13:57:42.5"), "{printed}");
+    }
+    assert!(carries("day 1987-07-01", "1987-07-01"));
+}
+
 /// A view whose document writes each temporal key from a column of the given types, in
 /// that order: `at`, `wall`, `day`, `opens`.
 async fn create_temporal_view(client: &tokio_postgres::Client, view: &str, types: [&str; 4]) {
@@ -1037,8 +1068,8 @@ async fn create_temporal_view(client: &tokio_postgres::Client, view: &str, types
         .batch_execute(&format!(
             "DROP VIEW IF EXISTS {view} CASCADE;
              CREATE VIEW {view} AS SELECT 1 AS id, jsonb_build_object('id', 1, \
-             'at', '2026-07-01 09:30:00+00'::{at}, 'wall', '2026-07-01 09:30:00'::{wall}, \
-             'day', '2026-07-01'::{day}, 'opens', '09:30:00'::{opens}) AS data;"
+             'at', '1987-07-01 13:57:42.5+00'::{at}, 'wall', '1987-07-01 13:57:42.5'::{wall}, \
+             'day', '1987-07-01'::{day}, 'opens', '13:57:42.5'::{opens}) AS data;"
         ))
         .await
         .unwrap();
@@ -1115,7 +1146,9 @@ async fn a_temporal_key_outside_its_scalars_format_fails_the_compile() {
             )),
             "an embedded document is held to the same format:\n{log}"
         );
-        assert!(!log.contains("09:30"), "the log carries a sampled value:\n{log}");
+        for value in SAMPLED {
+            assert!(!carries(&log, value), "the log carries a sampled value `{value}`:\n{log}");
+        }
         assert!(!out.exists(), "a failed compile must not write the artifact");
     }
 }
@@ -1215,10 +1248,10 @@ async fn create_cast_source(client: &tokio_postgres::Client) {
             r#"DROP TABLE IF EXISTS tb_cdf2213 CASCADE;
              CREATE TABLE tb_cdf2213 (id int PRIMARY KEY, src jsonb NOT NULL, ts timestamptz);
              INSERT INTO tb_cdf2213 VALUES (1, '{
-                 "at": "2024-01-15T10:00:00+02:00", "path": {"at": "2024-01-15T10:00:00+02:00"},
-                 "nested": "2024-01-15T10:00:00+02:00", "spelled": "2024-01-15T10:00:00+02:00",
-                 "day": "2024-01-15", "opens": "09:30:00", "label": "2024-01-15T10:00:00+02:00"
-             }', '2024-01-15T08:00:00Z');"#,
+                 "at": "1987-07-01T13:57:42.5+02:00", "path": {"at": "1987-07-01T13:57:42.5+02:00"},
+                 "nested": "1987-07-01T13:57:42.5+02:00", "spelled": "1987-07-01T13:57:42.5+02:00",
+                 "day": "1987-07-01", "opens": "13:57:42.5", "label": "1987-07-01T13:57:42.5+02:00"
+             }', '1987-07-01T11:57:42.5Z');"#,
         )
         .await
         .unwrap();
@@ -1298,8 +1331,8 @@ async fn a_text_key_cast_to_a_temporal_type_warns() {
     ] {
         assert!(log.contains(&cast_warning("v_cdf2213_doc", key, cast)), "`{key}`:\n{log}");
     }
-    for value in ["10:00", "08:00", "09:30", "2024-01-15"] {
-        assert!(!log.contains(value), "the warning carries a stored value `{value}`:\n{log}");
+    for value in SAMPLED.iter().chain(&["11:57:42.5"]) {
+        assert!(!carries(&log, value), "the warning carries a stored value `{value}`:\n{log}");
     }
 }
 

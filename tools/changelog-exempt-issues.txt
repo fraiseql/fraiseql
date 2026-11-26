@@ -110,3 +110,4 @@
 #2523  CI: fraiseql-core and fraiseql-db coverage is measured over their legs' lines with the integration services bound, in a Dagger function; no shipped artifact changes
 #1776  CI: crate growth is bounded per commit, with a trailer admitting more, and the crate-size budgets become loose ceilings; no shipped artifact changes
 #2569  tests: the polled-dispatch sink test awaits the dispatch task instead of polling the ledger for it; the after:ingest task handles it now reads are dropped outside tests, so no shipped behaviour changes
+#2592  tests: the compile drift suite samples temporal values no log timestamp can contain, so its no-sampled-value assertions no longer fail when the wall clock reads the sampled time; no shipped artifact changes
