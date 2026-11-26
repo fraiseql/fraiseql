@@ -2555,16 +2555,11 @@ func (m *FraiseqlCi) integrationStorage(ctx context.Context, source *dagger.Dire
 		"echo 'test-integration OK: storage suite passed'",
 	}, "\n")
 
-	return m.integrationBase(source, rustMsrv, lane).
-		// nodejs/npm for the tus-js-client interop suite, fonts-dejavu-core for
-		// #973's text watermark (whose typeface is the operator's and is
-		// therefore never vendored into the crate). Installed here rather than
-		// in rustBase: only this leg needs them, and rustBase is shared by
-		// every heavy leg.
-		WithExec(aptInstall(
-
-			"nodejs", "npm", "fonts-dejavu-core",
-		)).
+	// nodejs/npm for the tus-js-client interop suite, fonts-dejavu-core for #973's text
+	// watermark (whose typeface is the operator's and is therefore never vendored into
+	// the crate). Installed for this leg rather than in rustBase: only this leg needs
+	// them, and rustBase is shared by every heavy leg.
+	return m.integrationBaseWith(source, rustMsrv, lane, "nodejs", "npm", "fonts-dejavu-core").
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithServiceBinding(azuriteBindHost, m.azuriteService()).
 		WithServiceBinding(fakeGcsBindHost, m.fakeGcsService()).
@@ -3618,7 +3613,24 @@ func (m *FraiseqlCi) pgStandbyService(
 // from the Phase-02 gate and Phase-03 unit-test caches, which hold different
 // feature/artifact sets) and sets RUST_LOG=debug like the legacy integration jobs.
 func (m *FraiseqlCi) integrationBase(source *dagger.Directory, rust string, lane int) *dagger.Container {
+	return m.integrationBaseWith(source, rust, lane)
+}
+
+// integrationBaseWith is integrationBase with `pkgs` apt-installed on rustBaseFor, BELOW
+// the source mount. A layer above the mount is keyed on the source, so an install there
+// misses the cache on every push and reaches the package archive on every run. Below
+// it, it misses only after an engine GC.
+func (m *FraiseqlCi) integrationBaseWith(
+	source *dagger.Directory,
+	rust string,
+	lane int,
+	pkgs ...string,
+) *dagger.Container {
 	toolchain := resolveToolchain(rust)
+	base := m.rustBaseFor(toolchain)
+	if len(pkgs) > 0 {
+		base = base.WithExec(aptInstall(pkgs...))
+	}
 	// `integ3-` bump (2026-06-30): bust the stale integ2 target cache that reused
 	// pre-#501 fraiseql-db artifacts, hiding `execute_function_call_dry_run` → false
 	// E0599 in the integration postgres leg. Mirrors the `test2-` bump above.
@@ -3635,6 +3647,6 @@ func (m *FraiseqlCi) integrationBase(source *dagger.Directory, rust string, lane
 	// A volume bump only clears the current drift. The durable fix is rustSource (#1421):
 	// sources stamped at leg start so no earlier run's artifact is judged fresh, and the
 	// volume mounted PRIVATE so no concurrent run shares it.
-	return rustSource(m.rustBaseFor(toolchain), source, integrationTargetVol(toolchain, lane)).
+	return rustSource(base, source, integrationTargetVol(toolchain, lane)).
 		WithEnvVariable("RUST_LOG", "debug")
 }
