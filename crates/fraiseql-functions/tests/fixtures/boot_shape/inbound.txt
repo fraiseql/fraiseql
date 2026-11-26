@@ -1,0 +1,24 @@
+column _fraiseql_inbound_dispatch.attempts integer not null default 1
+column _fraiseql_inbound_dispatch.created_at timestamp with time zone not null default now()
+column _fraiseql_inbound_dispatch.fk_inbound_message bigint not null
+column _fraiseql_inbound_dispatch.function_name text not null
+column _fraiseql_inbound_dispatch.lease_until timestamp with time zone not null
+column _fraiseql_inbound_dispatch.settled_at timestamp with time zone null
+column _fraiseql_inbound_dispatch.state text not null default 'pending'::text
+column _fraiseql_inbound_message.created_at timestamp with time zone not null default now()
+column _fraiseql_inbound_message.event_type text null
+column _fraiseql_inbound_message.id uuid not null default gen_random_uuid()
+column _fraiseql_inbound_message.idempotency_key text not null
+column _fraiseql_inbound_message.payload jsonb not null
+column _fraiseql_inbound_message.pk_inbound_message bigint not null
+column _fraiseql_inbound_message.received_at timestamp with time zone not null
+column _fraiseql_inbound_message.source text not null
+column _fraiseql_inbound_message.thread_key text null
+index CREATE INDEX idx_inbound_dispatch_due ON public._fraiseql_inbound_dispatch USING btree (lease_until) WHERE (state = 'pending'::text)
+index CREATE INDEX idx_inbound_message_received ON public._fraiseql_inbound_message USING btree (received_at)
+index CREATE INDEX idx_inbound_message_thread ON public._fraiseql_inbound_message USING btree (thread_key) WHERE (thread_key IS NOT NULL)
+index CREATE UNIQUE INDEX _fraiseql_inbound_dispatch_pkey ON public._fraiseql_inbound_dispatch USING btree (fk_inbound_message, function_name)
+index CREATE UNIQUE INDEX _fraiseql_inbound_message_pkey ON public._fraiseql_inbound_message USING btree (pk_inbound_message)
+index CREATE UNIQUE INDEX _fraiseql_inbound_message_source_idempotency_key_key ON public._fraiseql_inbound_message USING btree (source, idempotency_key)
+row level security _fraiseql_inbound_dispatch off
+row level security _fraiseql_inbound_message off

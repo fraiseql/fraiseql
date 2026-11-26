@@ -14,7 +14,9 @@ use fraiseql_test_support::boot_locks::{
 };
 use sqlx::PgPool;
 
-use super::super::{cron_migration_sql, dlq_migration_sql, send_tracking_migration_sql};
+use super::super::{
+    cron_migration_sql, dlq_migration_sql, inbound_migration_sql, send_tracking_migration_sql,
+};
 
 /// The schema an unqualified table lands in on a fresh database.
 const SCHEMAS: &[&str] = &["public"];
@@ -84,4 +86,14 @@ async fn send_tracking_second_boot_waits_on_nothing() {
 #[tokio::test]
 async fn send_tracking_boot_builds_the_pinned_shape() {
     boot_builds_the_pinned_shape("send_tracking", send_tracking_migration_sql()).await;
+}
+
+#[tokio::test]
+async fn inbound_second_boot_waits_on_nothing() {
+    second_boot_waits_on_nothing("inbound", inbound_migration_sql()).await;
+}
+
+#[tokio::test]
+async fn inbound_boot_builds_the_pinned_shape() {
+    boot_builds_the_pinned_shape("inbound", inbound_migration_sql()).await;
 }
