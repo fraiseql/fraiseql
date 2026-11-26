@@ -1038,7 +1038,8 @@ final class Tag
 ///
 /// # Errors
 ///
-/// Returns an error if `git init` cannot be spawned or exits with a non-zero status.
+/// None in practice: a `git` that cannot be spawned, or a `git init` that fails, only
+/// prints a warning, since a project works without a repository.
 pub(super) fn init_git(project_dir: &Path) -> Result<()> {
     let status = Command::new("git")
         .args(["init"])
@@ -1048,18 +1049,10 @@ pub(super) fn init_git(project_dir: &Path) -> Result<()> {
         .status();
 
     match status {
-        Ok(s) if s.success() => {
-            info!("Initialized git repository");
-            Ok(())
-        },
-        Ok(_) => {
-            // git init failed but non-fatal
-            eprintln!("Warning: git init failed. You can initialize git manually.");
-            Ok(())
-        },
-        Err(_) => {
-            eprintln!("Warning: git not found. Skipping repository initialization.");
-            Ok(())
-        },
+        Ok(s) if s.success() => info!("Initialized git repository"),
+        // git init failed but non-fatal
+        Ok(_) => eprintln!("Warning: git init failed. You can initialize git manually."),
+        Err(_) => eprintln!("Warning: git not found. Skipping repository initialization."),
     }
+    Ok(())
 }

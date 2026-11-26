@@ -159,11 +159,7 @@ impl SchemaOptimizer {
         // Average field: id (50B) + name (100B) + value (100B) = 250B overhead
         // 1KB threshold = ~4+ fields of average size
         let estimated_size = type_def.fields.len() * 250;
-        if estimated_size > 1024 {
-            return true;
-        }
-
-        false
+        estimated_size > 1024
     }
 
     /// Create a SQL projection hint for `PostgreSQL`.

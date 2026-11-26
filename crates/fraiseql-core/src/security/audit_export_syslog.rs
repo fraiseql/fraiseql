@@ -38,14 +38,13 @@ impl Transport {
             Transport::Udp(sock) => {
                 let end = msg.len().min(MAX_UDP_MSG_LEN);
                 sock.send(&msg[..end])?;
-                Ok(())
             },
             Transport::Tcp(stream) => {
                 stream.write_all(msg)?;
                 stream.write_all(b"\n")?;
-                Ok(())
             },
         }
+        Ok(())
     }
 }
 

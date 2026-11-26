@@ -2,8 +2,8 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use hmac::{Hmac, KeyInit as _, Mac as _};
+use base64::engine::general_purpose::STANDARD as BASE64;
+use hmac::Hmac;
 use sha2::Sha256;
 
 use super::*;

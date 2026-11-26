@@ -1289,9 +1289,7 @@ impl<'a> RestParamExtractor<'a> {
         // takes a boolean (#828): the operator decides the operand's shape. A list-typed
         // field already coerces to a list.
         if OPERATOR_REGISTRY.get(operator).is_some_and(|op| op.requires_array)
-            && !self
-                .field_type(field_name)
-                .is_some_and(|t| matches!(t, FieldType::List { item: _, .. }))
+            && !self.field_type(field_name).is_some_and(|t| matches!(t, FieldType::List { .. }))
         {
             return self.coerce_list_operand(field_name, raw);
         }

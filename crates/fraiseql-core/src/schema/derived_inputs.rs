@@ -339,7 +339,7 @@ pub(super) fn orders_meaningfully(schema: &CompiledSchema, field_type: &FieldTyp
         | FieldType::BitVector
         | FieldType::HalfVector
         | FieldType::SparseVector
-        | FieldType::List { item: _, .. }
+        | FieldType::List { .. }
         | FieldType::Input(_)
         | FieldType::Interface(_)
         | FieldType::Union(_) => false,

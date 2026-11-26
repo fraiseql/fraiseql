@@ -53,7 +53,7 @@ pub fn coerce_to_type(
     match field_type {
         FieldType::Json => serde_json::from_str(raw)
             .map_err(|_| validation_error(format!("The value of `{name}` is not a JSON value."))),
-        FieldType::List { item: _, .. } => {
+        FieldType::List { .. } => {
             // Try JSON array first, then comma-separated.
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(raw) {
                 if v.is_array() {

@@ -183,11 +183,7 @@ impl ScheduledPoller {
             })
             .await
             .map_err(|e| e.to_string())?;
-        let last = last
-            .flatten()
-            .map(fraiseql_time::Timestamp::try_from)
-            .transpose()
-            .map_err(|e| e.to_string())?;
+        let last = last.flatten();
         Ok(last.is_some_and(|last| {
             matches!(
                 self.schedule.decide(&CronExecutionState::resuming_from(last), &now),

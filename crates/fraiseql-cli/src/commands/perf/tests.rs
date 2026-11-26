@@ -15,8 +15,9 @@ const NOW: f64 = 1_000_000_000.0;
 const DAY: f64 = 86_400.0;
 /// Falls inside the recent window `[NOW-7d, NOW]`.
 const RECENT_EPOCH: f64 = NOW - DAY;
+const TEN_DAYS: f64 = 10.0 * DAY;
 /// Falls inside the baseline window `[NOW-14d, NOW-7d)`.
-const BASELINE_EPOCH: f64 = NOW - 10.0 * DAY;
+const BASELINE_EPOCH: f64 = NOW - TEN_DAYS;
 
 fn params() -> RegressionParams {
     RegressionParams {

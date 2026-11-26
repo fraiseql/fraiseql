@@ -1766,8 +1766,12 @@ fn inet_text(raw: &[u8]) -> Option<String> {
 /// first longest run of two or more zero groups written `::`, and the last four bytes in
 /// dotted form for an address that embeds an IPv4 one (`::a.b.c.d`, `::ffff:a.b.c.d`).
 fn ipv6_text(address: [u8; 16]) -> String {
-    let words: Vec<u16> =
-        address.chunks_exact(2).map(|w| u16::from_be_bytes([w[0], w[1]])).collect();
+    let words: Vec<u16> = address
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|&pair| u16::from_be_bytes(pair))
+        .collect();
     let mut best: Option<(usize, usize)> = None;
     let mut run: Option<(usize, usize)> = None;
     for (i, &word) in words.iter().chain(std::iter::once(&1)).enumerate() {

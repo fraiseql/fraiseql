@@ -266,11 +266,9 @@ impl Cursor<'_> {
         let negative = if let Some(rest) = self.0.strip_prefix('+') {
             self.0 = rest;
             false
-        } else if let Some(rest) = self.0.strip_prefix(['-', '\u{2212}']) {
-            self.0 = rest;
-            true
         } else {
-            return None;
+            self.0 = self.0.strip_prefix(['-', '\u{2212}'])?;
+            true
         };
         let hours = self.two_digits(b'9')?;
         self.0 = self.0.trim_start_matches(|c: char| c == ':' || c.is_whitespace());
@@ -295,11 +293,9 @@ impl Cursor<'_> {
         let negative = if let Some(rest) = self.0.strip_prefix('+') {
             self.0 = rest;
             false
-        } else if let Some(rest) = self.0.strip_prefix(['-', '\u{2212}']) {
-            self.0 = rest;
-            true
         } else {
-            return None;
+            self.0 = self.0.strip_prefix(['-', '\u{2212}'])?;
+            true
         };
         let hours = self.two_digits(b'9')?;
         self.literal(':')?;

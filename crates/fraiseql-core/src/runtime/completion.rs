@@ -1073,15 +1073,14 @@ impl<'a> Walk<'a> {
                     errors.push(violation(label, path));
                     return Err(Propagate);
                 }
-                Ok(())
             },
             other => {
                 if self.nullable(value, other, sel, label, path, errors, depth).is_err() {
                     *value = Value::Null;
                 }
-                Ok(())
             },
         }
+        Ok(())
     }
 
     /// Complete a value, in place, at a nullable position: `Err(Propagate)` when a

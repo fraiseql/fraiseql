@@ -500,7 +500,6 @@ impl ActionConfig {
                             .to_string(),
                     });
                 }
-                Ok(())
             },
             Self::Slack {
                 webhook_url,
@@ -513,7 +512,6 @@ impl ActionConfig {
                             .to_string(),
                     });
                 }
-                Ok(())
             },
             Self::Email {
                 to,
@@ -537,7 +535,6 @@ impl ActionConfig {
                         reason: "Email action requires 'body_template'".to_string(),
                     });
                 }
-                Ok(())
             },
             // Cache invalidation has a real Redis transport (#428). Validate it
             // structurally here (non-empty pattern, supported sub-action); the
@@ -561,7 +558,6 @@ impl ActionConfig {
                         ),
                     });
                 }
-                Ok(())
             },
             // #632: a real PostgreSQL-function dispatcher. The function name is
             // interpolated into SQL, so it must be a strict (optionally
@@ -578,7 +574,6 @@ impl ActionConfig {
                         ),
                     });
                 }
-                Ok(())
             },
             // #632: a real structured-log dispatcher.
             Self::Log {
@@ -598,9 +593,9 @@ impl ActionConfig {
                         reason: "Log action requires a non-empty 'message_template'".to_string(),
                     });
                 }
-                Ok(())
             },
         }
+        Ok(())
     }
 }
 
