@@ -129,6 +129,16 @@ version.workspace = true
 name = "functions_invoke"
 required-features = ["functions-invoke"]
 
+# These drive `fraiseql-cli functions invoke`, a subcommand only a `functions-invoke`
+# build has.
+[[test]]
+name = "functions_invoke_dirs_test"
+required-features = ["functions-invoke"]
+
+[[test]]
+name = "functions_shared_modules_acceptance_test"
+required-features = ["functions-invoke"]
+
 [[test]]
 name = "cascade_federation_shareable_e2e"
 required-features = ["federation"]
