@@ -257,3 +257,21 @@ fn a_warm_read_does_not_collect_its_fields_again() {
         );
     }
 }
+
+#[cfg(feature = "dhat-heap")]
+#[path = "support/name_resolution.rs"]
+mod name_resolution;
+
+/// The selection-driven projector resolves a field's stored key as it reads each row: two
+/// name allocations per selected field per row, at every depth. This pins today's count;
+/// resolving the keys once, at schema load, drives it to zero.
+#[test]
+fn a_projected_row_resolves_each_selected_field_name_again() {
+    #[cfg(feature = "dhat-heap")]
+    {
+        let _profiler = dhat::Profiler::builder().testing().build();
+        let per_field = name_resolution::name_allocations_per_field();
+        eprintln!("project_entity: {per_field} name allocations per selected field per row");
+        assert_eq!(per_field, 7, "name allocations per selected field per projected row");
+    }
+}
