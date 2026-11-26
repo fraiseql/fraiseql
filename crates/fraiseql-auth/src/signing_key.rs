@@ -52,8 +52,15 @@ CREATE TABLE IF NOT EXISTS auth.signing_key (
     created_at      BIGINT NOT NULL,
     retired_at      BIGINT
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uq_signing_key_one_active
-    ON auth.signing_key ((true)) WHERE retired_at IS NULL;
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $signing_key_shape$
+BEGIN
+    IF to_regclass('auth.uq_signing_key_one_active') IS NULL THEN
+        CREATE UNIQUE INDEX uq_signing_key_one_active ON auth.signing_key ((true)) WHERE retired_at IS NULL;
+    END IF;
+END
+$signing_key_shape$;
 REVOKE ALL ON auth.signing_key FROM PUBLIC;
 "
 );

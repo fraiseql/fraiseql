@@ -1,0 +1,9 @@
+column _system.session_state.expires_at timestamp with time zone not null
+column _system.session_state.key text not null
+column _system.session_state.session_id uuid not null
+column _system.session_state.thread_id text not null
+column _system.session_state.updated_at timestamp with time zone not null default now()
+column _system.session_state.value jsonb not null
+index CREATE INDEX idx_session_state_expiry ON _system.session_state USING btree (expires_at)
+index CREATE UNIQUE INDEX session_state_pkey ON _system.session_state USING btree (session_id, thread_id, key)
+row level security _system.session_state off

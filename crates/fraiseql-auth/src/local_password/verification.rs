@@ -104,18 +104,54 @@ CREATE TABLE IF NOT EXISTS auth.tb_email_verification_token (
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (selector)
 );
-CREATE INDEX IF NOT EXISTS idx_email_verification_token_fk_user
-    ON auth.tb_email_verification_token (fk_user);
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $verification_shape$
+BEGIN
+    IF to_regclass('auth.idx_email_verification_token_fk_user') IS NULL THEN
+        CREATE INDEX idx_email_verification_token_fk_user ON auth.tb_email_verification_token (fk_user);
+    END IF;
+END
+$verification_shape$;
 
 -- RLS deny-by-default (mirrors auth.tb_user / auth.tb_auth_identity / tb_password_reset_token).
-ALTER TABLE auth.tb_email_verification_token ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS p_email_verification_token_tenant_read ON auth.tb_email_verification_token;
-CREATE POLICY p_email_verification_token_tenant_read ON auth.tb_email_verification_token
-    FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid);
-DROP POLICY IF EXISTS p_email_verification_token_insert ON auth.tb_email_verification_token;
-CREATE POLICY p_email_verification_token_insert ON auth.tb_email_verification_token
-    FOR INSERT WITH CHECK (true);
+-- `ENABLE ROW LEVEL SECURITY`, `DROP POLICY` and `CREATE POLICY` each take an ACCESS
+-- EXCLUSIVE lock even when they change nothing, so each is guarded by the catalog: RLS by
+-- `relrowsecurity`, each policy by its whole definition in `pg_policies`, and a policy
+-- whose definition differs is replaced. `tenant_read` is the read policy's expression as
+-- PostgreSQL 18 (the supported floor) stores it; should it differ from what the CREATE
+-- below stores, every boot replaces the policy under its lock and the boot-lock test fails.
+DO $email_verification_token_rls$
+DECLARE
+    tenant_read CONSTANT text :=
+        $q$(tenant_id = (NULLIF(current_setting('fraiseql.tenant_id'::text, true), ''::text))::uuid)$q$;
+BEGIN
+    IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'auth.tb_email_verification_token'::regclass) THEN
+        ALTER TABLE auth.tb_email_verification_token ENABLE ROW LEVEL SECURITY;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'auth' AND tablename = 'tb_email_verification_token' AND policyname = 'p_email_verification_token_tenant_read'
+          AND permissive = 'PERMISSIVE' AND roles = '{public}'::name[] AND cmd = 'SELECT'
+          AND qual = tenant_read AND with_check IS NULL
+    ) THEN
+        DROP POLICY IF EXISTS p_email_verification_token_tenant_read ON auth.tb_email_verification_token;
+        CREATE POLICY p_email_verification_token_tenant_read ON auth.tb_email_verification_token
+            FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'auth' AND tablename = 'tb_email_verification_token' AND policyname = 'p_email_verification_token_insert'
+          AND permissive = 'PERMISSIVE' AND roles = '{public}'::name[] AND cmd = 'INSERT'
+          AND qual IS NULL AND with_check = 'true'
+    ) THEN
+        DROP POLICY IF EXISTS p_email_verification_token_insert ON auth.tb_email_verification_token;
+        CREATE POLICY p_email_verification_token_insert ON auth.tb_email_verification_token
+            FOR INSERT WITH CHECK (true);
+    END IF;
+END
+$email_verification_token_rls$;
 
 -- Least-privilege baseline: never world-readable. RLS is defence-in-depth on top.
 REVOKE ALL ON auth.tb_email_verification_token FROM PUBLIC;

@@ -71,9 +71,14 @@ required-features = ["auth-saml"]
 name = "auth_schema_inventory_pg"
 required-features = ["auth-saml"]
 
+[[test]]
+name = "boot_locks_pg"
+required-features = ["auth-saml"]
+
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
 fraiseql-test-support = { path = "../fraiseql-test-support", features = [
+  "boot-locks",
   "test-issuer",
 ] }
 proptest = { workspace = true }

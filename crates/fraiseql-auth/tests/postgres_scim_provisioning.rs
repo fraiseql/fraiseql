@@ -27,7 +27,7 @@ use fraiseql_auth::{
     PostgresSessionStore, SessionStore,
     scim::{PgScimStore, PgScimTokenStore, ScimStore as _, ScimUserWrite},
 };
-use fraiseql_test_support::try_database_url;
+use fraiseql_test_support::{boot_locks::fresh_database, try_database_url};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use uuid::Uuid;
 
@@ -46,8 +46,12 @@ struct Rig {
 }
 
 async fn fresh() -> Option<Rig> {
-    let url = try_database_url()?;
-    let pool = PgPoolOptions::new().max_connections(6).connect(&url).await.unwrap();
+    Some(fresh_at(&try_database_url()?).await)
+}
+
+/// [`fresh`], on the database `url` names.
+async fn fresh_at(url: &str) -> Rig {
+    let pool = PgPoolOptions::new().max_connections(6).connect(url).await.unwrap();
 
     let accounts: Arc<dyn AccountStore> = Arc::new(PostgresAccountStore::new(pool.clone()));
     PostgresAccountStore::new(pool.clone()).init().await.unwrap();
@@ -70,14 +74,14 @@ async fn fresh() -> Option<Rig> {
     .unwrap();
     sqlx::query("DELETE FROM auth.sessions").execute(&pool).await.ok();
 
-    Some(Rig {
+    Rig {
         scim,
         tokens: PgScimTokenStore::new(pool.clone()),
         sessions,
         passwords,
         accounts,
         pool,
-    })
+    }
 }
 
 /// Whether the session behind `refresh_token` is live: its row exists and is not revoked.
@@ -521,10 +525,16 @@ fn unix_in(secs: u64) -> u64 {
 
 /// A group is read only with its tenant set; its members and the provisioning tokens have
 /// no read policy, so a role that does not own them reads none, whatever tenant it sets.
+/// The test builds its own database: a boot skips row-level security and policies it finds
+/// already correct, so on a shared one it would read what an earlier run left.
 #[tokio::test]
 async fn groups_are_read_through_the_tenant_policy_and_members_and_tokens_not_at_all() {
-    let _rig = skip_if_no_db!();
-    let url = try_database_url().unwrap();
+    let Some(db) = fresh_database("scim_rls").await else {
+        eprintln!("skipping RLS test: no postgres");
+        return;
+    };
+    let url = db.url();
+    let _rig = fresh_at(&url).await;
     let admin = PgPoolOptions::new().max_connections(2).connect(&url).await.unwrap();
     for (name, tenant) in [
         ("t", Some("7777777a-7777-4777-8777-777777777777")),

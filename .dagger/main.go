@@ -1771,6 +1771,10 @@ func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directo
 		// outside it. Here and not in the `postgres` leg: it applies the SAML scripts too,
 		// which need `auth-saml`, and the `postgres` leg builds fraiseql-auth without it.
 		"cargo test -p fraiseql-auth --features auth-saml --test auth_schema_inventory_pg -- --test-threads=1",
+		// A second boot of every auth store waits on no lock a live write holds, and a boot
+		// over a schema that lost a guarded object builds it again. Here for the same reason:
+		// the suite applies the SAML scripts, which need `auth-saml`.
+		"cargo test -p fraiseql-auth --features auth-saml --test boot_locks_pg -- --test-threads=1",
 		// #381 P26: the SERVER mount — [saml] config → boot provisioning →
 		// /auth/saml/login redirect with SAMLRequest; configured-but-broken
 		// shapes (no pool, dud metadata) refuse to boot.

@@ -39,7 +39,7 @@ use fraiseql_auth::{
     AccountStore, AuthError, LocalPasswordAuthenticator, PostgresAccountStore,
     VerificationEmailSender, fraiseql_time::Timestamp,
 };
-use fraiseql_test_support::try_database_url;
+use fraiseql_test_support::{boot_locks::fresh_database, try_database_url};
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 
 /// The victim's address, and the one every takeover attempt targets.
@@ -142,8 +142,12 @@ impl Harness {
 /// Connect as the superuser `DATABASE_URL`, ensure the schema exists, and truncate the
 /// `auth` tables so each test starts clean. Returns `None` (skip) when unconfigured.
 async fn fresh() -> Option<Harness> {
-    let url = try_database_url()?;
-    let admin = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
+    Some(fresh_at(&try_database_url()?).await)
+}
+
+/// [`fresh`], on the database `url` names.
+async fn fresh_at(url: &str) -> Harness {
+    let admin = PgPoolOptions::new().max_connections(4).connect(url).await.unwrap();
     let accounts: Arc<dyn AccountStore> = Arc::new(PostgresAccountStore::new(admin.clone()));
     let sender = Arc::new(RecordingSender::default());
     let auth = LocalPasswordAuthenticator::with_params(
@@ -164,12 +168,12 @@ async fn fresh() -> Option<Harness> {
     .execute(&admin)
     .await
     .unwrap();
-    Some(Harness {
+    Harness {
         auth,
         admin,
         accounts,
         sender,
-    })
+    }
 }
 
 macro_rules! skip_if_no_db {
@@ -673,10 +677,16 @@ async fn an_address_held_in_a_tenant_does_not_block_a_platform_account() {
 
 /// A verification token is read only with its tenant set: not with none, and not another
 /// tenant's or the platform's.
+/// The test builds its own database: a boot skips row-level security and policies it finds
+/// already correct, so on a shared one it would read what an earlier run left.
 #[tokio::test]
 async fn verification_tokens_are_read_through_the_tenant_policy() {
-    let h = skip_if_no_db!();
-    let url = try_database_url().unwrap();
+    let Some(db) = fresh_database("verify_rls").await else {
+        eprintln!("skipping RLS test: no postgres");
+        return;
+    };
+    let url = db.url();
+    let h = fresh_at(&url).await;
     for (n, tenant) in [
         ("t", Some("7777777a-7777-4777-8777-777777777777")),
         ("u", Some("5555555b-5555-4555-8555-555555555555")),

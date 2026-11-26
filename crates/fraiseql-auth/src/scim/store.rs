@@ -35,9 +35,6 @@ CREATE TABLE IF NOT EXISTS auth.tb_scim_group (
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uq_scim_group_id ON auth.tb_scim_group (id);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_scim_group_name
-    ON auth.tb_scim_group (tenant_id, display_name) NULLS NOT DISTINCT;
 
 CREATE TABLE IF NOT EXISTS auth.tb_scim_group_member (
     pk_scim_group_member BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -47,8 +44,6 @@ CREATE TABLE IF NOT EXISTS auth.tb_scim_group_member (
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (fk_scim_group, user_id)
 );
-CREATE INDEX IF NOT EXISTS idx_scim_group_member_user
-    ON auth.tb_scim_group_member (user_id);
 
 -- Provisioning credentials. Distinct from the admin token by construction: nothing reads
 -- this table except the SCIM router, so holding one grants provisioning and nothing else.
@@ -63,18 +58,74 @@ CREATE TABLE IF NOT EXISTS auth.tb_scim_token (
     last_used_at  TIMESTAMPTZ,
     revoked_at    TIMESTAMPTZ
 );
-CREATE INDEX IF NOT EXISTS idx_scim_token_live
-    ON auth.tb_scim_token (token_hash) WHERE revoked_at IS NULL;
 
-ALTER TABLE auth.tb_scim_group        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.tb_scim_group_member ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.tb_scim_token        ENABLE ROW LEVEL SECURITY;
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $scim_shape$
+BEGIN
+    IF to_regclass('auth.uq_scim_group_id') IS NULL THEN
+        CREATE UNIQUE INDEX uq_scim_group_id ON auth.tb_scim_group (id);
+    END IF;
+    IF to_regclass('auth.uq_scim_group_name') IS NULL THEN
+        CREATE UNIQUE INDEX uq_scim_group_name ON auth.tb_scim_group (tenant_id, display_name) NULLS NOT DISTINCT;
+    END IF;
+    IF to_regclass('auth.idx_scim_group_member_user') IS NULL THEN
+        CREATE INDEX idx_scim_group_member_user ON auth.tb_scim_group_member (user_id);
+    END IF;
+    IF to_regclass('auth.idx_scim_token_live') IS NULL THEN
+        CREATE INDEX idx_scim_token_live ON auth.tb_scim_token (token_hash) WHERE revoked_at IS NULL;
+    END IF;
+END
+$scim_shape$;
 
-DROP POLICY IF EXISTS p_scim_group_tenant_read ON auth.tb_scim_group;
-CREATE POLICY p_scim_group_tenant_read ON auth.tb_scim_group
-    FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid);
-DROP POLICY IF EXISTS p_scim_group_insert ON auth.tb_scim_group;
-CREATE POLICY p_scim_group_insert ON auth.tb_scim_group FOR INSERT WITH CHECK (true);
+-- The member and token tables are read only by the owner: RLS on with no policy refuses
+-- every other role.
+DO $scim_rls$
+BEGIN
+    IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'auth.tb_scim_group_member'::regclass) THEN
+        ALTER TABLE auth.tb_scim_group_member ENABLE ROW LEVEL SECURITY;
+    END IF;
+    IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'auth.tb_scim_token'::regclass) THEN
+        ALTER TABLE auth.tb_scim_token ENABLE ROW LEVEL SECURITY;
+    END IF;
+END
+$scim_rls$;
+
+-- `ENABLE ROW LEVEL SECURITY`, `DROP POLICY` and `CREATE POLICY` each take an ACCESS
+-- EXCLUSIVE lock even when they change nothing, so each is guarded by the catalog: RLS by
+-- `relrowsecurity`, each policy by its whole definition in `pg_policies`, and a policy
+-- whose definition differs is replaced. `tenant_read` is the read policy's expression as
+-- PostgreSQL 18 (the supported floor) stores it; should it differ from what the CREATE
+-- below stores, every boot replaces the policy under its lock and the boot-lock test fails.
+DO $scim_group_rls$
+DECLARE
+    tenant_read CONSTANT text :=
+        $q$(tenant_id = (NULLIF(current_setting('fraiseql.tenant_id'::text, true), ''::text))::uuid)$q$;
+BEGIN
+    IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'auth.tb_scim_group'::regclass) THEN
+        ALTER TABLE auth.tb_scim_group ENABLE ROW LEVEL SECURITY;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'auth' AND tablename = 'tb_scim_group' AND policyname = 'p_scim_group_tenant_read'
+          AND permissive = 'PERMISSIVE' AND roles = '{public}'::name[] AND cmd = 'SELECT'
+          AND qual = tenant_read AND with_check IS NULL
+    ) THEN
+        DROP POLICY IF EXISTS p_scim_group_tenant_read ON auth.tb_scim_group;
+        CREATE POLICY p_scim_group_tenant_read ON auth.tb_scim_group
+            FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'auth' AND tablename = 'tb_scim_group' AND policyname = 'p_scim_group_insert'
+          AND permissive = 'PERMISSIVE' AND roles = '{public}'::name[] AND cmd = 'INSERT'
+          AND qual IS NULL AND with_check = 'true'
+    ) THEN
+        DROP POLICY IF EXISTS p_scim_group_insert ON auth.tb_scim_group;
+        CREATE POLICY p_scim_group_insert ON auth.tb_scim_group FOR INSERT WITH CHECK (true);
+    END IF;
+END
+$scim_group_rls$;
 
 REVOKE ALL ON auth.tb_scim_group        FROM PUBLIC;
 REVOKE ALL ON auth.tb_scim_group_member FROM PUBLIC;

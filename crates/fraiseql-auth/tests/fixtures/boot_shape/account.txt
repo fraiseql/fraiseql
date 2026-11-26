@@ -1,0 +1,37 @@
+column auth.tb_auth_identity.created_at timestamp with time zone not null default now()
+column auth.tb_auth_identity.fk_user bigint not null
+column auth.tb_auth_identity.id uuid not null default gen_random_uuid()
+column auth.tb_auth_identity.pk_auth_identity bigint not null
+column auth.tb_auth_identity.provider text not null
+column auth.tb_auth_identity.provider_id text not null
+column auth.tb_auth_identity.tenant_id uuid null
+column auth.tb_auth_identity.user_id text not null
+column auth.tb_user.active boolean not null default true
+column auth.tb_user.created_at timestamp with time zone not null default now()
+column auth.tb_user.display_name text null
+column auth.tb_user.email text null
+column auth.tb_user.external_id text null
+column auth.tb_user.family_name text null
+column auth.tb_user.given_name text null
+column auth.tb_user.id uuid not null default gen_random_uuid()
+column auth.tb_user.pk_user bigint not null
+column auth.tb_user.tenant_id uuid null
+column auth.tb_user.updated_at timestamp with time zone not null default now()
+column auth.tb_user.user_id text not null
+column auth.tb_user.user_name text null
+column auth.tb_user.version bigint not null default 1
+index CREATE INDEX idx_auth_identity_user ON auth.tb_auth_identity USING btree (fk_user)
+index CREATE INDEX idx_auth_identity_user_id ON auth.tb_auth_identity USING btree (user_id)
+index CREATE INDEX idx_user_external_id ON auth.tb_user USING btree (external_id) WHERE (external_id IS NOT NULL)
+index CREATE UNIQUE INDEX tb_auth_identity_pkey ON auth.tb_auth_identity USING btree (pk_auth_identity)
+index CREATE UNIQUE INDEX tb_user_pkey ON auth.tb_user USING btree (pk_user)
+index CREATE UNIQUE INDEX tb_user_user_id_key ON auth.tb_user USING btree (user_id)
+index CREATE UNIQUE INDEX uq_auth_identity_per_space ON auth.tb_auth_identity USING btree (provider, provider_id, tenant_id) NULLS NOT DISTINCT
+index CREATE UNIQUE INDEX uq_user_email_per_space ON auth.tb_user USING btree (email, tenant_id) NULLS NOT DISTINCT WHERE (email IS NOT NULL)
+index CREATE UNIQUE INDEX uq_user_user_name_per_space ON auth.tb_user USING btree (user_name, tenant_id) NULLS NOT DISTINCT WHERE (user_name IS NOT NULL)
+policy auth.tb_auth_identity p_auth_identity_insert permissive to {public} for insert using - check true
+policy auth.tb_auth_identity p_auth_identity_tenant_read permissive to {public} for select using (tenant_id = (NULLIF(current_setting('fraiseql.tenant_id'::text, true), ''::text))::uuid) check -
+policy auth.tb_user p_user_insert permissive to {public} for insert using - check true
+policy auth.tb_user p_user_tenant_read permissive to {public} for select using (tenant_id = (NULLIF(current_setting('fraiseql.tenant_id'::text, true), ''::text))::uuid) check -
+row level security auth.tb_auth_identity on
+row level security auth.tb_user on

@@ -1,0 +1,17 @@
+column auth.tb_email_verification_token.created_at timestamp with time zone not null default now()
+column auth.tb_email_verification_token.email text not null
+column auth.tb_email_verification_token.expires_at timestamp with time zone not null
+column auth.tb_email_verification_token.fk_user bigint not null
+column auth.tb_email_verification_token.id uuid not null default gen_random_uuid()
+column auth.tb_email_verification_token.pk_email_verification_token bigint not null
+column auth.tb_email_verification_token.selector text not null
+column auth.tb_email_verification_token.tenant_id uuid null
+column auth.tb_email_verification_token.used_at timestamp with time zone null
+column auth.tb_email_verification_token.user_id text not null
+column auth.tb_email_verification_token.verifier_hash bytea not null
+index CREATE INDEX idx_email_verification_token_fk_user ON auth.tb_email_verification_token USING btree (fk_user)
+index CREATE UNIQUE INDEX tb_email_verification_token_pkey ON auth.tb_email_verification_token USING btree (pk_email_verification_token)
+index CREATE UNIQUE INDEX tb_email_verification_token_selector_key ON auth.tb_email_verification_token USING btree (selector)
+policy auth.tb_email_verification_token p_email_verification_token_insert permissive to {public} for insert using - check true
+policy auth.tb_email_verification_token p_email_verification_token_tenant_read permissive to {public} for select using (tenant_id = (NULLIF(current_setting('fraiseql.tenant_id'::text, true), ''::text))::uuid) check -
+row level security auth.tb_email_verification_token on

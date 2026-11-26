@@ -32,7 +32,7 @@ use fraiseql_auth::{
     AccountStore, AuthError, DenyAccessTokens, LocalPasswordAuthenticator, PostgresAccountStore,
     ResetEmailSender, SessionStore, TokenPair, fraiseql_time::Timestamp,
 };
-use fraiseql_test_support::try_database_url;
+use fraiseql_test_support::{boot_locks::fresh_database, try_database_url};
 use sqlx::{
     PgPool, Row,
     postgres::{PgConnectOptions, PgPoolOptions},
@@ -114,8 +114,12 @@ struct Harness {
 /// Connect as the superuser `DATABASE_URL`, ensure the schema exists, and truncate the
 /// `auth` tables so each test starts clean. Returns `None` (skip) when unconfigured.
 async fn fresh() -> Option<Harness> {
-    let url = try_database_url()?;
-    let admin = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
+    Some(fresh_at(&try_database_url()?).await)
+}
+
+/// [`fresh`], on the database `url` names.
+async fn fresh_at(url: &str) -> Harness {
+    let admin = PgPoolOptions::new().max_connections(4).connect(url).await.unwrap();
     let accounts: Arc<dyn AccountStore> = Arc::new(PostgresAccountStore::new(admin.clone()));
     let sender = Arc::new(RecordingSender::default());
     let sessions = Arc::new(RecordingSessions::default());
@@ -131,12 +135,12 @@ async fn fresh() -> Option<Harness> {
     .execute(&admin)
     .await
     .unwrap();
-    Some(Harness {
+    Harness {
         auth,
         admin,
         sender,
         sessions,
-    })
+    }
 }
 
 macro_rules! skip_if_no_db {
@@ -452,13 +456,16 @@ async fn reader_token_count(pool: &PgPool, guc: Option<&str>) -> i64 {
     n
 }
 
+/// The test builds its own database: a boot skips row-level security and policies it finds
+/// already correct, so on a shared one it would read what an earlier run left.
 #[tokio::test]
 async fn rls_denies_reset_tokens_by_default_and_scopes_per_tenant() {
-    let Some(url) = try_database_url() else {
-        eprintln!("skipping #367 RLS test: DATABASE_URL not set");
+    let Some(db) = fresh_database("reset_rls").await else {
+        eprintln!("skipping RLS test: no postgres");
         return;
     };
-    let h = fresh().await.unwrap();
+    let url = db.url();
+    let h = fresh_at(&url).await;
 
     // Reason: test SQL built from names and values this test defines.
     sqlx::query(sqlx::AssertSqlSafe(format!(

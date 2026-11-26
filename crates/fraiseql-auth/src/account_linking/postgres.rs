@@ -61,33 +61,68 @@ CREATE TABLE IF NOT EXISTS auth.tb_user (
 DROP INDEX IF EXISTS auth.uq_user_email;
 DROP INDEX IF EXISTS auth.uq_user_email_platform;
 DROP INDEX IF EXISTS auth.uq_user_email_tenant;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_user_email_per_space
-    ON auth.tb_user (email, tenant_id) NULLS NOT DISTINCT WHERE email IS NOT NULL;
-
--- SCIM 2.0 provisioning (#946). ADD COLUMN IF NOT EXISTS so a database that predates
--- provisioning upgrades in place.
---
--- `active` is the load-bearing one: it is what an IdP flips when it offboards someone, and
--- it must block *every* credential on the account, not merely SAML. It defaults TRUE so
--- every pre-existing row stays exactly as active as it was.
-ALTER TABLE auth.tb_user ADD COLUMN IF NOT EXISTS active      BOOLEAN NOT NULL DEFAULT TRUE;
-ALTER TABLE auth.tb_user ADD COLUMN IF NOT EXISTS user_name   TEXT;
-ALTER TABLE auth.tb_user ADD COLUMN IF NOT EXISTS external_id TEXT;
-ALTER TABLE auth.tb_user ADD COLUMN IF NOT EXISTS given_name  TEXT;
-ALTER TABLE auth.tb_user ADD COLUMN IF NOT EXISTS family_name TEXT;
-ALTER TABLE auth.tb_user ADD COLUMN IF NOT EXISTS display_name TEXT;
--- Monotonic per-row counter behind the SCIM `meta.version` / `ETag`, so a provisioning
--- client's If-Match can detect a lost update. A timestamp would not: two writes inside one
--- clock tick would share a version.
-ALTER TABLE auth.tb_user ADD COLUMN IF NOT EXISTS version     BIGINT NOT NULL DEFAULT 1;
-
 DROP INDEX IF EXISTS auth.uq_user_user_name;
 DROP INDEX IF EXISTS auth.uq_user_user_name_platform;
 DROP INDEX IF EXISTS auth.uq_user_user_name_tenant;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_user_user_name_per_space
-    ON auth.tb_user (user_name, tenant_id) NULLS NOT DISTINCT WHERE user_name IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_user_external_id
-    ON auth.tb_user (external_id) WHERE external_id IS NOT NULL;
+
+-- Every replica runs this at boot while the others serve sign-ins. `ADD COLUMN IF NOT
+-- EXISTS` takes an ACCESS EXCLUSIVE lock and `CREATE INDEX IF NOT EXISTS` a SHARE lock even
+-- when the column or index is there, so each is guarded by the catalog and a boot over a
+-- current schema takes neither.
+DO $user_shape$
+BEGIN
+    -- SCIM 2.0 provisioning (#946): a database that predates provisioning upgrades in
+    -- place.
+    --
+    -- `active` is the load-bearing one: it is what an IdP flips when it offboards someone,
+    -- and it must block *every* credential on the account, not merely SAML. It defaults
+    -- TRUE so every pre-existing row stays exactly as active as it was.
+    IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'auth.tb_user'::regclass
+                   AND attname = 'active' AND NOT attisdropped) THEN
+        ALTER TABLE auth.tb_user ADD COLUMN active BOOLEAN NOT NULL DEFAULT TRUE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'auth.tb_user'::regclass
+                   AND attname = 'user_name' AND NOT attisdropped) THEN
+        ALTER TABLE auth.tb_user ADD COLUMN user_name TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'auth.tb_user'::regclass
+                   AND attname = 'external_id' AND NOT attisdropped) THEN
+        ALTER TABLE auth.tb_user ADD COLUMN external_id TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'auth.tb_user'::regclass
+                   AND attname = 'given_name' AND NOT attisdropped) THEN
+        ALTER TABLE auth.tb_user ADD COLUMN given_name TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'auth.tb_user'::regclass
+                   AND attname = 'family_name' AND NOT attisdropped) THEN
+        ALTER TABLE auth.tb_user ADD COLUMN family_name TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'auth.tb_user'::regclass
+                   AND attname = 'display_name' AND NOT attisdropped) THEN
+        ALTER TABLE auth.tb_user ADD COLUMN display_name TEXT;
+    END IF;
+    -- Monotonic per-row counter behind the SCIM `meta.version` / `ETag`, so a provisioning
+    -- client's If-Match can detect a lost update. A timestamp would not: two writes inside
+    -- one clock tick would share a version.
+    IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'auth.tb_user'::regclass
+                   AND attname = 'version' AND NOT attisdropped) THEN
+        ALTER TABLE auth.tb_user ADD COLUMN version BIGINT NOT NULL DEFAULT 1;
+    END IF;
+
+    IF to_regclass('auth.uq_user_email_per_space') IS NULL THEN
+        CREATE UNIQUE INDEX uq_user_email_per_space
+            ON auth.tb_user (email, tenant_id) NULLS NOT DISTINCT WHERE email IS NOT NULL;
+    END IF;
+    IF to_regclass('auth.uq_user_user_name_per_space') IS NULL THEN
+        CREATE UNIQUE INDEX uq_user_user_name_per_space
+            ON auth.tb_user (user_name, tenant_id) NULLS NOT DISTINCT WHERE user_name IS NOT NULL;
+    END IF;
+    IF to_regclass('auth.idx_user_external_id') IS NULL THEN
+        CREATE INDEX idx_user_external_id
+            ON auth.tb_user (external_id) WHERE external_id IS NOT NULL;
+    END IF;
+END
+$user_shape$;
 
 CREATE TABLE IF NOT EXISTS auth.tb_auth_identity (
     pk_auth_identity BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -99,32 +134,103 @@ CREATE TABLE IF NOT EXISTS auth.tb_auth_identity (
     tenant_id   UUID,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-ALTER TABLE auth.tb_auth_identity
-    DROP CONSTRAINT IF EXISTS tb_auth_identity_provider_provider_id_key;
 DROP INDEX IF EXISTS auth.uq_auth_identity_platform;
 DROP INDEX IF EXISTS auth.uq_auth_identity_tenant;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_auth_identity_per_space
-    ON auth.tb_auth_identity (provider, provider_id, tenant_id) NULLS NOT DISTINCT;
-CREATE INDEX IF NOT EXISTS idx_auth_identity_user    ON auth.tb_auth_identity (fk_user);
-CREATE INDEX IF NOT EXISTS idx_auth_identity_user_id ON auth.tb_auth_identity (user_id);
+DO $auth_identity_shape$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_constraint
+               WHERE conrelid = 'auth.tb_auth_identity'::regclass
+                 AND conname = 'tb_auth_identity_provider_provider_id_key') THEN
+        ALTER TABLE auth.tb_auth_identity
+            DROP CONSTRAINT tb_auth_identity_provider_provider_id_key;
+    END IF;
+    IF to_regclass('auth.uq_auth_identity_per_space') IS NULL THEN
+        CREATE UNIQUE INDEX uq_auth_identity_per_space
+            ON auth.tb_auth_identity (provider, provider_id, tenant_id) NULLS NOT DISTINCT;
+    END IF;
+    IF to_regclass('auth.idx_auth_identity_user') IS NULL THEN
+        CREATE INDEX idx_auth_identity_user ON auth.tb_auth_identity (fk_user);
+    END IF;
+    IF to_regclass('auth.idx_auth_identity_user_id') IS NULL THEN
+        CREATE INDEX idx_auth_identity_user_id ON auth.tb_auth_identity (user_id);
+    END IF;
+END
+$auth_identity_shape$;
 
 -- RLS deny-by-default (mirrors observers migration 12). ENABLE not FORCE so the
 -- owner (this store) and BYPASSRLS roles operate freely; a non-owner role reads a
 -- row only once it has set fraiseql.tenant_id to that row's tenant (fail-closed).
-ALTER TABLE auth.tb_user          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE auth.tb_auth_identity ENABLE ROW LEVEL SECURITY;
+-- `ENABLE ROW LEVEL SECURITY`, `DROP POLICY` and `CREATE POLICY` each take an ACCESS
+-- EXCLUSIVE lock even when they change nothing, so each is guarded by the catalog: RLS by
+-- `relrowsecurity`, each policy by its whole definition in `pg_policies`, and a policy
+-- whose definition differs is replaced. `tenant_read` is the read policy's expression as
+-- PostgreSQL 18 (the supported floor) stores it; should it differ from what the CREATE
+-- below stores, every boot replaces the policy under its lock and the boot-lock test fails.
+DO $user_rls$
+DECLARE
+    tenant_read CONSTANT text :=
+        $q$(tenant_id = (NULLIF(current_setting('fraiseql.tenant_id'::text, true), ''::text))::uuid)$q$;
+BEGIN
+    IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'auth.tb_user'::regclass) THEN
+        ALTER TABLE auth.tb_user ENABLE ROW LEVEL SECURITY;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'auth' AND tablename = 'tb_user' AND policyname = 'p_user_tenant_read'
+          AND permissive = 'PERMISSIVE' AND roles = '{public}'::name[] AND cmd = 'SELECT'
+          AND qual = tenant_read AND with_check IS NULL
+    ) THEN
+        DROP POLICY IF EXISTS p_user_tenant_read ON auth.tb_user;
+        CREATE POLICY p_user_tenant_read ON auth.tb_user
+            FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'auth' AND tablename = 'tb_user' AND policyname = 'p_user_insert'
+          AND permissive = 'PERMISSIVE' AND roles = '{public}'::name[] AND cmd = 'INSERT'
+          AND qual IS NULL AND with_check = 'true'
+    ) THEN
+        DROP POLICY IF EXISTS p_user_insert ON auth.tb_user;
+        CREATE POLICY p_user_insert ON auth.tb_user FOR INSERT WITH CHECK (true);
+    END IF;
+END
+$user_rls$;
 
-DROP POLICY IF EXISTS p_user_tenant_read ON auth.tb_user;
-CREATE POLICY p_user_tenant_read ON auth.tb_user
-    FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid);
-DROP POLICY IF EXISTS p_user_insert ON auth.tb_user;
-CREATE POLICY p_user_insert ON auth.tb_user FOR INSERT WITH CHECK (true);
-
-DROP POLICY IF EXISTS p_auth_identity_tenant_read ON auth.tb_auth_identity;
-CREATE POLICY p_auth_identity_tenant_read ON auth.tb_auth_identity
-    FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid);
-DROP POLICY IF EXISTS p_auth_identity_insert ON auth.tb_auth_identity;
-CREATE POLICY p_auth_identity_insert ON auth.tb_auth_identity FOR INSERT WITH CHECK (true);
+-- `ENABLE ROW LEVEL SECURITY`, `DROP POLICY` and `CREATE POLICY` each take an ACCESS
+-- EXCLUSIVE lock even when they change nothing, so each is guarded by the catalog: RLS by
+-- `relrowsecurity`, each policy by its whole definition in `pg_policies`, and a policy
+-- whose definition differs is replaced. `tenant_read` is the read policy's expression as
+-- PostgreSQL 18 (the supported floor) stores it; should it differ from what the CREATE
+-- below stores, every boot replaces the policy under its lock and the boot-lock test fails.
+DO $auth_identity_rls$
+DECLARE
+    tenant_read CONSTANT text :=
+        $q$(tenant_id = (NULLIF(current_setting('fraiseql.tenant_id'::text, true), ''::text))::uuid)$q$;
+BEGIN
+    IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'auth.tb_auth_identity'::regclass) THEN
+        ALTER TABLE auth.tb_auth_identity ENABLE ROW LEVEL SECURITY;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'auth' AND tablename = 'tb_auth_identity' AND policyname = 'p_auth_identity_tenant_read'
+          AND permissive = 'PERMISSIVE' AND roles = '{public}'::name[] AND cmd = 'SELECT'
+          AND qual = tenant_read AND with_check IS NULL
+    ) THEN
+        DROP POLICY IF EXISTS p_auth_identity_tenant_read ON auth.tb_auth_identity;
+        CREATE POLICY p_auth_identity_tenant_read ON auth.tb_auth_identity
+            FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'auth' AND tablename = 'tb_auth_identity' AND policyname = 'p_auth_identity_insert'
+          AND permissive = 'PERMISSIVE' AND roles = '{public}'::name[] AND cmd = 'INSERT'
+          AND qual IS NULL AND with_check = 'true'
+    ) THEN
+        DROP POLICY IF EXISTS p_auth_identity_insert ON auth.tb_auth_identity;
+        CREATE POLICY p_auth_identity_insert ON auth.tb_auth_identity FOR INSERT WITH CHECK (true);
+    END IF;
+END
+$auth_identity_rls$;
 
 -- Least-privilege baseline: never world-readable. RLS is defence-in-depth on top.
 REVOKE ALL ON auth.tb_user          FROM PUBLIC;

@@ -125,18 +125,54 @@ CREATE TABLE IF NOT EXISTS auth.tb_password_credential (
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (fk_user)
 );
-CREATE INDEX IF NOT EXISTS idx_password_credential_user_id
-    ON auth.tb_password_credential (user_id);
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $password_shape$
+BEGIN
+    IF to_regclass('auth.idx_password_credential_user_id') IS NULL THEN
+        CREATE INDEX idx_password_credential_user_id ON auth.tb_password_credential (user_id);
+    END IF;
+END
+$password_shape$;
 
 -- RLS deny-by-default (mirrors auth.tb_user / auth.tb_auth_identity from #411).
-ALTER TABLE auth.tb_password_credential ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS p_password_credential_tenant_read ON auth.tb_password_credential;
-CREATE POLICY p_password_credential_tenant_read ON auth.tb_password_credential
-    FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid);
-DROP POLICY IF EXISTS p_password_credential_insert ON auth.tb_password_credential;
-CREATE POLICY p_password_credential_insert ON auth.tb_password_credential
-    FOR INSERT WITH CHECK (true);
+-- `ENABLE ROW LEVEL SECURITY`, `DROP POLICY` and `CREATE POLICY` each take an ACCESS
+-- EXCLUSIVE lock even when they change nothing, so each is guarded by the catalog: RLS by
+-- `relrowsecurity`, each policy by its whole definition in `pg_policies`, and a policy
+-- whose definition differs is replaced. `tenant_read` is the read policy's expression as
+-- PostgreSQL 18 (the supported floor) stores it; should it differ from what the CREATE
+-- below stores, every boot replaces the policy under its lock and the boot-lock test fails.
+DO $password_credential_rls$
+DECLARE
+    tenant_read CONSTANT text :=
+        $q$(tenant_id = (NULLIF(current_setting('fraiseql.tenant_id'::text, true), ''::text))::uuid)$q$;
+BEGIN
+    IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'auth.tb_password_credential'::regclass) THEN
+        ALTER TABLE auth.tb_password_credential ENABLE ROW LEVEL SECURITY;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'auth' AND tablename = 'tb_password_credential' AND policyname = 'p_password_credential_tenant_read'
+          AND permissive = 'PERMISSIVE' AND roles = '{public}'::name[] AND cmd = 'SELECT'
+          AND qual = tenant_read AND with_check IS NULL
+    ) THEN
+        DROP POLICY IF EXISTS p_password_credential_tenant_read ON auth.tb_password_credential;
+        CREATE POLICY p_password_credential_tenant_read ON auth.tb_password_credential
+            FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'auth' AND tablename = 'tb_password_credential' AND policyname = 'p_password_credential_insert'
+          AND permissive = 'PERMISSIVE' AND roles = '{public}'::name[] AND cmd = 'INSERT'
+          AND qual IS NULL AND with_check = 'true'
+    ) THEN
+        DROP POLICY IF EXISTS p_password_credential_insert ON auth.tb_password_credential;
+        CREATE POLICY p_password_credential_insert ON auth.tb_password_credential
+            FOR INSERT WITH CHECK (true);
+    END IF;
+END
+$password_credential_rls$;
 
 -- Least-privilege baseline: never world-readable. RLS is defence-in-depth on top.
 REVOKE ALL ON auth.tb_password_credential FROM PUBLIC;

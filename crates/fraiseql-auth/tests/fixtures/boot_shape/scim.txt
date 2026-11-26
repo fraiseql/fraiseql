@@ -1,0 +1,35 @@
+column auth.tb_scim_group.created_at timestamp with time zone not null default now()
+column auth.tb_scim_group.display_name text not null
+column auth.tb_scim_group.external_id text null
+column auth.tb_scim_group.id uuid not null default gen_random_uuid()
+column auth.tb_scim_group.pk_scim_group bigint not null
+column auth.tb_scim_group.tenant_id uuid null
+column auth.tb_scim_group.updated_at timestamp with time zone not null default now()
+column auth.tb_scim_group.version bigint not null default 1
+column auth.tb_scim_group_member.created_at timestamp with time zone not null default now()
+column auth.tb_scim_group_member.fk_scim_group bigint not null
+column auth.tb_scim_group_member.pk_scim_group_member bigint not null
+column auth.tb_scim_group_member.user_id text not null
+column auth.tb_scim_token.created_at timestamp with time zone not null default now()
+column auth.tb_scim_token.description text null
+column auth.tb_scim_token.id uuid not null default gen_random_uuid()
+column auth.tb_scim_token.idp_name text not null
+column auth.tb_scim_token.last_used_at timestamp with time zone null
+column auth.tb_scim_token.pk_scim_token bigint not null
+column auth.tb_scim_token.revoked_at timestamp with time zone null
+column auth.tb_scim_token.tenant_id uuid null
+column auth.tb_scim_token.token_hash text not null
+index CREATE INDEX idx_scim_group_member_user ON auth.tb_scim_group_member USING btree (user_id)
+index CREATE INDEX idx_scim_token_live ON auth.tb_scim_token USING btree (token_hash) WHERE (revoked_at IS NULL)
+index CREATE UNIQUE INDEX tb_scim_group_member_fk_scim_group_user_id_key ON auth.tb_scim_group_member USING btree (fk_scim_group, user_id)
+index CREATE UNIQUE INDEX tb_scim_group_member_pkey ON auth.tb_scim_group_member USING btree (pk_scim_group_member)
+index CREATE UNIQUE INDEX tb_scim_group_pkey ON auth.tb_scim_group USING btree (pk_scim_group)
+index CREATE UNIQUE INDEX tb_scim_token_pkey ON auth.tb_scim_token USING btree (pk_scim_token)
+index CREATE UNIQUE INDEX tb_scim_token_token_hash_key ON auth.tb_scim_token USING btree (token_hash)
+index CREATE UNIQUE INDEX uq_scim_group_id ON auth.tb_scim_group USING btree (id)
+index CREATE UNIQUE INDEX uq_scim_group_name ON auth.tb_scim_group USING btree (tenant_id, display_name) NULLS NOT DISTINCT
+policy auth.tb_scim_group p_scim_group_insert permissive to {public} for insert using - check true
+policy auth.tb_scim_group p_scim_group_tenant_read permissive to {public} for select using (tenant_id = (NULLIF(current_setting('fraiseql.tenant_id'::text, true), ''::text))::uuid) check -
+row level security auth.tb_scim_group on
+row level security auth.tb_scim_group_member on
+row level security auth.tb_scim_token on

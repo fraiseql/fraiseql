@@ -40,10 +40,23 @@ CREATE TABLE IF NOT EXISTS auth.tb_otp_send_budget (
     count        INTEGER NOT NULL DEFAULT 0,
     window_start BIGINT NOT NULL
 );
-ALTER TABLE auth.tb_otp_send_budget ADD COLUMN IF NOT EXISTS guesses INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE auth.tb_otp_code ADD COLUMN IF NOT EXISTS link_token_hash BYTEA;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_otp_code_link_token_hash
-    ON auth.tb_otp_code (link_token_hash) WHERE link_token_hash IS NOT NULL;
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $otp_shape$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('auth.tb_otp_send_budget')
+                   AND attname = 'guesses' AND NOT attisdropped) THEN
+        ALTER TABLE auth.tb_otp_send_budget ADD COLUMN guesses INTEGER NOT NULL DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('auth.tb_otp_code')
+                   AND attname = 'link_token_hash' AND NOT attisdropped) THEN
+        ALTER TABLE auth.tb_otp_code ADD COLUMN link_token_hash BYTEA;
+    END IF;
+    IF to_regclass('auth.uq_otp_code_link_token_hash') IS NULL THEN
+        CREATE UNIQUE INDEX uq_otp_code_link_token_hash ON auth.tb_otp_code (link_token_hash) WHERE link_token_hash IS NOT NULL;
+    END IF;
+END
+$otp_shape$;
 REVOKE ALL ON auth.tb_otp_code FROM PUBLIC;
 REVOKE ALL ON auth.tb_otp_send_budget FROM PUBLIC;
 "

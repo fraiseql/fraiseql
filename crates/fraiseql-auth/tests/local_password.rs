@@ -19,7 +19,7 @@ mod rls_writes;
 use std::{str::FromStr, sync::Arc};
 
 use fraiseql_auth::{AccountStore, AuthError, LocalPasswordAuthenticator, PostgresAccountStore};
-use fraiseql_test_support::try_database_url;
+use fraiseql_test_support::{boot_locks::fresh_database, try_database_url};
 use sqlx::{
     PgPool, Row,
     postgres::{PgConnectOptions, PgPoolOptions},
@@ -37,8 +37,12 @@ const FAST_M_COST: u32 = 8;
 /// Connect as the superuser `DATABASE_URL`, ensure the schema exists, and truncate the
 /// three `auth` tables so each test starts clean. Returns `None` (skip) when unconfigured.
 async fn fresh() -> Option<(LocalPasswordAuthenticator, Arc<dyn AccountStore>, PgPool)> {
-    let url = try_database_url()?;
-    let admin = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
+    Some(fresh_at(&try_database_url()?).await)
+}
+
+/// [`fresh`], on the database `url` names.
+async fn fresh_at(url: &str) -> (LocalPasswordAuthenticator, Arc<dyn AccountStore>, PgPool) {
+    let admin = PgPoolOptions::new().max_connections(4).connect(url).await.unwrap();
     let accounts: Arc<dyn AccountStore> = Arc::new(PostgresAccountStore::new(admin.clone()));
     let auth =
         LocalPasswordAuthenticator::with_params(admin.clone(), accounts.clone(), FAST_M_COST, 1, 1)
@@ -51,7 +55,7 @@ async fn fresh() -> Option<(LocalPasswordAuthenticator, Arc<dyn AccountStore>, P
     .execute(&admin)
     .await
     .unwrap();
-    Some((auth, accounts, admin))
+    (auth, accounts, admin)
 }
 
 macro_rules! skip_if_no_db {
@@ -271,13 +275,16 @@ async fn reader_credential_count(pool: &PgPool, guc: Option<&str>) -> i64 {
     n
 }
 
+/// The test builds its own database: a boot skips row-level security and policies it finds
+/// already correct, so on a shared one it would read what an earlier run left.
 #[tokio::test]
 async fn rls_denies_credentials_by_default_and_scopes_per_tenant() {
-    let Some(url) = try_database_url() else {
-        eprintln!("skipping #412 RLS test: DATABASE_URL not set");
+    let Some(db) = fresh_database("pwcred_rls").await else {
+        eprintln!("skipping RLS test: no postgres");
         return;
     };
-    let (auth, _accounts, admin) = fresh().await.unwrap();
+    let url = db.url();
+    let (auth, _accounts, admin) = fresh_at(&url).await;
 
     // A NOBYPASSRLS reader with SELECT on the credential table (idempotent across runs).
     // Reason: test SQL built from names and values this test defines.

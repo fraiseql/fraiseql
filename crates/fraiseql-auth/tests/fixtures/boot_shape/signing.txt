@@ -1,0 +1,9 @@
+column auth.signing_key.alg text not null
+column auth.signing_key.created_at bigint not null
+column auth.signing_key.kid text not null
+column auth.signing_key.private_key_enc bytea not null
+column auth.signing_key.public_jwk jsonb not null
+column auth.signing_key.retired_at bigint null
+index CREATE UNIQUE INDEX signing_key_pkey ON auth.signing_key USING btree (kid)
+index CREATE UNIQUE INDEX uq_signing_key_one_active ON auth.signing_key USING btree ((true)) WHERE (retired_at IS NULL)
+row level security auth.signing_key off

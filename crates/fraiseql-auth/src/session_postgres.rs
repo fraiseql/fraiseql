@@ -95,24 +95,50 @@ CREATE TABLE IF NOT EXISTS auth.sessions (
     revoked_at TIMESTAMPTZ
 );
 
--- The account's tenant when the session was minted (#1450), for revocation and
--- audit. NULL for a platform account or a principal with no account row.
-ALTER TABLE auth.sessions ADD COLUMN IF NOT EXISTS tenant_id UUID;
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $sessions_shape$
+BEGIN
+    -- The account's tenant when the session was minted (#1450), for revocation and
+    -- audit. NULL for a platform account or a principal with no account row.
+    IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('auth.sessions')
+                   AND attname = 'tenant_id' AND NOT attisdropped) THEN
+        ALTER TABLE auth.sessions ADD COLUMN tenant_id UUID;
+    END IF;
 
--- A refreshable session (#1853): every row a sign-in and its refreshes create shares a
--- family. NULL for a session that cannot be refreshed.
-ALTER TABLE auth.sessions ADD COLUMN IF NOT EXISTS family_id UUID;
--- When this row's refresh token was exchanged for the next one, in Unix seconds on the
--- server's clock. A rotated token used again is answered by how long ago this was.
-ALTER TABLE auth.sessions ADD COLUMN IF NOT EXISTS rotated_at BIGINT;
--- The `jti` of the access token minted with this row, so logout can deny it where
--- `[security.token_revocation]` is configured.
-ALTER TABLE auth.sessions ADD COLUMN IF NOT EXISTS access_jti TEXT;
-CREATE INDEX IF NOT EXISTS idx_sessions_family_id ON auth.sessions(family_id);
+    -- A refreshable session (#1853): every row a sign-in and its refreshes create shares a
+    -- family. NULL for a session that cannot be refreshed.
+    IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('auth.sessions')
+                   AND attname = 'family_id' AND NOT attisdropped) THEN
+        ALTER TABLE auth.sessions ADD COLUMN family_id UUID;
+    END IF;
+    -- When this row's refresh token was exchanged for the next one, in Unix seconds on the
+    -- server's clock. A rotated token used again is answered by how long ago this was.
+    IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('auth.sessions')
+                   AND attname = 'rotated_at' AND NOT attisdropped) THEN
+        ALTER TABLE auth.sessions ADD COLUMN rotated_at BIGINT;
+    END IF;
+    -- The `jti` of the access token minted with this row, so logout can deny it where
+    -- `[security.token_revocation]` is configured.
+    IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('auth.sessions')
+                   AND attname = 'access_jti' AND NOT attisdropped) THEN
+        ALTER TABLE auth.sessions ADD COLUMN access_jti TEXT;
+    END IF;
+    IF to_regclass('auth.idx_sessions_family_id') IS NULL THEN
+        CREATE INDEX idx_sessions_family_id ON auth.sessions (family_id);
+    END IF;
 
-CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON auth.sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON auth.sessions(expires_at);
-CREATE INDEX IF NOT EXISTS idx_sessions_revoked_at ON auth.sessions(revoked_at);
+    IF to_regclass('auth.idx_sessions_user_id') IS NULL THEN
+        CREATE INDEX idx_sessions_user_id ON auth.sessions (user_id);
+    END IF;
+    IF to_regclass('auth.idx_sessions_expires_at') IS NULL THEN
+        CREATE INDEX idx_sessions_expires_at ON auth.sessions (expires_at);
+    END IF;
+    IF to_regclass('auth.idx_sessions_revoked_at') IS NULL THEN
+        CREATE INDEX idx_sessions_revoked_at ON auth.sessions (revoked_at);
+    END IF;
+END
+$sessions_shape$;
 "
 );
 

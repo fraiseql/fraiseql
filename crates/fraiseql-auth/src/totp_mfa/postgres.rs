@@ -49,7 +49,15 @@ CREATE TABLE IF NOT EXISTS auth.tb_mfa_challenge (
     expires_at BIGINT NOT NULL,
     attempts   INTEGER NOT NULL DEFAULT 0
 );
-CREATE INDEX IF NOT EXISTS idx_mfa_challenge_expires ON auth.tb_mfa_challenge(expires_at);
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $mfa_shape$
+BEGIN
+    IF to_regclass('auth.idx_mfa_challenge_expires') IS NULL THEN
+        CREATE INDEX idx_mfa_challenge_expires ON auth.tb_mfa_challenge (expires_at);
+    END IF;
+END
+$mfa_shape$;
 REVOKE ALL ON auth.tb_mfa_enrollment FROM PUBLIC;
 REVOKE ALL ON auth.tb_mfa_challenge FROM PUBLIC;
 "

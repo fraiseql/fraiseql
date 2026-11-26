@@ -134,7 +134,15 @@ CREATE TABLE IF NOT EXISTS auth.tb_saml_replay (
     assertion_id TEXT PRIMARY KEY,
     expires_at   TIMESTAMPTZ NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_saml_replay_expires ON auth.tb_saml_replay(expires_at);
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $saml_replay_shape$
+BEGIN
+    IF to_regclass('auth.idx_saml_replay_expires') IS NULL THEN
+        CREATE INDEX idx_saml_replay_expires ON auth.tb_saml_replay (expires_at);
+    END IF;
+END
+$saml_replay_shape$;
 REVOKE ALL ON auth.tb_saml_replay FROM PUBLIC;
 "
 );

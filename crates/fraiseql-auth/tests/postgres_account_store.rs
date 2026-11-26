@@ -18,7 +18,7 @@ mod rls_writes;
 use std::str::FromStr;
 
 use fraiseql_auth::{AccountStore, PostgresAccountStore};
-use fraiseql_test_support::try_database_url;
+use fraiseql_test_support::{boot_locks::fresh_database, try_database_url};
 use sqlx::{
     PgPool, Row,
     postgres::{PgConnectOptions, PgPoolOptions},
@@ -30,15 +30,19 @@ const ROLE_PASSWORD: &str = "auth_rls_test_password";
 /// Connect as the superuser `DATABASE_URL`, ensure the schema exists, and truncate
 /// the two tables so each test starts clean. Returns `None` (skip) when unconfigured.
 async fn fresh() -> Option<(PostgresAccountStore, PgPool)> {
-    let url = try_database_url()?;
-    let admin = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
+    Some(fresh_at(&try_database_url()?).await)
+}
+
+/// [`fresh`], on the database `url` names.
+async fn fresh_at(url: &str) -> (PostgresAccountStore, PgPool) {
+    let admin = PgPoolOptions::new().max_connections(4).connect(url).await.unwrap();
     let store = PostgresAccountStore::new(admin.clone());
     store.init().await.unwrap();
     sqlx::query("TRUNCATE auth.tb_auth_identity, auth.tb_user RESTART IDENTITY CASCADE")
         .execute(&admin)
         .await
         .unwrap();
-    Some((store, admin))
+    (store, admin)
 }
 
 macro_rules! skip_if_no_db {
@@ -230,13 +234,16 @@ async fn count(pool: &PgPool, guc: Option<&str>) -> i64 {
     n
 }
 
+/// The test builds its own database: a boot skips row-level security and policies it finds
+/// already correct, so on a shared one it would read what an earlier run left.
 #[tokio::test]
 async fn rls_denies_by_default_and_scopes_per_tenant() {
-    let Some(url) = try_database_url() else {
-        eprintln!("skipping #411 RLS test: DATABASE_URL not set");
+    let Some(db) = fresh_database("user_rls").await else {
+        eprintln!("skipping RLS test: no postgres");
         return;
     };
-    let (store, admin) = fresh().await.unwrap();
+    let url = db.url();
+    let (store, admin) = fresh_at(&url).await;
 
     // A NOBYPASSRLS reader with SELECT on the tables (idempotent across runs).
     // Reason: test SQL built from names and values this test defines.
@@ -588,13 +595,16 @@ async fn init_replaces_the_partial_pairs_of_an_earlier_build() {
 
 /// A tenant's provider identities are read only with that tenant set: not with none, and
 /// not another tenant's or the platform's.
+/// The test builds its own database: a boot skips row-level security and policies it finds
+/// already correct, so on a shared one it would read what an earlier run left.
 #[tokio::test]
 async fn auth_identities_are_read_through_the_tenant_policy() {
-    let Some(url) = try_database_url() else {
-        eprintln!("skipping RLS identity test: DATABASE_URL not set");
+    let Some(db) = fresh_database("identity_rls").await else {
+        eprintln!("skipping RLS test: no postgres");
         return;
     };
-    let (store, admin) = fresh().await.unwrap();
+    let url = db.url();
+    let (store, admin) = fresh_at(&url).await;
     for (tenant, subject) in [
         (Some(TENANT_T), "t-1"),
         (Some(TENANT_U), "u-1"),

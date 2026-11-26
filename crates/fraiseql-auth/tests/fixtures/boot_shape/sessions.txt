@@ -1,0 +1,18 @@
+column auth.sessions.access_jti text null
+column auth.sessions.created_at timestamp with time zone null default now()
+column auth.sessions.expires_at bigint not null
+column auth.sessions.family_id uuid null
+column auth.sessions.id uuid not null default gen_random_uuid()
+column auth.sessions.issued_at bigint not null
+column auth.sessions.refresh_token_hash text not null
+column auth.sessions.revoked_at timestamp with time zone null
+column auth.sessions.rotated_at bigint null
+column auth.sessions.tenant_id uuid null
+column auth.sessions.user_id text not null
+index CREATE INDEX idx_sessions_expires_at ON auth.sessions USING btree (expires_at)
+index CREATE INDEX idx_sessions_family_id ON auth.sessions USING btree (family_id)
+index CREATE INDEX idx_sessions_revoked_at ON auth.sessions USING btree (revoked_at)
+index CREATE INDEX idx_sessions_user_id ON auth.sessions USING btree (user_id)
+index CREATE UNIQUE INDEX sessions_pkey ON auth.sessions USING btree (id)
+index CREATE UNIQUE INDEX sessions_refresh_token_hash_key ON auth.sessions USING btree (refresh_token_hash)
+row level security auth.sessions off

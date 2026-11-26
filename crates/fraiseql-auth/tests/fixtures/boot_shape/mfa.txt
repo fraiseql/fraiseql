@@ -1,0 +1,16 @@
+column auth.tb_mfa_challenge.attempts integer not null default 0
+column auth.tb_mfa_challenge.expires_at bigint not null
+column auth.tb_mfa_challenge.token_hash bytea not null
+column auth.tb_mfa_challenge.user_id text not null
+column auth.tb_mfa_enrollment.confirmed boolean not null default false
+column auth.tb_mfa_enrollment.created_at timestamp with time zone not null default now()
+column auth.tb_mfa_enrollment.failure_count integer not null default 0
+column auth.tb_mfa_enrollment.failure_window_start bigint not null default 0
+column auth.tb_mfa_enrollment.recovery_code_hashes text[] not null default '{}'::text[]
+column auth.tb_mfa_enrollment.secret_base32 text not null
+column auth.tb_mfa_enrollment.user_id text not null
+index CREATE INDEX idx_mfa_challenge_expires ON auth.tb_mfa_challenge USING btree (expires_at)
+index CREATE UNIQUE INDEX tb_mfa_challenge_pkey ON auth.tb_mfa_challenge USING btree (token_hash)
+index CREATE UNIQUE INDEX tb_mfa_enrollment_pkey ON auth.tb_mfa_enrollment USING btree (user_id)
+row level security auth.tb_mfa_challenge off
+row level security auth.tb_mfa_enrollment off

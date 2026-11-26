@@ -43,8 +43,15 @@ CREATE TABLE IF NOT EXISTS _system.session_state (
     PRIMARY KEY (session_id, thread_id, key)
 );
 
-CREATE INDEX IF NOT EXISTS idx_session_state_expiry
-    ON _system.session_state (expires_at);
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $session_state_shape$
+BEGIN
+    IF to_regclass('_system.idx_session_state_expiry') IS NULL THEN
+        CREATE INDEX idx_session_state_expiry ON _system.session_state (expires_at);
+    END IF;
+END
+$session_state_shape$;
 ";
 
 impl PostgresSessionStateStore {

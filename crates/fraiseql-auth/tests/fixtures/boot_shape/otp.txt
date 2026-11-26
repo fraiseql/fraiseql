@@ -1,0 +1,14 @@
+column auth.tb_otp_code.attempts integer not null default 0
+column auth.tb_otp_code.code_hash bytea not null
+column auth.tb_otp_code.email text not null
+column auth.tb_otp_code.expires_at bigint not null
+column auth.tb_otp_code.link_token_hash bytea null
+column auth.tb_otp_send_budget.count integer not null default 0
+column auth.tb_otp_send_budget.email text not null
+column auth.tb_otp_send_budget.guesses integer not null default 0
+column auth.tb_otp_send_budget.window_start bigint not null
+index CREATE UNIQUE INDEX tb_otp_code_pkey ON auth.tb_otp_code USING btree (email)
+index CREATE UNIQUE INDEX tb_otp_send_budget_pkey ON auth.tb_otp_send_budget USING btree (email)
+index CREATE UNIQUE INDEX uq_otp_code_link_token_hash ON auth.tb_otp_code USING btree (link_token_hash) WHERE (link_token_hash IS NOT NULL)
+row level security auth.tb_otp_code off
+row level security auth.tb_otp_send_budget off

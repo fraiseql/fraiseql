@@ -188,6 +188,50 @@ tree; sql_family
 add "${src}/routes/auth.rs" $'fn split(e: &str) -> bool { e.contains("tenant_key") && e.contains("IS NOT DISTINCT FROM") }'
 expect 1 "family \`sql\` matched nothing" "25. a strings family does not join two strings"
 
+# The live `tenant-sql` family, read from the repository's inventory, so these cases test
+# the pattern the gate runs and not a copy of it.
+tenant_sql_family() {
+  python3 - "${repo_root}/tools/guard-sites.toml" >> "${ws}/tools/guard-sites.toml" <<'EOF'
+import sys, tomllib
+family = next(f for f in tomllib.load(open(sys.argv[1], "rb"))["family"] if f["name"] == "tenant-sql")
+print()
+print("[[family]]")
+print('name     = "tenant-sql"')
+print('scan     = "strings"')
+print("patterns = [" + ", ".join("'" + p + "'" for p in family["patterns"]) + "]")
+EOF
+}
+# A string literal holding `$1`, in a function of its own, under the live family.
+tenant_sql() {
+  tree; tenant_sql_family
+  add "${src}/routes/auth.rs" "fn policy() -> &'static str { \"$1\" }"
+}
+
+# A policy expression, as written and as PostgreSQL stores it, is a policy's: not a site.
+tenant_sql "USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid)"
+expect 1 "family \`tenant-sql\` matched nothing" "25a. the written policy expression is no tenant-sql site"
+tenant_sql "(tenant_id = (NULLIF(current_setting('fraiseql.tenant_id'::text, true), ''::text))::uuid)"
+expect 1 "family \`tenant-sql\` matched nothing" "25b. its stored (deparsed) form is no tenant-sql site either"
+# Every shape the family read before still flags.
+tenant_sql "SELECT * FROM t WHERE tenant_id = \$1"
+expect 1 "${src}/routes/auth.rs:9:54: tenant-sql guard" "25c. a column compared to a bound value still flags"
+tenant_sql "SELECT * FROM t WHERE tenant_key::text IS NOT DISTINCT FROM \$1"
+expect 1 "${src}/routes/auth.rs:9:54: tenant-sql guard" "25d. IS NOT DISTINCT FROM still flags"
+tenant_sql "SELECT * FROM t WHERE tenant_id IS NULL"
+expect 1 "${src}/routes/auth.rs:9:54: tenant-sql guard" "25e. IS NULL still flags"
+# The `(` admitted is one, directly before NULLIF: a near miss still flags.
+tenant_sql "tenant_id = ( NULLIF(current_setting('other.key', true), '')::uuid)"
+expect 1 "${src}/routes/auth.rs:9:32: tenant-sql guard" "25f. a ( apart from NULLIF still flags"
+tenant_sql "tenant_id = ((NULLIF(current_setting('fraiseql.tenant_id', true), '')))::uuid"
+expect 1 "${src}/routes/auth.rs:9:32: tenant-sql guard" "25g. two ( before NULLIF still flag"
+# A parenthesised form with anything but NULLIF still flags.
+tenant_sql "tenant_id = (current_setting('fraiseql.tenant_id', true))::uuid"
+expect 1 "${src}/routes/auth.rs:9:32: tenant-sql guard" "25h. a ( before current_setting still flags"
+tenant_sql "tenant_id = (COALESCE(current_setting('fraiseql.tenant_id', true), ''))::uuid"
+expect 1 "${src}/routes/auth.rs:9:32: tenant-sql guard" "25i. a ( before another function still flags"
+tenant_sql "tenant_id = (SELECT tenant_id FROM t WHERE id = \$1)"
+expect 1 "${src}/routes/auth.rs:9:32: tenant-sql guard" "25j. a ( before a subquery still flags"
+
 tree; sed -i 's/^name     = "session"/name     = "session"\nscan     = "sql"/' "${ws}/tools/guard-sites.toml"
 expect 1 "family \`session\`: needs" "26. an unknown scan mode fails"
 

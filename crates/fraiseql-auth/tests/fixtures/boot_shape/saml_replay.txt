@@ -1,0 +1,5 @@
+column auth.tb_saml_replay.assertion_id text not null
+column auth.tb_saml_replay.expires_at timestamp with time zone not null
+index CREATE INDEX idx_saml_replay_expires ON auth.tb_saml_replay USING btree (expires_at)
+index CREATE UNIQUE INDEX tb_saml_replay_pkey ON auth.tb_saml_replay USING btree (assertion_id)
+row level security auth.tb_saml_replay off
