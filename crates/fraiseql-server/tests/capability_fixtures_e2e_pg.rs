@@ -153,6 +153,42 @@ struct Fixture {
     #[serde(default)]
     stimulus:       Vec<Stimulus>,
     effect:         Effect,
+    /// What the fixture shows: the capability doing its work, or refusing an input.
+    #[serde(default)]
+    role:           Role,
+}
+
+/// What a fixture shows.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum Role {
+    /// The capability, given what it serves, produces its effect.
+    #[default]
+    Positive,
+    /// The capability refuses an input it must refuse, and nothing follows from it.
+    Hostile,
+}
+
+/// Why an effect is not observed: not there yet, or the probe could not look.
+///
+/// A positive fixture retries on both until its deadline. A `none` effect passes only on
+/// [`Unmet::NotYet`]: a probe that could not look proves no absence.
+#[derive(Debug)]
+enum Unmet {
+    /// The probe looked, and the effect is not there.
+    NotYet(String),
+    /// The probe failed: the service did not answer, the query did not run, a value did
+    /// not parse.
+    Broken(String),
+}
+
+impl std::fmt::Display for Unmet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NotYet(why) => f.write_str(why),
+            Self::Broken(why) => write!(f, "the probe failed: {why}"),
+        }
+    }
 }
 
 const fn default_deadline_secs() -> u64 {
@@ -249,6 +285,10 @@ enum Stimulus {
         /// signs a delivery.
         #[serde(default)]
         sign:   Option<Signature>,
+        /// The status the server must answer it with. Unset, any answer will do: the effect
+        /// judges the fixture.
+        #[serde(default)]
+        status: Option<u16>,
     },
     /// One MCP `tools/call` over streamable HTTP, after the session handshake an agent
     /// client performs (`initialize`, then `notifications/initialized`).
@@ -354,6 +394,14 @@ enum Effect {
         auth:   Auth,
         rows:   usize,
     },
+    /// `of` does not appear within the deadline: a hostile fixture's "and nothing followed".
+    ///
+    /// Judged by [`absence_verdict`]: a probe that fails, rather than finding `of` not there
+    /// yet, fails the fixture, and so does a server that exits. The capability must also have
+    /// a positive fixture whose effect is of `of`'s kind ([`missing_twins`]), which shows the
+    /// probe can see it.
+    #[serde(rename = "none")]
+    Never { of: Box<Effect> },
     /// `/health` reports the capability `started` and `serving` as given.
     Health {
         capability: String,
@@ -381,16 +429,96 @@ impl Stimulus {
 
 impl Effect {
     /// Whether it can be observed of a server that serves MCP over stdio and nothing else.
-    const fn over_stdio(&self) -> bool {
+    fn over_stdio(&self) -> bool {
         match self {
             Self::Row { .. }
             | Self::Nats { .. }
             | Self::Kafka { .. }
             | Self::Received { .. }
             | Self::Refused { .. } => true,
+            Self::Never { of } => of.over_stdio(),
             Self::Http { .. } | Self::Flight { .. } | Self::Health { .. } => false,
         }
     }
+
+    /// The effect a probe looks for: `of` for a `none`, the effect itself otherwise.
+    fn probed(&self) -> &Self {
+        match self {
+            Self::Never { of } => of,
+            other => other,
+        }
+    }
+
+    /// Its key in `fixture.toml`.
+    const fn kind(&self) -> &'static str {
+        match self {
+            Self::Http { .. } => "http",
+            Self::Row { .. } => "row",
+            Self::Nats { .. } => "nats",
+            Self::Kafka { .. } => "kafka",
+            Self::Received { .. } => "received",
+            Self::Refused { .. } => "refused",
+            Self::Flight { .. } => "flight",
+            Self::Never { .. } => "none",
+            Self::Health { .. } => "health",
+        }
+    }
+}
+
+/// Whether a stimulus answered with `got` was answered as its fixture says.
+fn answered(path: &str, got: u16, want: Option<u16>) -> Result<(), String> {
+    match want {
+        Some(want) if got != want => {
+            Err(format!("stimulus {path} answered {got}, not the {want} the fixture expects"))
+        },
+        _ => Ok(()),
+    }
+}
+
+/// The verdict on a `none` effect after one probe of the effect it names, or `None` to
+/// probe again. `past_deadline` is read before the probe, so the last probe ran after it.
+fn absence_verdict(probe: Result<(), Unmet>, past_deadline: bool) -> Option<Result<(), String>> {
+    match probe {
+        Ok(()) => Some(Err("the effect the fixture refuses appeared".to_owned())),
+        Err(Unmet::Broken(why)) => {
+            Some(Err(format!("the probe failed, so finding nothing proves nothing: {why}")))
+        },
+        Err(Unmet::NotYet(_)) if past_deadline => Some(Ok(())),
+        Err(Unmet::NotYet(_)) => None,
+    }
+}
+
+/// Each `none` effect that cannot be trusted: one of a kind no probe looks for, or one whose
+/// capability has no positive fixture with an effect of that kind to show the probe sees it.
+fn missing_twins(fixtures: &[(String, Fixture)]) -> Vec<String> {
+    let mut failures = Vec::new();
+    for (name, fixture) in fixtures {
+        let Effect::Never { of } = &fixture.effect else {
+            continue;
+        };
+        if matches!(**of, Effect::Never { .. } | Effect::Refused { .. }) {
+            failures.push(format!(
+                "fixture {name}: `none` of `{}` names nothing a probe looks for",
+                of.kind()
+            ));
+            continue;
+        }
+        let twinned = fixtures.iter().any(|(_, other)| {
+            other.capability == fixture.capability
+                && other.role == Role::Positive
+                && other.effect.kind() == of.kind()
+        });
+        if !twinned {
+            failures.push(format!(
+                "fixture {name}: `none` of `{}`, and no positive {} fixture has a `{}` effect \
+                 to show that probe sees one",
+                of.kind(),
+                fixture.capability,
+                of.kind()
+            ));
+        }
+    }
+    failures
 }
 
 impl Fixture {
@@ -1058,6 +1186,7 @@ async fn send(served: &Served, database_url: &str, stimulus: &Stimulus) -> Resul
             body,
             auth,
             sign,
+            status: want,
         } => {
             let method = reqwest::Method::from_bytes(method.as_bytes())
                 .map_err(|e| format!("method {method}: {e}"))?;
@@ -1078,7 +1207,7 @@ async fn send(served: &Served, database_url: &str, stimulus: &Stimulus) -> Resul
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             eprintln!("stimulus {path}: {status} {text}");
-            Ok(())
+            answered(path, status.as_u16(), *want)
         },
         Stimulus::Mcp {
             tool, arguments, ..
@@ -1236,7 +1365,8 @@ async fn send(served: &Served, database_url: &str, stimulus: &Stimulus) -> Resul
 }
 
 /// `Ok` when the effect holds now, `Err` with what was seen instead.
-async fn observe(served: &Served, database_url: &str, effect: &Effect) -> Result<(), String> {
+async fn observe(served: &Served, database_url: &str, effect: &Effect) -> Result<(), Unmet> {
+    use Unmet::{Broken, NotYet};
     match effect {
         Effect::Http {
             method,
@@ -1247,64 +1377,50 @@ async fn observe(served: &Served, database_url: &str, effect: &Effect) -> Result
             equals,
         } => {
             let verb = reqwest::Method::from_bytes(method.as_bytes())
-                .map_err(|e| format!("method {method}: {e}"))?;
+                .map_err(|e| Broken(format!("method {method}: {e}")))?;
             let mut request = reqwest::Client::new()
                 .request(verb, format!("{}{path}", served.base))
                 .header("content-type", "application/json");
             if let Some(body) = body {
                 request = request.body(body.clone());
             }
-            let response = request.send().await.map_err(|e| format!("{method} {path}: {e}"))?;
+            let response =
+                request.send().await.map_err(|e| Broken(format!("{method} {path}: {e}")))?;
             let got = response.status().as_u16();
             let body: Value = response.json().await.unwrap_or(Value::Null);
             if got != *status {
-                return Err(format!("{method} {path} answered {got}, not {status}: {body}"));
+                return Err(NotYet(format!(
+                    "{method} {path} answered {got}, not {status}: {body}"
+                )));
             }
             match (json_pointer, equals) {
-                (Some(pointer), Some(want)) if body.pointer(pointer) != Some(want) => Err(format!(
-                    "{method} {path}: {pointer} is {:?}, not {want}: {body}",
-                    body.pointer(pointer)
-                )),
+                (Some(pointer), Some(want)) if body.pointer(pointer) != Some(want) => {
+                    Err(NotYet(format!(
+                        "{method} {path}: {pointer} is {:?}, not {want}: {body}",
+                        body.pointer(pointer)
+                    )))
+                },
                 _ => Ok(()),
             }
         },
         Effect::Row { query, expect } => {
-            let pool = PgPool::connect(database_url).await.map_err(|e| format!("connect: {e}"))?;
-            let query = query.replace("$RUN_ID", &served.run_id);
-            // Reason: test SQL: names and values this test defines, or DDL the code under test
-            // generated.
-            let rows = sqlx::query(sqlx::AssertSqlSafe(query.as_str())).fetch_all(&pool).await;
-            pool.close().await;
-            let rows = rows.map_err(|e| format!("`{query}`: {e}"))?;
-            let got: Vec<Vec<String>> = rows
-                .iter()
-                .map(|row| {
-                    (0..row.len())
-                        .map(|i| row.try_get::<String, _>(i).unwrap_or_else(|e| format!("<{e}>")))
-                        .collect()
-                })
-                .collect();
-            if got == *expect {
-                Ok(())
-            } else {
-                Err(format!("`{query}` returned {got:?}, not {expect:?}"))
-            }
+            observe_row(database_url, &served.run_id, query, expect).await
         },
         Effect::Nats {
             stream,
             subject_prefix,
             count,
         } => {
-            let subjects = stream_subjects(stream).await?;
+            let subjects = stream_subjects(stream).await.map_err(Broken)?;
             let matching =
                 subjects.iter().filter(|s| s.starts_with(subject_prefix.as_str())).count();
             if matching >= *count {
                 Ok(())
             } else {
-                Err(format!(
+                Err(NotYet(format!(
                     "{matching} message(s) under `{subject_prefix}` on {stream}, not {count}: \
                      {subjects:?}"
-                ))
+                )))
             }
         },
         Effect::Kafka {
@@ -1312,24 +1428,24 @@ async fn observe(served: &Served, database_url: &str, effect: &Effect) -> Result
             count,
             data,
         } => {
-            let messages = topic_messages(&served.kafka_topic).await?;
+            let messages = topic_messages(&served.kafka_topic).await.map_err(Broken)?;
             let hits: Vec<&Value> =
                 messages.iter().filter(|m| m["subscription_name"] == **subscription).collect();
             if hits.len() < *count {
-                return Err(format!(
+                return Err(NotYet(format!(
                     "{} message(s) for {subscription} on {}, not {count}: {messages:?}",
                     hits.len(),
                     served.kafka_topic
-                ));
+                )));
             }
             let Some(data) = data else { return Ok(()) };
-            let want: Value =
-                serde_json::from_str(data).map_err(|e| format!("kafka.data is not JSON: {e}"))?;
+            let want: Value = serde_json::from_str(data)
+                .map_err(|e| Broken(format!("kafka.data is not JSON: {e}")))?;
             if hits.iter().any(|m| m["data"] == want) {
                 Ok(())
             } else {
                 let got: Vec<&Value> = hits.iter().map(|m| &m["data"]).collect();
-                Err(format!("no {subscription} message carries data {want}: {got:?}"))
+                Err(NotYet(format!("no {subscription} message carries data {want}: {got:?}")))
             }
         },
         Effect::Received { path, count } => {
@@ -1338,19 +1454,22 @@ async fn observe(served: &Served, database_url: &str, effect: &Effect) -> Result
             if hits >= *count {
                 Ok(())
             } else {
-                Err(format!(
+                Err(NotYet(format!(
                     "the receiver was sent {hits} request(s) for {path}, not {count}: {paths:?}"
-                ))
+                )))
             }
         },
-        Effect::Refused { .. } => Err("a refusal is judged before the server serves".to_owned()),
+        Effect::Refused { .. } => {
+            Err(Broken("a refusal is judged before the server serves".to_owned()))
+        },
+        Effect::Never { .. } => Err(Broken("a `none` is judged by the runner".to_owned())),
         Effect::Flight { ticket, auth, rows } => {
-            let bearer = auth.bearer(&served.receiver)?;
-            let got = flight_rows(&served.flight, &bearer, ticket).await?;
+            let bearer = auth.bearer(&served.receiver).map_err(Broken)?;
+            let got = flight_rows(&served.flight, &bearer, ticket).await.map_err(Broken)?;
             if got == *rows {
                 Ok(())
             } else {
-                Err(format!("Flight do_get {ticket} streamed {got} row(s), not {rows}"))
+                Err(NotYet(format!("Flight do_get {ticket} streamed {got} row(s), not {rows}")))
             }
         },
         Effect::Health {
@@ -1360,10 +1479,10 @@ async fn observe(served: &Served, database_url: &str, effect: &Effect) -> Result
         } => {
             let health: Value = reqwest::get(format!("{}/health", served.base))
                 .await
-                .map_err(|e| format!("/health: {e}"))?
+                .map_err(|e| Broken(format!("/health: {e}")))?
                 .json()
                 .await
-                .map_err(|e| format!("/health: {e}"))?;
+                .map_err(|e| Broken(format!("/health: {e}")))?;
             let reported = &health["capabilities"][capability];
             let started_ok = started.is_none_or(|want| reported["started"] == want);
             let serving_ok = serving
@@ -1371,9 +1490,42 @@ async fn observe(served: &Served, database_url: &str, effect: &Effect) -> Result
             if started_ok && serving_ok {
                 Ok(())
             } else {
-                Err(format!("/health reports {capability}: {reported}"))
+                Err(NotYet(format!("/health reports {capability}: {reported}")))
             }
         },
+    }
+}
+
+/// `query`, with `$RUN_ID` expanded, returns exactly `expect`. A query that does not run, on
+/// a database that does not answer, is [`Unmet::Broken`]: an empty `expect` must not pass on
+/// a misspelt table.
+async fn observe_row(
+    database_url: &str,
+    run_id: &str,
+    query: &str,
+    expect: &[Vec<String>],
+) -> Result<(), Unmet> {
+    let pool = PgPool::connect(database_url)
+        .await
+        .map_err(|e| Unmet::Broken(format!("connect: {e}")))?;
+    let query = query.replace("$RUN_ID", run_id);
+    // Reason: test SQL: names and values this test defines, or DDL the code under test
+    // generated.
+    let rows = sqlx::query(sqlx::AssertSqlSafe(query.as_str())).fetch_all(&pool).await;
+    pool.close().await;
+    let rows = rows.map_err(|e| Unmet::Broken(format!("`{query}`: {e}")))?;
+    let got: Vec<Vec<String>> = rows
+        .iter()
+        .map(|row| {
+            (0..row.len())
+                .map(|i| row.try_get::<String, _>(i).unwrap_or_else(|e| format!("<{e}>")))
+                .collect()
+        })
+        .collect();
+    if got == expect {
+        Ok(())
+    } else {
+        Err(Unmet::NotYet(format!("`{query}` returned {got:?}, not {expect:?}")))
     }
 }
 
@@ -1505,7 +1657,7 @@ async fn run_fixture_on(
         }
     }
 
-    if let Effect::Nats { stream, .. } = &fixture.effect {
+    if let Effect::Nats { stream, .. } = fixture.effect.probed() {
         reset_stream(stream).await?;
     }
     if let Effect::Refused { message } = &fixture.effect {
@@ -1542,20 +1694,40 @@ async fn run_fixture_on(
             send(&served, &database_url, stimulus).await?;
         }
         let deadline = Instant::now() + Duration::from_secs(fixture.deadline_secs);
-        loop {
-            served
-                .still_running()
-                .map_err(|exited| format!("{exited}:\n{}", served.log_tail()))?;
-            match observe(&served, &database_url, &fixture.effect).await {
-                Ok(()) => break,
-                Err(seen) if Instant::now() > deadline => {
-                    return Err(format!(
-                        "the effect never appeared within {}s: {seen}\n--- server log ---\n{}",
-                        fixture.deadline_secs,
-                        served.log_tail()
-                    ));
-                },
-                Err(_) => tokio::time::sleep(Duration::from_millis(250)).await,
+        if let Effect::Never { of } = &fixture.effect {
+            loop {
+                served
+                    .still_running()
+                    .map_err(|exited| format!("{exited}:\n{}", served.log_tail()))?;
+                let past_deadline = Instant::now() > deadline;
+                let probe = observe(&served, &database_url, of).await;
+                match absence_verdict(probe, past_deadline) {
+                    Some(Ok(())) => break,
+                    Some(Err(failure)) => {
+                        return Err(format!(
+                            "{failure}\n--- server log ---\n{}",
+                            served.log_tail()
+                        ));
+                    },
+                    None => tokio::time::sleep(Duration::from_millis(250)).await,
+                }
+            }
+        } else {
+            loop {
+                served
+                    .still_running()
+                    .map_err(|exited| format!("{exited}:\n{}", served.log_tail()))?;
+                match observe(&served, &database_url, &fixture.effect).await {
+                    Ok(()) => break,
+                    Err(seen) if Instant::now() > deadline => {
+                        return Err(format!(
+                            "the effect never appeared within {}s: {seen}\n--- server log ---\n{}",
+                            fixture.deadline_secs,
+                            served.log_tail()
+                        ));
+                    },
+                    Err(_) => tokio::time::sleep(Duration::from_millis(250)).await,
+                }
             }
         }
         // Everything the server wrote to stdout by now must still read as JSON-RPC.
@@ -1654,6 +1826,134 @@ fn every_declared_entry_point_drives_a_fixture() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Every `none` effect is one a probe can be trusted on: its capability has a positive
+/// fixture with an effect of the same kind, which shows the probe sees one. Needs no
+/// database.
+#[test]
+fn every_none_effect_has_a_positive_twin() {
+    let fixtures: Vec<(String, Fixture)> = fixtures(&fixtures_dir())
+        .into_iter()
+        .map(|(name, dir)| {
+            let fixture = read_fixture(&dir).unwrap_or_else(|e| panic!("fixture {name}: {e}"));
+            (name, fixture)
+        })
+        .collect();
+    let failures = missing_twins(&fixtures);
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// The rules [`absence_verdict`], [`missing_twins`], [`answered`] and [`observe_row`]
+/// apply, on inputs written here: no fixture under `tests/capabilities/` exercises each
+/// case.
+mod harness_rules {
+    use super::*;
+
+    fn fixture(toml: &str) -> Fixture {
+        toml::from_str(toml).unwrap_or_else(|e| panic!("{toml}: {e}"))
+    }
+
+    const ROW: &str = r#"row = { query = "SELECT 1", expect = [] }"#;
+
+    #[test]
+    fn an_effect_that_appears_fails_a_none() {
+        assert!(matches!(absence_verdict(Ok(()), false), Some(Err(_))));
+        assert!(matches!(absence_verdict(Ok(()), true), Some(Err(_))));
+    }
+
+    #[test]
+    fn a_probe_that_fails_fails_a_none_before_its_deadline() {
+        let probe = || Err(Unmet::Broken("connection refused".to_owned()));
+        let verdict = absence_verdict(probe(), false);
+        assert!(
+            matches!(&verdict, Some(Err(why)) if why.contains("connection refused")),
+            "{verdict:?}"
+        );
+        assert!(matches!(absence_verdict(probe(), true), Some(Err(_))));
+    }
+
+    #[test]
+    fn a_none_waits_out_its_deadline_and_then_passes() {
+        let probe = || Err(Unmet::NotYet("no rows".to_owned()));
+        assert!(absence_verdict(probe(), false).is_none());
+        assert!(matches!(absence_verdict(probe(), true), Some(Ok(()))));
+    }
+
+    #[test]
+    fn a_none_needs_a_positive_fixture_of_its_kind_for_the_same_capability() {
+        let hostile = fixture(&format!(
+            "capability = \"rest\"\nrole = \"hostile\"\n[effect]\nnone = {{ of = {{ {ROW} }} }}"
+        ));
+        let positive_row = fixture(&format!("capability = \"rest\"\n[effect]\n{ROW}"));
+        let positive_http =
+            fixture("capability = \"rest\"\n[effect]\nhttp = { path = \"/health\", status = 200 }");
+        let other_capability = fixture(&format!("capability = \"mcp\"\n[effect]\n{ROW}"));
+        let hostile_row =
+            fixture(&format!("capability = \"rest\"\nrole = \"hostile\"\n[effect]\n{ROW}"));
+        let named = |list: Vec<Fixture>| -> Vec<(String, Fixture)> {
+            list.into_iter().enumerate().map(|(i, f)| (format!("f{i}"), f)).collect()
+        };
+
+        assert!(missing_twins(&named(vec![hostile, positive_row])).is_empty());
+        for unproven in [positive_http, other_capability, hostile_row] {
+            let hostile = fixture(&format!(
+                "capability = \"rest\"\nrole = \"hostile\"\n[effect]\nnone = {{ of = {{ {ROW} }} }}"
+            ));
+            let failures = missing_twins(&named(vec![hostile, unproven]));
+            assert_eq!(failures.len(), 1, "{failures:?}");
+        }
+    }
+
+    #[test]
+    fn a_none_of_a_refusal_or_of_a_none_is_refused() {
+        for of in [
+            r#"refused = { message = "x" }"#,
+            &format!("none = {{ of = {{ {ROW} }} }}"),
+        ] {
+            let hostile = fixture(&format!(
+                "capability = \"rest\"\nrole = \"hostile\"\n[effect]\nnone = {{ of = {{ {of} }} }}"
+            ));
+            // A twin of `of`'s own kind, so only the shape rule can fail it.
+            let twin = fixture(&format!("capability = \"rest\"\n[effect]\n{of}"));
+            let failures: Vec<String> =
+                missing_twins(&[("h".to_owned(), hostile), ("t".to_owned(), twin)])
+                    .into_iter()
+                    .filter(|failure| failure.starts_with("fixture h:"))
+                    .collect();
+            assert_eq!(failures.len(), 1, "{of}: {failures:?}");
+            assert!(failures[0].contains("names nothing a probe looks for"), "{failures:?}");
+        }
+    }
+
+    #[test]
+    fn a_stimulus_answered_otherwise_than_stated_fails() {
+        assert!(answered("/rest/v1/notes", 401, Some(401)).is_ok());
+        assert!(answered("/rest/v1/notes", 201, Some(401)).is_err());
+        assert!(answered("/rest/v1/notes", 201, None).is_ok());
+    }
+
+    #[tokio::test]
+    async fn a_row_probe_on_a_database_that_does_not_answer_is_broken() {
+        let probe =
+            observe_row("postgres://postgres:pw@127.0.0.1:1/none", "", "SELECT 1", &[]).await;
+        assert!(matches!(probe, Err(Unmet::Broken(_))), "{probe:?}");
+    }
+
+    /// The case a hostile fixture would pass on if a failed query read as no rows.
+    #[tokio::test]
+    async fn a_row_probe_whose_query_does_not_run_is_broken() {
+        let Some(url) = try_database_url() else {
+            eprintln!("SKIP a_row_probe_whose_query_does_not_run_is_broken: DATABASE_URL not set");
+            return;
+        };
+        let probe = observe_row(&url, "", "SELECT title FROM no_such_table", &[]).await;
+        assert!(matches!(probe, Err(Unmet::Broken(_))), "{probe:?}");
+        let probe = observe_row(&url, "", "SELECT 1 WHERE false", &[]).await;
+        assert!(probe.is_ok(), "{probe:?}");
+        let probe = observe_row(&url, "", "SELECT 'a'", &[]).await;
+        assert!(matches!(probe, Err(Unmet::NotYet(_))), "{probe:?}");
+    }
 }
 
 /// The declared pairs (capability, entry point) some fixture is driven through.
