@@ -1359,6 +1359,8 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"cargo test -p fraiseql-time --all-features --test timestamptz_pg -- --ignored --test-threads=1",
 		// fraiseql-db keeps every database-backed test in tests/ (#1370): the line above
 		// runs them, and `--lib` can never reach one, whatever features it enables.
+		// The boot-lock harness drops a test's database even when the test does not.
+		"cargo test -p fraiseql-test-support --features boot-locks --lib boot_locks:: -- --test-threads=1",
 		// Tier-C migrated: fraiseql-functions cron-state migration (lib tests; harness postgres()).
 		"cargo test -p fraiseql-functions --features 'runtime-deno,runtime-wasm,host-live' --lib migrations::tests -- --test-threads=1",
 		// The Model B cursor ops through the Deno runtime need this leg's database: in the

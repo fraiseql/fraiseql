@@ -4330,6 +4330,7 @@ dependencies = [
  "p256",
  "rand 0.9.4",
  "serde_json",
+ "sqlx",
  "testcontainers",
  "testcontainers-modules",
  "tokio",

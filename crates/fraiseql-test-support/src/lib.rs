@@ -34,6 +34,8 @@
 //! }
 //! ```
 
+#[cfg(feature = "boot-locks")]
+pub mod boot_locks;
 pub mod changelog;
 pub mod db;
 #[cfg(feature = "held-replies")]

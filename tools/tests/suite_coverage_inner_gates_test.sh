@@ -261,6 +261,26 @@ make_fixture "$WORK/svc_wrong" "$FEATS" "$SERVICE_BODY" \
 expect "...a DIFFERENT service does not satisfy it" 1 "$WORK/svc_wrong" \
     "demo::lib::tests[parquet]"
 
+# A database of its own, from the boot-lock harness, needs Postgres as much as a
+# read of DATABASE_URL does: the call names no env var, and the suite skips every
+# test where no service is bound.
+FRESH_DB_BODY='#[test]
+fn always_runs() {}
+
+#[cfg(feature = "parquet")]
+#[tokio::test]
+async fn second_boot() {
+    let _ = fraiseql_test_support::boot_locks::fresh_database("tag").await;
+}'
+
+make_fixture "$WORK/svc_fresh_db" "$FEATS" "$FRESH_DB_BODY" "cargo test -p demo --lib --features parquet"
+expect "a module building its own database is not covered by a leg binding none" 1 \
+    "$WORK/svc_fresh_db" "demo::lib::tests[parquet]"
+
+make_fixture "$WORK/svc_fresh_db_bound" "$FEATS" "$FRESH_DB_BODY" \
+    "cargo test -p demo --lib --features parquet" "DATABASE_URL"
+expect "...and is covered once the leg binds Postgres" 0 "$WORK/svc_fresh_db_bound"
+
 # A leg binds what a method it calls binds, and only a method it calls.
 make_fixture "$WORK/svc_helper" "$FEATS" "$SERVICE_BODY" \
     "cargo test -p demo --lib --features parquet"

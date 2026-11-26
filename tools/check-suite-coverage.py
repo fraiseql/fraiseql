@@ -61,7 +61,7 @@ ENV_READ = r'(?:var|var_os|env!)\(\s*"{name}"'
 SERVICES = {
     "postgres": {
         "detect": re.compile(
-            r"(?:test_support|services)::postgres\(|try_database_url\(|\bdatabase_url\(\)|"
+            r"(?:test_support|services)::postgres\(|\bfresh_database\(|try_database_url\(|\bdatabase_url\(\)|"
             + ENV_READ.format(name="(?:TLS_)?DATABASE_URL")
         ),
         "satisfied_by": {"DATABASE_URL", "TLS_DATABASE_URL"},

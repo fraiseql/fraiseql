@@ -36,6 +36,11 @@ serde_json = { workspace = true, optional = true }
 wiremock = { version = "0.6", optional = true }
 # The `held-replies` proxy: a loopback TCP relay to PostgreSQL.
 tokio = { workspace = true, optional = true }
+# The `boot-locks` harness: a second schema initialisation observed through `pg_locks`.
+sqlx = { version = "0.9.1", features = [
+  "postgres",
+  "runtime-tokio",
+], optional = true }
 
 [features]
 default = []
@@ -56,6 +61,8 @@ test-issuer = [
 ]
 # A loopback relay to PostgreSQL that can hold back the reply to a transaction start.
 held-replies = ["dep:tokio"]
+# A second schema initialisation over a current schema takes no lock a live write holds.
+boot-locks = ["dep:sqlx", "dep:tokio"]
 
 # tokio is dev-only (doctest/example runtime). The library itself stays runtime-agnostic.
 [dev-dependencies]
