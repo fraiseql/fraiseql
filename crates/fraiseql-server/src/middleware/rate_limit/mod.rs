@@ -10,6 +10,8 @@
 
 mod config;
 mod dispatch;
+#[cfg(feature = "auth")]
+mod handler_budgets;
 mod identity;
 mod in_memory;
 mod key;
@@ -26,6 +28,8 @@ pub(crate) use config::{
     renamed_key_note,
 };
 pub use dispatch::RateLimiter;
+#[cfg(feature = "auth")]
+pub use handler_budgets::{graphql_validation_error_limiter, mfa_verify_limiter};
 pub use identity::VerifiedSubject;
 pub use key::build_rate_limit_key;
 // gRPC (#1638) and the MFA verify budget key their client by the HTTP rule.

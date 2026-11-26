@@ -925,6 +925,23 @@ fn zero_global_budget_check(effective: &crate::middleware::RateLimitConfig) -> c
 fn auth_rule_budgets_check(
     sec: &crate::middleware::RateLimitingSecurityConfig,
 ) -> crate::Result<()> {
+    // The budgets a handler spends itself run whether or not the endpoint rules do, so
+    // `auth_rules_enabled = false` does not excuse a zero in them.
+    let handler_budgets: [(&str, u64); 4] = [
+        ("auth_mfa_verify_max_requests", u64::from(sec.auth_mfa_verify_max_requests)),
+        ("auth_mfa_verify_window_secs", sec.auth_mfa_verify_window_secs),
+        (
+            "graphql_validation_error_max_requests",
+            u64::from(sec.graphql_validation_error_max_requests),
+        ),
+        ("graphql_validation_error_window_secs", sec.graphql_validation_error_window_secs),
+    ];
+    if let Some((key, _)) = handler_budgets.iter().find(|(_, v)| *v == 0) {
+        return Err(crate::ServerError::ConfigError(format!(
+            "[security.rate_limiting] {key} = 0. A zero does not mean unlimited: the budget \
+             needs a positive count and window."
+        )));
+    }
     if !sec.auth_rules_enabled {
         return Ok(());
     }
@@ -1067,7 +1084,7 @@ fn rate_limiting_from_schema(
 ///
 /// Returns `ServerError::ConfigError` when both do: the compiled section used to replace the
 /// server's table whole, with no message, so the table's values did nothing.
-fn rate_limiting_section(
+pub(super) fn rate_limiting_section(
     schema: &CompiledSchema,
     config: &crate::ServerConfig,
 ) -> crate::Result<Option<crate::middleware::RateLimitingSecurityConfig>> {

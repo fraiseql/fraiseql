@@ -1575,6 +1575,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`[security.rate_limiting]` sizes the two budgets that were fixed in code (#1777).**
+  `auth_mfa_verify_max_requests` / `auth_mfa_verify_window_secs` set how many MFA
+  verification attempts a client may make per window (default 50 a minute), and
+  `graphql_validation_error_max_requests` / `graphql_validation_error_window_secs` how
+  many GraphQL requests failing validation it may send (default 100 a minute). The
+  defaults are the numbers the server used, so a deployment that sets neither behaves as
+  before. Both are read from whichever file carries the policy, run whether or not
+  `auth_rules_enabled` is on, and refuse boot when set to zero.
+
 - **Accent-insensitive string filters (#1607).** A schema that declares
   `[accent_insensitive]` in fraiseql.toml publishes `aicontains`, `aistartswith`,
   `aiendswith`, `aieq`, `ailike`, `nailike`, `airegex` and `nairegex` on its string filters,

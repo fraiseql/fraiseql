@@ -470,6 +470,7 @@ pub fn session_cookies(
 /// Returns [`ServerError::ConfigError`] when a method is enabled without what it
 /// needs: no `[auth.database]` pool, no `[auth_issuer]`, a missing or send-less mailbox, or
 /// a build lacking `inbound-email`.
+#[allow(clippy::too_many_arguments)] // Reason: each argument is an independent input the route states are assembled from, resolved by the caller
 pub async fn build_local_auth_states(
     local: &LocalAuthConfig,
     // Reason: only the inbound-email-gated mail sender reads the server config.
@@ -479,6 +480,7 @@ pub async fn build_local_auth_states(
     tenant_claim: &str,
     lifetime: fraiseql_auth::SessionLifetime,
     session_cookies: Option<fraiseql_auth::SessionCookies>,
+    rate_limiting: &fraiseql_core::schema::RateLimitingSecurityConfig,
 ) -> Result<LocalAuthStates> {
     // Every enabled method persists something (credentials, enrollments, OTP
     // budgets, sessions), so all of them need the signing config and the pool.
@@ -604,8 +606,8 @@ pub async fn build_local_auth_states(
             mfa_store: Arc::new(fraiseql_auth::PgMfaStore::new(pool.clone())),
             session_store: Arc::clone(&session_store),
             issuer: local.mfa_issuer.clone().unwrap_or_else(|| DEFAULT_MFA_ISSUER.to_string()),
-            verify_limiter: Arc::new(fraiseql_auth::KeyedRateLimiter::new(
-                fraiseql_auth::AuthRateLimitConfig::per_ip_strict(),
+            verify_limiter: Arc::new(crate::middleware::rate_limit::mfa_verify_limiter(
+                rate_limiting,
             )),
             session_cookies,
         }))

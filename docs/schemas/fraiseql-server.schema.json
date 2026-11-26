@@ -1724,6 +1724,34 @@
           "minimum": 0,
           "default": 600
         },
+        "auth_mfa_verify_max_requests": {
+          "description": "MFA verification (`/auth/v1/mfa/verify`) — max attempts per window, per client.\n\nEnforced by the MFA route itself, so `auth_rules_enabled = false` does not switch\nit off.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 50
+        },
+        "auth_mfa_verify_window_secs": {
+          "description": "MFA verification window in seconds.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 60
+        },
+        "graphql_validation_error_max_requests": {
+          "description": "GraphQL requests that fail validation — max per window, per client. Over the budget,\na client's requests are refused as rate-limited until the window passes.\n\nCounted by the GraphQL handler of a server built with `auth`, whether or not the\nglobal limit (`enabled`) or the auth endpoint rules (`auth_rules_enabled`) are on.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 100
+        },
+        "graphql_validation_error_window_secs": {
+          "description": "GraphQL validation-error window in seconds.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 60
+        },
         "auth_rules_enabled": {
           "description": "Apply the per-client rules on the auth endpoints.\n\nOn unless an operator writes `false`. The rules run whether or not the global\nlimit (`enabled`) is on, and with no `[security.rate_limiting]` section at all: an\nabsent section is not a decision to leave sign-in unthrottled.",
           "type": "boolean",

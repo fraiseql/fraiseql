@@ -34,6 +34,8 @@
 #![allow(clippy::literal_string_with_formatting_args)]
 
 mod common;
+#[path = "local_auth_e2e_pg/mfa_verify_budget.rs"]
+mod mfa_verify_budget;
 
 use std::sync::Arc;
 
@@ -214,7 +216,6 @@ async fn boot_with(
 }
 
 /// [`boot`] with `schema` in place of [`local_schema`].
-#[cfg(feature = "inbound-email")]
 async fn boot_schema(schema: CompiledSchema, pool: PgPool, scratch_url: &str) -> RunningServer {
     Box::pin(boot_config_schema(local_config(scratch_url), schema, pool, scratch_url)).await
 }

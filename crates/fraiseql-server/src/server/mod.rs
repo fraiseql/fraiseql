@@ -56,6 +56,9 @@ mod after_mutation_wiring_tests;
 mod declared_observer_env_tests;
 #[cfg(all(test, feature = "observers"))]
 mod entry_point_parity_tests;
+#[cfg(all(test, feature = "auth"))]
+#[path = "handler_budget_tests.rs"]
+mod handler_budget_tests;
 #[cfg(test)]
 mod health_capabilities_tests;
 #[cfg(test)]

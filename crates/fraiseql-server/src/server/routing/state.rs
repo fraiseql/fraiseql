@@ -59,6 +59,24 @@ impl Server {
             .with_reload_config(self.config.schema_path.clone());
         state.capability_starts = std::sync::Arc::clone(&self.capability_starts);
 
+        // The validation-error budget, from the policy the rate limiter was built from. A
+        // server holding two policies (compiled and server file) never got this far:
+        // `resolve_rate_limiter` refused it at construction, so the one error
+        // `rate_limiting_section` returns cannot arise here.
+        #[cfg(feature = "auth")]
+        {
+            let policy = super::super::initialization::rate_limiting_section(
+                self.executor.schema(),
+                &self.config,
+            )
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+            state.graphql_rate_limiter = std::sync::Arc::new(
+                crate::middleware::rate_limit::graphql_validation_error_limiter(&policy),
+            );
+        }
+
         // Attach secrets manager if configured
         #[cfg(feature = "secrets")]
         if let Some(ref secrets_manager) = self.secrets_manager {

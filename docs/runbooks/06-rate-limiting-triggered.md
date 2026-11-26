@@ -33,6 +33,12 @@ jq '.security.rate_limiting' /etc/fraiseql/schema.compiled.json
 # failed_login_*), and auth_rules_enabled. The auth endpoint rules are per client
 # address and run even with enabled = false or no section at all.
 #
+# Two budgets are spent inside their handlers, also per client address:
+# auth_mfa_verify_max_requests / auth_mfa_verify_window_secs (MFA verification
+# attempts, default 50 a minute) and graphql_validation_error_max_requests /
+# graphql_validation_error_window_secs (GraphQL requests that fail validation,
+# default 100 a minute). auth_rules_enabled = false does not switch them off.
+#
 # max_buckets is a MEMORY ceiling on each tracking map, not a throttle: reaching it
 # evicts the least-recently-used bucket, so a client resumes with a full one. If it
 # is too low you will see limits under-enforced, never over-enforced.

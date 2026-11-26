@@ -13,7 +13,7 @@ use tracing::{info, warn};
 
 use super::{tenant_key::DomainRegistry, tenant_registry::TenantExecutorRegistry};
 #[cfg(feature = "auth")]
-use crate::auth::rate_limiting::{AuthRateLimitConfig, KeyedRateLimiter};
+use crate::auth::rate_limiting::KeyedRateLimiter;
 use crate::{
     config::error_sanitization::ErrorSanitizer, error::GraphQLError,
     metrics_server::MetricsCollector, usage::aggregator::UsageAggregator,
@@ -230,9 +230,11 @@ impl AppState {
             #[cfg(feature = "arrow")]
             cache: None,
             #[cfg(feature = "auth")]
-            graphql_rate_limiter: Arc::new(KeyedRateLimiter::new(
-                AuthRateLimitConfig::per_ip_standard(),
-            )),
+            graphql_rate_limiter: Arc::new(
+                crate::middleware::rate_limit::graphql_validation_error_limiter(
+                    &fraiseql_core::schema::RateLimitingSecurityConfig::DEFAULT,
+                ),
+            ),
             #[cfg(feature = "secrets")]
             secrets_manager: None,
             #[cfg(feature = "secrets")]

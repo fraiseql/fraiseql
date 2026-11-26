@@ -843,6 +843,8 @@ impl Server {
                     executor.schema().tenant_claim(),
                     session_lifetime,
                     session_cookies,
+                    &super::initialization::rate_limiting_section(executor.schema(), &config)?
+                        .unwrap_or_default(),
                 ))
                 .await?
             },

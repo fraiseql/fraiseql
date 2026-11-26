@@ -430,6 +430,21 @@ pub struct RateLimitingSecurityConfig {
     pub auth_anonymous_signup_max_requests: u32,
     /// Anonymous signup window in seconds.
     pub auth_anonymous_signup_window_secs: u64,
+    /// MFA verification (`/auth/v1/mfa/verify`) — max attempts per window, per client.
+    ///
+    /// Enforced by the MFA route itself, so `auth_rules_enabled = false` does not switch
+    /// it off.
+    pub auth_mfa_verify_max_requests: u32,
+    /// MFA verification window in seconds.
+    pub auth_mfa_verify_window_secs: u64,
+    /// GraphQL requests that fail validation — max per window, per client. Over the budget,
+    /// a client's requests are refused as rate-limited until the window passes.
+    ///
+    /// Counted by the GraphQL handler of a server built with `auth`, whether or not the
+    /// global limit (`enabled`) or the auth endpoint rules (`auth_rules_enabled`) are on.
+    pub graphql_validation_error_max_requests: u32,
+    /// GraphQL validation-error window in seconds.
+    pub graphql_validation_error_window_secs: u64,
     /// Apply the per-client rules on the auth endpoints.
     ///
     /// On unless an operator writes `false`. The rules run whether or not the global
@@ -523,6 +538,10 @@ impl RateLimitingSecurityConfig {
         auth_password_window_secs: 60,
         auth_anonymous_signup_max_requests: 30,
         auth_anonymous_signup_window_secs: 600,
+        auth_mfa_verify_max_requests: 50,
+        auth_mfa_verify_window_secs: 60,
+        graphql_validation_error_max_requests: 100,
+        graphql_validation_error_window_secs: 60,
         auth_rules_enabled: true,
         failed_login_max_attempts: 10,
         failed_login_lockout_secs: 900,
