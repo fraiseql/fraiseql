@@ -119,8 +119,37 @@ and the document's value stands when it does not.
 
 ## `${VAR}` Placeholders
 
-Both files expand `${VAR}` from the environment before they are parsed, with one
-expander. A value must be printable UTF-8 text: one holding a control character (a tab
+Both files expand `${VAR}` from the environment before they are parsed, with one expander,
+but at different times, and the difference decides where a value ends up:
+
+- **`fraiseql.toml` is expanded by `fraiseql compile`.** The value is pasted into the file's
+  text, and whatever key it sits under is compiled as written: the value itself lands in
+  `schema.compiled.json`, an artifact that travels (container images, artifact stores, CI
+  caches, config maps). A placeholder whose variable is not set where you compile stays in
+  the artifact as written, `${NAME}` and all, and is not expanded again at runtime.
+- **The server's configuration file is expanded when the server starts**, where it is read;
+  nothing it holds is written anywhere.
+
+A secret therefore does not belong in a `${VAR}` placeholder in `fraiseql.toml`. Each key
+that takes a credential or a credential-bearing URL has an `*_env` twin naming the variable
+that holds it: the compiled schema carries the variable's name, and the server reads its
+value at startup.
+
+| Section | Key |
+|---------|-----|
+| `[auth]` | `client_secret_env` |
+| `[auth.database]` | `url_env` |
+| `[auth.social.google]`, `.github`, `.discord`, `.facebook` | `client_secret_env` |
+| `[auth.social.apple]` | `private_key_env` |
+| `[[security.service_accounts]]` | `secret_env` |
+| `[security.state_encryption]` | `key_env` |
+| `[security.rate_limiting]`, `[security.pkce]`, `[security.token_revocation]` | `redis_url_env` |
+| an observer action in the schema document | `url_env`, `webhook_url_env` |
+
+`[database] url` is the exception that needs none: the compiler reads it to check the
+database and does not compile it, so `url = "${DATABASE_URL}"` is safe there.
+
+The expansion itself is held to the same rules in both files. A value must be printable UTF-8 text: one holding a control character (a tab
 included), an invisible format character (Unicode Cf) or a separator other than the plain
 space (Unicode Zs, Zl, Zp) is refused wherever its placeholder sits, naming the variable and
 the class, as is one that is not UTF-8. A value holding a TOML metacharacter (`"`, `'`, `\`,
@@ -128,7 +157,7 @@ the class, as is one that is not UTF-8. A value holding a TOML metacharacter (`"
 
 A placeholder written outside a quoted string (`timeout = ${T}`) puts its value into the
 file as bare TOML, where `#` would end the line early and `,` or `=` would add keys to the
-inline table it sits in. There a value holding `#`, `,`, `=` or whitespace is refused too,
+inline table it sits in. There a value holding `#`, `,`, `=` or a space is refused too,
 naming the variable and not the value; quote the placeholder (`name = "${NAME}"`) to take
 such a value as text. A placeholder inside a string or a comment is text either way.
 

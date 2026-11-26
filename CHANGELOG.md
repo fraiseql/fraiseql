@@ -2200,6 +2200,13 @@ disagreed, and the promise was the part that was wrong.
   message table in a statement of their own, so neither holds the dispatch table while it
   waits for the message table.
 
+- **The configuration docs say when a `${VAR}` placeholder is expanded, and where its value
+  goes (#2568).** `docs/architecture/config-vs-settings.md` now states that `fraiseql compile`
+  expands fraiseql.toml's placeholders and writes their values into `schema.compiled.json`,
+  while the server's file is expanded at startup; that secrets belong in the `*_env` keys,
+  which compile the variable's name; and lists those keys. The compiled-schema lifecycle page
+  qualifies "contains no credentials" accordingly.
+
 - **The PHP SDK's client no longer calls `curl_close()` (#2542).** It has done nothing
   since PHP 8.0, and PHP 8.5 deprecates it, so every request raised a deprecation on 8.5.
   The handle is freed when it goes out of scope, as it already was.

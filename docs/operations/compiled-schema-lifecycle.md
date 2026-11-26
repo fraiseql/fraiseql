@@ -16,8 +16,11 @@ describes what it contains, how to treat it, and how to move it from development
 - Observer configuration (NATS URL, Redis URL)
 - Federation circuit breaker thresholds
 
-It does **not** contain database passwords, API keys, or user data. Connection strings are
-resolved from environment variables at runtime, not embedded in the compiled schema.
+It does **not** contain database passwords, API keys, or user data, as long as secrets are
+named through the `*_env` keys: those compile the variable's name, and the server reads the
+value at runtime. A `${VAR}` placeholder in `fraiseql.toml` is different: `fraiseql compile`
+expands it and writes the value into the compiled schema (see
+[`${VAR}` placeholders](../architecture/config-vs-settings.md#var-placeholders)).
 
 ---
 
@@ -30,7 +33,7 @@ relationships). Protect access similarly to how you protect database schema migr
 
 | Property | Detail |
 |----------|--------|
-| Contains credentials? | No |
+| Contains credentials? | No, when secrets go through `*_env` keys rather than `${VAR}` placeholders |
 | Contains user data? | No |
 | Reveals schema structure? | Yes |
 | Safe for public repository? | No |
