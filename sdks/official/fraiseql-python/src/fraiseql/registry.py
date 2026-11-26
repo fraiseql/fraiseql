@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any, ClassVar, TypeAlias
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     # `decorators` imports this module, so a runtime import here would be a cycle.
@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     # uses for `FieldConfig`.
     from fraiseql.decorators import Relationship
 
-SchemaElement: TypeAlias = dict[str, Any]
+type SchemaElement = dict[str, Any]
 
 
 def _subscribable_keys(tables: list[str] | None, pre_image: bool) -> dict[str, Any]:

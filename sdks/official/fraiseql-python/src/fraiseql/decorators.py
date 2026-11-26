@@ -21,7 +21,7 @@ import re
 from dataclasses import dataclass
 from enum import Enum as PythonEnum
 from types import FunctionType
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any, cast, overload
 
 from fraiseql.registry import SchemaRegistry, _pascal_to_snake, _snake_to_camel
 from fraiseql.scope import validate_scope
@@ -508,11 +508,6 @@ if TYPE_CHECKING:
 
     from fraiseql.scalars import CustomScalar
 
-T = TypeVar("T")
-F = TypeVar("F", bound=FunctionType)
-E = TypeVar("E", bound=PythonEnum)
-S = TypeVar("S", bound="CustomScalar")
-
 
 @dataclass(frozen=True)
 class VectorConfig:
@@ -649,7 +644,7 @@ class Relationship:
 
 
 @dataclass
-class FieldConfig(Generic[T]):
+class FieldConfig[T]:
     """Configuration for a GraphQL field with access control.
 
     This is used as a type annotation wrapper to add metadata to fields,
@@ -852,11 +847,11 @@ def field(  # noqa: PLR0913 — public API; all parameters are meaningful
 # signature returning the union of the two made a type checker see every decorated class
 # as that union.
 @overload
-def type(cls: builtins.type[T], /) -> builtins.type[T]: ...
+def type[T](cls: builtins.type[T], /) -> builtins.type[T]: ...
 
 
 @overload
-def type(
+def type[T](
     cls: None = None,
     /,
     *,
@@ -878,7 +873,7 @@ def type(
 ) -> Callable[[builtins.type[T]], builtins.type[T]]: ...
 
 
-def type(  # noqa: PLR0913 — public API; all parameters are meaningful
+def type[T](  # noqa: PLR0913 — public API; all parameters are meaningful
     cls: builtins.type[T] | None = None,
     *,
     implements: list[str] | None = None,
@@ -1118,14 +1113,14 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
 
 # `@query` returns the function it decorates; `@query(...)` returns a decorator that does.
 @overload
-def query(func: F, /) -> F: ...
+def query[F: FunctionType](func: F, /) -> F: ...
 
 
 @overload
-def query(func: None = None, /, **config_kwargs: Any) -> Callable[[F], F]: ...
+def query[F: FunctionType](func: None = None, /, **config_kwargs: Any) -> Callable[[F], F]: ...
 
 
-def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
+def query[F: FunctionType](func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
     """Decorator to mark a function as a GraphQL query.
 
     This decorator registers the function with the schema registry for JSON export.
@@ -1303,14 +1298,14 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
 # `@mutation` returns the function it decorates; `@mutation(...)` returns a decorator that
 # does.
 @overload
-def mutation(func: F, /) -> F: ...
+def mutation[F: FunctionType](func: F, /) -> F: ...
 
 
 @overload
-def mutation(func: None = None, /, **config_kwargs: Any) -> Callable[[F], F]: ...
+def mutation[F: FunctionType](func: None = None, /, **config_kwargs: Any) -> Callable[[F], F]: ...
 
 
-def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
+def mutation[F: FunctionType](func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
     """Decorator to mark a function as a GraphQL mutation.
 
     This decorator registers the function with the schema registry for JSON export.
@@ -1490,7 +1485,7 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
     return decorator(func)
 
 
-def error(
+def error[T](
     cls: builtins.type[T] | None = None,
     *,
     shareable: bool = False,
@@ -1543,7 +1538,7 @@ def error(
     return decorator(cls)
 
 
-def enum(cls: builtins.type[E]) -> builtins.type[E]:
+def enum[E: PythonEnum](cls: builtins.type[E]) -> builtins.type[E]:
     """Decorator to mark a Python enum as a GraphQL enum.
 
     This decorator registers the enum with the schema registry for JSON export.
@@ -1625,7 +1620,7 @@ def enum(cls: builtins.type[E]) -> builtins.type[E]:
     return cls
 
 
-def interface(cls: builtins.type[T]) -> builtins.type[T]:
+def interface[T](cls: builtins.type[T]) -> builtins.type[T]:
     """Decorator to mark a Python class as a GraphQL interface.
 
     This decorator registers the class with the schema registry for JSON export.
@@ -1696,7 +1691,7 @@ _OUTPUT_ONLY_FIELD_OPTIONS = frozenset(
 )
 
 
-def input(cls: builtins.type[T]) -> builtins.type[T]:
+def input[T](cls: builtins.type[T]) -> builtins.type[T]:
     """Decorator to mark a Python class as a GraphQL input object.
 
     This decorator registers the class with the schema registry for JSON export.
@@ -1781,7 +1776,7 @@ def input(cls: builtins.type[T]) -> builtins.type[T]:
     return cls
 
 
-def subscription(  # noqa: PLR0913 — public API; all parameters are meaningful
+def subscription[F: FunctionType](  # noqa: PLR0913 — public API; all parameters are meaningful
     func: F | None = None,
     *,
     entity_type: str | None = None,
@@ -1877,7 +1872,7 @@ def subscription(  # noqa: PLR0913 — public API; all parameters are meaningful
     return decorator(func)
 
 
-def source(  # noqa: PLR0913 — public API; all parameters are meaningful
+def source[F: FunctionType](  # noqa: PLR0913 — public API; all parameters are meaningful
     *,
     schedule: str,
     timezone: str | None = None,
@@ -2109,7 +2104,7 @@ def fact_table(  # noqa: PLR0913 — public API; all parameters are meaningful
     SchemaRegistry.register_fact_table(definition)
 
 
-def function(  # noqa: PLR0913 — public API; all parameters are meaningful
+def function[F: FunctionType](  # noqa: PLR0913 — public API; all parameters are meaningful
     *,
     trigger: str,
     runtime: str = "Deno",
@@ -2184,7 +2179,7 @@ def function(  # noqa: PLR0913 — public API; all parameters are meaningful
     return decorator
 
 
-def union(
+def union[T](
     name: str | None = None,
     members: list[builtins.type] | None = None,
 ) -> Callable[[builtins.type[T]], builtins.type[T]]:
@@ -2251,7 +2246,7 @@ def union(
     return decorator
 
 
-def scalar(cls: builtins.type[S]) -> builtins.type[S]:
+def scalar[S: "CustomScalar"](cls: builtins.type[S]) -> builtins.type[S]:
     """Decorator to register a custom scalar with the schema.
 
     This decorator registers the scalar globally so it can be:

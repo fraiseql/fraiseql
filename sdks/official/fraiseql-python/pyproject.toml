@@ -60,11 +60,6 @@ ignore = [
   # build the schema, so moving such imports under TYPE_CHECKING is not a mechanical fix.
   "TC001",
   "TC003",
-  # PEP 695 type parameters for the decorators' TypeVar generics and SchemaElement: a
-  # rewrite of the public API's typing, not a mechanical one, so left to its own change.
-  "UP040",
-  "UP046",
-  "UP047",
 ]
 # Select rule categories:
 # E - pycodestyle errors

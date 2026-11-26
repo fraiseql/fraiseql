@@ -60,6 +60,15 @@ def test_every_decorator_form_types_what_it_decorates() -> None:
     assert code == 0
 
 
+def test_each_generic_decorator_keeps_what_it_decorates() -> None:
+    """An instance of each decorated class, and each decorated operation's result, are
+    inferred as what was decorated: the decorators' type parameters carry it through."""
+    code, diagnostics = check("inferred.py")
+
+    assert diagnostics == [], "\n".join(diagnostics)
+    assert code == 0
+
+
 def test_a_decorated_class_used_wrongly_is_still_reported() -> None:
     """The checker reads the class through the decorator, so it can refuse a misuse of it:
     the test above is not passing because nothing is checked."""

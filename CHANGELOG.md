@@ -2039,6 +2039,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **The Python SDK's decorators declare their type parameters with PEP 695 (#2645).**
+  `@fraiseql.type`, `query`, `mutation`, `error`, `enum`, `interface`, `input`,
+  `subscription`, `scalar`, `union`, `source` and `function`, and `FieldConfig`, take
+  their type parameters in their own signatures, and `SchemaElement` is a `type` alias.
+  What a type checker infers for a decorated class or operation is unchanged, and a `ty`
+  check pins it. The module-level `T`, `F`, `E` and `S` type variables in
+  `fraiseql.decorators` are gone.
+
 - **`fraiseql.toml` and the server's configuration file are parsed as TOML 1.1 (#2599).**
   The workspace moves from `toml` 0.8 to `toml` 1. Both files now accept what TOML 1.0
   refused: an inline table spanning lines or ending with a comma, the `\e` and `\xHH`
