@@ -113,3 +113,4 @@
 #2592  tests: the compile drift suite samples temporal values no log timestamp can contain, so its no-sampled-value assertions no longer fail when the wall clock reads the sampled time; no shipped artifact changes
 #2595  docs and CI: a fraiseql-functions doc comment no longer links into the WASM runtime from the Deno one, and the rustdoc feature-set gate documents the crate with each runtime alone; docs.rs builds every feature, so the published page does not change
 #2591  CI: the public-module caller gate scopes a test attribute on a field, an arm or an argument to that element, so the code after it counts; no shipped artifact changes
+#2617  tests: the NATS-unrunnable start test runs over a reachable PostgreSQL, so start() reaches the transport and the test asserts its refusal instead of passing on a pool timeout; no shipped behaviour changes

@@ -307,48 +307,10 @@ mod transport_requires_broker {
 
 // ── NATS-cannot-run boot gate (#350 acceptance) ─────────────────────────────
 
-// Deliberately NOT gated on `observers-nats`: this must run in the CI `test`
-// leg (which compiles `observers` but not `observers-nats`) so it is never a
-// false-green. The asserted property — a configured NATS transport that cannot
-// run makes `start()` FAIL rather than silently fall back to the PostgreSQL
-// listener — holds in both builds, only the failure *reason* differs:
-//   • without `observers-nats`: `start_transport_stream` hits the
-//     "lacks the observers-nats feature" arm;
-//   • with `observers-nats`: `NatsTransport::new` rejects the loopback URL via
-//     the transport SSRF guard before any network I/O (a deterministic stand-in
-//     for a dead broker, needing neither PG nor NATS infra).
-mod nats_unrunnable_gate {
-    use fraiseql_observers::config::TransportKind;
-
-    use super::super::{ObserverRuntime, ObserverRuntimeConfig};
-
-    #[tokio::test]
-    async fn nats_that_cannot_run_fails_start_with_no_pg_fallback() {
-        // A lazy pool never connects, and start_transport_stream builds the
-        // transport before touching the database, so this needs no PG.
-        let pool = sqlx::PgPool::connect_lazy("postgres://u:u@127.0.0.1:1/db")
-            .expect("lazy pool construction does not connect");
-        let mut config = ObserverRuntimeConfig::new(pool);
-        config.transport.transport = TransportKind::Nats;
-        config.transport.nats.url = "nats://127.0.0.1:4222".to_string();
-
-        let mut runtime = ObserverRuntime::new(config);
-        let result = runtime.start().await;
-
-        assert!(
-            result.is_err(),
-            "NATS that cannot run must fail start(), not fall back to PostgreSQL"
-        );
-        assert!(
-            !runtime.is_running(),
-            "runtime must not report running after a failed NATS start"
-        );
-        assert!(
-            runtime.transport_requires_broker(),
-            "a NATS transport is broker-backed, so the start failure is boot-fatal in production"
-        );
-    }
-}
+// `start()` reads the database before it builds a transport (the stranded-tables check),
+// so the gate runs over a reachable PostgreSQL:
+// `tests/observer_runtime_integration_test.rs`,
+// `test_a_nats_transport_that_cannot_run_fails_start_with_no_pg_fallback`.
 
 /// `truncate_log_payload` (#468): small payloads pass through, oversized ones
 /// become a bounded marker.

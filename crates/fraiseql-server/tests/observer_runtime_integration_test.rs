@@ -1821,6 +1821,50 @@ async fn test_a_poller_killed_mid_dispatch_hands_the_lease_to_the_standby() {
     );
 }
 
+/// A NATS transport that cannot run fails `start()`, and never falls back to the
+/// PostgreSQL listener. `start()` reads the database first (the stranded-tables
+/// check), so this runs over a reachable one: the failure asserted is the transport's own.
+/// Without `observers-nats` the transport cannot be built; with it, no broker listens on
+/// port 1, so the URL is refused before connecting or the connection is refused, depending
+/// on whether the environment allows plaintext and loopback.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn test_a_nats_transport_that_cannot_run_fails_start_with_no_pg_fallback() {
+    use fraiseql_observers::config::{TransportConfig, TransportKind};
+
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("Failed to setup schema");
+    let mut transport = TransportConfig {
+        transport: TransportKind::Nats,
+        ..TransportConfig::default()
+    };
+    transport.nats.url = "nats://127.0.0.1:1".to_owned();
+    let mut runtime =
+        ObserverRuntime::new(ObserverRuntimeConfig::new(pool.clone()).with_transport(transport));
+
+    let started = std::time::Instant::now();
+    let message = runtime
+        .start()
+        .await
+        .expect_err("a NATS transport that cannot run must fail start()")
+        .to_string();
+    let refusal = if cfg!(feature = "observers-nats") {
+        "observer NATS transport failed to connect to nats://127.0.0.1:1"
+    } else {
+        "lacks the observers-nats"
+    };
+    assert!(message.contains(refusal), "start() failed, but not on the transport: {message}");
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "the refusal took {:?}: it waited on something other than the transport",
+        started.elapsed()
+    );
+    assert!(
+        !runtime.is_running(),
+        "runtime must not report running after a failed NATS start"
+    );
+}
+
 /// A NATS start failure names the broker by its host, never the URL's user info, whether
 /// the URL is refused before connecting or the broker cannot be reached: the message is the
 /// server's boot error, and a password or token in it would reach the boot log.
