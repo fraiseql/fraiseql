@@ -58,7 +58,7 @@ VERSIONS: dict[str, list[str]] = {
     "go": ["1.26", "1.27"],
     "java": ["21"],
     "php": ["8.2", "8.3"],
-    "python": ["3.10", "3.11", "3.12", "3.13"],
+    "python": ["3.15"],
     "ruby": ["3.2", "3.3"],
     # The SDK's `rust-version` and stable. Each row sets RUSTUP_TOOLCHAIN, since the
     # repository's rust-toolchain.toml would otherwise decide the compiler.

@@ -18,6 +18,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **The Python SDK requires Python 3.15 or later (#2599).** It reads `fraiseql.toml` with
+  the standard library's `tomllib`, which parses TOML 1.1 from 3.15, as `fraiseql-cli` now
+  does. Earlier interpreters' `tomllib` parses TOML 1.0 only, so they are no longer
+  supported, and `pip` refuses to install the package on them. CI runs the SDK on 3.15.
+
 - **S3 Multi-Region Access Points are no longer supported (#1711).** `aws-sdk-s3` is
   built without its `sigv4a` feature. SigV4a signed every request to a Multi-Region
   Access Point with an EC key derived from the AWS secret, on `crypto-bigint` 0.5
@@ -2039,7 +2044,8 @@ disagreed, and the promise was the part that was wrong.
   refused: an inline table spanning lines or ending with a comma, the `\e` and `\xHH`
   escapes in a basic string, and a time without seconds (`07:30`). A `${VAR}` value still
   cannot produce any of the new syntax, since braces, backslashes, newlines and a comma
-  outside quotes are refused in a value. Some of `toml`'s own parse messages are worded
+  outside quotes are refused in a value. The Python SDK's `load_config` reads `fraiseql.toml`
+  with the same TOML 1.1, through Python 3.15's `tomllib`. Some of `toml`'s own parse messages are worded
   differently ("duplicate key" no longer names the key); errors from a typed field read as
   before.
 

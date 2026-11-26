@@ -22,10 +22,7 @@ classifiers = [
   "Intended Audience :: Developers",
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.15",
   "Topic :: Software Development :: Libraries :: Python Modules",
   "Topic :: Database :: Front-Ends",
 ]
@@ -35,7 +32,7 @@ keywords = ["graphql", "database", "sql", "compiler", "schema"]
 license = { text = "MIT" }
 name = "fraiseql"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.15"
 version = "2.19.1"
 
 [project.optional-dependencies]
@@ -53,11 +50,21 @@ packages = ["src/fraiseql"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py314"
 
 [tool.ruff.lint]
 ignore = [
   "ANN401", # typing.Any usage allowed for dynamic types, **kwargs, runtime introspection
+  # From Python 3.14 annotations are evaluated lazily, so these two treat an import used
+  # only in annotations as runtime-unneeded. The decorators read annotations at runtime to
+  # build the schema, so moving such imports under TYPE_CHECKING is not a mechanical fix.
+  "TC001",
+  "TC003",
+  # PEP 695 type parameters for the decorators' TypeVar generics and SchemaElement: a
+  # rewrite of the public API's typing, not a mechanical one, so left to its own change.
+  "UP040",
+  "UP046",
+  "UP047",
 ]
 # Select rule categories:
 # E - pycodestyle errors
@@ -113,7 +120,7 @@ select = [
 ]
 
 [tool.ty.environment]
-python-version = "3.10"
+python-version = "3.15"
 
 [tool.ty.rules]
 # Optional integration dependencies (langchain, llamaindex, pydantic) are not

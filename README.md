@@ -98,7 +98,7 @@ them, so use them by vendoring the directory. This table is enforced by
 
 | SDK | Language | Registry | Install |
 |-----|----------|----------|---------|
-| `fraiseql-python` | Python 3.11+ | PyPI | `pip install fraiseql` |
+| `fraiseql-python` | Python 3.15+ | PyPI | `pip install fraiseql` |
 | `fraiseql-typescript` | TypeScript / Node.js | npm | `npm install fraiseql` |
 | `fraiseql-rust` | Rust | crates.io | `cargo add fraiseql-rust` |
 | `fraiseql-csharp` | C# / .NET 8+ | — | vendor `sdks/official/fraiseql-csharp` |

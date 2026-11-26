@@ -1910,7 +1910,6 @@ def test_crud_mutations_name_fn_prefixed_sql_sources() -> None:
 
 def test_computed_field_excluded_from_create_input() -> None:
     """computed=True fields are excluded from CreateXInput."""
-    from typing import Annotated
 
     @fraiseql.type(crud=["create"], sql_source="v_order")
     class Order:
@@ -1935,7 +1934,6 @@ def test_computed_field_excluded_from_create_input() -> None:
 
 def test_computed_field_excluded_from_update_input() -> None:
     """computed=True fields (non-PK) are excluded from UpdateXInput."""
-    from typing import Annotated
 
     @fraiseql.type(crud=["update"], sql_source="v_item")
     class Item:
@@ -1962,7 +1960,6 @@ def test_computed_field_excluded_from_update_input() -> None:
 
 def test_computed_field_excluded_from_both_inputs() -> None:
     """crud=True: computed fields are absent from both Create and Update inputs."""
-    from typing import Annotated
 
     @fraiseql.type(crud=True, sql_source="v_product")
     class Product:
@@ -2001,7 +1998,6 @@ def test_computed_is_never_emitted_into_the_exported_schema() -> None:
     the field — was decided against: it would add surface under the freeze, and the CRUD
     generator that consumes it runs before the compiler ever sees the schema.
     """
-    from typing import Annotated
 
     @fraiseql.type(crud=True, sql_source="v_invoice")
     class Invoice:

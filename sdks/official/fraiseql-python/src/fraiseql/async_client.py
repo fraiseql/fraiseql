@@ -24,7 +24,7 @@ from fraiseql.errors import (
     TimeoutError,
     raise_for_status,
 )
-from fraiseql.retry import RetryConfig  # noqa: TC001 — used at runtime for method calls
+from fraiseql.retry import RetryConfig
 
 
 class AsyncFraiseQLClient:
@@ -200,7 +200,7 @@ class AsyncFraiseQLClient:
         for attempt in range(max_attempts):
             try:
                 return await self._send(payload, request_headers)
-            except Exception as exc:  # noqa: PERF203 — try/except in loop is required for retry logic
+            except Exception as exc:
                 # Catch broadly and let RetryConfig decide: the configured
                 # retry_on tuple is honoured for any exception type, not only
                 # the transport errors (audit M-retry-config). Anything not in

@@ -2,7 +2,7 @@
 
 ## System Requirements
 
-- Python 3.10 or higher
+- Python 3.15 or higher
 - pip or uv package manager
 
 ## Install from PyPI
@@ -65,7 +65,7 @@ Check your Python version:
 python --version
 ```
 
-FraiseQL requires Python 3.10+. If you have an older version, upgrade Python or use a virtual environment with a newer version.
+FraiseQL requires Python 3.15+. If you have an older version, upgrade Python or use a virtual environment with a newer version.
 
 ### Permission denied on installation
 

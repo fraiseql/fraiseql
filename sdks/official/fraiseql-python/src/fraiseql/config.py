@@ -4,7 +4,9 @@ Reads ``[inject_defaults]``, ``[inject_defaults.queries]``, and
 ``[inject_defaults.mutations]`` sections from a ``fraiseql.toml`` file
 and applies them to the global :class:`SchemaRegistry`.
 
-Requires Python 3.11+ (``tomllib``) or the ``tomli`` backport for 3.10.
+The file is parsed as TOML 1.1 by the standard library's ``tomllib`` (Python 3.15), as
+``fraiseql-cli compile`` parses it: an inline table may span lines and end with a comma,
+a basic string accepts the ``\\e`` and ``\\xHH`` escapes, and a time may omit its seconds.
 
 Example ``fraiseql.toml``::
 
@@ -20,23 +22,11 @@ Example ``fraiseql.toml``::
 
 from __future__ import annotations
 
-import sys
+import tomllib
 from pathlib import Path
 from typing import Any
 
 from fraiseql.registry import SchemaRegistry
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    try:
-        import tomli as tomllib
-    except ModuleNotFoundError as exc:
-        msg = (
-            "Python 3.10 requires the 'tomli' package to load TOML config. "
-            "Install it with: pip install tomli"
-        )
-        raise ImportError(msg) from exc
 
 
 def load_config(toml_path: str | Path) -> dict[str, Any]:

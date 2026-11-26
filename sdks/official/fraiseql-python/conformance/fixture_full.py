@@ -15,13 +15,13 @@ place the deferred-annotation path is exercised end to end.
 
 from __future__ import annotations
 
-import decimal  # noqa: TC003 — deferred annotations are resolved at runtime
-import uuid  # noqa: TC003 — deferred annotations are resolved at runtime
+import decimal
+import uuid
 from enum import Enum
 from typing import Annotated
 
 import fraiseql
-from fraiseql.scalars import (  # noqa: TC001 — deferred annotations are resolved at runtime
+from fraiseql.scalars import (
     ID,
     BigInt,
     BitVector,

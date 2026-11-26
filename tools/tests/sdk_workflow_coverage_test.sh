@@ -197,7 +197,7 @@ echo b >sdks/official/fraiseql-go/a && echo b >sdks/official/fraiseql-python/b
 git add -A && git commit -qm sdks
 got="$(sdks_for --base "$base" --head HEAD)"
 [ "$got" = "go, python" ] && pass "a push touching two SDKs runs exactly those" || fail "got: $got"
-[ "$(entries_for --base "$base" --head HEAD)" = 6 ] && pass "…one entry per toolchain version (2 go + 4 python)" \
+[ "$(entries_for --base "$base" --head HEAD)" = 3 ] && pass "…one entry per toolchain version (2 go + 1 python)" \
     || fail "wrong entry count: $(entries_for --base "$base" --head HEAD)"
 
 got="$(sdks_for --base "0000000000000000000000000000000000000000" --head HEAD)"

@@ -21,8 +21,8 @@ The ``date`` and ``Decimal`` imports must remain at runtime (not under
 from __future__ import annotations
 
 import sys
-from datetime import date  # noqa: TC003
-from decimal import Decimal  # noqa: TC003
+from datetime import date
+from decimal import Decimal
 
 import pytest
 

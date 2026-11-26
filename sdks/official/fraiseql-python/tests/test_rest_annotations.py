@@ -26,7 +26,7 @@ def _clear_registry():
 
 def test_query_rest_path_and_method():
     @fraiseql.query(sql_source="v_user", rest_path="/api/users", rest_method="GET")
-    def users() -> list["User"]:
+    def users() -> list[User]:
         pass
 
     schema = SchemaRegistry.get_schema()
@@ -36,7 +36,7 @@ def test_query_rest_path_and_method():
 
 def test_query_rest_default_method_is_get():
     @fraiseql.query(sql_source="v_user", rest_path="/api/users")
-    def users() -> list["User"]:
+    def users() -> list[User]:
         pass
 
     schema = SchemaRegistry.get_schema()
@@ -46,7 +46,7 @@ def test_query_rest_default_method_is_get():
 
 def test_query_without_rest_omits_rest_block():
     @fraiseql.query(sql_source="v_user")
-    def users() -> list["User"]:
+    def users() -> list[User]:
         pass
 
     schema = SchemaRegistry.get_schema()
@@ -56,7 +56,7 @@ def test_query_without_rest_omits_rest_block():
 
 def test_query_rest_method_case_insensitive():
     @fraiseql.query(sql_source="v_user", rest_path="/api/users", rest_method="post")
-    def users() -> list["User"]:
+    def users() -> list[User]:
         pass
 
     schema = SchemaRegistry.get_schema()
@@ -68,7 +68,7 @@ def test_query_rest_invalid_method_raises():
     with pytest.raises(ValueError, match="not valid"):
 
         @fraiseql.query(sql_source="v_user", rest_path="/api/users", rest_method="INVALID")
-        def users() -> list["User"]:
+        def users() -> list[User]:
             pass
 
 
@@ -76,7 +76,7 @@ def test_query_rest_method_without_path_raises():
     with pytest.raises(ValueError, match="no effect"):
 
         @fraiseql.query(sql_source="v_user", rest_method="GET")
-        def users() -> list["User"]:
+        def users() -> list[User]:
             pass
 
 
@@ -84,7 +84,7 @@ def test_query_rest_empty_path_raises():
     with pytest.raises(ValueError, match="non-empty string"):
 
         @fraiseql.query(sql_source="v_user", rest_path="")
-        def users() -> list["User"]:
+        def users() -> list[User]:
             pass
 
 
@@ -98,7 +98,7 @@ def test_mutation_rest_path_and_method():
         rest_path="/api/users",
         rest_method="POST",
     )
-    def create_user(name: str) -> "User":
+    def create_user(name: str) -> User:
         pass
 
     schema = SchemaRegistry.get_schema()
@@ -112,7 +112,7 @@ def test_mutation_rest_default_method_is_post():
         operation="CREATE",
         rest_path="/api/users",
     )
-    def create_user(name: str) -> "User":
+    def create_user(name: str) -> User:
         pass
 
     schema = SchemaRegistry.get_schema()
@@ -127,7 +127,7 @@ def test_mutation_rest_delete_method():
         rest_path="/api/users/{id}",
         rest_method="DELETE",
     )
-    def delete_user(id: int) -> "User":
+    def delete_user(id: int) -> User:
         pass
 
     schema = SchemaRegistry.get_schema()
@@ -137,7 +137,7 @@ def test_mutation_rest_delete_method():
 
 def test_mutation_without_rest_omits_rest_block():
     @fraiseql.mutation(sql_source="fn_create_user", operation="CREATE")
-    def create_user(name: str) -> "User":
+    def create_user(name: str) -> User:
         pass
 
     schema = SchemaRegistry.get_schema()
@@ -149,7 +149,7 @@ def test_mutation_rest_method_without_path_raises():
     with pytest.raises(ValueError, match="no effect"):
 
         @fraiseql.mutation(sql_source="fn_create_user", operation="CREATE", rest_method="POST")
-        def create_user(name: str) -> "User":
+        def create_user(name: str) -> User:
             pass
 
 
@@ -158,7 +158,7 @@ def test_mutation_rest_method_without_path_raises():
 
 def test_query_rest_stream_reaches_the_emitted_schema():
     @fraiseql.query(sql_source="v_user", rest_stream=True)
-    def users() -> list["User"]:
+    def users() -> list[User]:
         pass
 
     schema = SchemaRegistry.get_schema()
@@ -167,7 +167,7 @@ def test_query_rest_stream_reaches_the_emitted_schema():
 
 def test_query_without_rest_stream_does_not_opt_in():
     @fraiseql.query(sql_source="v_user")
-    def users() -> list["User"]:
+    def users() -> list[User]:
         pass
 
     schema = SchemaRegistry.get_schema()
@@ -179,7 +179,7 @@ def test_rest_stream_on_a_single_item_query_is_refused():
     with pytest.raises(ValueError, match="list-returning"):
 
         @fraiseql.query(sql_source="v_user", rest_stream=True)
-        def user() -> "User":
+        def user() -> User:
             pass
 
 
@@ -187,5 +187,5 @@ def test_rest_stream_must_be_a_bool():
     with pytest.raises(TypeError, match="must be a bool"):
 
         @fraiseql.query(sql_source="v_user", rest_stream="yes")
-        def users() -> list["User"]:
+        def users() -> list[User]:
             pass

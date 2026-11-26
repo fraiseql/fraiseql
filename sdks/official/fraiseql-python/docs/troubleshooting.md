@@ -409,26 +409,16 @@ python -m json.tool schema.json
 
 ## Python Version Issues
 
-### Error: `SyntaxError: invalid syntax` with `|` operator
+### Error: the package refuses to install
 
-**Problem**: Using Python < 3.10, which doesn't support `X | Y` syntax.
+**Problem**: `pip` reports that `fraiseql` requires a different Python: the SDK needs
+Python 3.15 or later. It reads `fraiseql.toml` with the standard library's TOML 1.1 parser,
+which 3.15 is the first to ship.
 
-**Solution**: Upgrade Python to 3.10+:
+**Solution**: Upgrade Python to 3.15+:
 
 ```bash
 python --version  # Check version
-```
-
-If you need to use Python 3.9, use `Union` instead:
-
-```python
-from typing import Union, Optional
-
-# Instead of `str | None`, use:
-@fraiseql.type
-class User:
-    name: str
-    bio: Optional[str]  # Python 3.9 compatible
 ```
 
 ---

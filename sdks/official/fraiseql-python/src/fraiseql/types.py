@@ -261,7 +261,7 @@ def _get_class_annotations(cls: type) -> dict[str, Any]:
     globalns = getattr(module, "__dict__", None)
     try:
         return typing.get_type_hints(cls, globalns=globalns, localns={}, include_extras=True)
-    except (NameError, TypeError):
+    except NameError, TypeError:
         return dict(getattr(cls, "__annotations__", {}))
 
 
@@ -287,7 +287,7 @@ def _get_function_annotations(func: Any) -> dict[str, Any]:
     globalns = getattr(module, "__dict__", None)
     try:
         return typing.get_type_hints(func, globalns=globalns, localns={}, include_extras=True)
-    except (NameError, TypeError):
+    except NameError, TypeError:
         return dict(getattr(func, "__annotations__", {}))
 
 

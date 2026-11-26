@@ -15,7 +15,7 @@ test function is unresolvable — and that is also how a real ``schema.py`` is w
 
 from __future__ import annotations
 
-from fraiseql.scalars import ID  # noqa: TC001 — resolved at runtime by get_type_hints
+from fraiseql.scalars import ID
 from fraiseql.types import extract_function_signature
 
 

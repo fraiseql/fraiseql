@@ -842,7 +842,7 @@ class TestPollingLoop:
                 return True
             # asyncio.TimeoutError is what the real wait_for raises on every
             # version; the builtin is a *different* class before 3.11 (#1057).
-            raise asyncio.TimeoutError
+            raise TimeoutError
 
         monkeypatch.setattr(asyncio, "wait_for", recording_wait_for)
 
@@ -886,7 +886,7 @@ class TestPollingLoop:
             if len(intervals) >= 3:
                 stop.set()
                 return True
-            raise asyncio.TimeoutError
+            raise TimeoutError
 
         monkeypatch.setattr(asyncio, "wait_for", recording_wait_for)
 

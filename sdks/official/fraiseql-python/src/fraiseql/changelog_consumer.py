@@ -632,7 +632,7 @@ class ChangelogConsumer:
             for handler in self._handlers.get(key, []):
                 try:
                     await handler(event)
-                except Exception as exc:  # noqa: PERF203 — intentional per-handler isolation
+                except Exception as exc:
                     logger.exception(
                         "Handler %s failed for event %s",
                         getattr(handler, "__name__", repr(handler)),
