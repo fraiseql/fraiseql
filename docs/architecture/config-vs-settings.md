@@ -144,6 +144,7 @@ value at startup.
 | `[[security.service_accounts]]` | `secret_env` |
 | `[security.state_encryption]` | `key_env` |
 | `[security.rate_limiting]`, `[security.pkce]`, `[security.token_revocation]` | `redis_url_env` |
+| `[observers]` | `nats_url_env` |
 | an observer action in the schema document | `url_env`, `webhook_url_env` |
 
 `[database] url` is the exception that needs none: the compiler reads it to check the

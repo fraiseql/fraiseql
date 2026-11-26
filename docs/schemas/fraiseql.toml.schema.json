@@ -155,6 +155,7 @@
         "enabled": false,
         "backend": "postgres",
         "nats_url": null,
+        "nats_url_env": null,
         "handlers": []
       }
     },
@@ -2430,7 +2431,15 @@
           "description": "observers `redis_url` configures nothing: the observer runtime has no Redis transport. Remove it, and select the transport in fraiseql.toml [observers] with backend = \"postgres\" (the default) or backend = \"nats\" and nats_url"
         },
         "nats_url": {
-          "description": "NATS connection URL (required when backend = \"nats\")\n\nExample: `nats://localhost:4222`\nCan be overridden at runtime via the `FRAISEQL_NATS_URL` environment variable.",
+          "description": "NATS connection URL (required when backend = \"nats\", unless `nats_url_env` names\nthe variable holding it)\n\nExample: `tls://nats.internal:4443`\nCompiled as written, so it may not hold a credential (user info before the host):\na URL that does belongs in the variable `nats_url_env` names.\nCan be overridden at runtime via the `FRAISEQL_NATS_URL` environment variable.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "nats_url_env": {
+          "description": "The environment variable holding the NATS URL, read by the server at startup.\n\nThe compiled schema carries the variable's name, never its value. At most one of\n`nats_url` and `nats_url_env` is set.",
           "type": [
             "string",
             "null"

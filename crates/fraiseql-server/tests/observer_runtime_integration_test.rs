@@ -1821,6 +1821,42 @@ async fn test_a_poller_killed_mid_dispatch_hands_the_lease_to_the_standby() {
     );
 }
 
+/// A NATS start failure names the broker by its host, never the URL's user info, whether
+/// the URL is refused before connecting or the broker cannot be reached: the message is the
+/// server's boot error, and a password or token in it would reach the boot log.
+#[cfg(feature = "observers-nats")]
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn test_a_nats_start_failure_names_the_broker_by_its_host_only() {
+    use fraiseql_observers::config::{TransportConfig, TransportKind};
+
+    const PASSWORD: &str = "pw-NATS-BOOT-SENTINEL";
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("Failed to setup schema");
+    for url in [
+        format!("nats://app:{PASSWORD}@127.0.0.1:1"),
+        format!("tls://{PASSWORD}@127.0.0.1:1"),
+    ] {
+        let mut transport = TransportConfig {
+            transport: TransportKind::Nats,
+            ..TransportConfig::default()
+        };
+        transport.nats.url = url;
+        let message = ObserverRuntime::new(
+            ObserverRuntimeConfig::new(pool.clone()).with_transport(transport),
+        )
+        .start()
+        .await
+        .expect_err("no broker listens on port 1")
+        .to_string();
+        assert!(!message.contains(PASSWORD), "the start failure shows the credential: {message}");
+        assert!(
+            message.contains("://127.0.0.1:1"),
+            "the start failure names the broker: {message}"
+        );
+    }
+}
+
 /// The runtime on the NATS transport creates its stream and durable consumer with
 /// the `nats.jetstream` values (#1496): the dedup window, message age and
 /// delivery limit were parsed, validated and overridable, and never reached

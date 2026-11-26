@@ -1104,7 +1104,9 @@ impl ObserverRuntime {
                     .map_err(|e| {
                         ServerError::ConfigError(format!(
                             "observer NATS transport failed to connect to {}: {e}",
-                            self.config.transport.nats.url
+                            fraiseql_core::schema::nats_url::host_of(
+                                &self.config.transport.nats.url
+                            )
                         ))
                     })?;
                 Arc::new(connected)

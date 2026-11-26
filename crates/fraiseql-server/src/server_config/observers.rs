@@ -269,24 +269,36 @@ fn nats_tuning<'de, D: serde::Deserializer<'de>>(d: D) -> Result<NatsTransportCo
 #[cfg(feature = "observers")]
 impl ObserverTransportConfig {
     /// The library transport configuration the runtime takes, for the compiled
-    /// `[observers]` section: its backend selects the transport, its `nats_url` is the
-    /// URL, and this table tunes it.
-    #[must_use]
+    /// `[observers]` section: its backend selects the transport, its `nats_url`, or the
+    /// variable its `nats_url_env` names (read through `get_env`), is the URL, and this
+    /// table tunes it.
+    ///
+    /// # Errors
+    ///
+    /// Returns the refusal, naming the variable but never its value, when `nats_url_env`
+    /// names a variable that is unset or empty.
     pub fn to_runtime(
         &self,
         compiled: Option<&fraiseql_core::schema::ObserversConfig>,
-    ) -> TransportConfig {
+        get_env: impl Fn(&str) -> Option<String>,
+    ) -> Result<TransportConfig, String> {
         use fraiseql_core::schema::ObserversBackend;
 
         let mut nats = self.nats.clone();
-        if let Some(url) = compiled.and_then(|c| c.nats_url.clone()) {
-            nats.url = url;
+        if let Some(compiled) = compiled {
+            if let Some(url) = fraiseql_core::schema::nats_url::resolve(
+                compiled.nats_url.as_deref(),
+                compiled.nats_url_env.as_deref(),
+                get_env,
+            )? {
+                nats.url = url;
+            }
         }
         let transport = match compiled.map(|c| c.backend).unwrap_or_default() {
             ObserversBackend::Postgres => TransportKind::Postgres,
             ObserversBackend::Nats => TransportKind::Nats,
         };
-        TransportConfig { transport, nats }
+        Ok(TransportConfig { transport, nats })
     }
 }
 

@@ -26,21 +26,29 @@ pub const REDIS_URL_REFUSED: &str = "observers `redis_url` configures nothing: t
 pub struct ObserversConfig {
     /// Enable observers system
     #[serde(default)]
-    pub enabled:   bool,
+    pub enabled:      bool,
     /// The runtime's event transport: `postgres` (the default) or `nats`.
-    pub backend:   ObserversBackend,
+    pub backend:      ObserversBackend,
     /// Refused: the runtime has no Redis transport. Captured only so the refusal can
     /// say so, instead of an unknown-field error.
     #[serde(default, skip_serializing)]
     #[schemars(with = "Option<serde_json::Value>")]
-    pub redis_url: Option<toml::Value>,
-    /// NATS connection URL (required when backend = "nats")
+    pub redis_url:    Option<toml::Value>,
+    /// NATS connection URL (required when backend = "nats", unless `nats_url_env` names
+    /// the variable holding it)
     ///
-    /// Example: `nats://localhost:4222`
+    /// Example: `tls://nats.internal:4443`
+    /// Compiled as written, so it may not hold a credential (user info before the host):
+    /// a URL that does belongs in the variable `nats_url_env` names.
     /// Can be overridden at runtime via the `FRAISEQL_NATS_URL` environment variable.
-    pub nats_url:  Option<String>,
+    pub nats_url:     Option<String>,
+    /// The environment variable holding the NATS URL, read by the server at startup.
+    ///
+    /// The compiled schema carries the variable's name, never its value. At most one of
+    /// `nats_url` and `nats_url_env` is set.
+    pub nats_url_env: Option<String>,
     /// Event handlers
-    pub handlers:  Vec<EventHandler>,
+    pub handlers:     Vec<EventHandler>,
     /// Server-runtime tuning sub-table (`[observers.runtime]`).
     ///
     /// Not read by the compiler: owned and validated by `fraiseql-server`, and
@@ -49,7 +57,7 @@ pub struct ObserversConfig {
     /// `fraiseql compile`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<serde_json::Value>")]
-    pub runtime:   Option<toml::Value>,
+    pub runtime:      Option<toml::Value>,
 }
 
 impl ObserversConfig {
@@ -57,16 +65,17 @@ impl ObserversConfig {
     /// is set.
     #[must_use]
     pub const fn is_configured(&self) -> bool {
-        self.enabled || self.nats_url.is_some()
+        self.enabled || self.nats_url.is_some() || self.nats_url_env.is_some()
     }
 
     /// The compiled shape of the table. `handlers` and `runtime` are not part of it.
     #[must_use]
     pub fn to_compiled(&self) -> fraiseql_core::schema::ObserversConfig {
         fraiseql_core::schema::ObserversConfig {
-            enabled:  self.enabled,
-            backend:  self.backend,
-            nats_url: self.nats_url.clone(),
+            enabled:      self.enabled,
+            backend:      self.backend,
+            nats_url:     self.nats_url.clone(),
+            nats_url_env: self.nats_url_env.clone(),
         }
     }
 
@@ -116,7 +125,7 @@ impl ObserversConfig {
     ///
     /// A missing table is absence, so the document's copy stands. A declared table, even
     /// one saying only `enabled = false`, owns these deployment settings: a document copy
-    /// must state the same `enabled`, `backend` and `nats_url`, and the
+    /// must state the same `enabled`, `backend`, `nats_url` and `nats_url_env`, and the
     /// refusal names both sources and the first key they disagree on. An agreeing copy is
     /// kept as written, so the converter still refuses any `handlers` it declares.
     ///
@@ -148,6 +157,7 @@ impl ObserversConfig {
             ("enabled", from_config.enabled != from_document.enabled),
             ("backend", from_config.backend != from_document.backend),
             ("nats_url", from_config.nats_url != from_document.nats_url),
+            ("nats_url_env", from_config.nats_url_env != from_document.nats_url_env),
         ]
         .into_iter()
         .find_map(|(key, differs)| differs.then_some(key));

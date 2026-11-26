@@ -118,6 +118,20 @@ disagreed, and the promise was the part that was wrong.
   state store and the rate limiter name the Redis by `scheme://host:port` (`redis_host`),
   where they printed the whole URL.
 
+- **`[observers]` names its NATS URL by an environment variable, and a written `nats_url`
+  holds no credential (#2612).** `[observers]` takes `nats_url_env`, naming the variable
+  that holds the URL; the server reads it at startup and refuses to boot when it is unset
+  or empty, and the compiled schema carries the name, not the value. `FRAISEQL_NATS_URL`,
+  when set, still takes precedence. `fraiseql compile` now refuses a `nats_url` with user info
+  (`nats://user:pass@…`, `tls://token@…`) on any server it lists, naming the key and
+  pointing at `nats_url_env`, from fraiseql.toml and from a schema document's
+  `observers_config` alike; setting both keys is refused too. A project whose `nats_url`
+  carries a credential moves it into a variable and names that variable with
+  `nats_url_env`. The server's boot error when the NATS transport cannot start, and the
+  `fraiseql-observers` refusals of a NATS or outbound URL (its scheme, plaintext, a missing
+  host, an unparseable URL), name the URL by `scheme://host:port` only, where they quoted
+  it whole.
+
 - **A `${VAR}` value must be printable text, and a parse error after expansion shows neither
   the line nor the value, in fraiseql.toml and the server's configuration file (#2566).**
   A substituted value holding a control character (a tab included), an invisible format

@@ -676,6 +676,9 @@ pub async fn compile_to_schema(
     // 5g. Refuse a Redis URL the compiled schema could not carry as written.
     refuse_uncompilable_redis_urls(&schema)?;
 
+    // 5g. Refuse a NATS URL the compiled schema could not carry as written.
+    refuse_uncompilable_nats_url(&schema)?;
+
     // 5g'. Refuse a tenant-scoped fact table whose analytics roots nothing scopes.
     refuse_unscoped_fact_tables(&schema)?;
 
@@ -821,6 +824,27 @@ fn refuse_update_input_defaults(schema: &CompiledSchema) -> Result<()> {
          update that omits it. Remove the default, give the update its own input type without \
          it, or make the mutation a full replace (not an update)."
     )
+}
+
+/// Refuse a NATS URL the compiled schema cannot carry as written.
+///
+/// `[observers] nats_url` is compiled verbatim, so it is held to carrying no credential on
+/// any server it lists, and `[observers]` names its URL one way only; `nats_url_env` names
+/// the variable the server reads it from at startup. A schema document's own
+/// `observers_config` is held to the same rule.
+///
+/// # Errors
+///
+/// Returns the refusal naming the key, never the URL.
+fn refuse_uncompilable_nats_url(schema: &CompiledSchema) -> Result<()> {
+    let Some(observers) = schema.observers_config.as_ref() else {
+        return Ok(());
+    };
+    fraiseql_core::schema::nats_url::check(
+        observers.nats_url.as_deref(),
+        observers.nats_url_env.as_deref(),
+    )
+    .map_err(anyhow::Error::msg)
 }
 
 /// Refuse a Redis URL the compiled schema cannot carry as written.

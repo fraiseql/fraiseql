@@ -8,6 +8,23 @@ use fraiseql_guard::net::blocked_host_reason;
 
 use crate::error::ObserverError;
 
+/// What a refusal may show of `url`: each URL it lists (comma-separated, as a NATS URL
+/// may) as `scheme://host:port`. Never its user info, path or query, any of which can
+/// hold a credential; a URL that does not parse shows nothing of itself.
+fn shown(url: &str) -> String {
+    url.split(',')
+        .map(|one| match reqwest::Url::parse(one.trim()) {
+            Ok(parsed) => match (parsed.host_str(), parsed.port()) {
+                (Some(host), Some(port)) => format!("{}://{host}:{port}", parsed.scheme()),
+                (Some(host), None) => format!("{}://{host}", parsed.scheme()),
+                (None, _) => format!("a {}: URL", parsed.scheme()),
+            },
+            Err(_) => "(not a URL)".to_owned(),
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
 /// Validate that a URL is safe for outbound HTTP contact.
 ///
 /// Rejects URLs targeting private/loopback/link-local IP addresses to prevent
@@ -26,11 +43,11 @@ pub fn validate_outbound_url(url: &str) -> crate::error::Result<()> {
     }
 
     let parsed = reqwest::Url::parse(url).map_err(|e| ObserverError::InvalidConfig {
-        message: format!("Invalid URL '{url}': {e}"),
+        message: format!("Invalid URL: {e}"),
     })?;
 
     let host = parsed.host_str().ok_or_else(|| ObserverError::InvalidConfig {
-        message: format!("URL has no host: {url}"),
+        message: format!("URL has no host: {}", shown(url)),
     })?;
 
     // Bracket stripping, loopback/metadata hostname aliases and the literal-IP
@@ -63,10 +80,10 @@ pub async fn dns_resolve_and_check(url: &str) -> crate::error::Result<()> {
     }
 
     let parsed = reqwest::Url::parse(url).map_err(|e| ObserverError::InvalidConfig {
-        message: format!("Invalid URL '{url}': {e}"),
+        message: format!("Invalid URL: {e}"),
     })?;
     let host = parsed.host_str().ok_or_else(|| ObserverError::InvalidConfig {
-        message: format!("URL has no host: {url}"),
+        message: format!("URL has no host: {}", shown(url)),
     })?;
     let port = parsed.port_or_known_default().unwrap_or(443);
     // The one resolve-and-check (#1360): the alias list, then every resolved address.
@@ -100,7 +117,7 @@ pub fn validate_nats_url(url: &str) -> crate::error::Result<()> {
     let is_plaintext = url.starts_with("nats://");
     if !is_tls && !is_plaintext {
         return Err(ObserverError::InvalidConfig {
-            message: format!("NATS URL must use nats:// or tls:// scheme (got: {url})"),
+            message: format!("NATS URL must use nats:// or tls:// scheme (got: {})", shown(url)),
         });
     }
     // L-nats-plaintext: plaintext nats:// has no transport encryption — change-log
@@ -110,9 +127,10 @@ pub fn validate_nats_url(url: &str) -> crate::error::Result<()> {
     if is_plaintext && !crate::insecure_guard::is_nats_plaintext_allowed() {
         return Err(ObserverError::InvalidConfig {
             message: format!(
-                "NATS URL uses plaintext nats:// without TLS (got: {url}). Use tls:// for an \
+                "NATS URL uses plaintext nats:// without TLS (got: {}). Use tls:// for an \
                  encrypted connection, or set {}=true in a non-production environment to allow \
                  plaintext.",
+                shown(url),
                 crate::insecure_guard::NATS_ALLOW_PLAINTEXT_ENV
             ),
         });
@@ -134,6 +152,32 @@ mod ssrf_tests {
     // every call, and other test modules set it inside `temp_env` closures that
     // run concurrently with this binary — a bare call can observe the bypass
     // active and watch its rejection assertion fail (see `ssrf_test_env`).
+
+    /// A password no refusal may show.
+    const PASSWORD: &str = "pw-OUTBOUND-SENTINEL";
+
+    #[test]
+    fn a_refused_url_is_named_by_its_host_never_its_user_info() {
+        with_ssrf_env_cleared(|| {
+            for (url, shown) in [
+                // Unparseable: nothing of it is shown.
+                (format!("http://app:{PASSWORD}@exa mple.com/hook"), None),
+                // Parsed, with no host.
+                (format!("data:app:{PASSWORD}@x"), None),
+                // A refused host.
+                (
+                    format!("https://app:{PASSWORD}@10.0.0.1:8443/hook?k={PASSWORD}"),
+                    Some("10.0.0.1"),
+                ),
+            ] {
+                let message = validate_outbound_url(&url).unwrap_err().to_string();
+                assert!(!message.contains(PASSWORD), "{message}");
+                if let Some(host) = shown {
+                    assert!(message.contains(host), "{message}");
+                }
+            }
+        });
+    }
 
     #[test]
     fn rejects_localhost_dot_prefix_alias() {

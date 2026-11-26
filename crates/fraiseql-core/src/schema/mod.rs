@@ -59,6 +59,7 @@ pub mod graphql_value;
 mod hierarchy;
 mod introspection;
 pub mod locale;
+pub mod nats_url;
 mod observer_types;
 pub mod redis_url;
 mod scalar_types;

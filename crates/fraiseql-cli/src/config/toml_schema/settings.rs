@@ -107,10 +107,12 @@ impl TomlSchema {
         if self.declares("observers")
             && self.observers.backend == fraiseql_core::schema::ObserversBackend::Nats
             && self.observers.nats_url.is_none()
+            && self.observers.nats_url_env.is_none()
         {
             tracing::warn!(
-                "observers.backend is \"nats\" but observers.nats_url is not set; the runtime \
-                 will require FRAISEQL_NATS_URL to be configured"
+                "observers.backend is \"nats\" but neither observers.nats_url nor \
+                 observers.nats_url_env is set; the runtime will require FRAISEQL_NATS_URL to be \
+                 configured"
             );
         }
         schema.observers_config = super::ObserversConfig::reconcile(

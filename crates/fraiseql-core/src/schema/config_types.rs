@@ -212,12 +212,21 @@ impl Default for EnterpriseSecurityConfig {
 pub struct ObserversConfig {
     /// Enable observers system.
     #[serde(default)]
-    pub enabled:  bool,
+    pub enabled:      bool,
     /// The transport the observer runtime reads change events from.
     #[serde(default)]
-    pub backend:  ObserversBackend,
+    pub backend:      ObserversBackend,
     /// NATS connection URL. `FRAISEQL_NATS_URL` overrides it at runtime.
-    pub nats_url: Option<String>,
+    ///
+    /// Carried as written, so it holds no credential: a URL with user info belongs in
+    /// the variable `nats_url_env` names. At most one of the two is set.
+    pub nats_url:     Option<String>,
+    /// The environment variable holding the NATS URL, read by the server at startup.
+    ///
+    /// The compiled schema carries the variable's name, never its value.
+    /// `FRAISEQL_NATS_URL`, when set, still takes precedence over the URL it names.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nats_url_env: Option<String>,
 }
 
 /// The observer runtime's event transport: `"postgres"` (the default) or `"nats"`.

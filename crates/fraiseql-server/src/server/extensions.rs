@@ -233,8 +233,12 @@ impl Server {
                  PostgreSQL → NATS bridge for it to configure; unset it"
             )));
         }
-        let mut transport =
-            observer_config.runtime.transport.to_runtime(compiled).with_env_overrides();
+        let mut transport = observer_config
+            .runtime
+            .transport
+            .to_runtime(compiled, |name| std::env::var(name).ok())
+            .map_err(crate::ServerError::ConfigError)?
+            .with_env_overrides();
         let compiled_in = cfg!(feature = "observers-nats");
         let nats_url_present = !transport.nats.url.is_empty();
         crate::server::initialization::observer_transport_check(

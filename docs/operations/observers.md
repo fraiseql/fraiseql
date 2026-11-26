@@ -19,10 +19,14 @@ The observer runtime is compiled into `fraiseql-server` by Cargo features:
 | `observers-enterprise` | `observers-metrics` + `observers-nats` + the library's `enterprise` feature |
 
 Configuration lives in `fraiseql.toml`. `[observers]` is shared with the compiler
-(`enabled`, `backend`, `nats_url`; `[[observers.handlers]]` is refused: observers are
+(`enabled`, `backend`, `nats_url` or `nats_url_env`; `[[observers.handlers]]` is refused: observers are
 declared in the authoring schema or added through the admin API, see
 [Declaring observers in the schema](#declaring-observers-in-the-schema)). `backend` selects the event transport: `"postgres"` (the
-default) or `"nats"`, with `nats_url` as the broker URL. `backend = "redis"` and
+default) or `"nats"`, with `nats_url` as the broker URL. `nats_url` is compiled as
+written, so a URL with user info (`nats://user:pass@…`, `tls://token@…`) on any server it
+lists is refused at compile: name the environment variable that holds it with
+`nats_url_env` instead, which the server reads at startup. Logs and boot errors name the
+broker by `scheme://host:port` only. `backend = "redis"` and
 `redis_url` are refused at compile: the runtime has no Redis transport. The compiler reads it in both workflows: from a TOML
 schema, and from the `fraiseql.toml` beside an SDK's `schema.json`. A `schema.json` that
 carries its own `observers_config` must agree with `[observers]`; the compile refuses a
@@ -279,7 +283,7 @@ The server applies these over the compiled configuration at boot:
 | Variable | Overrides |
 |----------|-----------|
 | `FRAISEQL_OBSERVER_TRANSPORT` | `[observers] backend` (`postgres`, `nats`, `in_memory`) |
-| `FRAISEQL_NATS_URL` | `[observers] nats_url` |
+| `FRAISEQL_NATS_URL` | `[observers] nats_url`, or the URL `nats_url_env` names |
 | `FRAISEQL_NATS_SUBJECT_PREFIX` | `nats.subject_prefix` |
 | `FRAISEQL_NATS_STREAM_NAME` | `nats.stream_name` |
 | `FRAISEQL_NATS_CONSUMER_NAME` | `nats.consumer_name` |

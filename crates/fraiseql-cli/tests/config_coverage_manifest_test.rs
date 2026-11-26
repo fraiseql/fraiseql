@@ -120,6 +120,11 @@ const MANIFEST: &[(&str, &str)] = &[
          FRAISEQL_NATS_URL",
     ),
     (
+        "observers.nats_url_env",
+        "compiled observers_config.nats_url_env → the variable the server reads the NATS URL \
+         from at startup",
+    ),
+    (
         "observers.handlers",
         "REJECTED at load (#8) — not runtime observers; use tb_observer (#631)",
     ),

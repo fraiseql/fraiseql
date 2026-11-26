@@ -177,6 +177,40 @@ mod nats_tests {
         assert!(result.is_err(), "non-nats:// scheme must be rejected");
     }
 
+    /// A password no refusal may show.
+    const PASSWORD: &str = "pw-NATS-SENTINEL";
+
+    #[test]
+    fn a_refused_scheme_is_named_by_its_host_never_its_user_info() {
+        let message = validate_nats_url(&format!("http://app:{PASSWORD}@nats.example.com:4222"))
+            .expect_err("refused")
+            .to_string();
+        assert!(!message.contains(PASSWORD), "{message}");
+        assert!(message.contains("http://nats.example.com:4222"), "{message}");
+    }
+
+    #[test]
+    fn a_refused_plaintext_url_is_named_by_its_host_never_its_user_info() {
+        temp_env::with_vars(
+            [
+                ("FRAISEQL_NATS_ALLOW_PLAINTEXT", None::<&str>),
+                ("FRAISEQL_ENV", None),
+                ("FRAISEQL_PROFILE", None),
+                ("KUBERNETES_SERVICE_HOST", None),
+            ],
+            || {
+                for url in [
+                    format!("nats://app:{PASSWORD}@nats.example.com:4222"),
+                    format!("nats://{PASSWORD}@nats.example.com:4222"),
+                ] {
+                    let message = validate_nats_url(&url).expect_err("refused").to_string();
+                    assert!(!message.contains(PASSWORD), "{message}");
+                    assert!(message.contains("nats://nats.example.com:4222"), "{message}");
+                }
+            },
+        );
+    }
+
     #[test]
     fn validate_nats_url_rejects_plaintext_by_default() {
         // L-nats-plaintext: a public-host plaintext nats:// URL must be refused

@@ -84,9 +84,10 @@ async fn a_nats_observer_transport_that_fails_to_start_refuses_a_production_boot
     let serve = |pool: sqlx::PgPool| async move {
         let mut schema = CompiledSchema::new();
         schema.observers_config = Some(fraiseql_core::schema::ObserversConfig {
-            enabled:  true,
-            backend:  fraiseql_core::schema::ObserversBackend::Nats,
-            nats_url: Some("nats://127.0.0.1:4222".to_string()),
+            enabled:      true,
+            backend:      fraiseql_core::schema::ObserversBackend::Nats,
+            nats_url:     Some("nats://127.0.0.1:4222".to_string()),
+            nats_url_env: None,
         });
         let config = ServerConfig {
             cors_enabled: false,

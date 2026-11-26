@@ -155,7 +155,39 @@ fn runtime_transport_defaults_to_postgres() {
     use fraiseql_observers::config::TransportKind;
 
     let cfg: ObserverConfig = toml::from_str("[runtime]\n").unwrap();
-    assert_eq!(cfg.runtime.transport.to_runtime(None).transport, TransportKind::Postgres);
+    assert_eq!(
+        cfg.runtime.transport.to_runtime(None, |_| None).unwrap().transport,
+        TransportKind::Postgres
+    );
+}
+
+/// The compiled `[observers]` with `nats_url_env` naming `name`.
+fn compiled_nats_url_env(name: &str) -> fraiseql_core::schema::ObserversConfig {
+    fraiseql_core::schema::ObserversConfig {
+        backend: fraiseql_core::schema::ObserversBackend::Nats,
+        nats_url_env: Some(name.to_owned()),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn the_nats_url_is_read_from_the_variable_the_compiled_schema_names() {
+    let cfg: ObserverConfig = toml::from_str("[runtime]\n").unwrap();
+    let compiled = compiled_nats_url_env("OBSERVERS_NATS_URL");
+    let env = |name: &str| {
+        (name == "OBSERVERS_NATS_URL").then(|| "tls://app:pw@nats.internal:4443".to_owned())
+    };
+    let transport = cfg.runtime.transport.to_runtime(Some(&compiled), env).unwrap();
+    assert_eq!(transport.nats.url, "tls://app:pw@nats.internal:4443");
+}
+
+#[test]
+fn an_unset_nats_url_variable_fails_the_boot_naming_the_variable() {
+    let cfg: ObserverConfig = toml::from_str("[runtime]\n").unwrap();
+    let compiled = compiled_nats_url_env("OBSERVERS_NATS_URL");
+    let refusal = cfg.runtime.transport.to_runtime(Some(&compiled), |_| None).unwrap_err();
+    assert!(refusal.contains("OBSERVERS_NATS_URL"), "{refusal}");
+    assert!(refusal.contains("not set"), "{refusal}");
 }
 
 #[test]
