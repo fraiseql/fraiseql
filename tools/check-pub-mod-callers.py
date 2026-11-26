@@ -45,7 +45,8 @@ the commit that wires or deletes a module also drops its line.
   with an item-position macro call (`wasmtime::component::bindgen!`) may define
   names no text shows, so a lookup in it that finds nothing lands on it.
 * Code under `#[cfg(test)]`, `#[test]` and `#[…::test]`, and the Rust blocks of doc
-  comments, are test code: they count for the allowlist's test-use check only.
+  comments, are test code: they count for the allowlist's test-use check only. The
+  attribute covers the one item, statement, field, arm or argument it decorates.
 
 The unit is the module, so the gate is a lower bound on dead code: a module one
 live function references stays green even if the rest of it is dead. Against the
@@ -146,19 +147,58 @@ def matching(text: str, i: int, open_c: str, close_c: str) -> int:
     return n
 
 
+# What a test attribute decorates decides where its scope ends. An item, a macro
+# call, a block-like expression or a braced match arm ends at its closing brace;
+# anything else (a statement, a `let`, a field, an arm, an argument, a variant)
+# ends at its `;` or `,`, or just before the bracket closing the list around it.
+_VIS = r"(?:pub\s*(?:\([^)]*\))?\s*)?"
+BRACED_ITEM = re.compile(
+    _VIS + r'(?:(?:default|async|const|unsafe|extern\s*(?:"[^"]*"\s*)?)\s*)*'
+    r"(?:fn|mod|impl|struct|enum|trait|union|extern|macro_rules\s*!)\b"
+)
+BLOCK_EXPR = re.compile(r"(?:\{|(?:if|match|loop|while|for)\b|(?:unsafe|const|async(?:\s+move)?)\s*\{|'\w+\s*:\s*\{)")
+BRACED_MACRO = re.compile(r"[\w:]+\s*!\s*\{")
+LET = re.compile(r"let\b")
+
+
 def item_end(text: str, i: int) -> int:
-    """End of the item starting at `i`: its `;` or the brace closing its body."""
-    depth, n = 0, len(text)
+    """End of the one item, statement, field or arm starting at `i`."""
+    n = len(text)
+    while i < n and text[i].isspace():
+        i += 1
+    start = i
+    braced = BRACED_ITEM.match(text, i) or BLOCK_EXPR.match(text, i) or BRACED_MACRO.match(text, i)
+    let = bool(LET.match(text, i))  # a `let` ends only at its `;`
+    depth = angle = 0
     while i < n:
         c = text[i]
         if c in "([":
             depth += 1
         elif c in ")]":
+            if depth == 0:
+                return i  # the list around it closes
             depth -= 1
+        elif depth == 0 and c == "}":
+            return i  # the body around it closes
         elif depth == 0 and c == ";":
             return i + 1
+        elif depth == 0 and c == "," and not (braced or let) and angle == 0:
+            return i + 1
+        elif c == "<" and (text[i - 1].isalnum() or text[i - 1] in "_:") and text[i + 1 : i + 2] != "=":
+            angle += 1  # generics or a turbofish, whose commas stay inside
+        elif c == ">" and angle and text[i - 1] not in "-=":
+            angle -= 1
         elif depth == 0 and c == "{":
-            return matching(text, i, "{", "}")
+            close = matching(text, i, "{", "}")
+            arm = re.search(r"=>\s*$", text[start:i])
+            if not (braced or arm):
+                i = close  # an expression carries on after its braces
+                continue
+            if braced and re.match(r"\s*else\b", text[close:]):
+                i = close
+                continue
+            m = re.match(r"\s*,", text[close:])
+            return close + m.end() if m else close
         i += 1
     return n
 

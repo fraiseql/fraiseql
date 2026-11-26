@@ -316,6 +316,157 @@ run_gate
 expect_red "✗ lib::after_scoped (" "a pub mod after a pub(crate) mod is still checked"
 expect_red "✗ lib::after_attr (" "a pub mod behind an attribute is still checked"
 
+# ── 30–39. `#[cfg(test)]` scopes the one thing it decorates ─────────────────────────
+# On a field, a statement, a `let`, a match arm, a block or a struct-literal field, the
+# attribute makes that one element test code: `lib::marked`, named only there, stays
+# unused. The production code after it, here the call to `lib::used`, still counts.
+# Reading the attribute as test scope until the next `;` or block swallowed the rest of
+# the struct and the impl after it, and reported `lib::used` as unused.
+scoped_case() { # scoped_case <n> <lib.rs body after the two modules> <label>
+  new_case "$1" "pub mod used { pub fn f() {} }
+pub mod marked { pub struct P; pub fn touch() {} }
+$2" 'fn main() { lib::S::run(0); }'
+  run_gate
+  if grep -F "lib::used" "${tmp}/out" >/dev/null; then
+    fail "$3: the call after it still counts"
+  else
+    pass "$3: the call after it still counts"
+  fi
+  expect_red "✗ lib::marked (" "$3: what it decorates is test code"
+}
+
+scoped_case 30 'pub struct S {
+    #[cfg(test)]
+    pub p: std::collections::HashMap<u8, marked::P>,
+    pub n: u8,
+}
+impl S { pub fn run(_: u8) { used::f(); } }' "a field"
+
+scoped_case 31 'pub struct S {
+    pub n: u8,
+    #[cfg(test)]
+    pub p: marked::P
+}
+impl S { pub fn run(_: u8) { used::f(); } }' "the last field, with no comma"
+
+scoped_case 32 'pub struct S;
+impl S {
+    pub fn run(_: u8) {
+        #[cfg(test)]
+        marked::touch();
+        used::f();
+    }
+}' "a statement"
+
+scoped_case 33 'pub struct S;
+impl S {
+    pub fn run(_: u8) {
+        #[cfg(test)]
+        let _p = marked::P;
+        used::f();
+    }
+}' "a let"
+
+scoped_case 34 'pub struct S;
+impl S {
+    pub fn run(n: u8) {
+        match n {
+            #[cfg(test)]
+            1 => marked::touch(),
+            _ => used::f(),
+        }
+    }
+}' "a match arm"
+
+scoped_case 35 'pub struct S;
+impl S {
+    pub fn run(n: u8) {
+        match n {
+            #[cfg(test)]
+            0 => { marked::touch() }
+            _ => used::f(),
+        }
+    }
+}' "a braced match arm"
+
+scoped_case 36 'pub struct S;
+impl S {
+    pub fn run(_: u8) {
+        #[cfg(test)]
+        {
+            marked::touch();
+        }
+        used::f();
+    }
+}' "a block"
+
+# The struct comes last, so only the literal field can reach the call.
+scoped_case 37 'impl S {
+    pub fn run(_: u8) {
+        let _s = S {
+            #[cfg(test)]
+            p: marked::P,
+            n: 0
+        };
+        used::f();
+    }
+}
+pub struct S { pub n: u8, #[cfg(test)] pub p: marked::P }' "a struct-literal field"
+
+# A comma inside generics or a turbofish does not end a `let` or a statement early:
+# ending there would count the rest of the test code as production.
+scoped_case 38 'pub struct S;
+impl S {
+    pub fn run(_: u8) {
+        #[cfg(test)]
+        let _m: std::collections::HashMap<u8, marked::P> = std::collections::HashMap::new();
+        #[cfg(test)]
+        std::mem::drop::<(u8, marked::P)>((0, marked::P));
+        #[cfg(test)]
+        std::convert::identity::<Result<u8, marked::P>>(Ok(0));
+        #[cfg(test)]
+        let _f = |_: u8, _: u8| marked::touch();
+        used::f();
+    }
+}' "a comma inside generics"
+
+scoped_case 39 'pub struct S;
+impl S {
+    pub fn run(n: u8, #[cfg(test)] _p: marked::P) {
+        #[cfg(test)]
+        let _t = T { n }.with(marked::P);
+        #[cfg(test)]
+        if n == 0 {
+        } else {
+            marked::touch();
+        }
+        used::f();
+    }
+}
+pub struct T { pub n: u8 }
+impl T { pub fn with<X>(self, _: X) {} }' "the last argument, an expression past its braces, an else"
+
+# A test module is test code to its closing brace, and no further. Its impl of an
+# external trait for a used type would keep `lib::marked` alive without the attribute.
+scoped_case 40 'pub struct S;
+#[cfg(test)]
+mod tests {
+    impl Default for super::S {
+        fn default() -> Self { crate::marked::touch(); super::S }
+    }
+}
+impl S { pub fn run(_: u8) { used::f(); } }' "a #[cfg(test)] mod tests"
+
+scoped_case 41 'macro_rules! noop { ($($t:tt)*) => {} }
+pub struct S;
+impl S {
+    pub fn run(_: u8) {
+        #[cfg(test)]
+        noop! { marked::touch() }
+        used::f();
+    }
+}' "a braced macro call"
+
 # ── 24. Vacuity: no crates, or no binary, is refused ────────────────────────────────
 root="${tmp}/empty"
 mkdir -p "$root"
