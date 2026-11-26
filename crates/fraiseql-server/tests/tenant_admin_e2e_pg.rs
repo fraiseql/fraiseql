@@ -135,6 +135,15 @@ struct Rig {
 
 impl Rig {
     async fn boot(test: &str, db: &str) -> Option<Self> {
+        Self::boot_with(test, db, |config| config).await
+    }
+
+    /// [`Rig::boot`], with `configure` applied to the server's configuration last.
+    async fn boot_with(
+        test: &str,
+        db: &str,
+        configure: impl FnOnce(ServerConfig) -> ServerConfig,
+    ) -> Option<Self> {
         let Some(url) = try_database_url() else {
             eprintln!("SKIP {test}: DATABASE_URL not set");
             return None;
@@ -159,6 +168,7 @@ impl Rig {
             }),
             ..ServerConfig::default()
         });
+        let config = configure(config);
         let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.expect("adapter"));
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
         let port = listener.local_addr().expect("local addr").port();
@@ -317,6 +327,137 @@ async fn platform_only_routers_refuse_a_tenant_admin_token() {
         StatusCode::FORBIDDEN,
         "a tenant admin token is a wrong token on a platform-only route"
     );
+    rig.shutdown().await;
+}
+
+// ---------------------------------------------------------------------------
+// The gate on the routers that take tenant administrators
+// ---------------------------------------------------------------------------
+
+const READONLY_TOKEN: &str = "tenant-admin-e2e-read-only-token-32-chars";
+const METRICS_TOKEN: &str = "tenant-admin-e2e-metrics-token-32-chars";
+
+/// The platform token, a read-only token, a metrics token and a budget of `max_failures`.
+fn every_credential(max_failures: u32) -> impl FnOnce(ServerConfig) -> ServerConfig {
+    move |config| ServerConfig {
+        admin_api_enabled: true,
+        admin_readonly_token: Some(READONLY_TOKEN.to_string()),
+        metrics_enabled: true,
+        metrics_token: Some(METRICS_TOKEN.to_string()),
+        admin_auth_max_failures: max_failures,
+        ..config
+    }
+}
+
+/// The status of `GET {path}` with `authorization` as the header, if any.
+async fn status_with_header(rig: &Rig, path: &str, authorization: Option<&str>) -> StatusCode {
+    let mut request = rig.client.get(format!("{}{path}", rig.base));
+    if let Some(value) = authorization {
+        request = request.header("authorization", value);
+    }
+    let response = request.send().await.expect("request");
+    if response.status() == StatusCode::UNAUTHORIZED {
+        assert_eq!(
+            response.headers().get("www-authenticate").map(|v| v.to_str().unwrap()),
+            Some("Bearer"),
+            "an unauthenticated request on {path} is answered with a bearer challenge"
+        );
+    }
+    response.status()
+}
+
+/// The routers that take tenant administrators answer a missing or malformed credential as
+/// unauthenticated, spending no budget, take the platform and tenant admin tokens, and
+/// refuse the read-only and metrics tokens as wrong ones.
+#[tokio::test]
+async fn the_tenant_aware_gate_takes_the_platform_and_tenant_tokens_only() {
+    let Some(rig) =
+        Rig::boot_with("tenant_aware_gate", "fraiseql_tenant_admin_gate", every_credential(2))
+            .await
+    else {
+        return;
+    };
+    for path in ["/api/roles", "/api/scim/tokens", "/api/saml/idps"] {
+        for _ in 0..3 {
+            assert_eq!(status_with_header(&rig, path, None).await, StatusCode::UNAUTHORIZED);
+            assert_eq!(
+                status_with_header(&rig, path, Some("Basic YTpi")).await,
+                StatusCode::UNAUTHORIZED
+            );
+        }
+        for token in [ADMIN_TOKEN, rig.a.as_str()] {
+            let (status, body) = rig.call(token, Method::GET, path, None).await;
+            assert_eq!(status, StatusCode::OK, "{path} takes an administrator's token: {body}");
+        }
+    }
+    // Each refusal spends the budget of two: the second is the failure that spends it.
+    let (status, _) = rig.call(READONLY_TOKEN, Method::GET, "/api/roles", None).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "the read-only token is not an administrator's");
+    let (status, _) = rig.call(METRICS_TOKEN, Method::GET, "/api/roles", None).await;
+    assert_eq!(
+        status,
+        StatusCode::TOO_MANY_REQUESTS,
+        "the metrics token is not an administrator's, and its refusal spends the budget"
+    );
+    rig.shutdown().await;
+}
+
+/// Failures on a tenant-aware router and on a platform-only router spend one budget, and
+/// a tenant administrator's success does not give them back.
+#[tokio::test]
+async fn the_tenant_aware_gate_spends_the_shared_budget() {
+    let Some(rig) =
+        Rig::boot_with("tenant_aware_budget", "fraiseql_tenant_admin_budget", every_credential(3))
+            .await
+    else {
+        return;
+    };
+    let (status, _) = rig.call("wrong", Method::GET, "/api/roles", None).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, _) = rig.call("wrong", Method::GET, "/api/admin-tokens", None).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, body) = rig.call(&rig.a, Method::GET, "/api/roles", None).await;
+    assert_eq!(status, StatusCode::OK, "the tenant administrator is served: {body}");
+    let (status, _) = rig.call("wrong", Method::GET, "/api/roles", None).await;
+    assert_eq!(
+        status,
+        StatusCode::TOO_MANY_REQUESTS,
+        "two failures on two kinds of gate and a third after a tenant's success spend one \
+         budget of three"
+    );
+    let (status, _) = rig.call(ADMIN_TOKEN, Method::GET, "/api/admin-tokens", None).await;
+    assert_eq!(
+        status,
+        StatusCode::TOO_MANY_REQUESTS,
+        "the spent budget refuses the platform too"
+    );
+    rig.shutdown().await;
+}
+
+/// When the tenant admin token store cannot be read, a token that is not the platform's
+/// is answered as unavailable, not as wrong; the platform token, compared before the
+/// store is read, is still served.
+#[tokio::test]
+async fn an_unreadable_tenant_token_store_is_unavailable_and_the_platform_is_still_served() {
+    let Some(rig) = Rig::boot_with(
+        "tenant_store_unreadable",
+        "fraiseql_tenant_admin_store_down",
+        every_credential(10),
+    )
+    .await
+    else {
+        return;
+    };
+    let pool = PgPool::connect(&with_database(&rig.url, &rig.db)).await.unwrap();
+    sqlx::raw_sql("ALTER TABLE core.tb_admin_token RENAME TO tb_admin_token_away")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let (status, body) = rig.call(&rig.a, Method::GET, "/api/roles", None).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
+    let (status, body) = rig.call(ADMIN_TOKEN, Method::GET, "/api/roles", None).await;
+    assert_eq!(status, StatusCode::OK, "the platform token needs no store: {body}");
+    pool.close().await;
     rig.shutdown().await;
 }
 
