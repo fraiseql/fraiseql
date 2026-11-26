@@ -24,6 +24,9 @@
 //!   second, independent belt that would mask a broken provider here.
 //! - The `/auth/v1/authorize` flood faces the `auth_start` path bucket (#788).
 //! - Bogus state and unknown providers are refused.
+//! - How the session reaches the browser: a `JSON` body with no redirect allow-list, the redirect's
+//!   fragment with one, and no cookie either way; and a login state completes from a client other
+//!   than the one that started it.
 //!
 //! Self-skips when no `DATABASE_URL` is set. The stub `IdP` lives on loopback
 //! `HTTP`, so the suite opts into the development SSRF bypass
@@ -1110,6 +1113,160 @@ async fn a_social_sign_in_of_an_mfa_user_yields_a_challenge() {
         .await
         .expect("the challenge redeems");
     assert_eq!(redeemed, user, "the challenge is bound to the user who signed in");
+
+    let _ = tx.send(());
+    let _ = handle.await;
+    drop_scratch(&url, db).await;
+}
+
+// ── How a session reaches the browser today ─────────────────────────────────
+
+/// The `Set-Cookie` headers of `resp`.
+fn set_cookies(resp: &reqwest::Response) -> Vec<String> {
+    resp.headers()
+        .get_all(reqwest::header::SET_COOKIE)
+        .iter()
+        .map(|v| v.to_str().unwrap_or_default().to_string())
+        .collect()
+}
+
+/// `authorize` for `provider` on `client`, redirecting to `redirect_uri`; the state.
+async fn authorize(
+    client: &reqwest::Client,
+    base: &str,
+    provider: &str,
+    redirect_uri: &str,
+) -> String {
+    let resp = client
+        .get(format!(
+            "{base}/auth/v1/authorize?provider={provider}&redirect_uri={redirect_uri}"
+        ))
+        .send()
+        .await
+        .expect("authorize request");
+    assert!(resp.status().is_redirection(), "authorize must redirect ({provider})");
+    state_from_location(resp.headers()["location"].to_str().expect("a location"))
+}
+
+/// With no redirect allow-list, the callback answers the session in its `JSON` body.
+#[tokio::test]
+async fn a_social_sign_in_with_no_bound_redirect_answers_its_tokens_in_json() {
+    let Some(url) = database_url_or_skip("a_social_sign_in_with_no_bound_redirect") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_social_json";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let stub = stub_idp().await;
+    let (base, tx, handle) = Box::pin(boot_server(
+        social_config(&scratch_url),
+        social_schema(&stub),
+        pool,
+        &scratch_url,
+    ))
+    .await;
+    let client = no_redirect_client();
+
+    let state = authorize(&client, &base, "google", "https://app.example.com/cb").await;
+    let resp = client
+        .get(format!("{base}/auth/v1/callback?code=any-code&state={state}"))
+        .send()
+        .await
+        .expect("callback request");
+    assert_eq!(resp.status(), reqwest::StatusCode::OK);
+    assert!(set_cookies(&resp).is_empty(), "the JSON answer sets no cookie");
+    let body: serde_json::Value = resp.json().await.expect("a JSON body");
+    assert!(body["access_token"].is_string(), "{body}");
+    assert!(body["refresh_token"].is_string(), "{body}");
+
+    let _ = tx.send(());
+    let _ = handle.await;
+    drop_scratch(&url, db).await;
+}
+
+/// With a bound redirect, both callback shapes hand the session in the redirect's fragment.
+#[tokio::test]
+async fn a_bound_redirect_carries_the_session_in_its_fragment() {
+    let Some(url) = database_url_or_skip("a_bound_redirect_carries_the_session") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_social_fragment";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let stub = stub_idp().await;
+    let mut schema = social_schema(&stub);
+    schema
+        .auth
+        .as_mut()
+        .and_then(|a| a.social.as_mut())
+        .expect("social")
+        .redirect_uri_allowlist = vec!["https://app.example.com".to_string()];
+    let (base, tx, handle) =
+        Box::pin(boot_server(social_config(&scratch_url), schema, pool, &scratch_url)).await;
+    let client = no_redirect_client();
+
+    let state = authorize(&client, &base, "google", "https://app.example.com/cb").await;
+    let get = client
+        .get(format!("{base}/auth/v1/callback?code=any-code&state={state}"))
+        .send()
+        .await
+        .expect("callback request");
+    let state = authorize(&client, &base, "apple", "https://app.example.com/cb").await;
+    let post = client
+        .post(format!("{base}/auth/v1/callback"))
+        .form(&[("code", "apple-code"), ("state", state.as_str())])
+        .send()
+        .await
+        .expect("form-POST callback request");
+    for (shape, resp) in [("GET", get), ("POST", post)] {
+        assert!(resp.status().is_redirection(), "{shape}: {}", resp.status());
+        assert!(set_cookies(&resp).is_empty(), "{shape}: the redirect sets no cookie");
+        let location = resp.headers()["location"].to_str().expect("a location").to_string();
+        let (target, fragment) = location.split_once('#').expect("the redirect has a fragment");
+        assert_eq!(target, "https://app.example.com/cb", "{shape}");
+        assert!(fragment.contains("access_token="), "{shape}: {location}");
+        assert!(fragment.contains("refresh_token="), "{shape}: {location}");
+    }
+
+    let _ = tx.send(());
+    let _ = handle.await;
+    drop_scratch(&url, db).await;
+}
+
+/// A state one client started completes from another client that shares nothing with it.
+#[tokio::test]
+async fn a_login_state_completes_from_a_client_that_did_not_start_it() {
+    let Some(url) = database_url_or_skip("a_login_state_completes_from_another_client") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_social_other_client";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let stub = stub_idp().await;
+    let (base, tx, handle) = Box::pin(boot_server(
+        social_config(&scratch_url),
+        social_schema(&stub),
+        pool,
+        &scratch_url,
+    ))
+    .await;
+
+    let state =
+        authorize(&no_redirect_client(), &base, "google", "https://app.example.com/cb").await;
+    let resp = no_redirect_client()
+        .get(format!("{base}/auth/v1/callback?code=any-code&state={state}"))
+        .send()
+        .await
+        .expect("callback request");
+    assert_eq!(
+        resp.status(),
+        reqwest::StatusCode::OK,
+        "{}",
+        resp.text().await.unwrap_or_default()
+    );
 
     let _ = tx.send(());
     let _ = handle.await;

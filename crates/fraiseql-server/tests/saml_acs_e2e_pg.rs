@@ -403,6 +403,76 @@ async fn ttl_secs_sets_the_lifetime_of_a_saml_sign_in() {
     drop_scratch(&url, db).await;
 }
 
+/// The ACS answers the session in its `JSON` body: no cookie, no redirect.
+#[tokio::test]
+async fn a_saml_sign_in_answers_its_tokens_in_json() {
+    let Some(url) = database_url_or_skip("a_saml_sign_in_answers_its_tokens_in_json") else {
+        return;
+    };
+    let db = "fraiseql_saml_acs_json";
+    let idp = SigningIdp::new();
+    let server = boot(&url, db, &idp, schema(FIRST_PARTY.session())).await;
+
+    let (relay_state, request_id) = server.login().await;
+    let response = idp.response(&request_id, "ada", &DigestAlgorithm::Sha256);
+    let resp = server
+        .client
+        .post(format!("{}/auth/saml/acs", server.base))
+        .form(&[
+            ("SAMLResponse", response.as_str()),
+            ("RelayState", relay_state.as_str()),
+        ])
+        .send()
+        .await
+        .expect("ACS request");
+    assert_eq!(resp.status(), reqwest::StatusCode::OK);
+    assert!(resp.headers().get(reqwest::header::SET_COOKIE).is_none(), "no cookie");
+    assert!(resp.headers().get(reqwest::header::LOCATION).is_none(), "no redirect");
+    let body: serde_json::Value = resp.json().await.expect("a JSON body");
+    assert!(body["access_token"].is_string(), "{body}");
+    assert!(body["refresh_token"].is_string(), "{body}");
+
+    server.stop().await;
+    drop_scratch(&url, db).await;
+}
+
+/// A `RelayState` one client started completes from another client that shares nothing
+/// with it.
+#[tokio::test]
+async fn a_relay_state_completes_from_a_client_that_did_not_start_it() {
+    let Some(url) = database_url_or_skip("a_relay_state_completes_from_another_client") else {
+        return;
+    };
+    let db = "fraiseql_saml_acs_other_client";
+    let idp = SigningIdp::new();
+    let server = boot(&url, db, &idp, schema(FIRST_PARTY.session())).await;
+
+    let (relay_state, request_id) = server.login().await;
+    let response = idp.response(&request_id, "ada", &DigestAlgorithm::Sha256);
+    let other = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .expect("client");
+    let resp = other
+        .post(format!("{}/auth/saml/acs", server.base))
+        .form(&[
+            ("SAMLResponse", response.as_str()),
+            ("RelayState", relay_state.as_str()),
+        ])
+        .send()
+        .await
+        .expect("ACS request");
+    assert_eq!(
+        resp.status(),
+        reqwest::StatusCode::OK,
+        "{}",
+        resp.text().await.unwrap_or_default()
+    );
+
+    server.stop().await;
+    drop_scratch(&url, db).await;
+}
+
 #[tokio::test]
 async fn the_server_refuses_a_sha1_digest() {
     let Some(url) = database_url_or_skip("the_server_refuses_a_sha1_digest") else {
