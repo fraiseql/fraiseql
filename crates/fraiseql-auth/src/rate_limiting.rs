@@ -528,8 +528,6 @@ pub fn warn_if_single_node_rate_limiting() {
 pub struct RateLimiters {
     /// auth/start: per-IP, 100 req/min
     pub auth_start:    KeyedRateLimiter,
-    /// auth/callback: per-IP, 50 req/min
-    pub auth_callback: KeyedRateLimiter,
     /// auth/refresh: per-user, 10 req/min
     pub auth_refresh:  KeyedRateLimiter,
     /// auth/logout: per-user, 20 req/min
@@ -544,7 +542,6 @@ impl RateLimiters {
     pub fn new() -> Self {
         Self {
             auth_start:    KeyedRateLimiter::new(AuthRateLimitConfig::per_ip_standard()),
-            auth_callback: KeyedRateLimiter::new(AuthRateLimitConfig::per_ip_strict()),
             auth_refresh:  KeyedRateLimiter::new(AuthRateLimitConfig::per_user_standard()),
             auth_logout:   KeyedRateLimiter::new(AuthRateLimitConfig::per_user_standard()),
             failed_logins: KeyedRateLimiter::new(AuthRateLimitConfig::failed_login_attempts()),
@@ -555,14 +552,12 @@ impl RateLimiters {
     #[must_use]
     pub fn with_configs(
         start_cfg: AuthRateLimitConfig,
-        callback_cfg: AuthRateLimitConfig,
         refresh_cfg: AuthRateLimitConfig,
         logout_cfg: AuthRateLimitConfig,
         failed_cfg: AuthRateLimitConfig,
     ) -> Self {
         Self {
             auth_start:    KeyedRateLimiter::new(start_cfg),
-            auth_callback: KeyedRateLimiter::new(callback_cfg),
             auth_refresh:  KeyedRateLimiter::new(refresh_cfg),
             auth_logout:   KeyedRateLimiter::new(logout_cfg),
             failed_logins: KeyedRateLimiter::new(failed_cfg),

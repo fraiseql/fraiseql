@@ -1512,7 +1512,9 @@ disagreed, and the promise was the part that was wrong.
   `GET /auth/callback` (`[security.pkce]`), and social sign-in is `GET /auth/v1/authorize` and
   `GET /auth/v1/callback`. An application that mounted the removed handlers itself mounts one of
   those instead. `handlers::{generate_secure_state, validate_auth_input_len,
-  MAX_REFRESH_TOKEN_BYTES}` stay.
+  MAX_REFRESH_TOKEN_BYTES}` stay. `RateLimiters` loses its `auth_callback` limiter, which only
+  the removed callback read, and `RateLimiters::with_configs` its `callback_cfg` parameter: it
+  now takes `start_cfg, refresh_cfg, logout_cfg, failed_cfg`.
 
 - **Cookie transport covers social and SAML sign-in, and its key moved to `[auth.session]
   transport` (#1935).** `[auth.local] session_transport` set the transport of the local

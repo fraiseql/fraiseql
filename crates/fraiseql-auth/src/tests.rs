@@ -1372,9 +1372,6 @@ mod rate_limiting_tests_inner {
         let result = limiters.auth_start.check(ip);
         assert!(result.is_ok(), "auth_start should allow: {result:?}");
 
-        let result = limiters.auth_callback.check(ip);
-        assert!(result.is_ok(), "auth_callback should allow: {result:?}");
-
         let result = limiters.auth_refresh.check(user);
         assert!(result.is_ok(), "auth_refresh should allow: {result:?}");
 
