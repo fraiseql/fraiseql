@@ -2286,12 +2286,14 @@ disagreed, and the promise was the part that was wrong.
   an older definition is still brought to the current one.
   - Covered: the auth stores (accounts and identities, sessions, local passwords, password
     reset, email verification, OTP, TOTP, SCIM, signing keys, SAML replay, session state);
-    the server's RBAC, admin token and async operation stores; the functions runtime's
-    cron, dead-letter and send tracking tables; the observers' checkpoint, management,
-    source cursor and dispatch tables; the inbound spine's message and dispatch tables,
-    whose guards #2570 added.
-  - Not yet covered: object storage's migrations, the SAML identity provider store and the
-    `token_revocation` store.
+    the server's RBAC, admin token, async operation and `token_revocation` stores; the
+    functions runtime's cron, dead-letter and send tracking tables; the observers'
+    checkpoint, management, source cursor and dispatch tables; the inbound spine's message
+    and dispatch tables, whose guards #2570 added.
+  - Not yet covered: object storage's migrations and the SAML identity provider store.
+  - The server's boot-lock suite also covers the API key and usage stores, whose tables are
+    all they create. It finds every boot script the crate declares under `src/`, and fails on
+    one no test covers.
   - `fraiseql-test-support` gains a `boot-locks` feature. Its `second_init_waits_on_nothing`
     runs a store's initialisation a second time while a live write holds every table in the
     store's schemas, and fails naming any lock the boot waits for. Its

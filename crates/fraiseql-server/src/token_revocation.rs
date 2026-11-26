@@ -286,17 +286,26 @@ CREATE TABLE IF NOT EXISTS fraiseql_revoked_tokens (
     sub TEXT,
     expires_at TIMESTAMPTZ NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_fraiseql_revoked_tokens_sub
-    ON fraiseql_revoked_tokens (sub);
-CREATE INDEX IF NOT EXISTS idx_fraiseql_revoked_tokens_expires
-    ON fraiseql_revoked_tokens (expires_at);
 CREATE TABLE IF NOT EXISTS fraiseql_revoked_users (
     sub TEXT PRIMARY KEY,
     revoked_after BIGINT NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_fraiseql_revoked_users_expires
-    ON fraiseql_revoked_users (expires_at);";
+-- Each index is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $revoked_tokens_shape$
+BEGIN
+    IF to_regclass('idx_fraiseql_revoked_tokens_sub') IS NULL THEN
+        CREATE INDEX idx_fraiseql_revoked_tokens_sub ON fraiseql_revoked_tokens (sub);
+    END IF;
+    IF to_regclass('idx_fraiseql_revoked_tokens_expires') IS NULL THEN
+        CREATE INDEX idx_fraiseql_revoked_tokens_expires ON fraiseql_revoked_tokens (expires_at);
+    END IF;
+    IF to_regclass('idx_fraiseql_revoked_users_expires') IS NULL THEN
+        CREATE INDEX idx_fraiseql_revoked_users_expires ON fraiseql_revoked_users (expires_at);
+    END IF;
+END
+$revoked_tokens_shape$;";
 
 /// PostgreSQL-backed JWT revocation store.
 ///

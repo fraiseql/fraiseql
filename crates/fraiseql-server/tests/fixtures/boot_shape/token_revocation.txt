@@ -1,0 +1,13 @@
+column fraiseql_revoked_tokens.expires_at timestamp with time zone not null
+column fraiseql_revoked_tokens.jti text not null
+column fraiseql_revoked_tokens.sub text null
+column fraiseql_revoked_users.expires_at timestamp with time zone not null
+column fraiseql_revoked_users.revoked_after bigint not null
+column fraiseql_revoked_users.sub text not null
+index CREATE INDEX idx_fraiseql_revoked_tokens_expires ON public.fraiseql_revoked_tokens USING btree (expires_at)
+index CREATE INDEX idx_fraiseql_revoked_tokens_sub ON public.fraiseql_revoked_tokens USING btree (sub)
+index CREATE INDEX idx_fraiseql_revoked_users_expires ON public.fraiseql_revoked_users USING btree (expires_at)
+index CREATE UNIQUE INDEX fraiseql_revoked_tokens_pkey ON public.fraiseql_revoked_tokens USING btree (jti)
+index CREATE UNIQUE INDEX fraiseql_revoked_users_pkey ON public.fraiseql_revoked_users USING btree (sub)
+row level security fraiseql_revoked_tokens off
+row level security fraiseql_revoked_users off
