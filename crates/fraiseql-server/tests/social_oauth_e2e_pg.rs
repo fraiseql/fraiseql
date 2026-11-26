@@ -27,6 +27,9 @@
 //! - How the session reaches the browser: a `JSON` body with no redirect allow-list, the redirect's
 //!   fragment with one, and no session cookie either way.
 //! - A login completes only from the browser that started it, by the cookie `authorize` sets.
+//! - In cookie transport the callback sets the session cookies on its redirect, and the session
+//!   they hold works on `/graphql`, refreshes and logs out by cookie alone; with no redirect
+//!   allow-list the boot refuses it.
 //!
 //! Self-skips when no `DATABASE_URL` is set. The stub `IdP` lives on loopback
 //! `HTTP`, so the suite opts into the development SSRF bypass
@@ -749,6 +752,7 @@ async fn ttl_secs_sets_the_lifetime_of_a_social_sign_in() {
     let stub = stub_idp().await;
     let mut schema = social_schema(&stub);
     schema.auth.as_mut().expect("auth").session = Some(fraiseql_core::schema::SessionConfig {
+        transport:         fraiseql_core::schema::SessionTransport::Json,
         ttl_secs:          Some(900),
         absolute_ttl_secs: None,
     });
@@ -1368,6 +1372,234 @@ async fn a_login_completes_only_from_the_browser_that_started_it() {
 
     let _ = tx.send(());
     let _ = handle.await;
+    drop_scratch(&url, db).await;
+}
+
+// ── Cookie transport ────────────────────────────────────────────────────────────────
+
+/// A refreshable `[auth.session]` in cookie transport, and `[auth.social]` allow-listing the
+/// front end.
+fn cookie_mode(stub: &str) -> CompiledSchema {
+    let mut schema = social_schema(stub);
+    let auth = schema.auth.as_mut().expect("auth");
+    auth.session = Some(fraiseql_core::schema::SessionConfig {
+        ttl_secs:          Some(SESSION_TTL_SECS),
+        absolute_ttl_secs: Some(COOKIE_ABSOLUTE_TTL_SECS),
+        transport:         fraiseql_core::schema::SessionTransport::Cookie,
+    });
+    auth.social.as_mut().expect("social").redirect_uri_allowlist =
+        vec!["https://app.example.com".to_string()];
+    schema
+}
+
+const COOKIE_ABSOLUTE_TTL_SECS: u64 = 86_400;
+
+/// The value of the cookie `name` that `set_cookies` set.
+fn set_cookie_value(set_cookies: &[String], name: &str) -> String {
+    set_cookies
+        .iter()
+        .find_map(|c| c.strip_prefix(&format!("{name}=")))
+        .and_then(|rest| rest.split(';').next())
+        .unwrap_or_default()
+        .to_string()
+}
+
+/// An answer: its status, `Location`, `Set-Cookie`s and body.
+struct Answer {
+    status:      reqwest::StatusCode,
+    location:    String,
+    set_cookies: Vec<String>,
+    body:        String,
+}
+
+impl Answer {
+    async fn of(request: reqwest::RequestBuilder) -> Self {
+        let resp = request.send().await.expect("request");
+        let status = resp.status();
+        let location = resp
+            .headers()
+            .get(reqwest::header::LOCATION)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_string();
+        let set_cookies = set_cookies(&resp);
+        let body = resp.text().await.unwrap_or_default();
+        Self {
+            status,
+            location,
+            set_cookies,
+            body,
+        }
+    }
+
+    /// The session cookies this answer set: (access, refresh).
+    fn session(&self, what: &str) -> (String, String) {
+        let access =
+            set_cookie_value(&self.set_cookies, fraiseql_auth::session_cookies::ACCESS_COOKIE);
+        let refresh =
+            set_cookie_value(&self.set_cookies, fraiseql_auth::session_cookies::REFRESH_COOKIE);
+        assert!(!access.is_empty() && !refresh.is_empty(), "{what}: {:?}", self.set_cookies);
+        (access, refresh)
+    }
+
+    /// Neither the body nor the `Location` carries any of `tokens`.
+    fn assert_carries_none_of(&self, what: &str, tokens: &[&str]) {
+        for token in tokens {
+            assert!(!self.body.contains(token), "{what}: the body carries a token: {}", self.body);
+            assert!(!self.location.contains(token), "{what}: the Location carries a token");
+        }
+        for key in ["access_token", "refresh_token"] {
+            assert!(!self.body.contains(key), "{what}: {}", self.body);
+            assert!(!self.location.contains(key), "{what}: {}", self.location);
+        }
+    }
+}
+
+/// `/graphql` with no credential but the access cookie `access`.
+async fn graphql_with_cookie(base: &str, access: &str) -> reqwest::StatusCode {
+    reqwest::Client::new()
+        .post(format!("{base}/graphql"))
+        .header(
+            reqwest::header::COOKIE,
+            format!("{}={access}", fraiseql_auth::session_cookies::ACCESS_COOKIE),
+        )
+        .json(&serde_json::json!({ "query": "{ __typename }" }))
+        .send()
+        .await
+        .expect("graphql request")
+        .status()
+}
+
+/// A session route with no credential but the refresh cookie `refresh`.
+async fn session_route(base: &str, route: &str, refresh: &str) -> Answer {
+    Answer::of(
+        reqwest::Client::new()
+            .post(format!("{base}/auth/v1/session/{route}"))
+            .header(
+                reqwest::header::COOKIE,
+                format!("{}={refresh}", fraiseql_auth::session_cookies::REFRESH_COOKIE),
+            )
+            .json(&serde_json::json!({})),
+    )
+    .await
+}
+
+/// In cookie transport, a social sign-in sets the session cookies on its redirect to the
+/// front end, on both callback shapes; no body or `Location` carries a token; and the
+/// session the cookies hold works on `/graphql`, refreshes and logs out by cookie alone.
+#[tokio::test]
+async fn in_cookie_transport_a_social_sign_in_sets_the_session_cookies_on_its_redirect() {
+    let Some(url) = database_url_or_skip("in_cookie_transport_a_social_sign_in") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_social_cookie";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let stub = stub_idp().await;
+    let (base, tx, handle) =
+        Box::pin(boot_server(social_config(&scratch_url), cookie_mode(&stub), pool, &scratch_url))
+            .await;
+    let client = no_redirect_client();
+    let cb = "https://app.example.com/cb";
+
+    let (state, login, _) = authorize(&client, &base, "google", cb).await;
+    let get = Answer::of(
+        client
+            .get(format!("{base}/auth/v1/callback?code=any-code&state={state}"))
+            .header(reqwest::header::COOKIE, &login),
+    )
+    .await;
+    let (state, apple_login, _) = authorize(&client, &base, "apple", cb).await;
+    let post = Answer::of(
+        client
+            .post(format!("{base}/auth/v1/callback"))
+            .header(reqwest::header::COOKIE, &apple_login)
+            .form(&[("code", "apple-code"), ("state", state.as_str())]),
+    )
+    .await;
+    let mut sessions = Vec::new();
+    for (shape, answer, login) in [("GET", &get, &login), ("POST", &post, &apple_login)] {
+        assert_eq!(answer.status, reqwest::StatusCode::SEE_OTHER, "{shape}: {}", answer.body);
+        assert_eq!(answer.location, cb, "{shape}: the redirect carries nothing but its target");
+        let (access, refresh) = answer.session(shape);
+        answer.assert_carries_none_of(shape, &[&access, &refresh]);
+        let name = login.split('=').next().unwrap_or_default();
+        assert!(
+            answer.set_cookies.iter().any(|c| c.starts_with(&format!("{name}=;"))),
+            "{shape}: the login cookie is cleared: {:?}",
+            answer.set_cookies
+        );
+        sessions.push((access, refresh));
+    }
+
+    let (access, refresh) = sessions.swap_remove(0);
+    assert_eq!(graphql_with_cookie(&base, &access).await, reqwest::StatusCode::OK);
+    assert_eq!(
+        graphql_with_cookie(&base, &format!("{access}x")).await,
+        reqwest::StatusCode::UNAUTHORIZED,
+        "the access cookie is what /graphql checks"
+    );
+
+    let refreshed = session_route(&base, "refresh", &refresh).await;
+    assert_eq!(refreshed.status, reqwest::StatusCode::OK, "{}", refreshed.body);
+    let (next_access, next_refresh) = refreshed.session("refresh");
+    refreshed.assert_carries_none_of("refresh", &[&access, &refresh, &next_access, &next_refresh]);
+    assert_eq!(graphql_with_cookie(&base, &next_access).await, reqwest::StatusCode::OK);
+
+    let logout = session_route(&base, "logout", &next_refresh).await;
+    assert_eq!(logout.status, reqwest::StatusCode::NO_CONTENT, "{}", logout.body);
+    for name in [
+        fraiseql_auth::session_cookies::ACCESS_COOKIE,
+        fraiseql_auth::session_cookies::REFRESH_COOKIE,
+    ] {
+        assert!(
+            logout.set_cookies.iter().any(|c| c.starts_with(&format!("{name}=;"))),
+            "logout clears {name}: {:?}",
+            logout.set_cookies
+        );
+    }
+    let after = session_route(&base, "refresh", &next_refresh).await;
+    assert_eq!(after.status, reqwest::StatusCode::UNAUTHORIZED, "the session is over");
+
+    let _ = tx.send(());
+    let _ = handle.await;
+    drop_scratch(&url, db).await;
+}
+
+/// Cookie transport with no redirect allow-list would leave the callback nowhere to set
+/// the cookies but a body: the boot refuses it, naming both keys.
+#[tokio::test]
+async fn cookie_transport_with_no_redirect_allow_list_does_not_boot() {
+    let Some(url) = database_url_or_skip("cookie_transport_with_no_redirect_allow_list") else {
+        return;
+    };
+    set_test_env();
+    let db = "fraiseql_p26_social_cookie_refused";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let stub = stub_idp().await;
+    let mut schema = cookie_mode(&stub);
+    schema
+        .auth
+        .as_mut()
+        .and_then(|a| a.social.as_mut())
+        .expect("social")
+        .redirect_uri_allowlist = Vec::new();
+    let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));
+    let refused =
+        Box::pin(Server::new(social_config(&scratch_url), schema, adapter, Some(pool.clone())))
+            .await;
+    let Err(error) = refused else {
+        panic!("cookie transport with no redirect allow-list must refuse to boot");
+    };
+    let error = error.to_string();
+    assert!(
+        error.contains("[auth.session] transport") && error.contains("redirect_uri_allowlist"),
+        "the refusal names both keys: {error}"
+    );
+
+    pool.close().await;
     drop_scratch(&url, db).await;
 }
 

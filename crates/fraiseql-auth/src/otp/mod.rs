@@ -429,7 +429,7 @@ pub struct OtpRouteState {
     /// Who may sign in (`[auth.local] otp_allowed_query`, #1852). `None` admits every address
     /// and delivers on the request.
     pub allow_gate:      Option<OtpAllowGate>,
-    /// Cookie transport (`[auth.local] session_transport = "cookie"`): the session goes in
+    /// Cookie transport (`[auth.session] transport = "cookie"`): the session goes in
     /// `HttpOnly` cookies and no body carries a token. `None` answers with the tokens as
     /// `JSON`.
     pub session_cookies: Option<crate::SessionCookies>,

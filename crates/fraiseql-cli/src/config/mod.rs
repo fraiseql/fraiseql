@@ -169,6 +169,7 @@ const RETIRED_SPELLINGS: &[(&str, &str, Retired)] = &[
         ),
     ),
     ("project", "description", Retired::Unread),
+    ("auth.local", "session_transport", Retired::Write("`[auth.session] transport`")),
     ("", "naming_convention", Retired::Write("`[naming] convention`")),
     ("security.constant_time", "", Retired::Unread),
     (

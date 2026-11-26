@@ -95,8 +95,8 @@ the cookie to them and to nothing else: not to `/graphql`, and not to the sign-i
 
 By default every route above, and every sign-in, hands the tokens to the client in the `JSON`
 body, and the client sends the access token as a bearer token. A browser application then keeps
-both tokens where its own scripts can read them. `[auth.local] session_transport = "cookie"`
-keeps them in `HttpOnly` cookies instead:
+both tokens where its own scripts can read them. `[auth.session] transport = "cookie"` keeps
+them in `HttpOnly` cookies instead, for every sign-in FraiseQL serves itself:
 
 ```toml
 # fraiseql.toml
@@ -104,12 +104,15 @@ keeps them in `HttpOnly` cookies instead:
 password           = true
 email_from         = "support"
 reset_url_template = "https://app.example.com/reset?token={token}"
-session_transport  = "cookie"   # default: "json"
 
 [auth.session]
 ttl_secs          = 900
 absolute_ttl_secs = 2592000    # required by cookie transport
+transport         = "cookie"   # default: "json"
 ```
+
+The key was `[auth.local] session_transport`, which set the transport of the local sign-ins
+alone. The compiler refuses that spelling, naming this one.
 
 | Cookie | Holds | Attributes |
 |--------|-------|------------|
@@ -121,6 +124,14 @@ In cookie transport:
 - **Sign-in** (password signup and login, email `OTP` and magic link, `MFA` verify, anonymous
   sign-up) sets both cookies. The body is `{"expires_in": …}`, plus `user_id` for anonymous
   sign-up, and carries no token. An `MFA` challenge is not a session, and sets no cookie.
+- **Social and SAML sign-in** reach the server by a browser navigation, so they answer `303`
+  to the front end with both cookies, and neither the body nor the `Location` carries a token.
+  A social callback redirects to the `redirect_uri` its `authorize` bound, so cookie transport
+  requires `[auth.social] redirect_uri_allowlist`. The SAML ACS redirects to `[saml]
+  post_login_redirect_uri` in the server's configuration file, which cookie transport
+  requires; in `JSON` transport that key is refused, since the ACS answers in its body. A
+  user enrolled in `MFA` is redirected to the same page with
+  `#error=mfa_required&challenge_token=…`.
 - **Refresh** takes `{}` as its body, reads the refresh token from its cookie, and answers `200`
   with the next pair in the cookies and `{"expires_in": …}` as the body. The `409` and `401`
   answers set no cookie. A refresh token sent in the body is still accepted, and answered in
@@ -138,6 +149,19 @@ absolute_ttl_secs`, because that is what mounts the logout route, and nothing el
 
 The `Secure` attribute means a browser stores the cookies only over `HTTPS`, or from
 `http://localhost`.
+
+**The front end must be on the same site as the API** (the same registrable domain, for
+instance `app.example.com` and `api.example.com`). `SameSite=Strict` keeps the cookies off any
+request another site starts, and that includes the requests of a front end on another site.
+
+**The first page after a social or SAML sign-in loads without the cookies.** That navigation
+began at the provider, on another site, and a browser does not send `SameSite=Strict` cookies
+on a navigation another site started, redirects included ([RFC 6265bis][samesite]). The page's
+own requests to the API carry them. So the post-login page must not need the session to load:
+let it load, then call the API, for instance `/graphql`, to learn who signed in. The `OIDC`
+callback's cookie has the same first load.
+
+[samesite]: https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#name-the-samesite-attribute-2
 
 ### What stops another site using the cookies
 

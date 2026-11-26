@@ -818,6 +818,7 @@ impl Server {
                         auth_pool.clone(),
                         executor.schema().tenant_claim(),
                         session_lifetime,
+                        session_cookies,
                     ))
                     .await?,
                 )
@@ -952,9 +953,33 @@ impl Server {
                 // requires this pool, so it adds no infrastructure. Its table is the SAML
                 // capability's provisioning step.
                 let replay_store = Arc::new(fraiseql_auth::PgSamlReplayStore::new(pool.clone()));
-                let state = fraiseql_auth::saml::SamlAuthState::new(state_store, session_store)
+                let mut state = fraiseql_auth::saml::SamlAuthState::new(state_store, session_store)
                     .with_user_store(account_store)
                     .with_replay_store(replay_store);
+                match (session_cookies, saml_cfg.post_login_redirect_uri.clone()) {
+                    (Some(cookies), Some(redirect)) => {
+                        state = state.with_cookie_delivery(cookies, redirect);
+                    },
+                    (Some(_), None) => {
+                        return Err(ServerError::ConfigError(
+                            "[auth.session] transport = \"cookie\" requires [saml] \
+                             post_login_redirect_uri: the ACS sets the session cookies on its \
+                             redirect to the front end, and needs that page to send the \
+                             browser to"
+                                .to_string(),
+                        ));
+                    },
+                    (None, Some(_)) => {
+                        return Err(ServerError::ConfigError(
+                            "[saml] post_login_redirect_uri is read only in cookie transport \
+                             ([auth.session] transport = \"cookie\"): in JSON transport the \
+                             ACS answers the tokens in its body. Remove the key, or set the \
+                             transport"
+                                .to_string(),
+                        ));
+                    },
+                    (None, None) => {},
+                }
                 // This SP's own key material (#948) — one pair for the whole deployment, so
                 // stored IdPs get signing and decryption without private keys ever living
                 // in a database row.
@@ -1760,8 +1785,18 @@ impl Server {
         db_pool: Option<sqlx::PgPool>,
         tenant_claim: &str,
         lifetime: fraiseql_auth::SessionLifetime,
+        session_cookies: Option<fraiseql_auth::SessionCookies>,
     ) -> Result<Arc<fraiseql_auth::MultiProviderAuthState>> {
         use fraiseql_auth::provider::OAuthProvider;
+        use fraiseql_core::schema::SessionTransport;
+
+        // The compiler runs the same check; this one covers a hand-written schema.
+        let transport = if session_cookies.is_some() {
+            SessionTransport::Cookie
+        } else {
+            SessionTransport::Json
+        };
+        social.check_transport(transport).map_err(ServerError::ConfigError)?;
 
         let issuer = issuer.ok_or_else(|| {
             ServerError::ConfigError(
@@ -1934,7 +1969,8 @@ impl Server {
         let state_store = Arc::new(fraiseql_auth::InMemoryStateStore::new());
         let mut state = fraiseql_auth::MultiProviderAuthState::new(state_store, session_store)
             .with_user_store(account_store)
-            .with_redirect_uri_allowlist(social.redirect_uri_allowlist.clone());
+            .with_redirect_uri_allowlist(social.redirect_uri_allowlist.clone())
+            .with_session_cookies(session_cookies);
         let names: Vec<&str> = providers.iter().map(|(n, _)| *n).collect();
         for (name, provider) in providers {
             state.register_provider(name, provider);

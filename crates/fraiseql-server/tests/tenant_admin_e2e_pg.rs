@@ -156,6 +156,7 @@ impl Rig {
             admin_token: Some(ADMIN_TOKEN.to_string()),
             database_url: scratch_url.clone(),
             saml: Some(SamlServerConfig {
+                post_login_redirect_uri: None,
                 idps: std::collections::HashMap::new(),
                 store_enabled: true,
                 refresh_interval_secs: 30,

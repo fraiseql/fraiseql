@@ -27,6 +27,7 @@ use crate::{
     handlers::generate_secure_state,
     login_binding,
     session::{SessionStore, unix_now},
+    session_cookies::SessionCookies,
     state_store::StateStore,
 };
 
@@ -53,17 +54,20 @@ const SESSION_TTL_SECS: u64 = 7 * 24 * 60 * 60;
 #[derive(Clone)]
 pub struct SamlAuthState {
     /// Config-file and stored IdPs, and the tenant-scoped resolution between them (#947).
-    registry:      SamlIdpRegistry,
+    registry:        SamlIdpRegistry,
     /// CSRF/`RelayState` store (in-memory or Redis) — also binds the in-flight request ID.
-    state_store:   Arc<dyn StateStore>,
+    state_store:     Arc<dyn StateStore>,
     /// Session backend used to mint tokens after a verified assertion.
-    session_store: Arc<dyn SessionStore>,
+    session_store:   Arc<dyn SessionStore>,
     /// Account store for resolving the assertion to a stable local user. When absent the
     /// raw `"saml:<idp>:<NameID>"` is used as the user ID.
-    user_store:    Option<Arc<dyn AccountStore>>,
+    user_store:      Option<Arc<dyn AccountStore>>,
     /// Single-use assertion replay store. In-process by default; the server swaps in
     /// the Postgres-backed store so replay protection holds across replicas (#949).
-    replay:        Arc<dyn SamlReplayStore>,
+    replay:          Arc<dyn SamlReplayStore>,
+    /// Cookie transport: the session cookies, and the front-end page the ACS sends the
+    /// browser to with them. `None` in `JSON` transport.
+    cookie_delivery: Option<(SessionCookies, String)>,
 }
 
 impl SamlAuthState {
@@ -76,7 +80,22 @@ impl SamlAuthState {
             session_store,
             user_store: None,
             replay: Arc::new(SamlReplayCache::new()),
+            cookie_delivery: None,
         }
+    }
+
+    /// Deliver sessions in cookies (`[auth.session] transport = "cookie"`): the ACS
+    /// answers `303` to `post_login_redirect_uri` with the session cookies, and neither the
+    /// body nor the `Location` carries a token. A sign-in that needs a second factor is
+    /// sent there too, with its challenge in the fragment.
+    #[must_use]
+    pub fn with_cookie_delivery(
+        mut self,
+        cookies: SessionCookies,
+        post_login_redirect_uri: String,
+    ) -> Self {
+        self.cookie_delivery = Some((cookies, post_login_redirect_uri));
+        self
     }
 
     /// Swap in a shared replay store.
@@ -444,6 +463,15 @@ async fn complete_acs(state: &SamlAuthState, form: AcsForm, headers: &HeaderMap)
     {
         Ok(tokens) => tokens,
         Err(e) => {
+            if let (crate::AuthError::SecondFactorRequired { challenge }, Some((_, redirect))) =
+                (&e, &state.cookie_delivery)
+            {
+                return Redirect::to(&format!(
+                    "{redirect}#error=mfa_required&challenge_token={}",
+                    urlencoding::encode(challenge.expose())
+                ))
+                .into_response();
+            }
             if let Some(resp) = crate::totp_mfa::second_factor_response(&e) {
                 return resp;
             }
@@ -458,6 +486,10 @@ async fn complete_acs(state: &SamlAuthState, form: AcsForm, headers: &HeaderMap)
         Some(local_user_id),
         &format!("saml_acs:{idp_name}"),
     );
+
+    if let Some((cookies, redirect)) = &state.cookie_delivery {
+        return crate::session_cookies::redirect_with_cookies(cookies, &session, redirect);
+    }
 
     Json(serde_json::json!({
         "access_token":  session.access_token,

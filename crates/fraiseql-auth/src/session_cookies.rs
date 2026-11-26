@@ -1,4 +1,4 @@
-//! Sessions delivered in `HttpOnly` cookies (`[auth.local] session_transport = "cookie"`).
+//! Sessions delivered in `HttpOnly` cookies (`[auth.session] transport = "cookie"`).
 //!
 //! In cookie transport no response body carries a token, so a script running in the page
 //! cannot read one:
@@ -104,6 +104,27 @@ pub fn with_cookies(
         return (StatusCode::INTERNAL_SERVER_ERROR, "session delivery failed").into_response();
     };
     let mut response = (StatusCode::OK, Json(body)).into_response();
+    let headers = response.headers_mut();
+    headers.append(header::SET_COOKIE, access);
+    headers.append(header::SET_COOKIE, refresh);
+    response
+}
+
+/// The `303` that sends the browser to `location` with the cookies holding `pair`.
+///
+/// How a social callback or the `SAML` ACS, which the browser reaches by navigating, hands
+/// it a session in cookie transport. Neither the body nor `location` carries a token.
+#[must_use]
+pub fn redirect_with_cookies(
+    cookies: &SessionCookies,
+    pair: &TokenPair,
+    location: &str,
+) -> Response {
+    let Some([access, refresh]) = cookies.set(pair) else {
+        tracing::error!("a minted token holds a byte no cookie value may carry");
+        return (StatusCode::INTERNAL_SERVER_ERROR, "session delivery failed").into_response();
+    };
+    let mut response = axum::response::Redirect::to(location).into_response();
     let headers = response.headers_mut();
     headers.append(header::SET_COOKIE, access);
     headers.append(header::SET_COOKIE, refresh);

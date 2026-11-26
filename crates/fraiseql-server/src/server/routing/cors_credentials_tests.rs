@@ -1,6 +1,6 @@
 //! The CORS layer never lets a browser send credentials cross-origin.
 //!
-//! `[auth.local] session_transport = "cookie"` makes the session cookie a credential on
+//! `[auth.session] transport = "cookie"` makes the session cookie a credential on
 //! `/graphql`. A credentialed cross-origin request is sent only when the preflight
 //! answers `Access-Control-Allow-Credentials: true`, and the server never sends it, so a
 //! page on another origin cannot make a request that carries the cookie and read the

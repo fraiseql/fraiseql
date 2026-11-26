@@ -108,7 +108,7 @@ impl AnonSignupState {
         }
     }
 
-    /// Deliver the session in cookies (`[auth.local] session_transport = "cookie"`).
+    /// Deliver the session in cookies (`[auth.session] transport = "cookie"`).
     #[must_use]
     pub const fn with_session_cookies(mut self, cookies: Option<crate::SessionCookies>) -> Self {
         self.session_cookies = cookies;

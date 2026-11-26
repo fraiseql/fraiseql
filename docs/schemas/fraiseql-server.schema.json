@@ -1267,6 +1267,14 @@
             }
           ],
           "default": null
+        },
+        "post_login_redirect_uri": {
+          "description": "The front-end page the ACS sends the browser to after a sign-in, with the session\nin cookies. Required in cookie transport (`[auth.session] transport = \"cookie\"`),\nrefused in `JSON` transport, where the ACS answers the tokens in its body.\n\nThe one allow-listed redirect: the ACS never takes a target from the request. An\nabsolute `https` URL (`http` only on a loopback host), with no fragment.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
         }
       },
       "additionalProperties": false

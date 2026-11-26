@@ -978,13 +978,13 @@ fn a_body_written_inline_is_refused() {
     assert!(err.contains("text_template"), "{err}");
 }
 
-// ── [auth.local] session_transport (#1856) ─────────────────────────────────────────────
+// ── [auth.session] transport (#1856) ──────────────────────────────────────────────────
 
-/// Compile an `OTP` `[auth.local]` block with `transport` appended, and `session` as the
-/// whole `[auth.session]` section (empty: none).
+/// Compile an `OTP` `[auth.local]` block with `local` appended, and `rest` after it: the
+/// `[auth.session]` section and anything else (empty: none).
 fn merge_transport(
-    transport: &str,
-    session: &str,
+    local: &str,
+    rest: &str,
 ) -> anyhow::Result<fraiseql_cli::schema::IntermediateSchema> {
     let mut f = NamedTempFile::new().unwrap();
     write!(
@@ -999,9 +999,9 @@ fn merge_transport(
         [auth.local]
         otp = true
         email_from = "support"
-        {transport}
+        {local}
 
-        {session}
+        {rest}
     "#
     )
     .unwrap();
@@ -1009,49 +1009,91 @@ fn merge_transport(
     SchemaMerger::merge_toml_only(f.path().to_str().unwrap())
 }
 
+fn refused(local: &str, rest: &str) -> String {
+    merge_transport(local, rest)
+        .err()
+        .map_or_else(|| panic!("{local:?} with {rest:?} must be refused"), |e| format!("{e:#}"))
+}
+
 const REFRESHABLE: &str = "[auth.session]\nttl_secs = 900\nabsolute_ttl_secs = 86400";
 
-fn transport_of(transport: &str, session: &str) -> fraiseql_core::schema::SessionTransport {
-    let intermediate = merge_transport(transport, session).unwrap();
+fn session_with(transport: &str) -> String {
+    format!("{REFRESHABLE}\ntransport = \"{transport}\"")
+}
+
+const SOCIAL: &str = r#"
+        [auth.social.google]
+        client_id         = "google-client-id"
+        client_secret_env = "GOOGLE_CLIENT_SECRET"
+        redirect_uri      = "https://api.example.com/auth/v1/callback"
+"#;
+
+fn transport_of(rest: &str) -> fraiseql_core::schema::SessionTransport {
+    let intermediate = merge_transport("", rest).unwrap();
     let compiled = SchemaConverter::convert(intermediate).expect("convert to compiled schema");
-    compiled.auth.and_then(|a| a.local).expect("auth.local").session_transport
+    compiled.auth.and_then(|a| a.session).map(|s| s.transport).unwrap_or_default()
 }
 
 #[test]
-fn session_transport_reaches_the_compiled_schema() {
+fn the_session_transport_reaches_the_compiled_schema() {
     use fraiseql_core::schema::SessionTransport;
 
-    assert_eq!(transport_of("", ""), SessionTransport::Json, "the default");
-    assert_eq!(transport_of(r#"session_transport = "json""#, ""), SessionTransport::Json);
-    assert_eq!(
-        transport_of(r#"session_transport = "cookie""#, REFRESHABLE),
-        SessionTransport::Cookie
-    );
+    assert_eq!(transport_of(""), SessionTransport::Json, "the default");
+    assert_eq!(transport_of(REFRESHABLE), SessionTransport::Json, "the default");
+    assert_eq!(transport_of(&session_with("json")), SessionTransport::Json);
+    assert_eq!(transport_of(&session_with("cookie")), SessionTransport::Cookie);
 }
 
 #[test]
-fn session_transport_refuses_an_unknown_value() {
-    let err = merge_transport(r#"session_transport = "header""#, REFRESHABLE)
-        .err()
-        .map(|e| format!("{e:#}"))
-        .expect("an unknown transport must be refused");
-    assert!(err.contains("header") || err.contains("session_transport"), "{err}");
+fn the_session_transport_refuses_an_unknown_value() {
+    let err = refused("", &session_with("header"));
+    assert!(err.contains("header") || err.contains("transport"), "{err}");
 }
 
 /// Without `absolute_ttl_secs` no logout route is mounted, and nothing could ever clear
 /// an `HttpOnly` cookie.
 #[test]
 fn cookie_transport_without_a_refresh_limit_is_refused() {
-    for session in ["", "[auth.session]\nttl_secs = 900"] {
-        let err = merge_transport(r#"session_transport = "cookie""#, session).err().map_or_else(
-            || panic!("cookie transport under {session:?} must be refused"),
-            |e| format!("{e:#}"),
-        );
+    for session in [
+        "[auth.session]\ntransport = \"cookie\"",
+        "[auth.session]\nttl_secs = 900\ntransport = \"cookie\"",
+    ] {
+        let err = refused("", session);
         assert!(
-            err.contains("session_transport") && err.contains("absolute_ttl_secs"),
+            err.contains("[auth.session] transport") && err.contains("absolute_ttl_secs"),
             "{session:?}: the refusal names both keys: {err}"
         );
     }
+}
+
+/// The key moved: `[auth.local]` set only its own sign-ins' transport, and now one key
+/// sets it for every sign-in.
+#[test]
+fn the_local_session_transport_is_refused_naming_where_it_moved() {
+    for value in ["cookie", "json"] {
+        let err = refused(&format!("session_transport = \"{value}\""), &session_with(value));
+        assert!(
+            err.contains("session_transport") && err.contains("[auth.session] transport"),
+            "{value}: {err}"
+        );
+    }
+}
+
+/// A social callback sets the cookies on its redirect to the front end, so cookie
+/// transport needs an allow-listed redirect.
+#[test]
+fn cookie_transport_with_social_sign_in_needs_a_redirect_allow_list() {
+    let err = refused("", &format!("{}\n{SOCIAL}", session_with("cookie")));
+    assert!(
+        err.contains("[auth.session] transport") && err.contains("redirect_uri_allowlist"),
+        "the refusal names both keys: {err}"
+    );
+    merge_transport("", &format!("{}\n{SOCIAL}", session_with("json"))).expect("JSON transport");
+    let allow_listed = format!(
+        "{}\n[auth.social]\nredirect_uri_allowlist = [\"https://app.example.com\"]\n{SOCIAL}",
+        session_with("cookie")
+    );
+    merge_transport("", &allow_listed).expect("an allow-listed redirect");
 }
 
 // ── #1965: [auth.database] ───────────────────────────────────────────────────

@@ -741,6 +741,7 @@ async fn a_password_session_refreshes() {
         ..LocalAuthConfig::default()
     });
     auth.session = Some(SessionConfig {
+        transport:         fraiseql_core::schema::SessionTransport::Json,
         ttl_secs:          Some(900),
         absolute_ttl_secs: Some(86_400),
     });

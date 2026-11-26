@@ -67,7 +67,7 @@ pub struct LocalPasswordRouteState {
     /// configured rules do. Two limiters on one route meant the stricter, fixed
     /// one silently overrode the operator's setting.
     pub rate_limiters:   Option<Arc<RateLimiters>>,
-    /// Cookie transport (`[auth.local] session_transport = "cookie"`): the session goes in
+    /// Cookie transport (`[auth.session] transport = "cookie"`): the session goes in
     /// `HttpOnly` cookies and no body carries a token. `None` answers with the tokens as
     /// `JSON`.
     pub session_cookies: Option<crate::SessionCookies>,

@@ -102,6 +102,24 @@ let saml_state = SamlAuthState::new(state_store, session_store)
 // mount fraiseql_auth::saml::saml_routes(saml_state)
 ```
 
+### Cookie transport
+
+By default the ACS answers the session in its `JSON` body. With `[auth.session] transport =
+"cookie"` in `fraiseql.toml` it answers `303` to the front end with the session in `HttpOnly`
+cookies, and the server needs the page to send the browser to:
+
+```toml
+# server.toml
+[saml]
+post_login_redirect_uri = "https://app.example.com/signed-in"
+```
+
+The ACS never takes a redirect target from the request: this page is the only one. It must be
+an absolute `https` URL (`http` only on a loopback host) with no fragment. Cookie transport
+without it refuses to boot, and so does the key in `JSON` transport. See
+[cookie transport](sessions.md#cookie-transport) for the cookies, the same-site requirement
+and the first page load.
+
 ### Per-tenant IdP store (#947)
 
 `[saml.idps.*]` is resolved once at boot, so adding or rotating an IdP needs a restart and

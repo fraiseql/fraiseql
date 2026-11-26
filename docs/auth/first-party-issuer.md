@@ -92,7 +92,7 @@ confirmation and removal, and email verification) accept only the sessions this 
 
 The `__Host-access_token` cookie: the provider's sign-in sets it, so with `[auth]` every route
 that accepts the cookie reads it, as without `[auth_issuer]`. The server puts one of its own
-sessions in it only in cookie transport (`[auth.local] session_transport = "cookie"`). In
+sessions in it only in cookie transport (`[auth.session] transport = "cookie"`). In
 `json` transport, a session of its own arriving in the cookie is refused on every route, and
 without `[auth]` the cookie is not read at all.
 

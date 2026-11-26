@@ -59,7 +59,7 @@ crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth.social.apple] nee
 crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth.social.{provider}] {field} must not be empty. | [auth.social.*] * | value check: an empty provider field
 crates/fraiseql-cli/src/config/toml_schema/security.rs | session.check().map_err(|message| anyhow::anyhow!(message))?; | [auth.session] | value check: the session settings' own check
 crates/fraiseql-cli/src/config/toml_schema/security.rs | database.check().map_err(|message| anyhow::anyhow!(message))?; | [auth.database] | value check: the auth database settings' own check
-crates/fraiseql-cli/src/config/toml_schema/security.rs | .map_err(|message| anyhow::anyhow!(message))?; | [auth.local] session transport | value check: the local sign-in's session transport check
+crates/fraiseql-cli/src/config/toml_schema/security.rs | social.check_transport(transport).map_err(|message| anyhow::anyhow!(message))?; | [auth.social] redirect_uri_allowlist | a key one setting requires (cookie transport), not a refused key
 crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth.local] is configured but enables no method. Set at lea | [auth.local] | value check: a section enabling no method
 crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth.local] email_verification = true needs password = true | [auth.local] email_verification | a key another requires (password = true), not a refused key
 crates/fraiseql-cli/src/config/toml_schema/security.rs | [auth.local] email_verification = true needs verification_ur | [auth.local] verification_url_template | a key one setting requires (email_verification), not a refused key

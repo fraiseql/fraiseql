@@ -1496,6 +1496,17 @@ disagreed, and the promise was the part that was wrong.
   client and opened the provider's page in a browser must now send the browser to that URL
   itself. A login in flight across the upgrade is refused and is started again.
 
+- **Cookie transport covers social and SAML sign-in, and its key moved to `[auth.session]
+  transport` (#1935).** `[auth.local] session_transport` set the transport of the local
+  sign-ins alone, so a social or SAML sign-in still put its tokens in a body or a fragment.
+  `[auth.session] transport = "cookie"` now sets it for every sign-in the server serves. A
+  social callback answers `303` to its bound `redirect_uri` with the session cookies and no
+  tokens in the fragment, and requires `[auth.social] redirect_uri_allowlist`. The SAML ACS
+  answers `303` to the new `[saml] post_login_redirect_uri` (server configuration) with the
+  cookies, and requires it; that key is refused in `JSON` transport. Each requirement refuses
+  the compile or the boot naming its key. Move `session_transport` from `[auth.local]` to
+  `[auth.session]` as `transport`: the compiler refuses the old spelling, naming the new one.
+
 ### Added
 
 - **Accent-insensitive string filters (#1607).** A schema that declares

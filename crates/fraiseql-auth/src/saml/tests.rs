@@ -1296,72 +1296,10 @@ impl crate::AccessTokenSigner for UnpublishedKeySigner {
 /// An ACS for a user enrolled in `MFA` yields a challenge, not a session. Needs PostgreSQL:
 /// the second factor is required where every sign-in path mints its session.
 #[tokio::test]
-#[allow(clippy::print_stderr)] // Reason: the skip without a database says so, as every PostgreSQL test here does
 async fn acs_for_an_mfa_user_yields_a_challenge() {
-    use axum::{extract::Form, response::IntoResponse};
-
-    use crate::{MfaStore as _, PgMfaStore, PostgresSessionStore};
-
-    let Some(url) = fraiseql_test_support::try_database_url() else {
-        eprintln!("skipping acs_for_an_mfa_user_yields_a_challenge: DATABASE_URL not set");
+    let Some(resp) = acs_for_an_mfa_user(|state| state).await else {
         return;
     };
-    let pool = sqlx::PgPool::connect(&url).await.unwrap();
-    let sessions = PostgresSessionStore::with_signer(pool.clone(), Arc::new(UnpublishedKeySigner));
-    sessions.init().await.unwrap();
-    let mfa = PgMfaStore::new(pool.clone());
-    mfa.init().await.unwrap();
-
-    let test_idp = new_idp();
-    let accounts = Arc::new(InMemoryAccountStore::new());
-    let user = accounts
-        .link_or_create_user(None, None, false, &saml_provider_key("test-idp"), "nameid-mfa")
-        .await
-        .unwrap()
-        .user_id;
-    sqlx::query("DELETE FROM auth.tb_mfa_enrollment WHERE user_id = $1")
-        .bind(&user)
-        .execute(&pool)
-        .await
-        .unwrap();
-    let enrolled = mfa.begin_enrollment(&user, "FraiseQL", "u@example.com", None).await.unwrap();
-    let code = totp_rs::TOTP::new(
-        totp_rs::Algorithm::SHA1,
-        6,
-        1,
-        30,
-        totp_rs::Secret::Encoded(enrolled.secret_base32).to_bytes().unwrap(),
-        None,
-        String::new(),
-    )
-    .unwrap()
-    .generate_current()
-    .unwrap();
-    mfa.confirm_enrollment(&user, &code).await.unwrap();
-
-    let state_store = Arc::new(InMemoryStateStore::new());
-    let state = SamlAuthState::new(state_store.clone(), Arc::new(sessions))
-        .with_idp(config_with_cert(&test_idp.cert))
-        .with_user_store(accounts);
-    let relay = "relay-mfa".to_string();
-    let now = crate::session::unix_now().unwrap();
-    let (binding, headers) = bound(&relay);
-    state_store
-        .store(relay.clone(), format!("{binding}\ntest-idp\n\n{REQ_ID}"), now + 600)
-        .await
-        .unwrap();
-    let b64 = signed_response(&test_idp, "nameid-mfa", SP_ENTITY, SP_ACS, REQ_ID, &[]);
-
-    let resp = saml_acs(
-        axum::extract::State(state),
-        headers.clone(),
-        Form(AcsForm {
-            saml_response: b64,
-            relay_state:   relay,
-        }),
-    )
-    .await
-    .into_response();
     let status = resp.status();
     let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap_or_default();
@@ -1371,6 +1309,38 @@ async fn acs_for_an_mfa_user_yields_a_challenge() {
     );
     assert_eq!(status, axum::http::StatusCode::UNAUTHORIZED, "{json}");
     assert_eq!(json["error"], "mfa_required", "{json}");
+}
+
+/// In cookie transport an MFA user's ACS sends the browser to the post-login page with the
+/// challenge in the fragment, as a social sign-in does, and sets no session cookie.
+#[tokio::test]
+async fn in_cookie_transport_an_mfa_users_acs_redirects_with_the_challenge() {
+    let cookies = crate::SessionCookies {
+        refresh_max_age_secs: 86_400,
+    };
+    let redirect = "https://app.example.com/signed-in".to_string();
+    let Some(resp) =
+        acs_for_an_mfa_user(|state| state.with_cookie_delivery(cookies, redirect)).await
+    else {
+        return;
+    };
+    assert_eq!(resp.status(), axum::http::StatusCode::SEE_OTHER);
+    let location = resp.headers()[axum::http::header::LOCATION].to_str().unwrap();
+    assert!(
+        location
+            .starts_with("https://app.example.com/signed-in#error=mfa_required&challenge_token="),
+        "{location}"
+    );
+    let session_cookie = resp
+        .headers()
+        .get_all(axum::http::header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .any(|c| {
+            c.starts_with(crate::session_cookies::ACCESS_COOKIE)
+                || c.starts_with(crate::session_cookies::REFRESH_COOKIE)
+        });
+    assert!(!session_cookie, "a challenge is not a session");
 }
 
 /// A signed response whose assertion's `Conditions/NotOnOrAfter` is `seconds` from the
@@ -1436,4 +1406,79 @@ async fn an_assertion_valid_past_the_calendar_is_refused() {
     )
     .await;
     assert!(matches!(result, Err(SamlError::Malformed(_))), "got {result:?}");
+}
+
+/// The ACS's answer to a signed response for a user enrolled in MFA, with the state
+/// `configure` finishes; `None` without a database.
+#[allow(clippy::print_stderr)] // Reason: the skip without a database says so, as every PostgreSQL test here does
+async fn acs_for_an_mfa_user(
+    configure: impl FnOnce(SamlAuthState) -> SamlAuthState,
+) -> Option<axum::response::Response> {
+    use axum::{extract::Form, response::IntoResponse};
+
+    use crate::{MfaStore as _, PgMfaStore, PostgresSessionStore};
+
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping acs_for_an_mfa_user: DATABASE_URL not set");
+        return None;
+    };
+    let pool = sqlx::PgPool::connect(&url).await.unwrap();
+    let sessions = PostgresSessionStore::with_signer(pool.clone(), Arc::new(UnpublishedKeySigner));
+    sessions.init().await.unwrap();
+    let mfa = PgMfaStore::new(pool.clone());
+    mfa.init().await.unwrap();
+
+    let test_idp = new_idp();
+    let accounts = Arc::new(InMemoryAccountStore::new());
+    let user = accounts
+        .link_or_create_user(None, None, false, &saml_provider_key("test-idp"), "nameid-mfa")
+        .await
+        .unwrap()
+        .user_id;
+    sqlx::query("DELETE FROM auth.tb_mfa_enrollment WHERE user_id = $1")
+        .bind(&user)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let enrolled = mfa.begin_enrollment(&user, "FraiseQL", "u@example.com", None).await.unwrap();
+    let code = totp_rs::TOTP::new(
+        totp_rs::Algorithm::SHA1,
+        6,
+        1,
+        30,
+        totp_rs::Secret::Encoded(enrolled.secret_base32).to_bytes().unwrap(),
+        None,
+        String::new(),
+    )
+    .unwrap()
+    .generate_current()
+    .unwrap();
+    mfa.confirm_enrollment(&user, &code).await.unwrap();
+
+    let state_store = Arc::new(InMemoryStateStore::new());
+    let state = configure(
+        SamlAuthState::new(state_store.clone(), Arc::new(sessions))
+            .with_idp(config_with_cert(&test_idp.cert))
+            .with_user_store(accounts),
+    );
+    let relay = "relay-mfa".to_string();
+    let now = crate::session::unix_now().unwrap();
+    let (binding, headers) = bound(&relay);
+    state_store
+        .store(relay.clone(), format!("{binding}\ntest-idp\n\n{REQ_ID}"), now + 600)
+        .await
+        .unwrap();
+    let b64 = signed_response(&test_idp, "nameid-mfa", SP_ENTITY, SP_ACS, REQ_ID, &[]);
+
+    let resp = saml_acs(
+        axum::extract::State(state),
+        headers.clone(),
+        Form(AcsForm {
+            saml_response: b64,
+            relay_state:   relay,
+        }),
+    )
+    .await
+    .into_response();
+    Some(resp)
 }

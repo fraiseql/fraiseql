@@ -203,7 +203,7 @@ pub struct Server {
     /// `[auth.session] absolute_ttl_secs` opts in to refresh.
     #[cfg(feature = "auth")]
     pub(super) session_routes_store: Option<Arc<fraiseql_auth::PostgresSessionStore>>,
-    /// Cookie transport (`[auth.local] session_transport = "cookie"`, #1856): the session
+    /// Cookie transport (`[auth.session] transport = "cookie"`, #1856): the session
     /// routes read and set the cookies, and the session layer reads the access cookie on the
     /// mounts that refuse a non-`JSON` body. `None` in the default `json` transport.
     #[cfg(feature = "auth")]

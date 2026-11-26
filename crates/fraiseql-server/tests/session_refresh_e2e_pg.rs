@@ -12,9 +12,9 @@
 //!   session already passed
 //! - logout ends the session; the access token it already issued lives on unless
 //!   `[security.token_revocation]` is configured
-//! - with `[auth.local] session_transport = "cookie"` (#1856), every local sign-in, refresh and
-//!   logout carries the session in `HttpOnly` cookies and no body carries a token; the access
-//!   cookie is a credential only on routes that refuse a non-`JSON` body
+//! - with `[auth.session] transport = "cookie"` (#1856), every local sign-in, refresh and logout
+//!   carries the session in `HttpOnly` cookies and no body carries a token; the access cookie is a
+//!   credential only on routes that refuse a non-`JSON` body
 //!
 //! Time is never faked. The 10-second boundary is pinned by moving a row's server-side
 //! `rotated_at` back, and the absolute limit by moving its `expires_at`. One test sleeps
@@ -157,6 +157,7 @@ fn schema_with(session: Option<SessionConfig>) -> CompiledSchema {
 
 fn refreshable() -> CompiledSchema {
     schema_with(Some(SessionConfig {
+        transport:         fraiseql_core::schema::SessionTransport::Json,
         ttl_secs:          Some(TTL),
         absolute_ttl_secs: Some(ABSOLUTE),
     }))
@@ -1075,6 +1076,7 @@ async fn sleeps_two_minutes_access_ends_at_ttl_plus_the_leeway_and_refresh_conti
 
     let db = "fraiseql_session_expiry";
     let schema = schema_with(Some(SessionConfig {
+        transport:         fraiseql_core::schema::SessionTransport::Json,
         ttl_secs:          Some(SHORT_TTL),
         absolute_ttl_secs: Some(3_600),
     }));
@@ -1159,6 +1161,7 @@ async fn a_session_section_that_could_not_work_does_not_boot() {
     let scratch_url = with_database(&url, db);
 
     let short = schema_with(Some(SessionConfig {
+        transport:         fraiseql_core::schema::SessionTransport::Json,
         ttl_secs:          Some(59),
         absolute_ttl_secs: None,
     }));
@@ -1168,6 +1171,7 @@ async fn a_session_section_that_could_not_work_does_not_boot() {
         ..LocalAuthConfig::default()
     });
     let unbounded = schema_with(Some(SessionConfig {
+        transport:         fraiseql_core::schema::SessionTransport::Json,
         ttl_secs:          None,
         absolute_ttl_secs: Some(ABSOLUTE),
     }));
@@ -1197,11 +1201,16 @@ async fn a_session_section_that_could_not_work_does_not_boot() {
 const ACCESS_COOKIE: &str = "__Host-access_token";
 const REFRESH_COOKIE: &str = "__Secure-refresh_token";
 
-/// Every local sign-in method, refreshable, with `session_transport = "cookie"`.
+/// Every local sign-in method, refreshable, with `[auth.session] transport = "cookie"`.
 fn cookie_mode() -> CompiledSchema {
     let mut schema = refreshable();
+    schema
+        .auth
+        .as_mut()
+        .and_then(|a| a.session.as_mut())
+        .expect("[auth.session]")
+        .transport = SessionTransport::Cookie;
     let local = schema.auth.as_mut().and_then(|a| a.local.as_mut()).expect("[auth.local]");
-    local.session_transport = SessionTransport::Cookie;
     local.anonymous = true;
     local.email_verification = true;
     local.verification_url_template =
@@ -1685,7 +1694,7 @@ async fn cookie_transport_that_could_not_be_safe_does_not_boot() {
         };
         let error = error.to_string();
         assert!(
-            error.contains(names) && error.contains("session_transport"),
+            error.contains(names) && error.contains("[auth.session] transport"),
             "{what}: the refusal names both keys: {error}"
         );
     }

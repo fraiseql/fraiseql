@@ -428,8 +428,8 @@ pub async fn refuse_stranded_mfa_enrollments(pool: &sqlx::PgPool) -> Result<()> 
     }
 }
 
-/// Cookie transport's settings (`[auth.local] session_transport = "cookie"`, #1856), or
-/// `None` in the default `json` transport.
+/// Cookie transport's settings (`[auth.session] transport = "cookie"`), or `None` in the
+/// default `json` transport.
 ///
 /// # Errors
 ///
@@ -441,27 +441,26 @@ pub fn session_cookies(
     auth: Option<&fraiseql_core::schema::AuthClientConfig>,
     config: &ServerConfig,
 ) -> Result<Option<fraiseql_auth::SessionCookies>> {
-    let Some(local) = auth.and_then(|a| a.local.as_ref()) else {
+    let Some(session) = auth.and_then(|a| a.session.as_ref()) else {
         return Ok(None);
     };
-    let session = auth.and_then(|a| a.session.as_ref());
-    local.check_session_transport(session).map_err(ServerError::ConfigError)?;
-    if local.session_transport.is_json() {
+    session.check().map_err(ServerError::ConfigError)?;
+    if session.transport.is_json() {
         return Ok(None);
     }
     if !config.require_json_content_type {
         return Err(ServerError::ConfigError(
-            "[auth.local] session_transport = \"cookie\" requires require_json_content_type = \
+            "[auth.session] transport = \"cookie\" requires require_json_content_type = \
              true: the session cookie is a credential on /graphql, and that check is what \
              refuses a form another site posts there"
                 .to_string(),
         ));
     }
-    Ok(session.and_then(|s| s.absolute_ttl_secs).map(|refresh_max_age_secs| {
-        fraiseql_auth::SessionCookies {
+    Ok(session
+        .absolute_ttl_secs
+        .map(|refresh_max_age_secs| fraiseql_auth::SessionCookies {
             refresh_max_age_secs,
-        }
-    }))
+        }))
 }
 
 /// Build every state `[auth.local]` enables.

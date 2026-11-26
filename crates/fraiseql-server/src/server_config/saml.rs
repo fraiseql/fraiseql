@@ -56,6 +56,15 @@ pub struct SamlServerConfig {
     /// [`SamlSpKeyConfig::sign_authn_requests`].
     #[serde(default)]
     pub sp: Option<SamlSpKeyConfig>,
+
+    /// The front-end page the ACS sends the browser to after a sign-in, with the session
+    /// in cookies. Required in cookie transport (`[auth.session] transport = "cookie"`),
+    /// refused in `JSON` transport, where the ACS answers the tokens in its body.
+    ///
+    /// The one allow-listed redirect: the ACS never takes a target from the request. An
+    /// absolute `https` URL (`http` only on a loopback host), with no fragment.
+    #[serde(default)]
+    pub post_login_redirect_uri: Option<String>,
 }
 
 /// `SP` key material under `[saml.sp]` (#948).
@@ -173,6 +182,31 @@ fn exactly_one(a: bool, b: bool, section: &str, name_a: &str, name_b: &str) -> R
     }
 }
 
+/// Refuse a `post_login_redirect_uri` the browser could not be sent to as written.
+fn check_post_login_redirect_uri(uri: &str) -> Result<(), String> {
+    let refuse = |why: &str| Err(format!("[saml] post_login_redirect_uri = {uri:?} {why}"));
+    let Ok(url) = url::Url::parse(uri) else {
+        return refuse("is not an absolute URL");
+    };
+    let loopback = matches!(
+        url.host(),
+        Some(
+            url::Host::Domain("localhost")
+                | url::Host::Ipv4(std::net::Ipv4Addr::LOCALHOST)
+                | url::Host::Ipv6(std::net::Ipv6Addr::LOCALHOST)
+        )
+    );
+    match url.scheme() {
+        "https" => {},
+        "http" if loopback => {},
+        _ => return refuse("must be https (http only on a loopback host)"),
+    }
+    if url.fragment().is_some() {
+        return refuse("must not carry a fragment: the ACS hands a second-factor challenge in it");
+    }
+    Ok(())
+}
+
 const fn default_refresh_interval_secs() -> u64 {
     30
 }
@@ -240,6 +274,9 @@ impl SamlServerConfig {
         }
         if let Some(sp) = &self.sp {
             sp.validate()?;
+        }
+        if let Some(uri) = &self.post_login_redirect_uri {
+            check_post_login_redirect_uri(uri)?;
         }
         for (name, idp) in &self.idps {
             match (&idp.metadata_xml, &idp.metadata_xml_path) {

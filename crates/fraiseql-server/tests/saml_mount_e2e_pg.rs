@@ -138,6 +138,7 @@ fn saml_config(metadata_xml: String) -> ServerConfig {
         // #874: production validate() refuses cors_enabled=true + empty origins
         cors_enabled: false,
         saml: Some(SamlServerConfig {
+            post_login_redirect_uri: None,
             idps,
             store_enabled: false,
             refresh_interval_secs: 30,
@@ -253,6 +254,7 @@ fn store_config() -> ServerConfig {
         cors_enabled: false,
         admin_token: Some(ADMIN_TOKEN.to_string()),
         saml: Some(SamlServerConfig {
+            post_login_redirect_uri: None,
             idps: std::collections::HashMap::new(),
             store_enabled: true,
             refresh_interval_secs: 30,

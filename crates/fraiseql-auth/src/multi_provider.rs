@@ -22,6 +22,7 @@ use crate::{
     login_binding,
     provider::OAuthProvider,
     session::SessionStore,
+    session_cookies::SessionCookies,
     state_store::StateStore,
 };
 
@@ -178,6 +179,9 @@ pub struct MultiProviderAuthState {
     /// fragment redirect to it. Entries are matched by scheme + host + port + path-boundary
     /// prefix (see [`is_redirect_uri_allowed`]).
     redirect_uri_allowlist:  Vec<String>,
+    /// Cookie transport: the callback sets the session cookies on its redirect to the
+    /// bound `redirect_uri`, and no fragment carries a token. `None` in `JSON` transport.
+    session_cookies:         Option<SessionCookies>,
 }
 
 impl MultiProviderAuthState {
@@ -190,6 +194,7 @@ impl MultiProviderAuthState {
             user_store: None,
             trusted_email_providers: TrustedEmailProviders::default(),
             redirect_uri_allowlist: Vec::new(),
+            session_cookies: None,
         }
     }
 
@@ -225,6 +230,18 @@ impl MultiProviderAuthState {
     #[must_use = "builder method returns the modified state"]
     pub fn with_redirect_uri_allowlist(mut self, allowlist: Vec<String>) -> Self {
         self.redirect_uri_allowlist = allowlist;
+        self
+    }
+
+    /// Deliver sessions in cookies (`[auth.session] transport = "cookie"`).
+    ///
+    /// The callback then sets the session cookies on its redirect to the bound
+    /// `redirect_uri`, which needs
+    /// [`with_redirect_uri_allowlist`](Self::with_redirect_uri_allowlist); with no allow-list
+    /// it answers the cookies with a body of `expires_in` alone.
+    #[must_use = "builder method returns the modified state"]
+    pub const fn with_session_cookies(mut self, cookies: Option<SessionCookies>) -> Self {
+        self.session_cookies = cookies;
         self
     }
 
@@ -803,6 +820,16 @@ async fn complete_callback(
 
     // #427: if a validated redirect_uri was bound at authorize time, hand the tokens off via
     // an implicit-style fragment redirect; otherwise return the legacy JSON token response.
+    if let Some(cookies) = state.session_cookies.as_ref() {
+        return match bound_redirect_uri {
+            Some(redirect_uri) => crate::session_cookies::redirect_with_cookies(
+                cookies,
+                &session_tokens,
+                &redirect_uri,
+            ),
+            None => crate::session_cookies::session_response(Some(cookies), session_tokens),
+        };
+    }
     if let Some(redirect_uri) = bound_redirect_uri {
         let location = build_redirect_with_tokens(
             &redirect_uri,

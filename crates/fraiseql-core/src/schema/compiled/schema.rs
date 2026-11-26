@@ -605,6 +605,12 @@ pub struct SessionConfig {
     /// `/auth/v1/session/logout`; unset, neither is mounted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub absolute_ttl_secs: Option<u64>,
+
+    /// How every sign-in this server serves hands its session to the client.
+    /// [`SessionTransport::Json`], the default, puts the tokens in the response body;
+    /// [`SessionTransport::Cookie`] puts them in `HttpOnly` cookies instead.
+    #[serde(default, skip_serializing_if = "SessionTransport::is_json")]
+    pub transport: SessionTransport,
 }
 
 impl SessionConfig {
@@ -642,6 +648,12 @@ impl SessionConfig {
                      access token's lifetime ({ttl} s): a session could never be refreshed"
                 ));
             }
+        }
+        if self.transport == SessionTransport::Cookie && self.absolute_ttl_secs.is_none() {
+            return Err("[auth.session] transport = \"cookie\" requires [auth.session] \
+                        absolute_ttl_secs: it mounts the logout route, and without that \
+                        nothing could clear the HttpOnly session cookies"
+                .to_string());
         }
         Ok(())
     }
@@ -747,15 +759,9 @@ pub struct LocalAuthConfig {
     /// points at the operator's front end, which `FraiseQL` cannot guess.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verification_url_template: Option<String>,
-
-    /// How these methods hand a session to the client. [`SessionTransport::Json`], the
-    /// default, puts the tokens in the response body;
-    /// [`SessionTransport::Cookie`] puts them in `HttpOnly` cookies instead.
-    #[serde(default, skip_serializing_if = "SessionTransport::is_json")]
-    pub session_transport: SessionTransport,
 }
 
-/// `[auth.local] session_transport`: how a session reaches the client.
+/// `[auth.session] transport`: how a session reaches the client.
 #[derive(
     Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
 )]
@@ -770,7 +776,9 @@ pub enum SessionTransport {
     /// `Secure` and `SameSite=Strict`, and no response body carries either token.
     ///
     /// Requires `[auth.session] absolute_ttl_secs`: without it no logout route is
-    /// mounted, and nothing could clear the cookies.
+    /// mounted, and nothing could clear the cookies. A social sign-in also needs
+    /// `[auth.social] redirect_uri_allowlist`, and a `SAML` one `[saml]
+    /// post_login_redirect_uri`: their cookies are set on the redirect to the front end.
     Cookie,
 }
 
@@ -779,27 +787,6 @@ impl SessionTransport {
     #[must_use]
     pub const fn is_json(&self) -> bool {
         matches!(self, Self::Json)
-    }
-}
-
-impl LocalAuthConfig {
-    /// Refuse cookie transport without `[auth.session] absolute_ttl_secs`: that is what
-    /// mounts the logout route, and without it nothing could clear an `HttpOnly` cookie.
-    ///
-    /// The compiler and the server's boot check both run this.
-    ///
-    /// # Errors
-    ///
-    /// Returns a message naming both keys.
-    pub fn check_session_transport(&self, session: Option<&SessionConfig>) -> Result<(), String> {
-        let refreshable = session.and_then(|s| s.absolute_ttl_secs).is_some();
-        if self.session_transport == SessionTransport::Cookie && !refreshable {
-            return Err("[auth.local] session_transport = \"cookie\" requires [auth.session] \
-                        absolute_ttl_secs: it mounts the logout route, and without that \
-                        nothing could clear the HttpOnly session cookies"
-                .to_string());
-        }
-        Ok(())
     }
 }
 
@@ -861,6 +848,28 @@ pub struct SocialAuthConfig {
     /// `Facebook` `OAuth2` social login (non-`OIDC`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub facebook: Option<FacebookSocialConfig>,
+}
+
+impl SocialAuthConfig {
+    /// Refuse cookie transport without a redirect allow-list: the callback sets the
+    /// session cookies on its redirect to the front end, and with no allow-listed
+    /// redirect it would have nowhere to send the browser but a body.
+    ///
+    /// The compiler and the server's boot check both run this.
+    ///
+    /// # Errors
+    ///
+    /// Returns a message naming both keys.
+    pub fn check_transport(&self, transport: SessionTransport) -> Result<(), String> {
+        if transport == SessionTransport::Cookie && self.redirect_uri_allowlist.is_empty() {
+            return Err("[auth.session] transport = \"cookie\" requires [auth.social] \
+                        redirect_uri_allowlist: the callback sets the session cookies on its \
+                        redirect to the front end, and needs an allow-listed redirect to send \
+                        the browser to"
+                .to_string());
+        }
+        Ok(())
+    }
 }
 
 /// `[auth.social.google]` — `Google` `OIDC` social-login client (#368).

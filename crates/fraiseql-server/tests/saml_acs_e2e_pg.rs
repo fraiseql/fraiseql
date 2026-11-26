@@ -5,7 +5,9 @@
 //! SHA-256 digest. samael's own template asks for a SHA-1 digest, which the server's
 //! algorithm allow-list refuses, so the fixture sets the digest on that template before
 //! signing; nothing in the server is relaxed for the test. One sign-in runs with the
-//! engine on a role that cannot read schema `auth`, and auth on a role of its own.
+//! engine on a role that cannot read schema `auth`, and auth on a role of its own. In
+//! cookie transport the ACS redirects to `[saml] post_login_redirect_uri` with the session
+//! cookies, and the session works on `/graphql`, refreshes and logs out by cookie alone.
 //!
 //! Self-skips when no `DATABASE_URL` is set. Runs in the Dagger `saml`
 //! integration suite (which has the libxml2/xmlsec1 stack and Postgres).
@@ -25,7 +27,7 @@ use base64::Engine as _;
 use common::first_party::FirstPartyAuth;
 use fraiseql_core::{
     db::postgres::PostgresAdapter,
-    schema::{AuthClientConfig, CompiledSchema, SessionConfig},
+    schema::{AuthClientConfig, CompiledSchema, SessionConfig, SessionTransport},
 };
 use fraiseql_server::{
     Server,
@@ -208,6 +210,7 @@ fn saml_config(idp: &SigningIdp, database_url: &str) -> ServerConfig {
         cors_enabled: false,
         database_url: database_url.to_string(),
         saml: Some(SamlServerConfig {
+            post_login_redirect_uri: None,
             idps,
             store_enabled: false,
             refresh_interval_secs: 30,
@@ -248,6 +251,7 @@ fn schema(session: SessionConfig) -> CompiledSchema {
 fn the_document_loads_without_a_database() {
     schema(FIRST_PARTY.session());
     schema(SessionConfig {
+        transport:         fraiseql_core::schema::SessionTransport::Json,
         ttl_secs:          Some(900),
         absolute_ttl_secs: None,
     });
@@ -265,6 +269,16 @@ struct Booted {
 }
 
 async fn boot(url: &str, db: &str, idp: &SigningIdp, schema: CompiledSchema) -> Booted {
+    boot_with(url, db, schema, |scratch_url| saml_config(idp, scratch_url)).await
+}
+
+/// [`boot`] with the server configuration `config` builds for the scratch database URL.
+async fn boot_with(
+    url: &str,
+    db: &str,
+    schema: CompiledSchema,
+    config: impl FnOnce(&str) -> ServerConfig,
+) -> Booted {
     // Env var must exist before construction loads the secret. A fixed valid
     // value, set unconditionally: safe under the parallel runner because every
     // reader wants exactly this value.
@@ -274,7 +288,7 @@ async fn boot(url: &str, db: &str, idp: &SigningIdp, schema: CompiledSchema) -> 
     let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind ephemeral port");
     let port = listener.local_addr().expect("local addr").port();
-    let server = Box::pin(Server::new(saml_config(idp, &scratch_url), schema, adapter, Some(pool)))
+    let server = Box::pin(Server::new(config(&scratch_url), schema, adapter, Some(pool)))
         .await
         .expect("[saml] + [auth_issuer] + a pool must boot");
     let (shutdown, rx) = tokio::sync::oneshot::channel::<()>();
@@ -426,6 +440,7 @@ async fn ttl_secs_sets_the_lifetime_of_a_saml_sign_in() {
     let db = "fraiseql_saml_acs_ttl";
     let idp = SigningIdp::new();
     let session = SessionConfig {
+        transport:         fraiseql_core::schema::SessionTransport::Json,
         ttl_secs:          Some(900),
         absolute_ttl_secs: None,
     };
@@ -559,6 +574,211 @@ async fn a_saml_login_completes_only_from_the_browser_that_started_it() {
     assert_eq!(status, reqwest::StatusCode::OK, "{body}");
 
     server.stop().await;
+    drop_scratch(&url, db).await;
+}
+
+// ── Cookie transport ────────────────────────────────────────────────────────────────
+
+/// The front-end page the ACS sends the browser to in cookie transport.
+const POST_LOGIN: &str = "https://app.example.com/signed-in";
+
+/// A refreshable `[auth.session]` as `transport`.
+const fn session_as(transport: SessionTransport) -> SessionConfig {
+    SessionConfig {
+        ttl_secs: Some(900),
+        absolute_ttl_secs: Some(86_400),
+        transport,
+    }
+}
+
+/// [`saml_config`] with `post_login_redirect_uri`.
+fn saml_config_redirecting(
+    idp: &SigningIdp,
+    database_url: &str,
+    redirect: Option<&str>,
+) -> ServerConfig {
+    let mut config = saml_config(idp, database_url);
+    config.saml.as_mut().expect("[saml]").post_login_redirect_uri = redirect.map(str::to_string);
+    config
+}
+
+/// The value of the cookie `name` among `set_cookies`.
+fn set_cookie_value(set_cookies: &[String], name: &str) -> String {
+    set_cookies
+        .iter()
+        .find_map(|c| c.strip_prefix(&format!("{name}=")))
+        .and_then(|rest| rest.split(';').next())
+        .unwrap_or_default()
+        .to_string()
+}
+
+/// A session route with no credential but the refresh cookie `refresh`: its status,
+/// `Set-Cookie`s and body.
+async fn session_route(
+    base: &str,
+    route: &str,
+    refresh: &str,
+) -> (reqwest::StatusCode, Vec<String>, String) {
+    let resp = reqwest::Client::new()
+        .post(format!("{base}/auth/v1/session/{route}"))
+        .header(reqwest::header::COOKIE, format!("{REFRESH_COOKIE}={refresh}"))
+        .json(&serde_json::json!({}))
+        .send()
+        .await
+        .expect("session request");
+    let status = resp.status();
+    let set = set_cookies(&resp);
+    (status, set, resp.text().await.unwrap_or_default())
+}
+
+/// `/graphql` with no credential but the access cookie `access`.
+async fn graphql_with_cookie(base: &str, access: &str) -> reqwest::StatusCode {
+    reqwest::Client::new()
+        .post(format!("{base}/graphql"))
+        .header(reqwest::header::COOKIE, format!("{ACCESS_COOKIE}={access}"))
+        .json(&serde_json::json!({ "query": "{ __typename }" }))
+        .send()
+        .await
+        .expect("graphql request")
+        .status()
+}
+
+const ACCESS_COOKIE: &str = fraiseql_auth::session_cookies::ACCESS_COOKIE;
+const REFRESH_COOKIE: &str = fraiseql_auth::session_cookies::REFRESH_COOKIE;
+
+/// In cookie transport the ACS answers `303` to `[saml] post_login_redirect_uri` with the
+/// session cookies; neither its body nor its `Location` carries a token; and the session
+/// they hold works on `/graphql`, refreshes and logs out by cookie alone.
+#[tokio::test]
+async fn in_cookie_transport_the_acs_sets_the_session_cookies_on_its_redirect() {
+    let Some(url) = database_url_or_skip("in_cookie_transport_the_acs_sets_the_cookies") else {
+        return;
+    };
+    let db = "fraiseql_saml_acs_cookie";
+    let idp = SigningIdp::new();
+    let server = boot_with(&url, db, schema(session_as(SessionTransport::Cookie)), |scratch| {
+        saml_config_redirecting(&idp, scratch, Some(POST_LOGIN))
+    })
+    .await;
+
+    let (relay_state, request_id) = server.login().await;
+    let login = server.cookie_of(&relay_state);
+    let response = idp.response(&request_id, "ada", &DigestAlgorithm::Sha256);
+    let resp = server
+        .client
+        .post(format!("{}/auth/saml/acs", server.base))
+        .header(reqwest::header::COOKIE, &login)
+        .form(&[
+            ("SAMLResponse", response.as_str()),
+            ("RelayState", relay_state.as_str()),
+        ])
+        .send()
+        .await
+        .expect("ACS request");
+    let status = resp.status();
+    let location = resp.headers()[reqwest::header::LOCATION]
+        .to_str()
+        .expect("a Location")
+        .to_string();
+    let set = set_cookies(&resp);
+    let cleared = clears(&resp, &login);
+    let body = resp.text().await.unwrap_or_default();
+    assert_eq!(status, reqwest::StatusCode::SEE_OTHER, "{body}");
+    assert_eq!(location, POST_LOGIN, "the redirect carries nothing but its target");
+    assert!(cleared, "the answer clears the login cookie: {set:?}");
+    let access = set_cookie_value(&set, ACCESS_COOKIE);
+    let refresh = set_cookie_value(&set, REFRESH_COOKIE);
+    assert!(!access.is_empty() && !refresh.is_empty(), "{set:?}");
+    for carried in [&body, &location] {
+        for needle in [
+            access.as_str(),
+            refresh.as_str(),
+            "access_token",
+            "refresh_token",
+        ] {
+            assert!(!carried.contains(needle), "no body or Location carries a token: {carried}");
+        }
+    }
+
+    assert_eq!(graphql_with_cookie(&server.base, &access).await, reqwest::StatusCode::OK);
+    assert_eq!(
+        graphql_with_cookie(&server.base, &format!("{access}x")).await,
+        reqwest::StatusCode::UNAUTHORIZED,
+        "the access cookie is what /graphql checks"
+    );
+    let (status, set, body) = session_route(&server.base, "refresh", &refresh).await;
+    assert_eq!(status, reqwest::StatusCode::OK, "{body}");
+    let next_access = set_cookie_value(&set, ACCESS_COOKIE);
+    let next_refresh = set_cookie_value(&set, REFRESH_COOKIE);
+    for needle in [
+        access.as_str(),
+        refresh.as_str(),
+        &next_access,
+        &next_refresh,
+    ] {
+        assert!(!body.contains(needle), "the refresh body carries no token: {body}");
+    }
+    assert_eq!(graphql_with_cookie(&server.base, &next_access).await, reqwest::StatusCode::OK);
+    let (status, set, body) = session_route(&server.base, "logout", &next_refresh).await;
+    assert_eq!(status, reqwest::StatusCode::NO_CONTENT, "{body}");
+    for name in [ACCESS_COOKIE, REFRESH_COOKIE] {
+        assert!(set.iter().any(|c| c.starts_with(&format!("{name}=;"))), "logout clears {name}");
+    }
+
+    server.stop().await;
+    drop_scratch(&url, db).await;
+}
+
+/// `[saml] post_login_redirect_uri` is required in cookie transport, refused in `JSON`
+/// transport, and refused when the browser could not be sent to it as written: each
+/// refusal names the key.
+#[tokio::test]
+async fn the_post_login_redirect_is_required_by_cookie_transport_and_read_only_by_it() {
+    let Some(url) = database_url_or_skip("the_post_login_redirect_is_required") else {
+        return;
+    };
+    FIRST_PARTY.set_env();
+    let db = "fraiseql_saml_acs_cookie_refusals";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let idp = SigningIdp::new();
+    let cookie = SessionTransport::Cookie;
+    for (what, transport, redirect, names) in [
+        ("cookie transport with no redirect", cookie, None, "[auth.session] transport"),
+        (
+            "JSON transport with a redirect",
+            SessionTransport::Json,
+            Some(POST_LOGIN),
+            "transport",
+        ),
+        ("an http redirect", cookie, Some("http://app.example.com/"), "https"),
+        ("a relative redirect", cookie, Some("/signed-in"), "absolute"),
+        (
+            "a redirect with a fragment",
+            cookie,
+            Some("https://app.example.com/#x"),
+            "fragment",
+        ),
+    ] {
+        let adapter =
+            Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));
+        let refused = Box::pin(Server::new(
+            saml_config_redirecting(&idp, &scratch_url, redirect),
+            schema(session_as(transport)),
+            adapter,
+            Some(pool.clone()),
+        ))
+        .await;
+        let Err(error) = refused else {
+            panic!("{what} must refuse to boot");
+        };
+        let error = error.to_string();
+        assert!(
+            error.contains("post_login_redirect_uri") && error.contains(names),
+            "{what}: {error}"
+        );
+    }
+    pool.close().await;
     drop_scratch(&url, db).await;
 }
 

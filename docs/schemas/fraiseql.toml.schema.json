@@ -3380,8 +3380,9 @@
           ]
         },
         "session_transport": {
-          "description": "How these methods hand a session to the client. [`SessionTransport::Json`], the\ndefault, puts the tokens in the response body;\n[`SessionTransport::Cookie`] puts them in `HttpOnly` cookies instead.",
-          "$ref": "#/$defs/SessionTransport"
+          "not": {},
+          "deprecated": true,
+          "description": "fraiseql.toml: `[auth.local] session_transport` is no longer accepted; write `[auth.session] transport`"
         }
       },
       "additionalProperties": false
@@ -3464,21 +3465,6 @@
       },
       "additionalProperties": false
     },
-    "SessionTransport": {
-      "description": "`[auth.local] session_transport`: how a session reaches the client.",
-      "oneOf": [
-        {
-          "description": "The access and refresh tokens are in the `JSON` response body, for the client to\nkeep and send as a bearer token.",
-          "type": "string",
-          "const": "json"
-        },
-        {
-          "description": "The access token is in the `__Host-access_token` cookie and the refresh token in\n`__Secure-refresh_token`, scoped to `/auth/v1/session`; both are `HttpOnly`,\n`Secure` and `SameSite=Strict`, and no response body carries either token.\n\nRequires `[auth.session] absolute_ttl_secs`: without it no logout route is\nmounted, and nothing could clear the cookies.",
-          "type": "string",
-          "const": "cookie"
-        }
-      ]
-    },
     "SessionConfig": {
       "description": "`[auth.session]` — the lifetime of the sessions this server mints (#1853).\n\nGoverns password, `OTP`, `MFA`, social and `SAML` sign-in. Anonymous guest\nsessions keep their fixed lifetime.",
       "type": "object",
@@ -3500,9 +3486,28 @@
           ],
           "format": "uint64",
           "minimum": 0
+        },
+        "transport": {
+          "description": "How every sign-in this server serves hands its session to the client.\n[`SessionTransport::Json`], the default, puts the tokens in the response body;\n[`SessionTransport::Cookie`] puts them in `HttpOnly` cookies instead.",
+          "$ref": "#/$defs/SessionTransport"
         }
       },
       "additionalProperties": false
+    },
+    "SessionTransport": {
+      "description": "`[auth.session] transport`: how a session reaches the client.",
+      "oneOf": [
+        {
+          "description": "The access and refresh tokens are in the `JSON` response body, for the client to\nkeep and send as a bearer token.",
+          "type": "string",
+          "const": "json"
+        },
+        {
+          "description": "The access token is in the `__Host-access_token` cookie and the refresh token in\n`__Secure-refresh_token`, scoped to `/auth/v1/session`; both are `HttpOnly`,\n`Secure` and `SameSite=Strict`, and no response body carries either token.\n\nRequires `[auth.session] absolute_ttl_secs`: without it no logout route is\nmounted, and nothing could clear the cookies. A social sign-in also needs\n`[auth.social] redirect_uri_allowlist`, and a `SAML` one `[saml]\npost_login_redirect_uri`: their cookies are set on the redirect to the front end.",
+          "type": "string",
+          "const": "cookie"
+        }
+      ]
     },
     "AuthDatabaseConfig": {
       "description": "`[auth.database]` — the database first-party auth connects to, as its own role\n(#1965).\n\nEvery auth table lives in schema `auth`, owned by the role this connection\nauthenticates as; the engine's own role needs no grant on it. Only the name of the\nenvironment variable holding the URL is compiled: the URL carries credentials.",
