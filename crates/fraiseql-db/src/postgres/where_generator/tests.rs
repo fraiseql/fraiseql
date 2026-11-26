@@ -81,7 +81,7 @@ fn test_is_null() {
 
     let (sql, params) = gen.generate(&clause).unwrap();
     assert_eq!(sql, "data->>'deleted_at' IS NULL");
-    assert!(params.is_empty());
+    assert!(params.is_empty(), "{params:?}");
 }
 
 #[test]

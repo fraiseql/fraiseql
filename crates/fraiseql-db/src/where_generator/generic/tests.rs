@@ -46,7 +46,7 @@ fn generic_empty_and_returns_true() {
     let clause = WhereClause::And(vec![]);
     let (sql, params) = gen.generate(&clause).unwrap();
     assert_eq!(sql, "TRUE");
-    assert!(params.is_empty());
+    assert!(params.is_empty(), "{params:?}");
 }
 
 #[test]
@@ -55,7 +55,7 @@ fn generic_empty_or_returns_false() {
     let clause = WhereClause::Or(vec![]);
     let (sql, params) = gen.generate(&clause).unwrap();
     assert_eq!(sql, "FALSE");
-    assert!(params.is_empty());
+    assert!(params.is_empty(), "{params:?}");
 }
 
 #[test]
@@ -132,7 +132,7 @@ fn generic_in_empty_returns_false() {
     let clause = field("status", WhereOperator::In, json!([]));
     let (sql, params) = gen.generate(&clause).unwrap();
     assert_eq!(sql, "FALSE");
-    assert!(params.is_empty());
+    assert!(params.is_empty(), "{params:?}");
 }
 
 #[test]
@@ -141,7 +141,7 @@ fn generic_nin_empty_returns_true() {
     let clause = field("status", WhereOperator::Nin, json!([]));
     let (sql, params) = gen.generate(&clause).unwrap();
     assert_eq!(sql, "TRUE");
-    assert!(params.is_empty());
+    assert!(params.is_empty(), "{params:?}");
 }
 
 // ── Security: no value interpolation ─────────────────────────────────────

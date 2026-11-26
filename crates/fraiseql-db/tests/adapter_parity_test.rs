@@ -149,7 +149,7 @@ fn pg_or_combinator_two_conditions() {
 fn pg_empty_and_produces_sentinel() {
     let clause = WhereClause::And(vec![]);
     let (sql, params) = pg_gen().generate(&clause).unwrap();
-    assert!(!sql.is_empty());
+    assert!(!sql.is_empty(), "expected non-empty SQL");
     assert_eq!(params.len(), 0);
 }
 
@@ -157,7 +157,7 @@ fn pg_empty_and_produces_sentinel() {
 fn pg_empty_or_produces_sentinel() {
     let clause = WhereClause::Or(vec![]);
     let (sql, params) = pg_gen().generate(&clause).unwrap();
-    assert!(!sql.is_empty());
+    assert!(!sql.is_empty(), "expected non-empty SQL");
     assert_eq!(params.len(), 0);
 }
 

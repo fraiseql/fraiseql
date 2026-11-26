@@ -841,7 +841,7 @@ mod spec {
     #[test]
     fn an_empty_rule_list_is_a_valid_lockdown() {
         let policy = parse_policy(&[]).unwrap();
-        assert!(policy.rules.is_empty());
+        assert!(policy.rules.is_empty(), "{:?}", policy.rules);
     }
 }
 

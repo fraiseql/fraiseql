@@ -192,7 +192,8 @@ async fn a_write_its_gate_refuses_records_no_dispatch() {
         .await
         .expect_err("the gate refuses the write");
 
-    assert!(rows(&client, &tenant).await.is_empty());
+    let ledger_rows = rows(&client, &tenant).await;
+    assert!(ledger_rows.is_empty(), "{ledger_rows:?}");
 }
 
 #[tokio::test]
@@ -205,7 +206,8 @@ async fn a_write_whose_function_fails_records_no_dispatch() {
         .await
         .expect_err("the function fails");
 
-    assert!(rows(&client, &tenant).await.is_empty());
+    let ledger_rows = rows(&client, &tenant).await;
+    assert!(ledger_rows.is_empty(), "{ledger_rows:?}");
 }
 
 #[tokio::test]
@@ -321,7 +323,8 @@ async fn recording_the_same_dispatch_twice_keeps_one_row() {
         .unwrap()
         .get(0);
     assert_eq!(token, "token-r1-onWrite", "the first record stands, lease included");
-    assert!(adapter.claim_due_dispatches(Some(&tenant), 10, HELD).await.unwrap().is_empty());
+    let due_dispatches = adapter.claim_due_dispatches(Some(&tenant), 10, HELD).await.unwrap();
+    assert!(due_dispatches.is_empty(), "{due_dispatches:?}");
 }
 
 // ── Claiming: due, by its tenant, by one sweeper ────────────────────────────────────────
@@ -375,7 +378,8 @@ async fn a_tenants_dispatch_is_claimed_by_that_tenant_only() {
         .await
         .unwrap();
 
-    assert!(adapter.claim_due_dispatches(Some(&theirs), 10, HELD).await.unwrap().is_empty());
+    let due_dispatches = adapter.claim_due_dispatches(Some(&theirs), 10, HELD).await.unwrap();
+    assert!(due_dispatches.is_empty(), "{due_dispatches:?}");
     let untenanted = adapter.claim_due_dispatches(None, 100, DUE).await.unwrap();
     assert!(untenanted.iter().all(|d| d.tenant.is_none()), "{untenanted:?}");
     let claimed = adapter.claim_due_dispatches(Some(&mine), 10, HELD).await.unwrap();
@@ -465,7 +469,8 @@ async fn a_dispatched_dispatch_leaves_no_row() {
         .await
         .unwrap();
 
-    assert!(rows(&client, &tenant).await.is_empty());
+    let ledger_rows = rows(&client, &tenant).await;
+    assert!(ledger_rows.is_empty(), "{ledger_rows:?}");
 }
 
 #[tokio::test]
@@ -492,7 +497,8 @@ async fn a_dead_lettered_dispatch_keeps_its_row_with_its_reason_and_is_never_cla
         rows(&client, &tenant).await,
         [("r1".into(), "onWrite".into(), "dead_lettered".into(), Some("the reason".into()))]
     );
-    assert!(adapter.claim_due_dispatches(Some(&tenant), 10, HELD).await.unwrap().is_empty());
+    let due_dispatches = adapter.claim_due_dispatches(Some(&tenant), 10, HELD).await.unwrap();
+    assert!(due_dispatches.is_empty(), "{due_dispatches:?}");
     // A late settle of the same dispatch does not bring it back or delete it.
     adapter
         .settle_dispatch(

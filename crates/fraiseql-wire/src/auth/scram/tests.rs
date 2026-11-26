@@ -6,7 +6,7 @@ fn test_scram_client_creation() {
     let client = ScramClient::new("user".to_string(), "password".to_string());
     assert_eq!(client.username, "user");
     assert_eq!(client.password.as_str(), "password");
-    assert!(!client.nonce.is_empty());
+    assert!(!client.nonce.is_empty(), "expected a non-empty nonce");
 }
 
 #[test]
@@ -74,7 +74,10 @@ fn test_scram_client_final_flow() {
     let (client_final, state) = result
         .unwrap_or_else(|e| panic!("expected Ok for client_final with valid server message: {e}"));
     assert!(client_final.starts_with("c="));
-    assert!(!state.auth_message.is_empty());
+    assert!(
+        !state.auth_message.is_empty(),
+        "expected a non-empty auth message"
+    );
 }
 
 #[test]

@@ -158,13 +158,9 @@ async fn a_view_resolves_to_the_table_that_carries_its_indexes() {
         vec!["tb_idxbase_1307".to_string()]
     );
     // A table is not a view and depends on nothing.
-    assert!(
-        introspector
-            .resolve_base_relations("tb_idxbase_1307")
-            .await
-            .expect("table")
-            .is_empty()
-    );
+    let base_relations =
+        introspector.resolve_base_relations("tb_idxbase_1307").await.expect("table");
+    assert!(base_relations.is_empty(), "{base_relations:?}");
 
     exec("DROP VIEW v_idxbase_1307; DROP TABLE tb_idxbase_1307 CASCADE;").await;
 }

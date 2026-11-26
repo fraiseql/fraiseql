@@ -315,7 +315,8 @@ async fn broker_outage_retries_then_drains_with_no_loss() {
     assert_eq!(down.retried, 1);
     assert_eq!(status_count(&pool, &sink_name, "retrying").await, 1);
     assert_eq!(status_count(&pool, &sink_name, "pending").await, 1);
-    assert!(worker.sink().published_seqs().is_empty());
+    let published_seqs = worker.sink().published_seqs();
+    assert!(published_seqs.is_empty(), "{published_seqs:?}");
 
     // Immediately re-ticking does nothing: the rows are not yet due (backoff).
     let not_due = worker.tick().await.unwrap();

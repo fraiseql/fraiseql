@@ -8,7 +8,7 @@ fn test_append_order_by_none() {
     let mut sql = "SELECT data FROM v_user".to_string();
     let bound =
         append_order_by(&mut sql, None, DatabaseType::PostgreSQL, 1, Tiebreak::Identity).unwrap();
-    assert!(bound.is_empty());
+    assert!(bound.is_empty(), "{bound:?}");
     assert!(!sql.contains("ORDER BY"));
 }
 
@@ -18,7 +18,7 @@ fn test_append_order_by_empty() {
     let bound =
         append_order_by(&mut sql, Some(&[]), DatabaseType::PostgreSQL, 1, Tiebreak::Identity)
             .unwrap();
-    assert!(bound.is_empty());
+    assert!(bound.is_empty(), "{bound:?}");
     assert!(!sql.contains("ORDER BY"));
 }
 
@@ -621,7 +621,7 @@ mod pagination_tiebreak {
         )
         .unwrap()
         .unwrap();
-        assert!(rendered.params.is_empty());
+        assert!(rendered.params.is_empty(), "{:?}", rendered.params);
     }
 
     // ── #1303: the identity the SCHEMA declared, not the one this module guesses ──

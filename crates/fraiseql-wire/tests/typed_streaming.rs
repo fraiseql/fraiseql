@@ -48,9 +48,9 @@ async fn test_typed_query_with_struct() {
     while let Some(result) = stream.next().await {
         let user: TestUser = result.expect("deserialize");
         // User is typed - can access fields directly
-        assert!(!user.id.is_empty());
-        assert!(!user.name.is_empty());
-        assert!(!user.email.is_empty());
+        assert!(!user.id.is_empty(), "expected a non-empty user id");
+        assert!(!user.name.is_empty(), "expected a non-empty user name");
+        assert!(!user.email.is_empty(), "expected a non-empty email");
         count += 1;
         if count > 10 {
             break;
@@ -259,8 +259,14 @@ async fn test_typed_query_different_types() {
     let mut count = 0;
     while let Some(result) = stream.next().await {
         let project: TestProject = result.expect("deserialize");
-        assert!(!project.name.is_empty());
-        assert!(!project.status.is_empty());
+        assert!(
+            !project.name.is_empty(),
+            "expected a non-empty project name"
+        );
+        assert!(
+            !project.status.is_empty(),
+            "expected a non-empty project status"
+        );
         count += 1;
         if count > 10 {
             break;

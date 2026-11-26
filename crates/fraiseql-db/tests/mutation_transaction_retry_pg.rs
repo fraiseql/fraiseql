@@ -236,7 +236,8 @@ async fn a_dry_run_is_retried_and_persists_nothing() {
         .await
         .unwrap();
     assert_eq!(attempts(&client).await, 2);
-    assert!(written(&client).await.is_empty());
+    let rows_written = written(&client).await;
+    assert!(rows_written.is_empty(), "{rows_written:?}");
 }
 
 /// A batch commits all of its calls or none, so the whole batch runs again from its first
@@ -271,7 +272,8 @@ async fn a_call_that_opts_out_runs_once_under_a_retrying_policy() {
         .unwrap_err();
     assert_eq!(sql_state(&err), Some("40P01"), "{err:?}");
     assert_eq!(attempts(&client).await, 1);
-    assert!(written(&client).await.is_empty());
+    let rows_written = written(&client).await;
+    assert!(rows_written.is_empty(), "{rows_written:?}");
 }
 
 /// The opt-out holds when the abort arrives at `COMMIT` too.
@@ -289,7 +291,8 @@ async fn a_call_that_opts_out_is_not_run_again_after_a_refused_commit() {
         .unwrap_err();
     assert_eq!(sql_state(&err), Some("40001"), "{err:?}");
     assert_eq!(attempts(&client).await, 1);
-    assert!(written(&client).await.is_empty());
+    let rows_written = written(&client).await;
+    assert!(rows_written.is_empty(), "{rows_written:?}");
 }
 
 /// A batch commits all of its calls or none, so one call that opts out makes the whole
@@ -308,7 +311,8 @@ async fn a_batch_holding_a_call_that_opts_out_runs_once() {
     assert_eq!(sql_state(&err), Some("40P01"), "{err:?}");
     // item 1 and item 2 on the one attempt.
     assert_eq!(attempts(&client).await, 2);
-    assert!(written(&client).await.is_empty());
+    let rows_written = written(&client).await;
+    assert!(rows_written.is_empty(), "{rows_written:?}");
 }
 
 /// Without a policy, a deadlock victim's error is returned after one attempt, as before.
@@ -318,7 +322,8 @@ async fn without_a_policy_a_deadlock_victim_runs_once() {
     let err = write(&without_policy().await, "fn_deadlocked_once").await.unwrap_err();
     assert_eq!(sql_state(&err), Some("40P01"), "{err:?}");
     assert_eq!(attempts(&client).await, 1);
-    assert!(written(&client).await.is_empty());
+    let rows_written = written(&client).await;
+    assert!(rows_written.is_empty(), "{rows_written:?}");
 }
 
 #[tokio::test]
@@ -349,7 +354,8 @@ async fn a_gate_refusal_runs_once() {
         .unwrap_err();
     assert!(matches!(err, FraiseQLError::Validation { .. }), "{err:?}");
     assert_eq!(attempts(&client).await, 1);
-    assert!(written(&client).await.is_empty());
+    let rows_written = written(&client).await;
+    assert!(rows_written.is_empty(), "{rows_written:?}");
 }
 
 /// A lost connection leaves the outcome unknown: the write is not run again.
@@ -373,7 +379,8 @@ async fn a_failed_rollback_before_a_retry_returns_the_original_error() {
     assert_eq!(sql_state(&err), Some("40P01"), "{err:?}");
     assert!(err.to_string().contains("injected"), "{err}");
     assert_eq!(attempts(&client).await, 1);
-    assert!(written(&client).await.is_empty());
+    let rows_written = written(&client).await;
+    assert!(rows_written.is_empty(), "{rows_written:?}");
 }
 
 /// The same at `COMMIT`: the `ROLLBACK` that proves the connection before the next `BEGIN`
@@ -388,7 +395,8 @@ async fn a_failed_rollback_after_a_failed_commit_returns_the_commits_error() {
     assert_eq!(sql_state(&err), Some("40001"), "{err:?}");
     assert!(err.to_string().contains("injected at commit"), "{err}");
     assert_eq!(attempts(&client).await, 1);
-    assert!(written(&client).await.is_empty());
+    let rows_written = written(&client).await;
+    assert!(rows_written.is_empty(), "{rows_written:?}");
 }
 
 // --- Exhaustion -----------------------------------------------------------------------
@@ -403,7 +411,8 @@ async fn an_exhausted_write_returns_the_error_it_returns_without_a_policy() {
     assert_eq!(client_once, 1);
     assert_eq!(attempts(&client).await, 1 + 3);
     assert_eq!(format!("{exhausted:?}"), format!("{once:?}"));
-    assert!(written(&client).await.is_empty());
+    let rows_written = written(&client).await;
+    assert!(rows_written.is_empty(), "{rows_written:?}");
 }
 
 /// An exhausted batch names the call that failed, as without a policy.
@@ -423,7 +432,8 @@ async fn an_exhausted_batch_names_the_failed_call_as_without_a_policy() {
     assert_eq!(format!("{exhausted:?}"), format!("{once:?}"));
     // Items 1 and 2 on each of 1 + 3 attempts.
     assert_eq!(attempts(&client).await, 2 * (1 + 3));
-    assert!(written(&client).await.is_empty());
+    let rows_written = written(&client).await;
+    assert!(rows_written.is_empty(), "{rows_written:?}");
 }
 
 // --- Observability --------------------------------------------------------------------
