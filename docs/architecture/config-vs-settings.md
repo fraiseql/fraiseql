@@ -121,8 +121,15 @@ and the document's value stands when it does not.
 
 Both files expand `${VAR}` from the environment before they are parsed, with one
 expander. A value holding a newline, a NUL or a TOML metacharacter (`"`, `'`, `\`, `[`,
-`]`, `{`, `}`) is refused, naming the variable. The two differ on a variable that is not
-set:
+`]`, `{`, `}`) is refused, naming the variable.
+
+A placeholder written outside a quoted string (`timeout = ${T}`) puts its value into the
+file as bare TOML, where `#` would end the line early and `,` or `=` would add keys to the
+inline table it sits in. There a value holding `#`, `,`, `=` or whitespace is refused too,
+naming the variable and not the value; quote the placeholder (`name = "${NAME}"`) to take
+such a value as text. A placeholder inside a string or a comment is text either way.
+
+The two files differ on a variable that is not set:
 
 - `fraiseql.toml` keeps the placeholder as written: the file is compiled where the
   deployment's variables may not exist.

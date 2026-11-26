@@ -1230,6 +1230,39 @@ fn a_value_that_could_escape_its_string_refuses_the_server_file() {
     }
 }
 
+/// Outside a quoted string a placeholder's value is read as bare TOML, where `#` ends the
+/// line and `,` or `=` add keys to the inline table it sits in. A value holding `#`, `,`, `=`
+/// or whitespace there refuses the file, naming the variable and never the value.
+#[test]
+fn a_bare_value_that_would_change_the_document_refuses_the_server_file() {
+    for (file, value) in [
+        ("pool_timeout_secs = ${FQ_SRV_BARE}\n", "120 # rest-SENTINEL"),
+        ("pool_timeout_secs = ${FQ_SRV_BARE}\n", "120#rest-SENTINEL"),
+        ("rate_limiting = { enabled = ${FQ_SRV_BARE} }\n", "true, burst_size = 1"),
+        ("rate_limiting = { enabled = ${FQ_SRV_BARE} }\n", "true,burst_size=1"),
+    ] {
+        temp_env::with_var("FQ_SRV_BARE", Some(value), || {
+            let err = load(file).expect_err(value);
+            assert!(err.contains("FQ_SRV_BARE"), "{value:?}: names the variable: {err}");
+            assert!(err.contains("outside a quoted string"), "{value:?}: {err}");
+            assert!(!err.contains(value), "{value:?}: shows the value: {err}");
+        });
+    }
+}
+
+/// A bare value without those characters loads, and inside a quoted string the same value
+/// that is refused bare is text.
+#[test]
+fn a_plain_bare_value_and_a_quoted_one_still_load() {
+    temp_env::with_var("FQ_SRV_BARE", Some("120"), || {
+        assert_eq!(load("pool_timeout_secs = ${FQ_SRV_BARE}\n").unwrap().pool_timeout_secs, 120);
+    });
+    temp_env::with_var("FQ_SRV_BARE", Some("a # b, c = d"), || {
+        let config = load("admin_token = \"${FQ_SRV_BARE}\"\n").unwrap();
+        assert_eq!(config.admin_token.as_deref(), Some("a # b, c = d"));
+    });
+}
+
 /// A parse error in a file whose variables were expanded does not echo the expanded line:
 /// it may hold a secret.
 #[test]

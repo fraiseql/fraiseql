@@ -118,6 +118,15 @@ disagreed, and the promise was the part that was wrong.
   state store and the rate limiter name the Redis by `scheme://host:port` (`redis_host`),
   where they printed the whole URL.
 
+- **A `${VAR}` value placed outside a quoted string is held to what a bare TOML value can
+  hold, in fraiseql.toml and the server's configuration file (#2567).** Both files expand
+  placeholders in their text before parsing, so outside a quoted string the value is read as
+  TOML: `timeout = ${T}` with `T="120 # x"` read as `120`, and a value inside an inline table
+  could add keys to it. Such a value holding `#`, `,`, `=` or whitespace now refuses the
+  file, naming the variable and not its value. A placeholder inside a string or a comment
+  keeps its behaviour; a file that relied on a bare value with one of these characters
+  quotes the placeholder.
+
 - **An inbound webhook delivery is claimed once, by the inbound spine (#1782).** Each
   delivery used to be claimed twice in one transaction: in `webhooks.tb_inbound_delivery`
   on `(route, event_id)`, and again by the spine insert on `(source, idempotency_key)`. The
