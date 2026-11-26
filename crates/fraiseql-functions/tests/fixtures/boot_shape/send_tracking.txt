@@ -1,0 +1,29 @@
+column _fraiseql_send_status.challenge_count integer not null default 0
+column _fraiseql_send_status.last_signal text null
+column _fraiseql_send_status.message_id text null
+column _fraiseql_send_status.pk_send_status bigint not null
+column _fraiseql_send_status.recipient text not null
+column _fraiseql_send_status.send_id text not null
+column _fraiseql_send_status.sending_address text not null
+column _fraiseql_send_status.sent_at timestamp with time zone null
+column _fraiseql_send_status.status text not null
+column _fraiseql_send_status.tenant_id text null
+column _fraiseql_send_status.updated_at timestamp with time zone not null default now()
+column _fraiseql_suppression.address_hash text not null
+column _fraiseql_suppression.pk_suppression bigint not null
+column _fraiseql_suppression.reason text not null
+column _fraiseql_suppression.since timestamp with time zone not null default now()
+column _fraiseql_suppression.tenant_id text null
+column _fraiseql_suppression.ttl timestamp with time zone null
+column _fraiseql_suppression.updated_at timestamp with time zone not null default now()
+index CREATE INDEX idx_send_status_message_id ON public._fraiseql_send_status USING btree (message_id) WHERE (message_id IS NOT NULL)
+index CREATE INDEX idx_send_status_recipient ON public._fraiseql_send_status USING btree (recipient)
+index CREATE INDEX idx_send_status_send_id ON public._fraiseql_send_status USING btree (send_id)
+index CREATE UNIQUE INDEX _fraiseql_send_status_pkey ON public._fraiseql_send_status USING btree (pk_send_status)
+index CREATE UNIQUE INDEX _fraiseql_suppression_pkey ON public._fraiseql_suppression USING btree (pk_suppression)
+index CREATE UNIQUE INDEX uq_send_status_per_space ON public._fraiseql_send_status USING btree (send_id, tenant_id) NULLS NOT DISTINCT
+index CREATE UNIQUE INDEX uq_suppression_per_space ON public._fraiseql_suppression USING btree (address_hash, tenant_id) NULLS NOT DISTINCT
+policy _fraiseql_send_status p_send_status_tenant permissive to {public} for all using (NOT (tenant_id IS DISTINCT FROM current_setting('fraiseql.tenant_id'::text, true))) check -
+policy _fraiseql_suppression p_suppression_tenant permissive to {public} for all using (NOT (tenant_id IS DISTINCT FROM current_setting('fraiseql.tenant_id'::text, true))) check -
+row level security _fraiseql_send_status on
+row level security _fraiseql_suppression on

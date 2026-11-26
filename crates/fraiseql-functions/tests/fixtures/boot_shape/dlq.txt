@@ -1,0 +1,15 @@
+column _fraiseql_function_dlq.attempts bigint not null default 0
+column _fraiseql_function_dlq.created_at timestamp with time zone not null default now()
+column _fraiseql_function_dlq.error_message text not null
+column _fraiseql_function_dlq.function_name text not null
+column _fraiseql_function_dlq.id uuid not null
+column _fraiseql_function_dlq.idempotency_token text not null
+column _fraiseql_function_dlq.payload jsonb not null
+column _fraiseql_function_dlq.pk_function_dlq bigint not null
+column _fraiseql_function_dlq.source text not null
+column _fraiseql_function_dlq.trigger_type text not null
+index CREATE INDEX idx_function_dlq_created ON public._fraiseql_function_dlq USING btree (created_at)
+index CREATE INDEX idx_function_dlq_function ON public._fraiseql_function_dlq USING btree (function_name)
+index CREATE UNIQUE INDEX _fraiseql_function_dlq_pkey ON public._fraiseql_function_dlq USING btree (pk_function_dlq)
+index CREATE UNIQUE INDEX uq_function_dlq_id ON public._fraiseql_function_dlq USING btree (id)
+row level security _fraiseql_function_dlq off

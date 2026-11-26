@@ -9,6 +9,9 @@ use super::{
     cron_migration_sql, dlq_migration_sql, inbound_migration_sql, send_tracking_migration_sql,
 };
 
+#[path = "boot_locks_tests.rs"]
+mod boot_locks;
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /// Connect to the harness-provided Postgres (Dagger-bound in CI; a local spawn with
@@ -253,6 +256,8 @@ async fn test_send_tracking_migration_creates_tables_idempotently() {
 /// them and a read as the owner proves nothing. A `NOBYPASSRLS` role that owns nothing reads
 /// a tenant's rows only with that tenant set, and with none set, only the rows that belong to
 /// no tenant.
+/// The test builds its own database: a boot skips row-level security and policies it finds
+/// already correct, so on a shared one it would read what an earlier run left.
 #[tokio::test]
 async fn send_tracking_rows_are_read_through_the_tenant_policy() {
     use std::str::FromStr;
@@ -262,10 +267,11 @@ async fn send_tracking_rows_are_read_through_the_tenant_policy() {
     const ROLE: &str = "fraiseql_send_tracking_reader";
     const PASSWORD: &str = "send_tracking_rls_test_password";
 
-    let Some((pool, svc)) = connect_pool().await else {
+    let Some(db) = fraiseql_test_support::boot_locks::fresh_database("send_rls").await else {
         eprintln!("SKIP send_tracking_rows_are_read_through_the_tenant_policy: no postgres");
         return;
     };
+    let pool = db.pool().await;
     execute_ddl(&pool, send_tracking_migration_sql()).await;
     sqlx::query("TRUNCATE _fraiseql_send_status, _fraiseql_suppression")
         .execute(&pool)
@@ -304,7 +310,7 @@ async fn send_tracking_rows_are_read_through_the_tenant_policy() {
         // Reason: test SQL built from a role name this test defines.
         sqlx::query(sqlx::AssertSqlSafe(statement)).execute(&pool).await.unwrap();
     }
-    let options = PgConnectOptions::from_str(svc.url()).unwrap().username(ROLE).password(PASSWORD);
+    let options = PgConnectOptions::from_str(&db.url()).unwrap().username(ROLE).password(PASSWORD);
 
     for table in ["_fraiseql_send_status", "_fraiseql_suppression"] {
         // A fresh session per table: a transaction-local setting leaves `''` behind, not unset.

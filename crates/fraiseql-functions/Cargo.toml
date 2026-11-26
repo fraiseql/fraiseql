@@ -51,7 +51,9 @@ sqlx = { version = "0.9.1", features = [
   "tls-rustls-ring",
   "postgres",
 ] }
-fraiseql-test-support = { path = "../fraiseql-test-support" }
+fraiseql-test-support = { path = "../fraiseql-test-support", features = [
+  "boot-locks",
+] }
 criterion = { version = "0.5" }
 
 [[bench]]

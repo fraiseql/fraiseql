@@ -52,12 +52,25 @@ CREATE TABLE IF NOT EXISTS _fraiseql_cron_state (
     UNIQUE (function_name, cron_expr)
 );
 
-CREATE INDEX IF NOT EXISTS idx_cron_state_function
-    ON _fraiseql_cron_state (function_name);
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $cron_shape$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('_fraiseql_cron_state') AND i.relname = 'idx_cron_state_function'
+    ) THEN
+        CREATE INDEX idx_cron_state_function ON _fraiseql_cron_state (function_name);
+    END IF;
 
-CREATE INDEX IF NOT EXISTS idx_cron_state_next_fire
-    ON _fraiseql_cron_state (next_fire_at)
-    WHERE next_fire_at IS NOT NULL;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('_fraiseql_cron_state') AND i.relname = 'idx_cron_state_next_fire'
+    ) THEN
+        CREATE INDEX idx_cron_state_next_fire ON _fraiseql_cron_state (next_fire_at) WHERE next_fire_at IS NOT NULL;
+    END IF;
+END
+$cron_shape$;
 "
 }
 
@@ -206,9 +219,10 @@ $$;
 /// always-distinct. 2.15 expressed this as a `COALESCE(tenant_id, '')` expression index;
 /// the DDL creates the new key before dropping that one, so uniqueness never lapses.
 ///
-/// The DDL is idempotent: `CREATE … IF NOT EXISTS` for tables/indexes, `ENABLE ROW
-/// LEVEL SECURITY` is a no-op when already enabled, and each policy is dropped-if-
-/// exists before creation (`CREATE POLICY` has no `IF NOT EXISTS` form).
+/// The DDL is idempotent, and a boot over a current schema takes no table lock: each index,
+/// the row-level security and each policy is guarded by the catalog, a policy by its whole
+/// definition, so one whose definition differs is replaced and one that matches is left
+/// alone.
 ///
 /// # Example
 ///
@@ -234,30 +248,6 @@ CREATE TABLE IF NOT EXISTS _fraiseql_send_status (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_send_status_per_space
-    ON _fraiseql_send_status (send_id, tenant_id) NULLS NOT DISTINCT;
-DROP INDEX IF EXISTS uq_send_status_tenant_send;
-
--- The correlation path looks a send up by send_id alone (from the inbound
--- Return-Path plus-tag), without a session tenant, so it needs its own index.
-CREATE INDEX IF NOT EXISTS idx_send_status_send_id
-    ON _fraiseql_send_status (send_id);
-
--- Fallback correlation: matching our sent message-id quoted in the inbound
--- References / In-Reply-To when the VERP plus-tag was stripped.
-CREATE INDEX IF NOT EXISTS idx_send_status_message_id
-    ON _fraiseql_send_status (message_id)
-    WHERE message_id IS NOT NULL;
-
--- The challenge policy counts a recipient's pending challenges across campaigns.
-CREATE INDEX IF NOT EXISTS idx_send_status_recipient
-    ON _fraiseql_send_status (recipient);
-
-ALTER TABLE _fraiseql_send_status ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS p_send_status_tenant ON _fraiseql_send_status;
-CREATE POLICY p_send_status_tenant ON _fraiseql_send_status
-    USING (tenant_id IS NOT DISTINCT FROM current_setting('fraiseql.tenant_id', true));
-
 CREATE TABLE IF NOT EXISTS _fraiseql_suppression (
     pk_suppression BIGINT      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     tenant_id      TEXT,
@@ -268,14 +258,101 @@ CREATE TABLE IF NOT EXISTS _fraiseql_suppression (
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_suppression_per_space
-    ON _fraiseql_suppression (address_hash, tenant_id) NULLS NOT DISTINCT;
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $send_tracking_shape$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('_fraiseql_send_status') AND i.relname = 'uq_send_status_per_space'
+    ) THEN
+        CREATE UNIQUE INDEX uq_send_status_per_space
+            ON _fraiseql_send_status (send_id, tenant_id) NULLS NOT DISTINCT;
+    END IF;
+    -- The correlation path looks a send up by send_id alone (from the inbound
+    -- Return-Path plus-tag), without a session tenant, so it needs its own index.
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('_fraiseql_send_status') AND i.relname = 'idx_send_status_send_id'
+    ) THEN
+        CREATE INDEX idx_send_status_send_id ON _fraiseql_send_status (send_id);
+    END IF;
+    -- Fallback correlation: matching our sent message-id quoted in the inbound
+    -- References / In-Reply-To when the VERP plus-tag was stripped.
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('_fraiseql_send_status') AND i.relname = 'idx_send_status_message_id'
+    ) THEN
+        CREATE INDEX idx_send_status_message_id
+            ON _fraiseql_send_status (message_id) WHERE message_id IS NOT NULL;
+    END IF;
+    -- The challenge policy counts a recipient's pending challenges across campaigns.
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('_fraiseql_send_status') AND i.relname = 'idx_send_status_recipient'
+    ) THEN
+        CREATE INDEX idx_send_status_recipient ON _fraiseql_send_status (recipient);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('_fraiseql_suppression') AND i.relname = 'uq_suppression_per_space'
+    ) THEN
+        CREATE UNIQUE INDEX uq_suppression_per_space
+            ON _fraiseql_suppression (address_hash, tenant_id) NULLS NOT DISTINCT;
+    END IF;
+END
+$send_tracking_shape$;
+-- The 2.15 keys, dropped once the keys above exist.
+DROP INDEX IF EXISTS uq_send_status_tenant_send;
 DROP INDEX IF EXISTS uq_suppression_tenant_addr;
 
-ALTER TABLE _fraiseql_suppression ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS p_suppression_tenant ON _fraiseql_suppression;
-CREATE POLICY p_suppression_tenant ON _fraiseql_suppression
-    USING (tenant_id IS NOT DISTINCT FROM current_setting('fraiseql.tenant_id', true));
+-- Row-level security and the tenant policy, per table. `ENABLE ROW LEVEL SECURITY`,
+-- `DROP POLICY` and `CREATE POLICY` each take an ACCESS EXCLUSIVE lock even when they change
+-- nothing, so each is guarded by the catalog: RLS by `relrowsecurity`, the policy by its
+-- whole definition (permissive, roles, command and expression), and a policy whose
+-- definition differs is replaced. `tenant` is the policy's expression as PostgreSQL 18 (the
+-- supported floor) stores it; should it differ from what the CREATE below stores, every boot
+-- replaces the policy under its lock and the boot-lock test fails.
+DO $send_status_rls$
+DECLARE
+    tenant CONSTANT text :=
+        $q$(NOT (tenant_id IS DISTINCT FROM current_setting('fraiseql.tenant_id'::text, true)))$q$;
+BEGIN
+    IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass('_fraiseql_send_status')) THEN
+        ALTER TABLE _fraiseql_send_status ENABLE ROW LEVEL SECURITY;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policy
+        WHERE polrelid = to_regclass('_fraiseql_send_status') AND polname = 'p_send_status_tenant'
+          AND polpermissive AND polroles = '{0}'::oid[] AND polcmd = '*'
+          AND pg_get_expr(polqual, polrelid) = tenant AND polwithcheck IS NULL
+    ) THEN
+        DROP POLICY IF EXISTS p_send_status_tenant ON _fraiseql_send_status;
+        CREATE POLICY p_send_status_tenant ON _fraiseql_send_status
+            USING (tenant_id IS NOT DISTINCT FROM current_setting('fraiseql.tenant_id', true));
+    END IF;
+END
+$send_status_rls$;
+DO $suppression_rls$
+DECLARE
+    tenant CONSTANT text :=
+        $q$(NOT (tenant_id IS DISTINCT FROM current_setting('fraiseql.tenant_id'::text, true)))$q$;
+BEGIN
+    IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass('_fraiseql_suppression')) THEN
+        ALTER TABLE _fraiseql_suppression ENABLE ROW LEVEL SECURITY;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policy
+        WHERE polrelid = to_regclass('_fraiseql_suppression') AND polname = 'p_suppression_tenant'
+          AND polpermissive AND polroles = '{0}'::oid[] AND polcmd = '*'
+          AND pg_get_expr(polqual, polrelid) = tenant AND polwithcheck IS NULL
+    ) THEN
+        DROP POLICY IF EXISTS p_suppression_tenant ON _fraiseql_suppression;
+        CREATE POLICY p_suppression_tenant ON _fraiseql_suppression
+            USING (tenant_id IS NOT DISTINCT FROM current_setting('fraiseql.tenant_id', true));
+    END IF;
+END
+$suppression_rls$;
 "
 }
 
@@ -332,15 +409,33 @@ CREATE TABLE IF NOT EXISTS _fraiseql_function_dlq (
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- The dead-letter id is the stable handle an operator inspects / replays by.
-CREATE UNIQUE INDEX IF NOT EXISTS uq_function_dlq_id
-    ON _fraiseql_function_dlq (id);
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $dlq_shape$
+BEGIN
+    -- The dead-letter id is the stable handle an operator inspects / replays by.
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('_fraiseql_function_dlq') AND i.relname = 'uq_function_dlq_id'
+    ) THEN
+        CREATE UNIQUE INDEX uq_function_dlq_id ON _fraiseql_function_dlq (id);
+    END IF;
 
--- Oldest-first draining for the inspection/replay list.
-CREATE INDEX IF NOT EXISTS idx_function_dlq_created
-    ON _fraiseql_function_dlq (created_at);
+    -- Oldest-first draining for the inspection/replay list.
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('_fraiseql_function_dlq') AND i.relname = 'idx_function_dlq_created'
+    ) THEN
+        CREATE INDEX idx_function_dlq_created ON _fraiseql_function_dlq (created_at);
+    END IF;
 
-CREATE INDEX IF NOT EXISTS idx_function_dlq_function
-    ON _fraiseql_function_dlq (function_name);
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('_fraiseql_function_dlq') AND i.relname = 'idx_function_dlq_function'
+    ) THEN
+        CREATE INDEX idx_function_dlq_function ON _fraiseql_function_dlq (function_name);
+    END IF;
+END
+$dlq_shape$;
 "
 }

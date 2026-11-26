@@ -1843,8 +1843,8 @@ shard = "auth-rls"
 id = "rls-policy.functions.migrations.send_tracking_migration_sql.1"
 file = "crates/fraiseql-functions/src/migrations/mod.rs"
 function = "send_tracking_migration_sql"
-anchor = "CREATE POLICY p_send_status_tenant ON _fraiseql_send_status\n    USING (tenant_id IS NOT DISTINCT FROM current_setting('fraiseql.tenant_id', true))"
-mutant = "CREATE POLICY p_send_status_tenant ON _fraiseql_send_status\n    USING ((tenant_id IS NOT DISTINCT FROM current_setting('fraiseql.tenant_id', true)) OR TRUE)"
+anchor = "CREATE POLICY p_send_status_tenant ON _fraiseql_send_status\n            USING (tenant_id IS NOT DISTINCT FROM current_setting('fraiseql.tenant_id', true))"
+mutant = "CREATE POLICY p_send_status_tenant ON _fraiseql_send_status\n            USING ((tenant_id IS NOT DISTINCT FROM current_setting('fraiseql.tenant_id', true)) OR TRUE)"
 killers = ["send_tracking_rows_are_read_through_the_tenant_policy"]
 shard = "functions-migrations"
 
@@ -1852,8 +1852,8 @@ shard = "functions-migrations"
 id = "rls-policy.functions.migrations.send_tracking_migration_sql.2"
 file = "crates/fraiseql-functions/src/migrations/mod.rs"
 function = "send_tracking_migration_sql"
-anchor = "CREATE POLICY p_suppression_tenant ON _fraiseql_suppression\n    USING (tenant_id IS NOT DISTINCT FROM current_setting('fraiseql.tenant_id', true))"
-mutant = "CREATE POLICY p_suppression_tenant ON _fraiseql_suppression\n    USING ((tenant_id IS NOT DISTINCT FROM current_setting('fraiseql.tenant_id', true)) OR TRUE)"
+anchor = "CREATE POLICY p_suppression_tenant ON _fraiseql_suppression\n            USING (tenant_id IS NOT DISTINCT FROM current_setting('fraiseql.tenant_id', true))"
+mutant = "CREATE POLICY p_suppression_tenant ON _fraiseql_suppression\n            USING ((tenant_id IS NOT DISTINCT FROM current_setting('fraiseql.tenant_id', true)) OR TRUE)"
 killers = ["send_tracking_rows_are_read_through_the_tenant_policy"]
 shard = "functions-migrations"
 

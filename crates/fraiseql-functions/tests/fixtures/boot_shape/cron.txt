@@ -1,0 +1,12 @@
+column _fraiseql_cron_state.cron_expr text not null
+column _fraiseql_cron_state.fire_count bigint not null default 0
+column _fraiseql_cron_state.function_name text not null
+column _fraiseql_cron_state.last_fired_at timestamp with time zone not null
+column _fraiseql_cron_state.next_fire_at timestamp with time zone null
+column _fraiseql_cron_state.pk_cron_state bigint not null
+column _fraiseql_cron_state.updated_at timestamp with time zone not null default now()
+index CREATE INDEX idx_cron_state_function ON public._fraiseql_cron_state USING btree (function_name)
+index CREATE INDEX idx_cron_state_next_fire ON public._fraiseql_cron_state USING btree (next_fire_at) WHERE (next_fire_at IS NOT NULL)
+index CREATE UNIQUE INDEX _fraiseql_cron_state_function_name_cron_expr_key ON public._fraiseql_cron_state USING btree (function_name, cron_expr)
+index CREATE UNIQUE INDEX _fraiseql_cron_state_pkey ON public._fraiseql_cron_state USING btree (pk_cron_state)
+row level security _fraiseql_cron_state off
