@@ -1184,6 +1184,10 @@ pub struct ServerConfig {
     /// `/api/v1/admin/tenants/*` lifecycle API. Runtime tenant provisioning
     /// (registering a tenant with its own connection) is PostgreSQL-only.
     ///
+    /// Registered tenants and domains are held in the process's memory only: each
+    /// replica has its own, and a restart starts with none (see
+    /// `docs/operations/tenant-registry.md`).
+    ///
     /// ```toml
     /// [tenancy.runtime]
     /// enabled = true

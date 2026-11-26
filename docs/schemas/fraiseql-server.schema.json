@@ -741,7 +741,7 @@
       "x-fraiseql-feature": "inbound-email"
     },
     "tenancy": {
-      "description": "Multi-tenant executor runtime configuration.\n\nOff by default. Enable with `[tenancy.runtime] enabled = true` to mount the\nmulti-tenant runtime in the off-the-shelf binary: the per-tenant executor\nregistry, `X-Tenant-ID` / JWT `tenant_id` / Host dispatch, and the\n`/api/v1/admin/tenants/*` lifecycle API. Runtime tenant provisioning\n(registering a tenant with its own connection) is PostgreSQL-only.\n\n```toml\n[tenancy.runtime]\nenabled = true\n```",
+      "description": "Multi-tenant executor runtime configuration.\n\nOff by default. Enable with `[tenancy.runtime] enabled = true` to mount the\nmulti-tenant runtime in the off-the-shelf binary: the per-tenant executor\nregistry, `X-Tenant-ID` / JWT `tenant_id` / Host dispatch, and the\n`/api/v1/admin/tenants/*` lifecycle API. Runtime tenant provisioning\n(registering a tenant with its own connection) is PostgreSQL-only.\n\nRegistered tenants and domains are held in the process's memory only: each\nreplica has its own, and a restart starts with none (see\n`docs/operations/tenant-registry.md`).\n\n```toml\n[tenancy.runtime]\nenabled = true\n```",
       "$ref": "#/$defs/TenancyServerConfig",
       "default": {
         "runtime": {
