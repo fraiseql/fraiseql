@@ -104,7 +104,7 @@ fn no_params_passes_through() {
     let bound = prepare_enrichment_query("SELECT 1 AS one", &claims).unwrap();
 
     assert_eq!(bound.sql, "SELECT 1 AS one");
-    assert!(bound.binds.is_empty());
+    assert!(bound.binds.is_empty(), "{:?}", bound.binds);
 }
 
 #[test]
@@ -2080,7 +2080,7 @@ async fn an_empty_roles_array_grants_none_and_still_resolves() {
     let resolution = resolve_role(json!([])).await;
     match resolution {
         IdentityResolution::Resolved(identity) => {
-            assert!(identity.roles.is_empty());
+            assert!(identity.roles.is_empty(), "{:?}", identity.roles);
             assert_eq!(identity.fields["actor_id"], "a-1", "the fields still resolve");
         },
         other => panic!("expected Resolved, got {other:?}"),
@@ -2261,7 +2261,7 @@ async fn an_unwired_resolver_grants_no_role() {
     ])]));
     let mut ctx = sec_ctx("u1", &[]);
     assert_eq!(enrich_security_context(&resolver, &mut ctx).await, EnrichmentOutcome::Proceed);
-    assert!(ctx.roles.is_empty());
+    assert!(ctx.roles.is_empty(), "{:?}", ctx.roles);
 }
 
 #[tokio::test]
@@ -2303,7 +2303,7 @@ async fn a_denied_identity_adds_no_role() {
     resolver.set_role_names(&schema_reading_roles(&["viewer"]));
     let mut ctx = sec_ctx("u1", &[]);
     assert_eq!(enrich_security_context(&resolver, &mut ctx).await, EnrichmentOutcome::Denied);
-    assert!(ctx.roles.is_empty());
+    assert!(ctx.roles.is_empty(), "{:?}", ctx.roles);
 }
 
 #[tokio::test]
@@ -2311,7 +2311,7 @@ async fn a_schema_swap_changes_the_roles_granted() {
     let resolver = granting_resolver(json!("cost_reader"), &["viewer"]);
     let mut before = sec_ctx("u1", &[]);
     let _ = enrich_security_context(&resolver, &mut before).await;
-    assert!(before.roles.is_empty());
+    assert!(before.roles.is_empty(), "{:?}", before.roles);
 
     resolver.set_role_names(&schema_reading_roles(&["cost_reader"]));
     let mut after = sec_ctx("u1", &[]);

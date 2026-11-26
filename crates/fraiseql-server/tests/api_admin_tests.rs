@@ -306,7 +306,7 @@ fn test_reload_schema_response_creation_success() {
     };
 
     assert!(response.success);
-    assert!(!response.message.is_empty());
+    assert!(!response.message.is_empty(), "expected a non-empty message");
 }
 
 #[test]

@@ -217,7 +217,7 @@ mod tests {
     #[test]
     fn test_database_fixture_creation() {
         let fixture = DatabaseFixture::new();
-        assert!(!fixture.postgres_url.is_empty());
+        assert!(!fixture.postgres_url.is_empty(), "expected a non-empty PostgreSQL URL");
         assert!(fixture.cleanup_after);
     }
 

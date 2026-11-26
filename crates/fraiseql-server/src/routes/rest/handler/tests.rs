@@ -110,7 +110,7 @@ mod routing {
                 name: "users".to_string(),
             }
         );
-        assert!(resolved.path_params.is_empty());
+        assert!(resolved.path_params.is_empty(), "{:?}", resolved.path_params);
     }
 
     #[test]
@@ -216,7 +216,8 @@ mod routing {
     fn match_route_path_static() {
         let path_params = match_route_path("/users", &["users"]);
         assert!(path_params.is_some());
-        assert!(path_params.unwrap().is_empty());
+        let params = path_params.unwrap();
+        assert!(params.is_empty(), "{params:?}");
     }
 
     #[test]

@@ -32,8 +32,10 @@ fn extract_ids_skips_rows_without_the_id_field() {
 
 #[test]
 fn extract_ids_is_empty_for_an_empty_or_malformed_envelope() {
-    assert!(extract_ids(&serde_json::json!({"data": {"items": []}}), "id").is_empty());
-    assert!(extract_ids(&serde_json::json!({}), "id").is_empty());
+    let ids = extract_ids(&serde_json::json!({"data": {"items": []}}), "id");
+    assert!(ids.is_empty(), "{ids:?}");
+    let ids = extract_ids(&serde_json::json!({}), "id");
+    assert!(ids.is_empty(), "{ids:?}");
 }
 
 // -----------------------------------------------------------------------

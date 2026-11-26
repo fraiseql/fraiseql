@@ -239,7 +239,7 @@ fn test_production_config_with_configured_cors() {
 fn test_cors_default_settings() {
     let config = ServerConfig::default();
     assert!(config.cors_enabled);
-    assert!(config.cors_origins.is_empty());
+    assert!(config.cors_origins.is_empty(), "{:?}", config.cors_origins);
 }
 
 #[test]

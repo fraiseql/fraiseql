@@ -24,7 +24,8 @@ fn runtime_subtable_parses_all_known_keys() {
     assert_eq!(cfg.runtime.channel_capacity, 2000);
     assert!(!cfg.runtime.auto_reload);
     assert_eq!(cfg.runtime.reload_interval_secs, 30);
-    assert!(cfg.misplaced_runtime_keys().is_empty());
+    let misplaced = cfg.misplaced_runtime_keys();
+    assert!(misplaced.is_empty(), "{misplaced:?}");
 }
 
 #[test]
@@ -58,7 +59,8 @@ fn runtime_defaults_when_absent() {
     assert_eq!(cfg.runtime.poll_interval_ms, defaults.poll_interval_ms);
     assert_eq!(cfg.runtime.batch_size, defaults.batch_size);
     assert_eq!(cfg.runtime.channel_capacity, defaults.channel_capacity);
-    assert!(cfg.misplaced_runtime_keys().is_empty());
+    let misplaced = cfg.misplaced_runtime_keys();
+    assert!(misplaced.is_empty(), "{misplaced:?}");
 }
 
 // ── `[observers]` tolerates the compiler-owned keys ─────────────────────────
@@ -77,7 +79,8 @@ fn compiler_schema_keys_are_tolerated() {
     .unwrap();
 
     assert_eq!(cfg.enabled, Some(true));
-    assert!(cfg.misplaced_runtime_keys().is_empty());
+    let misplaced = cfg.misplaced_runtime_keys();
+    assert!(misplaced.is_empty(), "{misplaced:?}");
 }
 
 // ── Migration traps: pre-#342 flat layout fails loud ────────────────────────
@@ -111,7 +114,8 @@ fn flat_scalar_server_keys_are_trapped() {
 fn runtime_max_dlq_size_parses() {
     let cfg: ObserverConfig = toml::from_str("[runtime]\nmax_dlq_size = 10000\n").unwrap();
     assert_eq!(cfg.runtime.max_dlq_size, Some(10000));
-    assert!(cfg.misplaced_runtime_keys().is_empty());
+    let misplaced = cfg.misplaced_runtime_keys();
+    assert!(misplaced.is_empty(), "{misplaced:?}");
 
     // Absent → unbounded (None), back-compat default.
     let default: ObserverConfig = toml::from_str("enabled = true\n").unwrap();
@@ -147,7 +151,8 @@ fn runtime_transport_subtable_parses_the_nats_tuning() {
     .unwrap();
 
     assert_eq!(cfg.runtime.transport.nats.stream_name, "orders");
-    assert!(cfg.misplaced_runtime_keys().is_empty());
+    let misplaced = cfg.misplaced_runtime_keys();
+    assert!(misplaced.is_empty(), "{misplaced:?}");
 }
 
 #[test]
@@ -220,7 +225,8 @@ fn runtime_email_subtable_parses() {
     assert_eq!(email.from, "alerts@example.com");
     assert_eq!(email.tls, SmtpTlsMode::StartTls);
     assert_eq!(email.port, 587, "default submission port");
-    assert!(cfg.misplaced_runtime_keys().is_empty());
+    let misplaced = cfg.misplaced_runtime_keys();
+    assert!(misplaced.is_empty(), "{misplaced:?}");
 }
 
 #[test]
@@ -253,7 +259,8 @@ fn new_layout_has_no_misplaced_keys() {
     )
     .unwrap();
 
-    assert!(cfg.misplaced_runtime_keys().is_empty());
+    let misplaced = cfg.misplaced_runtime_keys();
+    assert!(misplaced.is_empty(), "{misplaced:?}");
     assert_eq!(cfg.runtime.poll_interval_ms, 500);
     assert_eq!(cfg.runtime.pool.max_connections, 7);
 }

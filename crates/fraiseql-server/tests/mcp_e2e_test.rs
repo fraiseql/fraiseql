@@ -254,7 +254,7 @@ async fn mcp_e2e_tool_call_query_no_args() {
         "Expected successful call_tool with no args: {:?}",
         result.content,
     );
-    assert!(!result.content.is_empty());
+    assert!(!result.content.is_empty(), "expected the tool result to carry content");
 }
 
 // ===========================================================================
@@ -345,7 +345,7 @@ fn mcp_e2e_scalar_field_selection() {
 fn mcp_e2e_scalar_fields_unknown_type() {
     let schema = build_test_schema();
     let fields = executor::scalar_fields_for_type("NonExistentType", &schema, &|_| true);
-    assert!(fields.is_empty());
+    assert!(fields.is_empty(), "{fields:?}");
 }
 
 // ===========================================================================

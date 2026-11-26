@@ -87,7 +87,7 @@ async fn health_includes_version_from_cargo() {
 
     let version = json["version"].as_str().unwrap();
     // Must match the crate version at compile time (not a hardcoded "2.0.0-a1")
-    assert!(!version.is_empty());
+    assert!(!version.is_empty(), "expected a non-empty version");
     assert!(version.contains('.'), "version should be semver: {version}");
 }
 

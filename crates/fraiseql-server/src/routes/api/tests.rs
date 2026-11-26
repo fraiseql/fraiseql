@@ -69,7 +69,7 @@ mod admin_tests {
             validate_only: false,
         };
 
-        assert!(request.schema_path.is_empty());
+        assert!(request.schema_path.is_empty(), "{:?}", request.schema_path);
     }
 
     #[test]
@@ -79,7 +79,7 @@ mod admin_tests {
             validate_only: false,
         };
 
-        assert!(!request.schema_path.is_empty());
+        assert!(!request.schema_path.is_empty(), "expected a non-empty schema path");
     }
 
     #[test]
@@ -103,7 +103,7 @@ mod admin_tests {
             config:  HashMap::new(),
         };
 
-        assert!(!response.version.is_empty());
+        assert!(!response.version.is_empty(), "expected a non-empty version");
     }
 
     #[test]
@@ -222,7 +222,7 @@ mod admin_tests {
         assert!(response.caches[0].configured);
         assert_eq!(response.caches[0].entries_count, 100);
         assert_eq!(response.caches[0].ttl_secs, 60);
-        assert!(!response.message.is_empty());
+        assert!(!response.message.is_empty(), "expected a non-empty message");
     }
 
     #[test]
@@ -232,7 +232,7 @@ mod admin_tests {
             validate_only: false,
         };
 
-        assert!(!request.schema_path.is_empty());
+        assert!(!request.schema_path.is_empty(), "expected a non-empty schema path");
     }
 
     #[test]
@@ -253,7 +253,7 @@ mod admin_tests {
         };
 
         assert!(response.success);
-        assert!(!response.message.is_empty());
+        assert!(!response.message.is_empty(), "expected a non-empty message");
     }
 
     // ── S33: reload_schema path traversal guards ───────────────────────────
@@ -409,8 +409,10 @@ mod federation_tests {
         let json = generate_json_graph(None);
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
-        assert!(parsed["subgraphs"].as_array().unwrap().is_empty());
-        assert!(parsed["edges"].as_array().unwrap().is_empty());
+        let subgraphs = parsed["subgraphs"].as_array().unwrap();
+        assert!(subgraphs.is_empty(), "{subgraphs:?}");
+        let edges = parsed["edges"].as_array().unwrap();
+        assert!(edges.is_empty(), "{edges:?}");
     }
 
     #[test]
@@ -787,7 +789,7 @@ mod query_tests {
             alias_count: 0,
         };
         let warnings = generate_warnings(&complexity);
-        assert!(!warnings.is_empty());
+        assert!(!warnings.is_empty(), "expected warnings, found none");
         assert!(warnings[0].contains("depth"));
     }
 
@@ -799,7 +801,7 @@ mod query_tests {
             alias_count: 0,
         };
         let warnings = generate_warnings(&complexity);
-        assert!(!warnings.is_empty());
+        assert!(!warnings.is_empty(), "expected warnings, found none");
         assert!(warnings.iter().any(|w| w.contains("complexity")));
     }
 
@@ -856,7 +858,7 @@ mod query_tests {
             database_plan:  None,
         };
 
-        assert!(!response.query.is_empty());
+        assert!(!response.query.is_empty(), "expected a non-empty query");
         assert_eq!(response.sql.as_deref(), Some("SELECT id FROM users"));
         assert_eq!(response.complexity.depth, 2);
         assert_eq!(response.estimated_cost, 50);
@@ -868,7 +870,7 @@ mod query_tests {
             query:     "query { users { id } }".to_string(),
             variables: None,
         };
-        assert!(!request.query.is_empty());
+        assert!(!request.query.is_empty(), "expected a non-empty query");
     }
 
     #[test]
@@ -1063,7 +1065,8 @@ mod schema_identity_tests {
             ("actor_id", serde_json::json!("a-1")),
             ("actor_role", serde_json::json!("manager")),
         ]));
-        assert!(metadata_keys(&without_role).await.is_empty());
+        let keys = metadata_keys(&without_role).await;
+        assert!(keys.is_empty(), "{keys:?}");
 
         let with_role =
             router(identity_fixtures::resolver_granting_roles(serde_json::json!("auditor")));

@@ -111,7 +111,7 @@ async fn poll_from_cursor_returns_nothing_new() {
         .await
         .unwrap();
 
-    assert!(batch.messages.is_empty());
+    assert!(batch.messages.is_empty(), "{:?}", batch.messages);
     assert_eq!(batch.next_cursor, cursor_value(Cursor::new(1, 11)), "the cursor does not move");
 }
 

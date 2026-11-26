@@ -109,12 +109,14 @@ fn a_cache_no_query_opts_into_is_reported_at_boot() {
 
 #[test]
 fn a_cache_a_query_opts_into_says_nothing() {
-    assert!(cache_opt_in_events(&schema_with_users(Some(60)), true).is_empty());
+    let events = cache_opt_in_events(&schema_with_users(Some(60)), true);
+    assert!(events.is_empty(), "{events:?}");
 }
 
 #[test]
 fn a_disabled_cache_says_nothing_here() {
-    assert!(cache_opt_in_events(&schema_with_users(None), false).is_empty());
+    let events = cache_opt_in_events(&schema_with_users(None), false);
+    assert!(events.is_empty(), "{events:?}");
 }
 
 // ── the server's `cache_enabled = false` over a schema whose queries declare cache TTLs ──
@@ -138,7 +140,8 @@ fn compiled_cache_ttls_under_a_disabled_cache_are_reported_at_boot() {
 
 #[test]
 fn compiled_cache_ttls_under_an_enabled_cache_say_nothing() {
-    assert!(inert_ttl_events(&schema_with_users(Some(60)), true).is_empty());
+    let events = inert_ttl_events(&schema_with_users(Some(60)), true);
+    assert!(events.is_empty(), "{events:?}");
 }
 
 // ── #1577: the cache is per process; an entry that never expires is stale on every other ──
@@ -165,7 +168,8 @@ fn a_query_cached_without_expiry_is_named_at_boot() {
 
 #[test]
 fn a_query_cached_with_a_ttl_says_nothing() {
-    assert!(per_process_events(&schema_with_users(Some(60)), true).is_empty());
+    let events = per_process_events(&schema_with_users(Some(60)), true);
+    assert!(events.is_empty(), "{events:?}");
 }
 
 #[test]
@@ -190,7 +194,8 @@ fn a_server_hearing_the_others_names_no_query_cached_without_expiry() {
 
 #[test]
 fn a_disabled_cache_names_no_query_cached_without_expiry() {
-    assert!(per_process_events(&schema_with_users(Some(0)), false).is_empty());
+    let events = per_process_events(&schema_with_users(Some(0)), false);
+    assert!(events.is_empty(), "{events:?}");
 }
 
 // ── #1717: a service SDL that requires authentication, on a server that authenticates nobody ──

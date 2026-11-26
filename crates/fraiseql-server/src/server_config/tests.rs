@@ -1450,7 +1450,7 @@ mod read_replicas_407 {
     #[test]
     fn defaults_to_no_replicas() {
         let config = ServerConfig::default();
-        assert!(config.read_replica_urls.is_empty());
+        assert!(config.read_replica_urls.is_empty(), "{:?}", config.read_replica_urls);
         assert!(config.read_replica_pin_after_write_ms.is_none());
         assert!(config.read_replicas().is_none(), "no replica config must lower to None");
     }

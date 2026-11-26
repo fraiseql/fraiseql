@@ -141,7 +141,8 @@ fn the_declared_features_are_the_features_tables_keys() {
 #[test]
 fn a_build_leaves_off_the_features_it_does_not_enable() {
     assert_eq!(missing_features(MANIFEST, |f| f == "auth"), ["grpc", "aws-s3"]);
-    assert!(missing_features(MANIFEST, |_| true).is_empty());
+    let missing = missing_features(MANIFEST, |_| true);
+    assert!(missing.is_empty(), "{missing:?}");
 }
 
 /// Read from this crate's real manifest: its features, and none of the keys of the tables

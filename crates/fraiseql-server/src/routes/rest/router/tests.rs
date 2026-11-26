@@ -267,7 +267,7 @@ fn strip_base_path_root() {
 #[test]
 fn parse_query_pairs_empty() {
     let result = parse_query_pairs("");
-    assert!(result.is_empty());
+    assert!(result.is_empty(), "{result:?}");
 }
 
 #[test]

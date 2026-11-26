@@ -318,7 +318,8 @@ mod export_columns {
 
     #[test]
     fn determine_columns_is_empty_with_no_rows_and_no_projection() {
-        assert!(determine_columns(None, &[]).is_empty());
+        let columns = determine_columns(None, &[]);
+        assert!(columns.is_empty(), "{columns:?}");
     }
 }
 

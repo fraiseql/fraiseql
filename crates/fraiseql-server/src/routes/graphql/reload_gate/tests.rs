@@ -11,7 +11,8 @@ fn a_changed_observer_declaration_is_reapplied_not_refused() {
         ..CompiledSchema::default()
     };
 
-    assert!(boot_frozen_drift(&CompiledSchema::default(), &next).is_empty());
+    let drift = boot_frozen_drift(&CompiledSchema::default(), &next);
+    assert!(drift.is_empty(), "{drift:?}");
     assert!(RELOAD_REAPPLIED.contains(&"observers"));
 }
 

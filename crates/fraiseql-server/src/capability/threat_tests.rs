@@ -235,18 +235,27 @@ mod rules {
             ..GUARDED
         };
         assert_eq!(shortfalls(&[("rest", open)], &[], &[]).len(), 1);
-        assert!(shortfalls(&[("rest", open)], &[], &[("rest", "#1")]).is_empty());
+        let listed = shortfalls(&[("rest", open)], &[], &[("rest", "#1")]);
+        assert!(listed.is_empty(), "{listed:?}");
     }
 
     #[test]
     fn a_listed_registration_that_gained_a_refusal_or_a_fixture_fails() {
         let fixtures = [hostile("rest_refuses", "rest", "none")];
-        assert!(!shortfalls(&[("rest", GUARDED)], &fixtures, &[("rest", "#1")]).is_empty());
+        let gained_a_refusal = shortfalls(&[("rest", GUARDED)], &fixtures, &[("rest", "#1")]);
+        assert!(
+            !gained_a_refusal.is_empty(),
+            "expected a shortfall for a listed guarded registration"
+        );
         let open = ThreatModel {
             refuses: &[],
             ..GUARDED
         };
-        assert!(!shortfalls(&[("rest", open)], &fixtures, &[("rest", "#1")]).is_empty());
+        let gained_a_fixture = shortfalls(&[("rest", open)], &fixtures, &[("rest", "#1")]);
+        assert!(
+            !gained_a_fixture.is_empty(),
+            "expected a shortfall for a listed registration with a fixture"
+        );
     }
 
     #[test]

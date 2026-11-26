@@ -75,7 +75,7 @@ async fn schema_json_types_have_fields() {
     let (_, json) = get_json(&router, "/api/v1/schema.json").await;
 
     let types = json["data"]["schema"]["types"].as_array().unwrap();
-    assert!(!types.is_empty());
+    assert!(!types.is_empty(), "expected types, found none");
 
     // types[] contains user-defined object types (e.g. User), not the synthetic Query root.
     let user_type = types.iter().find(|t| t["name"] == "User");

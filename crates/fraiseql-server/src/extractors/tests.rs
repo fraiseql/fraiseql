@@ -80,7 +80,7 @@ async fn extractor_keeps_role_claim_in_attributes_too() {
 #[tokio::test]
 async fn extractor_leaves_roles_empty_without_claim() {
     let ctx = context_for(user_with_claims(HashMap::new())).await;
-    assert!(ctx.roles.is_empty());
+    assert!(ctx.roles.is_empty(), "{:?}", ctx.roles);
 }
 
 /// `SecurityContext::from_token_claims` is the one function that turns a validated token into

@@ -333,7 +333,7 @@ fn test_error_response_has_error_code() {
 fn test_error_response_has_clear_message() {
     let error = GraphQLError::validation("Field 'invalidField' does not exist on type 'User'");
 
-    assert!(!error.message.is_empty());
+    assert!(!error.message.is_empty(), "expected a non-empty message");
     assert!(error.message.len() > 10);
 }
 

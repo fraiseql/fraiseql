@@ -210,18 +210,21 @@ mod circuit_breaker_tests {
     #[test]
     fn test_extract_entity_types_missing_representations() {
         let vars = serde_json::json!({ "other": "data" });
-        assert!(extract_entity_types(ENTITIES_BY_REPS, None, Some(&vars)).is_empty());
+        let entity_types = extract_entity_types(ENTITIES_BY_REPS, None, Some(&vars));
+        assert!(entity_types.is_empty(), "{entity_types:?}");
     }
 
     #[test]
     fn test_extract_entity_types_no_variables() {
-        assert!(extract_entity_types(ENTITIES_BY_REPS, None, None).is_empty());
+        let entity_types = extract_entity_types(ENTITIES_BY_REPS, None, None);
+        assert!(entity_types.is_empty(), "{entity_types:?}");
     }
 
     #[test]
     fn test_extract_entity_types_not_an_entities_operation() {
         let vars = serde_json::json!({ "representations": [{"__typename": "User", "id": "2"}] });
-        assert!(extract_entity_types("{ users { id } }", None, Some(&vars)).is_empty());
+        let entity_types = extract_entity_types("{ users { id } }", None, Some(&vars));
+        assert!(entity_types.is_empty(), "{entity_types:?}");
     }
 
     #[test]

@@ -84,28 +84,28 @@ fn test_graphql_get_params_camel_case() {
 fn test_appstate_has_cache_field() {
     // Documents: AppState must have cache field
     let note = "AppState includes: executor, metrics, cache";
-    assert!(!note.is_empty());
+    assert!(!note.is_empty(), "expected a non-empty note");
 }
 
 #[test]
 fn test_appstate_cache_accessor() {
     // Documents: AppState must have cache() accessor
     let note = "AppState::cache() -> Option<&Arc<QueryCache>>";
-    assert!(!note.is_empty());
+    assert!(!note.is_empty(), "expected a non-empty note");
 }
 
 #[test]
 fn test_appstate_executor_provides_access_to_schema() {
     // Documents: AppState should provide access to schema through executor
     let note = "AppState::executor can be queried for schema information";
-    assert!(!note.is_empty());
+    assert!(!note.is_empty(), "expected a non-empty note");
 }
 
 #[test]
 fn test_schema_access_for_api_endpoints() {
     // Documents: API endpoints should be able to access schema
     let note = "API routes can access schema via state.executor for introspection";
-    assert!(!note.is_empty());
+    assert!(!note.is_empty(), "expected a non-empty note");
 }
 
 // SECURITY: IP extraction no longer trusts spoofable headers
@@ -2165,7 +2165,8 @@ mod enrichment_role_names {
             .with_tenant_registry(registry)
             .with_identity_resolver(Arc::new(resolver_granting_roles(json!("cost_reader"))));
 
-        assert!(roles_granted(&state).await.is_empty());
+        let granted = roles_granted(&state).await;
+        assert!(granted.is_empty(), "{granted:?}");
     }
 
     #[tokio::test]
@@ -2175,7 +2176,8 @@ mod enrichment_role_names {
         let state = AppState::new(executor(reading(None)))
             .with_reload_config(path.clone())
             .with_identity_resolver(Arc::new(resolver_granting_roles(json!("cost_reader"))));
-        assert!(roles_granted(&state).await.is_empty());
+        let granted = roles_granted(&state).await;
+        assert!(granted.is_empty(), "{granted:?}");
 
         // `security` is boot-frozen, so the reload adds a role gate on a query instead.
         let mut gated = CompiledSchema::default();

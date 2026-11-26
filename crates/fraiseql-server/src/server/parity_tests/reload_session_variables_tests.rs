@@ -66,5 +66,8 @@ async fn a_reload_adding_session_variables_the_adapter_applies_is_accepted() {
     let path = write_schema(dir.path(), &with_session_variable()).await;
     state.reload_schema(&path).await.expect("the adapter applies session variables");
 
-    assert!(!state.executor.load().schema().session_variables.variables.is_empty());
+    assert!(
+        !state.executor.load().schema().session_variables.variables.is_empty(),
+        "expected the reloaded schema to declare session variables"
+    );
 }

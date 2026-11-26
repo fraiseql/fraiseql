@@ -240,7 +240,7 @@ fn scalar_fields_for_type_returns_all_scalar_fields() {
 fn scalar_fields_for_unknown_type_returns_empty() {
     let schema = build_test_schema();
     let fields = scalar_fields_for_type("NonExistent", &schema, &|_| true);
-    assert!(fields.is_empty());
+    assert!(fields.is_empty(), "{fields:?}");
 }
 
 // --- ServerHandler trait: get_info and get_tool ---
@@ -331,7 +331,7 @@ async fn call_tool_with_arguments_builds_valid_query() {
     let result =
         call_tool("user", Some(&args), &call_ctx(&schema, &executor, &make_mcp_config())).await;
     // Should not be an MCP-level error (may be an executor error from FailingAdapter)
-    assert!(!result.content.is_empty());
+    assert!(!result.content.is_empty(), "expected the tool result to carry content");
 }
 
 // --- Metrics integration ---

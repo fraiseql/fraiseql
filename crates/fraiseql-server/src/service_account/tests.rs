@@ -135,6 +135,6 @@ fn a_ceilingless_account_authenticates_with_no_authority() {
     let ctx = auth.authenticate(&headers_with("open")).unwrap();
     assert_eq!(ctx.user_id.as_str(), "service_account:bare");
     assert!(ctx.roles.is_empty(), "no roles → RLS/field-authz deny writes");
-    assert!(ctx.scopes.is_empty());
+    assert!(ctx.scopes.is_empty(), "{:?}", ctx.scopes);
     assert!(ctx.tenant_id.is_none());
 }

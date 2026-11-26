@@ -599,7 +599,7 @@ async fn test_delete_returns_204() {
     let (status, _headers, body) = send_delete(&router, "/rest/v1/users/42").await;
 
     assert_eq!(status, StatusCode::NO_CONTENT);
-    assert!(body.is_empty());
+    assert!(body.is_empty(), "{body:?}");
 }
 
 // ---------------------------------------------------------------------------
@@ -653,7 +653,7 @@ async fn test_delete_with_prefer_return_representation() {
         headers.get("preference-applied").map(|v| v.to_str().unwrap()),
         Some("return=representation")
     );
-    assert!(!body.is_empty());
+    assert!(!body.is_empty(), "expected a non-empty body");
     let json: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["name"], "Alice");
 }
@@ -690,7 +690,7 @@ async fn test_head_collection_returns_200_empty_body() {
 
     assert_eq!(status, StatusCode::OK);
     // HEAD response body should be empty per HTTP spec
-    assert!(body.is_empty());
+    assert!(body.is_empty(), "{body:?}");
 }
 
 // ---------------------------------------------------------------------------
@@ -1046,7 +1046,7 @@ async fn test_delete_with_prefer_return_minimal() {
             .await;
 
     assert_eq!(status, StatusCode::NO_CONTENT);
-    assert!(body.is_empty());
+    assert!(body.is_empty(), "{body:?}");
     assert_eq!(
         headers.get("preference-applied").map(|v| v.to_str().unwrap()),
         Some("return=minimal")

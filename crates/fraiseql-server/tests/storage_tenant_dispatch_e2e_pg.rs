@@ -433,7 +433,7 @@ async fn a_storage_request_holds_its_tenants_concurrency_permit_until_it_answers
         );
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     };
-    assert!(!refused.is_empty());
+    assert!(!refused.is_empty(), "expected at least one request to be refused");
 
     held.write_all(b"done").await.unwrap();
     let mut answer = Vec::new();

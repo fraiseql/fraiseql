@@ -225,7 +225,8 @@ fn a_system_jobs_bridge_write_stages_no_dispatch() {
     );
     let mut write = committed("Order", &update, &entity, 1);
     write.security_ctx = Some(&job);
-    assert!(observer.pending(&write).is_empty());
+    let pending = observer.pending(&write);
+    assert!(pending.is_empty(), "{pending:?}");
 
     // The control: the same write at depth 0 stages its dispatch, with the job recorded.
     write.dispatch_depth = 0;

@@ -765,7 +765,8 @@ mod schema_isolation_tests {
         let err = provision_tenant_schema("my-org", &adapter).await.unwrap_err();
         assert!(matches!(err, FraiseQLError::Validation { .. }));
         // No SQL should have been executed
-        assert!(adapter.recorded_queries().is_empty());
+        let queries = adapter.recorded_queries();
+        assert!(queries.is_empty(), "{queries:?}");
     }
 
     /// The key is interpolated into the DDL, inside a dollar-quoted `DO` block: a key that
@@ -801,7 +802,8 @@ mod schema_isolation_tests {
         );
         let err = drop_tenant_schema("", &executor).await.unwrap_err();
         assert!(matches!(err, FraiseQLError::Validation { .. }));
-        assert!(adapter.recorded_queries().is_empty());
+        let queries = adapter.recorded_queries();
+        assert!(queries.is_empty(), "{queries:?}");
     }
 }
 

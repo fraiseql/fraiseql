@@ -1901,7 +1901,8 @@ mod harness_rules {
             list.into_iter().enumerate().map(|(i, f)| (format!("f{i}"), f)).collect()
         };
 
-        assert!(missing_twins(&named(vec![hostile, positive_row])).is_empty());
+        let missing = missing_twins(&named(vec![hostile, positive_row]));
+        assert!(missing.is_empty(), "{missing:?}");
         for unproven in [positive_http, other_capability, hostile_row] {
             let hostile = fixture(&format!(
                 "capability = \"rest\"\nrole = \"hostile\"\n[effect]\nnone = {{ of = {{ {ROW} }} }}"

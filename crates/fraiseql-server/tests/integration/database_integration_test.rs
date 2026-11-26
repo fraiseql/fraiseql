@@ -243,7 +243,7 @@ fn test_cors_configuration_variants() {
     };
 
     assert!(config_allow_all.cors_enabled);
-    assert!(config_allow_all.cors_origins.is_empty());
+    assert!(config_allow_all.cors_origins.is_empty(), "{:?}", config_allow_all.cors_origins);
 
     // CORS enabled with specific origins
     let config_specific = ServerConfig {

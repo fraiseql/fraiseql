@@ -59,7 +59,7 @@ fn test_api_schema_response_types_defined() {
     let graphql_schema = GraphQLSchemaResponse {
         schema: "type Query { hello: String }".to_string(),
     };
-    assert!(!graphql_schema.schema.is_empty());
+    assert!(!graphql_schema.schema.is_empty(), "expected a non-empty schema");
 
     let json_schema = JsonSchemaResponse {
         schema: serde_json::json!({}),

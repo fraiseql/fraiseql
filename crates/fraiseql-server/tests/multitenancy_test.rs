@@ -360,7 +360,7 @@ async fn test_concurrent_reads_during_upsert() {
         let reg = Arc::clone(registry);
         handles.push(tokio::spawn(async move {
             let exec = reg.executor_for(Some("tenant-a")).unwrap();
-            assert!(!exec.schema().queries.is_empty());
+            assert!(!exec.schema().queries.is_empty(), "expected the schema to declare queries");
         }));
     }
 

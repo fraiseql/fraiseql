@@ -47,8 +47,8 @@ fn a_sub_select_separates_fields_embeds_and_counts() {
 fn a_count_only_sub_select_yields_a_count_and_no_fields() {
     let split = SubSelect::split(&[SelectEntry::Count("comments".to_string())]);
 
-    assert!(split.fields.is_empty());
-    assert!(split.embeds.is_empty());
+    assert!(split.fields.is_empty(), "{:?}", split.fields);
+    assert!(split.embeds.is_empty(), "{:?}", split.embeds);
     assert_eq!(split.counts, vec!["comments".to_string()]);
 }
 

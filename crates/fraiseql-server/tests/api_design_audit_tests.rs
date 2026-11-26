@@ -517,7 +517,7 @@ fn test_design_audit_response_has_all_categories() {
         "compilation",
     ];
     for category in categories {
-        assert!(!category.is_empty());
+        assert!(!category.is_empty(), "expected a non-empty category");
     }
 }
 
@@ -555,7 +555,7 @@ fn test_design_audit_issue_has_suggestion() {
     };
 
     // Every issue must have a suggestion
-    assert!(!issue.suggestion.is_empty());
+    assert!(!issue.suggestion.is_empty(), "expected a non-empty suggestion");
 }
 
 // ============================================================================
@@ -588,9 +588,9 @@ fn test_design_issue_required_fields() {
     };
 
     // Verify all required fields are present
-    assert!(!issue.severity.is_empty());
-    assert!(!issue.message.is_empty());
-    assert!(!issue.suggestion.is_empty());
+    assert!(!issue.severity.is_empty(), "expected a non-empty severity");
+    assert!(!issue.message.is_empty(), "expected a non-empty message");
+    assert!(!issue.suggestion.is_empty(), "expected a non-empty suggestion");
 }
 
 // ============================================================================
@@ -609,8 +609,8 @@ fn test_federation_issue_content() {
 
     // Verify issue has all required fields
     assert!(["critical", "warning", "info"].contains(&issue.severity.as_str()));
-    assert!(!issue.message.is_empty());
-    assert!(!issue.suggestion.is_empty());
+    assert!(!issue.message.is_empty(), "expected a non-empty message");
+    assert!(!issue.suggestion.is_empty(), "expected a non-empty suggestion");
 }
 
 #[test]
@@ -623,7 +623,7 @@ fn test_cost_warning_content() {
     };
 
     assert!(issue.message.contains("cardinality") || issue.message.contains("complexity"));
-    assert!(!issue.suggestion.is_empty());
+    assert!(!issue.suggestion.is_empty(), "expected a non-empty suggestion");
 }
 
 #[test]
@@ -645,7 +645,7 @@ fn test_minimal_schema_audit() {
     let schema = minimal_schema();
     assert!(schema.get("types").is_some());
     let types = schema["types"].as_array().unwrap();
-    assert!(!types.is_empty());
+    assert!(!types.is_empty(), "expected types, found none");
 }
 
 #[test]

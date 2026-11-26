@@ -206,8 +206,10 @@ fn test_federation_graph_empty() {
     };
 
     let parsed: serde_json::Value = serde_json::from_str(&response.content).unwrap();
-    assert!(parsed["subgraphs"].as_array().unwrap().is_empty());
-    assert!(parsed["edges"].as_array().unwrap().is_empty());
+    let subgraphs = parsed["subgraphs"].as_array().unwrap();
+    assert!(subgraphs.is_empty(), "{subgraphs:?}");
+    let edges = parsed["edges"].as_array().unwrap();
+    assert!(edges.is_empty(), "{edges:?}");
 }
 
 #[test]
@@ -232,7 +234,7 @@ fn test_federation_graph_with_entities() {
     let edges = &parsed["edges"];
 
     assert!(edges.is_array());
-    assert!(!edges.as_array().unwrap().is_empty());
+    assert!(!edges.as_array().unwrap().is_empty(), "expected edges, found none");
     assert_eq!(edges[0]["entity"], "User");
 }
 
