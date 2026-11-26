@@ -165,7 +165,7 @@ pub use signing_key::{
 pub use sqlx;
 pub use state_encryption::{
     DecryptionError, EncryptedState, EncryptionAlgorithm, KeyError, StateEncryption,
-    StateEncryptionConfig, StateEncryptionService, generate_state_encryption_key,
+    StateEncryptionService, generate_state_encryption_key,
 };
 pub use state_store::{InMemoryStateStore, StateStore};
 /// The `tokio` this crate's public API is built against (#1198).

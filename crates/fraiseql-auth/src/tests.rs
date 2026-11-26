@@ -2576,55 +2576,27 @@ mod state_encryption_service_tests {
     }
 
     #[test]
-    fn test_from_compiled_schema_enabled_missing_key_returns_error() {
+    fn test_new_from_env_missing_key_returns_error() {
         std::env::remove_var("FRAISEQL_TEST_MISSING_ENC_KEY_B1");
-        let json = serde_json::json!({
-            "state_encryption": {
-                "enabled": true,
-                "algorithm": "chacha20-poly1305",
-                "key_env": "FRAISEQL_TEST_MISSING_ENC_KEY_B1"
-            }
-        });
-        let result = StateEncryptionService::from_compiled_schema(&json);
-        assert!(result.is_err(), "should error when enabled=true but env var absent");
+        let result = StateEncryptionService::new_from_env(
+            "FRAISEQL_TEST_MISSING_ENC_KEY_B1",
+            EncryptionAlgorithm::Chacha20Poly1305,
+        );
+        assert!(result.is_err(), "should error when the env var is absent");
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("FRAISEQL_TEST_MISSING_ENC_KEY_B1"));
     }
 
     #[test]
-    fn test_from_compiled_schema_enabled() {
+    fn test_new_from_env() {
         let key_hex = "aa".repeat(32);
         std::env::set_var("TEST_SVC_ENC_KEY_P3", &key_hex);
-        let json = serde_json::json!({
-            "state_encryption": {
-                "enabled": true,
-                "algorithm": "chacha20-poly1305",
-                "key_env": "TEST_SVC_ENC_KEY_P3"
-            }
-        });
-        let svc = StateEncryptionService::from_compiled_schema(&json)
-            .expect("should succeed when env var is set");
-        assert!(svc.is_some());
+        let result = StateEncryptionService::new_from_env(
+            "TEST_SVC_ENC_KEY_P3",
+            EncryptionAlgorithm::Chacha20Poly1305,
+        );
         std::env::remove_var("TEST_SVC_ENC_KEY_P3");
-    }
-
-    #[test]
-    fn test_from_compiled_schema_disabled() {
-        let json = serde_json::json!({"state_encryption": {"enabled": false}});
-        assert!(
-            StateEncryptionService::from_compiled_schema(&json)
-                .expect("disabled should be ok")
-                .is_none()
-        );
-    }
-
-    #[test]
-    fn test_from_compiled_schema_missing() {
-        assert!(
-            StateEncryptionService::from_compiled_schema(&serde_json::json!({}))
-                .expect("missing should be ok")
-                .is_none()
-        );
+        result.expect("should succeed when env var is set");
     }
 
     #[test]

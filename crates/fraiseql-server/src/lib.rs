@@ -236,19 +236,6 @@ pub mod auth {
     pub mod state_encryption {
         /// Zero-sized stub; never instantiated when `auth` feature is off.
         pub struct StateEncryptionService;
-        impl StateEncryptionService {
-            /// Stub: returns `None`.
-            ///
-            /// # Errors
-            ///
-            /// Currently infallible — always returns `Ok(None)`.
-            /// Errors may be returned when the `auth` feature is enabled.
-            pub const fn from_compiled_schema(
-                _s: &serde_json::Value,
-            ) -> crate::Result<Option<std::sync::Arc<Self>>> {
-                Ok(None)
-            }
-        }
     }
 
     /// Stub for `fraiseql_auth::PkceStateStore`.

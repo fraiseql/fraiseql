@@ -18,6 +18,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql-auth` drops `StateEncryptionConfig` and
+  `StateEncryptionService::from_compiled_schema` (#1777).** The server reads
+  `[security.state_encryption]` as the compiled schema types it
+  (`fraiseql_core::schema::StateEncryptionConfig`) and builds the service with
+  `StateEncryptionService::new_from_env`. The auth crate's copy of the section parsed the
+  compiled JSON a second time, accepting keys the section does not take. A caller that
+  built the service from a compiled `security` value reads the section and calls
+  `new_from_env` with its `key_env` and algorithm.
+
 - **`fraiseql_cli::config::toml_schema` re-exports the core security section types under
   their own names (#1777).** `ErrorSanitizationTomlConfig` is `ErrorSanitizationConfig`
   and `PkceConfig` is `PkceSecurityConfig`, the names `fraiseql_core::schema` gives them.

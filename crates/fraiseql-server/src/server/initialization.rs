@@ -184,16 +184,43 @@ impl Server {
     pub(super) fn state_encryption_from_schema(
         schema: &CompiledSchema,
     ) -> crate::Result<Option<Arc<crate::auth::state_encryption::StateEncryptionService>>> {
-        match schema.security.as_ref() {
-            None => Ok(None),
-            Some(s) => {
-                let s_val = serde_json::to_value(s).map_err(|e| {
-                    ServerError::ConfigError(format!("Failed to serialize security config: {e}"))
-                })?;
-                crate::auth::state_encryption::StateEncryptionService::from_compiled_schema(&s_val)
-                    .map_err(|e| ServerError::ConfigError(e.to_string()))
-            },
+        use fraiseql_core::schema::{EncryptionAlgorithm as Named, KeySource};
+
+        use crate::auth::state_encryption::{EncryptionAlgorithm, StateEncryptionService};
+
+        let Some(section) = schema.security.as_ref().and_then(|s| s.state_encryption.as_ref())
+        else {
+            return Ok(None);
+        };
+        if !section.enabled {
+            return Ok(None);
         }
+        // Both enums are non-exhaustive: a variant the compiled schema gains is refused here
+        // until it is mapped, rather than encrypting with some other algorithm or key.
+        let algorithm = match &section.algorithm {
+            Named::Chacha20Poly1305 => EncryptionAlgorithm::Chacha20Poly1305,
+            Named::Aes256Gcm => EncryptionAlgorithm::Aes256Gcm,
+            other => {
+                return Err(ServerError::ConfigError(format!(
+                    "[security.state_encryption] algorithm = \"{other}\" is not one this server \
+                     encrypts with"
+                )));
+            },
+        };
+        if !matches!(section.key_source, KeySource::Env) {
+            return Err(ServerError::ConfigError(format!(
+                "[security.state_encryption] key_source = {:?} is not one this server reads",
+                section.key_source
+            )));
+        }
+        let key_env = section.key_env.as_deref().unwrap_or("STATE_ENCRYPTION_KEY");
+        StateEncryptionService::new_from_env(key_env, algorithm)
+            .map(|service| Some(Arc::new(service)))
+            .map_err(|e| {
+                ServerError::ConfigError(format!(
+                    "state_encryption enabled but key env var '{key_env}' failed: {e}"
+                ))
+            })
     }
 
     /// Validate that distributed storage is configured when `FRAISEQL_REQUIRE_REDIS` is set.

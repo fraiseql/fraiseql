@@ -70,6 +70,9 @@ mod rbac_mount_tests;
 mod scim_mount_tests;
 #[cfg(test)]
 mod service_sdl_wiring_tests;
+#[cfg(all(test, feature = "auth"))]
+#[path = "state_encryption_boot_tests.rs"]
+mod state_encryption_boot_tests;
 #[cfg(test)]
 mod storage_quota_sweep_tests;
 #[cfg(test)]

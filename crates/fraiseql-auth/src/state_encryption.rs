@@ -8,7 +8,7 @@
 //! - [`EncryptionAlgorithm::Chacha20Poly1305`] (default, constant-time in software)
 //! - [`EncryptionAlgorithm::Aes256Gcm`] (hardware-accelerated on modern CPUs)
 
-use std::{fmt, sync::Arc};
+use std::fmt;
 
 // aes_gcm and chacha20poly1305 both re-export the same underlying `aead` traits.
 // We import them once from chacha20poly1305 and reuse for both cipher types.
@@ -249,28 +249,6 @@ impl fmt::Display for EncryptionAlgorithm {
     }
 }
 
-/// Deserialized from `compiled.security.state_encryption`.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
-pub struct StateEncryptionConfig {
-    /// Enable the service; when `false`, `from_compiled_schema` returns `None`.
-    pub enabled:   bool,
-    /// AEAD algorithm to use.
-    pub algorithm: EncryptionAlgorithm,
-    /// Name of the environment variable holding the 64-char hex key.
-    pub key_env:   Option<String>,
-}
-
-impl Default for StateEncryptionConfig {
-    fn default() -> Self {
-        Self {
-            enabled:   false,
-            algorithm: EncryptionAlgorithm::default(),
-            key_env:   Some("STATE_ENCRYPTION_KEY".to_string()),
-        }
-    }
-}
-
 /// AEAD encryption service for OAuth state and PKCE blobs.
 ///
 /// Wire format: URL-safe base64 of `[12-byte nonce || ciphertext || 16-byte tag]`.
@@ -343,38 +321,6 @@ impl StateEncryptionService {
     ) -> std::result::Result<Self, anyhow::Error> {
         let hex = std::env::var(var).map_err(|_| anyhow::anyhow!("env var {var} not set"))?;
         Ok(Self::from_hex_key(&hex, algorithm)?)
-    }
-
-    /// Build from the `security` blob of a compiled schema, if enabled.
-    ///
-    /// Returns `Ok(None)` when the `state_encryption` key is absent or `enabled = false`.
-    ///
-    /// # Errors
-    ///
-    /// Returns `Err` when `enabled = true` but the key environment variable is absent
-    /// or contains an invalid value.  The server must refuse to start in this case.
-    pub fn from_compiled_schema(
-        security_json: &serde_json::Value,
-    ) -> std::result::Result<Option<Arc<Self>>, anyhow::Error> {
-        let cfg: StateEncryptionConfig = match security_json.get("state_encryption") {
-            None | Some(serde_json::Value::Null) => return Ok(None),
-            Some(v) => serde_json::from_value(v.clone())
-                .map_err(|e| anyhow::anyhow!("invalid state_encryption config: {e}"))?,
-        };
-
-        if !cfg.enabled {
-            return Ok(None);
-        }
-
-        let key_env = cfg.key_env.as_deref().unwrap_or("STATE_ENCRYPTION_KEY");
-        Self::new_from_env(key_env, cfg.algorithm)
-            .map(|svc| Some(Arc::new(svc)))
-            .map_err(|e| {
-                anyhow::anyhow!(
-                    "state_encryption enabled but key env var '{}' failed: {e}",
-                    key_env
-                )
-            })
     }
 
     /// Encrypt `plaintext` to a URL-safe base64 string.
