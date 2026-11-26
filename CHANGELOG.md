@@ -2230,6 +2230,13 @@ disagreed, and the promise was the part that was wrong.
     schema that lost each guarded object, or holds one of its policies changed in a single
     attribute.
 
+- **The observers' Redis is named by its host in the server's startup line and boot errors
+  (#2597).** The cache-invalidation transport for `cache` observer actions logged its whole
+  `[observers.runtime.redis]` URL when it mounted, and the boot error for a URL the client
+  refused, or a Redis it could not reach, quoted the URL too, password included. Each now
+  names the Redis as `scheme://host:port`, and the log line's field is `redis_host`. The
+  `fraiseql-observers` connect error no longer carries the URL.
+
 - **The PHP SDK's client no longer calls `curl_close()` (#2542).** It has done nothing
   since PHP 8.0, and PHP 8.5 deprecates it, so every request raised a deprecation on 8.5.
   The handle is freed when it goes out of scope, as it already was.

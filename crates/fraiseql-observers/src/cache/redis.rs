@@ -161,19 +161,17 @@ impl RedisCacheInvalidator {
     /// # Errors
     ///
     /// Returns [`ObserverError::InvalidConfig`] if the URL is malformed or the
-    /// initial connection cannot be established.
+    /// initial connection cannot be established. Neither message carries the URL,
+    /// which can hold a password: the caller names the Redis by its host.
     pub async fn connect(config: &RedisConfig) -> Result<Self> {
         let client =
             redis::Client::open(config.url.as_str()).map_err(|e| ObserverError::InvalidConfig {
-                message: format!("cache invalidation: invalid Redis URL {:?}: {e}", config.url),
+                message: format!("cache invalidation: invalid Redis URL: {e}"),
             })?;
         let conn = ConnectionManager::new_with_config(client, connection_manager_config(config))
             .await
             .map_err(|e| ObserverError::InvalidConfig {
-                message: format!(
-                    "cache invalidation: cannot connect to Redis at {:?}: {e}",
-                    config.url
-                ),
+                message: format!("cache invalidation: cannot connect to Redis: {e}"),
             })?;
         Ok(Self { conn })
     }

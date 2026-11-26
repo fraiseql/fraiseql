@@ -243,3 +243,124 @@ async fn a_runtime_without_cache_actions_needs_no_redis() {
         "no cache action declared, so Redis must not be required: {started:?}"
     );
 }
+
+// ── The Redis URL is named by its host, never in full ───────────────────────────────
+
+/// A password no test Redis checks: Redis without `requirepass` accepts any password for
+/// the `default` user.
+const REDIS_PASSWORD: &str = "pw-REDIS-SENTINEL";
+
+/// `url` with `default:REDIS_PASSWORD@` as its user info.
+fn with_password(url: &str) -> String {
+    let host = fraiseql_core::schema::redis_url::host_of(url);
+    host.replacen("://", &format!("://default:{REDIS_PASSWORD}@"), 1)
+}
+
+/// Boot a runtime whose only observer is a `cache` action, on `url`; the boot's outcome and
+/// the JSON log lines it wrote.
+async fn boot_with_redis(url: &str, prefix: &str) -> (Result<(), String>, Vec<serde_json::Value>) {
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Clone, Default)]
+    struct Captured(Arc<Mutex<Vec<u8>>>);
+    impl std::io::Write for Captured {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.unwrap();
+    clear_suite_observers(&pool).await;
+    let test_id = Uuid::new_v4().to_string();
+    create_cache_observer(
+        &pool,
+        &format!("{prefix}-{test_id}"),
+        &format!("Product_{test_id}"),
+        &format!("fraiseql:test:{test_id}:*"),
+    )
+    .await;
+
+    let captured = Captured::default();
+    let writer = captured.clone();
+    let subscriber = tracing_subscriber::fmt().json().with_writer(move || writer.clone()).finish();
+    let guard = fraiseql_test_support::tracing_capture::set_default(subscriber);
+    let mut runtime = ObserverRuntime::new(
+        ObserverRuntimeConfig::new(pool.clone())
+            .with_poll_interval(50)
+            .with_listener_id(format!("{prefix}-{test_id}"))
+            .with_redis(Some(RedisConfig {
+                url: url.to_owned(),
+                connect_timeout_secs: 1,
+                ..RedisConfig::default()
+            })),
+    );
+    let started = runtime.start().await.map_err(|e| e.to_string());
+    drop(guard);
+    runtime.stop().await.ok();
+    cleanup_test_data(&pool, &test_id).await.ok();
+    clear_suite_observers(&pool).await;
+
+    let log = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
+    (started, log.lines().map(|line| serde_json::from_str(line).unwrap()).collect())
+}
+
+/// A Redis URL holding a password mounts the transport, and the startup line names the
+/// Redis by its host only.
+#[tokio::test]
+#[ignore = "requires PostgreSQL + Redis — run with --ignored --test-threads=1"]
+async fn the_mounted_transport_logs_its_redis_by_host_only() {
+    let url = with_password(&redis_url());
+    let (started, log) = boot_with_redis(&url, "cache-obs").await;
+    started.expect("a URL holding a password reaches the test Redis");
+
+    let mounted: Vec<&serde_json::Value> = log
+        .iter()
+        .filter(|line| line.to_string().contains("Mounted the Redis cache-invalidation transport"))
+        .collect();
+    assert_eq!(mounted.len(), 1, "one mount line: {log:?}");
+    assert_eq!(
+        mounted[0]["fields"]["redis_host"],
+        serde_json::Value::String(fraiseql_core::schema::redis_url::host_of(&url)),
+        "{}",
+        mounted[0]
+    );
+    for line in &log {
+        assert!(!line.to_string().contains(REDIS_PASSWORD), "{line}");
+    }
+}
+
+/// A URL the Redis client refuses fails the boot, and the error names the host only.
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn a_refused_redis_url_fails_the_boot_naming_its_host_only() {
+    // A port no Redis client accepts: refused before any connection attempt.
+    let url = format!("redis://default:{REDIS_PASSWORD}@127.0.0.1:99999/0");
+    let (started, log) = boot_with_redis(&url, "cache-noredis").await;
+    let error = started.expect_err("an invalid Redis URL fails the boot");
+    assert!(error.contains("redis://127.0.0.1:99999"), "the error names the host: {error}");
+    assert!(!error.contains(REDIS_PASSWORD), "{error}");
+    for line in &log {
+        assert!(!line.to_string().contains(REDIS_PASSWORD), "{line}");
+    }
+}
+
+/// A Redis that cannot be reached fails the boot, and the error names the host only.
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn an_unreachable_redis_fails_the_boot_naming_its_host_only() {
+    // Port 1 on loopback: nothing listens, so the connection is refused at once.
+    let url = format!("redis://default:{REDIS_PASSWORD}@127.0.0.1:1/0");
+    let (started, log) = boot_with_redis(&url, "cache-noredis").await;
+    let error = started.expect_err("an unreachable Redis fails the boot");
+    assert!(error.contains("redis://127.0.0.1:1"), "the error names the host: {error}");
+    assert!(!error.contains(REDIS_PASSWORD), "{error}");
+    for line in &log {
+        assert!(!line.to_string().contains(REDIS_PASSWORD), "{line}");
+    }
+}

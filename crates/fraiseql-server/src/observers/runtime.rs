@@ -1976,18 +1976,19 @@ async fn connect_cache_invalidator(
         ));
     };
 
+    // The URL can hold a password: name the Redis by its host.
+    let redis_host = fraiseql_core::schema::redis_url::host_of(&redis_config.url);
     let invalidator = fraiseql_observers::RedisCacheInvalidator::connect(redis_config)
         .await
         .map_err(|e| {
             ServerError::ConfigError(format!(
                 "an observer declares a `cache` action but the configured Redis backend \
-                 ({}) could not be reached: {e}",
-                redis_config.url
+                 ({redis_host}) could not be reached: {e}"
             ))
         })?;
 
     info!(
-        redis_url = %redis_config.url,
+        redis_host = %redis_host,
         "Mounted the Redis cache-invalidation transport for `cache` observer actions"
     );
     Ok(Some(Arc::new(invalidator)))
