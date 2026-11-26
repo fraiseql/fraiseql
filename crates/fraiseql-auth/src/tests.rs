@@ -221,7 +221,7 @@ mod provider_tests {
     fn test_base64_url_encode() {
         let bytes = b"hello world";
         let encoded = base64_url_encode(bytes);
-        assert!(!encoded.is_empty());
+        assert!(!encoded.is_empty(), "expected a non-empty encoding");
         assert!(!encoded.contains('+'));
         assert!(!encoded.contains('/'));
     }
@@ -253,8 +253,8 @@ mod handlers_tests {
         let state2 = generate_secure_state();
 
         assert_ne!(state1, state2);
-        assert!(!state1.is_empty());
-        assert!(!state2.is_empty());
+        assert!(!state1.is_empty(), "expected a non-empty state");
+        assert!(!state2.is_empty(), "expected a non-empty state");
         assert_eq!(state1.len(), 64);
         assert_eq!(state2.len(), 64);
         hex::decode(&state1).unwrap_or_else(|e| panic!("state1 should be valid hex: {e}"));
@@ -450,8 +450,8 @@ mod session_tests {
         let token2 = generate_refresh_token();
 
         assert_ne!(token1, token2);
-        assert!(!token1.is_empty());
-        assert!(!token2.is_empty());
+        assert!(!token1.is_empty(), "expected a non-empty token");
+        assert!(!token2.is_empty(), "expected a non-empty token");
     }
 
     #[tokio::test]
@@ -464,8 +464,8 @@ mod session_tests {
 
         let result = store.create_session("user123", now + 3600).await;
         let tokens = result.unwrap_or_else(|e| panic!("expected Ok from create_session: {e}"));
-        assert!(!tokens.access_token.is_empty());
-        assert!(!tokens.refresh_token.is_empty());
+        assert!(!tokens.access_token.is_empty(), "expected a non-empty access token");
+        assert!(!tokens.refresh_token.is_empty(), "expected a non-empty refresh token");
         assert!(tokens.expires_in > 0);
     }
 
@@ -1951,7 +1951,7 @@ mod totp_mfa_tests {
             .await
             .unwrap();
 
-        assert!(!enrollment.secret_base32.is_empty());
+        assert!(!enrollment.secret_base32.is_empty(), "expected a non-empty base32 secret");
         assert!(enrollment.otpauth_uri.starts_with("otpauth://"));
         assert_eq!(enrollment.recovery_codes.len(), 8);
         assert!(store.has_pending_enrollment("user-1"));

@@ -51,7 +51,8 @@ fn test_get_encrypted_fields_returns_configured_fields() {
 #[test]
 fn test_get_encrypted_fields_empty_when_no_fields() {
     let adapter = make_adapter_with_fields(&[]);
-    assert!(adapter.get_encrypted_fields().is_empty());
+    let encrypted_fields = adapter.get_encrypted_fields();
+    assert!(encrypted_fields.is_empty(), "{encrypted_fields:?}");
 }
 
 #[test]

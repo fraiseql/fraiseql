@@ -354,7 +354,8 @@ async fn expiry_report_names_certificates_before_the_cliff() {
     // Widening the horizon past the healthy certificate's expiry catches both.
     assert_eq!(registry.expiry_report(Timestamp::now(), 4000).len(), 2);
     // A horizon shorter than the imminent certificate's life reports nothing.
-    assert!(registry.expiry_report(Timestamp::now(), 1).is_empty());
+    let expiring = registry.expiry_report(Timestamp::now(), 1);
+    assert!(expiring.is_empty(), "{expiring:?}");
     // And past its expiry it reads as down, not merely imminent.
     assert!(
         registry.expiry_report(Timestamp::now() + SignedDuration::from_hours(24 * 10), 30)[0]

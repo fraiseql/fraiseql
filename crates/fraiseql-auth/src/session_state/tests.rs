@@ -103,7 +103,8 @@ async fn delete_and_expire_thread() {
     assert!(s.get(session, "t1", "b").await.unwrap().is_some());
 
     s.expire_thread(session, "t1").await.unwrap();
-    assert!(s.list_thread(session, "t1").await.unwrap().is_empty());
+    let thread = s.list_thread(session, "t1").await.unwrap();
+    assert!(thread.is_empty(), "{thread:?}");
     assert_eq!(s.list_thread(session, "t2").await.unwrap().len(), 1, "other threads untouched");
 }
 
@@ -117,7 +118,8 @@ async fn sessions_are_isolated() {
         s.get(mallory, "t1", "secret").await.unwrap().is_none(),
         "an entry is only visible to its owning session_id"
     );
-    assert!(s.list_thread(mallory, "t1").await.unwrap().is_empty());
+    let thread = s.list_thread(mallory, "t1").await.unwrap();
+    assert!(thread.is_empty(), "{thread:?}");
 }
 
 #[tokio::test]

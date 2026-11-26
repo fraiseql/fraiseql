@@ -336,7 +336,8 @@ async fn a_rotation_of_a_ring_with_no_active_key_is_refused() {
         store(&pool).rotate(T0).await.is_err(),
         "the first key is the server's to create"
     );
-    assert!(keys(&pool).await.is_empty());
+    let signing_keys = keys(&pool).await;
+    assert!(signing_keys.is_empty(), "{signing_keys:?}");
 }
 
 #[tokio::test]

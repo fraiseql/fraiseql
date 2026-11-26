@@ -385,7 +385,7 @@ mod integration_security {
 
         // 2. State encrypted and CSRF protected
         let state = scenario.get_encrypted_state();
-        assert!(!state.is_empty());
+        assert!(!state.is_empty(), "expected a non-empty encrypted state");
         assert_ne!(state, scenario.get_original_state());
 
         // 3. Auth callback validates everything

@@ -25,7 +25,7 @@ async fn test_mfa_enroll_then_challenge_verify_integration() {
         .await
         .unwrap();
 
-    assert!(!enrollment.secret_base32.is_empty());
+    assert!(!enrollment.secret_base32.is_empty(), "expected a non-empty base32 secret");
     assert!(enrollment.otpauth_uri.starts_with("otpauth://"));
     assert_eq!(enrollment.recovery_codes.len(), 8);
 

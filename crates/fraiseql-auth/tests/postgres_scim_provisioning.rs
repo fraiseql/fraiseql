@@ -279,7 +279,8 @@ async fn groups_carry_membership_and_patch_incrementally() {
         .await
         .unwrap();
     assert_eq!(patched.members, vec![b.id.clone()], "patch adds and removes without a full PUT");
-    assert!(rig.scim.groups_of_user(&a.id).await.unwrap().is_empty());
+    let groups = rig.scim.groups_of_user(&a.id).await.unwrap();
+    assert!(groups.is_empty(), "{groups:?}");
 
     // Adding an existing member twice is idempotent — provisioning clients retry.
     let again = rig
@@ -472,7 +473,8 @@ async fn a_group_cannot_take_a_member_from_another_tenant() {
     assert_eq!(acme.list_groups(Some("Admins"), 1, 10).await.unwrap().total_results, 0);
     let stored = acme.get_group(group.id).await.unwrap().unwrap();
     assert_eq!(stored.members, vec![own.id.clone()]);
-    assert!(rival.groups_of_user(&foreign.id).await.unwrap().is_empty());
+    let groups = rival.groups_of_user(&foreign.id).await.unwrap();
+    assert!(groups.is_empty(), "{groups:?}");
 }
 
 // ─── Provisioning credentials ────────────────────────────────────────────────

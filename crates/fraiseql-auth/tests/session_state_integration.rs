@@ -171,7 +171,8 @@ async fn expire_thread_scopes_to_one_thread() {
     state.set(session, "t2", "b", serde_json::json!(2)).await.unwrap();
 
     state.expire_thread(session, "t1").await.unwrap();
-    assert!(state.list_thread(session, "t1").await.unwrap().is_empty());
+    let thread = state.list_thread(session, "t1").await.unwrap();
+    assert!(thread.is_empty(), "{thread:?}");
     assert_eq!(state.list_thread(session, "t2").await.unwrap().len(), 1);
 }
 

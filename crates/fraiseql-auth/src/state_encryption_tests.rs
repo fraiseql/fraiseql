@@ -22,7 +22,7 @@ fn test_encrypt_produces_ciphertext() {
     let state = "secret_state_value";
 
     let encrypted = encryption.encrypt(state).expect("Encryption failed");
-    assert!(!encrypted.ciphertext.is_empty());
+    assert!(!encrypted.ciphertext.is_empty(), "expected a non-empty ciphertext");
 }
 
 #[test]
