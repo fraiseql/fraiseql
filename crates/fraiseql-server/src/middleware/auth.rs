@@ -354,6 +354,13 @@ pub async fn admin_principal_middleware(
             Ok(tenant) => tenant.map(AdminPrincipal::Tenant),
             Err(e) => {
                 tracing::error!(error = %e, "tenant admin credential lookup failed");
+                // The token is not the platform's and could not be checked: a failure, so
+                // an unavailable store does not suspend the budget.
+                let spent = state.failure_limiter.record_failure(&peer_key);
+                if spent {
+                    return (StatusCode::TOO_MANY_REQUESTS, "Too many failed auth attempts")
+                        .into_response();
+                }
                 return (StatusCode::SERVICE_UNAVAILABLE, "Admin credential store unavailable")
                     .into_response();
             },

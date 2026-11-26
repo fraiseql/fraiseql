@@ -335,6 +335,8 @@ async fn platform_only_routers_refuse_a_tenant_admin_token() {
 // ---------------------------------------------------------------------------
 
 const READONLY_TOKEN: &str = "tenant-admin-e2e-read-only-token-32-chars";
+/// What every tenant admin token starts with.
+const TENANT_TOKEN_PREFIX: &str = fraiseql_server::api::admin_principal::TOKEN_PREFIX;
 const METRICS_TOKEN: &str = "tenant-admin-e2e-metrics-token-32-chars";
 
 /// The platform token, a read-only token, a metrics token and a budget of `max_failures`.
@@ -448,16 +450,66 @@ async fn an_unreadable_tenant_token_store_is_unavailable_and_the_platform_is_sti
     else {
         return;
     };
+    make_the_tenant_token_store_unreadable(&rig).await;
+    let (status, body) = rig.call(&rig.a, Method::GET, "/api/roles", None).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
+    let (status, body) = rig.call(ADMIN_TOKEN, Method::GET, "/api/roles", None).await;
+    assert_eq!(status, StatusCode::OK, "the platform token needs no store: {body}");
+    rig.shutdown().await;
+}
+
+/// Rename the tenant admin token table away, so every lookup in the store fails.
+async fn make_the_tenant_token_store_unreadable(rig: &Rig) {
     let pool = PgPool::connect(&with_database(&rig.url, &rig.db)).await.unwrap();
     sqlx::raw_sql("ALTER TABLE core.tb_admin_token RENAME TO tb_admin_token_away")
         .execute(&pool)
         .await
         .unwrap();
-    let (status, body) = rig.call(&rig.a, Method::GET, "/api/roles", None).await;
-    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
-    let (status, body) = rig.call(ADMIN_TOKEN, Method::GET, "/api/roles", None).await;
-    assert_eq!(status, StatusCode::OK, "the platform token needs no store: {body}");
     pool.close().await;
+}
+
+/// While the tenant admin token store cannot be read, a wrong token the gate looks up is
+/// still a failure: it is answered as unavailable until it crosses the budget, then as too
+/// many. The platform token is served until the limit.
+#[tokio::test]
+async fn wrong_tokens_spend_the_budget_while_the_tenant_token_store_is_unreadable() {
+    let Some(rig) = Rig::boot_with(
+        "tenant_store_unreadable_budget",
+        "fraiseql_tenant_admin_store_down_budget",
+        every_credential(3),
+    )
+    .await
+    else {
+        return;
+    };
+    make_the_tenant_token_store_unreadable(&rig).await;
+    // Shaped like a tenant admin token, so the gate looks it up in the store; a token of
+    // any other shape is refused without a lookup.
+    let wrong = format!("{TENANT_TOKEN_PREFIX}not-a-minted-token");
+    let mut statuses = Vec::new();
+    for token in [
+        &wrong,
+        ADMIN_TOKEN,
+        &wrong,
+        ADMIN_TOKEN,
+        &wrong,
+        ADMIN_TOKEN,
+    ] {
+        statuses.push(rig.call(token, Method::GET, "/api/roles", None).await.0);
+    }
+    assert_eq!(
+        statuses,
+        [
+            StatusCode::SERVICE_UNAVAILABLE,
+            StatusCode::OK,
+            StatusCode::SERVICE_UNAVAILABLE,
+            StatusCode::OK,
+            StatusCode::TOO_MANY_REQUESTS,
+            StatusCode::TOO_MANY_REQUESTS,
+        ],
+        "a wrong token, the platform, a wrong token, the platform, the wrong token that \
+         spends a budget of three, then the platform from the blocked client"
+    );
     rig.shutdown().await;
 }
 

@@ -2247,6 +2247,16 @@ disagreed, and the promise was the part that was wrong.
   token. A success now leaves the record alone and failures age out with their 60-second
   window. A client with no failures is not slowed by its own successful calls.
 
+- **A wrong admin token spends the failure budget while the tenant-token store is
+  unavailable (#2615).** The admin routes that accept a tenant admin token (`/api/roles`,
+  `/api/scim/tokens`, `/api/saml/idps`) compare the presented token with the platform
+  `admin_token`, then look a token shaped like a tenant admin token up in the store. When
+  the store could not be read, the gate answered 503 before it recorded a failure, so
+  those tokens spent none of the shared admin failure budget for as long as the store was
+  unavailable. A store error on a token that is not the platform's now counts as a
+  failure: the gate still answers 503, or 429 once the attempt crosses the budget. The
+  platform token, compared before the store is read, is still served.
+
 - **The PHP SDK's client no longer calls `curl_close()` (#2542).** It has done nothing
   since PHP 8.0, and PHP 8.5 deprecates it, so every request raised a deprecation on 8.5.
   The handle is freed when it goes out of scope, as it already was.

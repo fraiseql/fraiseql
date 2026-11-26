@@ -2164,6 +2164,19 @@ killers = [
 ]
 shard = "server-lib-admin-limiter"
 
+# A tenant-token store that cannot be read still counts the token as a failure, so an
+# unavailable store does not suspend the budget.
+[[site]]
+id = "authz.admin.limiter.principal-store-error"
+file = "crates/fraiseql-server/src/middleware/auth.rs"
+function = "admin_principal_middleware"
+anchor = "let spent = state.failure_limiter.record_failure(&peer_key);"
+mutant = "let spent = false;"
+killers = [
+  "wrong_tokens_spend_the_budget_while_the_tenant_token_store_is_unreadable",
+]
+shard = "tenant-admin"
+
 [[site]]
 id = "authz.admin.limiter.sql-console"
 file = "crates/fraiseql-server/src/middleware/auth.rs"
