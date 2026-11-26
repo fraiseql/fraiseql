@@ -59,18 +59,27 @@ The database keeps only the SHA-256 of the code and of the token, so a read of
 
 Mail scanners and link previews open links before people do. Only a `POST` redeems: a `GET`
 to `/auth/v1/verify` is refused, so a scanner that fetches the link spends nothing. That
-protection holds only if the landing page needs a person:
+protection holds only if the landing page needs a person, and only that person can tell
+whether the account is theirs:
 
 - **Require a click.** Show a "Sign in" button that sends the `POST`. Do not post on page
-  load: a scanner that runs scripts would spend the link, and the person would get a dead
-  one.
+  load, even with the token already at hand: a scanner that runs scripts would spend the
+  link, and the person would get a dead one, and a person who opens someone else's link would
+  be signed in before reading anything.
 - **Keep the token out of the request line.** Put it in the fragment (`#token={token}`), as
   above. A fragment is never sent to a server, so it does not reach access logs, proxies or
   the `Referer` header. With a query string (`?token={token}`), also send
   `Referrer-Policy: no-referrer` from the landing page.
-- **Show which account signed in.** Anyone can mail you a link to *their* account. Saying
-  "Signed in as alice@example.com" after the redeem lets a person notice they are in someone
-  else's account.
+- **Show the account, and require a second click to continue.** A link signs in to the
+  account of whoever asked for it, and that may not be the person who opens it: anyone can
+  request a link for their own address and send it on. So after the redeem, show the address
+  of the account the session belongs to, "Signed in as alice@example.com", and enter the app
+  only when the person clicks "Continue", with "Not you? Sign out" beside it. The address comes
+  from your own API, for example your `me` query, read with the new session: the answer to
+  `POST /auth/v1/verify` names no account, and an address carried in the link cannot stand
+  in for it, because whoever sends the link writes it. "Sign out" ends the session with
+  `POST /auth/v1/session/logout` ([sessions.md](sessions.md#logout)), or, where refresh is
+  not configured, by dropping the tokens.
 
 To write the mail itself in another language, with the link inside, see
 [mail-templates.md](mail-templates.md).
