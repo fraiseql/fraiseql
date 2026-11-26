@@ -24,6 +24,8 @@
 //! ./run.sh
 //! ```
 
+#![allow(clippy::print_stdout)] // Reason: an example shows its results by printing them
+
 use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{Context, Result};
@@ -97,23 +99,20 @@ async fn main() -> Result<()> {
                     .get("errors")
                     .and_then(serde_json::Value::as_array)
                     .filter(|errors| !errors.is_empty());
-                match errors {
-                    // The trap: `execute` returned Ok and the query still failed.
-                    Some(errors) => {
-                        println!("   Ok, with {} in-band GraphQL error(s):", errors.len());
-                        for error in errors {
-                            println!("     {}", serde_json::to_string(error)?);
-                        }
-                    },
+                // The trap: `execute` returned Ok and the query still failed.
+                if let Some(errors) = errors {
+                    println!("   Ok, with {} in-band GraphQL error(s):", errors.len());
+                    for error in errors {
+                        println!("     {}", serde_json::to_string(error)?);
+                    }
+                } else {
                     // No error of either kind. Print the row count as well as the
                     // body: a silently-dropped argument shows up here and nowhere
                     // else.
-                    None => {
-                        println!("   Ok, no errors: {}", serde_json::to_string(&response)?);
-                        if let Some(rows) = root_row_count(&response) {
-                            println!("   rows returned: {rows}");
-                        }
-                    },
+                    println!("   Ok, no errors: {}", serde_json::to_string(&response)?);
+                    if let Some(rows) = root_row_count(&response) {
+                        println!("   rows returned: {rows}");
+                    }
                 }
             },
         }
@@ -155,7 +154,7 @@ fn root_row_count(response: &serde_json::Value) -> Option<usize> {
 /// The distinction that matters operationally is not the variant name but who has
 /// to act: the caller (fix the query), the operator (fix the deployment), or
 /// nobody (retry).
-fn classify(err: &FraiseQLError) -> &'static str {
+const fn classify(err: &FraiseQLError) -> &'static str {
     match err {
         FraiseQLError::Parse { .. }
         | FraiseQLError::Validation { .. }

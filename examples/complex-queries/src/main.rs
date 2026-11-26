@@ -19,6 +19,8 @@
 //! ./run.sh
 //! ```
 
+#![allow(clippy::print_stdout)] // Reason: an example shows its results by printing them
+
 use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{Context, Result};

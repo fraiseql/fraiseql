@@ -59,13 +59,14 @@ tokio-rustls = { version = "0.26", default-features = false, features = [
 ] }
 # Tracing
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # User info for default values
 whoami = "1"
 # Secure password memory management
 zeroize = { version = "1.6", features = ["std", "derive"] }
 
 [dev-dependencies]
+# The examples install a subscriber; the library only emits through `tracing`.
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 criterion = { version = "0.5", features = ["async_tokio"] }
 # Prometheus recorder for the metrics-facade scrape test (audit H45). Pulls a
 # matching `metrics` 0.24, so a wire emission and the recorder share one global.

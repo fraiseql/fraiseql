@@ -101,7 +101,6 @@ fraiseql-core = { path = "crates/fraiseql-core", version = "2.19.1", default-fea
 fraiseql-db = { path = "crates/fraiseql-db", version = "2.19.1", default-features = false }
 fraiseql-error = { path = "crates/fraiseql-error", version = "2.19.1", default-features = false }
 fraiseql-federation = { path = "crates/fraiseql-federation", version = "2.19.1" }
-fraiseql-saga = { path = "crates/fraiseql-saga", version = "2.19.1" }
 fraiseql-guard = { path = "crates/fraiseql-guard", version = "2.19.1" }
 fraiseql-jwks = { path = "crates/fraiseql-jwks", version = "2.19.1" }
 fraiseql-kafka = { path = "crates/fraiseql-kafka", version = "2.19.1" }

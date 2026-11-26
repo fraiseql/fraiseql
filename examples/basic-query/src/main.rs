@@ -19,6 +19,8 @@
 //! DATABASE_URL=postgresql://localhost/fraiseql_example cargo run
 //! ```
 
+#![allow(clippy::print_stdout)] // Reason: an example shows its results by printing them
+
 use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{Context, Result};

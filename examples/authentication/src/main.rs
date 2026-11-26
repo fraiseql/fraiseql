@@ -21,6 +21,8 @@
 //! ./run.sh
 //! ```
 
+#![allow(clippy::print_stdout)] // Reason: an example shows its results by printing them
+
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Result, anyhow};

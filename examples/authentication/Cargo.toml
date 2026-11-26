@@ -26,3 +26,6 @@ fraiseql-test-support = { path = "../../crates/fraiseql-test-support", features 
 ] }
 serde_json = { workspace = true }
 tokio = { workspace = true }
+
+[lints]
+workspace = true

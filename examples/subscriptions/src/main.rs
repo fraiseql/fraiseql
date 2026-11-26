@@ -4,7 +4,7 @@
 //! [`SubscriptionManager`] holds the open subscriptions, a change source publishes
 //! [`SubscriptionEvent`]s into it, and each event is matched against every open
 //! subscription and projected to that subscriber's selection. Whatever moves the
-//! bytes to the client — a WebSocket, an SSE stream, a webhook — sits on top of the
+//! bytes to the client — a websocket, an SSE stream, a webhook — sits on top of the
 //! broadcast channel this hands out.
 //!
 //! This example plays the whole cycle in one process against the `examples/streaming`
@@ -16,6 +16,8 @@
 //! ```text
 //! ./run.sh
 //! ```
+
+#![allow(clippy::print_stdout)] // Reason: an example shows its results by printing them
 
 use std::{path::PathBuf, sync::Arc};
 
