@@ -35,6 +35,17 @@ assert_type(fraiseql.input(Plain), type[Plain])
 assert_type(fraiseql.interface(Plain), type[Plain])
 assert_type(fraiseql.enum(Choice), type[Choice])
 assert_type(fraiseql.scalar(Address), type[Address])
+assert_type(fraiseql.error(Plain), type[Plain])
+assert_type(fraiseql.error(shareable=True)(Plain), type[Plain])
+
+
+def plain_event() -> Plain:
+    """An event, not decorated."""
+    raise NotImplementedError
+
+
+assert_type(fraiseql.subscription(plain_event)(), Plain)
+assert_type(fraiseql.subscription(entity_type="Plain")(plain_event)(), Plain)
 
 
 @fraiseql.query

@@ -1485,6 +1485,17 @@ def mutation[F: FunctionType](func: F | None = None, **config_kwargs: Any) -> F 
     return decorator(func)
 
 
+# `@error` returns the class it decorates; `@error(...)` returns a decorator that does.
+@overload
+def error[T](cls: builtins.type[T], /) -> builtins.type[T]: ...
+
+
+@overload
+def error[T](
+    cls: None = None, /, *, shareable: bool = False
+) -> Callable[[builtins.type[T]], builtins.type[T]]: ...
+
+
 def error[T](
     cls: builtins.type[T] | None = None,
     *,
@@ -1774,6 +1785,25 @@ def input[T](cls: builtins.type[T]) -> builtins.type[T]:
 
     # Return original class unmodified
     return cls
+
+
+# `@subscription` returns the function it decorates; `@subscription(...)` returns a
+# decorator that does.
+@overload
+def subscription[F: FunctionType](func: F, /) -> F: ...
+
+
+@overload
+def subscription[F: FunctionType](
+    func: None = None,
+    /,
+    *,
+    entity_type: str | None = None,
+    topic: str | None = None,
+    filter: dict[str, Any] | None = None,
+    fields: list[str] | None = None,
+    deprecated: bool | str | None = None,
+) -> Callable[[F], F]: ...
 
 
 def subscription[F: FunctionType](  # noqa: PLR0913 — public API; all parameters are meaningful

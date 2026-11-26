@@ -2304,6 +2304,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A type checker sees the class or function `@fraiseql.error` and `@fraiseql.subscription`
+  decorate (#2646).** Each had one signature returning the decorated object or a
+  decorator, so a checker saw the bare form as that union and the called form
+  (`@fraiseql.error(shareable=True)`, `@fraiseql.subscription(entity_type=...)`) as
+  `Unknown`. Both now have overloads for the two forms, like `@fraiseql.type` and
+  `@fraiseql.query`.
+
 - **A server booting beside running ones no longer stalls or deadlocks their inbound
   dispatch (#2570).** Every server runs the inbound spine's DDL at boot. Over a schema that
   was already current, its `ADD COLUMN IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`
