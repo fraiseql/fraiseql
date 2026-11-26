@@ -23,6 +23,28 @@ case_dir() {
     printf '%s\n' "$d"
 }
 
+# plant_in_test <dir> <old> <new>: replace the first <old> inside the body of `Test`, the
+# function the reader reads for the `Test` shard. Located by the function, not by the
+# first match in the file: a line of the same text in a function above `Test` would take
+# the plant into code the reader never reads, and the case would pass on nothing. An
+# <old> that `Test` does not hold fails the case through `planted`.
+plant_in_test() {
+    python3 - "$1/.dagger/main.go" "$2" "$3" <<'PY'
+import re, sys
+path, old, new = sys.argv[1:]
+s = open(path).read()
+head = re.search(r"^func \(m \*FraiseqlCi\) Test\(", s, re.M)
+if head is None:
+    sys.exit(0)
+end = re.search(r"^func ", s[head.end():], re.M)
+stop = head.end() + end.start() if end else len(s)
+i = s.find(old, head.start(), stop)
+if i < 0:
+    sys.exit(0)
+open(path, "w").write(s[:i] + new + s[i + len(old):])
+PY
+}
+
 # A plant must change the file; a sed that matched nothing would make the case a
 # second baseline.
 planted() {
@@ -80,7 +102,8 @@ else
 fi
 
 d="$(case_dir echo-local)"
-sed -i '0,/^\t\t"echo \x27### cargo build --all-features\x27",$/s//\t\t"echo \x27### build " + someLocal + "\x27",/' "$d/.dagger/main.go"
+plant_in_test "$d" $'\n\t\t"echo \'### cargo build --all-features\'",\n' \
+    $'\n\t\t"echo \'### build " + someLocal + "\'",\n'
 cases=$((cases + 1))
 if planted "$d" "an unresolvable piece in an echo line is only printed" &&
     LEG_LINES_ROOT="$d" python3 "$READER" Test >"$work/out" 2>&1 &&
@@ -110,13 +133,42 @@ expect_red "the script literal changed shape" "$d" integrationPostgres \
     '`integrationPostgres` has no `script := strings.Join'
 
 d="$(case_dir cargo-local)"
-sed -i '0,/^\t\t"cargo test -p fraiseql-saga --lib",$/s//\t\t"cargo test -p fraiseql-saga " + sagaArgs,/' "$d/.dagger/main.go"
+plant_in_test "$d" $'\n\t\t"cargo test -p fraiseql-saga --lib",\n' \
+    $'\n\t\t"cargo test -p fraiseql-saga " + sagaArgs,\n'
 expect_red "a cargo line built from a piece the reader cannot resolve" "$d" Test \
     'builds a line from `sagaArgs`'
 
 d="$(case_dir canary-other)"
-sed -i '0,/"bash tools\/ci-target-canary.sh -- build /s//"bash tools\/ci-target-canary.sh -- check /' "$d/.dagger/main.go"
+plant_in_test "$d" '"bash tools/ci-target-canary.sh -- build ' '"bash tools/ci-target-canary.sh -- check '
 expect_red "a canary line of neither form" "$d" Test 'a canary line of neither form'
+
+# The same plant with a canary build line in a function above `Test`: located by first
+# match, the plant would land in that function, which the reader never reads, and the
+# case above would pass without testing anything.
+d="$(case_dir canary-other-decoy)"
+python3 - "$d/.dagger/main.go" <<'PY'
+import re, sys
+p = sys.argv[1]
+s = open(p).read()
+i = re.search(r"^func \(m \*FraiseqlCi\) Test\(", s, re.M).start()
+decoy = (
+    "func (m *FraiseqlCi) decoyAboveTest() []string {\n"
+    "\treturn []string{\n"
+    "\t\t\"bash tools/ci-target-canary.sh -- build -p decoy\",\n"
+    "\t}\n"
+    "}\n\n"
+)
+open(p, "w").write(s[:i] + decoy + s[i:])
+PY
+decoy_at=$(grep -nF 'ci-target-canary.sh -- build -p decoy' "$d/.dagger/main.go" | cut -d: -f1)
+test_at=$(grep -n '^func (m \*FraiseqlCi) Test(' "$d/.dagger/main.go" | cut -d: -f1)
+if [ -z "$decoy_at" ] || [ -z "$test_at" ] || [ "$decoy_at" -ge "$test_at" ]; then
+    echo "FAIL: the decoy does not sit above Test, so it decoys nothing"
+    failed=$((failed + 1))
+fi
+plant_in_test "$d" '"bash tools/ci-target-canary.sh -- build ' '"bash tools/ci-target-canary.sh -- check '
+expect_red "a canary line of neither form, under a decoy above Test" "$d" Test \
+    'a canary line of neither form'
 
 d="$(case_dir outside-script)"
 python3 - "$d/.dagger/main.go" <<'PY'
@@ -183,7 +235,8 @@ fi
 
 # A line for another crate is left out, one whose name the crate's is a prefix of too.
 d="$(case_dir crates-other)"
-sed -i '0,/^\t\t"cargo test -p fraiseql-core --lib",$/s//\t\t"cargo test -p fraiseql-db-planted --lib",/' "$d/.dagger/main.go"
+plant_in_test "$d" $'\n\t\t"cargo test -p fraiseql-core --lib",\n' \
+    $'\n\t\t"cargo test -p fraiseql-db-planted --lib",\n'
 cases=$((cases + 1))
 if planted "$d" "a line for another crate is excluded" &&
     LEG_LINES_ROOT="$d" python3 "$READER" Test | grep -c -- '-p fraiseql-db-planted ' >/dev/null &&
@@ -201,7 +254,8 @@ crates_expect "an unknown crate" "$repo_root" 'no shard tests `fraiseql-nope`' \
     fraiseql-core,fraiseql-nope Test integrationPostgres
 
 d="$(case_dir crates-empty)"
-sed -i "0,/^\t\t\"cargo test -p fraiseql-db --lib --features '\" + dbTestFeatures + \"'\",\$/s//\t\t\"cargo test -p fraiseql-time --lib --features '\" + dbTestFeatures + \"'\",/" "$d/.dagger/main.go"
+plant_in_test "$d" $'\n\t\t"cargo test -p fraiseql-db --lib --features \'" + dbTestFeatures + "\'",\n' \
+    $'\n\t\t"cargo test -p fraiseql-time --lib --features \'" + dbTestFeatures + "\'",\n'
 crates_expect "a crate the named shards run no line for" "$d" \
     '`Test` run no cargo test line for `fraiseql-db`' fraiseql-core,fraiseql-db Test
 
