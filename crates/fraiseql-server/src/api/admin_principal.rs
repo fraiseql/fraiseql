@@ -123,7 +123,15 @@ CREATE TABLE IF NOT EXISTS core.tb_admin_token (
     last_used_at   TIMESTAMPTZ,
     revoked_at     TIMESTAMPTZ
 );
-CREATE INDEX IF NOT EXISTS idx_admin_token_tenant ON core.tb_admin_token (tenant_id);
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $admin_token_shape$
+BEGIN
+    IF to_regclass('core.idx_admin_token_tenant') IS NULL THEN
+        CREATE INDEX idx_admin_token_tenant ON core.tb_admin_token (tenant_id);
+    END IF;
+END
+$admin_token_shape$;
 
 -- Never world-readable; only the server's own role touches it.
 REVOKE ALL ON core.tb_admin_token FROM PUBLIC;

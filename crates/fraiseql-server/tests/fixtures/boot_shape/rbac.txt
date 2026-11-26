@@ -1,0 +1,44 @@
+column fraiseql_permission_audit.details jsonb not null default '{}'::jsonb
+column fraiseql_permission_audit.event_type text not null
+column fraiseql_permission_audit.id uuid not null
+column fraiseql_permission_audit.occurred_at timestamp with time zone not null default now()
+column fraiseql_permission_audit.permission_id uuid null
+column fraiseql_permission_audit.role_id uuid null
+column fraiseql_permission_audit.role_name text null
+column fraiseql_permission_audit.tenant_id uuid null
+column fraiseql_permission_audit.user_id text null
+column fraiseql_permissions.action text not null
+column fraiseql_permissions.created_at timestamp with time zone not null default now()
+column fraiseql_permissions.description text null
+column fraiseql_permissions.id uuid not null
+column fraiseql_permissions.resource text not null
+column fraiseql_role_permissions.permission_id uuid not null
+column fraiseql_role_permissions.role_id uuid not null
+column fraiseql_roles.created_at timestamp with time zone not null default now()
+column fraiseql_roles.description text null
+column fraiseql_roles.id uuid not null
+column fraiseql_roles.name text not null
+column fraiseql_roles.tenant_id uuid null
+column fraiseql_roles.updated_at timestamp with time zone not null default now()
+column fraiseql_user_roles.assigned_at timestamp with time zone not null default now()
+column fraiseql_user_roles.role_id uuid not null
+column fraiseql_user_roles.tenant_id uuid null
+column fraiseql_user_roles.user_id text not null
+index CREATE INDEX idx_fraiseql_permission_audit_role ON public.fraiseql_permission_audit USING btree (role_id)
+index CREATE INDEX idx_fraiseql_permission_audit_time ON public.fraiseql_permission_audit USING btree (occurred_at DESC)
+index CREATE INDEX idx_fraiseql_permission_audit_user ON public.fraiseql_permission_audit USING btree (user_id)
+index CREATE INDEX idx_fraiseql_roles_tenant ON public.fraiseql_roles USING btree (tenant_id)
+index CREATE INDEX idx_fraiseql_user_roles_role ON public.fraiseql_user_roles USING btree (role_id)
+index CREATE INDEX idx_fraiseql_user_roles_user ON public.fraiseql_user_roles USING btree (user_id)
+index CREATE UNIQUE INDEX fraiseql_permission_audit_pkey ON public.fraiseql_permission_audit USING btree (id)
+index CREATE UNIQUE INDEX fraiseql_permissions_pkey ON public.fraiseql_permissions USING btree (id)
+index CREATE UNIQUE INDEX fraiseql_permissions_resource_action_key ON public.fraiseql_permissions USING btree (resource, action)
+index CREATE UNIQUE INDEX fraiseql_role_permissions_pkey ON public.fraiseql_role_permissions USING btree (role_id, permission_id)
+index CREATE UNIQUE INDEX fraiseql_roles_pkey ON public.fraiseql_roles USING btree (id)
+index CREATE UNIQUE INDEX fraiseql_user_roles_pkey ON public.fraiseql_user_roles USING btree (user_id, role_id)
+index CREATE UNIQUE INDEX uq_fraiseql_roles_name_per_space ON public.fraiseql_roles USING btree (name, tenant_id) NULLS NOT DISTINCT
+row level security fraiseql_permission_audit off
+row level security fraiseql_permissions off
+row level security fraiseql_role_permissions off
+row level security fraiseql_roles off
+row level security fraiseql_user_roles off

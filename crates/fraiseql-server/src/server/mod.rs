@@ -61,6 +61,8 @@ mod health_capabilities_tests;
 #[cfg(test)]
 mod parity_tests;
 #[cfg(test)]
+mod provision_boot_locks_tests;
+#[cfg(test)]
 mod provision_tests;
 #[cfg(test)]
 mod rbac_mount_tests;

@@ -119,10 +119,6 @@ CREATE TABLE IF NOT EXISTS fraiseql_roles (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_fraiseql_roles_name_per_space
-    ON fraiseql_roles (name, tenant_id) NULLS NOT DISTINCT;
-DROP INDEX IF EXISTS idx_fraiseql_roles_name_tenant;
-
 CREATE TABLE IF NOT EXISTS fraiseql_permissions (
     id UUID PRIMARY KEY,
     resource TEXT NOT NULL,
@@ -158,18 +154,57 @@ CREATE TABLE IF NOT EXISTS fraiseql_permission_audit (
     details JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
-CREATE INDEX IF NOT EXISTS idx_fraiseql_roles_tenant
-    ON fraiseql_roles(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_fraiseql_user_roles_user
-    ON fraiseql_user_roles(user_id);
-CREATE INDEX IF NOT EXISTS idx_fraiseql_user_roles_role
-    ON fraiseql_user_roles(role_id);
-CREATE INDEX IF NOT EXISTS idx_fraiseql_permission_audit_time
-    ON fraiseql_permission_audit(occurred_at DESC);
-CREATE INDEX IF NOT EXISTS idx_fraiseql_permission_audit_user
-    ON fraiseql_permission_audit(user_id);
-CREATE INDEX IF NOT EXISTS idx_fraiseql_permission_audit_role
-    ON fraiseql_permission_audit(role_id);";
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $rbac_shape$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('fraiseql_roles') AND i.relname = 'uq_fraiseql_roles_name_per_space'
+    ) THEN
+        CREATE UNIQUE INDEX uq_fraiseql_roles_name_per_space ON fraiseql_roles (name, tenant_id) NULLS NOT DISTINCT;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('fraiseql_roles') AND i.relname = 'idx_fraiseql_roles_tenant'
+    ) THEN
+        CREATE INDEX idx_fraiseql_roles_tenant ON fraiseql_roles (tenant_id);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('fraiseql_user_roles') AND i.relname = 'idx_fraiseql_user_roles_user'
+    ) THEN
+        CREATE INDEX idx_fraiseql_user_roles_user ON fraiseql_user_roles (user_id);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('fraiseql_user_roles') AND i.relname = 'idx_fraiseql_user_roles_role'
+    ) THEN
+        CREATE INDEX idx_fraiseql_user_roles_role ON fraiseql_user_roles (role_id);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('fraiseql_permission_audit') AND i.relname = 'idx_fraiseql_permission_audit_time'
+    ) THEN
+        CREATE INDEX idx_fraiseql_permission_audit_time ON fraiseql_permission_audit (occurred_at DESC);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('fraiseql_permission_audit') AND i.relname = 'idx_fraiseql_permission_audit_user'
+    ) THEN
+        CREATE INDEX idx_fraiseql_permission_audit_user ON fraiseql_permission_audit (user_id);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class i JOIN pg_class t ON t.relnamespace = i.relnamespace
+        WHERE t.oid = to_regclass('fraiseql_permission_audit') AND i.relname = 'idx_fraiseql_permission_audit_role'
+    ) THEN
+        CREATE INDEX idx_fraiseql_permission_audit_role ON fraiseql_permission_audit (role_id);
+    END IF;
+END
+$rbac_shape$;
+-- The role-name key 2.15 expressed as an index: dropped once the key above exists.
+DROP INDEX IF EXISTS idx_fraiseql_roles_name_tenant;
+";
 
 impl RbacDbBackend {
     /// The pool the role tables live in.

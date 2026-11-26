@@ -1426,7 +1426,9 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// that needs `auth` with `inbound-email` (a local-auth OTP naming an unknown
 		// mailbox), compiled in no leg until the suite-coverage gate followed `mod`
 		// declarations.
-		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --lib -- inbound:: server::provision_tests:: server::parity_tests:: server::routing::mount_gate_tests:: server_config::tests::refused_in_every_deployment::",
+		// `server::provision_boot_locks_tests::`: a second boot of each server store over a
+		// current schema waits on no lock a live write holds; each test owns a database.
+		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --lib -- inbound:: server::provision_tests:: server::provision_boot_locks_tests:: server::parity_tests:: server::routing::mount_gate_tests:: server_config::tests::refused_in_every_deployment::",
 		// #974: the storage bucket-policy admin API (PUT/GET/DELETE) against a
 		// real policy store — the split-token separation, the request-time
 		// refusal that leaves the running policy in place, and the wholesale

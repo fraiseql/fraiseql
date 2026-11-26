@@ -130,15 +130,27 @@ CREATE TABLE IF NOT EXISTS _system.async_operations (
     finished_at            TIMESTAMPTZ
 );
 
-CREATE INDEX IF NOT EXISTS idx_async_operations_claim
-    ON _system.async_operations (state, heartbeat_at);
+-- Each statement is guarded by the catalog: a boot over a current schema takes no
+-- table lock, where `IF NOT EXISTS` alone still would.
+DO $async_operations_shape$
+BEGIN
+    IF to_regclass('_system.idx_async_operations_claim') IS NULL THEN
+        CREATE INDEX idx_async_operations_claim ON _system.async_operations (state, heartbeat_at);
+    END IF;
 
--- #1512: the request locale, resolved at submission. Added in place so a table
--- created by an earlier release gains it.
-ALTER TABLE _system.async_operations ADD COLUMN IF NOT EXISTS locale TEXT;
--- #1520: the headers session variables name, read at submission.
-ALTER TABLE _system.async_operations
-    ADD COLUMN IF NOT EXISTS session_headers JSONB NOT NULL DEFAULT '{}'::jsonb;
+    -- #1512: the request locale, resolved at submission. Added in place so a table
+    -- created by an earlier release gains it.
+    IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('_system.async_operations')
+                   AND attname = 'locale' AND NOT attisdropped) THEN
+        ALTER TABLE _system.async_operations ADD COLUMN locale TEXT;
+    END IF;
+    -- #1520: the headers session variables name, read at submission.
+    IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('_system.async_operations')
+                   AND attname = 'session_headers' AND NOT attisdropped) THEN
+        ALTER TABLE _system.async_operations ADD COLUMN session_headers JSONB NOT NULL DEFAULT '{}'::jsonb;
+    END IF;
+END
+$async_operations_shape$;
 ";
 
 impl AsyncOperationStore {

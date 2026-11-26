@@ -1,0 +1,13 @@
+column core.tb_admin_token.created_at timestamp with time zone not null default now()
+column core.tb_admin_token.description text null
+column core.tb_admin_token.id uuid not null default gen_random_uuid()
+column core.tb_admin_token.last_used_at timestamp with time zone null
+column core.tb_admin_token.pk_admin_token bigint not null
+column core.tb_admin_token.revoked_at timestamp with time zone null
+column core.tb_admin_token.tenant_id uuid not null
+column core.tb_admin_token.token_hash text not null
+index CREATE INDEX idx_admin_token_tenant ON core.tb_admin_token USING btree (tenant_id)
+index CREATE UNIQUE INDEX tb_admin_token_id_key ON core.tb_admin_token USING btree (id)
+index CREATE UNIQUE INDEX tb_admin_token_pkey ON core.tb_admin_token USING btree (pk_admin_token)
+index CREATE UNIQUE INDEX tb_admin_token_token_hash_key ON core.tb_admin_token USING btree (token_hash)
+row level security core.tb_admin_token off

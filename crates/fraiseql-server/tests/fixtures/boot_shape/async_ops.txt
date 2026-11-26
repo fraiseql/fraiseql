@@ -1,0 +1,23 @@
+column _system.async_operations.attempts integer not null default 0
+column _system.async_operations.cancellation_requested boolean not null default false
+column _system.async_operations.claim_token uuid null
+column _system.async_operations.created_at timestamp with time zone not null default now()
+column _system.async_operations.document text not null
+column _system.async_operations.error text null
+column _system.async_operations.finished_at timestamp with time zone null
+column _system.async_operations.heartbeat_at timestamp with time zone not null default now()
+column _system.async_operations.locale text null
+column _system.async_operations.max_attempts integer not null
+column _system.async_operations.op_id uuid not null default gen_random_uuid()
+column _system.async_operations.operation text not null
+column _system.async_operations.result jsonb null
+column _system.async_operations.security_context jsonb not null
+column _system.async_operations.session_headers jsonb not null default '{}'::jsonb
+column _system.async_operations.started_at timestamp with time zone null
+column _system.async_operations.state text not null default 'queued'::text
+column _system.async_operations.submitter text not null
+column _system.async_operations.tenant_key text null
+column _system.async_operations.variables jsonb null
+index CREATE INDEX idx_async_operations_claim ON _system.async_operations USING btree (state, heartbeat_at)
+index CREATE UNIQUE INDEX async_operations_pkey ON _system.async_operations USING btree (op_id)
+row level security _system.async_operations off
