@@ -1530,6 +1530,13 @@ test-suite-coverage-inner-gates:
 # invocations carry a positional `--lib`/`--test` filter and nothing checked any
 # still matched: cargo prints `running 0 tests` and exits 0, so a rename retires a
 # suite silently (#1300). Pure text; no cargo, no toolchain.
+# Red-capability pin for the DEFINED-feature side of check-suite-coverage.py.
+# `--all-features` turns on only the features a crate defines, so a suite gated on any
+# other name is built by no leg; the gate counted it covered (#2619). Pure text.
+.PHONY: test-suite-coverage-undefined-feature
+test-suite-coverage-undefined-feature:
+	@bash tools/tests/suite_coverage_undefined_feature_test.sh
+
 .PHONY: test-suite-coverage-filters
 test-suite-coverage-filters:
 	@bash tools/tests/suite_coverage_filters_test.sh
@@ -2205,6 +2212,10 @@ shell-gates: test-suite-coverage-gating
 # nothing prints `running 0 tests` and exits 0, so a rename retires the
 # suite the line was added to run and the leg stays green.
 shell-gates: test-suite-coverage-filters
+
+# ...and the pin for the features `--all-features` can turn on (#2619): a suite
+# gated on a name its crate does not define is built by no leg.
+shell-gates: test-suite-coverage-undefined-feature
 
 # The conformance harness's own four properties (#1118). `project.py` cited a
 # `selftest.py` that had never existed, so the growth property — a new construct

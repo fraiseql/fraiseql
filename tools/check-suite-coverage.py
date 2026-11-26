@@ -151,6 +151,11 @@ ALL_FEATURES = object()  # sentinel: --all-features
 # false ORPHAN (#1082).
 FEATURE_GRAPH: dict[str, dict[str, list[str]]] = {}
 
+# Every feature a crate defines: its `[features]` keys, plus the implicit feature of each
+# optional dependency that no feature names as `dep:<name>`. `--all-features` turns on
+# these and nothing else, so a suite gated on any other name is built by no invocation.
+DEFINED_FEATURES: dict[str, set[str]] = {}
+
 # A file-level inner attribute gating the WHOLE test binary, e.g.
 #   #![cfg(feature = "functions-runtime")]
 #   #![cfg(all(feature = "auth", feature = "rest"))]
@@ -213,6 +218,28 @@ def expand_features(crate: str, feats: set[str], with_defaults: bool) -> set[str
         seen.add(f)
         stack.extend(table.get(f, []))
     return seen
+
+
+def defined_features(manifest: dict) -> set[str]:
+    """The features `--all-features` turns on for this crate (see DEFINED_FEATURES)."""
+    table = manifest.get("features", {})
+    named_as_dep = {
+        i.removeprefix("dep:")
+        for implies in table.values()
+        if isinstance(implies, list)
+        for i in implies
+        if i.startswith("dep:")
+    }
+    sections = [manifest.get("dependencies", {}), manifest.get("build-dependencies", {})]
+    for target in manifest.get("target", {}).values():
+        sections += [target.get("dependencies", {}), target.get("build-dependencies", {})]
+    optional = {
+        name
+        for section in sections
+        for name, spec in section.items()
+        if isinstance(spec, dict) and spec.get("optional")
+    }
+    return set(table) | (optional - named_as_dep)
 
 
 def die(msg: str) -> None:
@@ -2498,9 +2525,10 @@ def features_enabled(
     inv: Invocation, crate: str, wanted: set[str], forbidden: set[str] = frozenset()
 ) -> bool:
     if inv.features is ALL_FEATURES:
-        # `--all-features` enables everything, so a `not(feature = …)` arm compiles to
-        # nothing. The suite builds and runs zero tests — covered by nobody (#1082).
-        return not forbidden
+        # `--all-features` enables everything the crate defines, so a `not(feature = …)`
+        # arm compiles to nothing. The suite builds and runs zero tests — covered by
+        # nobody (#1082). A wanted feature the crate does not define stays off (#2619).
+        return not forbidden and wanted <= DEFINED_FEATURES.get(crate, set())
     assert isinstance(inv.features, set)
     enabled = expand_features(crate, inv.features, with_defaults=not inv.no_default_features)
     return wanted <= enabled and not (forbidden & enabled)
@@ -2515,7 +2543,8 @@ def any_groups_satisfied(
     it would report coverage it never checked.
     """
     if inv.features is ALL_FEATURES:
-        return True
+        defined = DEFINED_FEATURES.get(crate, set())
+        return all(bool(g & defined) for g in groups)
     assert isinstance(inv.features, set)
     enabled = expand_features(crate, inv.features, with_defaults=not inv.no_default_features)
     return all(bool(g & enabled) for g in groups)
@@ -2706,6 +2735,7 @@ def main() -> int:
     # question is asked, because a leg naming one feature enables the ones it implies.
     for cd in crates:
         manifest = parse_cargo_toml(cd)
+        DEFINED_FEATURES[manifest["package"]["name"]] = defined_features(manifest)
         FEATURE_GRAPH[manifest["package"]["name"]] = {
             name: list(implies) if isinstance(implies, list) else []
             for name, implies in manifest.get("features", {}).items()
