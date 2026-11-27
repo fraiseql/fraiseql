@@ -37,6 +37,9 @@ pub struct HostContextConfig {
     /// Allowed environment variables to expose to functions.
     pub allowed_env_vars: HashSet<String>,
 
+    /// Where `allowed_env_vars` is granted, named when a read is refused.
+    pub env_var_grant: EnvVarGrant,
+
     /// Maximum response size for HTTP requests (bytes).
     pub max_http_response_bytes: usize,
 
@@ -57,10 +60,38 @@ impl Default for HostContextConfig {
             // the caller explicitly populates the allowlist.
             allowed_domains:          vec![],
             allowed_env_vars:         HashSet::new(),
+            env_var_grant:            EnvVarGrant::default(),
             max_http_response_bytes:  10 * 1024 * 1024, // 10 MB
             http_connect_timeout_ms:  5000,
             http_read_timeout_ms:     30000,
             max_storage_upload_bytes: 100 * 1024 * 1024, // 100 MB
+        }
+    }
+}
+
+/// Where a guest's environment-variable allowlist is granted.
+///
+/// A refused read names the settings that grant this guest a variable, and only those:
+/// a function's allowlist does not grant a source, nor a source's a function.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum EnvVarGrant {
+    /// A function: `FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS`, its only setting.
+    #[default]
+    Functions,
+    /// A source connector: `[sources] allowed_env_vars`, which
+    /// `FRAISEQL_SOURCES_ALLOWED_ENV_VARS` overrides.
+    Sources,
+}
+
+impl EnvVarGrant {
+    /// The guest whose allowlist this is, and where a variable is granted to it.
+    const fn describe(self) -> (&'static str, &'static str) {
+        match self {
+            Self::Functions => ("function", "FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS"),
+            Self::Sources => {
+                ("source", "`[sources] allowed_env_vars`, or FRAISEQL_SOURCES_ALLOWED_ENV_VARS")
+            },
         }
     }
 }
@@ -451,11 +482,11 @@ impl HostContext for LiveHostContext {
         if self.config.allowed_env_vars.contains(name) {
             Ok(std::env::var(name).ok())
         } else {
+            let (guest, grant) = self.config.env_var_grant.describe();
             Err(fraiseql_error::FraiseQLError::Authorization {
                 message:  format!(
-                    "environment variable `{name}` is not on this function's allowlist \
-                     (grant it via FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS or [sources] \
-                     allowed_env_vars)"
+                    "environment variable `{name}` is not on this {guest}'s allowlist \
+                     (grant it in {grant})"
                 ),
                 action:   Some("env_var".to_string()),
                 resource: Some(name.to_string()),

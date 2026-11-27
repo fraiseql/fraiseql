@@ -2398,6 +2398,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A refused `env_var` read names only the allowlist that grants that guest a variable
+  (#2690).** Functions and source connectors have separate allowlists, but both refusals
+  read "grant it via FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS or [sources] allowed_env_vars",
+  so a source was pointed at a setting that cannot grant it. A function's refusal now
+  names `FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS` only; a source's names `[sources]
+  allowed_env_vars` and `FRAISEQL_SOURCES_ALLOWED_ENV_VARS`.
+
 - **A type checker sees the class or function `@fraiseql.error` and `@fraiseql.subscription`
   decorate (#2646).** Each had one signature returning the decorated object or a
   decorator, so a checker saw the bare form as that union and the called form

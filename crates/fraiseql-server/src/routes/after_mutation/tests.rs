@@ -760,6 +760,41 @@ mod query_bridge_wiring {
         assert_eq!(config.allowed_env_vars.len(), 2);
     }
 
+    /// A function refused a variable is told where a function's allowlist is set: the
+    /// variable, which is its only setting, and nothing about the sources allowlist, which
+    /// does not grant a function.
+    #[test]
+    fn a_refused_variable_names_the_functions_allowlist_only() {
+        use fraiseql_functions::host::live::LiveHostContext;
+
+        use super::super::host_context_config_from;
+
+        let payload = EventPayload {
+            trigger_type: "after:mutation:createOrder".to_string(),
+            entity:       "Order".to_string(),
+            event_kind:   "insert".to_string(),
+            data:         serde_json::json!({}),
+            timestamp:    fraiseql_time::Timestamp::now(),
+        };
+        let host = LiveHostContext::new(payload, host_context_config_from(&[], |_| None));
+        let refusal = host
+            .env_var("UNGRANTED_VARIABLE")
+            .expect_err("a variable no allowlist grants is refused")
+            .to_string();
+        assert!(
+            refusal.contains("FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS"),
+            "the refusal names where a function's allowlist is set: {refusal}"
+        );
+        assert!(
+            !refusal.contains("allowed_env_vars`"),
+            "the refusal names no configuration key, since functions have none: {refusal}"
+        );
+        assert!(
+            !refusal.contains("[sources]") && !refusal.contains("FRAISEQL_SOURCES"),
+            "the refusal names no sources setting: {refusal}"
+        );
+    }
+
     // ── #803: the dispatched host's identity ─────────────────────────────────
 
     /// #803: with no triggering caller, the dispatched host's `auth_context`

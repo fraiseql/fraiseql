@@ -1451,6 +1451,7 @@ fn host_context_config_from(
 ) -> fraiseql_functions::host::live::HostContextConfig {
     let mut config = fraiseql_functions::host::live::HostContextConfig {
         allowed_domains: allowed_domains.to_vec(),
+        env_var_grant: fraiseql_functions::host::live::EnvVarGrant::Functions,
         ..fraiseql_functions::host::live::HostContextConfig::default()
     };
     if let Some(names) = get("FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS") {

@@ -155,6 +155,36 @@ fn host_config_env_var_allowlist_resolves_env_over_config() {
     );
 }
 
+/// A source refused a variable is told where a source's allowlist is set: the `[sources]`
+/// key and the variable that overrides it, and nothing about the functions allowlist,
+/// which does not grant a source.
+#[test]
+fn a_refused_variable_names_the_sources_allowlist_only() {
+    use fraiseql_functions::{EventPayload, HostContext as _, host::live::LiveHostContext};
+
+    let payload = EventPayload {
+        trigger_type: "source:orders_feed".to_string(),
+        entity:       "orders_feed".to_string(),
+        event_kind:   "poll".to_string(),
+        data:         serde_json::json!({}),
+        timestamp:    fraiseql_time::Timestamp::now(),
+    };
+    let config = source_host_config_from(&SourcesConfig::default(), &[], |_| None);
+    let refusal = LiveHostContext::new(payload, config)
+        .env_var("UNGRANTED_VARIABLE")
+        .expect_err("a variable no allowlist grants is refused")
+        .to_string();
+    assert!(
+        refusal.contains("`[sources] allowed_env_vars`")
+            && refusal.contains("FRAISEQL_SOURCES_ALLOWED_ENV_VARS"),
+        "the refusal names where a source's allowlist is set: {refusal}"
+    );
+    assert!(
+        !refusal.contains("[functions]") && !refusal.contains("FRAISEQL_FUNCTIONS"),
+        "the refusal names no functions setting: {refusal}"
+    );
+}
+
 // ===========================================================================
 // #868 item 4 — the declared `cursor` override must reach the watermark store
 // ===========================================================================

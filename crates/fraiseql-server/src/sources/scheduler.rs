@@ -12,7 +12,7 @@ use std::sync::Arc;
 use fraiseql_core::schema::SourceDefinition;
 use fraiseql_functions::{
     FunctionModule, ResourceLimits,
-    host::live::{HostContextConfig, QueryExecutor},
+    host::live::{EnvVarGrant, HostContextConfig, QueryExecutor},
     triggers::Schedule,
 };
 use fraiseql_observers::{LeaseGuardedRunner, PostgresSourceCursorStore};
@@ -74,6 +74,7 @@ fn source_host_config_from(
     HostContextConfig {
         allowed_domains,
         allowed_env_vars,
+        env_var_grant: EnvVarGrant::Sources,
         ..HostContextConfig::default()
     }
 }
