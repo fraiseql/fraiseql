@@ -16,6 +16,8 @@
 //!
 //! * **O4, pagination is consistent** (`sql_oracle/pages.rs`). Unpaged, offset and keyset reads,
 //!   forward and backward, return the order the pagination contract states.
+//! * **O5, floats are exact** (`sql_oracle/floats.rs`). A `Float` operand read from request text
+//!   selects the rows exact comparison selects, and a stored double serves bit for bit.
 //!
 //! The fixture lives in its own database, created with PostgreSQL's builtin `C.UTF-8`
 //! locale, so text order and case folding are the table's on any server.
@@ -62,6 +64,9 @@ mod reference;
 
 #[path = "sql_oracle/pages.rs"]
 mod pages;
+
+#[path = "sql_oracle/floats.rs"]
+mod floats;
 
 use reference::{Declared, Verdict};
 
