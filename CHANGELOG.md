@@ -2420,6 +2420,14 @@ disagreed, and the promise was the part that was wrong.
   names `FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS` only; a source's names `[sources]
   allowed_env_vars` and `FRAISEQL_SOURCES_ALLOWED_ENV_VARS`.
 
+- **A `Float` reads back as the double its text names, in a filter and in a response
+  (#2807).** JSON numbers were read with serde_json's default number reader, which is off
+  by one step on some doubles. A filter operand could therefore select its neighbour's
+  row, whether it came as a variable or as an inline literal (the stored argument was
+  re-read with the same reader). A stored double could also be served one step off, and a
+  row holding the largest double failed the whole response with an internal error. The
+  workspace now enables serde_json's `float_roundtrip`, so every number read is exact.
+
 - **A type checker sees the class or function `@fraiseql.error` and `@fraiseql.subscription`
   decorate (#2646).** Each had one signature returning the decorated object or a
   decorator, so a checker saw the bare form as that union and the called form
