@@ -19,6 +19,11 @@
 //! * **O5, floats are exact** (`sql_oracle/floats.rs`). A `Float` operand read from request text
 //!   selects the rows exact comparison selects, and a stored double serves bit for bit.
 //!
+//! O1 to O3 run every tree four ways: under the declared types, as written, under the
+//! declared types with the relation's native columns (a top-level comparison then reads its
+//! column), and, for trees of `eq` / `neq` alone, as the `NativeField` nodes a direct query
+//! argument compiles to. The fixture relation holds both the documents and those columns.
+//!
 //! The fixture lives in its own database, created with PostgreSQL's builtin `C.UTF-8`
 //! locale, so text order and case folding are the table's on any server.
 //!
@@ -107,12 +112,28 @@ fn fixture() -> Vec<String> {
         .iter()
         .map(|doc| format!("('{}'::jsonb)", doc.replace('\'', "''")))
         .collect();
-    vec![
+    let mut out = vec![
         format!("DROP TABLE IF EXISTS {TABLE}"),
         format!("CREATE TABLE {TABLE} (data jsonb NOT NULL)"),
         format!("INSERT INTO {TABLE} (data) VALUES {}", values.join(", ")),
-    ]
+    ];
+    for (key, column, ty) in NATIVE_COLUMNS {
+        out.push(format!("ALTER TABLE {TABLE} ADD COLUMN {column} {ty}"));
+        out.push(format!("UPDATE {TABLE} SET {column} = (data->>'{key}')::{ty}"));
+    }
+    out
 }
+
+/// The native columns the fixture relation also holds: `(key, column, PostgreSQL type)`,
+/// each the key's value, NULL where the document's is null or absent. A column is named
+/// apart from its key, so a read of the wrong one cannot pass.
+const NATIVE_COLUMNS: [(&str, &str, &str); 5] = [
+    ("name", "c_name", "text"),
+    ("n", "c_n", "int8"),
+    ("x", "c_x", "numeric"),
+    ("b", "c_b", "boolean"),
+    ("d", "c_d", "date"),
+];
 
 fn rows() -> Vec<Value> {
     ROWS.iter().map(|doc| serde_json::from_str(doc).unwrap()).collect()
@@ -382,19 +403,84 @@ fn tree(rng: &mut Rng, pool: &[WhereClause], depth: u32) -> WhereClause {
     }
 }
 
-/// `clause` as its variant runs it: as written, or under the declared types.
-fn variant(name: &str, clause: WhereClause) -> WhereClause {
-    if name == "typed" {
-        WhereClause::Typed {
-            types: declared_types(),
-            inner: Box::new(clause),
-        }
-    } else {
-        clause
+/// Declared types with the relation's native columns, as a compiled schema records them.
+fn declared_types_with_columns() -> SharedFieldTypes {
+    let mut types = (*declared_types()).clone();
+    types = types.with_columns(NATIVE_COLUMNS.iter().map(|(k, c, _)| ((*k).into(), (*c).into())));
+    Arc::new(types)
+}
+
+/// The cast a compiled native-column argument carries for a column type.
+fn native_cast(ty: &str) -> &'static str {
+    match ty {
+        "text" => "",
+        "int8" => "int8",
+        "numeric" => "numeric",
+        "boolean" => "bool",
+        "date" => "date",
+        _ => panic!("a column type this oracle does not know"),
     }
 }
 
-const VARIANTS: [&str; 2] = ["typed", "untyped"];
+/// `clause` with each `eq` / `neq` leaf on a key with a native column made a
+/// [`WhereClause::NativeField`] on that column, as a direct query argument compiles;
+/// `None` when the tree holds another leaf, which that node does not take.
+fn native_fields(clause: &WhereClause) -> Option<WhereClause> {
+    Some(match clause {
+        WhereClause::Field {
+            path,
+            operator: operator @ (WhereOperator::Eq | WhereOperator::Neq),
+            value,
+        } if path.len() == 1 => {
+            let (_, column, ty) = NATIVE_COLUMNS.iter().find(|(k, _, _)| *k == path[0])?;
+            WhereClause::NativeField {
+                column:   (*column).to_string(),
+                pg_cast:  native_cast(ty).to_string(),
+                operator: operator.clone(),
+                value:    value.clone(),
+            }
+        },
+        WhereClause::And(cs) => {
+            WhereClause::And(cs.iter().map(native_fields).collect::<Option<_>>()?)
+        },
+        WhereClause::Or(cs) => {
+            WhereClause::Or(cs.iter().map(native_fields).collect::<Option<_>>()?)
+        },
+        WhereClause::Not(c) => WhereClause::Not(Box::new(native_fields(c)?)),
+        _ => return None,
+    })
+}
+
+/// `clause` as its variant runs it, and as the reference judges it; `None` when the
+/// variant has no form of it.
+///
+/// - `typed`: under the declared types; `untyped`: as written.
+/// - `native`: under the declared types and the relation's native columns, so a top-level
+///   comparison reads its column.
+/// - `native_field`: as [`native_fields`] makes it.
+///
+/// A native column holds its key's value, so both native variants mean the typed tree.
+fn variant(name: &str, clause: WhereClause) -> Option<(WhereClause, WhereClause)> {
+    let typed = |types: SharedFieldTypes, inner: WhereClause| WhereClause::Typed {
+        types,
+        inner: Box::new(inner),
+    };
+    Some(match name {
+        "typed" => {
+            let t = typed(declared_types(), clause);
+            (t.clone(), t)
+        },
+        "untyped" => (clause.clone(), clause),
+        "native" => (
+            typed(declared_types_with_columns(), clause.clone()),
+            typed(declared_types(), clause),
+        ),
+        "native_field" => (native_fields(&clause)?, typed(declared_types(), clause)),
+        _ => panic!("a variant this oracle does not know"),
+    })
+}
+
+const VARIANTS: [&str; 4] = ["typed", "untyped", "native", "native_field"];
 
 // ── Execution ─────────────────────────────────────────────────────────────────
 
@@ -566,11 +652,11 @@ impl Report {
         adapter: &PostgresAdapter,
         scope: &str,
         variant_name: &str,
-        clause: &WhereClause,
+        (clause, meaning): &(WhereClause, WhereClause),
     ) -> bool {
         let param = parameterised(adapter, clause).await;
         let inline = inlined(adapter, clause).await;
-        let reference = reference::evaluate(clause, &self.rows, reference_types);
+        let reference = reference::evaluate(meaning, &self.rows, reference_types);
         self.count(format!("{scope}:{variant_name}:cases"));
         if reference == Verdict::Unjudged {
             self.count(format!("{scope}:{variant_name}:o3_unjudged"));
@@ -596,13 +682,17 @@ async fn run(adapter: &PostgresAdapter) -> Report {
     for name in VARIANTS {
         let mut pool = Vec::new();
         for leaf in &leaves {
-            if report.case(adapter, "leaf", name, &variant(name, leaf.clone())).await {
+            let Some(case) = variant(name, leaf.clone()) else {
+                continue;
+            };
+            if report.case(adapter, "leaf", name, &case).await {
                 pool.push(leaf.clone());
             }
         }
         for _ in 0..TREES {
-            let t = variant(name, tree(&mut rng, &pool, 0));
-            report.case(adapter, "tree", name, &t).await;
+            let t = tree(&mut rng, &pool, 0);
+            let case = variant(name, t).expect("a tree over the variant's own leaves");
+            report.case(adapter, "tree", name, &case).await;
         }
     }
     report
