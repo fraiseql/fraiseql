@@ -75,6 +75,9 @@ struct Fixture {
     masked:        String,
     /// `MineOrder_<id>`: read through a view returning only the reader's own rows.
     mine:          String,
+    /// `OwnedOrder_<id>`: read through a view returning every row, under a row policy
+    /// admitting only the reader's own (in a fixture started with one).
+    owned:         String,
     executor:      Arc<Executor>,
     manager:       Arc<SubscriptionManager>,
     runtime:       ObserverRuntime,
@@ -119,12 +122,22 @@ fn order_type(name: &str, view: &str) -> TypeDefinition {
 
 impl Fixture {
     async fn start() -> Self {
+        Self::start_over(false).await
+    }
+
+    /// [`start`](Self::start); `row_policy` installs the owner row policy on the executor,
+    /// so a type's rows are scoped by the policy rather than by its view.
+    #[allow(clippy::disallowed_types)] // Reason: the test installs the policy its case asserts on, not a production construction
+    async fn start_over(row_policy: bool) -> Self {
         let test_id = Uuid::new_v4().simple().to_string();
         let pool = create_test_pool().await;
         setup_observer_schema(&pool).await.expect("schema setup");
         let table = format!("tb_rs_order_{test_id}");
-        let (masked_view, mine_view) =
-            (format!("v_rs_masked_{test_id}"), format!("v_rs_mine_{test_id}"));
+        let (masked_view, mine_view, owned_view) = (
+            format!("v_rs_masked_{test_id}"),
+            format!("v_rs_mine_{test_id}"),
+            format!("v_rs_owned_{test_id}"),
+        );
         // Reason: test SQL: names this test defines.
         sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
             "CREATE TABLE {table} (id UUID PRIMARY KEY, owner_sub TEXT NOT NULL, secret TEXT NOT NULL);
@@ -135,7 +148,10 @@ impl Fixture {
                FROM {table};
              CREATE VIEW {mine_view} AS SELECT id, jsonb_build_object(
                  'id', id::text, 'label', secret) AS data
-               FROM {table} WHERE owner_sub = current_setting('app.sub', true);"
+               FROM {table} WHERE owner_sub = current_setting('app.sub', true);
+             CREATE VIEW {owned_view} AS SELECT id, jsonb_build_object(
+                 'id', id::text, 'label', secret, 'author_id', owner_sub) AS data
+               FROM {table};"
         )))
         .execute(&pool)
         .await
@@ -143,9 +159,16 @@ impl Fixture {
 
         let masked = format!("MaskedOrder_{test_id}");
         let mine = format!("MineOrder_{test_id}");
+        let owned = format!("OwnedOrder_{test_id}");
         let mut schema = CompiledSchema::new();
         schema.types.push(order_type(&masked, &masked_view));
         schema.types.push(order_type(&mine, &mine_view));
+        let mut owned_type = order_type(&owned, &owned_view);
+        // The keys the owner policy reads: a type subscribed under it declares them.
+        for key in ["author_id", "tenant_id"] {
+            owned_type.fields.push(FieldDefinition::nullable(key, FieldType::String));
+        }
+        schema.types.push(owned_type);
         schema.queries.push(
             QueryDefinition::new("maskedOrders", masked.as_str())
                 .returning_list()
@@ -159,9 +182,17 @@ impl Fixture {
         schema
             .subscriptions
             .push(SubscriptionDefinition::new("maskedOrderChanged", &masked));
+        schema.queries.push(
+            QueryDefinition::new("ownedOrders", owned.as_str())
+                .returning_list()
+                .with_sql_source(owned_view.as_str()),
+        );
         schema
             .subscriptions
             .push(SubscriptionDefinition::new("mineOrderChanged", &mine));
+        schema
+            .subscriptions
+            .push(SubscriptionDefinition::new("ownedOrderChanged", &owned));
         schema.session_variables.variables.push(SessionVariableMapping {
             name:   "app.sub".to_string(),
             source: SessionVariableSource::Jwt {
@@ -185,7 +216,12 @@ impl Fixture {
                 .await
                 .expect("the executor's adapter connects"),
         );
-        let executor = Arc::new(Executor::new(schema.clone(), adapter));
+        let mut runtime_config = fraiseql_core::runtime::RuntimeConfig::default();
+        if row_policy {
+            runtime_config = runtime_config
+                .with_rls_policy(Arc::new(fraiseql_core::security::DefaultRLSPolicy::new()));
+        }
+        let executor = Arc::new(Executor::with_config(schema.clone(), adapter, runtime_config));
         let manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
         let fanout = EntityEventFanout::default();
@@ -238,6 +274,7 @@ impl Fixture {
             table,
             masked,
             mine,
+            owned,
             executor,
             manager,
             runtime,
@@ -310,7 +347,10 @@ impl Fixture {
         .await;
         let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
         while self.manager.subscription_count() < registered {
-            assert!(tokio::time::Instant::now() < deadline, "{sub}'s subscription must register");
+            if tokio::time::Instant::now() >= deadline {
+                let answer = recv_frame(&mut stream).await;
+                panic!("{sub}'s subscription must register; the server answered {answer}");
+            }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
         (sink, stream)
@@ -428,6 +468,34 @@ async fn a_row_the_view_does_not_return_to_the_reader_is_not_delivered_to_it() {
     let to_alice = next_document(&mut alice, "mineOrderChanged").await;
     let to_carol = next_document(&mut carol, "mineOrderChanged").await;
     let carol_reads_alices = f.read_as("carol", "mineOrders", &alices).await;
+    f.stop().await;
+
+    assert_eq!(to_alice, json!({"id": alices, "label": SECRET}));
+    assert_eq!(carol_reads_alices, None, "carol's query does not return alice's row");
+    assert_eq!(
+        to_carol,
+        json!({"id": carols, "label": SECRET}),
+        "carol's first event is her own row: alice's was not delivered to her"
+    );
+}
+
+/// A row a declared row policy does not admit for the reader is not delivered to that
+/// subscriber: the view returns every row, and the policy scopes the reader's read.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_row_the_row_policy_does_not_admit_for_the_reader_is_not_delivered_to_it() {
+    let f = Fixture::start_over(true).await;
+    let query = "subscription { ownedOrderChanged { id label } }";
+    let (_a, mut alice) = f.subscribe("alice", query, 1).await;
+    let (_c, mut carol) = f.subscribe("carol", query, 2).await;
+
+    let alices = f.write(&f.owned, "alice").await;
+    // Written strictly after, and in order: carol's first event is the first row she reads.
+    let carols = f.write(&f.owned, "carol").await;
+
+    let to_alice = next_document(&mut alice, "ownedOrderChanged").await;
+    let to_carol = next_document(&mut carol, "ownedOrderChanged").await;
+    let carol_reads_alices = f.read_as("carol", "ownedOrders", &alices).await;
     f.stop().await;
 
     assert_eq!(to_alice, json!({"id": alices, "label": SECRET}));

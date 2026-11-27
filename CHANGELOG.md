@@ -25,8 +25,9 @@ disagreed, and the promise was the part that was wrong.
   from the primary, under its own session variables and row scope, and is served what
   that read returns. A row its read does not return is not delivered; a delete reaches
   only a subscription that was delivered the row. A read that fails, or does not finish
-  within 5 s on `/ws`, ends the operation or the stream. A subscription whose type the
-  schema does not declare is refused at subscribe.
+  within 5 s on `/ws`, ends the operation, or the stream with a `stream-lagged` frame of
+  code `READ_FAILED`. A subscription whose type the schema does not declare is refused at
+  subscribe.
   - The Kafka mirror delivers a delete only for a row it was itself served recently: it
     remembers the last 256 rows (and at most 1 MiB of them) per subscription, in memory, so
     a delete of an older row, or of a row served before the server restarted, is not
