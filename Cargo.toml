@@ -174,7 +174,13 @@ serde = { version = "1.0", features = ["derive", "rc"] }
 # `serde_json::Value` in the workspace — including two digests derived from one
 # (#899, #900). Making it unconditional is what lets that be a property of the
 # product instead of a property of the feature set.
-serde_json = { version = "1.0", features = ["preserve_order"] }
+# `float_roundtrip`: every JSON number reads back as the double its text names. The
+# default reader is off by one step on some doubles, which moved a filter's operand and
+# made a stored `f64::MAX` unreadable.
+serde_json = { version = "1.0", features = [
+  "preserve_order",
+  "float_roundtrip",
+] }
 # JSON Schema of each capability's config sections, for `fraiseql capabilities --json`.
 schemars = { version = "1.2", default-features = false, features = [
   "derive",

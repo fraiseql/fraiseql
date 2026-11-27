@@ -1986,6 +1986,11 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// anonymous refusal. A count that dropped the tenant filter returns no
 		// row and leaks another tenant's row total.
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test graphql_count_e2e_pg -- --test-threads=1",
+		// A `Float` round-trips exactly through the real mount: a request variable and an
+		// inline literal each select their own row among doubles one step apart, and the
+		// largest double is served exactly. Each was one step off, or unreadable, under the
+		// default JSON number reader.
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test graphql_float_exact_e2e_pg -- --test-threads=1",
 		// #962 — the operator SQL console (G4: mount the full arbitrary-SQL
 		// endpoint, gated). The most powerful endpoint the server has, so what
 		// this pins is the containment, and every part of it is a *database*
