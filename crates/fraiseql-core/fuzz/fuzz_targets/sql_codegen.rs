@@ -1,56 +1,35 @@
 #![no_main]
 
+//! Fuzz the WHERE SQL the executor runs, through `fraiseql_core::db`.
+//!
+//! Over arbitrary trees, the parameterised generator must never panic, must bind a
+//! rendered tree's parameters as exactly `$1`..`$n`, and must render the same statement
+//! for the same tree with other operands of the same JSON shapes, whenever it renders.
+//! See `fraiseql-db/fuzz/fuzz_targets/where_generator.rs` for why a refusal is not a
+//! difference.
+
+use fraiseql_core::db::{
+    PostgresDialect, WhereClause,
+    fuzzing::{Operands, placeholders_are_one_to, revalue},
+    where_generator::GenericWhereGenerator,
+};
 use libfuzzer_sys::fuzz_target;
 
-/// Count unbalanced structural parentheses outside of single-quoted SQL strings.
-fn structural_parens_balanced(sql: &str) -> bool {
-    let mut depth: i32 = 0;
-    let mut in_quote = false;
-    let mut chars = sql.chars().peekable();
-
-    while let Some(c) = chars.next() {
-        if in_quote {
-            if c == '\'' {
-                // Escaped quote '' stays in-quote
-                if chars.peek() == Some(&'\'') {
-                    chars.next();
-                } else {
-                    in_quote = false;
-                }
-            }
-        } else {
-            match c {
-                '\'' => in_quote = true,
-                '(' => depth += 1,
-                ')' => {
-                    depth -= 1;
-                    if depth < 0 {
-                        return false;
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
-    depth == 0
-}
-
-fuzz_target!(|data: &str| {
-    let Ok(clause) = serde_json::from_str::<fraiseql_core::db::WhereClause>(data) else {
+fuzz_target!(|input: (WhereClause, Operands, Operands)| {
+    let (tree, a, b) = input;
+    let generator = GenericWhereGenerator::new(PostgresDialect);
+    let Ok((sql, params)) = generator.generate(&tree) else {
         return;
     };
-
-    let result = fraiseql_core::db::WhereSqlGenerator::to_sql(&clause);
-
-    if let Ok(sql) = result {
-        // SQL must not be empty for a valid clause
-        assert!(!sql.is_empty(), "SQL generation produced empty string");
-
-        // Structural parentheses must be balanced (ignoring those inside string literals)
-        assert!(
-            structural_parens_balanced(&sql),
-            "Unbalanced structural parentheses in SQL: {sql}"
-        );
+    assert!(
+        placeholders_are_one_to(&sql, params.len()),
+        "placeholders are not $1..${}: {sql}",
+        params.len()
+    );
+    for operands in [&a, &b] {
+        if let Ok((other, other_params)) = generator.generate(&revalue(&tree, operands)) {
+            assert_eq!(sql, other, "the operands changed the statement");
+            assert_eq!(params.len(), other_params.len(), "the operands changed the binding");
+        }
     }
 });

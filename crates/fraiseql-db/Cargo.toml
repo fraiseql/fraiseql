@@ -45,6 +45,12 @@ uuid = { workspace = true }
 harness = false
 name = "sql_generation_bench"
 
+# Fuzzing only, and not API: `cfg(fuzzing)` is set by cargo-fuzz and by nothing a dependent
+# can enable, so no build of this crate outside a fuzz target carries `arbitrary` or the
+# `fuzzing` module.
+[target.'cfg(fuzzing)'.dependencies]
+arbitrary = { version = "1.4", features = ["derive"] }
+
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
 fraiseql-test-support = { path = "../fraiseql-test-support" }

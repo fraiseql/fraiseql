@@ -691,6 +691,7 @@ fn unknown_where_field(
 /// exhaustive `match` expressions.
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(fuzzing, derive(arbitrary::Arbitrary))]
 pub enum WhereOperator {
     // ========================================================================
     // Comparison Operators

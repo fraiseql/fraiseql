@@ -23,6 +23,7 @@ use crate::{types::db_types::DatabaseType, utils::to_snake_case};
 ///
 /// [`SqlDialect::cast_type_name`]: crate::dialect::SqlDialect::cast_type_name
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(fuzzing, derive(arbitrary::Arbitrary))]
 #[non_exhaustive]
 pub enum ScalarFieldType {
     /// No cast — text comparison (correct for strings, UUIDs, IDs, enum values).

@@ -55,6 +55,9 @@ pub mod traits;
 pub mod view_name;
 pub mod where_clause;
 pub mod where_sql_generator;
+
+#[cfg(fuzzing)]
+pub mod fuzzing;
 mod write_pin_scope;
 
 #[cfg(feature = "postgres")]
