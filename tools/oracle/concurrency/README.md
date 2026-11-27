@@ -149,6 +149,15 @@ Exit codes:
 `--bless` leaves a new entry's `issue` empty and the gate refuses it (`UNNAMED`), so
 every recorded cell names its issue.
 
+## CI
+
+`dagger call concurrency-oracle --source=.` (`ConcurrencyOracle` in
+`.dagger/oracle_concurrency.go`) builds the CLI and a server with `cli,observers`, and runs
+`run.sh` against the seeded PostgreSQL 18 service the integration legs bind, with one
+streaming standby of it for the replica cells. `--selftest` runs the self-test instead.
+The leg is not wired into any workflow. `make oracle-concurrency` and
+`make oracle-concurrency-selftest` are its local mirror.
+
 ## Self-test
 
 `run.sh --selftest` needs no server. It runs the checker on one hand-built history per
