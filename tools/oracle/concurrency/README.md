@@ -83,8 +83,10 @@ mean nothing:
 
 ## The replica pair
 
-The `replica` cells run against a primary and a hot standby streaming from it
-(`fixture/replica/`). Each config is run with the result cache off and on, at TTL 0.
+The `replica` cells run against a primary and a hot standby streaming from it, set up
+by the repo's own replication scripts (`docker/init/postgres-replication-init.sh` and
+`postgres-standby-entrypoint.sh`, which the integration rigs use too). Each config is run
+with the result cache off and on, at TTL 0.
 
 - The cells do not wait on a replication delay. They hold the standby's replay with
   `pg_wal_replay_pause()`, so its lag is a state, not a race.
@@ -132,8 +134,10 @@ tools/oracle/concurrency/run.sh --selftest   # the checker and the gate, no serv
   the features `cli,observers`.
 - `ORACLE_ADMIN_URL` names a PostgreSQL to create the fixture database in. Without it,
   a throwaway PostgreSQL 18 container is started.
-- `ORACLE_PRIMARY_URL` and `ORACLE_REPLICA_URL` name the replica pair, as superuser URLs.
-  Without them, the pair is started as two containers on a network of their own.
+- `ORACLE_PRIMARY_URL` and `ORACLE_REPLICA_URL` name the replica pair, as superuser URLs,
+  and are required with `ORACLE_ADMIN_URL`. Without `ORACLE_ADMIN_URL`, the throwaway
+  PostgreSQL is the primary, and its standby is a second container on a network of
+  their own.
 - `ORACLE_OUT` keeps the run's configs, logs and `outcomes.json`.
 
 Exit codes:
@@ -144,3 +148,35 @@ Exit codes:
 
 `--bless` leaves a new entry's `issue` empty and the gate refuses it (`UNNAMED`), so
 every recorded cell names its issue.
+
+## Self-test
+
+`run.sh --selftest` needs no server. It runs the checker on one hand-built history per
+rule, and each gate site on a baseline that differs from the outcomes by one entry.
+
+The product mutants show that the cells catch the defects they were written for. Each
+one rebuilds the server, so they run locally only:
+
+```
+tools/oracle/concurrency/mutants.sh                  # every mutant in mutants.json
+tools/oracle/concurrency/mutants.sh fence_removed    # one
+ORACLE_MUTANT_DIR=/srv/build/oracle-mutants CARGO_TARGET_DIR=/srv/build/oracle-mutants-target \
+  tools/oracle/concurrency/mutants.sh                # keep the copy and its builds
+```
+
+`mutants.sh` copies HEAD with `git archive`, builds the server there unmutated, and
+requires the oracle to match its baseline on it. Then, for each mutant:
+
+1. it applies the mutant's exact text edits; each must occur once;
+2. it rebuilds the server;
+3. it runs the groups the mutant names;
+4. it requires every cell in the mutant's `expect` list to be reported `NEW`;
+5. it restores the copy's files from their saved bytes and checks them with `cmp`.
+
+The working tree is never edited.
+
+| Mutant | Edit | Must flip |
+|---|---|---|
+| `eviction_skipped` | a successful mutation evicts nothing | `probe:direct:evicted`, `matrix:cache_ttl0:k1:direct:linearizable` |
+| `fence_removed` | a read is stored with no in-flight fence | `fence:inflight_read_not_stored` |
+| `idempotency_check_removed` | the in-memory store never finds a key | `idem:sequential:executes_once` |

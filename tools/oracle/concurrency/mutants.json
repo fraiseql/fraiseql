@@ -1,0 +1,59 @@
+{
+  "_comment": [
+    "Product mutants for `mutants.sh`: each is a set of exact text edits to a copy of the tree,",
+    "and the cells a correct oracle must report as NEW once the server is built from it."
+  ],
+  "mutants": [
+    {
+      "name": "eviction_skipped",
+      "edits": [
+        {
+          "file": "crates/fraiseql-core/src/runtime/executor/runners/mutation/mod.rs",
+          "old": "ctx.adapter.invalidate_written(&plan.views, &changed).await?;",
+          "new": "let _ = (&plan.views, &changed);"
+        },
+        {
+          "file": "crates/fraiseql-core/src/runtime/executor/runners/mutation/mod.rs",
+          "old": "ctx.adapter.invalidate_views(&plan.views).await?;",
+          "new": "let _ = &plan.views;"
+        },
+        {
+          "file": "crates/fraiseql-core/src/runtime/executor/runners/mutation/mod.rs",
+          "old": "ctx.adapter.invalidate_by_entity(etype, eid).await?;",
+          "new": "let _ = (etype, eid);"
+        }
+      ],
+      "groups": "probe,matrix",
+      "expect": ["CONC:probe:direct:evicted", "CONC:matrix:cache_ttl0:k1:direct:linearizable"]
+    },
+    {
+      "name": "fence_removed",
+      "edits": [
+        {
+          "file": "crates/fraiseql-core/src/cache/adapter/query.rs",
+          "old": "self.cache.put_by_id(cache_key, Arc::clone(rows), views, ttl, row, Some(fence))",
+          "new": "self.cache.put_by_id(cache_key, Arc::clone(rows), views, ttl, row, None)"
+        },
+        {
+          "file": "crates/fraiseql-core/src/cache/adapter/query.rs",
+          "old": "                view_name_to_entity_type(view).as_deref(),\n                Some(fence),",
+          "new": "                view_name_to_entity_type(view).as_deref(),\n                None,"
+        }
+      ],
+      "groups": "fence",
+      "expect": ["CONC:fence:inflight_read_not_stored"]
+    },
+    {
+      "name": "idempotency_check_removed",
+      "edits": [
+        {
+          "file": "crates/fraiseql-server/src/routes/idempotency.rs",
+          "old": "        let result = if let Some(entry) = self.entries.get(key) {",
+          "new": "        let result = if let Some(entry) = self.entries.get(key).filter(|_| false) {"
+        }
+      ],
+      "groups": "idem",
+      "expect": ["CONC:idem:sequential:executes_once"]
+    }
+  ]
+}
