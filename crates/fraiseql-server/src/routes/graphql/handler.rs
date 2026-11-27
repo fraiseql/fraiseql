@@ -475,26 +475,10 @@ pub(crate) fn extract_apq_hash(extensions: Option<&serde_json::Value>) -> Option
 /// 2. `extensions.persistedQuery.sha256Hash` (Apollo APQ format)
 /// 3. `extensions.doc_id` (Relay format)
 fn extract_document_id(request: &GraphQLRequest) -> Option<String> {
-    // 1. Top-level documentId field (GraphQL over HTTP spec)
-    if let Some(ref doc_id) = request.document_id {
-        return Some(doc_id.clone());
-    }
-    // 2. Extensions-based formats
-    if let Some(ext) = request.extensions.as_ref() {
-        // Relay format: extensions.doc_id
-        if let Some(doc_id) = ext.get("doc_id").and_then(|v| v.as_str()) {
-            return Some(doc_id.to_string());
-        }
-        // Apollo APQ format: extensions.persistedQuery.sha256Hash (also used for APQ)
-        if let Some(hash) = ext
-            .get("persistedQuery")
-            .and_then(|pq| pq.get("sha256Hash"))
-            .and_then(|h| h.as_str())
-        {
-            return Some(hash.to_string());
-        }
-    }
-    None
+    crate::trusted_documents::requested_document_id(
+        request.document_id.as_deref(),
+        request.extensions.as_ref(),
+    )
 }
 
 /// Resolve an APQ request: look up or register a persisted query.

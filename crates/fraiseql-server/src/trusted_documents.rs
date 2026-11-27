@@ -211,6 +211,107 @@ pub enum TrustedDocumentError {
     ManifestLoad(String),
 }
 
+/// A GraphQL document admitted under the trusted-documents policy.
+///
+/// It is the only text a request or a subscription is parsed and planned from: built by
+/// [`admit`] and by nothing else, so every transport that executes a document asks the one
+/// question.
+#[derive(Debug, Clone)]
+pub struct AdmittedDocument {
+    text: String,
+}
+
+impl AdmittedDocument {
+    /// The admitted text.
+    #[must_use]
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    /// The admitted text, owned.
+    #[must_use]
+    pub fn into_text(self) -> String {
+        self.text
+    }
+
+    /// A document standing in for an admitted one, in this crate's unit tests only.
+    #[cfg(test)]
+    pub(crate) fn unchecked(text: impl Into<String>) -> Self {
+        Self { text: text.into() }
+    }
+}
+
+/// The trusted-document id a request names: its top-level `documentId`, else the Relay
+/// `extensions.doc_id`, else the APQ `extensions.persistedQuery.sha256Hash`.
+#[must_use]
+pub fn requested_document_id(
+    document_id: Option<&str>,
+    extensions: Option<&serde_json::Value>,
+) -> Option<String> {
+    if let Some(id) = document_id {
+        return Some(id.to_string());
+    }
+    let extensions = extensions?;
+    extensions
+        .get("doc_id")
+        .and_then(serde_json::Value::as_str)
+        .or_else(|| {
+            extensions
+                .get("persistedQuery")
+                .and_then(|pq| pq.get("sha256Hash"))
+                .and_then(serde_json::Value::as_str)
+        })
+        .map(str::to_string)
+}
+
+/// Admit the document a request names under `store`'s policy: the manifest document
+/// `document_id` names, or `raw` where the mode allows it. With no store, `raw` is admitted.
+///
+/// # Errors
+///
+/// `FORBIDDEN_QUERY` for text strict mode does not allow, `DOCUMENT_NOT_FOUND` for an id the
+/// manifest does not hold, an internal error when the manifest is unavailable, and a request
+/// error when there is no store and no text.
+// Reason: the refusal is the `GraphQLError` each transport sends as is; boxing it would add
+// an allocation on every refusal and an unbox at each caller.
+#[allow(clippy::result_large_err)]
+pub fn admit(
+    store: Option<&TrustedDocumentStore>,
+    document_id: Option<&str>,
+    raw: Option<&str>,
+) -> Result<AdmittedDocument, crate::error::GraphQLError> {
+    use crate::error::GraphQLError;
+
+    let Some(store) = store else {
+        return raw
+            .map(|text| AdmittedDocument {
+                text: text.to_string(),
+            })
+            .ok_or_else(|| GraphQLError::request("No query provided"));
+    };
+    match store.resolve(document_id, raw) {
+        Ok(text) => {
+            if document_id.is_some() {
+                record_hit();
+                tracing::debug!(document_id = ?document_id, "Trusted document resolved");
+            }
+            Ok(AdmittedDocument { text })
+        },
+        Err(TrustedDocumentError::ForbiddenRawQuery) => {
+            record_rejected();
+            Err(GraphQLError::forbidden_query())
+        },
+        Err(TrustedDocumentError::DocumentNotFound { id }) => {
+            record_miss();
+            Err(GraphQLError::document_not_found(&id))
+        },
+        Err(TrustedDocumentError::ManifestLoad(msg)) => {
+            tracing::error!(error = %msg, "Trusted document manifest error");
+            Err(GraphQLError::internal("Trusted documents unavailable"))
+        },
+    }
+}
+
 // ── Metrics ──────────────────────────────────────────────────────────────
 
 static TRUSTED_DOC_HITS: AtomicU64 = AtomicU64::new(0);

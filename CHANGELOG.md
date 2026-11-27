@@ -134,6 +134,15 @@ disagreed, and the promise was the part that was wrong.
   that used `check_checkpoint_requirement` chooses `PostgresCheckpointStore` outright;
   `InMemoryCheckpointStore::new` still logs a warning when it is built.
 
+- **A `/ws` subscription is admitted under the trusted-documents policy as a `/graphql`
+  request is.** In strict mode, a `subscribe` (or legacy `start`) carrying text the
+  manifest does not name is answered with an `error` frame coded `FORBIDDEN_QUERY`, and an
+  id the manifest does not hold with `DOCUMENT_NOT_FOUND`; the connection stays open. A
+  subscription names its document the ways a request does: a top-level `documentId`,
+  `extensions.doc_id`, or `extensions.persistedQuery.sha256Hash`. A `subscribe` naming
+  neither text nor an id is refused with `REQUEST_ERROR` (`FORBIDDEN_QUERY` in strict
+  mode), and the connection stays open. A strict-mode deployment that opened ad-hoc
+  subscriptions adds them to its manifest and sends their ids.
 - **`fraiseql-saga` is removed (#2708).** The crate is no longer built or published, and
   its three examples (`examples/federation/saga-basic`, `saga-complex` and
   `saga-manual-compensation`) and `docs/guides/federation-saga.md` go with it. No crate in
