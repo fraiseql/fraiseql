@@ -22,6 +22,10 @@ regression is caught by executing documents, not by reading code.
   and a table row without a probe is a finding. Probes run over POST, GET, SSE and
   WebSocket (`graphql-transport-ws`). A control probe sends a shape inside the subset
   and must not be refused, so a server refusing everything cannot pass a row.
+- **Validation probes** for spec rules over a transport the differential cannot see:
+  over WebSocket, a second root field and an undeclared field. Each must answer with
+  the code the server gives a §5.3.1 document over POST, measured each run. An unknown
+  subscription is the control.
 
 The reference server (`lib/reference.js`) serves `fixture/schema.graphql`, the SDL that
 FraiseQL is expected to expose for `fixture/schema.json`. It resolves against the same
@@ -46,7 +50,7 @@ The oracle reports:
 | Invalid documents executed (graphql-js rejects them, FraiseQL answers) | 0 |
 | Undocumented divergences (any other outcome that differs) | 0 |
 | Error-format divergences (a key beside `message`, `locations`, `path`, `extensions`) | 0 |
-| Restriction findings (a listed restriction the server does not refuse as listed) | 0 |
+| Conformance probe findings (a listed restriction not refused as listed, or a validation probe not answered as validation) | 0 |
 
 With a baseline present, each metric line also shows its change from the baseline, and
 whether that change is better or worse.
@@ -122,6 +126,8 @@ baseline:
   fall, and an unlisted code must document nothing.
 - The subscription probes are pointed at a server serving no subscription. The control
   probe must report the shape inside the subset as refused.
+- A validation probe is given the validation code, a restriction's code, a parse error,
+  an open subscription and a closed socket. Only the first may pass.
 - A probe narrowed to one code is given each of its row's codes. Every code but its own
   must be a finding. This check runs first, before the server is measured.
 

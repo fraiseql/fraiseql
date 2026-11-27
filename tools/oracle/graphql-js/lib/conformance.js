@@ -181,6 +181,34 @@ function ws(url, p) {
 const VIA = { get, sse, ws };
 
 /**
+ * Spec validation reached through a transport the differential cannot see: each must
+ * answer as validation. Validation is never a restriction (docs/graphql-conformance.md,
+ * "Never restricted"), so these must not answer with a restriction's code. The code that
+ * means "validation" is not fixed by the spec; it is measured each run from the main
+ * server's answer to a §5.3.1 document over POST (VALIDATION_REFERENCE).
+ */
+const VALIDATION_REFERENCE = { query: "{ posts { nosuchfield } }" };
+const VALIDATION_PROBES = [
+  { name: "ws-root-count", rule: "5.2.3.1", server: "subs", via: "ws", body: { query: "subscription { postChanged { id } again: postChanged { id } }" } },
+  { name: "ws-undeclared-field", rule: "5.3.1", server: "subs", via: "ws", body: { query: "subscription { postChanged { id nosuchfield } }" } },
+  // A control: it answers as validation today, so a verdict that fails everything fails here.
+  { name: "ws-unknown-subscription", rule: "5.3.1", server: "subs", via: "ws", body: { query: "subscription { nosuchsubscription { id } }" } },
+];
+
+const codeOf = (e) => (e && e.extensions && typeof e.extensions.code === "string" ? e.extensions.code : e && e.code);
+
+/** The verdict on one validation probe: a finding line, or null when it answers as validation. */
+function judgeValidation(p, r, validationCode) {
+  const label = `validation ${p.name} (§${p.rule}, ${p.via || "post"})`;
+  const codes = errorsOf(r).map(codeOf);
+  if (!codes.length || hasData(r)) return `${label}: not refused as validation (${JSON.stringify(r.body).slice(0, 200)})`;
+  if (!codes.every((c) => c === validationCode)) {
+    return `${label}: answers ${[...new Set(codes)].join(",")}, not the validation code ${validationCode}`;
+  }
+  return null;
+}
+
+/**
  * The verdict on one probe's response: a finding line, or null when the response is what
  * the row and the probe require. Pure, so the self-test can feed it responses.
  */
@@ -233,7 +261,24 @@ async function checkRestrictions(rows, servers) {
       if (finding) findings.push(finding);
     }
   }
+  const ref = await send(servers.main, VALIDATION_REFERENCE);
+  const validationCode = errorsOf(ref).map(codeOf)[0];
+  if (!validationCode || hasData(ref)) throw new Error(`the validation reference answered no code: ${JSON.stringify(ref.body).slice(0, 300)}`);
+  for (const p of VALIDATION_PROBES) {
+    const r = p.via ? await VIA[p.via](servers[p.server], p) : await send(servers[p.server], p.body);
+    const finding = judgeValidation(p, r, validationCode);
+    if (finding) findings.push(finding);
+  }
   return findings.sort();
 }
 
-module.exports = { readRestrictions, documentedRefusal, checkRestrictions, judge, PROBES, DOC };
+module.exports = {
+  readRestrictions,
+  documentedRefusal,
+  checkRestrictions,
+  judge,
+  judgeValidation,
+  PROBES,
+  VALIDATION_PROBES,
+  DOC,
+};

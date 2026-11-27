@@ -45,7 +45,15 @@ const { introspectionDiff, QUERY } = require("./lib/introspection.js");
 const { startReference } = require("./lib/reference.js");
 const { startProxy } = require("./lib/proxy.js");
 const { applySpecifiedScalars } = require("./lib/scalars.js");
-const { checkRestrictions, documentedRefusal, judge, PROBES, readRestrictions } = require("./lib/conformance.js");
+const {
+  checkRestrictions,
+  documentedRefusal,
+  judge,
+  judgeValidation,
+  PROBES,
+  readRestrictions,
+  VALIDATION_PROBES,
+} = require("./lib/conformance.js");
 const publicCases = require("./lib/cases.js");
 
 const SEEDS = [11, 12];
@@ -217,7 +225,7 @@ const METRIC_LINES = [
   ["introspection diff lines", "introspection_diff_lines", null, -1],
   ["graphql-http audit warnings", "audit_warn", null, -1],
   ["graphql-http audit errors", "audit_error", null, -1],
-  ["restriction findings", "restriction_findings", null, -1],
+  ["conformance probe findings", "restriction_findings", null, -1],
 ];
 
 /** One line per metric; with a baseline, the change from it and whether that is better. */
@@ -330,7 +338,24 @@ async function selftest(servers, database, priv, base) {
     );
   }
 
-    const { current } = await measure(servers, database, priv);
+    // A validation probe passes only on the validation code: a restriction's code, or a
+  // parse error, is a finding.
+  {
+    const p = VALIDATION_PROBES[0];
+    const answered = (code) => ({ status: 101, body: { errors: [{ message: "m", extensions: { code } }] } });
+    const verdicts = ["VALIDATION_ERROR", "SUBSCRIPTION_REFUSED", "PARSE_ERROR"].map(
+      (c) => judgeValidation(p, answered(c), "VALIDATION_ERROR") === null,
+    );
+    const open = judgeValidation(p, { status: 101, body: { data: { subscribed: true } } }, "VALIDATION_ERROR") === null;
+    const closed = judgeValidation(p, { status: 101, body: { __raw: "socket closed 1006" } }, "VALIDATION_ERROR") === null;
+    check(
+      "a validation probe passes on the validation code alone",
+      verdicts[0] && !verdicts[1] && !verdicts[2] && !open && !closed,
+      `validation ${verdicts[0]}, restriction code ${verdicts[1]}, parse error ${verdicts[2]}, open ${open}, closed ${closed}`,
+    );
+  }
+
+  const { current } = await measure(servers, database, priv);
   const g0 = gate(current, base);
   if (!g0.ok) throw new Error("the self-test needs a server that matches the baseline; run the oracle first");
   check("unchanged server matches the baseline", g0.ok);

@@ -19,7 +19,7 @@
   "introspection_diff_lines": 21,
   "audit_warn": 6,
   "audit_error": 0,
-  "restriction_findings": 12
+  "restriction_findings": 14
  },
  "disagreements": [
   "000926313f946e7d err-locations",
@@ -4763,6 +4763,8 @@
   "restriction subscription-subset#3 (get): not refused with UNSUPPORTED_FEATURE (HTTP 200, refused, codes code:VALIDATION_ERROR)",
   "restriction subscription-subset#4 (sse): not refused with UNSUPPORTED_FEATURE (HTTP 200, refused, codes code:VALIDATION_ERROR)",
   "restriction trusted-documents#0: not refused with FORBIDDEN_QUERY|DOCUMENT_NOT_FOUND (HTTP 400, refused, codes code:FORBIDDEN_QUERY)",
-  "restriction trusted-documents#1: not refused with FORBIDDEN_QUERY|DOCUMENT_NOT_FOUND (HTTP 400, refused, codes code:DOCUMENT_NOT_FOUND)"
+  "restriction trusted-documents#1: not refused with FORBIDDEN_QUERY|DOCUMENT_NOT_FOUND (HTTP 400, refused, codes code:DOCUMENT_NOT_FOUND)",
+  "validation ws-root-count (§5.2.3.1, ws): answers PARSE_ERROR, not the validation code VALIDATION_ERROR",
+  "validation ws-undeclared-field (§5.3.1, ws): answers SUBSCRIPTION_REFUSED, not the validation code VALIDATION_ERROR"
  ]
 }
