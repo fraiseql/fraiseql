@@ -314,10 +314,6 @@ runtime override is:
 | `FRAISEQL_FUNCTIONS_MODULE_DIR` | The compiled `[functions] module_dir`, where function modules load from (#1715) |
 | `FRAISEQL_FUNCTIONS_SHARED_DIR` | The compiled `[functions] shared_dir`, where shared modules load from (#1651) |
 | `FRAISEQL_FUNCTIONS_DLQ_STORE` | The compiled `[functions] dlq_store` backend; `memory` or `postgres`, anything else refuses boot |
-| `FRAISEQL_FUNCTIONS_DLQ_MAX_SIZE` | The compiled functions DLQ size cap |
-| `FRAISEQL_FUNCTIONS_RETRY_MAX_ATTEMPTS` / `_INITIAL_DELAY_MS` / `_MAX_DELAY_MS` | The compiled functions retry policy |
-| `FRAISEQL_FUNCTIONS_BEFORE_MUTATION_BUDGET_MS` | The `before:mutation` chain's wall-clock ceiling (default 500 ms; `0` disables it, logged loudly at startup) |
-| `FRAISEQL_FUNCTIONS_REQUEST_QUERY_BUDGET_MS` | The default wall-clock ceiling on a `request:query` invocation that declares no `timeout_ms` (default 5 000 ms; `0` disables it, logged loudly at startup). A function's own `timeout_ms` wins over it — see [functions.md](./functions.md#answering-a-request-from-a-function-1329) |
 | `FRAISEQL_SOURCES_ENABLED` | Whether the source scheduler runs at all |
 | `FRAISEQL_EGRESS_ALLOWED_DOMAINS` | `[egress] allowed_domains`, the hosts functions and source connectors may call |
 | `FRAISEQL_SOURCES_ALLOWED_ENV_VARS` | The sources env-var allowlist |
@@ -334,7 +330,41 @@ each per field.
 The proxy-trust and zero-budget boot guards run once on whatever configuration comes out
 of that resolution, so no source can smuggle an unguarded limiter past them.
 
+The functions runtime also has knobs with **no compiled key**, set only from the
+environment (listed under [Variables Outside `--help`](#variables-outside---help)). The
+retry ones set only the **fallback**: a function that declares its own `retry` keeps it
+whole, whatever the environment says, and any field that `retry` leaves out takes the
+observer default (3 attempts, 1000 ms, 60000 ms), not the variable.
+
 Every other server knob (bind address, pool sizing, timeouts, …) is `*Config`, not a
 compiled setting: it comes from the `--config` TOML file plus the explicit CLI/env
-overrides documented in `fraiseql-server --help` (`ServerArgs`). If a variable is not in
-`--help` output or the table above, the server does not read it.
+overrides documented in `fraiseql-server --help` (`ServerArgs`).
+
+### Variables Outside `--help`
+
+`--help` and the table above do not list every variable the server reads. These are read
+too:
+
+| Variable | Effect |
+|----------|--------|
+| `FRAISEQL_ENV` | The deployment environment. Unset, or any value but `development`/`dev`, is **production**, and every production gate keys off it |
+| `FRAISEQL_PROFILE` | `production`/`prod` forces production on, whatever `FRAISEQL_ENV` says; it can never turn production off. `KUBERNETES_SERVICE_HOST` does the same |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | The OTLP endpoint, used **only when the config file sets no `otlp_endpoint`**. This is the one variable the file wins over: everywhere else the environment overrides the file |
+| `FRAISEQL_REQUIRE_REDIS` | Refuse to boot while any shared auth store (PKCE state, the rate limiter and the others that must agree across replicas) is per-process; a boolean (`true`/`false`, `1`/`0`, `yes`/`no`, `on`/`off`), anything else refuses boot — see [runbook 09](../runbooks/09-redis-failure.md) |
+| `FRAISEQL_OBSERVER_TRANSPORT`, `FRAISEQL_NATS_*`, `FRAISEQL_REDIS_*` | The observer transport, its NATS/JetStream settings and the observer Redis block — see [observers](../operations/observers.md) |
+| `FRAISEQL_SECRETS_BACKEND` | The secrets backend: `env`, `file` or `vault`. `file` reads `FRAISEQL_SECRETS_FILE_PATH` (a directory, one file per secret); `vault` reads `VAULT_ADDR` with `VAULT_TOKEN` or `VAULT_ROLE_ID` + `VAULT_SECRET_ID`, and optionally `VAULT_NAMESPACE` and `VAULT_TLS_VERIFY` |
+| `FRAISEQL_OBSERVERS_ALLOW_INSECURE` | `1`/`true` lifts the SSRF guards on observer webhooks, for local development only: refused, and logged, in production |
+| `FRAISEQL_OIDC_ALLOW_INSECURE` | `1`/`true` lifts the SSRF guards on OIDC issuer and provider URLs, for local development only: refused, and logged, in production |
+| `FRAISEQL_FUNCTIONS_RETRY_MAX_ATTEMPTS` / `_INITIAL_DELAY_MS` / `_MAX_DELAY_MS` | The retry for a function that declares no `retry` (defaults 3, 1000 ms, 60000 ms); a function's own `retry` wins |
+| `FRAISEQL_FUNCTIONS_DLQ_MAX_SIZE` | The functions dead-letter cap (unset: no cap) |
+| `FRAISEQL_FUNCTIONS_BEFORE_MUTATION_BUDGET_MS` | The `before:mutation` chain's wall-clock ceiling (default 500 ms; `0` disables it, logged loudly at startup) |
+| `FRAISEQL_FUNCTIONS_REQUEST_QUERY_BUDGET_MS` | The ceiling on a `request:query` invocation that declares no `timeout_ms` (default 5 000 ms; `0` disables it, logged loudly at startup). A function's own `timeout_ms` wins over it — see [functions.md](./functions.md#answering-a-request-from-a-function-1329) |
+| `FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS` | The variables a function may read (comma-separated; unset: none) |
+
+A few variables are read only to be **refused**: they name settings the server no longer
+has (`FRAISEQL_BRIDGE_TRANSPORT_NAME`, `FRAISEQL_BRIDGE_BATCH_SIZE`,
+`FRAISEQL_BRIDGE_POLL_INTERVAL_SECS`, `FRAISEQL_BRIDGE_NOTIFY_CHANNEL`,
+`FRAISEQL_NATS_RUN_EXECUTORS`, `FRAISEQL_NATS_ENABLE_BRIDGE`, `FRAISEQL_REDIS_POOL_SIZE`,
+`FRAISEQL_REDIS_DEDUP_WINDOW_SECS` and `FRAISEQL_REDIS_CACHE_TTL_SECS`). When the server
+runs observers, setting one refuses boot and names it, so a deployment does not run
+believing it configured something.

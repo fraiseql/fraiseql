@@ -18,8 +18,13 @@ OTLP tracing export enabled: endpoint=http://otel-collector:4317, service_name=f
 
 If this line is absent, the endpoint is not configured. Set either:
 
-- `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable, or
-- `otlp_endpoint` in the server config / `fraiseql.toml`.
+- `otlp_endpoint` at the top level of the server's configuration file (the file
+  `FRAISEQL_CONFIG` names; `fraiseql.toml` does not take it), or
+- the `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable.
+
+The file wins: the variable is read only when the file sets no `otlp_endpoint`. This is
+the reverse of every other override, so an endpoint set in the environment is ignored
+while the file declares one.
 
 ### 2. Verify collector reachability
 
@@ -41,7 +46,8 @@ otlp_export_timeout_secs = 30
 
 ### 4. Disable OTLP to rule out performance impact
 
-Remove `OTEL_EXPORTER_OTLP_ENDPOINT` and restart. If latency returns to normal,
+Remove the endpoint, from the configuration file's `otlp_endpoint` as well as
+`OTEL_EXPORTER_OTLP_ENDPOINT` (the file's wins), and restart. If latency returns to normal,
 the collector is a bottleneck — scale it or use async/batch export (default).
 
 ## Resolution

@@ -242,8 +242,9 @@ invocation is dead-lettered so money- and send-path work is never silently lost.
   | `FRAISEQL_FUNCTIONS_DLQ_MAX_SIZE` | no limit |
 
   The backoff is exponential. These are the values an observer's retry policy defaults
-  to: one policy serves both. A function that states its own `retry` takes from it any
-  field it leaves out.
+  to: one policy serves both. A function that states its own `retry` keeps it whole:
+  the variables do not apply to it, and any field it leaves out takes the observer
+  default above, not the variable.
 
 Durable dispatch requires the `functions-runtime` feature, which enables the
 `observers` subsystem (whose dead-letter-queue store is reused).
