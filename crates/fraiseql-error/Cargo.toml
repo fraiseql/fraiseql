@@ -6,7 +6,6 @@ axum = { workspace = true, optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = "2"
-toml = "1"
 
 [features]
 # Enables `impl IntoResponse for FraiseQLError` and HTTP error conversion utilities.
