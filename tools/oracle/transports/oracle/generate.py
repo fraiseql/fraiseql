@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 # Principals, as a generic dimension: every one is rendered on every transport.
@@ -30,8 +30,6 @@ PRINCIPALS: dict[str, tuple[str, str | None, list[str] | None, int, str | None] 
 # root -> REST path ("{id}" for the single-row root)
 ROOTS = {
     "orders": "/orders",
-    "rlsOrders": "/rls-orders",
-    "adminOrders": "/admin-orders",
     "customers": "/customers",
     "order": "/orders/{id}",
 }
@@ -49,7 +47,6 @@ ORDER_FIELDS = [
     "note",
     "seenTenant",
     "seenSub",
-    "seenHdr",
 ]
 CUSTOMER_FIELDS = ["id", "tenantId", "name", "email"]
 # Fields a scope gates. The generator selects them like any field, and filters and orders
@@ -107,13 +104,39 @@ EXTRAS = [
 COLUMNS = ["POST", "GET", "SSE", "REST", "MCP", "FLIGHT"]
 
 
+@dataclass(frozen=True)
+class Corpus:
+    """What the generator draws from. `PUBLIC` is the committed corpus;
+    ORACLE_PRIVATE_MODULE may extend it (see `__main__.load_private`)."""
+
+    roots: dict[str, str] = field(default_factory=lambda: dict(ROOTS))
+    order_fields: list[str] = field(default_factory=lambda: list(ORDER_FIELDS))
+    filters: list[tuple[str, str, list[Any]]] = field(default_factory=lambda: list(FILTERS))
+    order_gated: bool = False
+    # Values sent in the `x-probe` header; none means no header is sent.
+    headers: list[str] = field(default_factory=list)
+
+    def extended(self, **extra: Any) -> Corpus:
+        return replace(
+            self,
+            roots={**self.roots, **extra.get("ROOTS", {})},
+            order_fields=self.order_fields + list(extra.get("ORDER_FIELDS", [])),
+            filters=self.filters + list(extra.get("FILTERS", [])),
+            order_gated=bool(extra.get("ORDER_GATED", self.order_gated)),
+            headers=self.headers + list(extra.get("HEADERS", [])),
+        )
+
+
+PUBLIC = Corpus()
+
+
 @dataclass
 class Request:
     name: str
     root: str
     fields: list[str]
     who: str
-    hdr: str
+    hdr: str  # the `x-probe` header's value; empty: no header
     style: str
     extra: str | None = None
     id: str | None = None
@@ -128,18 +151,13 @@ class Request:
         return d
 
 
-def generate(
-    count: int,
-    seed: int,
-    filters: list[tuple[str, str, list[Any]]] = FILTERS,
-    order_gated: bool = False,
-) -> list[Request]:
+def generate(count: int, seed: int, corpus: Corpus = PUBLIC) -> list[Request]:
     """`count` requests from `seed`. A pure function of its arguments."""
     rng = random.Random(seed)
     out = []
     for i in range(count):
-        root = rng.choice(list(ROOTS))
-        pool = CUSTOMER_FIELDS if root == "customers" else ORDER_FIELDS
+        root = rng.choice(list(corpus.roots))
+        pool = CUSTOMER_FIELDS if root == "customers" else corpus.order_fields
         fields = rng.sample(pool, rng.randint(1, min(5, len(pool))))
         if "id" not in fields:
             fields.insert(0, "id")
@@ -148,7 +166,7 @@ def generate(
             root=root,
             fields=fields,
             who=rng.choice(list(PRINCIPALS)),
-            hdr=rng.choice(["h1", "h2"]),
+            hdr=rng.choice(corpus.headers) if corpus.headers else "",
             style="",
         )
         if root == "order":
@@ -157,10 +175,12 @@ def generate(
             r.limit = rng.choice([None, 1, 3, 10, 25, 26, 1000])
             r.offset = rng.choice([None, None, 0, 2, 30])
             if rng.random() < 0.6:
-                field, op, values = rng.choice([f for f in filters if f[0] in pool])
-                r.where = {field: {op: rng.choice(values)}}
+                name, op, values = rng.choice([f for f in corpus.filters if f[0] in pool])
+                r.where = {name: {op: rng.choice(values)}}
             if rng.random() < 0.4:
-                orderable = pool if order_gated else [f for f in pool if f not in GATED_FIELDS]
+                orderable = (
+                    pool if corpus.order_gated else [f for f in pool if f not in GATED_FIELDS]
+                )
                 r.order = (rng.choice(orderable), rng.choice(["ASC", "DESC"]))
         r.style = rng.choice(["inline", "vars", "fragment", "alias"])
         r.extra = rng.choice(EXTRAS)
@@ -282,8 +302,8 @@ def graphql(r: Request) -> tuple[str, dict[str, Any] | None, str]:
     return doc, variables or None, key
 
 
-def rest(r: Request) -> tuple[str, dict[str, Any]]:
-    path = ROOTS[r.root].replace("{id}", r.id or "")
+def rest(r: Request, roots: dict[str, str]) -> tuple[str, dict[str, Any]]:
+    path = roots[r.root].replace("{id}", r.id or "")
     params: dict[str, Any] = {"select": ",".join(r.fields)}
     if r.limit is not None:
         params["limit"] = r.limit

@@ -76,5 +76,5 @@ def _early_refusal_once(http: str, token: str) -> str | None:
     status = headers[0] if headers else "?"
     return (
         f"connection: a POST answered before its body was read ({status}) is followed by a "
-        "close the response does not announce with `Connection: close`"
+        "close the response does not announce with `Connection: close` (#2799)"
     )

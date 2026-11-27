@@ -1,8 +1,8 @@
 # Cross-transport differential oracle
 
 FraiseQL serves the same data over several transports. One logical request (a root, a
-selection, a filter, an order, a page, a principal and a header) must get the same
-answer on each of them. This oracle sends each request over every transport it has a
+selection, a filter, an order, a page and a principal) must get the same answer on each
+of them. This oracle sends each request over every transport it has a
 spelling on, and compares every cell with `POST /graphql`.
 
 `POST /graphql` is the reference column. The [graphql-js oracle](../graphql-js/README.md)
@@ -99,7 +99,7 @@ tools/oracle/transports/run.sh --report /tmp/transports.json   # every disagreei
 |---|---|
 | `FRAISEQL_CLI`, `FRAISEQL_SERVER` | The binaries under test. The server needs the features `cli,rest,grpc,mcp,arrow`. |
 | `ORACLE_ADMIN_URL` | A PostgreSQL URL allowed to create databases. When unset, a throwaway container is started and removed on exit. |
-| `ORACLE_PRIVATE_MODULE` | A Python file, kept outside the repository, that may export `REQUESTS`, `PRINCIPALS`, `FILTERS` and `ORDER_GATED`. It extends the corpus and runs against its own `--baseline`. |
+| `ORACLE_PRIVATE_MODULE` | A Python file, kept outside the repository, that may export `REQUESTS` and `PRINCIPALS`, and extend the generator's corpus with `ROOTS`, `ORDER_FIELDS`, `FILTERS`, `ORDER_GATED` and `HEADERS` (values for the `x-probe` header). It runs against its own `--baseline`. |
 
 Exit codes: 0 means the run matches the baseline; 1 means the gate failed; 2 means the
 harness itself failed, and `run.sh` then prints the end of the server's log.
@@ -122,5 +122,6 @@ uv sync --frozen
 uv run ruff format . && uv run ruff check . && uv run ty check
 ```
 
-The dependencies are pinned in `pyproject.toml` and `uv.lock`. `exclude-newer` keeps every
+The dependencies are pinned in `pyproject.toml` and `uv.lock`, and the interpreter in
+`.python-version` (pyarrow publishes no wheel for newer ones yet, and a source build fails). `exclude-newer` keeps every
 resolved version at least two weeks older than the lock.

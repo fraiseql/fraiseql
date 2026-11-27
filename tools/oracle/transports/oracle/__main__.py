@@ -52,18 +52,20 @@ GATED = ["disagreements", "formats", "columns", "protocol"]
 class Private:
     requests: list[gen.Request]
     principals: dict[str, Any]
-    filters: list[tuple[str, str, list[Any]]]
-    order_gated: bool
+    corpus: gen.Corpus
     label: str
+
+
+EXTENSIONS = ("ROOTS", "ORDER_FIELDS", "FILTERS", "ORDER_GATED", "HEADERS")
 
 
 def load_private() -> Private:
     """ORACLE_PRIVATE_MODULE, a Python file kept outside the repository, may export
-    REQUESTS (extra requests, as dicts of Request fields), PRINCIPALS, FILTERS (added to
-    the generator's) and ORDER_GATED (order through gated fields too)."""
+    REQUESTS (extra requests, as dicts of Request fields) and PRINCIPALS, and extend the
+    generator's corpus with ROOTS, ORDER_FIELDS, FILTERS, ORDER_GATED and HEADERS."""
     path = os.environ.get("ORACLE_PRIVATE_MODULE")
     if not path:
-        return Private([], {}, gen.FILTERS, order_gated=False, label="public")
+        return Private([], {}, gen.PUBLIC, label="public")
     spec = importlib.util.spec_from_file_location("oracle_private", path)
     if spec is None or spec.loader is None:
         msg = f"cannot load {path}"
@@ -72,14 +74,14 @@ def load_private() -> Private:
     spec.loader.exec_module(mod)
     reqs = []
     for spec_ in getattr(mod, "REQUESTS", []):
-        fields: dict[str, Any] = {"style": "inline", "hdr": "h1"}
+        fields: dict[str, Any] = {"style": "inline", "hdr": ""}
         fields.update(spec_)
         reqs.append(gen.Request(**fields))
+    extra = {k: getattr(mod, k) for k in EXTENSIONS if hasattr(mod, k)}
     return Private(
         reqs,
         dict(getattr(mod, "PRINCIPALS", {})),
-        gen.FILTERS + list(getattr(mod, "FILTERS", [])),
-        order_gated=bool(getattr(mod, "ORDER_GATED", False)),
+        gen.PUBLIC.extended(**extra),
         label=f"private:{Path(path).name}",
     )
 
@@ -95,9 +97,15 @@ def columns_state(http: str) -> list[str]:
 
 class Runner:
     def __init__(
-        self, ends: Endpoints, key_path: Path, issuer: str, principals: dict[str, Any]
+        self,
+        ends: Endpoints,
+        key_path: Path,
+        issuer: str,
+        principals: dict[str, Any],
+        corpus: gen.Corpus,
     ) -> None:
         self.ends = ends
+        self.corpus = corpus
         key = load_key(key_path)
         self.tokens: dict[str, str | None] = {}
         for name, p in principals.items():
@@ -125,9 +133,9 @@ class Runner:
     def run(self, req: gen.Request) -> dict[str, Response]:
         c = self.clients()
         tok = self.tokens[req.who]
-        hdr = {"x-probe": req.hdr}
+        hdr = {"x-probe": req.hdr} if req.hdr else {}
         doc, variables, key = gen.graphql(req)
-        path, params = gen.rest(req)
+        path, params = gen.rest(req, self.corpus.roots)
         calls = {
             "POST": lambda: c.post(doc, variables, tok, hdr, key),
             "GET": lambda: c.get(doc, variables, tok, hdr, key),
@@ -142,10 +150,10 @@ class Runner:
 def measure(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
     priv = load_private()
     principals = {**gen.PRINCIPALS, **priv.principals}
-    reqs = [
-        r for s in SEEDS for r in gen.generate(PER_SEED, s, priv.filters, priv.order_gated)
-    ] + priv.requests
-    runner = Runner(Endpoints(args.http, args.flight), args.key, args.issuer, principals)
+    reqs = [r for s in SEEDS for r in gen.generate(PER_SEED, s, priv.corpus)] + priv.requests
+    runner = Runner(
+        Endpoints(args.http, args.flight), args.key, args.issuer, principals, priv.corpus
+    )
     with ThreadPoolExecutor(WORKERS) as pool:
         answers = list(pool.map(runner.run, reqs))
     expired = runner.tokens["expired"]
