@@ -214,7 +214,11 @@ async fn a_redeemed_challenge_mints_the_session() {
         session_store:   sessions,
         issuer:          "FraiseQL".to_string(),
         verify_limiter:  std::sync::Arc::new(fraiseql_auth::KeyedRateLimiter::new(
-            fraiseql_auth::AuthRateLimitConfig::per_ip_strict(),
+            fraiseql_auth::AuthRateLimitConfig {
+                enabled:      true,
+                max_requests: 50,
+                window_secs:  60,
+            },
         )),
         session_cookies: None,
     });

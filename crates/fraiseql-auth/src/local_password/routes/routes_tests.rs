@@ -14,7 +14,11 @@ async fn local_password_router_constructs() {
     let state = LocalPasswordRouteState {
         authenticator:   Arc::new(LocalPasswordAuthenticator::new(pool.clone(), accounts)),
         session_store:   Arc::new(crate::PostgresSessionStore::new(pool)),
-        rate_limiters:   Some(Arc::new(crate::RateLimiters::default())),
+        rate_limiter:    Some(Arc::new(crate::KeyedRateLimiter::new(crate::AuthRateLimitConfig {
+            enabled:      true,
+            max_requests: 100,
+            window_secs:  60,
+        }))),
         session_cookies: None,
     };
     let _router = local_password_routes(Arc::new(state));
@@ -34,7 +38,7 @@ async fn email_verification_refuses_a_request_with_no_session() {
     let accounts = Arc::new(crate::InMemoryAccountStore::new());
     let router = email_verification_routes(Arc::new(EmailVerificationRouteState {
         authenticator: Arc::new(LocalPasswordAuthenticator::new(pool, accounts)),
-        rate_limiters: None,
+        rate_limiter:  None,
     }));
     for (path, body) in [
         ("/auth/v1/email/verify/start", "{}"),

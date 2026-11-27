@@ -149,8 +149,8 @@ fn build_redirect_with_challenge(
 /// could evict legitimate in-flight states. This is **not wired in the shipped
 /// server**: no fraiseql-server route mounts this router (nor `saml_routes`), so
 /// the gap is not reachable from the binary today. When these routers are mounted
-/// (the auth-enterprise wave), gate both handlers on the same per-IP
-/// `RateLimiters` middleware the GraphQL/auth transport already applies.
+/// (the auth-enterprise wave), gate both handlers on a per-IP throttle: the server's
+/// configured rate-limit rules, or a `KeyedRateLimiter` the embedder sizes.
 #[derive(Clone)]
 pub struct MultiProviderAuthState {
     /// OAuth providers keyed by name (e.g., "github", "google").

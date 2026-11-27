@@ -133,9 +133,7 @@ pub use otp::{
 pub use pkce::{ConsumedPkceState, PkceError, PkceStateStore};
 pub use provider::{OAuthProvider, PkceChallenge, TokenResponse, UserInfo};
 pub use providers::{AppleOAuth, DiscordOAuth, FacebookOAuth, GitHubOAuth, GoogleOAuth};
-pub use rate_limiting::{
-    AuthRateLimitConfig, ClientAddress, Clock, KeyedRateLimiter, RateLimiters, SystemClock,
-};
+pub use rate_limiting::{AuthRateLimitConfig, ClientAddress, Clock, KeyedRateLimiter, SystemClock};
 /// The `redis` this crate's public API is built against (#1198).
 #[cfg(any(feature = "redis-pkce", feature = "redis-rate-limiting"))]
 pub use redis;

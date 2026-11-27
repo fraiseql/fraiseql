@@ -215,20 +215,3 @@ fn test_thread_safe_rate_limiting() {
     let result = limiter.check("concurrent");
     assert!(result.is_err(), "After 100 concurrent requests, next should fail");
 }
-
-#[test]
-fn test_presets() {
-    let standard_ip = AuthRateLimitConfig::per_ip_standard();
-    assert_eq!(standard_ip.max_requests, 100);
-    assert_eq!(standard_ip.window_secs, 60);
-
-    let strict_ip = AuthRateLimitConfig::per_ip_strict();
-    assert_eq!(strict_ip.max_requests, 50);
-
-    let user_limit = AuthRateLimitConfig::per_user_standard();
-    assert_eq!(user_limit.max_requests, 10);
-
-    let failed = AuthRateLimitConfig::failed_login_attempts();
-    assert_eq!(failed.max_requests, 5);
-    assert_eq!(failed.window_secs, 3600);
-}

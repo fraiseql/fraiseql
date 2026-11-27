@@ -39,7 +39,11 @@ fn build_app(session_store: Arc<InMemorySessionStore>) -> Router {
         mfa_store:       mfa_store as Arc<dyn MfaStore>,
         session_store:   session_store as Arc<dyn SessionStore>,
         issuer:          "FraiseQL".to_string(),
-        verify_limiter:  Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig::per_ip_strict())),
+        verify_limiter:  Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig {
+            enabled:      true,
+            max_requests: 50,
+            window_secs:  60,
+        })),
         session_cookies: None,
     });
     Router::new()
@@ -330,7 +334,11 @@ fn app_over(store: Arc<InMemoryMfaStore>) -> Router {
         mfa_store:       store as Arc<dyn MfaStore>,
         session_store:   Arc::new(InMemorySessionStore::new()) as Arc<dyn SessionStore>,
         issuer:          "FraiseQL".to_string(),
-        verify_limiter:  Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig::per_ip_strict())),
+        verify_limiter:  Arc::new(KeyedRateLimiter::new(AuthRateLimitConfig {
+            enabled:      true,
+            max_requests: 50,
+            window_secs:  60,
+        })),
         session_cookies: None,
     });
     Router::new()

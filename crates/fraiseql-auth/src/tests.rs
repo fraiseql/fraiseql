@@ -1207,36 +1207,12 @@ mod rate_limiting_tests_inner {
     }
 
     #[test]
-    fn test_rate_limiters_default() {
-        let limiters = RateLimiters::new();
-
-        let result = limiters.auth_start.check("ip_1");
-        assert!(result.is_ok(), "auth/start should allow first request: {result:?}");
-
-        let result = limiters.auth_refresh.check("user_1");
-        assert!(result.is_ok(), "auth/refresh should allow first request: {result:?}");
-    }
-
-    #[test]
-    fn test_rate_limit_config_presets() {
-        let standard_ip = AuthRateLimitConfig::per_ip_standard();
-        assert_eq!(standard_ip.max_requests, 100);
-        assert_eq!(standard_ip.window_secs, 60);
-
-        let strict_ip = AuthRateLimitConfig::per_ip_strict();
-        assert_eq!(strict_ip.max_requests, 50);
-
-        let user_limit = AuthRateLimitConfig::per_user_standard();
-        assert_eq!(user_limit.max_requests, 10);
-
-        let failed = AuthRateLimitConfig::failed_login_attempts();
-        assert_eq!(failed.max_requests, 5);
-        assert_eq!(failed.window_secs, 3600);
-    }
-
-    #[test]
     fn test_ip_based_rate_limiting() {
-        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig::per_ip_standard());
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
+            enabled:      true,
+            max_requests: 100,
+            window_secs:  60,
+        });
 
         let ip = "203.0.113.1";
 
@@ -1254,7 +1230,11 @@ mod rate_limiting_tests_inner {
 
     #[test]
     fn test_rejected_login_tracking() {
-        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig::failed_login_attempts());
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
+            enabled:      true,
+            max_requests: 5,
+            window_secs:  3600,
+        });
 
         let user = "alice@example.com";
 
@@ -1275,7 +1255,11 @@ mod rate_limiting_tests_inner {
 
     #[test]
     fn test_multiple_users_independent() {
-        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig::failed_login_attempts());
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
+            enabled:      true,
+            max_requests: 5,
+            window_secs:  3600,
+        });
 
         for _ in 0..5 {
             limiter.check("user1").ok();
@@ -1360,26 +1344,6 @@ mod rate_limiting_tests_inner {
         }
 
         assert_eq!(limiter.active_limiters(), 1000);
-    }
-
-    #[test]
-    fn test_endpoint_combinations() {
-        let limiters = RateLimiters::new();
-
-        let ip = "203.0.113.1";
-        let user = "bob@example.com";
-
-        let result = limiters.auth_start.check(ip);
-        assert!(result.is_ok(), "auth_start should allow: {result:?}");
-
-        let result = limiters.auth_refresh.check(user);
-        assert!(result.is_ok(), "auth_refresh should allow: {result:?}");
-
-        let result = limiters.auth_logout.check(user);
-        assert!(result.is_ok(), "auth_logout should allow: {result:?}");
-
-        let result = limiters.failed_logins.check(user);
-        assert!(result.is_ok(), "failed_logins should allow: {result:?}");
     }
 
     #[test]
@@ -1639,8 +1603,12 @@ mod rate_limiting_tests_inner {
     }
 
     #[test]
-    fn auth_refresh_blocks_at_per_user_standard_boundary() {
-        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig::per_user_standard());
+    fn a_per_user_limit_of_ten_refuses_the_eleventh_request() {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
+            enabled:      true,
+            max_requests: 10,
+            window_secs:  60,
+        });
         let user = "user@example.com";
 
         for i in 1..=10 {
@@ -1661,23 +1629,27 @@ mod rate_limiting_tests_inner {
     }
 
     #[test]
-    fn rate_limiters_auth_refresh_is_per_user_independent() {
-        let limiters = RateLimiters::new();
+    fn a_per_user_limiter_counts_each_user_apart() {
+        let limiter = KeyedRateLimiter::new(AuthRateLimitConfig {
+            enabled:      true,
+            max_requests: 10,
+            window_secs:  60,
+        });
 
         let alice = "alice@example.com";
         let bob = "bob@example.com";
 
         for i in 1..=10 {
-            let result = limiters.auth_refresh.check(alice);
+            let result = limiter.check(alice);
             assert!(result.is_ok(), "alice request {i} should be allowed: {result:?}");
         }
-        let result = limiters.auth_refresh.check(alice);
+        let result = limiter.check(alice);
         assert!(
             matches!(result, Err(AuthError::RateLimited { .. })),
             "alice's 11th auth_refresh request must be rejected: {result:?}"
         );
 
-        let result = limiters.auth_refresh.check(bob);
+        let result = limiter.check(bob);
         assert!(
             result.is_ok(),
             "bob's first auth_refresh request must succeed independently of alice: {result:?}"
@@ -1895,7 +1867,11 @@ mod totp_mfa_tests {
             session_store,
             issuer: "FraiseQL".to_string(),
             verify_limiter: Arc::new(crate::rate_limiting::KeyedRateLimiter::new(
-                crate::rate_limiting::AuthRateLimitConfig::per_ip_strict(),
+                crate::rate_limiting::AuthRateLimitConfig {
+                    enabled:      true,
+                    max_requests: 50,
+                    window_secs:  60,
+                },
             )),
             session_cookies: None,
         });

@@ -39,6 +39,17 @@ disagreed, and the promise was the part that was wrong.
   (`[security.rate_limiting]`) or `ServerRateLimitingConfig` (the server's
   `[rate_limiting]`).
 
+- **`fraiseql-auth` drops `RateLimiters` and the `AuthRateLimitConfig` presets, and the
+  local-password and email-verification route states take the limiter their caller sized
+  (#1777).** `LocalPasswordRouteState` and `EmailVerificationRouteState` replace
+  `rate_limiters: Option<Arc<RateLimiters>>` with `rate_limiter: Option<Arc<KeyedRateLimiter>>`.
+  `RateLimiters::new()` and its `Default` sized that bucket from numbers fixed in the auth
+  crate, 100 requests a minute per IP, and so did `AuthRateLimitConfig::per_ip_standard`,
+  `per_ip_strict`, `per_user_standard` and `failed_login_attempts`, which go with it. A
+  caller that mounts these routes itself builds a `KeyedRateLimiter` from an
+  `AuthRateLimitConfig` whose fields it sets; `None` still leaves the limiting to whatever
+  runs in front of the routes, as the server's configured rules do.
+
 - **The Python SDK requires Python 3.15 or later (#2599).** It reads `fraiseql.toml` with
   the standard library's `tomllib`, which parses TOML 1.1 from 3.15, as `fraiseql-cli` now
   does. Earlier interpreters' `tomllib` parses TOML 1.0 only, so they are no longer

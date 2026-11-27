@@ -27,8 +27,8 @@
 //! - Every route here must be per-client rate-limited: password verification is deliberately
 //!   expensive (Argon2id), so an unthrottled endpoint is both a credential-stuffing surface and a
 //!   `CPU` `DoS`. The server does it with one configured rule per route (`[security.rate_limiting]
-//!   auth_password_*`) and passes `rate_limiters: None`; a caller mounting these routes itself
-//!   passes `Some` and gets one shared in-handler bucket.
+//!   auth_password_*`) and passes `rate_limiter: None`; a caller mounting these routes itself
+//!   passes `Some` limiter it has sized, and every route spends from that one bucket.
 //! - Failed logins return one generic message; the specific reason is audit-logged only.
 
 use std::{net::SocketAddr, sync::Arc};
@@ -46,7 +46,7 @@ use super::LocalPasswordAuthenticator;
 use crate::{
     audit::logger::{AuditEventType, SecretType, get_audit_logger},
     error::AuthError,
-    rate_limiting::RateLimiters,
+    rate_limiting::KeyedRateLimiter,
     session::{SessionStore, unix_now},
     session_subject::SessionSubject,
 };
@@ -62,11 +62,11 @@ pub struct LocalPasswordRouteState {
     pub authenticator:   Arc<LocalPasswordAuthenticator>,
     /// Session store issuing tokens after a successful signup/login.
     pub session_store:   Arc<dyn SessionStore>,
-    /// In-handler per-IP limiter (the `auth_start` bucket, shared by every route), or
+    /// In-handler per-IP limiter, shared by every route and sized by the caller, or
     /// `None` when something in front of the routes limits each one — the server's
-    /// configured rules do. Two limiters on one route meant the stricter, fixed
-    /// one silently overrode the operator's setting.
-    pub rate_limiters:   Option<Arc<RateLimiters>>,
+    /// configured rules do. Two limiters on one route meant the stricter one silently
+    /// overrode the operator's setting.
+    pub rate_limiter:    Option<Arc<KeyedRateLimiter>>,
     /// Cookie transport (`[auth.session] transport = "cookie"`): the session goes in
     /// `HttpOnly` cookies and no body carries a token. `None` answers with the tokens as
     /// `JSON`.
@@ -113,15 +113,15 @@ fn json_error(status: StatusCode, error: &str, message: &str) -> Response {
     (status, Json(serde_json::json!({ "error": error, "message": message }))).into_response()
 }
 
-/// Enforce the per-IP `auth_start` budget, keyed on the transport peer only —
-/// never an attacker-spoofable forwarded header.
+/// Enforce the per-IP budget, keyed on the transport peer only — never an
+/// attacker-spoofable forwarded header.
 fn rate_limit(state: &LocalPasswordRouteState, addr: SocketAddr, op: &str) -> Option<Response> {
-    let limiters = state.rate_limiters.as_ref()?;
+    let limiter = state.rate_limiter.as_ref()?;
     let client_ip = addr.ip().to_string();
-    if limiters.auth_start.check(&client_ip).is_ok() {
+    if limiter.check(&client_ip).is_ok() {
         return None;
     }
-    let retry_after = limiters.auth_start.clone_config().window_secs;
+    let retry_after = limiter.clone_config().window_secs;
     get_audit_logger().log_failure(
         AuditEventType::AuthFailure,
         SecretType::SessionToken,
@@ -317,9 +317,9 @@ pub async fn password_reset_confirm(
 pub struct EmailVerificationRouteState {
     /// The authenticator (owns the verification token store and the promotion gate).
     pub authenticator: Arc<LocalPasswordAuthenticator>,
-    /// In-handler per-IP limiter, or `None` when something in front of the routes limits
-    /// them; see [`LocalPasswordRouteState::rate_limiters`].
-    pub rate_limiters: Option<Arc<RateLimiters>>,
+    /// In-handler per-IP limiter sized by the caller, or `None` when something in front
+    /// of the routes limits them; see [`LocalPasswordRouteState::rate_limiter`].
+    pub rate_limiter:  Option<Arc<KeyedRateLimiter>>,
 }
 
 /// Body of `POST /auth/v1/email/verify/confirm`.
@@ -338,18 +338,18 @@ pub fn email_verification_routes(state: Arc<EmailVerificationRouteState>) -> Rou
         .with_state(state)
 }
 
-/// Enforce the per-IP `auth_start` budget for the verification group.
+/// Enforce the per-IP budget for the verification group.
 fn verify_rate_limit(
     state: &EmailVerificationRouteState,
     addr: SocketAddr,
     op: &str,
 ) -> Option<Response> {
-    let limiters = state.rate_limiters.as_ref()?;
+    let limiter = state.rate_limiter.as_ref()?;
     let client_ip = addr.ip().to_string();
-    if limiters.auth_start.check(&client_ip).is_ok() {
+    if limiter.check(&client_ip).is_ok() {
         return None;
     }
-    let retry_after = limiters.auth_start.clone_config().window_secs;
+    let retry_after = limiter.clone_config().window_secs;
     get_audit_logger().log_failure(
         AuditEventType::AuthFailure,
         SecretType::SessionToken,
@@ -497,3 +497,7 @@ pub async fn email_verify_confirm(
 
 #[cfg(test)]
 mod routes_tests;
+
+#[cfg(test)]
+#[path = "limiter_tests.rs"]
+mod limiter_tests;

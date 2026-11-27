@@ -50,7 +50,8 @@ const SESSION_TTL_SECS: u64 = 7 * 24 * 60 * 60;
 /// no per-IP throttle. As with the multi-provider router, **no fraiseql-server
 /// route mounts [`saml_routes`] today**, so the gap is not reachable from the
 /// shipped binary; when these routes are mounted (the auth-enterprise wave), gate
-/// them on the same per-IP `RateLimiters` middleware the transport already applies.
+/// them on a per-IP throttle: the server's configured rate-limit rules, or a
+/// `KeyedRateLimiter` the embedder sizes.
 #[derive(Clone)]
 pub struct SamlAuthState {
     /// Config-file and stored IdPs, and the tenant-scoped resolution between them (#947).

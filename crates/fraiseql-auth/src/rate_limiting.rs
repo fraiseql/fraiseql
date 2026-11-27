@@ -1,8 +1,7 @@
 //! Rate limiting for brute-force and abuse protection.
 //!
 //! Provides [`KeyedRateLimiter`] — a per-key sliding-window counter backed by
-//! a [`DashMap`] — and [`RateLimiters`], a pre-built set of limiters for
-//! each authentication endpoint.
+//! a [`DashMap`]. The caller sizes each limiter it builds.
 // # Threading Model
 //
 // Per-key updates are **atomic** with respect to concurrent access:
@@ -134,52 +133,6 @@ pub struct AuthRateLimitConfig {
     pub max_requests: u32,
     /// Window duration in seconds
     pub window_secs:  u64,
-}
-
-impl AuthRateLimitConfig {
-    /// IP-based rate limiting for public endpoints
-    /// 100 requests per 60 seconds (typical for auth/start, auth/callback)
-    #[must_use]
-    pub const fn per_ip_standard() -> Self {
-        Self {
-            enabled:      true,
-            max_requests: 100,
-            window_secs:  60,
-        }
-    }
-
-    /// Stricter IP-based rate limiting for sensitive endpoints
-    /// 50 requests per 60 seconds
-    #[must_use]
-    pub const fn per_ip_strict() -> Self {
-        Self {
-            enabled:      true,
-            max_requests: 50,
-            window_secs:  60,
-        }
-    }
-
-    /// User-based rate limiting for authenticated endpoints
-    /// 10 requests per 60 seconds
-    #[must_use]
-    pub const fn per_user_standard() -> Self {
-        Self {
-            enabled:      true,
-            max_requests: 10,
-            window_secs:  60,
-        }
-    }
-
-    /// Failed login attempt limiting
-    /// 5 failed attempts per 3600 seconds (1 hour)
-    #[must_use]
-    pub const fn failed_login_attempts() -> Self {
-        Self {
-            enabled:      true,
-            max_requests: 5,
-            window_secs:  3600,
-        }
-    }
 }
 
 /// Request record for tracking
@@ -521,52 +474,5 @@ pub fn warn_if_single_node_rate_limiting() {
              distributed brute-force. Configure a Redis-backed rate limiter via the \
              `redis-rate-limiting` feature for distributed enforcement."
         );
-    }
-}
-
-/// Global rate limiters for different endpoints
-pub struct RateLimiters {
-    /// auth/start: per-IP, 100 req/min
-    pub auth_start:    KeyedRateLimiter,
-    /// auth/refresh: per-user, 10 req/min
-    pub auth_refresh:  KeyedRateLimiter,
-    /// auth/logout: per-user, 20 req/min
-    pub auth_logout:   KeyedRateLimiter,
-    /// Failed login tracking: per-user, 5 attempts/hour
-    pub failed_logins: KeyedRateLimiter,
-}
-
-impl RateLimiters {
-    /// Create default rate limiters for all endpoints
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            auth_start:    KeyedRateLimiter::new(AuthRateLimitConfig::per_ip_standard()),
-            auth_refresh:  KeyedRateLimiter::new(AuthRateLimitConfig::per_user_standard()),
-            auth_logout:   KeyedRateLimiter::new(AuthRateLimitConfig::per_user_standard()),
-            failed_logins: KeyedRateLimiter::new(AuthRateLimitConfig::failed_login_attempts()),
-        }
-    }
-
-    /// Create with custom configurations
-    #[must_use]
-    pub fn with_configs(
-        start_cfg: AuthRateLimitConfig,
-        refresh_cfg: AuthRateLimitConfig,
-        logout_cfg: AuthRateLimitConfig,
-        failed_cfg: AuthRateLimitConfig,
-    ) -> Self {
-        Self {
-            auth_start:    KeyedRateLimiter::new(start_cfg),
-            auth_refresh:  KeyedRateLimiter::new(refresh_cfg),
-            auth_logout:   KeyedRateLimiter::new(logout_cfg),
-            failed_logins: KeyedRateLimiter::new(failed_cfg),
-        }
-    }
-}
-
-impl Default for RateLimiters {
-    fn default() -> Self {
-        Self::new()
     }
 }

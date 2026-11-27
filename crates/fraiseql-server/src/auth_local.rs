@@ -650,7 +650,7 @@ pub async fn build_local_auth_states(
             authenticator: Arc::clone(authenticator),
             session_store: Arc::clone(&session_store),
             // The server's configured per-route rules limit these.
-            rate_limiters: None,
+            rate_limiter: None,
             session_cookies,
         })
     });
@@ -684,7 +684,7 @@ pub async fn build_local_auth_states(
         Some(Arc::new(fraiseql_auth::EmailVerificationRouteState {
             authenticator: Arc::clone(authenticator),
             // The server's configured per-route rules limit these.
-            rate_limiters: None,
+            rate_limiter:  None,
         }))
     } else {
         None

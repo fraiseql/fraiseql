@@ -482,7 +482,11 @@ mod router_construction {
                 session_store:   Arc::new(NoopSessionStore),
                 issuer:          "FraiseQL".to_string(),
                 verify_limiter:  Arc::new(fraiseql_auth::KeyedRateLimiter::new(
-                    fraiseql_auth::AuthRateLimitConfig::per_ip_strict(),
+                    fraiseql_auth::AuthRateLimitConfig {
+                        enabled:      true,
+                        max_requests: 50,
+                        window_secs:  60,
+                    },
                 )),
                 session_cookies: None,
             }));
