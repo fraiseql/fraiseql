@@ -10,6 +10,10 @@
 #                                  unset, a throwaway PostgreSQL 18 container is started
 #                                  (ORACLE_PG_IMAGE, labelled fraiseql.oracle=concurrency
 #                                  plus ORACLE_DOCKER_LABEL when set) and removed on exit.
+#   ORACLE_PRIMARY_URL,            superuser URLs of a primary and a hot standby streaming
+#   ORACLE_REPLICA_URL             from it, for the replica cells. When unset, the pair is
+#                                  started as two containers (fixture/replica/) on a
+#                                  network of their own, with the same labels.
 #   ORACLE_OUT                     keep the run's files (configs, logs, histories,
 #                                  outcomes.json) in this directory instead of a
 #                                  temporary one.
@@ -42,27 +46,55 @@ else
   keep=0
 fi
 container=""
+pair=()
+network=""
 admin_url="${ORACLE_ADMIN_URL:-}"
+primary_url="${ORACLE_PRIMARY_URL:-}"
+replica_url="${ORACLE_REPLICA_URL:-}"
 # shellcheck disable=SC2329 # invoked by the EXIT trap below
 cleanup() {
   set +e
   if [[ -n "$admin_url" && -z "$container" ]]; then "$python" -m oracle.db drop "$admin_url" oracle_concurrency; fi
   [[ -n "$container" ]] && docker rm -f -v "$container" >/dev/null 2>&1
+  [[ ${#pair[@]} -gt 0 ]] && docker rm -f -v "${pair[@]}" >/dev/null 2>&1
+  [[ -n "$network" ]] && docker network rm "$network" >/dev/null 2>&1
   [[ $keep -eq 0 ]] && rm -rf "$work"
 }
 trap cleanup EXIT
 
+labels=(--label fraiseql.oracle=concurrency)
+[[ -n "${ORACLE_DOCKER_LABEL:-}" ]] && labels+=(--label "$ORACLE_DOCKER_LABEL")
+published_port() { docker port "$1" 5432/tcp | head -1 | sed 's/.*://'; }
+
 if [[ -z "$admin_url" ]]; then
-  labels=(--label fraiseql.oracle=concurrency)
-  [[ -n "${ORACLE_DOCKER_LABEL:-}" ]] && labels+=(--label "$ORACLE_DOCKER_LABEL")
   container="$(docker run -d --rm "${labels[@]}" -e POSTGRES_PASSWORD=oracle -p 127.0.0.1::5432 "$pg_image")"
-  pg_port="$(docker port "$container" 5432/tcp | head -1 | sed 's/.*://')"
-  admin_url="postgresql://postgres:oracle@127.0.0.1:$pg_port/postgres"
+  admin_url="postgresql://postgres:oracle@127.0.0.1:$(published_port "$container")/postgres"
 fi
 "$python" -m oracle.db wait "$admin_url"
 
+# The replica pair, unless given or unneeded (`--only` without replica).
+only=""
+for ((i = 1; i <= $#; i++)); do [[ "${!i}" == "--only" ]] && { j=$((i + 1)); only="${!j:-}"; }; done
+if [[ -z "$primary_url" && ( -z "$only" || ",$only," == *",replica,"* ) ]]; then
+  network="oracle-concurrency-$$"
+  docker network create "${labels[@]}" "$network" >/dev/null
+  pair+=("$(docker run -d --rm "${labels[@]}" --network "$network" --network-alias primary \
+    -e POSTGRES_PASSWORD=oracle -p 127.0.0.1::5432 \
+    -v "$here/fixture/replica/primary-init.sh:/docker-entrypoint-initdb.d/replication.sh:ro" "$pg_image")")
+  pair+=("$(docker run -d --rm "${labels[@]}" --network "$network" \
+    -e POSTGRES_PASSWORD=oracle -e ORACLE_PRIMARY_HOST=primary -p 127.0.0.1::5432 \
+    -v "$here/fixture/replica/standby.sh:/standby.sh:ro" --entrypoint bash "$pg_image" /standby.sh)")
+  primary_url="postgresql://postgres:oracle@127.0.0.1:$(published_port "${pair[0]}")/postgres"
+  replica_url="postgresql://postgres:oracle@127.0.0.1:$(published_port "${pair[1]}")/postgres"
+fi
+if [[ -n "$primary_url" ]]; then
+  "$python" -m oracle.db wait "$primary_url"
+  "$python" -m oracle.db wait "$replica_url"
+fi
+
 exec_rc=0
-"$python" -m oracle --cli "$cli" --server "$server" --admin-url "$admin_url" --work "$work" "$@" || exec_rc=$?
+"$python" -m oracle --cli "$cli" --server "$server" --admin-url "$admin_url" --work "$work" \
+  --primary-url "$primary_url" --replica-url "$replica_url" "$@" || exec_rc=$?
 if [[ $exec_rc -ne 0 && $keep -eq 0 ]]; then
   for log in "$work"/server.*.log; do
     [[ -f "$log" ]] || continue

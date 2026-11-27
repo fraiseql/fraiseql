@@ -13,6 +13,7 @@ From [cache.md](../../../docs/modules/cache.md) and the server's mutation path:
 - On one server, a cached read is never staler than the last write made through it.
 - A successful mutation evicts every cached entry of every view it reaches.
 - A mutation carrying an `Idempotency-Key` header executes at most once per key.
+- With read replicas, within the pin window a client reads its own writes.
 
 ## Read shapes
 
@@ -40,6 +41,8 @@ Keys are `CONC:<group>:<cell>`.
 | `probe` | `error_outcome:consistent` | after a mutation that writes and then returns an error outcome, what is served is what is stored |
 | `idem` | `sequential:executes_once` | three sends under one key record one effect |
 | `idem` | `concurrent:executes_once` | five concurrent sends under one key, each running 400 ms, record one effect |
+| `replica` | `<config>:writer_reads_own_write` | while the replica's replay is paused, the writer reads the version it wrote |
+| `replica` | `<config>:reads_after_catch_up` | once the replica has replayed the write, the writer and another principal both read it |
 
 A cell whose precondition fails stops the run with exit code 2, since its verdict would
 mean nothing:
@@ -47,6 +50,18 @@ mean nothing:
 - `probe` first checks that each shape is cached at all. A write made directly in the
   database, which the server never sees, must not change the next read.
 - `idem` first checks that two sends without a key record two effects.
+- `replica` first checks that another principal of the writer's tenant reads the old
+  version while replay is paused, which proves reads do reach the lagging replica.
+
+## The replica pair
+
+The `replica` cells run against a primary and a hot standby streaming from it
+(`fixture/replica/`). Each config is run with the result cache off and on, at TTL 0.
+
+- The cells do not wait on a replication delay. They hold the standby's replay with
+  `pg_wal_replay_pause()`, so its lag is a state, not a race.
+- After `pg_wal_replay_resume()`, the cells wait until the standby has replayed the
+  primary's current WAL position before reading again.
 
 ## The checker
 
@@ -75,6 +90,8 @@ tools/oracle/concurrency/run.sh --selftest   # the checker and the gate, no serv
   the features `cli,observers`.
 - `ORACLE_ADMIN_URL` names a PostgreSQL to create the fixture database in. Without it,
   a throwaway PostgreSQL 18 container is started.
+- `ORACLE_PRIMARY_URL` and `ORACLE_REPLICA_URL` name the replica pair, as superuser URLs.
+  Without them, the pair is started as two containers on a network of their own.
 - `ORACLE_OUT` keeps the run's configs, logs and `outcomes.json`.
 
 Exit codes:

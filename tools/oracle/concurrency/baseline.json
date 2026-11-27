@@ -15,6 +15,12 @@
     },
     "CONC:probe:notefn:evicted": {
       "issue": 2824
+    },
+    "CONC:replica:cache_ttl0:reads_after_catch_up": {
+      "issue": 2823
+    },
+    "CONC:replica:cache_ttl0:writer_reads_own_write": {
+      "issue": 2823
     }
   }
 }
