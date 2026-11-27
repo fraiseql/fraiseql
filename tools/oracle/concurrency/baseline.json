@@ -1,0 +1,20 @@
+{
+  "_comment": [
+    "Cells of the concurrency oracle that do not hold, each naming the issue it is tracked by.",
+    "Written by `run.sh --bless`; the gate fails on any difference, in either direction."
+  ],
+  "cells": {
+    "CONC:idem:concurrent:executes_once": {
+      "issue": 2826
+    },
+    "CONC:probe:error_outcome:consistent": {
+      "issue": 2825
+    },
+    "CONC:probe:noteatomic:evicted": {
+      "issue": 2824
+    },
+    "CONC:probe:notefn:evicted": {
+      "issue": 2824
+    }
+  }
+}
