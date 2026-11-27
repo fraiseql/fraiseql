@@ -39,6 +39,7 @@ from .clients import Clients, Endpoints, Response
 from .compare import compare_cell, fingerprint, outcome
 from .issuer import load_key, mint
 from .protocol import early_refusal
+from .proxy import Proxy
 
 HERE = Path(__file__).resolve().parent.parent
 SEEDS = [1, 2]
@@ -160,7 +161,10 @@ def measure(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
     if expired is None:
         msg = "the expired principal has no token"
         raise RuntimeError(msg)
-    protocol = [line for line in [early_refusal(args.http, expired)] if line]
+    # The self-test measures through a proxy, which reads every body; the connection
+    # probe must still reach the server itself.
+    protocol_http = getattr(args, "protocol_http", None) or args.http
+    protocol = [line for line in [early_refusal(protocol_http, expired)] if line]
     retries = sum(c.retries_seen for c in runner.all_clients)
     for c in runner.all_clients:
         c.close()
@@ -296,6 +300,192 @@ def print_gate(g: dict[str, Any], failing: dict[str, Any]) -> None:
     )
 
 
+def _only(g: dict[str, Any], side: str, key: str, expected: list[str]) -> bool:
+    """The gate failed with exactly `expected` under `side`/`key`, and nothing else."""
+    if g["ok"] or g["corpus_changed"]:
+        return False
+    return all(
+        sorted(g[s][k]) == sorted(expected) if (s, k) == (side, key) else not g[s][k]
+        for s in ("regressions", "progress")
+        for k in GATED
+    )
+
+
+Checks = list[bool]
+
+
+def _check(checks: Checks, name: str, ok: bool, detail: str = "") -> None:
+    checks.append(ok)
+    print(f"{'PASS' if ok else 'FAIL'} {name}{': ' + detail if detail else ''}")
+
+
+def _selftest_pure(checks: Checks) -> None:
+    """Checks that hold whatever the server answers."""
+    from .clients import Response, graphql_body  # noqa: PLC0415 - self-test only
+
+    unknown = outcome(Response(status="200", codes=["SOMETHING_NEW"]))
+    _check(
+        checks,
+        "an unknown code keeps its own class",
+        unknown.cls == "ERR:SOMETHING_NEW",
+        unknown.cls,
+    )
+    bodyless = outcome(graphql_body(401, "Token has expired", "orders"))
+    _check(checks, "a bodyless 401 is UNAUTH by its status", bodyless.cls == "UNAUTH", bodyless.cls)
+    req = gen.Request(
+        name="t", root="orders", fields=["id", "secret"], who="A-viewer", hdr="", style="inline"
+    )
+    ref = outcome(Response(status="200", data=[{"id": "1", "secret": "s"}], has_data=True))
+    mcp = outcome(Response(status="200", data=[{"id": "1"}], has_data=True))
+    refused = outcome(Response(status="200", codes=["VALIDATION_ERROR"]))
+    served = compare_cell(req, "REST", refused, ref)
+    _check(
+        checks,
+        "a cell served where POST refused is a class divergence",
+        served == ["class:INVALID->OK"],
+        ",".join(served),
+    )
+    issues = compare_cell(req, "MCP", ref, mcp)
+    _check(
+        checks,
+        "an MCP cell leaving a selected field out is counted",
+        issues == ["omitted:secret"],
+        ",".join(issues),
+    )
+
+
+def _selftest_sites(checks: Checks, current: dict[str, Any], base: dict[str, Any]) -> None:
+    """Every gate site fails on a one-entry change to the baseline, in both directions.
+
+    The sites are the baseline's own lists, not GATED: a list the gate stopped reading
+    must fail here, not drop out of the self-test."""
+    sites = [k for k, v in base.items() if isinstance(v, list)]
+    _check(
+        checks,
+        "the baseline has the four gated lists",
+        sorted(sites) == ["columns", "disagreements", "formats", "protocol"],
+        str(sites),
+    )
+    for k in sites:
+        if base.get(k):
+            entry = base[k][0]
+            g = gate(current, {**base, k: base[k][1:]})
+            _check(
+                checks,
+                f"{k}: an entry missing from the baseline is a regression",
+                _only(g, "regressions", k, [entry]),
+            )
+        else:
+            _check(checks, f"{k}: the baseline has an entry to remove", False, "empty")
+        fake = f"selftest-{k}-entry"
+        g = gate(current, {**base, k: [*base.get(k, []), fake]})
+        _check(
+            checks,
+            f"{k}: a baseline entry that no longer occurs is unrecorded progress",
+            _only(g, "progress", k, [fake]),
+        )
+    other = {**base, "corpus": {**base["corpus"], "seeds": [*base["corpus"]["seeds"], 9]}}
+    _check(checks, "a changed corpus fails", gate(current, other)["corpus_changed"])
+
+
+def _proxied(
+    args: argparse.Namespace, base: dict[str, Any], rewrite: Any, column: str
+) -> dict[str, Any]:
+    """The run through a proxy rewriting `column`'s responses: which cells changed, and how."""
+    proxy = Proxy(args.http, rewrite)
+    try:
+        m, _ = measure(
+            argparse.Namespace(**{**vars(args), "http": proxy.url, "protocol_http": args.http})
+        )
+    finally:
+        proxy.close()
+    g = gate(m, base)
+    regs = [] if g["corpus_changed"] else g["regressions"]["disagreements"]
+    moved = [] if g["corpus_changed"] else g["progress"]["disagreements"]
+    reg_fps = {k.split(" ")[0] for k in regs}
+    others = [k for k in GATED if k != "disagreements"]
+    return {
+        "rewrites": proxy.rewrites,
+        "regs": regs,
+        "columns": {k.split(" ")[1] for k in regs},
+        "issues": {k.split(" ", 2)[2] for k in regs},
+        # Nothing regresses outside the disagreements; anything else that changed is
+        # progress on the rewritten column (a rewritten refusal loses its error format);
+        # and a baseline cell's key moves only on its own request.
+        "quiet": not g["corpus_changed"]
+        and all(not g["regressions"][k] for k in others)
+        and all(e.startswith(f"{column} ") for k in others for e in g["progress"][k])
+        and all(k.split(" ")[0] in reg_fps for k in moved),
+        "noise": {s: {k: g[s][k] for k in others if g[s][k]} for s in ("regressions", "progress")}
+        if not g["corpus_changed"]
+        else "corpus changed",
+        "metrics": m["metrics"],
+    }
+
+
+def _serve_rest_refusals(method: str, path: str, status: int, body: bytes) -> Any:
+    del method, body
+    if path.startswith("/rest/v1/") and status in {400, 401, 403}:
+        return 200, json.dumps({"data": [{"id": "served-by-the-proxy"}]}).encode()
+    return None
+
+
+def _alter_get(method: str, path: str, status: int, body: bytes) -> Any:
+    if method == "GET" and path.startswith("/graphql?") and b'"Order 1"' in body:
+        return status, body.replace(b'"Order 1"', b'"Order 1 (altered)"')
+    return None
+
+
+def selftest(args: argparse.Namespace, base: dict[str, Any]) -> int:
+    """Proves the gate goes RED, against a server that matches the baseline.
+
+    - Pure: the classifier keeps an unknown code's name, takes a bodyless response's
+      status as its code, and the MCP rule counts an omitted field.
+    - Every gate site fails when the baseline is changed by one entry, in both directions,
+      and names that entry; a changed corpus fails.
+    - A proxy makes REST serve rows where it refused: only REST cells are reported, and
+      "refused on POST, served elsewhere" rises.
+    - A proxy alters one value on GET: only GET cells are reported, each as data.
+    """
+    checks: Checks = []
+    _selftest_pure(checks)
+    current, _ = measure(args)
+    if not gate(current, base)["ok"]:
+        msg = "the self-test needs a server that matches the baseline; run the oracle first"
+        raise RuntimeError(msg)
+    _check(checks, "unchanged server matches the baseline", True)
+    _selftest_sites(checks, current, base)
+
+    key = "refused_on_post_served_elsewhere"
+    r = _proxied(args, base, _serve_rest_refusals, "REST")
+    rise = r["metrics"][key] - base["metrics"][key]
+    _check(
+        checks,
+        "REST serving rows it refused is reported on REST only, as served elsewhere",
+        r["rewrites"] > 0 and r["columns"] == {"REST"} and rise > 0 and r["quiet"],
+        f"{r['rewrites']} rewrites, {len(r['regs'])} regression(s) on {sorted(r['columns'])}, "
+        f"served elsewhere +{rise}" + ("" if r["quiet"] else f"; other changes {r['noise']}"),
+    )
+    r = _proxied(args, base, _alter_get, "GET")
+    _check(
+        checks,
+        "a wrong value on GET is reported on GET only, as data",
+        r["rewrites"] > 0
+        and r["columns"] == {"GET"}
+        and all("data" in i.split(",") for i in r["issues"])
+        and r["quiet"],
+        f"{r['rewrites']} rewrites, {len(r['regs'])} regression(s) on {sorted(r['columns'])}, "
+        f"issues {sorted(r['issues'])}",
+    )
+    failed = checks.count(False)
+    print(
+        f"\nSELFTEST FAIL: {failed} of {len(checks)} checks"
+        if failed
+        else f"\nSELFTEST OK: {len(checks)} checks"
+    )
+    return 1 if failed else 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(prog="oracle")
     p.add_argument("--http", required=True)
@@ -305,8 +495,11 @@ def main() -> int:
     p.add_argument("--baseline", type=Path, default=HERE / "baseline.json")
     p.add_argument("--report", type=Path)
     p.add_argument("--bless", action="store_true")
+    p.add_argument("--selftest", action="store_true")
     args = p.parse_args()
 
+    if args.selftest:
+        return selftest(args, json.loads(args.baseline.read_text()))
     current, failing = measure(args)
     base = json.loads(args.baseline.read_text()) if args.baseline.exists() else None
     print_metrics(current["corpus"]["label"], current["metrics"], base)

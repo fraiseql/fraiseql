@@ -104,6 +104,25 @@ tools/oracle/transports/run.sh --report /tmp/transports.json   # every disagreei
 Exit codes: 0 means the run matches the baseline; 1 means the gate failed; 2 means the
 harness itself failed, and `run.sh` then prints the end of the server's log.
 
+## The self-test
+
+`make oracle-transports-selftest` (`run.sh --selftest`, about three minutes) proves the
+gate goes red. It needs a server that matches the baseline.
+
+- Pure checks:
+  - an unknown code keeps its own class;
+  - a bodyless 401 is `UNAUTH` by its status;
+  - a cell served where POST refused is a class divergence;
+  - an MCP cell that leaves out a selected field is counted.
+- Every list in the baseline is a gate site. A one-entry change to it fails the run in
+  both directions and names that entry. The sites come from the baseline itself, not
+  from the gate's list, so a list the gate stops reading fails here. A changed corpus
+  fails too.
+- `oracle/proxy.py`, a rewriting proxy, stands in for a server that changed:
+  - REST serves rows where it refused: only REST cells are reported, and "refused on
+    POST, served elsewhere" rises;
+  - GET alters one value: only GET cells are reported, each as `data`.
+
 ## Measuring a fix
 
 ```bash
