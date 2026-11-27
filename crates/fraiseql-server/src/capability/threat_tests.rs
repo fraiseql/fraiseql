@@ -15,10 +15,7 @@ const NO_HOSTILE_FIXTURE_YET: &[(&str, &str)] = &[
     ("sources", "#1845"),
     ("grpc", "#1845"),
     ("federation", "#1845"),
-    ("observers", "#1845"),
     ("inbound_email", "#1845"),
-    ("cdc_outbound", "#1845"),
-    ("subscription_kafka", "#1845"),
 ];
 
 /// What the gate reads of one fixture's `fixture.toml`.

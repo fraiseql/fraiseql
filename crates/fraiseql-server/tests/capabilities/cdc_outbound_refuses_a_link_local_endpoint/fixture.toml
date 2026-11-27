@@ -1,0 +1,11 @@
+# A plaintext NATS sink on a link-local address is refused at boot, opt-in and
+# development included: the opt-in reaches a broker on this machine only.
+capability = "cdc_outbound"
+role = "hostile"
+
+[env]
+FRAISEQL_ENV = "development"
+FRAISEQL_NATS_ALLOW_PLAINTEXT = "true"
+
+[effect]
+refused = { message = "refusing NATS endpoint" }

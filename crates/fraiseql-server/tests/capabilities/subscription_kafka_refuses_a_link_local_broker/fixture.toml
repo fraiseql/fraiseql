@@ -1,0 +1,11 @@
+# A plaintext Kafka mirror with a link-local broker behind a loopback one is refused at
+# boot, opt-in and development included: every broker in the list is checked.
+capability = "subscription_kafka"
+role = "hostile"
+
+[env]
+FRAISEQL_ENV = "development"
+FRAISEQL_KAFKA_ALLOW_PLAINTEXT = "true"
+
+[effect]
+refused = { message = "refusing kafka endpoint" }

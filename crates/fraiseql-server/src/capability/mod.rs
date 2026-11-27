@@ -294,7 +294,16 @@ pub static REGISTRY: &[Registration] = &[
         threat: ThreatModel {
             assets:  &["the change log", "the endpoints an action sends to"],
             crosses: &["a database change into an outbound request"],
-            refuses: &[],
+            refuses: &[
+                Refusal {
+                    input:   "an action URL on a loopback address",
+                    fixture: "observers_refuses_an_action_on_a_loopback_address",
+                },
+                Refusal {
+                    input:   "the outbound opt-in under a production marker",
+                    fixture: "observers_refuses_the_opt_in_under_a_production_marker",
+                },
+            ],
         },
     },
     register! {
@@ -426,7 +435,10 @@ pub static REGISTRY: &[Registration] = &[
         threat: ThreatModel {
             assets:  &["the change events", "the sink's network endpoint"],
             crosses: &["database changes out to a broker"],
-            refuses: &[],
+            refuses: &[Refusal {
+                input:   "a plaintext sink endpoint on a link-local address",
+                fixture: "cdc_outbound_refuses_a_link_local_endpoint",
+            }],
         },
     },
     register! {
@@ -442,7 +454,10 @@ pub static REGISTRY: &[Registration] = &[
         threat: ThreatModel {
             assets:  &["the subscription payloads"],
             crosses: &["a subscriber's request into a Kafka topic"],
-            refuses: &[],
+            refuses: &[Refusal {
+                input:   "a link-local broker in a plaintext broker list",
+                fixture: "subscription_kafka_refuses_a_link_local_broker",
+            }],
         },
     },
 ];

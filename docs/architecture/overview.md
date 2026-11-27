@@ -227,7 +227,8 @@ refusing. The definition-of-shipped gate checks both:
   `crates/fraiseql-server/tests/capabilities/`, authors the capability as an application
   does. The `fraiseql-server` binary then serves it through every entry point its metadata
   declares, and the fixture judges it by the effect that follows: a row, a message, a
-  delivery.
+  delivery. Name the directory in lowercase: the harness creates a database named
+  `cap_<directory>`, unquoted, which PostgreSQL folds to lowercase.
 - **A threat model** is part of the registration (`threat` in `register!`). It lists the
   assets the capability touches and the trust boundaries its inputs cross. Each input it
   must refuse is a `Refusal` naming a hostile fixture: one with `role = "hostile"` that

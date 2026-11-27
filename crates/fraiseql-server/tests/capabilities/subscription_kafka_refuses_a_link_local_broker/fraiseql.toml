@@ -1,0 +1,24 @@
+[project]
+name = "capability-subscription-kafka"
+
+# A TOML schema has no table for subscription definitions; they come from an included file.
+[includes]
+types = ["$FIXTURE/subscriptions.json"]
+
+[types.Note]
+sql_source = "app.v_note"
+fields.id = { type = "ID" }
+fields.title = { type = "String" }
+# A Decimal travels with its stored digits: `1.50` keeps its scale, and every digit of a
+# 22-digit value survives, where an f64 keeps 17.
+fields.price = { type = "Decimal" }
+fields.balance = { type = "Decimal" }
+fields.discount = { type = "Decimal", nullable = true }
+
+[queries.notes]
+return_type = "Note"
+return_array = true
+sql_source = "app.v_note"
+
+[observers]
+enabled = true
