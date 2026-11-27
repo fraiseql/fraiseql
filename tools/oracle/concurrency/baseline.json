@@ -4,6 +4,12 @@
     "Written by `run.sh --bless`; the gate fails on any difference, in either direction."
   ],
   "cells": {
+    "CONC:cutoff:committed_write_is_evicted": {
+      "issue": 2827
+    },
+    "CONC:cutoff:retry_executes_once": {
+      "issue": 2827
+    },
     "CONC:idem:concurrent:executes_once": {
       "issue": 2826
     },

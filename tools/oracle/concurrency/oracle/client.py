@@ -58,6 +58,10 @@ SHAPES: dict[str, tuple[str, Callable[[dict[str, Any]], Any]]] = {
         "{ accountVersion } }",
         _first("notesAtomic"),
     ),
+    "slow": (
+        "query($id: ID!) { accountsSlow(where: { id: { eq: $id } }) { version } }",
+        _first("accountsSlow", "version"),
+    ),
     "summary": (
         "query($id: ID!) { accountSummaries(where: { id: { eq: $id } }) { version } }",
         _first("accountSummaries", "version"),

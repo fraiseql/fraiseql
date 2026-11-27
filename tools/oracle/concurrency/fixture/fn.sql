@@ -73,3 +73,28 @@ BEGIN
   DELETE FROM tb_item WHERE id = p_id;
   RETURN QUERY SELECT * FROM fraiseql.mutation_ok(d, p_id, 'Item');
 END $$;
+
+-- Bumps the version; the transaction's COMMIT then takes p_ms (tb_commit_delay).
+CREATE FUNCTION fn_commit_slow_bump(p_id uuid, p_ms integer, p_tenant_id text)
+RETURNS TABLE (succeeded boolean, state_changed boolean, error_class text, status_detail text, http_status smallint, message text, entity_id uuid, entity_type text, entity jsonb, updated_fields text[], cascade jsonb, error_detail jsonb, metadata jsonb)
+LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE tb_account SET version = version + 1 WHERE id = p_id AND tenant_id::text = p_tenant_id;
+  INSERT INTO tb_commit_delay (ms) VALUES (p_ms);
+  RETURN QUERY SELECT * FROM fraiseql.mutation_ok(
+    (SELECT data FROM v_account WHERE v_account.id = p_id), p_id, 'Account');
+END $$;
+
+-- Records one side effect under p_tag; the transaction's COMMIT then takes p_ms.
+CREATE FUNCTION fn_commit_slow_effect(p_tag text, p_ms integer, p_tenant_id text)
+RETURNS TABLE (succeeded boolean, state_changed boolean, error_class text, status_detail text, http_status smallint, message text, entity_id uuid, entity_type text, entity jsonb, updated_fields text[], cascade jsonb, error_detail jsonb, metadata jsonb)
+LANGUAGE plpgsql AS $$
+DECLARE n bigint;
+BEGIN
+  INSERT INTO tb_effect (tag) VALUES (p_tag) RETURNING pk INTO n;
+  INSERT INTO tb_commit_delay (ms) VALUES (p_ms);
+  RETURN QUERY SELECT * FROM fraiseql.mutation_ok(
+    jsonb_build_object('id', '00000000-0000-4000-8000-000000000001', 'tenant_id', p_tenant_id,
+                       'name', p_tag, 'version', n, 'secret', 's', 'seen_tenant', null),
+    '00000000-0000-4000-8000-000000000001'::uuid, 'Account');
+END $$;
