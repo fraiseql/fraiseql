@@ -181,6 +181,32 @@ function ws(url, p) {
 const VIA = { get, sse, ws };
 
 /**
+ * The verdict on one probe's response: a finding line, or null when the response is what
+ * the row and the probe require. Pure, so the self-test can feed it responses.
+ */
+function judge(row, i, p, r) {
+  const label = `restriction ${row.id}#${i}${p.via ? ` (${p.via})` : ""}`;
+  if (p.code && !row.codes.includes(p.code)) return `${label}: probe expects ${p.code}, which the row does not list`;
+  if (p.accepted) {
+    return errorsOf(r).length || r.body.__raw !== undefined
+      ? `${label}: a shape inside the subset is refused (${JSON.stringify(r.body).slice(0, 200)})`
+      : null;
+  }
+  const allowed = new Set(p.code ? [p.code] : row.codes);
+  if (documentedRefusal(r, allowed)) return null;
+  const seen = errorsOf(r).map((e) => (e && e.extensions && e.extensions.code) || (e && e.code ? `code:${e.code}` : "-"));
+  const shape =
+    r.body.__raw !== undefined
+      ? "not a GraphQL response"
+      : !errorsOf(r).length
+        ? "answered, no errors"
+        : hasData(r)
+          ? "data with errors"
+          : "refused";
+  return `${label}: not refused with ${[...allowed].join("|")} (HTTP ${r.status}, ${shape}, codes ${seen.join(",") || "none"})`;
+}
+
+/**
  * Runs every probe; returns one line per row that is not refused as documented.
  * An empty list means the table and the server agree.
  */
@@ -202,28 +228,12 @@ async function checkRestrictions(rows, servers) {
     for (const [i, p] of probes.entries()) {
       const url = servers[p.server];
       if (!url) throw new Error(`no ${p.server} server for restriction ${row.id}`);
-      if (p.code && !row.codes.includes(p.code)) {
-        findings.push(`restriction ${row.id}#${i}: probe expects ${p.code}, which the row does not list`);
-        continue;
-      }
-      const allowed = new Set(p.code ? [p.code] : row.codes);
       const r = p.raw ? await post(url, p) : p.via ? await VIA[p.via](url, p) : await send(url, p.body);
-      if (p.accepted) {
-        if (errorsOf(r).length || r.body.__raw !== undefined) {
-          findings.push(`restriction ${row.id}#${i}: a shape inside the subset is refused (${JSON.stringify(r.body).slice(0, 200)})`);
-        }
-        continue;
-      }
-      if (!documentedRefusal(r, allowed)) {
-        const seen = errorsOf(r).map((e) => (e && e.extensions && e.extensions.code) || (e && e.code ? `code:${e.code}` : "-"));
-        const shape = r.body.__raw !== undefined ? "not a GraphQL response" : !errorsOf(r).length ? "answered, no errors" : hasData(r) ? "data with errors" : "refused";
-        findings.push(
-          `restriction ${row.id}#${i}${p.via ? ` (${p.via})` : ""}: not refused with ${[...allowed].join("|")} (HTTP ${r.status}, ${shape}, codes ${seen.join(",") || "none"})`,
-        );
-      }
+      const finding = judge(row, i, p, r);
+      if (finding) findings.push(finding);
     }
   }
   return findings.sort();
 }
 
-module.exports = { readRestrictions, documentedRefusal, checkRestrictions, PROBES, DOC };
+module.exports = { readRestrictions, documentedRefusal, checkRestrictions, judge, PROBES, DOC };

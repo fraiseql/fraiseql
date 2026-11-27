@@ -122,6 +122,8 @@ baseline:
   fall, and an unlisted code must document nothing.
 - The subscription probes are pointed at a server serving no subscription. The control
   probe must report the shape inside the subset as refused.
+- A probe narrowed to one code is given each of its row's codes. Every code but its own
+  must be a finding. This check runs first, before the server is measured.
 
 ## Measuring a fix
 

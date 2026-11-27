@@ -45,7 +45,7 @@ const { introspectionDiff, QUERY } = require("./lib/introspection.js");
 const { startReference } = require("./lib/reference.js");
 const { startProxy } = require("./lib/proxy.js");
 const { applySpecifiedScalars } = require("./lib/scalars.js");
-const { checkRestrictions, documentedRefusal, readRestrictions } = require("./lib/conformance.js");
+const { checkRestrictions, documentedRefusal, judge, PROBES, readRestrictions } = require("./lib/conformance.js");
 const publicCases = require("./lib/cases.js");
 
 const SEEDS = [11, 12];
@@ -312,7 +312,25 @@ async function selftest(servers, database, priv, base) {
     );
   const { canon } = require("./lib/compare.js");
 
-  const { current } = await measure(servers, database, priv);
+  // Checks on pure verdicts first: they hold whatever the server answers, so a defect in
+  // them is reported here and not hidden behind a baseline mismatch.
+  // A probe narrowed to one code fails on any other code its row lists, and passes on its
+  // own: a subscription over HTTP refused as SUBSCRIPTION_REFUSED is still a finding.
+  {
+    const row = readRestrictions().find((r) => r.id === "subscription-subset");
+    const i = PROBES["subscription-subset"].findIndex((p) => p.code === "UNSUPPORTED_FEATURE");
+    const p = PROBES["subscription-subset"][i];
+    const answered = (code) => ({ status: 200, body: { errors: [{ message: "m", extensions: { code } }] } });
+    const other = judge(row, i, p, answered("SUBSCRIPTION_REFUSED"));
+    const own = judge(row, i, p, answered("UNSUPPORTED_FEATURE"));
+    check(
+      "a probe narrowed to one code refuses its row's other codes",
+      other !== null && own === null,
+      `other code: ${other ? "finding" : "passed"}, own code: ${own ? "finding" : "passed"}`,
+    );
+  }
+
+    const { current } = await measure(servers, database, priv);
   const g0 = gate(current, base);
   if (!g0.ok) throw new Error("the self-test needs a server that matches the baseline; run the oracle first");
   check("unchanged server matches the baseline", g0.ok);
@@ -437,7 +455,9 @@ async function selftest(servers, database, priv, base) {
   // the shape inside the subset is refused, and the probe reports it.
   {
     const findings = await checkRestrictions(readRestrictions(), { ...servers, subs: servers.main });
-    const control = findings.filter((l) => l.startsWith("restriction subscription-subset#0: a shape inside the subset is refused"));
+    const control = findings.filter(
+      (l) => l.startsWith("restriction subscription-subset#0") && l.includes(": a shape inside the subset is refused"),
+    );
     check("a refused subscription inside the subset is reported", control.length === 1, `${control.length} control finding(s)`);
   }
 
