@@ -66,6 +66,22 @@ under the repository's Security tab) or by email to security@fraiseql.dev, with:
 
 No response time is promised.
 
+### How fixes are released
+
+FraiseQL has no production deployments outside the project yet. While that is true:
+
+- A fix for a privately reported issue lands on `dev` as soon as it is ready and has
+  passed the same gates as any other change. Its commit and pull request describe the
+  behaviour change, not a step-by-step reproduction.
+- The advisory is published with the next release, naming the version that contains the
+  fix. Releases stay infrequent.
+- Reproduction details and the reporter's material stay private until the advisory is
+  published.
+
+When the first known external deployment exists, this changes: fixes are then prepared in
+the advisory's temporary private fork and merged when the release that carries them is
+tagged, so the fix and the advisory become public together. This section will say so.
+
 ---
 
 ## Security Audit Status
