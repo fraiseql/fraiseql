@@ -110,3 +110,25 @@ CREATE TABLE tb_effect (
   tag text NOT NULL,
   at timestamptz NOT NULL DEFAULT clock_timestamp()
 );
+
+-- Work done at COMMIT: a row inserted here makes the inserting transaction's COMMIT
+-- sleep for its `ms`, through a deferred constraint trigger. A client that gives up
+-- during that sleep gives up inside COMMIT, every time.
+CREATE TABLE tb_commit_delay (pk bigserial PRIMARY KEY, ms integer NOT NULL);
+CREATE FUNCTION fn_sleep_at_commit() RETURNS trigger LANGUAGE plpgsql AS
+$$ BEGIN PERFORM pg_sleep(NEW.ms / 1000.0); RETURN NULL; END $$;
+CREATE CONSTRAINT TRIGGER tr_sleep_at_commit AFTER INSERT ON tb_commit_delay
+  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fn_sleep_at_commit();
+
+-- slow: account 39's own row, read by a statement that takes 300 ms. Its snapshot is
+-- taken when it starts, so a write completing while it runs is not in its answer. The
+-- view holds that one row: a filter applies to `data`, so every row in the view would
+-- pay the delay.
+CREATE FUNCTION fn_slow_read() RETURNS integer LANGUAGE plpgsql VOLATILE AS
+$$ BEGIN PERFORM pg_sleep(0.3); RETURN 0; END $$;
+CREATE VIEW v_account_slow AS
+SELECT pk_account, id, tenant_id,
+       jsonb_build_object('id', id, 'tenant_id', tenant_id, 'version', version,
+                          'delay', fn_slow_read()) AS data
+FROM tb_account
+WHERE pk_account = 39;

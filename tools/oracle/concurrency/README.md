@@ -43,6 +43,9 @@ Keys are `CONC:<group>:<cell>`.
 | `idem` | `concurrent:executes_once` | five concurrent sends under one key, each running 400 ms, record one effect |
 | `replica` | `<config>:writer_reads_own_write` | while the replica's replay is paused, the writer reads the version it wrote |
 | `replica` | `<config>:reads_after_catch_up` | once the replica has replayed the write, the writer and another principal both read it |
+| `cutoff` | `committed_write_is_evicted` | after the client gave up inside COMMIT and the write committed, the cached read serves it |
+| `cutoff` | `retry_executes_once` | after the client gave up inside COMMIT, its retry under the same `Idempotency-Key` does not execute again |
+| `fence` | `inflight_read_not_stored` | a read running while a write completes is not stored for the reads after it |
 
 A cell whose precondition fails stops the run with exit code 2, since its verdict would
 mean nothing:
@@ -50,6 +53,10 @@ mean nothing:
 - `probe` first checks that each shape is cached at all. A write made directly in the
   database, which the server never sees, must not change the next read.
 - `idem` first checks that two sends without a key record two effects.
+- `cutoff` first checks that the client did give up, and that the write it gave up on
+  was committed.
+- `fence` first checks that the slow shape is cached at all, and that its read really
+  overlapped the write.
 - `replica` first checks that another principal of the writer's tenant reads the old
   version while replay is paused, which proves reads do reach the lagging replica.
 
@@ -62,6 +69,20 @@ The `replica` cells run against a primary and a hot standby streaming from it
   `pg_wal_replay_pause()`, so its lag is a state, not a race.
 - After `pg_wal_replay_resume()`, the cells wait until the standby has replayed the
   primary's current WAL position before reading again.
+
+## The cutoff and the fence
+
+Both cells need two things to happen in a fixed order, and the fixture makes that order
+certain instead of likely:
+
+- **cutoff:** the mutations insert into `tb_commit_delay`, whose deferred constraint
+  trigger makes COMMIT take 600 ms. The client gives up after 200 ms, so every round cuts
+  the request inside COMMIT, and the database commits the write after the client has gone.
+  Each cell runs 3 rounds and holds only if every round holds. `ORACLE_CUTOFF_ROUNDS` sets
+  the number of rounds.
+- **fence:** the `slow` shape's statement takes 300 ms and takes its snapshot when it
+  starts. A write completes 100 ms into it. The precondition is that the slow read returns
+  the version before the write, which proves the two overlapped.
 
 ## The checker
 
