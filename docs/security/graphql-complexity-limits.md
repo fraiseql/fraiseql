@@ -61,7 +61,7 @@ Location: crates/fraiseql-core/src/runtime/executor/runners/query_params.rs (enf
   Enforced in the regular runner (query_regular.rs) and the relay runner (query_relay.rs).
 
 Precedence (highest first):
-  FRAISEQL_MAX_PAGE_SIZE env  (a number, or 0/none to disable)
+  FRAISEQL_MAX_PAGE_SIZE env  (a positive integer; anything else refuses boot)
   [validation] max_page_size  (fraiseql.toml → compiled schema)
   RuntimeConfig::max_page_size default (1000)
 ```
@@ -145,10 +145,10 @@ costed ahead of deployment with
 # Max query nesting depth (default: 11)
 max_query_depth = 11
 # Max rows a top-level first/last/limit may request (default: 1000). #421
-# Overridable at runtime with FRAISEQL_MAX_PAGE_SIZE (a number, or 0/none to disable).
+# Overridable at runtime with FRAISEQL_MAX_PAGE_SIZE (a positive integer).
 max_page_size = 1000
 # Deepest offset a client may page to (default: none). #1306
-# Overridable at runtime with FRAISEQL_MAX_OFFSET (a number, or 0/none to lift it).
+# Overridable at runtime with FRAISEQL_MAX_OFFSET (a positive integer).
 # max_offset = 10000
 # Most bytes one read may deliver (default: none). Charged on the rows that come back,
 # inside the executor, so it binds on every transport that returns rows. Refused as

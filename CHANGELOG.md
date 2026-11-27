@@ -18,6 +18,22 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Three environment overrides refuse a value they used to reinterpret or drop
+  (#1777).**
+  - `FRAISEQL_MAX_PAGE_SIZE` and `FRAISEQL_MAX_OFFSET` take the values their
+    `[validation]` keys take: a positive integer. `0` and `none` used to lift the
+    ceiling, and an unparseable value was dropped for the compiled one, silently for the
+    page size. All three now refuse boot, and a hot reload, naming the variable. A
+    deployment that lifted a ceiling this way unsets the variable and raises the
+    compiled value instead.
+  - `FRAISEQL_FUNCTIONS_DLQ_STORE`, and the compiled `[functions] dlq_store`, refuse a
+    value other than `memory` or `postgres` (`pg`); a typo used to run on the in-memory
+    store with a warning.
+  - `FRAISEQL_REQUIRE_REDIS` is a boolean in the grammar the server's flags use
+    (`true`/`false`, `1`/`0`, `yes`/`no`, `on`/`off`). Any value used to switch it on,
+    `0` and `false` included; those now leave it off, and a value that is neither true
+    nor false refuses boot.
+
 - **`fraiseql-auth` drops `warn_if_single_node_rate_limiting`, and `fraiseql-observers`
   drops `check_checkpoint_requirement` and `CheckpointMode` (#1777).** Nothing in the
   server called either function, so `FRAISEQL_RATE_LIMIT_WARN_SINGLE_NODE`,

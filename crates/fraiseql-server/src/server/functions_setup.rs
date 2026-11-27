@@ -92,7 +92,8 @@ impl Server {
         let dlq_store_kind = crate::routes::after_mutation::DlqStoreKind::resolve(
             functions_config.dlq_store.as_deref(),
             |key| std::env::var(key).ok(),
-        );
+        )
+        .map_err(ServerError::ConfigError)?;
 
         let subsystem =
             build_functions_subsystem(functions_config, &connectors).map_err(|error| {

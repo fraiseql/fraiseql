@@ -193,8 +193,8 @@ connection. It holds every offset a client chooses: GraphQL `offset:`, REST `?of
 and MCP reads, aggregate and window `offset`, and `@stream`. A stream pages its list in
 batches at increasing offsets: one whose own `limit` takes its last batch past the ceiling is
 refused before it opens, and one with no `limit` ends, with the refusal as its last payload,
-when a batch would start past it. `FRAISEQL_MAX_OFFSET` overrides the compiled value (`0` or
-`none` lifts it). The setting belongs in `fraiseql.toml`: a server configuration's
+when a batch would start past it. `FRAISEQL_MAX_OFFSET` overrides the compiled value and takes the
+same values, a positive integer; anything else refuses boot. The setting belongs in `fraiseql.toml`: a server configuration's
 `[validation] max_offset` is refused at boot, since a hot reload would drop it.
 
 ## Sort keys

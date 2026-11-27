@@ -59,6 +59,7 @@ mod bucket_cap_tests;
 mod declared_observer_env_tests;
 #[cfg(all(test, feature = "observers"))]
 mod entry_point_parity_tests;
+mod env_bool;
 #[cfg(all(test, feature = "auth"))]
 #[path = "handler_budget_tests.rs"]
 mod handler_budget_tests;
@@ -76,6 +77,9 @@ mod provision_boot_locks_tests;
 mod provision_tests;
 #[cfg(test)]
 mod rbac_mount_tests;
+#[cfg(test)]
+#[path = "require_redis_tests.rs"]
+mod require_redis_tests;
 #[cfg(test)]
 mod scim_mount_tests;
 #[cfg(test)]

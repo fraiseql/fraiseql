@@ -770,15 +770,17 @@ impl RuntimeConfig {
     ///    caller cannot obtain a config while skipping the validation.
     /// 2. **Audit logging** — `audit_mutations` from the compiled `[security.enterprise]
     ///    audit_logging_enabled`.
-    /// 3. **Page-size ceiling (#421)** — `FRAISEQL_MAX_PAGE_SIZE` overrides the compiled
-    ///    `[validation] max_page_size`, which overrides the default.
+    /// 3. **Page-size and offset ceilings (#421, #1306)** — `FRAISEQL_MAX_PAGE_SIZE` and
+    ///    `FRAISEQL_MAX_OFFSET` override the compiled `[validation]` keys, and take the same
+    ///    values: a positive integer.
     /// 4. **Change-log outbox toggle** — `FRAISEQL_CHANGELOG_ENABLED` overrides the compiled
     ///    `[changelog] write_enabled` (default `true`).
     ///
     /// # Errors
     ///
     /// Returns the validation message when the compiled schema was produced by
-    /// a different fraiseql build (#1304).
+    /// a different fraiseql build (#1304), or when `FRAISEQL_MAX_PAGE_SIZE` or
+    /// `FRAISEQL_MAX_OFFSET` is set but is not a positive integer.
     pub fn from_compiled_schema(schema: &crate::schema::CompiledSchema) -> Result<Self, String> {
         Self::default().with_compiled_schema(schema)
     }
@@ -796,10 +798,22 @@ impl RuntimeConfig {
     /// # Errors
     ///
     /// Returns the validation message when the compiled schema was produced by
-    /// a different fraiseql build (#1304).
+    /// a different fraiseql build (#1304), or when `FRAISEQL_MAX_PAGE_SIZE` or
+    /// `FRAISEQL_MAX_OFFSET` is set but is not a positive integer.
     pub fn with_compiled_schema(
         self,
         schema: &crate::schema::CompiledSchema,
+    ) -> Result<Self, String> {
+        self.with_compiled_schema_from(schema, |var| std::env::var(var).ok())
+    }
+
+    /// [`with_compiled_schema`](Self::with_compiled_schema), reading the environment
+    /// through `get_env`, so a test supplies variables without setting them on the
+    /// process every other test reads.
+    pub(crate) fn with_compiled_schema_from(
+        self,
+        schema: &crate::schema::CompiledSchema,
+        get_env: impl Fn(&str) -> Option<String>,
     ) -> Result<Self, String> {
         schema.validate_producer_version()?;
 
@@ -815,15 +829,15 @@ impl RuntimeConfig {
 
         // #421: FRAISEQL_MAX_PAGE_SIZE > compiled [validation] max_page_size > default.
         let max_page_size = page_size_precedence(
-            std::env::var("FRAISEQL_MAX_PAGE_SIZE").ok().as_deref(),
+            get_env("FRAISEQL_MAX_PAGE_SIZE").as_deref(),
             schema.validation_config.as_ref().and_then(|v| v.max_page_size),
-        );
+        )?;
 
         // #1306: FRAISEQL_MAX_OFFSET > compiled [validation] max_offset > none.
         let max_offset = offset_precedence(
-            std::env::var("FRAISEQL_MAX_OFFSET").ok().as_deref(),
+            get_env("FRAISEQL_MAX_OFFSET").as_deref(),
             schema.validation_config.as_ref().and_then(|v| v.max_offset),
-        );
+        )?;
 
         // #1459: the compiled [validation] max_semi_additive_cells > default.
         let max_semi_additive_cells = schema
@@ -834,8 +848,7 @@ impl RuntimeConfig {
 
         // Change-Spine outbox write toggle (default on): FRAISEQL_CHANGELOG_ENABLED
         // overrides the compiled [changelog] write_enabled.
-        let changelog_enabled = std::env::var("FRAISEQL_CHANGELOG_ENABLED")
-            .ok()
+        let changelog_enabled = get_env("FRAISEQL_CHANGELOG_ENABLED")
             .map(|v| {
                 !matches!(v.trim().to_ascii_lowercase().as_str(), "false" | "0" | "no" | "off")
             })
@@ -944,43 +957,52 @@ pub const DEFAULT_MAX_SEMI_ADDITIVE_CELLS: u64 = 250_000;
 
 /// Resolve the offset ceiling (#1306) by precedence.
 ///
-/// `env` is the raw `FRAISEQL_MAX_OFFSET` value when set (a positive integer, or
-/// `"0"`/`"none"` to lift the ceiling). It overrides `compiled` (the `[validation]
-/// max_offset` from the compiled schema). Unset in both, there is no ceiling.
-#[must_use]
-pub fn offset_precedence(env: Option<&str>, compiled: Option<u32>) -> Option<u32> {
-    if let Some(raw) = env {
-        let trimmed = raw.trim();
-        if trimmed.eq_ignore_ascii_case("none") || trimmed == "0" {
-            return None;
-        }
-        if let Ok(n) = trimmed.parse::<u32>() {
-            return Some(n);
-        }
-        tracing::warn!(value = raw, "FRAISEQL_MAX_OFFSET is not a non-negative integer; ignored");
+/// `env` is the raw `FRAISEQL_MAX_OFFSET` value when set. It overrides `compiled` (the
+/// `[validation] max_offset` from the compiled schema). Unset in both, there is no
+/// ceiling.
+///
+/// # Errors
+///
+/// When `env` is set but is not a positive integer: the variable takes the meaning the
+/// `[validation]` key has, so `0`, `none` or an unparseable value is refused rather
+/// than lifting the ceiling or falling back to the compiled value.
+pub fn offset_precedence(env: Option<&str>, compiled: Option<u32>) -> Result<Option<u32>, String> {
+    match env {
+        Some(raw) => positive_ceiling("FRAISEQL_MAX_OFFSET", "max_offset", raw).map(Some),
+        None => Ok(compiled),
     }
-    compiled
 }
 
 /// Resolve the top-level page-size ceiling (#421) by precedence.
 ///
-/// `env` is the raw `FRAISEQL_MAX_PAGE_SIZE` value when set (a positive integer,
-/// or `"0"`/`"none"` to disable the ceiling). It overrides `compiled` (the
-/// `[validation] max_page_size` from the compiled schema), which overrides the
-/// runtime default (1000). Returns `None` only when explicitly disabled.
-#[must_use]
-pub fn page_size_precedence(env: Option<&str>, compiled: Option<u32>) -> Option<u32> {
-    if let Some(raw) = env {
-        let trimmed = raw.trim();
-        if trimmed.eq_ignore_ascii_case("none") || trimmed == "0" {
-            return None;
-        }
-        if let Ok(n) = trimmed.parse::<u32>() {
-            return Some(n);
-        }
-        // Unparseable env value: ignore it and fall through to compiled/default.
+/// `env` is the raw `FRAISEQL_MAX_PAGE_SIZE` value when set. It overrides `compiled`
+/// (the `[validation] max_page_size` from the compiled schema), which overrides the
+/// runtime default (1000).
+///
+/// # Errors
+///
+/// When `env` is set but is not a positive integer: the variable takes the meaning the
+/// `[validation]` key has, so `0`, `none` or an unparseable value is refused rather
+/// than lifting the ceiling or falling back to the compiled value.
+pub fn page_size_precedence(
+    env: Option<&str>,
+    compiled: Option<u32>,
+) -> Result<Option<u32>, String> {
+    match env {
+        Some(raw) => positive_ceiling("FRAISEQL_MAX_PAGE_SIZE", "max_page_size", raw).map(Some),
+        None => Ok(compiled.or(RuntimeConfig::default().max_page_size)),
     }
-    compiled.or(RuntimeConfig::default().max_page_size)
+}
+
+/// A ceiling from the environment: a positive integer, as its `[validation]` key takes.
+fn positive_ceiling(var: &str, key: &str, raw: &str) -> Result<u32, String> {
+    match raw.trim().parse::<u32>() {
+        Ok(n) if n > 0 => Ok(n),
+        _ => Err(format!(
+            "{var} = {raw:?} is not a positive integer. It overrides [validation] {key} and \
+             takes the same values; unset it to use the compiled value."
+        )),
+    }
 }
 
 /// Execution context for query cancellation support.
@@ -1069,6 +1091,10 @@ impl ExecutionContext {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[path = "env_ceiling_tests.rs"]
+mod env_ceiling_tests;
 
 #[cfg(test)]
 mod suggestions_tests;

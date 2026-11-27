@@ -78,7 +78,7 @@ is `fraiseql-server --help`):
 | `RUST_LOG` | Log filter | `debug`, `info`, `warn`, `error` |
 | `FRAISEQL_SECRETS_BACKEND` | Secrets backend selection (`env`, `file`, `vault`) | `vault` |
 | `VAULT_ADDR`, `VAULT_TOKEN`, `VAULT_ROLE_ID`, `VAULT_NAMESPACE`, `VAULT_TLS_VERIFY` | Vault address + authentication | `s.xxxxx` |
-| `FRAISEQL_REQUIRE_REDIS` | Refuse to boot if the Redis PKCE store is unavailable | `1` |
+| `FRAISEQL_REQUIRE_REDIS` | A boolean (`true`/`false`, `1`/`0`, `yes`/`no`, `on`/`off`; anything else refuses boot). When true, refuse to boot while any running shared-state subsystem is per-process: the PKCE store, the rate limiter, the token revocation store or the SAML replay store | `true` |
 
 Every other knob (pool sizing, cache toggle, timeouts, …) lives in the `--config` TOML
 file: **edit the file and restart** — exporting an invented `FRAISEQL_*` variable does

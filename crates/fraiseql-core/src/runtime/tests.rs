@@ -5046,7 +5046,7 @@ mod window_projector_tests {
 mod runtime_config_from_schema_tests {
 
     use crate::{
-        runtime::{RuntimeConfig, offset_precedence, page_size_precedence},
+        runtime::RuntimeConfig,
         schema::{
             ChangelogConfig, CompiledSchema, ProducerVersion, SecurityConfig, ValidationConfig,
         },
@@ -5109,7 +5109,7 @@ mod runtime_config_from_schema_tests {
         });
 
         // Note: assumes FRAISEQL_MAX_PAGE_SIZE is unset in the test env (it is in CI);
-        // the env-override precedence itself is covered by `page_size_*` below.
+        // the env-override precedence itself is covered by `env_ceiling_tests`.
         let config = RuntimeConfig::from_compiled_schema(&schema).unwrap();
         assert_eq!(config.max_page_size, Some(250));
     }
@@ -5135,49 +5135,6 @@ mod runtime_config_from_schema_tests {
         let schema = CompiledSchema::new();
         let config = RuntimeConfig::from_compiled_schema(&schema).unwrap();
         assert!(config.changelog_enabled);
-    }
-
-    // ── page_size_precedence (moved here with the #421 logic it implements) ──
-    #[test]
-    fn page_size_default_when_nothing_set() {
-        assert_eq!(page_size_precedence(None, None), Some(1000));
-    }
-
-    #[test]
-    fn page_size_compiled_overrides_default() {
-        assert_eq!(page_size_precedence(None, Some(250)), Some(250));
-    }
-
-    #[test]
-    fn page_size_env_overrides_compiled() {
-        assert_eq!(page_size_precedence(Some("500"), Some(250)), Some(500));
-    }
-
-    #[test]
-    fn page_size_env_disables_ceiling() {
-        assert_eq!(page_size_precedence(Some("none"), Some(250)), None);
-        assert_eq!(page_size_precedence(Some("0"), Some(250)), None);
-    }
-
-    #[test]
-    fn page_size_unparseable_env_falls_through_to_compiled() {
-        assert_eq!(page_size_precedence(Some("lots"), Some(250)), Some(250));
-    }
-
-    // ── offset_precedence (#1306): unset by default, the env over the compiled ──
-    #[test]
-    fn offset_has_no_ceiling_when_nothing_set() {
-        assert_eq!(offset_precedence(None, None), None);
-    }
-
-    #[test]
-    fn offset_env_overrides_compiled_and_can_lift_it() {
-        assert_eq!(offset_precedence(None, Some(250)), Some(250));
-        assert_eq!(offset_precedence(Some("500"), Some(250)), Some(500));
-        assert_eq!(offset_precedence(Some("500"), None), Some(500));
-        assert_eq!(offset_precedence(Some("none"), Some(250)), None);
-        assert_eq!(offset_precedence(Some("0"), Some(250)), None);
-        assert_eq!(offset_precedence(Some("deep"), Some(250)), Some(250));
     }
 }
 

@@ -183,7 +183,8 @@ invocation is dead-lettered so money- and send-path work is never silently lost.
   `"memory"` (the default — fast, but dead-letters vanish on restart) or
   `"postgres"` (persisted to `_fraiseql_function_dlq`, so a dead-lettered dispatch
   survives a restart and stays listable/replayable). `FRAISEQL_FUNCTIONS_DLQ_STORE`
-  overrides the compiled value for production. The Postgres table is a server-owned
+  overrides the compiled value for production. Any other value, from either, refuses
+  boot. The Postgres table is a server-owned
   operational table (no RLS; a dead-letter has no single tenant) whose `payload` can
   contain row data — treat it as sensitive: it is never logged at default level and
   is retention-bounded by `FRAISEQL_FUNCTIONS_DLQ_MAX_SIZE`.

@@ -679,25 +679,30 @@ pub enum DlqStoreKind {
 impl DlqStoreKind {
     /// Resolve the store from the compiled `[functions] dlq_store` value, with the
     /// `FRAISEQL_FUNCTIONS_DLQ_STORE` env var overriding it (env wins). Case- and
-    /// whitespace-insensitive; an unrecognised value warns and falls back to
-    /// [`Memory`](Self::Memory) rather than failing startup.
-    #[must_use]
-    pub fn resolve(compiled: Option<&str>, get_env: impl Fn(&str) -> Option<String>) -> Self {
-        let Some(raw) =
-            get_env("FRAISEQL_FUNCTIONS_DLQ_STORE").or_else(|| compiled.map(str::to_owned))
-        else {
-            return Self::Memory;
+    /// whitespace-insensitive; absent from both, the in-memory store.
+    ///
+    /// # Errors
+    ///
+    /// When the value is not `memory`, `postgres` or `pg`, naming where it came from:
+    /// a durability setting with a typo refuses boot rather than running on the
+    /// in-memory store.
+    pub fn resolve(
+        compiled: Option<&str>,
+        get_env: impl Fn(&str) -> Option<String>,
+    ) -> Result<Self, String> {
+        let (source, raw) = match get_env("FRAISEQL_FUNCTIONS_DLQ_STORE") {
+            Some(raw) => ("FRAISEQL_FUNCTIONS_DLQ_STORE", raw),
+            None => match compiled {
+                Some(raw) => ("[functions] dlq_store", raw.to_owned()),
+                None => return Ok(Self::Memory),
+            },
         };
         match raw.trim().to_ascii_lowercase().as_str() {
-            "postgres" | "pg" => Self::Postgres,
-            "memory" | "" => Self::Memory,
-            other => {
-                tracing::warn!(
-                    value = other,
-                    "unknown [functions] dlq_store — using the in-memory DLQ (\"memory\" | \"postgres\")"
-                );
-                Self::Memory
-            },
+            "postgres" | "pg" => Ok(Self::Postgres),
+            "memory" => Ok(Self::Memory),
+            _ => Err(format!(
+                "{source} = {raw:?} is not a dead-letter store. Use \"memory\" or \"postgres\"."
+            )),
         }
     }
 }
@@ -1461,3 +1466,7 @@ fn host_context_config_from(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(all(test, feature = "functions-runtime"))]
+#[path = "dlq_store_tests.rs"]
+mod dlq_store_tests;

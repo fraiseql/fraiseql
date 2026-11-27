@@ -223,9 +223,10 @@ impl Server {
             })
     }
 
-    /// Validate that distributed storage is configured when `FRAISEQL_REQUIRE_REDIS` is set.
+    /// Validate that distributed storage is configured when `FRAISEQL_REQUIRE_REDIS` is true.
     ///
-    /// When `FRAISEQL_REQUIRE_REDIS=1` is present in the environment, the server refuses
+    /// When `FRAISEQL_REQUIRE_REDIS` is true (a boolean in clap's grammar: `1`, `true`,
+    /// `yes`, `on`; a value that is neither true nor false refuses boot), the server refuses
     /// to start if **any** running subsystem holding shared auth state — the PKCE state
     /// store, the rate limiter, or the token revocation manager — is per-process (#874).
     /// The gate used to inspect only the PKCE store, so the operator's explicit
@@ -239,31 +240,42 @@ impl Server {
     /// # Errors
     ///
     /// Returns `ServerError::ConfigError` naming every per-process subsystem when the
-    /// constraint is violated.
+    /// constraint is violated, or naming the variable when it is not a boolean.
     pub(super) fn check_redis_requirement(backends: &SharedStateBackends) -> crate::Result<()> {
-        if std::env::var("FRAISEQL_REQUIRE_REDIS").is_err() {
-            return Ok(());
-        }
-        let violations = backends.per_process_subsystems();
-        if violations.is_empty() {
-            return Ok(());
-        }
-        Err(ServerError::ConfigError(format!(
-            "FraiseQL failed to start\n\n  FRAISEQL_REQUIRE_REDIS is set but the following \
-             subsystems hold per-process state: {}.\n  In a multi-replica deployment that \
-             means auth callbacks can fail across replicas, revoked tokens stay accepted by \
-             other replicas, and rate limits multiply by the replica count.\n\n  To fix, give \
-             each of them a shared backend:\n    [security.pkce]            redis_url_env = \
-             \"REDIS_URL\"\n    [security.rate_limiting]   redis_url_env = \"REDIS_URL\"\n    \
-             [security.token_revocation] backend = \"postgres\" (or redis_url_env = \"REDIS_URL\")\
-             \n    [saml]                     uses the configured pool automatically; a \
-             per-process replay store means Server was built programmatically without \
-             one\n\n  To allow per-process state (single-replica only): unset \
-             FRAISEQL_REQUIRE_REDIS",
-            violations.join(", ")
-        )))
+        redis_requirement(std::env::var("FRAISEQL_REQUIRE_REDIS").ok().as_deref(), backends)
     }
+}
 
+/// [`Server::check_redis_requirement`] over the raw `FRAISEQL_REQUIRE_REDIS` value, a
+/// boolean in clap's grammar.
+pub(super) fn redis_requirement(
+    raw: Option<&str>,
+    backends: &SharedStateBackends,
+) -> crate::Result<()> {
+    if !super::env_bool::env_bool("FRAISEQL_REQUIRE_REDIS", raw, false)? {
+        return Ok(());
+    }
+    let violations = backends.per_process_subsystems();
+    if violations.is_empty() {
+        return Ok(());
+    }
+    Err(ServerError::ConfigError(format!(
+        "FraiseQL failed to start\n\n  FRAISEQL_REQUIRE_REDIS is true but the following \
+         subsystems hold per-process state: {}.\n  In a multi-replica deployment that \
+         means auth callbacks can fail across replicas, revoked tokens stay accepted by \
+         other replicas, and rate limits multiply by the replica count.\n\n  To fix, give \
+         each of them a shared backend:\n    [security.pkce]            redis_url_env = \
+         \"REDIS_URL\"\n    [security.rate_limiting]   redis_url_env = \"REDIS_URL\"\n    \
+         [security.token_revocation] backend = \"postgres\" (or redis_url_env = \"REDIS_URL\")\
+         \n    [saml]                     uses the configured pool automatically; a \
+         per-process replay store means Server was built programmatically without \
+         one\n\n  To allow per-process state (single-replica only): unset \
+         FRAISEQL_REQUIRE_REDIS or set it to false",
+        violations.join(", ")
+    )))
+}
+
+impl Server {
     /// Build the PKCE login's OIDC client from the compiled `auth.pkce` (the `[auth]`
     /// client group), when
     /// `[security.pkce]` is enabled.
