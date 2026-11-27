@@ -137,30 +137,14 @@ async fn resolve_document(
 ) -> Result<String, ErrorResponse> {
     if let Some(ref td_store) = state.trusted_docs {
         let doc_id = extract_document_id(request);
-        match td_store.resolve(doc_id.as_deref(), request.query.as_deref()) {
-            Ok(resolved) => {
-                if doc_id.is_some() {
-                    crate::trusted_documents::record_hit();
-                    debug!(document_id = ?doc_id, "Trusted document resolved");
-                }
-                // Replace the query with the resolved body so APQ and execution use it.
-                request.query = Some(resolved);
-            },
-            Err(crate::trusted_documents::TrustedDocumentError::ForbiddenRawQuery) => {
-                crate::trusted_documents::record_rejected();
-                return Err(ErrorResponse::from_error(GraphQLError::forbidden_query()));
-            },
-            Err(crate::trusted_documents::TrustedDocumentError::DocumentNotFound { id }) => {
-                crate::trusted_documents::record_miss();
-                return Err(ErrorResponse::from_error(GraphQLError::document_not_found(&id)));
-            },
-            Err(crate::trusted_documents::TrustedDocumentError::ManifestLoad(msg)) => {
-                error!(error = %msg, "Trusted document manifest error");
-                return Err(ErrorResponse::from_error(GraphQLError::internal(
-                    "Trusted documents unavailable",
-                )));
-            },
-        }
+        let admitted = crate::trusted_documents::admit(
+            Some(td_store),
+            doc_id.as_deref(),
+            request.query.as_deref(),
+        )
+        .map_err(ErrorResponse::from_error)?;
+        // Replace the query with the resolved body so APQ and execution use it.
+        request.query = Some(admitted.into_text());
     }
 
     if let Some(hash) = extract_apq_hash(request.extensions.as_ref()) {

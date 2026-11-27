@@ -129,8 +129,14 @@ impl ClientMessage {
 /// Subscribe message payload.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SubscribePayload {
-    /// GraphQL query string.
+    /// GraphQL query string; empty when the subscribe names a trusted document instead.
+    #[serde(default)]
     pub query: String,
+
+    /// The trusted document the subscribe names, as `/graphql`'s `documentId`.
+    #[serde(rename = "documentId")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub document_id: Option<String>,
 
     /// Optional operation name.
     #[serde(rename = "operationName")]

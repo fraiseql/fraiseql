@@ -543,17 +543,19 @@ mod document_validation {
     /// Refuse a document and return `(code, message)`.
     fn refuse(query: &str) -> (&'static str, String) {
         let serving = serving();
-        let err = extract_subscription_root(query)
-            .and_then(|(_, parsed)| {
-                validate_subscription_variables(&parsed, Some(&serving), None, None, true)
-            })
-            .expect_err("this document must be refused");
+        let err = extract_subscription_root(
+            &crate::trusted_documents::AdmittedDocument::unchecked(query),
+        )
+        .and_then(|(_, parsed)| {
+            validate_subscription_variables(&parsed, Some(&serving), None, None, true)
+        })
+        .expect_err("this document must be refused");
         (err.code(), err.message().to_string())
     }
 
     fn accept(query: &str) {
         let serving = serving();
-        extract_subscription_root(query)
+        extract_subscription_root(&crate::trusted_documents::AdmittedDocument::unchecked(query))
             .and_then(|(_, parsed)| {
                 validate_subscription_variables(&parsed, Some(&serving), None, None, true)
             })
@@ -619,11 +621,13 @@ mod document_validation {
             "subscription S { orderUpdated { id }",
         ] {
             let serving = serving();
-            let err = extract_subscription_root(query)
-                .and_then(|(_, parsed)| {
-                    validate_subscription_variables(&parsed, Some(&serving), None, None, true)
-                })
-                .expect_err("must be refused");
+            let err = extract_subscription_root(
+                &crate::trusted_documents::AdmittedDocument::unchecked(query),
+            )
+            .and_then(|(_, parsed)| {
+                validate_subscription_variables(&parsed, Some(&serving), None, None, true)
+            })
+            .expect_err("must be refused");
             assert_eq!(err.code(), "PARSE_ERROR", "for: {query}");
         }
     }
@@ -633,10 +637,11 @@ mod document_validation {
     #[test]
     fn without_an_executor_a_schema_still_refuses_an_unknown_type() {
         let schema = schema();
-        let (_, parsed) = extract_subscription_root(
-            "subscription S($w: NoSuchTypeAtAll) { orderUpdated(where: $w) { id } }",
-        )
-        .expect("parses");
+        let (_, parsed) =
+            extract_subscription_root(&crate::trusted_documents::AdmittedDocument::unchecked(
+                "subscription S($w: NoSuchTypeAtAll) { orderUpdated(where: $w) { id } }",
+            ))
+            .expect("parses");
         let refused = validate_subscription_variables(&parsed, None, None, Some(&schema), true)
             .expect_err("§ 5.8.2 resolves against the schema");
         assert!(refused.message().contains("NoSuchTypeAtAll"), "{}", refused.message());
@@ -647,16 +652,19 @@ mod document_validation {
     /// not guess.
     #[test]
     fn without_a_schema_the_two_schema_free_rules_still_run() {
-        let (_, parsed) = extract_subscription_root(
-            "subscription S($w: NoSuchTypeAtAll) { orderUpdated(where: $w) { id } }",
-        )
-        .expect("parses");
+        let (_, parsed) =
+            extract_subscription_root(&crate::trusted_documents::AdmittedDocument::unchecked(
+                "subscription S($w: NoSuchTypeAtAll) { orderUpdated(where: $w) { id } }",
+            ))
+            .expect("parses");
         validate_subscription_variables(&parsed, None, None, None, true)
             .expect("§ 5.8.2 cannot be adjudicated without a schema");
 
         let (_, parsed) =
-            extract_subscription_root("subscription S { orderUpdated(id: $nope) { id } }")
-                .expect("parses");
+            extract_subscription_root(&crate::trusted_documents::AdmittedDocument::unchecked(
+                "subscription S { orderUpdated(id: $nope) { id } }",
+            ))
+            .expect("parses");
         assert!(
             matches!(
                 validate_subscription_variables(&parsed, None, None, None, true),

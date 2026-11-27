@@ -781,13 +781,13 @@ fn tenant_executor(
 fn admit_subscription(
     app: &AppState,
     tenant: &Tenant,
-    query: &str,
+    document: &crate::trusted_documents::AdmittedDocument,
     variables: &serde_json::Value,
     principal: Option<&SecurityContext>,
 ) -> Result<(), Refusal> {
     let executor = tenant.executor(app)?;
     let cost = crate::routes::graphql::tenant_dispatch::estimate_request_cost(
-        query,
+        document.text(),
         Some(variables),
         &executor,
     );
@@ -1440,6 +1440,35 @@ async fn handle_client_message(
                 },
             };
 
+            // The document is admitted as `/graphql` admits a request's: under the
+            // trusted-documents policy, a manifest document named by its id, or text where
+            // the mode allows it. A refusal answers this operation with `/graphql`'s code.
+            let document_id = crate::trusted_documents::requested_document_id(
+                payload.document_id.as_deref(),
+                serde_json::to_value(&payload.extensions).ok().as_ref(),
+            );
+            let admitted = match crate::trusted_documents::admit(
+                state.app.as_ref().and_then(|app| app.trusted_docs.as_deref()),
+                document_id.as_deref(),
+                Some(payload.query.as_str()).filter(|query| !query.is_empty()),
+            ) {
+                Ok(admitted) => admitted,
+                Err(refusal) => {
+                    let code = serde_json::to_value(refusal.code)
+                        .ok()
+                        .and_then(|code| code.as_str().map(str::to_owned))
+                        .unwrap_or_default();
+                    let error = ServerMessage::error(
+                        &op_id,
+                        vec![GraphQLError::with_code(refusal.message, code)],
+                    );
+                    if let Err(e) = send_server_message(codec, sender, error).await {
+                        debug!(connection_id = %connection_id, error = %e, "Could not send a document refusal to the client");
+                    }
+                    return Ok(());
+                },
+            };
+
             // Extract the root field from the query: the name to resolve, and the
             // key the client asked its data under (#906).
             // Parse and select the subscription operation, then validate its
@@ -1447,7 +1476,7 @@ async fn handle_client_message(
             // `/ws` reaches neither `execute_dispatch` nor `classify_query`, so
             // this is the only place the rules the `/graphql` surface enforces
             // can be applied to a subscription.
-            let document = extract_subscription_root(&payload.query).and_then(|(root, parsed)| {
+            let document = extract_subscription_root(&admitted).and_then(|(root, parsed)| {
                 // The tenant's executor when the connection runs as a tenant, else the
                 // live default.
                 let serving =
@@ -1581,7 +1610,7 @@ async fn handle_client_message(
             // registered and active, and its estimated cost must fit the tenant's budget.
             if let (Some(app), Some(tenant)) = (state.app.as_ref(), tenant) {
                 if let Err(refusal) =
-                    admit_subscription(app, tenant, &payload.query, &variables_value, principal)
+                    admit_subscription(app, tenant, &admitted, &variables_value, principal)
                 {
                     WS_SUBSCRIPTIONS_REJECTED.fetch_add(1, Ordering::Relaxed);
                     warn!(
@@ -1964,7 +1993,7 @@ pub(crate) struct SubscriptionRoot {
 /// `PARSE_ERROR` for a well-formed document with a bad variable goes looking for
 /// a syntax error that is not there.
 pub(crate) fn extract_subscription_root(
-    query: &str,
+    document: &crate::trusted_documents::AdmittedDocument,
 ) -> Result<(SubscriptionRoot, ParsedQuery), SubscriptionDocumentError> {
     use fraiseql_core::graphql::document::OperationKind;
 
@@ -1973,6 +2002,7 @@ pub(crate) fn extract_subscription_root(
     };
 
     // Through the request's shared parse, the one entry point to the parser.
+    let query = document.text();
     let doc = fraiseql_core::graphql::complexity::parse_graphql_document(query)
         .map_err(|e| parse_err(&e.to_string()))?;
 
