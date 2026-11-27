@@ -132,3 +132,10 @@ SELECT pk_account, id, tenant_id,
                           'delay', fn_slow_read()) AS data
 FROM tb_account
 WHERE pk_account = 39;
+
+-- Pagination: account 50 owns 200 items, with repeating `seq` values so the seq orders
+-- have ties.
+INSERT INTO tb_item (tenant_id, fk_account, seq, label)
+SELECT a.tenant_id, a.id, (g * 7) % 50, 'p' || g
+FROM tb_account a, generate_series(4, 200) g
+WHERE a.pk_account = 50;

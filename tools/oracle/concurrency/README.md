@@ -46,6 +46,24 @@ Keys are `CONC:<group>:<cell>`.
 | `cutoff` | `committed_write_is_evicted` | after the client gave up inside COMMIT and the write committed, the cached read serves it |
 | `cutoff` | `retry_executes_once` | after the client gave up inside COMMIT, its retry under the same `Idempotency-Key` does not execute again |
 | `fence` | `inflight_read_not_stored` | a read running while a write completes is not stored for the reads after it |
+| `matrix` | `<config>:k<rows>:<shape>:linearizable` | under 4 writers and 12 readers for 10 s, the checker finds no stale, fabricated or failed read of that shape |
+| `pag` | `<config>:relay_<order>:each_stable_row_once` | while 3 writers insert and delete rows, each Relay walk returns every row that existed throughout it exactly once |
+| `sub` | `tenant_a:exactly_once_in_commit_order` | each tenant-A subscriber receives every committed change once, none that was not committed, in commit order per account |
+| `sub` | `tenant_b:receives_no_other_tenant` | a tenant-B subscriber receives none of tenant A's changes |
+| `sec` | `scope:viewer_refused_secret`, `tenant:other_tenant_reads_null`, `session:rls_per_tenant` | a document one principal filled the cache with is not served to a principal with fewer rights, another tenant, or another session |
+
+The concurrent cells:
+
+- `matrix` runs three configs (cache off, TTL 0, TTL 5) at 1 and 20 contended rows. Its
+  readers are half the writer's principal and half others of its tenant. Each worker
+  draws its keys from its own seeded generator, and the histories are kept under
+  `ORACLE_OUT`. `ORACLE_MATRIX_SECS` sets the duration.
+- `pag` walks in three orders (primary key, `seq` descending and ascending, with ties),
+  with the cache off and on. Offset pagination is not judged: each page is its own
+  statement at READ COMMITTED, so offset walks skip and repeat rows under writes by
+  design.
+- `sub` makes 500 bumps over 20 accounts (`ORACLE_SUB_WRITES`), with the observer runtime
+  feeding subscriptions from the change log.
 
 A cell whose precondition fails stops the run with exit code 2, since its verdict would
 mean nothing:
@@ -55,6 +73,9 @@ mean nothing:
 - `idem` first checks that two sends without a key record two effects.
 - `cutoff` first checks that the client did give up, and that the write it gave up on
   was committed.
+- `matrix`, `pag` and `sub` first check that writes succeeded, that every shape or order
+  was read at least a minimum number of times, and that every subscriber was
+  acknowledged.
 - `fence` first checks that the slow shape is cached at all, and that its read really
   overlapped the write.
 - `replica` first checks that another principal of the writer's tenant reads the old
