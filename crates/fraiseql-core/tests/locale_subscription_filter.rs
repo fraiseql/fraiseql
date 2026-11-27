@@ -7,13 +7,15 @@
 //! Two subscribers filter `productChanged(name: "Pomme")`, one planned in `fr-FR`, one in
 //! `en-US`. An event whose `name` is `{"fr-FR": "Pomme", "en-US": "Apple"}` matches the first
 //! and not the second, through `filter_fields`, `argument_paths` and a static filter alike.
-//! Filters are evaluated in Rust at delivery, so no database is involved.
+//! Filters are evaluated in Rust when a routed event is served from the subscriber's read of
+//! the row; the read is answered from a canned row, so no database is involved.
 
 use std::{collections::BTreeMap, sync::Arc};
 
 use fraiseql_core::{
+    db::types::JsonbValue,
     runtime::{
-        Executor,
+        Executor, SubscriberReads,
         subscription::{SubscriptionEvent, SubscriptionManager, SubscriptionOperation},
         with_request_locale_sync,
     },
@@ -51,11 +53,21 @@ fn subscription() -> SubscriptionDefinition {
     definition
 }
 
-/// How many of a French and an English subscriber an event named `Pomme` in French and
-/// `Apple` in English reaches, as `(french, english)`.
-fn reached(definition: SubscriptionDefinition, variables: &serde_json::Value) -> (bool, bool) {
+/// The product the event changes, as the subscriber's read of `v_product` returns it.
+fn product() -> serde_json::Value {
+    json!({"id": "p1", "name": {"fr-FR": "Pomme", "en-US": "Apple"}})
+}
+
+/// Which of a French and an English subscriber is served an event changing a product named
+/// `Pomme` in French and `Apple` in English, as `(french, english)`.
+async fn reached(
+    definition: SubscriptionDefinition,
+    variables: &serde_json::Value,
+) -> (bool, bool) {
     let schema = schema(definition);
-    let executor = Executor::new(schema.clone(), Arc::new(FailingAdapter::new()));
+    let adapter =
+        FailingAdapter::new().with_response("v_product", vec![JsonbValue::new(product())]);
+    let executor = Executor::new(schema.clone(), Arc::new(adapter));
     let manager = SubscriptionManager::new(Arc::new(schema));
     let document = fraiseql_core::graphql::parse_query(
         "subscription($name: String) { productChanged(name: $name) { id } }",
@@ -77,33 +89,36 @@ fn reached(definition: SubscriptionDefinition, variables: &serde_json::Value) ->
         "Product",
         "p1",
         SubscriptionOperation::Update,
-        json!({"id": "p1", "name": {"fr-FR": "Pomme", "en-US": "Apple"}}),
+        product(),
     ));
     let mut delivered = Vec::new();
-    while let Ok(payload) = receiver.try_recv() {
-        delivered.push(payload.subscription_id);
+    let mut reads = SubscriberReads::default();
+    while let Ok(routed) = receiver.try_recv() {
+        if let Some(served) = manager.serve(routed, &mut reads).await.unwrap() {
+            delivered.push(served.subscription_id);
+        }
     }
     (delivered.contains(&french), delivered.contains(&english))
 }
 
-#[test]
-fn a_filter_field_compares_the_label_in_the_subscribers_locale() {
+#[tokio::test]
+async fn a_filter_field_compares_the_label_in_the_subscribers_locale() {
     let mut definition = subscription();
     definition.filter_fields = vec!["name".to_string()];
-    assert_eq!(reached(definition, &json!({"name": "Pomme"})), (true, false));
+    assert_eq!(reached(definition, &json!({"name": "Pomme"})).await, (true, false));
 }
 
-#[test]
-fn an_argument_path_compares_the_label_in_the_subscribers_locale() {
+#[tokio::test]
+async fn an_argument_path_compares_the_label_in_the_subscribers_locale() {
     let definition = subscription().with_filter(SubscriptionFilter {
         argument_paths: std::iter::once(("name".to_string(), "/name".to_string())).collect(),
         static_filters: Vec::new(),
     });
-    assert_eq!(reached(definition, &json!({"name": "Apple"})), (false, true));
+    assert_eq!(reached(definition, &json!({"name": "Apple"})).await, (false, true));
 }
 
-#[test]
-fn a_static_filter_compares_the_label_in_the_subscribers_locale() {
+#[tokio::test]
+async fn a_static_filter_compares_the_label_in_the_subscribers_locale() {
     let definition = subscription().with_filter(SubscriptionFilter {
         argument_paths: std::collections::HashMap::new(),
         static_filters: vec![StaticFilterCondition {
@@ -112,5 +127,5 @@ fn a_static_filter_compares_the_label_in_the_subscribers_locale() {
             value:    json!("Pomme"),
         }],
     });
-    assert_eq!(reached(definition, &json!({})), (true, false));
+    assert_eq!(reached(definition, &json!({})).await, (true, false));
 }

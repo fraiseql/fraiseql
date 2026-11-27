@@ -25,24 +25,29 @@
 //!
 //! ```text
 //! // Illustrative — subscription infrastructure requires a live schema + transport.
-//! // Use SubscriptionManager::new(Arc::new(schema)) for the full API.
 //!
-//! // Create subscription manager
 //! let manager = SubscriptionManager::new(Arc::new(schema));
 //!
-//! // Subscribe to events (synchronous, not async)
-//! let subscription_id = manager.subscribe(
-//!     "OrderCreated",
+//! // Plan the subscriber's document, then subscribe (synchronous, not async)
+//! let plan = executor.plan_subscription(&document, Some(&variables), security_context)?;
+//! let subscription_id = manager.subscribe_planned(
+//!     Arc::new(plan),
 //!     user_context_json,
 //!     variables_json,
 //!     "connection-id",
+//!     rls_conditions,
 //! )?;
 //!
-//! // Receive events via broadcast channel
+//! // The channel routes a change to the subscription without its row. Serve each payload
+//! // before anything reaches the client: `serve` reads the row as the subscriber, applies
+//! // the subscription's filters, and answers `None` for a change it is not delivered.
 //! let mut receiver = manager.receiver();
+//! let mut reads = SubscriberReads::default();
 //! while let Ok(payload) = receiver.recv().await {
 //!     if payload.subscription_id == subscription_id {
-//!         // Deliver to client
+//!         if let Some(served) = manager.serve(payload, &mut reads).await? {
+//!             // Deliver `served` to the client
+//!         }
 //!     }
 //! }
 //!
@@ -64,7 +69,7 @@ mod webhook;
 
 pub use arguments::subscription_arguments;
 pub use kafka::{KafkaAdapter, KafkaConfig};
-pub use manager::SubscriptionManager;
+pub use manager::{MirroredSubscription, SubscriptionManager};
 pub use transport::{BoxDynTransportAdapter, DeliveryResult, TransportAdapter, TransportManager};
 pub use types::{
     ActiveSubscription, ChangeSpineEnvelope, DeliveredEvent, SubscriptionEvent, SubscriptionId,

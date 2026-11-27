@@ -17,8 +17,10 @@ subscribe = { path = "/ws", query = "subscription { noteCreated { id title price
 [[stimulus]]
 wait = { secs = 1 }
 
+# The note is written with its change-log entry, as a mutation writes both: the subscriber is
+# served its own read of the row, and the mirror the same read.
 [[stimulus]]
-sql = { statement = "INSERT INTO core.tb_entity_change_log (object_type, modification_type, object_id, object_data) VALUES ('Note', 'INSERT', '6f1c4d0e-8a51-4c36-9d1e-2b7f0a3c5e91', '{\"id\": \"6f1c4d0e-8a51-4c36-9d1e-2b7f0a3c5e91\", \"title\": \"mirrored\", \"price\": 1.50, \"balance\": 12345678901234567890.12, \"discount\": null}')" }
+sql = { statement = "INSERT INTO app.tb_note (id, title, price, balance, discount) VALUES ('6f1c4d0e-8a51-4c36-9d1e-2b7f0a3c5e91', 'mirrored', 1.50, 12345678901234567890.12, NULL); INSERT INTO core.tb_entity_change_log (object_type, modification_type, object_id, object_data) VALUES ('Note', 'INSERT', '6f1c4d0e-8a51-4c36-9d1e-2b7f0a3c5e91', '{\"id\": \"6f1c4d0e-8a51-4c36-9d1e-2b7f0a3c5e91\", \"title\": \"mirrored\", \"price\": 1.50, \"balance\": 12345678901234567890.12, \"discount\": null}')" }
 
 [effect]
 # The mirrored delivery's `data`, as JSON text: each Decimal is the string of its stored

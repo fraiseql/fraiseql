@@ -37,7 +37,6 @@ use fraiseql_core::{
     types::TenantId,
 };
 use fraiseql_test_support::try_database_url;
-use fraiseql_test_utils::failing_adapter::FailingAdapter;
 use futures::StreamExt as _;
 use serde_json::{Value, json};
 
@@ -558,45 +557,38 @@ async fn a_streamed_rest_selection_of_an_embedded_scoped_document_is_refused() {
 
 // ── Subscriptions ─────────────────────────────────────────────────────────────────────
 
-fn subscriber(shape: Shape) -> Executor {
-    executor_over(built(shape), Arc::new(FailingAdapter::new()))
-}
-
-fn b_shipment() -> Value {
-    json!({ "id": 2, "tenant_id": TENANT_B, "label": "b-shipment" })
-}
-
-#[test]
-fn a_subscription_to_the_type_suppresses_another_tenants_event() {
-    let executor = subscriber(SERVED);
+/// Each subscription below is served as a subscriber is: from its own read of the row an
+/// event names, under its scope. Shipment `1` is tenant `A`'s, `2` tenant `B`'s; order `2`
+/// is tenant `A`'s and embeds shipment `2`.
+#[tokio::test]
+async fn a_subscription_to_the_type_suppresses_another_tenants_event() {
+    let (executor, _) = rig_or_skip!(SERVED);
     let document =
         fraiseql_core::graphql::parse_query("subscription { shipmentChanged { id label } }")
             .unwrap();
     let plan = executor.plan_subscription(&document, None, Some(&tenant_a())).unwrap();
-    assert!(plan.deliver(&b_shipment(), false).is_none(), "delivered tenant B's shipment");
-    let a_shipment = json!({ "id": 1, "tenant_id": TENANT_A, "label": "a-shipment" });
-    assert!(
-        plan.deliver(&a_shipment, false).is_some(),
-        "tenant A's own shipment is delivered"
-    );
+    assert!(plan.read("2").await.unwrap().is_none(), "read tenant B's shipment");
+    let own = plan.read("1").await.unwrap().expect("tenant A reads its own shipment");
+    assert!(plan.deliver(&own, false).is_some(), "tenant A's own shipment is delivered");
 }
 
-#[test]
-fn a_type_stream_suppresses_another_tenants_event() {
-    let executor = subscriber(SERVED);
+#[tokio::test]
+async fn a_type_stream_suppresses_another_tenants_event() {
+    let (executor, _) = rig_or_skip!(SERVED);
     let plan = executor.plan_type_stream("Shipment", Some(&tenant_a())).unwrap();
-    assert!(plan.deliver(&b_shipment(), false).is_none(), "streamed tenant B's shipment");
+    assert!(plan.read("2").await.unwrap().is_none(), "streamed tenant B's shipment");
+    assert!(plan.read("1").await.unwrap().is_some(), "tenant A's own shipment is streamed");
 }
 
-#[test]
-fn a_subscription_serves_another_tenants_embedded_document_as_null() {
-    let executor = subscriber(SERVED);
+#[tokio::test]
+async fn a_subscription_serves_another_tenants_embedded_document_as_null() {
+    let (executor, _) = rig_or_skip!(SERVED);
     let document = fraiseql_core::graphql::parse_query(
         "subscription { orderChanged { id shipment { label } } }",
     )
     .unwrap();
     let plan = executor.plan_subscription(&document, None, Some(&tenant_a())).unwrap();
-    let order_2 = json!({ "id": 2, "tenant_id": TENANT_A, "shipment": b_shipment() });
+    let order_2 = plan.read("2").await.unwrap().expect("tenant A reads its order 2");
     let served = plan.deliver(&order_2, false).expect("tenant A's order is delivered");
     assert_eq!(served.data, json!({ "id": 2, "shipment": null }));
 }

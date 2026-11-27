@@ -82,7 +82,7 @@ impl Pipeline {
         if planned {
             let mut order = fraiseql_core::schema::TypeDefinition::new(
                 definition.return_type.as_str(),
-                "v_order",
+                CHANGE_LOG_IMAGE_VIEW,
             );
             order.fields = vec![
                 fraiseql_core::schema::FieldDefinition::new(
@@ -112,10 +112,14 @@ impl Pipeline {
 
         // The executor over the schema: the change log's documents are read as it types them,
         // as `Server` reads them (#1763), and a planned subscription is planned by it.
-        let executor = Arc::new(fraiseql_core::runtime::Executor::new(
-            schema,
-            Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
-        ));
+        // Over the database: a subscriber reads each event's row from the type's view.
+        ensure_change_log_image_view(pool).await.expect("the row view is created");
+        let adapter = fraiseql_core::db::postgres::PostgresAdapter::new(
+            &fraiseql_test_support::database_url(),
+        )
+        .await
+        .expect("the executor's adapter connects");
+        let executor = Arc::new(fraiseql_core::runtime::Executor::new(schema, Arc::new(adapter)));
         let config = ObserverRuntimeConfig::new(pool.clone())
             .with_poll_interval(50)
             .with_documents(decimal_documents(Arc::clone(&executor)));
@@ -369,7 +373,7 @@ async fn a_subscriber_receives_each_decimal_as_its_stored_digits() {
         let entity_type = format!("Order_{test_id}");
 
         let mut schema = CompiledSchema::new();
-        let mut order = TypeDefinition::new(entity_type.as_str(), "v_order");
+        let mut order = TypeDefinition::new(entity_type.as_str(), CHANGE_LOG_IMAGE_VIEW);
         order.fields = vec![
             FieldDefinition::new("id", FieldType::Id),
             FieldDefinition::nullable("amount", FieldType::Decimal),
@@ -619,7 +623,7 @@ async fn a_subscription_payload_is_localized_in_the_subscribers_locale() {
     let entity_type = format!("Order_{test_id}");
 
     let mut schema = CompiledSchema::new();
-    let mut order = TypeDefinition::new(entity_type.as_str(), "v_order");
+    let mut order = TypeDefinition::new(entity_type.as_str(), CHANGE_LOG_IMAGE_VIEW);
     let mut label = FieldDefinition::nullable("label", FieldType::String);
     label.localized = true;
     order.fields = vec![FieldDefinition::new("id", FieldType::Id), label];
@@ -739,9 +743,10 @@ async fn a_captured_document_is_served_to_its_rows_tenant_only() {
         .expect("the capture function installs");
     let entity_type = format!("Order_{test_id}");
     let table = format!("tb_order_{test_id}");
+    let view = format!("v_order_{test_id}");
 
     let mut schema = CompiledSchema::new();
-    let mut order = TypeDefinition::new(entity_type.as_str(), "v_order");
+    let mut order = TypeDefinition::new(entity_type.as_str(), view.as_str());
     order.fields = vec![
         FieldDefinition::new("id", FieldType::Id),
         FieldDefinition::nullable("status", FieldType::String),
@@ -750,7 +755,7 @@ async fn a_captured_document_is_served_to_its_rows_tenant_only() {
     schema.types.push(order);
     let mut orders = QueryDefinition::new("orders", entity_type.as_str())
         .returning_list()
-        .with_sql_source("v_order");
+        .with_sql_source(view.as_str());
     orders
         .inject_params
         .insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
@@ -779,6 +784,7 @@ async fn a_captured_document_is_served_to_its_rows_tenant_only() {
     // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
     sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         "CREATE TABLE {table} (id UUID PRIMARY KEY, tenant_id UUID NOT NULL, data JSONB NOT NULL);
+         CREATE VIEW {view} AS SELECT id, tenant_id, data FROM {table};
          {}",
         generate_capture_trigger_ddl(&schema)
     )))
@@ -803,15 +809,40 @@ async fn a_captured_document_is_served_to_its_rows_tenant_only() {
     .expect("the rows are written from outside the engine");
 
     let mut listener = ChangeLogListener::new(ChangeLogListenerConfig::new(pool.clone()));
-    let mut images = Vec::new();
+    let mut changed = Vec::new();
     loop {
         let batch = listener.next_batch().await.expect("the change log is read");
         if batch.is_empty() {
             break;
         }
         for entry in batch.iter().filter(|entry| entry.object_type == entity_type) {
-            images.push(entry.to_entity_event().expect("the row is an event").data);
+            changed.push(entry.to_entity_event().expect("the row is an event").entity_id);
         }
+    }
+    assert_eq!(changed.len(), 3, "each write was captured: {changed:?}");
+
+    let adapter =
+        fraiseql_core::db::postgres::PostgresAdapter::new(&fraiseql_test_support::database_url())
+            .await
+            .expect("the executor's adapter connects");
+    let executor = fraiseql_core::runtime::Executor::new(schema, Arc::new(adapter));
+    let document =
+        fraiseql_core::graphql::parse_query("subscription { orderChanged { id status } }")
+            .expect("the subscription parses");
+    // Each change, served to a subscriber of `tenant` from its own read of the row.
+    let mut served_to = std::collections::HashMap::new();
+    for tenant in [&tenant_a, &tenant_b] {
+        let plan = executor
+            .plan_subscription(&document, None, Some(&subscriber_of(tenant)))
+            .expect("the subscription is planned");
+        let mut served = Vec::new();
+        for id in &changed {
+            if let Some(row) = plan.read(&id.to_string()).await.expect("the subscriber's read runs")
+            {
+                served.extend(plan.deliver(&row, false).map(|s| s.data));
+            }
+        }
+        served_to.insert(tenant.clone(), served);
     }
     // Reason: test SQL: names and values this test defines, or DDL the code under test generated.
     sqlx::raw_sql(sqlx::AssertSqlSafe(format!("DROP TABLE {table} CASCADE")))
@@ -819,29 +850,10 @@ async fn a_captured_document_is_served_to_its_rows_tenant_only() {
         .await
         .ok();
     cleanup_test_data(&pool, &test_id).await.ok();
-    assert_eq!(images.len(), 3, "each write was captured: {images:?}");
 
-    let executor = fraiseql_core::runtime::Executor::new(
-        schema,
-        Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
-    );
-    let document =
-        fraiseql_core::graphql::parse_query("subscription { orderChanged { id status } }")
-            .expect("the subscription parses");
-    let served_to = |tenant: &str| -> Vec<serde_json::Value> {
-        let plan = executor
-            .plan_subscription(&document, None, Some(&subscriber_of(tenant)))
-            .expect("the subscription is planned");
-        images
-            .iter()
-            .filter_map(|image| plan.deliver(image, false))
-            .map(|served| served.data)
-            .collect()
-    };
-
-    assert_eq!(served_to(&tenant_a), vec![json!({"id": of_a.to_string(), "status": "open"})]);
+    assert_eq!(served_to[&tenant_a], vec![json!({"id": of_a.to_string(), "status": "open"})]);
     assert_eq!(
-        served_to(&tenant_b),
+        served_to[&tenant_b],
         vec![
             json!({"id": of_b.to_string(), "status": "open"}),
             json!({"id": claims_a.to_string(), "status": "open"}),
@@ -865,7 +877,7 @@ async fn a_captured_row_lacking_a_selected_field_reports_it_on_the_event() {
     let table = format!("tb_order_{test_id}");
 
     let mut schema = CompiledSchema::new();
-    let mut order = TypeDefinition::new(entity_type.as_str(), "v_order");
+    let mut order = TypeDefinition::new(entity_type.as_str(), CHANGE_LOG_IMAGE_VIEW);
     order.fields = vec![
         FieldDefinition::new("id", FieldType::Id),
         FieldDefinition::nullable("customer", FieldType::Object("Customer".to_string())),
@@ -937,7 +949,7 @@ async fn an_untyped_inline_fragment_is_delivered_as_its_fields_written_out() {
     let entity_type = format!("Order_{test_id}");
 
     let mut schema = CompiledSchema::new();
-    let mut order = TypeDefinition::new(entity_type.as_str(), "v_order");
+    let mut order = TypeDefinition::new(entity_type.as_str(), CHANGE_LOG_IMAGE_VIEW);
     order.fields = vec![
         FieldDefinition::new("id", FieldType::Id),
         FieldDefinition::nullable("status", FieldType::String),

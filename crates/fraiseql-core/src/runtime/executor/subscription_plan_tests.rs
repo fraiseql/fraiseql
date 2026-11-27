@@ -68,6 +68,33 @@ fn executor(schema: CompiledSchema, config: RuntimeConfig) -> Executor {
     Executor::with_config(schema, Arc::new(CapturingMockAdapter::new(vec![])), config)
 }
 
+/// [`executor`] whose reads return `rows`, each read by its `id`: the store a subscriber's
+/// read of an event's row reads.
+fn reading_executor(
+    schema: CompiledSchema,
+    config: RuntimeConfig,
+    rows: &[serde_json::Value],
+) -> Executor {
+    let rows = rows.iter().cloned().map(crate::db::types::JsonbValue::new).collect();
+    Executor::with_config(
+        schema,
+        Arc::new(CapturingMockAdapter::new(rows).answering_by_id()),
+        config,
+    )
+}
+
+/// The next payload `rx` holds, served to its subscriber; `None` when it is not delivered.
+async fn served(
+    manager: &crate::runtime::subscription::SubscriptionManager,
+    rx: &mut tokio::sync::broadcast::Receiver<crate::runtime::subscription::SubscriptionPayload>,
+) -> Option<crate::runtime::subscription::SubscriptionPayload> {
+    let payload = rx.try_recv().ok()?;
+    manager
+        .serve(payload, &mut crate::runtime::SubscriberReads::default())
+        .await
+        .unwrap()
+}
+
 fn plan(
     exec: &Executor,
     query: &str,
@@ -76,6 +103,11 @@ fn plan(
 ) -> Result<super::SubscriptionPlan> {
     let document = crate::graphql::parse_query(query).unwrap();
     exec.plan_subscription(&document, Some(variables), who)
+}
+
+/// `document` as a subscriber's read returned it: what the plan serves.
+fn row(document: &serde_json::Value) -> super::SubscriberRow {
+    super::SubscriberRow::read_as(document.clone())
 }
 
 fn event() -> serde_json::Value {
@@ -125,12 +157,12 @@ fn a_masked_field_is_null_in_every_event_and_served_to_its_scopes_holder() {
     let query = "subscription { orderCreated { id note } }";
     let anonymous = plan(&exec, query, &json!({}), None).unwrap();
     assert_eq!(
-        anonymous.deliver(&event(), false).map(|s| s.data),
+        anonymous.deliver(&row(&event()), false).map(|s| s.data),
         Some(json!({"id": "o1", "note": null}))
     );
     let analyst = plan(&exec, query, &json!({}), Some(&principal(&["analyst"]))).unwrap();
     assert_eq!(
-        analyst.deliver(&event(), false).map(|s| s.data),
+        analyst.deliver(&row(&event()), false).map(|s| s.data),
         Some(json!({"id": "o1", "note": "n"}))
     );
 }
@@ -221,7 +253,7 @@ fn an_event_the_field_authorizer_rejects_is_suppressed() {
     .unwrap();
     let before = suppressed_subscription_events();
     assert_eq!(
-        planned.deliver(&event(), false).map(|s| s.data),
+        planned.deliver(&row(&event()), false).map(|s| s.data),
         None,
         "a rejected event is not delivered"
     );
@@ -240,13 +272,13 @@ fn an_authorize_field_selected_anonymously_refuses_the_plan() {
 
 // A planned subscription whose event the plan suppresses is not delivered, and the event
 // counts as no match.
-#[test]
-fn the_manager_delivers_nothing_for_a_suppressed_event() {
+#[tokio::test]
+async fn the_manager_delivers_nothing_for_a_suppressed_event() {
     use crate::runtime::subscription::{
         SubscriptionEvent, SubscriptionManager, SubscriptionOperation,
     };
     let config = RuntimeConfig::default().with_field_authorizer(Arc::new(DenyReject));
-    let exec = executor(schema(), config);
+    let exec = reading_executor(schema(), config, &[event()]);
     let planned = plan(
         &exec,
         "subscription { orderCreated { id owner_note } }",
@@ -265,8 +297,8 @@ fn the_manager_delivers_nothing_for_a_suppressed_event() {
         SubscriptionOperation::Create,
         event(),
     ));
-    assert_eq!(delivered, 0);
-    assert!(rx.try_recv().is_err(), "nothing was sent");
+    assert_eq!(delivered, 1, "routed to its subscriber");
+    assert!(served(&manager, &mut rx).await.is_none(), "nothing is delivered");
 }
 
 // ── AC 4: the subscription type's own row policy applies to the root after-image ──
@@ -275,6 +307,12 @@ fn the_manager_delivers_nothing_for_a_suppressed_event() {
 /// `author_id`), under that policy.
 #[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
 fn row_policy_executor() -> Executor {
+    row_policy_store(&[]).0
+}
+
+/// [`row_policy_executor`] over a store of `rows`, read by `id`, and the store.
+#[allow(clippy::disallowed_types)] // Reason: the test builds the policy it passes in, which is the assertion, not a production construction
+fn row_policy_store(rows: &[serde_json::Value]) -> (Executor, Arc<CapturingMockAdapter>) {
     let mut schema = schema();
     let order = schema.types.iter_mut().find(|t| t.name == "Order").unwrap();
     order.fields.push(FieldDefinition::nullable("tenant_id", FieldType::String));
@@ -282,7 +320,28 @@ fn row_policy_executor() -> Executor {
     schema.build_indexes();
     let config = RuntimeConfig::default()
         .with_rls_policy(Arc::new(crate::security::DefaultRLSPolicy::new()));
-    executor(schema, config)
+    store(schema, config, rows)
+}
+
+/// An executor over a store of `rows`, read by `id`, and the store.
+fn store(
+    schema: CompiledSchema,
+    config: RuntimeConfig,
+    rows: &[serde_json::Value],
+) -> (Executor, Arc<CapturingMockAdapter>) {
+    let rows = rows.iter().cloned().map(crate::db::types::JsonbValue::new).collect();
+    let adapter = Arc::new(CapturingMockAdapter::new(rows).answering_by_id());
+    (Executor::with_config(schema, adapter.clone(), config), adapter)
+}
+
+/// The filter `planned`'s subscriber reads row `id` under.
+async fn read_filter(
+    planned: &super::SubscriptionPlan,
+    adapter: &CapturingMockAdapter,
+    id: &str,
+) -> crate::db::WhereClause {
+    planned.read(id).await.unwrap();
+    adapter.captured_where().expect("the subscriber read the row")
 }
 
 fn tenant_principal() -> SecurityContext {
@@ -292,11 +351,11 @@ fn tenant_principal() -> SecurityContext {
     }
 }
 
-// A subscription is a read of its type: an after-image the subscriber's row policy excludes
-// is suppressed, as a query would not return that row.
-#[test]
-fn a_root_row_the_subscribers_policy_excludes_is_suppressed() {
-    let exec = row_policy_executor();
+// A subscription is a read of its type: the subscriber reads each event's row under its row
+// policy, as a query would, so a row the policy excludes is not returned to it.
+#[tokio::test]
+async fn the_subscribers_read_of_a_row_carries_its_row_policy() {
+    let (exec, adapter) = row_policy_store(&[]);
     let planned = plan(
         &exec,
         "subscription { orderCreated { id } }",
@@ -304,14 +363,10 @@ fn a_root_row_the_subscribers_policy_excludes_is_suppressed() {
         Some(&tenant_principal()),
     )
     .unwrap();
-    let others = json!({"id": "o2", "tenant_id": "t1", "author_id": "someone-else"});
-    assert_eq!(
-        planned.deliver(&others, false),
-        None,
-        "another owner's order is not the subscriber's"
-    );
-    let own = json!({"id": "o1", "tenant_id": "t1", "author_id": "user-1"});
-    assert_eq!(planned.deliver(&own, false).map(|s| s.data), Some(json!({"id": "o1"})));
+    let filter = format!("{:?}", read_filter(&planned, &adapter, "o2").await);
+    for held in ["author_id", "user-1", "tenant_id", "t1", "o2"] {
+        assert!(filter.contains(held), "the read's filter holds {held}: {filter}");
+    }
 }
 
 // No principal, no policy to evaluate (#784): refused as a query is.
@@ -513,12 +568,12 @@ fn an_unplanned_subscription_reaching_a_role_or_a_nested_gate_is_refused() {
 // The broadcast payload is what every seam consumes — `/ws` sends its `data`, the Kafka
 // mirror and the webhook adapter serialise its `event`. For a planned subscription the
 // event must carry the served document, and no before-image (which no plan covers).
-#[test]
-fn a_planned_payload_carries_only_the_served_document() {
+#[tokio::test]
+async fn a_planned_payload_carries_only_the_served_document() {
     use crate::runtime::subscription::{
         SubscriptionEvent, SubscriptionManager, SubscriptionOperation,
     };
-    let exec = executor(schema(), RuntimeConfig::default());
+    let exec = reading_executor(schema(), RuntimeConfig::default(), &[event()]);
     let planned = plan(&exec, "subscription { orderCreated { id } }", &json!({}), None).unwrap();
     let manager = SubscriptionManager::new(Arc::new(schema()));
     let mut rx = manager.receiver();
@@ -528,7 +583,7 @@ fn a_planned_payload_carries_only_the_served_document() {
     let mut event = SubscriptionEvent::new("Order", "o1", SubscriptionOperation::Update, event());
     event.old_data = Some(json!({"id": "o1", "secret": "old"}));
     assert_eq!(manager.publish_event(event), 1);
-    let payload = rx.try_recv().unwrap();
+    let payload = served(&manager, &mut rx).await.unwrap();
     assert_eq!(payload.data, json!({"id": "o1"}));
     assert_eq!(payload.event.data, json!({"id": "o1"}), "the event a seam serialises");
     assert_eq!(payload.event.old_data, None, "no plan covers the before-image");
@@ -545,7 +600,7 @@ fn a_type_stream_reads_every_declared_field_masking_what_the_reader_may_not_read
     let exec = executor(schema, RuntimeConfig::default());
     let planned = exec.plan_type_stream("Order", Some(&principal(&[]))).unwrap();
     assert_eq!(
-        planned.deliver(&event(), false).map(|s| s.data),
+        planned.deliver(&row(&event()), false).map(|s| s.data),
         Some(json!({"id": "o1", "note": null}))
     );
 }
@@ -570,12 +625,16 @@ fn a_type_stream_is_refused_what_its_get_is_refused() {
 // Positions count what this subscription delivered, gap-free: an event its plan suppressed
 // (another owner's row) leaves no hole, and the Change-Spine `seq` — a server-wide position
 // that counts every change, including the ones withheld — never reaches the payload.
-#[test]
-fn a_subscription_counts_its_own_deliveries_and_carries_no_server_position() {
+#[tokio::test]
+async fn a_subscription_counts_its_own_deliveries_and_carries_no_server_position() {
     use crate::runtime::subscription::{
         ChangeSpineEnvelope, SubscriptionEvent, SubscriptionManager, SubscriptionOperation,
     };
-    let exec = row_policy_executor();
+    // The subscriber's read returns its own rows: `o2`, another author's, is not among them.
+    let (exec, _) = row_policy_store(&[
+        json!({"id": "o1", "tenant_id": "t1", "author_id": "user-1"}),
+        json!({"id": "o3", "tenant_id": "t1", "author_id": "user-1"}),
+    ]);
     let planned = plan(
         &exec,
         "subscription { orderCreated { id } }",
@@ -605,8 +664,9 @@ fn a_subscription_counts_its_own_deliveries_and_carries_no_server_position() {
     publish("o1", "user-1", 41);
     publish("o2", "someone-else", 42);
     publish("o3", "user-1", 43);
-    let first = rx.try_recv().unwrap();
-    let second = rx.try_recv().unwrap();
+    let first = served(&manager, &mut rx).await.unwrap();
+    assert!(served(&manager, &mut rx).await.is_none(), "o2 is not delivered");
+    let second = served(&manager, &mut rx).await.unwrap();
     assert_eq!(
         (first.event.sequence_number, second.event.sequence_number),
         (1, 2),
@@ -629,13 +689,13 @@ const SOMEONE_ELSE: &str = "5a1e0000-0000-4000-8000-000000000002";
 /// Plans `orderCreated { id }` for `who`, subscribes it with `user_context` (the transport's
 /// view of the connection: its tenant), publishes `event` and returns the envelope the
 /// subscriber received — `None` when the frame carries none.
-fn delivered_envelope(
+async fn delivered_envelope(
     who: &SecurityContext,
     user_context: serde_json::Value,
     event: crate::runtime::subscription::SubscriptionEvent,
 ) -> Option<crate::runtime::subscription::ChangeSpineEnvelope> {
     use crate::runtime::subscription::SubscriptionManager;
-    let exec = executor(schema(), RuntimeConfig::default());
+    let exec = reading_executor(schema(), RuntimeConfig::default(), &[json!({"id": "o1"})]);
     let planned =
         plan(&exec, "subscription { orderCreated { id } }", &json!({}), Some(who)).unwrap();
     let manager = SubscriptionManager::new(Arc::new(schema()));
@@ -644,7 +704,7 @@ fn delivered_envelope(
         .subscribe_planned(Arc::new(planned), user_context, json!({}), "c1", vec![])
         .unwrap();
     assert_eq!(manager.publish_event(event), 1, "the subscriber may read the event");
-    rx.try_recv().unwrap().event.change_spine
+    served(&manager, &mut rx).await.unwrap().event.change_spine
 }
 
 fn order_event() -> crate::runtime::subscription::SubscriptionEvent {
@@ -660,8 +720,8 @@ fn order_event() -> crate::runtime::subscription::SubscriptionEvent {
 // who the agent acted for — another principal's identity, which no schema gate governs (a
 // type masking its author field would otherwise name the author here). Nor the mutation's
 // duration, which rows the subscriber cannot read shape. What describes the event stays.
-#[test]
-fn a_subscriber_is_not_told_whom_another_principals_agent_acted_for() {
+#[tokio::test]
+async fn a_subscriber_is_not_told_whom_another_principals_agent_acted_for() {
     use crate::runtime::subscription::ChangeSpineEnvelope;
     let who = SecurityContext {
         user_id: SUBSCRIBER.into(),
@@ -677,7 +737,7 @@ fn a_subscriber_is_not_told_whom_another_principals_agent_acted_for() {
         seq:            Some(42),
     });
     assert_eq!(
-        delivered_envelope(&who, json!({"tenant_id": "t1"}), event),
+        delivered_envelope(&who, json!({"tenant_id": "t1"}), event).await,
         Some(ChangeSpineEnvelope {
             actor_type: Some("ai_agent".into()),
             schema_version: Some("v3".into()),
@@ -689,8 +749,8 @@ fn a_subscriber_is_not_told_whom_another_principals_agent_acted_for() {
 
 // The agent acted for the subscriber: that names no one else, so it is kept — "my agent did
 // this". The identity is compared as a UUID, not as text.
-#[test]
-fn a_subscriber_is_told_when_the_agent_acted_for_them() {
+#[tokio::test]
+async fn a_subscriber_is_told_when_the_agent_acted_for_them() {
     use crate::runtime::subscription::ChangeSpineEnvelope;
     let who = SecurityContext {
         user_id: SUBSCRIBER.into(),
@@ -702,22 +762,22 @@ fn a_subscriber_is_told_when_the_agent_acted_for_them() {
         acting_for: Some(own.clone()),
         ..ChangeSpineEnvelope::default()
     });
-    let envelope = delivered_envelope(&who, json!({}), event).expect("an envelope");
+    let envelope = delivered_envelope(&who, json!({}), event).await.expect("an envelope");
     assert_eq!(envelope.acting_for, Some(own));
 }
 
 // A subscriber with no tenant (single-tenant mode lets it read a tenant-stamped event) is not
 // told the event's tenant, which is not its own; and an envelope left with nothing to say is
 // not sent at all — the plain `next` frame of an unstamped event.
-#[test]
-fn a_subscriber_is_not_told_another_tenants_id_and_an_empty_envelope_is_not_sent() {
+#[tokio::test]
+async fn a_subscriber_is_not_told_another_tenants_id_and_an_empty_envelope_is_not_sent() {
     use crate::runtime::subscription::ChangeSpineEnvelope;
     let event = order_event().with_tenant_id("t2").with_change_spine(ChangeSpineEnvelope {
         tenant_id: Some("t2".into()),
         duration_ms: Some(5),
         ..ChangeSpineEnvelope::default()
     });
-    assert_eq!(delivered_envelope(&principal(&[]), json!({}), event), None);
+    assert_eq!(delivered_envelope(&principal(&[]), json!({}), event).await, None);
 }
 
 // ── A subscription and a stream read their type as its own read does ─────────────────────
@@ -826,12 +886,12 @@ fn an_event_that_cannot_be_completed_is_null_with_an_error() {
     let planned =
         plan(&exec, "subscription { orderCreated { id note } }", &json!({}), None).unwrap();
 
-    let served = planned.deliver(&json!({"note": "n"}), false).unwrap();
+    let served = planned.deliver(&row(&json!({"note": "n"})), false).unwrap();
     assert_eq!(served.data, serde_json::Value::Null, "{served:?}");
     assert_eq!(served.errors.len(), 1, "{served:?}");
     assert_eq!(served.errors[0]["path"], json!(["orderCreated", "id"]), "{served:?}");
 
-    let complete = planned.deliver(&event(), false).unwrap();
+    let complete = planned.deliver(&row(&event()), false).unwrap();
     assert!(complete.errors.is_empty(), "{complete:?}");
 }
 
@@ -860,10 +920,13 @@ fn a_masked_localized_fields_translations_are_empty_without_its_scope() {
     let event = json!({"id": "o1", "motto": {"en-US": "Hi", "fr-FR": "Salut"}});
 
     let anonymous = plan(&exec, query, &json!({}), None).unwrap();
-    assert_eq!(anonymous.deliver(&event, false).unwrap().data["mottoTranslations"], json!([]));
+    assert_eq!(
+        anonymous.deliver(&row(&event), false).unwrap().data["mottoTranslations"],
+        json!([])
+    );
     let analyst = plan(&exec, query, &json!({}), Some(&principal(&["analyst"]))).unwrap();
     assert_eq!(
-        analyst.deliver(&event, false).unwrap().data["mottoTranslations"],
+        analyst.deliver(&row(&event), false).unwrap().data["mottoTranslations"],
         json!([{"value": "Hi"}, {"value": "Salut"}])
     );
 }
@@ -873,6 +936,11 @@ fn a_masked_localized_fields_translations_are_empty_without_its_scope() {
 /// `schema()` with a list read of `Order` scoped by `column`, a native column of its view,
 /// from the token's `tenant_id`; `Order` publishes `tenant_id`.
 fn native_scope_executor(column: &str) -> Executor {
+    native_scope_store(column).0
+}
+
+/// [`native_scope_executor`] over an empty store read by `id`, and the store.
+fn native_scope_store(column: &str) -> (Executor, Arc<CapturingMockAdapter>) {
     let mut schema = schema();
     let order = schema.types.iter_mut().find(|t| t.name == "Order").unwrap();
     order.fields.push(FieldDefinition::nullable("tenant_id", FieldType::String));
@@ -888,14 +956,13 @@ fn native_scope_executor(column: &str) -> Executor {
         .insert(column.to_string(), crate::schema::NativeColumn::nullable("text"));
     schema.queries.push(orders);
     schema.build_indexes();
-    executor(schema, RuntimeConfig::default())
+    store(schema, RuntimeConfig::default(), &[])
 }
 
-// The column the type publishes is read as its document key: another tenant's after-image
-// is suppressed, the subscriber's own delivered.
-#[test]
-fn a_native_scope_the_type_publishes_is_read_off_the_after_image() {
-    let exec = native_scope_executor("tenant_id");
+// A native scope column is read as the view's column, under the subscriber's tenant.
+#[tokio::test]
+async fn the_subscribers_read_of_a_row_carries_a_native_scope_as_its_column() {
+    let (exec, adapter) = native_scope_store("tenant_id");
     let planned = plan(
         &exec,
         "subscription { orderCreated { id } }",
@@ -903,9 +970,19 @@ fn a_native_scope_the_type_publishes_is_read_off_the_after_image() {
         Some(&tenant_principal()),
     )
     .unwrap();
-    assert_eq!(planned.deliver(&json!({"id": "o2", "tenant_id": "t2"}), false), None);
-    let own = json!({"id": "o1", "tenant_id": "t1"});
-    assert_eq!(planned.deliver(&own, false).map(|s| s.data), Some(json!({"id": "o1"})));
+    let filter = read_filter(&planned, &adapter, "o2").await;
+    let conditions = match &filter {
+        crate::db::WhereClause::And(conditions) => conditions.as_slice(),
+        _ => &[],
+    };
+    assert!(
+        conditions.iter().any(|c| matches!(
+            c,
+            crate::db::WhereClause::NativeField { column, value, .. }
+                if column == "tenant_id" && *value == json!("t1")
+        )),
+        "{filter:?}"
+    );
 }
 
 // A column the type does not publish is in no after-image: refused (fail closed).
@@ -983,7 +1060,7 @@ fn messages(served: &super::Served) -> Vec<&str> {
 #[test]
 fn a_mutation_event_lacking_a_nullable_selected_field_raises_no_error() {
     let planned = captured_plan(false, "id customer { name }");
-    let served = planned.deliver(&captured_row(), false).unwrap();
+    let served = planned.deliver(&row(&captured_row()), false).unwrap();
     assert_eq!(served.errors, Vec::<serde_json::Value>::new());
     assert_eq!(served.data, json!({"id": "o1", "customer": null}));
 }
@@ -991,7 +1068,7 @@ fn a_mutation_event_lacking_a_nullable_selected_field_raises_no_error() {
 #[test]
 fn a_captured_row_lacking_a_selected_embedded_field_reports_it_on_the_event() {
     let planned = captured_plan(false, "id customer { name }");
-    let served = planned.deliver(&captured_row(), true).unwrap();
+    let served = planned.deliver(&row(&captured_row()), true).unwrap();
 
     assert_eq!(
         served.data,
@@ -1012,7 +1089,7 @@ fn a_captured_row_lacking_a_selected_embedded_field_reports_it_on_the_event() {
 #[test]
 fn a_captured_row_lacking_a_non_null_selected_field_says_why_the_event_is_null() {
     let planned = captured_plan(false, "id owner { name }");
-    let served = planned.deliver(&captured_row(), true).unwrap();
+    let served = planned.deliver(&row(&captured_row()), true).unwrap();
 
     assert_eq!(served.data, serde_json::Value::Null);
     let said = messages(&served);
@@ -1027,7 +1104,7 @@ fn an_event_int_past_the_range_is_a_field_error_and_a_whole_decimal_its_integer(
     let planned = captured_plan(false, "id quantity");
 
     let served = planned
-        .deliver(&json!({"id": "o1", "quantity": 3_000_000_000_i64}), false)
+        .deliver(&row(&json!({"id": "o1", "quantity": 3_000_000_000_i64})), false)
         .unwrap();
     assert_eq!(served.data, json!({"id": "o1", "quantity": null}));
     assert_eq!(served.errors.len(), 1, "{:?}", served.errors);
@@ -1039,7 +1116,7 @@ fn an_event_int_past_the_range_is_a_field_error_and_a_whole_decimal_its_integer(
         served.errors
     );
 
-    let served = planned.deliver(&json!({"id": "o1", "quantity": 2.0}), false).unwrap();
+    let served = planned.deliver(&row(&json!({"id": "o1", "quantity": 2.0})), false).unwrap();
     assert_eq!(served.errors, Vec::<serde_json::Value>::new());
     assert_eq!(served.data, json!({"id": "o1", "quantity": 2}));
     assert!(served.data["quantity"].is_i64());
@@ -1048,7 +1125,7 @@ fn an_event_int_past_the_range_is_a_field_error_and_a_whole_decimal_its_integer(
 #[test]
 fn a_captured_row_holding_every_selected_field_raises_no_error() {
     let planned = captured_plan(false, "id status");
-    let served = planned.deliver(&captured_row(), true).unwrap();
+    let served = planned.deliver(&row(&captured_row()), true).unwrap();
     assert_eq!(served.errors, Vec::<serde_json::Value>::new());
     assert_eq!(served.data, json!({"id": "o1", "status": "open"}));
 }
@@ -1058,7 +1135,7 @@ fn a_captured_row_holding_every_selected_field_raises_no_error() {
 #[test]
 fn a_captured_document_lacking_a_selected_field_reports_it_without_a_table() {
     let planned = captured_plan(true, "id customer { name }");
-    let served = planned.deliver(&json!({"id": "o1"}), true).unwrap();
+    let served = planned.deliver(&row(&json!({"id": "o1"})), true).unwrap();
     let said = messages(&served);
     assert_eq!(said.len(), 1, "{said:?}");
     assert!(
@@ -1070,7 +1147,7 @@ fn a_captured_document_lacking_a_selected_field_reports_it_without_a_table() {
 #[test]
 fn an_aliased_field_a_captured_row_lacks_is_reported_at_its_response_key() {
     let planned = captured_plan(false, "id buyer: customer { name }");
-    let served = planned.deliver(&captured_row(), true).unwrap();
+    let served = planned.deliver(&row(&captured_row()), true).unwrap();
     assert_eq!(served.data, json!({"id": "o1", "buyer": null}));
     assert_eq!(served.errors[0]["path"], json!(["orderChanged", "buyer"]));
 }
@@ -1088,7 +1165,7 @@ fn an_event_id_is_served_as_a_string() {
         (json!(true), None),
         (json!({"a": 1}), None),
     ] {
-        let delivered = planned.deliver(&json!({"id": id, "quantity": 1}), false).unwrap();
+        let delivered = planned.deliver(&row(&json!({"id": id, "quantity": 1})), false).unwrap();
         if let Some(served) = served {
             assert_eq!(delivered.data["id"], served, "{id}");
             assert_eq!(delivered.errors, Vec::<serde_json::Value>::new(), "{id}");
@@ -1133,7 +1210,7 @@ fn an_event_merges_a_key_selected_again_in_an_inline_fragment() {
             .map_err(|e| format!("{query}: {e:?}"))
             .unwrap();
         assert_eq!(
-            plan.deliver(&event, false).map(|s| s.data),
+            plan.deliver(&row(&event), false).map(|s| s.data),
             Some(json!({"customer": {"id": "c1", "name": "Ada"}})),
             "{query}"
         );
@@ -1165,7 +1242,7 @@ fn an_event_honours_skip_and_include_inside_a_fragment_read_into_its_set() {
                 .map_err(|e| format!("{query} v={v}: {e:?}"))
                 .unwrap();
             assert_eq!(
-                plan.deliver(&event, false).map(|s| s.data).as_ref(),
+                plan.deliver(&row(&event), false).map(|s| s.data).as_ref(),
                 Some(expected),
                 "{query} v={v}"
             );
@@ -1197,7 +1274,7 @@ fn a_named_spread_on_one_member_answers_nothing_on_another_in_an_event() {
     let party = |document: &str| {
         let data = plan(&exec, document, &json!({}), None)
             .unwrap()
-            .deliver(&event, false)
+            .deliver(&row(&event), false)
             .unwrap()
             .data;
         data["party"].clone()
@@ -1249,4 +1326,212 @@ fn a_resolved_subscriber_plans_when_the_schema_consumes_enrichment() {
     subscriber.mark_enrichment(crate::security::EnrichmentMark::Resolved);
     plan(&exec, "subscription { orderCreated { id } }", &json!({}), Some(&subscriber))
         .expect("a resolved subscriber plans");
+}
+
+// ── A subscriber is served its own read of the row an event names ──
+
+/// `schema()` with the session variable `app.sub` set from the principal's `sub`.
+fn session_schema() -> CompiledSchema {
+    let mut schema = schema();
+    schema.session_variables.variables.push(crate::schema::SessionVariableMapping {
+        name:   "app.sub".to_string(),
+        source: crate::schema::SessionVariableSource::Jwt {
+            claim: "sub".to_string(),
+        },
+    });
+    schema
+}
+
+/// A store holding `rows`, read by `id`, and the executor over it.
+fn reading_store(rows: &[serde_json::Value]) -> (Executor, Arc<CapturingMockAdapter>) {
+    let rows = rows.iter().cloned().map(crate::db::types::JsonbValue::new).collect();
+    let adapter = Arc::new(CapturingMockAdapter::new(rows).answering_by_id());
+    let exec = Executor::with_config(session_schema(), adapter.clone(), RuntimeConfig::default());
+    (exec, adapter)
+}
+
+fn reads_made(adapter: &CapturingMockAdapter) -> Vec<Vec<(String, String)>> {
+    adapter.projected_session_vars.lock().unwrap().clone()
+}
+
+fn change(entity_id: &str, deleted: bool) -> super::Change<'_> {
+    super::Change {
+        event_id: entity_id,
+        entity_id,
+        deleted,
+        captured: false,
+    }
+}
+
+#[tokio::test]
+async fn an_event_is_served_from_the_subscribers_read_not_the_writes_document() {
+    use crate::runtime::subscription::{
+        SubscriptionEvent, SubscriptionManager, SubscriptionOperation,
+    };
+    let (exec, adapter) = reading_store(&[json!({"id": "o1", "note": "as the reader reads it"})]);
+    let analyst = principal(&["analyst"]);
+    let planned =
+        plan(&exec, "subscription { orderCreated { id note } }", &json!({}), Some(&analyst))
+            .unwrap();
+    let manager = SubscriptionManager::new(Arc::new(session_schema()));
+    let mut rx = manager.receiver();
+    manager
+        .subscribe_planned(Arc::new(planned), json!({}), json!({}), "c1", vec![])
+        .unwrap();
+    manager.publish_event(SubscriptionEvent::new(
+        "Order",
+        "o1",
+        SubscriptionOperation::Update,
+        json!({"id": "o1", "note": "as the writer wrote it"}),
+    ));
+
+    let payload = served(&manager, &mut rx).await.unwrap();
+    assert_eq!(payload.data, json!({"id": "o1", "note": "as the reader reads it"}));
+    assert_eq!(payload.event.data, payload.data, "the event a seam serialises");
+    assert_eq!(
+        reads_made(&adapter),
+        vec![vec![("app.sub".to_string(), "user-1".to_string())]],
+        "one read, in the subscriber's session"
+    );
+}
+
+#[tokio::test]
+async fn the_payload_publish_leaves_pending_carries_no_document_of_the_write() {
+    use crate::runtime::subscription::{
+        SubscriptionEvent, SubscriptionManager, SubscriptionOperation,
+    };
+    let (exec, _) = reading_store(&[]);
+    let planned = plan(&exec, "subscription { orderCreated { id } }", &json!({}), None).unwrap();
+    let manager = SubscriptionManager::new(Arc::new(session_schema()));
+    let mut rx = manager.receiver();
+    manager
+        .subscribe_planned(Arc::new(planned), json!({}), json!({}), "c1", vec![])
+        .unwrap();
+    let mut event = SubscriptionEvent::new("Order", "o1", SubscriptionOperation::Update, event());
+    event.old_data = Some(event.data.clone());
+    manager.publish_event(event);
+
+    let pending = rx.try_recv().unwrap();
+    assert!(pending.pending);
+    assert_eq!((pending.data, pending.event.data), (json!(null), json!(null)));
+    assert_eq!(pending.event.old_data, None);
+}
+
+#[tokio::test]
+async fn a_row_the_subscribers_read_does_not_return_is_not_delivered() {
+    let (exec, _) = reading_store(&[]);
+    let planned =
+        plan(&exec, "subscription { orderCreated { id } }", &json!({}), Some(&principal(&[])))
+            .unwrap();
+    let served = planned
+        .serve_change(
+            change("o1", false),
+            &mut super::DeliveredRows::default(),
+            &mut super::SubscriberReads::default(),
+            |_| true,
+        )
+        .await
+        .unwrap();
+    assert_eq!(served, None);
+}
+
+#[tokio::test]
+async fn a_delete_is_served_only_for_a_row_this_subscription_was_delivered_as_it_read_it() {
+    let (exec, adapter) = reading_store(&[json!({"id": "o1"})]);
+    let planned =
+        plan(&exec, "subscription { orderCreated { id } }", &json!({}), Some(&principal(&[])))
+            .unwrap();
+    let mut delivered = super::DeliveredRows::default();
+    let mut reads = super::SubscriberReads::default();
+
+    let never = planned.serve_change(change("o9", true), &mut delivered, &mut reads, |_| true);
+    assert_eq!(never.await.unwrap(), None, "a row this subscription was never delivered");
+    assert!(reads_made(&adapter).is_empty(), "a delete reads nothing");
+
+    let created = planned.serve_change(change("o1", false), &mut delivered, &mut reads, |_| true);
+    assert_eq!(created.await.unwrap().map(|s| s.data), Some(json!({"id": "o1"})));
+    let deleted = planned.serve_change(change("o1", true), &mut delivered, &mut reads, |_| true);
+    assert_eq!(deleted.await.unwrap().map(|s| s.data), Some(json!({"id": "o1"})));
+    let again = planned.serve_change(change("o1", true), &mut delivered, &mut reads, |_| true);
+    assert_eq!(again.await.unwrap(), None, "a row is deleted once");
+}
+
+#[tokio::test]
+async fn a_delete_of_a_row_past_the_bound_is_not_delivered() {
+    let rows: Vec<serde_json::Value> = (0..=super::DELIVERED_ROWS_BOUND)
+        .map(|i| json!({"id": format!("o{i}")}))
+        .collect();
+    let (exec, _) = reading_store(&rows);
+    let planned =
+        plan(&exec, "subscription { orderCreated { id } }", &json!({}), Some(&principal(&[])))
+            .unwrap();
+    let mut delivered = super::DeliveredRows::default();
+    let mut reads = super::SubscriberReads::default();
+    for i in 0..=super::DELIVERED_ROWS_BOUND {
+        let id = format!("o{i}");
+        let served = planned.serve_change(change(&id, false), &mut delivered, &mut reads, |_| true);
+        assert!(served.await.unwrap().is_some());
+    }
+    let oldest = planned.serve_change(change("o0", true), &mut delivered, &mut reads, |_| true);
+    assert_eq!(oldest.await.unwrap(), None, "forgotten past the bound: not delivered");
+    let newest = format!("o{}", super::DELIVERED_ROWS_BOUND);
+    let kept = planned.serve_change(change(&newest, true), &mut delivered, &mut reads, |_| true);
+    assert!(kept.await.unwrap().is_some(), "within the bound: delivered");
+}
+
+#[tokio::test]
+async fn one_event_is_read_once_per_reader_and_never_shared_between_readers() {
+    let (exec, adapter) = reading_store(&[json!({"id": "o1"})]);
+    let query = "subscription { orderCreated { id } }";
+    let alice = SecurityContext {
+        user_id: "alice".into(),
+        ..principal(&[])
+    };
+    let carol = SecurityContext {
+        user_id: "carol".into(),
+        ..principal(&[])
+    };
+    let plans = [
+        plan(&exec, query, &json!({}), Some(&alice)).unwrap(),
+        plan(&exec, query, &json!({}), Some(&alice)).unwrap(),
+        plan(&exec, query, &json!({}), Some(&carol)).unwrap(),
+    ];
+    let mut reads = super::SubscriberReads::default();
+    for planned in &plans {
+        let served = planned
+            .serve_change(
+                change("o1", false),
+                &mut super::DeliveredRows::default(),
+                &mut reads,
+                |_| true,
+            )
+            .await
+            .unwrap();
+        assert!(served.is_some());
+    }
+    let sub = |who: &str| vec![("app.sub".to_string(), who.to_string())];
+    assert_eq!(reads_made(&adapter), vec![sub("alice"), sub("carol")]);
+}
+
+#[tokio::test]
+async fn a_delete_of_a_row_past_the_byte_bound_is_not_delivered() {
+    // Four rows of a third of the byte bound each: remembering the fourth forgets the first.
+    let filler = "x".repeat(super::DELIVERED_ROWS_BYTES / 3);
+    let rows: Vec<serde_json::Value> =
+        (0..4).map(|i| json!({"id": format!("o{i}"), "note": filler})).collect();
+    let (exec, _) = reading_store(&rows);
+    let planned =
+        plan(&exec, "subscription { orderCreated { id } }", &json!({}), Some(&principal(&[])))
+            .unwrap();
+    let mut delivered = super::DeliveredRows::default();
+    let mut reads = super::SubscriberReads::default();
+    for i in 0..4 {
+        let id = format!("o{i}");
+        let served = planned.serve_change(change(&id, false), &mut delivered, &mut reads, |_| true);
+        assert!(served.await.unwrap().is_some());
+    }
+    let oldest = planned.serve_change(change("o0", true), &mut delivered, &mut reads, |_| true);
+    assert_eq!(oldest.await.unwrap(), None, "forgotten past the byte bound: not delivered");
+    let newest = planned.serve_change(change("o3", true), &mut delivered, &mut reads, |_| true);
+    assert!(newest.await.unwrap().is_some(), "within the byte bound: delivered");
 }

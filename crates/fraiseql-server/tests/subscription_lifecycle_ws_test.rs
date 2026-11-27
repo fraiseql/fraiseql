@@ -55,6 +55,24 @@ fn schema_with_subscription(name: &str, return_type: &str) -> CompiledSchema {
     schema
 }
 
+/// `schema`, declaring the subscription's `Order` type (`id`, `status`) over `v_order` when
+/// it does not, as every compiled schema declares the type a subscription returns: an
+/// executor plans a subscriber's read of the changed row from the type's view.
+fn with_order_type(mut schema: CompiledSchema) -> CompiledSchema {
+    use fraiseql_core::schema::{FieldDefinition, FieldType, TypeDefinition};
+    if schema.find_type("Order").is_none() {
+        schema.types.push(TypeDefinition {
+            fields: vec![
+                FieldDefinition::new("id", FieldType::Id),
+                FieldDefinition::new("status", FieldType::String),
+            ],
+            ..TypeDefinition::new("Order", "v_order")
+        });
+        schema.build_indexes();
+    }
+    schema
+}
+
 /// Spawn an axum server with just the `/ws` subscription endpoint and return
 /// its `ws://` URL.
 async fn spawn_ws_server(state: SubscriptionState) -> String {
@@ -658,7 +676,18 @@ async fn full_server_shutdown_drains_live_subscription_gracefully() {
         ..Default::default()
     };
 
-    let schema = schema_with_subscription("orderChanged", "Order");
+    // The server plans each subscription, so the subscribed type is declared, with a view.
+    let mut schema = schema_with_subscription("orderChanged", "Order");
+    let mut order = fraiseql_core::schema::TypeDefinition::new("Order", "v_order");
+    order.fields = vec![
+        fraiseql_core::schema::FieldDefinition::new("id", fraiseql_core::schema::FieldType::Id),
+        fraiseql_core::schema::FieldDefinition::nullable(
+            "status",
+            fraiseql_core::schema::FieldType::String,
+        ),
+    ];
+    schema.types.push(order);
+    schema.build_indexes();
     let server =
         Box::pin(TestServer::start_with_config(config, schema, Arc::new(FailingAdapter::new())))
             .await;
@@ -748,10 +777,18 @@ async fn tenant_fail_closed_gate_activates_on_the_live_ws_path() {
 
     // The connection's tenant is admitted as `/graphql` admits one: through the
     // application's registry, where both tenants are registered.
+    // Each subscriber reads the row an event names: `order_a`, as the store holds it.
+    let planned = with_order_type(schema.clone());
     let executor = || {
+        let stored = fraiseql_core::db::types::JsonbValue::new(
+            json!({"id": "order_a", "status": "pending"}),
+        );
         Arc::new(fraiseql_core::runtime::Executor::new(
-            schema.clone(),
-            Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
+            planned.clone(),
+            Arc::new(
+                fraiseql_test_utils::failing_adapter::FailingAdapter::new()
+                    .with_response("v_order", vec![stored]),
+            ),
         ))
     };
     let app = fraiseql_server::routes::graphql::AppState::new(executor());
@@ -897,7 +934,7 @@ mod tenant_admission {
 
     fn executor() -> Arc<Executor> {
         Arc::new(Executor::new(
-            schema_with_subscription("orderChanged", "Order"),
+            with_order_type(schema_with_subscription("orderChanged", "Order")),
             Arc::new(FailingAdapter::new()),
         ))
     }

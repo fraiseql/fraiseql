@@ -2366,6 +2366,10 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// share the observer schema DDL.
 		"echo '### P18: subscription pipeline e2e (change log → runtime → bridge → /ws)'",
 		"cargo test -p fraiseql-server " + serverLegFeatures + " --test subscription_pipeline_e2e_pg -- --include-ignored --test-threads=1",
+		// A subscriber is served its own read of a changed row, under its session and row
+		// scope, over /ws and a resumable REST stream.
+		"echo '### subscription reader-session e2e'",
+		"cargo test -p fraiseql-server " + serverLegFeatures + " --test subscription_reader_session_e2e_pg -- --include-ignored --test-threads=1",
 		// #992: DB-needing binaries that ran in NO leg — each self-skips without
 		// DATABASE_URL, and only the DB-less test leg compiled them.
 		"echo '### cargo test -p fraiseql-server DB-backed strays (#992)'",

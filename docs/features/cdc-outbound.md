@@ -85,6 +85,8 @@ There are two ways FraiseQL produces to Kafka and they answer different question
 | What is published | every change in the outbox | what live subscribers receive |
 | Depends on subscribers | no | **yes** — no subscription, no message |
 | Delivery | at-least-once, durable outbox, retries, dead-letter | at-most-once, logged and dropped on failure |
+| A row's content | as the change was written | the subscription's own read of the row |
+| Deletes | every delete | only of a row the mirror was served among its last 256 (and 1 MiB), since the server started |
 | Build feature | `cdc-kafka` | `subscription-kafka` |
 
 If you want a complete change stream, this page's section is the one. If you want

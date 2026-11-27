@@ -34,7 +34,9 @@ use std::{
 };
 
 use axum::response::sse::Event as SseEvent;
-use fraiseql_core::runtime::SubscriptionPlan;
+use fraiseql_core::runtime::{
+    Change, DeliveredRows, SubscriberReads, SubscriptionPlan, subscription::SubscriptionOperation,
+};
 use fraiseql_observers::{
     listener::{ChangeLogReplayReader, ReplayScope, ResumePosition},
     transport::TenantScope,
@@ -92,6 +94,9 @@ struct Cursor {
     /// them. Bounded by the replay bound checked before the stream was built.
     replayed:    HashSet<i64>,
     phase:       Phase,
+    /// The rows this stream was delivered, as its reader read them: a delete is sent only
+    /// for one of them.
+    delivered:   DeliveredRows,
 }
 
 /// The SSE `event:` name and payload for a replay that could not be completed.
@@ -112,14 +117,35 @@ fn replay_failed_payload(reason: &str) -> serde_json::Value {
 
 /// Render one fanned-out or replayed event as its SSE frame.
 ///
-/// The document is served through the reader's plan (ruling AC 7): a stream is a read of its
-/// type. `None` — no frame — for an event the plan suppresses, as for one it cannot render.
+/// The document is the reader's own read of the row, served through the reader's plan
+/// (ruling AC 7): a stream is a read of its type. `Ok(None)` — no frame — for a row the
+/// reader's read does not return, a delete of a row this stream was not delivered, and an
+/// event the plan suppresses or cannot render. `Err` when the read failed: the stream ends,
+/// and nothing is served in place of the read.
 ///
 /// Its `id:` seals the change's Change-Spine position for this stream (ruling AA 5): a
 /// resume point only this stream can open, never a server-wide position.
-fn frame_for(event: &BridgeEvent, plan: &SubscriptionPlan, stream: &str) -> Option<SseEvent> {
+async fn frame_for(
+    event: &BridgeEvent,
+    plan: &SubscriptionPlan,
+    stream: &str,
+    delivered: &mut DeliveredRows,
+) -> Result<Option<SseEvent>, String> {
     let wire = StreamEvent::from_bridge_event(event);
-    let served = plan.deliver(wire.data, event.captured)?;
+    let change = Change {
+        event_id:  &event.entity_id,
+        entity_id: &event.entity_id,
+        deleted:   event.operation == SubscriptionOperation::Delete,
+        captured:  event.captured,
+    };
+    // One stream reads as one reader: no read is shared across its events.
+    let served = plan
+        .serve_change(change, delivered, &mut SubscriberReads::default(), |_| true)
+        .await
+        .map_err(|e| e.to_string())?;
+    let Some(served) = served else {
+        return Ok(None);
+    };
     // § 6.4.4 (#1522): a REST frame is the entity itself, with no place for a partial one,
     // so an event that cannot be completed is an `error` frame naming why.
     let mut frame = if served.errors.is_empty() {
@@ -131,11 +157,11 @@ fn frame_for(event: &BridgeEvent, plan: &SubscriptionPlan, stream: &str) -> Opti
     if let Some(id) = position.and_then(|seq| super::stream_token::seal(seq, stream)) {
         frame = frame.id(id);
     }
-    if served.errors.is_empty() {
+    Ok(if served.errors.is_empty() {
         frame.json_data(served.data).ok()
     } else {
         frame.json_data(serde_json::json!({ "errors": served.errors })).ok()
-    }
+    })
 }
 
 /// The entity events one connection emits: its replay, then the live stream.
@@ -164,6 +190,7 @@ pub fn resumable_event_stream(
         resume,
         pending: VecDeque::new(),
         replayed: HashSet::new(),
+        delivered: DeliveredRows::default(),
     };
 
     futures::stream::unfold(start, |mut state| async move {
@@ -186,7 +213,9 @@ pub fn resumable_event_stream(
                         Ok(events) if events.is_empty() => state.phase = Phase::InFlight,
                         Ok(events) => {
                             state.read_at = events.last().map(|e| e.position);
-                            queue_replayed(&mut state, events);
+                            if let Err(reason) = queue_replayed(&mut state, events).await {
+                                return Some(end_with_read_failure(state, &reason));
+                            }
                         },
                         Err(error) => return Some(end_with_replay_failure(state, &error)),
                     }
@@ -206,7 +235,9 @@ pub fn resumable_event_stream(
                         .await
                     {
                         Ok(events) => {
-                            queue_replayed(&mut state, events);
+                            if let Err(reason) = queue_replayed(&mut state, events).await {
+                                return Some(end_with_read_failure(state, &reason));
+                            }
                             state.phase = Phase::Live;
                         },
                         Err(error) => return Some(end_with_replay_failure(state, &error)),
@@ -230,11 +261,15 @@ pub fn resumable_event_stream(
                             {
                                 continue;
                             }
-                            let Some(frame) = frame_for(&event, &state.plan, &state.entity_type)
-                            else {
-                                continue;
-                            };
-                            return Some((frame, state));
+                            let plan = Arc::clone(&state.plan);
+                            match frame_for(&event, &plan, &state.entity_type, &mut state.delivered)
+                                .await
+                            {
+                                Ok(Some(frame)) => return Some((frame, state)),
+                                // Not this reader's row: the next event.
+                                Ok(None) => {},
+                                Err(reason) => return Some(end_with_read_failure(state, &reason)),
+                            }
                         },
                         // The client fell far enough behind that the fan-out overwrote
                         // events it had not read. Say so and end the stream, rather than
@@ -270,7 +305,10 @@ pub fn resumable_event_stream(
 
 /// Turn a page of replayed events into frames, remembering their sequences so the live
 /// phase does not send them again.
-fn queue_replayed(state: &mut Cursor, events: Vec<fraiseql_observers::listener::ReplayedEvent>) {
+async fn queue_replayed(
+    state: &mut Cursor,
+    events: Vec<fraiseql_observers::listener::ReplayedEvent>,
+) -> Result<(), String> {
     for replayed in events {
         // The same projection the live path applies to an observer event, so a replayed
         // frame and the live frame for one row are the same bytes. `None` is a row that
@@ -287,10 +325,30 @@ fn queue_replayed(state: &mut Cursor, events: Vec<fraiseql_observers::listener::
         if let Some(seq) = event.change_spine.as_ref().and_then(|envelope| envelope.seq) {
             state.replayed.insert(seq);
         }
-        if let Some(frame) = frame_for(&event, &state.plan, &state.entity_type) {
+        let plan = Arc::clone(&state.plan);
+        if let Some(frame) =
+            frame_for(&event, &plan, &state.entity_type, &mut state.delivered).await?
+        {
             state.pending.push_back(frame);
         }
     }
+    Ok(())
+}
+
+/// End the stream with an error frame: the reader's read of a changed row failed.
+fn end_with_read_failure(mut state: Cursor, reason: &str) -> (SseEvent, Cursor) {
+    tracing::error!(
+        entity_type = %state.entity_type,
+        %reason,
+        "REST stream reader's read of a changed row failed; ending the stream"
+    );
+    let frame = SseEvent::default()
+        .event(super::sse::STREAM_LAGGED_EVENT)
+        .json_data(replay_failed_payload("reading a changed row failed"))
+        .unwrap_or_else(|_| SseEvent::default().event(super::sse::STREAM_LAGGED_EVENT).data(""));
+    state.rx = None;
+    state.pending.clear();
+    (frame, state)
 }
 
 /// End the stream with an error frame naming the failed replay.
