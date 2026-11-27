@@ -154,3 +154,6 @@ mod tests;
 
 #[cfg(test)]
 mod parse_ban_tests;
+
+#[cfg(test)]
+mod fragment_uniqueness_tests;

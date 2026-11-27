@@ -18,6 +18,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A document that defines a fragment name twice is refused at parse.** GraphQL allows
+  one definition per fragment name; such a document used to be accepted, with the
+  request analyser reading the first definition and the executor the last. Every
+  transport now answers `There can be only one fragment named "<name>"`.
+
 - **Arrow Flight's GraphQL action refuses what `/graphql` refuses.** It now asks the
   introspection policy and the service SDL switch, and the request limits: depth,
   complexity, alias count and a variables payload that is not an object. A document

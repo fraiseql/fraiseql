@@ -4,7 +4,7 @@
 //! They are produced by the parser and consumed by fragment resolution
 //! and directive evaluation.
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -29,8 +29,8 @@ pub struct ParsedQuery {
     /// Variable definitions
     pub variables: Vec<VariableDefinition>,
 
-    /// Fragment definitions
-    pub fragments: Vec<FragmentDefinition>,
+    /// Fragment definitions, each name defined once
+    pub fragments: Fragments,
 
     /// Original query string (preserved for debug/error messages).
     ///
@@ -69,7 +69,7 @@ impl Default for ParsedQuery {
             root_field:     String::new(),
             selections:     Vec::new(),
             variables:      Vec::new(),
-            fragments:      Vec::new(),
+            fragments:      Fragments::default(),
             source:         Arc::from(""),
         }
     }
@@ -216,4 +216,80 @@ pub struct FragmentDefinition {
 
     /// Names of other fragments this one spreads
     pub fragment_spreads: Vec<String>,
+}
+
+/// A document's fragment definitions, in document order, each name defined once
+/// (§ 5.5.1.1 Fragment Name Uniqueness).
+///
+/// Every reader of a document's fragments looks a spread up by name, so two definitions
+/// under one name would let two readers pick different ones: the analyser could score one
+/// selection while the executor runs another. The only ways to build a value refuse a
+/// repeated name: [`Fragments::try_push`], `TryFrom<Vec<FragmentDefinition>>`, and
+/// deserializing, which goes through `TryFrom`. The names are indexed beside the
+/// definitions, so a document of many fragments costs one lookup per fragment.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(try_from = "Vec<FragmentDefinition>", into = "Vec<FragmentDefinition>")]
+pub struct Fragments {
+    definitions: Vec<FragmentDefinition>,
+    names:       HashSet<String>,
+}
+
+/// A fragment name defined a second time in one document.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("There can be only one fragment named \"{name}\"")]
+pub struct DuplicateFragment {
+    /// The repeated name.
+    pub name: String,
+}
+
+impl Fragments {
+    /// Append `fragment`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DuplicateFragment`] when a fragment of the same name is already held.
+    pub fn try_push(&mut self, fragment: FragmentDefinition) -> Result<(), DuplicateFragment> {
+        if !self.names.insert(fragment.name.clone()) {
+            return Err(DuplicateFragment {
+                name: fragment.name,
+            });
+        }
+        self.definitions.push(fragment);
+        Ok(())
+    }
+}
+
+impl std::ops::Deref for Fragments {
+    type Target = [FragmentDefinition];
+
+    fn deref(&self) -> &Self::Target {
+        &self.definitions
+    }
+}
+
+impl<'a> IntoIterator for &'a Fragments {
+    type IntoIter = std::slice::Iter<'a, FragmentDefinition>;
+    type Item = &'a FragmentDefinition;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.definitions.iter()
+    }
+}
+
+impl TryFrom<Vec<FragmentDefinition>> for Fragments {
+    type Error = DuplicateFragment;
+
+    fn try_from(definitions: Vec<FragmentDefinition>) -> Result<Self, Self::Error> {
+        let mut fragments = Self::default();
+        for definition in definitions {
+            fragments.try_push(definition)?;
+        }
+        Ok(fragments)
+    }
+}
+
+impl From<Fragments> for Vec<FragmentDefinition> {
+    fn from(fragments: Fragments) -> Self {
+        fragments.definitions
+    }
 }

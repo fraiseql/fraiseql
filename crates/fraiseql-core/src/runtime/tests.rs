@@ -2717,7 +2717,7 @@ mod planner_tests {
                 root_field:     "users".to_string(),
                 selections:     vec![],
                 variables:      vec![],
-                fragments:      vec![],
+                fragments:      crate::graphql::types::Fragments::default(),
                 source:         std::sync::Arc::from("{ users { id name } }"),
             }),
             collected:        None,
