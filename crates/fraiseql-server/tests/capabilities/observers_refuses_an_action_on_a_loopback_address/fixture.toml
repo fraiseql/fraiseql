@@ -5,8 +5,11 @@ role = "hostile"
 deadline_secs = 8
 
 # The action aims at the harness's receiver, on loopback: had it been sent, it would be seen.
+# The opt-in is stated off: a fixture inherits the process environment, and a test
+# run that turns the opt-in on for other suites would otherwise send the action.
 [env]
 FRAISEQL_ENV = "development"
+FRAISEQL_OBSERVERS_ALLOW_INSECURE = "false"
 
 [[stimulus]]
 sql = { statement = "INSERT INTO core.tb_observer (name, entity_type, event_type, actions) VALUES ('notify_orders', 'Order', 'INSERT', '[{\"type\": \"webhook\", \"url\": \"$RECEIVER_URL/orders\", \"method\": \"POST\"}]')" }
