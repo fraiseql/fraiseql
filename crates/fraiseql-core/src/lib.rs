@@ -112,6 +112,10 @@ pub use fraiseql_time;
 /// engine with. Add one only for a type a transport genuinely needs to *name* —
 /// configuration, a trait bound, a value in a signature — never to reach a method.
 pub mod db {
+    /// Arbitrary WHERE trees for the fuzz targets, under the cfg cargo-fuzz sets and that no
+    /// dependent can enable: not part of this surface in any other build.
+    #[cfg(fuzzing)]
+    pub use fraiseql_db::fuzzing;
     pub use fraiseql_db::{
         // The admin-SQL route's own request/response types (an explicit admin API,
         // not a request-path surface).
