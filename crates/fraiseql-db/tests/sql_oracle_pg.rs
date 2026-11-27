@@ -14,6 +14,9 @@
 //!   parameterised path must return its rows, or refuse before SQL where it refuses. Operators the
 //!   table does not model are not judged.
 //!
+//! * **O4, pagination is consistent** (`sql_oracle/pages.rs`). Unpaged, offset and keyset reads,
+//!   forward and backward, return the order the pagination contract states.
+//!
 //! The fixture lives in its own database, created with PostgreSQL's builtin `C.UTF-8`
 //! locale, so text order and case folding are the table's on any server.
 //!
@@ -56,6 +59,9 @@ use serde_json::{Value, json};
 
 #[path = "sql_oracle/reference.rs"]
 mod reference;
+
+#[path = "sql_oracle/pages.rs"]
+mod pages;
 
 use reference::{Declared, Verdict};
 
@@ -492,8 +498,8 @@ fn judge(
     out
 }
 
-fn baseline_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/sql_oracle_baseline.json")
+fn baseline_path(file: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join(file)
 }
 
 /// `url` with its database name replaced by `name`.
@@ -503,8 +509,9 @@ fn with_database(url: &str, name: &str) -> String {
     query.map_or_else(|| format!("{authority}/{name}"), |q| format!("{authority}/{name}?{q}"))
 }
 
-/// (Re)create the oracle's database on the bound server, then provision the fixture in it.
-async fn rig() -> Option<PostgresAdapter> {
+/// (Re)create `database` on the bound server with the builtin `C.UTF-8` locale, then run
+/// `fixture` in it. Each test has a database of its own, so they run in parallel.
+async fn rig(database: &str, fixture: Vec<String>) -> Option<PostgresAdapter> {
     let pg = fraiseql_test_support::postgres().await?;
     let (admin, connection) =
         fraiseql_db::tokio_postgres::connect(pg.url(), fraiseql_db::tokio_postgres::NoTls)
@@ -512,20 +519,20 @@ async fn rig() -> Option<PostgresAdapter> {
             .expect("connect to the bound PostgreSQL");
     tokio::spawn(connection);
     admin
-        .simple_query(&format!("DROP DATABASE IF EXISTS {DATABASE} WITH (FORCE)"))
+        .simple_query(&format!("DROP DATABASE IF EXISTS {database} WITH (FORCE)"))
         .await
         .expect("drop a previous oracle database");
     admin
         .simple_query(&format!(
-            "CREATE DATABASE {DATABASE} TEMPLATE template0 ENCODING 'UTF8' \
+            "CREATE DATABASE {database} TEMPLATE template0 ENCODING 'UTF8' \
              LOCALE_PROVIDER builtin BUILTIN_LOCALE 'C.UTF-8'"
         ))
         .await
         .expect("create the oracle database with the builtin C.UTF-8 locale");
-    let adapter = PostgresAdapter::new(&with_database(pg.url(), DATABASE))
+    let adapter = PostgresAdapter::new(&with_database(pg.url(), database))
         .await
         .expect("connect to the oracle database");
-    for stmt in fixture() {
+    for stmt in fixture {
         adapter.execute_raw_query(&stmt).await.expect("provision the oracle fixture");
     }
     Some(adapter)
@@ -595,7 +602,7 @@ async fn run(adapter: &PostgresAdapter) -> Report {
 
 #[tokio::test]
 async fn generated_trees_agree_with_postgres_and_across_generators() {
-    let Some(adapter) = rig().await else {
+    let Some(adapter) = rig(DATABASE, fixture()).await else {
         eprintln!("skip: no PostgreSQL bound (DATABASE_URL unset)");
         return;
     };
@@ -608,14 +615,19 @@ async fn generated_trees_agree_with_postgres_and_across_generators() {
         eprintln!("sql oracle: {k} = {v}");
     }
 
-    let path = baseline_path();
+    gate(&baseline_path("sql_oracle_baseline.json"), &report);
+}
+
+/// Compare `report` both ways with the baseline at `path`, or rewrite it under
+/// `SQL_ORACLE_BLESS`.
+fn gate(path: &std::path::Path, report: &BTreeMap<String, String>) {
     if std::env::var_os("SQL_ORACLE_BLESS").is_some() {
-        let text = serde_json::to_string_pretty(&report).unwrap() + "\n";
-        std::fs::write(&path, text).expect("write the baseline");
+        let text = serde_json::to_string_pretty(report).unwrap() + "\n";
+        std::fs::write(path, text).expect("write the baseline");
         eprintln!("sql oracle: blessed {} entries into {}", report.len(), path.display());
         return;
     }
-    let text = std::fs::read_to_string(&path)
+    let text = std::fs::read_to_string(path)
         .unwrap_or_else(|e| panic!("read {}: {e} (bless with SQL_ORACLE_BLESS=1)", path.display()));
     let baseline: BTreeMap<String, String> = serde_json::from_str(&text).expect("baseline is JSON");
     let got: BTreeSet<&String> = report.keys().collect();
@@ -630,9 +642,10 @@ async fn generated_trees_agree_with_postgres_and_across_generators() {
     }
     assert!(
         new.is_empty() && gone.is_empty(),
-        "the SQL oracle disagrees with its baseline: {} new, {} gone (listed above). A new \
+        "the SQL oracle disagrees with its baseline {}: {} new, {} gone (listed above). A new \
          entry is a refusal or a disagreement that did not occur before; a gone one no longer \
          occurs. Fix it, or re-bless with SQL_ORACLE_BLESS=1 and say why in the commit.",
+        path.display(),
         new.len(),
         gone.len()
     );
