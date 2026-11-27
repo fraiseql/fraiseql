@@ -49,6 +49,10 @@ help:
 	@echo "  make image-boot         - Boot each server image on its own CMD and query it"
 	@echo "  make image-properties   - Assert what the built image IS (linkage, user, labels, size)"
 	@echo ""
+	@echo "Oracles:"
+	@echo "  make oracle-concurrency - What clients read while writes happen, gated by its baseline (Docker, uv)"
+	@echo "  make oracle-concurrency-selftest - Prove its checker and gate go red on each kind of change"
+	@echo ""
 
 # Build all crates
 build:
@@ -3024,3 +3028,25 @@ examples-smoke:
 	@FRAISEQL_BIN=$(CURDIR)/target/debug/fraiseql-cli \
 	 SERVER_BIN=$(CURDIR)/target/debug/fraiseql-server \
 	 bash tools/examples-smoke.sh
+
+# ============================================================================
+# Concurrency oracle (tools/oracle/concurrency): the local mirror of the Dagger
+# ConcurrencyOracle leg. Its server is copied to target/oracle, so a later
+# default-feature build of target/release/fraiseql-server cannot change what the
+# oracle measured. The product mutants (mutants.sh) are a separate, local-only run.
+# ============================================================================
+# SYNC: concurrencyOracleFeatures in .dagger/oracle_concurrency.go.
+ORACLE_CONCURRENCY_FEATURES := cli,observers
+.PHONY: oracle-concurrency oracle-concurrency-selftest oracle-concurrency-server
+oracle-concurrency-server:
+	@cargo build --release -p fraiseql-cli --bin fraiseql-cli
+	@cargo build --release -p fraiseql-server --bin fraiseql-server --features $(ORACLE_CONCURRENCY_FEATURES)
+	@mkdir -p target/oracle && cp target/release/fraiseql-server target/oracle/fraiseql-server-concurrency
+
+oracle-concurrency: oracle-concurrency-server
+	@FRAISEQL_CLI=$(CURDIR)/target/release/fraiseql-cli \
+	 FRAISEQL_SERVER=$(CURDIR)/target/oracle/fraiseql-server-concurrency \
+	 bash tools/oracle/concurrency/run.sh
+
+oracle-concurrency-selftest:
+	@bash tools/oracle/concurrency/run.sh --selftest
