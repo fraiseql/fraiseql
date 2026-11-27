@@ -348,7 +348,8 @@ impl Signature {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 enum Effect {
     /// `method path` (a `GET` unless named, with `body` and the bearer `auth` when given)
-    /// answers `status`, with `equals` at `json_pointer` when one is given.
+    /// answers `status`. With `json_pointer`, the answer has a value there, and with
+    /// `equals` too, that value is `equals`.
     Http {
         #[serde(default = "default_method")]
         method:       String,
@@ -1397,15 +1398,7 @@ async fn observe(served: &Served, database_url: &str, effect: &Effect) -> Result
                     "{method} {path} answered {got}, not {status}: {body}"
                 )));
             }
-            match (json_pointer, equals) {
-                (Some(pointer), Some(want)) if body.pointer(pointer) != Some(want) => {
-                    Err(NotYet(format!(
-                        "{method} {path}: {pointer} is {:?}, not {want}: {body}",
-                        body.pointer(pointer)
-                    )))
-                },
-                _ => Ok(()),
-            }
+            pointed(&format!("{method} {path}"), &body, json_pointer.as_deref(), equals.as_ref())
         },
         Effect::Row { query, expect } => {
             observe_row(database_url, &served.run_id, query, expect).await
@@ -1530,6 +1523,29 @@ async fn observe_row(
         Ok(())
     } else {
         Err(Unmet::NotYet(format!("`{query}` returned {got:?}, not {expect:?}")))
+    }
+}
+
+/// Whether `body`, the answer to `what`, has a value at `pointer`, and `want` there when
+/// given. `want` with no `pointer` names nothing to compare: a fixture written so is broken.
+fn pointed(
+    what: &str,
+    body: &Value,
+    pointer: Option<&str>,
+    want: Option<&Value>,
+) -> Result<(), Unmet> {
+    match (pointer, want) {
+        (None, None) => Ok(()),
+        (None, Some(want)) => {
+            Err(Unmet::Broken(format!("{what}: `equals = {want}` names no `json_pointer`")))
+        },
+        (Some(pointer), want) => match (body.pointer(pointer), want) {
+            (None, _) => Err(Unmet::NotYet(format!("{what}: nothing at {pointer}: {body}"))),
+            (Some(got), Some(want)) if got != want => {
+                Err(Unmet::NotYet(format!("{what}: {pointer} is {got}, not {want}: {body}")))
+            },
+            (Some(_), _) => Ok(()),
+        },
     }
 }
 
@@ -1936,6 +1952,33 @@ mod harness_rules {
         assert!(answered("/rest/v1/notes", 401, Some(401)).is_ok());
         assert!(answered("/rest/v1/notes", 201, Some(401)).is_err());
         assert!(answered("/rest/v1/notes", 201, None).is_ok());
+    }
+
+    #[test]
+    fn a_json_pointer_alone_requires_a_value_there() {
+        let body = serde_json::json!({ "data": { "status": "ok" } });
+        assert!(pointed("GET /health", &body, Some("/data/status"), None).is_ok());
+        let absent = pointed("GET /health", &body, Some("/data/missing"), None);
+        assert!(matches!(absent, Err(Unmet::NotYet(_))), "{absent:?}");
+    }
+
+    #[test]
+    fn a_json_pointer_with_equals_requires_that_value() {
+        let body = serde_json::json!({ "status": "ok" });
+        let ok = serde_json::json!("ok");
+        let down = serde_json::json!("down");
+        assert!(pointed("GET /health", &body, Some("/status"), Some(&ok)).is_ok());
+        let other = pointed("GET /health", &body, Some("/status"), Some(&down));
+        assert!(matches!(other, Err(Unmet::NotYet(_))), "{other:?}");
+        let absent = pointed("GET /health", &body, Some("/missing"), Some(&ok));
+        assert!(matches!(absent, Err(Unmet::NotYet(_))), "{absent:?}");
+    }
+
+    #[test]
+    fn equals_with_no_json_pointer_is_broken() {
+        let body = serde_json::json!({ "status": "ok" });
+        let probe = pointed("GET /health", &body, None, Some(&serde_json::json!("ok")));
+        assert!(matches!(probe, Err(Unmet::Broken(_))), "{probe:?}");
     }
 
     #[tokio::test]
