@@ -85,7 +85,8 @@ done
 
 rc=0
 py -m oracle --http "http://127.0.0.1:$http_port" --flight "grpc://127.0.0.1:$flight_port" \
-  --issuer "$issuer" --key "$work/issuer.pem" --db "$db_url" "$@" || rc=$?
+  --issuer "$issuer" --key "$work/issuer.pem" --db "$db_url" \
+  --cli "$cli" --server "$server" --work "$work" "$@" || rc=$?
 if [[ $rc -eq 2 ]]; then
   echo "--- fraiseql-server log (last 6000 bytes) ---" >&2
   tail -c 6000 "$work/server.log" >&2

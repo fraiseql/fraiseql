@@ -6,7 +6,8 @@
    2
   ],
   "per_seed": 2000,
-  "private_requests": 0
+  "private_requests": 0,
+  "probe_cells": 0
  },
  "metrics": {
   "agreement": 13227,

@@ -117,6 +117,28 @@ are deleted at the end, so a later run, or the self-test's next measurement, see
 fixture unchanged. Events come from the change log, so the server needs the `observers`
 feature, and the fixture enables `[observers]`.
 
+## Probe cells
+
+Some requests have no place in the generated corpus: a server configured differently, or a
+token signed in an unusual shape. The private
+module expresses them as `PROBES`, functions of an `oracle.probes.ProbeContext` that return
+`ProbeCell`s. Each cell is a request, the column it was sent on, a reference answer and the
+answer under test.
+
+- The oracle grades each probe cell as it grades a corpus cell. A probe supplies a
+  reference; it never decides an outcome itself.
+- The reference is POST on the same server. When a probe measures what a server variant
+  changes, the reference is the same column on the main server instead.
+- `ctx.variant(name, config=..., server=..., schema=...)` starts a server built from the
+  fixture with those edits, on free ports, sharing the database and the issuer. A server
+  setting the template does not have stops the run, so a variant cannot silently run as
+  the main server.
+- `ctx.claims(...)` and `ctx.sign(...)` sign arbitrary claims with the run's issuer key,
+  or another key.
+
+`run.sh` passes the binaries and its scratch directory (`--cli`, `--server`, `--work`),
+which variants need.
+
 ## Connection handling
 
 `oracle/protocol.py` checks over a raw socket how the server closes a connection after
@@ -159,7 +181,7 @@ tools/oracle/transports/run.sh --report /tmp/transports.json   # every disagreei
 |---|---|
 | `FRAISEQL_CLI`, `FRAISEQL_SERVER` | The binaries under test. The server needs the features `cli,rest,grpc,mcp,arrow,observers`. |
 | `ORACLE_ADMIN_URL` | A PostgreSQL URL allowed to create databases. When unset, a throwaway container is started and removed on exit. |
-| `ORACLE_PRIVATE_MODULE` | A Python file, kept outside the repository, that may export `REQUESTS` and `PRINCIPALS`, and extend the generator's corpus with `ROOTS`, `ORDER_FIELDS`, `FILTERS`, `ORDER_GATED`, `HEADERS` (values for the `x-probe` header) and `WS_SELECTIONS`. It runs against its own `--baseline`. |
+| `ORACLE_PRIVATE_MODULE` | A Python file, kept outside the repository, that may export `REQUESTS`, `PRINCIPALS` and `PROBES` (see [Probe cells](#probe-cells)), and extend the generator's corpus with `ROOTS`, `ORDER_FIELDS`, `FILTERS`, `ORDER_GATED`, `HEADERS` (values for the `x-probe` header) and `WS_SELECTIONS`. It runs against its own `--baseline`. |
 
 Exit codes: 0 means the run matches the baseline; 1 means the gate failed; 2 means the
 harness itself failed, and `run.sh` then prints the end of the server's log.
@@ -184,6 +206,8 @@ gate goes red. It needs a server that matches the baseline.
   - a matcher documents only its own difference (MCP leaving out a field the caller may
     read, or serving one it may not, is not documented; nor is a 414 on a short URL, or
     Flight refusing an authenticated caller), and nothing once its row is removed.
+- Probe cells: an unchanged server variant agrees with the main server, and one with
+  introspection disabled does not. A variant whose edits did not apply fails here.
 - The ratchet fails in both directions and names the metric. A baseline without the
   value ratchets at 0.
 - Every list in the baseline is a gate site. A one-entry change to it fails the run in

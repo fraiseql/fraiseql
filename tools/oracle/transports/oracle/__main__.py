@@ -23,6 +23,7 @@ Exit codes: 0 agreement with the baseline, 1 the gate failed, 2 the harness fail
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import importlib.util
 import json
 import os
@@ -35,7 +36,7 @@ from typing import Any
 
 import httpx
 
-from . import documented, ws
+from . import documented, probes, ws
 from . import generate as gen
 from .clients import Clients, Endpoints, Response
 from .compare import compare_cell, fingerprint, outcome
@@ -64,6 +65,7 @@ class Private:
     principals: dict[str, Any]
     corpus: gen.Corpus
     label: str
+    probe_fns: list[probes.Probe] = field(default_factory=list)
 
 
 EXTENSIONS = ("ROOTS", "ORDER_FIELDS", "FILTERS", "ORDER_GATED", "HEADERS", "WS_SELECTIONS")
@@ -71,9 +73,9 @@ EXTENSIONS = ("ROOTS", "ORDER_FIELDS", "FILTERS", "ORDER_GATED", "HEADERS", "WS_
 
 def load_private() -> Private:
     """ORACLE_PRIVATE_MODULE, a Python file kept outside the repository, may export
-    REQUESTS (extra requests, as dicts of Request fields) and PRINCIPALS, and extend the
-    generator's corpus with ROOTS, ORDER_FIELDS, FILTERS, ORDER_GATED, HEADERS and
-    WS_SELECTIONS."""
+    REQUESTS (extra requests, as dicts of Request fields), PRINCIPALS and PROBES (see
+    oracle/probes.py), and extend the generator's corpus with ROOTS, ORDER_FIELDS, FILTERS,
+    ORDER_GATED, HEADERS and WS_SELECTIONS."""
     path = os.environ.get("ORACLE_PRIVATE_MODULE")
     if not path:
         return Private([], {}, gen.PUBLIC, label="public")
@@ -94,6 +96,7 @@ def load_private() -> Private:
         dict(getattr(mod, "PRINCIPALS", {})),
         gen.PUBLIC.extended(**extra),
         label=f"private:{Path(path).name}",
+        probe_fns=list(getattr(mod, "PROBES", [])),
     )
 
 
@@ -206,6 +209,26 @@ def _probe_table(
         direct.close()
 
 
+def _probe_cells(
+    args: argparse.Namespace,
+    http: str,
+    tokens: dict[str, str | None],
+    found: list[probes.Probe],
+) -> list[probes.ProbeCell]:
+    """The private module's probe cells. Server variants need the binaries run.sh passes."""
+    if not found:
+        return []
+    bins = (
+        probes.Binaries(args.cli, args.server, args.work)
+        if args.cli and args.server and args.work
+        else None
+    )
+    ctx = probes.ProbeContext(
+        Endpoints(http, args.flight), args.issuer, args.key, args.db, tokens, bins
+    )
+    return probes.run(ctx, found)
+
+
 def _tally(
     graded: list[tuple[str, gen.Request, str, Response, Response]],
     table: list[str],
@@ -229,7 +252,14 @@ def _tally(
             continue
         row = documented.matching(
             documented.CellView(
-                req, col, ref, got, resp, principals.get(req.who) is None, roots, issues
+                req,
+                col,
+                ref,
+                got,
+                resp,
+                req.who in principals and principals[req.who] is None,
+                roots,
+                issues,
             ),
             table,
         )
@@ -272,6 +302,7 @@ def measure(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
     table = documented.read_table()
     documented.check(table)
     held = _probe_table(args, protocol_http, runner.tokens, table)
+    probe_cells = _probe_cells(args, protocol_http, runner.tokens, priv.probe_fns)
     retries = sum(c.retries_seen for c in runner.all_clients)
     for c in runner.all_clients:
         c.close()
@@ -281,6 +312,7 @@ def measure(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
         fp = fingerprint(req)
         graded += [(fp, req, col, res["POST"], resp) for col, resp in res.items()]
     graded += [(ws.fingerprint(c), c.request, "WS", c.ref, c.got) for c in ws_cells]
+    graded += [(fingerprint(c.request), c.request, c.column, c.ref, c.got) for c in probe_cells]
 
     t = _tally(graded, table, principals, priv.corpus.roots)
     per_col, failing, by_row = t.per_col, t.failing, t.by_row
@@ -307,6 +339,7 @@ def measure(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
             "seeds": SEEDS,
             "per_seed": PER_SEED,
             "private_requests": len(priv.requests),
+            "probe_cells": len(probe_cells),
         },
         "metrics": metrics,
         "disagreements": sorted(failing),
@@ -593,6 +626,57 @@ def _selftest_documented(checks: Checks) -> None:
     )
 
 
+def _selftest_probes(checks: Checks, args: argparse.Namespace) -> None:
+    """Probe cells are graded like corpus cells, and a server variant runs with its edits.
+
+    The same introspection document is sent to the main server and to two variants: one
+    unchanged, which must agree with main, and one with introspection disabled, which
+    must not. A variant whose edit did not apply would agree, and fail here."""
+    doc = "{ __schema { queryType { name } } }"
+    req = gen.Request(
+        name="selftest:introspection",
+        root="__schema",
+        fields=["queryType"],
+        who="A-viewer",
+        hdr="",
+        style="inline",
+    )
+
+    def probe(ctx: probes.ProbeContext) -> list[probes.ProbeCell]:
+        token = ctx.sign(ctx.claims(sub="alice", tenant_id="tA", roles=["viewer"]))
+        main = ctx.clients().post(doc, None, token, {}, "__schema")
+        cells = []
+        for name, server in (("same", {}), ("closed", {"introspection_enabled": False})):
+            with ctx.variant(f"selftest-{name}", server=server) as ends:
+                got = ctx.clients(ends).post(doc, None, token, {}, "__schema")
+            cells.append(probes.ProbeCell(dataclasses.replace(req, name=name), "POST", main, got))
+        return cells
+
+    same, closed = _probe_cells(args, args.http, {}, [probe])
+    same_issues = compare_cell(same.request, "GET", outcome(same.ref), outcome(same.got))
+    closed_issues = compare_cell(closed.request, "GET", outcome(closed.ref), outcome(closed.got))
+    _check(
+        checks,
+        "an unchanged server variant agrees with the main server",
+        bool(outcome(same.ref).rows) and not same_issues,
+        ",".join(same_issues),
+    )
+    _check(
+        checks,
+        "a variant's edit applies: introspection disabled there differs from main",
+        bool(closed_issues),
+        f"{closed.got.status} {closed.got.codes}",
+    )
+    try:
+        probes._set_keys("a = 1\n[s]\nb = 2\n", {"b": 3})
+        unknown = False
+    except RuntimeError:
+        unknown = True
+    _check(
+        checks, "a server setting the template does not have at top level stops a variant", unknown
+    )
+
+
 def _selftest_sites(checks: Checks, current: dict[str, Any], base: dict[str, Any]) -> None:
     """Every gate site fails on a one-entry change to the baseline, in both directions.
 
@@ -762,6 +846,8 @@ def selftest(args: argparse.Namespace, base: dict[str, Any]) -> int:
     - The Transports table: a row the oracle cannot check stops the run; each row's judge
       passes the row honoured and fails its boundary moved; a matcher documents only its
       own difference, and nothing once its row is removed.
+    - Probe cells: an unchanged server variant agrees with main, and one with
+      introspection disabled does not, so a variant's edits apply.
     - Every gate site fails when the baseline is changed by one entry, in both directions,
       and names that entry; a changed corpus fails.
     - A proxy makes REST serve rows where it refused: only REST cells are reported, and
@@ -780,6 +866,7 @@ def selftest(args: argparse.Namespace, base: dict[str, Any]) -> int:
         raise RuntimeError(msg)
     _check(checks, "unchanged server matches the baseline", True)
     _selftest_sites(checks, current, base)
+    _selftest_probes(checks, args)
 
     key = "refused_on_post_served_elsewhere"
     r = _proxied(args, base, _serve_rest_refusals, "REST")
@@ -819,6 +906,9 @@ def main() -> int:
     p.add_argument("--issuer", required=True)
     p.add_argument("--key", type=Path, required=True)
     p.add_argument("--db", required=True, help="the fixture database; the WS column writes rows")
+    p.add_argument("--cli", type=Path, help="fraiseql-cli, for server variants")
+    p.add_argument("--server", type=Path, help="fraiseql-server, for server variants")
+    p.add_argument("--work", type=Path, help="a scratch directory for server variants")
     p.add_argument("--baseline", type=Path, default=HERE / "baseline.json")
     p.add_argument("--report", type=Path)
     p.add_argument("--bless", action="store_true")
