@@ -225,6 +225,13 @@ gate goes red. It needs a server that matches the baseline.
     trips its ratchet;
   - no subscription receives anything: only WS cells are reported, each as `data`.
 
+## CI
+
+`dagger call transports-oracle --source=.` (`TransportsOracle` in `.dagger/oracle.go`)
+builds the CLI and a server with every transport, and runs `run.sh` against the seeded
+PostgreSQL 18 service the integration legs bind. `--selftest` runs the self-test instead.
+The leg is not wired into any workflow.
+
 ## Measuring a fix
 
 ```bash
