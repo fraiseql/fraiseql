@@ -52,6 +52,9 @@ pub(crate) mod tviews_feed;
 
 #[cfg(all(test, feature = "functions-runtime"))]
 mod after_mutation_wiring_tests;
+#[cfg(test)]
+#[path = "bucket_cap_tests.rs"]
+mod bucket_cap_tests;
 #[cfg(all(test, feature = "observers"))]
 mod declared_observer_env_tests;
 #[cfg(all(test, feature = "observers"))]

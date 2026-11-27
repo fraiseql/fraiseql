@@ -41,7 +41,8 @@ jq '.security.rate_limiting' /etc/fraiseql/schema.compiled.json
 #
 # max_buckets is a MEMORY ceiling on each tracking map, not a throttle: reaching it
 # evicts the least-recently-used bucket, so a client resumes with a full one. If it
-# is too low you will see limits under-enforced, never over-enforced.
+# is too low you will see limits under-enforced, never over-enforced. 0 refuses
+# boot: it would evict a bucket on every new client.
 
 # The server [rate_limiting] table (server.toml) and the env overrides
 # (FRAISEQL_RATE_LIMITING_ENABLED, FRAISEQL_RATE_LIMIT_RPS_PER_IP,

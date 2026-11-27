@@ -823,6 +823,7 @@ pub(super) async fn resolve_rate_limiter(
     auth_rule_budgets_check(&auth_rules)?;
 
     let effective = effective_rate_limit_config(section.as_ref(), config, deployment)?;
+    bucket_cap_check(&effective)?;
 
     if !effective.enabled {
         if !auth_rules.auth_rules_enabled {
@@ -912,6 +913,23 @@ fn zero_global_budget_check(effective: &crate::middleware::RateLimitConfig) -> c
              so every request would be rejected. Set a positive requests_per_second and \
              burst_size, or disable rate limiting.",
             effective.rps_per_ip, effective.burst_size
+        )));
+    }
+    Ok(())
+}
+
+/// Refuse a bucket cap of zero, with the global limit on or off.
+///
+/// Every limiter map evicts a bucket when it holds `max_buckets` of them, so with a cap of
+/// zero each new client key evicts another key's bucket before taking its own and no
+/// bucket lasts. The auth endpoint rules keep theirs under the same cap when the global
+/// limit is off, so the refusal does not wait for `enabled`.
+fn bucket_cap_check(effective: &crate::middleware::RateLimitConfig) -> crate::Result<()> {
+    if effective.max_buckets == 0 {
+        return Err(crate::ServerError::ConfigError(format!(
+            "rate limiting max_buckets = 0 would evict a bucket on every new client, so no \
+             limit would hold. Set a positive max_buckets (the default is {}).",
+            fraiseql_core::schema::DEFAULT_RATE_LIMIT_MAX_BUCKETS
         )));
     }
     Ok(())

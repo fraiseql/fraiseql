@@ -2080,6 +2080,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **A rate limit with `max_buckets = 0` refuses boot (#2664).** Each tracking map evicts a
+  bucket once it holds `max_buckets` of them, so a cap of zero evicted another client's
+  bucket on every new client and no limit held. The server refuses it from
+  `[security.rate_limiting]`, from the server's `[rate_limiting]` table and from
+  `FRAISEQL_RATE_LIMIT_MAX_BUCKETS`, with the global limit on or off: the auth endpoint
+  rules keep their buckets under the same cap.
+
 - **A rate limiter switched on only by a flag or environment variable has the compiled
   policy's default burst, 200 (#1777).** With no rate-limit section in either file,
   `FRAISEQL_RATE_LIMITING_ENABLED` (or its flag) started the limiter with a burst of 500,
