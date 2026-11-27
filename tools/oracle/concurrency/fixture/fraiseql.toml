@@ -1,0 +1,22 @@
+[project]
+name = "oracle_concurrency"
+version = "0.1.0"
+database_target = "postgresql"
+
+[validation]
+max_query_depth = 6
+max_query_complexity = 100000
+max_page_size = 1000
+
+[[session_variables.variables]]
+name = "app.tenant_id"
+source = "jwt"
+claim = "tenant_id"
+
+[[security.role_definitions]]
+name = "admin"
+scopes = ["read:secret"]
+
+[[security.role_definitions]]
+name = "viewer"
+scopes = ["read:none"]
