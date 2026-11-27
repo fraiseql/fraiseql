@@ -53,7 +53,8 @@ selected field it left out is the issue `omitted:<fields>`: it is counted, not s
 | Refused on POST, served elsewhere: POST refuses, another transport returns rows | 0 |
 | No row on POST, served elsewhere: POST returns no row, another transport returns rows | 0 |
 | Undocumented divergences: every other disagreeing cell | 0 |
-| Cells with a code outside `extensions.code` | 0 |
+| Documented differences: cells showing a row of the Transports table, per row | reported |
+| Cells with a code outside `extensions.code`, on POST, GET, SSE and WS | 0 |
 | Pending columns | 0 |
 
 With a baseline present, each metric line shows its change from the baseline, and
@@ -62,6 +63,32 @@ whether that change is better or worse.
 "No row on POST, served elsewhere" is also gated as a ratchet. A value above the
 baseline's fails the run, and a value below it is progress to record with `--bless`. It
 stands at 0. A baseline that lacks the value counts as 0.
+
+## Documented differences
+
+The "Transports" section of [docs/graphql-conformance.md](../../../docs/graphql-conformance.md)
+lists the ways a transport may answer differently from POST. `oracle/documented.py` reads
+its table, and holds for each row:
+
+- a matcher, which recognises a disagreeing cell showing that difference from the
+  request's shape and the codes, never from a message. A matched cell counts as
+  documented, not as an undocumented divergence. It stays in the baseline's
+  disagreements, so a change to it still fails the run;
+- a probe, which asks once on each side of the row's boundary (65 534 and 65 535 bytes
+  for the URL, 4096 and 4097 for the REST filter, 256 KiB and one byte more for a Flight
+  ticket, with and without a token, with and without the field's scope);
+- a judge, which turns the probe's two answers into a finding when either side does not
+  answer as the row says. Findings are the baseline's `documented` list, which is empty
+  when every row holds.
+
+A row the oracle has no matcher or probe for stops the run. A row removed from the table
+documents nothing, so its cells count as undocumented again.
+
+The probes go to the server directly, never through the self-test's proxy.
+
+Only the GraphQL transports carry the error format of the conformance document. REST,
+Flight and MCP carry codes as the table's "Error carriers" says, so they are not counted
+in the error-format metric.
 
 ## The WS column
 
@@ -150,6 +177,13 @@ gate goes red. It needs a server that matches the baseline.
   - a refused WS subscription answers its refusal, whatever it received;
   - a WS row delivered twice differs from POST's one row;
   - an MCP cell that leaves out a selected field is counted.
+- The Transports table:
+  - a row the oracle cannot check stops the run;
+  - each row's judge passes the row honoured, and fails when either side of the boundary
+    moves;
+  - a matcher documents only its own difference (MCP leaving out a field the caller may
+    read, or serving one it may not, is not documented; nor is a 414 on a short URL, or
+    Flight refusing an authenticated caller), and nothing once its row is removed.
 - The ratchet fails in both directions and names the metric. A baseline without the
   value ratchets at 0.
 - Every list in the baseline is a gate site. A one-entry change to it fails the run in

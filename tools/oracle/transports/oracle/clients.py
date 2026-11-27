@@ -99,6 +99,22 @@ def graphql_body(status: int | str, text: str, root: str) -> Response:
     )
 
 
+def get_target(doc: str, variables: dict | None) -> str:
+    """The request target `GET /graphql` sends for a document."""
+    q = {"query": doc}
+    if variables is not None:
+        q["variables"] = json.dumps(variables)
+    return f"/graphql?{urllib.parse.urlencode(q)}"
+
+
+def rest_target(path: str, params: dict[str, Any]) -> str:
+    """The request target a REST read sends."""
+    target = f"/rest/v1{path}"
+    if params:
+        target += "?" + urllib.parse.urlencode(params, safe="(),.[]:", quote_via=urllib.parse.quote)
+    return target
+
+
 @dataclass
 class Endpoints:
     http: str
@@ -154,12 +170,9 @@ class Clients:
     def get(
         self, doc: str, variables: dict | None, token: str | None, hdr: dict[str, str], root: str
     ) -> Response:
-        q = {"query": doc}
-        if variables is not None:
-            q["variables"] = json.dumps(variables)
         h = self._headers(token, hdr)
         del h["content-type"]
-        url = f"{self.ends.http}/graphql?{urllib.parse.urlencode(q)}"
+        url = self.ends.http + get_target(doc, variables)
         try:
             r = self._send("GET", url, headers=h)
         except httpx.InvalidURL:
@@ -207,11 +220,7 @@ class Clients:
     def rest(
         self, path: str, params: dict[str, Any], token: str | None, hdr: dict[str, str]
     ) -> Response:
-        url = f"{self.ends.http}/rest/v1{path}"
-        if params:
-            url += "?" + urllib.parse.urlencode(
-                params, safe="(),.[]:", quote_via=urllib.parse.quote
-            )
+        url = self.ends.http + rest_target(path, params)
         try:
             r = self._send("GET", url, headers=self._headers(token, hdr))
             status, text = r.status_code, r.text

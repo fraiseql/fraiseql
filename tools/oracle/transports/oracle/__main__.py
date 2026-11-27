@@ -29,14 +29,14 @@ import os
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import httpx
 
+from . import documented, ws
 from . import generate as gen
-from . import ws
 from .clients import Clients, Endpoints, Response
 from .compare import compare_cell, fingerprint, outcome
 from .issuer import load_key, mint
@@ -48,7 +48,10 @@ SEEDS = [1, 2]
 PER_SEED = 2000
 WORKERS = 8
 SHOWN = 25
-GATED = ["disagreements", "formats", "columns", "protocol"]
+GATED = ["disagreements", "formats", "columns", "protocol", "documented"]
+# The transports whose refusals must carry their code in `extensions.code`. The others
+# carry it as the Transports table's "Error carriers" says.
+GRAPHQL_COLUMNS = {"POST", "GET", "SSE", "WS"}
 # Metrics that may never rise above their baseline value; today each is ratcheted at 0.
 # A baseline without the value counts as 0, so a missing value cannot loosen the ratchet.
 RATCHETED = ["empty_on_post_served_elsewhere"]
@@ -174,6 +177,80 @@ def _ws_column(
         direct.close()
 
 
+@dataclass
+class Tally:
+    """Every compared cell, counted."""
+
+    table: list[str]
+    per_col: dict[str, list[int]] = field(
+        default_factory=lambda: {c: [0, 0] for c in [*gen.COLUMNS, "WS"]}
+    )
+    failing: dict[str, Any] = field(default_factory=dict)
+    formats: set[str] = field(default_factory=set)
+    served_after_refusal: int = 0
+    served_after_empty: int = 0
+    divergent: int = 0
+    format_cells: int = 0
+    by_row: dict[str, int] = field(default_factory=dict)
+
+
+def _probe_table(
+    args: argparse.Namespace, http: str, tokens: dict[str, str | None], table: list[str]
+) -> list[str]:
+    """The Transports table's boundary probes, on the server itself: the self-test's proxy
+    cannot carry a 64 KiB request line."""
+    direct = Clients(Endpoints(http, args.flight))
+    try:
+        return documented.probe(direct, http, tokens, table)
+    finally:
+        direct.close()
+
+
+def _tally(
+    graded: list[tuple[str, gen.Request, str, Response, Response]],
+    table: list[str],
+    principals: dict[str, Any],
+    roots: dict[str, str],
+) -> Tally:
+    t = Tally(table, by_row=dict.fromkeys(table, 0))
+    for fp, req, col, post, resp in graded:
+        places = set(resp.code_at.split(",")) - {"", "extensions"}
+        if places and col in GRAPHQL_COLUMNS:
+            t.format_cells += 1
+            for code in sorted(set(resp.codes) - {"-"}):
+                t.formats.add(f"{col} {code} at {resp.code_at}")
+        if col == "POST":
+            continue
+        ref, got = outcome(post), outcome(resp)
+        issues = compare_cell(req, col, ref, got)
+        t.per_col[col][1] += 1
+        if not issues:
+            t.per_col[col][0] += 1
+            continue
+        row = documented.matching(
+            documented.CellView(
+                req, col, ref, got, resp, principals.get(req.who) is None, roots, issues
+            ),
+            table,
+        )
+        if row:
+            t.by_row[row] += 1
+        else:
+            t.divergent += 1
+        if ref.cls != "OK" and got.rows:
+            t.served_after_refusal += 1
+        elif ref.cls == "OK" and not ref.rows and got.rows:
+            t.served_after_empty += 1
+        t.failing[f"{fp} {col} {','.join(issues)}"] = {
+            "request": req.canon() | {"name": req.name},
+            "column": col,
+            "documented": row,
+            "POST": post.__dict__,
+            col: resp.__dict__,
+        }
+    return t
+
+
 def measure(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
     priv = load_private()
     principals = {**gen.PRINCIPALS, **priv.principals}
@@ -192,6 +269,9 @@ def measure(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
     protocol_http = getattr(args, "protocol_http", None) or args.http
     protocol = [line for line in [early_refusal(protocol_http, expired)] if line]
     ws_cells = _ws_column(args, protocol_http, runner.tokens, priv.corpus)
+    table = documented.read_table()
+    documented.check(table)
+    held = _probe_table(args, protocol_http, runner.tokens, table)
     retries = sum(c.retries_seen for c in runner.all_clients)
     for c in runner.all_clients:
         c.close()
@@ -202,48 +282,20 @@ def measure(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
         graded += [(fp, req, col, res["POST"], resp) for col, resp in res.items()]
     graded += [(ws.fingerprint(c), c.request, "WS", c.ref, c.got) for c in ws_cells]
 
-    per_col: dict[str, list[int]] = {c: [0, 0] for c in [*gen.COLUMNS, "WS"]}
-    failing: dict[str, Any] = {}
-    formats: set[str] = set()
-    served_after_refusal = 0
-    served_after_empty = 0
-    divergent = 0
-    format_cells = 0
-    for fp, req, col, post, resp in graded:
-        places = set(resp.code_at.split(",")) - {"", "extensions"}
-        if places:
-            format_cells += 1
-            for code in sorted(set(resp.codes) - {"-"}):
-                formats.add(f"{col} {code} at {resp.code_at}")
-        if col == "POST":
-            continue
-        ref, got = outcome(post), outcome(resp)
-        issues = compare_cell(req, col, ref, got)
-        per_col[col][1] += 1
-        if not issues:
-            per_col[col][0] += 1
-            continue
-        divergent += 1
-        if ref.cls != "OK" and got.rows:
-            served_after_refusal += 1
-        elif ref.cls == "OK" and not ref.rows and got.rows:
-            served_after_empty += 1
-        failing[f"{fp} {col} {','.join(issues)}"] = {
-            "request": req.canon() | {"name": req.name},
-            "column": col,
-            "POST": post.__dict__,
-            col: resp.__dict__,
-        }
+    t = _tally(graded, table, principals, priv.corpus.roots)
+    per_col, failing, by_row = t.per_col, t.failing, t.by_row
     cells = sum(t for _, t in per_col.values())
     agree = sum(a for a, _ in per_col.values())
     columns = columns_state(args.http)
     metrics = {
         "agreement": agree,
         "cells": cells,
-        "refused_on_post_served_elsewhere": served_after_refusal,
-        "empty_on_post_served_elsewhere": served_after_empty,
-        "undocumented_divergences": divergent,
-        "error_format_cells": format_cells,
+        "refused_on_post_served_elsewhere": t.served_after_refusal,
+        "empty_on_post_served_elsewhere": t.served_after_empty,
+        "undocumented_divergences": t.divergent,
+        "documented_differences": sum(by_row.values()),
+        "documented_by_row": by_row,
+        "error_format_cells": t.format_cells,
         "pending_columns": sum("pending" in line for line in columns),
         "per_column": {c: f"{a}/{t}" for c, (a, t) in per_col.items() if c != "POST"},
     }
@@ -258,9 +310,10 @@ def measure(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
         },
         "metrics": metrics,
         "disagreements": sorted(failing),
-        "formats": sorted(formats),
+        "formats": sorted(t.formats),
         "columns": columns,
         "protocol": protocol,
+        "documented": held,
     }
     return current, failing
 
@@ -270,6 +323,7 @@ LINES = [
     ("refused on POST, served elsewhere", "refused_on_post_served_elsewhere", None, -1),
     ("no row on POST, served elsewhere", "empty_on_post_served_elsewhere", None, -1),
     ("undocumented divergences", "undocumented_divergences", None, -1),
+    ("documented differences (Transports table)", "documented_differences", None, 0),
     ("cells with a code outside extensions", "error_format_cells", None, -1),
     ("pending columns", "pending_columns", None, -1),
 ]
@@ -283,9 +337,13 @@ def print_metrics(label: str, m: dict[str, Any], base: dict[str, Any] | None) ->
         delta = ""
         if k in bm and bm[k] != m[k]:
             d = m[k] - bm[k]
-            delta = f"   {d:+d} vs baseline {'better' if (d > 0) == (good > 0) else 'worse'}"
+            verdict = "changed" if good == 0 else "better" if (d > 0) == (good > 0) else "worse"
+            delta = f"   {d:+d} vs baseline {verdict}"
         print(f"  {name + ':':40}{v}{delta}")
     print("  per column: " + ", ".join(f"{c} {v}" for c, v in m["per_column"].items()))
+    print(
+        "  documented, by row: " + ", ".join(f"{r} {n}" for r, n in m["documented_by_row"].items())
+    )
 
 
 def gate(current: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
@@ -327,7 +385,7 @@ def print_gate(g: dict[str, Any], failing: dict[str, Any]) -> None:
                 print(f"    {side:6} {r['status']} codes={r['codes']} data={data}")
         if len(reg["disagreements"]) > SHOWN:
             print(f"  ... and {len(reg['disagreements']) - SHOWN} more; --report writes every one")
-    for k in ("formats", "columns", "protocol", "ratchets"):
+    for k in ("formats", "columns", "protocol", "documented", "ratchets"):
         for line in reg[k]:
             print(f"REGRESSION: {k}: {line}")
     n = sum(len(v) for v in prog.values())
@@ -348,10 +406,10 @@ def print_gate(g: dict[str, Any], failing: dict[str, Any]) -> None:
 
 def _only(g: dict[str, Any], side: str, key: str, expected: list[str]) -> bool:
     """The gate failed with exactly `expected` under `side`/`key`, and nothing else."""
-    if g["ok"] or g["corpus_changed"]:
+    if g["ok"] or g["corpus_changed"] or key not in g[side]:
         return False
     return all(
-        sorted(g[s][k]) == sorted(expected) if (s, k) == (side, key) else not g[s][k]
+        sorted(g[s].get(k, [])) == sorted(expected) if (s, k) == (side, key) else not g[s].get(k)
         for s in ("regressions", "progress")
         for k in GATE_KEYS
     )
@@ -425,6 +483,116 @@ def _selftest_pure(checks: Checks) -> None:
     )
 
 
+def _selftest_documented(checks: Checks) -> None:
+    """The Transports table: what the oracle reads from it, and what its judges accept."""
+    from .clients import Response  # noqa: PLC0415 - self-test only
+
+    table = documented.read_table()
+    _check(checks, "the Transports table has rows the oracle can check", bool(table), str(table))
+    try:
+        documented.check([*table, "selftest-unknown-row"])
+        unknown_fails = False
+    except RuntimeError:
+        unknown_fails = True
+    _check(checks, "a table row the oracle cannot check stops the run", unknown_fails)
+
+    rows = [{"id": "1"}]
+    served = Response(status="OK", data=rows, has_data=True)
+    honoured: dict[str, list[tuple[Response, Response]]] = {
+        "flight-requires-auth": [
+            (served, Response(status="x", codes=["flight:FlightUnauthenticatedError"]))
+        ],
+        "mcp-requires-auth": [(served, Response(status="401", codes=["http-401"]))],
+        "url-length-cap": [(served, Response(status="414", codes=["http-414"]))] * 2,
+        "rest-filter-cap": [(served, Response(status="400", codes=["BAD_REQUEST"]))],
+        "flight-ticket-cap": [(served, Response(status="x", codes=["flight:ArrowInvalid"]))],
+        "mcp-field-omission": [
+            (served, Response(status="OK", data=[{"id": "1", "secret": "s"}], has_data=True))
+        ],
+    }
+    for row in table:
+        for n, (probe, (inside, outside)) in enumerate(
+            zip(documented.PROBES[row], honoured[row], strict=True)
+        ):
+            ok = probe.judge(inside, outside) is None
+            # One side at a time: a judge that checks only one side fails here.
+            inside_moved = probe.judge(outside, outside)
+            outside_moved = probe.judge(inside, inside)
+            _check(
+                checks,
+                f"{row}#{n}: the row honoured passes; either side moved fails",
+                ok and inside_moved is not None and outside_moved is not None,
+                f"honoured: {probe.judge(inside, outside)}; inside moved: {inside_moved}; "
+                f"outside moved: {outside_moved}",
+            )
+
+    def view(
+        column: str, who: str, ref: Response, got: Response, ids: list[str] | None = None
+    ) -> bool:
+        req = gen.Request(
+            name="t",
+            root="orders",
+            fields=["id", "secret", "note"],
+            who=who,
+            hdr="",
+            style="inline",
+        )
+        a, b = outcome(ref), outcome(got)
+        cell = documented.CellView(
+            req, column, a, b, got, who == "anon", dict(gen.ROOTS), compare_cell(req, column, a, b)
+        )
+        return documented.matching(cell, table if ids is None else ids) is not None
+
+    post = Response(status="OK", data=[{"id": "1", "secret": None, "note": "n"}], has_data=True)
+    _check(
+        checks,
+        "MCP leaving out a field the caller may not read is documented",
+        view(
+            "MCP",
+            "A-viewer",
+            post,
+            Response(status="OK", data=[{"id": "1", "note": "n"}], has_data=True),
+        ),
+    )
+    _check(
+        checks,
+        "MCP leaving out a field the caller may read is not",
+        not view("MCP", "A-viewer", post, Response(status="OK", data=[{"id": "1"}], has_data=True)),
+    )
+    _check(
+        checks,
+        "MCP serving a field the caller may not read is not",
+        not view(
+            "MCP",
+            "A-viewer",
+            Response(status="x", codes=["FORBIDDEN"]),
+            Response(status="OK", data=[{"id": "1", "secret": "s"}], has_data=True),
+        ),
+    )
+    _check(
+        checks,
+        "a 414 on a short request target is not documented",
+        not view("GET", "A-viewer", post, Response(status="414", codes=["http-414"])),
+    )
+    _check(
+        checks,
+        "Flight refusing an authenticated caller as unauthenticated is not documented",
+        not view(
+            "FLIGHT",
+            "A-viewer",
+            post,
+            Response(status="x", codes=["flight:FlightUnauthenticatedError"]),
+        ),
+    )
+    unauth = Response(status="x", codes=["flight:FlightUnauthenticatedError"])
+    fewer = [r for r in table if r != "flight-requires-auth"]
+    _check(
+        checks,
+        "a row removed from the table documents nothing",
+        view("FLIGHT", "anon", post, unauth) and not view("FLIGHT", "anon", post, unauth, fewer),
+    )
+
+
 def _selftest_sites(checks: Checks, current: dict[str, Any], base: dict[str, Any]) -> None:
     """Every gate site fails on a one-entry change to the baseline, in both directions.
 
@@ -433,22 +601,20 @@ def _selftest_sites(checks: Checks, current: dict[str, Any], base: dict[str, Any
     sites = [k for k, v in base.items() if isinstance(v, list)]
     _check(
         checks,
-        "the baseline has the four gated lists",
-        sorted(sites) == ["columns", "disagreements", "formats", "protocol"],
+        "the baseline has the five gated lists",
+        sorted(sites) == ["columns", "disagreements", "documented", "formats", "protocol"],
         str(sites),
     )
     for k in sites:
-        if base.get(k):
-            entry = base[k][0]
-            g = gate(current, {**base, k: base[k][1:]})
-            _check(
-                checks,
-                f"{k}: an entry missing from the baseline is a regression",
-                _only(g, "regressions", k, [entry]),
-            )
-        else:
-            _check(checks, f"{k}: the baseline has an entry to remove", False, "empty")
+        # A new entry in the run that the baseline does not hold. Added to the run, not
+        # removed from the baseline, so a list that is empty when all is well is checked too.
         fake = f"selftest-{k}-entry"
+        g = gate({**current, k: [*current[k], fake]}, base)
+        _check(
+            checks,
+            f"{k}: an entry the baseline does not hold is a regression",
+            _only(g, "regressions", k, [fake]),
+        )
         g = gate(current, {**base, k: [*base.get(k, []), fake]})
         _check(
             checks,
@@ -593,6 +759,9 @@ def selftest(args: argparse.Namespace, base: dict[str, Any]) -> int:
 
     - Pure: the classifier keeps an unknown code's name, takes a bodyless response's
       status as its code, and the MCP rule counts an omitted field.
+    - The Transports table: a row the oracle cannot check stops the run; each row's judge
+      passes the row honoured and fails its boundary moved; a matcher documents only its
+      own difference, and nothing once its row is removed.
     - Every gate site fails when the baseline is changed by one entry, in both directions,
       and names that entry; a changed corpus fails.
     - A proxy makes REST serve rows where it refused: only REST cells are reported, and
@@ -604,6 +773,7 @@ def selftest(args: argparse.Namespace, base: dict[str, Any]) -> int:
     """
     checks: Checks = []
     _selftest_pure(checks)
+    _selftest_documented(checks)
     current, _ = measure(args)
     if not gate(current, base)["ok"]:
         msg = "the self-test needs a server that matches the baseline; run the oracle first"

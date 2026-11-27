@@ -171,6 +171,92 @@ for a field outside the compiled list. It carries `SUBSCRIPTION_REFUSED`, which
   lookup and fails as `VALIDATION_ERROR`. It needs an explicit `UNSUPPORTED_FEATURE`
   refusal before execution.
 
+## Transports
+
+FraiseQL serves the same data over POST, GET and SSE on `/graphql`, over WebSocket
+subscriptions, REST, MCP and Arrow Flight. On every transport, a request gets the answer
+`POST /graphql` gives it, or a difference listed in the table below. POST is the
+reference because the outcomes above define it.
+
+Every other difference between a transport and POST is a defect.
+
+The cross-transport oracle in `tools/oracle/transports` enforces this. It reads the table
+below and counts a cell that matches a listed difference as documented. It also probes
+each entry on both sides of its boundary. It fails when an entry stops holding, and when
+a cell differs from POST in a way the table does not list.
+
+| Id | Transport | Difference from POST |
+|---|---|---|
+| `flight-requires-auth` | Arrow Flight | an unauthenticated call is refused with gRPC `UNAUTHENTICATED`, whatever it asks |
+| `mcp-requires-auth` | MCP | with `[mcp] require_auth = true`, an unauthenticated call is refused with HTTP 401 |
+| `url-length-cap` | GET `/graphql`, REST | a request target longer than 65 534 bytes is refused with HTTP 414 |
+| `rest-filter-cap` | REST | a `filter` parameter longer than 4096 bytes is refused with HTTP 400 `BAD_REQUEST` |
+| `flight-ticket-cap` | Arrow Flight | a ticket larger than 256 KiB is refused with gRPC `INVALID_ARGUMENT` |
+| `mcp-field-omission` | MCP | a field the caller may not read is left out of the rows, where POST refuses the request or answers the field null |
+
+### flight-requires-auth
+
+**Reason.** A Flight stream is a bulk export channel. It serves authenticated callers
+only, so the server checks the token before it reads the ticket.
+
+**Boundary.** The same ticket is served with a valid token, and refused without one.
+
+### mcp-requires-auth
+
+**Reason.** An MCP client is an agent acting for a user. `require_auth` makes that user
+explicit before any tool runs.
+
+**Boundary.** The same tool call is served with a valid token, and refused without one.
+
+### url-length-cap
+
+**Reason.** GET and REST carry the request in the URL. The HTTP server limits a request
+target to 65 534 bytes. A larger document goes by POST, which has no such cap.
+
+**Boundary.** A request target of 65 534 bytes is served, and one of 65 535 bytes is
+refused with 414.
+
+### rest-filter-cap
+
+**Reason.** The REST `filter` parameter is parsed before planning. 4096 bytes bounds that
+parse. A larger filter goes by POST `/graphql`, which depth and complexity bound instead.
+The cap is checked before field authorisation, so a request that POST refuses for a field
+it may not read is refused here with `BAD_REQUEST`.
+
+**Boundary.** A `filter` of 4096 bytes is served, and one of 4097 bytes is refused.
+
+### flight-ticket-cap
+
+**Reason.** The ticket is decoded before anything else. 256 KiB bounds that decode. Above
+gRPC's 4 MiB message limit, gRPC itself refuses the call first, with `OUT_OF_RANGE`.
+
+**Boundary.** A ticket of 256 KiB is served, and one a byte larger is refused.
+
+### mcp-field-omission
+
+**Reason.** An MCP tool call names no selection. It returns the fields the caller may
+read. POST answers a selection that names a field the caller may not read as that
+field's `on_deny` says: it refuses the request (`reject`), or serves the field null
+(`mask`). MCP never names the field.
+
+**Boundary.** A caller without the field's scope gets rows without the field. A caller
+with the scope gets rows with it.
+
+### Error carriers
+
+Each transport carries a refusal's code in its own place:
+
+| Transport | Carrier |
+|---|---|
+| POST, GET, SSE | `errors[].extensions.code` |
+| WebSocket | an `error` frame's `errors[].extensions.code`, or a close code: 4400 bad request, 4401 unauthorised, 4403 forbidden |
+| REST | the HTTP status, and `error.code` in the body |
+| Arrow Flight | the gRPC status |
+| MCP | the tool result's error |
+
+The error format of "Never restricted" applies to the GraphQL transports: POST, GET, SSE,
+and WebSocket `error` frames.
+
 ## Changing this document
 
 An entry has to argue for its place, and it is never a place to put a defect that has not

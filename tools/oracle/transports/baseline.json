@@ -13,8 +13,17 @@
   "cells": 14720,
   "refused_on_post_served_elsewhere": 88,
   "empty_on_post_served_elsewhere": 0,
-  "undocumented_divergences": 1493,
-  "error_format_cells": 13245,
+  "undocumented_divergences": 579,
+  "documented_differences": 914,
+  "documented_by_row": {
+   "flight-requires-auth": 463,
+   "mcp-requires-auth": 171,
+   "url-length-cap": 170,
+   "rest-filter-cap": 24,
+   "flight-ticket-cap": 0,
+   "mcp-field-omission": 86
+  },
+  "error_format_cells": 8589,
   "pending_columns": 1,
   "per_column": {
    "GET": "3915/4000",
@@ -1521,22 +1530,13 @@
   "ffef866169586d53 MCP class:INVALID->ERR:non-json"
  ],
  "formats": [
-  "FLIGHT flight:ArrowInvalid at grpc-status",
-  "FLIGHT flight:FlightUnauthenticatedError at grpc-status",
-  "FLIGHT flight:FlightUnauthorizedError at grpc-status",
   "GET FORBIDDEN at top-level",
   "GET VALIDATION_ERROR at top-level",
   "GET http-401 at none",
   "GET http-414 at none",
-  "MCP http-401 at none",
-  "MCP non-json at none",
   "POST FORBIDDEN at top-level",
   "POST VALIDATION_ERROR at top-level",
   "POST http-401 at none",
-  "REST BAD_REQUEST at rest-error",
-  "REST FORBIDDEN at rest-error",
-  "REST http-401 at none",
-  "REST http-414 at none",
   "SSE FORBIDDEN at top-level",
   "SSE VALIDATION_ERROR at top-level",
   "SSE http-401 at none",
@@ -1547,5 +1547,6 @@
  ],
  "protocol": [
   "connection: a POST answered before its body was read (http/1.1 401 unauthorized) is followed by a close the response does not announce with `Connection: close` (#2799)"
- ]
+ ],
+ "documented": []
 }
