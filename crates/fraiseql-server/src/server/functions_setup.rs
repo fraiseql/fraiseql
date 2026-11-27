@@ -120,6 +120,7 @@ impl Server {
         // without a pool is a loud fallback, not a startup failure.
         hooks = self.select_function_dlq(hooks, dlq_store_kind).await?;
 
+        #[cfg(feature = "inbound-email")]
         if let Some((resolver, transport)) = self.build_send_email_wiring().await? {
             hooks = hooks.with_email(resolver, transport);
             tracing::info!(
@@ -294,8 +295,7 @@ impl Server {
     ///
     /// Returns [`ServerError::ConfigError`] if the delivery-feedback schema cannot
     /// be created.
-    // Reason: the body awaits only under `inbound-email`; without it, `Ok(None)`.
-    #[allow(clippy::unused_async)]
+    #[cfg(feature = "inbound-email")]
     async fn build_send_email_wiring(
         &self,
     ) -> Result<
@@ -305,38 +305,31 @@ impl Server {
         )>,
         ServerError,
     > {
-        #[cfg(feature = "inbound-email")]
-        {
-            // The delivery-feedback store (suppression + send-status + exactly-once)
-            // needs a database pool; without one the transport still sends, just
-            // without tracking.
-            let tracker = match self.application_pool() {
-                Some(pool) => {
-                    let tracker = crate::inbound::email::PgSendTracker::new(pool.clone());
-                    tracker.init().await.map_err(|error| {
-                        ServerError::ConfigError(format!(
-                            "failed to initialize send-tracking schema: {error}"
-                        ))
-                    })?;
-                    Some(Arc::new(tracker) as Arc<dyn crate::inbound::email::SendTracker>)
-                },
-                None => None,
-            };
-            let address_hash_key = self.build_address_hash_key()?;
-            let Some(transport) = crate::inbound::email::build_email_transport(
-                &self.config.mailbox,
-                |name| std::env::var(name).ok(),
-                tracker,
-                address_hash_key,
-            ) else {
-                return Ok(None);
-            };
-            Ok(Some((self.build_sender_resolver(), transport)))
-        }
-        #[cfg(not(feature = "inbound-email"))]
-        {
-            Ok(None)
-        }
+        // The delivery-feedback store (suppression + send-status + exactly-once)
+        // needs a database pool; without one the transport still sends, just
+        // without tracking.
+        let tracker = match self.application_pool() {
+            Some(pool) => {
+                let tracker = crate::inbound::email::PgSendTracker::new(pool.clone());
+                tracker.init().await.map_err(|error| {
+                    ServerError::ConfigError(format!(
+                        "failed to initialize send-tracking schema: {error}"
+                    ))
+                })?;
+                Some(Arc::new(tracker) as Arc<dyn crate::inbound::email::SendTracker>)
+            },
+            None => None,
+        };
+        let address_hash_key = self.build_address_hash_key()?;
+        let Some(transport) = crate::inbound::email::build_email_transport(
+            &self.config.mailbox,
+            |name| std::env::var(name).ok(),
+            tracker,
+            address_hash_key,
+        ) else {
+            return Ok(None);
+        };
+        Ok(Some((self.build_sender_resolver(), transport)))
     }
 
     /// Derive the recipient address-hash key from the configured server HMAC secret

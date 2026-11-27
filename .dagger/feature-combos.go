@@ -151,6 +151,11 @@ var featureCombos = []featureCombo{
 	// `--all-features`, where a mis-gated item compiles either way. This is the only
 	// build where the feature is ON and its siblings are OFF.
 	{name: "server-functions-runtime-rest-testing", crate: "fraiseql-server", features: []string{"functions-runtime", "rest", "testing"}},
+	// #2688: the combo above is `cargo check`, which runs no clippy lints, and its
+	// `functions-runtime` arm never lints with `inbound-email` and the crate defaults
+	// off. `build_send_email_wiring` failed `clippy::unused_async_trait_impl` in that
+	// arm, unseen, because no combo clippied it.
+	{name: "server-functions-runtime-no-default", crate: "fraiseql-server", clippy: true, noDefaultFeatures: true, features: []string{"functions-runtime"}},
 	{name: "server-kitchen-sink", crate: "fraiseql-server", features: []string{"auth", "observers", "secrets", "federation"}},
 	// server-default-nonwire is the default build (auth,cli). It was added because
 	// the runtime URL-scheme dispatch was gated `not(wire-backend)`, which the
