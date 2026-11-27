@@ -157,6 +157,10 @@ name = "prepare_error_diagnostic"
 required-features = ["postgres"]
 
 [[test]]
+name = "sql_oracle_pg"
+required-features = ["postgres"]
+
+[[test]]
 name = "seed_fixture_integrity"
 required-features = ["postgres"]
 
