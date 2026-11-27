@@ -134,20 +134,6 @@ fn admit_leaf(
     decl: Option<fn(&str) -> Option<Declared>>,
 ) -> Result<bool, Unmodelled> {
     let declared = decl.and_then(|d| d(field));
-    // A `null` operand to a comparison is not ruled by the table.
-    if o.is_null()
-        && matches!(
-            op,
-            WhereOperator::Eq
-                | WhereOperator::Neq
-                | WhereOperator::Gt
-                | WhereOperator::Gte
-                | WhereOperator::Lt
-                | WhereOperator::Lte
-        )
-    {
-        return Err(Unmodelled);
-    }
     Ok(match op {
         WhereOperator::Eq
         | WhereOperator::Neq

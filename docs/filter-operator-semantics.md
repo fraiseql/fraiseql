@@ -60,7 +60,9 @@ refused before any SQL is sent, with a validation error naming the argument:
 - a `Float` takes a JSON number: `"abc"` and the string `"5"` are refused;
 - a `Boolean` takes a JSON boolean: the string `"true"` is refused;
 - a `Date` or `DateTime` takes a string in its scalar's format: `"not-a-date"` is refused;
-- a text operand may not contain NUL.
+- a text operand may not contain NUL;
+- `null` is refused for every comparison, declared or not: a null test is written with
+  `isnull`.
 
 **Stored values are assumed to conform to the declared type.** That is the view's
 contract with the schema. The meaning of a row whose stored value does not conform is not
@@ -104,7 +106,7 @@ error before SQL.
 
 | Operator | True when | Operand | Notes |
 |---|---|---|---|
-| `eq` | `v = o` | a scalar of the comparison type | |
+| `eq` | `v = o` | a scalar of the comparison type; `null` is refused (use `isnull`) | |
 | `neq` | `v ≠ o` | as `eq` | unknown on null or absent |
 | `gt` / `gte` / `lt` / `lte` | `v > o`, `v ≥ o`, `v < o`, `v ≤ o` in the type's order | as `eq` | text by code point |
 | `in` | `v` equals some element of `o` | a list of scalars of the comparison type; a `null` element is refused (use `isnull`) | `[]` is false for every row |
