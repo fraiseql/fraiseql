@@ -9,6 +9,13 @@
 //! * **O2, the two generators agree.** The same tree is rendered by the inlining
 //!   `WhereSqlGenerator` and executed over the same rows. The row sets, or the refusals, must match
 //!   the parameterised path's.
+//! * **O3, the rows are the table's.** A reference evaluator (`sql_oracle/reference.rs`), written
+//!   from `docs/filter-operator-semantics.md` alone, answers each case over the same documents. The
+//!   parameterised path must return its rows, or refuse before SQL where it refuses. Operators the
+//!   table does not model are not judged.
+//!
+//! The fixture lives in its own database, created with PostgreSQL's builtin `C.UTF-8`
+//! locale, so text order and case folding are the table's on any server.
 //!
 //! A result is a *row set*, never "no error": a statement that runs and returns the wrong
 //! rows is a disagreement.
@@ -47,6 +54,15 @@ use fraiseql_db::{
 use fraiseql_error::FraiseQLError;
 use serde_json::{Value, json};
 
+#[path = "sql_oracle/reference.rs"]
+mod reference;
+
+use reference::{Declared, Verdict};
+
+/// The oracle's own database, created with PostgreSQL's builtin `C.UTF-8` locale so that
+/// text order and case folding are the table's, not the server's default locale's.
+const DATABASE: &str = "sql_oracle";
+
 /// The fixture relation. Uniquely named so it cannot collide with other suites' fixtures.
 const TABLE: &str = "sql_oracle_rows";
 
@@ -59,21 +75,50 @@ const TREES: usize = 400;
 /// Deepest `And` / `Or` / `Not` nesting above a leaf.
 const MAX_DEPTH: u32 = 3;
 
-/// Rows chosen so that each value pool below matches some rows and not others, with
-/// missing keys and JSON `null` on every field.
-const FIXTURE: &str = r#"
-DROP TABLE IF EXISTS sql_oracle_rows;
-CREATE TABLE sql_oracle_rows (data jsonb NOT NULL);
-INSERT INTO sql_oracle_rows (data) VALUES
-  ('{"id":1,"name":"alpha","n":5,"x":19.90,"b":true,"d":"2024-01-01","tags":["rust","graphql"]}'),
-  ('{"id":2,"name":"O''Brien","n":10,"x":24.5,"b":false,"d":"2024-06-15","tags":["python"]}'),
-  ('{"id":3,"name":"back\\slash","n":-3,"x":100,"b":true,"d":"2024-12-31","tags":["rust","sql"]}'),
-  ('{"id":4,"name":"50%_off","n":0,"x":0.001,"b":false,"d":"2023-02-28","tags":[]}'),
-  ('{"id":5,"name":"été","n":9007199254740993,"x":-7.25,"tags":["O''Brien"]}'),
-  ('{"id":6,"name":"","n":null,"x":null,"b":null,"d":null,"tags":null}'),
-  ('{"id":7,"name":"日本","n":7,"b":true,"d":"2024-01-01"}'),
-  ('{"id":8}');
-"#;
+/// The fixture's documents, chosen so that each value pool below matches some rows and
+/// not others, with absent keys and JSON `null` on every field. Stored values conform to
+/// their declared types, as the semantics table assumes. Both the table and the reference
+/// evaluator read these.
+const ROWS: &[&str] = &[
+    r#"{"id":1,"name":"alpha","n":5,"x":19.90,"b":true,"d":"2024-01-01","tags":["rust","graphql"]}"#,
+    r#"{"id":2,"name":"O'Brien","n":10,"x":24.5,"b":false,"d":"2024-06-15","tags":["python"]}"#,
+    r#"{"id":3,"name":"back\\slash","n":-3,"x":100,"b":true,"d":"2024-12-31","tags":["rust","sql"]}"#,
+    r#"{"id":4,"name":"50%_off","n":0,"x":0.001,"b":false,"d":"2023-02-28","tags":[]}"#,
+    r#"{"id":5,"name":"Été","n":9007199254740993,"x":-7.25,"tags":["O'Brien"]}"#,
+    r#"{"id":6,"name":"","n":null,"x":null,"b":null,"d":null,"tags":null}"#,
+    r#"{"id":7,"name":"日本","n":7,"b":true,"d":"2024-01-01"}"#,
+    r#"{"id":8}"#,
+];
+
+/// The statements that provision the fixture relation from [`ROWS`].
+fn fixture() -> Vec<String> {
+    let values: Vec<String> = ROWS
+        .iter()
+        .map(|doc| format!("('{}'::jsonb)", doc.replace('\'', "''")))
+        .collect();
+    vec![
+        format!("DROP TABLE IF EXISTS {TABLE}"),
+        format!("CREATE TABLE {TABLE} (data jsonb NOT NULL)"),
+        format!("INSERT INTO {TABLE} (data) VALUES {}", values.join(", ")),
+    ]
+}
+
+fn rows() -> Vec<Value> {
+    ROWS.iter().map(|doc| serde_json::from_str(doc).unwrap()).collect()
+}
+
+/// The declared types as the reference evaluator reads them: the same table as
+/// [`declared_types`], kept apart so the reference shares nothing with the generators.
+fn reference_types(field: &str) -> Option<Declared> {
+    Some(match field {
+        "name" | "tags" => Declared::Text,
+        "n" => Declared::Int,
+        "x" => Declared::Float,
+        "b" => Declared::Boolean,
+        "d" => Declared::Date,
+        _ => return None,
+    })
+}
 
 /// Declared types, as a compiled schema would supply them.
 fn declared_types() -> SharedFieldTypes {
@@ -112,7 +157,9 @@ impl Rng {
 }
 
 /// Text values: ordinary words, SQL quoting and comment syntax, LIKE metacharacters,
-/// array-literal syntax, Unicode (precomposed, combining, CJK, astral) and NUL.
+/// array-literal syntax, Unicode (precomposed, combining, CJK, astral) and NUL, plus strict
+/// prefixes and suffixes of fixture values, so that a prefix match and a suffix match
+/// answer differently.
 fn text_values() -> Vec<Value> {
     [
         "",
@@ -136,6 +183,14 @@ fn text_values() -> Vec<Value> {
         "{a,b}",
         ")",
         "NUL\u{0}x",
+        "ends\\",
+        "al",
+        "pha",
+        "O'",
+        "\\sl",
+        "50%",
+        "_off",
+        "ÉT",
     ]
     .iter()
     .map(|s| json!(s))
@@ -177,6 +232,8 @@ fn array_values() -> Vec<Value> {
         json!(["O'Brien"]),
         json!(["rust", "graphql", "extra"]),
         json!([1]),
+        json!([{"a": 1}]),
+        json!([["rust"]]),
     ]
 }
 
@@ -272,9 +329,12 @@ fn leaves() -> Vec<WhereClause> {
             }
             for op in [WhereOperator::IsNull, WhereOperator::IsNotNull] {
                 push(op.clone(), json!(true));
-                push(op, json!(false));
+                push(op.clone(), json!(false));
+                push(op, json!("yes"));
             }
             if family.operators != ARRAY_OPS {
+                push(WhereOperator::In, json!([]));
+                push(WhereOperator::Nin, json!([]));
                 for (i, v) in values.iter().enumerate() {
                     let next = &values[(i + 1) % values.len()];
                     for op in [WhereOperator::In, WhereOperator::Nin] {
@@ -398,6 +458,7 @@ fn judge(
     clause: &WhereClause,
     param: &Answer,
     inline: &Answer,
+    reference: &Verdict,
 ) -> Vec<(String, String)> {
     // The declared types are the same for every typed case, and serialise in hash order:
     // the variant names them, and the fingerprint is the tree they wrap.
@@ -416,7 +477,17 @@ fn judge(
             (Answer::Rows(_), Answer::Rows(_)) => "rows_differ".to_string(),
             _ => format!("{}_vs_{}", param.class(), inline.class()),
         };
-        out.push((format!("O2:{kind}:{variant}:{fp}"), tree));
+        out.push((format!("O2:{kind}:{variant}:{fp}"), tree.clone()));
+    }
+    let o3 = match (reference, param) {
+        (Verdict::Unjudged, _) | (Verdict::Refused, Answer::GeneratorRefused) => None,
+        (Verdict::Rows(want), Answer::Rows(got)) if want == got => None,
+        (Verdict::Rows(_), Answer::Rows(_)) => Some("rows_differ".to_string()),
+        (Verdict::Rows(_), other) => Some(format!("{}_vs_rows", other.class())),
+        (Verdict::Refused, other) => Some(format!("{}_vs_refused", other.class())),
+    };
+    if let Some(kind) = o3 {
+        out.push((format!("O3:{kind}:{variant}:{fp}"), tree));
     }
     out
 }
@@ -425,14 +496,37 @@ fn baseline_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/sql_oracle_baseline.json")
 }
 
+/// `url` with its database name replaced by `name`.
+fn with_database(url: &str, name: &str) -> String {
+    let (base, query) = url.split_once('?').map_or((url, None), |(b, q)| (b, Some(q)));
+    let (authority, _) = base.rsplit_once('/').expect("a database URL names its database");
+    query.map_or_else(|| format!("{authority}/{name}"), |q| format!("{authority}/{name}?{q}"))
+}
+
+/// (Re)create the oracle's database on the bound server, then provision the fixture in it.
 async fn rig() -> Option<PostgresAdapter> {
     let pg = fraiseql_test_support::postgres().await?;
-    let adapter = PostgresAdapter::new(pg.url()).await.expect("connect to the bound PostgreSQL");
-    for stmt in FIXTURE.split(";\n") {
-        if stmt.trim().is_empty() {
-            continue;
-        }
-        adapter.execute_raw_query(stmt).await.expect("provision the oracle fixture");
+    let (admin, connection) =
+        fraiseql_db::tokio_postgres::connect(pg.url(), fraiseql_db::tokio_postgres::NoTls)
+            .await
+            .expect("connect to the bound PostgreSQL");
+    tokio::spawn(connection);
+    admin
+        .simple_query(&format!("DROP DATABASE IF EXISTS {DATABASE} WITH (FORCE)"))
+        .await
+        .expect("drop a previous oracle database");
+    admin
+        .simple_query(&format!(
+            "CREATE DATABASE {DATABASE} TEMPLATE template0 ENCODING 'UTF8' \
+             LOCALE_PROVIDER builtin BUILTIN_LOCALE 'C.UTF-8'"
+        ))
+        .await
+        .expect("create the oracle database with the builtin C.UTF-8 locale");
+    let adapter = PostgresAdapter::new(&with_database(pg.url(), DATABASE))
+        .await
+        .expect("connect to the oracle database");
+    for stmt in fixture() {
+        adapter.execute_raw_query(&stmt).await.expect("provision the oracle fixture");
     }
     Some(adapter)
 }
@@ -442,6 +536,8 @@ async fn rig() -> Option<PostgresAdapter> {
 struct Report {
     entries: BTreeMap<String, String>,
     counts:  BTreeMap<String, usize>,
+    /// The fixture's documents, as the reference evaluator reads them.
+    rows:    Vec<Value>,
 }
 
 impl Report {
@@ -449,7 +545,7 @@ impl Report {
         *self.counts.entry(key).or_default() += 1;
     }
 
-    /// Judge one case; true when both paths answered alike and PostgreSQL accepted it.
+    /// Judge one case; true when no oracle reported it.
     async fn case(
         &mut self,
         adapter: &PostgresAdapter,
@@ -459,8 +555,12 @@ impl Report {
     ) -> bool {
         let param = parameterised(adapter, clause).await;
         let inline = inlined(adapter, clause).await;
+        let reference = reference::evaluate(clause, &self.rows, reference_types);
         self.count(format!("{scope}:{variant_name}:cases"));
-        let found = judge(&format!("{scope}:{variant_name}"), clause, &param, &inline);
+        if reference == Verdict::Unjudged {
+            self.count(format!("{scope}:{variant_name}:o3_unjudged"));
+        }
+        let found = judge(&format!("{scope}:{variant_name}"), clause, &param, &inline, &reference);
         for (key, tree) in &found {
             self.count(key.rsplitn(4, ':').nth(3).unwrap().to_string());
             self.entries.insert(key.clone(), tree.clone());
@@ -469,9 +569,13 @@ impl Report {
     }
 }
 
-/// Run every leaf, then the trees over the leaves that came out clean.
+/// Run every leaf, then the trees over the leaves no oracle reported: a tree entry is then
+/// a composition defect, not a leaf repeated.
 async fn run(adapter: &PostgresAdapter) -> Report {
-    let mut report = Report::default();
+    let mut report = Report {
+        rows: rows(),
+        ..Report::default()
+    };
     let leaves = leaves();
     let mut rng = Rng(SEED);
     for name in VARIANTS {
@@ -498,6 +602,7 @@ async fn generated_trees_agree_with_postgres_and_across_generators() {
     let Report {
         entries: report,
         counts,
+        ..
     } = run(&adapter).await;
     for (k, v) in &counts {
         eprintln!("sql oracle: {k} = {v}");

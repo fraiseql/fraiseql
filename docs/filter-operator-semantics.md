@@ -55,10 +55,12 @@ leaf:
 **The operand must be readable as the comparison type.** If it is not, the filter is
 refused before any SQL is sent, with a validation error naming the argument:
 
-- `10.5` for an `Int`;
-- `"abc"` for a `Float`;
-- the string `"true"` for a `Boolean`;
-- `"not-a-date"` for a `Date`.
+- an `Int` takes a JSON integer within 64 bits: `10.5`, `1e300` and the string `"5"` are
+  refused;
+- a `Float` takes a JSON number: `"abc"` and the string `"5"` are refused;
+- a `Boolean` takes a JSON boolean: the string `"true"` is refused;
+- a `Date` or `DateTime` takes a string in its scalar's format: `"not-a-date"` is refused;
+- a text operand may not contain NUL.
 
 **Stored values are assumed to conform to the declared type.** That is the view's
 contract with the schema. The meaning of a row whose stored value does not conform is not
@@ -85,7 +87,9 @@ three-valued logic, and a row is returned only when the whole filter is **true**
 
 Consequences:
 
-- `neq`, `nin`, `nlike` and `nilike` do not return rows whose key is null or absent.
+- `neq`, `nin`, `nlike` and `nilike` do not return rows whose key is null or absent. That
+  holds for `nin: []` too: it is true on every present value and unknown on the rest, so
+  adding an element to a `nin` list never adds a row.
 - `not: { name: { eq: "a" } }` does not return them either.
 - To include them, write `or: [{ name: { neq: "a" } }, { name: { isnull: true } }]`.
 
@@ -103,8 +107,8 @@ error before SQL.
 | `eq` | `v = o` | a scalar of the comparison type | |
 | `neq` | `v ≠ o` | as `eq` | unknown on null or absent |
 | `gt` / `gte` / `lt` / `lte` | `v > o`, `v ≥ o`, `v < o`, `v ≤ o` in the type's order | as `eq` | text by code point |
-| `in` | `v` equals some element of `o` | a list of scalars | `[]` is false for every row |
-| `nin` | `v` equals no element of `o` | as `in` | unknown on null or absent; see decision D1 for `[]` and D2 for `null` elements |
+| `in` | `v` equals some element of `o` | a list of scalars of the comparison type; a `null` element is refused (use `isnull`) | `[]` is false for every row |
+| `nin` | `v` equals no element of `o` | as `in` | unknown on null or absent, `[]` included |
 
 ### Null tests
 
@@ -147,14 +151,15 @@ An empty pattern matches only the empty string.
 
 ### Arrays
 
-The operand must be a JSON array of scalars; anything else is refused. The field holds a
-JSON array of scalars, per the view's contract. Elements compare as JSON values:
+The operand must be a JSON array whose elements are scalars: an object or array element
+is refused, and so is any other operand. The field holds a JSON array of scalars, per the
+view's contract; its declared type is not consulted, so a field declared `String` that
+holds an array takes these operators. Elements compare as JSON values:
 
 - `1` equals `1.0`;
 - `"1"` does not equal `1`.
 
-Duplicates do not count. Object and array elements are outside this contract (decision
-D7).
+Duplicates do not count.
 
 | Operator | True when | Empty arrays |
 |---|---|---|
@@ -163,21 +168,6 @@ D7).
 | `array_overlaps` | some element of `o` is an element of `v` | false when either side is `[]` |
 
 A null or absent key is unknown.
-
-## Decisions for review
-
-These rows record today's behaviour where it is a choice, with a recommendation. When one
-is ruled, the table above states the ruling and the row is removed.
-
-| # | Question | Today | Recommendation |
-|---|---|---|---|
-| D1 | `nin: []` | true for **every** row, including null and absent, while `nin: [x]` is unknown on them | make it unknown on null and absent like any other `nin`, so adding an element never adds rows |
-| D2 | a `null` element in `in` / `nin` | follows SQL: `in: [a, null]` is true only on `a`, and `nin: [a, null]` is never true | refuse a `null` element, and point to `isnull`: no client means "never" |
-| D3 | a string operand for a declared `Int` or `Float` (`"5"`) | accepted, and read as the number | refuse it, as GraphQL input coercion does for `Int` and `Float` |
-| D4 | the string operators on a non-string value | match its JSON text (`contains: "5"` matches a stored `15`) | keep, stated as above; a declared non-text field could refuse them instead |
-| D5 | array operators on a declared `String` field holding an array | allowed (the declared type is not consulted) | keep until fields can declare a list type |
-| D7 | object or array elements in the array operators | PostgreSQL `jsonb` containment: `[{"a":1,"b":2}]` contains `[{"a":1}]`, and `[[1,2]]` contains `[[1]]` | refuse non-scalar elements in the operand until a field can declare a list of objects |
-| D6 | the text operators under the database's own collation | follow it | keep: this page states the builtin `C.UTF-8` behaviour, and deployments that choose another collation get its order and folding |
 
 ## Not covered
 
