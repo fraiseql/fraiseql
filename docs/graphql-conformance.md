@@ -138,28 +138,35 @@ The supported subset:
   where subscriptions are enabled. A subscription operation sent over HTTP POST, GET or
   SSE is refused with `UNSUPPORTED_FEATURE`.
 - **One operation.** Each subscribe message carries exactly one subscription operation.
-- **One root field.** This is spec rule §5.2.3.1, so it is not a restriction. It is
-  counted after `@skip`/`@include` are evaluated and fragments are expanded, as the spec
-  counts it.
-- **Selection.** The fields the subscribed type declares, at any depth. At the top
-  level, only the fields in the subscription's compiled field list.
+- **Selection.** At the top level, only the fields in the subscription's compiled field
+  list. Below it, any field the subscribed type declares.
 - **Delivery.** Each event serves the write's after-image, and nothing is fetched. An
   event the subscriber may not read is never sent. No error frame is sent for it.
 
 A shape outside this subset is refused with `SUBSCRIPTION_REFUSED`.
 
-**Refused today at** `crates/fraiseql-core/src/runtime/executor/subscription_plan.rs`.
-The root count is at `:214` and the unknown subscription at `:221`. The undeclared field
-is at `:369` and the field outside the compiled list at `:400`. All four carry
-`SUBSCRIPTION_REFUSED`, which `crates/fraiseql-server/src/routes/subscriptions.rs:1520`
-selects.
+The following are spec validation, not restrictions. Each answers as a validation error,
+under "Never restricted" above:
+
+- **More than one root field.** Spec rule §5.2.3.1. It is counted after `@skip`/`@include`
+  are evaluated and fragments are expanded, as the spec counts it.
+- **A subscription field the schema does not declare** (§5.3.1).
+- **A field the subscribed type does not declare** (§5.3.1).
+
+**Refused today at** `crates/fraiseql-core/src/runtime/executor/subscription_plan.rs:400`
+for a field outside the compiled list. It carries `SUBSCRIPTION_REFUSED`, which
+`crates/fraiseql-server/src/routes/subscriptions.rs:1520` selects.
 
 **Status.**
 
-- The WebSocket shape refusals are clean: they carry a distinct code.
-- Before planning, `crates/fraiseql-server/src/routes/subscriptions.rs:1879` refuses a
-  second root field with `PARSE_ERROR`. It counts before directives are evaluated, which
-  the subset above does not allow.
+- The refusal of a field outside the compiled list is clean: it carries a distinct code.
+- An unknown subscription answers as validation (`VALIDATION_ERROR`, from
+  `subscription_plan.rs:221`).
+- Two of the validation cases do not yet answer as validation:
+  - Before planning, `crates/fraiseql-server/src/routes/subscriptions.rs:1879` refuses a
+    second root field with `PARSE_ERROR`. It counts before directives are evaluated.
+  - A field the type does not declare answers `SUBSCRIPTION_REFUSED` from
+    `subscription_plan.rs:369`. It should answer as the §5.3.1 validation error it is.
 - Over HTTP, a subscription operation is not refused as such. It reaches the query
   lookup and fails as `VALIDATION_ERROR`. It needs an explicit `UNSUPPORTED_FEATURE`
   refusal before execution.
