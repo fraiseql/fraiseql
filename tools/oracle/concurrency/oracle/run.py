@@ -38,7 +38,7 @@ class Run:
     replica_url: str = ""
     issuer: Issuer = field(default_factory=Issuer)
     db_url: str = ""
-    _compiled: dict[int | None, Path] = field(default_factory=dict)
+    _compiled: dict[tuple[int | None, bool], Path] = field(default_factory=dict)
 
     def setup_database(self, admin_url: str | None = None, name: str | None = None) -> str:
         """Creates and loads a fixture database; returns its URL."""
@@ -60,18 +60,29 @@ class Run:
         db.load(url, FIXTURE / "fn.sql")
         return url
 
-    def compiled(self, ttl: int | None) -> Path:
-        """The compiled schema with every query at `ttl` (None: no TTL)."""
-        if ttl not in self._compiled:
-            tag = "none" if ttl is None else str(ttl)
+    def compiled(self, ttl: int | None, *, observers: bool = False) -> Path:
+        """The compiled schema with every query at `ttl` (None: no TTL).
+
+        `observers` turns on the observer runtime, which feeds subscriptions from the
+        change log.
+        """
+        if (ttl, observers) not in self._compiled:
+            tag = ("none" if ttl is None else str(ttl)) + (".observers" if observers else "")
             types = self.work / f"schema.{tag}.json"
             types.write_text(json.dumps(schema.build(ttl), indent=1))
+            project = FIXTURE / "fraiseql.toml"
+            if observers:
+                project = self.work / "fraiseql.observers.toml"
+                project.write_text(
+                    (FIXTURE / "fraiseql.toml").read_text()
+                    + '\n[observers]\nenabled = true\nbackend = "postgres"\n'
+                )
             out = self.work / f"compiled.{tag}.json"
             proc = subprocess.run(
                 [
                     str(self.cli),
                     "compile",
-                    str(FIXTURE / "fraiseql.toml"),
+                    str(project),
                     "--types",
                     str(types),
                     "-o",
@@ -84,8 +95,8 @@ class Run:
             if proc.returncode != 0:
                 msg = f"fraiseql-cli compile failed:\n{proc.stdout[-2000:]}{proc.stderr[-2000:]}"
                 raise SetupError(msg)
-            self._compiled[ttl] = out
-        return self._compiled[ttl]
+            self._compiled[ttl, observers] = out
+        return self._compiled[ttl, observers]
 
     @contextlib.contextmanager
     def serve(
@@ -96,6 +107,7 @@ class Run:
         ttl: int | None = 0,
         top: str = "",
         database_url: str | None = None,
+        observers: bool = False,
     ) -> Generator[str]:
         """Starts a server; yields its base URL and stops it on exit."""
         port = free_port()
@@ -104,7 +116,7 @@ class Run:
             "\n".join(
                 [
                     f'bind_addr = "127.0.0.1:{port}"',
-                    f'schema_path = "{self.compiled(ttl)}"',
+                    f'schema_path = "{self.compiled(ttl, observers=observers)}"',
                     f'database_url = "{database_url or self.db_url}"',
                     f"cache_enabled = {'true' if cache else 'false'}",
                     "subscriptions_enabled = true",

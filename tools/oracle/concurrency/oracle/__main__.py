@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from oracle import gate, selftest
-from oracle.cells import VacuousError, cutoff, fence, idem, probe, replica
+from oracle.cells import VacuousError, cutoff, fence, idem, matrix, pag, probe, replica, sec, sub
 from oracle.client import ReadError
 from oracle.run import HERE, Run, SetupError
 
@@ -30,6 +30,10 @@ GROUPS: dict[str, Callable[[Run], list[Outcome]]] = {
     "replica": replica.run,
     "cutoff": cutoff.run,
     "fence": fence.run,
+    "matrix": matrix.run,
+    "pag": pag.run,
+    "sub": sub.run,
+    "sec": sec.run,
 }
 BASELINE = HERE / "baseline.json"
 

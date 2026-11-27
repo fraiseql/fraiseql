@@ -81,6 +81,12 @@ def scalar(url: str, query: LiteralString, *params: Any) -> Any:
     return None if row is None else row[0]
 
 
+def column(url: str, query: LiteralString, *params: Any) -> list[Any]:
+    """The first column of every row of `query`."""
+    with psycopg.connect(url, autocommit=True) as c:
+        return [row[0] for row in c.execute(query, params).fetchall()]
+
+
 def execute(url: str, query: LiteralString, *params: Any) -> None:
     with psycopg.connect(url, autocommit=True) as c:
         c.execute(query, params)
