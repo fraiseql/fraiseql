@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from oracle import gate, selftest
-from oracle.cells import VacuousError, idem, probe
+from oracle.cells import VacuousError, idem, probe, replica
 from oracle.client import ReadError
 from oracle.run import HERE, Run, SetupError
 
@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 GROUPS: dict[str, Callable[[Run], list[Outcome]]] = {
     "probe": probe.run,
     "idem": idem.run,
+    "replica": replica.run,
 }
 BASELINE = HERE / "baseline.json"
 
@@ -37,6 +38,8 @@ def main() -> int:
     p.add_argument("--server", type=Path)
     p.add_argument("--admin-url")
     p.add_argument("--work", type=Path)
+    p.add_argument("--primary-url", default="", help="superuser URL of the replica cells' primary")
+    p.add_argument("--replica-url", default="", help="superuser URL of its hot standby")
     p.add_argument("--only", help="comma-separated groups: " + ",".join(GROUPS))
     p.add_argument("--bless", action="store_true")
     p.add_argument("--selftest", action="store_true")
@@ -56,7 +59,14 @@ def main() -> int:
     if unknown:
         p.error(f"unknown groups: {unknown}")
 
-    r = Run(cli=a.cli, server=a.server, work=a.work, admin_url=a.admin_url)
+    r = Run(
+        cli=a.cli,
+        server=a.server,
+        work=a.work,
+        admin_url=a.admin_url,
+        primary_url=a.primary_url,
+        replica_url=a.replica_url,
+    )
     outcomes: list[Outcome] = []
     try:
         r.db_url = r.setup_database()

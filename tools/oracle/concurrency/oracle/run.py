@@ -34,6 +34,8 @@ class Run:
     work: Path
     admin_url: str
     db_name: str = "oracle_concurrency"
+    primary_url: str = ""
+    replica_url: str = ""
     issuer: Issuer = field(default_factory=Issuer)
     db_url: str = ""
     _compiled: dict[int | None, Path] = field(default_factory=dict)
