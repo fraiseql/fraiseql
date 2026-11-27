@@ -46,7 +46,6 @@ SKIP = (
     "fraiseql-federation",
     "fraiseql-guard",
     "fraiseql-jwks",
-    "fraiseql-saga",
     "fraiseql-webhooks",
 )
 

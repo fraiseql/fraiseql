@@ -7,8 +7,8 @@ and calls this server's `_service` and `_entities` fields. Compilation validates
 entity's `@key` and embeds the federation metadata in `schema.compiled.json`; the
 `_entities` lookup SQL is built per request.
 
-Cross-subgraph sagas live in a separate crate, `fraiseql-saga`, which no other crate in
-the workspace depends on (see [Layer 3](#layer-3--cross-subgraph-mutations-fraiseql-saga)).
+FraiseQL does not orchestrate a mutation across subgraphs: each subgraph writes only to
+its own database.
 
 ## Component Map
 
@@ -20,19 +20,10 @@ crates/fraiseql-federation/src/
 ├── query_builder.rs, sql_utils.rs # Lookup SQL construction
 ├── selection_parser.rs            # Field selection for the lookup
 ├── service_sdl.rs                 # _service { sdl } rendering
-├── http_resolver.rs               # HttpEntityResolver: _entities over HTTPS (SSRF-hardened); used by fraiseql-saga
+├── http_resolver.rs               # HttpEntityResolver: _entities over HTTPS (SSRF-hardened)
 ├── requires_provides_validator.rs # @requires / @provides validation
 ├── observability.rs               # Subgraph latency histogram, entity resolution counters
 └── logging.rs, tracing.rs, tls.rs, types.rs, metadata_helpers.rs, query_plan_cache.rs
-
-crates/fraiseql-saga/src/
-├── saga_coordinator.rs            # SagaCoordinator facade
-├── saga_executor/                 # Forward phase: step execution + @requires pre-fetch
-├── saga_compensator.rs            # Compensation (rollback) executor
-├── saga_recovery_manager.rs       # On-restart recovery with SKIP LOCKED leasing
-├── saga_store.rs                  # PostgreSQL persistence for saga state
-├── mutation_executor.rs           # Local step dispatch through the core mutation path
-└── mutation_http_client.rs        # HTTPS client for remote steps (SSRF-protected)
 
 crates/fraiseql-server/src/federation/
 ├── circuit_breaker.rs             # Per-entity-type circuit breaker
@@ -87,23 +78,7 @@ _entities(representations: [...])
     └── SQL lookup per __typename → this subgraph's database
 ```
 
-### Layer 3 — Cross-Subgraph Mutations (fraiseql-saga)
-
-Saga orchestration is the `fraiseql-saga` crate. It is a library: `fraiseql-server`,
-`fraiseql-core` and the umbrella `fraiseql` crate do not depend on it, and there is no
-`saga` Cargo feature. Adding the crate is the opt-in.
-
-It provides forward execution over **local SQL** or **remote HTTPS**
-(`SagaCoordinator` / `execute_saga`, with optional mTLS), **compensation** in reverse
-order, on-restart **recovery** (`SELECT … FOR UPDATE SKIP LOCKED` leasing), per-step
-**retry with backoff and timeout**, and cross-subgraph **`@requires` pre-fetch** through
-`HttpEntityResolver`. A local step runs through
-`Executor::execute_mutation_with_security`, so it passes the same authorization and
-validation gates as any other mutation (#1354).
-
-See [federation-saga.md](../guides/federation-saga.md) for the developer guide.
-
-### Layer 4 — Circuit Breaker
+### Layer 3 — Circuit Breaker
 
 Each entity type has an independent circuit breaker in `fraiseql-server`, configured from
 the compiled `federation.circuit_breaker` section. While a type's breaker is open, an
@@ -127,25 +102,6 @@ Router → POST /graphql  { _entities(representations: [...]) { ... } }
     └── Lookup SQL per __typename, built for this request → PostgreSQL
 ```
 
-## Data Flow: Cross-Subgraph Mutation (Saga)
-
-> Available to an embedder that uses `fraiseql-saga` directly. The `fraiseql-server`
-> binary does not run sagas.
-
-```text
-Embedder code → SagaCoordinator.execute_saga()
-    │
-    ├── Step 1: inventory-service.reserveInventory  ← forward
-    │     └── OK → persist step result to tb_federation_saga_steps
-    │
-    ├── Step 2: billing-service.chargePayment        ← forward
-    │     └── FAIL → trigger compensation phase
-    │
-    └── Compensation (reverse order):
-          Step 1 compensation: inventory-service.releaseInventory
-          └── OK → saga state = Compensated
-```
-
 ## Security Notes
 
 - **Scoping an entity no query returns**: `_entities` reaches types that no root query
@@ -157,18 +113,11 @@ Embedder code → SagaCoordinator.execute_saga()
   anonymous caller for a scoped type, and the per-row predicate builder. A type and its
   query declaring one column from two different sources is refused at load. `requires_role`
   has been read from the type since #1030.
-- **SSRF protection**: `fraiseql-federation/src/http_resolver.rs` and
-  `fraiseql-saga/src/mutation_http_client.rs` use `reqwest::Url::parse()` + private-IP
-  rejection. IPv6 brackets are stripped before
+- **SSRF protection**: `fraiseql-federation/src/http_resolver.rs` uses
+  `reqwest::Url::parse()` + private-IP rejection. IPv6 brackets are stripped before
   `IpAddr::parse()` to prevent bypass via `[::1]` notation.
 - **Batch size cap**: `MAX_ENTITIES_BATCH_SIZE = 1000` in `representation.rs` and
   `entity_resolver.rs` refuses oversized `_entities` batches.
-- **State isolation** (`fraiseql-saga`): saga state persists to the
-  `tb_federation_sagas`, `tb_federation_saga_steps` and `tb_federation_saga_recovery`
-  tables before each step, enabling on-restart recovery.
-  `SagaRecoveryManager::run_iteration` / `start_background_loop` re-drive crash-interrupted sagas,
-  claiming stuck sagas under a lease via `SELECT … FOR UPDATE SKIP LOCKED` so concurrent
-  recovery workers never double-drive one.
 
 ## Observability
 
@@ -180,8 +129,6 @@ Prometheus metrics the server's `/metrics` endpoint adds when built with `federa
 | `fraiseql_federation_circuit_breaker_state{entity}` | 0=closed, 1=open, 2=half-open |
 | `fraiseql_federation_subgraph_latency_seconds{subgraph}` | Subgraph request latency histogram (`_bucket`, `_sum`, `_count`) |
 | `fraiseql_federation_entity_resolution_total{outcome}` | Entity resolutions, `outcome="success"` or `"failure"` |
-
-`fraiseql-saga` emits no metrics.
 
 ## Enabling Federation
 
@@ -292,7 +239,6 @@ serves anything (ADR-0016), the account needs one, like any other principal.
 
 ## Related Docs
 
-- [Federation Saga Guide](../guides/federation-saga.md)
 - [Circuit Breaker Tuning](../guides/circuit-breaker.md)
 - [Runbook: Circuit Breaker Tripped](../runbooks/14-federation-circuit-breaker.md)
 - [ADR: Federation crate extraction](../adr/)

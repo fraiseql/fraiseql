@@ -4097,31 +4097,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fraiseql-saga"
-version = "2.19.1"
-dependencies = [
- "criterion",
- "deadpool",
- "deadpool-postgres",
- "fraiseql-core",
- "fraiseql-db",
- "fraiseql-error",
- "fraiseql-federation",
- "fraiseql-guard",
- "fraiseql-test-support",
- "fraiseql-test-utils",
- "fraiseql-time",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "tokio",
- "tokio-postgres",
- "tracing",
- "uuid",
- "wiremock",
-]
-
-[[package]]
 name = "fraiseql-secrets"
 version = "2.19.1"
 dependencies = [

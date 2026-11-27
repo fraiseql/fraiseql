@@ -15,7 +15,6 @@ fraiseql-guard 2
 fraiseql-jwks 2
 fraiseql-kafka 0
 fraiseql-observers 32
-fraiseql-saga 19
 fraiseql-secrets 4
 fraiseql-server 568
 fraiseql-storage 46

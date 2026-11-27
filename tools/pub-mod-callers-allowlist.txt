@@ -32,10 +32,9 @@ fraiseql_server::routes::grpc pending not mounted in any binary; mounted through
 fraiseql_wire pending removed with its db adapter by #1642
 fraiseql_db::fraiseql_wire_adapter pending removed with fraiseql-wire by #1642
 fraiseql_db::wire_pool pending removed with fraiseql-wire by #1642
-fraiseql_saga pending rebuilt as workflows on the durable-work kernel by #1645
 fraiseql_observers::resilience pending replaced by the breaker in fraiseql-guard by #1645
-fraiseql_federation::http_resolver pending its subgraph URL checks guard fraiseql-saga's remote steps; goes with the saga rebuild by #1645
-fraiseql_federation::tls pending the mTLS settings fraiseql-saga's remote steps use; goes with the saga rebuild by #1645
+fraiseql_federation::http_resolver pending its subgraph URL checks guarded remote saga steps, deleted with fraiseql-saga by #2708; settled by the cross-subgraph rebuild on #1645
+fraiseql_federation::tls pending the mTLS settings remote saga steps used, deleted with fraiseql-saga by #2708; settled by the cross-subgraph rebuild on #1645
 fraiseql_observers::transport::postgres_notify pending a LISTEN/NOTIFY event transport, settled with the durable-work kernel by #1645
 fraiseql_arrow::clickhouse_sink pending its row mapping ports into the ClickHouse CDC sink kind by #2563
 fraiseql_core::security::kms pending moves into fraiseql-secrets as a KeyProvider by #2564

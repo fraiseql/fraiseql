@@ -48,14 +48,6 @@ THREE RULES
 
 WHAT THIS GATE DELIBERATELY DOES NOT REACH
 ------------------------------------------
-* `fraiseql-saga`'s `HttpMutationClient::execute_mutation` is a GraphQL *client*: it
-  must emit a document as text to a remote subgraph, so it is outside rule 3's scope,
-  and its calls are told apart from the engine entry of the same name by arity
-  (`NAMESAKES`). The saga's local arm, `execute_local_mutation`, enters the engine
-  through `Executor::execute_mutation_with_security` (#1354), which takes no
-  selections and derives them from `mutation_return_selections` itself, so no rule
-  here has a slot to check at that call. Stated so a reader does not read silence as
-  coverage.
 * `fraiseql-cli`'s `doctor` builds argument-less probe documents out of schema-declared
   names, under `dry_run_mutations: true`. No caller value is formatted into it, so
   #1331's defect cannot occur there; it is outside rule 3's scope by construction
@@ -137,27 +129,14 @@ EMPTY_SELECTIONS = re.compile(
     """
 )
 
-# Calls that share a name with an engine entry and are a different function.
-#
-# `HttpMutationClient::execute_mutation` posts a mutation to a REMOTE subgraph over HTTP.
-# It has no local selection set, reaches no `Executor`, and takes six arguments where the
-# engine entry takes three — which is what tells the two apart here.
+# Calls that share a name with an engine entry and are a different function, each with
+# the reason. None does today; a call of an entry's name with another argument count
+# fails the gate until it is listed here.
 #
 # ⚠ Keyed by (file, name, arity), not by file alone: listing a file wholesale would excuse
 # a real engine call added to it later. A name-keyed sweep that meets a namesake must
 # report the ambiguity, never guess which one it found.
-NAMESAKES: dict[tuple[str, str, int], str] = {
-    (
-        "crates/fraiseql-saga/src/saga_compensator.rs",
-        "execute_mutation",
-        6,
-    ): "HttpMutationClient::execute_mutation — a remote subgraph call over HTTP",
-    (
-        "crates/fraiseql-saga/src/saga_executor/step.rs",
-        "execute_mutation",
-        6,
-    ): "HttpMutationClient::execute_mutation — a remote subgraph call over HTTP",
-}
+NAMESAKES: dict[tuple[str, str, int], str] = {}
 
 
 def repo_root() -> Path:

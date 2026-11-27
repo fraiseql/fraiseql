@@ -105,7 +105,7 @@ jobs:
         if: inputs.compare_against != '' && steps.restore-baseline.outputs.cache-hit == 'true'
         run: |
           critcmp '${{ inputs.compare_against }}' run --threshold 5 \
-            -f '(projection|federation|design_analysis|saga|typename|payload_size|complete_pipeline|cache_latency|cache_concurrent|cache_get_latency)' \
+            -f '(projection|federation|design_analysis|typename|payload_size|complete_pipeline|cache_latency|cache_concurrent|cache_get_latency)' \
             | tee bench-comparison.txt || echo "::warning::Micro benchmarks regressed >5%"
 
       - name: Compare slow benchmarks (15% threshold)

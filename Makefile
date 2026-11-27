@@ -2488,7 +2488,7 @@ bench-compare:
 	@command -v critcmp >/dev/null 2>&1 || cargo install critcmp --version 0.1.8 --locked
 	cargo bench --workspace -- --save-baseline current
 	@echo "=== Micro benchmarks (5% threshold) ==="
-	critcmp dev current --threshold 5 -f '(projection|federation|design_analysis|saga|typename|payload_size|complete_pipeline)' || true
+	critcmp dev current --threshold 5 -f '(projection|federation|design_analysis|typename|payload_size|complete_pipeline)' || true
 	@echo "=== Slow benchmarks (15% threshold) ==="
 	critcmp dev current --threshold 15 -f '(10k_rows|100k_rows|1m_rows|where_clause|pagination|http_response_pipeline|graphql_transform|god_objects)' || true
 

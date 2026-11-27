@@ -50,6 +50,17 @@ disagreed, and the promise was the part that was wrong.
   that used `check_checkpoint_requirement` chooses `PostgresCheckpointStore` outright;
   `InMemoryCheckpointStore::new` still logs a warning when it is built.
 
+- **`fraiseql-saga` is removed (#2708).** The crate is no longer built or published, and
+  its three examples (`examples/federation/saga-basic`, `saga-complex` and
+  `saga-manual-compensation`) and `docs/guides/federation-saga.md` go with it. No crate in
+  the workspace depended on it: the server never ran a saga and no SDK authored one, so
+  only an application that linked `fraiseql-saga` and drove `SagaCoordinator` itself is
+  affected. Such an application stays on the last published `fraiseql-saga`.
+  `fraiseql-federation` no longer ships `migrations/0001_rename_saga_tables.sql`, which
+  renamed that crate's tables. A database holding `tb_federation_sagas`,
+  `tb_federation_saga_steps` or `tb_federation_saga_recovery` keeps them; nothing reads
+  them.
+
 - **`fraiseql-auth` drops `StateEncryptionConfig` and
   `StateEncryptionService::from_compiled_schema` (#1777).** The server reads
   `[security.state_encryption]` as the compiled schema types it

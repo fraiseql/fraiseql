@@ -87,7 +87,7 @@ gh workflow run bench.yml --ref dev -f save_baseline=true -f baseline_name=dev
 
 | Category | Threshold | Examples |
 |----------|-----------|---------|
-| **Micro** (pure computation) | 5% | SQL projection, federation, saga, cache |
+| **Micro** (pure computation) | 5% | SQL projection, federation, cache |
 | **Slow** (DB-connected) | 15% | Row processing, HTTP pipeline, pagination |
 
 Regressions beyond these thresholds produce a `::warning` annotation in the PR. They are **advisory, not blocking** — CI runner hardware variance can cause false positives.
@@ -96,7 +96,7 @@ Regressions beyond these thresholds produce a `::warning` annotation in the PR. 
 
 The `critcmp` filter patterns in CI:
 
-- **Micro**: `projection`, `federation`, `design_analysis`, `saga`, `typename`, `payload_size`, `complete_pipeline`, `cache_concurrent`, `cache_get_latency`
+- **Micro**: `projection`, `federation`, `design_analysis`, `typename`, `payload_size`, `complete_pipeline`, `cache_concurrent`, `cache_get_latency`
 - **Slow**: `10k_rows`, `100k_rows`, `1m_rows`, `where_clause`, `pagination`, `http_response_pipeline`, `graphql_transform`, `god_objects`
 
 ## Adding New Benchmarks

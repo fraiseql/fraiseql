@@ -133,10 +133,10 @@ expect_red "the script literal changed shape" "$d" integrationPostgres \
     '`integrationPostgres` has no `script := strings.Join'
 
 d="$(case_dir cargo-local)"
-plant_in_test "$d" $'\n\t\t"cargo test -p fraiseql-saga --lib",\n' \
-    $'\n\t\t"cargo test -p fraiseql-saga " + sagaArgs,\n'
+plant_in_test "$d" $'\n\t\t"cargo test -p fraiseql-observers --lib --features \'caching,checkpoint,metrics,nats\'",\n' \
+    $'\n\t\t"cargo test -p fraiseql-observers " + observerArgs,\n'
 expect_red "a cargo line built from a piece the reader cannot resolve" "$d" Test \
-    'builds a line from `sagaArgs`'
+    'builds a line from `observerArgs`'
 
 d="$(case_dir canary-other)"
 plant_in_test "$d" '"bash tools/ci-target-canary.sh -- build ' '"bash tools/ci-target-canary.sh -- check '

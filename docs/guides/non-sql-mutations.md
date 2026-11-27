@@ -93,7 +93,5 @@ it out of the GraphQL surface keeps the schema honest.
   why FraiseQL doesn't ship runtime async-mutation infrastructure (Rejected).
 + [`examples/async-jobs-subgraph/`](../../examples/async-jobs-subgraph/) —
   runnable end-to-end example of this pattern.
-+ [Cross-Subgraph Mutations: Saga Pattern](./federation-saga.md) — coordinating
-  a mutation that must write to more than one subgraph.
 + [Federation Circuit Breaker](./circuit-breaker.md) — protecting federation
   fan-out when a subgraph is slow or unavailable.

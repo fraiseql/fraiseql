@@ -965,12 +965,6 @@ func (m *FraiseqlCi) Test(
 		// the workspace run, so these executed nowhere.
 		"echo '### cargo test -p fraiseql-observers in-process test binaries (#992)'",
 		"cargo test -p fraiseql-observers --features 'metrics,testing' --test stress_tests --test transport_pipeline_test",
-		// #429 wired saga forward executor: the gated path is off in the workspace
-		// run above, so run its Docker-free lib tests explicitly — the pure decision
-		// helpers and the remote-dispatch/honest-failure lib tests (the real execute_step
-		// proof. The Postgres orchestration tests are #[ignore]d → integration leg.
-		"echo '### cargo test -p fraiseql-saga --lib (#429 remote dispatch + honesty; execute_step PG proofs run in the postgres integration leg)'",
-		"cargo test -p fraiseql-saga --lib",
 		"echo '### cargo test --doc --all-features'",
 		// Cap doctest concurrency: `cargo test --doc` spawns one process per doctest,
 		// and the default thread count (= CPU count) OOMs the 31 GiB box on the heavy
@@ -1586,9 +1580,6 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// database of its own per case; same features, so the binary is already built.
 		"echo '### cargo test -p fraiseql-cli --test auth_rotate_signing_key_pg (signing-key rotation)'",
 		"cargo test -p fraiseql-cli --features '" + cliPostgresFeatures + "' --test auth_rotate_signing_key_pg -- --test-threads=1",
-		// #1297: saga_store's Postgres orchestration proof, same shape — skip-clean
-		// on `try_database_url()`, compiled only by the DB-less `Test` leg.
-		"cargo test -p fraiseql-saga --features test-utils --lib saga_store::tests -- --test-threads=1",
 		// #896: the functions subsystem is configured from the schema the server was
 		// built with, on BOTH serving entry points. Its own binary, and
 		// functions-runtime-gated, so it belongs on this line rather than in
@@ -1600,20 +1591,6 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// which cargo cannot see, so naming it in serverInProcessTests built an EMPTY
 		// binary that reported "test result: ok. 0 passed" and read as covered.
 		"cargo test -p fraiseql-server --features '" + serverUnifiedFeatures + "' --test functions_query_bridge_pin_test",
-		// #429 wired saga forward execution + compensation + recovery + coordinator
-		// + remote dispatch (saga): orchestration, rollback, and crash
-		// recovery against the real Postgres saga store + entity mutations, plus the
-		// mixed local/remote coordinator path. --include-ignored runs the #[ignore]d
-		// PG tests (including the wired_execution_pg execute_step proofs).
-		// test-utils is required by the remote_dispatch_pg module: the SSRF guard
-		// blocks a loopback mock peer, so the coordinator's *_for_test / _unchecked
-		// builders (compiled only under test-utils) drive the HTTP dispatch path.
-		"cargo test -p fraiseql-saga --features test-utils --test saga_integration -- --include-ignored --test-threads=1",
-		// #1354 moved the saga above the engine. This binary was `fraiseql-core`'s
-		// `federation_mutation_http`, which the core `--test '*'` sweep above covered
-		// by wildcard. The sweep cannot reach another package, so naming it here is
-		// what keeps it run rather than silently dropped by the move.
-		"cargo test -p fraiseql-saga --features test-utils --test mutation_http -- --test-threads=1",
 		// (#869: the rich-filter surface — including the #721 sql_templates_execute_pg
 		// suite — was removed in P25: the compiler advertised WHERE operators the
 		// runtime could never parse. The compiler↔runtime contract test now lives in

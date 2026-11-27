@@ -2,10 +2,9 @@
 //!
 //! The shared fixtures in `tests/sql/postgres/init.sql` (+ `init-analytics.sql`)
 //! are read-only for tests: a suite needing writable relations creates its own,
-//! unique-named (`tb_pipeline_user`, `e2e_users`, `tests/saga_integration.rs`'s
-//! pattern). Twice a suite instead redirected or dropped a shared fixture
-//! (`v_user`), silently reddening ~24 consumers in every LATER run on the same
-//! database — a red no crate-alone run could reproduce.
+//! unique-named (`tb_pipeline_user`, `e2e_users`). Twice a suite instead redirected
+//! or dropped a shared fixture (`v_user`), silently reddening ~24 consumers in every
+//! LATER run on the same database — a red no crate-alone run could reproduce.
 //!
 //! # One owner, or the expectations below are unassertable
 //!

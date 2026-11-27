@@ -8,10 +8,6 @@
 //! - Service SDL via `_service` query
 //! - Entity resolution from the local database or over HTTP
 //!
-//! Saga orchestration lives in `fraiseql-saga`, which sits *above* `fraiseql-core`
-//! so a saga step dispatches through the mutation chokepoint rather than building
-//! its own SQL (#1354).
-//!
 //! # Architecture
 //!
 //! The federation system works in phases:

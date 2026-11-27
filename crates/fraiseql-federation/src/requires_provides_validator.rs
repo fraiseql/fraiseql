@@ -20,7 +20,7 @@
 //! # Example
 //!
 //! ```text
-//! // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+//! // Requires: federation metadata from a compiled schema.
 //! // See: tests/integration/ for runnable examples.
 //! // Compile-time validation
 //! let validator = RequiresProvidesValidator::new(metadata);
@@ -195,7 +195,7 @@ impl RequiresProvidesValidator {
     ///
     /// # Example
     /// ```text
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+    /// // Requires: federation metadata from a compiled schema.
     /// // See: tests/integration/ for runnable examples.
     /// let validator = RequiresProvidesValidator::new(metadata);
     /// validator.validate_all()?;
@@ -505,7 +505,7 @@ impl RequiresProvidesRuntimeValidator {
     ///
     /// # Example
     /// ```text
-    /// // Requires: distributed saga infrastructure (PostgreSQL + message broker).
+    /// // Requires: federation metadata from a compiled schema.
     /// // See: tests/integration/ for runnable examples.
     /// let result = RequiresProvidesRuntimeValidator::validate_required_fields(
     ///     "User",

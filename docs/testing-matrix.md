@@ -82,7 +82,7 @@ Started via `make db-up` (uses `docker/docker-compose.test.yml`):
 
 | Service | Image | Port | Used By |
 |---------|-------|------|---------|
-| PostgreSQL | pgvector/pgvector:pg18 | 5433 | Core DB tests, server, observers, federation (incl. `saga` integration tests) |
+| PostgreSQL | pgvector/pgvector:pg18 | 5433 | Core DB tests, server, observers, federation |
 | PostgreSQL (standbys) | pgvector/pgvector:pg18 | 5436, 5437 | Read-replica lag and failover suites |
 | PostgreSQL (TLS) | postgres:18 | 5435 | Database-TLS suites |
 | PostgreSQL 17 | postgres:17 | 5440 | Floor-refusal suites only: a server below the supported version |

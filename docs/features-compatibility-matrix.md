@@ -71,7 +71,6 @@ fraiseql-core        -> fraiseql-db, fraiseql-error, fraiseql-guard, fraiseql-jw
                         fraiseql-federation?, fraiseql-kafka?
 fraiseql-db          -> fraiseql-error, fraiseql-wire?
 fraiseql-federation  -> fraiseql-db, fraiseql-error, fraiseql-guard
-fraiseql-saga        -> fraiseql-core, fraiseql-db, fraiseql-error, fraiseql-federation
 fraiseql-functions   -> fraiseql-observers, fraiseql-error, fraiseql-guard, fraiseql-core?
 fraiseql-arrow       -> fraiseql-core, fraiseql-guard
 fraiseql-secrets     -> fraiseql-core, fraiseql-guard
@@ -87,8 +86,6 @@ fraiseql-wire, fraiseql-error, fraiseql-guard   (no workspace dependencies)
 fraiseql-test-utils  -> fraiseql-core            (publish = false)
 fraiseql-test-support                            (publish = false)
 ```
-
-No crate depends on `fraiseql-saga`.
 
 ## Feature Flags by Crate
 
@@ -265,12 +262,6 @@ Defaults: `auth`, `cli`. `fraiseql-core` is always built with `postgres` and `sc
 |---------|---------|-------------|-----------|
 | `test-utils` | no | Test helper constructors | (empty) |
 
-### fraiseql-saga
-
-| Feature | Default | Description | Activates |
-|---------|---------|-------------|-----------|
-| `test-utils` | no | Test helper constructors | `fraiseql-federation/test-utils` |
-
 ### fraiseql-error
 
 | Feature | Default | Description | Activates |
@@ -326,7 +317,6 @@ The `-full` archive is not built for `x86_64-unknown-linux-musl` (`lean_only` in
 | fraiseql-wire | its own PostgreSQL protocol client; Unix-like systems only |
 | fraiseql-auth, fraiseql-webhooks, fraiseql-storage, fraiseql-functions, fraiseql-arrow | `sqlx` |
 | fraiseql-observers | always, through `sqlx` (postgres) |
-| fraiseql-saga | `tokio-postgres` + `deadpool-postgres` |
 
 ## Feature Dependencies and Implied Activations
 

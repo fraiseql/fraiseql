@@ -32,12 +32,11 @@ rc() { cat "${tmp}/rc"; }
 said() { grep -F "$1" "${tmp}/out" >/dev/null; }
 
 # A tree shaped like this repository's: the engine's write entries, the helper, one
-# transport outside the engine that calls an entry, and the two federation namesakes.
+# transport outside the engine that calls an entry.
 fixture() {
   local root="$1"
   mkdir -p "${root}/crates/fraiseql-core/src/runtime/executor/runners/mutation"
   mkdir -p "${root}/crates/fraiseql-server/src/routes/grpc"
-  mkdir -p "${root}/crates/fraiseql-saga/src/saga_executor"
 
   cat > "${root}/crates/fraiseql-core/src/runtime/executor/mutation.rs" <<'RS'
 impl Executor {
@@ -121,24 +120,6 @@ async fn mutate(executor: &Executor, mutation_name: &str) -> Result<MutationResp
         .await
 }
 RS
-
-  for f in "${root}/crates/fraiseql-saga/src/saga_compensator.rs" \
-           "${root}/crates/fraiseql-saga/src/saga_executor/step.rs"; do
-    cat > "$f" <<'RS'
-async fn compensate(client: &HttpMutationClient) -> Result<Value> {
-    client
-        .execute_mutation(
-            url.as_str(),
-            &step.typename,
-            mutation,
-            variables,
-            mutation_executor.metadata(),
-            Some(&idempotency_key),
-        )
-        .await
-}
-RS
-  done
 }
 
 new_tree() {
@@ -329,17 +310,7 @@ else
   fail "rule 3 over an empty scope should fail"
 fi
 
-# ── 14. A NAMESAKE that stopped calling must not stay listed ─────────────────────────
-root="$(new_tree stale_namesake)"
-: > "${root}/crates/fraiseql-saga/src/saga_executor/step.rs"
-run_gate "$root"
-if [ "$(rc)" = "1" ] && said "no longer calls"; then
-  pass "a stale NAMESAKES entry fails the gate"
-else
-  fail "a NAMESAKES entry that excuses nothing would excuse a real call added later"
-fi
-
-# ── 15. An unlisted namesake is reported, not guessed at ─────────────────────────────
+# ── 14. An unlisted namesake is reported, not guessed at ─────────────────────────────
 root="$(new_tree unlisted_namesake)"
 mkdir -p "${root}/crates/fraiseql-federation/src"
 cat > "${root}/crates/fraiseql-federation/src/other_client.rs" <<'RS'

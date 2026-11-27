@@ -47,7 +47,6 @@ members = [
   "crates/fraiseql-webhooks",
   "crates/fraiseql-cdc-sinks",    # Outbound CDC: drains the change-log outbox to brokers (#382)
   "crates/fraiseql-federation",   # Apollo Federation v2 support
-  "crates/fraiseql-saga",         # Distributed saga orchestration, above the engine (#1354)
   "crates/fraiseql-functions",    # Serverless functions runtime
   "crates/fraiseql-storage",      # Object storage backends
   "crates/fraiseql-time",         # The shared instant type: chrono-compatible text, µs timestamptz
@@ -85,7 +84,6 @@ jiff = { version = "0.2.37", default-features = false, features = [
 ] }
 dashmap = "6.1"
 # Connection pooling
-deadpool = "0.12"
 deadpool-postgres = "0.14"
 # Internal crates
 fraiseql-arrow = { path = "crates/fraiseql-arrow", version = "2.19.1" }
@@ -421,7 +419,6 @@ fraiseql-guard = 1_000
 fraiseql-jwks = 1_000
 fraiseql-kafka = 1_000
 fraiseql-observers = 13_000
-fraiseql-saga = 4_000
 fraiseql-secrets = 4_000
 fraiseql-server = 84_000
 fraiseql-storage = 11_000
