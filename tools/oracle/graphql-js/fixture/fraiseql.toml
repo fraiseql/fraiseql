@@ -9,3 +9,10 @@ url = "${DATABASE_URL}"
 [validation]
 max_query_complexity = 1000000
 max_query_depth = 30
+
+# The oracle sends thousands of invalid documents from one address. The default
+# validation-error budget would start answering them with 429 partway through, so
+# which response a document gets would depend on how fast the run goes.
+[security.rate_limiting]
+enabled = false
+graphql_validation_error_max_requests = 4294967295

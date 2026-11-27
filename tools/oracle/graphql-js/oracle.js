@@ -4,17 +4,30 @@
 // FraiseQL (at --server) and graphql-js (started here, over fixture/schema.graphql and
 // the same database rows) answer the same documents: the targeted cases in
 // lib/cases.js and a seeded random corpus from lib/fuzz.js. The oracle also diffs the
-// two servers' introspection and runs the graphql-http audit against FraiseQL.
+// two servers' introspection, runs the graphql-http audit against FraiseQL, and probes
+// each restriction docs/graphql-conformance.md lists (lib/conformance.js).
 //
-// Every disagreement is compared with baseline.json, in both directions:
+// Each document ends in agreement, in a refusal the document lists, or in a divergence.
+// Three metrics follow (docs/graphql-conformance.md):
+//   - agreement on the supported subset: valid documents not refused as listed;
+//   - invalid documents executed: graphql-js rejects them, FraiseQL answers;
+//   - undocumented divergences: any other outcome that differs from graphql-js.
+// Error-format differences (a key beside message/locations/path/extensions) are
+// counted on their own.
+//
+// Every disagreement, listed refusal and restriction finding is compared with
+// baseline.json, in both directions:
 //   - a disagreement the baseline does not list is a regression: exit 1;
 //   - a listed disagreement that no longer occurs is progress the baseline must
 //     record: exit 1 until `--bless` rewrites it.
 // So the baseline only ever shrinks toward full agreement, and every change to it is
 // a reviewed diff.
 //
-// usage: node oracle.js --server <url> --database <postgres-url>
+// usage: node oracle.js --server <url> --limits-server <url> --trusted-server <url>
+//                       --database <postgres-url>
 //                       [--baseline <path>] [--report <path>] [--bless] [--bless-sdl]
+// run.sh starts the three servers: the fixture, the fixture with a low complexity
+// ceiling, and the fixture with trusted documents in strict mode.
 // ORACLE_PRIVATE_MODULE may name a module, kept outside the repository, exporting
 // `{ cases, mutations }`: extra targeted cases, and replacements for fuzz mutation
 // slots by name. Such a run is measured against its own --baseline.
@@ -30,14 +43,20 @@ const { generate, MUTATIONS } = require("./lib/fuzz.js");
 const { introspectionDiff, QUERY } = require("./lib/introspection.js");
 const { startReference } = require("./lib/reference.js");
 const { startProxy } = require("./lib/proxy.js");
+const { applySpecifiedScalars } = require("./lib/scalars.js");
+const { checkRestrictions, documentedRefusal, readRestrictions } = require("./lib/conformance.js");
 const publicCases = require("./lib/cases.js");
 
 const SEEDS = [11, 12];
 const FUZZ_PER_SEED = 4000;
 const WORKERS = 16;
-// Disagreements the spec leaves to the implementation, or that this oracle does not
-// yet rank: error locations, error count, and non-standard top-level error keys.
-const IGNORED = new Set(["err-locations", "err-toplevel-keys", "err-count"]);
+// Regressions printed in full; the report file holds the rest.
+const SHOWN = 25;
+// The spec does not fix how many errors a failure reports.
+const IGNORED = new Set(["err-count"]);
+// An error-format difference, counted apart from the outcome.
+const isFormat = (issue) => issue.startsWith("err-toplevel-keys");
+const GATED = ["disagreements", "introspection", "audit", "restrictions"];
 
 const here = __dirname;
 const SDL_PATH = path.join(here, "fixture", "schema.graphql");
@@ -45,6 +64,8 @@ const SDL_PATH = path.join(here, "fixture", "schema.graphql");
 const { values: opt } = parseArgs({
   options: {
     server: { type: "string" },
+    "limits-server": { type: "string" },
+    "trusted-server": { type: "string" },
     database: { type: "string" },
     baseline: { type: "string", default: path.join(here, "baseline.json") },
     report: { type: "string" },
@@ -69,7 +90,7 @@ async function blessSdl(server) {
   console.log(`wrote ${path.relative(process.cwd(), SDL_PATH)} from the server's introspection`);
 }
 
-async function runAll(cases, fqUrl, refUrl, schema) {
+async function runAll(cases, fqUrl, refUrl, schema, allowed) {
   const results = new Array(cases.length);
   let next = 0;
   async function worker() {
@@ -87,7 +108,10 @@ async function runAll(cases, fqUrl, refUrl, schema) {
         valid = false;
       }
       const issues = compare(fq, ref).filter((x) => !IGNORED.has(x.split(":")[0]));
-      results[i] = { case: c, fp: fingerprint(c), valid, issues, fq, ref };
+      const refusal = documentedRefusal(fq, allowed);
+      const outcome = refusal ? [] : issues.filter((x) => !isFormat(x));
+      const format = issues.filter(isFormat);
+      results[i] = { case: c, fp: fingerprint(c), valid, issues, outcome, format, refusal, fq, ref };
     }
   }
   await Promise.all(Array.from({ length: WORKERS }, worker));
@@ -113,7 +137,7 @@ const clip = (v, n = 400) => JSON.stringify(v).slice(0, n);
 
 function showCase(r) {
   const c = r.case;
-  console.log(`  ${c.name} [${r.fp}] ${r.valid ? "valid" : "invalid"}: ${r.issues.join(",")}`);
+  console.log(`  ${c.name} [${r.fp}] ${r.valid ? "valid" : "invalid"}: ${r.refusal ? `refused:${r.refusal}` : r.issues.join(",")}`);
   console.log(`    query: ${c.query}`);
   if (c.variables !== undefined) console.log(`    variables: ${clip(c.variables)}`);
   if (c.operationName !== undefined) console.log(`    operationName: ${clip(c.operationName)}`);
@@ -121,10 +145,18 @@ function showCase(r) {
   console.log(`    REF (${r.ref.status}): ${clip(r.ref.body)}`);
 }
 
-/** Runs every document against both servers; returns the measured state and the failing results by key. */
-async function measure(server, database, priv) {
+/** The key a result is gated under, or null when it agrees with graphql-js outright. */
+function keyOf(r) {
+  if (r.refusal) return `${r.fp} refused:${r.refusal}`;
+  return r.issues.length ? `${r.fp} ${r.issues.join(",")}` : null;
+}
+
+/** Runs every document against both servers; returns the measured state and the gated results by key. */
+async function measure(servers, database, priv) {
   const sdl = fs.readFileSync(SDL_PATH, "utf8");
-  const schema = buildSchema(sdl);
+  const schema = applySpecifiedScalars(buildSchema(sdl));
+  const rows = readRestrictions();
+  const allowed = new Set(rows.flatMap((r) => r.codes));
   const targeted = [...publicCases, ...priv.cases].map((c) => ({ ...c, name: `case:${c.name}` }));
   const fuzz = SEEDS.flatMap((s) => generate(FUZZ_PER_SEED, s, priv.mutations));
 
@@ -132,52 +164,75 @@ async function measure(server, database, priv) {
   let results;
   let intro;
   let auditLines;
+  let restrictions;
   try {
-    results = await runAll([...targeted, ...fuzz], server, ref.url, schema);
-    intro = await introspectionDiff(server, ref.url);
-    auditLines = await audit(server);
+    results = await runAll([...targeted, ...fuzz], servers.main, ref.url, schema, allowed);
+    intro = await introspectionDiff(servers.main, ref.url);
+    auditLines = await audit(servers.main);
+    restrictions = await checkRestrictions(rows, servers);
   } finally {
     ref.close();
   }
 
-  const t = results.slice(0, targeted.length);
-  const f = results.slice(targeted.length);
-  const fv = f.filter((r) => r.valid);
-  const fi = f.filter((r) => !r.valid);
+  const valid = results.filter((r) => r.valid);
+  const supported = valid.filter((r) => !r.refusal);
+  const invalid = results.filter((r) => !r.valid);
   const metrics = {
-    targeted_agree: t.filter((r) => !r.issues.length).length,
-    targeted_total: t.length,
-    fuzz_valid_agree: fv.filter((r) => !r.issues.length).length,
-    fuzz_valid_total: fv.length,
-    fuzz_invalid_executed: fi.filter((r) => !hasErrors(r.fq)).length,
-    fuzz_invalid_total: fi.length,
+    supported_agree: supported.filter((r) => !r.outcome.length).length,
+    supported_total: supported.length,
+    invalid_executed: invalid.filter((r) => !hasErrors(r.fq)).length,
+    invalid_total: invalid.length,
+    undocumented_divergences: results.filter((r) => r.outcome.length).length,
+    documented_refusals: results.filter((r) => r.refusal).length,
+    error_format_divergences: results.filter((r) => r.format.length).length,
     introspection_diff_lines: intro.length,
     audit_warn: auditLines.filter((l) => l.startsWith("WARN")).length,
     audit_error: auditLines.filter((l) => l.startsWith("ERROR")).length,
+    restriction_findings: restrictions.length,
   };
   const failing = {};
-  for (const r of results) if (r.issues.length) failing[`${r.fp} ${r.issues.join(",")}`] = r;
+  for (const r of results) {
+    const k = keyOf(r);
+    if (k) failing[k] = r;
+  }
   const current = {
     corpus: { label: priv.label, seeds: SEEDS, fuzz_per_seed: FUZZ_PER_SEED, targeted: targeted.length },
     metrics,
     disagreements: Object.keys(failing).sort(),
     introspection: intro,
     audit: auditLines,
+    restrictions,
   };
   return { current, failing };
 }
 
-function printMetrics(label, m) {
+const METRIC_LINES = [
+  ["agreement on the supported subset", "supported_agree", "supported_total", +1],
+  ["invalid documents executed", "invalid_executed", "invalid_total", -1],
+  ["undocumented divergences", "undocumented_divergences", null, -1],
+  ["documented refusals", "documented_refusals", null, 0],
+  ["error-format divergences", "error_format_divergences", null, -1],
+  ["introspection diff lines", "introspection_diff_lines", null, -1],
+  ["graphql-http audit warnings", "audit_warn", null, -1],
+  ["graphql-http audit errors", "audit_error", null, -1],
+  ["restriction findings", "restriction_findings", null, -1],
+];
+
+/** One line per metric; with a baseline, the change from it and whether that is better. */
+function printMetrics(label, m, base) {
   console.log(`graphql-js oracle (${label})`);
-  console.log(`  targeted cases agreeing:      ${m.targeted_agree}/${m.targeted_total}`);
-  console.log(
-    `  valid documents agreeing:     ${m.fuzz_valid_agree}/${m.fuzz_valid_total} (${pct(m.fuzz_valid_agree, m.fuzz_valid_total)})`,
-  );
-  console.log(
-    `  invalid documents executed:   ${m.fuzz_invalid_executed}/${m.fuzz_invalid_total} (${pct(m.fuzz_invalid_executed, m.fuzz_invalid_total)})`,
-  );
-  console.log(`  introspection diff lines:     ${m.introspection_diff_lines}`);
-  console.log(`  graphql-http audit:           ${m.audit_warn} warn, ${m.audit_error} error`);
+  for (const [name, k, total, good] of METRIC_LINES) {
+    let v = `${m[k]}`;
+    if (total) v += `/${m[total]} (${pct(m[k], m[total])})`;
+    let delta = "";
+    const b = base && base.metrics ? base.metrics[k] : undefined;
+    if (b !== undefined && b !== m[k]) {
+      const d = m[k] - b;
+      const verdict = good === 0 ? "" : Math.sign(d) === good ? " better" : " worse";
+      delta = `   ${d > 0 ? "+" : ""}${d} vs baseline${verdict}`;
+    }
+    console.log(`  ${`${name}:`.padEnd(36)}${v}${delta}`);
+  }
 }
 
 /**
@@ -190,7 +245,7 @@ function gate(current, base) {
   }
   const regressions = {};
   const progress = {};
-  for (const key of ["disagreements", "introspection", "audit"]) {
+  for (const key of GATED) {
     const d = setDiff(current[key], base[key] || []);
     regressions[key] = d.added;
     progress[key] = d.removed;
@@ -208,16 +263,21 @@ function printGate(g, current, base, failing) {
   const p = g.progress;
   if (r.disagreements.length) {
     console.log(`\nREGRESSION: ${r.disagreements.length} disagreement(s) not in the baseline:`);
-    for (const k of r.disagreements) showCase(failing[k]);
+    for (const k of r.disagreements.slice(0, SHOWN)) showCase(failing[k]);
+    if (r.disagreements.length > SHOWN) {
+      console.log(`  ... and ${r.disagreements.length - SHOWN} more; --report <file> writes every one with both responses`);
+    }
   }
   for (const l of r.introspection) console.log(`REGRESSION: introspection: ${l}`);
   for (const l of r.audit) console.log(`REGRESSION: audit: ${l}`);
+  for (const l of r.restrictions) console.log(`REGRESSION: ${l}`);
   const progress = g.count(p);
   if (progress) {
     console.log(`\nPROGRESS not yet recorded: ${progress} baseline entr${progress === 1 ? "y" : "ies"} no longer occur:`);
     for (const k of p.disagreements) console.log(`  ${k}`);
     for (const l of p.introspection) console.log(`  introspection: ${l}`);
     for (const l of p.audit) console.log(`  audit: ${l}`);
+    for (const l of p.restrictions) console.log(`  ${l}`);
     console.log("Record it: rerun with --bless and commit baseline.json with the change.");
   }
   if (g.ok) console.log("\nOK: agreement matches the baseline exactly");
@@ -234,7 +294,7 @@ const readBaseline = (p) => JSON.parse(fs.readFileSync(p, "utf8"));
  *    that answers those requests with data) is reported, and only that class is;
  *  - a server that returns one wrong value is reported, and only those documents are.
  */
-async function selftest(server, database, priv, base) {
+async function selftest(servers, database, priv, base) {
   const checks = [];
   const check = (name, ok, detail = "") => {
     checks.push(ok);
@@ -244,18 +304,18 @@ async function selftest(server, database, priv, base) {
     !g.ok &&
     !g.corpusChanged &&
     ["regressions", "progress"].every((side) =>
-      ["disagreements", "introspection", "audit"].every((k) =>
+      GATED.every((k) =>
         side === key[0] && k === key[1] ? canon(g[side][k]) === canon(expected) : g[side][k].length === 0,
       ),
     );
   const { canon } = require("./lib/compare.js");
 
-  const { current } = await measure(server, database, priv);
+  const { current } = await measure(servers, database, priv);
   const g0 = gate(current, base);
   if (!g0.ok) throw new Error("the self-test needs a server that matches the baseline; run the oracle first");
   check("unchanged server matches the baseline", g0.ok);
 
-  for (const k of ["disagreements", "introspection", "audit"]) {
+  for (const k of GATED) {
     const entry = base[k][0];
     if (entry !== undefined) {
       const dropped = { ...base, [k]: base[k].slice(1) };
@@ -269,10 +329,10 @@ async function selftest(server, database, priv, base) {
   check("a changed corpus fails", gate(current, otherCorpus).corpusChanged === true);
 
   async function viaProxy(name, rewrite, marker) {
-    const proxy = await startProxy(server, rewrite);
+    const proxy = await startProxy(servers.main, rewrite);
     let m;
     try {
-      m = await measure(proxy.url, database, priv);
+      m = await measure({ ...servers, main: proxy.url }, database, priv);
     } finally {
       proxy.close();
     }
@@ -286,10 +346,9 @@ async function selftest(server, database, priv, base) {
     const regFps = new Set(regs.map(fp));
     const nothingElse =
       !g.corpusChanged &&
-      g.regressions.introspection.length === 0 &&
-      g.regressions.audit.length === 0 &&
-      g.progress.introspection.length === 0 &&
-      g.progress.audit.length === 0 &&
+      ["introspection", "audit", "restrictions"].every(
+        (k) => g.regressions[k].length === 0 && g.progress[k].length === 0,
+      ) &&
       g.progress.disagreements.every((k) => regFps.has(fp(k)));
     check(name, !g.ok && regs.length > 0 && allMarked && nothingElse, `${regs.length} regression(s)`);
   }
@@ -310,6 +369,68 @@ async function selftest(server, database, priv, base) {
     (r) => JSON.stringify(r.fq.body).includes("Post 1 (altered)") && r.issues.includes("data"),
   );
 
+  // A server that refuses the depth and page-size restrictions as documented: the two
+  // probe findings must go, the corpus documents it refuses that way must count as
+  // documented refusals, and nothing else may move. Without this, a probe that can
+  // never pass would look the same as a server that never complies.
+  {
+    const asDocumented = (req, res) => {
+      const msg = JSON.stringify(res.errors || []);
+      if (res.data || !/exceeds maximum depth|exceeds the maximum page size/.test(msg)) return undefined;
+      return { errors: res.errors.map((e) => ({ message: e.message, extensions: { code: "LIMIT_EXCEEDED" } })) };
+    };
+    const proxy = await startProxy(servers.main, asDocumented);
+    let m;
+    try {
+      m = await measure({ ...servers, main: proxy.url }, database, priv);
+    } finally {
+      proxy.close();
+    }
+    const g = gate(m.current, base);
+    const gone = g.progress.restrictions;
+    const probesOk =
+      gone.length === 2 &&
+      gone.some((l) => l.startsWith("restriction depth-limit#0:")) &&
+      gone.some((l) => l.startsWith("restriction page-size-cap#0:")) &&
+      g.regressions.restrictions.length === 0;
+    const newKeys = g.regressions.disagreements;
+    const corpusOk =
+      newKeys.length > 0 &&
+      newKeys.every((k) => k.endsWith(" refused:LIMIT_EXCEEDED")) &&
+      m.current.metrics.documented_refusals === newKeys.length &&
+      g.progress.disagreements.every((k) => newKeys.some((n) => n.split(" ")[0] === k.split(" ")[0])) &&
+      ["introspection", "audit"].every((k) => g.regressions[k].length === 0 && g.progress[k].length === 0);
+    check(
+      "a server refusing as documented clears exactly those probes, and its refusals count as documented",
+      probesOk && corpusOk,
+      `${gone.length} probe finding(s) cleared, ${newKeys.length} documented refusal(s)`,
+    );
+  }
+
+  // A server whose errors carry their code in `extensions.code`, as the error format
+  // requires, but whose codes are not listed restrictions: error-format divergences
+  // must fall, and not one of its refusals may count as documented.
+  {
+    const codesInExtensions = (req, res) => {
+      if (!Array.isArray(res.errors) || !res.errors.some((e) => e.code !== undefined)) return undefined;
+      const errors = res.errors.map(({ code, ...e }) => ({ ...e, extensions: { ...(e.extensions || {}), code } }));
+      return "data" in res ? { data: res.data, errors } : { errors };
+    };
+    const proxy = await startProxy(servers.main, codesInExtensions);
+    let m;
+    try {
+      m = await measure({ ...servers, main: proxy.url }, database, priv);
+    } finally {
+      proxy.close();
+    }
+    const mm = m.current.metrics;
+    check(
+      "codes moved into extensions.code end the format divergences, and an unlisted code documents nothing",
+      mm.error_format_divergences < current.metrics.error_format_divergences && mm.documented_refusals === 0,
+      `format ${current.metrics.error_format_divergences} -> ${mm.error_format_divergences}, documented ${mm.documented_refusals}`,
+    );
+  }
+
   const failed = checks.filter((ok) => !ok).length;
   console.log(failed ? `\nSELFTEST FAIL: ${failed} of ${checks.length} checks` : `\nSELFTEST OK: ${checks.length} checks`);
   return failed ? 1 : 0;
@@ -319,11 +440,14 @@ async function main() {
   if (!opt.server) throw new Error("--server is required");
   if (opt["bless-sdl"]) return blessSdl(opt.server);
   if (!opt.database) throw new Error("--database is required");
+  for (const k of ["limits-server", "trusted-server"]) if (!opt[k]) throw new Error(`--${k} is required`);
+  const servers = { main: opt.server, limits: opt["limits-server"], trusted: opt["trusted-server"] };
   const priv = loadPrivate();
-  if (opt.selftest) return selftest(opt.server, opt.database, priv, readBaseline(opt.baseline));
+  if (opt.selftest) return selftest(servers, opt.database, priv, readBaseline(opt.baseline));
 
-  const { current, failing } = await measure(opt.server, opt.database, priv);
-  printMetrics(priv.label, current.metrics);
+  const { current, failing } = await measure(servers, opt.database, priv);
+  const prior = fs.existsSync(opt.baseline) ? readBaseline(opt.baseline) : null;
+  printMetrics(priv.label, current.metrics, prior);
   if (opt.report) {
     const cases = Object.values(failing);
     fs.writeFileSync(opt.report, `${JSON.stringify({ ...current, cases }, null, 1)}\n`);
@@ -337,7 +461,7 @@ async function main() {
     console.log(`FAIL: no baseline at ${opt.baseline}; run with --bless to record one`);
     return 1;
   }
-  const base = readBaseline(opt.baseline);
+  const base = prior;
   const g = gate(current, base);
   printGate(g, current, base, failing);
   return g.ok ? 0 : 1;

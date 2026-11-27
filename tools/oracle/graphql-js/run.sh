@@ -31,10 +31,10 @@ fi
 
 work="$(mktemp -d)"
 container=""
-server_pid=""
+pids=()
 admin_url="${ORACLE_ADMIN_URL:-}"
 cleanup() {
-  [[ -n "$server_pid" ]] && kill "$server_pid" 2>/dev/null && wait "$server_pid" 2>/dev/null
+  for pid in "${pids[@]}"; do kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; done
   if [[ -n "$admin_url" && -z "$container" ]]; then node lib/db.js drop "$admin_url" "$db_name" || true; fi
   [[ -n "$container" ]] && docker rm -f -v "$container" >/dev/null 2>&1
   rm -rf "$work"
@@ -53,21 +53,37 @@ fi
 node lib/db.js wait "$admin_url"
 db_url="$(node lib/db.js create "$admin_url" "$db_name")"
 
-"$cli" compile fixture/fraiseql.toml --types fixture/schema.json -o "$work/schema.compiled.json" >"$work/compile.log" 2>&1 \
-  || { cat "$work/compile.log" >&2; exit 2; }
+# Three servers over one database: the fixture; the fixture with a low complexity
+# ceiling; and the fixture with trusted documents in strict mode (lib/conformance.js
+# probes the last two).
+sed 's/^max_query_complexity = .*/max_query_complexity = 5/' fixture/fraiseql.toml >"$work/limits.toml"
+{ cat fixture/fraiseql.toml; printf '\n[security.trusted_documents]\nenabled = true\nmode = "strict"\nmanifest_path = "%s"\n' "$here/fixture/trusted-documents.json"; } >"$work/trusted.toml"
 
-port="$(free_port)"
-FRAISEQL_INTROSPECTION_ENABLED=true FRAISEQL_INTROSPECTION_REQUIRE_AUTH=false FRAISEQL_ENV=development \
-  DATABASE_URL="$db_url" FRAISEQL_SCHEMA_PATH="$work/schema.compiled.json" FRAISEQL_BIND_ADDR="127.0.0.1:$port" \
-  "$server" >"$work/server.log" 2>&1 &
-server_pid=$!
-url="http://127.0.0.1:$port/graphql"
-for _ in $(seq 600); do
-  curl -sf -o /dev/null -XPOST "$url" -H 'content-type: application/json' -d '{"query":"{__typename}"}' && break
-  kill -0 "$server_pid" 2>/dev/null || { echo "✗ fraiseql-server exited during boot:" >&2; tail -c 4000 "$work/server.log" >&2; exit 2; }
-  sleep 0.1
-done
-curl -sf -o /dev/null -XPOST "$url" -H 'content-type: application/json' -d '{"query":"{__typename}"}' \
-  || { echo "✗ fraiseql-server did not answer within 60s" >&2; tail -c 4000 "$work/server.log" >&2; exit 2; }
+started_url=""
+start_server() { # name toml: starts it, sets started_url and appends the pid to pids
+  local name=$1 toml=$2 port
+  "$cli" compile "$toml" --types fixture/schema.json -o "$work/$name.compiled.json" >"$work/$name.compile.log" 2>&1 \
+    || { cat "$work/$name.compile.log" >&2; return 2; }
+  port="$(free_port)"
+  FRAISEQL_INTROSPECTION_ENABLED=true FRAISEQL_INTROSPECTION_REQUIRE_AUTH=false FRAISEQL_ENV=development \
+    DATABASE_URL="$db_url" FRAISEQL_SCHEMA_PATH="$work/$name.compiled.json" FRAISEQL_BIND_ADDR="127.0.0.1:$port" \
+    "$server" >"$work/$name.log" 2>&1 &
+  pids+=($!)
+  started_url="http://127.0.0.1:$port/graphql"
+}
+wait_server() { # name url pid: any HTTP answer means up (strict mode answers a raw query with 400)
+  local name=$1 url=$2 pid=$3 code
+  for _ in $(seq 600); do
+    code="$(curl -s -o /dev/null -w '%{http_code}' -XPOST "$url" -H 'content-type: application/json' -d '{"query":"{__typename}"}' || true)"
+    [[ "$code" != "000" ]] && return 0
+    kill -0 "$pid" 2>/dev/null || { echo "✗ fraiseql-server ($name) exited during boot:" >&2; tail -c 4000 "$work/$name.log" >&2; return 2; }
+    sleep 0.1
+  done
+  echo "✗ fraiseql-server ($name) did not answer within 60s" >&2; tail -c 4000 "$work/$name.log" >&2; return 2
+}
 
-node oracle.js --server "$url" --database "$db_url" "$@"
+start_server main fixture/fraiseql.toml; main_url=$started_url; wait_server main "$main_url" "${pids[0]}"
+start_server limits "$work/limits.toml"; limits_url=$started_url; wait_server limits "$limits_url" "${pids[1]}"
+start_server trusted "$work/trusted.toml"; trusted_url=$started_url; wait_server trusted "$trusted_url" "${pids[2]}"
+
+node oracle.js --server "$main_url" --limits-server "$limits_url" --trusted-server "$trusted_url" --database "$db_url" "$@"

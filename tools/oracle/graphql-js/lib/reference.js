@@ -9,6 +9,7 @@ const http = require("node:http");
 const { buildSchema, GraphQLError } = require("graphql");
 const { createHandler } = require("graphql-http/lib/use/http");
 const { Client } = require("pg");
+const { applySpecifiedScalars } = require("./scalars.js");
 
 const camel = (s) => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 
@@ -114,7 +115,7 @@ async function startReference({ sdl, databaseUrl, port = 0 }) {
   });
   await db.end();
 
-  const schema = buildSchema(sdl);
+  const schema = applySpecifiedScalars(buildSchema(sdl));
   schema.getType("Node").resolveType = (v) => v.__typename;
   const rootValue = {
     posts: (args) => list(posts, args),

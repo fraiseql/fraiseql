@@ -17,20 +17,46 @@ regression is caught by executing documents, not by reading code.
   per differing schema key, type or directive.
 - **The graphql-http audit** (GraphQL-over-HTTP spec) against FraiseQL. Only `warn` and
   `error` results count.
+- **One probe per restriction** listed in [`docs/graphql-conformance.md`](../../../docs/graphql-conformance.md)
+  (`lib/conformance.js`). Each probe must be refused with its row's `extensions.code`,
+  and a table row without a probe is a finding.
 
 The reference server (`lib/reference.js`) serves `fixture/schema.graphql`, the SDL that
 FraiseQL is expected to expose for `fixture/schema.json`. It resolves against the same
 database rows, implementing the `where`, `orderBy`, `limit` and `offset` arguments
-directly. Messages are never compared. Error locations, error counts and non-standard
-error keys are not ranked yet.
+directly. Its custom scalars coerce as their `@specifiedBy` references define
+(`lib/scalars.js`). Messages and error counts are never compared.
+
+## Outcomes and metrics
+
+Every document ends in one of three outcomes:
+
+- **Agreement** with graphql-js.
+- **A documented refusal**: no data, and every error carries a code the conformance
+  document lists, in `extensions.code`.
+- **A divergence.**
+
+The oracle reports:
+
+| Metric | Target |
+|---|---|
+| Agreement on the supported subset (valid documents not refused as documented) | 100% |
+| Invalid documents executed (graphql-js rejects them, FraiseQL answers) | 0 |
+| Undocumented divergences (any other outcome that differs) | 0 |
+| Error-format divergences (a key beside `message`, `locations`, `path`, `extensions`) | 0 |
+| Restriction findings (a listed restriction the server does not refuse as listed) | 0 |
+
+With a baseline present, each metric line also shows its change from the baseline, and
+whether that change is better or worse.
 
 ## The baseline
 
-`baseline.json` records every current disagreement:
+`baseline.json` records:
 
-- each document's fingerprint and its issue set;
+- each document's fingerprint, with its issue set or its documented refusal;
 - each introspection line;
-- each audit finding.
+- each audit finding;
+- each restriction finding.
 
 The gate is equality in both directions:
 
@@ -54,7 +80,13 @@ make oracle-graphql-js-selftest   # proves the gate goes red (below)
 tools/oracle/graphql-js/run.sh --report /tmp/oracle.json   # every disagreement, both responses
 ```
 
-`run.sh` reads the following:
+`run.sh` starts three servers over one database, all built from the same binary:
+
+- the fixture;
+- the fixture with a complexity ceiling of 5;
+- the fixture with trusted documents in strict mode.
+
+It reads the following:
 
 | Variable | Meaning |
 |---|---|
@@ -74,8 +106,25 @@ harness itself failed.
 baseline:
 
 - Every gate site fails when the baseline is changed by one entry, and names that entry.
-  The gate sites are disagreements, introspection and audit, each in both directions,
-  plus a changed corpus.
+  The gate sites are disagreements, introspection, audit and restriction findings, each
+  in both directions, plus a changed corpus.
 - A proxy in front of FraiseQL starts executing documents that carry an unknown directive.
   They must be reported, and nothing else.
 - The proxy returns one wrong value. Exactly the affected documents must be reported.
+- The proxy refuses the depth and page-size restrictions as documented. Exactly those two
+  probe findings must clear, and those refusals must count as documented.
+- The proxy moves every error code into `extensions.code`. Error-format divergences must
+  fall, and an unlisted code must document nothing.
+
+## Measuring a fix
+
+Build the change, then run the oracle against it. The metric lines show the delta from
+the baseline:
+
+```bash
+cargo build --release -p fraiseql-cli --bin fraiseql-cli -p fraiseql-server --bin fraiseql-server
+tools/oracle/graphql-js/run.sh
+```
+
+A fix that removes divergences fails the run as unrecorded progress until
+`run.sh --bless` records it. The `baseline.json` diff is then part of the change.
