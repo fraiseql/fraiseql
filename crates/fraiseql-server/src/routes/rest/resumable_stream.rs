@@ -115,6 +115,16 @@ fn replay_failed_payload(reason: &str) -> serde_json::Value {
     })
 }
 
+/// The `stream-lagged` frame ending a stream whose reader's read of a changed row failed.
+fn read_failed_payload() -> serde_json::Value {
+    serde_json::json!({
+        "code": "READ_FAILED",
+        "message": "This stream could not read a changed row as you read it, so it is \
+                    ending rather than continuing with a gap you could not see. Reconnect \
+                    to try again.",
+    })
+}
+
 /// Render one fanned-out or replayed event as its SSE frame.
 ///
 /// The document is the reader's own read of the row, served through the reader's plan
@@ -344,7 +354,7 @@ fn end_with_read_failure(mut state: Cursor, reason: &str) -> (SseEvent, Cursor) 
     );
     let frame = SseEvent::default()
         .event(super::sse::STREAM_LAGGED_EVENT)
-        .json_data(replay_failed_payload("reading a changed row failed"))
+        .json_data(read_failed_payload())
         .unwrap_or_else(|_| SseEvent::default().event(super::sse::STREAM_LAGGED_EVENT).data(""));
     state.rx = None;
     state.pending.clear();
