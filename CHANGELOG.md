@@ -18,6 +18,21 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A subscriber is served its own read of a changed row.** A subscription over `/ws`, a
+  resumable REST stream or the Kafka mirror was served the change-log document: the
+  entity as the writing session read it, so a view or row policy that reads the session
+  answered for the writer. Each subscriber now reads the row by `id` from the type's view,
+  from the primary, under its own session variables and row scope, and is served what
+  that read returns. A row its read does not return is not delivered; a delete reaches
+  only a subscription that was delivered the row. A read that fails, or does not finish
+  within 5 s on `/ws`, ends the operation or the stream. A subscription whose type the
+  schema does not declare is refused at subscribe.
+  - The Kafka mirror delivers a delete only for a row it was itself served recently: it
+    remembers the last 256 rows (and at most 1 MiB of them) per subscription, in memory, so
+    a delete of an older row, or of a row served before the server restarted, is not
+    mirrored. A consumer that needs every delete reads the change log through
+    `[cdc_outbound]` (`kind = "kafka"`), which drains each change as it was written.
+
 - **A document that defines a fragment name twice is refused at parse.** GraphQL allows
   one definition per fragment name; such a document used to be accepted, with the
   request analyser reading the first definition and the executor the last. Every

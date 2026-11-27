@@ -38,16 +38,52 @@ fn schema_with_subscription(name: &str, return_type: &str) -> CompiledSchema {
     schema
 }
 
+/// `schema`, declaring the subscription's `Order` type (`id`, `status`) over `v_order` when
+/// it does not, as every compiled schema declares the type a subscription returns: an
+/// executor plans a subscriber's read of the changed row from the type's view.
+fn with_order_type(mut schema: CompiledSchema) -> CompiledSchema {
+    use fraiseql_core::schema::{FieldDefinition, FieldType, TypeDefinition};
+    if schema.find_type("Order").is_none() {
+        schema.types.push(TypeDefinition {
+            fields: vec![
+                FieldDefinition::new("id", FieldType::Id),
+                FieldDefinition::new("status", FieldType::String),
+            ],
+            ..TypeDefinition::new("Order", "v_order")
+        });
+        schema.build_indexes();
+    }
+    schema
+}
+
 /// Spawn an axum server with just the `/ws` subscription endpoint and return
 /// its `ws://` URL.
 /// A state whose subscriptions are planned (ruling AA 4) by an executor over `schema` — the
 /// schema the manager serves. The executor reads nothing here: plans are applied to the
 /// published after-images.
+/// The row a subscriber's read of `order_42` returns from `v_order`.
+fn stored_order() -> fraiseql_core::db::types::JsonbValue {
+    fraiseql_core::db::types::JsonbValue::new(
+        json!({"id": "order_42", "status": "open", "secret": "s3cr3t"}),
+    )
+}
+
 fn planned_state(manager: Arc<SubscriptionManager>, schema: CompiledSchema) -> SubscriptionState {
-    let executor = Arc::new(fraiseql_core::runtime::Executor::new(
+    planned_state_over(
+        manager,
         schema,
-        Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
-    ));
+        fraiseql_test_utils::failing_adapter::FailingAdapter::new()
+            .with_response("v_order", vec![stored_order()]),
+    )
+}
+
+/// [`planned_state`], its subscribers reading through `adapter`.
+fn planned_state_over(
+    manager: Arc<SubscriptionManager>,
+    schema: CompiledSchema,
+    adapter: fraiseql_test_utils::failing_adapter::FailingAdapter,
+) -> SubscriptionState {
+    let executor = Arc::new(fraiseql_core::runtime::Executor::new(schema, Arc::new(adapter)));
     SubscriptionState::new(manager)
         .with_live_executor(Some(Arc::new(move || Arc::clone(&executor))))
 }
@@ -90,8 +126,20 @@ async fn recv_json(
         >,
     >,
 ) -> serde_json::Value {
+    recv_json_within(ws, std::time::Duration::from_secs(5)).await
+}
+
+/// [`recv_json`], waiting up to `wait` for each frame.
+async fn recv_json_within(
+    ws: &mut futures::stream::SplitStream<
+        tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
+    >,
+    wait: std::time::Duration,
+) -> serde_json::Value {
     loop {
-        let msg = tokio::time::timeout(std::time::Duration::from_secs(5), ws.next())
+        let msg = tokio::time::timeout(wait, ws.next())
             .await
             .expect("timed out waiting for WebSocket message")
             .expect("stream ended unexpectedly")
@@ -913,7 +961,28 @@ async fn first_frame_after_publish(
     query: &str,
     variables: serde_json::Value,
 ) -> serde_json::Value {
-    let url = spawn_ws_server(planned_state(manager.clone(), schema)).await;
+    let adapter = fraiseql_test_utils::failing_adapter::FailingAdapter::new()
+        .with_response("v_order", vec![stored_order()]);
+    first_frame_over(
+        adapter,
+        (manager, schema),
+        query,
+        variables,
+        std::time::Duration::from_secs(5),
+    )
+    .await
+}
+
+/// [`first_frame_after_publish`], its subscriber reading through `adapter`, waiting up to
+/// `wait` for the frame.
+async fn first_frame_over(
+    adapter: fraiseql_test_utils::failing_adapter::FailingAdapter,
+    (manager, schema): (Arc<SubscriptionManager>, CompiledSchema),
+    query: &str,
+    variables: serde_json::Value,
+    wait: std::time::Duration,
+) -> serde_json::Value {
+    let url = spawn_ws_server(planned_state_over(manager.clone(), schema, adapter)).await;
     let (mut sink, mut stream) = connect_ws(&url).await;
     send_json(&mut sink, json!({"type": "connection_init"})).await;
     assert_eq!(recv_json(&mut stream).await["type"], "connection_ack", "handshake");
@@ -934,7 +1003,7 @@ async fn first_frame_after_publish(
         SubscriptionOperation::Create,
         json!({"id": "order_42", "status": "open", "secret": "s3cr3t"}),
     ));
-    recv_json(&mut stream).await
+    recv_json_within(&mut stream, wait).await
 }
 
 /// A subscription serves its selection, as a query does: `status` is readable, but not
@@ -1018,7 +1087,12 @@ async fn ws_e2e_a_policy_reload_replans_a_live_subscription() {
     let executor_for = |schema: CompiledSchema| {
         Arc::new(fraiseql_core::runtime::Executor::new(
             schema,
-            Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
+            Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new().with_response(
+                "v_order",
+                vec![fraiseql_core::db::types::JsonbValue::new(
+                    json!({"id": "o1", "note": "n"}),
+                )],
+            )),
         ))
     };
     let serving = Arc::new(std::sync::Mutex::new(executor_for(order(false))));
@@ -1085,7 +1159,12 @@ async fn ws_e2e_a_reload_that_refuses_the_plan_ends_the_subscription() {
     let executor_for = |schema: CompiledSchema| {
         Arc::new(fraiseql_core::runtime::Executor::new(
             schema,
-            Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
+            Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new().with_response(
+                "v_order",
+                vec![fraiseql_core::db::types::JsonbValue::new(
+                    json!({"id": "o1", "note": "n"}),
+                )],
+            )),
         ))
     };
     let serving = Arc::new(std::sync::Mutex::new(executor_for(order(false))));
@@ -1196,6 +1275,7 @@ async fn ws_ae1_a_routed_subscription_is_still_planned() {
 /// `state` admitting through an application over `schema` where `tenant_a` is registered,
 /// so an upgrade naming it runs as that tenant.
 fn admitting_tenant_a(state: SubscriptionState, schema: &CompiledSchema) -> SubscriptionState {
+    let schema = with_order_type(schema.clone());
     let executor = || {
         Arc::new(fraiseql_core::runtime::Executor::new(
             schema.clone(),
@@ -1304,4 +1384,47 @@ async fn ws_ae1_a_routed_subscription_still_answers_the_row_policy() {
     let frame = answer.expect("the row policy must refuse the subscribe");
     assert_eq!(frame["type"], "error", "{frame}");
     assert_eq!(frame["payload"][0]["extensions"]["code"], "SUBSCRIPTION_REFUSED", "{frame}");
+}
+
+/// A subscriber's read of the changed row that fails ends the operation with an error frame:
+/// the event is never served from the writer's document in its place.
+#[tokio::test]
+async fn ws_e2e_a_failed_read_of_the_changed_row_ends_the_operation_with_an_error() {
+    let (manager, schema) = gated_order_manager();
+    let adapter = fraiseql_test_utils::failing_adapter::FailingAdapter::new()
+        .with_response("v_order", vec![stored_order()])
+        .fail_on_query(0);
+    let frame = first_frame_over(
+        adapter,
+        (Arc::clone(&manager), schema),
+        "subscription { orderCreated { id status } }",
+        json!({}),
+        std::time::Duration::from_secs(5),
+    )
+    .await;
+    assert_eq!(frame["type"], "error", "{frame}");
+    assert_eq!(frame["payload"][0]["extensions"]["code"], "DATABASE_ERROR", "{frame}");
+    assert!(!frame.to_string().contains("open"), "no document is served: {frame}");
+    assert_eq!(manager.subscription_count(), 0, "the operation ended");
+}
+
+/// A read that does not finish within the bound ends the operation the same way.
+#[tokio::test]
+async fn ws_e2e_a_read_of_the_changed_row_that_does_not_finish_ends_the_operation() {
+    let (manager, schema) = gated_order_manager();
+    let adapter = fraiseql_test_utils::failing_adapter::FailingAdapter::new()
+        .with_response("v_order", vec![stored_order()])
+        .stalling_reads();
+    let frame = first_frame_over(
+        adapter,
+        (Arc::clone(&manager), schema),
+        "subscription { orderCreated { id status } }",
+        json!({}),
+        std::time::Duration::from_secs(10),
+    )
+    .await;
+    assert_eq!(frame["type"], "error", "{frame}");
+    assert_eq!(frame["payload"][0]["extensions"]["code"], "TIMEOUT", "{frame}");
+    assert!(!frame.to_string().contains("open"), "no document is served: {frame}");
+    assert_eq!(manager.subscription_count(), 0, "the operation ended");
 }

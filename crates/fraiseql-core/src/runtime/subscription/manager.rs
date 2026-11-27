@@ -527,49 +527,46 @@ impl SubscriptionManager {
 
         // Find matching subscriptions
         for subscription in &self.subscriptions {
-            if self.matches_subscription(&event, &subscription) {
-                // A planned subscription is served through its plan; an event the plan
-                // suppresses is not delivered, and counts as no match.
-                let (data, errors) = match &subscription.plan {
-                    Some(plan) => match plan.deliver(&event.data, event.captured) {
-                        Some(served) => (served.data, served.errors),
-                        None => continue,
-                    },
-                    None => (self.project_event_data(&event, &subscription), Vec::new()),
-                };
-                matched += 1;
-
-                // Every seam reads this payload — `/ws` its `data`, the Kafka mirror and the
-                // webhook adapter its `event` (ruling AC 7). For a planned subscription the
-                // event carries the served document and no before-image, which no plan
-                // covers: nothing downstream of the plan can see the raw after-image.
-                let mut delivered = event.clone();
-                if subscription.plan.is_some() {
-                    delivered.data = data.clone();
-                    delivered.old_data = None;
-                    delivered.errors = errors;
-                }
-                // Ruling AA 5: the subscriber sees its own delivery position, gap-free —
-                // never the manager's global counter or the Change-Spine `seq`, which count
-                // every change, those withheld from this subscriber included.
-                delivered.sequence_number =
-                    subscription.delivered.fetch_add(1, Ordering::SeqCst) + 1;
-                // Ruling AI: the envelope names no principal but the subscriber and carries
-                // nothing rows it may not read shape (`seq` included).
-                let own_user = subscription.plan.as_ref().and_then(|plan| plan.subscriber_uuid());
-                delivered.change_spine = delivered.change_spine.as_ref().and_then(|envelope| {
-                    envelope.for_subscriber(own_user, subscription.tenant_id.as_deref())
-                });
-                let payload = SubscriptionPayload {
-                    subscription_id: subscription.id,
-                    subscription_name: subscription.subscription_name.clone(),
-                    event: delivered,
-                    data,
-                };
-
-                // Send to broadcast channel (may fail if no receivers, that's ok)
-                let _ = self.event_sender.send(payload);
+            if !self.matches_route(&event, &subscription) {
+                continue;
             }
+            // A planned subscription is served from its subscriber's own read of the row,
+            // on the subscriber's task ([`serve`](Self::serve)): what goes out here is the
+            // change, without the write's document, which was evaluated in the writing
+            // session and is never served.
+            if subscription.plan.is_some() {
+                matched += 1;
+                let mut pending = event.clone();
+                pending.data = serde_json::Value::Null;
+                pending.old_data = None;
+                let _ = self.event_sender.send(SubscriptionPayload {
+                    subscription_id:   subscription.id,
+                    subscription_name: subscription.subscription_name.clone(),
+                    event:             pending,
+                    data:              serde_json::Value::Null,
+                    pending:           true,
+                });
+                continue;
+            }
+            if !self.matches_document(&subscription, &event.data) {
+                continue;
+            }
+            matched += 1;
+            let mut delivered = event.clone();
+            delivered.sequence_number = subscription.delivered.fetch_add(1, Ordering::SeqCst) + 1;
+            delivered.change_spine = delivered.change_spine.as_ref().and_then(|envelope| {
+                envelope.for_subscriber(None, subscription.tenant_id.as_deref())
+            });
+            let payload = SubscriptionPayload {
+                subscription_id:   subscription.id,
+                subscription_name: subscription.subscription_name.clone(),
+                data:              self.project_event_data(&event, &subscription),
+                event:             delivered,
+                pending:           false,
+            };
+
+            // Send to broadcast channel (may fail if no receivers, that's ok)
+            let _ = self.event_sender.send(payload);
         }
 
         if matched > 0 {
@@ -585,13 +582,114 @@ impl SubscriptionManager {
         matched
     }
 
-    /// Check if an event matches a subscription's filters and RLS conditions.
-    #[allow(clippy::cognitive_complexity)] // Reason: multi-criteria subscription matching (entity type, operation, filters, RLS conditions)
-    fn matches_subscription(
+    /// Serve a payload [`publish_event`](Self::publish_event) left pending to its
+    /// subscriber, from the subscriber's own read of the row: `None` when it is not
+    /// delivered, or when the subscription has ended. A payload that is not pending is
+    /// returned as it is. `reads` shares one event's reads between the subscriptions of one
+    /// reader that read it alike.
+    ///
+    /// # Errors
+    ///
+    /// As [`SubscriptionPlan::serve_change`](crate::runtime::SubscriptionPlan::serve_change):
+    /// the caller ends the subscription, and nothing is served in place of the read.
+    pub async fn serve(
         &self,
-        event: &SubscriptionEvent,
-        subscription: &ActiveSubscription,
-    ) -> bool {
+        payload: SubscriptionPayload,
+        reads: &mut crate::runtime::SubscriberReads,
+    ) -> crate::error::Result<Option<SubscriptionPayload>> {
+        self.serve_with(payload, reads, None).await
+    }
+
+    /// [`serve`](Self::serve), for a consumer that mirrors a subscription's deliveries
+    /// rather than being its subscriber: served from the same read, under the subscription's
+    /// own principal and session, but against `mirror`'s record of the rows it was served and
+    /// its own count of them, so the subscriber's are not consumed by a second reader.
+    ///
+    /// # Errors
+    ///
+    /// As [`serve`](Self::serve).
+    pub async fn serve_mirrored(
+        &self,
+        payload: SubscriptionPayload,
+        reads: &mut crate::runtime::SubscriberReads,
+        mirror: &mut MirroredSubscription,
+    ) -> crate::error::Result<Option<SubscriptionPayload>> {
+        self.serve_with(payload, reads, Some(mirror)).await
+    }
+
+    /// Whether subscription `id` is still active.
+    #[must_use]
+    pub fn is_active(&self, id: SubscriptionId) -> bool {
+        self.subscriptions.contains_key(&id)
+    }
+
+    async fn serve_with(
+        &self,
+        payload: SubscriptionPayload,
+        reads: &mut crate::runtime::SubscriberReads,
+        mirror: Option<&mut MirroredSubscription>,
+    ) -> crate::error::Result<Option<SubscriptionPayload>> {
+        if !payload.pending {
+            return Ok(Some(payload));
+        }
+        // A copy: no map entry is held across the read.
+        let Some(subscription) = self
+            .subscriptions
+            .get(&payload.subscription_id)
+            .map(|entry| entry.value().clone())
+        else {
+            return Ok(None);
+        };
+        let Some(plan) = subscription.plan.clone() else {
+            return Ok(None);
+        };
+        let event = payload.event;
+        let change = crate::runtime::Change {
+            event_id:  &event.event_id,
+            entity_id: &event.entity_id,
+            deleted:   event.operation == SubscriptionOperation::Delete,
+            captured:  event.captured,
+        };
+        let admits = |document: &serde_json::Value| self.matches_document(&subscription, document);
+        let (served, sequence_number) = if let Some(mirror) = mirror {
+            let Some(served) = plan.serve_change(change, &mut mirror.rows, reads, admits).await?
+            else {
+                return Ok(None);
+            };
+            mirror.delivered += 1;
+            (served, mirror.delivered)
+        } else {
+            let mut rows = subscription.delivered_rows.lock().await;
+            let Some(served) = plan.serve_change(change, &mut rows, reads, admits).await? else {
+                return Ok(None);
+            };
+            drop(rows);
+            // Ruling AA 5: the subscriber sees its own delivery position, gap-free —
+            // never the manager's global counter or the Change-Spine `seq`, which count
+            // every change, those withheld from this subscriber included.
+            (served, subscription.delivered.fetch_add(1, Ordering::SeqCst) + 1)
+        };
+
+        let mut delivered = event;
+        delivered.data = served.data.clone();
+        delivered.errors = served.errors;
+        delivered.sequence_number = sequence_number;
+        // Ruling AI: the envelope names no principal but the subscriber and carries nothing
+        // rows it may not read shape (`seq` included).
+        delivered.change_spine = delivered.change_spine.as_ref().and_then(|envelope| {
+            envelope.for_subscriber(plan.subscriber_uuid(), subscription.tenant_id.as_deref())
+        });
+        Ok(Some(SubscriptionPayload {
+            subscription_id:   subscription.id,
+            subscription_name: subscription.subscription_name,
+            event:             delivered,
+            data:              served.data,
+            pending:           false,
+        }))
+    }
+
+    /// Whether an event is routed to a subscription: its tenant, type and operation.
+    fn matches_route(&self, event: &SubscriptionEvent, subscription: &ActiveSubscription) -> bool {
         // Tenant isolation (M-tenant-ws-failopen).
         //
         // Multi-tenant deployments fail **closed**: an event is delivered only
@@ -646,10 +744,20 @@ impl SubscriptionManager {
             }
         }
 
+        true
+    }
+
+    /// Whether a document meets a subscription's row-security conditions and its filters.
+    #[allow(clippy::cognitive_complexity)] // Reason: multi-criteria matching (RLS conditions, argument filters, static filters)
+    fn matches_document(
+        &self,
+        subscription: &ActiveSubscription,
+        data: &serde_json::Value,
+    ) -> bool {
         // Check row-level security conditions (evaluated at subscribe time).
         // Every condition must match (AND semantics) — RLS always wins.
         for (field, expected_value) in &subscription.rls_conditions {
-            let actual = get_json_pointer_value(&event.data, field);
+            let actual = get_json_pointer_value(data, field);
             if actual != Some(expected_value) {
                 tracing::trace!(
                     subscription_id = %subscription.id,
@@ -669,7 +777,7 @@ impl SubscriptionManager {
                 // Get the variable value provided by the client
                 if let Some(expected_value) = subscription.variables.get(arg_name) {
                     // Get the actual value from event data using JSON pointer
-                    let actual_value = self.filter_value(subscription, &event.data, path);
+                    let actual_value = self.filter_value(subscription, data, path);
 
                     // Compare values
                     if actual_value.as_deref() != Some(expected_value) {
@@ -687,7 +795,7 @@ impl SubscriptionManager {
 
             // Check static filter conditions
             for condition in &filter.static_filters {
-                let actual_value = self.filter_value(subscription, &event.data, &condition.path);
+                let actual_value = self.filter_value(subscription, data, &condition.path);
 
                 if !evaluate_filter_condition(
                     actual_value.as_deref(),
@@ -945,4 +1053,12 @@ impl std::fmt::Debug for SubscriptionManager {
             .field("connection_count", &self.subscriptions_by_connection.len())
             .finish_non_exhaustive()
     }
+}
+
+/// A mirror's record of one subscription it serves: the rows it was served, so a delete
+/// reaches it only for a row it was served, and how many deliveries it was served.
+#[derive(Debug, Default)]
+pub struct MirroredSubscription {
+    rows:      crate::runtime::DeliveredRows,
+    delivered: u64,
 }

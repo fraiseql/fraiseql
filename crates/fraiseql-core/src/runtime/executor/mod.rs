@@ -205,7 +205,10 @@ pub use runners::query_params::enforce_max_offset;
 /// same function that types a top-level one (#1157). Two mappings would drift, and
 /// the drift would be silent: a filter that returns the wrong rows.
 pub use runners::query_projection::field_type_to_where_type;
-pub use subscription_plan::{Served, SubscriptionPlan, suppressed_subscription_events};
+pub use subscription_plan::{
+    Change, DELIVERED_ROWS_BOUND, DELIVERED_ROWS_BYTES, DeliveredRows, Served, SubscriberReads,
+    SubscriberRow, SubscriptionPlan, suppressed_subscription_events,
+};
 pub mod security;
 mod support;
 

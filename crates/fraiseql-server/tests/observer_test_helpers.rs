@@ -348,6 +348,42 @@ pub async fn insert_change_log_entry(
     Ok(row.0)
 }
 
+/// The view these suites' types read their rows from.
+///
+/// It holds each entity's latest after-image in the change log, as its `data`. A subscriber
+/// reads the row an event names from the type's view; these suites write a change by its
+/// change-log row alone, so the view is that row's image.
+pub const CHANGE_LOG_IMAGE_VIEW: &str = "v_change_log_image";
+
+/// Create [`CHANGE_LOG_IMAGE_VIEW`], one creator at a time.
+///
+/// Concurrent `CREATE OR REPLACE VIEW`s of one view fail with "tuple concurrently
+/// updated", so each runs under one transaction-scoped lock keyed on the view's name. The
+/// lock serialises only the creators: suites writing the change log meanwhile are not
+/// blocked, as a lock on the table would block them.
+///
+/// # Errors
+///
+/// As the DDL.
+pub async fn ensure_change_log_image_view(pool: &PgPool) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext('v_change_log_image'))")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query(
+        r"
+        CREATE OR REPLACE VIEW v_change_log_image AS
+        SELECT DISTINCT ON (object_id) object_id AS id, object_data AS data
+        FROM core.tb_entity_change_log
+        WHERE object_id IS NOT NULL AND object_data IS NOT NULL
+        ORDER BY object_id, pk_entity_change_log DESC
+        ",
+    )
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await
+}
+
 /// [`insert_change_log_entry`] with the after-image as JSON text, stored as written: a
 /// `serde_json::Value` cannot hold `1.50` or a 20-digit number, the `Decimal`s a change-log
 /// reader must keep (#1763).

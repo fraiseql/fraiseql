@@ -98,6 +98,11 @@ pub struct CapturingMockAdapter {
     pub rendezvous:                Option<tokio::sync::Barrier>,
     /// The read-your-writes principal each read ran in the scope of, in call order.
     pub pin_principals:            std::sync::Mutex<Vec<Option<u64>>>,
+    /// The session variables each projected read carried, in call order.
+    pub projected_session_vars:    std::sync::Mutex<Vec<Vec<(String, String)>>>,
+    /// A projected read naming one `id` in its filter answers only the rows holding it,
+    /// when set by [`answering_by_id`](Self::answering_by_id).
+    pub answers_by_id:             bool,
 }
 
 /// The arguments a row-shaped read reached the adapter with (#1351).
@@ -140,7 +145,17 @@ impl CapturingMockAdapter {
             projection_addresses: std::sync::Mutex::new(Vec::new()),
             rendezvous: None,
             pin_principals: std::sync::Mutex::new(Vec::new()),
+            projected_session_vars: std::sync::Mutex::new(Vec::new()),
+            answers_by_id: false,
         }
+    }
+
+    /// The same double, answering a projected read whose filter names one `id` with the
+    /// rows holding that `id` only: a store of rows read one by one.
+    #[must_use]
+    pub const fn answering_by_id(mut self) -> Self {
+        self.answers_by_id = true;
+        self
     }
 
     /// The same double, holding each projected read until `reads` of them are in flight
@@ -289,9 +304,20 @@ impl DatabaseAdapter for CapturingMockAdapter {
     async fn execute_with_projection_arc_with_session(
         &self,
         request: &crate::backend::ProjectionRequest<'_>,
-        _session_vars: &[(&str, &str)],
+        session_vars: &[(&str, &str)],
         routing: crate::backend::types::ReadRouting,
     ) -> Result<std::sync::Arc<Vec<JsonbValue>>> {
+        self.projected_session_vars
+            .lock()
+            .unwrap()
+            .push(session_vars.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect());
+        if self.answers_by_id {
+            if let Some(id) = request.where_clause.and_then(named_id) {
+                *self.captured_where.lock().unwrap() = request.where_clause.cloned();
+                let rows = self.mock_results.iter().filter(|row| row.as_value()["id"] == *id);
+                return Ok(std::sync::Arc::new(rows.cloned().collect()));
+            }
+        }
         *self.captured_routing.lock().unwrap() = Some(routing);
         *self.captured_decimals.lock().unwrap() = Some(request.decimals.is_some());
         *self.captured_source.lock().unwrap() = Some(CapturedSource {
@@ -810,4 +836,17 @@ pub fn mock_user_results() -> Vec<JsonbValue> {
         JsonbValue::new(serde_json::json!({"id": "1", "name": "Alice"})),
         JsonbValue::new(serde_json::json!({"id": "2", "name": "Bob"})),
     ]
+}
+
+/// The `id` a filter requires equal, at its top level or in a conjunction.
+fn named_id(clause: &WhereClause) -> Option<&serde_json::Value> {
+    match clause {
+        WhereClause::Field {
+            path,
+            operator: fraiseql_db::WhereOperator::Eq,
+            value,
+        } if path.len() == 1 && path[0] == "id" => Some(value),
+        WhereClause::And(clauses) => clauses.iter().find_map(named_id),
+        _ => None,
+    }
 }
