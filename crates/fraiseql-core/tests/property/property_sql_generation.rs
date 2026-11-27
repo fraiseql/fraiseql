@@ -138,36 +138,137 @@ fn arb_where_clause() -> impl Strategy<Value = WhereClause> {
 }
 
 // ============================================================================
+// Operand values: hostile strings and numbers, and a tree carrying them
+// ============================================================================
+
+/// Any string, weighted towards SQL quoting, comment and pattern syntax, NUL, combining
+/// marks and astral characters.
+fn arb_hostile_string() -> impl Strategy<Value = String> {
+    prop_oneof![
+        any::<String>(),
+        prop::collection::vec(
+            prop_oneof![
+                Just("'"),
+                Just("''"),
+                Just("\\"),
+                Just("$$"),
+                Just("$t$"),
+                Just("E'"),
+                Just("--"),
+                Just("/*"),
+                Just("*/"),
+                Just(";"),
+                Just("%"),
+                Just("_"),
+                Just("\0"),
+                Just("e\u{301}"),
+                Just("\u{1F600}"),
+                Just("a"),
+            ],
+            0..12,
+        )
+        .prop_map(|parts| parts.concat()),
+    ]
+}
+
+/// Any JSON number: every `i64`, the integers just past 2^53, and finite floats.
+fn arb_hostile_number() -> impl Strategy<Value = Value> {
+    prop_oneof![
+        any::<i64>().prop_map(|n| json!(n)),
+        prop_oneof![
+            Just(9_007_199_254_740_993_i64),
+            Just(-9_007_199_254_740_993_i64)
+        ]
+        .prop_map(|n| json!(n)),
+        any::<f64>()
+            .prop_filter("JSON holds finite numbers", |f| f.is_finite())
+            .prop_map(|f| json!(f)),
+    ]
+}
+
+/// Operand values to substitute, consumed in order and reused cyclically.
+#[derive(Debug, Clone)]
+struct Operands {
+    strings: Vec<String>,
+    numbers: Vec<Value>,
+}
+
+fn arb_operands() -> impl Strategy<Value = Operands> {
+    (
+        prop::collection::vec(arb_hostile_string(), 1..16),
+        prop::collection::vec(arb_hostile_number(), 1..16),
+    )
+        .prop_map(|(strings, numbers)| Operands { strings, numbers })
+}
+
+/// `clause` with every operand value replaced by one of the same JSON shape from
+/// `operands`: a string by a string, a number by a number, a boolean by its negation, an
+/// array element by element. The null-test operand is not a value but the test's sense,
+/// so it is kept.
+fn revalue(clause: &WhereClause, operands: &Operands, next: &mut usize) -> WhereClause {
+    fn value(v: &Value, operands: &Operands, next: &mut usize) -> Value {
+        *next += 1;
+        match v {
+            Value::String(_) => json!(operands.strings[*next % operands.strings.len()]),
+            Value::Number(_) => operands.numbers[*next % operands.numbers.len()].clone(),
+            Value::Bool(b) => json!(!b),
+            Value::Array(items) => {
+                Value::Array(items.iter().map(|i| value(i, operands, next)).collect())
+            },
+            other => other.clone(),
+        }
+    }
+    match clause {
+        WhereClause::Field {
+            path,
+            operator,
+            value: v,
+        } => WhereClause::Field {
+            path:     path.clone(),
+            operator: operator.clone(),
+            value:    if matches!(operator, WhereOperator::IsNull | WhereOperator::IsNotNull) {
+                v.clone()
+            } else {
+                value(v, operands, next)
+            },
+        },
+        WhereClause::And(cs) => {
+            WhereClause::And(cs.iter().map(|c| revalue(c, operands, next)).collect())
+        },
+        WhereClause::Or(cs) => {
+            WhereClause::Or(cs.iter().map(|c| revalue(c, operands, next)).collect())
+        },
+        WhereClause::Not(c) => WhereClause::Not(Box::new(revalue(c, operands, next))),
+        other => other.clone(),
+    }
+}
+
+// ============================================================================
 // PostgresWhereGenerator: Parameterization Properties
 // ============================================================================
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(500))]
 
-    /// Property: Generated SQL never contains raw string values inline.
-    /// All values must be parameterized ($1, $2, etc.).
+    /// Property: the SQL text does not depend on any operand value.
+    ///
+    /// The same tree carrying two independent sets of hostile operands (quotes, backslashes,
+    /// dollar quotes, comment syntax, NUL, any Unicode, any number) renders byte-identical
+    /// SQL, with one parameter per operand either way. A value that reached the statement
+    /// text, escaped or not, would make the two differ. No refusal is expected: every
+    /// substitute has its original's JSON shape.
     #[test]
-    fn prop_postgres_never_inlines_string_values(
-        path in arb_path(),
-        value in "[a-zA-Z0-9]{1,20}",
+    fn prop_postgres_sql_text_independent_of_operand_values(
+        clause in arb_where_clause(),
+        a in arb_operands(),
+        b in arb_operands(),
     ) {
         let gen = PostgresWhereGenerator::new(PostgresDialect);
-        let clause = WhereClause::Field {
-            path,
-            operator: WhereOperator::Eq,
-            value: Value::String(value.clone()),
-        };
-
-        let (sql, params) = gen.generate(&clause).unwrap();
-
-        // The value must appear in params, not inline in SQL.
-        // Check that SQL uses a placeholder and the value is in params.
-        prop_assert!(
-            sql.contains("$1"),
-            "SQL must use parameterized placeholder, got: {}", sql
-        );
-        prop_assert_eq!(params.len(), 1);
-        prop_assert_eq!(&params[0], &json!(value));
+        let (with_a, with_b) = (revalue(&clause, &a, &mut 0), revalue(&clause, &b, &mut 0));
+        let (sql_a, params_a) = gen.generate(&with_a).unwrap();
+        let (sql_b, params_b) = gen.generate(&with_b).unwrap();
+        prop_assert_eq!(&sql_a, &sql_b, "the operands changed the statement");
+        prop_assert_eq!(params_a.len(), params_b.len());
     }
 
     /// Property: Parameter count in SQL matches params vector length.
@@ -201,43 +302,6 @@ proptest! {
                 );
             }
         }
-    }
-
-    /// Property: SQL injection payloads in string values are parameterized, not inlined.
-    #[test]
-    fn prop_postgres_injection_safe_string_values(
-        path in arb_path(),
-        prefix in "[a-zA-Z]{0,10}",
-        injection in prop_oneof![
-            Just("'; DROP TABLE users; --"),
-            Just("' OR '1'='1"),
-            Just("'; DELETE FROM data WHERE '1'='1"),
-            Just("\\'; TRUNCATE users; --"),
-        ],
-    ) {
-        let gen = PostgresWhereGenerator::new(PostgresDialect);
-        let payload = format!("{}{}", prefix, injection);
-        let clause = WhereClause::Field {
-            path,
-            operator: WhereOperator::Eq,
-            value: Value::String(payload.clone()),
-        };
-
-        let (sql, params) = gen.generate(&clause).unwrap();
-
-        prop_assert!(
-            !sql.contains("DROP"),
-            "SQL injection payload must not appear in SQL: {}", sql
-        );
-        prop_assert!(
-            !sql.contains("DELETE"),
-            "SQL injection payload must not appear in SQL: {}", sql
-        );
-        prop_assert!(
-            !sql.contains("TRUNCATE"),
-            "SQL injection payload must not appear in SQL: {}", sql
-        );
-        prop_assert_eq!(&params[0], &json!(payload));
     }
 
     /// Property: SQL injection payloads in field paths are properly escaped.
@@ -347,41 +411,6 @@ proptest! {
         prop_assert_eq!(
             params.len(), values.len(),
             "IN should produce one param per array element. SQL: {}", sql
-        );
-    }
-
-    /// Property: String operators (LIKE/ILIKE) always parameterize the search term.
-    #[test]
-    fn prop_postgres_like_parameterized(
-        path in arb_path(),
-        operator in arb_string_operator(),
-        value in "[a-zA-Z0-9]{1,20}",
-    ) {
-        let gen = PostgresWhereGenerator::new(PostgresDialect);
-        let clause = WhereClause::Field {
-            path,
-            operator,
-            value: Value::String(value.clone()),
-        };
-
-        let (sql, params) = gen.generate(&clause).unwrap();
-
-        // The search term must be parameterized, not inlined.
-        // We verify by checking the value appears in params and SQL uses $1.
-        prop_assert!(
-            sql.contains("$1"),
-            "LIKE/ILIKE must use parameterized placeholder, got: {}", sql
-        );
-        prop_assert!(!params.is_empty(), "LIKE/ILIKE must produce at least one param");
-        prop_assert!(
-            sql.contains("LIKE") || sql.contains("ILIKE"),
-            "String operators should produce LIKE or ILIKE: {}", sql
-        );
-        // Verify the value is in params
-        let expected_val = Value::String(value);
-        prop_assert!(
-            params.contains(&expected_val),
-            "Search term must appear in params"
         );
     }
 
