@@ -532,6 +532,9 @@ impl Server {
         // library path used to lack, which let a public playground or a zero pool
         // timeout boot without complaint.
         config.validate().map_err(ServerError::ConfigError)?;
+        super::hmac_secret::resolve(config.hmac_secret_env.as_deref(), |name| {
+            std::env::var(name).ok()
+        })?;
         // Every capability below except the observer runtime reads this pool.
         let db_pool = pools.application().map(|pool| pool.pool().clone());
         crate::server::initialization::refuse_scim_it_cannot_mount(

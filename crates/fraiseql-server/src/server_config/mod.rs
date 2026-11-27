@@ -806,6 +806,7 @@ pub struct ServerConfig {
     /// default). The secret must be **stable across restarts and shared across
     /// instances** (a per-process random value would break resume + multi-instance
     /// idempotency); resolved from the environment at startup, never the config file.
+    /// A named variable that is unset or empty refuses boot.
     ///
     /// ```toml
     /// hmac_secret_env = "FRAISEQL_HMAC_SECRET"

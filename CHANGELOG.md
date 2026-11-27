@@ -2080,6 +2080,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **An `hmac_secret_env` whose variable is unset or empty refuses boot (#2665).** It used to
+  log a warning and run on: the idempotency token stayed unsigned, and the recipient
+  address hash was absent, so the email suppression check and the suppression admin routes
+  were off while the startup log read healthy. The server now refuses, naming the
+  variable, as the other `*_env` keys do. A deployment that wants neither removes
+  `hmac_secret_env`.
+
 - **A rate limit with `max_buckets = 0` refuses boot (#2664).** Each tracking map evicts a
   bucket once it holds `max_buckets` of them, so a cap of zero evicted another client's
   bucket on every new client and no limit held. The server refuses it from

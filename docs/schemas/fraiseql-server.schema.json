@@ -474,7 +474,7 @@
       ]
     },
     "hmac_secret_env": {
-      "description": "Name of the environment variable holding the server HMAC secret.\n\nWhen set, the per-dispatch idempotency token surfaced to functions is\nHMAC-signed with a subkey derived from this secret, making it unforgeable —\nrequired before it is exposed externally as a VERP delivery-tracking\nReturn-Path. Unset → the token is an unsigned digest (the zero-config\ndefault). The secret must be **stable across restarts and shared across\ninstances** (a per-process random value would break resume + multi-instance\nidempotency); resolved from the environment at startup, never the config file.\n\n```toml\nhmac_secret_env = \"FRAISEQL_HMAC_SECRET\"\n```",
+      "description": "Name of the environment variable holding the server HMAC secret.\n\nWhen set, the per-dispatch idempotency token surfaced to functions is\nHMAC-signed with a subkey derived from this secret, making it unforgeable —\nrequired before it is exposed externally as a VERP delivery-tracking\nReturn-Path. Unset → the token is an unsigned digest (the zero-config\ndefault). The secret must be **stable across restarts and shared across\ninstances** (a per-process random value would break resume + multi-instance\nidempotency); resolved from the environment at startup, never the config file.\nA named variable that is unset or empty refuses boot.\n\n```toml\nhmac_secret_env = \"FRAISEQL_HMAC_SECRET\"\n```",
       "type": [
         "string",
         "null"

@@ -140,21 +140,25 @@ async fn the_identity_cache_flush_takes_the_admin_token() {
 
 #[cfg(feature = "inbound-email")]
 #[tokio::test]
+#[allow(clippy::future_not_send)] // Reason: `temp_env`'s lock guard is not `Send`.
 async fn the_suppression_admin_api_takes_the_admin_token() {
-    /// The variable naming the server's HMAC secret, read when the router is built.
+    /// The variable naming the server's HMAC secret, read when the server boots and
+    /// when the router is built.
     const HMAC_ENV: &str = "FRAISEQL_MOUNT_GATE_TEST_HMAC_SECRET";
 
-    let mut server = server(ServerConfig {
-        admin_token: Some(ADMIN_TOKEN.to_string()),
-        hmac_secret_env: Some(HMAC_ENV.to_string()),
-        ..ServerConfig::default()
-    })
-    .await;
-    server.pools = Some(unconnected_pool()).into();
-    let state = server.build_app_state();
-    let app = temp_env::with_var(HMAC_ENV, Some("mount-gate-hmac-secret"), || {
-        server.build_router(&state)
-    });
+    let app =
+        Box::pin(temp_env::async_with_vars([(HMAC_ENV, Some("mount-gate-hmac-secret"))], async {
+            let mut server = server(ServerConfig {
+                admin_token: Some(ADMIN_TOKEN.to_string()),
+                hmac_secret_env: Some(HMAC_ENV.to_string()),
+                ..ServerConfig::default()
+            })
+            .await;
+            server.pools = Some(unconnected_pool()).into();
+            let state = server.build_app_state();
+            server.build_router(&state)
+        }))
+        .await;
 
     assert_gated(&app, Method::POST, "/api/email/suppression", ADMIN_TOKEN).await;
 }

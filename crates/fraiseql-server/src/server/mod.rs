@@ -64,6 +64,10 @@ mod entry_point_parity_tests;
 mod handler_budget_tests;
 #[cfg(test)]
 mod health_capabilities_tests;
+mod hmac_secret;
+#[cfg(test)]
+#[path = "hmac_secret_tests.rs"]
+mod hmac_secret_tests;
 #[cfg(test)]
 mod parity_tests;
 #[cfg(test)]

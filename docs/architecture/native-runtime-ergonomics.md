@@ -211,9 +211,10 @@ triggered them.
   with the address in the body (never a query string), so the raw address is never
   captured by access logs or proxies.
 
-**Configuration.** `[server] hmac_secret_env` names the env var holding the root
-secret — VERP status-tracking activates only when it is set (fail-closed: no secret →
-plain token, plain Return-Path, no correlation). `[mailbox.<name>.smtp.return_path]`
+**Configuration.** The server config's top-level `hmac_secret_env` names the env var
+holding the root secret — VERP status-tracking activates only when it is set (fail-closed:
+no `hmac_secret_env` → plain token, plain Return-Path, no correlation). A named variable
+that is unset or empty refuses boot. `[mailbox.<name>.smtp.return_path]`
 overrides the local part / domain (default `bounces`@the sending domain; a mismatched
 domain warns, since the envelope sender is the SPF/DMARC alignment target). `[send]`
 carries `challenge_suppress_after` and `verp_probe_on_start`.

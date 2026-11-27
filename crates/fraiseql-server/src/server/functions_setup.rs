@@ -101,7 +101,7 @@ impl Server {
 
         // Sign the per-dispatch idempotency token when an HMAC secret is
         // configured; unsigned digest otherwise (zero-config default).
-        let idempotency_key = self.build_idempotency_key();
+        let idempotency_key = self.build_idempotency_key()?;
         if idempotency_key.is_some() {
             tracing::info!("idempotency tokens are HMAC-signed (VERP-ready send-ids)");
         }
@@ -268,21 +268,15 @@ impl Server {
     /// Derive the idempotency-token HMAC subkey from the configured server HMAC
     /// secret (`hmac_secret_env` names an env var). `None` → the token stays an
     /// unsigned digest (the zero-config default); a signed token is required before
-    /// it is exposed externally as a VERP Return-Path (P04b). A configured-but-empty
-    /// secret is a misconfiguration surfaced loudly, not silently signed with "".
-    fn build_idempotency_key(&self) -> Option<Arc<[u8]>> {
-        let env_name = self.config.hmac_secret_env.as_deref()?;
-        if let Some(secret) = std::env::var(env_name).ok().filter(|secret| !secret.is_empty()) {
-            let subkey = fraiseql_observers::derive_idempotency_subkey(secret.as_bytes());
-            Some(Arc::from(subkey.as_slice()))
-        } else {
-            tracing::warn!(
-                env = env_name,
-                "hmac_secret_env is set but the environment variable is empty/unset — \
-                 idempotency tokens stay unsigned and VERP send-correlation is disabled"
-            );
-            None
-        }
+    /// it is exposed externally as a VERP Return-Path (P04b). A named variable that is
+    /// unset or empty refuses boot rather than leaving the token unsigned.
+    fn build_idempotency_key(&self) -> Result<Option<Arc<[u8]>>, ServerError> {
+        let secret = super::hmac_secret::resolve(self.config.hmac_secret_env.as_deref(), |name| {
+            std::env::var(name).ok()
+        })?;
+        Ok(secret.map(|secret| {
+            Arc::from(fraiseql_observers::derive_idempotency_subkey(secret.as_bytes()).as_slice())
+        }))
     }
 
     /// Build the `send_email` wiring — sender-identity resolver + SMTP transport —
@@ -328,7 +322,7 @@ impl Server {
                 },
                 None => None,
             };
-            let address_hash_key = self.build_address_hash_key();
+            let address_hash_key = self.build_address_hash_key()?;
             let Some(transport) = crate::inbound::email::build_email_transport(
                 &self.config.mailbox,
                 |name| std::env::var(name).ok(),
@@ -352,11 +346,13 @@ impl Server {
     /// Shared with the poll-worker correlation path (`lifecycle`), which keys the
     /// same recipient hash to write/lift suppressions.
     #[cfg(feature = "inbound-email")]
-    pub(super) fn build_address_hash_key(&self) -> Option<Arc<[u8]>> {
-        let env_name = self.config.hmac_secret_env.as_deref()?;
-        let secret = std::env::var(env_name).ok().filter(|secret| !secret.is_empty())?;
-        let key = fraiseql_observers::derive_address_hash_key(secret.as_bytes());
-        Some(Arc::from(key.as_slice()))
+    pub(super) fn build_address_hash_key(&self) -> Result<Option<Arc<[u8]>>, ServerError> {
+        let secret = super::hmac_secret::resolve(self.config.hmac_secret_env.as_deref(), |name| {
+            std::env::var(name).ok()
+        })?;
+        Ok(secret.map(|secret| {
+            Arc::from(fraiseql_observers::derive_address_hash_key(secret.as_bytes()).as_slice())
+        }))
     }
 
     /// The sender-identity resolver: DB-backed on the shared identity primitive

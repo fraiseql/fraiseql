@@ -67,7 +67,7 @@ impl Capability for InboundEmail {
         let tracker = std::sync::Arc::new(email::PgSendTracker::new(db_pool.clone()));
         let correlator =
             std::sync::Arc::clone(&tracker) as std::sync::Arc<dyn email::SendCorrelator>;
-        let address_hash_key = server.build_address_hash_key();
+        let address_hash_key = server.build_address_hash_key()?;
 
         // The attachment sink is the server's one configured storage
         // backend. It used to hang off a separate `with_storage` builder
@@ -126,10 +126,12 @@ impl Capability for InboundEmail {
     #[cfg(feature = "inbound-email")]
     fn routes(&self, cx: &ServeCx<'_>) -> Option<axum::Router> {
         let server = cx.server;
+        // An `hmac_secret_env` whose variable is unset already refused boot, so the
+        // key is absent here only when no variable is named.
         let (Some(pool), Some(token), Some(key)) = (
             server.application_pool(),
             server.config.admin_token.as_ref(),
-            server.build_address_hash_key(),
+            server.build_address_hash_key().ok().flatten(),
         ) else {
             return None;
         };
