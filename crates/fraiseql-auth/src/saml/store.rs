@@ -54,22 +54,54 @@ CREATE TABLE IF NOT EXISTS auth.tb_saml_idp (
     deleted_at             TIMESTAMPTZ
 );
 
--- Spans deleted rows on purpose: a retired name must never be reissued to another
--- tenant, or the new IdP inherits the old one's `saml:<name>` identity rows.
-CREATE UNIQUE INDEX IF NOT EXISTS uq_saml_idp_name ON auth.tb_saml_idp (idp_name);
-CREATE INDEX IF NOT EXISTS idx_saml_idp_tenant ON auth.tb_saml_idp (tenant_id)
-    WHERE deleted_at IS NULL;
-
 -- RLS deny-by-default, mirroring auth.tb_user / auth.tb_auth_identity. ENABLE not FORCE:
 -- the owner (this store, running the trusted admin path) operates freely, while any other
 -- role reads a row only once it has set fraiseql.tenant_id to that row's tenant.
-ALTER TABLE auth.tb_saml_idp ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS p_saml_idp_tenant_read ON auth.tb_saml_idp;
-CREATE POLICY p_saml_idp_tenant_read ON auth.tb_saml_idp
-    FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid);
-DROP POLICY IF EXISTS p_saml_idp_insert ON auth.tb_saml_idp;
-CREATE POLICY p_saml_idp_insert ON auth.tb_saml_idp FOR INSERT WITH CHECK (true);
+--
+-- `CREATE INDEX IF NOT EXISTS` takes a SHARE lock, and `ENABLE ROW LEVEL SECURITY`,
+-- `DROP POLICY` and `CREATE POLICY` each take an ACCESS EXCLUSIVE lock, even when they
+-- change nothing. So each is guarded by the catalog: an index by `to_regclass`, RLS by
+-- `relrowsecurity`, each policy by its whole definition in `pg_policies`, and a policy
+-- whose definition differs is replaced. `tenant_read` is the read policy's expression as
+-- PostgreSQL 18 (the supported floor) stores it; should it differ from what the CREATE
+-- below stores, every boot replaces the policy under its lock and the boot-lock test fails.
+DO $saml_idp_shape$
+DECLARE
+    tenant_read CONSTANT text :=
+        $q$(tenant_id = (NULLIF(current_setting('fraiseql.tenant_id'::text, true), ''::text))::uuid)$q$;
+BEGIN
+    -- Spans deleted rows on purpose: a retired name must never be reissued to another
+    -- tenant, or the new IdP inherits the old one's `saml:<name>` identity rows.
+    IF to_regclass('auth.uq_saml_idp_name') IS NULL THEN
+        CREATE UNIQUE INDEX uq_saml_idp_name ON auth.tb_saml_idp (idp_name);
+    END IF;
+    IF to_regclass('auth.idx_saml_idp_tenant') IS NULL THEN
+        CREATE INDEX idx_saml_idp_tenant ON auth.tb_saml_idp (tenant_id) WHERE deleted_at IS NULL;
+    END IF;
+    IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'auth.tb_saml_idp'::regclass) THEN
+        ALTER TABLE auth.tb_saml_idp ENABLE ROW LEVEL SECURITY;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'auth' AND tablename = 'tb_saml_idp' AND policyname = 'p_saml_idp_tenant_read'
+          AND permissive = 'PERMISSIVE' AND roles = '{public}'::name[] AND cmd = 'SELECT'
+          AND qual = tenant_read AND with_check IS NULL
+    ) THEN
+        DROP POLICY IF EXISTS p_saml_idp_tenant_read ON auth.tb_saml_idp;
+        CREATE POLICY p_saml_idp_tenant_read ON auth.tb_saml_idp
+            FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'auth' AND tablename = 'tb_saml_idp' AND policyname = 'p_saml_idp_insert'
+          AND permissive = 'PERMISSIVE' AND roles = '{public}'::name[] AND cmd = 'INSERT'
+          AND qual IS NULL AND with_check = 'true'
+    ) THEN
+        DROP POLICY IF EXISTS p_saml_idp_insert ON auth.tb_saml_idp;
+        CREATE POLICY p_saml_idp_insert ON auth.tb_saml_idp FOR INSERT WITH CHECK (true);
+    END IF;
+END
+$saml_idp_shape$;
 
 REVOKE ALL ON auth.tb_saml_idp FROM PUBLIC;
 "

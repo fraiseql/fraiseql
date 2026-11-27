@@ -6,9 +6,9 @@
 //! ([`fraiseql_test_support::boot_locks`]): a statement in that script that needs a
 //! `SHARE` or stronger table lock on a current schema fails it, named.
 //!
-//! Every script [`fraiseql_auth::auth_schema`] lists is covered: a script added to that
-//! list and not here fails [`every_listed_auth_script_is_covered`]. The SAML identity
-//! provider store's script is the one this suite leaves out.
+//! Every boot script the crate declares is covered: a `pub const …SQL: &str` added under
+//! `src/` with no test here fails [`every_declared_auth_script_is_covered`], as does a
+//! script [`fraiseql_auth::auth_schema`] lists that no test here applies.
 //!
 //! The guards skip only what is already there, and a policy only when its whole definition
 //! matches: each store's `…_boot_builds_the_pinned_shape` (which also boots over each of the
@@ -391,6 +391,26 @@ async fn saml_replay_boot_builds_the_pinned_shape() {
 }
 
 #[tokio::test]
+async fn saml_idp_second_boot_waits_on_nothing() {
+    second_boot_waits_on_nothing(
+        "saml_idp",
+        fraiseql_auth::saml::PG_SAML_IDP_SCHEMA_SQL,
+        BootsAs::Auth,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn saml_idp_boot_builds_the_pinned_shape() {
+    boot_builds_the_pinned_shape(
+        "saml_idp",
+        fraiseql_auth::saml::PG_SAML_IDP_SCHEMA_SQL,
+        BootsAs::Auth,
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn session_state_second_boot_waits_on_nothing() {
     second_boot_waits_on_nothing("session_state", SESSION_STATE_SCHEMA_SQL, BootsAs::Engine).await;
 }
@@ -400,57 +420,140 @@ async fn session_state_boot_builds_the_pinned_shape() {
     boot_builds_the_pinned_shape("session_state", SESSION_STATE_SCHEMA_SQL, BootsAs::Engine).await;
 }
 
-/// The tests above name every script [`auth_schema::SCRIPTS`] lists.
-#[test]
-fn every_listed_auth_script_is_covered() {
-    let covered = [
+/// Each boot script the crate declares, by `<file under src/>::<const>`, with the script
+/// the tests above apply for it.
+const COVERED: &[(&str, &str)] = &[
+    (
+        "account_linking/postgres.rs::SCHEMA_SQL",
         fraiseql_auth::account_linking::SCHEMA_SQL,
+    ),
+    (
+        "session_postgres.rs::SESSIONS_SCHEMA_SQL",
         fraiseql_auth::session_postgres::SESSIONS_SCHEMA_SQL,
-        fraiseql_auth::PASSWORD_SCHEMA_SQL,
+    ),
+    ("local_password.rs::PASSWORD_SCHEMA_SQL", fraiseql_auth::PASSWORD_SCHEMA_SQL),
+    (
+        "local_password/reset.rs::PASSWORD_RESET_SCHEMA_SQL",
         fraiseql_auth::PASSWORD_RESET_SCHEMA_SQL,
+    ),
+    (
+        "local_password/verification.rs::EMAIL_VERIFICATION_SCHEMA_SQL",
         fraiseql_auth::EMAIL_VERIFICATION_SCHEMA_SQL,
-        fraiseql_auth::PG_OTP_SCHEMA_SQL,
-        fraiseql_auth::PG_MFA_SCHEMA_SQL,
-        fraiseql_auth::scim::PG_SCIM_SCHEMA_SQL,
+    ),
+    ("otp/postgres.rs::PG_OTP_SCHEMA_SQL", fraiseql_auth::PG_OTP_SCHEMA_SQL),
+    ("totp_mfa/postgres.rs::PG_MFA_SCHEMA_SQL", fraiseql_auth::PG_MFA_SCHEMA_SQL),
+    ("scim/store.rs::PG_SCIM_SCHEMA_SQL", fraiseql_auth::scim::PG_SCIM_SCHEMA_SQL),
+    (
+        "signing_key.rs::SIGNING_KEY_SCHEMA_SQL",
         fraiseql_auth::signing_key::SIGNING_KEY_SCHEMA_SQL,
-    ];
-    assert_eq!(
-        auth_schema::SCRIPTS.len(),
-        covered.len(),
-        "an auth script has no boot-lock test"
+    ),
+    (
+        "saml/replay.rs::PG_SAML_REPLAY_SCHEMA_SQL",
+        fraiseql_auth::saml::PG_SAML_REPLAY_SCHEMA_SQL,
+    ),
+    (
+        "saml/store.rs::PG_SAML_IDP_SCHEMA_SQL",
+        fraiseql_auth::saml::PG_SAML_IDP_SCHEMA_SQL,
+    ),
+    ("session_state/postgres.rs::SESSION_STATE_SCHEMA_SQL", SESSION_STATE_SCHEMA_SQL),
+];
+
+/// Declared `…SQL` constants that are not a store's boot script, each with why.
+const NOT_A_STORE: &[(&str, &str)] = &[(
+    "auth_schema.rs::CLAIM_SQL",
+    "the claim prefix every auth script starts with, not a store",
+)];
+
+/// Every `pub const <NAME>SQL: &str` under `src/`, outside test files, as
+/// `<file under src/>::<NAME>`.
+fn declared_scripts() -> Vec<String> {
+    fn walk(dir: &std::path::Path, root: &std::path::Path, found: &mut Vec<String>) {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            if path.is_dir() {
+                walk(&path, root, found);
+            } else if path.extension().is_some_and(|ext| ext == "rs") && !name.ends_with("tests.rs")
+            {
+                let file = path.strip_prefix(root).unwrap().to_string_lossy().replace('\\', "/");
+                for line in std::fs::read_to_string(&path).unwrap().lines() {
+                    let line = line.trim_start();
+                    let Some(rest) = ["pub const ", "pub(crate) const "]
+                        .iter()
+                        .find_map(|head| line.strip_prefix(head))
+                    else {
+                        continue;
+                    };
+                    if let Some((name, ty)) = rest.split_once(':') {
+                        if name.ends_with("SQL") && ty.trim_start().starts_with("&str") {
+                            found.push(format!("{file}::{name}"));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let root: PathBuf = [env!("CARGO_MANIFEST_DIR"), "src"].iter().collect();
+    let mut found = Vec::new();
+    walk(&root, &root, &mut found);
+    found.sort();
+    found
+}
+
+/// Every boot script under `src/` is covered by a test above or named as not a store, every
+/// entry of either list is still declared, and every script [`auth_schema::SCRIPTS`] lists
+/// is one a test above applies.
+#[test]
+fn every_declared_auth_script_is_covered() {
+    let declared = declared_scripts();
+    assert!(
+        declared.iter().any(|d| d == COVERED[0].0),
+        "the scan found none of the scripts listed: {declared:?}"
     );
+    let listed = || COVERED.iter().map(|(d, _)| *d).chain(NOT_A_STORE.iter().map(|(d, _)| *d));
+    let uncovered: Vec<&String> =
+        declared.iter().filter(|d| !listed().any(|l| l == d.as_str())).collect();
+    assert!(uncovered.is_empty(), "an auth boot script has no boot-lock test: {uncovered:?}");
+    for entry in listed() {
+        assert!(declared.iter().any(|d| d == entry), "{entry} is listed, and not declared");
+    }
     for script in auth_schema::SCRIPTS {
-        assert!(covered.contains(script), "an auth script has no boot-lock test");
+        assert!(
+            COVERED.iter().any(|(_, covered)| covered == script),
+            "an auth script has no boot-lock test"
+        );
     }
 }
 
-/// A release that changes a policy's definition reaches a database that holds the old one:
-/// the guard compares the whole definition, not the policy's name. A release changes both
-/// texts a guarded policy is written in, the `CREATE POLICY` and the stored form the guard
-/// compares, as this test does.
-#[tokio::test]
-async fn a_changed_policy_definition_reaches_a_database_holding_the_old_one() {
-    const EDITS: &[(&str, &str)] = &[
-        (
-            "$q$(tenant_id = (NULLIF(current_setting('fraiseql.tenant_id'::text, true), ''::text))::uuid)$q$",
-            "$q$(tenant_id IS NOT NULL)$q$",
-        ),
-        (
-            "FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid)",
-            "FOR SELECT USING (tenant_id IS NOT NULL)",
-        ),
-        ("with_check = 'true'", "with_check = '(tenant_id IS NULL)'"),
-        ("FOR INSERT WITH CHECK (true)", "FOR INSERT WITH CHECK (tenant_id IS NULL)"),
-    ];
-    let Some(db) = fresh_database("policy_change").await else {
-        eprintln!("SKIP policy_change: no postgres");
-        return;
+/// The edits a release makes to a guarded policy: each read and insert policy's `CREATE`
+/// and the stored form its guard compares.
+const POLICY_EDITS: &[(&str, &str)] = &[
+    (
+        "$q$(tenant_id = (NULLIF(current_setting('fraiseql.tenant_id'::text, true), ''::text))::uuid)$q$",
+        "$q$(tenant_id IS NOT NULL)$q$",
+    ),
+    (
+        "FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid)",
+        "FOR SELECT USING (tenant_id IS NOT NULL)",
+    ),
+    ("with_check = 'true'", "with_check = '(tenant_id IS NULL)'"),
+    ("FOR INSERT WITH CHECK (true)", "FOR INSERT WITH CHECK (tenant_id IS NULL)"),
+];
+
+/// Boot `old`, then `old` with [`POLICY_EDITS`] made to each of its `tables` tables, on a
+/// database of its own: the policies `auth` then holds, by name, or `None` with no Postgres.
+async fn policies_after_a_changed_definition(
+    tag: &str,
+    old: &str,
+    tables: usize,
+) -> Option<Vec<(String, Option<String>, Option<String>)>> {
+    let Some(db) = fresh_database(tag).await else {
+        eprintln!("SKIP {tag}: no postgres");
+        return None;
     };
-    let old = fraiseql_auth::account_linking::SCHEMA_SQL;
     let mut new = old.to_string();
-    for (from, to) in EDITS {
-        // One per table: the account script guards the policies of two.
-        assert_eq!(new.matches(from).count(), 2, "the policy text moved: {from}");
+    for (from, to) in POLICY_EDITS {
+        assert_eq!(new.matches(from).count(), tables, "the policy text moved: {from}");
         new = new.replace(from, to);
     }
 
@@ -466,6 +569,49 @@ async fn a_changed_policy_definition_reaches_a_database_holding_the_old_one() {
     .unwrap();
     pool.close().await;
     db.drop().await;
+    Some(policies)
+}
+
+/// The definitions [`POLICY_EDITS`] writes.
+fn edited(read: &str, insert: &str) -> [(String, Option<String>, Option<String>); 2] {
+    [
+        (insert.to_string(), None, Some("(tenant_id IS NULL)".to_string())),
+        (read.to_string(), Some("(tenant_id IS NOT NULL)".to_string()), None),
+    ]
+}
+
+/// A release that changes a policy's definition reaches a database that holds the old one,
+/// for the SAML identity provider store as for the account store.
+#[tokio::test]
+async fn a_changed_saml_idp_policy_definition_reaches_a_database_holding_the_old_one() {
+    let Some(policies) = policies_after_a_changed_definition(
+        "idp_policy_change",
+        fraiseql_auth::saml::PG_SAML_IDP_SCHEMA_SQL,
+        1,
+    )
+    .await
+    else {
+        return;
+    };
+    assert_eq!(policies, edited("p_saml_idp_tenant_read", "p_saml_idp_insert"));
+}
+
+/// A release that changes a policy's definition reaches a database that holds the old one:
+/// the guard compares the whole definition, not the policy's name. A release changes both
+/// texts a guarded policy is written in, the `CREATE POLICY` and the stored form the guard
+/// compares, as this test does.
+#[tokio::test]
+async fn a_changed_policy_definition_reaches_a_database_holding_the_old_one() {
+    // One per table: the account script guards the policies of two.
+    let Some(policies) = policies_after_a_changed_definition(
+        "policy_change",
+        fraiseql_auth::account_linking::SCHEMA_SQL,
+        2,
+    )
+    .await
+    else {
+        return;
+    };
     let read = Some("(tenant_id IS NOT NULL)".to_string());
     let insert = Some("(tenant_id IS NULL)".to_string());
     assert_eq!(

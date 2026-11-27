@@ -1,0 +1,19 @@
+column auth.tb_saml_idp.acs_url text not null
+column auth.tb_saml_idp.certificate_expires_at timestamp with time zone null
+column auth.tb_saml_idp.created_at timestamp with time zone not null default now()
+column auth.tb_saml_idp.deleted_at timestamp with time zone null
+column auth.tb_saml_idp.id uuid not null default gen_random_uuid()
+column auth.tb_saml_idp.idp_entity_id text not null
+column auth.tb_saml_idp.idp_name text not null
+column auth.tb_saml_idp.metadata_xml text not null
+column auth.tb_saml_idp.pk_saml_idp bigint not null
+column auth.tb_saml_idp.sp_entity_id text not null
+column auth.tb_saml_idp.tenant_id uuid null
+column auth.tb_saml_idp.trust_asserted_email boolean not null default false
+column auth.tb_saml_idp.updated_at timestamp with time zone not null default now()
+index CREATE INDEX idx_saml_idp_tenant ON auth.tb_saml_idp USING btree (tenant_id) WHERE (deleted_at IS NULL)
+index CREATE UNIQUE INDEX tb_saml_idp_pkey ON auth.tb_saml_idp USING btree (pk_saml_idp)
+index CREATE UNIQUE INDEX uq_saml_idp_name ON auth.tb_saml_idp USING btree (idp_name)
+policy auth.tb_saml_idp p_saml_idp_insert permissive to {public} for insert using - check true
+policy auth.tb_saml_idp p_saml_idp_tenant_read permissive to {public} for select using (tenant_id = (NULLIF(current_setting('fraiseql.tenant_id'::text, true), ''::text))::uuid) check -
+row level security auth.tb_saml_idp on

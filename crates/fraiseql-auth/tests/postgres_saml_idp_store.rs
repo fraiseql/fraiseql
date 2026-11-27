@@ -27,7 +27,7 @@ use fraiseql_auth::{
         effective_saml_email_verified,
     },
 };
-use fraiseql_test_support::try_database_url;
+use fraiseql_test_support::{boot_locks::fresh_database, try_database_url};
 use samael::idp::{CertificateParams, IdentityProvider, KeyType, Rsa};
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
@@ -365,11 +365,19 @@ async fn expiry_report_names_certificates_before_the_cliff() {
 
 /// A stored IdP is read only with its tenant set: not with none, and not another tenant's
 /// or the platform's.
+///
+/// On a database of its own: the store's DDL creates its policies and RLS only where the
+/// catalog lacks them, so on a database an earlier run left them in, this test would read
+/// what that run built and not what the store's DDL builds now.
 #[tokio::test]
 async fn idps_are_read_through_the_tenant_policy() {
-    let _store = skip_if_no_db!();
-    let url = try_database_url().unwrap();
+    let Some(db) = fresh_database("idp_rls").await else {
+        eprintln!("skipping SAML IdP RLS test: no postgres");
+        return;
+    };
+    let url = db.url();
     let admin = PgPoolOptions::new().max_connections(2).connect(&url).await.unwrap();
+    PgSamlIdpStore::new(admin.clone()).init().await.unwrap();
     for (name, tenant) in [
         ("t", Some("7777777a-7777-4777-8777-777777777777")),
         ("u", Some("5555555b-5555-4555-8555-555555555555")),
@@ -404,6 +412,9 @@ async fn idps_are_read_through_the_tenant_policy() {
         3,
         "control: the owner reads all three"
     );
+    reader.close().await;
+    admin.close().await;
+    db.drop().await;
 }
 
 /// A row stored with a certificate expiry past the last instant a `Timestamp` holds (a

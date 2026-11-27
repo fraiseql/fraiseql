@@ -1781,8 +1781,8 @@ shard = "auth-rls"
 id = "rls-policy.auth.saml.store.PG_SAML_IDP_SCHEMA_SQL"
 file = "crates/fraiseql-auth/src/saml/store.rs"
 function = "PG_SAML_IDP_SCHEMA_SQL"
-anchor = "CREATE POLICY p_saml_idp_tenant_read ON auth.tb_saml_idp\n    FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid)"
-mutant = "CREATE POLICY p_saml_idp_tenant_read ON auth.tb_saml_idp\n    FOR SELECT USING ((tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid) OR TRUE)"
+anchor = "CREATE POLICY p_saml_idp_tenant_read ON auth.tb_saml_idp\n            FOR SELECT USING (tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid)"
+mutant = "CREATE POLICY p_saml_idp_tenant_read ON auth.tb_saml_idp\n            FOR SELECT USING ((tenant_id = NULLIF(current_setting('fraiseql.tenant_id', true), '')::uuid) OR TRUE)"
 killers = ["idps_are_read_through_the_tenant_policy"]
 shard = "auth-rls"
 
