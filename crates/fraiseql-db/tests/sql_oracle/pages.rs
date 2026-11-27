@@ -11,6 +11,10 @@
 //! 3. **offset**: `LIMIT`/`OFFSET` pages, concatenated;
 //! 4. **keyset forward**: relay pages after each page's last row's cursor;
 //! 5. **keyset backward**: relay pages before each page's first row's cursor, from the end.
+//!
+//! A key is read from the document, or from a native column of the table: a nullable one
+//! with or without its declared PostgreSQL type, or one proven `NOT NULL`, which is the only
+//! kind an all-ascending relay page seeks with a row comparison.
 
 use std::{cmp::Ordering, collections::BTreeMap, sync::Arc};
 
@@ -34,13 +38,34 @@ const DATABASE: &str = "sql_oracle_pages";
 const TABLE: &str = "sql_oracle_pages";
 const PAGE_SIZES: [usize; 4] = [1, 2, 5, 100];
 
-/// One sort key the orderings draw from: a document field and the type it sorts as.
+/// One sort key the orderings draw from: a document field and the type it sorts as. Each
+/// is also a nullable native column holding the same values, typed as the second name.
 const KEYS: &[(&str, ScalarFieldType)] = &[
     ("g", ScalarFieldType::Integer),
     ("s", ScalarFieldType::Text),
     ("t", ScalarFieldType::DateTime),
     ("x", ScalarFieldType::Numeric),
 ];
+
+/// Native columns proven `NOT NULL`, with their PostgreSQL types: fields every document
+/// holds, with ties.
+const NOT_NULL_KEYS: &[(&str, ScalarFieldType, &str)] = &[
+    ("kg", ScalarFieldType::Integer, "int8"),
+    ("ks", ScalarFieldType::Text, "text"),
+    ("kt", ScalarFieldType::DateTime, "timestamptz"),
+    ("kx", ScalarFieldType::Numeric, "numeric"),
+];
+
+/// The PostgreSQL type of the native column mirroring a document key.
+fn native_type(ty: ScalarFieldType) -> &'static str {
+    match ty {
+        ScalarFieldType::Integer => "int8",
+        ScalarFieldType::Text => "text",
+        ScalarFieldType::DateTime => "timestamptz",
+        ScalarFieldType::Numeric => "numeric",
+        _ => panic!("a key type this oracle does not know"),
+    }
+}
 
 /// Values with ties, NULLs, absent keys, case and code-point order (`s`), equal instants
 /// in different offsets (`t`), and equal decimals written differently (`x`).
@@ -104,6 +129,15 @@ fn documents() -> Vec<Value> {
             if id % 5 != 0 {
                 doc.insert("x".into(), x_values[i % x_values.len()].clone());
             }
+            // The NOT NULL keys: every document, ties included.
+            doc.insert("kg".into(), json!(id % 4));
+            doc.insert("ks".into(), json!(["b", "a", "B", "é", "", "日"][i % 6]));
+            let kt = t_values.iter().flatten().collect::<Vec<_>>();
+            doc.insert("kt".into(), json!(kt[i % kt.len()]));
+            doc.insert(
+                "kx".into(),
+                x_values.iter().filter(|v| !v.is_null()).nth(i % 6).unwrap().clone(),
+            );
             Value::Object(doc)
         })
         .collect()
@@ -114,11 +148,34 @@ fn fixture(docs: &[Value]) -> Vec<String> {
         .iter()
         .map(|d| format!("({}, '{}'::jsonb)", d["id"], d.to_string().replace('\'', "''")))
         .collect();
-    vec![
+    let columns = KEYS
+        .iter()
+        .map(|&(f, ty)| (f, native_type(ty), false))
+        .chain(NOT_NULL_KEYS.iter().map(|&(f, _, ty)| (f, ty, true)));
+    let mut out = vec![
         format!("DROP TABLE IF EXISTS {TABLE}"),
         format!("CREATE TABLE {TABLE} (id bigint PRIMARY KEY, data jsonb NOT NULL)"),
         format!("INSERT INTO {TABLE} (id, data) VALUES {}", values.join(", ")),
-    ]
+    ];
+    for (column, ty, not_null) in columns {
+        out.push(format!("ALTER TABLE {TABLE} ADD COLUMN {column} {ty}"));
+        out.push(format!("UPDATE {TABLE} SET {column} = (data->>'{column}')::{ty}"));
+        if not_null {
+            out.push(format!("ALTER TABLE {TABLE} ALTER COLUMN {column} SET NOT NULL"));
+        }
+    }
+    out
+}
+
+/// Where an ordering reads a key from.
+#[derive(Clone, Copy)]
+enum Source {
+    /// The document, through its typed JSON extraction.
+    Document,
+    /// A nullable native column; with its PostgreSQL type when the view declares it.
+    Column(Option<&'static str>),
+    /// A native column of this PostgreSQL type that PostgreSQL proves `NOT NULL`.
+    NotNull(&'static str),
 }
 
 /// One key of an ordering, as the oracle names and sorts it.
@@ -128,6 +185,7 @@ struct Key {
     ty:        ScalarFieldType,
     direction: OrderDirection,
     nulls:     Option<NullsOrder>,
+    source:    Source,
 }
 
 impl Key {
@@ -143,13 +201,31 @@ impl Key {
             Some(NullsOrder::Last) => "last",
             Some(_) => panic!("a NULL placement this oracle does not know"),
         };
-        format!("{}.{dir}.{nulls}", self.field)
+        let source = match self.source {
+            Source::Document => "",
+            Source::Column(Some(_)) => "col:",
+            Source::Column(None) => "untyped_col:",
+            Source::NotNull(_) => "not_null_col:",
+        };
+        format!("{source}{}.{dir}.{nulls}", self.field)
     }
 
     fn clause(self) -> OrderByClause {
         let mut c = OrderByClause::new(self.field.to_string(), self.direction);
         c.field_type = self.ty;
         c.nulls = self.nulls;
+        match self.source {
+            Source::Document => {},
+            Source::Column(ty) => {
+                c.native_column = Some(self.field.to_string());
+                c.native_type = ty.map(str::to_string);
+            },
+            Source::NotNull(ty) => {
+                c.native_column = Some(self.field.to_string());
+                c.native_type = Some(ty.to_string());
+                c.native_not_null = true;
+            },
+        }
         c
     }
 
@@ -163,30 +239,65 @@ impl Key {
     }
 }
 
-/// Every single key in every direction and placement, every ordered pair of distinct keys
-/// in their default placements, and no ordering at all.
+/// No ordering at all, then for the document keys and their typed native columns: every
+/// single key in every direction and placement, and every ordered pair of distinct keys
+/// ascending then descending. The untyped native columns in each direction. The `NOT NULL`
+/// columns in each direction, and every ordered pair both ascending (the row-comparison
+/// seek) and ascending then descending.
 fn orderings() -> Vec<Vec<Key>> {
+    use OrderDirection::{Asc, Desc};
     let mut out = vec![Vec::new()];
-    let key = |(field, ty): (&'static str, ScalarFieldType), direction, nulls| Key {
+    let key = |(field, ty): (&'static str, ScalarFieldType), source, direction, nulls| Key {
         field,
         ty,
         direction,
         nulls,
+        source,
     };
-    for &k in KEYS {
-        for direction in [OrderDirection::Asc, OrderDirection::Desc] {
-            for nulls in [None, Some(NullsOrder::First), Some(NullsOrder::Last)] {
-                out.push(vec![key(k, direction, nulls)]);
+    for typed_column in [false, true] {
+        let source = |ty| {
+            if typed_column {
+                Source::Column(Some(native_type(ty)))
+            } else {
+                Source::Document
+            }
+        };
+        for &k in KEYS {
+            for direction in [Asc, Desc] {
+                for nulls in [None, Some(NullsOrder::First), Some(NullsOrder::Last)] {
+                    out.push(vec![key(k, source(k.1), direction, nulls)]);
+                }
+            }
+        }
+        for &a in KEYS {
+            for &b in KEYS {
+                if a.0 != b.0 {
+                    out.push(vec![
+                        key(a, source(a.1), Asc, None),
+                        key(b, source(b.1), Desc, None),
+                    ]);
+                }
             }
         }
     }
-    for &a in KEYS {
-        for &b in KEYS {
+    for &k in KEYS {
+        for direction in [Asc, Desc] {
+            out.push(vec![key(k, Source::Column(None), direction, None)]);
+        }
+    }
+    let not_null = |(field, ty, pg): (&'static str, ScalarFieldType, &'static str), direction| {
+        key((field, ty), Source::NotNull(pg), direction, None)
+    };
+    for &k in NOT_NULL_KEYS {
+        for direction in [Asc, Desc] {
+            out.push(vec![not_null(k, direction)]);
+        }
+    }
+    for &a in NOT_NULL_KEYS {
+        for &b in NOT_NULL_KEYS {
             if a.0 != b.0 {
-                out.push(vec![
-                    key(a, OrderDirection::Asc, None),
-                    key(b, OrderDirection::Desc, None),
-                ]);
+                out.push(vec![not_null(a, Asc), not_null(b, Asc)]);
+                out.push(vec![not_null(a, Asc), not_null(b, Desc)]);
             }
         }
     }
