@@ -70,6 +70,12 @@ pub struct DesignAuditResponse {
     pub compilation:     CategoryAuditResponse,
 }
 
+/// A category's score: 100, less `penalty` points per issue, and never below 0.
+fn category_score(issue_count: usize, penalty: u32) -> u8 {
+    let deducted = u32::try_from(issue_count).unwrap_or(u32::MAX).saturating_mul(penalty);
+    u8::try_from(100u32.saturating_sub(deducted)).unwrap_or(0)
+}
+
 /// Federation audit endpoint - JSONB batching analysis
 ///
 /// # Errors
@@ -93,12 +99,7 @@ pub async fn federation_audit_handler(
         })
         .collect();
 
-    let score = if issues.is_empty() {
-        100
-    } else {
-        let count = u32::try_from(issues.len()).unwrap_or(u32::MAX);
-        (100u32 - (count * 10)).clamp(0, 100) as u8
-    };
+    let score = category_score(issues.len(), 10);
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
@@ -129,12 +130,7 @@ pub async fn cost_audit_handler(
         })
         .collect();
 
-    let score = if issues.is_empty() {
-        100
-    } else {
-        let count = u32::try_from(issues.len()).unwrap_or(u32::MAX);
-        (100u32 - (count * 8)).clamp(0, 100) as u8
-    };
+    let score = category_score(issues.len(), 8);
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
@@ -165,12 +161,7 @@ pub async fn cache_audit_handler(
         })
         .collect();
 
-    let score = if issues.is_empty() {
-        100
-    } else {
-        let count = u32::try_from(issues.len()).unwrap_or(u32::MAX);
-        (100u32 - (count * 6)).clamp(0, 100) as u8
-    };
+    let score = category_score(issues.len(), 6);
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
@@ -201,12 +192,7 @@ pub async fn auth_audit_handler(
         })
         .collect();
 
-    let score = if issues.is_empty() {
-        100
-    } else {
-        let count = u32::try_from(issues.len()).unwrap_or(u32::MAX);
-        (100u32 - (count * 12)).clamp(0, 100) as u8
-    };
+    let score = category_score(issues.len(), 12);
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
@@ -237,12 +223,7 @@ pub async fn compilation_audit_handler(
         })
         .collect();
 
-    let score = if issues.is_empty() {
-        100
-    } else {
-        let count = u32::try_from(issues.len()).unwrap_or(u32::MAX);
-        (100u32 - (count * 10)).clamp(0, 100) as u8
-    };
+    let score = category_score(issues.len(), 10);
 
     Ok(Json(ApiResponse {
         status: "success".to_string(),
@@ -328,40 +309,15 @@ pub async fn overall_design_audit_handler(
         info:     audit.severity_count(IssueSeverity::Info),
     };
 
-    let fed_score = if federation_issues.is_empty() {
-        100
-    } else {
-        let count = u32::try_from(federation_issues.len()).unwrap_or(u32::MAX);
-        (100u32 - (count * 10)).clamp(0, 100) as u8
-    };
+    let fed_score = category_score(federation_issues.len(), 10);
 
-    let cost_score = if cost_issues.is_empty() {
-        100
-    } else {
-        let count = u32::try_from(cost_issues.len()).unwrap_or(u32::MAX);
-        (100u32 - (count * 8)).clamp(0, 100) as u8
-    };
+    let cost_score = category_score(cost_issues.len(), 8);
 
-    let cache_score = if cache_issues.is_empty() {
-        100
-    } else {
-        let count = u32::try_from(cache_issues.len()).unwrap_or(u32::MAX);
-        (100u32 - (count * 6)).clamp(0, 100) as u8
-    };
+    let cache_score = category_score(cache_issues.len(), 6);
 
-    let auth_score = if auth_issues.is_empty() {
-        100
-    } else {
-        let count = u32::try_from(auth_issues.len()).unwrap_or(u32::MAX);
-        (100u32 - (count * 12)).clamp(0, 100) as u8
-    };
+    let auth_score = category_score(auth_issues.len(), 12);
 
-    let comp_score = if compilation_issues.is_empty() {
-        100
-    } else {
-        let count = u32::try_from(compilation_issues.len()).unwrap_or(u32::MAX);
-        (100u32 - (count * 10)).clamp(0, 100) as u8
-    };
+    let comp_score = category_score(compilation_issues.len(), 10);
 
     let response = DesignAuditResponse {
         overall_score: audit.score(),

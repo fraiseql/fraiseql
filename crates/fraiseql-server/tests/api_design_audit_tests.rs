@@ -1,723 +1,296 @@
-//! Design Audit API Tests
+//! Design audit endpoints, driven through their handlers.
 //!
-//! Tests for the design quality audit endpoints that leverage the FraiseQL-calibrated
-//! design rules from fraiseql-core.
+//! Each test posts a schema to the real `routes::api::design` handlers, mounted on a
+//! router over an empty compiled schema, and asserts the verdict they return: the issues
+//! each category reports, the severity and entity each issue names, each category's
+//! score, and the overall score and severity counts.
 //!
-//! **Execution engine:** none
+//! **Execution engine:** none (the handlers read only the posted schema)
 //! **Infrastructure:** none
 //! **Parallelism:** safe
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use fraiseql_server::routes::api::design::{
-    CategoryAuditResponse, DesignAuditRequest, DesignIssueResponse,
+use std::sync::Arc;
+
+use axum::{Router, body::Body, routing::post};
+use fraiseql_core::{runtime::Executor, schema::CompiledSchema};
+use fraiseql_server::routes::{
+    api::design::{
+        auth_audit_handler, cache_audit_handler, compilation_audit_handler, cost_audit_handler,
+        federation_audit_handler, overall_design_audit_handler,
+    },
+    graphql::AppState,
 };
-use serde_json::json;
+use fraiseql_test_utils::failing_adapter::FailingAdapter;
+use http::{Request, StatusCode};
+use serde_json::{Value, json};
+use tower::ServiceExt;
 
-// ============================================================================
-// Test Helpers
-// ============================================================================
+/// The six design audit routes, as the server mounts them, over an empty schema.
+fn router() -> Router {
+    let adapter = Arc::new(FailingAdapter::new());
+    let state = AppState::new(Arc::new(Executor::new(CompiledSchema::new(), adapter)));
+    Router::new()
+        .route("/federation", post(federation_audit_handler))
+        .route("/cost", post(cost_audit_handler))
+        .route("/cache", post(cache_audit_handler))
+        .route("/auth", post(auth_audit_handler))
+        .route("/compilation", post(compilation_audit_handler))
+        .route("/audit", post(overall_design_audit_handler))
+        .with_state(state)
+}
 
-/// Create a minimal valid schema
-fn minimal_schema() -> serde_json::Value {
+/// Post `schema` to `path` and return the `data` of a successful answer.
+async fn audit(path: &str, schema: Value) -> Value {
+    let request = Request::post(path)
+        .header("content-type", "application/json")
+        .body(Body::from(json!({ "schema": schema }).to_string()))
+        .unwrap();
+    let response = router().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK, "{path} answered {}", response.status());
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["status"], "success", "{body}");
+    body["data"].clone()
+}
+
+/// The issues of a category answer.
+fn issues(category: &Value) -> &Vec<Value> {
+    category["issues"].as_array().unwrap()
+}
+
+/// A schema every analyzer passes: a keyed type and an authenticated mutation.
+fn clean_schema() -> Value {
     json!({
         "types": [
-            {
-                "name": "Query",
-                "fields": [
-                    {"name": "hello", "type": "String"}
-                ]
-            }
+            {"name": "Query", "fields": [{"name": "order", "type": "Order"}]},
+            {"name": "Order", "fields": [{"name": "id", "type": "ID", "isPrimaryKey": true}]},
+            {"name": "Mutation", "fields": [
+                {"name": "createOrder", "type": "Order", "requires_auth": true}
+            ]}
         ]
     })
 }
 
-/// Create a schema with over-federated entity (User in multiple subgraphs)
-fn over_federated_schema() -> serde_json::Value {
-    json!({
-        "subgraphs": [
-            {
-                "name": "users",
-                "entities": ["User"]
-            },
-            {
-                "name": "posts",
-                "entities": ["User", "Post"]
-            },
-            {
-                "name": "comments",
-                "entities": ["User", "Comment"]
-            }
-        ],
-        "types": [
-            {
-                "name": "User",
-                "fields": [
-                    {"name": "id", "type": "ID", "isPrimaryKey": true},
-                    {"name": "name", "type": "String"}
-                ]
-            },
-            {
-                "name": "Post",
-                "fields": [
-                    {"name": "id", "type": "ID", "isPrimaryKey": true},
-                    {"name": "title", "type": "String"}
-                ]
-            },
-            {
-                "name": "Comment",
-                "fields": [
-                    {"name": "id", "type": "ID", "isPrimaryKey": true},
-                    {"name": "text", "type": "String"}
-                ]
-            }
-        ]
-    })
+/// `entity` owned by each of `count` subgraphs.
+fn entity_in_subgraphs(entity: &str, count: usize) -> Value {
+    let subgraphs: Vec<Value> = (0..count)
+        .map(|i| json!({"name": format!("sg{i}"), "entities": [entity]}))
+        .collect();
+    json!({ "subgraphs": subgraphs })
 }
 
-// ============================================================================
-// Federation Audit Endpoint Tests
-// ============================================================================
-
-#[test]
-fn test_federation_audit_request_deserialization() {
-    let req = DesignAuditRequest {
-        schema: minimal_schema(),
-    };
-    assert!(req.schema.get("types").is_some());
+/// `count` types, none of which marks a primary key.
+fn unkeyed_types(count: usize) -> Value {
+    let types: Vec<Value> = (0..count)
+        .map(|i| json!({"name": format!("T{i}"), "fields": [{"name": "id", "type": "ID"}]}))
+        .collect();
+    json!({ "types": types })
 }
 
-#[test]
-fn test_federation_audit_response_structure() {
-    let response = CategoryAuditResponse {
-        score:  85,
-        issues: vec![],
-    };
-    assert_eq!(response.score, 85);
-    assert!(response.issues.is_empty());
+/// A `Mutation` type with `count` fields that require no authentication.
+fn unauthenticated_mutations(count: usize) -> Value {
+    let fields: Vec<Value> = (0..count)
+        .map(|i| json!({"name": format!("m{i}"), "type": "Boolean"}))
+        .collect();
+    json!({ "types": [{"name": "Mutation", "fields": fields}] })
 }
 
-#[test]
-fn test_federation_audit_with_issue() {
-    let issue = DesignIssueResponse {
-        severity:   "warning".to_string(),
-        message:    "User entity spread across 3 subgraphs".to_string(),
-        suggestion: "Consolidate in primary subgraph".to_string(),
-        affected:   Some("User".to_string()),
-    };
-    assert_eq!(issue.severity, "warning");
-    assert_eq!(issue.affected, Some("User".to_string()));
+/// A `Query` type with `count` list fields that set no default limit.
+fn unbounded_lists(count: usize) -> Value {
+    let fields: Vec<Value> =
+        (0..count).map(|i| json!({"name": format!("l{i}"), "type": "[ID]"})).collect();
+    json!({ "types": [{"name": "Query", "fields": fields}] })
 }
 
-#[test]
-fn test_federation_audit_detects_jsonb_fragmentation() {
-    // Schema with User in 3 subgraphs should produce lower federation score
-    let schema = over_federated_schema();
-    assert!(schema.get("subgraphs").is_some());
-    let subgraphs = schema["subgraphs"].as_array().unwrap();
-    assert_eq!(subgraphs.len(), 3);
-
-    // User appears in all 3 subgraphs - this is over-federation
-    let mut user_count = 0;
-    for subgraph in subgraphs {
-        if let Some(entities) = subgraph.get("entities").and_then(|e| e.as_array()) {
-            if entities.iter().any(|e| e.as_str() == Some("User")) {
-                user_count += 1;
-            }
-        }
-    }
-    assert_eq!(user_count, 3, "User should appear in 3 subgraphs for this test");
+/// A `Query` type with `count` expensive fields that carry no cache directive.
+fn uncached_expensive_fields(count: usize) -> Value {
+    let fields: Vec<Value> = (0..count)
+        .map(|i| json!({"name": format!("e{i}"), "type": "ID", "is_expensive": true}))
+        .collect();
+    json!({ "types": [{"name": "Query", "fields": fields}] })
 }
 
-#[test]
-fn test_federation_audit_empty_schema() {
-    let response = CategoryAuditResponse {
-        score:  100,
-        issues: vec![],
-    };
-    // Empty schema with no issues should have perfect score
-    assert_eq!(response.score, 100);
-}
-
-// ============================================================================
-// Cost Audit Endpoint Tests
-// ============================================================================
-
-fn deep_nesting_schema() -> serde_json::Value {
-    json!({
-        "types": [
-            {
-                "name": "Query",
-                "fields": [
-                    {"name": "user", "type": "User"}
-                ]
-            },
-            {
-                "name": "User",
-                "fields": [
-                    {"name": "id", "type": "ID", "isPrimaryKey": true},
-                    {"name": "posts", "type": "[Post!]"}
-                ]
-            },
-            {
-                "name": "Post",
-                "fields": [
-                    {"name": "id", "type": "ID", "isPrimaryKey": true},
-                    {"name": "comments", "type": "[Comment!]"}
-                ]
-            },
-            {
-                "name": "Comment",
-                "fields": [
-                    {"name": "id", "type": "ID", "isPrimaryKey": true},
-                    {"name": "text", "type": "String"}
-                ]
-            }
-        ]
-    })
-}
-
-#[test]
-fn test_cost_audit_response_structure() {
-    let response = CategoryAuditResponse {
-        score:  75,
-        issues: vec![],
-    };
-    assert_eq!(response.score, 75);
-}
-
-#[test]
-fn test_cost_audit_with_complexity_warning() {
-    let issue = DesignIssueResponse {
-        severity:   "critical".to_string(),
-        message:    "Query can reach 1250 complexity in worst case".to_string(),
-        suggestion: "Add depth limit or paginate nested fields".to_string(),
-        affected:   Some("complexity: 1250".to_string()),
-    };
-    assert_eq!(issue.severity, "critical");
-    assert!(issue.message.contains("complexity"));
-}
-
-#[test]
-fn test_cost_audit_detects_deep_nesting() {
-    let schema = deep_nesting_schema();
-    let types = schema["types"].as_array().unwrap();
-
-    // User has posts list, Post has comments list
-    let user_type = types.iter().find(|t| t["name"] == "User").unwrap();
-    let posts_field = user_type["fields"].as_array().unwrap().iter().find(|f| f["name"] == "posts");
-    assert!(posts_field.is_some());
-}
-
-#[test]
-fn test_cost_audit_unbounded_pagination() {
-    // Schema without limit defaults should be flagged
-    let schema = json!({
-        "types": [
-            {
-                "name": "Query",
-                "fields": [
-                    {"name": "allUsers", "type": "[User!]"}  // No limit specified
-                ]
-            },
-            {
-                "name": "User",
-                "fields": [
-                    {"name": "id", "type": "ID", "isPrimaryKey": true}
-                ]
-            }
-        ]
-    });
-
-    assert!(schema["types"][0]["fields"][0].get("limit").is_none());
-}
-
-// ============================================================================
-// Cache Audit Endpoint Tests
-// ============================================================================
-
-fn ttl_mismatch_schema() -> serde_json::Value {
-    json!({
-        "subgraphs": [
-            {
-                "name": "users",
-                "entities": ["User"],
-                "cacheTtlSeconds": 300  // 5 minutes
-            },
-            {
-                "name": "posts",
-                "entities": ["Post"],
-                "references": [
-                    {"type": "User", "via": "users", "cacheTtlSeconds": 1800}  // 30 minutes - MISMATCH!
-                ]
-            }
-        ],
-        "types": [
-            {
-                "name": "User",
-                "fields": [{"name": "id", "type": "ID", "isPrimaryKey": true}]
-            },
-            {
-                "name": "Post",
-                "fields": [{"name": "id", "type": "ID", "isPrimaryKey": true}]
-            }
-        ]
-    })
-}
-
-#[test]
-fn test_cache_audit_response_structure() {
-    let response = CategoryAuditResponse {
-        score:  90,
-        issues: vec![],
-    };
-    assert_eq!(response.score, 90);
-    assert!(response.issues.is_empty());
-}
-
-#[test]
-fn test_cache_audit_with_ttl_issue() {
-    let issue = DesignIssueResponse {
-        severity:   "warning".to_string(),
-        message:    "User cached 5min in users-service, 30min in posts-service".to_string(),
-        suggestion: "Align TTLs for consistent JSONB coherency".to_string(),
-        affected:   Some("User".to_string()),
-    };
-    assert_eq!(issue.severity, "warning");
-    assert!(issue.message.contains("cached"));
-}
-
-#[test]
-fn test_cache_audit_ttl_mismatch() {
-    let schema = ttl_mismatch_schema();
-    let subgraphs = schema["subgraphs"].as_array().unwrap();
-
-    // Verify schema has mismatched TTLs
-    assert_eq!(subgraphs.len(), 2);
-    let users_ttl = subgraphs[0]["cacheTtlSeconds"].as_i64().unwrap();
-    let posts_ttl = subgraphs[1]["references"][0]["cacheTtlSeconds"].as_i64().unwrap();
-    assert_ne!(users_ttl, posts_ttl);
-}
-
-#[test]
-fn test_cache_audit_missing_directives() {
-    // Schema without @cache directives should be flagged
-    let schema = json!({
-        "types": [
-            {
-                "name": "Query",
-                "fields": [
-                    {
-                        "name": "expensiveField",
-                        "type": "String",
-                        "cached": false  // Missing cache directive
-                    }
-                ]
-            }
-        ]
-    });
-
-    assert!(!schema["types"][0]["fields"][0]["cached"].as_bool().unwrap_or(false));
-}
-
-// ============================================================================
-// Authorization Audit Endpoint Tests
-// ============================================================================
-
-fn auth_boundary_leak_schema() -> serde_json::Value {
-    json!({
-        "types": [
-            {
-                "name": "User",
-                "fields": [
-                    {"name": "id", "type": "ID", "isPrimaryKey": true},
-                    {
-                        "name": "email",
-                        "type": "String",
-                        "requiresAuth": true,  // Requires auth
-                        "requiredScopes": ["user:read"]
-                    }
-                ]
-            }
-        ],
-        "subgraphs": [
-            {
-                "name": "users",
-                "entities": ["User"]
-            },
-            {
-                "name": "analytics",
-                "references": [
-                    {
-                        "type": "User",
-                        "via": "users",
-                        "canAccessFields": ["id", "email"]  // LEAK: accessing protected field!
-                    }
-                ]
-            }
-        ]
-    })
-}
-
-#[test]
-fn test_auth_audit_response_structure() {
-    let response = CategoryAuditResponse {
-        score:  88,
-        issues: vec![],
-    };
-    assert_eq!(response.score, 88);
-}
-
-#[test]
-fn test_auth_audit_with_boundary_issue() {
-    let issue = DesignIssueResponse {
-        severity:   "critical".to_string(),
-        message:    "User.email exposed to analytics-service without auth scope".to_string(),
-        suggestion: "Add auth boundary check or restrict field access".to_string(),
-        affected:   Some("User.email".to_string()),
-    };
-    assert_eq!(issue.severity, "critical");
-    assert!(issue.message.contains("auth"));
-}
-
-#[test]
-fn test_auth_audit_boundary_leak() {
-    let schema = auth_boundary_leak_schema();
-    let email_field = &schema["types"][0]["fields"][1];
-
-    // Verify User.email is marked as requiring auth
-    assert_eq!(email_field["name"], "email");
-    assert!(email_field["requiresAuth"].as_bool().unwrap_or(false));
-}
-
-#[test]
-fn test_auth_audit_missing_directives() {
-    let schema = json!({
-        "types": [
-            {
-                "name": "Mutation",
-                "fields": [
-                    {
-                        "name": "deleteUser",
-                        "type": "Boolean",
-                        "requiresAuth": false  // Unprotected mutation!
-                    }
-                ]
-            }
-        ]
-    });
-
-    let mutation_field = &schema["types"][0]["fields"][0];
-    assert!(!mutation_field["requiresAuth"].as_bool().unwrap_or(false));
-}
-
-// ============================================================================
-// Compilation Audit Endpoint Tests
-// ============================================================================
-
-fn circular_types_schema() -> serde_json::Value {
-    json!({
-        "types": [
-            {
-                "name": "User",
-                "fields": [
-                    {"name": "id", "type": "ID", "isPrimaryKey": true},
-                    {"name": "posts", "type": "[Post!]"}  // References Post
-                ]
-            },
-            {
-                "name": "Post",
-                "fields": [
-                    {"name": "id", "type": "ID", "isPrimaryKey": true},
-                    {"name": "author", "type": "User"}  // References back to User - CIRCULAR!
-                ]
-            }
-        ]
-    })
-}
-
-#[test]
-fn test_compilation_audit_response_structure() {
-    let response = CategoryAuditResponse {
-        score:  80,
-        issues: vec![],
-    };
-    assert_eq!(response.score, 80);
-}
-
-#[test]
-fn test_compilation_audit_with_circular_issue() {
-    let issue = DesignIssueResponse {
-        severity:   "warning".to_string(),
-        message:    "Circular type reference: User -> Post -> User".to_string(),
-        suggestion: "Break cycle by making one direction reference-only".to_string(),
-        affected:   Some("User".to_string()),
-    };
-    assert_eq!(issue.severity, "warning");
-    assert!(issue.message.contains("Circular"));
-}
-
-#[test]
-fn test_compilation_audit_circular_types() {
-    let schema = circular_types_schema();
-    let types = schema["types"].as_array().unwrap();
-
-    let user_type = types.iter().find(|t| t["name"] == "User").unwrap();
-    let post_type = types.iter().find(|t| t["name"] == "Post").unwrap();
-
-    // User has posts field referencing Post
-    let user_has_posts =
-        user_type["fields"].as_array().unwrap().iter().any(|f| f["name"] == "posts");
-    assert!(user_has_posts);
-
-    // Post has author field referencing User
-    let post_has_author =
-        post_type["fields"].as_array().unwrap().iter().any(|f| f["name"] == "author");
-    assert!(post_has_author);
-}
-
-#[test]
-fn test_compilation_audit_missing_primary_keys() {
-    let schema = json!({
-        "types": [
-            {
-                "name": "User",
-                "fields": [
-                    {"name": "id", "type": "ID"},  // Missing isPrimaryKey
-                    {"name": "name", "type": "String"}
-                ]
-            }
-        ]
-    });
-
-    let id_field = &schema["types"][0]["fields"][0];
-    assert!(!id_field.get("isPrimaryKey").and_then(|v| v.as_bool()).unwrap_or(false));
-}
-
-// ============================================================================
-// Overall Design Audit Endpoint Tests
-// ============================================================================
-
-#[test]
-fn test_design_audit_request_creation() {
-    let req = DesignAuditRequest {
-        schema: minimal_schema(),
-    };
-    assert!(req.schema.get("types").is_some());
-}
-
-#[test]
-fn test_design_audit_response_has_all_categories() {
-    // Response should include all 5 category scores
-    let categories = vec![
+#[tokio::test]
+async fn a_schema_every_analyzer_passes_scores_100_everywhere() {
+    let data = audit("/audit", clean_schema()).await;
+    assert_eq!(data["overall_score"], 100, "{data}");
+    assert_eq!(data["severity_counts"], json!({"critical": 0, "warning": 0, "info": 0}));
+    for category in [
         "federation",
         "cost",
         "cache",
         "authorization",
         "compilation",
-    ];
-    for category in categories {
-        assert!(!category.is_empty(), "expected a non-empty category");
+    ] {
+        assert_eq!(data[category]["score"], 100, "{category}: {data}");
+        assert!(issues(&data[category]).is_empty(), "{category}: {data}");
     }
 }
 
-#[test]
-fn test_design_audit_score_range() {
-    // Scores should be 0-100
-    let test_scores = vec![0u8, 50, 100];
-    for score in test_scores {
-        assert!(score <= 100, "Score {} should be <= 100", score);
+#[tokio::test]
+async fn an_entity_owned_by_three_subgraphs_is_reported_once_per_owner() {
+    let data = audit("/federation", entity_in_subgraphs("User", 3)).await;
+    let found = issues(&data);
+    assert_eq!(found.len(), 3, "{data}");
+    for issue in found {
+        assert_eq!(issue["severity"], "warning", "{issue}");
+        assert_eq!(issue["affected"], "User", "{issue}");
+        assert!(!issue["suggestion"].as_str().unwrap().is_empty(), "{issue}");
     }
+    assert!(found[0]["message"].as_str().unwrap().contains("3 subgraphs"), "{data}");
+    assert_eq!(data["score"], 70, "three issues at 10 points each: {data}");
 }
 
-#[test]
-fn test_design_audit_severity_counts() {
-    use fraiseql_server::routes::api::design::SeverityCountResponse;
-
-    let counts = SeverityCountResponse {
-        critical: 1,
-        warning:  3,
-        info:     5,
-    };
-
-    assert_eq!(counts.critical, 1);
-    assert_eq!(counts.warning, 3);
-    assert_eq!(counts.info, 5);
+#[tokio::test]
+async fn an_entity_owned_by_two_subgraphs_is_not_reported() {
+    let data = audit("/federation", entity_in_subgraphs("User", 2)).await;
+    assert!(issues(&data).is_empty(), "{data}");
+    assert_eq!(data["score"], 100, "{data}");
 }
 
-#[test]
-fn test_design_audit_issue_has_suggestion() {
-    let issue = DesignIssueResponse {
-        severity:   "warning".to_string(),
-        message:    "Some issue".to_string(),
-        suggestion: "Fix by doing X".to_string(),
-        affected:   None,
-    };
-
-    // Every issue must have a suggestion
-    assert!(!issue.suggestion.is_empty(), "expected a non-empty suggestion");
+#[tokio::test]
+async fn a_type_without_a_primary_key_is_reported_by_name() {
+    let data = audit("/compilation", unkeyed_types(1)).await;
+    let found = issues(&data);
+    assert_eq!(found.len(), 1, "{data}");
+    assert_eq!(found[0]["severity"], "warning", "{data}");
+    assert_eq!(found[0]["affected"], "T0", "{data}");
+    assert_eq!(data["score"], 90, "{data}");
 }
 
-// ============================================================================
-// Error Handling Tests
-// ============================================================================
-
-#[test]
-fn test_design_audit_request_with_empty_schema() {
-    let req = DesignAuditRequest { schema: json!({}) };
-    // Empty schema should still be processable
-    assert!(req.schema.is_object());
+#[tokio::test]
+async fn a_type_marking_its_primary_key_is_not_reported() {
+    let schema = json!({"types": [
+        {"name": "T0", "fields": [{"name": "id", "type": "ID", "isPrimaryKey": true}]}
+    ]});
+    let data = audit("/compilation", schema).await;
+    assert!(issues(&data).is_empty(), "{data}");
 }
 
-#[test]
-fn test_design_audit_request_with_null_fields() {
-    let req = DesignAuditRequest {
-        schema: json!({"types": null}),
-    };
-    // Request with null fields should be deserializable
-    assert!(req.schema.get("types").is_some());
+#[tokio::test]
+async fn a_mutation_requiring_no_authentication_is_reported_by_field() {
+    let data = audit("/auth", unauthenticated_mutations(1)).await;
+    let found = issues(&data);
+    assert_eq!(found.len(), 1, "{data}");
+    assert_eq!(found[0]["severity"], "warning", "{data}");
+    assert_eq!(found[0]["affected"], "m0", "{data}");
+    assert_eq!(data["score"], 88, "{data}");
 }
 
-#[test]
-fn test_design_issue_required_fields() {
-    let issue = DesignIssueResponse {
-        severity:   "critical".to_string(),
-        message:    "Test issue".to_string(),
-        suggestion: "Fix this".to_string(),
-        affected:   None,
-    };
-
-    // Verify all required fields are present
-    assert!(!issue.severity.is_empty(), "expected a non-empty severity");
-    assert!(!issue.message.is_empty(), "expected a non-empty message");
-    assert!(!issue.suggestion.is_empty(), "expected a non-empty suggestion");
+#[tokio::test]
+async fn a_mutation_requiring_authentication_is_not_reported() {
+    let schema = json!({"types": [{"name": "Mutation", "fields": [
+        {"name": "m0", "type": "Boolean", "requires_auth": true}
+    ]}]});
+    let data = audit("/auth", schema).await;
+    assert!(issues(&data).is_empty(), "{data}");
 }
 
-// ============================================================================
-// Response Content Tests
-// ============================================================================
-
-#[test]
-fn test_federation_issue_content() {
-    let issue = DesignIssueResponse {
-        severity:   "critical".to_string(),
-        message:    "User entity spread across 3 subgraphs prevents efficient JSONB batching"
-            .to_string(),
-        suggestion: "Move User to primary subgraph, use references elsewhere".to_string(),
-        affected:   Some("User".to_string()),
-    };
-
-    // Verify issue has all required fields
-    assert!(["critical", "warning", "info"].contains(&issue.severity.as_str()));
-    assert!(!issue.message.is_empty(), "expected a non-empty message");
-    assert!(!issue.suggestion.is_empty(), "expected a non-empty suggestion");
+#[tokio::test]
+async fn a_list_without_a_default_limit_is_a_cost_warning() {
+    let data = audit("/cost", unbounded_lists(1)).await;
+    let found = issues(&data);
+    assert_eq!(found.len(), 1, "{data}");
+    assert_eq!(found[0]["severity"], "warning", "{data}");
+    assert!(found[0]["message"].as_str().unwrap().contains("l0"), "{data}");
+    assert_eq!(data["score"], 92, "{data}");
 }
 
-#[test]
-fn test_cost_warning_content() {
-    let issue = DesignIssueResponse {
-        severity:   "warning".to_string(),
-        message:    "Nested lists create O(n²) compiled JSONB cardinality".to_string(),
-        suggestion: "Add pagination limits or reduce nesting depth".to_string(),
-        affected:   Some("complexity: 1500".to_string()),
-    };
-
-    assert!(issue.message.contains("cardinality") || issue.message.contains("complexity"));
-    assert!(!issue.suggestion.is_empty(), "expected a non-empty suggestion");
+#[tokio::test]
+async fn a_list_with_a_default_limit_is_not_a_cost_warning() {
+    let schema = json!({"types": [{"name": "Query", "fields": [
+        {"name": "l0", "type": "[ID]", "default_limit": 10}
+    ]}]});
+    let data = audit("/cost", schema).await;
+    assert!(issues(&data).is_empty(), "{data}");
 }
 
-#[test]
-fn test_issue_suggestion_is_specific() {
-    let good_suggestion = "Move User to primary subgraph, use references elsewhere".to_string();
-    let bad_suggestion = "Fix this issue".to_string();
-
-    // Good suggestions have specific guidance
-    assert!(good_suggestion.len() > bad_suggestion.len());
-    assert!(good_suggestion.contains("primary subgraph") || good_suggestion.contains("references"));
+#[tokio::test]
+async fn an_expensive_field_without_a_cache_directive_is_reported() {
+    let data = audit("/cache", uncached_expensive_fields(1)).await;
+    let found = issues(&data);
+    assert_eq!(found.len(), 1, "{data}");
+    assert_eq!(found[0]["severity"], "info", "{data}");
+    assert!(found[0]["message"].as_str().unwrap().contains("Query.e0"), "{data}");
+    assert_eq!(data["score"], 94, "{data}");
 }
 
-// ============================================================================
-// Schema Complexity Tests
-// ============================================================================
-
-#[test]
-fn test_minimal_schema_audit() {
-    let schema = minimal_schema();
-    assert!(schema.get("types").is_some());
-    let types = schema["types"].as_array().unwrap();
-    assert!(!types.is_empty(), "expected types, found none");
+#[tokio::test]
+async fn an_expensive_field_with_a_cache_directive_is_not_reported() {
+    let schema = json!({"types": [{"name": "Query", "fields": [
+        {"name": "e0", "type": "ID", "is_expensive": true, "has_cache_directive": true}
+    ]}]});
+    let data = audit("/cache", schema).await;
+    assert!(issues(&data).is_empty(), "{data}");
 }
 
-#[test]
-fn test_complex_schema_audit() {
-    let schema = over_federated_schema();
-    assert!(schema.get("subgraphs").is_some());
-    assert!(schema.get("types").is_some());
-}
-
-#[test]
-fn test_score_improves_with_fixes() {
-    // Create a schema with issues
-    let problematic = over_federated_schema();
-
-    // Create a schema without those issues
-    let improved = json!({
-        "subgraphs": [
-            {
-                "name": "users",
-                "entities": ["User"]
-            }
-        ],
-        "types": [
-            {
-                "name": "User",
-                "fields": [{"name": "id", "type": "ID", "isPrimaryKey": true}]
-            }
-        ]
-    });
-
-    // Both should be valid schemas
-    assert!(problematic.get("types").is_some());
-    assert!(improved.get("types").is_some());
-
-    // Improved should have fewer entities across subgraphs
-    let prob_subgraph_count = problematic["subgraphs"].as_array().unwrap().len();
-    let imp_subgraph_count = improved["subgraphs"].as_array().unwrap().len();
-    assert!(imp_subgraph_count <= prob_subgraph_count);
-}
-
-// ============================================================================
-// Schema Validation Tests
-// ============================================================================
-
-#[test]
-fn test_schema_with_all_required_fields() {
+#[tokio::test]
+async fn the_overall_audit_agrees_with_each_category_endpoint() {
     let schema = json!({
+        "subgraphs": entity_in_subgraphs("User", 3)["subgraphs"],
         "types": [
-            {
-                "name": "User",
-                "fields": [
-                    {"name": "id", "type": "ID", "isPrimaryKey": true},
-                    {"name": "name", "type": "String"}
-                ]
-            }
+            {"name": "Order", "fields": [
+                {"name": "id", "type": "ID"},
+                {"name": "lines", "type": "[ID]"},
+                {"name": "total", "type": "ID", "is_expensive": true}
+            ]},
+            {"name": "Mutation", "fields": [{"name": "cancel", "type": "Boolean"}]}
         ]
     });
-
-    let user_type = &schema["types"][0];
-    assert_eq!(user_type["name"], "User");
-    assert!(user_type["fields"].as_array().is_some());
+    let overall = audit("/audit", schema.clone()).await;
+    for (category, path) in [
+        ("federation", "/federation"),
+        ("cost", "/cost"),
+        ("cache", "/cache"),
+        ("authorization", "/auth"),
+        ("compilation", "/compilation"),
+    ] {
+        let alone = audit(path, schema.clone()).await;
+        assert_eq!(overall[category], alone, "{category}");
+        assert!(!issues(&alone).is_empty(), "{category} reports nothing: {alone}");
+    }
 }
 
-#[test]
-fn test_schema_federation_structure() {
-    let schema = over_federated_schema();
+#[tokio::test]
+async fn the_overall_score_and_counts_weigh_each_issue_by_severity() {
+    // Three federation warnings (15 each), one cost warning (8), one cache info (1),
+    // one authorization warning (12) and one compilation warning (5).
+    let schema = json!({
+        "subgraphs": entity_in_subgraphs("User", 3)["subgraphs"],
+        "types": [
+            {"name": "Order", "fields": [
+                {"name": "id", "type": "ID"},
+                {"name": "lines", "type": "[ID]"},
+                {"name": "total", "type": "ID", "is_expensive": true}
+            ]},
+            {"name": "Mutation", "fields": [{"name": "cancel", "type": "Boolean"}]}
+        ]
+    });
+    let data = audit("/audit", schema).await;
+    assert_eq!(
+        data["severity_counts"],
+        json!({"critical": 0, "warning": 6, "info": 1}),
+        "{data}"
+    );
+    assert_eq!(data["overall_score"], 100 - 45 - 8 - 1 - 12 - 5, "{data}");
+}
 
-    // Verify federation structure
-    if let Some(subgraphs) = schema["subgraphs"].as_array() {
-        for subgraph in subgraphs {
-            assert!(subgraph.get("name").is_some());
-            assert!(subgraph.get("entities").is_some());
-        }
+#[tokio::test]
+async fn a_category_with_more_issues_than_its_score_holds_scores_zero() {
+    // 12 issues at 10 points, 13 at 8, 17 at 6, 9 at 12: each deducts more than 100.
+    let cases = [
+        ("/federation", "federation", entity_in_subgraphs("User", 12)),
+        ("/cost", "cost", unbounded_lists(13)),
+        ("/cache", "cache", uncached_expensive_fields(17)),
+        ("/auth", "authorization", unauthenticated_mutations(9)),
+        ("/compilation", "compilation", unkeyed_types(11)),
+    ];
+    for (path, category, schema) in cases {
+        let alone = audit(path, schema.clone()).await;
+        assert_eq!(alone["score"], 0, "{path}: {} issues", issues(&alone).len());
+        let overall = audit("/audit", schema).await;
+        assert_eq!(overall[category]["score"], 0, "/audit {category}");
     }
 }

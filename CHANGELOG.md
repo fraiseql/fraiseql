@@ -2396,6 +2396,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A design audit category with more issues than its score holds scores 0, not 100
+  (#2662).** Each category of `POST /api/v1/design/*` scores 100 less a fixed penalty per
+  issue (10 federation, 8 cost, 6 cache, 12 authorization, 10 compilation). Past 100 points
+  the subtraction wrapped: a release build then reported a perfect 100 for the category
+  with the most issues, and a debug build failed the request. The score now stops at 0.
+
 - **A refused `env_var` read names only the allowlist that grants that guest a variable
   (#2690).** Functions and source connectors have separate allowlists, but both refusals
   read "grant it via FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS or [sources] allowed_env_vars",
