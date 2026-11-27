@@ -287,28 +287,6 @@ proptest! {
         }
     }
 
-    /// Property: Empty AND produces TRUE, empty OR produces FALSE.
-    #[test]
-    fn prop_postgres_empty_logic_identity(
-        use_and in any::<bool>(),
-    ) {
-        let gen = PostgresWhereGenerator::new(PostgresDialect);
-        let clause = if use_and {
-            WhereClause::And(vec![])
-        } else {
-            WhereClause::Or(vec![])
-        };
-
-        let (sql, params) = gen.generate(&clause).unwrap();
-        prop_assert!(params.is_empty());
-
-        if use_and {
-            prop_assert_eq!(sql, "TRUE");
-        } else {
-            prop_assert_eq!(sql, "FALSE");
-        }
-    }
-
     /// Property: NOT wraps inner clause in NOT (...).
     #[test]
     fn prop_postgres_not_wraps_inner(inner in arb_leaf_clause()) {

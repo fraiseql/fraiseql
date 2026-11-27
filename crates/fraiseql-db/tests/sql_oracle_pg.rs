@@ -314,8 +314,8 @@ const FAMILIES: &[Family] = &[
     },
 ];
 
-/// Every leaf: each family's fields × its operators × its values, plus null tests and
-/// `in` / `nin` over one and over two of the family's values.
+/// Every leaf: each family's fields × its operators × its values, plus null tests,
+/// `in` / `nin` over none, one and two of the family's values, and the empty `and` / `or`.
 fn leaves() -> Vec<WhereClause> {
     let mut out = Vec::new();
     for family in FAMILIES {
@@ -351,6 +351,9 @@ fn leaves() -> Vec<WhereClause> {
             }
         }
     }
+    // The empty connectives: `and: []` is true and `or: []` false on every row.
+    out.push(WhereClause::And(Vec::new()));
+    out.push(WhereClause::Or(Vec::new()));
     out
 }
 
