@@ -189,7 +189,10 @@ pub static REGISTRY: &[Registration] = &[
         threat: ThreatModel {
             assets:  &["the database, through the queries a module runs", "the host's filesystem and network, outside a module's grant"],
             crosses: &["a caller's input into a module", "a module's code into the server process"],
-            refuses: &[],
+            refuses: &[Refusal {
+                input:   "a module reading an environment variable no allowlist grants",
+                fixture: "functions_refuses_an_ungranted_variable",
+            }],
         },
     },
     register! {
@@ -205,7 +208,10 @@ pub static REGISTRY: &[Registration] = &[
         threat: ThreatModel {
             assets:  &["the tables a pull writes", "the source cursor"],
             crosses: &["an upstream service's response into the database"],
-            refuses: &[],
+            refuses: &[Refusal {
+                input:   "a source reading a variable granted to functions only",
+                fixture: "sources_refuses_a_variable_granted_to_functions_only",
+            }],
         },
     },
     register! {
@@ -360,7 +366,10 @@ pub static REGISTRY: &[Registration] = &[
         threat: ThreatModel {
             assets:  &["the tables a routed message writes", "the mailbox credentials"],
             crosses: &["a mail sender's message, read over IMAP, into the database"],
-            refuses: &[],
+            refuses: &[Refusal {
+                input:   "a mailbox server whose certificate no trusted root signs",
+                fixture: "inbound_email_refuses_an_untrusted_server_certificate",
+            }],
         },
     },
     register! {

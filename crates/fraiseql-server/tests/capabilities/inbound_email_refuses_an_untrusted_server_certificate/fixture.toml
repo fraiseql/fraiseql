@@ -1,0 +1,18 @@
+# A mailbox server whose certificate no trusted root signs is refused at the TLS handshake,
+# before the login is sent: a message delivered to it is never ingested.
+capability = "inbound_email"
+role = "hostile"
+deadline_secs = 8
+
+[env]
+SUPPORT_IMAP_PASSWORD = "fixture"
+
+[[stimulus]]
+smtp = { from = "sender@example.test", to = "fixture@example.test", subject = "capability fixture $RUN_ID" }
+
+[effect]
+none = { of = { row = { query = "SELECT source FROM _fraiseql_inbound_message WHERE payload->>'subject' = 'capability fixture $RUN_ID'", expect = [
+  [
+    "email:support",
+  ],
+] } } }

@@ -1,0 +1,5 @@
+cors_enabled = false
+
+[auth]
+issuer = "$RECEIVER_URL"
+audience = "fraiseql"

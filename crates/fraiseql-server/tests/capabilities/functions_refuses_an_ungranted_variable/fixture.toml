@@ -1,0 +1,19 @@
+# A function reading an environment variable no allowlist grants it is refused: the
+# value never reaches the receipt its module writes.
+capability = "functions"
+role = "hostile"
+deadline_secs = 8
+
+[env]
+FRAISEQL_FUNCTIONS_MODULE_DIR = "$FIXTURE/modules"
+CAPABILITY_FIXTURE_UNGRANTED = "not-for-modules"
+
+[[stimulus]]
+http = { method = "POST", path = "/graphql", body = '{"query":"mutation { createOrder(label: \"A-1\") { id } }"}', auth = { oidc = { sub = "agent-1", aud = "fraiseql" } } }
+
+[effect]
+none = { of = { row = { query = "SELECT order_label FROM app.tb_receipt", expect = [
+  [
+    "not-for-modules",
+  ],
+] } } }

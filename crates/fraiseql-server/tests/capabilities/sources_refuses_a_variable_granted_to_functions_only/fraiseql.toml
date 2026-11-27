@@ -1,0 +1,6 @@
+[project]
+name = "capability-sources"
+
+# Served over MCP stdio too.
+[mcp]
+enabled = true

@@ -1,0 +1,20 @@
+# A source reading a variable granted to after-mutation functions only is refused: the
+# two allowlists are separate, so the page that needs the value is never recorded.
+capability = "sources"
+role = "hostile"
+deadline_secs = 150
+
+[env]
+FRAISEQL_FUNCTIONS_MODULE_DIR = "$FIXTURE/modules"
+FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS = "CAPABILITY_FIXTURE_FUNCTIONS_ONLY"
+CAPABILITY_FIXTURE_FUNCTIONS_ONLY = "granted-to-functions"
+
+[[stimulus]]
+wait = { secs = 0 }
+
+[effect]
+none = { of = { row = { query = "SELECT page::text FROM app.tb_pulled WHERE page = 1", expect = [
+  [
+    "1",
+  ],
+] } } }

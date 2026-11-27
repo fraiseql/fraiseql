@@ -10,13 +10,7 @@ use super::{REGISTRY, Refusal, ThreatModel};
 /// Registrations with no hostile fixture yet, each with the issue that tracks it.
 /// Shrink-only: the gate fails when one of these gains a refusal or a hostile fixture, so
 /// the entry goes with it.
-const NO_HOSTILE_FIXTURE_YET: &[(&str, &str)] = &[
-    ("functions", "#1845"),
-    ("sources", "#1845"),
-    ("grpc", "#1845"),
-    ("federation", "#1845"),
-    ("inbound_email", "#1845"),
-];
+const NO_HOSTILE_FIXTURE_YET: &[(&str, &str)] = &[("grpc", "#2689"), ("federation", "#2689")];
 
 /// What the gate reads of one fixture's `fixture.toml`.
 #[derive(Debug)]

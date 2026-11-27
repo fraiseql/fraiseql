@@ -119,3 +119,4 @@
 #2619  tools: check-suite-coverage.py counts a suite gated on a feature its crate does not define as run by no leg, `--all-features` included; CI tooling only, no shipped artifact changes
 #2649  tools: leg_lines_test.sh plants each malformed line inside `Test`, the function the reader reads, not at the first match in main.go, and a decoy case keeps a line above `Test` from absorbing the plant; CI tooling only, no shipped artifact changes
 #2688  CI: the feature matrix clippies fraiseql-server with functions-runtime alone, and the send-email wiring it found unlinted is compiled only with inbound-email, the one feature it serves; no shipped behaviour changes
+#1845  tests and gates: every capability registration names what it guards and an input it refuses, each shown by a hostile fixture under the capability suite; the threat model is crate-private and no shipped behaviour or output changes
