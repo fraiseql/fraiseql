@@ -23,7 +23,7 @@ use fraiseql_arrow::QueryExecutor;
 use fraiseql_core::security::SecurityContext;
 use http::HeaderMap;
 
-use crate::routes::graphql::{app_state::AppState, tenant_dispatch};
+use crate::routes::graphql::{app_state::AppState, handler::stages, tenant_dispatch};
 
 /// A [`QueryExecutor`] that enforces the transport-independent policy before it
 /// executes anything.
@@ -49,7 +49,8 @@ impl QueryExecutor for PolicyGatedExecutor {
     /// # Errors
     ///
     /// Returns the refusal as a `String` — the Flight protocol's error channel — for
-    /// a document the trusted-document store forbids, a tenant that cannot be
+    /// a document the trusted-document store forbids, one the introspection policy
+    /// or a structural limit refuses (with `/graphql`'s message), a tenant that cannot be
     /// resolved, one that is suspended or unregistered, an exhausted quota, or an
     /// over-budget request. Only a request that passes all of them is executed.
     async fn execute_with_security(
@@ -84,6 +85,22 @@ impl QueryExecutor for PolicyGatedExecutor {
                 )),
             })?;
         }
+
+        // 1b. The introspection policy and the structural limits, asked through the functions
+        //     `/graphql` asks, so a document one transport refuses the other refuses with the
+        //     same message. Flight has no peer address here, so the per-peer budget for repeated
+        //     failures, which is HTTP's, does not apply.
+        if let Some(detail) =
+            stages::introspection_refusal(&self.state, query, Some(security_context))
+        {
+            return Err(fraiseql_core::error::FraiseQLError::Authorization {
+                message:  detail,
+                resource: None,
+                action:   None,
+            });
+        }
+        stages::document_refusal(&self.state, query, variables, None)
+            .map_err(|refusal| fraiseql_core::error::FraiseQLError::validation(refusal.message))?;
 
         // 2. Tenant resolution, through the seam MCP and HTTP use (#858). Flight has no HTTP
         //    headers at this point, so resolution rests on the session's `SecurityContext` alone;

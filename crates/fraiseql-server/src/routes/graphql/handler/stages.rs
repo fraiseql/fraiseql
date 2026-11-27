@@ -190,10 +190,11 @@ async fn resolve_document(
 
 /// Apply the introspection policy (#453) to the resolved query.
 ///
-/// This is the single choke point every path — POST, GET, APQ, trusted documents
-/// — funnels through, so `{ __schema }` / `{ __type }` (single-root, aliased, or
-/// multi-root) cannot be served when the policy forbids it. `__typename` and
-/// normal queries are never blocked.
+/// This is the single choke point every `/graphql` path — POST, GET, APQ, trusted
+/// documents — funnels through, so `{ __schema }` / `{ __type }` (single-root,
+/// aliased, or multi-root) cannot be served when the policy forbids it. `__typename`
+/// and normal queries are never blocked. The decision is [`introspection_refusal`],
+/// which every other transport that accepts a document asks too.
 ///
 /// # Errors
 ///
@@ -203,16 +204,30 @@ pub(super) fn enforce_introspection_policy(
     query: &str,
     security_context: Option<&SecurityContext>,
 ) -> Result<(), ErrorResponse> {
+    match introspection_refusal(state, query, security_context) {
+        Some(detail) => {
+            Err(ErrorResponse::from_error(GraphQLError::introspection_disabled(detail)))
+        },
+        None => Ok(()),
+    }
+}
+
+/// Why the introspection policy refuses `query`, in the words every transport sends,
+/// or `None` when it is allowed.
+pub fn introspection_refusal(
+    state: &AppState,
+    query: &str,
+    security_context: Option<&SecurityContext>,
+) -> Option<String> {
     let enforcer = IntrospectionEnforcer::new(state.introspection_policy);
     let user_id = security_context.map(|ctx| ctx.user_id.as_str());
     if let Err(err) = enforcer.validate_query(query, user_id) {
         debug!(policy = %state.introspection_policy, "Introspection query rejected by policy");
         state.metrics.queries_error.fetch_add(1, Ordering::Relaxed);
-        let detail = match err {
+        return Some(match err {
             SecurityError::IntrospectionDisabled { detail } => detail,
             other => other.to_string(),
-        };
-        return Err(ErrorResponse::from_error(GraphQLError::introspection_disabled(detail)));
+        });
     }
     // The service SDL is not introspection, so it is served whatever the policy is: a
     // gateway composes it from a subgraph whose introspection is off. It answers its own
@@ -223,23 +238,18 @@ pub(super) fn enforce_introspection_policy(
     {
         debug!("Service SDL query rejected: authentication required");
         state.metrics.queries_error.fetch_add(1, Ordering::Relaxed);
-        return Err(ErrorResponse::from_error(GraphQLError::introspection_disabled(
-            "The federation service SDL requires authentication",
-        )));
+        return Some("The federation service SDL requires authentication".to_string());
     }
-    Ok(())
+    None
 }
 
 /// Enforce the structural limits: query depth, complexity, alias count, and the
 /// variables payload.
 ///
-/// The document is parsed exactly once here so the validator can walk the AST
-/// without re-parsing — and only when the validator might use it, since a no-op
-/// validator would make the parse pure waste (the executor parses what it needs
-/// through its own cache; see F001 in `docs/history/IMPROVEMENTS.md`).
-///
-/// Repeated validation failures from one peer are rate-limited: a client probing
-/// for the depth ceiling is cheap to answer and expensive to parse for.
+/// The decision is [`document_refusal`], which every other transport that accepts a
+/// document asks too. What stays here is HTTP's: repeated validation failures from
+/// one peer are rate-limited, since a client hunting for the depth ceiling is cheap
+/// to answer and expensive to parse for.
 ///
 /// # Errors
 ///
@@ -251,6 +261,36 @@ pub(super) fn validate_request(
     request: &GraphQLRequest,
     peer_ip: &str,
 ) -> Result<(), ErrorResponse> {
+    match document_refusal(
+        state,
+        query,
+        request.variables.as_ref(),
+        request.operation_name.as_deref(),
+    ) {
+        Ok(()) => Ok(()),
+        Err(refusal) => {
+            check_validation_error_budget(state, peer_ip)?;
+            Err(ErrorResponse::from_error(*refusal))
+        },
+    }
+}
+
+/// Check `query` and its `variables` against the structural limits: depth,
+/// complexity, alias count, and the variables payload.
+///
+/// The document is parsed only when the validator might use it, since a no-op
+/// validator would make the parse pure waste (the executor parses what it needs
+/// through its own cache; see F001 in `docs/history/IMPROVEMENTS.md`).
+///
+/// # Errors
+///
+/// Returns the refusal every transport sends, with the counters already charged.
+pub fn document_refusal(
+    state: &AppState,
+    query: &str,
+    variables: Option<&serde_json::Value>,
+    operation_name: Option<&str>,
+) -> Result<(), Box<GraphQLError>> {
     let validator = &state.validator;
     let metrics = &state.metrics;
 
@@ -258,21 +298,16 @@ pub(super) fn validate_request(
         Ok(())
     } else {
         match parse_graphql_document(query) {
-            Ok(doc) => validator.validate_query_doc(&doc, request.variables.as_ref()),
+            Ok(doc) => validator.validate_query_doc(&doc, variables),
             Err(e) => Err(e),
         }
     };
     if let Err(e) = validation_outcome {
-        error!(
-            error = %e,
-            operation_name = ?request.operation_name,
-            "Query validation failed"
-        );
+        error!(error = %e, operation_name = ?operation_name, "Query validation failed");
         metrics.queries_error.fetch_add(1, Ordering::Relaxed);
         metrics.validation_errors_total.fetch_add(1, Ordering::Relaxed);
-        check_validation_error_budget(state, peer_ip)?;
 
-        let graphql_error = match e {
+        return Err(Box::new(match e {
             crate::validation::ComplexityValidationError::QueryTooDeep {
                 max_depth,
                 actual_depth,
@@ -300,21 +335,14 @@ pub(super) fn validate_request(
             )),
             // Reason: non_exhaustive requires catch-all for cross-crate matches
             _ => GraphQLError::validation("Validation error"),
-        };
-        return Err(ErrorResponse::from_error(graphql_error));
+        }));
     }
 
-    if let Err(e) = validator.validate_variables(request.variables.as_ref()) {
-        error!(
-            error = %e,
-            operation_name = ?request.operation_name,
-            "Variables validation failed"
-        );
+    if let Err(e) = validator.validate_variables(variables) {
+        error!(error = %e, operation_name = ?operation_name, "Variables validation failed");
         metrics.queries_error.fetch_add(1, Ordering::Relaxed);
         metrics.validation_errors_total.fetch_add(1, Ordering::Relaxed);
-        check_validation_error_budget(state, peer_ip)?;
-
-        return Err(ErrorResponse::from_error(GraphQLError::request(e.to_string())));
+        return Err(Box::new(GraphQLError::request(e.to_string())));
     }
 
     Ok(())

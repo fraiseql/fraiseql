@@ -18,6 +18,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Arrow Flight's GraphQL action refuses what `/graphql` refuses.** It now asks the
+  introspection policy and the service SDL switch, and the request limits: depth,
+  complexity, alias count and a variables payload that is not an object. A document
+  over a limit is a validation error and an introspection selection the policy
+  disables an authorization error, each with `/graphql`'s message, and each counted as
+  `/graphql` counts it. Before, Flight ran such a document and answered introspection
+  under a policy that disables it.
+
 - **A value at an interface position is answered as the member its stored `__typename`
   names.** Inline fragments on the members select their fields, where they answered
   `{}`; `__typename` is the member, not the interface; an object below one of its
